@@ -1,8 +1,6 @@
-// ─── Canvas & Context ──────────────────────────────────────────────────────────
 const canvas = document.getElementById('display');
 const ctx    = canvas.getContext('2d');
 
-// ─── Pitch Constants (metres) ──────────────────────────────────────────────────
 const PITCH_W = 68;
 const PITCH_H = 52.5;
 
@@ -13,7 +11,6 @@ const GOAL_RIGHT = (PITCH_W + 7.32) / 2;
 const GOAL_LEFT_N  = GOAL_LEFT  / PITCH_W;
 const GOAL_RIGHT_N = GOAL_RIGHT / PITCH_W;
 
-// ─── State ─────────────────────────────────────────────────────────────────────
 let players = { red: [], blue: [] };
 let shooter, keeper, defenderA, defenderB;
 
@@ -29,7 +26,6 @@ let lastCanvasW = 0;
 let lastCanvasH = 0;
 
 
-// ─── Init ──────────────────────────────────────────────────────────────────────
 function init() {
     players.red.push(new Player(new Vector(0.5,  0.08), true,  true));
     players.red.push(new Player(new Vector(0.35, 0.35), false, true));
@@ -64,7 +60,6 @@ function init() {
 }
 
 
-// ─── Main Loop ─────────────────────────────────────────────────────────────────
 function loop() {
     maybeResize();
     handleInputs();
@@ -74,7 +69,6 @@ function loop() {
 }
 
 
-// ─── Resize & Layout ───────────────────────────────────────────────────────────
 function maybeResize() {
     const cw = canvas.offsetWidth;
     const ch = canvas.offsetHeight;
@@ -113,7 +107,6 @@ function maybeResize() {
 }
 
 
-// ─── Coordinate Transforms ─────────────────────────────────────────────────────
 function toScreen(pos) {
     if (layout === 'landscape') {
         return new Vector(
@@ -140,13 +133,11 @@ function toWorld(screen) {
     );
 }
 
-// Convert pitch metres → screen position
 function m(mx, my) {
     return toScreen(new Vector(mx / PITCH_W, my / PITCH_H));
 }
 
 
-// ─── Input Handling ────────────────────────────────────────────────────────────
 function handleInputs() {
     if (mouse.down && !justPressed) {
         justPressed = true;
@@ -176,7 +167,6 @@ function handleInputs() {
 }
 
 
-// ─── Metrics ───────────────────────────────────────────────────────────────────
 function shooterMetres() {
     return {
         x: shooter.position.x * PITCH_W,
@@ -249,7 +239,6 @@ function calcKeeperAngleCoverage() {
 }
 
 
-// ─── Sliders ───────────────────────────────────────────────────────────────────
 function initSliders() {
     updateSliders();
 
@@ -269,7 +258,6 @@ function initSliders() {
         refreshOtherSliders(['distance_to_goal']);
     });
 
-    // Angle is read-only (derived from position)
     const angleEl = document.getElementById('angle_to_goal');
     angleEl.style.pointerEvents = 'none';
     angleEl.style.opacity       = '0.4';
@@ -311,7 +299,6 @@ function initSliders() {
         refreshOtherSliders(['keeper_distance_to_goal']);
     });
 
-    // Keeper angle coverage is read-only (derived from position)
     const kacEl = document.getElementById('keeper_angle_coverage');
     kacEl.style.pointerEvents = 'none';
     kacEl.style.opacity       = '0.4';
@@ -352,7 +339,6 @@ function setDisplay(displayId, value, suffix, decimals = 1) {
 }
 
 
-// ─── Drawing ───────────────────────────────────────────────────────────────────
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawPitch();
@@ -364,11 +350,9 @@ function draw() {
 function drawPitch() {
     const { x, y, w, h } = pitchRect;
 
-    // Base green
     ctx.fillStyle = '#2a7a36';
     ctx.fillRect(x, y, w, h);
 
-    // Alternating stripe overlay
     for (let i = 0; i < 9; i++) {
         if (i % 2 !== 0) continue;
         const p0 = toScreen(new Vector(0, i / 9));
@@ -377,23 +361,18 @@ function drawPitch() {
         ctx.fillRect(p0.x, p0.y, p1.x - p0.x, p1.y - p0.y);
     }
 
-    // Pitch outline
     ctx.strokeStyle = 'rgba(255,255,255,0.75)';
     ctx.lineWidth   = 1.5;
     ctx.strokeRect(x, y, w, h);
 
-    // Goal line
     line(toScreen(new Vector(0, 1)), toScreen(new Vector(1, 1)));
 
-    // Penalty area
     const paL = (PITCH_W - 40.32) / 2;
     rect(m(paL, 0), m(paL + 40.32, 16.5));
 
-    // Six-yard box
     const sbL = (PITCH_W - 18.32) / 2;
     rect(m(sbL, 0), m(sbL + 18.32, 5.5));
 
-    // Penalty spot
     const spot = m(PITCH_W / 2, 11);
     ctx.beginPath();
     ctx.arc(spot.x, spot.y, 2.5, 0, Math.PI * 2);
@@ -459,7 +438,6 @@ function drawLineOfSight() {
     const postL    = toScreen(new Vector(GOAL_LEFT_N,  0));
     const postR    = toScreen(new Vector(GOAL_RIGHT_N, 0));
 
-    // Shooting cone
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(shooterS.x, shooterS.y);
@@ -474,7 +452,6 @@ function drawLineOfSight() {
     ctx.stroke();
     ctx.restore();
 
-    // Keeper shadow on goal line
     const keeperS = toScreen(keeper.position);
     const keeperR = 10;
     const dx   = keeperS.x - shooterS.x;
@@ -500,7 +477,6 @@ function drawLineOfSight() {
             if (shadowR > shadowL) {
                 ctx.save();
 
-                // Shadow cone
                 ctx.beginPath();
                 ctx.moveTo(shooterS.x, shooterS.y);
                 ctx.lineTo(hitL.x, goalLineY);
@@ -509,7 +485,6 @@ function drawLineOfSight() {
                 ctx.fillStyle = 'rgba(255, 80, 80, 0.13)';
                 ctx.fill();
 
-                // Blocked goal segment
                 ctx.beginPath();
                 ctx.moveTo(shadowL, goalLineY);
                 ctx.lineTo(shadowR, goalLineY);
@@ -533,7 +508,7 @@ function rayToY(origin, dir, targetY) {
 
 function drawPlayer(player) {
     const pos = toScreen(player.position);
-    const r   = 10 + (player.isDragging ? 4 : 0);
+    const r = 10 + (player.isDragging ? 4 : 0);
 
     ctx.fillStyle = player.red ? '#e05252' : '#4a9de0';
     ctx.beginPath();
@@ -549,5 +524,4 @@ function drawPlayer(player) {
 }
 
 
-// ─── Start ─────────────────────────────────────────────────────────────────────
 init();
