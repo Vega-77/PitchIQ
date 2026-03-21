@@ -250,7 +250,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 /* ─── xG Output ────────────────────────────────────────────────────────────── */
 #xg-output {
-    padding: 16px 20px;
+    padding: 32px 36px;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     display: flex;
     align-items: center;
@@ -261,18 +261,18 @@ input[type="range"]::-webkit-slider-thumb:hover {
 #xg-meta {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 2px;
 }
 
 #xg-label {
-    font-size: 11px;
+    font-size: 19px;
     font-weight: 500;
     color: #44445a;
     letter-spacing: 0.3px;
 }
 
 #xg-sublabel {
-    font-size: 10px;
+    font-size: 16px;
     font-weight: 600;
     color: #303048;
     text-transform: uppercase;
@@ -280,7 +280,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 #xg-value {
-    font-size: 28px;
+    font-size: 72px;
     font-weight: 700;
     color: #6ba3e8;
     font-variant-numeric: tabular-nums;
