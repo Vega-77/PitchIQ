@@ -4,8 +4,124 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PitchIQ</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <canvas id="display"></canvas>
+    <div id="controls">
+        <div id="controls-header">
+            <div id="logo">PitchIQ</div>
+            <p>Drag players or adjust sliders to model xG</p>
+        </div>
+        <div id="controls-body">
+
+            <div class="section-label">Shot</div>
+
+            <div class="slider-row">
+                <div class="slider-label-row">
+                    <span class="slider-name">Distance</span>
+                    <span class="slider-value" id="val-distance">20 m</span>
+                </div>
+                <input type="range" id="distance_to_goal" min="1" max="40" step="0.5" value="20">
+            </div>
+
+            <div class="slider-row">
+                <div class="slider-label-row">
+                    <span class="slider-name">Angle</span>
+                    <span class="slider-value" id="val-angle">45°</span>
+                </div>
+                <input type="range" id="angle_to_goal" min="0.1" max="90" step="0.1" value="45">
+            </div>
+
+            <div class="section-label">Situation</div>
+
+            <div class="toggle-grid">
+                <label class="toggle-row">
+                    <span class="toggle-name">Foot shot</span>
+                    <span class="toggle-switch">
+                        <input type="checkbox" id="is_foot" checked>
+                        <span class="toggle-track"></span>
+                        <span class="toggle-thumb"></span>
+                    </span>
+                </label>
+                <label class="toggle-row">
+                    <span class="toggle-name">Under pressure</span>
+                    <span class="toggle-switch">
+                        <input type="checkbox" id="under_pressure">
+                        <span class="toggle-track"></span>
+                        <span class="toggle-thumb"></span>
+                    </span>
+                </label>
+                <label class="toggle-row">
+                    <span class="toggle-name">Penalty</span>
+                    <span class="toggle-switch">
+                        <input type="checkbox" id="is_penalty">
+                        <span class="toggle-track"></span>
+                        <span class="toggle-thumb"></span>
+                    </span>
+                </label>
+                <label class="toggle-row">
+                    <span class="toggle-name">Free kick</span>
+                    <span class="toggle-switch">
+                        <input type="checkbox" id="is_freekick">
+                        <span class="toggle-track"></span>
+                        <span class="toggle-thumb"></span>
+                    </span>
+                </label>
+            </div>
+
+            <div class="section-label">Defender</div>
+
+            <div class="slider-row">
+                <div class="slider-label-row">
+                    <span class="slider-name">Distance to shooter</span>
+                    <span class="slider-value" id="val-def-dist">3 m</span>
+                </div>
+                <input type="range" id="nearest_defender_distance" min="0" max="10" step="0.5" value="3">
+            </div>
+
+            <div class="slider-row">
+                <div class="slider-label-row">
+                    <span class="slider-name">Distance to goal line</span>
+                    <span class="slider-value" id="val-def-goal">5 m</span>
+                </div>
+                <input type="range" id="defender_distance_to_goal_line" min="0" max="20" step="0.5" value="5">
+            </div>
+
+            <div class="section-label">Goalkeeper</div>
+
+            <div class="slider-row">
+                <div class="slider-label-row">
+                    <span class="slider-name">Distance from goal</span>
+                    <span class="slider-value" id="val-keeper-dist">2 m</span>
+                </div>
+                <input type="range" id="keeper_distance_to_goal" min="0" max="16" step="0.5" value="2">
+            </div>
+
+            <div class="slider-row">
+                <div class="slider-label-row">
+                    <span class="slider-name">Angle coverage</span>
+                    <span class="slider-value" id="val-keeper-angle">40%</span>
+                </div>
+                <input type="range" id="keeper_angle_coverage" min="0" max="100" step="1" value="40">
+            </div>
+
+        </div>
+        <div id="controls-footer">
+            <button id="btn-los" class="footer-btn">Show line of sight</button>
+        </div>
+        <div id="xg-output">
+            <div id="xg-meta">
+                <span id="xg-label">Expected Goals</span>
+                <span id="xg-sublabel">xG</span>
+            </div>
+            <span id="xg-value">—</span>
+        </div>
+    </div>
+    <script src="classes.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
