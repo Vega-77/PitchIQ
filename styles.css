@@ -1,4 +1,3 @@
-/* ─── Reset ────────────────────────────────────────────────────────────────── */
 *, *::before, *::after {
     box-sizing: border-box;
 }
@@ -10,7 +9,6 @@ html, body {
 }
 
 
-/* ─── Layout ───────────────────────────────────────────────────────────────── */
 body {
     display: flex;
     flex-direction: row;
@@ -30,7 +28,6 @@ body.portrait {
 }
 
 
-/* ─── Controls Panel ───────────────────────────────────────────────────────── */
 #controls {
     width: 280px;
     flex-shrink: 0;
@@ -79,7 +76,6 @@ body.portrait {
 }
 
 
-/* ─── Section Labels ───────────────────────────────────────────────────────── */
 .section-label {
     font-size: 10px;
     font-weight: 600;
@@ -94,7 +90,6 @@ body.portrait {
 }
 
 
-/* ─── Sliders ──────────────────────────────────────────────────────────────── */
 .slider-row {
     display: flex;
     flex-direction: column;
@@ -149,7 +144,6 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 
-/* ─── Toggles ──────────────────────────────────────────────────────────────── */
 .toggle-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -221,7 +215,6 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 
-/* ─── Footer Button ────────────────────────────────────────────────────────── */
 .footer-btn {
     width: 100%;
     padding: 9px 0;
@@ -250,7 +243,6 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 
-/* ─── xG Output ────────────────────────────────────────────────────────────── */
 #xg-output {
     padding: 32px 36px;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -290,7 +282,6 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 
-/* ─── Portrait (Mobile) ────────────────────────────────────────────────────── */
 body.portrait #controls {
     width: 100%;
     height: 38%;

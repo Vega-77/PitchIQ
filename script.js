@@ -32,7 +32,7 @@ function init() {
     players.red.push(new Player(new Vector(0.35, 0.35), false, true));
     players.red.push(new Player(new Vector(0.65, 0.35), false, true));
 
-    players.blue.push(new Player(new Vector(0.5, 0.45), true,  false));
+    players.blue.push(new Player(new Vector(0.5, 0.45), false,  false));
     players.blue.push(new Player(new Vector(0.3, 0.6),  false, false));
     players.blue.push(new Player(new Vector(0.7, 0.6),  false, false));
 
@@ -55,6 +55,14 @@ function init() {
         showLineOfSight = !showLineOfSight;
         losBtn.textContent = showLineOfSight ? 'Hide line of sight' : 'Show line of sight';
         losBtn.classList.toggle('active', showLineOfSight);
+    });
+
+    const switchBtn = document.getElementById('btn-switch-shooter');
+    switchBtn.addEventListener('click', () => {
+        const team = shooter.red ? players.red : players.blue;
+        const currentIndex = team.indexOf(shooter);
+        shooter = team[(currentIndex + 1) % team.length];
+        updateSliders();
     });
 
     initSliders();
@@ -518,7 +526,7 @@ function drawPlayer(player) {
     ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
     ctx.fill();
 
-    if (player.goalkeeper) {
+    if (player.goalkeeper || player === shooter) {
         ctx.fillStyle = '#f0c040';
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
@@ -526,7 +534,7 @@ function drawPlayer(player) {
     }
 }
 
-async function find_xg(){
+async function find_xg() {
     if (!window._xgSession) {
         try {
             window._xgSession = await ort.InferenceSession.create('./xg_model.onnx');
@@ -536,29 +544,90 @@ async function find_xg(){
         }
     }
 
+    // --- Properly scaled features ---
+    const distanceToGoalM   = calcDistanceToGoal(); // meters
+    const angleToGoalRad    = calcAngleToGoal() * (Math.PI / 180); // radians
+    const nearestDefDistM   = (() => {
+        const s = shooter.position;
+        const dxA = (defenderA.position.x - s.x) * PITCH_W;
+        const dyA = (defenderA.position.y - s.y) * PITCH_H;
+        const dA = Math.sqrt(dxA*dxA + dyA*dyA);
+        const dxB = (defenderB.position.x - s.x) * PITCH_W;
+        const dyB = (defenderB.position.y - s.y) * PITCH_H;
+        const dB = Math.sqrt(dxB*dxB + dyB*dyB);
+        return Math.min(dA, dB);
+    })();
+    const defDistToGoalM    = nearestDefender().position.y * PITCH_H;
+    const keeperDistToGoalM = calcKeeperDistToGoal();
+    const keeperAngleCover  = calcKeeperAngleCoverage() / 100; // normalize to 0-1
+
+    // Build feature vector
     const features = new Float32Array([
-        calcDistanceToGoal(),
-        calcAngleToGoal() * (Math.PI / 180),
+        distanceToGoalM,
+        angleToGoalRad,
         document.getElementById('is_foot').checked        ? 1 : 0,
         document.getElementById('under_pressure').checked ? 1 : 0,
         document.getElementById('is_penalty').checked     ? 1 : 0,
         document.getElementById('is_freekick').checked    ? 1 : 0,
-        calcNearestDefenderDist(),
-        calcDefenderDistToGoalLine(),
-        calcKeeperDistToGoal(),
-        calcKeeperAngleCoverage() / 100 * Math.PI,
+        nearestDefDistM,
+        defDistToGoalM,
+        keeperDistToGoalM,
+        keeperAngleCover
     ]);
 
-    const tensor  = new ort.Tensor('float32', features, [1, 10]);
-    const results = await window._xgSession.run({ float_input: tensor });
+    const tensor = new ort.Tensor('float32', features, [1, 10]);
 
-    console.log('Output keys:', Object.keys(results));
+    try {
+        const results = await window._xgSession.run({ float_input: tensor });
 
-    // const xg      = results.probabilities.data[1];
+        let xg = null;
 
-    // document.getElementById('xg-value').textContent = xg.toFixed(3);
+        // --- Try ZipMap output ---
+        if (results.probabilities) {
+            const prob = results.probabilities;
+            if (prob instanceof Map) {
+                xg = prob.get(1) ?? prob.get(1n);
+            } else if (prob.data) {
+                const data = prob.data;
+                if (data instanceof BigInt64Array || data instanceof BigUint64Array) {
+                    xg = Number(data[1] ?? data[0]);
+                } else {
+                    xg = data[1] ?? data[0];
+                }
+            } else if (typeof prob === "object") {
+                xg = prob[1] ?? prob["1"];
+            }
+        }
 
+        // --- Fallback to first output tensor ---
+        if (xg === null) {
+            const outputName = window._xgSession.outputNames[0];
+            const output = results[outputName];
+            if (output?.data) {
+                const data = output.data;
+                if (data instanceof BigInt64Array || data instanceof BigUint64Array) {
+                    xg = Number(data[1] ?? data[0]);
+                } else {
+                    xg = data[1] ?? data[0];
+                }
+            }
+        }
+
+        // --- Safety conversion ---
+        if (typeof xg === "bigint") xg = Number(xg);
+        if (xg && typeof xg === "object" && "value" in xg) xg = Number(xg.value);
+        if (xg === null || xg === undefined || !Number.isFinite(Number(xg))) {
+            console.error("Could not extract xG value", results);
+            return;
+        }
+
+        // --- Display ---
+        xg = Number(xg);
+        document.getElementById('xg-value').textContent = xg.toFixed(3);
+
+    } catch (err) {
+        console.error("Inference failed:", err);
+    }
 }
-
 
 init();
