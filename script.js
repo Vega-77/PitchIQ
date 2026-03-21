@@ -1,27 +1,27 @@
 const canvas = document.getElementById('display');
-const ctx    = canvas.getContext('2d');
+const ctx = canvas.getContext('2d');
 
 const PITCH_W = 68;
 const PITCH_H = 52.5;
 
-const GOAL_CX    = PITCH_W / 2;
-const GOAL_LEFT  = (PITCH_W - 7.32) / 2;
+const GOAL_CX = PITCH_W / 2;
+const GOAL_LEFT = (PITCH_W - 7.32) / 2;
 const GOAL_RIGHT = (PITCH_W + 7.32) / 2;
 
-const GOAL_LEFT_N  = GOAL_LEFT  / PITCH_W;
+const GOAL_LEFT_N  = GOAL_LEFT / PITCH_W;
 const GOAL_RIGHT_N = GOAL_RIGHT / PITCH_W;
 
 let players = { red: [], blue: [] };
 let shooter, keeper, defenderA, defenderB;
 
-let mouse       = { x: 0, y: 0, down: false };
-let dragging    = null;
+let mouse = { x: 0, y: 0, down: false };
+let dragging = null;
 let justPressed = false;
 
 let showLineOfSight = false;
 
-let layout      = 'landscape';
-let pitchRect   = { x: 0, y: 0, w: 0, h: 0 };
+let layout = 'landscape';
+let pitchRect = { x: 0, y: 0, w: 0, h: 0 };
 let lastCanvasW = 0;
 let lastCanvasH = 0;
 
@@ -35,18 +35,19 @@ function init() {
     players.blue.push(new Player(new Vector(0.3, 0.6),  false, false));
     players.blue.push(new Player(new Vector(0.7, 0.6),  false, false));
 
-    keeper    = players.red[0];
+    keeper = players.red[0];
     defenderA = players.red[1];
     defenderB = players.red[2];
-    shooter   = players.blue[0];
+    shooter = players.blue[0];
 
     canvas.addEventListener('mousemove', e => {
         const r = canvas.getBoundingClientRect();
         mouse.x = e.clientX - r.left;
         mouse.y = e.clientY - r.top;
     });
-    canvas.addEventListener('mousedown', () => { mouse.down = true;  });
-    canvas.addEventListener('mouseup',   () => { mouse.down = false; });
+
+    canvas.addEventListener('mousedown', () => { mouse.down = true; });
+    canvas.addEventListener('mouseup', () => { mouse.down = false; });
 
     const losBtn = document.getElementById('btn-los');
     losBtn.addEventListener('click', () => {
@@ -82,10 +83,10 @@ function maybeResize() {
 
     canvas.width  = cw;
     canvas.height = ch;
-    lastCanvasW   = cw;
-    lastCanvasH   = ch;
+    lastCanvasW = cw;
+    lastCanvasH = ch;
 
-    const margin      = 24;
+    const margin = 24;
     const pitchAspect = PITCH_W / PITCH_H;
     const canvasAspect = cw / ch;
 
@@ -116,7 +117,7 @@ function toScreen(pos) {
     }
     return new Vector(
         pitchRect.x + (1 - pos.y) * pitchRect.w,
-        pitchRect.y + pos.x       * pitchRect.h,
+        pitchRect.y + pos.x * pitchRect.h,
     );
 }
 
@@ -160,7 +161,7 @@ function handleInputs() {
     }
 
     if (dragging) {
-        dragging.position   = toWorld(mouse);
+        dragging.position = toWorld(mouse);
         dragging.position.x = Math.max(0, Math.min(1, dragging.position.x));
         dragging.position.y = Math.max(0, Math.min(1, dragging.position.y));
     }
@@ -175,16 +176,16 @@ function shooterMetres() {
 }
 
 function calcDistanceToGoal() {
-    const s  = shooterMetres();
+    const s = shooterMetres();
     const dx = s.x - GOAL_CX;
     return Math.sqrt(dx * dx + s.y * s.y);
 }
 
 function calcAngleToGoal() {
-    const s  = shooterMetres();
-    const lx = GOAL_LEFT  - s.x, ly = -s.y;
+    const s = shooterMetres();
+    const lx = GOAL_LEFT - s.x, ly = -s.y;
     const rx = GOAL_RIGHT - s.x, ry = -s.y;
-    const dot  = lx * rx + ly * ry;
+    const dot = lx * rx + ly * ry;
     const magL = Math.sqrt(lx * lx + ly * ly);
     const magR = Math.sqrt(rx * rx + ry * ry);
     if (magL < 0.01 || magR < 0.01) return 0;
@@ -192,14 +193,14 @@ function calcAngleToGoal() {
 }
 
 function calcNearestDefenderDist() {
-    const s  = shooter.position;
+    const s = shooter.position;
     const dA = Vector.dist(s, defenderA.position) * PITCH_H;
     const dB = Vector.dist(s, defenderB.position) * PITCH_H;
     return Math.min(dA, dB);
 }
 
 function nearestDefender() {
-    const s  = shooter.position;
+    const s = shooter.position;
     const dA = Vector.dist(s, defenderA.position);
     const dB = Vector.dist(s, defenderB.position);
     return dA <= dB ? defenderA : defenderB;
@@ -216,14 +217,14 @@ function calcKeeperDistToGoal() {
 }
 
 function calcKeeperAngleCoverage() {
-    const s  = shooterMetres();
+    const s = shooterMetres();
     const kx = keeper.position.x * PITCH_W;
     const ky = keeper.position.y * PITCH_H;
     const keeperBodyM = 1.0;
 
     if (ky >= s.y) return 0;
 
-    const edges     = [kx - keeperBodyM, kx + keeperBodyM];
+    const edges = [kx - keeperBodyM, kx + keeperBodyM];
     const projected = edges.map(ex => {
         const dx = ex - s.x;
         const dy = ky  - s.y;
@@ -265,11 +266,11 @@ function initSliders() {
     document.getElementById('nearest_defender_distance').addEventListener('input', function () {
         setDisplay('val-def-dist', this.value, ' m');
         const targetDistM  = parseFloat(this.value);
-        const def          = nearestDefender();
-        const sx           = shooter.position.x * PITCH_W;
-        const sy           = shooter.position.y * PITCH_H;
-        const dxM          = def.position.x * PITCH_W - sx;
-        const dyM          = def.position.y * PITCH_H - sy;
+        const def = nearestDefender();
+        const sx = shooter.position.x * PITCH_W;
+        const sy = shooter.position.y * PITCH_H;
+        const dxM = def.position.x * PITCH_W - sx;
+        const dyM = def.position.y * PITCH_H - sy;
         const currentDistM = Math.sqrt(dxM * dxM + dyM * dyM);
         if (currentDistM > 0.01) {
             const scale = targetDistM / currentDistM;
@@ -288,8 +289,8 @@ function initSliders() {
     document.getElementById('keeper_distance_to_goal').addEventListener('input', function () {
         setDisplay('val-keeper-dist', this.value, ' m');
         const targetDist  = parseFloat(this.value);
-        const kx          = keeper.position.x * PITCH_W - GOAL_CX;
-        const ky          = keeper.position.y * PITCH_H;
+        const kx = keeper.position.x * PITCH_W - GOAL_CX;
+        const ky = keeper.position.y * PITCH_H;
         const currentDist = Math.sqrt(kx * kx + ky * ky);
         if (currentDist > 0.01) {
             const scale = targetDist / currentDist;
@@ -301,7 +302,7 @@ function initSliders() {
 
     const kacEl = document.getElementById('keeper_angle_coverage');
     kacEl.style.pointerEvents = 'none';
-    kacEl.style.opacity       = '0.4';
+    kacEl.style.opacity = '0.4';
 }
 
 function updateSliders() {
