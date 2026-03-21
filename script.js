@@ -1,3 +1,4 @@
+
 const canvas = document.getElementById('display');
 const ctx = canvas.getContext('2d');
 
@@ -65,6 +66,7 @@ function loop() {
     maybeResize();
     handleInputs();
     if (dragging) updateSliders();
+    find_xg();
     draw();
     requestAnimationFrame(loop);
 }
@@ -522,6 +524,40 @@ function drawPlayer(player) {
         ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
         ctx.fill();
     }
+}
+
+async function find_xg(){
+    if (!window._xgSession) {
+        try {
+            window._xgSession = await ort.InferenceSession.create('./xg_model.onnx');
+        } catch (e) {
+            console.error('Failed to load model:', e);
+            return;
+        }
+    }
+
+    const features = new Float32Array([
+        calcDistanceToGoal(),
+        calcAngleToGoal() * (Math.PI / 180),
+        document.getElementById('is_foot').checked        ? 1 : 0,
+        document.getElementById('under_pressure').checked ? 1 : 0,
+        document.getElementById('is_penalty').checked     ? 1 : 0,
+        document.getElementById('is_freekick').checked    ? 1 : 0,
+        calcNearestDefenderDist(),
+        calcDefenderDistToGoalLine(),
+        calcKeeperDistToGoal(),
+        calcKeeperAngleCoverage() / 100 * Math.PI,
+    ]);
+
+    const tensor  = new ort.Tensor('float32', features, [1, 10]);
+    const results = await window._xgSession.run({ float_input: tensor });
+
+    console.log('Output keys:', Object.keys(results));
+
+    // const xg      = results.probabilities.data[1];
+
+    // document.getElementById('xg-value').textContent = xg.toFixed(3);
+
 }
 
 
