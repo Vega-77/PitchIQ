@@ -1,0 +1,390 @@
+# PitchIQ — Camera-Only Stats Roadmap
+
+Goal: go from "type in shot geometry manually" to "point a camera at a high school
+match and get player/team stats out the other end." Primary use case: give the coach
+things at halftime they genuinely can't see with their own eyes (fatigue, shape,
+cumulative xG, dangerous turnover zones). Secondary use case: after the game, players
+log in to see their own report, and the coach gets a fuller tactical debrief.
+
+Three scope tiers, after a hard look at what a month with two people actually buys:
+- **[Demo]** — realistic for the actual 1-month test with the old team. Deliberately narrow.
+- **[MVP]** — the real product baseline once the demo proves the concept; probably 2-3 more months.
+- **[Stretch]** — long-term, not urgent.
+
+Read the Feasibility Reality Check below before treating anything tagged **[MVP]** as
+a month-1 commitment — a lot of it isn't, on purpose.
+
+**Design decision: human-in-the-loop, not full autonomy.** There are two points where a
+human is intentionally in the loop instead of asking the CV to be perfect:
+- **Live, during the game** — a sideline tablet captures substitutions and event types
+  as they happen (Phase 3).
+- **After the game** — a reviewer confirms/corrects everything against the recorded
+  video (Phase 11).
+
+Both are cheaper and more reliable than teaching the CV to classify fouls or read
+jersey numbers robustly in month 1.
+
+---
+
+## Feasibility Reality Check
+
+Two people, part-time around everything else going on — realistically ~100-200
+focused hours over a month, not the 300+ it'd take to build everything below at full
+[MVP] quality. Specific calls worth making now rather than discovering in week 3:
+
+- **Ball detection is the single biggest technical risk in the whole project.**
+  Small, fast, constantly occluded — this is a problem pro tracking vendors have spent
+  real engineering-years on. Before committing to the rest of the plan, spend a few
+  days on an isolated spike: pull real footage (even from a phone at a practice), run
+  an off-the-shelf detector on it, and see how bad it actually is. If ball detection
+  can't hit usable accuracy, several downstream features (possession, passes, shots,
+  the xG bridge) don't work at all — better to know that in week 1 than week 3.
+- **True live/real-time halftime processing is a hard systems constraint, not just a
+  CV one.** The pipeline has to process 45 minutes of footage in less than the ~10-15
+  minutes of an actual break — average per-frame processing has to run faster than
+  real time. Plausible on a laptop with a discrete GPU running a lightweight detector,
+  but it's a real hardware/throughput requirement, not a given. For month 1: decouple
+  "prove the halftime concept" from "hit the literal wall clock at the real game." A
+  halftime report that lands a few minutes into the second half instead of at the
+  exact whistle is still a very compelling demo. Save true real-time performance as an
+  **[MVP]** hardening step once the concept is proven.
+- **Don't train or fine-tune anything from scratch in month 1.** Use off-the-shelf
+  pretrained models (a pretrained person detector, an existing tracking library like
+  ByteTrack) as-is. Fine-tuning needs labeled soccer-specific data you don't have yet
+  — and conveniently, the Phase 11 review tool produces exactly that data as a side
+  effect of normal use, so fine-tuning becomes much cheaper *after* the demo.
+- **A single fixed camera on a full-size 11v11 pitch is a real resolution/coverage
+  problem.** A full pitch runs roughly 100-110m long; a camera at pitch level won't
+  see far-side players or the ball at usable resolution. This needs genuine elevation
+  (press box, scaffold, drone — a drone adds battery-life and airspace-rule
+  considerations) or accepting degraded accuracy far from the camera. Decide this
+  before CV work starts — it changes what "detection accuracy" even means.
+- **The existing xG model was trained on clean, human-verified StatsBomb data.**
+  CV-derived positions from a single camera + homography will be noisier — more
+  jitter, occasional missed frames, homography projection error. The model's
+  calibration may degrade on inputs noisier than what it was trained on. Validate this
+  explicitly (see Testing Strategy and Phase 12) rather than assuming it just works
+  once features are wired up. If it doesn't, retraining `main.py` with realistic noise
+  added to the training features is a contained fix.
+
+None of this is a reason to cut ambition — it's why **[Demo]** below is deliberately
+narrower than **[MVP]**, on purpose, not as a shortfall.
+
+---
+
+## Delivery Modes
+
+Two very different outputs come out of the same pipeline — keep them distinct, because
+they have opposite constraints:
+
+| | **Halftime Report** | **Post-Game Report** |
+|---|---|---|
+| Data | First half only | Full match |
+| Human input | Live tagging only (Phase 3 tablet: subs + event types) — no post-hoc review | Live tagging (Phase 3) **plus** a full reviewer pass (Phase 11) |
+| Time budget | Ready within the ~10-15 min break | No real time pressure — can run overnight |
+| Accuracy bar | Directionally useful | High fidelity |
+| Audience | Coach only | Coach (tactical) + individual players (portal) |
+
+Architectural consequences:
+- **Phase 1** needs to process first-half footage incrementally during play (or the
+  instant the half ends) for the **[MVP]** version — "upload the whole match
+  afterward" doesn't work for a true halftime deadline. For the **[Demo]**, it's fine
+  to relax this (see Reality Check).
+- **Phase 3**'s tablet taps need to be timestamp-aligned with the video/CV pipeline, so
+  a live "corner" tap lands on the correct moment in both reports.
+- The halftime report is **not** "automated CV only" — it's CV metrics (positions,
+  speed, distance) combined with live human-tagged events and subs. The post-game
+  report adds a third layer: the reviewer pass.
+
+---
+
+## Testing, Validation & Debugging Strategy
+
+Applies across every phase below — how we know each piece actually works, not just
+"the final number looked plausible":
+
+1. **Ground-truth clips first.** Hand-label a handful of short clips (exact player
+   positions per frame, exact event timestamps/types) before trusting any full game.
+   Rerun the pipeline against these fixed clips after every change and diff the output
+   — this is your regression suite.
+2. **Metrics per stage, not just the final stat.** If a final number looks wrong, you
+   need to trace *which stage* broke it:
+   - Detection → mAP against labeled boxes
+   - Tracking → identity-switch rate / IDF1 (does a track ID stay on the same real person)
+   - Calibration → reprojection error in metres on known pitch landmarks
+   - Events → precision/recall per event type against the ground-truth clips
+3. **Feature-parity test (specific to this codebase).** `main.py`'s `parse()` and
+   `script.js`'s live feature calc must produce identical 12-feature vectors for the
+   same synthetic scenario. Write a small harness that feeds known synthetic
+   player/ball positions through both and diffs the output — this is pure, already-written
+   math, so it's the cheapest first automated test to write, before any CV exists at all.
+4. **Confidence scores travel with every detection/track/event.** The Phase 11 review
+   tool sorts by lowest confidence first, so a human's limited review time goes to what's
+   likely wrong instead of skimming everything uniformly.
+5. **Reconciliation check between live tags and CV candidates.** Log the agreement rate
+   between what the Phase 3 tablet recorded (e.g. "corner") and what the CV pipeline
+   independently inferred (ball crossed the goal line). A rising disagreement rate over
+   several games is an early warning that either the CV or the live-tagging process has
+   a problem — treat it as a standing metric, not a one-time check.
+6. **Validate model behavior on noisy inputs, not just clean ones.** Feed the existing
+   xG model synthetic features with realistic CV-derived noise (jitter, occasional
+   gaps) added, not just the clean values `main.py` was trained on — a fast way to find
+   out if calibration degrades before relying on it live.
+7. **Staged rollout.** Don't move on to team identification until detection+tracking
+   hit an acceptable bar on the ground-truth clips. Don't trust the halftime path until
+   several full games' worth of it have been checked against the fuller post-game
+   version and found close.
+8. **Staged/synthetic footage before full games.** Film simple clips with a known
+   answer first — two people passing a ball a measured distance apart, one shot from a
+   marked spot — before testing on messy 18-player game footage.
+
+---
+
+## Stats & Insights Catalog
+
+Concrete answer to "what do we actually show people" — the thing Phase 13 computes and
+Phases 14/15 display. *All of this assumes ball detection works well enough to be
+useful (see Reality Check). If it doesn't, several of these degrade gracefully to
+player-only stats — distance, sprints, positioning are safe; possession, passes,
+shots, and xG are what's at risk.*
+
+**Coach — Halftime** *(CV metrics + live-tagged events/subs, first half, must be skimmable in under a minute)*
+- Possession % overall and by pitch third
+- Shot map with live xG per shot, cumulative xG for/against
+- Distance covered per player, flagged against their typical range — who's already tiring
+- Team shape: average width/depth/compactness and how it drifted over the half
+- Sprint count and top speed per player (intensity/fatigue signal)
+- Dangerous turnover locations (giveaways in your own defensive third)
+- Actual corner/foul/throw-in counts from the live tags (no CV guessing needed)
+- Plain-language flags over raw tables: *"RB has covered 20% less ground than LB,"*
+  *"team compactness dropped in the last 15 minutes"*
+
+**Coach — Post-Game Tactical** *(reviewer-confirmed data, full match)*
+- Everything from halftime, full-match and half-by-half comparison
+- Passing network: who combines with whom, completion rate by pair/zone
+- Phase-of-play breakdown: buildup vs. progression vs. final-third entry success
+- Defensive line height and pressing intensity trend
+- Set-piece outcomes (corner delivery zones, aerial duels won)
+- Substitution impact: team stats in the window before vs. after each sub (exact sub timing comes straight from Phase 3's live log)
+- Individual positional discipline: heatmap vs. assigned role
+
+**Player — Individual Post-Game Report**
+- Distance covered, sprint count, top speed (with season-average context once history exists)
+- Touches, passes attempted/completed, pass accuracy
+- Shots, xG generated, goals
+- Personal heatmap
+- Short list of their confirmed events with a video-timestamp link, so they can watch their own moments
+- Correct minutes-played window, since Phase 3's sub log defines exactly when each player was on the field
+
+---
+
+## Application Structure — Pages & Surfaces
+
+One web application, not separate native apps — six role-based surfaces:
+
+1. **Public demo** (exists today) — the manual xG sandbox at the site root, unchanged.
+2. **Live Match-Day Input Tool** *(Phase 3)* — used pitchside during the game.
+   - Match setup: pick/create the match, confirm starting lineups, run the kickoff sync marker
+   - Live tagging: one-tap event buttons, period-boundary buttons, an always-visible undo, a substitution sub-screen
+   - Optional: a scrollable log of taps so far, for double-checking
+3. **Post-Game Review & Annotation Tool** *(Phase 11)* — used after the game by whoever reviews footage.
+   - Match picker
+   - Main review screen: video player + synced timeline (live tags + CV candidates), confirm/edit/delete/add controls
+   - Player-identification panel: track thumbnail crops → assign roster names, merge split tracks
+   - Finalize action that locks in reviewed data and kicks off stats computation
+4. **Coach Halftime View** *(Phase 15)* — one skimmable screen, phone/tablet, no deep navigation: possession, shot map/xG, fatigue flags, shape drift, turnover zones, live event counts.
+5. **Coach Post-Game Tactical Dashboard** *(Phase 15)* — match overview, passing network/phase-of-play, player list → drill into an individual, substitution impact — likely viewed on a laptop.
+6. **Player Portal** *(Phase 14)* — name-select/PIN, personal match report: stats, heatmap, clickable highlights.
+
+**Recommendation: a single responsive Progressive Web App (PWA), not native iOS/Android
+apps.** A PWA installs to a home screen and — critically — supports offline entry,
+which the live tablet tool needs anyway (Phase 3). Native apps would mean a third
+and/or fourth language/toolchain (Swift, Kotlin, or a cross-platform framework) for a
+2-person team in a month — not justified yet. Revisit native only if this becomes an
+ongoing product needing deeper camera/background integration than a browser gives.
+
+---
+
+## Tech Stack
+
+Reuse what's already proven in this repo rather than introducing new stacks for their
+own sake:
+
+- **CV / detection / tracking / calibration: Python.** This is where the ecosystem
+  actually lives — OpenCV for frame handling and homography math, Ultralytics YOLO (or
+  similar) for detection, an existing tracker (ByteTrack, or the `supervision` library,
+  which conveniently wraps detection+tracking+annotation) rather than a custom tracker.
+- **Backend / API: Python (FastAPI).** Sits next to the CV code with no cross-language
+  bridge needed to run the pipeline and serve results.
+- **Database: SQLite for local demo development, Postgres if/when it needs to run
+  somewhere shared.** Both are boring, well-understood choices — no need for a
+  specialized time-series database at the data volume estimated in Phase 2.
+- **Model interchange: ONNX**, exactly like the existing `xg_model6.onnx` — train in
+  Python, run inference in the browser via `onnxruntime-web`, already proven in this
+  codebase. Any future detector could follow the same pattern if in-browser inference
+  is ever wanted, though server-side Python inference is simpler for month 1.
+- **Frontend (all the surfaces above): JavaScript, matching `script.js`/`classes.js`
+  today.** Stay vanilla for the simpler surfaces (halftime view, player portal). The
+  Review & Annotation Tool is the one surface complex enough (synced video, timeline,
+  forms, thumbnail crops) that a lightweight component framework could save real time
+  — pick one (e.g. Svelte or React) and use it only there, rather than introducing a
+  build toolchain across the whole site.
+- **Frontend↔backend: a plain REST/JSON API.** The live tablet's real-time feel can
+  start as simple polling and move to WebSockets only if polling actually feels
+  laggy in practice — don't build the harder version first.
+
+---
+
+## 1. Video / Camera Input
+- [ ] **[Demo]** Single fixed camera, elevated if at all possible (press box, scaffold, tall tripod) — full-pitch coverage from ground level is a real resolution risk, see Reality Check
+- [ ] **[Demo]** Record to a file and process afterward for the first working pipeline; treat true incremental/live processing as later hardening
+- [ ] **[MVP]** Process first-half footage incrementally during play so the halftime report can be ready close to the actual break
+- [ ] Frame sampling strategy — every frame, or subsample (e.g. 10-15 fps) to cut compute cost
+- [ ] Lens distortion correction if using a wide-angle/action camera
+- [ ] **[Demo]** Ingestion layer accepts any decodable video file (mp4, phone recording, RTSP stream) — the format itself isn't the hard constraint, calibration is
+- [ ] **[Stretch]** Support moving/auto-tracking camera footage (e.g. Hudl/Veo-style ball-following cameras) — requires continuous homography re-estimation (pitch-line detection or frame-to-frame motion tracking) instead of one-time calibration; sports-broadcast camera-calibration research exists to lean on rather than invent from scratch
+- [ ] A ball-following camera, by design, often doesn't keep off-ball players or the far side of the pitch in frame — team shape and full-squad distance covered may be structurally unavailable from that footage regardless of CV quality. If the platform offers a raw wide-angle/panoramic export instead of just the auto-cropped highlight view, that sidesteps the problem entirely since the underlying sensor is static — worth checking per platform
+- [ ] **[Stretch]** Multi-camera stitching, drone or pan/tilt/zoom coverage
+
+## 2. Data Storage & Backend
+Moved up front — Phase 3's tablet needs somewhere to write to before anything else can happen.
+- [ ] **[Demo]** Stand up a minimal backend early — a single local server + SQLite/Postgres is enough
+- [ ] **[Demo]** Run it locally, on a laptop sharing WiFi/hotspot with the tablet at the field — sidesteps whether the school field has reliable internet, which you don't need to solve yet
+- [ ] Schema for players, teams, matches, tracking frames, events, live-tagged events, substitutions — include a `source` field (live-tagged / CV-automatic / reviewer-confirmed) so you always know how trustworthy a data point is
+- [ ] Storage volume isn't a concern for tracking data itself: even at 10fps with 23 tracked objects, a full match is roughly 10-40MB of positions — trivial for any database, including a full season. **Video is the actual heavy cost** (a 90-minute 1080p match is several GB) — decide a retention policy: keep full match video only through the post-game review window, then retain long-term just the short clips tied to confirmed events, not every full match forever
+- [ ] **[MVP]** Real auth/accounts (Phase 14) and a cloud-hosted option, once coaches/players need access without being near the field laptop
+- [ ] API layer connecting the tablet, processed match data, and the frontend/portal — including the tablet's offline-sync writes
+
+## 3. Live Match-Day Input Tool
+A tablet used pitchside during the game by an assistant coach and/or a dedicated data
+collector — runs *concurrently* with play, distinct from the Phase 11 tool that runs
+*after* it.
+- [ ] **[Demo]** Tablet-friendly UI: large touch targets, minimal menu depth, usable one-handed while watching the game
+- [ ] **[Demo]** Substitution entry: player X off / player Y on, per team, at the current live timestamp, starting from the pre-game roster/lineup
+- [ ] **[Demo]** One-tap event buttons: out of bounds, corner, throw-in, goal kick, free kick, foul, card, goal, offside — auto-timestamped on tap
+- [ ] **[Demo]** Period-boundary buttons: kickoff (1st half), halftime, kickoff (2nd half), full-time — these mark exactly when to cut off processing for the halftime report and when to flip which goal each team is attacking (Phase 4)
+- [ ] **[Demo]** "Undo last" control — mis-taps will happen; correction needs to be one tap, not a form
+- [ ] **[Demo]** Timestamp sync: simplest reliable method for month 1 is a manual marker — a visible action (a clap, a flag) at kickoff that's both on camera and tapped on the tablet at the same moment, giving one clock offset for the whole match instead of needing continuous device clock sync
+- [ ] **[MVP]** Offline-first entry with sync-when-available — matters once you're past a single-laptop-on-site setup
+- [ ] Decide role split: one app covering both subs + events, or two simpler single-purpose roles/devices — worth testing both at the demo dry run
+- [ ] Basic weatherproofing for an outdoor tablet (case, screen usable with sun glare)
+- [ ] Live-tagged data feeds directly into the halftime report and pre-populates the Phase 11 review tool as a head start
+
+## 4. Field Calibration (pixel space → pitch metres)
+- [ ] **[Demo]** Manual calibration: click 4+ known pitch landmarks once per camera setup — compute a homography into the existing pitch space already used by `main.py`/`script.js`
+- [ ] **[Demo]** Track which goal each team attacks per half, and flip the coordinate transform after halftime (teams switch ends) — otherwise `distance_to_goal`, `angle_to_goal`, and every keeper/defender feature silently point at the wrong goal in the second half
+- [ ] Recalibration handling if the camera is bumped or zoom changes mid-game
+- [ ] **[Stretch]** Automatic pitch-line detection
+- [ ] Strategy for when the camera doesn't see the whole pitch, tied to the coverage risk in the Reality Check
+
+## 5. Object Detection (per frame)
+- [ ] **[Demo]** Player detection using an off-the-shelf pretrained detector (e.g. YOLO's person class) as-is — no fine-tuning in month 1
+- [ ] **[Demo]** Ball detection — run the isolated feasibility spike from the Reality Check before building anything downstream that depends on it
+- [ ] Referee detection and exclusion from team stats
+- [ ] Excluding non-players in frame: coaches, subs, ball boys, sideline spectators
+- [ ] **[MVP]** Fine-tune detectors on your own footage once you have labeled data — the Phase 11 review tool produces this as a side effect of normal use
+
+## 6. Multi-Object Tracking (identity over time)
+- [ ] **[Demo]** Stable per-player track ID across frames using an existing tracking library (ByteTrack/BoT-SORT-style) — don't build a custom tracker
+- [ ] Ball-specific tracking with interpolation through short occlusion; for longer occlusions (goalmouth scrambles), fall back to the live-tagged event log rather than guessing
+- [ ] Re-identification after a player is occluded or leaves frame briefly
+- [ ] Track smoothing (Kalman filter or similar) before computing speed/distance
+- [ ] **[MVP]** Tracking fast enough to keep up during live first-half play, not just accurately in a batch job
+
+## 7. Team & Player Identification
+Automatic tracking only needs to be *internally consistent* — resolving a track ID to a
+real roster player is a human job, cheaper now thanks to Phase 3.
+- [ ] **[Demo]** Team discrimination via jersey color clustering (k-means on shirt pixels) — Team A / Team B / goalkeepers / referee
+- [ ] Goalkeeper detection (distinct kit, stays near one goal)
+- [ ] **[Demo]** Consume the Phase 3 live substitution log to know exactly which roster players are on the field per team at any timestamp. This doesn't automatically solve *which* tracked blob is *which* name — a human still makes that call once per continuous tracking segment (Phase 11); the sub log shrinks the candidate list and gives a sanity check (if 11 players should be visible and only 10 are tracked, that's a missed-detection alert)
+- [ ] **[Demo]** Remaining manual track-ID → roster-player mapping happens in the review tool, narrowed down by the sub log
+- [ ] **[Stretch]** Jersey number OCR, used only as a suggestion to speed up mapping
+- [ ] Handling broken tracks (same player split into 2+ IDs) — reviewer merges them
+
+## 8. Coordinate Transformation & Movement Metrics
+- [ ] **[Demo]** Project each detection's ground contact point through the homography into pitch metres
+- [ ] **[Demo]** Per-player speed and total distance covered
+- [ ] Per-player acceleration, position heatmap / average position
+
+## 9. Ball Possession & Game State
+- [ ] **[Demo]** Determine which player/team currently has the ball (proximity + velocity correlation)
+- [ ] **[Demo]** In-play vs. dead-ball state — cross-check CV-detected out-of-bounds against the Phase 3 tablet's tap rather than trusting either alone
+- [ ] Half/period and clock tracking, driven by the Phase 3 period-boundary taps
+
+## 10. Event Detection
+CV produces automatic *candidates*, reconciled against the Phase 3 live-tagged events
+rather than replacing them.
+- [ ] **[Demo]** Pass detection (completed vs. intercepted)
+- [ ] **[Demo]** Shot detection
+- [ ] **[Demo]** Goal detection — cross-checked against a live tap if the collector caught it
+- [ ] Turnover / tackle detection
+- [ ] Stoppage candidate flagging (ball out, play stopped) — the live tap usually already has the type (e.g. "corner"), so this is mostly a cross-check, not the primary source
+- [ ] Reconciliation logic: where CV and live tags agree, treat as high confidence; where they disagree or one is missing, flag prominently for the Phase 11 reviewer
+- [ ] **[Stretch]** Offside detection — leave human-marked-only for the foreseeable future
+
+## 11. Post-Game Review & Annotation Tool
+Pre-populated with Phase 3's live-tagged events and subs, plus Phase 10's CV
+candidates — the reviewer's job is verifying/correcting/filling gaps, not labeling from
+scratch.
+- [ ] **[Demo]** Timeline UI showing both live-tagged and CV-candidate events, synced to video playback
+- [ ] **[Demo]** Confirm / edit / delete / add-new-event controls per timeline entry
+- [ ] **[Demo]** Track-ID → roster-player assignment UI with thumbnail crops, pre-narrowed by the sub log
+- [ ] Merge-tracks control for split IDs
+- [ ] Save finalized data as the source of truth for stats, profiles, xG logging, and the player portal
+- [ ] Doubles as the ground-truth labeling tool for Phase 16 validation, and as a source of labeled data for fine-tuning detectors later (Phase 5)
+
+## 12. Shot Feature Extraction → Existing xG Model
+Where the CV pipeline plugs into what already works (`script.js` / `xg_model6.onnx`).
+- [ ] **[Demo]** At shot detection/confirmation, extract the same 12 features the model expects, using the correct attacking-goal direction for the half (Phase 4)
+- [ ] Body part classification (foot vs. header) — pose estimation, or a manual tag as post-game fallback
+- [ ] `shot_height` is a z-axis value a flat single camera + homography can't give directly — pose estimation or ball-trajectory arc fitting needed; flagged as an open problem
+- [ ] **[Demo]** Feed features into the existing ONNX model, log predicted xG
+- [ ] **[Demo]** Validate the model against CV-derived (noisier) features before trusting it live (Testing Strategy #6) — retrain with realistic noise added if calibration visibly degrades
+- [ ] Log actual outcome (goal/save/block/miss) to check predictions against reality later
+
+## 13. Player & Team Statistics / Profiles
+- [ ] `Player` domain model beyond the current UI stub in `classes.js`: identity, team, jersey number, role, per-match stat accumulator
+- [ ] `Team` domain model: roster, formation, aggregate stats
+- [ ] **[Demo]** Compute the halftime-tier stats first (possession, shot map/xG, distance, sprint counts, live-tagged event counts)
+- [ ] **[MVP]** Full post-game tactical catalog (passing networks, phase-of-play, pressing trends)
+- [ ] Use the Phase 3 sub log to scope each player's stats to their actual minutes played
+- [ ] **[Stretch]** Cross-match / season aggregation per player
+
+## 14. Player Portal & Accounts
+- [ ] **[Demo]** Keep auth deliberately simple for a closed, trusted group: one shared coach access code, and players pick their name from the roster to see their own report — optionally a 4-digit PIN per player to stop casual snooping, not real security. Full password/email accounts aren't warranted yet
+- [ ] Per-player report view, scoped to that player's own Phase 13 stats
+- [ ] Report delivery: in-app view first, email/PDF later
+- [ ] **[Stretch]** Historical view across games once cross-match aggregation exists
+- [ ] **[Stretch]** Real accounts with proper session security if this ever grows beyond one trusted team — and since this is real named minors' data, that also means thinking through parental/guardian awareness at that point (not a demo blocker, just don't forget it)
+
+## 15. Frontend / Dashboard
+- [ ] **[Demo]** Coach halftime view: sideline/mobile-friendly, high-signal, minimal reading — built from the Stats Catalog's halftime section
+- [ ] **[MVP]** Coach tactical dashboard, player portal view (Phase 14), event timeline synced to video (shared with the Phase 11 review tool)
+- [ ] **[Stretch]** Live tracking overlay on video (bounding boxes, IDs, mini-map)
+
+## 16. Validation & Demo Logistics
+- [ ] **[Demo]** Ground-truth comparison using the Phase 11 tool on a short labeled clip before trusting a full game
+- [ ] **[Demo]** Camera hardware/placement plan for the actual high school field — resolve the elevation/coverage question from the Reality Check concretely, don't leave it open until game day
+- [ ] Lighting/weather robustness check (outdoor field, not a broadcast studio)
+- [ ] Identify and briefly train whoever will run the Phase 3 tablet during the actual demo game — the live data is only as good as the person entering it
+- [ ] **[Demo]** Dry run on real footage from the old team well before the target test date — also the first real test of the ball-detection spike and the homography/attacking-direction logic
+- [ ] **[MVP]** Validate the halftime path end-to-end under a real clock — can it actually finish in time
+
+---
+
+## Suggested build order for a 1-month demo
+Start with the two highest-uncertainty spikes in isolation, before committing to
+anything else: **ball detection feasibility** on real footage, and a **minimal backend
++ the live tablet tool (2, 3)** — both are cheap to test early and both gate
+everything downstream. In parallel: player detection (5) → calibration, including the
+halftime attacking-direction flip (4) → tracking (6) → team color split only, no OCR
+(7) → coordinates/metrics (8) → possession/game state (9) → basic auto-candidates:
+pass + shot + goal + stoppage flagging (10) → write the feature-parity test and set up
+ground-truth clips now (Testing Strategy) → review & annotation tool (11), pre-populated
+from the live tags → xG feature bridge (12), including the noisy-input validation check
+→ minimal stats covering just the halftime catalog first (13) → a bare-bones halftime
+coach view (15) to prove the whole loop end-to-end on the dry-run footage. Only after
+that loop works end-to-end on real footage — not before — layer on true
+live/incremental halftime timing, the post-game portal (14), and the tactical
+dashboard (15). Treat live overlay, season aggregation, per-player login, jersey OCR,
+and auto stoppage-type classification as post-demo work.

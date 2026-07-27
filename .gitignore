@@ -1,0 +1,12 @@
+# Training data caches — xg_raw_shots_cache.pkl is ~117MB, over GitHub's 100MB limit.
+# Rebuilt automatically by PitchIQHelper/main.py from the StatsBomb API.
+*.pkl
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# OS
+.DS_Store
+Thumbs.db
