@@ -1,42 +1,51 @@
-'use strict';
+// Match-day tagging, backed by Firestore.
+//
+// Two things shape this file:
+//   - It has to work with no connectivity. Every write is a batch (which queues
+//     offline), never a transaction (which fails offline), and undo works by
+//     direct document reference so it needs no query.
+//   - Ordering never uses createdAt. serverTimestamp() reads as null locally
+//     until acknowledged and then resolves to sync time, not tap time.
+
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js';
+import {
+    listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
+    writeEvent, writePeriod, writeSubstitution, undoEntry, updateMatch,
+    logId, PERIOD_STATUS,
+} from '../assets/db.js';
 
 const $ = (id) => document.getElementById(id);
 
-const PERIOD_SEQUENCE = [
-    { period: 'kickoff_2nd', label: '2nd half', button: 'Full time' },
-    { period: 'full_time', label: 'Full time', button: null },
-];
+/** Stable per-device ID: log doc IDs embed it so two taggers can't collide. */
+function deviceId() {
+    let id = localStorage.getItem('pitchiq.deviceId');
+    if (!id) {
+        id = Math.random().toString(36).slice(2, 8);
+        localStorage.setItem('pitchiq.deviceId', id);
+    }
+    return id;
+}
 
 const state = {
+    user: null,
+    teamId: null,
     matchId: null,
-    homeTeamId: null,
-    awayTeamId: null,
-    ourTeamId: null,
+    match: null,
+    players: [],
     roster: [],
-    selectedTeam: 'home',
-    kickoffAt: null,     // epoch ms of the most recent kickoff tap
-    clockOffset: 0,      // seconds already elapsed before that kickoff
+    device: deviceId(),
+    seq: 0,
+    myEntries: [],       // ids I wrote this session, for undo
+    side: 'us',
+    kickoffAt: null,
+    clockOffset: 0,
     running: false,
     periodIndex: 0,
-    sub: { team: 'home', outId: null, inId: null },
+    pendingEvent: null,
+    sub: { outId: null, inId: null },
 };
 
-// ---------------------------------------------------------------- api
-async function api(path, options = {}) {
-    const response = await fetch(`${API_BASE}${path}`, {
-        headers: { 'Content-Type': 'application/json' },
-        ...options,
-    });
-    if (!response.ok) {
-        let message = `${response.status} ${response.statusText}`;
-        try {
-            const body = await response.json();
-            if (body.detail) message = body.detail;
-        } catch { /* non-JSON error body */ }
-        throw new Error(message);
-    }
-    return response.status === 204 ? null : response.json();
-}
+// ---------------------------------------------------------------- ui helpers
 
 let toastTimer;
 function toast(message, isError = false) {
@@ -45,7 +54,7 @@ function toast(message, isError = false) {
     el.classList.toggle('error', isError);
     el.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
 }
 
 function showView(name) {
@@ -53,429 +62,448 @@ function showView(name) {
     $(`view-${name}`).classList.add('active');
 }
 
-// ---------------------------------------------------------------- clock
+const label = (type) => type.replace(/_/g, ' ');
+
+function clockText(seconds) {
+    const total = Math.max(0, Math.floor(seconds));
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
 function matchClock() {
     if (!state.running) return state.clockOffset;
     return state.clockOffset + (Date.now() - state.kickoffAt) / 1000;
 }
 
-function renderClock() {
-    const total = Math.floor(matchClock());
-    const mm = String(Math.floor(total / 60)).padStart(2, '0');
-    const ss = String(total % 60).padStart(2, '0');
-    $('clock').textContent = `${mm}:${ss}`;
+setInterval(() => {
+    if ($('view-live').classList.contains('active')) {
+        $('clock').textContent = clockText(matchClock());
+    }
+}, 250);
+
+function updateOnlineIndicator() {
+    const offline = !navigator.onLine;
+    $('offline-note')?.classList.toggle('hidden', !offline);
+    const dot = $('sync-dot');
+    if (dot) {
+        dot.classList.toggle('offline', offline);
+        dot.title = offline ? 'Offline — taps are queued' : 'Synced';
+    }
 }
-setInterval(renderClock, 250);
+window.addEventListener('online', updateOnlineIndicator);
+window.addEventListener('offline', updateOnlineIndicator);
+
+function nextSeq() {
+    state.seq += 1;
+    return state.seq;
+}
 
 // ---------------------------------------------------------------- setup
-async function loadTeams() {
-    const teams = await api('/teams');
-    for (const id of ['select-home', 'select-away']) {
-        const select = $(id);
-        select.innerHTML = '<option value="">— select —</option>';
-        for (const team of teams) {
-            const option = document.createElement('option');
-            option.value = team.id;
-            option.textContent = team.name;
-            select.appendChild(option);
-        }
-    }
-}
 
 async function loadMatches() {
-    const matches = await api('/matches');
+    const matches = await listMatches(state.teamId);
     const select = $('select-match');
-    select.innerHTML = '<option value="">— new match —</option>';
+    select.innerHTML = '<option value="">— choose —</option>';
+
     for (const match of matches) {
+        if (match.finalized) continue;
         const option = document.createElement('option');
         option.value = match.id;
-        option.textContent = `#${match.id} · ${match.kickoff_date || 'no date'} · ${match.status}`;
+        option.textContent = `${match.date || 'no date'} · vs ${match.opponentName || '—'}`;
         select.appendChild(option);
     }
-}
 
-async function resolveTeam(selectId, inputId) {
-    const typed = $(inputId).value.trim();
-    if (typed) {
-        const team = await api('/teams', {
-            method: 'POST',
-            body: JSON.stringify({ name: typed }),
-        });
-        return team.id;
-    }
-    const chosen = $(selectId).value;
-    return chosen ? Number(chosen) : null;
-}
-
-async function createMatch() {
-    try {
-        const homeId = await resolveTeam('select-home', 'input-new-home');
-        const awayId = await resolveTeam('select-away', 'input-new-away');
-
-        if (!homeId || !awayId) return toast('Pick or name both teams', true);
-        if (homeId === awayId) return toast('Teams must be different', true);
-
-        const match = await api('/matches', {
-            method: 'POST',
-            body: JSON.stringify({
-                home_team_id: homeId,
-                away_team_id: awayId,
-                kickoff_date: new Date().toISOString().slice(0, 10),
-            }),
-        });
-
-        state.matchId = match.id;
-        state.homeTeamId = homeId;
-        state.awayTeamId = awayId;
-        state.ourTeamId = homeId;
-
-        $('input-new-home').value = '';
-        $('input-new-away').value = '';
-        await loadTeams();
-        await refreshRoster();
-        $('lineup-section').classList.remove('hidden');
-        toast(`Match #${match.id} created`);
-    } catch (err) {
-        toast(err.message, true);
+    if (!select.querySelector('option[value]:not([value=""])')) {
+        toast('No open matches — create one in the coach dashboard first.', true);
     }
 }
 
-async function refreshRoster() {
-    const team = await api(`/teams/${state.ourTeamId}`);
-    // Preserve starter ticks across re-renders.
-    const starters = new Set(state.roster.filter((p) => p.isStarter).map((p) => p.id));
-    state.roster = team.players.map((p) => ({ ...p, isStarter: starters.has(p.id) }));
-    renderRoster();
-}
+async function onMatchChosen(matchId) {
+    if (!matchId) return;
+    state.matchId = matchId;
 
-function renderRoster() {
-    const list = $('roster-list');
-    list.innerHTML = '';
+    const [match, players, roster] = await Promise.all([
+        getMatch(state.teamId, matchId),
+        listPlayers(state.teamId),
+        listMatchRoster(state.teamId, matchId),
+    ]);
 
-    if (state.roster.length === 0) {
-        const li = document.createElement('li');
-        li.innerHTML = '<span class="tag">No players yet — add them above</span>';
-        list.appendChild(li);
+    state.match = match;
+    state.players = players;
+    state.roster = roster;
+
+    // Resume rather than restart if this match already has a lineup.
+    if (roster.length) {
+        await resumeMatch();
         return;
     }
 
-    for (const player of state.roster) {
+    renderLineupPicker();
+}
+
+function renderLineupPicker() {
+    const list = $('roster-list');
+    list.innerHTML = '';
+
+    if (!state.players.length) {
+        list.innerHTML = '<li><span class="tag">No players on the roster yet</span></li>';
+        return;
+    }
+
+    for (const player of state.players) {
         const li = document.createElement('li');
-        li.className = player.isStarter ? 'starter' : '';
+        li.className = player._starter ? 'starter' : '';
         li.innerHTML = `
-            <span class="num">${player.jersey_number ?? '—'}</span>
+            <span class="num">${player.jerseyNumber ?? '—'}</span>
             <span class="nm"></span>
-            <span class="tag">${player.isStarter ? 'starting' : 'bench'}</span>`;
+            <span class="tag">${player._starter ? 'starting' : 'bench'}</span>`;
         li.querySelector('.nm').textContent = player.name;
         li.addEventListener('click', () => {
-            player.isStarter = !player.isStarter;
-            renderRoster();
+            player._starter = !player._starter;
+            renderLineupPicker();
         });
         list.appendChild(li);
     }
 }
 
-async function addPlayer() {
-    const name = $('input-player-name').value.trim();
-    if (!name) return toast('Enter a name', true);
-    const numberRaw = $('input-player-number').value.trim();
+async function saveLineupAndContinue() {
+    const starters = state.players.filter((p) => p._starter).map((p) => p.id);
+    if (!starters.length) return toast('Pick your starters first', true);
 
     try {
-        await api(`/teams/${state.ourTeamId}/players`, {
-            method: 'POST',
-            body: JSON.stringify({
-                name,
-                jersey_number: numberRaw ? Number(numberRaw) : null,
-            }),
-        });
-        $('input-player-name').value = '';
-        $('input-player-number').value = '';
-        await refreshRoster();
-    } catch (err) {
-        toast(err.message, true);
-    }
-}
-
-async function saveLineup() {
-    if (state.roster.length === 0) return toast('Add some players first', true);
-
-    try {
-        await api(`/matches/${state.matchId}/lineup`, {
-            method: 'POST',
-            body: JSON.stringify({
-                team_id: state.ourTeamId,
-                entries: state.roster.map((p) => ({
-                    player_id: p.id,
-                    is_starter: p.isStarter,
-                })),
-            }),
-        });
-        toast('Lineup saved');
+        await setLineup(state.teamId, state.matchId, state.players, starters);
+        state.roster = await listMatchRoster(state.teamId, state.matchId);
         showView('kickoff');
     } catch (err) {
-        toast(err.message, true);
+        toast(err.message || 'Could not save the lineup.', true);
     }
 }
 
 async function resumeMatch() {
-    const chosen = $('select-match').value;
-    if (!chosen) return toast('Pick a match to resume', true);
+    const log = await listLog(state.teamId, state.matchId);
+    const last = log.length ? log[log.length - 1].matchClockS : 0;
 
-    try {
-        const match = await api(`/matches/${chosen}`);
-        state.matchId = match.id;
-        state.homeTeamId = match.home_team_id;
-        state.awayTeamId = match.away_team_id;
-        state.ourTeamId = match.home_team_id;
+    // Pick up paused at the last tagged moment: real elapsed time can't be
+    // recovered after a reload, and inventing it would corrupt every timestamp
+    // that follows.
+    state.clockOffset = last;
+    state.running = false;
+    state.kickoffAt = Date.now();
 
-        const log = await api(`/matches/${match.id}/log`);
-        const last = log.length ? log[log.length - 1].match_clock_s : 0;
+    const status = state.match?.status || 'scheduled';
+    state.periodIndex = status === 'second_half' || status === 'full_time' ? 1 : 0;
 
-        // Resuming picks the clock up where the log left off, paused. A running
-        // clock would silently invent time that nobody actually tagged.
-        state.clockOffset = last;
-        state.running = match.status === 'first_half' || match.status === 'second_half';
-        state.kickoffAt = Date.now();
-        state.periodIndex = match.status === 'second_half' ? 1 : 0;
+    // Continue our own sequence past anything this device already wrote.
+    const mine = log.filter((e) => e.deviceId === state.device);
+    state.seq = mine.reduce((max, e) => Math.max(max, e.seq || 0), 0);
+    state.myEntries = mine.map((e) => ({ id: e.id, kind: e.kind, revert: e.revert }));
 
-        applyTeamLabels();
-        updatePeriodButton();
-        renderClock();
-        showView(match.status === 'scheduled' ? 'kickoff' : 'live');
-        toast(`Resumed match #${match.id}`);
-    } catch (err) {
-        toast(err.message, true);
+    $('period-label').textContent = label(
+        status === 'second_half' ? '2nd half' : status === 'halftime' ? 'halftime' : '1st half'
+    );
+    updatePeriodButton();
+
+    if (status === 'scheduled') {
+        showView('kickoff');
+    } else {
+        showView('live');
+        toast('Resumed — clock is paused, tap the clock area to adjust');
     }
 }
 
 // ---------------------------------------------------------------- live
+
 async function doKickoff() {
     try {
-        await api(`/matches/${state.matchId}/period`, {
-            method: 'POST',
-            body: JSON.stringify({ period: 'kickoff_1st', match_clock_s: 0 }),
+        await writePeriod(state.user, state.teamId, state.matchId, {
+            deviceId: state.device,
+            seq: nextSeq(),
+            period: 'kickoff_1st',
+            matchClockS: 0,
+            prevStatus: state.match?.status || 'scheduled',
         });
+        state.myEntries.push({
+            id: logId(state.device, state.seq),
+            kind: 'period',
+            revert: { prevStatus: state.match?.status || 'scheduled' },
+        });
+
         state.clockOffset = 0;
         state.kickoffAt = Date.now();
         state.running = true;
         state.periodIndex = 0;
-        applyTeamLabels();
         updatePeriodButton();
         showView('live');
         toast('Match started');
     } catch (err) {
-        toast(err.message, true);
+        toast(err.message || 'Could not start the match.', true);
     }
 }
 
-function currentTeamId() {
-    return state.selectedTeam === 'home' ? state.homeTeamId : state.awayTeamId;
+function activeRoster() {
+    return state.roster.filter((r) => r.isActive);
 }
 
-async function applyTeamLabels() {
-    try {
-        const [home, away] = await Promise.all([
-            api(`/teams/${state.homeTeamId}`),
-            api(`/teams/${state.awayTeamId}`),
-        ]);
-        $('btn-team-home').textContent = home.name;
-        $('btn-team-away').textContent = away.name;
-        document.querySelector('[data-subteam="home"]').textContent = home.name;
-        document.querySelector('[data-subteam="away"]').textContent = away.name;
-    } catch { /* labels are cosmetic; ignore */ }
-}
+/** Goals, cards and fouls by our side are worth attributing to a player. */
+const ATTRIBUTABLE = new Set(['goal', 'card', 'foul']);
 
-async function tagEvent(eventType, button) {
+async function tagEvent(type, button) {
     button.classList.add('flash');
     setTimeout(() => button.classList.remove('flash'), 160);
 
-    try {
-        await api(`/matches/${state.matchId}/events`, {
-            method: 'POST',
-            body: JSON.stringify({
-                event_type: eventType,
-                match_clock_s: matchClock(),
-                team_id: currentTeamId(),
-            }),
-        });
-        toast(eventType.replace(/_/g, ' '));
-    } catch (err) {
-        toast(err.message, true);
+    if (state.side === 'us' && ATTRIBUTABLE.has(type) && activeRoster().length) {
+        state.pendingEvent = { type, matchClockS: matchClock() };
+        openWhoSheet(type);
+        return;
     }
+
+    await commitEvent(type, matchClock(), null);
+}
+
+async function commitEvent(type, matchClockS, playerId) {
+    const seq = nextSeq();
+    try {
+        await writeEvent(state.user, state.teamId, state.matchId, {
+            deviceId: state.device,
+            seq,
+            type,
+            matchClockS,
+            side: state.side,
+            playerId,
+        });
+        state.myEntries.push({ id: logId(state.device, seq), kind: 'event' });
+        toast(label(type));
+    } catch (err) {
+        state.seq -= 1;
+        toast(err.message || 'Could not save that tap.', true);
+    }
+}
+
+function openWhoSheet(type) {
+    $('who-title').textContent = `Who — ${label(type)}?`;
+    const list = $('who-list');
+    list.innerHTML = '';
+
+    for (const entry of activeRoster()) {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="num">${entry.jerseyNumber ?? '—'}</span><span class="nm"></span>`;
+        li.querySelector('.nm').textContent = entry.playerName;
+        li.addEventListener('click', async () => {
+            $('overlay-who').classList.remove('open');
+            const pending = state.pendingEvent;
+            state.pendingEvent = null;
+            if (pending) await commitEvent(pending.type, pending.matchClockS, entry.id);
+        });
+        list.appendChild(li);
+    }
+
+    $('overlay-who').classList.add('open');
 }
 
 async function undoLast() {
+    const entry = state.myEntries[state.myEntries.length - 1];
+    if (!entry) return toast('Nothing of yours to undo', true);
+
     try {
-        const result = await api(`/matches/${state.matchId}/undo`, { method: 'POST' });
-        toast(result.description, !result.undone);
+        await undoEntry(state.teamId, state.matchId, entry);
+        state.myEntries.pop();
+
+        if (entry.kind === 'sub' && entry.revert) {
+            state.roster = await listMatchRoster(state.teamId, state.matchId);
+        }
+        if (entry.kind === 'period' && entry.revert?.prevStatus) {
+            state.match.status = entry.revert.prevStatus;
+        }
+
+        toast('Undone');
     } catch (err) {
-        toast(err.message, true);
+        toast(err.message || 'Could not undo.', true);
     }
 }
 
+// ---------------------------------------------------------------- periods
+
+const PERIOD_FLOW = ['halftime', 'kickoff_2nd', 'full_time'];
+
 function updatePeriodButton() {
-    const next = PERIOD_SEQUENCE[state.periodIndex];
     const button = $('btn-period');
-    if (!next) {
+    const status = state.match?.status;
+
+    if (status === 'full_time') {
         button.disabled = true;
         button.textContent = 'Match over';
-        return;
+    } else if (status === 'halftime') {
+        button.textContent = 'Start 2nd half';
+    } else if (status === 'second_half') {
+        button.textContent = 'Full time';
+    } else {
+        button.textContent = 'Halftime';
     }
-    button.disabled = false;
-    button.textContent = state.periodIndex === 0 ? 'Halftime' : next.button || 'Full time';
 }
 
 async function advancePeriod() {
-    // Halftime pauses the clock; the 2nd-half kickoff resumes it from 45:00.
-    const isHalftime = state.periodIndex === 0 && state.running;
+    const status = state.match?.status || 'first_half';
+    const next =
+        status === 'first_half' ? 'halftime'
+        : status === 'halftime' ? 'kickoff_2nd'
+        : 'full_time';
+
+    const now = matchClock();
+    const seq = nextSeq();
 
     try {
-        if (isHalftime) {
-            const now = matchClock();
-            await api(`/matches/${state.matchId}/period`, {
-                method: 'POST',
-                body: JSON.stringify({ period: 'halftime', match_clock_s: now }),
-            });
+        await writePeriod(state.user, state.teamId, state.matchId, {
+            deviceId: state.device,
+            seq,
+            period: next,
+            matchClockS: now,
+            prevStatus: status,
+        });
+        state.myEntries.push({
+            id: logId(state.device, seq), kind: 'period', revert: { prevStatus: status },
+        });
+        state.match.status = PERIOD_STATUS[next];
+
+        if (next === 'halftime') {
+            // Freeze: the break must never be counted as match time.
             state.clockOffset = now;
             state.running = false;
             $('period-label').textContent = 'halftime';
-            $('btn-period').textContent = 'Start 2nd half';
-            toast('Halftime');
-            return;
-        }
-
-        if (state.periodIndex === 0) {
-            await api(`/matches/${state.matchId}/period`, {
-                method: 'POST',
-                body: JSON.stringify({ period: 'kickoff_2nd', match_clock_s: state.clockOffset }),
-            });
+        } else if (next === 'kickoff_2nd') {
             state.kickoffAt = Date.now();
             state.running = true;
-            state.periodIndex = 1;
             $('period-label').textContent = '2nd half';
-            updatePeriodButton();
-            toast('Second half');
-            return;
+        } else {
+            state.clockOffset = now;
+            state.running = false;
+            $('period-label').textContent = 'full time';
         }
 
-        await api(`/matches/${state.matchId}/period`, {
-            method: 'POST',
-            body: JSON.stringify({ period: 'full_time', match_clock_s: matchClock() }),
-        });
-        state.clockOffset = matchClock();
-        state.running = false;
-        state.periodIndex = 2;
-        $('period-label').textContent = 'full time';
         updatePeriodButton();
-        toast('Full time');
+        toast(label(next));
     } catch (err) {
-        toast(err.message, true);
+        state.seq -= 1;
+        toast(err.message || 'Could not change period.', true);
     }
 }
 
-// ---------------------------------------------------------------- substitutions
-function subTeamId() {
-    return state.sub.team === 'home' ? state.homeTeamId : state.awayTeamId;
-}
+// ---------------------------------------------------------------- subs
 
 async function openSubSheet() {
-    state.sub.outId = null;
-    state.sub.inId = null;
+    state.sub = { outId: null, inId: null };
+    state.roster = await listMatchRoster(state.teamId, state.matchId);
     $('overlay-sub').classList.add('open');
-    await renderSubLists();
+    renderSubLists();
 }
 
-async function renderSubLists() {
-    const offList = $('sub-off-list');
-    const onList = $('sub-on-list');
-    offList.innerHTML = '';
-    onList.innerHTML = '';
+function renderSubLists() {
+    const off = $('sub-off-list');
+    const on = $('sub-on-list');
+    off.innerHTML = '';
+    on.innerHTML = '';
 
-    let data;
-    try {
-        data = await api(`/matches/${state.matchId}/onfield?team_id=${subTeamId()}`);
-    } catch (err) {
-        offList.innerHTML = `<li class="empty">${err.message}</li>`;
-        return;
-    }
-
-    const row = (entry, selectedId, onPick, isUsed = false) => {
+    const row = (entry, selectedId, onPick, dim = false) => {
         const li = document.createElement('li');
         li.className = [
-            entry.player_id === selectedId ? 'selected' : '',
-            isUsed ? 'used' : '',
+            entry.id === selectedId ? 'selected' : '',
+            dim ? 'used' : '',
         ].filter(Boolean).join(' ');
-        li.innerHTML = `<span class="num">${entry.player.jersey_number ?? '—'}</span><span class="nm"></span>`;
-        li.querySelector('.nm').textContent = entry.player.name;
-        if (!isUsed) li.addEventListener('click', () => onPick(entry.player_id));
+        li.innerHTML = `<span class="num">${entry.jerseyNumber ?? '—'}</span><span class="nm"></span>`;
+        li.querySelector('.nm').textContent = entry.playerName;
+        if (!dim) li.addEventListener('click', () => onPick(entry.id));
         return li;
     };
 
-    if (data.on_field.length === 0) {
-        offList.innerHTML = '<li class="empty">Nobody on the field — set a lineup first.</li>';
-    }
-    for (const entry of data.on_field) {
-        offList.appendChild(row(entry, state.sub.outId, (id) => {
+    const onField = state.roster.filter((r) => r.isActive);
+    const bench = state.roster.filter((r) => !r.isActive && !(r.stints || []).length);
+    const used = state.roster.filter((r) => !r.isActive && (r.stints || []).length);
+
+    if (!onField.length) off.innerHTML = '<li class="empty">Nobody on the field.</li>';
+    for (const entry of onField) {
+        off.appendChild(row(entry, state.sub.outId, (id) => {
             state.sub.outId = id;
             renderSubLists();
         }));
     }
 
-    if (data.available.length === 0 && data.used.length === 0) {
-        onList.innerHTML = '<li class="empty">No substitutes available.</li>';
-    }
-    for (const entry of data.available) {
-        onList.appendChild(row(entry, state.sub.inId, (id) => {
+    if (!bench.length && !used.length) on.innerHTML = '<li class="empty">No substitutes.</li>';
+    for (const entry of bench) {
+        on.appendChild(row(entry, state.sub.inId, (id) => {
             state.sub.inId = id;
             renderSubLists();
         }));
     }
-    // Already-subbed-off players stay visible but dimmed, so a used sub never
-    // looks identical to one who hasn't played.
-    for (const entry of data.used) {
-        onList.appendChild(row(entry, null, () => {}, true));
+    // Players who already came off stay visible but dimmed — high school rules
+    // allow re-entry, so they aren't necessarily done, but they shouldn't look
+    // identical to someone who hasn't played.
+    for (const entry of used) {
+        on.appendChild(row(entry, state.sub.inId, (id) => {
+            state.sub.inId = id;
+            renderSubLists();
+        }));
     }
 
     $('btn-sub-confirm').disabled = !(state.sub.outId && state.sub.inId);
 }
 
 async function confirmSub() {
+    const outEntry = state.roster.find((r) => r.id === state.sub.outId);
+    const inEntry = state.roster.find((r) => r.id === state.sub.inId);
+    if (!outEntry || !inEntry) return;
+
+    const seq = nextSeq();
     try {
-        await api(`/matches/${state.matchId}/substitutions`, {
-            method: 'POST',
-            body: JSON.stringify({
-                team_id: subTeamId(),
-                player_out_id: state.sub.outId,
-                player_in_id: state.sub.inId,
-                match_clock_s: matchClock(),
-            }),
+        await writeSubstitution(state.user, state.teamId, state.matchId, {
+            deviceId: state.device,
+            seq,
+            outEntry,
+            inEntry,
+            matchClockS: matchClock(),
         });
+
+        state.myEntries.push({
+            id: logId(state.device, seq),
+            kind: 'sub',
+            revert: {
+                out: {
+                    id: outEntry.id, isActive: outEntry.isActive,
+                    stints: outEntry.stints || [], version: outEntry.version ?? 0,
+                },
+                in: {
+                    id: inEntry.id, isActive: inEntry.isActive,
+                    stints: inEntry.stints || [], version: inEntry.version ?? 0,
+                },
+            },
+        });
+
+        state.roster = await listMatchRoster(state.teamId, state.matchId);
         $('overlay-sub').classList.remove('open');
-        toast('Substitution logged');
+        toast(`${inEntry.playerName} on for ${outEntry.playerName}`);
     } catch (err) {
-        toast(err.message, true);
+        state.seq -= 1;
+        toast(err.message || 'Could not save the substitution.', true);
     }
 }
 
 // ---------------------------------------------------------------- log
+
 async function openLog() {
     const list = $('log-list');
     list.innerHTML = '<li class="empty">Loading…</li>';
     $('overlay-log').classList.add('open');
 
     try {
-        const entries = await api(`/matches/${state.matchId}/log`);
+        const log = await listLog(state.teamId, state.matchId);
         list.innerHTML = '';
-        if (entries.length === 0) {
+        if (!log.length) {
             list.innerHTML = '<li class="empty">Nothing logged yet.</li>';
             return;
         }
-        for (const entry of entries.slice().reverse()) {
-            const mm = String(Math.floor(entry.match_clock_s / 60)).padStart(2, '0');
-            const ss = String(Math.floor(entry.match_clock_s % 60)).padStart(2, '0');
+        for (const entry of log.slice().reverse()) {
             const li = document.createElement('li');
-            li.innerHTML = `<span class="t">${mm}:${ss}</span><span class="l"></span>`;
-            li.querySelector('.l').textContent = entry.label;
+            li.innerHTML = `<span class="t"></span><span class="l"></span>`;
+            li.querySelector('.t').textContent = clockText(entry.matchClockS);
+            li.querySelector('.l').textContent =
+                entry.kind === 'sub' ? 'substitution' : label(entry.type);
             list.appendChild(li);
         }
     } catch (err) {
@@ -483,16 +511,26 @@ async function openLog() {
     }
 }
 
-// ---------------------------------------------------------------- wiring
-function init() {
-    $('btn-create-match').addEventListener('click', createMatch);
-    $('btn-resume').addEventListener('click', resumeMatch);
-    $('btn-add-player').addEventListener('click', addPlayer);
-    $('input-player-name').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') addPlayer();
-    });
-    $('btn-save-lineup').addEventListener('click', saveLineup);
+// ---------------------------------------------------------------- init
 
+function init() {
+    const warning = configWarning();
+    if (warning) $('config-slot').appendChild(warning);
+
+    updateOnlineIndicator();
+
+    // Synchronous from the click — an await here and iPad Safari blocks the popup.
+    $('btn-signin').addEventListener('click', () => {
+        signIn().catch((err) => toast(err.message || 'Sign-in failed.', true));
+    });
+
+    $('select-match').addEventListener('change', (e) => {
+        onMatchChosen(e.target.value).catch((err) =>
+            toast(err.message || 'Could not load that match.', true)
+        );
+    });
+
+    $('btn-save-lineup').addEventListener('click', saveLineupAndContinue);
     $('btn-kickoff').addEventListener('click', doKickoff);
     $('btn-back-setup').addEventListener('click', () => showView('setup'));
 
@@ -500,36 +538,54 @@ function init() {
         button.addEventListener('click', () => tagEvent(button.dataset.event, button));
     });
 
-    document.querySelectorAll('.team-toggle .team-btn[data-team]').forEach((button) => {
+    document.querySelectorAll('.team-btn[data-team]').forEach((button) => {
         button.addEventListener('click', () => {
-            document.querySelectorAll('.team-btn[data-team]').forEach((b) => b.classList.remove('active'));
+            document.querySelectorAll('.team-btn[data-team]')
+                .forEach((b) => b.classList.remove('active'));
             button.classList.add('active');
-            state.selectedTeam = button.dataset.team;
-        });
-    });
-
-    document.querySelectorAll('.team-btn[data-subteam]').forEach((button) => {
-        button.addEventListener('click', () => {
-            document.querySelectorAll('.team-btn[data-subteam]').forEach((b) => b.classList.remove('active'));
-            button.classList.add('active');
-            state.sub.team = button.dataset.subteam;
-            state.sub.outId = null;
-            state.sub.inId = null;
-            renderSubLists();
+            state.side = button.dataset.team;
         });
     });
 
     $('btn-undo').addEventListener('click', undoLast);
     $('btn-period').addEventListener('click', advancePeriod);
-    $('btn-sub').addEventListener('click', openSubSheet);
-    $('btn-sub-cancel').addEventListener('click', () => $('overlay-sub').classList.remove('open'));
+    $('btn-sub').addEventListener('click', () => openSubSheet());
+    $('btn-sub-cancel').addEventListener('click', () =>
+        $('overlay-sub').classList.remove('open'));
     $('btn-sub-confirm').addEventListener('click', confirmSub);
+    $('btn-who-skip').addEventListener('click', async () => {
+        $('overlay-who').classList.remove('open');
+        const pending = state.pendingEvent;
+        state.pendingEvent = null;
+        if (pending) await commitEvent(pending.type, pending.matchClockS, null);
+    });
     $('btn-log').addEventListener('click', openLog);
-    $('btn-log-close').addEventListener('click', () => $('overlay-log').classList.remove('open'));
+    $('btn-log-close').addEventListener('click', () =>
+        $('overlay-log').classList.remove('open'));
 
-    Promise.all([loadTeams(), loadMatches()]).catch((err) =>
-        toast(`Cannot reach backend: ${err.message}`, true)
-    );
+    onUser(async (user) => {
+        if (!user) {
+            $('signin-block').classList.remove('hidden');
+            $('match-block').classList.add('hidden');
+            return;
+        }
+
+        state.user = user;
+        try {
+            const access = await resolveAccess(user);
+            if (access.role !== 'coach' || !access.teams.length) {
+                toast('This account has no team to tag for.', true);
+                return;
+            }
+            state.teamId = access.teams[0].id;
+            $('setup-sub').textContent = access.teams[0].name;
+            $('signin-block').classList.add('hidden');
+            $('match-block').classList.remove('hidden');
+            await loadMatches();
+        } catch (err) {
+            toast(err.message || 'Could not load your team.', true);
+        }
+    });
 }
 
 init();

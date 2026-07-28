@@ -11,54 +11,35 @@
 <!-- ===================== SETUP ===================== -->
 <section id="view-setup" class="view active">
     <header class="view-header">
-        <h1>PitchIQ</h1>
-        <p>Match setup</p>
+        <div>
+            <h1>PitchIQ</h1>
+            <p id="setup-sub">Match setup</p>
+        </div>
+        <a href="../" class="btn ghost small">Exit</a>
     </header>
 
     <div class="setup-body">
-        <div class="field-row">
-            <label for="select-match">Existing match</label>
-            <div class="inline">
-                <select id="select-match"><option value="">— new match —</option></select>
-                <button id="btn-resume" class="btn secondary">Resume</button>
-            </div>
+        <div id="config-slot"></div>
+
+        <div id="signin-block">
+            <p class="hint">Sign in to load your team.</p>
+            <button id="btn-signin" class="btn primary block">Sign in with Google</button>
         </div>
 
-        <div class="divider"><span>or start a new one</span></div>
-
-        <div class="field-row">
-            <label for="select-home">Home team</label>
-            <div class="inline">
-                <select id="select-home"></select>
-                <input id="input-new-home" type="text" placeholder="or type a new team name">
-            </div>
-        </div>
-
-        <div class="field-row">
-            <label for="select-away">Away team</label>
-            <div class="inline">
-                <select id="select-away"></select>
-                <input id="input-new-away" type="text" placeholder="or type a new team name">
-            </div>
-        </div>
-
-        <button id="btn-create-match" class="btn primary block">Create match</button>
-
-        <div id="lineup-section" class="hidden">
-            <div class="divider"><span>starting lineup — your team</span></div>
-            <p class="hint">Tick everyone available. Starters go on the field; the rest are your bench.</p>
-
+        <div id="match-block" class="hidden">
             <div class="field-row">
-                <label for="input-player-name">Add a player</label>
-                <div class="inline">
-                    <input id="input-player-name" type="text" placeholder="Name">
-                    <input id="input-player-number" type="number" placeholder="#" class="narrow">
-                    <button id="btn-add-player" class="btn secondary">Add</button>
-                </div>
+                <label for="select-match">Match</label>
+                <select id="select-match"><option value="">— choose —</option></select>
             </div>
+
+            <div class="divider"><span>starting lineup</span></div>
+            <p class="hint">
+                Tap everyone starting. The rest become your bench.
+                <span id="offline-note" class="offline-note hidden">Offline — taps are saved and sync later.</span>
+            </p>
 
             <ul id="roster-list" class="roster"></ul>
-            <button id="btn-save-lineup" class="btn primary block">Save lineup</button>
+            <button id="btn-save-lineup" class="btn primary block">Save lineup &amp; continue</button>
         </div>
     </div>
 </section>
@@ -66,8 +47,10 @@
 <!-- ===================== KICKOFF ===================== -->
 <section id="view-kickoff" class="view">
     <header class="view-header">
-        <h1>Ready</h1>
-        <p id="kickoff-subtitle">Tap the moment the whistle blows</p>
+        <div>
+            <h1>Ready</h1>
+            <p>Tap the moment the whistle blows</p>
+        </div>
     </header>
 
     <div class="kickoff-body">
@@ -80,7 +63,7 @@
     </div>
 </section>
 
-<!-- ===================== LIVE TAGGING ===================== -->
+<!-- ===================== LIVE ===================== -->
 <section id="view-live" class="view">
     <header class="live-header">
         <div class="clock-block">
@@ -88,13 +71,14 @@
             <span id="period-label" class="period">1st half</span>
         </div>
         <div class="header-actions">
+            <span id="sync-dot" class="sync-dot" title="Synced"></span>
             <button id="btn-undo" class="btn undo">UNDO</button>
         </div>
     </header>
 
     <div class="team-toggle" role="group" aria-label="Which team">
-        <button class="team-btn active" data-team="home" id="btn-team-home">Home</button>
-        <button class="team-btn" data-team="away" id="btn-team-away">Away</button>
+        <button class="team-btn active" data-team="us" id="btn-team-us">Us</button>
+        <button class="team-btn" data-team="them" id="btn-team-them">Them</button>
     </div>
 
     <div class="event-grid">
@@ -116,15 +100,21 @@
     </div>
 </section>
 
-<!-- ===================== SUB OVERLAY ===================== -->
+<!-- ===================== ATTRIBUTION ===================== -->
+<div id="overlay-who" class="overlay">
+    <div class="sheet">
+        <h2 id="who-title">Who?</h2>
+        <ul id="who-list" class="pick-list"></ul>
+        <div class="sheet-actions">
+            <button id="btn-who-skip" class="btn ghost">Skip</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== SUB ===================== -->
 <div id="overlay-sub" class="overlay">
     <div class="sheet">
         <h2>Substitution</h2>
-        <div class="team-toggle" role="group" aria-label="Which team">
-            <button class="team-btn active" data-subteam="home">Home</button>
-            <button class="team-btn" data-subteam="away">Away</button>
-        </div>
-
         <div class="sub-columns">
             <div>
                 <h3>Coming off</h3>
@@ -135,7 +125,6 @@
                 <ul id="sub-on-list" class="pick-list"></ul>
             </div>
         </div>
-
         <div class="sheet-actions">
             <button id="btn-sub-cancel" class="btn ghost">Cancel</button>
             <button id="btn-sub-confirm" class="btn primary" disabled>Confirm sub</button>
@@ -143,7 +132,7 @@
     </div>
 </div>
 
-<!-- ===================== LOG OVERLAY ===================== -->
+<!-- ===================== LOG ===================== -->
 <div id="overlay-log" class="overlay">
     <div class="sheet">
         <h2>Match log</h2>
@@ -156,7 +145,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="config.js"></script>
-<script src="tagger.js"></script>
+<script type="module" src="tagger.js"></script>
 </body>
 </html>

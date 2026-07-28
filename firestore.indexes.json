@@ -1,0 +1,33 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "playerReports",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "linkedUid", "order": "ASCENDING" },
+        { "fieldPath": "published", "order": "ASCENDING" },
+        { "fieldPath": "matchDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "finalized", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "log",
+      "fieldPath": "revert",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "roster",
+      "fieldPath": "stints",
+      "indexes": []
+    }
+  ]
+}

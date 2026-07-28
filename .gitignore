@@ -19,3 +19,15 @@ Thumbs.db
 # Local database
 *.db
 *.sqlite3
+
+# Node
+node_modules/
+
+# Firebase — service account keys bypass security rules entirely, so make it
+# hard to commit one by accident. The web API key in firebase-init.js is fine.
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log

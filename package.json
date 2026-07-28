@@ -1,0 +1,17 @@
+{
+  "name": "pitchiq",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dev tooling only. The frontend is plain ES modules with no build step.",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project pitchiq-test \"node --test tests/rules.test.js tests/flow.test.js\"",
+    "emulators": "firebase emulators:start",
+    "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "firebase": "^12.16.0",
+    "firebase-tools": "^15.1.0"
+  }
+}

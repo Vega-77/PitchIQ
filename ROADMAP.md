@@ -30,15 +30,39 @@ jersey numbers robustly in month 1.
 
 **Built and verified:**
 - `cv/` — reusable detection package + `spike_detect` CLI (Phase 5 spike, done)
-- `backend/` — FastAPI + SQLite, all endpoints tested end-to-end (Phase 2, done for [Demo])
-- `live-tagging/` — the tablet tool, full flow driven in-browser (Phase 3, done for [Demo])
+- **Firebase backend** — Firestore + Google Auth, replacing the local FastAPI server.
+  `firestore.rules` is the entire security boundary; 43 emulator tests pass via
+  `npm test` (Phase 2 + 14, done for [Demo])
+- **`index.html` / `coach/` / `player/`** — landing, coach dashboard, player portal
+  (Phase 15, done for [Demo])
+- `live-tagging/` — the tablet tool, now on Firestore with offline queueing (Phase 3)
+- `demo/` — the original manual xG sandbox, moved off the site root
+- `backend/` — the original FastAPI + SQLite server, kept runnable as a fallback
+  until a full match has been tagged against Firestore
 
 **Blocked on:** footage from the coach — specifically a raw/native-resolution export
 rather than a screen recording, ideally the uncropped wide feed rather than the
 auto-tracked crop (see Phase 1). Also pending: permission to use game footage, and
 confirmation of what camera system the school actually runs.
 
+**Also needed before real use:** a Firebase project — see `FIREBASE_SETUP.md`. The
+console steps (creating the project, enabling Google sign-in, deploying rules, adding
+coaches to the allowlist) can't be scripted from the repo.
+
 **Next up:** Phase 4 (calibration/homography), then Phase 6 (tracking).
+
+### Security model, in one paragraph
+
+Authorization never derives from a document the subject can write. A first-draft design
+put `role` and `teamId` on a self-written `users/{uid}` doc, which would have let any
+signed-in student write `{role:'coach', teamId:'<any team>'}` and read every teammate's
+report plus every rostered minor's email address. Coach access now proves out of
+`teams/{t}.coachUids` and player identity out of `teams/{t}/players/{p}.linkedUid`,
+neither of which the subject can set for themselves. Separately, because Firestore
+evaluates a `list` rule against the query rather than per document, there is no way to
+let a player read just their own row out of shared match data — so coaches publish
+denormalized `playerReports` docs instead, and a player's entire read surface is four
+uid-scoped paths.
 
 ---
 
@@ -266,23 +290,34 @@ own sake:
 
 ```
 PitchIQ/
-├── index.html, script.js, classes.js, styles.css, xg_model6.onnx
-│                        the original manual xG demo — deployed to GitHub Pages, untouched
+├── index.html           landing page + sign-in
+├── assets/              shared frontend modules
+│   ├── app.css             design system
+│   ├── firebase-init.js    SDK init + offline persistence  <- paste config here
+│   ├── auth.js             sign-in, roster claim, role resolution
+│   └── db.js               every Firestore read/write, plus stats aggregation
+├── coach/               dashboard: roster, matches, stats, publish
+├── player/              portal: own reports only
+├── live-tagging/        the match-day tablet tool
+├── demo/                the original manual xG sandbox (moved off the root)
+├── firestore.rules      the security boundary
+├── tests/               emulator suites — rules.test.js + flow.test.js
 ├── PitchIQHelper/       xG model training (main.py) + the shared .venv
 ├── cv/                  detection + frame sampling
 │   ├── detector.py         PersonBallDetector
 │   ├── frame_sampler.py    sample_frames()
 │   └── experiments/        spike_detect CLI
-├── backend/             FastAPI + SQLAlchemy + SQLite
-│   ├── models.py, schemas.py, crud.py, database.py, main.py
-│   └── routers/            teams, matches, substitutions, events
-├── live-tagging/        the match-day tablet tool (vanilla JS)
-└── requirements.txt     shared Python deps — see the CUDA note inside
+├── backend/             legacy FastAPI + SQLite (fallback, no longer used by the UI)
+├── requirements.txt     Python deps — see the CUDA note inside
+└── package.json         dev tooling only; the frontend has no build step
 ```
 
 One shared venv at `PitchIQHelper/.venv` covers all the Python. Installing
 `requirements.txt` alone gives CPU-only torch; the CUDA build needs a separate
 install from the PyTorch index first (documented in the file).
+
+The frontend loads the Firebase SDK as CDN ES modules, so there is still no
+bundler — `npm` is only for the emulator and tests.
 
 ---
 
@@ -419,11 +454,17 @@ Where the CV pipeline plugs into what already works (`script.js` / `xg_model6.on
 - [ ] **[Stretch]** Cross-match / season aggregation per player
 
 ## 14. Player Portal & Accounts
-- [ ] **[Demo]** Keep auth deliberately simple for a closed, trusted group: one shared coach access code, and players pick their name from the roster to see their own report — optionally a 4-digit PIN per player to stop casual snooping, not real security. Full password/email accounts aren't warranted yet
-- [ ] Per-player report view, scoped to that player's own Phase 13 stats
-- [ ] Report delivery: in-app view first, email/PDF later
-- [ ] **[Stretch]** Historical view across games once cross-match aggregation exists
-- [ ] **[Stretch]** Real accounts with proper session security if this ever grows beyond one trusted team — and since this is real named minors' data, that also means thinking through parental/guardian awareness at that point (not a demo blocker, just don't forget it)
+Superseded the "shared code + PIN" plan: Firebase Auth made real accounts cheaper
+than the workaround, which matters given the data class.
+- [x] **[Demo]** Google sign-in. Coaches are gated by a console-managed
+      `coachAllowlist`; players are invited by email and claim their own roster slot,
+      verified against the roster document's stored address
+- [x] Per-player report view, scoped to that player's own stats
+- [x] **[Demo]** Season history across matches (one collection-group query)
+- [ ] Report delivery beyond the in-app view (email/PDF)
+- [ ] **[Stretch]** App Check + browser-key referrer restriction before this is public
+- [ ] Parental/guardian awareness before real students' data goes in — the technical
+      controls are in place, the consent conversation is not a code change
 
 ## 15. Frontend / Dashboard
 - [ ] **[Demo]** Coach halftime view: sideline/mobile-friendly, high-signal, minimal reading — built from the Stats Catalog's halftime section

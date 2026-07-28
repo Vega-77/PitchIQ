@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PitchIQ — Coach</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/app.css">
+</head>
+<body>
+
+<header class="topbar">
+    <a class="brand" href="../">PitchIQ <span>coach</span></a>
+    <div class="topbar-user">
+        <span id="team-name" class="muted"></span>
+        <a class="btn small ghost" href="../live-tagging/">Live tagging</a>
+        <button id="btn-signout" class="btn small ghost">Sign out</button>
+    </div>
+</header>
+
+<main class="shell">
+    <div id="config-slot"></div>
+    <div id="loading" class="loading">Loading…</div>
+
+    <!-- no team yet -->
+    <section id="view-noteam" class="hidden">
+        <h1>Create your team</h1>
+        <p class="lede">
+            Set up your team once, then add your roster. You'll need to be on the
+            coach allowlist — if this fails, that's why.
+        </p>
+        <div class="card" style="max-width:420px">
+            <label class="field">
+                <span>Team name</span>
+                <input id="input-team-name" type="text" placeholder="South Brunswick Varsity">
+            </label>
+            <button id="btn-create-team" class="btn primary block">Create team</button>
+        </div>
+    </section>
+
+    <!-- main -->
+    <section id="view-main" class="hidden">
+        <nav class="row" style="gap:8px;margin:24px 0 8px">
+            <button class="btn small tab active" data-tab="matches">Matches</button>
+            <button class="btn small tab" data-tab="roster">Roster</button>
+        </nav>
+
+        <!-- matches -->
+        <div id="tab-matches">
+            <section class="block" style="margin-top:20px">
+                <h2>New match</h2>
+                <div class="card">
+                    <div class="row">
+                        <label class="field" style="margin:0">
+                            <span>Opponent</span>
+                            <input id="input-opponent" type="text" placeholder="Linden">
+                        </label>
+                        <label class="field" style="margin:0">
+                            <span>Date</span>
+                            <input id="input-date" type="date">
+                        </label>
+                        <button id="btn-create-match" class="btn primary">Create</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="block">
+                <h2>Matches</h2>
+                <div id="match-list" class="card-list"></div>
+            </section>
+        </div>
+
+        <!-- roster -->
+        <div id="tab-roster" class="hidden">
+            <section class="block" style="margin-top:20px">
+                <h2>Add a player</h2>
+                <div class="card">
+                    <div class="row">
+                        <label class="field" style="margin:0;flex:2">
+                            <span>Name</span>
+                            <input id="input-player-name" type="text" placeholder="Alex Vega">
+                        </label>
+                        <label class="field" style="margin:0;flex:0 0 90px">
+                            <span>Number</span>
+                            <input id="input-player-number" type="number" min="0" max="99" placeholder="9">
+                        </label>
+                        <label class="field" style="margin:0;flex:2">
+                            <span>School email</span>
+                            <input id="input-player-email" type="email" placeholder="alex@school.org">
+                        </label>
+                        <button id="btn-add-player" class="btn primary">Add</button>
+                    </div>
+                    <p class="muted" style="margin:12px 0 0">
+                        The email must match the Google account the player signs in with —
+                        that's what links them to their own report.
+                    </p>
+                </div>
+            </section>
+
+            <section class="block">
+                <h2>Roster</h2>
+                <div id="roster-list" class="card-list"></div>
+            </section>
+        </div>
+    </section>
+
+    <!-- one match -->
+    <section id="view-match" class="hidden">
+        <button id="btn-back" class="btn small ghost" style="margin:20px 0">&lsaquo; All matches</button>
+        <h1 id="match-title">Match</h1>
+        <p class="lede" id="match-sub"></p>
+
+        <section class="block">
+            <h2>Team</h2>
+            <div id="team-stats" class="stat-grid"></div>
+        </section>
+
+        <section class="block">
+            <h2>Players</h2>
+            <div class="table-wrap">
+                <table id="player-table">
+                    <thead>
+                        <tr>
+                            <th class="num">#</th>
+                            <th>Player</th>
+                            <th class="num">Minutes</th>
+                            <th class="num">Goals</th>
+                            <th class="num">Cards</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="block">
+            <h2>Timeline</h2>
+            <div id="timeline" class="card-list"></div>
+        </section>
+
+        <section class="block">
+            <h2>Publish</h2>
+            <div class="card">
+                <p class="muted" style="margin:0 0 14px">
+                    Publishing gives every rostered player their own private report.
+                    Players who haven't signed in yet will see theirs once they do.
+                </p>
+                <button id="btn-publish" class="btn primary">Publish player reports</button>
+            </div>
+        </section>
+    </section>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script type="module" src="coach.js"></script>
+</body>
+</html>

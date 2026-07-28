@@ -74,9 +74,44 @@ input::placeholder { color: var(--text-faint); }
 input.narrow { flex: 0 0 78px; }
 
 /* ---------------- setup ---------------- */
-.view-header { padding: 22px 24px 14px; border-bottom: 1px solid var(--border); }
+.view-header {
+    padding: 22px 24px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
 .view-header h1 { margin: 0; font-size: 21px; font-weight: 700; color: #fff; letter-spacing: -.3px; }
 .view-header p { margin: 4px 0 0; font-size: 13px; color: var(--text-faint); }
+.btn.small { min-height: 38px; padding: 8px 14px; font-size: 13px; }
+
+.offline-note { color: var(--card); display: block; margin-top: 6px; }
+
+.header-actions { display: flex; align-items: center; gap: 12px; }
+
+/* Sync state: green when writes are landing, amber when they're queued. */
+.sync-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--goal);
+    flex-shrink: 0;
+}
+.sync-dot.offline { background: var(--card); }
+
+.banner, .banner.warn {
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--card);
+    background: var(--surface);
+    border-radius: 0 8px 8px 0;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    font-size: 13px;
+}
+.banner h3 { margin: 0 0 4px; font-size: 13px; color: #fff; }
+.banner .muted { color: var(--text-faint); margin: 0; }
+.banner code { font-size: 12px; }
 
 .setup-body { padding: 20px 24px 40px; overflow-y: auto; flex: 1; }
 

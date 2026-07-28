@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PitchIQ — My reports</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/app.css">
+</head>
+<body>
+
+<header class="topbar">
+    <a class="brand" href="../">PitchIQ <span>player</span></a>
+    <div class="topbar-user">
+        <span id="who" class="muted"></span>
+        <button id="btn-signout" class="btn small ghost">Sign out</button>
+    </div>
+</header>
+
+<main class="shell">
+    <div id="config-slot"></div>
+    <div id="loading" class="loading">Loading your reports…</div>
+
+    <section id="view-empty" class="hidden">
+        <h1>Nothing published yet</h1>
+        <p class="lede" id="empty-msg">
+            Your coach hasn't published any match reports for you yet. They'll show up
+            here as soon as they do.
+        </p>
+    </section>
+
+    <section id="view-reports" class="hidden">
+        <h1 id="player-name">My season</h1>
+        <p class="lede" id="player-sub"></p>
+
+        <section class="block">
+            <h2>Season totals</h2>
+            <div id="season-stats" class="stat-grid"></div>
+        </section>
+
+        <section class="block">
+            <h2>Matches</h2>
+            <div id="match-list" class="card-list"></div>
+        </section>
+    </section>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script type="module" src="player.js"></script>
+</body>
+</html>

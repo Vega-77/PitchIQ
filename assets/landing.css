@@ -1,0 +1,69 @@
+/* Landing-page-only styling. Everything else uses assets/app.css. */
+
+.hero {
+    padding: 56px 0 8px;
+    max-width: 44rem;
+}
+
+.hero h1 {
+    font-size: clamp(30px, 6vw, 48px);
+    line-height: 1.08;
+    margin-bottom: 16px;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 26px 0 14px;
+}
+
+.flow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 14px;
+}
+
+.flow-step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    position: relative;
+}
+
+.flow-step .step-n {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent-bg);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 12px;
+}
+
+.flow-step h3 {
+    color: var(--text-bright);
+    text-transform: none;
+    letter-spacing: -0.1px;
+    font-size: 15px;
+    margin-bottom: 6px;
+}
+
+.flow-step p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-dim);
+    line-height: 1.55;
+}
+
+#user-chip {
+    font-size: 13px;
+    color: var(--text-dim);
+}

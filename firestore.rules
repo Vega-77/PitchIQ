@@ -1,0 +1,322 @@
+rules_version = '2';
+
+// PitchIQ security rules.
+//
+// This database holds names and email addresses of high school students, so two
+// principles drive the whole design:
+//
+//   1. Authorization NEVER comes from a document the subject can write. A user
+//      controls their own users/{uid} doc completely, so it is treated as a UI
+//      hint with zero authority. Coach access is proven by teams/{t}.coachUids;
+//      player identity by teams/{t}/players/{p}.linkedUid.
+//
+//   2. Players never read live match data. Firestore evaluates a list rule once
+//      against the query, not per document, so there is no way to grant partial
+//      access to a collection. Players read only denormalized playerReports docs
+//      scoped to their own uid.
+
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    // ------------------------------------------------------------------
+    // Identity
+    // ------------------------------------------------------------------
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function email() {
+      return request.auth.token.get('email', '').lower();
+    }
+
+    // Google sign-in with a verified address is the only accepted identity.
+    // The provider check matters even though only Google is enabled today:
+    // turning on Email/Password is one click in the console, and without this
+    // an attacker could register an unverified victim@school.edu and use it to
+    // claim that student's roster slot.
+    function ident() {
+      return request.auth != null
+        && request.auth.token.get('email_verified', false) == true
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && email() != '';
+    }
+
+    // ------------------------------------------------------------------
+    // Authorization — always derived from the path, never from payload
+    // ------------------------------------------------------------------
+
+    function team(t) {
+      return get(/databases/$(db)/documents/teams/$(t)).data;
+    }
+
+    function isCoach(t) {
+      return ident() && uid() in team(t).coachUids;
+    }
+
+    // Whoever runs the tablet may write the match log but never reads rosters
+    // (which hold students' emails) or finished player reports.
+    function isTagger(t) {
+      return ident() && (uid() in team(t).coachUids || uid() in team(t).taggerUids);
+    }
+
+    function changed(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // Firestore doc IDs cannot contain '/', which is legal in an email local
+    // part, and IDs matching __.*__ are reserved. Emails are stored and keyed
+    // lowercase because Google Workspace commonly returns mixed case while
+    // Gmail returns lowercase — a mismatch that passes local testing and fails
+    // against a real school domain.
+    function emailShape(s) {
+      return s is string
+        && s.size() <= 254
+        && s == s.lower()
+        && s.matches('^[^@/\\s]+@[^@/\\s]+[.][^@/\\s]+$');
+    }
+
+    function isTimestampNow(v) {
+      return v == request.time;
+    }
+
+    // ------------------------------------------------------------------
+    // users — UI hints only. Forging this document achieves nothing.
+    // ------------------------------------------------------------------
+
+    match /users/{userId} {
+      allow read, delete: if ident() && userId == uid();
+
+      allow create, update: if ident()
+        && userId == uid()
+        && request.resource.data.keys().hasOnly(
+             ['displayName', 'emailLower', 'teamIds', 'lastPlayerRef', 'updatedAt'])
+        && request.resource.data.emailLower == email()
+        && request.resource.data.teamIds is list
+        && request.resource.data.teamIds.size() <= 10;
+    }
+
+    // ------------------------------------------------------------------
+    // coachAllowlist — managed by hand in the console.
+    //
+    // Denying all client access does not break the exists() check below:
+    // get()/exists() inside rules run with full privileges and bypass rules.
+    // ------------------------------------------------------------------
+
+    match /coachAllowlist/{emailKey} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------------
+    // teams
+    // ------------------------------------------------------------------
+
+    match /teams/{t} {
+      allow get: if isCoach(t) || isTagger(t);
+      allow list: if false;
+
+      // Separate from update because isCoach(t) would get() a document that does
+      // not exist yet, raise an evaluation error, and deny. This is the only
+      // genuine bootstrap in the ruleset.
+      allow create: if ident()
+        && exists(/databases/$(db)/documents/coachAllowlist/$(email()))
+        && request.resource.data.keys().hasOnly(
+             ['name', 'coachUids', 'taggerUids', 'archived', 'createdAt', 'createdBy'])
+        && request.resource.data.coachUids == [uid()]
+        && request.resource.data.taggerUids == []
+        && request.resource.data.createdBy == uid()
+        && isTimestampNow(request.resource.data.createdAt)
+        && request.resource.data.archived == false
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80;
+
+      // isCoach(t) reads resource.data — the PRE-write value. Testing
+      // request.resource.data here would let anyone add themselves as a coach.
+      allow update: if isCoach(t)
+        && changed(['name', 'coachUids', 'taggerUids', 'archived'])
+        && uid() in request.resource.data.coachUids
+        && request.resource.data.coachUids.size() >= 1
+        && request.resource.data.coachUids.size() <= 4
+        && request.resource.data.taggerUids.size() <= 4;
+
+      // Firestore does not cascade deletes. Removing a team would orphan every
+      // subcollection permanently — unreadable (isCoach() would error on the
+      // missing doc), undeletable by any client, and still billed. Archive.
+      allow delete: if false;
+
+      // ---- roster: holds students' email addresses, so coach-only ----
+      match /players/{p} {
+        allow list: if isCoach(t);
+        allow get: if isCoach(t) || (ident() && resource.data.linkedUid == uid());
+
+        allow create: if isCoach(t)
+          && request.resource.data.keys().hasOnly(
+               ['name', 'jerseyNumber', 'emailLower', 'linkedUid', 'active', 'createdAt'])
+          && request.resource.data.linkedUid == null
+          && emailShape(request.resource.data.emailLower)
+          && request.resource.data.active is bool
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 80
+          && (request.resource.data.jerseyNumber == null
+              || (request.resource.data.jerseyNumber is int
+                  && request.resource.data.jerseyNumber >= 0
+                  && request.resource.data.jerseyNumber <= 99));
+
+        // A coach may edit the roster and may unlink (a student changed email),
+        // but may never point a roster slot at an arbitrary account. Linking is
+        // done only by the account owner, in the rule below.
+        allow update: if isCoach(t)
+          && changed(['name', 'jerseyNumber', 'emailLower', 'linkedUid', 'active'])
+          && (request.resource.data.linkedUid == null
+              || request.resource.data.linkedUid == resource.data.linkedUid)
+          && emailShape(request.resource.data.emailLower);
+
+        // The claim: the only write a player ever makes to team data. It is
+        // self-verifying — it checks the roster document's own stored email
+        // against the verified token, and does not trust the invite at all.
+        allow update: if ident()
+          && changed(['linkedUid'])
+          && resource.data.linkedUid == null
+          && request.resource.data.linkedUid == uid()
+          && resource.data.emailLower == email();
+
+        allow delete: if isCoach(t);
+      }
+
+      // ---- matches ----
+      match /matches/{m} {
+        allow get, list: if isTagger(t);
+
+        allow create: if isTagger(t)
+          && request.resource.data.keys().hasOnly(
+               ['opponentName', 'date', 'status', 'finalized',
+                'scoreUs', 'scoreThem', 'createdAt', 'createdBy'])
+          && request.resource.data.opponentName is string
+          && request.resource.data.opponentName.size() <= 80
+          && request.resource.data.status in
+               ['scheduled', 'first_half', 'halftime', 'second_half', 'full_time']
+          && request.resource.data.finalized == false
+          && request.resource.data.createdBy == uid()
+          && isTimestampNow(request.resource.data.createdAt);
+
+        allow update: if isTagger(t)
+          && changed(['opponentName', 'date', 'status', 'finalized', 'scoreUs', 'scoreThem'])
+          && request.resource.data.status in
+               ['scheduled', 'first_half', 'halftime', 'second_half', 'full_time'];
+
+        allow delete: if isCoach(t);
+
+        match /roster/{p} {
+          allow read: if isTagger(t);
+
+          allow create: if isTagger(t)
+            && request.resource.data.keys().hasOnly(
+                 ['playerName', 'jerseyNumber', 'isStarter', 'isActive', 'stints', 'version'])
+            && request.resource.data.version == 0
+            && request.resource.data.stints is list
+            && request.resource.data.isStarter is bool
+            && request.resource.data.isActive is bool;
+
+          // Optimistic lock. writeBatch alone gives atomicity but not
+          // compare-and-swap; this makes a conflicting concurrent write fail at
+          // sync time instead of silently clobbering. Unlike runTransaction it
+          // still works offline, which is the actual match-day condition.
+          allow update: if isTagger(t)
+            && changed(['isStarter', 'isActive', 'stints', 'version'])
+            && request.resource.data.version == resource.data.version + 1
+            && request.resource.data.stints is list
+            && request.resource.data.stints.size() <= 20;
+
+          allow delete: if isCoach(t);
+        }
+
+        // ---- log: one append-only stream of events, subs, and periods ----
+        match /log/{entryId} {
+          allow read: if isTagger(t);
+
+          allow create: if isTagger(t)
+            && request.resource.data.keys().hasOnly(
+                 ['kind', 'type', 'matchClockS', 'side', 'playerId',
+                  'subOutId', 'subInId', 'detail', 'source', 'seq', 'deviceId',
+                  'revert', 'tappedAt', 'createdAt', 'createdBy'])
+            && request.resource.data.kind in ['event', 'sub', 'period']
+            && request.resource.data.type in [
+                 'out_of_bounds', 'corner', 'throw_in', 'goal_kick', 'free_kick',
+                 'foul', 'card', 'goal', 'offside',
+                 'kickoff_1st', 'halftime', 'kickoff_2nd', 'full_time', 'sub']
+            && request.resource.data.source in
+                 ['live_tag', 'cv_candidate', 'reviewer_confirmed']
+            && request.resource.data.matchClockS is number
+            && request.resource.data.matchClockS >= 0
+            && request.resource.data.matchClockS <= 12000
+            && (request.resource.data.side == null
+                || request.resource.data.side in ['us', 'them'])
+            // There is no opponent roster, so an opponent event can never carry
+            // one of our player IDs.
+            && (request.resource.data.playerId == null
+                || request.resource.data.side == 'us')
+            && (request.resource.data.detail == null
+                || (request.resource.data.detail is string
+                    && request.resource.data.detail.size() <= 200))
+            && request.resource.data.seq is int
+            && request.resource.data.seq >= 0
+            && request.resource.data.createdBy == uid()
+            && isTimestampNow(request.resource.data.createdAt);
+
+          // Append-only: corrections are new entries, not rewrites.
+          allow update: if false;
+          allow delete: if isTagger(t);
+        }
+
+        // ---- playerReports: the only team data a player ever reads ----
+        match /playerReports/{p} {
+          allow get, list: if isCoach(t);
+
+          allow create, update: if isCoach(t)
+            && request.resource.data.published is bool
+            && request.resource.data.minutesPlayed is number
+            && request.resource.data.minutesPlayed >= 0;
+
+          allow delete: if isCoach(t);
+        }
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // invites — a pointer, not a grant. Claiming is verified against the
+    // roster document itself, so a forged invite gains nothing.
+    // ------------------------------------------------------------------
+
+    match /invites/{emailKey}/from/{t} {
+      // Path-derived, so the list rule is provable and nobody can enumerate
+      // students' addresses.
+      allow get, list: if ident() && emailKey == email();
+
+      allow create, update: if isCoach(t)
+        && emailShape(emailKey)
+        && request.resource.data.keys().hasOnly(
+             ['playerId', 'teamName', 'coachName', 'createdAt', 'createdBy'])
+        && isTimestampNow(request.resource.data.createdAt)
+        && exists(/databases/$(db)/documents/teams/$(t)/players/$(request.resource.data.playerId));
+
+      allow delete: if isCoach(t);
+    }
+
+    // ------------------------------------------------------------------
+    // Player portal — the one collection-group grant.
+    //
+    // Safe because the condition is uid-scoped rather than path-scoped: a
+    // recursive wildcard with a path-based condition would be a footgun.
+    // Requires the client query to filter on linkedUid, which is what makes it
+    // provable at all.
+    // ------------------------------------------------------------------
+
+    match /{path=**}/playerReports/{p} {
+      allow get, list: if ident()
+        && resource.data.linkedUid == uid()
+        && resource.data.published == true;
+    }
+  }
+}
