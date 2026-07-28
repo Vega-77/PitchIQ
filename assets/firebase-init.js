@@ -21,12 +21,13 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
 export const firebaseConfig = {
-    apiKey: 'REPLACE_ME',
-    authDomain: 'REPLACE_ME.firebaseapp.com',
-    projectId: 'REPLACE_ME',
-    storageBucket: 'REPLACE_ME.firebasestorage.app',
-    messagingSenderId: 'REPLACE_ME',
-    appId: 'REPLACE_ME',
+  apiKey: "AIzaSyCHY0t-88OPFzPgUut3Wbx7ui51YkaDEZ4",
+  authDomain: "pitchiq-884db.firebaseapp.com",
+  projectId: "pitchiq-884db",
+  storageBucket: "pitchiq-884db.firebasestorage.app",
+  messagingSenderId: "340675531579",
+  appId: "1:340675531579:web:9466dd63337b5ec5acdd1e",
+  measurementId: "G-42P3SKL0F5"
 };
 
 export const isConfigured = !firebaseConfig.projectId.startsWith('REPLACE_ME');
