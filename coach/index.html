@@ -43,65 +43,119 @@
 
     <!-- main -->
     <section id="view-main" class="hidden">
+
+        <!-- Season header: what the team has actually done so far. -->
+        <header class="team-hero has-backdrop" id="team-hero">
+            <div class="team-hero-main">
+                <div class="eyebrow-mini">Season</div>
+                <h1 id="hero-team">Team</h1>
+                <div class="record-line">
+                    <span class="record" id="hero-record">0-0-0</span>
+                    <span class="record-key">W&ndash;D&ndash;L</span>
+                    <span class="record-sep"></span>
+                    <span id="hero-gd" class="record-gd">0</span>
+                    <span class="record-key">goal difference</span>
+                </div>
+            </div>
+            <div class="team-hero-stats stat-grid" id="hero-stats"></div>
+        </header>
+
+        <!-- Matchday is a different job from squad admin, so it gets its own
+             surface rather than being one tab among several. -->
+        <section class="action-strip">
+            <a class="action-card primary-action" href="../live-tagging/">
+                <div class="action-icon">&#9679;</div>
+                <div class="grow">
+                    <div class="action-title">Tag a match live</div>
+                    <div class="action-sub" id="action-tag-sub">Record events from the touchline</div>
+                </div>
+                <span class="action-go">&rsaquo;</span>
+            </a>
+            <a class="action-card" href="../calibrate/">
+                <div class="action-icon">&#9636;</div>
+                <div class="grow">
+                    <div class="action-title">Calibrate a camera</div>
+                    <div class="action-sub">Map footage onto the pitch</div>
+                </div>
+                <span class="action-go">&rsaquo;</span>
+            </a>
+        </section>
+
         <nav class="tabs">
-            <button class="tab active" data-tab="matches">Matches</button>
-            <button class="tab" data-tab="roster">Roster</button>
+            <button class="tab active" data-tab="matches">
+                Matches <span class="tab-count" id="count-matches"></span>
+            </button>
+            <button class="tab" data-tab="roster">
+                Roster <span class="tab-count" id="count-roster"></span>
+            </button>
         </nav>
 
         <div id="tab-matches">
-            <section class="block" style="margin-top:26px">
-                <h3>New match</h3>
-                <div class="card">
-                    <div class="row">
-                        <label class="field" style="margin:0">
+            <div class="split">
+                <section>
+                    <h3>Matches</h3>
+                    <div id="match-list" class="card-list"></div>
+                </section>
+                <aside>
+                    <h3>New match</h3>
+                    <div class="card">
+                        <label class="field">
                             <span>Opponent</span>
                             <input id="input-opponent" type="text" placeholder="Linden">
                         </label>
-                        <label class="field" style="margin:0;flex:0 0 180px">
+                        <label class="field">
                             <span>Date</span>
                             <input id="input-date" type="date">
                         </label>
-                        <button id="btn-create-match" class="btn primary">Create</button>
+                        <button id="btn-create-match" class="btn primary block">Create match</button>
                     </div>
-                </div>
-            </section>
-
-            <section class="block">
-                <h3>Matches</h3>
-                <div id="match-list" class="card-list"></div>
-            </section>
+                </aside>
+            </div>
         </div>
 
         <div id="tab-roster" class="hidden">
-            <section class="block" style="margin-top:26px">
-                <h3>Add a player</h3>
-                <div class="card">
-                    <div class="row">
-                        <label class="field" style="margin:0;flex:2">
+            <div class="split">
+                <section>
+                    <h3>Squad</h3>
+                    <div id="roster-list" class="card-list"></div>
+                </section>
+                <aside>
+                    <h3>Add a player</h3>
+                    <div class="card">
+                        <label class="field">
                             <span>Name</span>
                             <input id="input-player-name" type="text" placeholder="Alex Vega">
                         </label>
-                        <label class="field" style="margin:0;flex:0 0 100px">
-                            <span>Number</span>
-                            <input id="input-player-number" type="number" min="0" max="99" placeholder="9">
-                        </label>
-                        <label class="field" style="margin:0;flex:2">
-                            <span>School email</span>
-                            <input id="input-player-email" type="email" placeholder="alex@school.org">
-                        </label>
-                        <button id="btn-add-player" class="btn primary">Add</button>
+                        <div class="row" style="margin-bottom:16px">
+                            <label class="field" style="margin:0;flex:0 0 92px">
+                                <span>Number</span>
+                                <input id="input-player-number" type="number" min="0" max="99" placeholder="9">
+                            </label>
+                            <label class="field" style="margin:0">
+                                <span>School email</span>
+                                <input id="input-player-email" type="email" placeholder="alex@school.org">
+                            </label>
+                        </div>
+                        <button id="btn-add-player" class="btn primary block">Add to squad</button>
+                        <p class="muted" style="margin:14px 0 0">
+                            The email has to match the Google account they sign in with —
+                            that's what links them to their own report.
+                        </p>
                     </div>
-                    <p class="muted" style="margin:14px 0 0">
-                        The email has to match the Google account the player signs in
-                        with — that's what links them to their own report.
-                    </p>
-                </div>
-            </section>
 
-            <section class="block">
-                <h3>Roster</h3>
-                <div id="roster-list" class="card-list"></div>
-            </section>
+                    <div class="card" style="margin-top:12px">
+                        <h3 style="margin-bottom:10px">Linking</h3>
+                        <div class="legend-row">
+                            <span class="pill done">linked</span>
+                            <span class="muted">signed in, sees their reports</span>
+                        </div>
+                        <div class="legend-row">
+                            <span class="pill">not signed in</span>
+                            <span class="muted">invited, hasn't accepted yet</span>
+                        </div>
+                    </div>
+                </aside>
+            </div>
         </div>
     </section>
 

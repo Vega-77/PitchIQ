@@ -399,7 +399,7 @@ export function minutesFrom(stints, matchEndS) {
  * player read only their own row out of the shared match data, so the coach
  * publishes a per-player document instead.
  */
-export async function publishReports(teamId, matchId, match, team, players) {
+export async function publishReports(teamId, matchId, match, team, players, score) {
     const batch = writeBatch(db);
 
     for (const player of players) {
@@ -430,8 +430,38 @@ export async function publishReports(teamId, matchId, match, team, players) {
         );
     }
 
-    batch.update(doc(db, 'teams', teamId, 'matches', matchId), { finalized: true });
+    // Store the score on the match itself so the dashboard can show a season
+    // record without re-reading every match's full event log.
+    batch.update(doc(db, 'teams', teamId, 'matches', matchId), {
+        finalized: true,
+        scoreUs: score?.us ?? 0,
+        scoreThem: score?.them ?? 0,
+    });
     await batch.commit();
+}
+
+/** Season totals derived from finalized matches. */
+export function seasonSummary(matches) {
+    const played = matches.filter((m) => m.finalized);
+
+    let won = 0, drawn = 0, lost = 0, scored = 0, conceded = 0;
+    for (const m of played) {
+        const us = m.scoreUs ?? 0;
+        const them = m.scoreThem ?? 0;
+        scored += us;
+        conceded += them;
+        if (us > them) won += 1;
+        else if (us < them) lost += 1;
+        else drawn += 1;
+    }
+
+    return {
+        played: played.length,
+        upcoming: matches.length - played.length,
+        won, drawn, lost, scored, conceded,
+        goalDifference: scored - conceded,
+        record: `${won}-${drawn}-${lost}`,
+    };
 }
 
 /** The player portal's single query. Must filter on linkedUid to be permitted. */

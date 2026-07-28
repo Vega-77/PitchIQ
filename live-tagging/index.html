@@ -14,7 +14,7 @@
 
 <!-- ===================== SETUP ===================== -->
 <section id="view-setup" class="view active">
-    <header class="tag-header">
+    <header class="tag-header has-backdrop" id="tag-header">
         <div>
             <div class="brand">PitchIQ <span>tagging</span></div>
             <p class="muted" id="setup-sub">Sign in to load your team</p>
@@ -30,17 +30,27 @@
         </div>
 
         <div id="match-block" class="hidden">
-            <label class="field">
-                <span>Match</span>
-                <select id="select-match"><option value="">— choose —</option></select>
-            </label>
+            <div id="match-picker">
+                <h3>Choose a match</h3>
+                <div id="match-cards" class="match-cards"></div>
+            </div>
 
             <div id="lineup-block" class="hidden">
-                <h3>Starting lineup</h3>
-                <p class="muted" style="margin:-4px 0 14px">
-                    Tap everyone starting. The rest become your bench.
-                    <span id="starter-count"></span>
-                </p>
+                <button id="btn-change-match" class="btn small ghost" style="margin-bottom:14px">
+                    &lsaquo; Different match
+                </button>
+                <div class="lineup-head">
+                    <div>
+                        <h3 style="margin-bottom:2px">Starting lineup</h3>
+                        <p class="muted" style="margin:0">
+                            Tap everyone starting. The rest become your bench.
+                        </p>
+                    </div>
+                    <div class="starter-badge">
+                        <span id="starter-count">0</span>
+                        <span class="starter-key">picked</span>
+                    </div>
+                </div>
                 <ul id="roster-list" class="roster"></ul>
                 <button id="btn-save-lineup" class="btn primary block">Save lineup &amp; continue</button>
             </div>

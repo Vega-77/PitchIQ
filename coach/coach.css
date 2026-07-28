@@ -1,5 +1,153 @@
 /* Coach dashboard only. */
 
+/* ---------------------------------------------------------------- season hero */
+
+.team-hero {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 32px;
+    flex-wrap: wrap;
+    margin: 30px 0 24px;
+    padding: 28px 30px;
+    background: linear-gradient(160deg, var(--surface), var(--bg-raised));
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+}
+
+.team-hero-main { min-width: 240px; }
+.team-hero-main h1 { margin: 0 0 12px; }
+
+.eyebrow-mini {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--accent);
+    margin-bottom: 8px;
+}
+
+/* Record reads like a standings line: figures first, key beneath. */
+.record-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+
+.record {
+    font-size: 25px;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.8px;
+}
+.record-gd { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.record-gd.pos { color: var(--good); }
+.record-gd.neg { color: var(--danger); }
+
+.record-key {
+    font-size: 10px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+}
+.record-sep { width: 1px; height: 18px; background: var(--line-hi); margin: 0 4px; }
+
+.team-hero-stats { flex: 1; min-width: 260px; max-width: 480px; }
+.team-hero-stats .stat { background: rgba(0,0,0,.22); }
+
+/* ---------------------------------------------------------------- actions */
+
+/* Matchday is a different job from squad admin, so it lives on its own strip
+   above the tabs rather than competing with them. */
+.action-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.action-card {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 17px 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    color: inherit;
+    transition: background .13s, border-color .13s, transform .1s;
+}
+.action-card:hover { background: var(--surface-hi); border-color: var(--line-hi); transform: translateY(-1px); }
+
+.action-card.primary-action {
+    border-color: rgba(77,214,193,.38);
+    background: linear-gradient(135deg, rgba(77,214,193,.12), var(--surface) 60%);
+}
+.action-card.primary-action:hover { border-color: var(--accent); }
+.action-card.primary-action .action-icon { color: var(--accent); }
+
+.action-icon {
+    font-size: 17px;
+    color: var(--text-faint);
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    flex-shrink: 0;
+}
+
+.action-title { font-weight: 650; font-size: 15px; }
+.action-sub { font-size: 12.5px; color: var(--text-faint); margin-top: 1px; }
+.action-go { color: var(--text-faint); font-size: 20px; }
+
+/* ---------------------------------------------------------------- layout */
+
+/* Two columns so a wide screen isn't a narrow list with dead space beside it.
+   The form sits in the rail; the list gets the room. */
+.split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 330px;
+    gap: 28px;
+    align-items: start;
+    margin-top: 26px;
+}
+
+.tab-count {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-faint);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 1px 7px;
+    margin-left: 5px;
+}
+.tab.active .tab-count { color: var(--accent); border-color: rgba(77,214,193,.35); }
+
+.legend-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.legend-row:last-child { margin-bottom: 0; }
+
+/* ---------------------------------------------------------------- matches */
+
+/* Result chip on a played match: colour carries win/draw/loss at a glance. */
+.match-score {
+    font-variant-numeric: tabular-nums;
+    font-weight: 750;
+    font-size: 16px;
+    padding: 4px 11px;
+    border-radius: 8px;
+    background: var(--surface-hi);
+    border: 1px solid var(--line);
+    white-space: nowrap;
+}
+.match-score.win { color: var(--good); border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.08); }
+.match-score.loss { color: var(--danger); border-color: rgba(248,113,113,.3); background: rgba(248,113,113,.07); }
+.match-score.draw { color: var(--text-dim); }
+
+/* ---------------------------------------------------------------- match view */
+
 .match-head {
     display: flex;
     align-items: flex-start;
@@ -9,14 +157,20 @@
     margin-bottom: 8px;
 }
 
-/* Card marks in the players table, shown as actual coloured cards rather than
-   a count — a yellow and a red should never be summed into one number. */
+/* Cards shown as actual coloured marks — a yellow and a red must never be
+   summed into a single number. */
 .cards-cell { display: inline-flex; gap: 3px; align-items: center; }
 .cards-cell .none { color: var(--text-faint); }
 
 .roster-row .pill { flex-shrink: 0; }
 
+@media (max-width: 900px) {
+    .split { grid-template-columns: 1fr; gap: 22px; }
+    .team-hero { padding: 22px; gap: 20px; }
+}
+
 @media (max-width: 640px) {
     .match-head { gap: 12px; }
     .scoreline { font-size: 32px; }
+    .team-hero-stats { max-width: none; }
 }

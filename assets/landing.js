@@ -2,6 +2,7 @@ import {
     signIn, signOut, onUser, resolveAccess, pendingInvites, claimInvite,
     configWarning,
 } from './auth.js';
+import { mountPitchBackdrop } from './pitch-backdrop.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -140,6 +141,8 @@ function onSignedOut() {
 function init() {
     const warning = configWarning();
     if (warning) $('config-slot').appendChild(warning);
+
+    mountPitchBackdrop($('landing-hero'), { opacity: 0.2 });
 
     attachSignIn($('btn-signin'));
     attachSignIn($('btn-hero-signin'));

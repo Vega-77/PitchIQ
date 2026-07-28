@@ -4,9 +4,10 @@ import {
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, listMatchRoster, listLog,
-    aggregateMatch, publishReports,
+    aggregateMatch, publishReports, seasonSummary,
 } from '../assets/db.js';
-import { EVENT_TYPES, CARD_COLOURS, describeEvent, beneficiary } from '../assets/events.js';
+import { EVENT_TYPES, CARD_COLOURS, describeEvent } from '../assets/events.js';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -79,8 +80,37 @@ async function loadTeamData() {
         listPlayers(state.team.id),
         listMatches(state.team.id),
     ]);
+    renderHero();
     renderRoster();
     renderMatches();
+}
+
+function renderHero() {
+    mountPitchBackdrop($('team-hero'), { opacity: 0.16 });
+
+    const summary = seasonSummary(state.matches);
+    $('hero-team').textContent = state.team.name;
+    $('hero-record').textContent = summary.record;
+
+    const gd = $('hero-gd');
+    gd.textContent = summary.goalDifference > 0 ? `+${summary.goalDifference}` : summary.goalDifference;
+    gd.classList.toggle('pos', summary.goalDifference > 0);
+    gd.classList.toggle('neg', summary.goalDifference < 0);
+
+    const grid = $('hero-stats');
+    grid.innerHTML = '';
+    grid.appendChild(statCard(summary.played, 'Played'));
+    grid.appendChild(statCard(summary.scored, 'Scored', summary.scored ? 'is-good' : 'is-muted'));
+    grid.appendChild(statCard(summary.conceded, 'Conceded', 'is-muted'));
+    grid.appendChild(statCard(state.players.length, 'Squad', 'is-muted'));
+
+    $('count-matches').textContent = state.matches.length;
+    $('count-roster').textContent = state.players.length;
+
+    const open = state.matches.filter((m) => !m.finalized).length;
+    $('action-tag-sub').textContent = open
+        ? `${open} match${open === 1 ? '' : 'es'} open for tagging`
+        : 'Create a match first';
 }
 
 function renderRoster() {
@@ -174,7 +204,9 @@ function renderMatches() {
     list.innerHTML = '';
 
     if (!state.matches.length) {
-        list.innerHTML = '<div class="empty">No matches yet. Create one above.</div>';
+        list.innerHTML =
+            '<div class="empty">No matches yet.<br>'
+            + '<span class="muted">Add one on the right, then tag it live from the touchline.</span></div>';
         return;
     }
 
@@ -186,10 +218,22 @@ function renderMatches() {
                 <div class="title"></div>
                 <div class="sub"></div>
             </div>
+            <span class="match-score hidden"></span>
             <span class="pill"></span>`;
 
         row.querySelector('.title').textContent = `vs ${match.opponentName || '—'}`;
         row.querySelector('.sub').textContent = match.date || 'no date';
+
+        // A finalized match shows its result, colour-coded, instead of just a
+        // status word — that is the thing a coach is actually scanning for.
+        if (match.finalized) {
+            const us = match.scoreUs ?? 0;
+            const them = match.scoreThem ?? 0;
+            const score = row.querySelector('.match-score');
+            score.textContent = `${us}–${them}`;
+            score.classList.remove('hidden');
+            score.classList.add(us > them ? 'win' : us < them ? 'loss' : 'draw');
+        }
 
         const pill = row.querySelector('.pill');
         if (match.finalized) {
@@ -411,9 +455,14 @@ async function doPublish() {
         await publishReports(
             state.team.id, state.match.id, state.match, state.team,
             state.match.stats.players,
+            {
+                us: state.match.stats.counts.us.goal ?? 0,
+                them: state.match.stats.counts.them.goal ?? 0,
+            },
         );
         toast('Player reports published');
         state.matches = await listMatches(state.team.id);
+        renderHero();
         renderMatches();
     } catch (err) {
         toast(err.message || 'Could not publish reports.', true);

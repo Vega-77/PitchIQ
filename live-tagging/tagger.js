@@ -22,6 +22,7 @@ import {
 import {
     EVENT_TYPES, CARD_COLOURS, describeEvent, PERIOD_LABELS,
 } from '../assets/events.js';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -117,21 +118,49 @@ function setLast(text, fresh = true) {
 // ---------------------------------------------------------------- setup
 
 async function loadMatches() {
-    const matches = await listMatches(state.teamId);
-    const select = $('select-match');
-    select.innerHTML = '<option value="">— choose —</option>';
+    const matches = (await listMatches(state.teamId)).filter((m) => !m.finalized);
+    const wrap = $('match-cards');
+    wrap.innerHTML = '';
 
-    let open = 0;
-    for (const match of matches) {
-        if (match.finalized) continue;
-        open += 1;
-        const option = document.createElement('option');
-        option.value = match.id;
-        option.textContent = `${match.date || 'no date'} · vs ${match.opponentName || '—'}`;
-        select.appendChild(option);
+    if (!matches.length) {
+        wrap.innerHTML =
+            '<div class="empty">No open matches.<br>'
+            + '<span class="muted">Create one in the coach dashboard first.</span><br><br>'
+            + '<a class="btn small" href="../coach/">Open coach dashboard</a></div>';
+        return;
     }
 
-    if (!open) toast('No open matches — create one in the coach dashboard.', true);
+    for (const match of matches) {
+        const inProgress = ['first_half', 'halftime', 'second_half'].includes(match.status);
+
+        const card = document.createElement('button');
+        card.className = `match-card ${inProgress ? 'resumable' : ''}`;
+        card.innerHTML = `
+            <div class="grow">
+                <div class="vs">versus</div>
+                <div class="opp"></div>
+                <div class="when"></div>
+            </div>
+            <span class="pill"></span>`;
+
+        card.querySelector('.opp').textContent = match.opponentName || '—';
+        card.querySelector('.when').textContent = match.date || 'no date';
+
+        const pill = card.querySelector('.pill');
+        if (inProgress) {
+            pill.textContent = 'resume';
+            pill.classList.add('live');
+        } else {
+            pill.textContent = 'new';
+        }
+
+        card.addEventListener('click', () => {
+            onMatchChosen(match.id).catch((err) =>
+                toast(err.message || 'Could not load that match.', true));
+        });
+
+        wrap.appendChild(card);
+    }
 }
 
 async function onMatchChosen(matchId) {
@@ -154,8 +183,17 @@ async function onMatchChosen(matchId) {
         return;
     }
 
+    $('match-picker').classList.add('hidden');
     $('lineup-block').classList.remove('hidden');
     renderLineupPicker();
+}
+
+function backToMatchPicker() {
+    $('lineup-block').classList.add('hidden');
+    $('match-picker').classList.remove('hidden');
+    state.matchId = null;
+    state.match = null;
+    for (const p of state.players) delete p._starter;
 }
 
 function renderLineupPicker() {
@@ -181,8 +219,7 @@ function renderLineupPicker() {
         list.appendChild(li);
     }
 
-    const n = state.players.filter((p) => p._starter).length;
-    $('starter-count').textContent = n ? `${n} selected` : '';
+    $('starter-count').textContent = state.players.filter((p) => p._starter).length;
 }
 
 async function saveLineupAndContinue() {
@@ -675,6 +712,7 @@ function init() {
     const warning = configWarning();
     if (warning) $('config-slot').appendChild(warning);
 
+    mountPitchBackdrop($('tag-header'), { opacity: 0.14 });
     updateOnlineIndicator();
 
     // Reached synchronously from the click, or iPad Safari blocks the popup.
@@ -682,11 +720,7 @@ function init() {
         signIn().catch((err) => toast(err.message || 'Sign-in failed.', true));
     });
 
-    $('select-match').addEventListener('change', (e) => {
-        onMatchChosen(e.target.value).catch((err) =>
-            toast(err.message || 'Could not load that match.', true));
-    });
-
+    $('btn-change-match').addEventListener('click', backToMatchPicker);
     $('btn-save-lineup').addEventListener('click', saveLineupAndContinue);
     $('btn-kickoff').addEventListener('click', doKickoff);
     $('btn-back-setup').addEventListener('click', () => showView('setup'));

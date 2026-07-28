@@ -121,6 +121,26 @@ a:hover { color: var(--accent-hi); }
 
 .shell { max-width: var(--shell); margin: 0 auto; padding: 0 24px 72px; }
 
+/* ---------------------------------------------------------------- backdrop */
+
+/* Faint pitch markings behind a header. Masked so it dissolves rather than
+   ending on a hard edge, and pinned behind content. */
+.pitch-backdrop {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    color: var(--accent);
+    z-index: 0;
+    -webkit-mask-image: radial-gradient(120% 100% at 20% 0%, #000 0%, transparent 72%);
+    mask-image: radial-gradient(120% 100% at 20% 0%, #000 0%, transparent 72%);
+}
+.pitch-backdrop svg { width: 100%; height: 100%; display: block; }
+
+/* Anything sharing a box with the backdrop needs to sit above it. */
+.has-backdrop { position: relative; }
+.has-backdrop > *:not(.pitch-backdrop) { position: relative; z-index: 1; }
+
 /* ---------------------------------------------------------------- type */
 
 h1 {
