@@ -54,13 +54,28 @@ sends it (Phase 6), then the possession/event layer (Phases 9–10).
 
 ### What the CV work has established so far
 
-Detection works, calibration works, and **tracking identity is the wall**.
-Players are detected in 99% of frames and a homography puts them on the pitch
-to within centimetres, but a single player currently splits into ~10 separate
-tracks over 30 seconds, so per-player totals are not yet trustworthy. Team-level
-metrics — possession, shape, territory — need no identity and are unaffected,
-which is the sensible thing to lead a demo with. See Phase 6 for the numbers and
-the three candidate fixes.
+Ranked by how much trouble each is, after auditing everything built so far:
+
+1. **Calibration cannot currently be done on the available footage, and it
+   blocks every metric.** The auto-tracking camera pans and zooms continuously,
+   so no single homography exists; at any instant only ~30-40% of the pitch is
+   visible and the landmarks that are visible cluster in one region — the
+   degenerate case the calibration tool itself warns about. Everything in
+   `cv/metrics.py` is expressed in metres and therefore has nothing valid to
+   run on. The calibration tests all pass because they use synthetic cameras
+   with known ground truth: that validates the maths, not its applicability.
+   **This is a footage problem and it is the reason the raw wide feed matters.**
+2. **Player track fragmentation, ~10x** (Phase 6). Tracker-agnostic, likely
+   improves with native-resolution footage.
+3. ~~Ball tracking~~ — was the second-worst problem at 1.6% coverage; fixed by
+   giving the ball its own tracker (Phase 5), now 83%.
+4. **Untested rather than broken:** the xG model has never been fed CV-derived
+   features, and the pieces have never been run end to end as one pipeline.
+
+Detection is solid (99% of frames contain players), the calibration maths is
+correct and cross-verified between Python and JS, and team-level metrics —
+possession, shape, territory — need no player identity, so they survive
+fragmentation and are the sensible thing to lead a demo with.
 
 ### Security model, in one paragraph
 
@@ -399,6 +414,7 @@ stretch with no ball detected — that last one is what exposed the auto-trackin
 camera losing the ball for 12s at a time.
 - [x] **[Demo]** Player detection using an off-the-shelf pretrained detector as-is — no fine-tuning in month 1
 - [x] **[Demo]** Ball detection feasibility spike — done, see Reality Check for results
+- [x] **Ball tracked separately from players** (`cv/ball.py`). Measured on 30s of real footage: the detector finds the ball in 60% of frames, but routing those through the multi-object tracker yielded **1.6%** — MOT confirms a track only when detections associate consistently frame to frame, and a small, fast, low-confidence object never clears that bar. Treating the ball as a single-object path-finding problem instead (dynamic programming over candidates, then interpolation) gives **83% coverage**, visually verified against the actual ball in frame
 - [x] Class filtering at predict time (person + sports ball only), which removes the spurious car/dog/umbrella detections a generic COCO model produces on stadium footage
 - [ ] Referee detection and exclusion from team stats
 - [ ] Excluding non-players in frame: coaches, subs, ball boys, sideline spectators
