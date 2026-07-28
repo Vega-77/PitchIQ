@@ -49,7 +49,18 @@ confirmation of what camera system the school actually runs.
 console steps (creating the project, enabling Google sign-in, deploying rules, adding
 coaches to the allowlist) can't be scripted from the repo.
 
-**Next up:** Phase 4 (calibration/homography), then Phase 6 (tracking).
+**Next up:** re-measure tracking on native-resolution footage once the coach
+sends it (Phase 6), then the possession/event layer (Phases 9–10).
+
+### What the CV work has established so far
+
+Detection works, calibration works, and **tracking identity is the wall**.
+Players are detected in 99% of frames and a homography puts them on the pitch
+to within centimetres, but a single player currently splits into ~10 separate
+tracks over 30 seconds, so per-player totals are not yet trustworthy. Team-level
+metrics — possession, shape, territory — need no identity and are unaffected,
+which is the sensible thing to lead a demo with. See Phase 6 for the numbers and
+the three candidate fixes.
 
 ### Security model, in one paragraph
 
@@ -364,8 +375,15 @@ backend running; set `API_BASE` in `config.js` to the laptop's LAN address on ma
 - [ ] **Known gap:** resuming an interrupted match picks the clock up *paused* at the last logged event, since real elapsed time can't be recovered after a reload. Fine for a crash; needs a manual clock-adjust control before it's trustworthy in a real game.
 
 ## 4. Field Calibration (pixel space → pitch metres)
-- [ ] **[Demo]** Manual calibration: click 4+ known pitch landmarks once per camera setup — compute a homography into the existing pitch space already used by `main.py`/`script.js`
-- [ ] **[Demo]** Track which goal each team attacks per half, and flip the coordinate transform after halftime (teams switch ends) — otherwise `distance_to_goal`, `angle_to_goal`, and every keeper/defender feature silently point at the wrong goal in the second half
+**Built.** `calibrate/` is a browser tool for clicking landmarks with a live
+overlay of the projected pitch outline; `python -m cv.experiments.calibrate
+points.json` fits and grades it. Grab a frame first with
+`python -m cv.experiments.grab_frame "<video>" --at 120`.
+- [x] **[Demo]** Manual calibration: click 4+ known pitch landmarks once per camera setup, producing a homography into pitch metres, with a conversion into the StatsBomb 120×80 space the xG model expects
+- [x] **[Demo]** Attacking direction per period (`MatchOrientation`), so second-half shots are measured against the goal the team is actually attacking
+- [x] Honest error reporting: reprojection error is shown but flagged as optimistic (zero by construction on a 4-point fit), with leave-one-out error as the real number and a suspect-point ranking to locate a mis-click
+- [ ] Recalibration handling if the camera is bumped or zoom changes mid-game
+- [ ] **Pitch dimensions must be measured, not assumed** — distance and speed inherit the error directly, so a 105m default on a 100m field overstates every figure by 5%
 - [ ] Recalibration handling if the camera is bumped or zoom changes mid-game
 - [ ] **[Stretch]** Automatic pitch-line detection
 - [ ] Strategy for when the camera doesn't see the whole pitch, tied to the coverage risk in the Reality Check
@@ -388,6 +406,41 @@ camera losing the ball for 12s at a time.
 - [ ] **[MVP]** Fine-tune detectors on your own footage once you have labeled data — the Phase 11 review tool produces this as a side effect of normal use
 
 ## 6. Multi-Object Tracking (identity over time)
+**Measured 2026-07-28 — this is now the biggest open problem in the pipeline.**
+
+`python -m cv.experiments.track_report "<video>" --compare-trackers` on 30s of
+the tight camera clip, against ~25 people on screen:
+
+| tracker | tracks kept | fragmentation | window coverage |
+|---|---|---|---|
+| bytetrack | 283 | 11.3x | 32% |
+| botsort | 250 | 10.0x | 40% |
+| ocsort | 267 | 10.7x | 35% |
+| deepocsort | 242 | 9.7x | 36% |
+
+Fragmentation is tracks-kept ÷ 25. **Around 10x means the average player is
+being cut into ten different people**, so any per-player total — distance
+covered, sprints, minutes — is really ten unattributed fragments. Detection is
+not the problem (99% of frames contain players); holding an identity is.
+
+Three things this tells us:
+- **Swapping tracker is not the fix.** All four cluster in 9.7–11.3x. The
+  bottleneck is upstream: players are only tens of pixels tall, so appearance
+  is nearly identical between them and motion cues are weak.
+- **Frame-skipping makes it worse**, which contradicts the compute-saving idea
+  in Phase 1. ByteTrack matches on frame-to-frame motion, so a stride makes
+  players appear to teleport. Stride 1 runs at 2x real time on the RTX 4060
+  anyway, so there is no reason to skip.
+- **The test footage is a 720p screen recording.** A native-resolution export
+  would give larger, more stable boxes and should improve this materially, so
+  the numbers above are close to a worst case rather than a verdict.
+
+- [x] **[Demo]** Stable per-player track ID using an existing tracking library — done, quality measured above
+- [x] Track smoothing before computing speed/distance (`cv/metrics.py`)
+- [ ] **Re-measure on native-resolution footage before concluding anything** — the current numbers may be an artefact of the screen recording
+- [ ] **[MVP]** Fine-tune the detector on real footage; more stable boxes is the most likely real fix
+- [ ] Treat the Phase 11 review tool's merge-tracks control as **required, not optional** — at 10x fragmentation a human stitching tracks is the only route to per-player stats in the short term
+- [ ] Team-level stats (possession, shape, territory) do not need identity and remain viable at this quality — worth leading the demo with them
 - [ ] **[Demo]** Stable per-player track ID across frames using an existing tracking library (ByteTrack/BoT-SORT-style) — don't build a custom tracker
 - [ ] Ball-specific tracking with interpolation through short occlusion; for longer occlusions (goalmouth scrambles), fall back to the live-tagged event log rather than guessing
 - [ ] Re-identification after a player is occluded or leaves frame briefly
@@ -405,9 +458,19 @@ real roster player is a human job, cheaper now thanks to Phase 3.
 - [ ] Handling broken tracks (same player split into 2+ IDs) — reviewer merges them
 
 ## 8. Coordinate Transformation & Movement Metrics
-- [ ] **[Demo]** Project each detection's ground contact point through the homography into pitch metres
-- [ ] **[Demo]** Per-player speed and total distance covered
-- [ ] Per-player acceleration, position heatmap / average position
+**Built** in `cv/metrics.py`, though gated on Phase 6's fragmentation before
+per-player figures mean anything.
+
+The load-bearing detail is jitter. A detection box wobbles a few pixels even
+when a player stands still, and every wobble reads as movement — measured, a
+stationary player accumulates **30m+ of phantom distance over 10 seconds**.
+Smoothing is not polish here, it is the difference between a number and a
+fiction; `tests/test_metrics.py` pins both the problem and the fix.
+- [x] **[Demo]** Project each detection's ground contact point through the homography — the bottom-centre of the box, the only point on a standing person that lies on the mapped ground plane
+- [x] **[Demo]** Per-player speed, distance covered, sprint counts, heatmaps
+- [x] Implausible-speed rejection, so one identity switch cannot dominate a total; the discard count is reported, since a high one means the whole figure deserves suspicion
+- [x] Team shape: width, depth, compactness — needs no player identity, so it survives Phase 6's fragmentation
+- [ ] Acceleration, and per-third territory splits
 
 ## 9. Ball Possession & Game State
 - [ ] **[Demo]** Determine which player/team currently has the ball (proximity + velocity correlation)
