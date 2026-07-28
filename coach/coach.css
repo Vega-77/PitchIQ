@@ -1,0 +1,22 @@
+/* Coach dashboard only. */
+
+.match-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+/* Card marks in the players table, shown as actual coloured cards rather than
+   a count — a yellow and a red should never be summed into one number. */
+.cards-cell { display: inline-flex; gap: 3px; align-items: center; }
+.cards-cell .none { color: var(--text-faint); }
+
+.roster-row .pill { flex-shrink: 0; }
+
+@media (max-width: 640px) {
+    .match-head { gap: 12px; }
+    .scoreline { font-size: 32px; }
+}

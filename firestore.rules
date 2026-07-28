@@ -239,9 +239,22 @@ service cloud.firestore {
           allow create: if isTagger(t)
             && request.resource.data.keys().hasOnly(
                  ['kind', 'type', 'matchClockS', 'side', 'playerId',
+                  'assistPlayerId', 'cardColor',
                   'subOutId', 'subInId', 'detail', 'source', 'seq', 'deviceId',
                   'revert', 'tappedAt', 'createdAt', 'createdBy'])
             && request.resource.data.kind in ['event', 'sub', 'period']
+            // A card must say which colour, and nothing else may carry one.
+            && (request.resource.data.get('cardColor', null) == null
+                ? request.resource.data.type != 'card'
+                : (request.resource.data.type == 'card'
+                   && request.resource.data.cardColor in
+                        ['yellow', 'red', 'second_yellow']))
+            // Only a goal can have an assist, and never to the scorer.
+            && (request.resource.data.get('assistPlayerId', null) == null
+                || (request.resource.data.type == 'goal'
+                    && request.resource.data.side == 'us'
+                    && request.resource.data.assistPlayerId
+                       != request.resource.data.get('playerId', '')))
             && request.resource.data.type in [
                  'out_of_bounds', 'corner', 'throw_in', 'goal_kick', 'free_kick',
                  'foul', 'card', 'goal', 'offside',
@@ -277,7 +290,9 @@ service cloud.firestore {
           allow create, update: if isCoach(t)
             && request.resource.data.published is bool
             && request.resource.data.minutesPlayed is number
-            && request.resource.data.minutesPlayed >= 0;
+            && request.resource.data.minutesPlayed >= 0
+            && request.resource.data.goals is int
+            && request.resource.data.goals >= 0;
 
           allow delete: if isCoach(t);
         }

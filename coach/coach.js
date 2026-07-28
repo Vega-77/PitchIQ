@@ -4,8 +4,9 @@ import {
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, listMatchRoster, listLog,
-    aggregateMatch, publishReports, EVENT_TYPES,
+    aggregateMatch, publishReports,
 } from '../assets/db.js';
+import { EVENT_TYPES, CARD_COLOURS, describeEvent, beneficiary } from '../assets/events.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -34,12 +35,15 @@ function show(view) {
     $('loading').classList.add('hidden');
 }
 
-const label = (type) => type.replace(/_/g, ' ');
-
 function clock(seconds) {
     const total = Math.max(0, Math.floor(seconds));
     return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
+
+const labels = () => ({
+    usName: state.team?.name || 'Us',
+    themName: state.match?.opponentName || 'Them',
+});
 
 // ---------------------------------------------------------------- team setup
 
@@ -62,7 +66,7 @@ async function doCreateTeam() {
             err?.code === 'permission-denied'
                 ? 'This account is not on the coach allowlist. Ask the project owner to add it.'
                 : err.message || 'Could not create the team.',
-            true
+            true,
         );
     }
 }
@@ -84,13 +88,13 @@ function renderRoster() {
     list.innerHTML = '';
 
     if (!state.players.length) {
-        list.innerHTML = '<div class="empty">No players yet.</div>';
+        list.innerHTML = '<div class="empty">No players yet. Add your squad above.</div>';
         return;
     }
 
     for (const player of state.players) {
         const row = document.createElement('div');
-        row.className = 'list-item';
+        row.className = 'list-item roster-row';
         row.innerHTML = `
             <span class="jersey"></span>
             <div class="grow">
@@ -98,12 +102,12 @@ function renderRoster() {
                 <div class="sub"></div>
             </div>
             <span class="pill"></span>
-            <button class="btn small ghost" data-act="invite">Invite</button>
+            <button class="btn small" data-act="invite">Invite</button>
             <button class="btn small danger" data-act="remove">Remove</button>`;
 
         row.querySelector('.jersey').textContent = player.jerseyNumber ?? '—';
         row.querySelector('.title').textContent = player.name;
-        row.querySelector('.sub').textContent = player.emailLower || 'no email';
+        row.querySelector('.sub').textContent = player.emailLower || 'no email on file';
 
         const pill = row.querySelector('.pill');
         const linked = Boolean(player.linkedUid);
@@ -152,9 +156,9 @@ async function doAddPlayer() {
             jerseyNumber: numberRaw ? Number(numberRaw) : null,
             email,
         });
-        $('input-player-name').value = '';
-        $('input-player-number').value = '';
-        $('input-player-email').value = '';
+        for (const id of ['input-player-name', 'input-player-number', 'input-player-email']) {
+            $(id).value = '';
+        }
         state.players = await listPlayers(state.team.id);
         renderRoster();
         toast(`${name} added`);
@@ -170,15 +174,13 @@ function renderMatches() {
     list.innerHTML = '';
 
     if (!state.matches.length) {
-        list.innerHTML = '<div class="empty">No matches yet.</div>';
+        list.innerHTML = '<div class="empty">No matches yet. Create one above.</div>';
         return;
     }
 
     for (const match of state.matches) {
         const row = document.createElement('button');
         row.className = 'list-item';
-        row.style.textAlign = 'left';
-        row.style.cursor = 'pointer';
         row.innerHTML = `
             <div class="grow">
                 <div class="title"></div>
@@ -197,7 +199,7 @@ function renderMatches() {
             pill.textContent = 'live';
             pill.classList.add('live');
         } else {
-            pill.textContent = label(match.status || 'scheduled');
+            pill.textContent = (match.status || 'scheduled').replace(/_/g, ' ');
         }
 
         row.addEventListener('click', () => openMatch(match.id));
@@ -234,16 +236,19 @@ async function openMatch(matchId) {
         ]);
 
         const stats = aggregateMatch(log, roster);
-        state.match = { ...match, stats, log };
+        state.match = { ...match, stats, log, roster };
 
         $('match-title').textContent = `vs ${match.opponentName || '—'}`;
         $('match-sub').textContent =
-            `${match.date || 'no date'} · ${label(match.status || 'scheduled')}` +
-            (match.finalized ? ' · reports published' : '');
+            `${match.date || 'no date'} · ${(match.status || 'scheduled').replace(/_/g, ' ')}`
+            + (match.finalized ? ' · reports published' : '');
+
+        $('score-us').textContent = stats.counts.us.goal ?? 0;
+        $('score-them').textContent = stats.counts.them.goal ?? 0;
 
         renderTeamStats(stats);
         renderPlayerTable(stats.players);
-        renderTimeline(log);
+        renderTimeline(log, roster);
 
         $('btn-publish').disabled = false;
         $('btn-publish').textContent = match.finalized
@@ -258,29 +263,38 @@ async function openMatch(matchId) {
     }
 }
 
+function statCard(value, label, tone = '') {
+    const el = document.createElement('div');
+    el.className = `stat ${tone}`;
+    el.innerHTML = `<div class="value"></div><div class="label"></div>`;
+    el.querySelector('.value').textContent = value ?? 0;
+    el.querySelector('.label').textContent = label;
+    return el;
+}
+
 function renderTeamStats(stats) {
     const grid = $('team-stats');
     grid.innerHTML = '';
 
+    const us = stats.counts.us;
+    const them = stats.counts.them;
+
+    // Corners and free kicks are counted for whoever was awarded them; fouls,
+    // cards and offside are recorded against the offender, so "our fouls" means
+    // fouls we committed. Labels say so explicitly.
     const cards = [
-        ['Goals for', stats.counts.us.goal],
-        ['Goals against', stats.counts.them.goal],
-        ['Corners', stats.counts.us.corner],
-        ['Fouls', stats.counts.us.foul],
-        ['Fouls against', stats.counts.them.foul],
-        ['Cards', stats.counts.us.card],
-        ['Offsides', stats.counts.us.offside],
-        ['Substitutions', stats.subs],
+        [us.goal, 'Goals for', 'is-good'],
+        [them.goal, 'Goals against', ''],
+        [us.corner, 'Corners won', ''],
+        [them.corner, 'Corners conceded', 'is-muted'],
+        [us.foul, 'Fouls committed', ''],
+        [them.foul, 'Fouls won', 'is-muted'],
+        [us.card, 'Our cards', us.card ? 'is-warn' : 'is-muted'],
+        [us.offside, 'Offsides against us', 'is-muted'],
+        [stats.subs, 'Substitutions', 'is-muted'],
     ];
 
-    for (const [labelText, value] of cards) {
-        const el = document.createElement('div');
-        el.className = 'stat';
-        el.innerHTML = `<div class="value"></div><div class="label"></div>`;
-        el.querySelector('.value').textContent = value ?? 0;
-        el.querySelector('.label').textContent = labelText;
-        grid.appendChild(el);
-    }
+    for (const [value, label, tone] of cards) grid.appendChild(statCard(value, label, tone));
 }
 
 function renderPlayerTable(players) {
@@ -288,27 +302,60 @@ function renderPlayerTable(players) {
     body.innerHTML = '';
 
     if (!players.length) {
-        body.innerHTML =
-            '<tr><td colspan="5" class="muted">No lineup was set for this match.</td></tr>';
+        body.innerHTML = '<tr><td colspan="7" class="muted">No lineup was set for this match.</td></tr>';
         return;
     }
 
-    for (const player of players) {
+    // Most involved first — a coach scanning this wants the standouts on top.
+    const ordered = [...players].sort(
+        (a, b) => (b.goals + b.assists) - (a.goals + a.assists)
+            || b.minutesPlayed - a.minutesPlayed,
+    );
+
+    for (const player of ordered) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td class="num"></td><td></td>
-            <td class="num"></td><td class="num"></td><td class="num"></td>`;
+            <td class="num jersey-cell"></td>
+            <td class="name-cell"></td>
+            <td class="num"></td>
+            <td class="num"></td>
+            <td class="num"></td>
+            <td class="num"></td>
+            <td><span class="cards-cell"></span></td>`;
+
         const cells = tr.querySelectorAll('td');
         cells[0].textContent = player.jerseyNumber ?? '—';
         cells[1].textContent = player.playerName;
-        cells[2].textContent = player.minutesPlayed;
-        cells[3].textContent = player.goals;
-        cells[4].textContent = player.cards;
+
+        const numbers = [player.minutesPlayed, player.goals, player.assists, player.fouls];
+        numbers.forEach((value, i) => {
+            const cell = cells[i + 2];
+            cell.textContent = value;
+            // Zeroes recede so the meaningful numbers carry the eye.
+            if (!value) cell.classList.add('zero');
+        });
+
+        const cardsCell = tr.querySelector('.cards-cell');
+        const chips = [
+            ...Array(player.yellowCards || 0).fill('yellow'),
+            ...Array(player.redCards || 0).fill('red'),
+        ];
+        if (!chips.length) {
+            cardsCell.innerHTML = '<span class="none">—</span>';
+        } else {
+            for (const colour of chips) {
+                const chip = document.createElement('span');
+                chip.className = `card-chip ${colour}`;
+                chip.title = CARD_COLOURS[colour]?.label ?? colour;
+                cardsCell.appendChild(chip);
+            }
+        }
+
         body.appendChild(tr);
     }
 }
 
-function renderTimeline(log) {
+function renderTimeline(log, roster) {
     const list = $('timeline');
     list.innerHTML = '';
 
@@ -317,18 +364,41 @@ function renderTimeline(log) {
         return;
     }
 
-    for (const entry of log) {
+    const nameById = new Map(roster.map((r) => [r.id, r.playerName]));
+
+    for (const entry of log.slice().reverse()) {
+        const spec = EVENT_TYPES[entry.type];
         const row = document.createElement('div');
-        row.className = 'list-item';
+        row.className = 'tl-row';
         row.innerHTML = `
-            <span class="jersey"></span>
-            <div class="grow"><div class="title"></div></div>
-            <span class="muted"></span>`;
-        row.querySelector('.jersey').textContent = clock(entry.matchClockS);
-        row.querySelector('.title').textContent =
-            entry.kind === 'sub' ? 'substitution' : label(entry.type);
-        row.querySelector('.muted').textContent =
-            entry.kind === 'period' ? '' : entry.side === 'them' ? 'opponent' : 'us';
+            <span class="tl-clock"></span>
+            <span class="tl-marker"><span class="tl-dot"></span></span>
+            <span class="tl-text"></span>
+            <span class="tl-side"></span>`;
+
+        row.querySelector('.tl-clock').textContent = clock(entry.matchClockS);
+
+        const text = row.querySelector('.tl-text');
+        text.textContent = describeEvent(entry, {
+            ...labels(),
+            playerName: nameById.get(entry.playerId),
+        });
+
+        if (entry.assistPlayerId && nameById.has(entry.assistPlayerId)) {
+            const assist = document.createElement('span');
+            assist.className = 'who';
+            assist.textContent = ` (assist: ${nameById.get(entry.assistPlayerId)})`;
+            text.appendChild(assist);
+        }
+
+        row.querySelector('.tl-side').textContent =
+            entry.kind === 'period' ? '' : (entry.side === 'them' ? labels().themName : labels().usName);
+
+        const dot = row.querySelector('.tl-dot');
+        if (entry.kind === 'period') dot.classList.add('period');
+        else if (spec?.tone === 'good') dot.classList.add('good');
+        else if (spec?.tone === 'warn') dot.classList.add('warn');
+
         list.appendChild(row);
     }
 }
@@ -340,7 +410,7 @@ async function doPublish() {
     try {
         await publishReports(
             state.team.id, state.match.id, state.match, state.team,
-            state.match.stats.players
+            state.match.stats.players,
         );
         toast('Player reports published');
         state.matches = await listMatches(state.team.id);
@@ -357,24 +427,20 @@ async function doPublish() {
 function initTabs() {
     for (const tab of document.querySelectorAll('.tab')) {
         tab.addEventListener('click', () => {
-            document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active', 'primary'));
-            tab.classList.add('active', 'primary');
+            document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+            tab.classList.add('active');
             $('tab-matches').classList.toggle('hidden', tab.dataset.tab !== 'matches');
             $('tab-roster').classList.toggle('hidden', tab.dataset.tab !== 'roster');
         });
     }
-    document.querySelector('.tab').classList.add('primary');
 }
 
 async function onSignedIn(user) {
     state.user = user;
 
     const access = await resolveAccess(user);
-
-    // A coach with no team yet resolves as 'none' — there is nothing to prove
-    // they coach anything until a team exists. Send players to their portal,
-    // but let everyone else through to the create-team screen; the allowlist
-    // rule is what actually decides whether creation succeeds.
+    // A coach with no team yet resolves as 'none' — there is nothing proving
+    // they coach anything until a team exists, so let them through to create one.
     if (access.role === 'player') { location.href = '../player/'; return; }
 
     const wanted = new URLSearchParams(location.search).get('team');
@@ -392,9 +458,8 @@ function init() {
 
     initTabs();
 
-    $('btn-signout').addEventListener('click', () => signOut().then(() => {
-        location.href = '../';
-    }));
+    $('btn-signout').addEventListener('click', () =>
+        signOut().then(() => { location.href = '../'; }));
     $('btn-create-team').addEventListener('click', doCreateTeam);
     $('btn-add-player').addEventListener('click', doAddPlayer);
     $('btn-create-match').addEventListener('click', doCreateMatch);

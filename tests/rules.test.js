@@ -364,7 +364,8 @@ describe('write validation', () => {
   function entry(overrides = {}) {
     return {
       kind: 'event', type: 'corner', matchClockS: 300, side: 'us',
-      playerId: null, subOutId: null, subInId: null, detail: null,
+      playerId: null, assistPlayerId: null, cardColor: null,
+      subOutId: null, subInId: null, detail: null,
       source: 'live_tag', seq: 2, deviceId: 'dev', revert: null,
       tappedAt: 1234567890, createdAt: serverTimestamp(), createdBy: COACH.uid,
       ...overrides,
@@ -405,6 +406,65 @@ describe('write validation', () => {
 
   it('rejects rewriting history', async () => {
     await assertFails(updateDoc(logRef(as(COACH), 'dev_000001'), { type: 'goal' }));
+  });
+
+  it('accepts a card that states its colour', async () => {
+    await assertSucceeds(setDoc(
+      logRef(as(COACH), 'dev_000020'),
+      entry({ type: 'card', cardColor: 'yellow', playerId: 'p1', seq: 20 })
+    ));
+  });
+
+  it('rejects a card with no colour', async () => {
+    // "Card" alone is useless after the match — yellow and red mean
+    // completely different things.
+    await assertFails(setDoc(
+      logRef(as(COACH), 'dev_000021'),
+      entry({ type: 'card', playerId: 'p1', seq: 21 })
+    ));
+  });
+
+  it('rejects an invented card colour', async () => {
+    await assertFails(setDoc(
+      logRef(as(COACH), 'dev_000022'),
+      entry({ type: 'card', cardColor: 'orange', playerId: 'p1', seq: 22 })
+    ));
+  });
+
+  it('rejects a colour on something that is not a card', async () => {
+    await assertFails(setDoc(
+      logRef(as(COACH), 'dev_000023'),
+      entry({ type: 'corner', cardColor: 'yellow', seq: 23 })
+    ));
+  });
+
+  it('accepts a goal with an assist', async () => {
+    await assertSucceeds(setDoc(
+      logRef(as(COACH), 'dev_000024'),
+      entry({ type: 'goal', playerId: 'p1', assistPlayerId: 'p2', seq: 24 })
+    ));
+  });
+
+  it('rejects an assist on a non-goal', async () => {
+    await assertFails(setDoc(
+      logRef(as(COACH), 'dev_000025'),
+      entry({ type: 'corner', assistPlayerId: 'p2', seq: 25 })
+    ));
+  });
+
+  it('rejects a player assisting their own goal', async () => {
+    await assertFails(setDoc(
+      logRef(as(COACH), 'dev_000026'),
+      entry({ type: 'goal', playerId: 'p1', assistPlayerId: 'p1', seq: 26 })
+    ));
+  });
+
+  it('rejects an assist credited on an opponent goal', async () => {
+    // We do not have the opposition roster, so an assist there is meaningless.
+    await assertFails(setDoc(
+      logRef(as(COACH), 'dev_000027'),
+      entry({ type: 'goal', side: 'them', assistPlayerId: 'p2', seq: 27 })
+    ));
   });
 
   it('requires a version bump on roster updates', async () => {

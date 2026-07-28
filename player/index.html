@@ -6,8 +6,9 @@
     <title>PitchIQ — My reports</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/app.css">
+    <link rel="stylesheet" href="player.css">
 </head>
 <body>
 
@@ -21,27 +22,32 @@
 
 <main class="shell">
     <div id="config-slot"></div>
-    <div id="loading" class="loading">Loading your reports…</div>
+    <div id="loading" class="loading">Loading your reports</div>
 
     <section id="view-empty" class="hidden">
-        <h1>Nothing published yet</h1>
+        <h1 style="margin-top:48px">Nothing published yet</h1>
         <p class="lede" id="empty-msg">
-            Your coach hasn't published any match reports for you yet. They'll show up
-            here as soon as they do.
+            Your coach hasn't published any match reports for you yet. They'll
+            appear here as soon as they do.
         </p>
     </section>
 
     <section id="view-reports" class="hidden">
-        <h1 id="player-name">My season</h1>
-        <p class="lede" id="player-sub"></p>
+        <div class="player-head">
+            <div class="player-badge" id="player-number">—</div>
+            <div>
+                <h1 id="player-name" style="margin-bottom:4px">My season</h1>
+                <p class="muted" id="player-sub"></p>
+            </div>
+        </div>
 
         <section class="block">
-            <h2>Season totals</h2>
+            <h3>Season so far</h3>
             <div id="season-stats" class="stat-grid"></div>
         </section>
 
         <section class="block">
-            <h2>Matches</h2>
+            <h3>Match by match</h3>
             <div id="match-list" class="card-list"></div>
         </section>
     </section>

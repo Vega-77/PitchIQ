@@ -1,69 +1,97 @@
-/* Landing-page-only styling. Everything else uses assets/app.css. */
+/* Landing page only. Shared tokens live in app.css. */
 
 .hero {
-    padding: 56px 0 8px;
-    max-width: 44rem;
+    position: relative;
+    padding: 68px 0 20px;
+    max-width: 46rem;
 }
 
 .hero h1 {
-    font-size: clamp(30px, 6vw, 48px);
-    line-height: 1.08;
-    margin-bottom: 16px;
+    font-size: clamp(32px, 6.5vw, 54px);
+    line-height: 1.04;
+    letter-spacing: -1.8px;
+    margin-bottom: 18px;
 }
 
-.hero-actions {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin: 26px 0 14px;
+/* The one line of colour on the page, on the words that carry the promise. */
+.hero h1 em {
+    font-style: normal;
+    color: var(--accent);
 }
 
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 28px 0 16px; }
+
+.eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--text-faint);
+    margin-bottom: 18px;
+}
+.eyebrow::before {
+    content: '';
+    width: 22px;
+    height: 1px;
+    background: var(--accent);
+}
+
+/* Numbered steps, because the order genuinely matters here — you cannot
+   publish reports for a match you have not tagged. */
 .flow {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
 }
 
 .flow-step {
     background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 20px;
-    position: relative;
+    padding: 24px 22px;
 }
 
 .flow-step .step-n {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: var(--accent-bg);
-    border: 1px solid var(--accent);
-    color: var(--accent);
-    font-size: 12px;
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
     font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    margin-bottom: 12px;
+    letter-spacing: 1px;
+    color: var(--accent);
+    margin-bottom: 14px;
 }
 
-.flow-step h3 {
-    color: var(--text-bright);
-    text-transform: none;
-    letter-spacing: -0.1px;
-    font-size: 15px;
-    margin-bottom: 6px;
+.flow-step h4 {
+    font-size: 15.5px;
+    font-weight: 650;
+    letter-spacing: -.2px;
+    margin: 0 0 7px;
+    color: var(--text);
 }
 
-.flow-step p {
-    margin: 0;
+.flow-step p { margin: 0; font-size: 14px; color: var(--text-dim); line-height: 1.6; }
+
+/* Status table for what is and is not built yet — honesty as a design element
+   rather than a wall of prose. */
+.status-list { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--surface);
+    padding: 13px 18px;
     font-size: 14px;
-    color: var(--text-dim);
-    line-height: 1.55;
 }
+.status-row .what { flex: 1; }
+.status-row .note { color: var(--text-faint); font-size: 13px; }
 
-#user-chip {
-    font-size: 13px;
-    color: var(--text-dim);
+#user-chip { font-size: 13px; color: var(--text-dim); }
+
+@media (max-width: 640px) {
+    .hero { padding-top: 44px; }
 }

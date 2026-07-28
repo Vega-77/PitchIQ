@@ -159,6 +159,8 @@ export function logId(deviceId, seq) {
 function baseEntry(user, deviceId, seq) {
     return {
         playerId: null,
+        assistPlayerId: null,
+        cardColor: null,
         subOutId: null,
         subInId: null,
         detail: null,
@@ -172,7 +174,10 @@ function baseEntry(user, deviceId, seq) {
     };
 }
 
-export function writeEvent(user, teamId, matchId, { deviceId, seq, type, matchClockS, side, playerId, detail }) {
+export function writeEvent(user, teamId, matchId, {
+    deviceId, seq, type, matchClockS, side,
+    playerId, assistPlayerId, cardColor, detail,
+}) {
     return setDoc(
         doc(db, 'teams', teamId, 'matches', matchId, 'log', logId(deviceId, seq)),
         {
@@ -182,6 +187,10 @@ export function writeEvent(user, teamId, matchId, { deviceId, seq, type, matchCl
             matchClockS,
             side: side ?? null,
             playerId: playerId ?? null,
+            // Only ever set on the events that can carry them; the rules
+            // enforce the same constraint server-side.
+            assistPlayerId: type === 'goal' ? (assistPlayerId ?? null) : null,
+            cardColor: type === 'card' ? (cardColor ?? null) : null,
             detail: detail ?? null,
         }
     );
@@ -343,14 +352,29 @@ export function aggregateMatch(log, roster) {
         ? fullTime.matchClockS
         : log.reduce((max, e) => Math.max(max, e.matchClockS), 0);
 
+    const isOurs = (e) => e.side !== 'them';
+
     const players = roster.map((entry) => ({
         ...entry,
         minutesPlayed: minutesFrom(entry.stints, matchEndS),
         goals: log.filter(
-            (e) => e.kind === 'event' && e.type === 'goal' && e.playerId === entry.id
+            (e) => e.kind === 'event' && e.type === 'goal'
+                && isOurs(e) && e.playerId === entry.id
         ).length,
-        cards: log.filter(
+        assists: log.filter(
+            (e) => e.kind === 'event' && e.type === 'goal'
+                && isOurs(e) && e.assistPlayerId === entry.id
+        ).length,
+        yellowCards: log.filter(
             (e) => e.kind === 'event' && e.type === 'card' && e.playerId === entry.id
+                && (e.cardColor === 'yellow' || e.cardColor === 'second_yellow')
+        ).length,
+        redCards: log.filter(
+            (e) => e.kind === 'event' && e.type === 'card' && e.playerId === entry.id
+                && e.cardColor === 'red'
+        ).length,
+        fouls: log.filter(
+            (e) => e.kind === 'event' && e.type === 'foul' && e.playerId === entry.id
         ).length,
     }));
 
@@ -393,7 +417,11 @@ export async function publishReports(teamId, matchId, match, team, players) {
                 jerseyNumber: player.jerseyNumber ?? null,
                 minutesPlayed: player.minutesPlayed,
                 goals: player.goals,
-                cards: player.cards,
+                assists: player.assists ?? 0,
+                cards: (player.yellowCards ?? 0) + (player.redCards ?? 0),
+                yellowCards: player.yellowCards ?? 0,
+                redCards: player.redCards ?? 0,
+                fouls: player.fouls ?? 0,
                 stints: player.stints || [],
                 matchDate: match.date || '',
                 opponentName: match.opponentName || '',

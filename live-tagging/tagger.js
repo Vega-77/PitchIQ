@@ -1,22 +1,31 @@
 // Match-day tagging, backed by Firestore.
 //
-// Two things shape this file:
-//   - It has to work with no connectivity. Every write is a batch (which queues
-//     offline), never a transaction (which fails offline), and undo works by
-//     direct document reference so it needs no query.
-//   - Ordering never uses createdAt. serverTimestamp() reads as null locally
-//     until acknowledged and then resolves to sync time, not tap time.
+// Two constraints shape this file:
+//
+//   * It has to work with no connectivity. Every write is a batch (which queues
+//     offline) rather than a transaction (which fails offline), and undo works
+//     by direct document reference so it needs no query.
+//   * A tag has to be unambiguous a month later. "Corner, us" does not say
+//     whether we won it or conceded it, so the sheet asks the question in the
+//     wording that belongs to that event type — awarded to, committed by,
+//     shown to, scored by — rather than showing a bare team toggle.
+//
+// Ordering never uses createdAt: serverTimestamp() reads as null locally until
+// acknowledged and then resolves to sync time, not tap time.
 
 import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
-    writeEvent, writePeriod, writeSubstitution, undoEntry, updateMatch,
+    writeEvent, writePeriod, writeSubstitution, undoEntry,
     logId, PERIOD_STATUS,
 } from '../assets/db.js';
+import {
+    EVENT_TYPES, CARD_COLOURS, describeEvent, PERIOD_LABELS,
+} from '../assets/events.js';
 
 const $ = (id) => document.getElementById(id);
 
-/** Stable per-device ID: log doc IDs embed it so two taggers can't collide. */
+/** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
     let id = localStorage.getItem('pitchiq.deviceId');
     if (!id) {
@@ -29,23 +38,25 @@ function deviceId() {
 const state = {
     user: null,
     teamId: null,
+    teamName: 'Us',
+    opponentName: 'Them',
     matchId: null,
     match: null,
     players: [],
     roster: [],
     device: deviceId(),
     seq: 0,
-    myEntries: [],       // ids I wrote this session, for undo
-    side: 'us',
+    myEntries: [],
     kickoffAt: null,
     clockOffset: 0,
     running: false,
-    periodIndex: 0,
-    pendingEvent: null,
+    score: { us: 0, them: 0 },
+    // The event currently being described in the sheet.
+    draft: null,
     sub: { outId: null, inId: null },
 };
 
-// ---------------------------------------------------------------- ui helpers
+// ---------------------------------------------------------------- ui
 
 let toastTimer;
 function toast(message, isError = false) {
@@ -62,7 +73,7 @@ function showView(name) {
     $(`view-${name}`).classList.add('active');
 }
 
-const label = (type) => type.replace(/_/g, ' ');
+const teamName = (side) => (side === 'them' ? state.opponentName : state.teamName);
 
 function clockText(seconds) {
     const total = Math.max(0, Math.floor(seconds));
@@ -81,20 +92,26 @@ setInterval(() => {
 }, 250);
 
 function updateOnlineIndicator() {
-    const offline = !navigator.onLine;
-    $('offline-note')?.classList.toggle('hidden', !offline);
     const dot = $('sync-dot');
-    if (dot) {
-        dot.classList.toggle('offline', offline);
-        dot.title = offline ? 'Offline — taps are queued' : 'Synced';
-    }
+    if (!dot) return;
+    const offline = !navigator.onLine;
+    dot.classList.toggle('offline', offline);
+    dot.title = offline ? 'Offline — taps are queued and will sync' : 'Synced';
 }
 window.addEventListener('online', updateOnlineIndicator);
 window.addEventListener('offline', updateOnlineIndicator);
 
-function nextSeq() {
-    state.seq += 1;
-    return state.seq;
+const nextSeq = () => ++state.seq;
+
+function renderScore() {
+    $('score-us').textContent = state.score.us;
+    $('score-them').textContent = state.score.them;
+}
+
+function setLast(text, fresh = true) {
+    const el = $('last-event');
+    el.textContent = text;
+    el.classList.toggle('fresh', fresh);
 }
 
 // ---------------------------------------------------------------- setup
@@ -104,17 +121,17 @@ async function loadMatches() {
     const select = $('select-match');
     select.innerHTML = '<option value="">— choose —</option>';
 
+    let open = 0;
     for (const match of matches) {
         if (match.finalized) continue;
+        open += 1;
         const option = document.createElement('option');
         option.value = match.id;
         option.textContent = `${match.date || 'no date'} · vs ${match.opponentName || '—'}`;
         select.appendChild(option);
     }
 
-    if (!select.querySelector('option[value]:not([value=""])')) {
-        toast('No open matches — create one in the coach dashboard first.', true);
-    }
+    if (!open) toast('No open matches — create one in the coach dashboard.', true);
 }
 
 async function onMatchChosen(matchId) {
@@ -128,15 +145,16 @@ async function onMatchChosen(matchId) {
     ]);
 
     state.match = match;
+    state.opponentName = match.opponentName || 'Them';
     state.players = players;
     state.roster = roster;
 
-    // Resume rather than restart if this match already has a lineup.
     if (roster.length) {
         await resumeMatch();
         return;
     }
 
+    $('lineup-block').classList.remove('hidden');
     renderLineupPicker();
 }
 
@@ -152,17 +170,19 @@ function renderLineupPicker() {
     for (const player of state.players) {
         const li = document.createElement('li');
         li.className = player._starter ? 'starter' : '';
-        li.innerHTML = `
-            <span class="num">${player.jerseyNumber ?? '—'}</span>
-            <span class="nm"></span>
-            <span class="tag">${player._starter ? 'starting' : 'bench'}</span>`;
+        li.innerHTML = `<span class="num"></span><span class="nm"></span><span class="tag"></span>`;
+        li.querySelector('.num').textContent = player.jerseyNumber ?? '—';
         li.querySelector('.nm').textContent = player.name;
+        li.querySelector('.tag').textContent = player._starter ? 'starting' : 'bench';
         li.addEventListener('click', () => {
             player._starter = !player._starter;
             renderLineupPicker();
         });
         list.appendChild(li);
     }
+
+    const n = state.players.filter((p) => p._starter).length;
+    $('starter-count').textContent = n ? `${n} selected` : '';
 }
 
 async function saveLineupAndContinue() {
@@ -182,122 +202,258 @@ async function resumeMatch() {
     const log = await listLog(state.teamId, state.matchId);
     const last = log.length ? log[log.length - 1].matchClockS : 0;
 
-    // Pick up paused at the last tagged moment: real elapsed time can't be
-    // recovered after a reload, and inventing it would corrupt every timestamp
-    // that follows.
+    // Resume paused: real elapsed time cannot be recovered after a reload, and
+    // inventing it would corrupt every timestamp that follows.
     state.clockOffset = last;
     state.running = false;
     state.kickoffAt = Date.now();
 
-    const status = state.match?.status || 'scheduled';
-    state.periodIndex = status === 'second_half' || status === 'full_time' ? 1 : 0;
+    recountScore(log);
 
-    // Continue our own sequence past anything this device already wrote.
     const mine = log.filter((e) => e.deviceId === state.device);
     state.seq = mine.reduce((max, e) => Math.max(max, e.seq || 0), 0);
     state.myEntries = mine.map((e) => ({ id: e.id, kind: e.kind, revert: e.revert }));
 
-    $('period-label').textContent = label(
-        status === 'second_half' ? '2nd half' : status === 'halftime' ? 'halftime' : '1st half'
-    );
+    const status = state.match?.status || 'scheduled';
+    $('period-label').textContent =
+        status === 'second_half' ? '2nd half'
+        : status === 'halftime' ? 'half-time'
+        : status === 'full_time' ? 'full time'
+        : '1st half';
+
     updatePeriodButton();
+    renderScore();
+    setLast(log.length ? describeEvent(log[log.length - 1], labels()) : 'nothing yet', false);
 
     if (status === 'scheduled') {
         showView('kickoff');
     } else {
         showView('live');
-        toast('Resumed — clock is paused, tap the clock area to adjust');
+        toast('Resumed — the clock is paused where the last tag left it');
     }
 }
 
-// ---------------------------------------------------------------- live
+function recountScore(log) {
+    state.score = { us: 0, them: 0 };
+    for (const e of log) {
+        if (e.kind === 'event' && e.type === 'goal') {
+            state.score[e.side === 'them' ? 'them' : 'us'] += 1;
+        }
+    }
+}
+
+const labels = () => ({ usName: state.teamName, themName: state.opponentName });
+
+// ---------------------------------------------------------------- kickoff
 
 async function doKickoff() {
     try {
+        const seq = nextSeq();
         await writePeriod(state.user, state.teamId, state.matchId, {
-            deviceId: state.device,
-            seq: nextSeq(),
-            period: 'kickoff_1st',
-            matchClockS: 0,
+            deviceId: state.device, seq, period: 'kickoff_1st', matchClockS: 0,
             prevStatus: state.match?.status || 'scheduled',
         });
         state.myEntries.push({
-            id: logId(state.device, state.seq),
-            kind: 'period',
+            id: logId(state.device, seq), kind: 'period',
             revert: { prevStatus: state.match?.status || 'scheduled' },
         });
+        state.match.status = 'first_half';
 
         state.clockOffset = 0;
         state.kickoffAt = Date.now();
         state.running = true;
-        state.periodIndex = 0;
+        $('period-label').textContent = '1st half';
         updatePeriodButton();
+        renderScore();
+        setLast('kick-off');
         showView('live');
-        toast('Match started');
     } catch (err) {
         toast(err.message || 'Could not start the match.', true);
     }
 }
 
-function activeRoster() {
-    return state.roster.filter((r) => r.isActive);
+// ---------------------------------------------------------------- event sheet
+
+const activeRoster = () => state.roster.filter((r) => r.isActive);
+
+/**
+ * Open the detail sheet for an event type. Simple events need one tap (which
+ * team); goals and cards need a little more. Every step can be skipped so a
+ * tagger is never stuck mid-play with an unfinished tag.
+ */
+function openEventSheet(type, button) {
+    button.classList.add('flash');
+    setTimeout(() => button.classList.remove('flash'), 150);
+
+    const spec = EVENT_TYPES[type];
+    if (!spec) return;
+
+    state.draft = {
+        type,
+        matchClockS: matchClock(),
+        side: null,
+        playerId: null,
+        assistPlayerId: null,
+        cardColor: null,
+    };
+
+    $('sheet-title').textContent = spec.label;
+    $('sheet-question').textContent = spec.sideMeans;
+
+    for (const id of ['step-card', 'step-player', 'step-assist']) {
+        $(id).classList.add('hidden');
+    }
+    $('side-choices').parentElement.querySelector('#sheet-question').classList.remove('hidden');
+    $('side-choices').classList.remove('hidden');
+
+    renderSideChoices();
+    $('overlay-event').classList.add('open');
 }
 
-/** Goals, cards and fouls by our side are worth attributing to a player. */
-const ATTRIBUTABLE = new Set(['goal', 'card', 'foul']);
+function renderSideChoices() {
+    const wrap = $('side-choices');
+    wrap.innerHTML = '';
 
-async function tagEvent(type, button) {
-    button.classList.add('flash');
-    setTimeout(() => button.classList.remove('flash'), 160);
+    for (const side of ['us', 'them']) {
+        const button = document.createElement('button');
+        button.className = `choice ${side === 'us' ? 'us' : ''}`;
+        button.innerHTML = `<span class="nm"></span><span class="sub"></span>`;
+        button.querySelector('.nm').textContent = teamName(side);
+        button.querySelector('.sub').textContent = side === 'us' ? 'our team' : 'opponent';
+        button.addEventListener('click', () => onSideChosen(side));
+        wrap.appendChild(button);
+    }
+}
 
-    if (state.side === 'us' && ATTRIBUTABLE.has(type) && activeRoster().length) {
-        state.pendingEvent = { type, matchClockS: matchClock() };
-        openWhoSheet(type);
-        return;
+function onSideChosen(side) {
+    state.draft.side = side;
+    const spec = EVENT_TYPES[state.draft.type];
+
+    $('sheet-question').classList.add('hidden');
+    $('side-choices').classList.add('hidden');
+
+    if (spec.needsCard) return showCardStep();
+    // We do not hold the opposition roster, so player detail only applies to us.
+    if (spec.needsPlayer && side === 'us' && activeRoster().length) return showPlayerStep();
+
+    commitDraft();
+}
+
+function showCardStep() {
+    const wrap = $('card-choices');
+    wrap.innerHTML = '';
+
+    for (const [key, meta] of Object.entries(CARD_COLOURS)) {
+        const button = document.createElement('button');
+        button.className = `choice ${key}`;
+        button.innerHTML = `<span class="card-chip ${key}"></span><span class="nm"></span>`;
+        button.querySelector('.nm').textContent = meta.label;
+        button.addEventListener('click', () => {
+            state.draft.cardColor = key;
+            $('step-card').classList.add('hidden');
+            const spec = EVENT_TYPES[state.draft.type];
+            if (spec.needsPlayer && state.draft.side === 'us' && activeRoster().length) {
+                showPlayerStep();
+            } else {
+                commitDraft();
+            }
+        });
+        wrap.appendChild(button);
     }
 
-    await commitEvent(type, matchClock(), null);
+    $('step-card').classList.remove('hidden');
 }
 
-async function commitEvent(type, matchClockS, playerId) {
+function showPlayerStep() {
+    const spec = EVENT_TYPES[state.draft.type];
+    $('player-question').textContent = spec.needsPlayer;
+
+    const list = $('player-choices');
+    list.innerHTML = '';
+
+    for (const entry of activeRoster()) {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="num"></span><span class="nm"></span>`;
+        li.querySelector('.num').textContent = entry.jerseyNumber ?? '—';
+        li.querySelector('.nm').textContent = entry.playerName;
+        li.addEventListener('click', () => {
+            state.draft.playerId = entry.id;
+            $('step-player').classList.add('hidden');
+            if (spec.needsAssist) showAssistStep();
+            else commitDraft();
+        });
+        list.appendChild(li);
+    }
+
+    $('step-player').classList.remove('hidden');
+}
+
+function showAssistStep() {
+    const list = $('assist-choices');
+    list.innerHTML = '';
+
+    // The scorer cannot assist their own goal; the rules reject it too.
+    const options = activeRoster().filter((e) => e.id !== state.draft.playerId);
+
+    if (!options.length) return commitDraft();
+
+    for (const entry of options) {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="num"></span><span class="nm"></span>`;
+        li.querySelector('.num').textContent = entry.jerseyNumber ?? '—';
+        li.querySelector('.nm').textContent = entry.playerName;
+        li.addEventListener('click', () => {
+            state.draft.assistPlayerId = entry.id;
+            commitDraft();
+        });
+        list.appendChild(li);
+    }
+
+    $('step-assist').classList.remove('hidden');
+}
+
+async function commitDraft() {
+    const draft = state.draft;
+    state.draft = null;
+    $('overlay-event').classList.remove('open');
+    if (!draft) return;
+
     const seq = nextSeq();
     try {
         await writeEvent(state.user, state.teamId, state.matchId, {
             deviceId: state.device,
             seq,
-            type,
-            matchClockS,
-            side: state.side,
-            playerId,
+            type: draft.type,
+            matchClockS: draft.matchClockS,
+            side: draft.side,
+            playerId: draft.playerId,
+            assistPlayerId: draft.assistPlayerId,
+            cardColor: draft.cardColor,
         });
-        state.myEntries.push({ id: logId(state.device, seq), kind: 'event' });
-        toast(label(type));
+
+        state.myEntries.push({ id: logId(state.device, seq), kind: 'event', type: draft.type, side: draft.side });
+
+        if (draft.type === 'goal') {
+            state.score[draft.side === 'them' ? 'them' : 'us'] += 1;
+            renderScore();
+        }
+
+        const player = state.roster.find((r) => r.id === draft.playerId);
+        setLast(describeEvent(
+            { kind: 'event', ...draft }, { ...labels(), playerName: player?.playerName }
+        ));
     } catch (err) {
         state.seq -= 1;
-        toast(err.message || 'Could not save that tap.', true);
+        toast(err.message || 'Could not save that tag.', true);
     }
 }
 
-function openWhoSheet(type) {
-    $('who-title').textContent = `Who — ${label(type)}?`;
-    const list = $('who-list');
-    list.innerHTML = '';
-
-    for (const entry of activeRoster()) {
-        const li = document.createElement('li');
-        li.innerHTML = `<span class="num">${entry.jerseyNumber ?? '—'}</span><span class="nm"></span>`;
-        li.querySelector('.nm').textContent = entry.playerName;
-        li.addEventListener('click', async () => {
-            $('overlay-who').classList.remove('open');
-            const pending = state.pendingEvent;
-            state.pendingEvent = null;
-            if (pending) await commitEvent(pending.type, pending.matchClockS, entry.id);
-        });
-        list.appendChild(li);
-    }
-
-    $('overlay-who').classList.add('open');
+function cancelEventSheet() {
+    state.draft = null;
+    $('overlay-event').classList.remove('open');
 }
+
+// ---------------------------------------------------------------- undo
 
 async function undoLast() {
     const entry = state.myEntries[state.myEntries.length - 1];
@@ -307,13 +463,20 @@ async function undoLast() {
         await undoEntry(state.teamId, state.matchId, entry);
         state.myEntries.pop();
 
-        if (entry.kind === 'sub' && entry.revert) {
+        if (entry.kind === 'sub') {
             state.roster = await listMatchRoster(state.teamId, state.matchId);
         }
         if (entry.kind === 'period' && entry.revert?.prevStatus) {
             state.match.status = entry.revert.prevStatus;
+            updatePeriodButton();
+        }
+        if (entry.type === 'goal') {
+            const key = entry.side === 'them' ? 'them' : 'us';
+            state.score[key] = Math.max(0, state.score[key] - 1);
+            renderScore();
         }
 
+        setLast('undone', false);
         toast('Undone');
     } catch (err) {
         toast(err.message || 'Could not undo.', true);
@@ -321,8 +484,6 @@ async function undoLast() {
 }
 
 // ---------------------------------------------------------------- periods
-
-const PERIOD_FLOW = ['halftime', 'kickoff_2nd', 'full_time'];
 
 function updatePeriodButton() {
     const button = $('btn-period');
@@ -336,7 +497,7 @@ function updatePeriodButton() {
     } else if (status === 'second_half') {
         button.textContent = 'Full time';
     } else {
-        button.textContent = 'Halftime';
+        button.textContent = 'Half-time';
     }
 }
 
@@ -352,11 +513,7 @@ async function advancePeriod() {
 
     try {
         await writePeriod(state.user, state.teamId, state.matchId, {
-            deviceId: state.device,
-            seq,
-            period: next,
-            matchClockS: now,
-            prevStatus: status,
+            deviceId: state.device, seq, period: next, matchClockS: now, prevStatus: status,
         });
         state.myEntries.push({
             id: logId(state.device, seq), kind: 'period', revert: { prevStatus: status },
@@ -367,7 +524,7 @@ async function advancePeriod() {
             // Freeze: the break must never be counted as match time.
             state.clockOffset = now;
             state.running = false;
-            $('period-label').textContent = 'halftime';
+            $('period-label').textContent = 'half-time';
         } else if (next === 'kickoff_2nd') {
             state.kickoffAt = Date.now();
             state.running = true;
@@ -379,7 +536,7 @@ async function advancePeriod() {
         }
 
         updatePeriodButton();
-        toast(label(next));
+        setLast(PERIOD_LABELS[next] || next);
     } catch (err) {
         state.seq -= 1;
         toast(err.message || 'Could not change period.', true);
@@ -403,43 +560,35 @@ function renderSubLists() {
 
     const row = (entry, selectedId, onPick, dim = false) => {
         const li = document.createElement('li');
-        li.className = [
-            entry.id === selectedId ? 'selected' : '',
-            dim ? 'used' : '',
-        ].filter(Boolean).join(' ');
-        li.innerHTML = `<span class="num">${entry.jerseyNumber ?? '—'}</span><span class="nm"></span>`;
+        li.className = [entry.id === selectedId ? 'selected' : '', dim ? 'used' : '']
+            .filter(Boolean).join(' ');
+        li.innerHTML = `<span class="num"></span><span class="nm"></span>`;
+        li.querySelector('.num').textContent = entry.jerseyNumber ?? '—';
         li.querySelector('.nm').textContent = entry.playerName;
-        if (!dim) li.addEventListener('click', () => onPick(entry.id));
+        li.addEventListener('click', () => onPick(entry.id));
         return li;
     };
 
     const onField = state.roster.filter((r) => r.isActive);
-    const bench = state.roster.filter((r) => !r.isActive && !(r.stints || []).length);
+    const fresh = state.roster.filter((r) => !r.isActive && !(r.stints || []).length);
+    // High school rules allow re-entry, so a player who came off is still
+    // eligible — just dimmed so they don't look identical to an unused sub.
     const used = state.roster.filter((r) => !r.isActive && (r.stints || []).length);
 
     if (!onField.length) off.innerHTML = '<li class="empty">Nobody on the field.</li>';
-    for (const entry of onField) {
-        off.appendChild(row(entry, state.sub.outId, (id) => {
-            state.sub.outId = id;
-            renderSubLists();
-        }));
+    for (const e of onField) {
+        off.appendChild(row(e, state.sub.outId, (id) => { state.sub.outId = id; renderSubLists(); }));
     }
 
-    if (!bench.length && !used.length) on.innerHTML = '<li class="empty">No substitutes.</li>';
-    for (const entry of bench) {
-        on.appendChild(row(entry, state.sub.inId, (id) => {
-            state.sub.inId = id;
-            renderSubLists();
-        }));
-    }
-    // Players who already came off stay visible but dimmed — high school rules
-    // allow re-entry, so they aren't necessarily done, but they shouldn't look
-    // identical to someone who hasn't played.
-    for (const entry of used) {
-        on.appendChild(row(entry, state.sub.inId, (id) => {
-            state.sub.inId = id;
-            renderSubLists();
-        }));
+    if (!fresh.length && !used.length) on.innerHTML = '<li class="empty">No substitutes.</li>';
+    for (const entry of [...fresh, ...used]) {
+        const alreadyPlayed = (entry.stints || []).length > 0;
+        on.appendChild(row(
+            entry,
+            state.sub.inId,
+            (id) => { state.sub.inId = id; renderSubLists(); },
+            alreadyPlayed,
+        ));
     }
 
     $('btn-sub-confirm').disabled = !(state.sub.outId && state.sub.inId);
@@ -453,31 +602,21 @@ async function confirmSub() {
     const seq = nextSeq();
     try {
         await writeSubstitution(state.user, state.teamId, state.matchId, {
-            deviceId: state.device,
-            seq,
-            outEntry,
-            inEntry,
-            matchClockS: matchClock(),
+            deviceId: state.device, seq, outEntry, inEntry, matchClockS: matchClock(),
         });
 
         state.myEntries.push({
             id: logId(state.device, seq),
             kind: 'sub',
             revert: {
-                out: {
-                    id: outEntry.id, isActive: outEntry.isActive,
-                    stints: outEntry.stints || [], version: outEntry.version ?? 0,
-                },
-                in: {
-                    id: inEntry.id, isActive: inEntry.isActive,
-                    stints: inEntry.stints || [], version: inEntry.version ?? 0,
-                },
+                out: { id: outEntry.id, isActive: outEntry.isActive, stints: outEntry.stints || [], version: outEntry.version ?? 0 },
+                in: { id: inEntry.id, isActive: inEntry.isActive, stints: inEntry.stints || [], version: inEntry.version ?? 0 },
             },
         });
 
         state.roster = await listMatchRoster(state.teamId, state.matchId);
         $('overlay-sub').classList.remove('open');
-        toast(`${inEntry.playerName} on for ${outEntry.playerName}`);
+        setLast(`${inEntry.playerName} on for ${outEntry.playerName}`);
     } catch (err) {
         state.seq -= 1;
         toast(err.message || 'Could not save the substitution.', true);
@@ -488,26 +627,45 @@ async function confirmSub() {
 
 async function openLog() {
     const list = $('log-list');
-    list.innerHTML = '<li class="empty">Loading…</li>';
+    list.innerHTML = '<div class="empty">Loading…</div>';
     $('overlay-log').classList.add('open');
 
     try {
         const log = await listLog(state.teamId, state.matchId);
         list.innerHTML = '';
         if (!log.length) {
-            list.innerHTML = '<li class="empty">Nothing logged yet.</li>';
+            list.innerHTML = '<div class="empty">Nothing logged yet.</div>';
             return;
         }
+
+        const byId = new Map(state.roster.map((r) => [r.id, r.playerName]));
+
         for (const entry of log.slice().reverse()) {
-            const li = document.createElement('li');
-            li.innerHTML = `<span class="t"></span><span class="l"></span>`;
-            li.querySelector('.t').textContent = clockText(entry.matchClockS);
-            li.querySelector('.l').textContent =
-                entry.kind === 'sub' ? 'substitution' : label(entry.type);
-            list.appendChild(li);
+            const spec = EVENT_TYPES[entry.type];
+            const row = document.createElement('div');
+            row.className = 'tl-row';
+            row.innerHTML = `
+                <span class="tl-clock"></span>
+                <span class="tl-marker"><span class="tl-dot"></span></span>
+                <span class="tl-text"></span>
+                <span class="tl-side"></span>`;
+
+            row.querySelector('.tl-clock').textContent = clockText(entry.matchClockS);
+            row.querySelector('.tl-text').textContent = describeEvent(entry, {
+                ...labels(), playerName: byId.get(entry.playerId),
+            });
+            row.querySelector('.tl-side').textContent =
+                entry.kind === 'period' ? '' : teamName(entry.side);
+
+            const dot = row.querySelector('.tl-dot');
+            if (entry.kind === 'period') dot.classList.add('period');
+            else if (spec?.tone === 'good') dot.classList.add('good');
+            else if (spec?.tone === 'warn') dot.classList.add('warn');
+
+            list.appendChild(row);
         }
     } catch (err) {
-        list.innerHTML = `<li class="empty">${err.message}</li>`;
+        list.innerHTML = `<div class="empty">${err.message}</div>`;
     }
 }
 
@@ -519,15 +677,14 @@ function init() {
 
     updateOnlineIndicator();
 
-    // Synchronous from the click — an await here and iPad Safari blocks the popup.
+    // Reached synchronously from the click, or iPad Safari blocks the popup.
     $('btn-signin').addEventListener('click', () => {
         signIn().catch((err) => toast(err.message || 'Sign-in failed.', true));
     });
 
     $('select-match').addEventListener('change', (e) => {
         onMatchChosen(e.target.value).catch((err) =>
-            toast(err.message || 'Could not load that match.', true)
-        );
+            toast(err.message || 'Could not load that match.', true));
     });
 
     $('btn-save-lineup').addEventListener('click', saveLineupAndContinue);
@@ -535,33 +692,28 @@ function init() {
     $('btn-back-setup').addEventListener('click', () => showView('setup'));
 
     document.querySelectorAll('.ev').forEach((button) => {
-        button.addEventListener('click', () => tagEvent(button.dataset.event, button));
+        button.addEventListener('click', () => openEventSheet(button.dataset.event, button));
     });
 
-    document.querySelectorAll('.team-btn[data-team]').forEach((button) => {
-        button.addEventListener('click', () => {
-            document.querySelectorAll('.team-btn[data-team]')
-                .forEach((b) => b.classList.remove('active'));
-            button.classList.add('active');
-            state.side = button.dataset.team;
-        });
+    $('btn-event-cancel').addEventListener('click', cancelEventSheet);
+    $('btn-skip-player').addEventListener('click', () => {
+        $('step-player').classList.add('hidden');
+        const spec = EVENT_TYPES[state.draft?.type];
+        if (spec?.needsAssist) showAssistStep();
+        else commitDraft();
+    });
+    $('btn-skip-assist').addEventListener('click', () => {
+        $('step-assist').classList.add('hidden');
+        commitDraft();
     });
 
     $('btn-undo').addEventListener('click', undoLast);
     $('btn-period').addEventListener('click', advancePeriod);
     $('btn-sub').addEventListener('click', () => openSubSheet());
-    $('btn-sub-cancel').addEventListener('click', () =>
-        $('overlay-sub').classList.remove('open'));
+    $('btn-sub-cancel').addEventListener('click', () => $('overlay-sub').classList.remove('open'));
     $('btn-sub-confirm').addEventListener('click', confirmSub);
-    $('btn-who-skip').addEventListener('click', async () => {
-        $('overlay-who').classList.remove('open');
-        const pending = state.pendingEvent;
-        state.pendingEvent = null;
-        if (pending) await commitEvent(pending.type, pending.matchClockS, null);
-    });
     $('btn-log').addEventListener('click', openLog);
-    $('btn-log-close').addEventListener('click', () =>
-        $('overlay-log').classList.remove('open'));
+    $('btn-log-close').addEventListener('click', () => $('overlay-log').classList.remove('open'));
 
     onUser(async (user) => {
         if (!user) {
@@ -578,7 +730,8 @@ function init() {
                 return;
             }
             state.teamId = access.teams[0].id;
-            $('setup-sub').textContent = access.teams[0].name;
+            state.teamName = access.teams[0].name || 'Us';
+            $('setup-sub').textContent = state.teamName;
             $('signin-block').classList.add('hidden');
             $('match-block').classList.remove('hidden');
             await loadMatches();
@@ -589,3 +742,5 @@ function init() {
 }
 
 init();
+
+window._tagger = { state, openEventSheet, onSideChosen, commitDraft };

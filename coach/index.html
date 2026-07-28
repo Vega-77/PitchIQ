@@ -6,8 +6,9 @@
     <title>PitchIQ — Coach</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/app.css">
+    <link rel="stylesheet" href="coach.css">
 </head>
 <body>
 
@@ -15,23 +16,23 @@
     <a class="brand" href="../">PitchIQ <span>coach</span></a>
     <div class="topbar-user">
         <span id="team-name" class="muted"></span>
-        <a class="btn small ghost" href="../live-tagging/">Live tagging</a>
+        <a class="btn small" href="../live-tagging/">Live tagging</a>
         <button id="btn-signout" class="btn small ghost">Sign out</button>
     </div>
 </header>
 
 <main class="shell">
     <div id="config-slot"></div>
-    <div id="loading" class="loading">Loading…</div>
+    <div id="loading" class="loading">Loading</div>
 
-    <!-- no team yet -->
+    <!-- first run -->
     <section id="view-noteam" class="hidden">
-        <h1>Create your team</h1>
+        <h1 style="margin-top:44px">Create your team</h1>
         <p class="lede">
-            Set up your team once, then add your roster. You'll need to be on the
-            coach allowlist — if this fails, that's why.
+            Set this up once, then add your roster. You'll need to be on the coach
+            allowlist — if this fails, that's why.
         </p>
-        <div class="card" style="max-width:420px">
+        <div class="card" style="max-width:440px">
             <label class="field">
                 <span>Team name</span>
                 <input id="input-team-name" type="text" placeholder="South Brunswick Varsity">
@@ -42,22 +43,21 @@
 
     <!-- main -->
     <section id="view-main" class="hidden">
-        <nav class="row" style="gap:8px;margin:24px 0 8px">
-            <button class="btn small tab active" data-tab="matches">Matches</button>
-            <button class="btn small tab" data-tab="roster">Roster</button>
+        <nav class="tabs">
+            <button class="tab active" data-tab="matches">Matches</button>
+            <button class="tab" data-tab="roster">Roster</button>
         </nav>
 
-        <!-- matches -->
         <div id="tab-matches">
-            <section class="block" style="margin-top:20px">
-                <h2>New match</h2>
+            <section class="block" style="margin-top:26px">
+                <h3>New match</h3>
                 <div class="card">
                     <div class="row">
                         <label class="field" style="margin:0">
                             <span>Opponent</span>
                             <input id="input-opponent" type="text" placeholder="Linden">
                         </label>
-                        <label class="field" style="margin:0">
+                        <label class="field" style="margin:0;flex:0 0 180px">
                             <span>Date</span>
                             <input id="input-date" type="date">
                         </label>
@@ -67,22 +67,21 @@
             </section>
 
             <section class="block">
-                <h2>Matches</h2>
+                <h3>Matches</h3>
                 <div id="match-list" class="card-list"></div>
             </section>
         </div>
 
-        <!-- roster -->
         <div id="tab-roster" class="hidden">
-            <section class="block" style="margin-top:20px">
-                <h2>Add a player</h2>
+            <section class="block" style="margin-top:26px">
+                <h3>Add a player</h3>
                 <div class="card">
                     <div class="row">
                         <label class="field" style="margin:0;flex:2">
                             <span>Name</span>
                             <input id="input-player-name" type="text" placeholder="Alex Vega">
                         </label>
-                        <label class="field" style="margin:0;flex:0 0 90px">
+                        <label class="field" style="margin:0;flex:0 0 100px">
                             <span>Number</span>
                             <input id="input-player-number" type="number" min="0" max="99" placeholder="9">
                         </label>
@@ -92,15 +91,15 @@
                         </label>
                         <button id="btn-add-player" class="btn primary">Add</button>
                     </div>
-                    <p class="muted" style="margin:12px 0 0">
-                        The email must match the Google account the player signs in with —
-                        that's what links them to their own report.
+                    <p class="muted" style="margin:14px 0 0">
+                        The email has to match the Google account the player signs in
+                        with — that's what links them to their own report.
                     </p>
                 </div>
             </section>
 
             <section class="block">
-                <h2>Roster</h2>
+                <h3>Roster</h3>
                 <div id="roster-list" class="card-list"></div>
             </section>
         </div>
@@ -108,26 +107,38 @@
 
     <!-- one match -->
     <section id="view-match" class="hidden">
-        <button id="btn-back" class="btn small ghost" style="margin:20px 0">&lsaquo; All matches</button>
-        <h1 id="match-title">Match</h1>
-        <p class="lede" id="match-sub"></p>
+        <button id="btn-back" class="btn small ghost" style="margin:24px 0 18px">&lsaquo; All matches</button>
+
+        <div class="match-head">
+            <div>
+                <h1 id="match-title" style="margin-bottom:6px">Match</h1>
+                <p class="muted" id="match-sub"></p>
+            </div>
+            <div class="scoreline">
+                <span id="score-us">0</span>
+                <span class="dash">–</span>
+                <span id="score-them">0</span>
+            </div>
+        </div>
 
         <section class="block">
-            <h2>Team</h2>
+            <h3>Team</h3>
             <div id="team-stats" class="stat-grid"></div>
         </section>
 
         <section class="block">
-            <h2>Players</h2>
+            <h3>Players</h3>
             <div class="table-wrap">
                 <table id="player-table">
                     <thead>
                         <tr>
                             <th class="num">#</th>
                             <th>Player</th>
-                            <th class="num">Minutes</th>
+                            <th class="num">Min</th>
                             <th class="num">Goals</th>
-                            <th class="num">Cards</th>
+                            <th class="num">Assists</th>
+                            <th class="num">Fouls</th>
+                            <th>Cards</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -136,14 +147,14 @@
         </section>
 
         <section class="block">
-            <h2>Timeline</h2>
-            <div id="timeline" class="card-list"></div>
+            <h3>Timeline</h3>
+            <div id="timeline" class="timeline"></div>
         </section>
 
         <section class="block">
-            <h2>Publish</h2>
+            <h3>Publish</h3>
             <div class="card">
-                <p class="muted" style="margin:0 0 14px">
+                <p class="muted" style="margin:0 0 16px">
                     Publishing gives every rostered player their own private report.
                     Players who haven't signed in yet will see theirs once they do.
                 </p>

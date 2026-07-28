@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PitchIQ — soccer stats from a camera</title>
+    <title>PitchIQ — match stats from the sideline</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/app.css">
     <link rel="stylesheet" href="assets/landing.css">
 </head>
@@ -17,8 +17,8 @@
     <div class="topbar-user">
         <a href="calibrate/">Calibrate</a>
         <a href="demo/">xG sandbox</a>
-        <button id="btn-signin" class="btn small primary">Sign in</button>
         <span id="user-chip" class="hidden"></span>
+        <button id="btn-signin" class="btn small primary">Sign in</button>
         <button id="btn-signout" class="btn small ghost hidden">Sign out</button>
     </div>
 </header>
@@ -29,16 +29,16 @@
     <!-- signed out -->
     <section id="view-marketing">
         <div class="hero">
-            <h1>Match stats your coach can actually use.</h1>
+            <div class="eyebrow">High school football analytics</div>
+            <h1>Every corner, card and goal — <em>recorded properly</em>.</h1>
             <p class="lede">
-                Tag a match from the sideline on a tablet, and PitchIQ turns it into
-                per-player minutes, goals, cards and team totals — then gives every
-                player their own report. Camera-based tracking is coming; the tagging
-                and reporting work today.
+                Tag a match from the sideline on a tablet. PitchIQ turns those taps
+                into minutes played, goals and assists, cards and team totals, then
+                gives every player a private report of their own game.
             </p>
             <div class="hero-actions">
                 <button id="btn-hero-signin" class="btn primary">Sign in with Google</button>
-                <a class="btn ghost" href="demo/">Try the xG sandbox</a>
+                <a class="btn" href="demo/">Try the xG sandbox</a>
             </div>
             <p class="muted">
                 Coaches need an invite to create a team. Players sign in with the
@@ -47,72 +47,93 @@
         </div>
 
         <section class="block">
-            <h2>How it works</h2>
+            <h3>How a match works</h3>
             <div class="flow">
                 <article class="flow-step">
-                    <span class="step-n">1</span>
-                    <h3>Tag the match</h3>
-                    <p>An assistant or team manager taps events and substitutions on a
-                    tablet as they happen. Works offline — taps sync when the signal
-                    comes back.</p>
+                    <span class="step-n">STEP 01</span>
+                    <h4>Tag from the touchline</h4>
+                    <p>One tap per event. The app asks who a corner was awarded to,
+                    which card was shown and who assisted — so the record still makes
+                    sense a month later. Works with no signal; taps sync when it returns.</p>
                 </article>
                 <article class="flow-step">
-                    <span class="step-n">2</span>
-                    <h3>Review the numbers</h3>
-                    <p>The coach sees team totals, the full event timeline, and minutes
-                    played per player, adjusted for substitutions and re-entry.</p>
+                    <span class="step-n">STEP 02</span>
+                    <h4>Check the numbers</h4>
+                    <p>Team totals, a full timeline, and minutes played per player —
+                    correct across substitutions and re-entry, which is where hand-kept
+                    stats usually go wrong.</p>
                 </article>
                 <article class="flow-step">
-                    <span class="step-n">3</span>
-                    <h3>Publish reports</h3>
-                    <p>Finalising a match gives each player their own private report.
-                    Players see only their own numbers, never a teammate's.</p>
+                    <span class="step-n">STEP 03</span>
+                    <h4>Publish reports</h4>
+                    <p>Each player gets their own private page. They see their goals,
+                    assists, cards and minutes — and never a teammate's.</p>
                 </article>
             </div>
         </section>
 
         <section class="block">
-            <h2>What's next</h2>
-            <div class="card">
-                <p class="muted" style="margin:0">
-                    The tagging and reporting above are live. Computer-vision tracking —
-                    detecting players and the ball from match footage to derive distance
-                    covered, possession and expected goals automatically — is in
-                    development. Detection has been validated on real match footage; the
-                    tracking and calibration layers come next.
-                </p>
+            <h3>What's working today</h3>
+            <div class="status-list">
+                <div class="status-row">
+                    <span class="what">Live tagging, stats and player reports</span>
+                    <span class="pill done">Ready</span>
+                </div>
+                <div class="status-row">
+                    <span class="what">
+                        Player detection from match footage
+                        <div class="note">Found in 99% of frames on real video</div>
+                    </span>
+                    <span class="pill done">Ready</span>
+                </div>
+                <div class="status-row">
+                    <span class="what">
+                        Ball tracking
+                        <div class="note">83% of frames after dedicated tracking</div>
+                    </span>
+                    <span class="pill done">Ready</span>
+                </div>
+                <div class="status-row">
+                    <span class="what">
+                        Distance, speed and team shape
+                        <div class="note">Needs a fixed camera view to measure against the pitch</div>
+                    </span>
+                    <span class="pill warn">In progress</span>
+                </div>
             </div>
         </section>
     </section>
 
-    <!-- signed in, nothing to show yet -->
+    <!-- signed in, nothing linked yet -->
     <section id="view-nowhere" class="hidden">
-        <h1>You're signed in</h1>
-        <p class="lede" id="nowhere-msg">
-            This account isn't linked to a team yet.
-        </p>
+        <div class="hero" style="padding-bottom:0">
+            <h1>You're signed in</h1>
+            <p class="lede" id="nowhere-msg">This account isn't linked to a team yet.</p>
+        </div>
         <div id="invite-slot" class="card-list"></div>
 
         <section class="block">
-            <h2>Coaching a team?</h2>
+            <h3>Coaching a team?</h3>
             <div class="card">
-                <p class="muted" style="margin:0 0 14px">
+                <p class="muted" style="margin:0 0 16px">
                     Set up your team and roster. You'll need to be on the coach
-                    allowlist — if you aren't, this will tell you.
+                    allowlist — if you aren't, this will say so.
                 </p>
                 <a class="btn primary" href="coach/">Set up a team</a>
             </div>
         </section>
     </section>
 
-    <!-- signed in with a destination -->
+    <!-- signed in with somewhere to go -->
     <section id="view-routes" class="hidden">
-        <h1 id="welcome">Welcome back</h1>
-        <p class="lede">Where would you like to go?</p>
+        <div class="hero" style="padding-bottom:0">
+            <h1 id="welcome">Welcome back</h1>
+            <p class="lede">Pick up where you left off.</p>
+        </div>
         <div class="card-list" id="routes"></div>
     </section>
 
-    <div id="loading" class="loading hidden">Checking your account…</div>
+    <div id="loading" class="loading hidden">Checking your account</div>
 </main>
 
 <div id="toast" class="toast"></div>

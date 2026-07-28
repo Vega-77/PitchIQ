@@ -4,61 +4,62 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PitchIQ — Live Tagging</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/app.css">
     <link rel="stylesheet" href="tagger.css">
 </head>
 <body>
 
 <!-- ===================== SETUP ===================== -->
 <section id="view-setup" class="view active">
-    <header class="view-header">
+    <header class="tag-header">
         <div>
-            <h1>PitchIQ</h1>
-            <p id="setup-sub">Match setup</p>
+            <div class="brand">PitchIQ <span>tagging</span></div>
+            <p class="muted" id="setup-sub">Sign in to load your team</p>
         </div>
-        <a href="../" class="btn ghost small">Exit</a>
+        <a href="../" class="btn small ghost">Exit</a>
     </header>
 
     <div class="setup-body">
         <div id="config-slot"></div>
 
         <div id="signin-block">
-            <p class="hint">Sign in to load your team.</p>
             <button id="btn-signin" class="btn primary block">Sign in with Google</button>
         </div>
 
         <div id="match-block" class="hidden">
-            <div class="field-row">
-                <label for="select-match">Match</label>
+            <label class="field">
+                <span>Match</span>
                 <select id="select-match"><option value="">— choose —</option></select>
+            </label>
+
+            <div id="lineup-block" class="hidden">
+                <h3>Starting lineup</h3>
+                <p class="muted" style="margin:-4px 0 14px">
+                    Tap everyone starting. The rest become your bench.
+                    <span id="starter-count"></span>
+                </p>
+                <ul id="roster-list" class="roster"></ul>
+                <button id="btn-save-lineup" class="btn primary block">Save lineup &amp; continue</button>
             </div>
-
-            <div class="divider"><span>starting lineup</span></div>
-            <p class="hint">
-                Tap everyone starting. The rest become your bench.
-                <span id="offline-note" class="offline-note hidden">Offline — taps are saved and sync later.</span>
-            </p>
-
-            <ul id="roster-list" class="roster"></ul>
-            <button id="btn-save-lineup" class="btn primary block">Save lineup &amp; continue</button>
         </div>
     </div>
 </section>
 
 <!-- ===================== KICKOFF ===================== -->
 <section id="view-kickoff" class="view">
-    <header class="view-header">
-        <div>
-            <h1>Ready</h1>
-            <p>Tap the moment the whistle blows</p>
-        </div>
-    </header>
-
     <div class="kickoff-body">
+        <h3 style="justify-content:center">Sync marker</h3>
         <p class="hint center">
-            Make your sync marker now — a clap or a wave, clearly visible on camera —
-            at the same instant you tap.
+            Clap or wave where the camera can see it at the same instant you tap.
+            That one moment lines the tag clock up with the video.
         </p>
-        <button id="btn-kickoff" class="btn kickoff">KICK OFF</button>
+        <button id="btn-kickoff" class="btn-kickoff">
+            <span class="k-main">KICK OFF</span>
+            <span class="k-sub">start the clock</span>
+        </button>
         <button id="btn-back-setup" class="btn ghost">Back to setup</button>
     </div>
 </section>
@@ -68,53 +69,87 @@
     <header class="live-header">
         <div class="clock-block">
             <span id="clock">00:00</span>
-            <span id="period-label" class="period">1st half</span>
+            <span id="period-label" class="period-chip">1st half</span>
         </div>
-        <div class="header-actions">
+        <div class="header-right">
+            <div class="score" id="score">
+                <span id="score-us">0</span>
+                <span class="dash">–</span>
+                <span id="score-them">0</span>
+            </div>
             <span id="sync-dot" class="sync-dot" title="Synced"></span>
-            <button id="btn-undo" class="btn undo">UNDO</button>
         </div>
     </header>
 
-    <div class="team-toggle" role="group" aria-label="Which team">
-        <button class="team-btn active" data-team="us" id="btn-team-us">Us</button>
-        <button class="team-btn" data-team="them" id="btn-team-them">Them</button>
+    <div class="event-grid">
+        <button class="ev ev-goal" data-event="goal">
+            <span class="ev-label">GOAL</span>
+        </button>
+        <button class="ev ev-card" data-event="card">
+            <span class="ev-label">Card</span>
+        </button>
+        <button class="ev" data-event="foul"><span class="ev-label">Foul</span></button>
+        <button class="ev" data-event="corner"><span class="ev-label">Corner</span></button>
+        <button class="ev" data-event="throw_in"><span class="ev-label">Throw-in</span></button>
+        <button class="ev" data-event="offside"><span class="ev-label">Offside</span></button>
+        <button class="ev" data-event="free_kick"><span class="ev-label">Free kick</span></button>
+        <button class="ev" data-event="goal_kick"><span class="ev-label">Goal kick</span></button>
+        <button class="ev" data-event="out_of_bounds"><span class="ev-label">Out of bounds</span></button>
     </div>
 
-    <div class="event-grid">
-        <button class="ev" data-event="out_of_bounds">Out of<br>bounds</button>
-        <button class="ev" data-event="corner">Corner</button>
-        <button class="ev" data-event="throw_in">Throw-in</button>
-        <button class="ev" data-event="goal_kick">Goal kick</button>
-        <button class="ev" data-event="free_kick">Free kick</button>
-        <button class="ev" data-event="foul">Foul</button>
-        <button class="ev" data-event="offside">Offside</button>
-        <button class="ev accent-card" data-event="card">Card</button>
-        <button class="ev accent-goal" data-event="goal">GOAL</button>
+    <div class="last-strip">
+        <span class="last-label">Last</span>
+        <span id="last-event" class="last-text">nothing yet</span>
+        <button id="btn-undo" class="btn small danger">Undo</button>
     </div>
 
     <div class="live-footer">
-        <button id="btn-sub" class="btn secondary">Substitution</button>
-        <button id="btn-period" class="btn secondary">Halftime</button>
+        <button id="btn-sub" class="btn">Substitution</button>
+        <button id="btn-period" class="btn">Half-time</button>
         <button id="btn-log" class="btn ghost">Log</button>
     </div>
 </section>
 
-<!-- ===================== ATTRIBUTION ===================== -->
-<div id="overlay-who" class="overlay">
+<!-- ===================== EVENT DETAIL SHEET ===================== -->
+<div id="overlay-event" class="overlay">
     <div class="sheet">
-        <h2 id="who-title">Who?</h2>
-        <ul id="who-list" class="pick-list"></ul>
-        <div class="sheet-actions">
-            <button id="btn-who-skip" class="btn ghost">Skip</button>
+        <div class="sheet-head">
+            <h2 id="sheet-title">Event</h2>
+            <button id="btn-event-cancel" class="btn small ghost">Cancel</button>
+        </div>
+
+        <!-- The wording here is the whole point: "awarded to" and "committed
+             by" mean opposite things and a bare team toggle hides that. -->
+        <p class="sheet-question" id="sheet-question">Awarded to</p>
+
+        <div class="choice-grid" id="side-choices"></div>
+
+        <div id="step-card" class="hidden">
+            <p class="sheet-question">Which card?</p>
+            <div class="choice-grid" id="card-choices"></div>
+        </div>
+
+        <div id="step-player" class="hidden">
+            <p class="sheet-question" id="player-question">Which player?</p>
+            <ul id="player-choices" class="pick-list"></ul>
+            <button id="btn-skip-player" class="btn ghost block">Don't know — skip</button>
+        </div>
+
+        <div id="step-assist" class="hidden">
+            <p class="sheet-question">Assisted by</p>
+            <ul id="assist-choices" class="pick-list"></ul>
+            <button id="btn-skip-assist" class="btn ghost block">No assist</button>
         </div>
     </div>
 </div>
 
-<!-- ===================== SUB ===================== -->
+<!-- ===================== SUB SHEET ===================== -->
 <div id="overlay-sub" class="overlay">
     <div class="sheet">
-        <h2>Substitution</h2>
+        <div class="sheet-head">
+            <h2>Substitution</h2>
+            <button id="btn-sub-cancel" class="btn small ghost">Cancel</button>
+        </div>
         <div class="sub-columns">
             <div>
                 <h3>Coming off</h3>
@@ -125,21 +160,18 @@
                 <ul id="sub-on-list" class="pick-list"></ul>
             </div>
         </div>
-        <div class="sheet-actions">
-            <button id="btn-sub-cancel" class="btn ghost">Cancel</button>
-            <button id="btn-sub-confirm" class="btn primary" disabled>Confirm sub</button>
-        </div>
+        <button id="btn-sub-confirm" class="btn primary block" disabled>Confirm substitution</button>
     </div>
 </div>
 
-<!-- ===================== LOG ===================== -->
+<!-- ===================== LOG SHEET ===================== -->
 <div id="overlay-log" class="overlay">
     <div class="sheet">
-        <h2>Match log</h2>
-        <ul id="log-list" class="log-list"></ul>
-        <div class="sheet-actions">
-            <button id="btn-log-close" class="btn ghost">Close</button>
+        <div class="sheet-head">
+            <h2>Match log</h2>
+            <button id="btn-log-close" class="btn small ghost">Close</button>
         </div>
+        <div id="log-list" class="timeline"></div>
     </div>
 </div>
 
