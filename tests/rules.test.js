@@ -214,6 +214,35 @@ describe('player data isolation', () => {
     await assertFails(getDoc(doc(db, ...base, 'p2')));
   });
 
+  it('a coach can read any of their own team\'s player reports', async () => {
+    // The coach dashboard's player view depends on this. Coaches are not the
+    // linkedUid on anyone's report, so they cannot use the collection-group
+    // path and must read each report by its own path instead.
+    const db = as(COACH);
+    const base = ['teams', TEAM, 'matches', MATCH, 'playerReports'];
+
+    await assertSucceeds(getDoc(doc(db, ...base, 'p1')));
+    await assertSucceeds(getDoc(doc(db, ...base, 'p2')));
+    // Including ones not yet published — the coach is the one who publishes.
+    await assertSucceeds(getDoc(doc(db, ...base, 'p3')));
+    await assertSucceeds(getDocs(collection(db, ...base)));
+  });
+
+  it('a coach of another team cannot', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'othercoach'), {
+        displayName: 'Other', emailLower: 'other@x.org', teamIds: [VICTIM_TEAM],
+      });
+    });
+    const db = testEnv
+      .authenticatedContext('othercoach', google({ uid: 'othercoach', email: 'other@x.org' }))
+      .firestore();
+
+    await assertFails(
+      getDoc(doc(db, 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p1'))
+    );
+  });
+
   it('an unpublished report is hidden even from its owner', async () => {
     await assertFails(
       getDoc(doc(as(PLAYER), 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p3'))

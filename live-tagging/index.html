@@ -88,6 +88,7 @@
                 <span id="score-them">0</span>
             </div>
             <span id="sync-dot" class="sync-dot" title="Synced"></span>
+            <button id="btn-exit-live" class="btn small ghost" title="Leave tagging">Exit</button>
         </div>
     </header>
 
@@ -171,6 +172,24 @@
             </div>
         </div>
         <button id="btn-sub-confirm" class="btn primary block" disabled>Confirm substitution</button>
+    </div>
+</div>
+
+<!-- ===================== EXIT CONFIRM ===================== -->
+<div id="overlay-exit" class="overlay">
+    <div class="sheet" style="max-width:440px">
+        <div class="sheet-head">
+            <h2>Leave tagging?</h2>
+        </div>
+        <p class="hint" style="text-align:left;margin:0 0 6px">
+            Everything tagged so far is already saved. You can come back to this
+            match and pick up where you left off.
+        </p>
+        <p class="muted" id="exit-note" style="margin:0 0 18px"></p>
+        <div class="choice-grid">
+            <button id="btn-exit-stay" class="btn">Stay</button>
+            <button id="btn-exit-go" class="btn primary">Leave</button>
+        </div>
     </div>
 </div>
 

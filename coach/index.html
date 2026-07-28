@@ -159,6 +159,34 @@
         </div>
     </section>
 
+    <!-- one player, across the season -->
+    <section id="view-player" class="hidden">
+        <button id="btn-back-roster" class="btn small ghost" style="margin:24px 0 18px">&lsaquo; Back to squad</button>
+
+        <div class="player-head">
+            <div class="player-badge" id="pv-number">—</div>
+            <div class="grow">
+                <h1 id="pv-name" style="margin-bottom:4px">Player</h1>
+                <p class="muted" id="pv-sub"></p>
+            </div>
+            <span class="pill" id="pv-linked"></span>
+        </div>
+
+        <section class="block">
+            <h3>Season totals</h3>
+            <div id="pv-stats" class="stat-grid"></div>
+        </section>
+
+        <section class="block">
+            <h3>Match by match</h3>
+            <div id="pv-matches" class="card-list"></div>
+            <p class="muted" style="margin-top:12px">
+                Only published matches appear here — publish a match to add it to a
+                player's record.
+            </p>
+        </section>
+    </section>
+
     <!-- one match -->
     <section id="view-match" class="hidden">
         <button id="btn-back" class="btn small ghost" style="margin:24px 0 18px">&lsaquo; All matches</button>

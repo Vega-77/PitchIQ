@@ -741,6 +741,21 @@ function init() {
         commitDraft();
     });
 
+    // Leaving mid-match is safe — every tap is already written — but the clock
+    // cannot be recovered on return, so the sheet says what will actually
+    // happen rather than asking a bare "are you sure".
+    $('btn-exit-live').addEventListener('click', () => {
+        const running = state.running;
+        $('exit-note').textContent = running
+            ? `The clock is at ${clockText(matchClock())}. On return it resumes paused `
+              + 'there, so you may need to nudge it to match the referee.'
+            : 'The clock is already paused.';
+        $('overlay-exit').classList.add('open');
+    });
+    $('btn-exit-stay').addEventListener('click', () =>
+        $('overlay-exit').classList.remove('open'));
+    $('btn-exit-go').addEventListener('click', () => { location.href = '../'; });
+
     $('btn-undo').addEventListener('click', undoLast);
     $('btn-period').addEventListener('click', advancePeriod);
     $('btn-sub').addEventListener('click', () => openSubSheet());

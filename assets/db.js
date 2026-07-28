@@ -464,6 +464,46 @@ export function seasonSummary(matches) {
     };
 }
 
+/**
+ * Every published report for one player, for the coach's own view.
+ *
+ * Deliberately not a collection-group query: the collection-group rule is
+ * scoped to `linkedUid == request.auth.uid`, which is what keeps a player from
+ * reading a teammate's row, and a coach is not the linkedUid on anyone's
+ * report. Coaches read each report by path instead, which the per-match rule
+ * does allow. That is one read per finalized match — trivial for a season.
+ */
+export async function playerSeason(teamId, matches, playerId) {
+    const finalized = matches.filter((m) => m.finalized);
+
+    const reports = await Promise.all(finalized.map(async (match) => {
+        const snap = await getDoc(
+            doc(db, 'teams', teamId, 'matches', match.id, 'playerReports', playerId)
+        ).catch(() => null);
+        return snap?.exists() ? { matchId: match.id, ...snap.data() } : null;
+    }));
+
+    return reports
+        .filter(Boolean)
+        .sort((a, b) => (b.matchDate || '').localeCompare(a.matchDate || ''));
+}
+
+/** Totals across a set of per-match reports. */
+export function seasonTotals(reports) {
+    return reports.reduce((acc, r) => ({
+        matches: acc.matches + 1,
+        minutes: acc.minutes + (r.minutesPlayed || 0),
+        goals: acc.goals + (r.goals || 0),
+        assists: acc.assists + (r.assists || 0),
+        yellowCards: acc.yellowCards + (r.yellowCards || 0),
+        redCards: acc.redCards + (r.redCards || 0),
+        fouls: acc.fouls + (r.fouls || 0),
+    }), {
+        matches: 0, minutes: 0, goals: 0, assists: 0,
+        yellowCards: 0, redCards: 0, fouls: 0,
+    });
+}
+
 /** The player portal's single query. Must filter on linkedUid to be permitted. */
 export async function myReports(uid) {
     const snap = await getDocs(query(

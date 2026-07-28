@@ -146,6 +146,49 @@
 .match-score.loss { color: var(--danger); border-color: rgba(248,113,113,.3); background: rgba(248,113,113,.07); }
 .match-score.draw { color: var(--text-dim); }
 
+/* ---------------------------------------------------------------- player view */
+
+.player-head {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin: 8px 0 10px;
+}
+
+/* Squad number set like a shirt back. */
+.player-badge {
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    border-radius: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line-hi);
+    font-size: 32px;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -1.4px;
+    color: var(--accent);
+}
+
+.pv-row { display: flex; align-items: center; gap: 18px; }
+.pv-figures { display: flex; gap: 20px; text-align: right; }
+.pv-figure { min-width: 46px; }
+.pv-figure .n { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.pv-figure .n.zero { color: var(--text-faint); font-weight: 400; }
+.pv-figure .k {
+    font-size: 9.5px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: .9px;
+    color: var(--text-faint);
+    margin-top: 2px;
+}
+
+/* Roster rows become a way in to a player, so they need to look pressable. */
+.roster-row .open-hint { color: var(--text-faint); font-size: 18px; }
+
 /* ---------------------------------------------------------------- match view */
 
 .match-head {

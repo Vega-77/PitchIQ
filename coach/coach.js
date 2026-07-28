@@ -4,7 +4,7 @@ import {
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, listMatchRoster, listLog,
-    aggregateMatch, publishReports, seasonSummary,
+    aggregateMatch, publishReports, seasonSummary, playerSeason, seasonTotals,
 } from '../assets/db.js';
 import { EVENT_TYPES, CARD_COLOURS, describeEvent } from '../assets/events.js';
 import { mountPitchBackdrop } from '../assets/pitch-backdrop.js';
@@ -30,7 +30,7 @@ function toast(message, isError = false) {
 }
 
 function show(view) {
-    for (const v of ['view-noteam', 'view-main', 'view-match']) {
+    for (const v of ['view-noteam', 'view-main', 'view-match', 'view-player']) {
         $(v).classList.toggle('hidden', v !== view);
     }
     $('loading').classList.add('hidden');
@@ -127,13 +127,18 @@ function renderRoster() {
         row.className = 'list-item roster-row';
         row.innerHTML = `
             <span class="jersey"></span>
-            <div class="grow">
+            <button class="grow" data-act="open"
+                    style="background:none;border:none;text-align:left;cursor:pointer;color:inherit;font:inherit;padding:0">
                 <div class="title"></div>
                 <div class="sub"></div>
-            </div>
+            </button>
             <span class="pill"></span>
             <button class="btn small" data-act="invite">Invite</button>
-            <button class="btn small danger" data-act="remove">Remove</button>`;
+            <button class="btn small danger" data-act="remove">Remove</button>
+            <span class="open-hint">&rsaquo;</span>`;
+
+        row.querySelector('[data-act="open"]').addEventListener('click', () =>
+            openPlayer(player));
 
         row.querySelector('.jersey').textContent = player.jerseyNumber ?? '—';
         row.querySelector('.title').textContent = player.name;
@@ -194,6 +199,109 @@ async function doAddPlayer() {
         toast(`${name} added`);
     } catch (err) {
         toast(err.message || 'Could not add the player.', true);
+    }
+}
+
+// ---------------------------------------------------------------- one player
+
+function pvFigure(value, label) {
+    const el = document.createElement('div');
+    el.className = 'pv-figure';
+    el.innerHTML = `<div class="n"></div><div class="k"></div>`;
+    const n = el.querySelector('.n');
+    n.textContent = value;
+    if (!value) n.classList.add('zero');
+    el.querySelector('.k').textContent = label;
+    return el;
+}
+
+async function openPlayer(player) {
+    $('loading').classList.remove('hidden');
+
+    try {
+        const reports = await playerSeason(state.team.id, state.matches, player.id);
+        const totals = seasonTotals(reports);
+
+        $('pv-number').textContent = player.jerseyNumber ?? '—';
+        $('pv-name').textContent = player.name;
+        $('pv-sub').textContent = player.emailLower || 'no email on file';
+
+        const linked = $('pv-linked');
+        const isLinked = Boolean(player.linkedUid);
+        linked.textContent = isLinked ? 'linked' : 'not signed in';
+        linked.classList.toggle('done', isLinked);
+
+        const stats = $('pv-stats');
+        stats.innerHTML = '';
+        stats.appendChild(statCard(totals.matches, 'Matches'));
+        stats.appendChild(statCard(totals.minutes, 'Minutes'));
+        stats.appendChild(statCard(totals.goals, 'Goals', totals.goals ? 'is-good' : 'is-muted'));
+        stats.appendChild(statCard(totals.assists, 'Assists', totals.assists ? 'is-good' : 'is-muted'));
+        stats.appendChild(statCard(totals.fouls, 'Fouls', 'is-muted'));
+
+        const cards = totals.yellowCards + totals.redCards;
+        stats.appendChild(statCard(cards, 'Cards', cards ? 'is-warn' : 'is-muted'));
+
+        // Per 90 is the number that survives uneven minutes, which is exactly
+        // the comparison a coach wants between a starter and a squad player.
+        if (totals.minutes >= 45) {
+            const per90 = ((totals.goals + totals.assists) / totals.minutes * 90).toFixed(2);
+            stats.appendChild(statCard(per90, 'G+A per 90', 'is-muted'));
+        }
+
+        renderPlayerMatches(reports);
+        show('view-player');
+        window.scrollTo(0, 0);
+    } catch (err) {
+        toast(err.message || 'Could not load that player.', true);
+        show('view-main');
+    }
+}
+
+function renderPlayerMatches(reports) {
+    const list = $('pv-matches');
+    list.innerHTML = '';
+
+    if (!reports.length) {
+        list.innerHTML =
+            '<div class="empty">Nothing published for this player yet.<br>'
+            + '<span class="muted">Open a match and publish its reports.</span></div>';
+        return;
+    }
+
+    for (const report of reports) {
+        const row = document.createElement('div');
+        row.className = 'list-item pv-row';
+        row.innerHTML = `
+            <div class="grow">
+                <div class="title"></div>
+                <div class="sub"></div>
+            </div>
+            <div class="pv-figures"></div>`;
+
+        row.querySelector('.title').textContent = `vs ${report.opponentName || '—'}`;
+
+        const sub = row.querySelector('.sub');
+        sub.textContent = report.matchDate || '';
+
+        const chips = [
+            ...Array(report.yellowCards || 0).fill('yellow'),
+            ...Array(report.redCards || 0).fill('red'),
+        ];
+        for (const colour of chips) {
+            const chip = document.createElement('span');
+            chip.className = `card-chip ${colour}`;
+            chip.style.marginLeft = '6px';
+            chip.title = CARD_COLOURS[colour]?.label ?? colour;
+            sub.appendChild(chip);
+        }
+
+        const figures = row.querySelector('.pv-figures');
+        figures.appendChild(pvFigure(report.minutesPlayed ?? 0, 'min'));
+        figures.appendChild(pvFigure(report.goals ?? 0, 'goals'));
+        figures.appendChild(pvFigure(report.assists ?? 0, 'assists'));
+
+        list.appendChild(row);
     }
 }
 
@@ -513,6 +621,7 @@ function init() {
     $('btn-add-player').addEventListener('click', doAddPlayer);
     $('btn-create-match').addEventListener('click', doCreateMatch);
     $('btn-back').addEventListener('click', () => show('view-main'));
+    $('btn-back-roster').addEventListener('click', () => show('view-main'));
     $('btn-publish').addEventListener('click', doPublish);
     $('input-date').value = new Date().toISOString().slice(0, 10);
 
