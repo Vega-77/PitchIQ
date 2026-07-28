@@ -97,7 +97,7 @@ function updateOnlineIndicator() {
     if (!dot) return;
     const offline = !navigator.onLine;
     dot.classList.toggle('offline', offline);
-    dot.title = offline ? 'Offline — taps are queued and will sync' : 'Synced';
+    dot.title = offline ? 'No internet — your taps are saved and will upload later' : 'Saved';
 }
 window.addEventListener('online', updateOnlineIndicator);
 window.addEventListener('offline', updateOnlineIndicator);
@@ -747,9 +747,10 @@ function init() {
     $('btn-exit-live').addEventListener('click', () => {
         const running = state.running;
         $('exit-note').textContent = running
-            ? `The clock is at ${clockText(matchClock())}. On return it resumes paused `
-              + 'there, so you may need to nudge it to match the referee.'
-            : 'The clock is already paused.';
+            ? `Everything you've tapped is saved. The clock is at ${clockText(matchClock())} `
+              + 'and will be paused there when you come back, so check it against '
+              + "the referee's before carrying on."
+            : "Everything you've tapped is saved. The clock is already paused.";
         $('overlay-exit').classList.add('open');
     });
     $('btn-exit-stay').addEventListener('click', () =>

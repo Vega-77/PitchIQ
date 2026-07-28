@@ -17,7 +17,7 @@
     <header class="tag-header has-backdrop" id="tag-header">
         <div>
             <div class="brand">PitchIQ <span>tagging</span></div>
-            <p class="muted" id="setup-sub">Sign in to load your team</p>
+            <p class="muted" id="setup-sub">Sign in with your school Google account</p>
         </div>
         <a href="../" class="btn small ghost">Exit</a>
     </header>
@@ -32,6 +32,13 @@
         <div id="match-block" class="hidden">
             <div id="match-picker">
                 <h3>Choose a match</h3>
+                <div class="help">
+                    <span>
+                        Pick the game you're about to record. If you started one earlier
+                        and had to stop, choose it again — <strong>nothing you already
+                        tapped is lost</strong>.
+                    </span>
+                </div>
                 <div id="match-cards" class="match-cards"></div>
             </div>
 
@@ -41,9 +48,10 @@
                 </button>
                 <div class="lineup-head">
                     <div>
-                        <h3 style="margin-bottom:2px">Starting lineup</h3>
+                        <h3 style="margin-bottom:2px">Who's starting?</h3>
                         <p class="muted" style="margin:0">
-                            Tap everyone starting. The rest become your bench.
+                            Tap each player in the starting eleven. Everyone you don't
+                            tap becomes a substitute. You can change this later.
                         </p>
                     </div>
                     <div class="starter-badge">
@@ -61,14 +69,16 @@
 <!-- ===================== KICKOFF ===================== -->
 <section id="view-kickoff" class="view">
     <div class="kickoff-body">
-        <h3 style="justify-content:center">Sync marker</h3>
+        <h3 style="justify-content:center">Before you press it</h3>
         <p class="hint center">
-            Clap or wave where the camera can see it at the same instant you tap.
-            That one moment lines the tag clock up with the video.
+            If a camera is recording, <strong>clap once where it can see you</strong>
+            at the same moment you press the button. That lets us line these
+            notes up with the video later. If there's no camera, just press it
+            at kick-off.
         </p>
         <button id="btn-kickoff" class="btn-kickoff">
             <span class="k-main">KICK OFF</span>
-            <span class="k-sub">start the clock</span>
+            <span class="k-sub">starts the match clock</span>
         </button>
         <button id="btn-back-setup" class="btn ghost">Back to setup</button>
     </div>
@@ -109,13 +119,13 @@
     </div>
 
     <div class="last-strip">
-        <span class="last-label">Last</span>
+        <span class="last-label">Just recorded</span>
         <span id="last-event" class="last-text">nothing yet</span>
         <button id="btn-undo" class="btn small danger">Undo</button>
     </div>
 
     <div class="live-footer">
-        <button id="btn-sub" class="btn">Substitution</button>
+        <button id="btn-sub" class="btn">Make a sub</button>
         <button id="btn-period" class="btn">Half-time</button>
         <button id="btn-log" class="btn ghost">Log</button>
     </div>
@@ -143,13 +153,13 @@
         <div id="step-player" class="hidden">
             <p class="sheet-question" id="player-question">Which player?</p>
             <ul id="player-choices" class="pick-list"></ul>
-            <button id="btn-skip-player" class="btn ghost block">Don't know — skip</button>
+            <button id="btn-skip-player" class="btn ghost block">Not sure — skip this</button>
         </div>
 
         <div id="step-assist" class="hidden">
             <p class="sheet-question">Assisted by</p>
             <ul id="assist-choices" class="pick-list"></ul>
-            <button id="btn-skip-assist" class="btn ghost block">No assist</button>
+            <button id="btn-skip-assist" class="btn ghost block">Nobody assisted</button>
         </div>
     </div>
 </div>
@@ -163,7 +173,7 @@
         </div>
         <div class="sub-columns">
             <div>
-                <h3>Coming off</h3>
+                <h3>Going off</h3>
                 <ul id="sub-off-list" class="pick-list"></ul>
             </div>
             <div>
@@ -179,7 +189,7 @@
 <div id="overlay-exit" class="overlay">
     <div class="sheet" style="max-width:440px">
         <div class="sheet-head">
-            <h2>Leave tagging?</h2>
+            <h2>Stop recording?</h2>
         </div>
         <p class="hint" style="text-align:left;margin:0 0 6px">
             Everything tagged so far is already saved. You can come back to this
@@ -187,8 +197,8 @@
         </p>
         <p class="muted" id="exit-note" style="margin:0 0 18px"></p>
         <div class="choice-grid">
-            <button id="btn-exit-stay" class="btn">Stay</button>
-            <button id="btn-exit-go" class="btn primary">Leave</button>
+            <button id="btn-exit-stay" class="btn">Keep going</button>
+            <button id="btn-exit-go" class="btn primary">Yes, stop</button>
         </div>
     </div>
 </div>
@@ -197,7 +207,7 @@
 <div id="overlay-log" class="overlay">
     <div class="sheet">
         <div class="sheet-head">
-            <h2>Match log</h2>
+            <h2>Everything recorded</h2>
             <button id="btn-log-close" class="btn small ghost">Close</button>
         </div>
         <div id="log-list" class="timeline"></div>

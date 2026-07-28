@@ -145,7 +145,7 @@ function init() {
             // A missing composite index surfaces here first, so name it rather
             // than showing a generic failure.
             const message = err?.code === 'failed-precondition'
-                ? 'The reports index is still building. Try again in a minute.'
+                ? 'Still getting things ready. Please try again in a minute.'
                 : err.message || 'Could not load your reports.';
             toast(message, true);
             show('view-empty');

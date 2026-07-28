@@ -65,7 +65,7 @@ async function doCreateTeam() {
         button.disabled = false;
         toast(
             err?.code === 'permission-denied'
-                ? 'This account is not on the coach allowlist. Ask the project owner to add it.'
+                ? 'This email has not been approved to create a team yet. Ask Alex to add it, then try again.'
                 : err.message || 'Could not create the team.',
             true,
         );
@@ -109,8 +109,31 @@ function renderHero() {
 
     const open = state.matches.filter((m) => !m.finalized).length;
     $('action-tag-sub').textContent = open
-        ? `${open} match${open === 1 ? '' : 'es'} open for tagging`
+        ? `${open} match${open === 1 ? '' : 'es'} ready to tag`
         : 'Create a match first';
+
+    renderGettingStarted();
+}
+
+/** Tick off setup steps as they're actually completed, and hide once done. */
+function renderGettingStarted() {
+    const hasPlayers = state.players.length > 0;
+    const hasInvited = state.players.some((p) => p.linkedUid);
+    const hasMatch = state.matches.length > 0;
+    const hasTagged = state.matches.some(
+        (m) => m.status && m.status !== 'scheduled'
+    );
+
+    const done = { 'step-players': hasPlayers, 'step-invite': hasInvited,
+                   'step-match': hasMatch, 'step-tag': hasTagged };
+    for (const [id, complete] of Object.entries(done)) {
+        $(id)?.classList.toggle('done', complete);
+    }
+
+    // Once every step is done the checklist is clutter, so it goes away.
+    $('getting-started').classList.toggle(
+        'hidden', hasPlayers && hasInvited && hasMatch && hasTagged
+    );
 }
 
 function renderRoster() {
@@ -142,11 +165,11 @@ function renderRoster() {
 
         row.querySelector('.jersey').textContent = player.jerseyNumber ?? '—';
         row.querySelector('.title').textContent = player.name;
-        row.querySelector('.sub').textContent = player.emailLower || 'no email on file';
+        row.querySelector('.sub').textContent = player.emailLower || 'No email yet — they cannot see their report without one';
 
         const pill = row.querySelector('.pill');
         const linked = Boolean(player.linkedUid);
-        pill.textContent = linked ? 'linked' : 'not signed in';
+        pill.textContent = linked ? 'Can see reports' : 'Not joined yet';
         pill.classList.toggle('done', linked);
 
         row.querySelector('[data-act="invite"]').addEventListener('click', async (e) => {
@@ -228,7 +251,7 @@ async function openPlayer(player) {
 
         const linked = $('pv-linked');
         const isLinked = Boolean(player.linkedUid);
-        linked.textContent = isLinked ? 'linked' : 'not signed in';
+        linked.textContent = isLinked ? 'Can see reports' : 'Not joined yet';
         linked.classList.toggle('done', isLinked);
 
         const stats = $('pv-stats');

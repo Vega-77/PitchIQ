@@ -60,6 +60,42 @@
             <div class="team-hero-stats stat-grid" id="hero-stats"></div>
         </header>
 
+        <!-- First-run guidance. A coach opening this for the first time has no
+             way to know the order things must happen in, and getting it wrong
+             (tagging before a roster exists) produces confusing dead ends. -->
+        <section id="getting-started" class="card hidden" style="margin-bottom:16px">
+            <h3 style="margin-bottom:6px">Getting started</h3>
+            <p class="muted" style="margin:0 0 14px">
+                Four things to do once. This disappears when you're set up.
+            </p>
+            <ol class="steps" id="setup-steps">
+                <li id="step-players">
+                    <div class="step-body">
+                        <div class="step-title">Add your players</div>
+                        <div class="step-note">Use the Roster tab. Each player needs their school email so they can see their own report.</div>
+                    </div>
+                </li>
+                <li id="step-invite">
+                    <div class="step-body">
+                        <div class="step-title">Invite them</div>
+                        <div class="step-note">Press Invite next to each player. They sign in with Google and see only their own numbers.</div>
+                    </div>
+                </li>
+                <li id="step-match">
+                    <div class="step-body">
+                        <div class="step-title">Create a match</div>
+                        <div class="step-note">Just the opponent and the date. You can do this the morning of the game.</div>
+                    </div>
+                </li>
+                <li id="step-tag">
+                    <div class="step-body">
+                        <div class="step-title">Tag it on match day</div>
+                        <div class="step-note">Open Live tagging on a tablet or phone. Whoever keeps the book can run it.</div>
+                    </div>
+                </li>
+            </ol>
+        </section>
+
         <!-- Matchday is a different job from squad admin, so it gets its own
              surface rather than being one tab among several. -->
         <section class="action-strip">
