@@ -53,8 +53,9 @@ function renderInvites(user, invites) {
 
     if (!invites.length) {
         $('nowhere-msg').textContent =
-            'This account isn\'t linked to a team yet. Ask your coach to add ' +
-            `${user.email} to the roster, then sign in again.`;
+            `Nothing is linked to ${user.email} yet. If you're a player, ask your ` +
+            'coach to add that address to the roster and invite you. If you\'re a ' +
+            'coach setting up for the first time, start below.';
         return;
     }
 

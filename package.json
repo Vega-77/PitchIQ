@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Dev tooling only. The frontend is plain ES modules with no build step.",
   "scripts": {
-    "test": "firebase emulators:exec --only firestore --project pitchiq-test \"node --test tests/rules.test.js tests/flow.test.js\"",
+    "test": "firebase emulators:exec --only firestore --project pitchiq-test \"node --test tests/rules.test.js tests/flow.test.js tests/onboarding.test.js\"",
     "emulators": "firebase emulators:start",
     "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes"
   },

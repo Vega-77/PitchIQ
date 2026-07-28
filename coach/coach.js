@@ -370,11 +370,12 @@ async function onSignedIn(user) {
     state.user = user;
 
     const access = await resolveAccess(user);
-    if (access.role !== 'coach') {
-        if (access.role === 'player') { location.href = '../player/'; return; }
-        location.href = '../';
-        return;
-    }
+
+    // A coach with no team yet resolves as 'none' — there is nothing to prove
+    // they coach anything until a team exists. Send players to their portal,
+    // but let everyone else through to the create-team screen; the allowlist
+    // rule is what actually decides whether creation succeeds.
+    if (access.role === 'player') { location.href = '../player/'; return; }
 
     const wanted = new URLSearchParams(location.search).get('team');
     state.team = access.teams.find((t) => t.id === wanted) || access.teams[0];
