@@ -49,8 +49,30 @@ confirmation of what camera system the school actually runs.
 console steps (creating the project, enabling Google sign-in, deploying rules, adding
 coaches to the allowlist) can't be scripted from the repo.
 
-**Next up:** re-measure tracking on native-resolution footage once the coach
-sends it (Phase 6), then the possession/event layer (Phases 9–10).
+**Next up:** re-measure everything on native-resolution footage from a camera
+that holds still. That single input unblocks calibration, tracking quality and
+possession simultaneously.
+
+### Built ahead of the footage
+
+`cv/pipeline.py` and `cv/xg_bridge.py` wire the whole chain together — video in,
+match report out, including the 12-feature bridge to the existing xG model.
+**Both are written but unverified on real footage**, and say so at the top of the
+file. Every component is individually tested and the joins are tested against
+synthetic data; what has never happened is one run end to end on a real match,
+because that needs a calibration. Points most likely to need work are marked
+`UNVERIFIED` inline.
+
+Two open questions found while writing them, both pinned by tests so they cannot
+be quietly forgotten:
+- **Pitch dimensions move every xG number.** `to_statsbomb` normalises by the
+  configured pitch length, so a penalty spot reads as ~13.9 StatsBomb units on a
+  95m pitch and ~12.0 on a 110m one. Whether that matches how StatsBomb
+  normalises their own data has not been confirmed against their documentation.
+  Until it is, measure the real field rather than accepting the default.
+- **`shot_height` is not recoverable** from one fixed camera — it is a z-axis
+  value and a homography maps a plane. The training-set median is substituted,
+  so the feature carries no information from the actual shot.
 
 ### What the CV work has established so far
 
