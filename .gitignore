@@ -10,3 +10,12 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# CV experiment scratch output / pretrained weights
+/runs/
+/scratch_frames/
+*.pt
+
+# Local database
+*.db
+*.sqlite3

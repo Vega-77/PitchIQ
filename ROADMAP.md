@@ -26,19 +26,43 @@ jersey numbers robustly in month 1.
 
 ---
 
+## Current Status (2026-07-27)
+
+**Built and verified:**
+- `cv/` — reusable detection package + `spike_detect` CLI (Phase 5 spike, done)
+- `backend/` — FastAPI + SQLite, all endpoints tested end-to-end (Phase 2, done for [Demo])
+- `live-tagging/` — the tablet tool, full flow driven in-browser (Phase 3, done for [Demo])
+
+**Blocked on:** footage from the coach — specifically a raw/native-resolution export
+rather than a screen recording, ideally the uncropped wide feed rather than the
+auto-tracked crop (see Phase 1). Also pending: permission to use game footage, and
+confirmation of what camera system the school actually runs.
+
+**Next up:** Phase 4 (calibration/homography), then Phase 6 (tracking).
+
+---
+
 ## Feasibility Reality Check
 
 Two people, part-time around everything else going on — realistically ~100-200
 focused hours over a month, not the 300+ it'd take to build everything below at full
 [MVP] quality. Specific calls worth making now rather than discovering in week 3:
 
-- **Ball detection is the single biggest technical risk in the whole project.**
-  Small, fast, constantly occluded — this is a problem pro tracking vendors have spent
-  real engineering-years on. Before committing to the rest of the plan, spend a few
-  days on an isolated spike: pull real footage (even from a phone at a practice), run
-  an off-the-shelf detector on it, and see how bad it actually is. If ball detection
-  can't hit usable accuracy, several downstream features (possession, passes, shots,
-  the xG bridge) don't work at all — better to know that in week 1 than week 3.
+- **~~Ball detection is the single biggest technical risk in the whole project.~~
+  SPIKE COMPLETE (2026-07-27) — answer: viable, but entirely dependent on camera
+  framing.** Ran a pretrained YOLO detector against two real screen-recorded clips of
+  the same team, via `python -m cv.experiments.spike_detect`:
+  - **Tight, dedicated soccer framing** (players clearly resolved, jersey numbers
+    faintly legible): **43% of sampled frames had a ball detection, 99% had players**,
+    with zero fine-tuning. Good enough to build on.
+  - **Wide multi-sport stadium panorama** (whole football field + track + stands in
+    frame): **0 ball detections across 300 sampled frames**, and *no on-field players
+    detected either* — only sideline staff close to the camera. At that framing a
+    player is ~4-8px wide and the ball is under 2px. Cropping and upscaling does not
+    recover it; the pixels were never captured.
+  The risk is therefore **retired as a CV problem and reclassified as a camera-setup
+  requirement** (see the camera bullet below). Downstream features (possession, passes,
+  shots, the xG bridge) are viable *given adequate framing*.
 - **True live/real-time halftime processing is a hard systems constraint, not just a
   CV one.** The pipeline has to process 45 minutes of footage in less than the ~10-15
   minutes of an actual break — average per-frame processing has to run faster than
@@ -53,12 +77,17 @@ focused hours over a month, not the 300+ it'd take to build everything below at 
   ByteTrack) as-is. Fine-tuning needs labeled soccer-specific data you don't have yet
   — and conveniently, the Phase 11 review tool produces exactly that data as a side
   effect of normal use, so fine-tuning becomes much cheaper *after* the demo.
-- **A single fixed camera on a full-size 11v11 pitch is a real resolution/coverage
-  problem.** A full pitch runs roughly 100-110m long; a camera at pitch level won't
-  see far-side players or the ball at usable resolution. This needs genuine elevation
-  (press box, scaffold, drone — a drone adds battery-life and airspace-rule
-  considerations) or accepting degraded accuracy far from the camera. Decide this
-  before CV work starts — it changes what "detection accuracy" even means.
+- **Camera framing is now the single hardest requirement in the project** — promoted
+  from "a real problem" to *the* gating constraint by the spike above. Empirically:
+  a shared multi-sport stadium camera framed for a whole football field yields
+  literally zero usable detections of players or ball on the pitch, and no software
+  can recover that. The target is the framing of the tighter clip — pitch filling most
+  of the frame — held **fixed**, which also preserves the cheap one-time homography
+  from Phase 4. Two practical notes learned the hard way:
+  - **Screen recordings are capped at the browser window's pixel count**, which may be
+    well below what the camera natively records. Always work from a real export.
+  - The wide stadium rig is a **once-a-season venue** for this team; the tighter
+    camera position is what almost every game actually uses. Design for the latter.
 - **The existing xG model was trained on clean, human-verified StatsBomb data.**
   CV-derived positions from a single camera + homography will be noisier — more
   jitter, occasional missed frames, homography projection error. The model's
@@ -233,24 +262,50 @@ own sake:
   start as simple polling and move to WebSockets only if polling actually feels
   laggy in practice — don't build the harder version first.
 
+### Repo layout
+
+```
+PitchIQ/
+├── index.html, script.js, classes.js, styles.css, xg_model6.onnx
+│                        the original manual xG demo — deployed to GitHub Pages, untouched
+├── PitchIQHelper/       xG model training (main.py) + the shared .venv
+├── cv/                  detection + frame sampling
+│   ├── detector.py         PersonBallDetector
+│   ├── frame_sampler.py    sample_frames()
+│   └── experiments/        spike_detect CLI
+├── backend/             FastAPI + SQLAlchemy + SQLite
+│   ├── models.py, schemas.py, crud.py, database.py, main.py
+│   └── routers/            teams, matches, substitutions, events
+├── live-tagging/        the match-day tablet tool (vanilla JS)
+└── requirements.txt     shared Python deps — see the CUDA note inside
+```
+
+One shared venv at `PitchIQHelper/.venv` covers all the Python. Installing
+`requirements.txt` alone gives CPU-only torch; the CUDA build needs a separate
+install from the PyTorch index first (documented in the file).
+
 ---
 
 ## 1. Video / Camera Input
-- [ ] **[Demo]** Single fixed camera, elevated if at all possible (press box, scaffold, tall tripod) — full-pitch coverage from ground level is a real resolution risk, see Reality Check
+- [ ] **[Demo]** Single **fixed** camera, framed so the pitch fills most of the frame — not a wide shot that merely includes it. This is now a hard requirement, not a preference: see the Reality Check for the measured difference between the two.
+- [ ] **[Demo]** Source footage must be a real export at native resolution. A screen recording of a video player is capped at the browser window's pixels and can silently discard the resolution detection depends on.
 - [ ] **[Demo]** Record to a file and process afterward for the first working pipeline; treat true incremental/live processing as later hardening
 - [ ] **[MVP]** Process first-half footage incrementally during play so the halftime report can be ready close to the actual break
 - [ ] Frame sampling strategy — every frame, or subsample (e.g. 10-15 fps) to cut compute cost
 - [ ] Lens distortion correction if using a wide-angle/action camera
-- [ ] **[Demo]** Ingestion layer accepts any decodable video file (mp4, phone recording, RTSP stream) — the format itself isn't the hard constraint, calibration is
+- [x] **[Demo]** Ingestion accepts any decodable video file — `cv/frame_sampler.py` handles this via OpenCV; the format was never the hard constraint, framing is
 - [ ] **[Stretch]** Support moving/auto-tracking camera footage (e.g. Hudl/Veo-style ball-following cameras) — requires continuous homography re-estimation (pitch-line detection or frame-to-frame motion tracking) instead of one-time calibration; sports-broadcast camera-calibration research exists to lean on rather than invent from scratch
-- [ ] A ball-following camera, by design, often doesn't keep off-ball players or the far side of the pitch in frame — team shape and full-squad distance covered may be structurally unavailable from that footage regardless of CV quality. If the platform offers a raw wide-angle/panoramic export instead of just the auto-cropped highlight view, that sidesteps the problem entirely since the underlying sensor is static — worth checking per platform
+- [ ] **Confirmed empirically:** a ball-following camera drops the ball out of frame entirely for stretches — measured two separate ~12s gaps in a 2.5-minute clip, both during penalty-box phases where the camera pulled wide. Possession, passes, and the xG bridge all go blank during those windows, which is a different and worse failure mode than low confidence. If the platform can export the raw wide/panoramic feed instead of the auto-cropped view, that removes the problem outright (the underlying sensor never moved) — this is the single most valuable thing to ask the coach for.
 - [ ] **[Stretch]** Multi-camera stitching, drone or pan/tilt/zoom coverage
 
 ## 2. Data Storage & Backend
 Moved up front — Phase 3's tablet needs somewhere to write to before anything else can happen.
-- [ ] **[Demo]** Stand up a minimal backend early — a single local server + SQLite/Postgres is enough
-- [ ] **[Demo]** Run it locally, on a laptop sharing WiFi/hotspot with the tablet at the field — sidesteps whether the school field has reliable internet, which you don't need to solve yet
-- [ ] Schema for players, teams, matches, tracking frames, events, live-tagged events, substitutions — include a `source` field (live-tagged / CV-automatic / reviewer-confirmed) so you always know how trustworthy a data point is
+**Built: `backend/` (FastAPI + SQLAlchemy + SQLite). Run with
+`uvicorn backend.main:app --host 0.0.0.0 --port 8000`; interactive docs at `/docs`.**
+- [x] **[Demo]** Stand up a minimal backend early — a single local server + SQLite/Postgres is enough
+- [x] **[Demo]** Run it locally, on a laptop sharing WiFi/hotspot with the tablet at the field — sidesteps whether the school field has reliable internet, which you don't need to solve yet
+- [x] Schema for teams, players, matches, roster entries, substitutions, events — with the `source` field (`live_tag` / `cv_candidate` / `reviewer_confirmed`) already in place, though only `live_tag` is written today. Tracking-frame tables deliberately deferred until Phase 6 exists.
+- [x] Undo endpoint spanning both events and substitutions, reverting roster state and rolling back match status when a period marker is undone
 - [ ] Storage volume isn't a concern for tracking data itself: even at 10fps with 23 tracked objects, a full match is roughly 10-40MB of positions — trivial for any database, including a full season. **Video is the actual heavy cost** (a 90-minute 1080p match is several GB) — decide a retention policy: keep full match video only through the post-game review window, then retain long-term just the short clips tied to confirmed events, not every full match forever
 - [ ] **[MVP]** Real auth/accounts (Phase 14) and a cloud-hosted option, once coaches/players need access without being near the field laptop
 - [ ] API layer connecting the tablet, processed match data, and the frontend/portal — including the tablet's offline-sync writes
@@ -259,16 +314,19 @@ Moved up front — Phase 3's tablet needs somewhere to write to before anything 
 A tablet used pitchside during the game by an assistant coach and/or a dedicated data
 collector — runs *concurrently* with play, distinct from the Phase 11 tool that runs
 *after* it.
-- [ ] **[Demo]** Tablet-friendly UI: large touch targets, minimal menu depth, usable one-handed while watching the game
-- [ ] **[Demo]** Substitution entry: player X off / player Y on, per team, at the current live timestamp, starting from the pre-game roster/lineup
-- [ ] **[Demo]** One-tap event buttons: out of bounds, corner, throw-in, goal kick, free kick, foul, card, goal, offside — auto-timestamped on tap
-- [ ] **[Demo]** Period-boundary buttons: kickoff (1st half), halftime, kickoff (2nd half), full-time — these mark exactly when to cut off processing for the halftime report and when to flip which goal each team is attacking (Phase 4)
-- [ ] **[Demo]** "Undo last" control — mis-taps will happen; correction needs to be one tap, not a form
-- [ ] **[Demo]** Timestamp sync: simplest reliable method for month 1 is a manual marker — a visible action (a clap, a flag) at kickoff that's both on camera and tapped on the tablet at the same moment, giving one clock offset for the whole match instead of needing continuous device clock sync
+**Built: `live-tagging/` (vanilla JS, no build step). Open `index.html` with the
+backend running; set `API_BASE` in `config.js` to the laptop's LAN address on match day.**
+- [x] **[Demo]** Tablet-friendly UI: large touch targets (236×269px on tablet, 2-column grid on phones), minimal menu depth
+- [x] **[Demo]** Substitution entry: player X off / player Y on, per team, at the current live timestamp, starting from the pre-game roster/lineup. Already-used substitutes stay visible but dimmed so they don't look like fresh options.
+- [x] **[Demo]** One-tap event buttons: out of bounds, corner, throw-in, goal kick, free kick, foul, card, goal, offside — auto-timestamped on tap
+- [x] **[Demo]** Period-boundary buttons: kickoff (1st half), halftime, kickoff (2nd half), full-time. Halftime freezes the clock and the 2nd-half kickoff resumes from that same value, so the break never gets counted as match time.
+- [x] **[Demo]** "Undo last" control — one tap, always visible in the header
+- [x] **[Demo]** Timestamp sync: the kickoff screen prompts for the clap/marker at the moment of the tap, giving one clock offset for the whole match
 - [ ] **[MVP]** Offline-first entry with sync-when-available — matters once you're past a single-laptop-on-site setup
 - [ ] Decide role split: one app covering both subs + events, or two simpler single-purpose roles/devices — worth testing both at the demo dry run
 - [ ] Basic weatherproofing for an outdoor tablet (case, screen usable with sun glare)
 - [ ] Live-tagged data feeds directly into the halftime report and pre-populates the Phase 11 review tool as a head start
+- [ ] **Known gap:** resuming an interrupted match picks the clock up *paused* at the last logged event, since real elapsed time can't be recovered after a reload. Fine for a crash; needs a manual clock-adjust control before it's trustworthy in a real game.
 
 ## 4. Field Calibration (pixel space → pitch metres)
 - [ ] **[Demo]** Manual calibration: click 4+ known pitch landmarks once per camera setup — compute a homography into the existing pitch space already used by `main.py`/`script.js`
@@ -278,10 +336,20 @@ collector — runs *concurrently* with play, distinct from the Phase 11 tool tha
 - [ ] Strategy for when the camera doesn't see the whole pitch, tied to the coverage risk in the Reality Check
 
 ## 5. Object Detection (per frame)
-- [ ] **[Demo]** Player detection using an off-the-shelf pretrained detector (e.g. YOLO's person class) as-is — no fine-tuning in month 1
-- [ ] **[Demo]** Ball detection — run the isolated feasibility spike from the Reality Check before building anything downstream that depends on it
+**Built: `cv/` — `PersonBallDetector` (YOLO filtered to person + sports ball) and
+`frame_sampler`. Rerun the feasibility test on any new footage with:**
+```
+python -m cv.experiments.spike_detect "<video>" --conf 0.08 --imgsz 1280 [--save-annotated]
+```
+It reports per-class hit rate, average/max confidence, throughput, and the longest
+stretch with no ball detected — that last one is what exposed the auto-tracking
+camera losing the ball for 12s at a time.
+- [x] **[Demo]** Player detection using an off-the-shelf pretrained detector as-is — no fine-tuning in month 1
+- [x] **[Demo]** Ball detection feasibility spike — done, see Reality Check for results
+- [x] Class filtering at predict time (person + sports ball only), which removes the spurious car/dog/umbrella detections a generic COCO model produces on stadium footage
 - [ ] Referee detection and exclusion from team stats
 - [ ] Excluding non-players in frame: coaches, subs, ball boys, sideline spectators
+- [ ] Tune confidence threshold against real footage — the spike used 0.08 to surface marginal detections for analysis, which is too permissive for production
 - [ ] **[MVP]** Fine-tune detectors on your own footage once you have labeled data — the Phase 11 review tool produces this as a side effect of normal use
 
 ## 6. Multi-Object Tracking (identity over time)
@@ -373,11 +441,13 @@ Where the CV pipeline plugs into what already works (`script.js` / `xg_model6.on
 ---
 
 ## Suggested build order for a 1-month demo
-Start with the two highest-uncertainty spikes in isolation, before committing to
-anything else: **ball detection feasibility** on real footage, and a **minimal backend
-+ the live tablet tool (2, 3)** — both are cheap to test early and both gate
-everything downstream. In parallel: player detection (5) → calibration, including the
-halftime attacking-direction flip (4) → tracking (6) → team color split only, no OCR
+
+**Done:** ~~ball detection feasibility spike~~, ~~minimal backend (2)~~, ~~live tablet
+tool (3)~~, ~~player + ball detection (5)~~. The three highest-uncertainty items are
+behind us, and the answer on detection is "yes, given the right camera framing."
+
+**Now:** calibration, including the halftime attacking-direction flip (4) → tracking
+(6) → team color split only, no OCR
 (7) → coordinates/metrics (8) → possession/game state (9) → basic auto-candidates:
 pass + shot + goal + stoppage flagging (10) → write the feature-parity test and set up
 ground-truth clips now (Testing Strategy) → review & annotation tool (11), pre-populated

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PitchIQ — Live Tagging</title>
+    <link rel="stylesheet" href="tagger.css">
+</head>
+<body>
+
+<!-- ===================== SETUP ===================== -->
+<section id="view-setup" class="view active">
+    <header class="view-header">
+        <h1>PitchIQ</h1>
+        <p>Match setup</p>
+    </header>
+
+    <div class="setup-body">
+        <div class="field-row">
+            <label for="select-match">Existing match</label>
+            <div class="inline">
+                <select id="select-match"><option value="">— new match —</option></select>
+                <button id="btn-resume" class="btn secondary">Resume</button>
+            </div>
+        </div>
+
+        <div class="divider"><span>or start a new one</span></div>
+
+        <div class="field-row">
+            <label for="select-home">Home team</label>
+            <div class="inline">
+                <select id="select-home"></select>
+                <input id="input-new-home" type="text" placeholder="or type a new team name">
+            </div>
+        </div>
+
+        <div class="field-row">
+            <label for="select-away">Away team</label>
+            <div class="inline">
+                <select id="select-away"></select>
+                <input id="input-new-away" type="text" placeholder="or type a new team name">
+            </div>
+        </div>
+
+        <button id="btn-create-match" class="btn primary block">Create match</button>
+
+        <div id="lineup-section" class="hidden">
+            <div class="divider"><span>starting lineup — your team</span></div>
+            <p class="hint">Tick everyone available. Starters go on the field; the rest are your bench.</p>
+
+            <div class="field-row">
+                <label for="input-player-name">Add a player</label>
+                <div class="inline">
+                    <input id="input-player-name" type="text" placeholder="Name">
+                    <input id="input-player-number" type="number" placeholder="#" class="narrow">
+                    <button id="btn-add-player" class="btn secondary">Add</button>
+                </div>
+            </div>
+
+            <ul id="roster-list" class="roster"></ul>
+            <button id="btn-save-lineup" class="btn primary block">Save lineup</button>
+        </div>
+    </div>
+</section>
+
+<!-- ===================== KICKOFF ===================== -->
+<section id="view-kickoff" class="view">
+    <header class="view-header">
+        <h1>Ready</h1>
+        <p id="kickoff-subtitle">Tap the moment the whistle blows</p>
+    </header>
+
+    <div class="kickoff-body">
+        <p class="hint center">
+            Make your sync marker now — a clap or a wave, clearly visible on camera —
+            at the same instant you tap.
+        </p>
+        <button id="btn-kickoff" class="btn kickoff">KICK OFF</button>
+        <button id="btn-back-setup" class="btn ghost">Back to setup</button>
+    </div>
+</section>
+
+<!-- ===================== LIVE TAGGING ===================== -->
+<section id="view-live" class="view">
+    <header class="live-header">
+        <div class="clock-block">
+            <span id="clock">00:00</span>
+            <span id="period-label" class="period">1st half</span>
+        </div>
+        <div class="header-actions">
+            <button id="btn-undo" class="btn undo">UNDO</button>
+        </div>
+    </header>
+
+    <div class="team-toggle" role="group" aria-label="Which team">
+        <button class="team-btn active" data-team="home" id="btn-team-home">Home</button>
+        <button class="team-btn" data-team="away" id="btn-team-away">Away</button>
+    </div>
+
+    <div class="event-grid">
+        <button class="ev" data-event="out_of_bounds">Out of<br>bounds</button>
+        <button class="ev" data-event="corner">Corner</button>
+        <button class="ev" data-event="throw_in">Throw-in</button>
+        <button class="ev" data-event="goal_kick">Goal kick</button>
+        <button class="ev" data-event="free_kick">Free kick</button>
+        <button class="ev" data-event="foul">Foul</button>
+        <button class="ev" data-event="offside">Offside</button>
+        <button class="ev accent-card" data-event="card">Card</button>
+        <button class="ev accent-goal" data-event="goal">GOAL</button>
+    </div>
+
+    <div class="live-footer">
+        <button id="btn-sub" class="btn secondary">Substitution</button>
+        <button id="btn-period" class="btn secondary">Halftime</button>
+        <button id="btn-log" class="btn ghost">Log</button>
+    </div>
+</section>
+
+<!-- ===================== SUB OVERLAY ===================== -->
+<div id="overlay-sub" class="overlay">
+    <div class="sheet">
+        <h2>Substitution</h2>
+        <div class="team-toggle" role="group" aria-label="Which team">
+            <button class="team-btn active" data-subteam="home">Home</button>
+            <button class="team-btn" data-subteam="away">Away</button>
+        </div>
+
+        <div class="sub-columns">
+            <div>
+                <h3>Coming off</h3>
+                <ul id="sub-off-list" class="pick-list"></ul>
+            </div>
+            <div>
+                <h3>Coming on</h3>
+                <ul id="sub-on-list" class="pick-list"></ul>
+            </div>
+        </div>
+
+        <div class="sheet-actions">
+            <button id="btn-sub-cancel" class="btn ghost">Cancel</button>
+            <button id="btn-sub-confirm" class="btn primary" disabled>Confirm sub</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== LOG OVERLAY ===================== -->
+<div id="overlay-log" class="overlay">
+    <div class="sheet">
+        <h2>Match log</h2>
+        <ul id="log-list" class="log-list"></ul>
+        <div class="sheet-actions">
+            <button id="btn-log-close" class="btn ghost">Close</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="config.js"></script>
+<script src="tagger.js"></script>
+</body>
+</html>
