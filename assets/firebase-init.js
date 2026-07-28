@@ -32,8 +32,24 @@ export const firebaseConfig = {
 
 export const isConfigured = !firebaseConfig.projectId.startsWith('REPLACE_ME');
 
-const useEmulator =
+// Local development points at the emulators by default so it can never touch
+// real data by accident. Append ?prod=1 once to test the live project from
+// localhost — which matters because localhost is an authorized Firebase Auth
+// domain and a bare LAN IP is not, so this is the only way to exercise real
+// Google sign-in before the site is deployed. The choice sticks for the tab
+// session so it survives navigating between pages.
+const params = new URLSearchParams(location.search);
+if (params.has('prod')) sessionStorage.setItem('pitchiq.useProd', '1');
+if (params.has('emu')) sessionStorage.removeItem('pitchiq.useProd');
+
+const forceProd = sessionStorage.getItem('pitchiq.useProd') === '1';
+const isLocal =
     location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+const useEmulator = isLocal && !forceProd;
+
+if (isLocal && forceProd) {
+    console.warn('[PitchIQ] Using the LIVE Firebase project. Add ?emu=1 to go back to emulators.');
+}
 
 export const app = initializeApp(
     isConfigured ? firebaseConfig : { ...firebaseConfig, projectId: 'demo-pitchiq' }
