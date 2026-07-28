@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PitchIQ — Calibrate</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/app.css">
+    <link rel="stylesheet" href="calibrate.css">
+</head>
+<body>
+
+<header class="topbar">
+    <a class="brand" href="../">PitchIQ <span>calibrate</span></a>
+    <div class="topbar-user">
+        <span id="progress" class="muted">0 points</span>
+        <button id="btn-export" class="btn small primary" disabled>Export JSON</button>
+    </div>
+</header>
+
+<main class="shell">
+    <h1>Field calibration</h1>
+    <p class="lede">
+        Click at least four known points on the pitch to work out where the camera
+        is. Spread them out — four points bunched in one corner will fit
+        perfectly and still be wrong everywhere else.
+    </p>
+
+    <div class="banner">
+        <h3>How to get a frame</h3>
+        <p class="muted" style="margin:0">
+            Take a screenshot of any frame from the fixed camera, or run
+            <code>python -m cv.experiments.grab_frame "&lt;video&gt;" --at 120</code>
+            to save one. Then drop it below.
+        </p>
+    </div>
+
+    <div class="row" style="margin-bottom:18px">
+        <label class="field" style="margin:0">
+            <span>Frame image</span>
+            <input id="input-image" type="file" accept="image/*">
+        </label>
+        <label class="field" style="margin:0;flex:0 0 130px">
+            <span>Pitch length (m)</span>
+            <input id="input-length" type="number" value="105" step="0.5" min="60" max="130">
+        </label>
+        <label class="field" style="margin:0;flex:0 0 130px">
+            <span>Pitch width (m)</span>
+            <input id="input-width" type="number" value="68" step="0.5" min="40" max="90">
+        </label>
+    </div>
+
+    <div id="workspace" class="hidden">
+        <div class="calib-grid">
+            <div>
+                <h3>Frame — click the highlighted landmark</h3>
+                <div id="stage" class="stage">
+                    <canvas id="canvas"></canvas>
+                </div>
+                <p class="muted" id="hint">Pick a landmark from the list, then click it in the image.</p>
+            </div>
+
+            <aside>
+                <h3>Landmarks</h3>
+                <div id="landmark-list" class="landmark-list"></div>
+
+                <h3 style="margin-top:22px">Placed</h3>
+                <div id="placed-list" class="card-list"></div>
+
+                <button id="btn-clear" class="btn small danger block" style="margin-top:14px">
+                    Clear all points
+                </button>
+            </aside>
+        </div>
+
+        <section class="block">
+            <h2>Pitch preview</h2>
+            <p class="muted">
+                Once four points are placed, the pitch outline is drawn back onto the
+                frame. If the lines don't sit on the real ones, a point is misplaced.
+            </p>
+            <div id="preview-note" class="empty">Place four points to see the preview.</div>
+        </section>
+    </div>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script type="module" src="calibrate.js"></script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+/* Calibration tool only. Shared tokens come from ../assets/app.css. */
+
+.calib-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 20px;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .calib-grid { grid-template-columns: 1fr; }
+}
+
+.stage {
+    position: relative;
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    line-height: 0;
+}
+
+#canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+    cursor: crosshair;
+}
+
+.landmark-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.landmark-group {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    color: var(--text-faint);
+    margin: 12px 0 2px;
+}
+.landmark-group:first-child { margin-top: 0; }
+
+.landmark-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    text-align: left;
+    color: var(--text-dim);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    min-height: 38px;
+    transition: background .1s, border-color .1s, color .1s;
+}
+.landmark-btn:hover { background: var(--surface-hi); color: var(--text); }
+.landmark-btn.active {
+    background: var(--accent-bg);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+}
+.landmark-btn.done { color: var(--good); border-color: rgba(63,185,107,.4); }
+.landmark-btn .tick { margin-left: auto; font-size: 12px; }
+
+.placed-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+}
+.placed-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.placed-row .coord {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 11px;
+    color: var(--text-faint);
+}
+.placed-row button {
+    background: transparent;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 2px 4px;
+}
+
+.quality {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+.quality .stat { flex: 1; min-width: 120px; }
+.quality .value.good { color: var(--good); }
+.quality .value.bad { color: var(--danger); }
