@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/app.css">
-    <link rel="stylesheet" href="assets/landing.css">
+    <link rel="stylesheet" href="assets/app.css?v=2">
+    <link rel="stylesheet" href="assets/landing.css?v=2">
 </head>
 <body>
 
@@ -126,11 +126,27 @@
 
     <!-- signed in with somewhere to go -->
     <section id="view-routes" class="hidden">
-        <div class="hero" style="padding-bottom:0">
-            <h1 id="welcome">Welcome back</h1>
-            <p class="lede">Pick up where you left off.</p>
-        </div>
-        <div class="card-list" id="routes"></div>
+        <header class="welcome has-backdrop" id="welcome-hero">
+            <div class="welcome-main">
+                <div class="eyebrow-mini" id="welcome-date"></div>
+                <h1 id="welcome">Welcome back</h1>
+                <p class="lede" id="welcome-sub" style="margin-bottom:0">
+                    Pick up where you left off.
+                </p>
+            </div>
+        </header>
+
+        <!-- Teams first: the thing they came here for, with enough season
+             detail to be worth looking at rather than a bare name. -->
+        <section class="block" id="teams-block">
+            <h3>Your teams</h3>
+            <div class="team-cards" id="routes"></div>
+        </section>
+
+        <section class="block">
+            <h3>Jump to</h3>
+            <div class="quick-grid" id="quick-links"></div>
+        </section>
     </section>
 
     <div id="loading" class="loading hidden">Checking your account</div>
@@ -138,6 +154,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="assets/landing.js"></script>
+<script type="module" src="assets/landing.js?v=2"></script>
 </body>
 </html>

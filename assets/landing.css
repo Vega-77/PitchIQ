@@ -90,7 +90,114 @@
 .status-row .what { flex: 1; }
 .status-row .note { color: var(--text-faint); font-size: 13px; }
 
-#user-chip { font-size: 13px; color: var(--text-dim); }
+#user-chip { font-size: 0.82rem; color: var(--text-dim); }
+
+/* ---------------------------------------------------------------- welcome */
+
+.welcome {
+    margin: 34px 0 10px;
+    padding: 30px 32px;
+    background: linear-gradient(150deg, var(--surface), var(--bg-raised) 70%);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+}
+.welcome h1 { margin-bottom: 8px; }
+.welcome .lede { margin-bottom: 0; }
+
+/* Team cards carry the season, so signing in tells you something rather than
+   just handing you a link with your team's name on it. */
+.team-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 12px;
+}
+
+.team-card {
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 22px 24px;
+    color: inherit;
+    transition: background .13s, border-color .13s, transform .1s;
+}
+.team-card:hover {
+    background: var(--surface-hi);
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    color: inherit;
+}
+
+.team-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 16px;
+}
+.team-card-name { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.4px; }
+.team-card-go { color: var(--text-faint); font-size: 1.3rem; line-height: 1; }
+
+.team-card-stats { display: flex; gap: 22px; }
+.tcs { min-width: 0; }
+.tcs .n {
+    font-size: 1.5rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.8px;
+    line-height: 1.1;
+}
+.tcs .n.pos { color: var(--good); }
+.tcs .n.neg { color: var(--danger); }
+.tcs .n.dim { color: var(--text-faint); }
+.tcs .k {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+    margin-top: 3px;
+}
+
+.team-card-empty { color: var(--text-faint); font-size: 0.88rem; }
+
+/* Quick links: smaller than team cards, since they are shortcuts rather than
+   the main event. */
+.quick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.quick-link {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 15px 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: inherit;
+    transition: background .13s, border-color .13s;
+}
+.quick-link:hover { background: var(--surface-hi); border-color: var(--line-hi); color: inherit; }
+.quick-link .ql-icon {
+    width: 34px; height: 34px;
+    display: grid; place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    color: var(--text-faint);
+    flex-shrink: 0;
+}
+.quick-link.accent .ql-icon { color: var(--accent); border-color: rgba(77,214,193,.4); }
+.quick-link .ql-title { font-weight: 600; font-size: 0.95rem; }
+.quick-link .ql-sub { font-size: 0.8rem; color: var(--text-faint); margin-top: 1px; }
+
+@media (max-width: 640px) {
+    .welcome { padding: 22px; }
+    .team-card-stats { gap: 16px; }
+}
 
 @media (max-width: 640px) {
     .hero { padding-top: 44px; }

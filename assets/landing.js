@@ -3,6 +3,7 @@ import {
     configWarning,
 } from './auth.js';
 import { mountPitchBackdrop } from './pitch-backdrop.js';
+import { listMatches, seasonSummary } from './db.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -38,14 +39,78 @@ function attachSignIn(button) {
     });
 }
 
-function route(label, sub, href) {
+/** A team, with enough of its season on it to be worth reading. */
+function teamCard(team, summary) {
     const a = document.createElement('a');
-    a.className = 'list-item';
-    a.href = href;
-    a.innerHTML = `<div class="grow"><div class="title"></div><div class="sub"></div></div><span class="muted">&rsaquo;</span>`;
-    a.querySelector('.title').textContent = label;
-    a.querySelector('.sub').textContent = sub;
+    a.className = 'team-card';
+    a.href = `coach/?team=${encodeURIComponent(team.id)}`;
+    a.innerHTML = `
+        <div class="team-card-top">
+            <span class="team-card-name"></span>
+            <span class="team-card-go">&rsaquo;</span>
+        </div>
+        <div class="team-card-body"></div>`;
+
+    a.querySelector('.team-card-name').textContent = team.name;
+    const body = a.querySelector('.team-card-body');
+
+    if (!summary || summary.played === 0) {
+        const note = document.createElement('div');
+        note.className = 'team-card-empty';
+        note.textContent = summary && summary.upcoming
+            ? `${summary.upcoming} match${summary.upcoming === 1 ? '' : 'es'} set up, none played yet`
+            : 'No matches yet — open the team to add your squad';
+        body.appendChild(note);
+        return a;
+    }
+
+    const stats = document.createElement('div');
+    stats.className = 'team-card-stats';
+
+    const gd = summary.goalDifference;
+    const figures = [
+        [summary.record, 'W–D–L', ''],
+        [gd > 0 ? `+${gd}` : String(gd), 'Goal diff', gd > 0 ? 'pos' : gd < 0 ? 'neg' : 'dim'],
+        [String(summary.played), 'Played', 'dim'],
+    ];
+
+    for (const [value, label, tone] of figures) {
+        const el = document.createElement('div');
+        el.className = 'tcs';
+        el.innerHTML = `<div class="n"></div><div class="k"></div>`;
+        const n = el.querySelector('.n');
+        n.textContent = value;
+        if (tone) n.classList.add(tone);
+        el.querySelector('.k').textContent = label;
+        stats.appendChild(el);
+    }
+
+    body.appendChild(stats);
     return a;
+}
+
+function quickLink(icon, title, sub, href, accent = false) {
+    const a = document.createElement('a');
+    a.className = `quick-link ${accent ? 'accent' : ''}`;
+    a.href = href;
+    a.innerHTML = `
+        <span class="ql-icon"></span>
+        <span class="grow">
+            <span class="ql-title"></span>
+            <div class="ql-sub"></div>
+        </span>`;
+    a.querySelector('.ql-icon').textContent = icon;
+    a.querySelector('.ql-title').textContent = title;
+    a.querySelector('.ql-sub').textContent = sub;
+    return a;
+}
+
+/** "Good morning" beats a bare date, and tells them the app knows the time. */
+function greeting() {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
 }
 
 function renderInvites(user, invites) {
@@ -105,18 +170,49 @@ async function onSignedIn(user) {
     const access = await resolveAccess(user);
 
     if (access.role === 'coach') {
-        $('welcome').textContent = `Welcome back, ${user.displayName || 'Coach'}`;
+        mountPitchBackdrop($('welcome-hero'), { opacity: 0.16 });
+
+        const firstName = (user.displayName || '').split(' ')[0];
+        $('welcome').textContent = `${greeting()}${firstName ? `, ${firstName}` : ''}`;
+        $('welcome-date').textContent = new Date().toLocaleDateString(undefined, {
+            weekday: 'long', month: 'long', day: 'numeric',
+        });
+
         const routes = $('routes');
         routes.innerHTML = '';
-        for (const team of access.teams) {
-            routes.appendChild(route(
-                team.name, 'Roster, matches and reports',
-                `coach/?team=${encodeURIComponent(team.id)}`
-            ));
-        }
-        routes.appendChild(route(
-            'Live tagging', 'Tag a match from the sideline', 'live-tagging/'
+
+        // Season summaries are one extra read per team; a coach has one or two,
+        // so this is cheap and makes the card worth looking at.
+        const summaries = await Promise.all(access.teams.map(async (team) => {
+            try {
+                return seasonSummary(await listMatches(team.id));
+            } catch {
+                return null;
+            }
+        }));
+
+        access.teams.forEach((team, i) => {
+            routes.appendChild(teamCard(team, summaries[i]));
+        });
+
+        const openMatches = summaries.reduce((n, s) => n + (s?.upcoming ?? 0), 0);
+        $('welcome-sub').textContent = openMatches
+            ? `${openMatches} match${openMatches === 1 ? '' : 'es'} waiting to be tagged.`
+            : 'Everything is up to date.';
+
+        const quick = $('quick-links');
+        quick.innerHTML = '';
+        quick.appendChild(quickLink(
+            '●', 'Tag a match live', 'Record events from the touchline',
+            'live-tagging/', true,
         ));
+        quick.appendChild(quickLink(
+            '▦', 'Calibrate a camera', 'Map footage onto the pitch', 'calibrate/',
+        ));
+        quick.appendChild(quickLink(
+            '△', 'xG sandbox', 'Try the shot-quality model', 'demo/',
+        ));
+
         show('view-routes');
         return;
     }

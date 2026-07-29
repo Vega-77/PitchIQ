@@ -1,109 +1,211 @@
-/* Calibration tool only. Shared tokens come from ../assets/app.css. */
+/* Calibration tool. Shared tokens come from ../assets/app.css.
+ *
+ * This page has an unusual job: it asks someone to do something quite abstract
+ * (tell software where a field is) using a picture. So it explains itself
+ * before it asks for anything, and once a picture is loaded it gets out of the
+ * way entirely.
+ */
+
+.calib-hero {
+    margin: 34px 0 10px;
+    padding: 32px;
+    background: linear-gradient(150deg, var(--surface), var(--bg-raised) 70%);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+}
+.calib-hero .lede { margin-bottom: 0; }
+
+.eyebrow-mini {
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--accent);
+    margin-bottom: 10px;
+}
+
+/* ---------------------------------------------------------------- steps */
+
+.calib-steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.calib-step { background: var(--surface); padding: 22px; }
+
+.calib-step .cs-n {
+    display: grid;
+    place-items: center;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    border: 1px solid rgba(77, 214, 193, .4);
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 13px;
+}
+
+.calib-step h4 {
+    margin: 0 0 6px;
+    font-size: 0.98rem;
+    font-weight: 650;
+    letter-spacing: -0.2px;
+}
+.calib-step p { margin: 0; font-size: 0.88rem; color: var(--text-dim); line-height: 1.55; }
+
+/* Developer detail, folded away so it does not intimidate a coach. */
+.tech {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    padding: 14px 18px;
+}
+.tech summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-dim);
+}
+.tech summary:hover { color: var(--text); }
+.tech pre {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    margin: 12px 0;
+}
+.tech code { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); }
+
+/* ---------------------------------------------------------------- workspace */
+
+.workspace-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin: 30px 0 18px;
+}
 
 .calib-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 300px;
-    gap: 20px;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 26px;
     align-items: start;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
     .calib-grid { grid-template-columns: 1fr; }
 }
 
 .stage {
     position: relative;
     background: #000;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border: 1px solid var(--line-hi);
+    border-radius: var(--radius-lg);
     overflow: hidden;
     line-height: 0;
 }
 
-#canvas {
-    width: 100%;
-    height: auto;
-    display: block;
-    cursor: crosshair;
-}
+#canvas { width: 100%; height: auto; display: block; cursor: crosshair; }
+
+/* ---------------------------------------------------------------- landmarks */
 
 .landmark-list {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    max-height: 420px;
+    max-height: 460px;
     overflow-y: auto;
     padding-right: 4px;
 }
 
 .landmark-group {
-    font-size: 10px;
+    font-size: 0.62rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.9px;
+    letter-spacing: 1px;
     color: var(--text-faint);
-    margin: 12px 0 2px;
+    margin: 14px 0 3px;
 }
 .landmark-group:first-child { margin-top: 0; }
 
 .landmark-btn {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
     font-family: inherit;
-    font-size: 13px;
+    font-size: 0.85rem;
     text-align: left;
     color: var(--text-dim);
     background: var(--surface);
-    border: 1px solid var(--border);
+    border: 1px solid var(--line);
     border-radius: 8px;
-    padding: 8px 10px;
+    padding: 10px 12px;
     cursor: pointer;
-    min-height: 38px;
+    min-height: 44px;
     transition: background .1s, border-color .1s, color .1s;
 }
 .landmark-btn:hover { background: var(--surface-hi); color: var(--text); }
 .landmark-btn.active {
-    background: var(--accent-bg);
+    background: var(--accent-dim);
     border-color: var(--accent);
     color: var(--accent);
     font-weight: 600;
 }
-.landmark-btn.done { color: var(--good); border-color: rgba(63,185,107,.4); }
-.landmark-btn .tick { margin-left: auto; font-size: 12px; }
+.landmark-btn.done { color: var(--good); border-color: rgba(74, 222, 128, .35); }
+.landmark-btn .tick { margin-left: auto; font-size: 0.85rem; }
+
+.count-chip {
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: 1px solid rgba(77, 214, 193, .35);
+    border-radius: 999px;
+    padding: 1px 8px;
+    margin-left: 6px;
+}
 
 .placed-row {
     display: flex;
     align-items: center;
     gap: 10px;
     background: var(--surface);
-    border: 1px solid var(--border);
+    border: 1px solid var(--line);
     border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 13px;
+    padding: 10px 12px;
+    font-size: 0.85rem;
 }
 .placed-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.placed-row .coord {
-    font-family: ui-monospace, Consolas, monospace;
-    font-size: 11px;
-    color: var(--text-faint);
-}
+.placed-row .coord { font-family: var(--mono); font-size: 0.7rem; color: var(--text-faint); }
 .placed-row button {
     background: transparent;
     border: none;
     color: var(--danger);
     cursor: pointer;
-    font-size: 15px;
+    font-size: 1.1rem;
     line-height: 1;
-    padding: 2px 4px;
+    padding: 2px 6px;
 }
 
-.quality {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 12px;
-}
-.quality .stat { flex: 1; min-width: 120px; }
+/* ---------------------------------------------------------------- quality */
+
+.quality { display: flex; gap: 10px; flex-wrap: wrap; }
+.quality .stat { flex: 1; min-width: 130px; }
 .quality .value.good { color: var(--good); }
 .quality .value.bad { color: var(--danger); }
+
+.verdict { margin-top: 14px; font-size: 0.9rem; line-height: 1.55; }
+.verdict.good { color: var(--good); }
+.verdict.bad { color: var(--warn); }

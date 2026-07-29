@@ -1,6 +1,7 @@
 import {
     landmarks, LANDMARK_GROUPS, fitHomography, applyHomography,
 } from './pitch-model.js';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -36,11 +37,15 @@ function loadImage(file) {
             state.image = img;
             state.imageSize = [img.naturalWidth, img.naturalHeight];
             state.points.clear();
+            // The explanation has done its job once there is a picture to work
+            // on, so it gets out of the way rather than pushing the tool down.
+            $('intro').classList.add('hidden');
             $('workspace').classList.remove('hidden');
             const canvas = $('canvas');
             canvas.width = img.naturalWidth;
             canvas.height = img.naturalHeight;
             renderAll();
+            window.scrollTo(0, 0);
             toast(`Loaded ${img.naturalWidth}×${img.naturalHeight}`);
         };
         img.onerror = () => toast('Could not read that image.', true);
@@ -158,8 +163,9 @@ function renderQuality() {
     const note = $('preview-note');
 
     if (state.points.size < 4) {
+        const left = 4 - state.points.size;
         note.className = 'empty';
-        note.textContent = `Place ${4 - state.points.size} more point(s) to see the preview.`;
+        note.textContent = `${left} more point${left === 1 ? '' : 's'} needed before we can check the fit.`;
         return;
     }
 
@@ -188,17 +194,22 @@ function renderQuality() {
         note.className = '';
         note.innerHTML = `
             <div class="quality">
-                <div class="stat"><div class="value ${ok ? 'good' : 'bad'}">${mean.toFixed(2)}m</div><div class="label">Mean error</div></div>
+                <div class="stat"><div class="value ${ok ? 'good' : 'bad'}">${mean.toFixed(2)}m</div><div class="label">Average error</div></div>
                 <div class="stat"><div class="value ${ok ? 'good' : 'bad'}">${max.toFixed(2)}m</div><div class="label">Worst point</div></div>
-                <div class="stat"><div class="value">${state.points.size}</div><div class="label">Points</div></div>
+                <div class="stat"><div class="value">${state.points.size}</div><div class="label">Points placed</div></div>
             </div>
-            <p class="muted" style="margin-top:12px">${
-                exact
-                    ? 'With exactly four points the error is zero by construction — it proves nothing. Add a fifth to get a real measurement.'
-                    : ok
-                        ? 'Looks good. Check the yellow outline sits on the real lines before exporting.'
-                        : 'Too high. One of the points is probably misplaced or mislabelled — the outline will show which.'
-            }</p>`;
+            <p class="verdict ${exact ? '' : ok ? 'good' : 'bad'}"></p>`;
+
+        // Four points always fit perfectly, which tells you nothing at all —
+        // saying so is more useful than showing a reassuring zero.
+        note.querySelector('.verdict').textContent = exact
+            ? 'With exactly four points these numbers are always zero, so they '
+              + "don't tell you anything yet. Add a fifth to get a real check."
+            : ok
+                ? 'Good fit. Have a look at the yellow outline — if it sits on the '
+                  + 'painted lines, you can save it.'
+                : 'Something is off. One point is probably in the wrong place or '
+                  + 'named wrong; the yellow outline should show you which.';
     } catch (err) {
         note.className = 'empty';
         note.textContent = err.message;
@@ -267,6 +278,8 @@ function renderAll() {
     renderQuality();
     draw();
     $('progress').textContent = `${state.points.size} point${state.points.size === 1 ? '' : 's'}`;
+    const count = $('placed-count');
+    if (count) count.textContent = state.points.size;
     $('btn-export').disabled = state.points.size < 4;
 }
 
@@ -290,12 +303,14 @@ function exportJson() {
     a.click();
     URL.revokeObjectURL(a.href);
 
-    toast('Exported — run it through cv/experiments/calibrate.py');
+    toast('Saved to your downloads');
 }
 
 // ---------------------------------------------------------------- init
 
 function init() {
+    mountPitchBackdrop($('calib-hero'), { opacity: 0.18 });
+
     $('input-image').addEventListener('change', (e) => {
         const file = e.target.files?.[0];
         if (file) loadImage(file);
@@ -321,6 +336,21 @@ function init() {
         state.points.clear();
         state.selected = null;
         renderAll();
+    });
+
+    $('btn-new-image').addEventListener('click', () => {
+        if (state.points.size
+            && !confirm('Start over with a different picture? Your points will be lost.')) {
+            return;
+        }
+        state.points.clear();
+        state.selected = null;
+        state.image = null;
+        $('input-image').value = '';
+        $('workspace').classList.add('hidden');
+        $('intro').classList.remove('hidden');
+        renderAll();
+        window.scrollTo(0, 0);
     });
 
     $('btn-export').addEventListener('click', exportJson);

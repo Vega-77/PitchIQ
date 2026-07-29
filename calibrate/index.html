@@ -6,9 +6,9 @@
     <title>PitchIQ — Calibrate</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css">
-    <link rel="stylesheet" href="calibrate.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/app.css?v=2">
+    <link rel="stylesheet" href="calibrate.css?v=2">
 </head>
 <body>
 
@@ -16,57 +16,139 @@
     <a class="brand" href="../">PitchIQ <span>calibrate</span></a>
     <div class="topbar-user">
         <span id="progress" class="muted">0 points</span>
-        <button id="btn-export" class="btn small primary" disabled>Export JSON</button>
+        <button id="btn-export" class="btn small primary" disabled>Save calibration</button>
     </div>
 </header>
 
 <main class="shell">
-    <h1>Field calibration</h1>
-    <p class="lede">
-        Click at least four known points on the pitch to work out where the camera
-        is. Spread them out — four points bunched in one corner will fit
-        perfectly and still be wrong everywhere else.
-    </p>
 
-    <div class="banner">
-        <h3>How to get a frame</h3>
-        <p class="muted" style="margin:0">
-            Take a screenshot of any frame from the fixed camera, or run
-            <code>python -m cv.experiments.grab_frame "&lt;video&gt;" --at 120</code>
-            to save one. Then drop it below.
-        </p>
-    </div>
+    <!-- ===================== INTRO (before a frame is loaded) ===================== -->
+    <section id="intro">
+        <header class="calib-hero has-backdrop" id="calib-hero">
+            <div class="eyebrow-mini">Camera setup</div>
+            <h1>Teach the software where the pitch is</h1>
+            <p class="lede">
+                A camera sees a flat picture. To measure how far a player ran, or
+                how good a chance was, the software needs to know which part of
+                that picture is which part of the field. You show it by clicking
+                a few lines you can recognise — then it can work out the rest.
+            </p>
+        </header>
 
-    <div class="row" style="margin-bottom:18px">
-        <label class="field" style="margin:0">
-            <span>Frame image</span>
-            <input id="input-image" type="file" accept="image/*">
-        </label>
-        <label class="field" style="margin:0;flex:0 0 130px">
-            <span>Pitch length (m)</span>
-            <input id="input-length" type="number" value="105" step="0.5" min="60" max="130">
-        </label>
-        <label class="field" style="margin:0;flex:0 0 130px">
-            <span>Pitch width (m)</span>
-            <input id="input-width" type="number" value="68" step="0.5" min="40" max="90">
-        </label>
-    </div>
+        <section class="block">
+            <h3>How it works</h3>
+            <div class="calib-steps">
+                <article class="calib-step">
+                    <span class="cs-n">1</span>
+                    <h4>Take one still frame</h4>
+                    <p>A screenshot of the video works. Use a moment when you can
+                    see plenty of the field markings.</p>
+                </article>
+                <article class="calib-step">
+                    <span class="cs-n">2</span>
+                    <h4>Click four or more spots</h4>
+                    <p>Corners, the halfway line, penalty box corners. Pick the
+                    list item first, then click that exact spot on the picture.</p>
+                </article>
+                <article class="calib-step">
+                    <span class="cs-n">3</span>
+                    <h4>Check the yellow outline</h4>
+                    <p>A pitch outline appears over your photo. If it sits on the
+                    real painted lines, you're done.</p>
+                </article>
+            </div>
+        </section>
 
+        <section class="block">
+            <div class="help">
+                <span>
+                    <strong>Spread your clicks out.</strong> Four points bunched in
+                    one corner will look perfect and still be wrong everywhere else
+                    on the field. Corners at opposite ends are ideal.
+                </span>
+            </div>
+            <div class="help">
+                <span>
+                    <strong>The camera must not move.</strong> If it pans or zooms
+                    to follow the ball, one calibration cannot describe the whole
+                    video — you need a fixed, wide view.
+                </span>
+            </div>
+        </section>
+
+        <section class="block">
+            <h3>Start</h3>
+            <div class="card">
+                <div class="row">
+                    <label class="field" style="margin:0;flex:2">
+                        <span>Picture of the pitch</span>
+                        <input id="input-image" type="file" accept="image/*">
+                    </label>
+                    <label class="field" style="margin:0;flex:0 0 150px">
+                        <span>Field length (m)</span>
+                        <input id="input-length" type="number" value="105" step="0.5" min="60" max="130">
+                    </label>
+                    <label class="field" style="margin:0;flex:0 0 150px">
+                        <span>Field width (m)</span>
+                        <input id="input-width" type="number" value="68" step="0.5" min="40" max="90">
+                    </label>
+                </div>
+                <p class="muted" style="margin:14px 0 0">
+                    Measure your field if you can. Every distance and speed the
+                    software reports is scaled by these two numbers, so a guess
+                    that's 5m out makes every figure 5% wrong.
+                </p>
+            </div>
+        </section>
+
+        <section class="block">
+            <details class="tech">
+                <summary>Getting a frame from a video file</summary>
+                <p class="muted" style="margin:12px 0 0">
+                    A screenshot is fine. If you'd rather pull an exact frame,
+                    run this from the project folder:
+                </p>
+                <pre><code>python -m cv.experiments.grab_frame "match.mp4" --at 120</code></pre>
+                <p class="muted" style="margin:0">
+                    Then run the saved file through
+                    <code>python -m cv.experiments.calibrate points.json</code>
+                    once you've exported your clicks.
+                </p>
+            </details>
+        </section>
+    </section>
+
+    <!-- ===================== WORKSPACE ===================== -->
     <div id="workspace" class="hidden">
+        <div class="workspace-head">
+            <div>
+                <h2 style="margin:0 0 4px">Click the highlighted spot</h2>
+                <p class="muted" id="hint" style="margin:0">
+                    Pick a landmark from the list, then click it on the picture.
+                </p>
+            </div>
+            <button id="btn-new-image" class="btn small ghost">Use a different picture</button>
+        </div>
+
         <div class="calib-grid">
             <div>
-                <h3>Frame — click the highlighted landmark</h3>
                 <div id="stage" class="stage">
                     <canvas id="canvas"></canvas>
                 </div>
-                <p class="muted" id="hint">Pick a landmark from the list, then click it in the image.</p>
+
+                <section class="block" style="margin-top:24px">
+                    <h3>Accuracy</h3>
+                    <div id="preview-note" class="empty">
+                        Place four points to see how good the fit is.
+                    </div>
+                </section>
             </div>
 
             <aside>
-                <h3>Landmarks</h3>
+                <h3>Pick a spot</h3>
                 <div id="landmark-list" class="landmark-list"></div>
 
-                <h3 style="margin-top:22px">Placed</h3>
+                <h3 style="margin-top:24px">Placed <span id="placed-count" class="count-chip">0</span></h3>
                 <div id="placed-list" class="card-list"></div>
 
                 <button id="btn-clear" class="btn small danger block" style="margin-top:14px">
@@ -74,20 +156,11 @@
                 </button>
             </aside>
         </div>
-
-        <section class="block">
-            <h2>Pitch preview</h2>
-            <p class="muted">
-                Once four points are placed, the pitch outline is drawn back onto the
-                frame. If the lines don't sit on the real ones, a point is misplaced.
-            </p>
-            <div id="preview-note" class="empty">Place four points to see the preview.</div>
-        </section>
     </div>
 </main>
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="calibrate.js"></script>
+<script type="module" src="calibrate.js?v=2"></script>
 </body>
 </html>
