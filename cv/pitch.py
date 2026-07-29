@@ -7,7 +7,7 @@ Two systems are needed and they are not interchangeable:
     dimensions are configurable rather than assumed.
 
   * **StatsBomb 120x80** — the space `PitchIQHelper/main.py` trained the xG model
-    in, and what `demo/script.js` feeds it at inference time. Any shot feature
+    in, and what `xg-sandbox/xg-model.js` feeds it at inference time. Any shot feature
     handed to that model has to be expressed here or the numbers are silently
     wrong.
 

@@ -1,0 +1,301 @@
+/* xG sandbox.
+ *
+ * This page started life as a standalone demo with its own navy-and-blue
+ * palette, which made it look like a different product bolted on to the side.
+ * Everything here now draws on the tokens in app.css — same near-black turf
+ * ground, same floodlit accent, same type scale — so it reads as one app.
+ *
+ * The layout is the one departure: a fixed-height canvas beside a control rail
+ * rather than the usual centred .shell, because the pitch has to fill whatever
+ * space it is given.
+ */
+
+html, body { height: 100%; overflow: hidden; }
+
+body { display: flex; flex-direction: column; }
+
+.sandbox {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    border-top: 1px solid var(--line);
+}
+
+#display {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    background: var(--bg);
+}
+
+/* ---------------------------------------------------------------- panel */
+
+.panel {
+    width: 320px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    background: var(--bg-raised);
+    border-left: 1px solid var(--line);
+}
+
+.panel-head {
+    padding: 20px 22px 16px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+}
+.panel-head h2 { margin: 0 0 4px; }
+.panel-head .muted { margin: 0; }
+
+.panel-body {
+    padding: 16px 22px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+}
+
+.panel-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 22px;
+    border-top: 1px solid var(--line);
+    flex-shrink: 0;
+}
+
+.section-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--text-faint);
+    margin: 12px 0 2px;
+}
+.section-label:first-child { margin-top: 0; }
+
+.note {
+    margin: 2px 0 0;
+    font-size: 0.76rem;
+    line-height: 1.45;
+    color: var(--text-faint);
+}
+
+/* ---------------------------------------------------------------- sliders */
+
+.slider-row { display: flex; flex-direction: column; gap: 6px; }
+
+.slider-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.slider-name { color: var(--text-dim); font-size: 0.82rem; }
+
+/* Marks the rows that report a measurement instead of taking an input. */
+.derived {
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--text-faint);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 1px 6px;
+    margin-left: 4px;
+}
+
+.slider-value {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 46px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 3px;
+    min-height: 0;
+    padding: 0;
+    border: none;
+    border-radius: 2px;
+    background: var(--line-hi);
+    outline: none;
+    cursor: pointer;
+}
+/* app.css styles inputs as text fields, including on hover and focus — a range
+   has to opt out of all three or the track turns into a boxed input. */
+input[type="range"]:hover,
+input[type="range"]:focus { background: var(--line-hi); }
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    transition: background .15s, transform .1s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+    background: var(--accent-hi);
+    transform: scale(1.15);
+}
+input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+}
+
+input[type="range"]:disabled { cursor: default; opacity: .55; }
+input[type="range"]:disabled::-webkit-slider-thumb {
+    background: var(--text-faint);
+    cursor: default;
+}
+input[type="range"]:disabled::-moz-range-thumb { background: var(--text-faint); }
+
+/* ---------------------------------------------------------------- toggles */
+
+.toggle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+.toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 11px;
+    cursor: pointer;
+    user-select: none;
+    transition: background .15s, border-color .15s;
+}
+.toggle-row:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+
+.toggle-row.disabled { cursor: default; opacity: .5; }
+.toggle-row.disabled:hover { background: var(--surface); border-color: var(--line); }
+
+.toggle-name { color: var(--text-dim); font-size: 0.76rem; line-height: 1.3; }
+
+.toggle-switch {
+    position: relative;
+    width: 30px;
+    height: 17px;
+    flex-shrink: 0;
+}
+.toggle-switch input { display: none; }
+
+.toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--line-hi);
+    border-radius: 9px;
+    transition: background .2s;
+}
+.toggle-switch input:checked + .toggle-track { background: var(--accent); }
+
+.toggle-thumb {
+    position: absolute;
+    top: 2.5px;
+    left: 2.5px;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform .18s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+}
+.toggle-switch input:checked ~ .toggle-thumb { transform: translateX(13px); }
+
+/* The line-of-sight button stays lit while the overlay is on. */
+.panel-actions .btn.active {
+    background: var(--accent-dim);
+    border-color: rgba(77, 214, 193, .45);
+    color: var(--accent);
+}
+
+/* ---------------------------------------------------------------- readout */
+
+/* The number is the point of the page, so it is set like a scoreboard: the
+   largest thing on screen, tabular, in the one accent colour. */
+.xg-readout {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 22px;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+    flex-shrink: 0;
+}
+
+.xg-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.xg-label {
+    font-size: 0.8rem;
+    font-weight: 650;
+    color: var(--text-dim);
+}
+.xg-sublabel {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--text-faint);
+}
+
+#xg-value {
+    font-size: 3.2rem;
+    font-weight: 750;
+    line-height: 1;
+    letter-spacing: -2px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- portrait */
+
+/* On a phone held upright the pitch turns a quarter turn and the controls run
+   along the bottom, so the pitch keeps most of the screen. */
+body.portrait .sandbox { flex-direction: column; }
+
+body.portrait .panel {
+    width: 100%;
+    height: 42%;
+    border-left: none;
+    border-top: 1px solid var(--line);
+}
+
+body.portrait .panel-head { display: none; }
+
+body.portrait .panel-body {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    padding: 12px 16px;
+    overflow-y: auto;
+}
+
+body.portrait .section-label { width: 100%; margin: 4px 0 2px; }
+body.portrait .slider-row { width: calc(50% - 10px); }
+body.portrait .toggle-grid,
+body.portrait .note { width: 100%; }
+
+body.portrait .panel-actions { flex-direction: row; padding: 10px 16px; }
+body.portrait .xg-readout { padding: 12px 16px; }
+body.portrait #xg-value { font-size: 2.4rem; }
+
+@media (max-width: 900px) {
+    .panel { width: 280px; }
+}

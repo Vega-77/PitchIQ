@@ -20,11 +20,10 @@ import {
     logId, PERIOD_STATUS,
 } from '../assets/db.js';
 import {
-    EVENT_TYPES, CARD_COLOURS, describeEvent, PERIOD_LABELS,
+    EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
 } from '../assets/events.js';
 import { mountPitchBackdrop } from '../assets/pitch-backdrop.js';
-
-const $ = (id) => document.getElementById(id);
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -59,27 +58,17 @@ const state = {
 
 // ---------------------------------------------------------------- ui
 
-let toastTimer;
-function toast(message, isError = false) {
-    const el = $('toast');
-    el.textContent = message;
-    el.classList.toggle('error', isError);
-    el.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
-}
-
+/**
+ * Setup, kickoff and live are full-screen states rather than sections of a
+ * scrolling page — a tagger glancing down from the pitch has to find the same
+ * buttons in the same places every time.
+ */
 function showView(name) {
     document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
-    $(`view-${name}`).classList.add('active');
+    byId(`view-${name}`).classList.add('active');
 }
 
 const teamName = (side) => (side === 'them' ? state.opponentName : state.teamName);
-
-function clockText(seconds) {
-    const total = Math.max(0, Math.floor(seconds));
-    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
-}
 
 function matchClock() {
     if (!state.running) return state.clockOffset;
@@ -87,13 +76,13 @@ function matchClock() {
 }
 
 setInterval(() => {
-    if ($('view-live').classList.contains('active')) {
-        $('clock').textContent = clockText(matchClock());
+    if (byId('view-live').classList.contains('active')) {
+        byId('clock').textContent = clockText(matchClock());
     }
 }, 250);
 
 function updateOnlineIndicator() {
-    const dot = $('sync-dot');
+    const dot = byId('sync-dot');
     if (!dot) return;
     const offline = !navigator.onLine;
     dot.classList.toggle('offline', offline);
@@ -105,12 +94,12 @@ window.addEventListener('offline', updateOnlineIndicator);
 const nextSeq = () => ++state.seq;
 
 function renderScore() {
-    $('score-us').textContent = state.score.us;
-    $('score-them').textContent = state.score.them;
+    byId('score-us').textContent = state.score.us;
+    byId('score-them').textContent = state.score.them;
 }
 
 function setLast(text, fresh = true) {
-    const el = $('last-event');
+    const el = byId('last-event');
     el.textContent = text;
     el.classList.toggle('fresh', fresh);
 }
@@ -119,7 +108,7 @@ function setLast(text, fresh = true) {
 
 async function loadMatches() {
     const matches = (await listMatches(state.teamId)).filter((m) => !m.finalized);
-    const wrap = $('match-cards');
+    const wrap = byId('match-cards');
     wrap.innerHTML = '';
 
     if (!matches.length) {
@@ -183,21 +172,21 @@ async function onMatchChosen(matchId) {
         return;
     }
 
-    $('match-picker').classList.add('hidden');
-    $('lineup-block').classList.remove('hidden');
+    byId('match-picker').classList.add('hidden');
+    byId('lineup-block').classList.remove('hidden');
     renderLineupPicker();
 }
 
 function backToMatchPicker() {
-    $('lineup-block').classList.add('hidden');
-    $('match-picker').classList.remove('hidden');
+    byId('lineup-block').classList.add('hidden');
+    byId('match-picker').classList.remove('hidden');
     state.matchId = null;
     state.match = null;
     for (const p of state.players) delete p._starter;
 }
 
 function renderLineupPicker() {
-    const list = $('roster-list');
+    const list = byId('roster-list');
     list.innerHTML = '';
 
     if (!state.players.length) {
@@ -219,7 +208,7 @@ function renderLineupPicker() {
         list.appendChild(li);
     }
 
-    $('starter-count').textContent = state.players.filter((p) => p._starter).length;
+    byId('starter-count').textContent = state.players.filter((p) => p._starter).length;
 }
 
 async function saveLineupAndContinue() {
@@ -252,7 +241,7 @@ async function resumeMatch() {
     state.myEntries = mine.map((e) => ({ id: e.id, kind: e.kind, revert: e.revert }));
 
     const status = state.match?.status || 'scheduled';
-    $('period-label').textContent =
+    byId('period-label').textContent =
         status === 'second_half' ? '2nd half'
         : status === 'halftime' ? 'half-time'
         : status === 'full_time' ? 'full time'
@@ -299,7 +288,7 @@ async function doKickoff() {
         state.clockOffset = 0;
         state.kickoffAt = Date.now();
         state.running = true;
-        $('period-label').textContent = '1st half';
+        byId('period-label').textContent = '1st half';
         updatePeriodButton();
         renderScore();
         setLast('kick-off');
@@ -322,7 +311,7 @@ function openEventSheet(type, button) {
     button.classList.add('flash');
     setTimeout(() => button.classList.remove('flash'), 150);
 
-    const spec = EVENT_TYPES[type];
+    const spec = EVENTS[type];
     if (!spec) return;
 
     state.draft = {
@@ -334,21 +323,21 @@ function openEventSheet(type, button) {
         cardColor: null,
     };
 
-    $('sheet-title').textContent = spec.label;
-    $('sheet-question').textContent = spec.sideMeans;
+    byId('sheet-title').textContent = spec.label;
+    byId('sheet-question').textContent = spec.sideMeans;
 
     for (const id of ['step-card', 'step-player', 'step-assist']) {
-        $(id).classList.add('hidden');
+        byId(id).classList.add('hidden');
     }
-    $('side-choices').parentElement.querySelector('#sheet-question').classList.remove('hidden');
-    $('side-choices').classList.remove('hidden');
+    byId('side-choices').parentElement.querySelector('#sheet-question').classList.remove('hidden');
+    byId('side-choices').classList.remove('hidden');
 
     renderSideChoices();
-    $('overlay-event').classList.add('open');
+    byId('overlay-event').classList.add('open');
 }
 
 function renderSideChoices() {
-    const wrap = $('side-choices');
+    const wrap = byId('side-choices');
     wrap.innerHTML = '';
 
     for (const side of ['us', 'them']) {
@@ -364,10 +353,10 @@ function renderSideChoices() {
 
 function onSideChosen(side) {
     state.draft.side = side;
-    const spec = EVENT_TYPES[state.draft.type];
+    const spec = EVENTS[state.draft.type];
 
-    $('sheet-question').classList.add('hidden');
-    $('side-choices').classList.add('hidden');
+    byId('sheet-question').classList.add('hidden');
+    byId('side-choices').classList.add('hidden');
 
     if (spec.needsCard) return showCardStep();
     // We do not hold the opposition roster, so player detail only applies to us.
@@ -377,7 +366,7 @@ function onSideChosen(side) {
 }
 
 function showCardStep() {
-    const wrap = $('card-choices');
+    const wrap = byId('card-choices');
     wrap.innerHTML = '';
 
     for (const [key, meta] of Object.entries(CARD_COLOURS)) {
@@ -387,8 +376,8 @@ function showCardStep() {
         button.querySelector('.nm').textContent = meta.label;
         button.addEventListener('click', () => {
             state.draft.cardColor = key;
-            $('step-card').classList.add('hidden');
-            const spec = EVENT_TYPES[state.draft.type];
+            byId('step-card').classList.add('hidden');
+            const spec = EVENTS[state.draft.type];
             if (spec.needsPlayer && state.draft.side === 'us' && activeRoster().length) {
                 showPlayerStep();
             } else {
@@ -398,14 +387,14 @@ function showCardStep() {
         wrap.appendChild(button);
     }
 
-    $('step-card').classList.remove('hidden');
+    byId('step-card').classList.remove('hidden');
 }
 
 function showPlayerStep() {
-    const spec = EVENT_TYPES[state.draft.type];
-    $('player-question').textContent = spec.needsPlayer;
+    const spec = EVENTS[state.draft.type];
+    byId('player-question').textContent = spec.needsPlayer;
 
-    const list = $('player-choices');
+    const list = byId('player-choices');
     list.innerHTML = '';
 
     for (const entry of activeRoster()) {
@@ -415,18 +404,18 @@ function showPlayerStep() {
         li.querySelector('.nm').textContent = entry.playerName;
         li.addEventListener('click', () => {
             state.draft.playerId = entry.id;
-            $('step-player').classList.add('hidden');
+            byId('step-player').classList.add('hidden');
             if (spec.needsAssist) showAssistStep();
             else commitDraft();
         });
         list.appendChild(li);
     }
 
-    $('step-player').classList.remove('hidden');
+    byId('step-player').classList.remove('hidden');
 }
 
 function showAssistStep() {
-    const list = $('assist-choices');
+    const list = byId('assist-choices');
     list.innerHTML = '';
 
     // The scorer cannot assist their own goal; the rules reject it too.
@@ -446,13 +435,13 @@ function showAssistStep() {
         list.appendChild(li);
     }
 
-    $('step-assist').classList.remove('hidden');
+    byId('step-assist').classList.remove('hidden');
 }
 
 async function commitDraft() {
     const draft = state.draft;
     state.draft = null;
-    $('overlay-event').classList.remove('open');
+    byId('overlay-event').classList.remove('open');
     if (!draft) return;
 
     const seq = nextSeq();
@@ -487,7 +476,7 @@ async function commitDraft() {
 
 function cancelEventSheet() {
     state.draft = null;
-    $('overlay-event').classList.remove('open');
+    byId('overlay-event').classList.remove('open');
 }
 
 // ---------------------------------------------------------------- undo
@@ -523,7 +512,7 @@ async function undoLast() {
 // ---------------------------------------------------------------- periods
 
 function updatePeriodButton() {
-    const button = $('btn-period');
+    const button = byId('btn-period');
     const status = state.match?.status;
 
     if (status === 'full_time') {
@@ -561,15 +550,15 @@ async function advancePeriod() {
             // Freeze: the break must never be counted as match time.
             state.clockOffset = now;
             state.running = false;
-            $('period-label').textContent = 'half-time';
+            byId('period-label').textContent = 'half-time';
         } else if (next === 'kickoff_2nd') {
             state.kickoffAt = Date.now();
             state.running = true;
-            $('period-label').textContent = '2nd half';
+            byId('period-label').textContent = '2nd half';
         } else {
             state.clockOffset = now;
             state.running = false;
-            $('period-label').textContent = 'full time';
+            byId('period-label').textContent = 'full time';
         }
 
         updatePeriodButton();
@@ -585,13 +574,13 @@ async function advancePeriod() {
 async function openSubSheet() {
     state.sub = { outId: null, inId: null };
     state.roster = await listMatchRoster(state.teamId, state.matchId);
-    $('overlay-sub').classList.add('open');
+    byId('overlay-sub').classList.add('open');
     renderSubLists();
 }
 
 function renderSubLists() {
-    const off = $('sub-off-list');
-    const on = $('sub-on-list');
+    const off = byId('sub-off-list');
+    const on = byId('sub-on-list');
     off.innerHTML = '';
     on.innerHTML = '';
 
@@ -628,7 +617,7 @@ function renderSubLists() {
         ));
     }
 
-    $('btn-sub-confirm').disabled = !(state.sub.outId && state.sub.inId);
+    byId('btn-sub-confirm').disabled = !(state.sub.outId && state.sub.inId);
 }
 
 async function confirmSub() {
@@ -652,7 +641,7 @@ async function confirmSub() {
         });
 
         state.roster = await listMatchRoster(state.teamId, state.matchId);
-        $('overlay-sub').classList.remove('open');
+        byId('overlay-sub').classList.remove('open');
         setLast(`${inEntry.playerName} on for ${outEntry.playerName}`);
     } catch (err) {
         state.seq -= 1;
@@ -663,9 +652,9 @@ async function confirmSub() {
 // ---------------------------------------------------------------- log
 
 async function openLog() {
-    const list = $('log-list');
+    const list = byId('log-list');
     list.innerHTML = '<div class="empty">Loading…</div>';
-    $('overlay-log').classList.add('open');
+    byId('overlay-log').classList.add('open');
 
     try {
         const log = await listLog(state.teamId, state.matchId);
@@ -675,31 +664,17 @@ async function openLog() {
             return;
         }
 
-        const byId = new Map(state.roster.map((r) => [r.id, r.playerName]));
+        const nameById = new Map(state.roster.map((r) => [r.id, r.playerName]));
 
         for (const entry of log.slice().reverse()) {
-            const spec = EVENT_TYPES[entry.type];
-            const row = document.createElement('div');
-            row.className = 'tl-row';
-            row.innerHTML = `
-                <span class="tl-clock"></span>
-                <span class="tl-marker"><span class="tl-dot"></span></span>
-                <span class="tl-text"></span>
-                <span class="tl-side"></span>`;
-
-            row.querySelector('.tl-clock').textContent = clockText(entry.matchClockS);
-            row.querySelector('.tl-text').textContent = describeEvent(entry, {
-                ...labels(), playerName: byId.get(entry.playerId),
-            });
-            row.querySelector('.tl-side').textContent =
-                entry.kind === 'period' ? '' : teamName(entry.side);
-
-            const dot = row.querySelector('.tl-dot');
-            if (entry.kind === 'period') dot.classList.add('period');
-            else if (spec?.tone === 'good') dot.classList.add('good');
-            else if (spec?.tone === 'warn') dot.classList.add('warn');
-
-            list.appendChild(row);
+            list.append(timelineRow({
+                clock: clockText(entry.matchClockS),
+                text: describeEvent(entry, {
+                    ...labels(), playerName: nameById.get(entry.playerId),
+                }),
+                sideLabel: entry.kind === 'period' ? '' : teamName(entry.side),
+                tone: timelineTone(entry),
+            }));
         }
     } catch (err) {
         list.innerHTML = `<div class="empty">${err.message}</div>`;
@@ -710,65 +685,65 @@ async function openLog() {
 
 function init() {
     const warning = configWarning();
-    if (warning) $('config-slot').appendChild(warning);
+    if (warning) byId('config-slot').appendChild(warning);
 
-    mountPitchBackdrop($('tag-header'), { opacity: 0.14 });
+    mountPitchBackdrop(byId('tag-header'), { opacity: 0.14 });
     updateOnlineIndicator();
 
     // Reached synchronously from the click, or iPad Safari blocks the popup.
-    $('btn-signin').addEventListener('click', () => {
+    byId('btn-signin').addEventListener('click', () => {
         signIn().catch((err) => toast(err.message || 'Sign-in failed.', true));
     });
 
-    $('btn-change-match').addEventListener('click', backToMatchPicker);
-    $('btn-save-lineup').addEventListener('click', saveLineupAndContinue);
-    $('btn-kickoff').addEventListener('click', doKickoff);
-    $('btn-back-setup').addEventListener('click', () => showView('setup'));
+    byId('btn-change-match').addEventListener('click', backToMatchPicker);
+    byId('btn-save-lineup').addEventListener('click', saveLineupAndContinue);
+    byId('btn-kickoff').addEventListener('click', doKickoff);
+    byId('btn-back-setup').addEventListener('click', () => showView('setup'));
 
     document.querySelectorAll('.ev').forEach((button) => {
         button.addEventListener('click', () => openEventSheet(button.dataset.event, button));
     });
 
-    $('btn-event-cancel').addEventListener('click', cancelEventSheet);
-    $('btn-skip-player').addEventListener('click', () => {
-        $('step-player').classList.add('hidden');
-        const spec = EVENT_TYPES[state.draft?.type];
+    byId('btn-event-cancel').addEventListener('click', cancelEventSheet);
+    byId('btn-skip-player').addEventListener('click', () => {
+        byId('step-player').classList.add('hidden');
+        const spec = EVENTS[state.draft?.type];
         if (spec?.needsAssist) showAssistStep();
         else commitDraft();
     });
-    $('btn-skip-assist').addEventListener('click', () => {
-        $('step-assist').classList.add('hidden');
+    byId('btn-skip-assist').addEventListener('click', () => {
+        byId('step-assist').classList.add('hidden');
         commitDraft();
     });
 
     // Leaving mid-match is safe — every tap is already written — but the clock
     // cannot be recovered on return, so the sheet says what will actually
     // happen rather than asking a bare "are you sure".
-    $('btn-exit-live').addEventListener('click', () => {
+    byId('btn-exit-live').addEventListener('click', () => {
         const running = state.running;
-        $('exit-note').textContent = running
+        byId('exit-note').textContent = running
             ? `Everything you've tapped is saved. The clock is at ${clockText(matchClock())} `
               + 'and will be paused there when you come back, so check it against '
               + "the referee's before carrying on."
             : "Everything you've tapped is saved. The clock is already paused.";
-        $('overlay-exit').classList.add('open');
+        byId('overlay-exit').classList.add('open');
     });
-    $('btn-exit-stay').addEventListener('click', () =>
-        $('overlay-exit').classList.remove('open'));
-    $('btn-exit-go').addEventListener('click', () => { location.href = '../'; });
+    byId('btn-exit-stay').addEventListener('click', () =>
+        byId('overlay-exit').classList.remove('open'));
+    byId('btn-exit-go').addEventListener('click', () => { location.href = '../'; });
 
-    $('btn-undo').addEventListener('click', undoLast);
-    $('btn-period').addEventListener('click', advancePeriod);
-    $('btn-sub').addEventListener('click', () => openSubSheet());
-    $('btn-sub-cancel').addEventListener('click', () => $('overlay-sub').classList.remove('open'));
-    $('btn-sub-confirm').addEventListener('click', confirmSub);
-    $('btn-log').addEventListener('click', openLog);
-    $('btn-log-close').addEventListener('click', () => $('overlay-log').classList.remove('open'));
+    byId('btn-undo').addEventListener('click', undoLast);
+    byId('btn-period').addEventListener('click', advancePeriod);
+    byId('btn-sub').addEventListener('click', () => openSubSheet());
+    byId('btn-sub-cancel').addEventListener('click', () => byId('overlay-sub').classList.remove('open'));
+    byId('btn-sub-confirm').addEventListener('click', confirmSub);
+    byId('btn-log').addEventListener('click', openLog);
+    byId('btn-log-close').addEventListener('click', () => byId('overlay-log').classList.remove('open'));
 
     onUser(async (user) => {
         if (!user) {
-            $('signin-block').classList.remove('hidden');
-            $('match-block').classList.add('hidden');
+            byId('signin-block').classList.remove('hidden');
+            byId('match-block').classList.add('hidden');
             return;
         }
 
@@ -781,9 +756,9 @@ function init() {
             }
             state.teamId = access.teams[0].id;
             state.teamName = access.teams[0].name || 'Us';
-            $('setup-sub').textContent = state.teamName;
-            $('signin-block').classList.add('hidden');
-            $('match-block').classList.remove('hidden');
+            byId('setup-sub').textContent = state.teamName;
+            byId('signin-block').classList.add('hidden');
+            byId('match-block').classList.remove('hidden');
             await loadMatches();
         } catch (err) {
             toast(err.message || 'Could not load your team.', true);

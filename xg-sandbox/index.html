@@ -3,21 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PitchIQ</title>
+    <title>PitchIQ — xG sandbox</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/app.css?v=3">
+    <link rel="stylesheet" href="sandbox.css?v=3">
 </head>
 <body>
-    <canvas id="display"></canvas>
-    <div id="controls">
-        <div id="controls-header">
-            <a id="logo" href="../">&lsaquo; PitchIQ</a>
-            <p>Drag players or adjust sliders to model xG</p>
-        </div>
-        <div id="controls-body">
 
+<header class="topbar">
+    <a class="brand" href="../">PitchIQ <span>xG sandbox</span></a>
+    <div class="topbar-user">
+        <a href="../calibrate/">Calibrate</a>
+        <a href="../">Back to PitchIQ</a>
+    </div>
+</header>
+
+<main class="sandbox">
+    <canvas id="display"></canvas>
+
+    <aside class="panel">
+        <div class="panel-head">
+            <h2>Model a shot</h2>
+            <p class="muted">
+                Drag any player on the pitch, or use the sliders. The number
+                updates as you go.
+            </p>
+        </div>
+
+        <div class="panel-body">
             <div class="section-label">Shot</div>
 
             <div class="slider-row">
@@ -30,7 +45,7 @@
 
             <div class="slider-row">
                 <div class="slider-label-row">
-                    <span class="slider-name">Angle</span>
+                    <span class="slider-name">Angle <span class="derived">measured</span></span>
                     <span class="slider-value" id="val-angle">45°</span>
                 </div>
                 <input type="range" id="angle_to_goal" min="0.1" max="90" step="0.1" value="45">
@@ -79,15 +94,20 @@
                         <span class="toggle-thumb"></span>
                     </span>
                 </label>
-                <label class="toggle-row">
+                <!-- Direct free kicks were dropped from the training set, so the
+                     model has no way to represent one. This used to be an
+                     ordinary toggle that silently changed nothing. -->
+                <label class="toggle-row disabled"
+                       title="Direct free kicks were excluded when the model was trained">
                     <span class="toggle-name">Free kick</span>
                     <span class="toggle-switch">
-                        <input type="checkbox" id="is_freekick">
+                        <input type="checkbox" id="is_freekick" disabled>
                         <span class="toggle-track"></span>
                         <span class="toggle-thumb"></span>
                     </span>
                 </label>
             </div>
+            <p class="note">Free kicks aren't modelled — they were left out of the training data.</p>
 
             <div class="section-label">Defender</div>
 
@@ -119,27 +139,29 @@
 
             <div class="slider-row">
                 <div class="slider-label-row">
-                    <span class="slider-name">Angle coverage</span>
+                    <span class="slider-name">Angle coverage <span class="derived">measured</span></span>
                     <span class="slider-value" id="val-keeper-angle">40%</span>
                 </div>
                 <input type="range" id="keeper_angle_coverage" min="0" max="100" step="1" value="40">
             </div>
+        </div>
 
+        <div class="panel-actions">
+            <button id="btn-los" class="btn small block">Show line of sight</button>
+            <button id="btn-switch-shooter" class="btn small block">Switch shooter</button>
         </div>
-        <div id="controls-footer">
-            <button id="btn-los" class="footer-btn">Show line of sight</button>
-            <button id="btn-switch-shooter" class="footer-btn">Switch shooter</button>
-        </div>
-        <div id="xg-output">
-            <div id="xg-meta">
-                <span id="xg-label">Expected Goals</span>
-                <span id="xg-sublabel">xG</span>
+
+        <div class="xg-readout">
+            <div class="xg-meta">
+                <span class="xg-label">Expected goals</span>
+                <span class="xg-sublabel">chance of scoring</span>
             </div>
             <span id="xg-value">—</span>
         </div>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
-    <script src="classes.js"></script>
-    <script src="script.js"></script>
+    </aside>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+<script type="module" src="sandbox.js?v=3"></script>
 </body>
 </html>

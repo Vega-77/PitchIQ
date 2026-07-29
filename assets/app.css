@@ -415,6 +415,67 @@ button.list-item:hover, a.list-item:hover {
     margin-top: 6px;
 }
 
+/* A compact figure that lives inside a row rather than in its own box: the
+   per-match numbers on a player's season, the record on a team card. Three
+   pages had their own copy of this under three different names (.figure,
+   .pv-figure, .tcs) with identical rules. */
+.figures { display: flex; gap: 20px; text-align: right; }
+
+.figure { min-width: 46px; }
+.figure .n {
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+/* Zeroes recede so the numbers that matter carry the eye down the column. */
+.figure .n.zero { color: var(--text-faint); font-weight: 400; }
+.figure .n.pos { color: var(--good); }
+.figure .n.neg { color: var(--danger); }
+.figure .n.dim { color: var(--text-faint); }
+.figure .k {
+    font-size: 0.56rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: .9px;
+    color: var(--text-faint);
+    margin-top: 2px;
+}
+
+/* Squad number set like a shirt back. Used by both the player portal and the
+   coach's view of one player. */
+.player-head {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.player-badge {
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    border-radius: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line-hi);
+    font-size: 2rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -1.4px;
+    color: var(--accent);
+}
+
+/* Small accent label above a heading, e.g. "Season". */
+.eyebrow-mini {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--accent);
+    margin-bottom: 8px;
+}
+
 /* Score line, e.g. 2 – 1 */
 .scoreline {
     display: inline-flex;
@@ -654,4 +715,8 @@ td.num.zero { color: var(--text-faint); font-weight: 400; }
     .stat .value { font-size: 1.55rem; }
     .tl-row { grid-template-columns: 48px 20px 1fr; }
     .tl-side { display: none; }
+    .player-head { gap: 14px; }
+    .player-badge { width: 58px; height: 58px; font-size: 1.55rem; }
+    .figures { gap: 12px; }
+    .figure { min-width: 38px; }
 }

@@ -36,7 +36,7 @@ jersey numbers robustly in month 1.
 - **`index.html` / `coach/` / `player/`** — landing, coach dashboard, player portal
   (Phase 15, done for [Demo])
 - `live-tagging/` — the tablet tool, now on Firestore with offline queueing (Phase 3)
-- `demo/` — the original manual xG sandbox, moved off the site root
+- `xg-sandbox/` — the manual xG sandbox, moved off the site root
 - `backend/` — the original FastAPI + SQLite server, kept runnable as a fallback
   until a full match has been tagged against Firestore
 
@@ -215,7 +215,7 @@ Applies across every phase below — how we know each piece actually works, not 
    - Calibration → reprojection error in metres on known pitch landmarks
    - Events → precision/recall per event type against the ground-truth clips
 3. **Feature-parity test (specific to this codebase).** `main.py`'s `parse()` and
-   `script.js`'s live feature calc must produce identical 12-feature vectors for the
+   `xg-sandbox/xg-model.js`'s feature calc must produce identical 12-feature vectors for the
    same synthetic scenario. Write a small harness that feeds known synthetic
    player/ball positions through both and diffs the output — this is pure, already-written
    math, so it's the cheapest first automated test to write, before any CV exists at all.
@@ -324,7 +324,7 @@ own sake:
   Python, run inference in the browser via `onnxruntime-web`, already proven in this
   codebase. Any future detector could follow the same pattern if in-browser inference
   is ever wanted, though server-side Python inference is simpler for month 1.
-- **Frontend (all the surfaces above): JavaScript, matching `script.js`/`classes.js`
+- **Frontend (all the surfaces above): JavaScript, matching `xg-sandbox/sandbox.js`/`geometry.js`
   today.** Stay vanilla for the simpler surfaces (halftime view, player portal). The
   Review & Annotation Tool is the one surface complex enough (synced video, timeline,
   forms, thumbnail crops) that a lightweight component framework could save real time
@@ -347,7 +347,7 @@ PitchIQ/
 ├── coach/               dashboard: roster, matches, stats, publish
 ├── player/              portal: own reports only
 ├── live-tagging/        the match-day tablet tool
-├── demo/                the original manual xG sandbox (moved off the root)
+├── xg-sandbox/          the manual xG sandbox (moved off the root)
 ├── firestore.rules      the security boundary
 ├── tests/               emulator suites — rules.test.js + flow.test.js
 ├── PitchIQHelper/       xG model training (main.py) + the shared .venv
@@ -538,7 +538,7 @@ scratch.
 - [ ] Doubles as the ground-truth labeling tool for Phase 16 validation, and as a source of labeled data for fine-tuning detectors later (Phase 5)
 
 ## 12. Shot Feature Extraction → Existing xG Model
-Where the CV pipeline plugs into what already works (`script.js` / `xg_model6.onnx`).
+Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model6.onnx`).
 - [ ] **[Demo]** At shot detection/confirmation, extract the same 12 features the model expects, using the correct attacking-goal direction for the half (Phase 4)
 - [ ] Body part classification (foot vs. header) — pose estimation, or a manual tag as post-game fallback
 - [ ] `shot_height` is a z-axis value a flat single camera + homography can't give directly — pose estimation or ball-trajectory arc fitting needed; flagged as an open problem
@@ -547,7 +547,7 @@ Where the CV pipeline plugs into what already works (`script.js` / `xg_model6.on
 - [ ] Log actual outcome (goal/save/block/miss) to check predictions against reality later
 
 ## 13. Player & Team Statistics / Profiles
-- [ ] `Player` domain model beyond the current UI stub in `classes.js`: identity, team, jersey number, role, per-match stat accumulator
+- [ ] `Player` domain model beyond the current UI stub in `xg-sandbox/geometry.js`: identity, team, jersey number, role, per-match stat accumulator
 - [ ] `Team` domain model: roster, formation, aggregate stats
 - [ ] **[Demo]** Compute the halftime-tier stats first (possession, shot map/xG, distance, sprint counts, live-tagged event counts)
 - [ ] **[MVP]** Full post-game tactical catalog (passing networks, phase-of-play, pressing trends)

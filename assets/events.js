@@ -5,7 +5,7 @@
 // therefore declares what picking a team actually asserts, and the tagging UI
 // shows that wording rather than a bare toggle.
 
-export const EVENT_TYPES = {
+export const EVENTS = {
     goal: {
         label: 'Goal',
         // What choosing a team asserts for this event type.
@@ -60,6 +60,16 @@ export const EVENT_TYPES = {
     },
 };
 
+/**
+ * Just the type names. Derived rather than written out a second time — db.js
+ * used to keep its own copy under this exact name, so `EVENT_TYPES` meant a
+ * list of strings in one module and a map of specs in another.
+ *
+ * The same names appear once more in firestore.rules, which is unavoidable:
+ * rules are a separate language and the server has to validate independently.
+ */
+export const EVENT_TYPES = Object.keys(EVENTS);
+
 export const CARD_COLOURS = {
     yellow: { label: 'Yellow', short: 'Y' },
     second_yellow: { label: 'Second yellow', short: 'Y2' },
@@ -82,7 +92,7 @@ export function describeEvent(entry, { usName = 'Us', themName = 'Them', playerN
         return entry.label || 'Substitution';
     }
 
-    const spec = EVENT_TYPES[entry.type];
+    const spec = EVENTS[entry.type];
     if (!spec) return entry.type.replace(/_/g, ' ');
 
     const team = entry.side === 'them' ? themName : usName;
@@ -98,9 +108,20 @@ export function describeEvent(entry, { usName = 'Us', themName = 'Them', playerN
     return parts.join(' ');
 }
 
+/**
+ * Which colour a timeline dot should take for this entry — '', 'good', 'warn'
+ * or 'period'. Only two of the declared tones are visually distinct, so
+ * 'neutral' collapses to no modifier.
+ */
+export function timelineTone(entry) {
+    if (entry.kind === 'period') return 'period';
+    const tone = EVENTS[entry.type]?.tone;
+    return tone === 'good' || tone === 'warn' ? tone : '';
+}
+
 /** Which team benefits, for counting things like "corners won". */
 export function beneficiary(entry) {
-    const spec = EVENT_TYPES[entry.type];
+    const spec = EVENTS[entry.type];
     if (!spec) return null;
 
     // For fouls, cards and offside the tagged side is the offender, so the

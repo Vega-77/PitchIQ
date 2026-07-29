@@ -3,7 +3,7 @@
     STATUS — WRITTEN BUT NOT VERIFIED ON REAL FOOTAGE.
 
 This is where the computer vision work meets the model already trained in
-`PitchIQHelper/main.py` and already running in `demo/script.js`. The feature
+`PitchIQHelper/main.py` and already running in `xg-sandbox/xg-model.js`. The feature
 order below must match `FEATURES` in main.py exactly; a mismatch does not raise,
 it silently produces a plausible-looking wrong number.
 

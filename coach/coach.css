@@ -19,15 +19,6 @@
 .team-hero-main { min-width: 240px; }
 .team-hero-main h1 { margin: 0 0 12px; }
 
-.eyebrow-mini {
-    font-size: 10.5px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1.4px;
-    color: var(--accent);
-    margin-bottom: 8px;
-}
-
 /* Record reads like a standings line: figures first, key beneath. */
 .record-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 
@@ -148,46 +139,25 @@
 
 /* ---------------------------------------------------------------- player view */
 
-.player-head {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    margin: 8px 0 10px;
-}
+.player-head { margin: 8px 0 10px; }
 
-/* Squad number set like a shirt back. */
-.player-badge {
-    display: grid;
-    place-items: center;
-    width: 72px;
-    height: 72px;
-    flex-shrink: 0;
-    border-radius: 14px;
-    background: var(--surface);
-    border: 1px solid var(--line-hi);
-    font-size: 32px;
-    font-weight: 750;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -1.4px;
-    color: var(--accent);
-}
-
+/* One match in a player's season. */
 .pv-row { display: flex; align-items: center; gap: 18px; }
-.pv-figures { display: flex; gap: 20px; text-align: right; }
-.pv-figure { min-width: 46px; }
-.pv-figure .n { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.pv-figure .n.zero { color: var(--text-faint); font-weight: 400; }
-.pv-figure .k {
-    font-size: 9.5px;
-    font-weight: 650;
-    text-transform: uppercase;
-    letter-spacing: .9px;
-    color: var(--text-faint);
-    margin-top: 2px;
-}
 
 /* Roster rows become a way in to a player, so they need to look pressable. */
 .roster-row .open-hint { color: var(--text-faint); font-size: 18px; }
+
+/* The name doubles as the button that opens a player, but it should read as
+   part of the row rather than as a control. */
+.roster-row .open-player {
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+}
 
 /* ---------------------------------------------------------------- match view */
 

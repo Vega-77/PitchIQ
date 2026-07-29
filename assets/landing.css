@@ -139,26 +139,10 @@
 .team-card-name { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.4px; }
 .team-card-go { color: var(--text-faint); font-size: 1.3rem; line-height: 1; }
 
-.team-card-stats { display: flex; gap: 22px; }
-.tcs { min-width: 0; }
-.tcs .n {
-    font-size: 1.5rem;
-    font-weight: 750;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.8px;
-    line-height: 1.1;
-}
-.tcs .n.pos { color: var(--good); }
-.tcs .n.neg { color: var(--danger); }
-.tcs .n.dim { color: var(--text-faint); }
-.tcs .k {
-    font-size: 0.62rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-faint);
-    margin-top: 3px;
-}
+/* Season figures on a team card sit larger than the shared .figure default,
+   since on this page they are the content rather than a trailing detail. */
+.team-card .figures { gap: 22px; text-align: left; }
+.team-card .figure .n { font-size: 1.5rem; font-weight: 750; letter-spacing: -0.8px; }
 
 .team-card-empty { color: var(--text-faint); font-size: 0.88rem; }
 
@@ -196,9 +180,6 @@
 
 @media (max-width: 640px) {
     .welcome { padding: 22px; }
-    .team-card-stats { gap: 16px; }
-}
-
-@media (max-width: 640px) {
+    .team-card .figures { gap: 16px; }
     .hero { padding-top: 44px; }
 }

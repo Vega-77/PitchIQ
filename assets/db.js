@@ -8,13 +8,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
 import { db } from './firebase-init.js';
-
-export const EVENT_TYPES = [
-    'out_of_bounds', 'corner', 'throw_in', 'goal_kick', 'free_kick',
-    'foul', 'card', 'goal', 'offside',
-];
-
-export const PERIOD_TYPES = ['kickoff_1st', 'halftime', 'kickoff_2nd', 'full_time'];
+import { EVENT_TYPES } from './events.js';
 
 export const PERIOD_STATUS = {
     kickoff_1st: 'first_half',

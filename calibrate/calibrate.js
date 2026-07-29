@@ -2,8 +2,7 @@ import {
     landmarks, LANDMARK_GROUPS, fitHomography, applyHomography,
 } from './pitch-model.js';
 import { mountPitchBackdrop } from '../assets/pitch-backdrop.js';
-
-const $ = (id) => document.getElementById(id);
+import { byId, setText, toast, plural } from '../assets/ui.js';
 
 const state = {
     image: null,
@@ -12,19 +11,9 @@ const state = {
     selected: null,
 };
 
-let toastTimer;
-function toast(message, isError = false) {
-    const el = $('toast');
-    el.textContent = message;
-    el.classList.toggle('error', isError);
-    el.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
-}
-
 const pitchDims = () => ({
-    length_m: parseFloat($('input-length').value) || 105,
-    width_m: parseFloat($('input-width').value) || 68,
+    length_m: parseFloat(byId('input-length').value) || 105,
+    width_m: parseFloat(byId('input-width').value) || 68,
 });
 
 // ---------------------------------------------------------------- image
@@ -39,9 +28,9 @@ function loadImage(file) {
             state.points.clear();
             // The explanation has done its job once there is a picture to work
             // on, so it gets out of the way rather than pushing the tool down.
-            $('intro').classList.add('hidden');
-            $('workspace').classList.remove('hidden');
-            const canvas = $('canvas');
+            byId('intro').classList.add('hidden');
+            byId('workspace').classList.remove('hidden');
+            const canvas = byId('canvas');
             canvas.width = img.naturalWidth;
             canvas.height = img.naturalHeight;
             renderAll();
@@ -57,7 +46,7 @@ function loadImage(file) {
 // ---------------------------------------------------------------- drawing
 
 function draw() {
-    const canvas = $('canvas');
+    const canvas = byId('canvas');
     const ctx = canvas.getContext('2d');
     if (!state.image) return;
 
@@ -160,12 +149,12 @@ function pitchToPixelHomography() {
 // ---------------------------------------------------------------- quality
 
 function renderQuality() {
-    const note = $('preview-note');
+    const note = byId('preview-note');
 
     if (state.points.size < 4) {
         const left = 4 - state.points.size;
         note.className = 'empty';
-        note.textContent = `${left} more point${left === 1 ? '' : 's'} needed before we can check the fit.`;
+        note.textContent = `Place ${plural(left, 'more point')} before we can check the fit.`;
         return;
     }
 
@@ -219,7 +208,7 @@ function renderQuality() {
 // ---------------------------------------------------------------- lists
 
 function renderLandmarkList() {
-    const list = $('landmark-list');
+    const list = byId('landmark-list');
     list.innerHTML = '';
 
     for (const group of LANDMARK_GROUPS) {
@@ -239,7 +228,7 @@ function renderLandmarkList() {
             button.addEventListener('click', () => {
                 state.selected = key;
                 renderAll();
-                $('hint').textContent = `Now click "${label}" in the image.`;
+                byId('hint').textContent = `Now click "${label}" in the image.`;
             });
             list.appendChild(button);
         }
@@ -247,7 +236,7 @@ function renderLandmarkList() {
 }
 
 function renderPlaced() {
-    const list = $('placed-list');
+    const list = byId('placed-list');
     list.innerHTML = '';
 
     if (!state.points.size) {
@@ -277,10 +266,10 @@ function renderAll() {
     renderPlaced();
     renderQuality();
     draw();
-    $('progress').textContent = `${state.points.size} point${state.points.size === 1 ? '' : 's'}`;
-    const count = $('placed-count');
+    setText('progress', plural(state.points.size, 'point'));
+    const count = byId('placed-count');
     if (count) count.textContent = state.points.size;
-    $('btn-export').disabled = state.points.size < 4;
+    byId('btn-export').disabled = state.points.size < 4;
 }
 
 // ---------------------------------------------------------------- export
@@ -309,17 +298,17 @@ function exportJson() {
 // ---------------------------------------------------------------- init
 
 function init() {
-    mountPitchBackdrop($('calib-hero'), { opacity: 0.18 });
+    mountPitchBackdrop(byId('calib-hero'), { opacity: 0.18 });
 
-    $('input-image').addEventListener('change', (e) => {
+    byId('input-image').addEventListener('change', (e) => {
         const file = e.target.files?.[0];
         if (file) loadImage(file);
     });
 
-    $('canvas').addEventListener('click', (e) => {
+    byId('canvas').addEventListener('click', (e) => {
         if (!state.selected) return toast('Pick a landmark from the list first.', true);
 
-        const canvas = $('canvas');
+        const canvas = byId('canvas');
         const rect = canvas.getBoundingClientRect();
         // The canvas is displayed scaled down; convert back to source pixels.
         const x = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -327,18 +316,18 @@ function init() {
 
         state.points.set(state.selected, [x, y]);
         state.selected = null;
-        $('hint').textContent = 'Pick the next landmark.';
+        byId('hint').textContent = 'Pick the next landmark.';
         renderAll();
     });
 
-    $('btn-clear').addEventListener('click', () => {
+    byId('btn-clear').addEventListener('click', () => {
         if (state.points.size && !confirm('Remove all placed points?')) return;
         state.points.clear();
         state.selected = null;
         renderAll();
     });
 
-    $('btn-new-image').addEventListener('click', () => {
+    byId('btn-new-image').addEventListener('click', () => {
         if (state.points.size
             && !confirm('Start over with a different picture? Your points will be lost.')) {
             return;
@@ -346,17 +335,17 @@ function init() {
         state.points.clear();
         state.selected = null;
         state.image = null;
-        $('input-image').value = '';
-        $('workspace').classList.add('hidden');
-        $('intro').classList.remove('hidden');
+        byId('input-image').value = '';
+        byId('workspace').classList.add('hidden');
+        byId('intro').classList.remove('hidden');
         renderAll();
         window.scrollTo(0, 0);
     });
 
-    $('btn-export').addEventListener('click', exportJson);
+    byId('btn-export').addEventListener('click', exportJson);
 
     for (const id of ['input-length', 'input-width']) {
-        $(id).addEventListener('input', () => {
+        byId(id).addEventListener('input', () => {
             if (state.image) renderAll();
         });
     }
