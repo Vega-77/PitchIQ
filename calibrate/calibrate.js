@@ -336,5 +336,7 @@ function init() {
 
 init();
 
-// Exposed for the browser-driven tests.
+// Deliberate test seam, so the picker can be driven from a browser without a
+// human clicking landmarks. Local UI state only; nothing here touches the
+// database.
 window._calib = { state, renderAll, pitchToPixelHomography };

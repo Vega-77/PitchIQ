@@ -793,4 +793,8 @@ function init() {
 
 init();
 
+// Deliberate test seam: lets the tagging flow be driven from a browser without
+// a live match. Exposes UI state only — every write is still gated by
+// firestore.rules server-side, so this grants nothing a reader of this file
+// could not already do by hand.
 window._tagger = { state, openEventSheet, onSideChosen, commitDraft };

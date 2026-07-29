@@ -46,12 +46,21 @@ body.portrait {
     flex-shrink: 0;
 }
 
+/* Doubles as the way back to the rest of the app — without it this page is a
+   dead end for anyone who lands on it directly. */
 #logo {
+    display: inline-block;
     font-size: 17px;
     font-weight: 700;
     color: #ffffff;
     letter-spacing: -0.3px;
     margin-bottom: 4px;
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+#logo:hover {
+    color: #6ba3e8;
 }
 
 #controls-header p {
