@@ -1,10 +1,10 @@
 import {
     signIn, signOut, onUser, resolveAccess, pendingInvites, claimInvite,
     configWarning,
-} from './auth.js';
-import { mountPitchBackdrop } from './pitch-backdrop.js';
-import { listMatches, seasonSummary } from './db.js';
-import { byId, setText, toast, showOnly, figure, signed, plural } from './ui.js';
+} from './auth.js?v=5';
+import { mountPitchBackdrop } from './pitch-backdrop.js?v=5';
+import { listMatches, seasonSummary } from './db.js?v=5';
+import { byId, setText, toast, showOnly, figure, signed, plural } from './ui.js?v=5';
 
 const VIEWS = ['view-marketing', 'view-nowhere', 'view-routes'];
 
@@ -97,9 +97,13 @@ function renderInvites(user, invites) {
         return;
     }
 
-    setText('nowhere-msg', 'You have an invitation:');
+    setText('nowhere-msg', invites.length === 1
+        ? 'You have an invitation:'
+        : 'You have invitations:');
 
     for (const invite of invites) {
+        const isCoach = invite.role === 'coach';
+
         const row = document.createElement('div');
         row.className = 'list-item';
         row.innerHTML = `
@@ -107,19 +111,28 @@ function renderInvites(user, invites) {
                 <div class="title"></div>
                 <div class="sub"></div>
             </div>
+            <span class="pill"></span>
             <button class="btn small primary">Accept</button>`;
+
         row.querySelector('.title').textContent = invite.teamName || 'A team';
-        row.querySelector('.sub').textContent =
-            `${invite.coachName || 'Your coach'} invited you to join`;
+        // Saying which of the two it is matters: accepting a coaching invite
+        // hands over the roster, including every player's email address.
+        row.querySelector('.sub').textContent = isCoach
+            ? `${invite.coachName || 'A coach'} invited you to help coach this squad`
+            : `${invite.coachName || 'Your coach'} invited you to join the roster`;
+        row.querySelector('.pill').textContent = isCoach ? 'Coach' : 'Player';
 
         // Explicit accept rather than auto-claiming on sign-in: an invite can
         // name any address, so the person should see who sent it first.
         row.querySelector('button').addEventListener('click', async (e) => {
             e.target.disabled = true;
             try {
-                await claimInvite(user, invite);
-                toast('Joined — loading your reports');
-                setTimeout(() => { location.href = 'player/'; }, 700);
+                const role = await claimInvite(user, invite);
+                const destination = role === 'coach' ? 'coach/' : 'player/';
+                toast(role === 'coach'
+                    ? 'Joined — opening the dashboard'
+                    : 'Joined — loading your reports');
+                setTimeout(() => { location.href = destination; }, 700);
             } catch (err) {
                 e.target.disabled = false;
                 toast(err.message || 'Could not accept the invitation.', true);

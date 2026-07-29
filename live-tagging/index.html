@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=3">
-    <link rel="stylesheet" href="tagging.css?v=3">
+    <link rel="stylesheet" href="../assets/app.css?v=5">
+    <link rel="stylesheet" href="tagging.css?v=5">
 </head>
 <body>
 
@@ -29,7 +29,22 @@
             <button id="btn-signin" class="btn primary block">Sign in with Google</button>
         </div>
 
+        <!-- Only shown when this account coaches more than one squad. -->
+        <div id="team-block" class="hidden">
+            <h3>Which squad?</h3>
+            <div class="help">
+                <span>
+                    You coach more than one. Pick the squad that's about to play —
+                    everything you tap gets recorded against it.
+                </span>
+            </div>
+            <div id="team-cards" class="match-cards"></div>
+        </div>
+
         <div id="match-block" class="hidden">
+            <button id="btn-change-team" class="btn small ghost hidden" style="margin-bottom:14px">
+                &lsaquo; Different squad
+            </button>
             <div id="match-picker">
                 <h3>Choose a match</h3>
                 <div class="help">
@@ -216,6 +231,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="tagging.js?v=3"></script>
+<script type="module" src="tagging.js?v=5"></script>
 </body>
 </html>

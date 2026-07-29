@@ -14,7 +14,7 @@ import { before, after, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-    initializeTestEnvironment, assertSucceeds,
+    initializeTestEnvironment, assertSucceeds, assertFails,
 } from '@firebase/rules-unit-testing';
 import {
     doc, setDoc, getDoc, updateDoc, collection, getDocs,
@@ -24,6 +24,7 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 const COACH = { uid: 'coach1', email: 'coach@school.org' };
+const ASSISTANT = { uid: 'assist1', email: 'assistant@school.org' };
 const PLAYER = { uid: 'alex1', email: 'alex@school.org' };
 
 const TEAM = 'team1';
@@ -285,5 +286,90 @@ describe('publishing and the player portal', () => {
         assert.ok(mine.every((r) => r.linkedUid === PLAYER.uid));
         assert.equal(mine.reduce((t, r) => t + r.minutesPlayed, 0), 135);
         assert.equal(mine.reduce((t, r) => t + r.goals, 0), 1);
+    });
+});
+
+// ---------------------------------------------------------------- staff
+
+/**
+ * A head coach adding an assistant, exactly as the browser does it.
+ *
+ * The interesting part is the ordering: the claim has to write the full
+ * coachUids array, which means reading the team first — and until the moment
+ * the claim lands, the invitee cannot read anything else about the team. The
+ * `get` grant for pending invitees is what makes the sequence possible at all.
+ */
+describe('adding a second coach', () => {
+    it('runs invite -> read -> claim -> full access, in that order', async () => {
+        const coachDb = as(COACH);
+        const assistantDb = as(ASSISTANT);
+
+        // Before any invite, the assistant is a stranger to this team.
+        await assertFails(getDoc(doc(assistantDb, 'teams', TEAM)));
+        await assertFails(getDocs(collection(assistantDb, 'teams', TEAM, 'players')));
+
+        await assertSucceeds(setDoc(
+            doc(coachDb, 'invites', ASSISTANT.email, 'from', TEAM),
+            {
+                playerId: null, role: 'coach', teamName: 'South Brunswick',
+                coachName: 'Head Coach', createdAt: serverTimestamp(),
+                createdBy: COACH.uid,
+            },
+        ));
+
+        // The invite alone grants only the team document — not the roster,
+        // which is where students' email addresses live.
+        const teamSnap = await assertSucceeds(getDoc(doc(assistantDb, 'teams', TEAM)));
+        await assertFails(getDocs(collection(assistantDb, 'teams', TEAM, 'players')));
+
+        const coachUids = teamSnap.data().coachUids;
+        await assertSucceeds(updateDoc(doc(assistantDb, 'teams', TEAM), {
+            coachUids: [...coachUids, ASSISTANT.uid],
+        }));
+
+        // Now a full coach: roster, matches, and the staff directory.
+        const roster = await assertSucceeds(
+            getDocs(collection(assistantDb, 'teams', TEAM, 'players')));
+        assert.equal(roster.docs.length, 2);
+
+        await assertSucceeds(getDocs(collection(assistantDb, 'teams', TEAM, 'matches')));
+
+        await assertSucceeds(setDoc(
+            doc(assistantDb, 'teams', TEAM, 'staff', ASSISTANT.uid),
+            {
+                displayName: 'Assistant Coach', emailLower: ASSISTANT.email,
+                role: 'coach', joinedAt: serverTimestamp(),
+            },
+        ));
+
+        const staff = await assertSucceeds(
+            getDocs(collection(coachDb, 'teams', TEAM, 'staff')));
+        assert.equal(staff.docs.length, 1);
+        assert.equal(staff.docs[0].data().emailLower, ASSISTANT.email);
+    });
+
+    it('lets one coach run two squads independently', async () => {
+        const coachDb = as(COACH);
+
+        await assertSucceeds(setDoc(doc(coachDb, 'teams', 'jv'), {
+            name: 'JV', coachUids: [COACH.uid], taggerUids: [],
+            archived: false, createdAt: serverTimestamp(), createdBy: COACH.uid,
+        }));
+
+        // A player added to JV must not appear on the varsity roster.
+        await assertSucceeds(setDoc(doc(coachDb, 'teams', 'jv', 'players', 'j1'), {
+            name: 'Freshman Kid', jerseyNumber: 22,
+            emailLower: 'freshman@school.org', linkedUid: null, active: true,
+            createdAt: serverTimestamp(),
+        }));
+
+        const varsity = await assertSucceeds(
+            getDocs(collection(coachDb, 'teams', TEAM, 'players')));
+        const jv = await assertSucceeds(
+            getDocs(collection(coachDb, 'teams', 'jv', 'players')));
+
+        assert.equal(varsity.docs.length, 2);
+        assert.equal(jv.docs.length, 1);
+        assert.equal(jv.docs[0].data().name, 'Freshman Kid');
     });
 });

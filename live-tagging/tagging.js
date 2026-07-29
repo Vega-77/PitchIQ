@@ -13,17 +13,17 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=5';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry,
     logId, PERIOD_STATUS,
-} from '../assets/db.js';
+} from '../assets/db.js?v=5';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js';
+} from '../assets/events.js?v=5';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=5';
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=5';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -42,6 +42,9 @@ const state = {
     opponentName: 'Them',
     matchId: null,
     match: null,
+    // Every squad this account coaches; the picker appears when there is more
+    // than one.
+    teams: [],
     players: [],
     roster: [],
     device: deviceId(),
@@ -105,6 +108,52 @@ function setLast(text, fresh = true) {
 }
 
 // ---------------------------------------------------------------- setup
+
+/**
+ * Which squad is being tagged. Shown only when the account coaches more than
+ * one — with a single squad there is nothing to decide.
+ */
+function renderTeamPicker() {
+    const wrap = byId('team-cards');
+    wrap.innerHTML = '';
+
+    for (const team of state.teams) {
+        const card = document.createElement('button');
+        card.className = 'match-card';
+        card.innerHTML = `
+            <div class="grow">
+                <div class="vs">squad</div>
+                <div class="opp"></div>
+            </div>
+            <span class="pill">choose</span>`;
+        card.querySelector('.opp').textContent = team.name || 'Unnamed squad';
+        card.addEventListener('click', () => {
+            chooseTeam(team).catch((err) =>
+                toast(err.message || 'Could not load that squad.', true));
+        });
+        wrap.appendChild(card);
+    }
+}
+
+async function chooseTeam(team) {
+    state.teamId = team.id;
+    state.teamName = team.name || 'Us';
+    byId('setup-sub').textContent = state.teamName;
+
+    byId('team-block').classList.add('hidden');
+    byId('match-block').classList.remove('hidden');
+    byId('btn-change-team').classList.toggle('hidden', state.teams.length < 2);
+
+    await loadMatches();
+}
+
+function backToTeamPicker() {
+    byId('match-block').classList.add('hidden');
+    byId('team-block').classList.remove('hidden');
+    state.teamId = null;
+    state.matchId = null;
+    state.match = null;
+}
 
 async function loadMatches() {
     const matches = (await listMatches(state.teamId)).filter((m) => !m.finalized);
@@ -696,6 +745,7 @@ function init() {
     });
 
     byId('btn-change-match').addEventListener('click', backToMatchPicker);
+    byId('btn-change-team').addEventListener('click', backToTeamPicker);
     byId('btn-save-lineup').addEventListener('click', saveLineupAndContinue);
     byId('btn-kickoff').addEventListener('click', doKickoff);
     byId('btn-back-setup').addEventListener('click', () => showView('setup'));
@@ -754,12 +804,19 @@ function init() {
                 toast('This account has no team to tag for.', true);
                 return;
             }
-            state.teamId = access.teams[0].id;
-            state.teamName = access.teams[0].name || 'Us';
-            byId('setup-sub').textContent = state.teamName;
+
+            state.teams = access.teams;
             byId('signin-block').classList.add('hidden');
-            byId('match-block').classList.remove('hidden');
-            await loadMatches();
+
+            // Picking the first squad silently would be a quiet disaster for a
+            // coach who runs varsity and JV: a full match tagged onto the wrong
+            // roster, discovered at publish time.
+            if (access.teams.length > 1) {
+                renderTeamPicker();
+                byId('team-block').classList.remove('hidden');
+                return;
+            }
+            await chooseTeam(access.teams[0]);
         } catch (err) {
             toast(err.message || 'Could not load your team.', true);
         }

@@ -1,25 +1,30 @@
 import {
-    onUser, signOut, resolveAccess, rememberTeam, configWarning,
-} from '../assets/auth.js';
+    onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
+} from '../assets/auth.js?v=5';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, listMatchRoster, listLog,
     aggregateMatch, publishReports, seasonSummary, playerSeason, seasonTotals,
-} from '../assets/db.js';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js';
+    listStaff, inviteCoach, removeCoach,
+} from '../assets/db.js?v=5';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=5';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=5';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, figure, cardChips, timelineRow,
-} from '../assets/ui.js';
+} from '../assets/ui.js?v=5';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
 const state = {
     user: null,
     team: null,
+    // Every squad this account coaches. A head coach with varsity and JV has
+    // more than one, and the switcher moves between them.
+    teams: [],
     players: [],
     matches: [],
+    staff: [],
     match: null,
 };
 
@@ -32,6 +37,21 @@ const teamLabels = () => ({
 
 // ---------------------------------------------------------------- team setup
 
+/** Show the create form, either on first run or for an extra squad. */
+function showCreateTeam() {
+    const hasTeams = state.teams.length > 0;
+    setText('noteam-title', hasTeams ? 'Create another squad' : 'Create your team');
+    setText('noteam-lede', hasTeams
+        ? 'A separate squad keeps its own roster, matches and player reports. '
+          + 'You stay the coach of both and can switch between them at any time.'
+        : "Set this up once, then add your roster. You'll need to be on the coach "
+          + "allowlist — if this fails, that's why.");
+
+    byId('btn-cancel-team').classList.toggle('hidden', !hasTeams);
+    byId('input-team-name').value = '';
+    show('view-noteam');
+}
+
 async function doCreateTeam() {
     const name = byId('input-team-name').value.trim();
     if (!name) return toast('Give your team a name', true);
@@ -41,32 +61,98 @@ async function doCreateTeam() {
     try {
         const teamId = await createTeam(state.user, name);
         await rememberTeam(state.user, teamId);
+        await saveStaffProfile(state.user, teamId).catch(() => {});
+
         state.team = await getTeam(teamId);
+        state.teams = [...state.teams, state.team]
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        history.replaceState(null, '', `?team=${encodeURIComponent(teamId)}`);
+
         await loadTeamData();
         show('view-main');
-        toast('Team created');
+        toast(`${name} created`);
     } catch (err) {
-        button.disabled = false;
         toast(
             err?.code === 'permission-denied'
                 ? 'This email has not been approved to create a team yet. Ask Alex to add it, then try again.'
                 : err.message || 'Could not create the team.',
             true,
         );
+    } finally {
+        button.disabled = false;
     }
 }
 
 // ---------------------------------------------------------------- season hero
 
 async function loadTeamData() {
-    setText('team-name', state.team.name);
-    [state.players, state.matches] = await Promise.all([
+    renderTeamSwitcher();
+
+    [state.players, state.matches, state.staff] = await Promise.all([
         listPlayers(state.team.id),
         listMatches(state.team.id),
+        listStaff(state.team),
     ]);
+
     renderHero();
     renderRoster();
     renderMatches();
+    renderStaff();
+
+    // Teams created before the staff directory existed have no entry for their
+    // own coach, which would show them to a new assistant as an unnamed uid.
+    // Writing it on load backfills that without a migration.
+    if (!state.staff.some((s) => s.uid === state.user.uid && !s.unknown)) {
+        saveStaffProfile(state.user, state.team.id)
+            .then(async () => { state.staff = await listStaff(state.team); renderStaff(); })
+            .catch(() => { /* display only — never worth interrupting the page */ });
+    }
+}
+
+/**
+ * The squad picker. Hidden entirely for a coach with one team, so the common
+ * case carries no extra chrome.
+ */
+function renderTeamSwitcher() {
+    const wrap = byId('team-switch-wrap');
+    const select = byId('team-switch');
+    const single = state.teams.length < 2;
+
+    wrap.classList.toggle('hidden', single);
+    byId('team-name').classList.toggle('hidden', !single);
+
+    if (single) {
+        setText('team-name', state.team.name);
+        return;
+    }
+
+    select.innerHTML = '';
+    for (const team of state.teams) {
+        const option = document.createElement('option');
+        option.value = team.id;
+        option.textContent = team.name;
+        option.selected = team.id === state.team.id;
+        select.appendChild(option);
+    }
+}
+
+async function switchTeam(teamId) {
+    const team = state.teams.find((t) => t.id === teamId);
+    if (!team || team.id === state.team.id) return;
+
+    state.team = team;
+    // Keep the URL honest so a reload, or a bookmark, lands on the same squad.
+    history.replaceState(null, '', `?team=${encodeURIComponent(team.id)}`);
+
+    byId('loading').classList.remove('hidden');
+    try {
+        await loadTeamData();
+        show('view-main');
+        toast(`Switched to ${team.name}`);
+    } catch (err) {
+        toast(err.message || 'Could not load that squad.', true);
+        show('view-main');
+    }
 }
 
 function renderHero() {
@@ -92,6 +178,7 @@ function renderHero() {
 
     setText('count-matches', state.matches.length);
     setText('count-roster', state.players.length);
+    setText('count-staff', state.staff.length);
 
     const open = state.matches.filter((m) => !m.finalized).length;
     setText('action-tag-sub', open
@@ -210,6 +297,97 @@ async function doAddPlayer() {
         toast(`${name} added`);
     } catch (err) {
         toast(err.message || 'Could not add the player.', true);
+    }
+}
+
+// ---------------------------------------------------------------- staff
+
+function renderStaff() {
+    const list = byId('staff-list');
+    list.innerHTML = '';
+
+    // Only the coach who created the squad can remove anyone — the rules say so
+    // too, so hiding the button just keeps the UI from offering a dead action.
+    const isOwner = state.team.createdBy === state.user.uid;
+
+    for (const member of state.staff) {
+        const row = document.createElement('div');
+        row.className = 'list-item';
+        row.innerHTML = `
+            <span class="staff-initial"></span>
+            <div class="grow">
+                <div class="title"></div>
+                <div class="sub"></div>
+            </div>
+            <span class="pill"></span>
+            <button class="btn small danger" data-act="remove">Remove</button>`;
+
+        const isMe = member.uid === state.user.uid;
+        const name = isMe ? `${member.displayName} (you)` : member.displayName;
+
+        row.querySelector('.staff-initial').textContent =
+            (member.displayName || '?').trim()[0]?.toUpperCase() ?? '?';
+        row.querySelector('.title').textContent = name;
+        row.querySelector('.sub').textContent = member.unknown
+            ? "Hasn't opened the dashboard yet"
+            : member.emailLower;
+
+        const pill = row.querySelector('.pill');
+        const isTeamOwner = member.uid === state.team.createdBy;
+        pill.textContent = isTeamOwner ? 'Head coach' : 'Coach';
+        if (isTeamOwner) pill.classList.add('done');
+
+        const remove = row.querySelector('[data-act="remove"]');
+        if (!isOwner || isMe || isTeamOwner) {
+            remove.remove();
+        } else {
+            remove.addEventListener('click', () => doRemoveCoach(member));
+        }
+
+        list.append(row);
+    }
+}
+
+async function doInviteCoach() {
+    const input = byId('input-coach-email');
+    const email = input.value.trim().toLowerCase();
+    if (!email) return toast('Enter their email address', true);
+
+    const button = byId('btn-invite-coach');
+    button.disabled = true;
+    try {
+        await inviteCoach(state.user, state.team, email);
+        input.value = '';
+        toast(`Invitation sent to ${email}`);
+    } catch (err) {
+        toast(
+            err?.code === 'permission-denied'
+                ? "That address doesn't look like a valid email."
+                : err.message || 'Could not send the invitation.',
+            true,
+        );
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function doRemoveCoach(member) {
+    const name = member.displayName || member.emailLower || 'this coach';
+    if (!confirm(
+        `Remove ${name} from ${state.team.name}?\n\n`
+        + 'They lose access to the roster, matches and reports for this squad.'
+    )) return;
+
+    try {
+        await removeCoach(state.team, member.uid);
+        state.team = await getTeam(state.team.id);
+        state.teams = state.teams.map((t) => (t.id === state.team.id ? state.team : t));
+        state.staff = await listStaff(state.team);
+        renderStaff();
+        renderHero();
+        toast(`${name} removed`);
+    } catch (err) {
+        toast(err.message || 'Could not remove that coach.', true);
     }
 }
 
@@ -554,13 +732,16 @@ async function doPublish() {
 
 // ---------------------------------------------------------------- init
 
+const TABS = ['matches', 'roster', 'staff'];
+
 function initTabs() {
     for (const tab of document.querySelectorAll('.tab')) {
         tab.addEventListener('click', () => {
             document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
             tab.classList.add('active');
-            byId('tab-matches').classList.toggle('hidden', tab.dataset.tab !== 'matches');
-            byId('tab-roster').classList.toggle('hidden', tab.dataset.tab !== 'roster');
+            for (const name of TABS) {
+                byId(`tab-${name}`).classList.toggle('hidden', name !== tab.dataset.tab);
+            }
         });
     }
 }
@@ -573,10 +754,12 @@ async function onSignedIn(user) {
     // they coach anything until a team exists, so let them through to create one.
     if (access.role === 'player') { location.href = '../player/'; return; }
 
+    state.teams = access.teams;
+
     const wanted = new URLSearchParams(location.search).get('team');
     state.team = access.teams.find((t) => t.id === wanted) || access.teams[0];
 
-    if (!state.team) { show('view-noteam'); return; }
+    if (!state.team) { showCreateTeam(); return; }
 
     await loadTeamData();
     show('view-main');
@@ -591,6 +774,10 @@ function init() {
     byId('btn-signout').addEventListener('click', () =>
         signOut().then(() => { location.href = '../'; }));
     byId('btn-create-team').addEventListener('click', doCreateTeam);
+    byId('btn-new-team').addEventListener('click', showCreateTeam);
+    byId('btn-cancel-team').addEventListener('click', () => show('view-main'));
+    byId('team-switch').addEventListener('change', (e) => switchTeam(e.target.value));
+    byId('btn-invite-coach').addEventListener('click', doInviteCoach);
     byId('btn-add-player').addEventListener('click', doAddPlayer);
     byId('btn-create-match').addEventListener('click', doCreateMatch);
     byId('btn-back').addEventListener('click', () => show('view-main'));

@@ -2,32 +2,47 @@
 
 ## Cache busting
 
-Every local stylesheet and entry-point script is referenced with `?v=N`, e.g.
+Run this before committing any frontend change, and bump the number each time:
 
-```html
-<link rel="stylesheet" href="../assets/app.css?v=3">
-<script type="module" src="coach.js?v=3"></script>
+```bash
+python stamp_version.py 6
 ```
 
-**Bump that number whenever you ship a CSS or JS change**, in every page that
-references the changed file. There is no build step and therefore no hashed
-filenames, so without it browsers happily keep serving the old file — GitHub
-Pages sets a ten-minute cache, and a dev server sets none at all but browsers
-cache heuristically anyway. This cost real debugging time three separate times
-during development: a stylesheet that was correct on disk, correct on the wire,
-and stale in the browser looks exactly like a bug in your CSS.
+There is no build step and therefore no hashed filenames, so without a version
+query browsers happily keep serving the old file — GitHub Pages sets a
+ten-minute cache, and a dev server sets none at all but browsers cache
+heuristically anyway. A stylesheet that is correct on disk, correct on the wire,
+and stale in the browser looks exactly like a bug in your CSS, which is why this
+is scripted rather than left to memory.
 
-### The gap this does not close
+The script stamps **two** things, and the second is the one that matters:
 
-A versioned entry point does **not** version what it imports. When
-`landing.js?v=3` loads fresh and imports `./ui.js`, that import has no query
-string and may still come from cache.
+```html
+<link rel="stylesheet" href="../assets/app.css?v=5">
+<script type="module" src="coach.js?v=5"></script>
+```
 
-In practice bumping the version is enough for most changes, because the file
-being edited is usually a stylesheet or an entry point. When you have edited a
-shared module — anything in `assets/` imported by several pages — and the change
-does not appear, hard-refresh (Ctrl+Shift+R) rather than assuming it did not
-deploy.
+```js
+import { byId, toast } from '../assets/ui.js?v=5';
+```
+
+Versioning only the page's `<link>` and `<script>` tags is half a fix, because a
+versioned entry point does **not** version what it imports: `coach.js?v=5` loads
+fresh and then pulls `../assets/auth.js` straight from cache. That failure mode
+is genuinely misleading — it surfaces as
+
+```
+SyntaxError: The requested module '../assets/auth.js'
+does not provide an export named 'saveStaffProfile'
+```
+
+which reads like a missing export in code that is actually correct on disk. It
+cost debugging time twice before the imports were versioned too.
+
+One consequence worth knowing: if you poke at the app from the browser console,
+`import('/assets/firebase-init.js')` and `import('/assets/firebase-init.js?v=5')`
+are **different module instances**, and the second one to initialise Firebase
+throws. Use the same specifier the page used.
 
 ## Layout of the frontend
 
@@ -54,7 +69,7 @@ calibrate/         camera calibration
 xg-sandbox/        the manual xG model, with the ONNX file it loads
 ```
 
-Two rules worth keeping:
+Three rules worth keeping:
 
 - **`assets/ui.js` before a private helper.** Toasts, `byId`, view switching and
   the stat/figure builders each used to exist as a private copy in four or five
@@ -63,6 +78,38 @@ Two rules worth keeping:
   specs; `EVENT_TYPES` is its key list. `db.js` used to declare a second,
   unrelated `EVENT_TYPES`, so the same name meant two different things
   depending on which module you had imported.
+- **Never assume one team.** A coach may hold several squads (varsity and JV),
+  and a squad may have several coaches. Anything reading `access.teams[0]` is a
+  bug: live tagging used to do exactly that, which would have recorded a JV
+  match against the varsity roster without saying a word.
+
+## Squads and staff
+
+Authority lives in two places and nowhere else:
+
+- `teams/{t}.coachUids` — who coaches this squad.
+- `teams/{t}/players/{p}.linkedUid` — which account is this player.
+
+`teams/{t}/staff/{uid}` is **display only**: a name and address for each uid, so
+the staff list is not a column of opaque ids. It is self-written and the address
+must match the verified token, so it cannot be used to misattribute anyone — and
+because `listStaff()` iterates `coachUids` rather than the directory, a forged or
+missing entry changes what you see but never who has access.
+
+Adding a coach is invite-then-claim, like adding a player, with one deliberate
+difference: a player claim re-verifies against the roster document's own stored
+email and ignores the invite, whereas for a coach **the invite is the grant**.
+There is no second document to check against. That is safe because only an
+existing coach of that squad can write the invite, it is keyed by the invitee's
+address, and claiming still needs a verified Google token for that address.
+
+Two guards worth not removing:
+
+- Only the coach who **created** a squad can remove another coach, so an
+  assistant cannot lock the head coach out.
+- The claim rule requires the new `coachUids` to equal the old array with
+  exactly the claimant's uid appended, so it cannot rename the squad, drop a
+  colleague, or add a third party.
 
 ## Local development
 

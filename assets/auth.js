@@ -10,7 +10,7 @@ import {
     doc, getDoc, setDoc, updateDoc, collection, getDocs, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { auth, db, isConfigured } from './firebase-init.js';
+import { auth, db, isConfigured } from './firebase-init.js?v=5';
 
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: 'select_account' });
@@ -58,7 +58,12 @@ export async function resolveAccess(user) {
         if (snap?.exists()) teams.push({ id: snap.id, ...snap.data() });
     }
 
-    const coaching = teams.filter((t) => (t.coachUids || []).includes(user.uid));
+    // A coach commonly holds more than one squad — varsity and JV under one
+    // person is the normal case, not the exception. Sorted by name so the
+    // switcher does not reshuffle itself between visits.
+    const coaching = teams
+        .filter((t) => (t.coachUids || []).includes(user.uid))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     if (coaching.length) return { role: 'coach', teams: coaching, player: null };
 
     const lastRef = hint?.exists() ? hint.data().lastPlayerRef : null;
@@ -87,15 +92,23 @@ export async function pendingInvites(user) {
         () => null
     );
     if (!snap) return [];
-    return snap.docs.map((d) => ({ teamId: d.id, ...d.data() }));
+    // Invites written before staff invites existed carry no role at all.
+    return snap.docs.map((d) => ({ role: 'player', teamId: d.id, ...d.data() }));
 }
 
 /**
- * Bind this account to a roster slot. Deliberately requires an explicit user
- * action rather than auto-claiming on sign-in — an invite can name any address,
- * so the person should see who invited them before accepting.
+ * Accept an invitation. Deliberately requires an explicit user action rather
+ * than auto-claiming on sign-in — an invite can name any address, so the person
+ * should see who invited them before accepting.
+ *
+ * Returns 'coach' or 'player', which is where the caller should send them.
  */
 export async function claimInvite(user, invite) {
+    if (invite.role === 'coach') {
+        await claimCoachSeat(user, invite.teamId);
+        return 'coach';
+    }
+
     await updateDoc(
         doc(db, 'teams', invite.teamId, 'players', invite.playerId),
         { linkedUid: user.uid }
@@ -103,6 +116,48 @@ export async function claimInvite(user, invite) {
 
     await saveHint(user, {
         lastPlayerRef: { teamId: invite.teamId, playerId: invite.playerId },
+    });
+    return 'player';
+}
+
+/**
+ * Add this account to a team's coaching staff.
+ *
+ * The rules require the new array to be exactly the old one with this uid
+ * appended, which means reading the team first — a pending invitee is granted
+ * `get` on the team document for precisely this reason. Writing the array
+ * explicitly rather than with arrayUnion keeps what the rule checks and what
+ * the client sends identical.
+ */
+async function claimCoachSeat(user, teamId) {
+    const ref = doc(db, 'teams', teamId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new Error('That team no longer exists.');
+
+    const coachUids = snap.data().coachUids || [];
+    if (!coachUids.includes(user.uid)) {
+        await updateDoc(ref, { coachUids: [...coachUids, user.uid] });
+    }
+
+    await saveStaffProfile(user, teamId);
+    await rememberTeam(user, teamId);
+}
+
+/**
+ * This account's entry in a team's staff directory: a display name for a uid.
+ *
+ * Carries no authority — coachUids remains the only proof of who coaches a
+ * team. It exists because one coach cannot read another's users/{uid} document,
+ * so without it the staff list would be a column of opaque uids. Safe to call
+ * repeatedly; the dashboard uses that to backfill teams created before the
+ * directory existed.
+ */
+export function saveStaffProfile(user, teamId, role = 'coach') {
+    return setDoc(doc(db, 'teams', teamId, 'staff', user.uid), {
+        displayName: user.displayName || emailOf(user),
+        emailLower: emailOf(user),
+        role,
+        joinedAt: serverTimestamp(),
     });
 }
 

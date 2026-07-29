@@ -29,6 +29,7 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 const COACH = { uid: 'coach1', email: 'coach@school.org' };
+const ASSISTANT = { uid: 'assist1', email: 'assistant@school.org' };
 const PLAYER = { uid: 'player1', email: 'alex@school.org' };
 const OTHER = { uid: 'player2', email: 'jordan@school.org' };
 const STRANGER = { uid: 'rando', email: 'rando@gmail.com' };
@@ -53,6 +54,19 @@ function as(user, tokenOverrides = {}) {
   return testEnv
     .authenticatedContext(user.uid, { ...google(user), ...tokenOverrides })
     .firestore();
+}
+
+/** Seed an invite directly, so claim tests don't depend on the invite rule. */
+function seedStaffInvite(emailLower, teamId, role) {
+  return testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'invites', emailLower, 'from', teamId), {
+      playerId: null,
+      role,
+      teamName: 'South Brunswick',
+      coachName: 'Head Coach',
+      createdBy: COACH.uid,
+    });
+  });
 }
 
 before(async () => {
@@ -102,6 +116,13 @@ beforeEach(async () => {
     await setDoc(doc(db, 'teams', TEAM, 'players', 'p2'), {
       name: 'Jordan Cho', jerseyNumber: 4,
       emailLower: OTHER.email, linkedUid: OTHER.uid, active: true,
+    });
+
+    // An ordinary player invite, so staff-claim tests can prove it is not
+    // interchangeable with a coaching one.
+    await setDoc(doc(db, 'invites', PLAYER.email, 'from', TEAM), {
+      playerId: 'p1', role: 'player', teamName: 'South Brunswick',
+      coachName: 'Head Coach', createdBy: COACH.uid,
     });
 
     await setDoc(doc(db, 'teams', TEAM, 'matches', MATCH), {
@@ -175,6 +196,174 @@ describe('privilege escalation', () => {
 
   it('teams cannot be deleted (no cascade in Firestore)', async () => {
     await assertFails(deleteDoc(doc(as(COACH), 'teams', TEAM)));
+  });
+
+  // ---- multiple coaches per team ----
+  //
+  // The staff claim is the one place a non-coach may write to a team document,
+  // so every way of abusing it is worth pinning down.
+
+  it('an assistant cannot join a team without an invite', async () => {
+    await assertFails(updateDoc(doc(as(ASSISTANT), 'teams', TEAM), {
+      coachUids: [COACH.uid, ASSISTANT.uid],
+    }));
+  });
+
+  it('an invited assistant can add themselves, and only themselves', async () => {
+    await seedStaffInvite(ASSISTANT.email, TEAM, 'coach');
+    const db = as(ASSISTANT);
+
+    // The invite names ASSISTANT, so smuggling a third party in alongside them
+    // must still fail.
+    await assertFails(updateDoc(doc(db, 'teams', TEAM), {
+      coachUids: [COACH.uid, ASSISTANT.uid, STRANGER.uid],
+    }));
+
+    await assertSucceeds(updateDoc(doc(db, 'teams', TEAM), {
+      coachUids: [COACH.uid, ASSISTANT.uid],
+    }));
+  });
+
+  it('a player invite cannot be used to claim a coaching seat', async () => {
+    // PLAYER already has a player invite seeded for TEAM.
+    await assertFails(updateDoc(doc(as(PLAYER), 'teams', TEAM), {
+      coachUids: [COACH.uid, PLAYER.uid],
+    }));
+  });
+
+  it("a staff invite for one team cannot claim a seat on another", async () => {
+    await seedStaffInvite(ASSISTANT.email, TEAM, 'coach');
+    await assertFails(updateDoc(doc(as(ASSISTANT), 'teams', VICTIM_TEAM), {
+      coachUids: ['someoneelse', ASSISTANT.uid],
+    }));
+  });
+
+  it('the staff claim cannot smuggle in other field changes', async () => {
+    await seedStaffInvite(ASSISTANT.email, TEAM, 'coach');
+    await assertFails(updateDoc(doc(as(ASSISTANT), 'teams', TEAM), {
+      coachUids: [COACH.uid, ASSISTANT.uid],
+      name: 'Renamed By An Invitee',
+    }));
+  });
+
+  it('claiming cannot drop an existing coach', async () => {
+    await seedStaffInvite(ASSISTANT.email, TEAM, 'coach');
+    await assertFails(updateDoc(doc(as(ASSISTANT), 'teams', TEAM), {
+      coachUids: [ASSISTANT.uid],
+    }));
+  });
+
+  it('only a coach can issue a staff invite', async () => {
+    await assertFails(setDoc(
+      doc(as(PLAYER), 'invites', ASSISTANT.email, 'from', TEAM),
+      {
+        playerId: null, role: 'coach', teamName: 'South Brunswick',
+        coachName: 'Not A Coach', createdAt: serverTimestamp(),
+        createdBy: PLAYER.uid,
+      },
+    ));
+  });
+
+  it('a staff invite must not carry a roster slot', async () => {
+    await assertFails(setDoc(
+      doc(as(COACH), 'invites', ASSISTANT.email, 'from', TEAM),
+      {
+        playerId: 'p1', role: 'coach', teamName: 'South Brunswick',
+        coachName: 'Coach', createdAt: serverTimestamp(), createdBy: COACH.uid,
+      },
+    ));
+  });
+
+  it('an assistant cannot remove the head coach who created the team', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'teams', TEAM), {
+        coachUids: [COACH.uid, ASSISTANT.uid],
+      });
+    });
+
+    // The assistant may still edit the team in every other way.
+    await assertSucceeds(updateDoc(doc(as(ASSISTANT), 'teams', TEAM), {
+      name: 'South Brunswick Varsity',
+    }));
+
+    await assertFails(updateDoc(doc(as(ASSISTANT), 'teams', TEAM), {
+      coachUids: [ASSISTANT.uid],
+    }));
+
+    // The creator can.
+    await assertSucceeds(updateDoc(doc(as(COACH), 'teams', TEAM), {
+      coachUids: [COACH.uid],
+    }));
+  });
+
+  it('the staff directory carries no authority and cannot be spoofed', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'teams', TEAM), {
+        coachUids: [COACH.uid, ASSISTANT.uid],
+      });
+    });
+
+    // Writing a directory entry for someone else, or under another address,
+    // must fail — it is what the UI shows next to each uid.
+    await assertFails(setDoc(doc(as(ASSISTANT), 'teams', TEAM, 'staff', COACH.uid), {
+      displayName: 'Impostor', emailLower: COACH.email, role: 'coach',
+      joinedAt: serverTimestamp(),
+    }));
+
+    await assertFails(setDoc(doc(as(ASSISTANT), 'teams', TEAM, 'staff', ASSISTANT.uid), {
+      displayName: 'Assistant', emailLower: COACH.email, role: 'coach',
+      joinedAt: serverTimestamp(),
+    }));
+
+    await assertSucceeds(setDoc(doc(as(ASSISTANT), 'teams', TEAM, 'staff', ASSISTANT.uid), {
+      displayName: 'Assistant', emailLower: ASSISTANT.email, role: 'coach',
+      joinedAt: serverTimestamp(),
+    }));
+
+    // A directory entry alone grants nothing on a team you do not coach.
+    await assertFails(setDoc(doc(as(STRANGER), 'teams', TEAM, 'staff', STRANGER.uid), {
+      displayName: 'Rando', emailLower: STRANGER.email, role: 'coach',
+      joinedAt: serverTimestamp(),
+    }));
+    await assertFails(getDocs(collection(as(STRANGER), 'teams', TEAM, 'staff')));
+  });
+
+  it('a player cannot read the staff directory', async () => {
+    await assertFails(getDocs(collection(as(PLAYER), 'teams', TEAM, 'staff')));
+  });
+
+  // ---- multiple teams per coach ----
+
+  it('one coach can hold several teams at once', async () => {
+    const db = as(COACH);
+    await assertSucceeds(setDoc(doc(db, 'teams', 'varsity'), {
+      name: 'Varsity', coachUids: [COACH.uid], taggerUids: [],
+      archived: false, createdAt: serverTimestamp(), createdBy: COACH.uid,
+    }));
+    await assertSucceeds(setDoc(doc(db, 'teams', 'jv'), {
+      name: 'JV', coachUids: [COACH.uid], taggerUids: [],
+      archived: false, createdAt: serverTimestamp(), createdBy: COACH.uid,
+    }));
+
+    await assertSucceeds(getDoc(doc(db, 'teams', 'varsity')));
+    await assertSucceeds(getDoc(doc(db, 'teams', 'jv')));
+  });
+
+  it('an assistant on one team gains nothing on the head coach\'s other team', async () => {
+    await seedStaffInvite(ASSISTANT.email, TEAM, 'coach');
+    await assertSucceeds(updateDoc(doc(as(ASSISTANT), 'teams', TEAM), {
+      coachUids: [COACH.uid, ASSISTANT.uid],
+    }));
+
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'teams', 'jv'), {
+        name: 'JV', coachUids: [COACH.uid], taggerUids: [],
+        archived: false, createdBy: COACH.uid,
+      });
+    });
+
+    await assertFails(getDoc(doc(as(ASSISTANT), 'teams', 'jv')));
+    await assertFails(getDocs(collection(as(ASSISTANT), 'teams', 'jv', 'players')));
   });
 
   it('team creation requires a coachAllowlist entry', async () => {

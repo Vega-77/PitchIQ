@@ -120,6 +120,43 @@
 .legend-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .legend-row:last-child { margin-bottom: 0; }
 
+/* ---------------------------------------------------------------- squads */
+
+/* Which squad you are looking at, when a coach runs more than one. Sits in the
+   topbar so it is answerable from every screen without scrolling. */
+.team-switch { display: flex; align-items: center; gap: 8px; margin: 0; }
+.team-switch > span {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+}
+.team-switch select {
+    width: auto;
+    min-height: 40px;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: 8px;
+}
+
+/* Initial in place of an avatar — enough to tell two coaches apart in a list
+   without asking anyone to upload a photo. */
+.staff-initial {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    border: 1px solid rgba(77, 214, 193, .35);
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
 /* ---------------------------------------------------------------- matches */
 
 /* Result chip on a played match: colour carries win/draw/loss at a glance. */

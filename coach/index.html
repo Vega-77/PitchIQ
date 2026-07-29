@@ -7,15 +7,21 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=3">
-    <link rel="stylesheet" href="coach.css?v=3">
+    <link rel="stylesheet" href="../assets/app.css?v=5">
+    <link rel="stylesheet" href="coach.css?v=5">
 </head>
 <body>
 
 <header class="topbar">
     <a class="brand" href="../">PitchIQ <span>coach</span></a>
     <div class="topbar-user">
+        <!-- One coach commonly runs varsity and JV, so the squad you are
+             looking at has to be visible and changeable from every screen. -->
         <span id="team-name" class="muted"></span>
+        <label class="team-switch hidden" id="team-switch-wrap">
+            <span>Squad</span>
+            <select id="team-switch"></select>
+        </label>
         <a class="btn small" href="../live-tagging/">Live tagging</a>
         <button id="btn-signout" class="btn small ghost">Sign out</button>
     </div>
@@ -25,10 +31,13 @@
     <div id="config-slot"></div>
     <div id="loading" class="loading">Loading</div>
 
-    <!-- first run -->
+    <!-- first run, and adding a second squad later -->
     <section id="view-noteam" class="hidden">
-        <h1 style="margin-top:44px">Create your team</h1>
-        <p class="lede">
+        <button id="btn-cancel-team" class="btn small ghost hidden" style="margin:24px 0 0">
+            &lsaquo; Back
+        </button>
+        <h1 style="margin-top:44px" id="noteam-title">Create your team</h1>
+        <p class="lede" id="noteam-lede">
             Set this up once, then add your roster. You'll need to be on the coach
             allowlist — if this fails, that's why.
         </p>
@@ -38,6 +47,11 @@
                 <input id="input-team-name" type="text" placeholder="South Brunswick Varsity">
             </label>
             <button id="btn-create-team" class="btn primary block">Create team</button>
+            <p class="muted" style="margin:14px 0 0">
+                Keep varsity and JV as separate squads. They get their own roster,
+                matches and reports, and you can switch between them at the top of
+                this page.
+            </p>
         </div>
     </section>
 
@@ -124,6 +138,9 @@
             <button class="tab" data-tab="roster">
                 Roster <span class="tab-count" id="count-roster"></span>
             </button>
+            <button class="tab" data-tab="staff">
+                Staff <span class="tab-count" id="count-staff"></span>
+            </button>
         </nav>
 
         <div id="tab-matches">
@@ -189,6 +206,46 @@
                             <span class="pill">not signed in</span>
                             <span class="muted">invited, hasn't accepted yet</span>
                         </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+
+        <div id="tab-staff" class="hidden">
+            <div class="split">
+                <section>
+                    <h3>Coaches on this squad</h3>
+                    <div id="staff-list" class="card-list"></div>
+                    <div class="help" style="margin-top:14px">
+                        <span>
+                            Everyone here has <strong>the same access you do</strong> —
+                            they can see the roster with players' email addresses, tag
+                            matches, and publish reports. Only add people who coach
+                            this squad.
+                        </span>
+                    </div>
+                </section>
+                <aside>
+                    <h3>Add a coach</h3>
+                    <div class="card">
+                        <label class="field">
+                            <span>Their email</span>
+                            <input id="input-coach-email" type="email" placeholder="assistant@school.org">
+                        </label>
+                        <button id="btn-invite-coach" class="btn primary block">Send invitation</button>
+                        <p class="muted" style="margin:14px 0 0">
+                            They sign in with Google using that exact address and accept
+                            the invitation. Nothing happens until they do.
+                        </p>
+                    </div>
+
+                    <div class="card" style="margin-top:12px">
+                        <h3 style="margin-bottom:10px">Another squad</h3>
+                        <p class="muted" style="margin:0 0 14px">
+                            Running JV as well as varsity? Give it its own squad so the
+                            rosters and stats stay apart.
+                        </p>
+                        <button id="btn-new-team" class="btn block">Create another squad</button>
                     </div>
                 </aside>
             </div>
@@ -284,6 +341,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=3"></script>
+<script type="module" src="coach.js?v=5"></script>
 </body>
 </html>

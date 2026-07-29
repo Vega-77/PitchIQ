@@ -7,8 +7,8 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js';
-import { EVENT_TYPES } from './events.js';
+import { db } from './firebase-init.js?v=5';
+import { EVENT_TYPES } from './events.js?v=5';
 
 export const PERIOD_STATUS = {
     kickoff_1st: 'first_half',
@@ -35,6 +35,67 @@ export async function createTeam(user, name) {
 export async function getTeam(teamId) {
     const snap = await getDoc(doc(db, 'teams', teamId));
     return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// ---------------------------------------------------------------- staff
+
+/**
+ * The coaching staff, as names rather than uids.
+ *
+ * coachUids on the team document stays the authority; this only supplies the
+ * labels. A uid with no directory entry still appears, because dropping it
+ * would hide a real coach from the list — the more misleading of the two
+ * failures.
+ */
+export async function listStaff(team) {
+    const snap = await getDocs(collection(db, 'teams', team.id, 'staff'))
+        .catch(() => null);
+
+    const byUid = new Map(
+        (snap?.docs ?? []).map((d) => [d.id, { uid: d.id, ...d.data() }])
+    );
+
+    return (team.coachUids || []).map((uid) => byUid.get(uid) ?? {
+        uid,
+        displayName: 'Coach',
+        emailLower: '',
+        role: 'coach',
+        unknown: true,
+    });
+}
+
+/** Invite someone to help run a team. The invite is the grant — coaches only. */
+export function inviteCoach(user, team, email) {
+    const emailLower = (email || '').trim().toLowerCase();
+    if (!emailLower) throw new Error('Enter an email address.');
+
+    return setDoc(doc(db, 'invites', emailLower, 'from', team.id), {
+        // A staff invite carries no roster slot; the rules reject one that does.
+        playerId: null,
+        role: 'coach',
+        teamName: team.name,
+        coachName: user.displayName || 'A coach',
+        createdAt: serverTimestamp(),
+        createdBy: user.uid,
+    });
+}
+
+export function cancelInvite(emailLower, teamId) {
+    return deleteDoc(doc(db, 'invites', emailLower, 'from', teamId));
+}
+
+/**
+ * Take someone off a team's staff.
+ *
+ * Only the coach who created the team may do this — the rules enforce it, so an
+ * assistant cannot lock the head coach out of their own squad.
+ */
+export function removeCoach(team, uid) {
+    const remaining = (team.coachUids || []).filter((id) => id !== uid);
+    if (!remaining.length) {
+        throw new Error('A team has to keep at least one coach.');
+    }
+    return updateDoc(doc(db, 'teams', team.id), { coachUids: remaining });
 }
 
 // ---------------------------------------------------------------- roster
