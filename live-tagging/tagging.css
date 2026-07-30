@@ -160,7 +160,63 @@ html, body {
     flex-shrink: 0;
 }
 
-.clock-block { display: flex; align-items: baseline; gap: 12px; }
+/* The clock is a control, but it should still read as a scoreboard rather than
+   as a button sitting in the header. */
+.clock-block {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    padding: 4px 10px;
+    margin-left: -10px;
+    font-family: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.clock-block:hover { border-color: var(--line); background: var(--surface); }
+
+/* A clock stopped while the half is running is the dangerous state: it looks
+   like an ordinary clock that happens to read 34:12, and every tag from then on
+   is stamped 34:12. So it turns amber and says what to do. */
+.clock-block.stalled {
+    border-color: rgba(251, 191, 36, .5);
+    background: rgba(251, 191, 36, .08);
+}
+.clock-block.stalled #clock { color: var(--warn); }
+
+.clock-state {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--warn);
+    width: 100%;
+}
+
+/* ---- clock sheet ---- */
+
+.clock-set {
+    display: grid;
+    place-items: center;
+    padding: 18px 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+#clock-big {
+    font-size: 54px;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -2px;
+    line-height: 1;
+}
+
+.clock-adjust { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.clock-adjust .btn { padding: 11px 4px; font-variant-numeric: tabular-nums; }
 
 #clock {
     font-size: 38px;

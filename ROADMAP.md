@@ -409,7 +409,7 @@ backend running; set `API_BASE` in `config.js` to the laptop's LAN address on ma
 - [ ] Decide role split: one app covering both subs + events, or two simpler single-purpose roles/devices — worth testing both at the demo dry run
 - [ ] Basic weatherproofing for an outdoor tablet (case, screen usable with sun glare)
 - [ ] Live-tagged data feeds directly into the halftime report and pre-populates the Phase 11 review tool as a head start
-- [ ] **Known gap:** resuming an interrupted match picks the clock up *paused* at the last logged event, since real elapsed time can't be recovered after a reload. Fine for a crash; needs a manual clock-adjust control before it's trustworthy in a real game.
+- [x] **Fixed:** resuming an interrupted match still picks the clock up *paused* at the last logged event — real elapsed time genuinely can't be recovered after a reload — but the clock is now a control. It turns amber and reads "paused · tap to set" whenever the half is live and the clock is stopped, and tapping it opens a sheet to wind the time to the referee's watch and restart. Before this, a stopped clock looked like an ordinary clock that happened to read 34:12, and stamped every remaining event of the half with 34:12.
 
 ## 4. Field Calibration (pixel space → pitch metres)
 **Built.** `calibrate/` is a browser tool for clicking landmarks with a live

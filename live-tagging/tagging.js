@@ -13,17 +13,17 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=5';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=7';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=5';
+} from '../assets/db.js?v=7';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=5';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=5';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=5';
+} from '../assets/events.js?v=7';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=7';
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=7';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -78,10 +78,71 @@ function matchClock() {
     return state.clockOffset + (Date.now() - state.kickoffAt) / 1000;
 }
 
+// ---------------------------------------------------------------- clock
+
+// Matches the ceiling firestore.rules puts on matchClockS.
+const MAX_CLOCK_S = 12000;
+
+/** Is the ball supposed to be in play? Half-time and full time are not. */
+const inPlay = () => ['first_half', 'second_half'].includes(state.match?.status);
+
+/**
+ * Start or stop the clock, keeping the elapsed reading continuous.
+ *
+ * Every tag is stamped with matchClock(), so a stopped clock stamps everything
+ * with the same second. That is why the paused state is shouted about below
+ * rather than left to a toast that scrolls away.
+ */
+function setClockRunning(running) {
+    state.clockOffset = matchClock();
+    state.kickoffAt = Date.now();
+    state.running = running;
+    renderClockChrome();
+}
+
+function setClock(seconds) {
+    const clamped = Math.max(0, Math.min(MAX_CLOCK_S, seconds));
+    state.clockOffset = clamped;
+    state.kickoffAt = Date.now();
+    renderClockChrome();
+}
+
+const adjustClock = (delta) => setClock(matchClock() + delta);
+
+/**
+ * Make a stopped clock impossible to miss while the half is running.
+ *
+ * The dangerous case is not a deliberate pause — it is coming back after a
+ * reload, where the clock looks like an ordinary clock that happens to read
+ * 34:12, and stays reading 34:12 for the rest of the half.
+ */
+function renderClockChrome() {
+    const stalled = inPlay() && !state.running;
+    byId('btn-clock').classList.toggle('stalled', stalled);
+    byId('clock-state').classList.toggle('hidden', !stalled);
+
+    const toggle = byId('btn-clock-toggle');
+    if (toggle) toggle.textContent = state.running ? 'Pause the clock' : 'Start the clock';
+
+    // Redraw immediately rather than waiting for the next tick. A quarter of a
+    // second of nothing after tapping "+1 min" reads as a dead button, and the
+    // reflex is to tap it again.
+    paintClock();
+}
+
+function paintClock() {
+    const text = clockText(matchClock());
+    byId('clock').textContent = text;
+    byId('clock-big').textContent = text;
+}
+
+function openClockSheet() {
+    renderClockChrome();
+    byId('overlay-clock').classList.add('open');
+}
+
 setInterval(() => {
-    if (byId('view-live').classList.contains('active')) {
-        byId('clock').textContent = clockText(matchClock());
-    }
+    if (byId('view-live').classList.contains('active')) paintClock();
 }, 250);
 
 function updateOnlineIndicator() {
@@ -302,9 +363,17 @@ async function resumeMatch() {
 
     if (status === 'scheduled') {
         showView('kickoff');
-    } else {
-        showView('live');
-        toast('Resumed — the clock is paused where the last tag left it');
+        return;
+    }
+
+    showView('live');
+    renderClockChrome();
+
+    // Real elapsed time cannot be recovered after a reload, so the clock comes
+    // back stopped at the last tag. Say what to do about it, not just what
+    // happened — leaving it stopped stamps the rest of the half identically.
+    if (inPlay()) {
+        toast('Clock stopped at your last tag — tap it to set and restart', true, 6000);
     }
 }
 
@@ -339,6 +408,7 @@ async function doKickoff() {
         state.running = true;
         byId('period-label').textContent = '1st half';
         updatePeriodButton();
+        renderClockChrome();
         renderScore();
         setLast('kick-off');
         showView('live');
@@ -611,6 +681,7 @@ async function advancePeriod() {
         }
 
         updatePeriodButton();
+        renderClockChrome();
         setLast(PERIOD_LABELS[next] || next);
     } catch (err) {
         state.seq -= 1;
@@ -781,6 +852,17 @@ function init() {
     byId('btn-exit-stay').addEventListener('click', () =>
         byId('overlay-exit').classList.remove('open'));
     byId('btn-exit-go').addEventListener('click', () => { location.href = '../'; });
+
+    byId('btn-clock').addEventListener('click', openClockSheet);
+    byId('btn-clock-close').addEventListener('click', () =>
+        byId('overlay-clock').classList.remove('open'));
+    byId('btn-clock-toggle').addEventListener('click', () => {
+        setClockRunning(!state.running);
+        if (state.running) byId('overlay-clock').classList.remove('open');
+    });
+    for (const button of document.querySelectorAll('.clock-adjust [data-delta]')) {
+        button.addEventListener('click', () => adjustClock(Number(button.dataset.delta)));
+    }
 
     byId('btn-undo').addEventListener('click', undoLast);
     byId('btn-period').addEventListener('click', advancePeriod);
