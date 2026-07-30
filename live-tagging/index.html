@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=7">
-    <link rel="stylesheet" href="tagging.css?v=7">
+    <link rel="stylesheet" href="../assets/app.css?v=9">
+    <link rel="stylesheet" href="tagging.css?v=9">
 </head>
 <body>
 
@@ -147,6 +147,9 @@
         <button id="btn-sub" class="btn">Make a sub</button>
         <button id="btn-period" class="btn">Half-time</button>
         <button id="btn-log" class="btn ghost">Log</button>
+        <!-- New tab, deliberately: whoever is tagging must not lose the tool
+             because someone wanted to read the report. -->
+        <a id="link-report" class="btn ghost" target="_blank" rel="noopener">Report</a>
     </div>
 </section>
 
@@ -265,6 +268,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="tagging.js?v=7"></script>
+<script type="module" src="tagging.js?v=9"></script>
 </body>
 </html>

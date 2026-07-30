@@ -30,11 +30,15 @@ PAGES = [
     'coach/index.html',
     'player/index.html',
     'live-tagging/index.html',
+    'halftime/index.html',
     'calibrate/index.html',
     'xg-sandbox/index.html',
 ]
 
-MODULE_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'calibrate', 'xg-sandbox']
+MODULE_DIRS = [
+    'assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate',
+    'xg-sandbox',
+]
 
 # href="assets/app.css?v=3" / src="coach.js?v=3" — local files only, so a CDN
 # or Google Fonts URL is left alone.

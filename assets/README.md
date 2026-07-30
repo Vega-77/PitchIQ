@@ -62,9 +62,10 @@ assets/            shared by every page
   landing.js/.css    the site root, which is also the signed-in home
 
 index.html         landing page and sign-in
-coach/             dashboard: season, roster, matches, player reports
+coach/             dashboard: season, roster, matches, staff, player reports
 player/            portal: a player's own reports only
 live-tagging/      match-day tablet tool
+halftime/          the three-minute read for the touchline
 calibrate/         camera calibration
 xg-sandbox/        the manual xG model, with the ONNX file it loads
 ```
@@ -128,3 +129,23 @@ Two details worth knowing:
 - **`localhost`, not `127.0.0.1`.** Only `localhost` is in the project's
   Firebase authorized domains, so Google sign-in fails on the IP form with an
   `auth/unauthorized-domain` error that does not obviously explain itself.
+
+## What belongs on the half-time page
+
+One rule decides everything on `halftime/`: **could the coach have seen it with
+their own eyes?** They watched the half. They know the score, they know it felt
+scrappy, they saw the goals. So the scoreline is a reference point rather than
+the headline, and the page opens with the two things nobody can hold in their
+head — who is one booking from a red, and who has run the whole half.
+
+Consequences worth keeping:
+
+- **Nothing gets added just because it can be counted.** Throw-ins, goal kicks
+  and out-of-bounds are all tagged and all deliberately left off — they are the
+  noise of a match, not a read on it.
+- **Ties are reported as ties.** At half-time most of the squad is on the same
+  number of minutes, so naming three of them would be an arbitrary pick that
+  reads as though those three had done more. Anyone level at the top is
+  reported as a group.
+- **It reuses `aggregateMatch()`** from `db.js` rather than recomputing, so the
+  dashboard and the half-time page can never disagree about a scoreline.

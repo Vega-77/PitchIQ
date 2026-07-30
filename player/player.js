@@ -1,9 +1,9 @@
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=7';
-import { myReports, seasonTotals } from '../assets/db.js?v=7';
-import { CARD_COLOURS } from '../assets/events.js?v=7';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=9';
+import { myReports, seasonTotals } from '../assets/db.js?v=9';
+import { CARD_COLOURS } from '../assets/events.js?v=9';
 import {
     byId, setText, toast, showOnly, statCard, figure, cardChips,
-} from '../assets/ui.js?v=7';
+} from '../assets/ui.js?v=9';
 
 const VIEWS = ['view-empty', 'view-reports'];
 

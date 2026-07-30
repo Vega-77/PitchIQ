@@ -1,0 +1,187 @@
+/* Half-time report.
+ *
+ * Read standing up, on a phone, in about three minutes, by someone who is
+ * about to talk to a team. So: one column, no tabs, nothing to tap to reveal,
+ * and type a size up from the rest of the app.
+ */
+
+.shell.narrow { max-width: 640px; }
+
+/* ---------------------------------------------------------------- header */
+
+.ht-head {
+    margin: 26px 0 8px;
+    padding: 22px 24px;
+    background: linear-gradient(155deg, var(--surface), var(--bg-raised));
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    text-align: center;
+}
+
+.ht-period {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    margin-bottom: 12px;
+}
+
+.ht-score {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 14px;
+}
+
+.ht-team {
+    font-size: 0.95rem;
+    font-weight: 650;
+    line-height: 1.25;
+    text-align: right;
+}
+.ht-team.them { text-align: left; color: var(--text-dim); }
+
+.ht-nums {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 2.6rem;
+    font-weight: 750;
+    letter-spacing: -1.8px;
+    font-variant-numeric: tabular-nums;
+}
+.ht-nums .dash { color: var(--text-faint); font-weight: 400; font-size: 1.7rem; }
+
+.ht-clock {
+    margin-top: 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--text-faint);
+}
+
+/* ---------------------------------------------------------------- decisions */
+
+/* The only section that must be read. Each row is something to act on, so they
+   are sized like buttons even though they aren't. */
+.decision-list { display: flex; flex-direction: column; gap: 8px; }
+
+.decision {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 15px 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--line-hi);
+    border-radius: var(--radius);
+}
+
+.decision.warn {
+    border-left-color: var(--warn);
+    background: rgba(251, 191, 36, .07);
+}
+.decision.bad {
+    border-left-color: var(--danger);
+    background: rgba(248, 113, 113, .07);
+}
+.decision.info { border-left-color: var(--accent); }
+
+.decision .d-title { font-size: 1rem; font-weight: 650; line-height: 1.3; }
+.decision.warn .d-title { color: var(--warn); }
+.decision.bad .d-title { color: var(--danger); }
+
+.decision .d-detail {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-top: 2px;
+    line-height: 1.45;
+}
+
+/* ---------------------------------------------------------------- tallies */
+
+.tally-list { display: flex; flex-direction: column; gap: 14px; }
+
+/* Numbers flank a split bar, so the gap registers before either figure is
+   actually read. */
+.tally {
+    display: grid;
+    grid-template-columns: 2.2rem 1fr 2.2rem;
+    align-items: center;
+    gap: 10px;
+}
+
+.tally .num {
+    font-size: 1.15rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+}
+.tally .t-us { text-align: right; }
+.tally .t-them { text-align: left; }
+
+.tally.ours-good .t-us { color: var(--good); }
+.tally.ours-bad .t-them { color: var(--good); }
+
+.t-bar { display: flex; gap: 3px; height: 9px; }
+.t-fill { border-radius: 3px; min-width: 3px; transition: width .2s ease; }
+.t-fill.us { background: var(--accent); }
+.t-fill.them { background: var(--line-hi); }
+
+.t-label {
+    grid-column: 1 / -1;
+    text-align: center;
+    font-size: 0.7rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+    margin-top: -6px;
+}
+
+/* ---------------------------------------------------------------- minutes */
+
+.minutes-list { display: flex; flex-direction: column; }
+
+.minute-row {
+    display: grid;
+    grid-template-columns: 2rem 1fr 5rem 2.6rem auto;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+}
+.minute-row:last-child { border-bottom: none; }
+
+/* Off the field is a real distinction — their minutes have stopped counting. */
+.minute-row.off { opacity: .55; }
+
+.minute-row .m-name {
+    font-size: 0.95rem;
+    font-weight: 550;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.m-bar { height: 6px; background: var(--bg-raised); border-radius: 3px; overflow: hidden; }
+.m-fill { height: 100%; background: var(--accent); opacity: .75; border-radius: 3px; }
+.minute-row.off .m-fill { background: var(--text-faint); }
+
+.minute-row .m-value {
+    text-align: right;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.95rem;
+}
+
+.m-cards { display: inline-flex; gap: 3px; }
+
+@media (max-width: 480px) {
+    .ht-nums { font-size: 2.1rem; }
+    .ht-team { font-size: 0.85rem; }
+    .minute-row { grid-template-columns: 1.8rem 1fr 3rem 2.4rem auto; gap: 8px; }
+    .decision { padding: 13px 15px; gap: 11px; }
+}

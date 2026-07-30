@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PitchIQ — Half-time</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/app.css?v=9">
+    <link rel="stylesheet" href="halftime.css?v=9">
+</head>
+<body>
+
+<header class="topbar">
+    <a class="brand" href="../">PitchIQ <span>half-time</span></a>
+    <div class="topbar-user">
+        <button id="btn-refresh" class="btn small">Refresh</button>
+    </div>
+</header>
+
+<main class="shell narrow">
+    <div id="config-slot"></div>
+    <div id="loading" class="loading">Reading the half</div>
+
+    <section id="view-error" class="hidden">
+        <h1 style="margin-top:44px">Can't open that match</h1>
+        <p class="lede" id="error-msg"></p>
+        <a class="btn" href="../coach/">Back to the dashboard</a>
+    </section>
+
+    <section id="view-report" class="hidden">
+
+        <!-- The coach watched the half and knows the score, so the scoreline is
+             a reference point, not the headline. -->
+        <header class="ht-head">
+            <div class="ht-period" id="ht-period">Half-time</div>
+            <div class="ht-score">
+                <span class="ht-team" id="ht-us">Us</span>
+                <span class="ht-nums"><span id="ht-score-us">0</span><span class="dash">–</span><span id="ht-score-them">0</span></span>
+                <span class="ht-team them" id="ht-them">Them</span>
+            </div>
+            <div class="ht-clock" id="ht-clock"></div>
+        </header>
+
+        <!-- Decisions first. This is the only part a coach must read. -->
+        <section class="block">
+            <h3>Before you talk to them</h3>
+            <div id="decisions" class="decision-list"></div>
+        </section>
+
+        <section class="block">
+            <h3>The half in numbers</h3>
+            <p class="muted" id="numbers-note" style="margin:-4px 0 12px"></p>
+            <div id="tallies" class="tally-list"></div>
+        </section>
+
+        <section class="block">
+            <h3>Minutes on the field</h3>
+            <div id="minutes" class="minutes-list"></div>
+            <p class="muted" id="bench-note" style="margin-top:12px"></p>
+        </section>
+
+        <section class="block">
+            <h3>How it went</h3>
+            <div id="timeline" class="timeline"></div>
+        </section>
+
+        <section class="block">
+            <a class="btn block" id="link-dashboard" href="../coach/">Open the full match in the dashboard</a>
+        </section>
+    </section>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script type="module" src="halftime.js?v=9"></script>
+</body>
+</html>

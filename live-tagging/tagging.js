@@ -13,17 +13,17 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=7';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=9';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=7';
+} from '../assets/db.js?v=9';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=7';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=7';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=7';
+} from '../assets/events.js?v=9';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=9';
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=9';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -265,6 +265,9 @@ async function loadMatches() {
 async function onMatchChosen(matchId) {
     if (!matchId) return;
     state.matchId = matchId;
+    byId('link-report').href =
+        `../halftime/?team=${encodeURIComponent(state.teamId)}`
+        + `&match=${encodeURIComponent(matchId)}`;
 
     const [match, players, roster] = await Promise.all([
         getMatch(state.teamId, matchId),
