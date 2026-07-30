@@ -80,6 +80,11 @@ class MatchReport:
     clear_holder_share: float = 0.0
     calibration_error_m: float | None = None
 
+    # Tracking only runs when there is a calibration to project through. Without
+    # this flag the summary printed "players tracked 0", which reads as "we
+    # looked and found nobody" when the truth is "we never looked".
+    tracking_attempted: bool = False
+
     warnings: list[str] = field(default_factory=list)
 
     @property
@@ -89,7 +94,8 @@ class MatchReport:
     def summary(self) -> str:
         lines = [
             f'{self.source}  {self.duration_s:.0f}s',
-            f'  players tracked   {len(self.players)}',
+            f'  players tracked   {len(self.players)}' if self.tracking_attempted
+            else '  players tracked   not attempted (needs a calibration)',
             f'  ball coverage     {self.ball.coverage(int(self.duration_s * 30)):.0%}'
             if self.ball else '  ball coverage     n/a',
         ]
@@ -238,6 +244,7 @@ def analyse_match(
     # above, because the tracker needs to see consecutive frames itself. That
     # doubles the model cost. Worth collapsing into one pass once there is real
     # footage to measure the trade-off on.
+    report.tracking_attempted = True
     tracker = PlayerTracker(conf=conf, imgsz=imgsz, device=device)
     tracks = tracker.run(video_path, start_s=start_s, end_s=end_s, stride=1)
     people_tracks, _ = split_by_label(tracks)
@@ -265,6 +272,24 @@ def analyse_match(
         ))
 
     report.shape = team_shape(series_by_track)
+
+    # A team cannot be wider than the pitch or deeper than it is long. If it
+    # comes out that way the homography is wrong, or the camera moved after it
+    # was fitted — either way the metres are fiction, and saying so beats
+    # printing "126m deep" on a 105m pitch with a straight face.
+    if report.shape:
+        impossible = [
+            f'{report.shape["width_m"]:.0f}m wide on a {pitch.width_m:.0f}m pitch'
+            if report.shape['width_m'] > pitch.width_m * 1.1 else '',
+            f'{report.shape["depth_m"]:.0f}m deep on a {pitch.length_m:.0f}m pitch'
+            if report.shape['depth_m'] > pitch.length_m * 1.1 else '',
+        ]
+        impossible = [x for x in impossible if x]
+        if impossible:
+            report.warnings.append(
+                'team shape is physically impossible (' + '; '.join(impossible)
+                + ') — the calibration does not match this footage'
+            )
 
     if len(report.players) > 40:
         report.warnings.append(
