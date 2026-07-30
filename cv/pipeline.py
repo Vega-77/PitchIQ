@@ -28,6 +28,7 @@ import numpy as np
 from .ball import BallTrajectory, build_trajectory, candidates_from_detections
 from .calibration import Calibration
 from .detector import PersonBallDetector
+from .frame_sampler import video_info
 from .metrics import (
     MovementStats,
     PositionSeries,
@@ -143,41 +144,60 @@ def analyse_match(
 
     report = MatchReport(source=video_path.name, duration_s=0.0, processing_s=0.0)
 
-    # ---- frames ----
-    cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        raise FileNotFoundError(f'Could not open video: {video_path}')
+    # ---- detect, one streamed pass ----
+    #
+    # Nothing here keeps a frame beyond the batch it arrived in. An earlier
+    # version read the whole window into a list first, which is 2.8 MB per 720p
+    # frame — about 5 GB a minute, and roughly 227 GB for a 45-minute half. It
+    # could analyse a clip and could never analyse a match.
+    #
+    # The constraint that shapes this loop: shirt colour needs pixels, so it has
+    # to be sampled here rather than in a later pass over the detections. What
+    # survives a batch is a few numbers per detection, not the image.
+    info = video_info(video_path)
+    fps = info.fps or 30.0
+    frame_width = info.width
 
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    cap.set(cv2.CAP_PROP_POS_FRAMES, int(start_s * fps))
-    total_frames = int(((end_s or 1e9) - start_s) * fps)
-
-    frames = []
-    while len(frames) < total_frames:
-        ok, frame = cap.read()
-        if not ok:
-            break
-        frames.append(frame)
-    cap.release()
-
-    if not frames:
-        raise ValueError('no frames read from video')
-
-    report.duration_s = len(frames) / fps
-    frame_width = frames[0].shape[1]
-
-    # ---- detect ----
-    # One pass at the ball's lower threshold; players are filtered back up
-    # afterwards, so the model runs once rather than twice.
     detector = PersonBallDetector(conf=ball_conf, imgsz=imgsz, device=device)
 
     detections_by_frame: dict[int, list] = {}
     timestamps: dict[int, float] = {}
-    for i in range(0, len(frames), 16):
-        for k, dets in enumerate(detector.detect_batch(frames[i:i + 16])):
-            idx = i + k
+    boxes_by_frame: dict[int, list] = {}
+    colour_samples: dict[int, list] = {}
+    frames_seen = 0
+    window_start_frame: int | None = None
+
+    for first_index, batch in _stream_batches(video_path, fps, start_s, end_s):
+        # Seeking lands on a keyframe rather than exactly where it was aimed, so
+        # the window really begins wherever the first batch says it does.
+        if window_start_frame is None:
+            window_start_frame = first_index
+
+        # One detection pass at the ball's lower threshold; players are filtered
+        # back up afterwards, so the model runs once rather than twice.
+        for offset, dets in enumerate(detector.detect_batch(batch)):
+            absolute = first_index + offset
+            idx = absolute - window_start_frame
             detections_by_frame[idx] = dets
-            timestamps[idx] = start_s + idx / fps
+            # Dated from the true frame number, not from the requested start.
+            timestamps[idx] = absolute / fps
+
+            people = [d for d in dets if d.label == 'person' and d.confidence >= conf]
+            boxes = []
+            for n, det in enumerate(people):
+                pseudo_id = idx * 1000 + n
+                boxes.append((pseudo_id, det.xyxy))
+                colour = shirt_colour(batch[offset], det.xyxy)
+                if colour is not None:
+                    colour_samples[pseudo_id] = [colour]
+            boxes_by_frame[idx] = boxes
+
+        frames_seen = first_index + len(batch) - window_start_frame
+
+    if not frames_seen:
+        raise ValueError('no frames read from video')
+
+    report.duration_s = frames_seen / fps
 
     # ---- ball ----
     report.ball = build_trajectory(
@@ -186,19 +206,6 @@ def analyse_match(
     ball_by_frame = {p.frame_index: p.xy for p in report.ball.points}
 
     # ---- teams ----
-    boxes_by_frame: dict[int, list] = {}
-    colour_samples: dict[int, list] = {}
-
-    for idx, dets in detections_by_frame.items():
-        people = [d for d in dets if d.label == 'person' and d.confidence >= conf]
-        boxes = []
-        for n, det in enumerate(people):
-            pseudo_id = idx * 1000 + n
-            boxes.append((pseudo_id, det.xyxy))
-            colour = shirt_colour(frames[idx], det.xyxy)
-            if colour is not None:
-                colour_samples[pseudo_id] = [colour]
-        boxes_by_frame[idx] = boxes
 
     assignment = assign_teams(colour_samples)
     report.kit_separation = separation(assignment)
@@ -299,6 +306,61 @@ def analyse_match(
 
     report.processing_s = time.perf_counter() - started
     return report
+
+
+# Frames per decode batch. Sized so the model gets enough work to keep the GPU
+# busy while the memory held at any moment stays a fixed cost — 16 720p frames
+# is about 45 MB, whatever the length of the match.
+BATCH_FRAMES = 16
+
+
+def _stream_batches(
+    video_path: Path,
+    fps: float,
+    start_s: float,
+    end_s: float | None,
+):
+    """Yield (absolute_frame_index, frames), letting each batch go out of scope.
+
+    Indices are absolute frame numbers in the source video, not offsets into the
+    window, because seeking does not land where you ask. cv2's
+    CAP_PROP_POS_FRAMES seek goes to the nearest keyframe — asking for frame 30
+    of a compressed clip can land on 26 — so a caller that assumed the first
+    frame sat exactly at start_s would date every event a fraction of a second
+    wrong. That matters here: this output has to line up with a hand-tagged
+    match log. Reporting the true frame number lets the caller compute honest
+    timestamps.
+
+    Reads sequentially rather than seeking per frame: consecutive reads are what
+    a decoder is fast at, and every frame in the window is wanted anyway.
+    """
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        raise FileNotFoundError(f'Could not open video: {video_path}')
+
+    try:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, int(start_s * fps))
+        # Where the seek actually landed, which is not necessarily where it was
+        # sent. Everything downstream is dated from this.
+        index = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+        last_wanted = int((end_s * fps)) if end_s is not None else None
+
+        batch: list[np.ndarray] = []
+        batch_start = index
+        while last_wanted is None or index < last_wanted:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            batch.append(frame)
+            index += 1
+            if len(batch) == BATCH_FRAMES:
+                yield batch_start, batch
+                batch = []
+                batch_start = index
+        if batch:
+            yield batch_start, batch
+    finally:
+        cap.release()
 
 
 def _project(track: Track, calibration: Calibration) -> PositionSeries:

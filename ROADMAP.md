@@ -57,8 +57,46 @@ possession simultaneously.
 
 `cv/pipeline.py` and `cv/xg_bridge.py` wire the whole chain together — video in,
 match report out, including the 12-feature bridge to the existing xG model.
-**Both are written but unverified on real footage**, and say so at the top of the
-file. Every component is individually tested and the joins are tested against
+
+**`cv/pipeline.py` has now been run end to end** (2026-07-30) via
+`cv/experiments/match_report.py`. It executes: detection, ball tracking, kit
+clustering, possession, tracking, projection, movement stats, heatmaps and team
+shape all complete without crashing. The footage available has a camera that
+pans and zooms, so none of the numbers mean anything about football — the run
+was driven with a deliberately synthetic calibration to reach the metre-based
+half. It proved the assembly, not the analysis.
+
+What that run found, and what was fixed:
+
+- **Memory made a real match impossible.** `analyse_match` buffered its entire
+  window in RAM — 2.8 MB per 720p frame, ~5 GB a minute, ~227 GB for a
+  45-minute half. It now streams in fixed-size batches: measured peak growth
+  was 1060 MB for a 15-second window and 1091 MB for a 60-second one, so memory
+  no longer scales with match length. Output is byte-identical before and after.
+- **A zero that meant "not attempted".** Without a calibration the summary
+  printed `players tracked 0`, because tracking sits inside the calibration
+  branch and never ran. It says so now.
+- **Team shape had no sanity check.** The run reported a team 126m deep on a
+  105m pitch without comment. Physically impossible shapes now raise a warning
+  that names the calibration as the likely cause.
+- **Seeking does not land where it is aimed.** `CAP_PROP_POS_FRAMES` seeks to
+  the nearest keyframe — asking for frame 30 delivered frame 26 in test. The
+  old code assumed the first frame sat exactly at `start_s`, quietly dating
+  every detection wrong. The reader now reports the frame it actually landed
+  on. This matters for lining CV output up with the tagged event log.
+
+Still open, and the reason a live half-time report is not yet realistic:
+
+- [ ] **Speed.** Detection dominates, at roughly 150-400ms per 720p frame at
+  `imgsz=1280` on an RTX 4060 — measurements on this machine varied between 4x
+  and 14x realtime for identical work, so treat the range rather than any single
+  figure as the finding. A 45-minute half is hours, not minutes. Subsampling to
+  10-15 fps and collapsing the double model pass (detection runs once, then the
+  tracker runs it again) are the two obvious levers, both untried.
+
+`cv/xg_bridge.py` remains **written but unverified**: it needs `onnxruntime`,
+which is not in the venv, and a real calibration to produce a shot location
+worth feeding it. Every component is individually tested and the joins are tested against
 synthetic data; what has never happened is one run end to end on a real match,
 because that needs a calibration. Points most likely to need work are marked
 `UNVERIFIED` inline.
