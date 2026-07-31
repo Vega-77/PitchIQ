@@ -1,4 +1,4 @@
-# PitchIQ Python dependencies (cv/, backend/, PitchIQHelper/ share one venv).
+# PitchIQ Python dependencies (cv/ and PitchIQHelper/ share one venv).
 #
 # GPU note: `pip install -r requirements.txt` alone installs the CPU-only build of
 # torch. For CUDA, install torch/torchvision first from the matching PyTorch index,
@@ -17,11 +17,11 @@ torch==2.13.0
 torchvision==0.28.0
 numpy==2.4.4
 
-# --- backend (backend/) ---
-fastapi==0.140.7
-uvicorn[standard]==0.51.0
-sqlalchemy==2.0.51
-pydantic==2.13.4
+# The app itself needs no Python at all. Data and auth are Firestore, the
+# frontend is plain ES modules on GitHub Pages, and the only Python left is the
+# offline CV work above. A FastAPI + SQLAlchemy + SQLite server used to live in
+# backend/; Firestore replaced it, and it was deleted once a full match had been
+# tagged without it.
 
 # --- xG model training (PitchIQHelper/main.py) ---
 # Not needed to run the app; only to retrain the xG model from StatsBomb data.

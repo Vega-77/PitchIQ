@@ -37,8 +37,7 @@ jersey numbers robustly in month 1.
   (Phase 15, done for [Demo])
 - `live-tagging/` — the tablet tool, now on Firestore with offline queueing (Phase 3)
 - `xg-sandbox/` — the manual xG sandbox, moved off the site root
-- `backend/` — the original FastAPI + SQLite server, kept runnable as a fallback
-  until a full match has been tagged against Firestore
+- `halftime/` — the three-minute touchline read, from tagged data alone (Phase 15)
 
 **Blocked on:** footage from the coach — specifically a raw/native-resolution export
 rather than a screen recording, ideally the uncropped wide feed rather than the
@@ -393,7 +392,6 @@ PitchIQ/
 │   ├── detector.py         PersonBallDetector
 │   ├── frame_sampler.py    sample_frames()
 │   └── experiments/        spike_detect CLI
-├── backend/             legacy FastAPI + SQLite (fallback, no longer used by the UI)
 ├── requirements.txt     Python deps — see the CUDA note inside
 └── package.json         dev tooling only; the frontend has no build step
 ```
@@ -421,22 +419,28 @@ bundler — `npm` is only for the emulator and tests.
 
 ## 2. Data Storage & Backend
 Moved up front — Phase 3's tablet needs somewhere to write to before anything else can happen.
-**Built: `backend/` (FastAPI + SQLAlchemy + SQLite). Run with
-`uvicorn backend.main:app --host 0.0.0.0 --port 8000`; interactive docs at `/docs`.**
-- [x] **[Demo]** Stand up a minimal backend early — a single local server + SQLite/Postgres is enough
-- [x] **[Demo]** Run it locally, on a laptop sharing WiFi/hotspot with the tablet at the field — sidesteps whether the school field has reliable internet, which you don't need to solve yet
+**Built: Firestore, via `firestore.rules` + `assets/db.js`. There is no server
+to run.**
+
+A FastAPI + SQLAlchemy + SQLite server (`backend/`) filled this role first and was
+kept as a fallback until a full match had been tagged against Firestore without
+it. That happened, so it was deleted — 735 lines describing a schema that no
+longer matched the one in use, which is worse than no reference at all.
+- [x] **[Demo]** Stand up a minimal backend early — done first as a local server, then replaced by Firestore
+- [x] **[Demo]** Run it locally, on a laptop sharing WiFi/hotspot with the tablet at the field — **superseded**: Firestore's offline cache queues taps on the tablet itself and replays them when signal returns, so there is no laptop to keep alive at the field
 - [x] Schema for teams, players, matches, roster entries, substitutions, events — with the `source` field (`live_tag` / `cv_candidate` / `reviewer_confirmed`) already in place, though only `live_tag` is written today. Tracking-frame tables deliberately deferred until Phase 6 exists.
 - [x] Undo endpoint spanning both events and substitutions, reverting roster state and rolling back match status when a period marker is undone
 - [ ] Storage volume isn't a concern for tracking data itself: even at 10fps with 23 tracked objects, a full match is roughly 10-40MB of positions — trivial for any database, including a full season. **Video is the actual heavy cost** (a 90-minute 1080p match is several GB) — decide a retention policy: keep full match video only through the post-game review window, then retain long-term just the short clips tied to confirmed events, not every full match forever
-- [ ] **[MVP]** Real auth/accounts (Phase 14) and a cloud-hosted option, once coaches/players need access without being near the field laptop
-- [ ] API layer connecting the tablet, processed match data, and the frontend/portal — including the tablet's offline-sync writes
+- [x] **[MVP]** Real auth/accounts and a cloud-hosted option — Google sign-in plus Firestore, so nobody needs to be near a field laptop
+- [x] API layer connecting the tablet, processed match data, and the frontend/portal — the Firestore SDK is the API, and its offline cache is the sync layer
 
 ## 3. Live Match-Day Input Tool
 A tablet used pitchside during the game by an assistant coach and/or a dedicated data
 collector — runs *concurrently* with play, distinct from the Phase 11 tool that runs
 *after* it.
-**Built: `live-tagging/` (vanilla JS, no build step). Open `index.html` with the
-backend running; set `API_BASE` in `config.js` to the laptop's LAN address on match day.**
+**Built: `live-tagging/` (vanilla JS, no build step). Deployed at
+`/live-tagging/`; sign in with Google and pick the squad and match. Nothing to
+configure and no server to start.**
 - [x] **[Demo]** Tablet-friendly UI: large touch targets (236×269px on tablet, 2-column grid on phones), minimal menu depth
 - [x] **[Demo]** Substitution entry: player X off / player Y on, per team, at the current live timestamp, starting from the pre-game roster/lineup. Already-used substitutes stay visible but dimmed so they don't look like fresh options.
 - [x] **[Demo]** One-tap event buttons: out of bounds, corner, throw-in, goal kick, free kick, foul, card, goal, offside — auto-timestamped on tap
