@@ -209,3 +209,21 @@
 .verdict { margin-top: 14px; font-size: 0.9rem; line-height: 1.55; }
 .verdict.good { color: var(--good); }
 .verdict.bad { color: var(--warn); }
+
+/* ---------------------------------------------------------------- widths */
+
+/* The intro is prose and stays narrow, because a 1400px paragraph is unreadable.
+   The workspace is a canvas you click individual pixels on, so once there is a
+   picture loaded the page takes whatever width the screen has. */
+@media (min-width: 1200px) {
+    .shell.working { max-width: 1480px; }
+    .shell.working .calib-grid { grid-template-columns: minmax(0, 1fr) 360px; }
+}
+
+/* On a phone the sidebar sits under the picture, and the landmark list is the
+   thing being scrolled, so it gets a sensible cap rather than running on. */
+@media (max-width: 640px) {
+    .workspace-head { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .landmark-list { max-height: 320px; overflow-y: auto; }
+    .quality .stat { min-width: calc(50% - 5px); }
+}

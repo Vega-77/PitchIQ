@@ -204,6 +204,29 @@ a:hover { color: var(--accent-hi); }
 }
 .pitch-backdrop svg { width: 100%; height: 100%; display: block; }
 
+/* A floodlight drifting slowly across the markings. It is the only motion in
+   the app, it takes half a minute to cross, and the reduced-motion rule at the
+   bottom of this file switches it off entirely — it should read as depth
+   rather than as something moving. */
+.pitch-backdrop::after {
+    content: '';
+    position: absolute;
+    inset: -40% -30%;
+    background: radial-gradient(
+        closest-side,
+        rgba(77, 214, 193, .13),
+        rgba(77, 214, 193, .04) 55%,
+        transparent 75%
+    );
+    animation: floodlight 34s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes floodlight {
+    0%, 100% { transform: translate3d(-18%, 4%, 0) scale(1); }
+    50%      { transform: translate3d(18%, -4%, 0) scale(1.12); }
+}
+
 /* Anything sharing a box with the backdrop needs to sit above it. */
 .has-backdrop { position: relative; }
 .has-backdrop > *:not(.pitch-backdrop) { position: relative; z-index: 1; }
@@ -487,6 +510,38 @@ button.list-item:hover, a.list-item:hover {
     letter-spacing: -1.5px;
 }
 .scoreline .dash { color: var(--text-faint); font-weight: 400; font-size: 1.55rem; }
+
+/* ---------------------------------------------------------------- charts */
+
+/* A season as a shape. Used by the player portal and by the coach's view of one
+   player, so it lives here rather than in either page's stylesheet.
+
+   Fixed height rather than an aspect ratio: a wider screen should make the bars
+   wider, not taller. */
+.chart {
+    height: 120px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+}
+.chart svg { width: 100%; height: 100%; display: block; }
+
+.chart-bar { fill: var(--line-hi); transition: fill .15s ease; }
+/* Matches with a goal or an assist — the thing anyone scans this for. */
+.chart-bar.scored { fill: var(--accent); }
+.chart:hover .chart-bar { fill: var(--text-faint); }
+.chart:hover .chart-bar.scored { fill: var(--accent-hi); }
+
+.chart-full-line { stroke: var(--line-hi); stroke-width: 1; stroke-dasharray: 3 3; }
+
+@media (min-width: 1100px) {
+    /* Room to be read as a graph rather than glanced at as a sparkline. */
+    .chart { height: 160px; }
+}
+@media (max-width: 640px) {
+    .chart { height: 96px; padding: 12px; }
+}
 
 /* ---------------------------------------------------------------- pills */
 

@@ -142,3 +142,77 @@ export function cardChips(yellowCards = 0, redCards = 0, labels = {}) {
         return chip;
     });
 }
+
+// ---------------------------------------------------------------- charts
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svgEl(name, attrs = {}) {
+    const node = document.createElementNS(SVG_NS, name);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+    return node;
+}
+
+/**
+ * Minutes played per match, oldest on the left.
+ *
+ * Lives here because two pages want the same picture: a player looking at their
+ * own season, and a coach looking at one of theirs. A shape answers "are the
+ * minutes climbing?" in a way a column of numbers does not, and bars from
+ * matches with a goal or an assist are picked out so the good days are
+ * findable without reading.
+ *
+ * Takes report documents — anything with minutesPlayed, goals, assists,
+ * matchDate and opponentName. Drawn with a viewBox so one piece of markup
+ * scales from a phone to a monitor with no redraw on resize.
+ */
+export function minutesChart(reports, { fullMatchMinutes = 90 } = {}) {
+    const season = reports.slice().reverse();          // oldest first
+    const involved = (r) => (r.goals || 0) + (r.assists || 0);
+    const longest = Math.max(fullMatchMinutes, ...season.map((r) => r.minutesPlayed || 0));
+
+    const W = 100;
+    const H = 34;
+    const gap = season.length > 1 ? 1.2 : 0;
+    const barW = Math.max(1.2, (W - gap * (season.length - 1)) / season.length);
+
+    const svg = svgEl('svg', {
+        viewBox: `0 0 ${W} ${H}`,
+        preserveAspectRatio: 'none',
+        role: 'img',
+        'aria-label': `Minutes played in each of ${season.length} matches`,
+    });
+
+    // A full-match reference line, so bar heights mean something absolute
+    // rather than only relative to each other.
+    const fullY = H - (fullMatchMinutes / longest) * H;
+    svg.append(svgEl('line', {
+        x1: 0, y1: fullY, x2: W, y2: fullY,
+        class: 'chart-full-line',
+        'vector-effect': 'non-scaling-stroke',
+    }));
+
+    season.forEach((report, i) => {
+        const minutes = report.minutesPlayed || 0;
+        const height = Math.max(0.6, (minutes / longest) * H);
+
+        const bar = svgEl('rect', {
+            x: i * (barW + gap),
+            y: H - height,
+            width: barW,
+            height,
+            rx: 0.5,
+            class: involved(report) ? 'chart-bar scored' : 'chart-bar',
+        });
+
+        const label = svgEl('title');
+        label.textContent =
+            `${report.matchDate || ''} vs ${report.opponentName || '—'}: ${minutes}′`
+            + (involved(report) ? `, ${involved(report)} G+A` : '');
+        bar.append(label);
+
+        svg.append(bar);
+    });
+
+    return svg;
+}

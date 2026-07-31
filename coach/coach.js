@@ -1,18 +1,18 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=11';
+} from '../assets/auth.js?v=14';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, listMatchRoster, listLog,
     aggregateMatch, publishReports, seasonSummary, playerSeason, seasonTotals,
     listStaff, inviteCoach, removeCoach,
-} from '../assets/db.js?v=11';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=11';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=11';
+} from '../assets/db.js?v=14';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=14';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=14';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
-    statCard, figure, cardChips, timelineRow,
-} from '../assets/ui.js?v=11';
+    statCard, figure, cardChips, timelineRow, minutesChart,
+} from '../assets/ui.js?v=14';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -429,6 +429,7 @@ async function openPlayer(player) {
             stats.append(statCard(per90, 'G+A per 90', 'is-muted'));
         }
 
+        renderPlayerChart(reports);
         renderPlayerMatches(reports);
         show('view-player');
         window.scrollTo(0, 0);
@@ -436,6 +437,26 @@ async function openPlayer(player) {
         toast(err.message || 'Could not load that player.', true);
         show('view-main');
     }
+}
+
+/** One player's minutes across the season, same chart the player sees. */
+function renderPlayerChart(reports) {
+    const host = byId('pv-chart');
+    host.innerHTML = '';
+
+    if (!reports.length) {
+        host.innerHTML = '<div class="empty">No published matches yet.</div>';
+        setText('pv-chart-note', '');
+        return;
+    }
+
+    host.append(minutesChart(reports));
+
+    const involved = reports.filter((r) => (r.goals || 0) + (r.assists || 0)).length;
+    setText('pv-chart-note', involved
+        ? `The line is 90 minutes, oldest match on the left. Highlighted bars are `
+          + `matches they scored or assisted in — ${plural(involved, 'match', 'matches')}.`
+        : 'The line is 90 minutes, oldest match on the left.');
 }
 
 function renderPlayerMatches(reports) {

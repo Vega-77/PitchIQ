@@ -1,8 +1,8 @@
 import {
     landmarks, LANDMARK_GROUPS, fitHomography, applyHomography,
-} from './pitch-model.js?v=11';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=11';
-import { byId, setText, toast, plural } from '../assets/ui.js?v=11';
+} from './pitch-model.js?v=14';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=14';
+import { byId, setText, toast, plural } from '../assets/ui.js?v=14';
 
 const state = {
     image: null,
@@ -30,6 +30,10 @@ function loadImage(file) {
             // on, so it gets out of the way rather than pushing the tool down.
             byId('intro').classList.add('hidden');
             byId('workspace').classList.remove('hidden');
+            // Clicking a landmark means hitting an individual pixel, so on a
+            // wide screen the canvas should have the room. The reading pages
+            // stay narrow; this one earns the width.
+            document.querySelector('main.shell').classList.add('working');
             const canvas = byId('canvas');
             canvas.width = img.naturalWidth;
             canvas.height = img.naturalHeight;
@@ -148,6 +152,35 @@ function pitchToPixelHomography() {
 
 // ---------------------------------------------------------------- quality
 
+// Below this share of the frame, the clicked points are bunched tightly enough
+// that the fit is only trustworthy near them.
+const POOR_SPREAD = 0.15;
+const GOOD_SPREAD = 0.30;
+
+/** A tiny share reads as "<1%" rather than "0%", which looks like a bug. */
+const percent = (fraction) =>
+    fraction > 0 && fraction < 0.01 ? '<1%' : `${(fraction * 100).toFixed(0)}%`;
+
+/**
+ * How much of the picture the clicked points actually enclose, 0 to 1.
+ *
+ * The page warns in words that four points bunched in one corner "will look
+ * perfect and still be wrong everywhere else on the field" — and that is exactly
+ * what the error figures do, because they only measure the fit at the points
+ * you clicked. This measures the thing the warning is about, so it can be
+ * checked rather than merely mentioned.
+ */
+function pointSpread() {
+    if (!state.imageSize || state.points.size < 3) return 0;
+
+    const xs = [...state.points.values()].map((p) => p[0]);
+    const ys = [...state.points.values()].map((p) => p[1]);
+    const covered = (Math.max(...xs) - Math.min(...xs))
+        * (Math.max(...ys) - Math.min(...ys));
+
+    return covered / (state.imageSize[0] * state.imageSize[1]);
+}
+
 function renderQuality() {
     const note = byId('preview-note');
 
@@ -180,25 +213,48 @@ function renderQuality() {
         const exact = state.points.size === 4;
         const ok = mean <= 0.5 && max <= 1.5;
 
+        const spread = pointSpread();
+        const spreadTone = spread >= GOOD_SPREAD ? 'good'
+            : spread >= POOR_SPREAD ? '' : 'bad';
+
         note.className = '';
         note.innerHTML = `
             <div class="quality">
                 <div class="stat"><div class="value ${ok ? 'good' : 'bad'}">${mean.toFixed(2)}m</div><div class="label">Average error</div></div>
                 <div class="stat"><div class="value ${ok ? 'good' : 'bad'}">${max.toFixed(2)}m</div><div class="label">Worst point</div></div>
+                <div class="stat"><div class="value ${spreadTone}">${percent(spread)}</div><div class="label">Frame covered</div></div>
                 <div class="stat"><div class="value">${state.points.size}</div><div class="label">Points placed</div></div>
             </div>
-            <p class="verdict ${exact ? '' : ok ? 'good' : 'bad'}"></p>`;
+            <p class="verdict"></p>`;
 
-        // Four points always fit perfectly, which tells you nothing at all —
-        // saying so is more useful than showing a reassuring zero.
-        note.querySelector('.verdict').textContent = exact
-            ? 'With exactly four points these numbers are always zero, so they '
-              + "don't tell you anything yet. Add a fifth to get a real check."
-            : ok
-                ? 'Good fit. Have a look at the yellow outline — if it sits on the '
-                  + 'painted lines, you can save it.'
-                : 'Something is off. One point is probably in the wrong place or '
-                  + 'named wrong; the yellow outline should show you which.';
+        const verdict = note.querySelector('.verdict');
+
+        // Order matters. Bunched points make the error figures meaningless, so
+        // that gets said before any verdict about how small they are — a tight
+        // cluster reports a beautiful error and is wrong everywhere else.
+        if (spread < POOR_SPREAD) {
+            verdict.className = 'verdict bad';
+            verdict.textContent =
+                `Your points only cover ${percent(spread)} of the picture. `
+                + 'The error figures above are close to meaningless while they are '
+                + 'bunched like that — the fit is only trustworthy near them. Add '
+                + 'points at the far end of the field.';
+        } else if (exact) {
+            verdict.className = 'verdict';
+            verdict.textContent =
+                'With exactly four points these numbers are always zero, so they '
+                + "don't tell you anything yet. Add a fifth to get a real check.";
+        } else if (ok) {
+            verdict.className = 'verdict good';
+            verdict.textContent =
+                'Good fit. Have a look at the yellow outline — if it sits on the '
+                + 'painted lines, you can save it.';
+        } else {
+            verdict.className = 'verdict bad';
+            verdict.textContent =
+                'Something is off. One point is probably in the wrong place or '
+                + 'named wrong; the yellow outline should show you which.';
+        }
     } catch (err) {
         note.className = 'empty';
         note.textContent = err.message;
@@ -338,6 +394,7 @@ function init() {
         byId('input-image').value = '';
         byId('workspace').classList.add('hidden');
         byId('intro').classList.remove('hidden');
+        document.querySelector('main.shell').classList.remove('working');
         renderAll();
         window.scrollTo(0, 0);
     });

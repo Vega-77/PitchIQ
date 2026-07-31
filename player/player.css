@@ -1,7 +1,71 @@
-/* Player portal only. Everything shared — .player-head, .player-badge,
-   .figure — now lives in app.css. */
+/* Player portal.
+ *
+ * Read on a phone by a teenager, and occasionally on a laptop by a parent, so
+ * it has to hold together from 375px to a monitor. Shared pieces —
+ * .player-badge, .figure, .stat — live in app.css; only what is specific to
+ * this page is here.
+ */
 
-.player-head { margin: 48px 0 10px; }
+/* ---------------------------------------------------------------- hero */
+
+.player-hero {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    margin: 30px 0 8px;
+    padding: 26px 28px;
+    background: linear-gradient(150deg, var(--surface), var(--bg-raised) 70%);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+}
+
+.player-hero h1 { margin: 2px 0 8px; }
+.player-hero .lede { max-width: 46ch; }
+.empty-hero .lede { margin-bottom: 0; }
+
+/* ---------------------------------------------------------------- empty */
+
+/* Most players see this before they ever see a report, so it shows the shape
+   of what is coming instead of only saying that nothing is here. */
+.preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 10px;
+}
+
+.preview {
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+}
+.preview-n {
+    display: block;
+    font-size: 1.7rem;
+    font-weight: 750;
+    letter-spacing: -1px;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    line-height: 1;
+}
+.preview-k {
+    display: block;
+    margin-top: 8px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--text-faint);
+}
+.preview p {
+    margin: 10px 0 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+}
+
+/* ---------------------------------------------------------------- matches */
 
 /* Per-match rows: the numbers sit right, aligned, so a season reads as a
    column rather than as a stack of sentences. */
@@ -13,6 +77,18 @@
 
 .match-cards { display: inline-flex; gap: 3px; margin-left: 8px; }
 
+/* ---------------------------------------------------------------- widths */
+
 @media (max-width: 640px) {
-    .player-head { margin-top: 34px; }
+    .player-hero {
+        gap: 16px;
+        padding: 20px;
+        margin-top: 22px;
+    }
+    .preview { padding: 16px; }
+}
+
+@media (max-width: 380px) {
+    /* At the very narrowest the badge and the name stop competing for the row. */
+    .player-hero { flex-direction: column; align-items: flex-start; gap: 14px; }
 }

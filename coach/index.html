@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=11">
-    <link rel="stylesheet" href="coach.css?v=11">
+    <link rel="stylesheet" href="../assets/app.css?v=14">
+    <link rel="stylesheet" href="coach.css?v=14">
 </head>
 <body>
 
@@ -270,6 +270,14 @@
             <div id="pv-stats" class="stat-grid"></div>
         </section>
 
+        <!-- The same picture the player sees on their own page, so a coach and
+             a player are looking at the same thing when they talk about it. -->
+        <section class="block">
+            <h3>Minutes across the season</h3>
+            <div id="pv-chart" class="chart"></div>
+            <p class="muted" id="pv-chart-note" style="margin-top:10px"></p>
+        </section>
+
         <section class="block">
             <h3>Match by match</h3>
             <div id="pv-matches" class="card-list"></div>
@@ -351,6 +359,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=11"></script>
+<script type="module" src="coach.js?v=14"></script>
 </body>
 </html>

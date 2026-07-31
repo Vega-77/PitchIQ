@@ -7,8 +7,8 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=11';
-import { EVENT_TYPES } from './events.js?v=11';
+import { db } from './firebase-init.js?v=14';
+import { EVENT_TYPES } from './events.js?v=14';
 
 export const PERIOD_STATUS = {
     kickoff_1st: 'first_half',
