@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=10">
-    <link rel="stylesheet" href="halftime.css?v=10">
+    <link rel="stylesheet" href="../assets/app.css?v=11">
+    <link rel="stylesheet" href="halftime.css?v=11">
 </head>
 <body>
 
@@ -43,28 +43,37 @@
             <div class="ht-clock" id="ht-clock"></div>
         </header>
 
-        <!-- Decisions first. This is the only part a coach must read. -->
-        <section class="block">
-            <h3>Before you talk to them</h3>
-            <div id="decisions" class="decision-list"></div>
-        </section>
+        <!-- One column on a phone, two once there is room. Decisions always
+             span the full width and come first, on every size. -->
+        <div class="ht-body">
 
-        <section class="block">
-            <h3>The half in numbers</h3>
-            <p class="muted" id="numbers-note" style="margin:-4px 0 12px"></p>
-            <div id="tallies" class="tally-list"></div>
-        </section>
+            <!-- The only part a coach must read. -->
+            <section class="block area-decisions">
+                <h3>Before you talk to them</h3>
+                <div id="decisions" class="decision-list"></div>
+            </section>
 
-        <section class="block">
-            <h3>Minutes on the field</h3>
-            <div id="minutes" class="minutes-list"></div>
-            <p class="muted" id="bench-note" style="margin-top:12px"></p>
-        </section>
+            <section class="block area-tallies">
+                <h3>The half in numbers</h3>
+                <p class="muted" id="numbers-note" style="margin:-4px 0 12px"></p>
+                <div id="tallies" class="tally-list"></div>
+            </section>
 
-        <section class="block">
-            <h3>How it went</h3>
-            <div id="timeline" class="timeline"></div>
-        </section>
+            <section class="block area-minutes">
+                <h3>Minutes on the field</h3>
+                <div id="minutes" class="minutes-list"></div>
+                <p class="muted" id="bench-note" style="margin-top:12px"></p>
+            </section>
+
+            <section class="block area-timeline">
+                <h3>How it went</h3>
+                <div id="timeline" class="timeline"></div>
+                <!-- The timeline is the one section that grows without limit,
+                     so on a phone it starts short. -->
+                <button id="btn-more-timeline" class="btn small block hidden"
+                        style="margin-top:10px"></button>
+            </section>
+        </div>
 
         <section class="block">
             <a class="btn block" id="link-dashboard" href="../coach/">Open the full match in the dashboard</a>
@@ -74,6 +83,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="halftime.js?v=10"></script>
+<script type="module" src="halftime.js?v=11"></script>
 </body>
 </html>

@@ -5,7 +5,48 @@
  * and type a size up from the rest of the app.
  */
 
-.shell.narrow { max-width: 640px; }
+/* This page gets read on three quite different things: a phone at the touchline,
+   a tablet on the bench, and a monitor afterwards. One column is right on the
+   first and wasteful on the last, so the layout earns its width instead of
+   being pinned narrow.
+
+   What never changes with width: the decisions block is first and full width.
+   It is the part that has to be read, so it is never a column someone's eye
+   might skip past. */
+.shell.narrow { max-width: 680px; }
+
+.ht-body { display: grid; grid-template-columns: 1fr; }
+
+/* Tablet and small laptops. The timeline is the tallest section, so it takes
+   its own column and the two short ones stack beside it. */
+@media (min-width: 900px) {
+    .shell.narrow { max-width: 1040px; }
+
+    .ht-body {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        column-gap: 34px;
+        align-items: start;
+        grid-template-areas:
+            "decisions decisions"
+            "tallies   timeline"
+            "minutes   timeline";
+    }
+
+    .area-decisions { grid-area: decisions; }
+    .area-tallies   { grid-area: tallies; }
+    .area-minutes   { grid-area: minutes; }
+    .area-timeline  { grid-area: timeline; }
+
+    /* The first row under the header should not be pushed down twice. */
+    .area-tallies, .area-timeline { margin-top: 30px; }
+}
+
+/* A large monitor. Wider, but capped — line length still has to be readable,
+   and a 2000px-wide list of names is not. */
+@media (min-width: 1400px) {
+    .shell.narrow { max-width: 1180px; }
+    .ht-body { column-gap: 48px; }
+}
 
 /* ---------------------------------------------------------------- header */
 

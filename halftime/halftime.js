@@ -10,14 +10,14 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=10';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=11';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
-} from '../assets/db.js?v=10';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=10';
+} from '../assets/db.js?v=11';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=11';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
-} from '../assets/ui.js?v=10';
+} from '../assets/ui.js?v=11';
 
 const VIEWS = ['view-error', 'view-report'];
 
@@ -255,12 +255,21 @@ function renderMinutes() {
 
 // ---------------------------------------------------------------- timeline
 
+// The timeline is the one section with no natural length — a busy match can run
+// to eighty entries. Everything above it is a fixed size, so left uncapped it
+// alone decides how much scrolling a coach does in the three minutes they have.
+const TIMELINE_PREVIEW = 8;
+
+let timelineExpanded = false;
+
 function renderTimeline() {
     const list = byId('timeline');
+    const more = byId('btn-more-timeline');
     list.innerHTML = '';
 
     if (!state.log.length) {
         list.innerHTML = '<div class="empty">Nothing tagged yet.</div>';
+        more.classList.add('hidden');
         return;
     }
 
@@ -268,7 +277,12 @@ function renderTimeline() {
     const usName = state.team.name || 'Us';
     const themName = state.match.opponentName || 'Them';
 
-    for (const entry of state.log.slice().reverse()) {
+    const newestFirst = state.log.slice().reverse();
+    const shown = timelineExpanded
+        ? newestFirst
+        : newestFirst.slice(0, TIMELINE_PREVIEW);
+
+    for (const entry of shown) {
         list.append(timelineRow({
             clock: clockText(entry.matchClockS),
             text: describeEvent(entry, {
@@ -280,6 +294,12 @@ function renderTimeline() {
             tone: timelineTone(entry),
         }));
     }
+
+    const hidden = newestFirst.length - shown.length;
+    more.classList.toggle('hidden', !hidden && !timelineExpanded);
+    more.textContent = timelineExpanded
+        ? 'Show less'
+        : `Show all ${newestFirst.length}`;
 }
 
 // ---------------------------------------------------------------- load
@@ -327,6 +347,11 @@ async function load() {
 function init() {
     const warning = configWarning();
     if (warning) byId('config-slot').append(warning);
+
+    byId('btn-more-timeline').addEventListener('click', () => {
+        timelineExpanded = !timelineExpanded;
+        renderTimeline();
+    });
 
     byId('btn-refresh').addEventListener('click', () => {
         byId('loading').classList.remove('hidden');
