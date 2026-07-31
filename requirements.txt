@@ -16,6 +16,9 @@ ultralytics==8.4.108
 torch==2.13.0
 torchvision==0.28.0
 numpy==2.4.4
+# Runs the trained xG model from Python, so cv/xg_bridge.py can be checked
+# against the copy the browser loads. The browser uses onnxruntime-web instead.
+onnxruntime==1.28.0
 
 # The app itself needs no Python at all. Data and auth are Firestore, the
 # frontend is plain ES modules on GitHub Pages, and the only Python left is the

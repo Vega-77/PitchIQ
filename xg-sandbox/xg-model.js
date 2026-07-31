@@ -33,6 +33,16 @@ const POST_RIGHT = { x: SB_LENGTH, y: 44.0 };
 // A keeper this far off their line is treated as having come out.
 const KEEPER_OFF_LINE_M = 3.0;
 
+// What the training script substitutes when a freeze frame has no keeper in it
+// (PitchIQHelper/main.py). Feeding the model anything else here is feeding it a
+// value it never saw while learning.
+const NO_KEEPER_DISTANCE = 5.0;
+const NO_KEEPER_POSITION = { x: 115.0, y: 40.0 };
+
+// Stand-in for the z-axis when the height of the shot is unknown, matching
+// DEFAULT_SHOT_HEIGHT in cv/xg_bridge.py.
+const DEFAULT_SHOT_HEIGHT = 0.6;
+
 const dot = (a, b) => a.x * b.x + a.y * b.y;
 const minus = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
 const length = (v) => Math.hypot(v.x, v.y);
@@ -94,15 +104,17 @@ export function buildFeatures({ shooter, keeper, defenders, shot }) {
         is_header: shot.isHeader ? 1 : 0,
         under_pressure: shot.underPressure ? 1 : 0,
         is_open_play: shot.isOpenPlay ? 1 : 0,
-        shot_height: shot.height,
-        keeper_distance_to_goal: 5.0,
-        keeper_angle_coverage: 0,
+        shot_height: shot.height ?? DEFAULT_SHOT_HEIGHT,
+        // The no-keeper case, which the sandbox never reaches because it always
+        // draws one — but the CV pipeline reaches it whenever the keeper is out
+        // of frame or missed. This used to substitute the shooter's own angle,
+        // which is not a value the model was ever trained on.
+        keeper_distance_to_goal: NO_KEEPER_DISTANCE,
+        keeper_angle_coverage: shotAngle(NO_KEEPER_POSITION),
         keeper_off_line: 0,
         defenders_in_cone: 0,
         defender_pressure: 0.0,
     };
-
-    features.keeper_angle_coverage = features.angle_to_goal;
 
     if (keeper) {
         const k = toStatsBomb(keeper);

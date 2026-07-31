@@ -1,18 +1,18 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=9';
+} from '../assets/auth.js?v=10';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, listMatchRoster, listLog,
     aggregateMatch, publishReports, seasonSummary, playerSeason, seasonTotals,
     listStaff, inviteCoach, removeCoach,
-} from '../assets/db.js?v=9';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=9';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=9';
+} from '../assets/db.js?v=10';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=10';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=10';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, figure, cardChips, timelineRow,
-} from '../assets/ui.js?v=9';
+} from '../assets/ui.js?v=10';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 

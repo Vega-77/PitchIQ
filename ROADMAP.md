@@ -129,9 +129,30 @@ Still open:
   means running the tracker at the ball's much lower confidence threshold, which
   would flood it with junk tracks, so it is not the free win it looks like.
 
-`cv/xg_bridge.py` remains **written but unverified**: it needs `onnxruntime`,
-which is not in the venv, and a real calibration to produce a shot location
-worth feeding it. Every component is individually tested and the joins are tested against
+**`cv/xg_bridge.py`'s model half is now verified** (2026-07-31). `onnxruntime`
+is in the venv, `_predict` has run against the real model, and Python agrees
+with the browser to three decimals on the same shot — the sandbox's default
+position reads 0.068 in both. tests/test_xg_parity.py pins twelve scenarios
+across the two languages plus the feature order.
+
+Two real defects came out of writing it:
+
+- **The two languages disagreed when no keeper was visible.** The training
+  script substitutes `shot_angle([115, 40])`; the browser was substituting the
+  shooter's own angle, a value the model never saw in training. The sandbox
+  never hit it because it always draws a keeper — the CV pipeline would hit it
+  every time the keeper was missed. Fixed in `xg-sandbox/xg-model.js`.
+- **There are two different models both called `xg_model6.onnx`.** The browser
+  loads `xg-sandbox/`'s; `PitchIQHelper/` holds the output of a later training
+  re-run that was never adopted. They disagree by up to **0.29 xG** on the same
+  shot — a half chance against a good one. `cv.xg_bridge.MODEL_PATH` now names
+  the browser's copy explicitly so the two paths cannot diverge, and a test
+  fails if that changes. **Which model is the better one is still an open
+  question**, and needs whoever trained them to say.
+
+What remains unverified is upstream of the bridge: whether a shot can be spotted
+in footage at all, and whether the right shooter, keeper and defenders reach
+`ShotContext`. That needs footage. Every component is individually tested and the joins are tested against
 synthetic data; what has never happened is one run end to end on a real match,
 because that needs a calibration. Points most likely to need work are marked
 `UNVERIFIED` inline.

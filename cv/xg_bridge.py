@@ -1,6 +1,12 @@
 """Turn a detected shot into the 12 features the existing xG model expects.
 
-    STATUS — WRITTEN BUT NOT VERIFIED ON REAL FOOTAGE.
+    STATUS — the model half is verified; the shot-detection half is not.
+
+`build_features`, `feature_vector` and `_predict` now run against the real model
+and agree with the browser to three decimal places on the same shot; see
+tests/test_xg_parity.py. What remains unverified is upstream of here: whether a
+shot can be spotted in footage at all, and whether the shooter, keeper and
+defenders handed to `ShotContext` are the right ones.
 
 This is where the computer vision work meets the model already trained in
 `PitchIQHelper/main.py` and already running in `xg-sandbox/xg-model.js`. The feature
@@ -35,6 +41,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 
@@ -65,6 +72,29 @@ POST_R = np.array([STATSBOMB_LENGTH, 44.0])
 # Stand-in for the unobtainable z-axis. Taken from the training distribution;
 # see the module docstring.
 DEFAULT_SHOT_HEIGHT = 0.6
+
+# The model the browser loads, and therefore the model behind every xG number
+# anyone has actually looked at.
+#
+# There is a second file of the same name in PitchIQHelper/, the output of a
+# later re-run of the training script that was never adopted. The two are not
+# interchangeable — they disagree by up to 0.29 xG on the same shot, which is
+# the difference between a half chance and a good one. Naming the file here
+# means the pipeline and the sandbox cannot quietly end up on different models.
+MODEL_PATH = Path(__file__).resolve().parents[1] / 'xg-sandbox' / 'xg_model6.onnx'
+
+
+def load_session(model_path: str | Path | None = None):
+    """An onnxruntime session for the xG model.
+
+    Kept here rather than left to each caller so there is one answer to "which
+    model" in the Python half of the project.
+    """
+    import onnxruntime as ort
+
+    return ort.InferenceSession(
+        str(model_path or MODEL_PATH), providers=['CPUExecutionProvider']
+    )
 
 
 @dataclass
