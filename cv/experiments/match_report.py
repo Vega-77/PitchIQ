@@ -35,6 +35,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--ball-conf', type=float, default=0.08, help='ball confidence')
     parser.add_argument('--imgsz', type=int, default=1280)
     parser.add_argument('--device', default='0', help="0 for the first GPU, or 'cpu'")
+
+    # Tracking is the expensive half — about 26ms a frame against detection's
+    # 12.5ms, because it runs one frame at a time. These make a run finish
+    # sooner at the cost of holding player identity less well; see the
+    # analyse_match docstring for what each one measured.
+    parser.add_argument('--tracker', default='botsort.yaml',
+                        choices=['botsort.yaml', 'bytetrack.yaml'],
+                        help='bytetrack is ~1.9x faster and fragments more')
+    parser.add_argument('--track-imgsz', type=int, default=None,
+                        help='defaults to --imgsz; lowering it saves ~5%%')
+    parser.add_argument('--track-stride', type=int, default=1,
+                        help='process every Nth frame when tracking; 2 is ~1.8x faster')
     return parser
 
 
@@ -66,6 +78,9 @@ def main(argv: list[str] | None = None) -> int:
         ball_conf=args.ball_conf,
         imgsz=args.imgsz,
         device=device,
+        tracker=args.tracker,
+        track_imgsz=args.track_imgsz,
+        track_stride=args.track_stride,
     )
 
     print()

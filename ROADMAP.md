@@ -84,14 +84,50 @@ What that run found, and what was fixed:
   every detection wrong. The reader now reports the frame it actually landed
   on. This matters for lining CV output up with the tagged event log.
 
-Still open, and the reason a live half-time report is not yet realistic:
+**Speed, measured properly (2026-07-31).** An earlier version of this section
+claimed 150-400ms per frame and "hours, not minutes" for a half. That was wrong,
+and wrong in a specific way worth recording: the benchmark harness built four
+`PlayerTracker` instances in one process, each loading its own YOLO model, and
+the resulting GPU memory pressure produced `NMS time limit exceeded` warnings
+and timings inflated by more than 10x. Measure one model per process.
 
-- [ ] **Speed.** Detection dominates, at roughly 150-400ms per 720p frame at
-  `imgsz=1280` on an RTX 4060 — measurements on this machine varied between 4x
-  and 14x realtime for identical work, so treat the range rather than any single
-  figure as the finding. A 45-minute half is hours, not minutes. Subsampling to
-  10-15 fps and collapsing the double model pass (detection runs once, then the
-  tracker runs it again) are the two obvious levers, both untried.
+The real figures, on a 15s 720p clip on an RTX 4060 (450 frames), each from a
+fresh process:
+
+| stage | time | vs realtime |
+| --- | --- | --- |
+| detection only | 7.6s | 0.5x |
+| detection + tracking | 19.2-19.9s | 1.3x |
+
+So a 45-minute half is about an hour, not hours. Detection is 12.5ms a frame
+batched; tracking is roughly 26ms because ByteTrack and BoT-SORT carry state
+between frames and cannot be batched.
+
+`analyse_match` now exposes the tracking levers, measured on the same clip:
+
+| config | time | tracks kept | longest track |
+| --- | --- | --- | --- |
+| `botsort.yaml`, stride 1 (default) | 13.1s | 100 | 449/450 |
+| `bytetrack.yaml`, stride 1 | 7.0s | 119 | 418 |
+| `botsort.yaml`, stride 2 | 7.2s | 70 | 225/225 |
+| `bytetrack.yaml` + stride 2, whole pipeline | 10.7s | 83 | — |
+
+That last row is **0.7x realtime**, which is what a live half-time report would
+need. The defaults deliberately stay on the slower, better option: every one of
+these levers buys speed with identity, and fragmentation is already the weakest
+link in the pipeline. Lowering `track_imgsz` saves about 5% and is not worth the
+detections it costs.
+
+Still open:
+
+- [ ] **Decide the tracking trade-off on footage that can support the judgement.**
+  All of the above was measured on a panning, zooming camera where tracks
+  fragment for reasons that have nothing to do with the tracker. The choice
+  between BoT-SORT and ByteTrack should be made against a fixed camera.
+- [ ] **The double model pass.** Detection runs over the window, then the tracker
+  runs the model again over the same frames — 7.6s of the 19.9s. Collapsing them
+  means running the tracker at the ball's much lower confidence threshold, which
+  would flood it with junk tracks, so it is not the free win it looks like.
 
 `cv/xg_bridge.py` remains **written but unverified**: it needs `onnxruntime`,
 which is not in the venv, and a real calibration to produce a shot location

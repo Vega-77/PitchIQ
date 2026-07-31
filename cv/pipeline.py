@@ -129,12 +129,40 @@ def analyse_match(
     imgsz: int = 1280,
     device: str | int | None = 0,
     orientation: MatchOrientation | None = None,
+    tracker: str = 'botsort.yaml',
+    track_imgsz: int | None = None,
+    track_stride: int = 1,
 ) -> MatchReport:
     """Run the full pipeline over a video.
 
     Without a calibration this still returns possession and team split, which
     need only pixels. With one it adds everything expressed in metres.
+
+    Speed, measured on a 15s 720p clip on an RTX 4060 (450 frames):
+
+        detection only                    7.6s   0.5x realtime
+        detection + tracking             19.2s   1.3x realtime
+
+    so a 45-minute half is around an hour. The tracking half is the expensive
+    part, at roughly 26ms a frame against detection's 12.5ms — it runs one frame
+    at a time because ByteTrack and BoT-SORT carry state between frames, and it
+    cannot be batched the way detection is.
+
+    The three tracking arguments are the levers, and all three trade identity
+    for speed. Measured on the same clip:
+
+        botsort.yaml,   stride 1       13.1s   100 tracks, longest 449/450
+        bytetrack.yaml, stride 1        7.0s   119 tracks, longest 418
+        botsort.yaml,   stride 2        7.2s    70 tracks, longest 225/225
+
+    The defaults keep the slower, better option. Fragmentation is already the
+    weakest link in this pipeline — a single player currently spans several
+    tracks — so halving the run time by fragmenting further would be optimising
+    the wrong thing. Raise them when a run is too slow to finish, not by
+    default. `track_imgsz` defaults to `imgsz`; lowering it saves about 5%,
+    which is not worth the detections it costs.
     """
+    track_imgsz = track_imgsz or imgsz
     video_path = Path(video_path)
     started = time.perf_counter()
 
@@ -252,8 +280,12 @@ def analyse_match(
     # doubles the model cost. Worth collapsing into one pass once there is real
     # footage to measure the trade-off on.
     report.tracking_attempted = True
-    tracker = PlayerTracker(conf=conf, imgsz=imgsz, device=device)
-    tracks = tracker.run(video_path, start_s=start_s, end_s=end_s, stride=1)
+    player_tracker = PlayerTracker(
+        conf=conf, imgsz=track_imgsz, device=device, tracker=tracker
+    )
+    tracks = player_tracker.run(
+        video_path, start_s=start_s, end_s=end_s, stride=track_stride
+    )
     people_tracks, _ = split_by_label(tracks)
     people_tracks = drop_short_tracks(people_tracks, min_frames=10)
 
