@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=16">
-    <link rel="stylesheet" href="player.css?v=16">
+    <link rel="stylesheet" href="../assets/app.css?v=17">
+    <link rel="stylesheet" href="player.css?v=17">
 </head>
 <body>
 
@@ -91,13 +91,55 @@
 
         <section class="block">
             <h3>Every match</h3>
+            <p class="muted" style="margin:-4px 0 14px">Tap a match to see your part in it.</p>
             <div id="match-list" class="card-list"></div>
+        </section>
+    </section>
+
+    <!-- One match, from this player's point of view. Opened from the list
+         above; everything it shows was written into their own report at
+         publish time, so it needs no extra reads and exposes nothing new. -->
+    <section id="view-match" class="hidden">
+        <button id="btn-back" class="btn small ghost" style="margin:24px 0 0">
+            &lsaquo; All matches
+        </button>
+
+        <header class="match-head">
+            <div class="grow">
+                <div class="eyebrow-mini" id="md-date"></div>
+                <h1 id="md-title">Match</h1>
+                <p class="lede" id="md-line" style="margin-bottom:0"></p>
+            </div>
+            <div class="md-score">
+                <span id="md-score-us">0</span>
+                <span class="md-dash">&ndash;</span>
+                <span id="md-score-them">0</span>
+            </div>
+        </header>
+
+        <section class="block">
+            <h3>Your match</h3>
+            <div id="md-stats" class="stat-grid"></div>
+        </section>
+
+        <!-- The video, and the player's own moments as marks along it. -->
+        <section class="block" id="md-video-block">
+            <h3>Watch your moments</h3>
+            <p class="muted" id="md-video-note" style="margin:-4px 0 14px"></p>
+            <div id="md-video" class="video-frame"></div>
+            <div id="md-scrubber" class="scrubber"></div>
+            <div id="md-moments" class="moment-list"></div>
+        </section>
+
+        <section class="block">
+            <h3>How the team did</h3>
+            <div id="md-team" class="tally-list"></div>
         </section>
     </section>
 </main>
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="player.js?v=16"></script>
+<script type="module" src="player.js?v=17"></script>
 </body>
 </html>

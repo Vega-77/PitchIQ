@@ -100,6 +100,22 @@ service cloud.firestore {
       return v == request.time;
     }
 
+    // A match video link, which the player portal turns into an embedded
+    // player and seeks around. https only: the site is served over HTTPS, so
+    // an http:// link is blocked as mixed content and would look like a broken
+    // page rather than a rejected setting. javascript: and data: are refused
+    // for the obvious reason — this string ends up in an element's src.
+    function validVideo() {
+      return (request.resource.data.get('videoUrl', null) == null
+              || (request.resource.data.videoUrl is string
+                  && request.resource.data.videoUrl.size() <= 500
+                  && request.resource.data.videoUrl.matches('https://.*')))
+        && (request.resource.data.get('videoOffsetS', null) == null
+            || (request.resource.data.videoOffsetS is number
+                && request.resource.data.videoOffsetS >= -3600
+                && request.resource.data.videoOffsetS <= 36000));
+    }
+
     // ------------------------------------------------------------------
     // users — UI hints only. Forging this document achieves nothing.
     // ------------------------------------------------------------------
@@ -257,19 +273,23 @@ service cloud.firestore {
         allow create: if isTagger(t)
           && request.resource.data.keys().hasOnly(
                ['opponentName', 'date', 'status', 'finalized',
-                'scoreUs', 'scoreThem', 'createdAt', 'createdBy'])
+                'scoreUs', 'scoreThem', 'videoUrl', 'videoOffsetS',
+                'createdAt', 'createdBy'])
           && request.resource.data.opponentName is string
           && request.resource.data.opponentName.size() <= 80
           && request.resource.data.status in
                ['scheduled', 'first_half', 'halftime', 'second_half', 'full_time']
           && request.resource.data.finalized == false
           && request.resource.data.createdBy == uid()
+          && validVideo()
           && isTimestampNow(request.resource.data.createdAt);
 
         allow update: if isTagger(t)
-          && changed(['opponentName', 'date', 'status', 'finalized', 'scoreUs', 'scoreThem'])
+          && changed(['opponentName', 'date', 'status', 'finalized',
+                      'scoreUs', 'scoreThem', 'videoUrl', 'videoOffsetS'])
           && request.resource.data.status in
-               ['scheduled', 'first_half', 'halftime', 'second_half', 'full_time'];
+               ['scheduled', 'first_half', 'halftime', 'second_half', 'full_time']
+          && validVideo();
 
         allow delete: if isCoach(t);
 

@@ -1,18 +1,19 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=16';
+} from '../assets/auth.js?v=17';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
-    listMatches, getMatch, createMatch, listMatchRoster, listLog,
+    listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
     aggregateMatch, publishReports, seasonSummary, playerSeason, seasonTotals,
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence, mappingConfirmed,
-} from '../assets/db.js?v=16';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=16';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=16';
+} from '../assets/db.js?v=17';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=17';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=17';
+import { videoKind } from '../assets/video.js?v=17';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, figure, cardChips, timelineRow, minutesChart,
-} from '../assets/ui.js?v=16';
+} from '../assets/ui.js?v=17';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -627,6 +628,9 @@ async function openMatch(matchId) {
         renderTimeline(log, roster);
         renderClusterMapping();
 
+        byId('input-video-url').value = match.videoUrl || '';
+        byId('input-video-offset').value = match.videoOffsetS ?? 0;
+
         const publish = byId('btn-publish');
         publish.disabled = false;
         publish.textContent = match.finalized
@@ -998,6 +1002,42 @@ function renderTimeline(log, roster) {
     }
 }
 
+/**
+ * Attach footage to a match, so players can jump to their own moments.
+ *
+ * The offset is the fiddly part and the reason it gets its own field rather
+ * than being assumed zero: the match clock starts at kick-off and a recording
+ * almost never does. Without it every marker lands during the warm-up, which
+ * reads as the whole feature being broken rather than as one number being
+ * unset.
+ */
+async function doSaveVideo() {
+    const button = byId('btn-save-video');
+    const url = byId('input-video-url').value.trim();
+    const offset = Number(byId('input-video-offset').value) || 0;
+
+    if (url && !videoKind(url)) {
+        // Saved anyway — a Drive or Hudl link is still worth giving a player,
+        // it just cannot be embedded and seeked. Say so rather than refusing.
+        toast('Saved, but that link cannot be played inside PitchIQ.');
+    }
+
+    button.disabled = true;
+    try {
+        await updateMatch(state.team.id, state.match.id, {
+            videoUrl: url || null,
+            videoOffsetS: offset,
+        });
+        state.match.videoUrl = url || null;
+        state.match.videoOffsetS = offset;
+        if (!url || videoKind(url)) toast('Video link saved');
+    } catch (err) {
+        toast(err.message || 'Could not save the video link.', true);
+    } finally {
+        button.disabled = false;
+    }
+}
+
 async function doPublish() {
     const button = byId('btn-publish');
     button.disabled = true;
@@ -1009,6 +1049,14 @@ async function doPublish() {
             {
                 us: state.match.stats.counts.us.goal ?? 0,
                 them: state.match.stats.counts.them.goal ?? 0,
+            },
+            // The log and roster go in so each report can carry that player's
+            // own timeline. They are read here and never reach the player —
+            // publishReports turns them into labels first.
+            {
+                log: state.match.log,
+                roster: state.match.roster,
+                counts: state.match.stats.counts,
             },
         );
         toast('Player reports published');
@@ -1075,6 +1123,7 @@ function init() {
     byId('btn-back').addEventListener('click', () => show('view-main'));
     byId('btn-back-roster').addEventListener('click', () => show('view-main'));
     byId('btn-publish').addEventListener('click', doPublish);
+    byId('btn-save-video').addEventListener('click', doSaveVideo);
     byId('input-date').value = new Date().toISOString().slice(0, 10);
 
     onUser((user) => {

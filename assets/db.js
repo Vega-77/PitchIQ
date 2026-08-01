@@ -7,8 +7,13 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=16';
-import { EVENT_TYPES } from './events.js?v=16';
+import { db } from './firebase-init.js?v=17';
+import { EVENT_TYPES } from './events.js?v=17';
+// Kept in its own dependency-free module so the rules about what a player may
+// see can be tested without opening a Firestore connection. See report.js.
+import { playerTimeline } from './report.js?v=17';
+
+export { playerTimeline };
 
 export const PERIOD_STATUS = {
     kickoff_1st: 'first_half',
@@ -454,14 +459,17 @@ export function minutesFrom(stints, matchEndS) {
  * player read only their own row out of the shared match data, so the coach
  * publishes a per-player document instead.
  */
-export async function publishReports(teamId, matchId, match, team, players, score) {
+export async function publishReports(teamId, matchId, match, team, players, score, extra = {}) {
     const batch = writeBatch(db);
+    const log = extra.log || [];
+    const roster = extra.roster || [];
+    const counts = extra.counts || null;
 
     for (const player of players) {
-        const roster = await getDoc(
+        const rosterDoc = await getDoc(
             doc(db, 'teams', teamId, 'players', player.id)
         ).catch(() => null);
-        const linkedUid = roster?.exists() ? roster.data().linkedUid : null;
+        const linkedUid = rosterDoc?.exists() ? rosterDoc.data().linkedUid : null;
 
         batch.set(
             doc(db, 'teams', teamId, 'matches', matchId, 'playerReports', player.id),
@@ -481,6 +489,19 @@ export async function publishReports(teamId, matchId, match, team, players, scor
                 matchDate: match.date || '',
                 opponentName: match.opponentName || '',
                 teamName: team.name || '',
+
+                // Denormalized so a player can see the match they played in.
+                // Their entire read surface is this one document — there is no
+                // rules-only way to give them part of a collection — so
+                // anything they should see has to be copied here at publish
+                // time. See the collection-group note in firestore.rules.
+                scoreUs: score?.us ?? 0,
+                scoreThem: score?.them ?? 0,
+                teamCounts: counts || null,
+                timeline: playerTimeline(log, roster, player.id),
+                matchId,
+                videoUrl: match.videoUrl || null,
+                videoOffsetS: match.videoOffsetS ?? 0,
             }
         );
     }

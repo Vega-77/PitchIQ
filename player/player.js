@@ -9,16 +9,20 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=16';
-import { myReports, seasonTotals } from '../assets/db.js?v=16';
-import { CARD_COLOURS } from '../assets/events.js?v=16';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=16';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=17';
+import { myReports, seasonTotals } from '../assets/db.js?v=17';
+import { CARD_COLOURS } from '../assets/events.js?v=17';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=17';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=17';
 import {
-    byId, setText, toast, showOnly, statCard, figure, cardChips, plural,
-    minutesChart,
-} from '../assets/ui.js?v=16';
+    byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
+    plural, minutesChart, tally,
+} from '../assets/ui.js?v=17';
 
-const VIEWS = ['view-empty', 'view-reports'];
+const VIEWS = ['view-empty', 'view-reports', 'view-match'];
+
+// The match currently open, and its video handle, so a moment can seek it.
+const open = { report: null, video: null };
 
 // A full match, for working out whether someone played most of one.
 const FULL_MATCH_MIN = 80;
@@ -158,8 +162,10 @@ function renderMatches(reports) {
     list.innerHTML = '';
 
     for (const report of reports) {
-        const row = document.createElement('div');
+        const row = document.createElement('button');
+        row.type = 'button';
         row.className = 'list-item match-row';
+        row.addEventListener('click', () => openMatch(report));
         row.innerHTML = `
             <div class="grow">
                 <div class="title"></div>
@@ -187,6 +193,247 @@ function renderMatches(reports) {
         );
 
         list.append(row);
+    }
+}
+
+// ---------------------------------------------------------------- one match
+
+/**
+ * One match, from this player's side of it.
+ *
+ * Everything here was written into their own report when the coach published,
+ * so opening it costs no reads and can expose nothing the season list could
+ * not already. Reports published before this existed have no timeline and no
+ * score; the view degrades to what is there rather than erroring.
+ */
+function openMatch(report) {
+    open.video?.destroy();
+    open.video = null;
+    open.report = report;
+
+    setText('md-date', report.matchDate || '');
+    setText('md-title', `vs ${report.opponentName || '—'}`);
+    setText('md-score-us', report.scoreUs ?? '—');
+    setText('md-score-them', report.scoreThem ?? '—');
+    setText('md-line', matchLine(report));
+
+    renderMatchStats(report);
+    renderVideo(report);
+    renderTeam(report);
+
+    showOnly('view-match', VIEWS);
+    window.scrollTo(0, 0);
+}
+
+/** One sentence about their afternoon, so the page opens by saying something. */
+function matchLine(report) {
+    const bits = [];
+    if (report.goals) bits.push(plural(report.goals, 'goal'));
+    if (report.assists) bits.push(plural(report.assists, 'assist'));
+
+    const minutes = report.minutesPlayed ?? 0;
+    const played = minutes ? `${minutes} minutes` : 'an unused substitute';
+
+    if (report.scoreUs == null) return bits.length ? bits.join(' and ') : played;
+
+    const result = report.scoreUs > report.scoreThem ? 'Won'
+        : report.scoreUs < report.scoreThem ? 'Lost' : 'Drew';
+    return bits.length
+        ? `${result}. You played ${played} and got ${bits.join(' and ')}.`
+        : `${result}. You played ${played}.`;
+}
+
+function renderMatchStats(report) {
+    const grid = byId('md-stats');
+    grid.innerHTML = '';
+    grid.append(
+        statCard(report.minutesPlayed ?? 0, 'Minutes'),
+        statCard(report.goals ?? 0, 'Goals', report.goals ? 'is-good' : 'is-muted'),
+        statCard(report.assists ?? 0, 'Assists', report.assists ? 'is-good' : 'is-muted'),
+        statCard(report.fouls ?? 0, 'Fouls', 'is-muted'),
+    );
+
+    const cards = (report.yellowCards ?? 0) + (report.redCards ?? 0);
+    if (cards) grid.append(statCard(cards, 'Cards', 'is-warn'));
+
+    // Video-derived, and marked as such — same rule as everywhere else.
+    if (report.cvTouches != null) {
+        grid.append(statCard(report.cvTouches, 'Touches', 'is-muted', 'medium'));
+    }
+    if (report.cvDistanceM != null) {
+        grid.append(statCard(
+            (report.cvDistanceM / 1000).toFixed(2), 'km covered', 'is-muted', 'medium',
+        ));
+    }
+}
+
+// ---------------------------------------------------------------- the video
+
+/**
+ * The match video with this player's moments marked along it.
+ *
+ * The marks are the point. A player is not going to scrub a 90-minute video
+ * looking for the twelve seconds they were involved in, so every moment is a
+ * button that seeks straight to it.
+ *
+ * Touches from the CV pipeline slot into the same strip once they exist — they
+ * are the same shape as a tagged moment, a clock reading and a label. Until
+ * then this shows what a human tagged, which is real today.
+ */
+function renderVideo(report) {
+    const block = byId('md-video-block');
+    const moments = (report.timeline || []).filter((e) => e.mine);
+    // Written by cv/publish.py, and only for a player whose cluster a coach
+    // has confirmed — an unconfirmed one would put somebody else's touches on
+    // this player's video.
+    const touches = report.cvTouchTimes || [];
+
+    // Nothing to show at all: no video and nothing to mark on one.
+    if (!report.videoUrl && !moments.length) {
+        block.classList.add('hidden');
+        return;
+    }
+    block.classList.remove('hidden');
+
+    const host = byId('md-video');
+    const offset = report.videoOffsetS ?? 0;
+
+    if (report.videoUrl && videoKind(report.videoUrl)) {
+        open.video = mountVideo(host, report.videoUrl);
+        setText('md-video-note', touches.length
+            ? `${plural(moments.length, 'tagged moment')} and `
+              + `${plural(touches.length, 'touch', 'touches')} found in the video. `
+              + 'Tap any of them to jump there.'
+            : `${plural(moments.length, 'moment')}. Tap one to jump to it.`);
+    } else {
+        host.innerHTML = '';
+        if (report.videoUrl) {
+            // A link we will not embed — a Drive share, say. Still worth giving
+            // them, just not as a player we can seek.
+            const link = document.createElement('a');
+            link.className = 'btn small';
+            link.href = report.videoUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = 'Open the match video';
+            host.append(link);
+        }
+        setText('md-video-note', report.videoUrl
+            ? 'That video link cannot be played inside PitchIQ, so the times below '
+              + 'are match-clock readings.'
+            : 'No video for this match yet — ask your coach to add one. The times '
+              + 'below are match-clock readings.');
+    }
+
+    renderScrubber(report, moments, touches, offset);
+    renderMoments(report, moments, touches, offset);
+}
+
+/** A strip of the match with a tick at each moment, tappable. */
+function renderScrubber(report, moments, touches, offset) {
+    const strip = byId('md-scrubber');
+    strip.innerHTML = '';
+
+    // The match end, so ticks sit in proportion. Falls back to 90 minutes when
+    // nothing later was tagged.
+    const end = Math.max(
+        90 * 60,
+        ...(report.timeline || []).map((e) => e.clockS || 0),
+        ...touches,
+    ) || 5400;
+
+    const tick = (clockS, className, label) => {
+        const mark = document.createElement('button');
+        mark.type = 'button';
+        mark.className = `tick ${className}`;
+        mark.style.left = `${Math.min(100, (clockS / end) * 100)}%`;
+        mark.title = `${clockText(clockS)} — ${label}`;
+        mark.setAttribute('aria-label', mark.title);
+        mark.addEventListener('click', () => seekTo(clockS, offset));
+        strip.append(mark);
+    };
+
+    for (const t of touches) tick(t, 'is-touch', 'Touch');
+    for (const m of moments) tick(m.clockS, `is-${m.type}`, m.label);
+
+    const half = document.createElement('span');
+    half.className = 'tick-half';
+    half.style.left = `${Math.min(100, ((45 * 60) / end) * 100)}%`;
+    strip.append(half);
+}
+
+function renderMoments(report, moments, touches, offset) {
+    const list = byId('md-moments');
+    list.innerHTML = '';
+
+    if (!moments.length && !touches.length) {
+        list.innerHTML =
+            '<div class="empty">Nothing was tagged for you in this match.</div>';
+        return;
+    }
+
+    const rows = [
+        ...moments.map((m) => ({ clockS: m.clockS, label: m.label, type: m.type })),
+        ...touches.map((t) => ({ clockS: t, label: 'Touch', type: 'touch' })),
+    ].sort((a, b) => a.clockS - b.clockS);
+
+    for (const row of rows) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `moment is-${row.type}`;
+        button.innerHTML = '<span class="m-clock"></span><span class="m-label"></span>';
+        button.querySelector('.m-clock').textContent = clockText(row.clockS);
+        button.querySelector('.m-label').textContent = row.label;
+        button.addEventListener('click', () => seekTo(row.clockS, offset));
+        list.append(button);
+    }
+}
+
+function seekTo(clockS, offset) {
+    if (!open.video) {
+        toast('No playable video for this match yet.');
+        return;
+    }
+    open.video.seek(videoTime(clockS, offset));
+    byId('md-video').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ---------------------------------------------------------------- the team
+
+/**
+ * How the team did, without naming anyone.
+ *
+ * Goalscorers appear on the timeline above because they are announced out loud
+ * at the match anyway. Everything else about a teammate — minutes, fouls, and
+ * above all cards — stays with the coach.
+ */
+function renderTeam(report) {
+    const list = byId('md-team');
+    list.innerHTML = '';
+
+    const counts = report.teamCounts;
+    if (!counts) {
+        list.innerHTML =
+            '<div class="empty">Team numbers were not saved for this match.</div>';
+        return;
+    }
+
+    const rows = [
+        ['Goals', counts.us.goal, counts.them.goal, 'high'],
+        ['Corners', counts.us.corner, counts.them.corner, 'high'],
+        ['Free kicks won', counts.us.free_kick, counts.them.free_kick, 'high'],
+        ['Fouls committed', counts.us.foul, counts.them.foul, 'low'],
+        ['Offside', counts.us.offside, counts.them.offside, 'low'],
+        ['Cards', counts.us.card, counts.them.card, 'low'],
+    ];
+
+    for (const [label, us, them, better] of rows) {
+        if (!us && !them) continue;
+        list.append(tally(label, us ?? 0, them ?? 0, better));
+    }
+
+    if (!list.children.length) {
+        list.innerHTML = '<div class="empty">Nothing beyond the restarts was tagged.</div>';
     }
 }
 
@@ -222,6 +469,14 @@ function init() {
 
     byId('btn-signout').addEventListener('click', () =>
         signOut().then(() => { location.href = '../'; }));
+
+    byId('btn-back').addEventListener('click', () => {
+        // Tear the player down on the way out, or a YouTube iframe keeps
+        // playing behind the season list.
+        open.video?.destroy();
+        open.video = null;
+        showOnly('view-reports', VIEWS);
+    });
 
     onUser((user) => {
         if (!user) { location.href = '../'; return; }

@@ -458,6 +458,56 @@ describe('player data isolation', () => {
 });
 
 // ---------------------------------------------------------------------------
+// match video
+// ---------------------------------------------------------------------------
+
+describe('match video link', () => {
+  const match = () => doc(as(COACH), 'teams', TEAM, 'matches', MATCH);
+
+  it('a coach can attach a video and an offset', async () => {
+    await assertSucceeds(updateDoc(match(), {
+      videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      videoOffsetS: 120,
+    }));
+  });
+
+  it('clearing the link is allowed', async () => {
+    await assertSucceeds(updateDoc(match(), { videoUrl: null, videoOffsetS: 0 }));
+  });
+
+  it('rejects a non-https link', async () => {
+    // The site is served over HTTPS, so an http:// video is blocked as mixed
+    // content — it would look like a broken page rather than a bad setting.
+    await assertFails(updateDoc(match(), {
+      videoUrl: 'http://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    }));
+  });
+
+  it('rejects a javascript: link', async () => {
+    // This string ends up in an element's src attribute.
+    await assertFails(updateDoc(match(), { videoUrl: 'javascript:alert(1)' }));
+  });
+
+  it('rejects an absurd offset', async () => {
+    await assertFails(updateDoc(match(), { videoOffsetS: 999999 }));
+    await assertFails(updateDoc(match(), { videoOffsetS: 'soon' }));
+  });
+
+  it('rejects an over-long link', async () => {
+    await assertFails(updateDoc(match(), {
+      videoUrl: `https://example.com/${'x'.repeat(600)}.mp4`,
+    }));
+  });
+
+  it('a player cannot attach a video', async () => {
+    await assertFails(updateDoc(
+      doc(as(PLAYER), 'teams', TEAM, 'matches', MATCH),
+      { videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
+    ));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // cvStats — what the video pipeline derived
 // ---------------------------------------------------------------------------
 

@@ -845,6 +845,114 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
     margin-top: -6px;
 }
 
+/* ---------------------------------------------------------- match video */
+
+/* 16:9 without the padding-top trick, and capped so a monitor does not turn
+   the video into the entire page. */
+.video-frame {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    max-height: 62vh;
+    background: #000;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.video-frame:empty { display: none; }
+.match-video { width: 100%; height: 100%; border: 0; display: block; }
+
+/* The match as a strip, with a tick wherever this player did something. The
+   whole point is not scrubbing 90 minutes to find twelve seconds. */
+.scrubber {
+    position: relative;
+    height: 34px;
+    margin: 16px 0 8px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+}
+.scrubber:empty { display: none; }
+
+.tick {
+    position: absolute;
+    top: 50%;
+    width: 10px;
+    height: 18px;
+    margin-left: -5px;
+    padding: 0;
+    transform: translateY(-50%);
+    border: 0;
+    border-radius: 3px;
+    background: var(--text-faint);
+    cursor: pointer;
+    transition: transform .12s ease, background .12s ease;
+}
+.tick:hover, .tick:focus-visible { transform: translateY(-50%) scaleY(1.35); }
+.tick.is-goal { background: var(--good); }
+.tick.is-card { background: var(--card-yellow); }
+.tick.is-sub { background: var(--accent); }
+/* Touches are the many; they sit thinner so a goal still reads at a glance. */
+.tick.is-touch { width: 3px; margin-left: -1.5px; height: 11px; background: var(--line-hi); }
+
+.tick-half {
+    position: absolute;
+    top: 6px; bottom: 6px;
+    width: 1px;
+    background: var(--line-hi);
+    pointer-events: none;
+}
+
+.moment-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+
+.moment {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 11px 14px;
+    text-align: left;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--text-dim);
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: background .12s ease, border-color .12s ease;
+}
+.moment:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+.moment .m-clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--text-faint);
+    min-width: 52px;
+}
+.moment.is-goal { border-left: 3px solid var(--good); }
+.moment.is-goal .m-label { color: var(--text); font-weight: 600; }
+.moment.is-card { border-left: 3px solid var(--card-yellow); }
+.moment.is-touch .m-label { color: var(--text-faint); }
+
+/* The header of a single match, score pulled out to the right. */
+.match-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    margin: 28px 0 8px;
+    flex-wrap: wrap;
+}
+.md-score {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 2.4rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -1px;
+}
+.md-score .md-dash { color: var(--text-faint); font-weight: 400; }
+
 /* ------------------------------------------------------- estimated figures */
 
 /* Three pips saying "a machine worked this out, and this well". Deliberately

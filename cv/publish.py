@@ -52,6 +52,11 @@ IDENTITY_DOC = 'identity'
 # another, and so removing them later is a single filter.
 CV_FIELD_PREFIX = 'cv'
 
+# Touch timestamps written per player report. A full match is thousands, and
+# both the document size limit and the readability of a timeline strip run out
+# well before that.
+MAX_TOUCH_TIMES = 400
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -174,6 +179,11 @@ def player_report_fields(track_stats: dict) -> dict:
         f'{CV_FIELD_PREFIX}TopSpeedKmh': track_stats.get('top_speed_kmh'),
         f'{CV_FIELD_PREFIX}SprintCount': track_stats.get('sprint_count'),
         f'{CV_FIELD_PREFIX}MinutesTracked': track_stats.get('minutes_tracked'),
+        # Every touch, in seconds, so the player portal can mark them on the
+        # match video. Capped because a full match of touches is thousands of
+        # numbers and a Firestore document stops at a megabyte — and a strip
+        # with two thousand ticks on it is unreadable anyway.
+        f'{CV_FIELD_PREFIX}TouchTimes': (track_stats.get('touch_times_s') or [])[:MAX_TOUCH_TIMES],
     }
 
 

@@ -167,6 +167,12 @@ class TrackStats:
     interceptions: int = 0
     recoveries: int = 0
 
+    # When each touch happened, in seconds. Carried per cluster rather than
+    # only as a count so the player portal can put a mark on the match video
+    # at every one of them — the difference between "you had 41 touches" and
+    # being able to watch them.
+    touch_times_s: list[float] = field(default_factory=list)
+
     heatmap: list[list[float]] | None = None
 
     @property
@@ -199,6 +205,7 @@ class TrackStats:
             'tackles': _num(self.tackles),
             'interceptions': _num(self.interceptions),
             'recoveries': _num(self.recoveries),
+            'touch_times_s': [_round(t, 2) for t in self.touch_times_s],
             'heatmap': self.heatmap,
         }
 
@@ -302,7 +309,12 @@ def track_stats(
                     stats.recoveries += 1
 
             if log.touches:
-                stats.touches += len(log.touches.by_track(track_id))
+                found = log.touches.by_track(track_id)
+                stats.touches += len(found)
+                stats.touch_times_s.extend(t.timestamp_s for t in found)
+
+        # A cluster is several tracks, so its touches arrive out of order.
+        stats.touch_times_s.sort()
 
         if calibrated:
             shots = [s for s in log.shots() if s.track_id in cluster.track_ids]

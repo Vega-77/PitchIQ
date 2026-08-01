@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=16">
-    <link rel="stylesheet" href="coach.css?v=16">
+    <link rel="stylesheet" href="../assets/app.css?v=17">
+    <link rel="stylesheet" href="coach.css?v=17">
 </head>
 <body>
 
@@ -358,10 +358,37 @@
         </section>
 
         <section class="block">
+            <h3>Match video</h3>
+            <div class="card">
+                <p class="muted" style="margin:0 0 16px">
+                    Paste a link to the footage and each player can jump straight to
+                    their own moments. An unlisted YouTube upload works best — a full
+                    match is several gigabytes and YouTube hosts it for free.
+                </p>
+                <label class="field">
+                    <span>Video link</span>
+                    <input id="input-video-url" type="url" inputmode="url"
+                           placeholder="https://youtube.com/watch?v=...">
+                </label>
+                <label class="field">
+                    <span>Seconds into the video that kick-off happens</span>
+                    <input id="input-video-offset" type="number" step="1" value="0"
+                           placeholder="0">
+                </label>
+                <p class="muted" style="margin:-4px 0 16px; font-size:0.8rem">
+                    If you started recording two minutes before kick-off, put 120.
+                    Get this wrong and every moment lands in the warm-up.
+                </p>
+                <button id="btn-save-video" class="btn">Save video link</button>
+            </div>
+        </section>
+
+        <section class="block">
             <h3>Publish</h3>
             <div class="card">
                 <p class="muted" style="margin:0 0 16px">
-                    Publishing gives every rostered player their own private report.
+                    Publishing gives every rostered player their own private report —
+                    their stats, their moments on the video, and how the team did.
                     Players who haven't signed in yet will see theirs once they do.
                 </p>
                 <button id="btn-publish" class="btn primary">Publish player reports</button>
@@ -372,6 +399,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=16"></script>
+<script type="module" src="coach.js?v=17"></script>
 </body>
 </html>
