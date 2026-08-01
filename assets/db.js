@@ -7,8 +7,8 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=14';
-import { EVENT_TYPES } from './events.js?v=14';
+import { db } from './firebase-init.js?v=16';
+import { EVENT_TYPES } from './events.js?v=16';
 
 export const PERIOD_STATUS = {
     kickoff_1st: 'first_half',
@@ -553,10 +553,100 @@ export function seasonTotals(reports) {
         yellowCards: acc.yellowCards + (r.yellowCards || 0),
         redCards: acc.redCards + (r.redCards || 0),
         fouls: acc.fouls + (r.fouls || 0),
+
+        // Video-derived, and only present on matches that were filmed and
+        // published. `cvMatches` counts those separately, because averaging
+        // touches over a whole season would divide by matches nobody filmed.
+        cvMatches: acc.cvMatches + (r.cvTouches == null ? 0 : 1),
+        cvTouches: acc.cvTouches + (r.cvTouches || 0),
+        cvPassesAttempted: acc.cvPassesAttempted + (r.cvPassesAttempted || 0),
+        cvPassesCompleted: acc.cvPassesCompleted + (r.cvPassesCompleted || 0),
+        cvCarries: acc.cvCarries + (r.cvCarries || 0),
+        cvTackles: acc.cvTackles + (r.cvTackles || 0),
+        cvInterceptions: acc.cvInterceptions + (r.cvInterceptions || 0),
+        cvRecoveries: acc.cvRecoveries + (r.cvRecoveries || 0),
+        cvShots: acc.cvShots + (r.cvShots || 0),
+        cvXg: acc.cvXg + (r.cvXg || 0),
+        cvDistanceM: acc.cvDistanceM + (r.cvDistanceM || 0),
+        cvTopSpeedKmh: Math.max(acc.cvTopSpeedKmh, r.cvTopSpeedKmh || 0),
+        cvSprintCount: acc.cvSprintCount + (r.cvSprintCount || 0),
     }), {
         matches: 0, minutes: 0, goals: 0, assists: 0,
         yellowCards: 0, redCards: 0, fouls: 0,
+        cvMatches: 0, cvTouches: 0, cvPassesAttempted: 0, cvPassesCompleted: 0,
+        cvCarries: 0, cvTackles: 0, cvInterceptions: 0, cvRecoveries: 0,
+        cvShots: 0, cvXg: 0, cvDistanceM: 0, cvTopSpeedKmh: 0, cvSprintCount: 0,
     });
+}
+
+// ---------------------------------------------------------------- CV stats
+
+/**
+ * What the video pipeline derived for a match, or null if it was never run.
+ *
+ * These documents are written by cv/publish.py through the Admin SDK; the
+ * security rules make them read-only to every client, so what comes back here
+ * genuinely came from the pipeline rather than from somebody's browser.
+ */
+export async function readCvStats(teamId, matchId) {
+    const base = ['teams', teamId, 'matches', matchId, 'cvStats'];
+    const [summary, identity] = await Promise.all([
+        getDoc(doc(db, ...base, 'summary')),
+        getDoc(doc(db, ...base, 'identity')),
+    ]);
+    if (!summary.exists()) return null;
+    return {
+        ...summary.data(),
+        identity: identity.exists() ? identity.data() : null,
+    };
+}
+
+/**
+ * How much to trust a video-derived figure: 'high', 'medium' or 'low'.
+ *
+ * Three bands rather than a number, because the uncertainty here is not
+ * calibrated well enough to justify one. What each band means is "how much of
+ * the thing this stat is built from did we actually see":
+ *
+ *   - possession and touch counts rest on finding the ball, so they are graded
+ *     on ball coverage and on how often a clear holder was identifiable;
+ *   - passes, tackles and the rest rest on the touch detector, so they are
+ *     graded on its confidence spread;
+ *   - anything per-player additionally rests on fragmented tracks having been
+ *     merged and confirmed, which caps it at 'low' until a human has done that.
+ *
+ * The floors match the pipeline's own: 25% clear-holder is where cv/pipeline.py
+ * stops believing possession at all.
+ */
+export function cvConfidence(quality = {}, kind = 'team', mappingConfirmed = false) {
+    if (!quality) return 'low';
+
+    // The share of frames the ball was actually *seen* in, never the share it
+    // has a position for. Positions between sightings are a straight line
+    // drawn through a gap, and grading on those would let a run that barely
+    // saw the ball score as well as one that watched it throughout.
+    const coverage = quality.ball_seen_share ?? quality.ballSeenShare ?? 0;
+    const holder = quality.clear_holder_share ?? quality.clearHolderShare ?? 0;
+    const touchP50 = quality.touch_confidence_p50 ?? quality.touchConfidenceP50 ?? 0;
+
+    if (kind === 'player' && !mappingConfirmed) return 'low';
+
+    if (kind === 'possession') {
+        if (coverage >= 0.75 && holder >= 0.5) return 'high';
+        if (coverage >= 0.5 && holder >= 0.25) return 'medium';
+        return 'low';
+    }
+
+    // Event-derived. The touch detector is the floor under all of it.
+    if (coverage >= 0.75 && touchP50 >= 0.6) return 'high';
+    if (coverage >= 0.5 && touchP50 >= 0.4) return 'medium';
+    return 'low';
+}
+
+/** Whether a coach has confirmed which cluster is which player. */
+export function mappingConfirmed(cvStats) {
+    const mapping = cvStats?.identity?.playerByCluster;
+    return Boolean(mapping && Object.keys(mapping).length);
 }
 
 /** The player portal's single query. Must filter on linkedUid to be permitted. */

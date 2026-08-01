@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=14">
-    <link rel="stylesheet" href="coach.css?v=14">
+    <link rel="stylesheet" href="../assets/app.css?v=16">
+    <link rel="stylesheet" href="coach.css?v=16">
 </head>
 <body>
 
@@ -332,11 +332,24 @@
                             <th class="num">Assists</th>
                             <th class="num">Fouls</th>
                             <th>Cards</th>
+                            <!-- Estimated from video. Separated from the tagged
+                                 columns above so the two are never read as one
+                                 kind of number. -->
+                            <th class="num cv cv-first" title="Estimated from video">Touches</th>
+                            <th class="num cv" title="Estimated from video">Passes</th>
+                            <th class="num cv" title="Estimated from video">Tackles</th>
+                            <th class="num cv" title="Estimated from video">km</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
                 </table>
             </div>
+        </section>
+
+        <section class="block hidden" id="cv-clusters-block">
+            <h3>Who the video tracked</h3>
+            <p class="muted" id="cv-clusters-note"></p>
+            <div id="cv-clusters" class="list"></div>
         </section>
 
         <section class="block">
@@ -359,6 +372,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=14"></script>
+<script type="module" src="coach.js?v=16"></script>
 </body>
 </html>

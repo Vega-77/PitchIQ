@@ -10,14 +10,16 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=14';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=16';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
-} from '../assets/db.js?v=14';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=14';
+    readCvStats, cvConfidence,
+} from '../assets/db.js?v=16';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=16';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
-} from '../assets/ui.js?v=14';
+    tally,
+} from '../assets/ui.js?v=16';
 
 const VIEWS = ['view-error', 'view-report'];
 
@@ -29,7 +31,9 @@ const params = new URLSearchParams(location.search);
 const teamId = params.get('team');
 const matchId = params.get('match');
 
-const state = { team: null, match: null, log: [], roster: [], stats: null };
+const state = {
+    team: null, match: null, log: [], roster: [], stats: null, cv: null,
+};
 
 function fail(message) {
     setText('error-msg', message);
@@ -164,6 +168,12 @@ function renderTallies() {
         list.append(tally(label, ours, theirs, better));
     }
 
+    // Video-derived rows sit in the same list, each carrying a confidence mark.
+    // Same list because a coach wants one picture of the half; marked because
+    // an estimated pass count and a tapped corner count are not the same kind
+    // of fact, and nothing else on the row would say so.
+    list.append(...cvTallies());
+
     if (!list.children.length) {
         list.innerHTML = '<div class="empty">Nothing tagged yet beyond the restarts.</div>';
     }
@@ -172,41 +182,42 @@ function renderTallies() {
         + Object.values(them).reduce((a, b) => a + b, 0);
     setText('numbers-note',
         `From ${plural(total, 'tagged event')}. Fouls and cards are counted `
-        + 'against whoever committed them.');
+        + 'against whoever committed them.'
+        + (state.cv ? ' Dotted rows were measured from the video.' : ''));
 }
 
-/**
- * One paired row. The bar is proportional so the gap is visible before the
- * numbers are read — at a glance, from arm's length.
- */
-function tally(label, ours = 0, theirs = 0, better = 'high') {
-    const row = document.createElement('div');
-    row.className = 'tally';
-    row.innerHTML = `
-        <span class="t-us num"></span>
-        <div class="t-bar"><div class="t-fill us"></div><div class="t-fill them"></div></div>
-        <span class="t-them num"></span>
-        <div class="t-label"></div>`;
+/** The rows that came from footage rather than from somebody's thumb. */
+function cvTallies() {
+    if (!state.cv) return [];
 
-    row.querySelector('.t-us').textContent = ours;
-    row.querySelector('.t-them').textContent = theirs;
-    row.querySelector('.t-label').textContent = label;
+    const ours = state.cv.teams?.team_a;
+    const theirs = state.cv.teams?.team_b;
+    if (!ours || !theirs) return [];
 
-    const total = ours + theirs;
-    const share = total ? (ours / total) * 100 : 50;
-    row.querySelector('.t-fill.us').style.width = `${share}%`;
-    row.querySelector('.t-fill.them').style.width = `${100 - share}%`;
+    const quality = state.cv.quality || {};
+    const events = cvConfidence(quality, 'events');
+    const possession = cvConfidence(quality, 'possession');
 
-    // Colour the side that is ahead on a count where being ahead is good, and
-    // the side that is ahead on a count where it is not.
-    if (total && ours !== theirs) {
-        const weLead = ours > theirs;
-        const goodForUs = better === 'high' ? weLead : !weLead;
-        row.classList.add(goodForUs ? 'ours-good' : 'ours-bad');
-    }
+    const rows = [
+        ['Possession %', pct(ours.possession_pct), pct(theirs.possession_pct),
+            'high', possession],
+        ['Passes completed', ours.passes_completed, theirs.passes_completed,
+            'high', events],
+        ['Tackles', ours.tackles, theirs.tackles, 'high', events],
+        ['Interceptions', ours.interceptions, theirs.interceptions, 'high', events],
+        ['Recoveries', ours.recoveries, theirs.recoveries, 'high', events],
+        ['Shots', ours.shots, theirs.shots, 'high', events],
+    ];
 
-    return row;
+    return rows
+        // A null means the pipeline could not measure it — usually for want of
+        // a calibration. Showing a zero would say it measured none.
+        .filter(([, a, b]) => (a || b) && a != null && b != null)
+        .map(([label, a, b, better, confidence]) =>
+            tally(label, a, b, better, confidence));
 }
+
+const pct = (share) => (share == null ? null : Math.round(share * 100));
 
 // ---------------------------------------------------------------- minutes
 
@@ -313,10 +324,14 @@ const PERIOD_HEADINGS = {
 };
 
 async function load() {
-    const [match, roster, log] = await Promise.all([
+    const [match, roster, log, cv] = await Promise.all([
         getMatch(teamId, matchId),
         listMatchRoster(teamId, matchId),
         listLog(teamId, matchId),
+        // Never run for most matches, so a failure here must not take the page
+        // down with it — the tagged half-time report is the thing the coach is
+        // standing in a changing room waiting for.
+        readCvStats(teamId, matchId).catch(() => null),
     ]);
 
     if (!match) return fail('That match no longer exists.');
@@ -324,6 +339,7 @@ async function load() {
     state.match = match;
     state.roster = roster;
     state.log = log;
+    state.cv = cv;
     state.stats = aggregateMatch(log, roster);
 
     setText('ht-period', PERIOD_HEADINGS[match.status] || 'So far');

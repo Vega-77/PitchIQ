@@ -9,14 +9,14 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=14';
-import { myReports, seasonTotals } from '../assets/db.js?v=14';
-import { CARD_COLOURS } from '../assets/events.js?v=14';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=14';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=16';
+import { myReports, seasonTotals } from '../assets/db.js?v=16';
+import { CARD_COLOURS } from '../assets/events.js?v=16';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=16';
 import {
     byId, setText, toast, showOnly, statCard, figure, cardChips, plural,
     minutesChart,
-} from '../assets/ui.js?v=14';
+} from '../assets/ui.js?v=16';
 
 const VIEWS = ['view-empty', 'view-reports'];
 
@@ -90,6 +90,50 @@ function renderSeason(reports) {
 
     const full = reports.filter((r) => (r.minutesPlayed || 0) >= FULL_MATCH_MIN).length;
     if (full) grid.append(statCard(full, 'Full matches', 'is-muted'));
+
+    grid.append(...videoCards(totals));
+}
+
+/**
+ * The numbers that come from footage rather than from the coach's tablet.
+ *
+ * Marked, every one of them. A player comparing themselves to a teammate
+ * deserves to know which figures were watched by a person and which were
+ * worked out by a machine from a video where the ball is visible about two
+ * thirds of the time.
+ *
+ * Only shown for filmed matches, and averaged over those rather than over the
+ * season — dividing by matches nobody filmed would quietly halve everything.
+ */
+function videoCards(totals) {
+    if (!totals.cvMatches) return [];
+
+    const cards = [
+        statCard(totals.cvTouches, 'Touches', 'is-muted', 'medium'),
+        statCard(totals.cvTackles, 'Tackles won', 'is-muted', 'medium'),
+    ];
+
+    if (totals.cvPassesAttempted) {
+        const accuracy = Math.round(
+            (totals.cvPassesCompleted / totals.cvPassesAttempted) * 100,
+        );
+        cards.push(statCard(`${accuracy}%`, 'Pass accuracy', 'is-muted', 'medium'));
+    }
+    if (totals.cvDistanceM) {
+        cards.push(statCard(
+            (totals.cvDistanceM / 1000).toFixed(1), 'km covered', 'is-muted', 'medium',
+        ));
+    }
+    if (totals.cvTopSpeedKmh) {
+        cards.push(statCard(
+            totals.cvTopSpeedKmh.toFixed(1), 'Top speed km/h', 'is-muted', 'medium',
+        ));
+    }
+    if (totals.cvSprintCount) {
+        cards.push(statCard(totals.cvSprintCount, 'Sprints', 'is-muted', 'medium'));
+    }
+
+    return cards;
 }
 
 // ---------------------------------------------------------------- the season

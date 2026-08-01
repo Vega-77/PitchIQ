@@ -141,46 +141,8 @@
     line-height: 1.45;
 }
 
-/* ---------------------------------------------------------------- tallies */
-
-.tally-list { display: flex; flex-direction: column; gap: 14px; }
-
-/* Numbers flank a split bar, so the gap registers before either figure is
-   actually read. */
-.tally {
-    display: grid;
-    grid-template-columns: 2.2rem 1fr 2.2rem;
-    align-items: center;
-    gap: 10px;
-}
-
-.tally .num {
-    font-size: 1.15rem;
-    font-weight: 750;
-    font-variant-numeric: tabular-nums;
-    color: var(--text-dim);
-}
-.tally .t-us { text-align: right; }
-.tally .t-them { text-align: left; }
-
-.tally.ours-good .t-us { color: var(--good); }
-.tally.ours-bad .t-them { color: var(--good); }
-
-.t-bar { display: flex; gap: 3px; height: 9px; }
-.t-fill { border-radius: 3px; min-width: 3px; transition: width .2s ease; }
-.t-fill.us { background: var(--accent); }
-.t-fill.them { background: var(--line-hi); }
-
-.t-label {
-    grid-column: 1 / -1;
-    text-align: center;
-    font-size: 0.7rem;
-    font-weight: 650;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-faint);
-    margin-top: -6px;
-}
+/* Tally rows moved to assets/app.css when the coach's match view started
+   using them too. */
 
 /* ---------------------------------------------------------------- minutes */
 

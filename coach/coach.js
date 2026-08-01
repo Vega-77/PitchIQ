@@ -1,18 +1,18 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=14';
+} from '../assets/auth.js?v=16';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, listMatchRoster, listLog,
     aggregateMatch, publishReports, seasonSummary, playerSeason, seasonTotals,
-    listStaff, inviteCoach, removeCoach,
-} from '../assets/db.js?v=14';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=14';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=14';
+    listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence, mappingConfirmed,
+} from '../assets/db.js?v=16';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=16';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=16';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, figure, cardChips, timelineRow, minutesChart,
-} from '../assets/ui.js?v=14';
+} from '../assets/ui.js?v=16';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -429,6 +429,8 @@ async function openPlayer(player) {
             stats.append(statCard(per90, 'G+A per 90', 'is-muted'));
         }
 
+        stats.append(...cvSeasonCards(totals));
+
         renderPlayerChart(reports);
         renderPlayerMatches(reports);
         show('view-player');
@@ -583,14 +585,22 @@ async function openMatch(matchId) {
     byId('loading').classList.remove('hidden');
 
     try {
-        const [match, roster, log] = await Promise.all([
+        const [match, roster, log, cv] = await Promise.all([
             getMatch(state.team.id, matchId),
             listMatchRoster(state.team.id, matchId),
             listLog(state.team.id, matchId),
+            // Absent for any match nobody filmed, which is most of them, so a
+            // failure here must not take the tagged report down with it.
+            readCvStats(state.team.id, matchId).catch(() => null),
         ]);
 
         const stats = aggregateMatch(log, roster);
-        state.match = { ...match, stats, log, roster };
+        state.match = { ...match, stats, log, roster, cv };
+
+        // Merge the video's per-player figures onto the tagged ones, so the
+        // table can be one table. Only where a coach has confirmed which
+        // cluster is which player — otherwise these are guesses with names on.
+        if (cv && mappingConfirmed(cv)) mergeCvPlayers(stats.players, cv);
 
         setText('match-title', `vs ${match.opponentName || '—'}`);
         setText('match-sub',
@@ -605,8 +615,17 @@ async function openMatch(matchId) {
             + `&match=${encodeURIComponent(matchId)}`;
 
         renderTeamStats(stats);
+
+        // Rebuilt rather than appended: openMatch runs again every time a coach
+        // goes back and picks another match, and a stacking banner is the
+        // classic way that goes unnoticed.
+        document.querySelector('.cv-note')?.remove();
+        const note = cvNote();
+        if (note) byId('team-stats').before(note);
+
         renderPlayerTable(stats.players);
         renderTimeline(log, roster);
+        renderClusterMapping();
 
         const publish = byId('btn-publish');
         publish.disabled = false;
@@ -644,15 +663,90 @@ function renderTeamStats(stats) {
     ];
 
     for (const [value, label, tone] of rows) grid.append(statCard(value, label, tone));
+
+    // Video-derived figures join the same grid, each marked. Same grid because
+    // a coach wants one picture of the match; marked because "17 tackles" read
+    // off footage and "2 goals" somebody tapped are different kinds of claim.
+    for (const [value, label, confidence] of cvTeamRows()) {
+        grid.append(statCard(value, label, 'is-muted', confidence));
+    }
+}
+
+/** Team figures the pipeline derived, as [value, label, confidence] rows. */
+function cvTeamRows() {
+    const cv = state.match?.cv;
+    const ours = cv?.teams?.team_a;
+    if (!ours) return [];
+
+    const quality = cv.quality || {};
+    const events = cvConfidence(quality, 'events');
+    const possession = cvConfidence(quality, 'possession');
+
+    const rows = [
+        [ours.possession_pct == null ? null : `${Math.round(ours.possession_pct * 100)}%`,
+            'Possession', possession],
+        [ours.passes_attempted, 'Passes attempted', events],
+        [ours.pass_accuracy == null ? null : `${Math.round(ours.pass_accuracy * 100)}%`,
+            'Pass accuracy', events],
+        [ours.progressive_passes, 'Progressive passes', events],
+        [ours.final_third_entries, 'Final-third entries', events],
+        [ours.box_entries, 'Entries into the box', events],
+        [ours.crosses, 'Crosses', events],
+        [ours.switches, 'Switches of play', events],
+        [ours.shots, 'Shots', events],
+        [ours.shots_on_target, 'Shots on target', events],
+        [ours.xg == null ? null : ours.xg.toFixed(2), 'Expected goals', events],
+        [ours.tackles, 'Tackles', events],
+        [ours.interceptions, 'Interceptions', events],
+        [ours.recoveries, 'Recoveries', events],
+        [ours.duels, 'Ground duels', events],
+        [ours.ppda == null ? null : ours.ppda.toFixed(1), 'PPDA', events],
+    ];
+
+    // A null is "not measured", usually for want of a calibration. Printing a
+    // zero instead would claim the pipeline looked and found none.
+    return rows.filter(([value]) => value != null);
+}
+
+/** The banner over the estimated section, naming what limited it. */
+function cvNote() {
+    const cv = state.match?.cv;
+    if (!cv) return null;
+
+    const quality = cv.quality || {};
+    const note = document.createElement('div');
+    note.className = 'cv-note';
+
+    // Seen, not "has a position for" — the rest were drawn in between
+    // sightings, and saying a straight line was "visible" would overstate what
+    // the video actually showed.
+    const coverage = quality.ball_seen_share;
+    const bits = [];
+    if (coverage != null) bits.push(`the ball was visible in ${Math.round(coverage * 100)}% of frames`);
+    if (!cv.calibrated) bits.push('no pitch calibration, so nothing is in metres');
+    if (quality.tracks_per_cluster > 2) {
+        bits.push(`tracking broke each player into about ${Math.round(quality.tracks_per_cluster)} pieces`);
+    }
+
+    note.innerHTML = '<span></span>';
+    note.querySelector('span').textContent = bits.length
+        ? `Measured from video: ${bits.join('; ')}. Treat these as estimates.`
+        : 'Measured from video. Treat these as estimates.';
+
+    const strong = document.createElement('strong');
+    strong.textContent = 'Estimated ';
+    note.prepend(strong);
+    return note;
 }
 
 function renderPlayerTable(players) {
     const body = byId('player-table').querySelector('tbody');
     body.innerHTML = '';
 
+    const columns = byId('player-table').querySelectorAll('thead th').length;
     if (!players.length) {
         body.innerHTML =
-            '<tr><td colspan="7" class="muted">No lineup was set for this match.</td></tr>';
+            `<tr><td colspan="${columns}" class="muted">No lineup was set for this match.</td></tr>`;
         return;
     }
 
@@ -667,21 +761,27 @@ function renderPlayerTable(players) {
 
 function playerTableRow(player) {
     const tr = document.createElement('tr');
+
+    // Tagged columns first, then the video ones, so the trustworthy numbers are
+    // the ones a coach reads without scrolling sideways on a phone.
+    const tagged = [player.minutesPlayed, player.goals, player.assists, player.fouls];
+    const derived = [
+        player.cvTouches, player.cvPassesCompleted, player.cvTackles,
+        player.cvDistanceM == null ? null : (player.cvDistanceM / 1000).toFixed(2),
+    ];
+
     tr.innerHTML = `
         <td class="num"></td>
         <td></td>
-        <td class="num"></td>
-        <td class="num"></td>
-        <td class="num"></td>
-        <td class="num"></td>
-        <td><span class="cards-cell"></span></td>`;
+        ${'<td class="num"></td>'.repeat(tagged.length)}
+        <td><span class="cards-cell"></span></td>
+        ${'<td class="num cv"></td>'.repeat(derived.length)}`;
 
     const cells = tr.querySelectorAll('td');
     cells[0].textContent = player.jerseyNumber ?? '—';
     cells[1].textContent = player.playerName;
 
-    const numbers = [player.minutesPlayed, player.goals, player.assists, player.fouls];
-    numbers.forEach((value, i) => {
+    tagged.forEach((value, i) => {
         const cell = cells[i + 2];
         cell.textContent = value;
         // Zeroes recede so the meaningful numbers carry the eye.
@@ -693,7 +793,174 @@ function playerTableRow(player) {
     if (chips.length) cardsCell.append(...chips);
     else cardsCell.innerHTML = '<span class="none">—</span>';
 
+    const cvCells = tr.querySelectorAll('td.cv');
+    cvCells[0]?.classList.add('cv-first');
+    derived.forEach((value, i) => {
+        const cell = cvCells[i];
+        // An em dash, not a zero: this player's video stats do not exist until
+        // a coach has confirmed which tracked figure on the pitch was them.
+        cell.textContent = value == null ? '—' : value;
+        if (value == null || !Number(value)) cell.classList.add('zero');
+    });
+
     return tr;
+}
+
+/**
+ * Season cards from video, shown only for the matches that were actually
+ * filmed.
+ *
+ * `cvMatches` rather than `matches` is the divisor throughout: averaging
+ * touches over a whole season would divide by matches nobody pointed a camera
+ * at, and quietly halve every figure.
+ */
+function cvSeasonCards(totals) {
+    if (!totals.cvMatches) return [];
+
+    const cards = [
+        statCard(totals.cvMatches, 'Matches filmed', 'is-muted'),
+        statCard(totals.cvTouches, 'Touches', 'is-muted', 'medium'),
+        statCard(totals.cvTackles, 'Tackles', 'is-muted', 'medium'),
+        statCard(totals.cvInterceptions, 'Interceptions', 'is-muted', 'medium'),
+    ];
+
+    if (totals.cvPassesAttempted) {
+        const accuracy = Math.round(
+            (totals.cvPassesCompleted / totals.cvPassesAttempted) * 100,
+        );
+        cards.push(statCard(`${accuracy}%`, 'Pass accuracy', 'is-muted', 'medium'));
+    }
+    if (totals.cvDistanceM) {
+        cards.push(statCard(
+            (totals.cvDistanceM / 1000).toFixed(1), 'km covered', 'is-muted', 'medium',
+        ));
+    }
+    if (totals.cvTopSpeedKmh) {
+        cards.push(statCard(
+            totals.cvTopSpeedKmh.toFixed(1), 'Top speed km/h', 'is-muted', 'medium',
+        ));
+    }
+
+    return cards;
+}
+
+// ---------------------------------------------------------------- who is who
+
+/**
+ * Put names to the figures the video tracked.
+ *
+ * The tracker cannot tell one player from another — it loses people behind
+ * opponents and when the camera pans, and gives each reappearance a new
+ * identity. cv/identity.py stitches those fragments into clusters, but which
+ * cluster is which teenager is not something footage at this distance can
+ * answer: shirt numbers are a few pixels tall.
+ *
+ * So this is the step that turns tracked motion into a player's stats, and
+ * nothing per-player is written until it is done. Read-only here: confirming a
+ * mapping writes to cvStats, which every client is denied — the coach's choices
+ * go back through cv/publish.py. What this view does is make the mapping
+ * possible to work out.
+ */
+function renderClusterMapping() {
+    const host = byId('cv-clusters');
+    if (!host) return;
+
+    const cv = state.match?.cv;
+    const clusters = cv?.identity?.clusters || [];
+    const section = byId('cv-clusters-block');
+
+    if (!clusters.length) {
+        if (section) section.classList.add('hidden');
+        return;
+    }
+    if (section) section.classList.remove('hidden');
+
+    const mapping = cv.identity?.playerByCluster || {};
+    const nameById = new Map(state.match.roster.map((r) => [r.id, r.playerName]));
+
+    host.innerHTML = '';
+    setText('cv-clusters-note', mappingConfirmed(cv)
+        ? `${Object.keys(mapping).length} of ${clusters.length} tracked figures `
+          + 'have been matched to a player.'
+        : `The video tracked ${clusters.length} figures but cannot tell who is `
+          + 'who. Until each is matched to a player, the per-player columns stay '
+          + 'empty — a wrong match would credit one player with another\'s work.');
+
+    for (const cluster of clusters) {
+        const row = document.createElement('div');
+        row.className = 'list-item cluster-row';
+        row.innerHTML = `
+            <span class="cluster-swatch"></span>
+            <div class="grow">
+                <div class="title"></div>
+                <div class="sub"></div>
+            </div>
+            <div class="figures"></div>`;
+
+        const swatch = row.querySelector('.cluster-swatch');
+        if (cluster.colour) swatch.style.background = labToCss(cluster.colour);
+        else swatch.classList.add('unknown');
+
+        const named = mapping[String(cluster.cluster_id)];
+        row.querySelector('.title').textContent = named
+            ? (nameById.get(named) || 'Matched player')
+            : `Figure ${cluster.cluster_id + 1}`;
+
+        row.querySelector('.sub').textContent = [
+            cluster.team === 'unknown' ? 'kit unclear' : cluster.team.replace('_', ' '),
+            plural(cluster.track_ids?.length || 1, 'fragment'),
+            `${Math.round((cluster.minutes_tracked || 0) * 60)}s on screen`,
+        ].join(' · ');
+
+        row.querySelector('.figures').append(
+            figure(cluster.sightings ?? 0, 'frames'),
+        );
+
+        if (!named) row.classList.add('unmatched');
+        host.append(row);
+    }
+}
+
+/**
+ * A Lab colour from the pipeline to something a browser can paint.
+ *
+ * Approximate on purpose: this is a swatch to help a coach recognise a kit at a
+ * glance, not a colour-managed reproduction. Lightness is fixed at mid-grey
+ * because the clustering drops it — two sightings of one shirt in sun and shade
+ * differ in lightness far more than two different kits differ in chroma.
+ */
+function labToCss(lab) {
+    const [, a = 0, b = 0] = lab;
+    const y = 0.6;
+    const r = Math.max(0, Math.min(255, Math.round(255 * (y + a / 128 * 0.5))));
+    const g = Math.max(0, Math.min(255, Math.round(255 * (y - a / 256 - b / 256))));
+    const bl = Math.max(0, Math.min(255, Math.round(255 * (y - b / 128 * 0.5))));
+    return `rgb(${r}, ${g}, ${bl})`;
+}
+
+function mergeCvPlayers(players, cv) {
+    const mapping = cv.identity?.playerByCluster || {};
+    const byCluster = new Map(
+        (cv.identity?.tracks || []).map((t) => [String(t.cluster_id), t]),
+    );
+
+    const byPlayer = new Map();
+    for (const [clusterId, playerId] of Object.entries(mapping)) {
+        const track = byCluster.get(String(clusterId));
+        if (track) byPlayer.set(playerId, track);
+    }
+
+    for (const player of players) {
+        const track = byPlayer.get(player.id);
+        if (!track) continue;
+        player.cvTouches = track.touches;
+        player.cvPassesCompleted = track.passes_completed;
+        player.cvPassesAttempted = track.passes_attempted;
+        player.cvTackles = track.tackles;
+        player.cvInterceptions = track.interceptions;
+        player.cvDistanceM = track.distance_m;
+        player.cvTopSpeedKmh = track.top_speed_kmh;
+    }
 }
 
 function renderTimeline(log, roster) {

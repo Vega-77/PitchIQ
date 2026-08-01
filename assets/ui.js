@@ -74,14 +74,94 @@ export function plural(count, singular, pluralForm = `${singular}s`) {
 /**
  * A headline figure in a bordered box, for the stat grids. `tone` is one of the
  * `.stat` modifiers in app.css: is-good, is-warn, is-muted.
+ *
+ * `confidence` marks a figure the video pipeline estimated rather than one a
+ * human tapped. Numbers from tagging and numbers from footage sit in the same
+ * grids, and a coach has no way to tell them apart otherwise — a pass count
+ * derived from a half-seen ball looks exactly like a goal somebody pressed a
+ * button for.
  */
-export function statCard(value, label, tone = '') {
+export function statCard(value, label, tone = '', confidence = null) {
     const el = document.createElement('div');
     el.className = `stat ${tone}`.trim();
     el.innerHTML = '<div class="value"></div><div class="label"></div>';
     el.querySelector('.value').textContent = value ?? 0;
     el.querySelector('.label').textContent = label;
+    if (confidence) el.append(confidenceMark(confidence));
     return el;
+}
+
+/** Confidence levels, worst first, so a caller can compare them. */
+export const CONFIDENCE_LEVELS = ['low', 'medium', 'high'];
+
+const CONFIDENCE_TEXT = {
+    high: 'Estimated from video. Good coverage — treat as reliable.',
+    medium: 'Estimated from video. Patchy coverage — treat as indicative.',
+    low: 'Estimated from video. Poor coverage — treat as a rough hint only.',
+};
+
+/**
+ * The little bar that says "a machine worked this out".
+ *
+ * Three filled segments rather than a percentage: the underlying uncertainty is
+ * not calibrated well enough to justify a number, and printing "67% confident"
+ * would claim a precision this pipeline does not have.
+ */
+export function confidenceMark(level = 'low', note = '') {
+    const filled = Math.max(1, CONFIDENCE_LEVELS.indexOf(level) + 1);
+    const el = document.createElement('span');
+    el.className = `cv-mark is-${level}`;
+    el.title = note || CONFIDENCE_TEXT[level] || CONFIDENCE_TEXT.low;
+    el.setAttribute('aria-label', el.title);
+    for (let i = 0; i < 3; i += 1) {
+        const pip = document.createElement('i');
+        if (i < filled) pip.className = 'on';
+        el.append(pip);
+    }
+    return el;
+}
+
+/**
+ * One paired us/them row with a proportional bar.
+ *
+ * Shared by the halftime view and the coach's match view. The bar matters more
+ * than the numbers: at arm's length across a changing room, the gap is visible
+ * before either figure is read.
+ *
+ * `better` says which direction is good ('high' or 'low'), so fouls conceded
+ * and corners won can sit in the same list without one of them being coloured
+ * backwards.
+ */
+export function tally(label, ours = 0, theirs = 0, better = 'high', confidence = null) {
+    const row = document.createElement('div');
+    row.className = 'tally';
+    row.innerHTML = `
+        <span class="t-us num"></span>
+        <div class="t-bar"><div class="t-fill us"></div><div class="t-fill them"></div></div>
+        <span class="t-them num"></span>
+        <div class="t-label"></div>`;
+
+    row.querySelector('.t-us').textContent = ours;
+    row.querySelector('.t-them').textContent = theirs;
+
+    const caption = row.querySelector('.t-label');
+    caption.textContent = label;
+    if (confidence) caption.append(confidenceMark(confidence));
+
+    const total = ours + theirs;
+    const share = total ? (ours / total) * 100 : 50;
+    row.querySelector('.t-fill.us').style.width = `${share}%`;
+    row.querySelector('.t-fill.them').style.width = `${100 - share}%`;
+
+    // Colour the side that is ahead on a count where being ahead is good, and
+    // the side that is ahead on a count where it is not.
+    if (total && ours !== theirs) {
+        const weLead = ours > theirs;
+        const goodForUs = better === 'high' ? weLead : !weLead;
+        row.classList.add(goodForUs ? 'ours-good' : 'ours-bad');
+    }
+
+    return row;
 }
 
 /**

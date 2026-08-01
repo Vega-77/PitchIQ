@@ -143,6 +143,11 @@ a:hover { color: var(--accent-hi); }
     justify-content: space-between;
     gap: 16px;
     padding: 15px 24px;
+    /* Pinned rather than left to the contents. Most pages put a .btn.small in
+       here, whose 40px min-height was silently setting the bar's height; the xG
+       sandbox has only text links and came out 11px shorter, so the brand
+       jumped when you navigated to it. */
+    min-height: 70px;
     max-width: var(--shell);
     margin: 0 auto;
     flex-wrap: wrap;
@@ -626,6 +631,42 @@ td.num { font-weight: 600; }
 /* Zeroes recede so the numbers that matter stand out. */
 td.num.zero { color: var(--text-faint); font-weight: 400; }
 
+/* Estimated columns. A left rule where they begin, so the eye registers the
+   boundary between what a person tapped and what a machine worked out —
+   without needing a second table or a second scroll. */
+th.cv, td.cv { color: var(--text-faint); }
+th.cv { font-style: italic; }
+
+/* The divider needs its own class rather than :first-of-type. That pseudo-class
+   counts siblings of the same *element* type, so `td.cv:first-of-type` means
+   "the first td, if it happens to be a cv one" — which is the jersey number,
+   and the rule never fires. */
+th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
+
+/* ------------------------------------------------------ tracked figures */
+
+.cluster-row { align-items: center; gap: 12px; }
+
+/* A swatch of the kit colour the clustering settled on. Approximate by
+   design — it exists so a coach can recognise which side a tracked figure was
+   on at a glance, not to reproduce the shirt. */
+.cluster-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: 1px solid var(--line-hi);
+    flex: none;
+}
+.cluster-swatch.unknown {
+    background: repeating-linear-gradient(
+        45deg, var(--line), var(--line) 3px, var(--surface-hi) 3px, var(--surface-hi) 6px
+    );
+}
+
+/* An unnamed figure is the thing standing between the coach and their
+   players' stats, so it reads as unfinished rather than as a result. */
+.cluster-row.unmatched .title { color: var(--text-faint); font-weight: 500; }
+
 /* ---------------------------------------------------------------- timeline */
 
 .timeline { display: flex; flex-direction: column; }
@@ -758,6 +799,95 @@ td.num.zero { color: var(--text-faint); font-weight: 400; }
 }
 .tab:hover { color: var(--text-dim); }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ---------------------------------------------------------------- tallies */
+
+.tally-list { display: flex; flex-direction: column; gap: 14px; }
+
+/* Numbers flank a split bar, so the gap registers before either figure is
+   actually read. */
+.tally {
+    display: grid;
+    grid-template-columns: 2.2rem 1fr 2.2rem;
+    align-items: center;
+    gap: 10px;
+}
+
+.tally .num {
+    font-size: 1.15rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+}
+.tally .t-us { text-align: right; }
+.tally .t-them { text-align: left; }
+
+.tally.ours-good .t-us { color: var(--good); }
+.tally.ours-bad .t-them { color: var(--good); }
+
+.t-bar { display: flex; gap: 3px; height: 9px; }
+.t-fill { border-radius: 3px; min-width: 3px; transition: width .2s ease; }
+.t-fill.us { background: var(--accent); }
+.t-fill.them { background: var(--line-hi); }
+
+.t-label {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    text-align: center;
+    font-size: 0.7rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+    margin-top: -6px;
+}
+
+/* ------------------------------------------------------- estimated figures */
+
+/* Three pips saying "a machine worked this out, and this well". Deliberately
+   not a percentage: the uncertainty behind these numbers is not calibrated
+   well enough to justify one, and a figure like "67% confident" would claim a
+   precision the pipeline does not have. */
+.cv-mark {
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
+    vertical-align: middle;
+    cursor: help;
+}
+.cv-mark i {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--line-hi);
+}
+.cv-mark i.on { background: var(--text-faint); }
+.cv-mark.is-high i.on { background: var(--good); }
+.cv-mark.is-medium i.on { background: var(--warn); }
+.cv-mark.is-low i.on { background: var(--text-faint); }
+
+.stat { position: relative; }
+.stat .cv-mark { position: absolute; top: 10px; right: 10px; }
+
+/* A banner over any block of estimated stats. The pips mark individual
+   figures; this says the whole section came from footage. */
+.cv-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 13px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--line-hi);
+    border-radius: 8px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--text-faint);
+    margin-bottom: 16px;
+}
+.cv-note strong { color: var(--text-dim); font-weight: 650; }
 
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
