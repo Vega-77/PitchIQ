@@ -348,6 +348,24 @@ service cloud.firestore {
           allow delete: if isTagger(t);
         }
 
+        // ---- cvStats: what the video pipeline derived ----
+        //
+        // Written only by cv/publish.py through the Admin SDK, which bypasses
+        // these rules entirely. So the write rule here is not what protects the
+        // data — it is what stops anyone else forging it. A coach reading a
+        // stat line has no way to tell a figure the pipeline produced from one
+        // a browser posted, and `if false` is the only thing that keeps that
+        // distinction real.
+        //
+        // Deliberately a separate collection rather than entries in `log`: the
+        // tagged log is a human record of what happened, and mixing estimates
+        // into it would make an unreliable CV run corrupt the one source of
+        // truth in the app.
+        match /cvStats/{doc} {
+          allow get, list: if isTagger(t);
+          allow write: if false;
+        }
+
         // ---- playerReports: the only team data a player ever reads ----
         match /playerReports/{p} {
           allow get, list: if isCoach(t);

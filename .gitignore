@@ -25,9 +25,16 @@ node_modules/
 
 # Firebase — service account keys bypass security rules entirely, so make it
 # hard to commit one by accident. The web API key in firebase-init.js is fine.
+# cv/publish.py additionally refuses to run at all if the key it is given
+# resolves inside this repo, because a gitignore entry only helps if the file
+# happens to match one of these patterns.
 *serviceAccount*.json
 *-firebase-adminsdk-*.json
+*.sa.json
 .firebase/
+
+# CV pipeline output
+match_stats*.json
 firebase-debug.log
 firestore-debug.log
 ui-debug.log

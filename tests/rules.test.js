@@ -457,6 +457,83 @@ describe('player data isolation', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// cvStats — what the video pipeline derived
+// ---------------------------------------------------------------------------
+
+describe('cvStats', () => {
+  const base = ['teams', TEAM, 'matches', MATCH, 'cvStats'];
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      // A student manager who runs the tablet: writes the log, never reads
+      // minors' emails. They should see the CV stats too.
+      await setDoc(doc(db, 'teams', TEAM), {
+        name: 'South Brunswick',
+        coachUids: [COACH.uid],
+        taggerUids: [STRANGER.uid],
+        archived: false,
+        createdBy: COACH.uid,
+      });
+      await setDoc(doc(db, ...base, 'summary'), {
+        schemaVersion: 1,
+        trustworthy: false,
+        quality: { ballSeenShare: 0.65 },
+        teams: {},
+      });
+    });
+  });
+
+  it('nobody can write it, not even a coach', async () => {
+    // These documents come from cv/publish.py through the Admin SDK, which
+    // bypasses these rules entirely. So this rule is not what protects the
+    // data — it is what keeps "the pipeline produced this" a true statement.
+    // A coach reading a stat line has no way to tell a derived figure from one
+    // a browser posted.
+    await assertFails(setDoc(doc(as(COACH), ...base, 'summary'), { teams: {} }));
+    await assertFails(setDoc(doc(as(COACH), ...base, 'identity'), { clusters: [] }));
+    await assertFails(setDoc(doc(as(STRANGER), ...base, 'summary'), { teams: {} }));
+    await assertFails(setDoc(doc(as(PLAYER), ...base, 'summary'), { teams: {} }));
+  });
+
+  it('a coach and a tagger can read it', async () => {
+    await assertSucceeds(getDoc(doc(as(COACH), ...base, 'summary')));
+    await assertSucceeds(getDoc(doc(as(STRANGER), ...base, 'summary')));
+    await assertSucceeds(getDocs(collection(as(COACH), ...base)));
+  });
+
+  it('a player cannot read the team-wide CV stats', async () => {
+    // Same boundary as the rest of the match: a player's entire read surface
+    // is their own report. Team stats would expose the whole squad's work.
+    await assertFails(getDoc(doc(as(PLAYER), ...base, 'summary')));
+  });
+
+  it('a coach of another team cannot read it', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'othercoach2'), {
+        displayName: 'Other', emailLower: 'other2@x.org', teamIds: [VICTIM_TEAM],
+      });
+    });
+    const db = testEnv
+      .authenticatedContext('othercoach2', google({ uid: 'othercoach2', email: 'other2@x.org' }))
+      .firestore();
+
+    await assertFails(getDoc(doc(db, ...base, 'summary')));
+  });
+
+  it('a player report still accepts the prefixed CV fields', async () => {
+    // playerReports has no keys().hasOnly(), so cv/publish.py can add its
+    // fields without a rules change. Pinned because that is load-bearing and
+    // invisible — a later tightening of this rule would break publishing with
+    // no other warning.
+    await assertSucceeds(updateDoc(
+      doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p1'),
+      { cvTouches: 41, cvPassesCompleted: 22, cvDistanceM: 3100.5 },
+    ));
+  });
+});
+
 // =====================================================================
 // Identity guards
 // =====================================================================
