@@ -198,20 +198,23 @@ def shot_context_from_tracking(
     orientation: MatchOrientation,
     side: str,
     period: str,
+    keeper_track: int | None = None,
     **kwargs,
 ) -> ShotContext:
     """Assemble a ShotContext from one frame of tracking.
 
-    UNVERIFIED. In particular the goalkeeper is guessed as the defending
-    player nearest their own goal, which is usually right and occasionally
-    catastrophically wrong — a covering centre-back on the line will be taken
-    for the keeper and the keeper features will describe the wrong person.
+    Pass `keeper_track` whenever it is known — from `cv/keeper.py` or from a
+    human. Without it the keeper is guessed as the defending player nearest
+    their own goal, which is usually right and occasionally catastrophically
+    wrong: a covering centre-back on the line gets taken for the keeper, and
+    every keeper feature then describes the wrong person.
     """
     pitch = calibration.pitch
     attacking_end = orientation.attacking_end(side, period)
     defending_end = orientation.defending_end(side, period)
 
     shooter_m = None
+    keeper_m = None
     opponents: list[tuple[float, float]] = []
 
     for track_id, xyxy in player_boxes:
@@ -219,13 +222,15 @@ def shot_context_from_tracking(
         if track_id == shooter_track:
             shooter_m = position
         elif team_of(track_id) != team_of(shooter_track):
-            opponents.append(position)
+            if keeper_track is not None and track_id == keeper_track:
+                keeper_m = position
+            else:
+                opponents.append(position)
 
     if shooter_m is None:
         shooter_m = calibration.to_pitch(*ball_px)
 
-    keeper_m = None
-    if opponents:
+    if keeper_m is None and keeper_track is None and opponents:
         goal = pitch.goal_centre(defending_end)
         keeper_m = min(opponents, key=lambda p: math.dist(p, goal))
         opponents = [p for p in opponents if p is not keeper_m]
@@ -305,6 +310,32 @@ def validate_against_noise(
         'max_shift': float(np.max(shifts)),
         'mean_baseline_xg': float(np.mean(baselines)),
     }
+
+
+# One session per process. Loading a model per call is slow, and the project
+# has already paid once for putting several models in one process — see the
+# benchmark note in ROADMAP.md that produced figures wrong by 10x.
+_SESSION = None
+
+
+def predict_xg(context: ShotContext, pitch: Pitch, session=None) -> float:
+    """One call from a ShotContext to P(goal).
+
+    Everything a caller needed before was two steps with a session to manage in
+    between, which is why nothing in the pipeline called this module at all.
+
+    What the number does not know, all of it biasing upward or sideways rather
+    than randomly: `is_header` is always False because one camera cannot see the
+    ball's height, so headed chances are scored as foot shots; `shot_height`
+    falls back to the training median and carries nothing from the actual shot;
+    `is_open_play` defaults to True unless a tagger said otherwise.
+    """
+    global _SESSION
+    if session is None:
+        if _SESSION is None:
+            _SESSION = load_session()
+        session = _SESSION
+    return _predict(session, feature_vector(context, pitch))
 
 
 def _predict(session, features: np.ndarray) -> float:

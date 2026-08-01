@@ -12,7 +12,6 @@ import numpy as np
 import pytest
 
 from cv.possession import (
-    MIN_POSSESSION_SPELL_S,
     FrameState,
     frame_holder,
     median_player_height,

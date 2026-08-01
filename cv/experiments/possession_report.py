@@ -139,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f'  {"unassigned":<12} {counts.get(UNKNOWN, 0)}  (keepers, officials, odd kit)')
 
     if TEAM_A in assignment.centres:
-        print(f'\nkit colours (BGR)')
+        print('\nkit colours (BGR)')
         print(f'  {args.name_a:<12} {lab_to_bgr(assignment.centres[TEAM_A])}')
         print(f'  {args.name_b:<12} {lab_to_bgr(assignment.centres[TEAM_B])}')
     print(f'  separation   {gap:.0f}'
@@ -153,7 +153,6 @@ def main(argv: list[str] | None = None) -> int:
     summary = summarise(states)
 
     elapsed = time.perf_counter() - started
-    window = args.end - args.start
 
     # How often anyone was actually close enough to the ball to hold it. This
     # is the number that decides whether the possession split above means

@@ -36,17 +36,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--imgsz', type=int, default=1280)
     parser.add_argument('--device', default='0', help="0 for the first GPU, or 'cpu'")
 
-    # Tracking is the expensive half — about 26ms a frame against detection's
-    # 12.5ms, because it runs one frame at a time. These make a run finish
-    # sooner at the cost of holding player identity less well; see the
-    # analyse_match docstring for what each one measured.
+    # The speed levers. Both trade accuracy for time; see the analyse_match
+    # docstring for what each one measured.
     parser.add_argument('--tracker', default='botsort.yaml',
                         choices=['botsort.yaml', 'bytetrack.yaml'],
-                        help='bytetrack is ~1.9x faster and fragments more')
-    parser.add_argument('--track-imgsz', type=int, default=None,
-                        help='defaults to --imgsz; lowering it saves ~5%%')
-    parser.add_argument('--track-stride', type=int, default=1,
-                        help='process every Nth frame when tracking; 2 is ~1.8x faster')
+                        help='bytetrack is faster and fragments more')
+    parser.add_argument('--stride', type=int, default=1,
+                        help='process every Nth frame; costs ball coverage as '
+                             'well as identity, so raise it only when a run '
+                             'will not otherwise finish')
     return parser
 
 
@@ -60,13 +58,13 @@ def main(argv: list[str] | None = None) -> int:
 
     device = args.device if args.device == 'cpu' else int(args.device)
 
-    # analyse_match holds every frame of the window in memory at once, so a
-    # long window is a way to run the machine out of RAM rather than a way to
-    # analyse more football. Warn rather than silently trying.
+    # Frames are streamed rather than buffered, so a long window costs time
+    # rather than memory. What it does still hold is one row per player per
+    # frame — tens of megabytes for a half, not gigabytes.
     window = (args.end - args.start) if args.end else None
-    if window is None or window > 120:
-        print('WARNING: analyse_match buffers the whole window in RAM '
-              '(~2.8 MB per 720p frame, so ~5 GB per minute). Pass --end.',
+    if window is None or window > 600:
+        print('WARNING: no --end, or a window over ten minutes. Detection runs '
+              'at roughly half realtime, so this will take a while.',
               file=sys.stderr)
 
     report = analyse_match(
@@ -79,8 +77,7 @@ def main(argv: list[str] | None = None) -> int:
         imgsz=args.imgsz,
         device=device,
         tracker=args.tracker,
-        track_imgsz=args.track_imgsz,
-        track_stride=args.track_stride,
+        stride=args.stride,
     )
 
     print()

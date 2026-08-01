@@ -25,7 +25,6 @@ from cv.xg_bridge import (
     build_features,
     feature_vector,
     in_shot_cone,
-    shot_angle,
 )
 
 REPO = Path(__file__).resolve().parents[1]

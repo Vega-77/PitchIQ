@@ -18,7 +18,7 @@ goal line (0 -> width). Both goals sit at y = width / 2.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 # Fixed by the Laws of the Game regardless of overall pitch size.
 GOAL_WIDTH_M = 7.32

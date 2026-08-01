@@ -165,7 +165,7 @@ def test_the_bridge_can_actually_run_the_model():
     last step: that the vector the bridge builds is one the real model accepts,
     and that what comes back is a probability rather than a class label.
     """
-    ort = pytest.importorskip('onnxruntime')
+    pytest.importorskip('onnxruntime')
     from cv.xg_bridge import _predict, feature_vector, load_session
 
     session = load_session()

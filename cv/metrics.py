@@ -15,7 +15,7 @@ fiction. `smooth_positions` and the speed ceiling below exist for that reason.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 

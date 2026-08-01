@@ -15,11 +15,9 @@ substitution log.
 
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import numpy as np
 
 from .detector import CLASS_BALL, CLASS_PERSON, DEFAULT_WEIGHTS, LABELS
 

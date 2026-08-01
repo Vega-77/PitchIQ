@@ -58,6 +58,31 @@ class PersonBallDetector:
         return self.detect_batch([image])[0]
 
     def detect_batch(self, images: list[np.ndarray]) -> list[list[Detection]]:
+        batch: list[list[Detection]] = []
+        for boxes in self.detect_batch_raw(images):
+            batch.append([
+                Detection(
+                    label=LABELS[int(cls)],
+                    confidence=float(score),
+                    xyxy=tuple(float(v) for v in box),
+                )
+                for cls, score, box in zip(boxes.cls, boxes.conf, boxes.xyxy)
+            ])
+        return batch
+
+    def detect_batch_raw(self, images: list[np.ndarray]) -> list:
+        """Per-image ultralytics `Boxes`, moved to CPU as numpy.
+
+        Exists because the trackers in ultralytics.trackers take exactly this
+        object — it is what `on_predict_postprocess_end` hands them, and it
+        carries the `.xywh` / `.conf` / `.cls` attributes plus boolean indexing
+        that `parse_bboxes` and `_split_detections` rely on. Duck-typing a
+        replacement would work right up until it quietly didn't.
+
+        `.cpu().numpy()` here rather than later: holding a batch of GPU tensors
+        alive across the frame loop is how a bounded-memory decode turns back
+        into an unbounded one.
+        """
         results = self.model.predict(
             images,
             classes=[CLASS_PERSON, CLASS_BALL],
@@ -66,18 +91,4 @@ class PersonBallDetector:
             device=self.device,
             verbose=False,
         )
-
-        batch: list[list[Detection]] = []
-        for result in results:
-            detections = [
-                Detection(
-                    label=LABELS[int(cls)],
-                    confidence=float(score),
-                    xyxy=tuple(float(v) for v in box),
-                )
-                for cls, score, box in zip(
-                    result.boxes.cls, result.boxes.conf, result.boxes.xyxy
-                )
-            ]
-            batch.append(detections)
-        return batch
+        return [result.boxes.cpu().numpy() for result in results]

@@ -80,7 +80,6 @@ def test_js_homography_matches_opencv():
     normalised DLT. Different algorithms, so this checks they land in the same
     place rather than assuming it.
     """
-    import numpy as np
 
     from cv.calibration import Calibration, Correspondence
 
