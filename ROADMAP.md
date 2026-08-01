@@ -572,11 +572,37 @@ Three things this tells us:
   would give larger, more stable boxes and should improve this materially, so
   the numbers above are close to a worst case rather than a verdict.
 
+**Update 2026-08-01 — the single-pass rewrite helped, and automatic merging
+helps more.** `analyse_match` used to run the model twice over two identity
+spaces that could not see each other. Collapsing that into one pass
+(`cv/frames.py`) also let detection run at the ball's lower threshold and hand
+those weak boxes to the tracker, which is the ByteTrack bargain the old
+arrangement was throwing away. Measured on one 15s window, three fresh
+processes each:
+
+| | time (median, range) | raw tracks |
+|---|---|---|
+| two passes | 37.8s (37.1–49.0) | 146 |
+| one pass | 17.1s (17.0–18.4) | 125 |
+
+Then `cv/identity.py` merges fragments into clusters using the one hard
+constraint available — two tracks seen in the same frame are two people — plus
+shirt colour and spatio-temporal continuity. On that window: **125 tracks → 37
+clusters**, and the largest clusters are present in ~300 of 300 frames, which is
+what a real player looks like.
+
+37 is still above 22, so this has not solved identity; it has made the human
+step small enough to be worth doing. Mapping 125 fragments to a roster is
+something nobody finishes; confirming ~37 is a couple of minutes.
+
 - [x] **[Demo]** Stable per-player track ID using an existing tracking library — done, quality measured above
 - [x] Track smoothing before computing speed/distance (`cv/metrics.py`)
+- [x] Automatic fragment merging (`cv/identity.py`) — 3.4 tracks per cluster on the measured window
+- [x] Coach-facing view of the clusters (`coach/`), so the mapping can be worked out at all
 - [ ] **Re-measure on native-resolution footage before concluding anything** — the current numbers may be an artefact of the screen recording
 - [ ] **[MVP]** Fine-tune the detector on real footage; more stable boxes is the most likely real fix
-- [ ] Treat the Phase 11 review tool's merge-tracks control as **required, not optional** — at 10x fragmentation a human stitching tracks is the only route to per-player stats in the short term
+- [ ] Writing the confirmed cluster→player mapping back (currently read-only in the UI; `cv/publish.py` accepts one but nothing produces it yet)
+- [ ] Treat the Phase 11 review tool's merge-tracks control as **required, not optional** — a human confirming clusters is still the only route to per-player stats
 - [ ] Team-level stats (possession, shape, territory) do not need identity and remain viable at this quality — worth leading the demo with them
 - [ ] **[Demo]** Stable per-player track ID across frames using an existing tracking library (ByteTrack/BoT-SORT-style) — don't build a custom tracker
 - [ ] Ball-specific tracking with interpolation through short occlusion; for longer occlusions (goalmouth scrambles), fall back to the live-tagged event log rather than guessing
@@ -617,13 +643,39 @@ fiction; `tests/test_metrics.py` pins both the problem and the fix.
 ## 10. Event Detection
 CV produces automatic *candidates*, reconciled against the Phase 3 live-tagged events
 rather than replacing them.
-- [ ] **[Demo]** Pass detection (completed vs. intercepted)
-- [ ] **[Demo]** Shot detection
-- [ ] **[Demo]** Goal detection — cross-checked against a live tap if the collector caught it
-- [ ] Turnover / tackle detection
+
+Everything below rests on one primitive: **touch segmentation** (`cv/touches.py`) —
+the moments the ball's motion changed while a specific player was close enough to
+have caused it. Given an ordered list of touches, the rest is mostly geometry over
+adjacent pairs (`cv/events.py`), not seven separate detectors.
+
+- [x] **[Demo]** Pass detection (completed vs. intercepted), with length buckets, direction, progressive / final-third / box-entry / switch / cross tagging
+- [x] **[Demo]** Shot detection, with outcome (goal / saved / blocked / off target)
+- [x] **[Demo]** Goal detection — via `zones.enters_goal_mouth`; must still be cross-checked against a live tap
+- [x] Turnover / tackle detection, plus interceptions, recoveries and ground duels
+- [x] Carries, pressure counts, PPDA
 - [ ] Stoppage candidate flagging (ball out, play stopped) — the live tap usually already has the type (e.g. "corner"), so this is mostly a cross-check, not the primary source
 - [ ] Reconciliation logic: where CV and live tags agree, treat as high confidence; where they disagree or one is missing, flag prominently for the Phase 11 reviewer
 - [ ] **[Stretch]** Offside detection — leave human-marked-only for the foreseeable future
+
+**What is written but unmeasured.** Every threshold in `cv/touches.py` is a guess,
+never yet compared against a human watching the same footage. The synthetic tests
+prove the algorithms do what their docstrings say; they say nothing about whether
+that matches real football. `cv/experiments/event_report.py` exists to make that
+check cheap — print the timestamped list, scrub, mark each one right or wrong.
+
+**Why it currently finds nothing.** On the available footage `segment_touches`
+returns zero touches, and that is the correct outcome rather than a failure. The
+ball is detected in ~65% of frames, but the nearest player to a detected "ball"
+sits a **median 6.3 player heights away** — so most of those detections are not
+the ball. Ball recall from a camera that holds still is the gate on this whole
+phase, not more event logic.
+
+**Two structural limits, neither tunable.** *Intent* is not observable from boxes,
+so a deflection that reaches a teammate counts as a completed pass and a good
+clearance counts as a failed long one. *Height* is unrecoverable from one camera,
+so aerial duels, headers and punt-versus-goal-kick stay out of reach — the same
+wall `shot_height` hits in Phase 12.
 
 ## 11. Post-Game Review & Annotation Tool
 Pre-populated with Phase 3's live-tagged events and subs, plus Phase 10's CV
