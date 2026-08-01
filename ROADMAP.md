@@ -601,8 +601,20 @@ something nobody finishes; confirming ~37 is a couple of minutes.
 - [x] Coach-facing view of the clusters (`coach/`), so the mapping can be worked out at all
 - [ ] **Re-measure on native-resolution footage before concluding anything** — the current numbers may be an artefact of the screen recording
 - [ ] **[MVP]** Fine-tune the detector on real footage; more stable boxes is the most likely real fix
-- [ ] Writing the confirmed cluster→player mapping back (currently read-only in the UI; `cv/publish.py` accepts one but nothing produces it yet)
-- [ ] Treat the Phase 11 review tool's merge-tracks control as **required, not optional** — a human confirming clusters is still the only route to per-player stats
+- [x] Writing the confirmed cluster→player mapping back — a picker per figure on the coach's match view, saved to `cvMapping/players`
+- [x] Treat the merge-tracks control as **required, not optional** — a human confirming clusters is the only route to per-player stats, and it is now the gate: no mapping, no `cv*` field on anyone's report
+
+The mapping lives in its own collection rather than in `cvStats`, which stays
+pipeline-authored and client-read-only. Keeping them apart means a coach
+correcting an identity can never be mistaken for the pipeline having measured
+something.
+
+Many-to-one on purpose: `cv/identity.py` only rejoins fragments seconds apart,
+so a player who went off and came back is genuinely several figures. Counting
+stats sum across them; top speed takes the maximum, because a player who hit
+31 km/h in one fragment did not hit 62 across two. How many figures a player
+was assembled from is carried through to the report and drives the confidence
+mark — one clean track is a much stronger claim than nine stitched together.
 - [ ] Team-level stats (possession, shape, territory) do not need identity and remain viable at this quality — worth leading the demo with them
 - [ ] **[Demo]** Stable per-player track ID across frames using an existing tracking library (ByteTrack/BoT-SORT-style) — don't build a custom tracker
 - [ ] Ball-specific tracking with interpolation through short occlusion; for longer occlusions (goalmouth scrambles), fall back to the live-tagged event log rather than guessing

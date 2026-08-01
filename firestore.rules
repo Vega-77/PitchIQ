@@ -386,6 +386,32 @@ service cloud.firestore {
           allow write: if false;
         }
 
+        // ---- cvMapping: which tracked figure is which player ----
+        //
+        // Deliberately NOT part of cvStats. That collection is written only by
+        // the pipeline through the Admin SDK and is read-only to every client,
+        // which is what keeps "a machine derived this" a true statement about
+        // it. This document is the opposite: a human's judgement about who is
+        // who, and only a coach can make it.
+        //
+        // Keeping them apart means a coach correcting an identity can never
+        // look like the pipeline having measured something.
+        match /cvMapping/{doc} {
+          allow get, list: if isTagger(t);
+
+          allow create, update: if isCoach(t)
+            && request.resource.data.keys().hasOnly(
+                 ['byCluster', 'updatedAt', 'updatedBy'])
+            && request.resource.data.byCluster is map
+            // A tracked half yields tens of clusters, not hundreds. A cap
+            // stops a runaway write from becoming an unreadable document.
+            && request.resource.data.byCluster.size() <= 200
+            && request.resource.data.updatedBy == uid()
+            && isTimestampNow(request.resource.data.updatedAt);
+
+          allow delete: if isCoach(t);
+        }
+
         // ---- playerReports: the only team data a player ever reads ----
         match /playerReports/{p} {
           allow get, list: if isCoach(t);

@@ -1,19 +1,20 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=17';
+} from '../assets/auth.js?v=18';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
     aggregateMatch, publishReports, seasonSummary, playerSeason, seasonTotals,
-    listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence, mappingConfirmed,
-} from '../assets/db.js?v=17';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=17';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=17';
-import { videoKind } from '../assets/video.js?v=17';
+    listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
+    readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
+} from '../assets/db.js?v=18';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=18';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=18';
+import { videoKind } from '../assets/video.js?v=18';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, figure, cardChips, timelineRow, minutesChart,
-} from '../assets/ui.js?v=17';
+} from '../assets/ui.js?v=18';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -586,22 +587,23 @@ async function openMatch(matchId) {
     byId('loading').classList.remove('hidden');
 
     try {
-        const [match, roster, log, cv] = await Promise.all([
+        const [match, roster, log, cv, cvMapping] = await Promise.all([
             getMatch(state.team.id, matchId),
             listMatchRoster(state.team.id, matchId),
             listLog(state.team.id, matchId),
             // Absent for any match nobody filmed, which is most of them, so a
             // failure here must not take the tagged report down with it.
             readCvStats(state.team.id, matchId).catch(() => null),
+            readCvMapping(state.team.id, matchId).catch(() => ({})),
         ]);
 
         const stats = aggregateMatch(log, roster);
-        state.match = { ...match, stats, log, roster, cv };
+        state.match = { ...match, stats, log, roster, cv, cvMapping };
 
         // Merge the video's per-player figures onto the tagged ones, so the
-        // table can be one table. Only where a coach has confirmed which
-        // cluster is which player — otherwise these are guesses with names on.
-        if (cv && mappingConfirmed(cv)) mergeCvPlayers(stats.players, cv);
+        // table can be one table. Only for figures a coach has matched to a
+        // player — anything else is a guess with a name attached.
+        mergeCvPlayers(stats.players, state.match);
 
         setText('match-title', `vs ${match.opponentName || '—'}`);
         setText('match-sub',
@@ -879,49 +881,123 @@ function renderClusterMapping() {
     }
     if (section) section.classList.remove('hidden');
 
-    const mapping = cv.identity?.playerByCluster || {};
-    const nameById = new Map(state.match.roster.map((r) => [r.id, r.playerName]));
+    const mapping = state.match.cvMapping || {};
+    // Biggest first — a figure tracked through most of the match is both the
+    // easiest to recognise and the one worth the coach's attention. The tail
+    // of two-second fragments can be left unassigned without losing much.
+    const ordered = [...clusters].sort((a, b) => (b.sightings || 0) - (a.sightings || 0));
 
     host.innerHTML = '';
-    setText('cv-clusters-note', mappingConfirmed(cv)
-        ? `${Object.keys(mapping).length} of ${clusters.length} tracked figures `
-          + 'have been matched to a player.'
-        : `The video tracked ${clusters.length} figures but cannot tell who is `
-          + 'who. Until each is matched to a player, the per-player columns stay '
-          + 'empty — a wrong match would credit one player with another\'s work.');
+    updateMappingNote();
 
-    for (const cluster of clusters) {
-        const row = document.createElement('div');
-        row.className = 'list-item cluster-row';
-        row.innerHTML = `
-            <span class="cluster-swatch"></span>
-            <div class="grow">
-                <div class="title"></div>
-                <div class="sub"></div>
-            </div>
-            <div class="figures"></div>`;
+    for (const cluster of ordered) {
+        host.append(clusterRow(cluster, mapping));
+    }
+}
 
-        const swatch = row.querySelector('.cluster-swatch');
-        if (cluster.colour) swatch.style.background = labToCss(cluster.colour);
-        else swatch.classList.add('unknown');
+function clusterRow(cluster, mapping) {
+    const row = document.createElement('div');
+    row.className = 'list-item cluster-row';
+    row.innerHTML = `
+        <span class="cluster-swatch"></span>
+        <div class="grow">
+            <div class="title"></div>
+            <div class="sub"></div>
+        </div>
+        <div class="figures"></div>
+        <label class="cluster-pick">
+            <span class="sr-only">Who is this?</span>
+            <select></select>
+        </label>`;
 
-        const named = mapping[String(cluster.cluster_id)];
-        row.querySelector('.title').textContent = named
-            ? (nameById.get(named) || 'Matched player')
-            : `Figure ${cluster.cluster_id + 1}`;
+    const swatch = row.querySelector('.cluster-swatch');
+    if (cluster.colour) swatch.style.background = labToCss(cluster.colour);
+    else swatch.classList.add('unknown');
 
-        row.querySelector('.sub').textContent = [
-            cluster.team === 'unknown' ? 'kit unclear' : cluster.team.replace('_', ' '),
-            plural(cluster.track_ids?.length || 1, 'fragment'),
-            `${Math.round((cluster.minutes_tracked || 0) * 60)}s on screen`,
-        ].join(' · ');
+    row.querySelector('.title').textContent = `Figure ${cluster.cluster_id + 1}`;
+    row.querySelector('.sub').textContent = [
+        cluster.team === 'unknown' ? 'kit unclear' : cluster.team.replace('_', ' '),
+        plural(cluster.track_ids?.length || 1, 'fragment'),
+        `${Math.round((cluster.minutes_tracked || 0) * 60)}s on screen`,
+    ].join(' · ');
 
-        row.querySelector('.figures').append(
-            figure(cluster.sightings ?? 0, 'frames'),
+    row.querySelector('.figures').append(figure(cluster.sightings ?? 0, 'frames'));
+
+    const select = row.querySelector('select');
+    const key = String(cluster.cluster_id);
+
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = 'Not matched';
+    select.append(blank);
+
+    // Every rostered player, every time. A player who left and came back is
+    // genuinely several figures, so the same name has to stay pickable after
+    // it has been used — cv/identity.py only rejoins fragments seconds apart.
+    for (const player of state.match.roster) {
+        const option = document.createElement('option');
+        option.value = player.id;
+        option.textContent = player.jerseyNumber != null
+            ? `${player.jerseyNumber} · ${player.playerName}`
+            : player.playerName;
+        select.append(option);
+    }
+    select.value = mapping[key] || '';
+
+    select.addEventListener('change', () => {
+        const next = { ...(state.match.cvMapping || {}) };
+        if (select.value) next[key] = select.value;
+        else delete next[key];
+        state.match.cvMapping = next;
+
+        row.classList.toggle('unmatched', !select.value);
+        updateMappingNote();
+        queueMappingSave();
+    });
+
+    row.classList.toggle('unmatched', !select.value);
+    return row;
+}
+
+function updateMappingNote() {
+    const clusters = state.match?.cv?.identity?.clusters || [];
+    const matched = Object.keys(state.match?.cvMapping || {}).length;
+
+    setText('cv-clusters-note', matched
+        ? `${matched} of ${clusters.length} tracked figures matched. `
+          + 'Publish the reports again to send these numbers to the players.'
+        : `The video tracked ${clusters.length} figures and cannot tell who is `
+          + 'who — shirt numbers are a few pixels tall at this distance. Match '
+          + 'the big ones to a player and their stats appear. A figure left '
+          + 'unmatched is simply not counted.');
+}
+
+/**
+ * Save shortly after the coach stops changing things.
+ *
+ * Mapping fifteen figures is fifteen changes in quick succession, and writing
+ * on each one would be fifteen round trips racing each other to be last.
+ */
+let mappingSaveTimer = null;
+function queueMappingSave() {
+    clearTimeout(mappingSaveTimer);
+    mappingSaveTimer = setTimeout(saveMappingNow, 600);
+}
+
+async function saveMappingNow() {
+    const badge = byId('cv-save-state');
+    try {
+        if (badge) badge.textContent = 'Saving…';
+        await saveCvMapping(
+            state.user, state.team.id, state.match.id, state.match.cvMapping,
         );
-
-        if (!named) row.classList.add('unmatched');
-        host.append(row);
+        if (badge) badge.textContent = 'Saved';
+        // The per-player table reads the mapping, so it has to be rebuilt.
+        mergeCvPlayers(state.match.stats.players, state.match);
+        renderPlayerTable(state.match.stats.players);
+    } catch (err) {
+        if (badge) badge.textContent = '';
+        toast(err.message || 'Could not save that match-up.', true);
     }
 }
 
@@ -942,28 +1018,21 @@ function labToCss(lab) {
     return `rgb(${r}, ${g}, ${bl})`;
 }
 
-function mergeCvPlayers(players, cv) {
-    const mapping = cv.identity?.playerByCluster || {};
-    const byCluster = new Map(
-        (cv.identity?.tracks || []).map((t) => [String(t.cluster_id), t]),
-    );
-
-    const byPlayer = new Map();
-    for (const [clusterId, playerId] of Object.entries(mapping)) {
-        const track = byCluster.get(String(clusterId));
-        if (track) byPlayer.set(playerId, track);
-    }
+/**
+ * Attach the video's numbers to the players a coach matched them to.
+ *
+ * Recomputed from scratch each time rather than patched, so unmatching a
+ * figure actually clears the row it was feeding — otherwise a mistake would
+ * stay on screen until the page was reloaded.
+ */
+function mergeCvPlayers(players, match) {
+    const stats = cvStatsByPlayer(match.cv?.identity?.tracks, match.cvMapping);
 
     for (const player of players) {
-        const track = byPlayer.get(player.id);
-        if (!track) continue;
-        player.cvTouches = track.touches;
-        player.cvPassesCompleted = track.passes_completed;
-        player.cvPassesAttempted = track.passes_attempted;
-        player.cvTackles = track.tackles;
-        player.cvInterceptions = track.interceptions;
-        player.cvDistanceM = track.distance_m;
-        player.cvTopSpeedKmh = track.top_speed_kmh;
+        for (const key of Object.keys(player)) {
+            if (key.startsWith('cv')) delete player[key];
+        }
+        Object.assign(player, cvReportFields(stats[player.id]));
     }
 }
 
@@ -1057,6 +1126,10 @@ async function doPublish() {
                 log: state.match.log,
                 roster: state.match.roster,
                 counts: state.match.stats.counts,
+                // Only reaches a player's report where a coach matched the
+                // figure to them. No mapping, no cv* fields.
+                cvTracks: state.match.cv?.identity?.tracks,
+                cvMapping: state.match.cvMapping,
             },
         );
         toast('Player reports published');

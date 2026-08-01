@@ -645,7 +645,24 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
 
 /* ------------------------------------------------------ tracked figures */
 
-.cluster-row { align-items: center; gap: 12px; }
+/* Four things per row: a kit swatch, who the figure is, how much of it was
+   seen, and the picker. A grid rather than the flex .list-item default,
+   because the picker is wide enough that on a phone it has to drop to its own
+   line instead of crushing the name beside it. */
+.cluster-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "swatch info frames picker";
+    align-items: center;
+    gap: 12px;
+}
+.cluster-row .cluster-swatch { grid-area: swatch; }
+/* min-width: 0 is load-bearing. Without it this cell refuses to shrink below
+   its content, gets squeezed to zero width by the picker, and the name renders
+   one letter per line — a 280px row instead of 76px. */
+.cluster-row .grow { grid-area: info; min-width: 0; }
+.cluster-row .figures { grid-area: frames; }
+.cluster-row .cluster-pick { grid-area: picker; }
 
 /* A swatch of the kit colour the clustering settled on. Approximate by
    design — it exists so a coach can recognise which side a tracked figure was
@@ -666,6 +683,53 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
 /* An unnamed figure is the thing standing between the coach and their
    players' stats, so it reads as unfinished rather than as a result. */
 .cluster-row.unmatched .title { color: var(--text-faint); font-weight: 500; }
+
+.cluster-pick select {
+    min-width: 150px;
+    max-width: 200px;
+    /* A coach works through fifteen of these on a tablet, so the control has
+       to be a comfortable target rather than a default-height dropdown. */
+    min-height: 40px;
+}
+
+@media (max-width: 640px) {
+    /* The picker takes its own line. Fifteen figures at a phone width is a lot
+       of scrolling either way, so the row has to stay near two lines rather
+       than sprawling. */
+    .cluster-row {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas:
+            "swatch info   frames"
+            "picker picker picker";
+        row-gap: 10px;
+    }
+    .cluster-pick select { width: 100%; max-width: none; }
+}
+
+/* Visible only to screen readers — the select's own label. Each row has a
+   picker and they all need naming, but a repeated visible "Who is this?"
+   fifteen times down the page would be noise. */
+.sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Quiet "Saving…"/"Saved" beside the heading. Saving happens on its own after
+   a change, so it has to be visible without being an announcement. */
+.save-state {
+    margin-left: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+    vertical-align: middle;
+}
 
 /* ---------------------------------------------------------------- timeline */
 

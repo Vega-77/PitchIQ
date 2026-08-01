@@ -21,6 +21,98 @@
 // which would block every player's report, not just one.
 export const MAX_TIMELINE = 120;
 
+// Touch timestamps kept per player. A full match is thousands; both the
+// document size limit and the readability of a timeline strip run out long
+// before that.
+export const MAX_TOUCH_TIMES = 400;
+
+// Counting stats add up across a player's clusters. Speed does not — a player
+// who hit 31 km/h in one fragment did not hit 62 across two.
+const SUMMED = [
+    'touches', 'passes_attempted', 'passes_completed', 'carries',
+    'tackles', 'interceptions', 'recoveries', 'shots', 'goals', 'xg',
+    'distance_m', 'sprint_count', 'sprint_distance_m', 'minutes_tracked',
+];
+const MAXED = ['top_speed_kmh'];
+
+/**
+ * Roll the video's tracked figures up into the players a coach named them as.
+ *
+ * A player can legitimately be several clusters. The tracker loses people when
+ * they leave frame, and `cv/identity.py` only re-joins fragments separated by
+ * a couple of seconds — anyone who went off and came back later stays split.
+ * That is the safe failure: two clusters mapped to one player still sum
+ * correctly, whereas a wrong automatic merge would credit one player with
+ * another's work and could not be undone.
+ *
+ * So this is many-to-one on purpose, and the arithmetic has to respect what
+ * each stat means. Touches add. Top speed does not.
+ */
+export function cvStatsByPlayer(tracks, byCluster) {
+    const byId = new Map((tracks || []).map((t) => [String(t.cluster_id), t]));
+    const out = {};
+
+    for (const [clusterId, playerId] of Object.entries(byCluster || {})) {
+        if (!playerId) continue;
+        const track = byId.get(String(clusterId));
+        if (!track) continue;
+
+        const acc = out[playerId] ||= { clusters: [], touchTimes: [] };
+        acc.clusters.push(Number(clusterId));
+
+        for (const key of SUMMED) {
+            const value = track[key];
+            if (value == null) continue;
+            acc[key] = (acc[key] ?? 0) + value;
+        }
+        for (const key of MAXED) {
+            const value = track[key];
+            if (value == null) continue;
+            acc[key] = Math.max(acc[key] ?? 0, value);
+        }
+        if (Array.isArray(track.touch_times_s)) acc.touchTimes.push(...track.touch_times_s);
+    }
+
+    for (const acc of Object.values(out)) {
+        // Clusters arrive in whatever order the mapping was written, so the
+        // combined touch list has to be re-sorted before it means anything as
+        // a timeline.
+        acc.touchTimes.sort((a, b) => a - b);
+        acc.touchTimes = acc.touchTimes.slice(0, MAX_TOUCH_TIMES);
+        acc.clusters.sort((a, b) => a - b);
+        acc.passAccuracy = acc.passes_attempted
+            ? acc.passes_completed / acc.passes_attempted
+            : null;
+    }
+    return out;
+}
+
+/** The `cv`-prefixed fields for one player's match report. */
+export function cvReportFields(stats) {
+    if (!stats) return {};
+    const num = (v) => (v == null ? null : v);
+    return {
+        cvTouches: num(stats.touches),
+        cvPassesAttempted: num(stats.passes_attempted),
+        cvPassesCompleted: num(stats.passes_completed),
+        cvCarries: num(stats.carries),
+        cvTackles: num(stats.tackles),
+        cvInterceptions: num(stats.interceptions),
+        cvRecoveries: num(stats.recoveries),
+        cvShots: num(stats.shots),
+        cvXg: num(stats.xg),
+        cvDistanceM: num(stats.distance_m),
+        cvTopSpeedKmh: num(stats.top_speed_kmh),
+        cvSprintCount: num(stats.sprint_count),
+        cvMinutesTracked: num(stats.minutes_tracked),
+        cvTouchTimes: stats.touchTimes || [],
+        // How many tracked fragments this player was assembled from. Shown to
+        // the coach, because a player stitched out of nine pieces is a weaker
+        // claim than one tracked cleanly throughout.
+        cvClusterCount: (stats.clusters || []).length,
+    };
+}
+
 const PERIOD_TEXT = {
     kickoff_1st: 'Kick-off',
     halftime: 'Half-time',

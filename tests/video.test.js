@@ -218,3 +218,134 @@ describe('playerTimeline', () => {
         assert.deepEqual(db.playerTimeline([], roster, ME), []);
     });
 });
+
+// ------------------------------------------------------- cluster → player
+
+const track = (id, over = {}) => ({
+    cluster_id: id,
+    touches: 10,
+    passes_attempted: 8,
+    passes_completed: 6,
+    tackles: 1,
+    distance_m: 1000,
+    top_speed_kmh: 20,
+    sprint_count: 2,
+    minutes_tracked: 10,
+    touch_times_s: [100, 200],
+    ...over,
+});
+
+describe('cvStatsByPlayer', () => {
+    test('a mapped figure becomes that player', () => {
+        const out = report.cvStatsByPlayer([track(0)], { 0: ME });
+        assert.equal(out[ME].touches, 10);
+        assert.deepEqual(out[ME].clusters, [0]);
+    });
+
+    test('several figures for one player add up', () => {
+        // The tracker loses people who leave frame, and identity.py only
+        // rejoins fragments seconds apart — so one player really is several
+        // figures, and mapping them all to one name has to sum.
+        const out = report.cvStatsByPlayer(
+            [track(0), track(1), track(2)], { 0: ME, 1: ME, 2: ME },
+        );
+        assert.equal(out[ME].touches, 30);
+        assert.equal(out[ME].distance_m, 3000);
+        assert.deepEqual(out[ME].clusters, [0, 1, 2]);
+    });
+
+    test('top speed takes the maximum, not the sum', () => {
+        // A player who hit 31 km/h in one fragment did not hit 62 across two.
+        const out = report.cvStatsByPlayer(
+            [track(0, { top_speed_kmh: 24 }), track(1, { top_speed_kmh: 31 })],
+            { 0: ME, 1: ME },
+        );
+        assert.equal(out[ME].top_speed_kmh, 31);
+    });
+
+    test('touch times merge in clock order across figures', () => {
+        // Clusters arrive in mapping order, so the combined list is unsorted
+        // until this fixes it — and it feeds a timeline strip.
+        const out = report.cvStatsByPlayer(
+            [track(0, { touch_times_s: [500, 900] }),
+             track(1, { touch_times_s: [100, 300] })],
+            { 0: ME, 1: ME },
+        );
+        assert.deepEqual(out[ME].touchTimes, [100, 300, 500, 900]);
+    });
+
+    test('an unmatched figure counts for nobody', () => {
+        // The safe default. A figure nobody claimed is simply not counted,
+        // rather than being attributed to a guess.
+        const out = report.cvStatsByPlayer([track(0), track(1)], { 0: ME });
+        assert.deepEqual(Object.keys(out), [ME]);
+        assert.equal(out[ME].touches, 10);
+    });
+
+    test('a blank selection is not a mapping', () => {
+        assert.deepEqual(report.cvStatsByPlayer([track(0)], { 0: '' }), {});
+        assert.deepEqual(report.cvStatsByPlayer([track(0)], { 0: null }), {});
+    });
+
+    test('a mapping pointing at a figure that does not exist is ignored', () => {
+        assert.deepEqual(report.cvStatsByPlayer([track(0)], { 9: ME }), {});
+    });
+
+    test('no mapping at all yields nothing', () => {
+        assert.deepEqual(report.cvStatsByPlayer([track(0)], {}), {});
+        assert.deepEqual(report.cvStatsByPlayer([track(0)], null), {});
+        assert.deepEqual(report.cvStatsByPlayer(null, { 0: ME }), {});
+    });
+
+    test('pass accuracy is computed, and is null when nothing was attempted', () => {
+        const out = report.cvStatsByPlayer(
+            [track(0, { passes_attempted: 10, passes_completed: 7 })], { 0: ME },
+        );
+        assert.equal(out[ME].passAccuracy, 0.7);
+
+        const none = report.cvStatsByPlayer(
+            [track(0, { passes_attempted: 0, passes_completed: 0 })], { 0: ME },
+        );
+        assert.equal(none[ME].passAccuracy, null);
+    });
+
+    test('a null stat on one figure does not poison the sum', () => {
+        // Uncalibrated runs emit null for anything in metres.
+        const out = report.cvStatsByPlayer(
+            [track(0, { distance_m: null }), track(1, { distance_m: 500 })],
+            { 0: ME, 1: ME },
+        );
+        assert.equal(out[ME].distance_m, 500);
+    });
+
+    test('touch times are capped', () => {
+        const many = Array.from({ length: 900 }, (_, i) => i);
+        const out = report.cvStatsByPlayer(
+            [track(0, { touch_times_s: many })], { 0: ME },
+        );
+        assert.equal(out[ME].touchTimes.length, report.MAX_TOUCH_TIMES);
+    });
+});
+
+describe('cvReportFields', () => {
+    test('every field is cv-prefixed', () => {
+        const stats = report.cvStatsByPlayer([track(0)], { 0: ME })[ME];
+        const fields = report.cvReportFields(stats);
+        assert.ok(Object.keys(fields).length > 5);
+        assert.ok(Object.keys(fields).every((k) => k.startsWith('cv')));
+    });
+
+    test('reports how many figures a player was assembled from', () => {
+        // A player stitched from nine fragments is a weaker claim than one
+        // tracked cleanly, and the coach should be able to see that.
+        const stats = report.cvStatsByPlayer(
+            [track(0), track(1)], { 0: ME, 1: ME },
+        )[ME];
+        assert.equal(report.cvReportFields(stats).cvClusterCount, 2);
+    });
+
+    test('an unmapped player gets no cv fields at all', () => {
+        // Not zeroes. A zero says the video measured them and found nothing.
+        assert.deepEqual(report.cvReportFields(undefined), {});
+    });
+});

@@ -572,6 +572,58 @@ describe('cvStats', () => {
     await assertFails(getDoc(doc(db, ...base, 'summary')));
   });
 
+  it('a coach can record which figure is which player', async () => {
+    await assertSucceeds(setDoc(
+      doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'cvMapping', 'players'),
+      { byCluster: { 0: 'p1', 3: 'p2' }, updatedAt: serverTimestamp(), updatedBy: COACH.uid },
+    ));
+  });
+
+  it('a tagger can read the mapping but not write it', async () => {
+    // A student manager runs the tablet; saying who is who is a coach's call.
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), 'teams', TEAM, 'matches', MATCH, 'cvMapping', 'players'),
+        { byCluster: { 0: 'p1' }, updatedBy: COACH.uid },
+      );
+    });
+
+    await assertSucceeds(getDoc(
+      doc(as(STRANGER), 'teams', TEAM, 'matches', MATCH, 'cvMapping', 'players')));
+    await assertFails(setDoc(
+      doc(as(STRANGER), 'teams', TEAM, 'matches', MATCH, 'cvMapping', 'players'),
+      { byCluster: { 0: 'p1' }, updatedAt: serverTimestamp(), updatedBy: STRANGER.uid },
+    ));
+  });
+
+  it('a player cannot decide who the video was tracking', async () => {
+    await assertFails(setDoc(
+      doc(as(PLAYER), 'teams', TEAM, 'matches', MATCH, 'cvMapping', 'players'),
+      { byCluster: { 0: 'p1' }, updatedAt: serverTimestamp(), updatedBy: PLAYER.uid },
+    ));
+  });
+
+  it('the mapping cannot be attributed to someone else', async () => {
+    await assertFails(setDoc(
+      doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'cvMapping', 'players'),
+      { byCluster: { 0: 'p1' }, updatedAt: serverTimestamp(), updatedBy: PLAYER.uid },
+    ));
+  });
+
+  it('the mapping rejects stray fields and bad shapes', async () => {
+    const ref = doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'cvMapping', 'players');
+
+    await assertFails(setDoc(ref, {
+      byCluster: { 0: 'p1' }, updatedAt: serverTimestamp(), updatedBy: COACH.uid,
+      // cvStats is pipeline-authored; smuggling stats in through the mapping
+      // document would blur exactly the line this collection exists to keep.
+      touches: 900,
+    }));
+    await assertFails(setDoc(ref, {
+      byCluster: 'p1', updatedAt: serverTimestamp(), updatedBy: COACH.uid,
+    }));
+  });
+
   it('a player report still accepts the prefixed CV fields', async () => {
     // playerReports has no keys().hasOnly(), so cv/publish.py can add its
     // fields without a rules change. Pinned because that is load-bearing and

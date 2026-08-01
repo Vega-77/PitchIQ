@@ -9,15 +9,15 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=17';
-import { myReports, seasonTotals } from '../assets/db.js?v=17';
-import { CARD_COLOURS } from '../assets/events.js?v=17';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=17';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=17';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=18';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=18';
+import { CARD_COLOURS } from '../assets/events.js?v=18';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=18';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=18';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=17';
+} from '../assets/ui.js?v=18';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -256,14 +256,25 @@ function renderMatchStats(report) {
     const cards = (report.yellowCards ?? 0) + (report.redCards ?? 0);
     if (cards) grid.append(statCard(cards, 'Cards', 'is-warn'));
 
-    // Video-derived, and marked as such — same rule as everywhere else.
+    // Video-derived, and marked as such. The confidence comes from how many
+    // tracked fragments this player had to be assembled from — every join is
+    // a place the tracker could have picked up somebody else.
+    const trust = cvPlayerConfidence(report.cvClusterCount);
     if (report.cvTouches != null) {
-        grid.append(statCard(report.cvTouches, 'Touches', 'is-muted', 'medium'));
+        grid.append(statCard(report.cvTouches, 'Touches', 'is-muted', trust));
     }
     if (report.cvDistanceM != null) {
         grid.append(statCard(
-            (report.cvDistanceM / 1000).toFixed(2), 'km covered', 'is-muted', 'medium',
+            (report.cvDistanceM / 1000).toFixed(2), 'km covered', 'is-muted', trust,
         ));
+    }
+    if (report.cvTopSpeedKmh != null) {
+        grid.append(statCard(
+            report.cvTopSpeedKmh.toFixed(1), 'Top speed km/h', 'is-muted', trust,
+        ));
+    }
+    if (report.cvTackles != null) {
+        grid.append(statCard(report.cvTackles, 'Tackles won', 'is-muted', trust));
     }
 }
 

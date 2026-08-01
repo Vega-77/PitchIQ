@@ -10,16 +10,16 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=17';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=18';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../assets/db.js?v=17';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=17';
+} from '../assets/db.js?v=18';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=18';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
     tally,
-} from '../assets/ui.js?v=17';
+} from '../assets/ui.js?v=18';
 
 const VIEWS = ['view-error', 'view-report'];
 

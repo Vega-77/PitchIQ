@@ -7,13 +7,13 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=17';
-import { EVENT_TYPES } from './events.js?v=17';
+import { db } from './firebase-init.js?v=18';
+import { EVENT_TYPES } from './events.js?v=18';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
-import { playerTimeline } from './report.js?v=17';
+import { playerTimeline, cvStatsByPlayer, cvReportFields } from './report.js?v=18';
 
-export { playerTimeline };
+export { playerTimeline, cvStatsByPlayer, cvReportFields };
 
 export const PERIOD_STATUS = {
     kickoff_1st: 'first_half',
@@ -465,6 +465,12 @@ export async function publishReports(teamId, matchId, match, team, players, scor
     const roster = extra.roster || [];
     const counts = extra.counts || null;
 
+    // Video stats reach a player only through a mapping a coach confirmed.
+    // Without one this is empty and no cv* field is written at all — an
+    // unconfirmed cluster is a guess about identity, and a guess with a name
+    // attached is the one thing that would make these numbers untrustworthy.
+    const cvByPlayer = cvStatsByPlayer(extra.cvTracks, extra.cvMapping);
+
     for (const player of players) {
         const rosterDoc = await getDoc(
             doc(db, 'teams', teamId, 'players', player.id)
@@ -502,6 +508,8 @@ export async function publishReports(teamId, matchId, match, team, players, scor
                 matchId,
                 videoUrl: match.videoUrl || null,
                 videoOffsetS: match.videoOffsetS ?? 0,
+
+                ...cvReportFields(cvByPlayer[player.id]),
             }
         );
     }
@@ -664,10 +672,49 @@ export function cvConfidence(quality = {}, kind = 'team', mappingConfirmed = fal
     return 'low';
 }
 
-/** Whether a coach has confirmed which cluster is which player. */
-export function mappingConfirmed(cvStats) {
-    const mapping = cvStats?.identity?.playerByCluster;
-    return Boolean(mapping && Object.keys(mapping).length);
+/**
+ * Which tracked figure a coach has said is which player.
+ *
+ * Its own document, separate from cvStats, because that collection is
+ * pipeline-authored and read-only to clients. This one is a human's judgement,
+ * and keeping the two apart means a coach correcting an identity can never be
+ * mistaken for the pipeline having measured something.
+ */
+export async function readCvMapping(teamId, matchId) {
+    const snap = await getDoc(
+        doc(db, 'teams', teamId, 'matches', matchId, 'cvMapping', 'players')
+    ).catch(() => null);
+    return snap?.exists() ? (snap.data().byCluster || {}) : {};
+}
+
+export function saveCvMapping(user, teamId, matchId, byCluster) {
+    // Unassigned clusters are dropped rather than stored as null, so the
+    // document stays a plain "these are the ones we know" rather than a list
+    // of every figure the tracker ever produced.
+    const cleaned = Object.fromEntries(
+        Object.entries(byCluster || {}).filter(([, playerId]) => Boolean(playerId))
+    );
+    return setDoc(
+        doc(db, 'teams', teamId, 'matches', matchId, 'cvMapping', 'players'),
+        { byCluster: cleaned, updatedAt: serverTimestamp(), updatedBy: user.uid },
+    );
+}
+
+/**
+ * How much to trust one player's video stats, from how cleanly they were
+ * tracked.
+ *
+ * A player's numbers only exist at all once a coach has matched a tracked
+ * figure to them, so the question is no longer whether they were identified —
+ * it is how many pieces they had to be assembled from. Someone followed
+ * through the whole match is a much stronger claim than someone stitched out
+ * of nine fragments, where every join is a place the tracker could have picked
+ * up the wrong person.
+ */
+export function cvPlayerConfidence(clusterCount = 0) {
+    if (!clusterCount) return 'low';
+    if (clusterCount <= 2) return 'high';
+    return clusterCount <= 5 ? 'medium' : 'low';
 }
 
 /** The player portal's single query. Must filter on linkedUid to be permitted. */
