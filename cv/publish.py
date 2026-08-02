@@ -46,6 +46,25 @@ from pathlib import Path
 CV_STATS_COLLECTION = 'cvStats'
 SUMMARY_DOC = 'summary'
 IDENTITY_DOC = 'identity'
+EVENTS_DOC = 'events'
+
+# Individual events written to Firestore, for the coach review tool.
+#
+# Deliberately capped rather than paginated. A half produces a few hundred of
+# these; a run that produces thousands has gone wrong, and the right response to
+# that is a truncated document plus a flag saying so, not a document that fails
+# to write at all because it crossed a megabyte.
+MAX_EVENTS = 1500
+
+# Why the pipeline left figures out, written alongside the stats they were left
+# out of. Only the tracks something was decided about — the ones it kept and
+# believed carry no news, and there are forty of those for every one of these.
+#
+# Capped because a school pitch with a crowd behind it produces a lot of
+# stationary people. The authoritative counts are in `quality.excluded_tracks`
+# and `quality.flagged_officials`, so truncating this list loses the reasons for
+# the least significant few and never the size of the correction.
+MAX_PARTICIPANT_NOTES = 40
 
 # CV fields added to a playerReports document. All prefixed, so a coach's
 # tagged figures and the pipeline's estimates can never be confused for one
@@ -56,6 +75,11 @@ CV_FIELD_PREFIX = 'cv'
 # both the document size limit and the readability of a timeline strip run out
 # well before that.
 MAX_TOUCH_TIMES = 400
+
+# Kept in step with NOT_A_PLAYER in assets/report.js, which is where it is
+# explained. Duplicated rather than shared because there is no build step and
+# nothing carries a constant across the two languages.
+NOT_A_PLAYER = '__not_a_player'
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -143,6 +167,96 @@ def summary_payload(report_json: dict) -> dict:
         'trustworthy': report_json.get('trustworthy', False),
         'teams': report_json.get('teams') or {},
         'keepers': report_json.get('keepers') or [],
+        'participants': participant_notes(report_json),
+    }
+
+
+def participant_notes(
+    report_json: dict, limit: int = MAX_PARTICIPANT_NOTES,
+) -> list[dict]:
+    """The tracks the classifier acted on, and what it said about each.
+
+    An exclusion a coach cannot see is indistinguishable from a bug, and one
+    they can see but cannot question is worse — it looks like the pipeline knows
+    something it does not. Every threshold in `cv/participants.py` is a guess,
+    so the sentence that guess produced travels with the count all the way to
+    the screen.
+
+    Longest on screen first: a figure the pipeline watched for forty minutes and
+    then dropped is a bigger claim than one it saw for twenty-five seconds.
+    """
+    # Named rather than "everything that is not a player". `unsure` is a real
+    # role and it is *kept* — a track seen for fifteen seconds is treated as a
+    # player, because the alternative is deleting someone for being brief. It is
+    # not news, and listing it here would read as a third kind of rejection.
+    acted_on = [
+        p for p in report_json.get('participants') or []
+        if p.get('role') in ('offfield', 'official')
+    ]
+    acted_on.sort(key=lambda p: p.get('screen_time_s') or 0.0, reverse=True)
+
+    return [
+        {
+            'trackId': p.get('track_id'),
+            'role': p.get('role'),
+            'reason': p.get('reason'),
+            'screenTimeS': p.get('screen_time_s'),
+        }
+        for p in acted_on[:limit]
+    ]
+
+
+def events_payload(report_json: dict, limit: int = MAX_EVENTS) -> dict:
+    """The individual events, for a human to check one at a time.
+
+    `summary_payload` deliberately leaves these out, and that was right for what
+    it is: nothing renders a team total from an event list. The review tool is
+    the opposite job — it exists to put each candidate in front of a coach with
+    the video beside it — and it has no other source for them.
+
+    Trimmed to what that tool needs. `start_m`/`end_m` are dropped because they
+    are null without a calibration and nothing plots a pitch yet, and `tags` for
+    the same reason. Roughly 120 bytes an event, so a full cap is about 180KB
+    against Firestore's 1MB.
+    """
+    events = report_json.get('events') or []
+    floor = None
+
+    if len(events) > limit:
+        # Keep the most confident, but hand them back in clock order: a
+        # reviewer works down a timeline, not a ranking. And say what was
+        # dropped — a list that silently stops is indistinguishable from a
+        # pipeline that stopped finding things.
+        ranked = sorted(events, key=lambda e: e.get('confidence') or 0.0, reverse=True)
+        kept = ranked[:limit]
+        floor = min((e.get('confidence') or 0.0) for e in kept)
+        events = sorted(kept, key=lambda e: e.get('timestamp_s') or 0.0)
+
+    counts: dict[str, int] = {}
+    for event in events:
+        kind = event.get('type') or 'unknown'
+        counts[kind] = counts.get(kind, 0) + 1
+
+    return {
+        'schemaVersion': report_json.get('schema_version'),
+        'events': [
+            {
+                'id': event.get('event_id'),
+                'type': event.get('type'),
+                'timestampS': event.get('timestamp_s'),
+                'trackId': event.get('track_id'),
+                'team': event.get('team'),
+                'confidence': event.get('confidence'),
+                'inPlay': event.get('in_play', True),
+                'outcome': event.get('outcome'),
+                'xg': event.get('xg'),
+                'receiverTrackId': event.get('receiver_track_id'),
+            }
+            for event in events
+        ],
+        'truncated': floor is not None,
+        'droppedBelowConfidence': floor,
+        'counts': counts,
     }
 
 
@@ -211,10 +325,17 @@ def publish(
     )
     stats = match_ref.collection(CV_STATS_COLLECTION)
 
-    written = {'summary': True, 'identity': True, 'playerReports': 0, 'skipped': []}
+    written = {
+        'summary': True, 'identity': True, 'events': 0,
+        'playerReports': 0, 'skipped': [],
+    }
+
+    events = events_payload(report_json)
+    written['events'] = len(events['events'])
 
     stats.document(SUMMARY_DOC).set(summary_payload(report_json))
     stats.document(IDENTITY_DOC).set(identity_payload(report_json, mapping))
+    stats.document(EVENTS_DOC).set(events)
 
     if not mapping:
         written['skipped'].append(
@@ -227,6 +348,14 @@ def publish(
     }
 
     for cluster_id, player_id in mapping.items():
+        # The coach's way of saying a tracked figure is nobody — a referee, or
+        # somebody on the bench. It shares the map with real player ids because
+        # the cvMapping rules pin that document to three keys; see NOT_A_PLAYER
+        # in assets/report.js. Both readers of the map have to skip it, and this
+        # is the second.
+        if player_id == NOT_A_PLAYER:
+            continue
+
         track = by_cluster.get(str(cluster_id))
         if track is None:
             written['skipped'].append(f'cluster {cluster_id}: no stats for it')

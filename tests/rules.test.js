@@ -624,6 +624,114 @@ describe('cvStats', () => {
     }));
   });
 
+  // ------------------------------------------------ the coach's verdict on it
+
+  const review = (db) =>
+    doc(db, 'teams', TEAM, 'matches', MATCH, 'cvReview', 'decisions');
+
+  const decisions = (uid, over = {}) => ({
+    byEvent: { 'e1': { status: 'confirmed' } },
+    missed: [{ clockS: 750, type: 'shot', playerId: null }],
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    ...over,
+  });
+
+  it('a coach can record what they made of each candidate', async () => {
+    await assertSucceeds(setDoc(review(as(COACH)), decisions(COACH.uid)));
+  });
+
+  it('a tagger can read the review but not write it', async () => {
+    // STRANGER is this block's student manager — a tagger, per the fixture
+    // above. They should see what the coach made of the video without being
+    // able to overrule it.
+    await assertSucceeds(setDoc(review(as(COACH)), decisions(COACH.uid)));
+    await assertSucceeds(getDoc(review(as(STRANGER))));
+    await assertFails(setDoc(review(as(STRANGER)), decisions(STRANGER.uid)));
+  });
+
+  it('somebody outside the team cannot read the review at all', async () => {
+    // OTHER plays for this team but has no staff role of any kind.
+    await assertFails(getDoc(review(as(OTHER))));
+  });
+
+  it('a player cannot read or write the review', async () => {
+    await assertFails(getDoc(review(as(PLAYER))));
+    await assertFails(setDoc(review(as(PLAYER)), decisions(PLAYER.uid)));
+  });
+
+  it('the review cannot be attributed to someone else', async () => {
+    await assertFails(setDoc(review(as(COACH)), decisions(PLAYER.uid)));
+  });
+
+  it('the review rejects stray fields and bad shapes', async () => {
+    await assertFails(setDoc(review(as(COACH)),
+      decisions(COACH.uid, { touches: 900 })));
+    await assertFails(setDoc(review(as(COACH)),
+      decisions(COACH.uid, { byEvent: 'confirmed' })));
+    await assertFails(setDoc(review(as(COACH)),
+      decisions(COACH.uid, { missed: { clockS: 1 } })));
+  });
+
+  it('a runaway review is capped rather than becoming unreadable', async () => {
+    const byEvent = {};
+    for (let i = 0; i < 1501; i += 1) byEvent[`e${i}`] = { status: 'confirmed' };
+    await assertFails(setDoc(review(as(COACH)), decisions(COACH.uid, { byEvent })));
+
+    const missed = Array.from({ length: 301 }, (_, i) => ({ clockS: i, type: 'pass' }));
+    await assertFails(setDoc(review(as(COACH)), decisions(COACH.uid, { missed })));
+  });
+
+  it('the review cannot forge a CV stat', async () => {
+    // The whole point of the split: cvStats is what the pipeline measured and
+    // stays unwritable, however much a coach disagrees with it.
+    await assertFails(setDoc(
+      doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'cvStats', 'events'),
+      { events: [{ id: 'e1', type: 'goal' }] },
+    ));
+  });
+
+  it('a coach can push a video link onto an already-published report', async () => {
+    // publishReports copies videoUrl at publish time, and the ordinary order of
+    // events is publish, then upload the footage, then paste the link. Without
+    // this partial update every player's report says "no video for this match
+    // yet" until somebody re-publishes. The update carries only the two video
+    // fields, so it leans on request.resource.data being the merged document
+    // rather than the patch — published/minutesPlayed/goals come from the
+    // stored report.
+    await assertSucceeds(updateDoc(
+      doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p1'),
+      { videoUrl: 'https://youtu.be/dQw4w9WgXcQ', videoOffsetS: 120 },
+    ));
+  });
+
+  it('a player report refuses a video link that is not https', async () => {
+    // This is the copy the player portal actually reads, and the string in it
+    // becomes an iframe src on a page a minor opens. The match document has
+    // been guarded since the field existed; this one had the same coach write
+    // path and no guard at all.
+    const base = doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p1');
+
+    await assertFails(updateDoc(base, { videoUrl: 'javascript:alert(1)' }));
+    await assertFails(updateDoc(base, { videoUrl: 'http://example.com/m.mp4' }));
+    await assertFails(updateDoc(base, { videoUrl: 'data:text/html,<script>' }));
+    await assertFails(updateDoc(base, { videoUrl: 42 }));
+  });
+
+  it('a player report refuses an absurd video offset', async () => {
+    const base = doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p1');
+    await assertFails(updateDoc(base, { videoOffsetS: 999999 }));
+    await assertFails(updateDoc(base, { videoOffsetS: 'soon' }));
+  });
+
+  it('clearing the video link is allowed', async () => {
+    // A coach who pasted the wrong link has to be able to take it back.
+    await assertSucceeds(updateDoc(
+      doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p1'),
+      { videoUrl: null, videoOffsetS: 0 },
+    ));
+  });
+
   it('a player report still accepts the prefixed CV fields', async () => {
     // playerReports has no keys().hasOnly(), so cv/publish.py can add its
     // fields without a rules change. Pinned because that is load-bearing and

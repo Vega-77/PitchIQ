@@ -25,7 +25,10 @@ from cv.publish import (
     PublishError,
     _check_key,
     _check_path,
+    MAX_PARTICIPANT_NOTES,
+    events_payload,
     identity_payload,
+    participant_notes,
     player_report_fields,
     publish,
     summary_payload,
@@ -188,14 +191,107 @@ class TestPublish:
         assert summary['warnings']
         assert summary['trustworthy'] is False
 
-    def test_events_are_not_written_to_firestore(self):
-        """A half of football is tens of thousands of touches and a document
-        caps at a megabyte. They stay in the JSON file."""
+    def test_events_stay_out_of_the_summary(self):
+        """The summary is what renders a team total, and no total is computed
+        from an event list. Events get their own document — see TestEvents."""
         client = FakeClient()
         publish(a_report(), 'team1', 'match1', client=client)
         summary = client.store['teams/team1/matches/match1/cvStats/summary']
         assert 'events' not in summary
         assert 'touches' not in summary
+
+
+def an_event(index=0, kind='pass', confidence=0.8, timestamp_s=None):
+    return {
+        'event_id': f'e{index}',
+        'type': kind,
+        'timestamp_s': float(index) if timestamp_s is None else timestamp_s,
+        'frame_index': index * 30,
+        'team': 'team_a',
+        'track_id': 7,
+        'start_m': None,
+        'end_m': None,
+        'confidence': confidence,
+        'tags': [],
+        'in_play': True,
+    }
+
+
+class TestEvents:
+    """The review tool's only source. Without this document a coach can see
+    that the pipeline found 84 passes and never see one of them."""
+
+    def test_events_get_their_own_document(self):
+        client = FakeClient()
+        report = a_report()
+        report['events'] = [an_event(0), an_event(1)]
+
+        written = publish(report, 'team1', 'match1', client=client)
+        doc = client.store['teams/team1/matches/match1/cvStats/events']
+
+        assert written['events'] == 2
+        assert [e['id'] for e in doc['events']] == ['e0', 'e1']
+        assert doc['counts'] == {'pass': 2}
+        assert doc['truncated'] is False
+        assert doc['droppedBelowConfidence'] is None
+
+    def test_a_run_with_no_events_still_writes_the_document(self):
+        """An empty list and a missing document read very differently to a
+        coach opening the review tool."""
+        client = FakeClient()
+        publish(a_report(), 'team1', 'match1', client=client)
+        doc = client.store['teams/team1/matches/match1/cvStats/events']
+        assert doc['events'] == []
+
+    def test_only_the_fields_the_review_tool_needs_survive(self):
+        doc = events_payload({'events': [an_event()]})
+        assert set(doc['events'][0]) == {
+            'id', 'type', 'timestampS', 'trackId', 'team', 'confidence',
+            'inPlay', 'outcome', 'xg', 'receiverTrackId',
+        }
+
+    def test_the_in_play_flag_reaches_the_client(self):
+        event = an_event()
+        event['in_play'] = False
+        assert events_payload({'events': [event]})['events'][0]['inPlay'] is False
+
+
+class TestEventCap:
+    def test_a_runaway_run_is_capped_rather_than_failing_to_write(self):
+        events = [an_event(i) for i in range(50)]
+        doc = events_payload({'events': events}, limit=10)
+
+        assert len(doc['events']) == 10
+        assert doc['truncated'] is True
+
+    def test_the_most_confident_are_kept(self):
+        events = [an_event(i, confidence=i / 100) for i in range(50)]
+        doc = events_payload({'events': events}, limit=5)
+
+        assert {e['id'] for e in doc['events']} == {'e45', 'e46', 'e47', 'e48', 'e49'}
+        assert doc['droppedBelowConfidence'] == pytest.approx(0.45)
+
+    def test_but_they_come_back_in_clock_order(self):
+        """A reviewer works down a timeline, not a ranking."""
+        events = [
+            an_event(0, confidence=0.1, timestamp_s=10.0),
+            an_event(1, confidence=0.9, timestamp_s=20.0),
+            an_event(2, confidence=0.5, timestamp_s=5.0),
+        ]
+        doc = events_payload({'events': events}, limit=2)
+        assert [e['timestampS'] for e in doc['events']] == [5.0, 20.0]
+
+    def test_a_truncated_list_says_so_rather_than_stopping_silently(self):
+        """A list that just stops is indistinguishable from a pipeline that
+        stopped finding things."""
+        doc = events_payload({'events': [an_event(i) for i in range(20)]}, limit=3)
+        assert doc['truncated'] is True
+        assert doc['droppedBelowConfidence'] is not None
+
+    def test_a_list_at_exactly_the_limit_is_not_truncated(self):
+        doc = events_payload({'events': [an_event(i) for i in range(10)]}, limit=10)
+        assert doc['truncated'] is False
+        assert len(doc['events']) == 10
 
 
 class TestPerPlayerGate:
@@ -257,3 +353,81 @@ class TestPayloads:
         payload = summary_payload({})
         assert payload['teams'] == {}
         assert payload['trustworthy'] is False
+
+
+class TestParticipantNotes:
+    """Why figures were left out, carried to the screen with the counts.
+
+    The classifier's thresholds are guesses that have never met a real
+    touchline, so the sentence a guess produced has to travel with it. A coach
+    shown "9 excluded" cannot tell a stationary parent from a wrongly-dropped
+    goalkeeper; one shown "never moved more than 0.4 of a body length in 41
+    minutes" can.
+    """
+
+    def report(self, participants):
+        return {'participants': participants}
+
+    def verdict(self, track_id, role, screen_time_s=100.0, reason='because'):
+        return {
+            'track_id': track_id, 'role': role, 'reason': reason,
+            'screen_time_s': screen_time_s,
+        }
+
+    def test_players_are_not_news(self):
+        notes = participant_notes(self.report([
+            self.verdict(1, 'player'), self.verdict(2, 'offfield'),
+        ]))
+        assert [n['trackId'] for n in notes] == [2]
+
+    def test_officials_are_reported_even_though_they_were_kept(self):
+        """Being carried inside the counts is exactly why it needs saying."""
+        notes = participant_notes(self.report([self.verdict(3, 'official')]))
+        assert notes[0]['role'] == 'official'
+
+    def test_unsure_is_not_a_third_kind_of_rejection(self):
+        """`unsure` tracks are kept and counted as players. Listing them under
+        a heading about figures left out would say the opposite."""
+        assert participant_notes(self.report([self.verdict(4, 'unsure')])) == []
+
+    def test_the_reason_survives_the_trip_unedited(self):
+        notes = participant_notes(self.report([
+            self.verdict(5, 'offfield', reason='never moved more than 0.4 of a '
+                         'body length from one spot in 2460s'),
+        ]))
+        assert notes[0]['reason'].startswith('never moved more than 0.4')
+
+    def test_longest_on_screen_first(self):
+        """A figure watched for forty minutes and then dropped is a bigger
+        claim than one seen for twenty-five seconds."""
+        notes = participant_notes(self.report([
+            self.verdict(1, 'offfield', screen_time_s=30.0),
+            self.verdict(2, 'official', screen_time_s=2400.0),
+            self.verdict(3, 'offfield', screen_time_s=600.0),
+        ]))
+        assert [n['trackId'] for n in notes] == [2, 3, 1]
+
+    def test_a_crowd_is_capped(self):
+        crowd = [self.verdict(i, 'offfield', screen_time_s=float(i))
+                 for i in range(200)]
+        notes = participant_notes(self.report(crowd))
+        assert len(notes) == MAX_PARTICIPANT_NOTES
+        # The longest-watched survive, and the authoritative totals are in
+        # `quality`, so the cap costs the least significant reasons and never
+        # the size of the correction.
+        assert notes[0]['trackId'] == 199
+
+    def test_a_run_from_before_the_classifier_is_empty_not_an_error(self):
+        assert participant_notes({}) == []
+        assert participant_notes({'participants': None}) == []
+
+    def test_a_missing_screen_time_does_not_break_the_sort(self):
+        notes = participant_notes(self.report([
+            {'track_id': 1, 'role': 'offfield', 'reason': 'x'},
+            self.verdict(2, 'offfield', screen_time_s=10.0),
+        ]))
+        assert [n['trackId'] for n in notes] == [2, 1]
+
+    def test_the_summary_carries_them(self):
+        payload = summary_payload(self.report([self.verdict(7, 'offfield')]))
+        assert [n['trackId'] for n in payload['participants']] == [7]

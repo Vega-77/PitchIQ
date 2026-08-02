@@ -44,7 +44,9 @@ from .events import (
 from .identity import PlayerCluster, fragmentation
 from .teams import TEAM_A, TEAM_B
 
-SCHEMA_VERSION = 1
+# 2: `participants` added, `shape` became per team, `no_ball_s` became a real
+#    measurement instead of an identity that was always zero.
+SCHEMA_VERSION = 2
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -378,7 +380,7 @@ def build_report_json(
             log, team,
             calibrated=calibrated,
             possession_pct=possession.share(team) if possession else None,
-            shape=report.shape if team == TEAM_A else {},
+            shape=(report.shape or {}).get(team) or {},
         ).to_json()
 
     tracks = track_stats(
@@ -411,6 +413,11 @@ def build_report_json(
         'tracks': [t.to_json() for t in tracks],
         'keepers': [k.to_json() for k in report.keeper_stats],
         'clusters': [c.to_json() for c in report.clusters],
+        # Every verdict, including the ones that changed nothing. An exclusion
+        # that cannot be audited is indistinguishable from a bug.
+        'participants': (
+            report.participants.to_json() if report.participants else []
+        ),
     }
 
     if include_events:
@@ -446,4 +453,28 @@ def _quality(report, log: EventLog) -> dict:
         ),
         'unseen_spans': len(touches.gaps) if touches else 0,
         'keeper_method': report.keepers.method if report.keepers else 'unavailable',
+        # How many figures in the picture were left out of every number above,
+        # and how many are being carried despite matching neither kit. Both
+        # belong next to the stats rather than buried: they are the size of the
+        # correction, and of the correction that could not be made.
+        'excluded_tracks': (
+            len(report.participants.excluded) if report.participants else 0
+        ),
+        'flagged_officials': (
+            len(report.participants.officials) if report.participants else 0
+        ),
+        'no_ball_s': _round(
+            report.possession.no_ball_s if report.possession else None, 1
+        ),
+        # None rather than zero when no tagged log was supplied. Zero would say
+        # the ball was never out of play for the whole window, which is a
+        # claim about the match rather than about what we were told.
+        'dead_ball_s': _round(
+            report.possession.dead_ball_s if report.phases else None, 1
+        ),
+        'live_share': (
+            _round(1.0 - report.phases.dead_s / report.duration_s, 3)
+            if report.phases and report.duration_s else None
+        ),
+        'stoppages': len(report.phases.spans) if report.phases else None,
     }

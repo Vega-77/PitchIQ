@@ -41,6 +41,8 @@ from .metrics import (
     smooth_positions,
     team_shape,
 )
+from .participants import ParticipantReport, classify_participants
+from .phases import PhaseTable, phases_from_log
 from .pitch import MatchOrientation, Pitch
 from .possession import PossessionSummary, build_states, summarise
 from .teams import TEAM_A, TEAM_B, assign_teams, separation
@@ -55,6 +57,11 @@ MIN_CLEAR_HOLDER_SHARE = 0.25
 
 # Kits closer than this in chroma cannot be told apart reliably.
 MIN_KIT_SEPARATION = 25.0
+
+# How many figures may be excluded as non-players before it stops being a
+# touchline and starts being a symptom. Two benches, a referee team and a couple
+# of photographers is comfortably under this.
+MAX_QUIET_EXCLUSIONS = 12
 
 
 @dataclass
@@ -85,7 +92,10 @@ class MatchReport:
 
     players: list[PlayerReport] = field(default_factory=list)
     possession: PossessionSummary | None = None
-    shape: dict[str, float] = field(default_factory=dict)
+    # Keyed by team. A single shape over every track on the pitch is not any
+    # team's shape — it is the bounding box of the match, and it was reported as
+    # Team A's until this became a dict.
+    shape: dict[str, dict[str, float]] = field(default_factory=dict)
     ball: BallTrajectory | None = None
 
     touches: TouchSequence | None = None
@@ -93,6 +103,9 @@ class MatchReport:
     clusters: list[PlayerCluster] = field(default_factory=list)
     keepers: KeeperAssignment | None = None
     keeper_stats: list = field(default_factory=list)
+    participants: ParticipantReport | None = None
+    # None means no tagged log was supplied — not that there were no stoppages.
+    phases: PhaseTable | None = None
 
     kit_separation: float = 0.0
     clear_holder_share: float = 0.0
@@ -167,11 +180,13 @@ class MatchReport:
             )
         if self.possession:
             lines.append(f'  possession        {self.possession.summary_line()}')
-        if self.shape:
+        for team, shape in sorted(self.shape.items()):
+            if not shape:
+                continue
             lines.append(
-                f'  shape             {self.shape["width_m"]:.0f}m wide, '
-                f'{self.shape["depth_m"]:.0f}m deep, '
-                f'{self.shape["compactness_m"]:.0f}m compactness'
+                f'  shape {team:<12}{shape["width_m"]:.0f}m wide, '
+                f'{shape["depth_m"]:.0f}m deep, '
+                f'{shape["compactness_m"]:.0f}m compactness'
             )
         if self.calibration_error_m is not None:
             lines.append(f'  calibration       {self.calibration_error_m:.2f}m error')
@@ -224,12 +239,20 @@ def analyse_match(
     stride: int = 1,
     period: str = 'first_half',
     side_of_team: dict[str, str] | None = None,
+    tag_log=None,
+    video_offset_s: float = 0.0,
 ) -> MatchReport:
     """Run the full pipeline over a video.
 
     Without a calibration this still returns possession, the team split and the
     tracks themselves, which need only pixels. With one it adds everything
     expressed in metres.
+
+    `tag_log` is the hand-tagged match log, as `assets/db.js::listLog` returns
+    it. It is what tells this pipeline when the ball was out of play; without it
+    every stoppage counts as possession for whoever was standing over the ball.
+    `video_offset_s` relates the two clocks, and is the same number the coach
+    already types in beside the video link.
 
     Speed and fragmentation, on the same 15s 720p window (450 frames, RTX
     4060). Three fresh processes each, one model per process, medians given
@@ -333,6 +356,44 @@ def analyse_match(
             'too close to separate reliably'
         )
 
+    # ---- who is actually playing ----
+    #
+    # Before any statistic is taken. The detector returns people, and a touchline
+    # is full of people who are not in the match; every count below is measured
+    # over whoever survives this.
+    report.participants = classify_participants(table)
+    is_player = report.participants.is_player
+
+    # Not a warning at any number above zero. Leaving a substitute out is the
+    # module working, and `trustworthy` is `not warnings` — so saying so every
+    # time would mean no report with a bench in shot could ever be trusted. It
+    # only becomes a warning when the count stops looking like a touchline and
+    # starts looking like the classifier eating the match.
+    if len(report.participants.excluded) > MAX_QUIET_EXCLUSIONS:
+        report.warnings.append(
+            f'{len(report.participants.excluded)} tracked figures were left out '
+            'as not playing, which is more than a touchline — check '
+            'participants before trusting any count here'
+        )
+
+    # ---- in play or not ----
+    #
+    # Shifted onto video time once, here, rather than converting every
+    # timestamp that later meets it.
+    report.phases = (
+        phases_from_log(tag_log).shifted(video_offset_s) if tag_log else None
+    )
+    if report.phases is None:
+        report.warnings.append(
+            'no tagged log supplied, so stoppages count as possession — a '
+            'throw-in reads as the taker holding the ball'
+        )
+    elif report.phases.timed_out:
+        report.warnings.append(
+            f'{report.phases.timed_out} stoppages in the log never had a '
+            'restart tagged, and were capped rather than measured'
+        )
+
     # ---- possession ----
     ball_by_frame = {
         r.frame_index: r.ball_xy for r in table.records if r.ball_xy is not None
@@ -343,8 +404,9 @@ def analyse_match(
         {r.frame_index: r.boxes() for r in table.records},
         table.team_of,
         {r.frame_index: r.timestamp_s for r in table.records},
+        is_player=is_player,
     )
-    report.possession = summarise(states)
+    report.possession = summarise(states, phases=report.phases)
 
     clear = sum(1 for s in states if s.team in (TEAM_A, TEAM_B))
     report.clear_holder_share = clear / len(states) if states else 0.0
@@ -360,14 +422,14 @@ def analyse_match(
     # Fragments back into people, so per-player figures have somebody to belong
     # to. This does not name anyone — that stays a human job — but it turns a
     # hundred tracks into a list short enough for a coach to work through.
-    report.clusters = merge_tracks(table, colour_samples)
+    report.clusters = merge_tracks(table, colour_samples, is_player=is_player)
 
     # ---- keepers ----
     defending_ends = _defending_ends(orientation, side_of_team, period)
     report.keepers = identify_keepers(table, defending_ends)
 
     # ---- touches, and everything built on them ----
-    report.touches = segment_touches(table)
+    report.touches = segment_touches(table, is_player=is_player)
     report.events = derive_events(
         report.touches, table,
         pitch=pitch,
@@ -375,6 +437,7 @@ def analyse_match(
         period=period,
         side_of_team=side_of_team,
         keeper_tracks=report.keepers.all_tracks(),
+        phases=report.phases,
     )
     if defending_ends and report.keepers.all_tracks():
         report.keeper_stats = keeper_reports(
@@ -388,7 +451,7 @@ def analyse_match(
     #
     # The tracks exist either way — they came out of the pass above. What a
     # calibration adds is the ability to measure them.
-    sightings = _sightings_by_track(table)
+    sightings = _sightings_by_track(table, is_player=is_player)
 
     if calibration is None:
         report.warnings.append(
@@ -433,23 +496,35 @@ def analyse_match(
             minutes_tracked=stats.minutes_tracked,
         ))
 
-    report.shape = team_shape(series_by_track)
+    # Shape is per team, and each team's is built from that team's own tracks.
+    # Measuring it over everyone on the pitch produces the bounding box of the
+    # match — two banks of players plus the referee — which is not a formation
+    # and cannot be compacted.
+    for team in (TEAM_A, TEAM_B):
+        own = {
+            track_id: series for track_id, series in series_by_track.items()
+            if table.team_of(track_id) == team
+        }
+        report.shape[team] = team_shape(own) if own else {}
 
     # A team cannot be wider than the pitch or deeper than it is long. If it
     # comes out that way the homography is wrong, or the camera moved after it
     # was fitted — either way the metres are fiction, and saying so beats
     # printing "126m deep" on a 105m pitch with a straight face.
-    if report.shape:
+    for team, shape in report.shape.items():
+        if not shape:
+            continue
         impossible = [
-            f'{report.shape["width_m"]:.0f}m wide on a {pitch.width_m:.0f}m pitch'
-            if report.shape['width_m'] > pitch.width_m * 1.1 else '',
-            f'{report.shape["depth_m"]:.0f}m deep on a {pitch.length_m:.0f}m pitch'
-            if report.shape['depth_m'] > pitch.length_m * 1.1 else '',
+            f'{shape["width_m"]:.0f}m wide on a {pitch.width_m:.0f}m pitch'
+            if shape['width_m'] > pitch.width_m * 1.1 else '',
+            f'{shape["depth_m"]:.0f}m deep on a {pitch.length_m:.0f}m pitch'
+            if shape['depth_m'] > pitch.length_m * 1.1 else '',
         ]
         impossible = [x for x in impossible if x]
         if impossible:
             report.warnings.append(
-                'team shape is physically impossible (' + '; '.join(impossible)
+                f'{team} shape is physically impossible ('
+                + '; '.join(impossible)
                 + ') — the calibration does not match this footage'
             )
 
@@ -524,18 +599,26 @@ def _warn_on_fragmentation(report: MatchReport) -> None:
         )
 
 
-def _sightings_by_track(table: FrameTable) -> dict[int, tuple[np.ndarray, np.ndarray]]:
+def _sightings_by_track(
+    table: FrameTable, is_player=None,
+) -> dict[int, tuple[np.ndarray, np.ndarray]]:
     """Group the frame table into per-track (timestamps, ground points).
 
     Ground points rather than box centres: a homography maps the plane the
     players stand on, so projecting the middle of a body puts them several
     metres up-pitch of where they are.
+
+    Anyone `is_player` rejects is dropped here, which is upstream of both the
+    per-player reports and the clustering — so a substitute never becomes a
+    figure a coach is asked to put a name to.
     """
     times: dict[int, list[float]] = {}
     points: dict[int, list[tuple[float, float]]] = {}
 
     for record in table.records:
         for box in record.player_boxes():
+            if is_player is not None and not is_player(box.track_id):
+                continue
             times.setdefault(box.track_id, []).append(record.timestamp_s)
             points.setdefault(box.track_id, []).append(box.ground_point)
 

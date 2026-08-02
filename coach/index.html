@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=18">
-    <link rel="stylesheet" href="coach.css?v=18">
+    <link rel="stylesheet" href="../assets/app.css?v=19">
+    <link rel="stylesheet" href="coach.css?v=19">
 </head>
 <body>
 
@@ -352,6 +352,53 @@
             <div id="cv-clusters" class="list"></div>
         </section>
 
+        <!-- The match itself, with the goals, cards and subs marked on it. -->
+        <section class="block hidden" id="match-video-block">
+            <h3>The match</h3>
+            <p class="muted" id="match-video-note" style="margin:-4px 0 14px"></p>
+            <div id="match-video" class="video-frame"></div>
+            <div id="match-scrubber" class="scrubber"></div>
+            <div id="match-moments" class="moment-list"></div>
+        </section>
+
+        <section class="block hidden" id="cv-excluded-block">
+            <h3>Who the video left out</h3>
+            <p class="muted" id="cv-excluded-note"></p>
+            <div id="cv-excluded" class="list"></div>
+        </section>
+
+        <section class="block hidden" id="cv-review-block">
+            <h3>Check what the video found
+                <span id="cv-review-state" class="save-state"></span></h3>
+            <p class="muted" id="cv-review-progress"></p>
+
+            <div id="cv-review-video" class="video-frame"></div>
+            <p class="muted" id="cv-review-note" style="margin:8px 0 12px; font-size:0.8rem"></p>
+            <div id="cv-review-scrubber" class="scrubber"></div>
+
+            <div id="cv-review-filters" class="chips"></div>
+            <div id="cv-review-list" class="list review-list"></div>
+
+            <div class="review-missed">
+                <label class="field">
+                    <span>The video missed something at</span>
+                    <input id="input-missed-clock" type="text" inputmode="numeric"
+                           placeholder="12:30" size="6">
+                </label>
+                <label class="field">
+                    <span>and it was a</span>
+                    <select id="input-missed-type"></select>
+                </label>
+                <button id="btn-cv-missed" class="btn secondary">Record a miss</button>
+            </div>
+            <p class="muted" style="margin:8px 0 0; font-size:0.8rem">
+                Recording what the video <em>failed</em> to see is the only way to
+                tell whether it is missing half the match. The time box does not
+                follow the video — YouTube will not tell a page where it is — so
+                read it off the player and type it in.
+            </p>
+        </section>
+
         <section class="block">
             <h3>Timeline</h3>
             <div id="timeline" class="timeline"></div>
@@ -370,6 +417,7 @@
                     <input id="input-video-url" type="url" inputmode="url"
                            placeholder="https://youtube.com/watch?v=...">
                 </label>
+                <p class="video-hint" id="video-kind-hint" aria-live="polite"></p>
                 <label class="field">
                     <span>Seconds into the video that kick-off happens</span>
                     <input id="input-video-offset" type="number" step="1" value="0"
@@ -380,6 +428,19 @@
                     Get this wrong and every moment lands in the warm-up.
                 </p>
                 <button id="btn-save-video" class="btn">Save video link</button>
+            </div>
+        </section>
+
+        <section class="block">
+            <h3>Send this match to the video pipeline</h3>
+            <div class="card">
+                <p class="muted" style="margin:0 0 16px">
+                    Downloads everything tagged during this match as one file, for
+                    running the footage through the analyser. It is what tells the
+                    analyser when the ball was out of play — without it a throw-in
+                    counts as possession for whoever was standing over the ball.
+                </p>
+                <button id="btn-download-log" class="btn secondary">Download tag log</button>
             </div>
         </section>
 
@@ -399,6 +460,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=18"></script>
+<script type="module" src="coach.js?v=19"></script>
 </body>
 </html>

@@ -192,6 +192,7 @@ def merge_tracks(
     table: FrameTable,
     colours: dict[int, list] | None = None,
     min_sightings: int = MIN_CLUSTER_SIGHTINGS,
+    is_player=None,
 ) -> list[PlayerCluster]:
     """Group tracks into clusters that are probably one player each.
 
@@ -200,8 +201,14 @@ def merge_tracks(
     continue something?" rather than "which of these hundred pairs is most
     similar?". A greedy pass is also easy to explain to the person confirming
     the result, which matters more here than optimality.
+
+    `is_player` drops anyone `cv/participants.py` decided is not playing, before
+    they can become a cluster. A cluster is a question put to a coach — "who is
+    this?" — and the referee is not one of the answers.
     """
     spans = track_spans(table, colours)
+    if is_player is not None:
+        spans = {t: s for t, s in spans.items() if is_player(t)}
     if not spans:
         return []
 

@@ -63,7 +63,33 @@ def build_parser() -> argparse.ArgumentParser:
                         help='list raw touches with their confidence components')
     parser.add_argument('--json', dest='json_path', default=None,
                         help='also write the full report JSON here')
+    parser.add_argument('--tag-log', dest='tag_log', default=None,
+                        help='the hand-tagged match log, downloaded from the '
+                             'coach page. Without it every stoppage counts as '
+                             'possession for whoever stood over the ball')
+    parser.add_argument('--video-offset', dest='video_offset', type=float,
+                        default=0.0,
+                        help='seconds to add to a match clock reading to get '
+                             'the position in this video — the same number the '
+                             'coach types beside the video link')
     return parser
+
+
+def load_tag_log(path: str | None):
+    """The log as `assets/db.js::listLog` returns it: a list of entries.
+
+    Also accepts the whole object the coach page downloads, which wraps that
+    list in `{'entries': [...]}` alongside the ids it came from — so a file can
+    say which match it belongs to without the loader having to care.
+    """
+    if not path:
+        return None
+
+    data = json.loads(Path(path).read_text(encoding='utf-8'))
+    entries = data.get('entries') if isinstance(data, dict) else data
+    if not isinstance(entries, list):
+        raise ValueError(f'{path} is not a match log')
+    return entries
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -93,11 +119,22 @@ def main(argv: list[str] | None = None) -> int:
         stride=args.stride,
         period=args.period,
         side_of_team=side_of_team,
+        tag_log=load_tag_log(args.tag_log),
+        video_offset_s=args.video_offset,
     )
 
     print()
     print(report.summary())
     print()
+
+    if report.phases and report.phases.spans:
+        print(f'  {len(report.phases.spans)} stoppages, '
+              f'{report.phases.dead_s:.0f}s dead')
+        print('  from      to        opened by       closed by')
+        for span in report.phases.spans:
+            print(f'  {clock(span.start_s)}  {clock(span.end_s)}  '
+                  f'{span.opened_by:14s}  {span.closed_by or "(timed out)"}')
+        print()
 
     if args.touches and report.touches:
         print('  touches')

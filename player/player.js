@@ -9,15 +9,16 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=18';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=18';
-import { CARD_COLOURS } from '../assets/events.js?v=18';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=18';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=18';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=19';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=19';
+import { CARD_COLOURS } from '../assets/events.js?v=19';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=19';
+import { videoTime } from '../assets/video.js?v=19';
+import { renderMatchVideo } from '../assets/match-video.js?v=19';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=18';
+} from '../assets/ui.js?v=19';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -306,98 +307,54 @@ function renderVideo(report) {
     }
     block.classList.remove('hidden');
 
-    const host = byId('md-video');
     const offset = report.videoOffsetS ?? 0;
+    const marks = marksFor(report, moments, touches);
 
-    if (report.videoUrl && videoKind(report.videoUrl)) {
-        open.video = mountVideo(host, report.videoUrl);
-        setText('md-video-note', touches.length
-            ? `${plural(moments.length, 'tagged moment')} and `
-              + `${plural(touches.length, 'touch', 'touches')} found in the video. `
-              + 'Tap any of them to jump there.'
-            : `${plural(moments.length, 'moment')}. Tap one to jump to it.`);
-    } else {
-        host.innerHTML = '';
-        if (report.videoUrl) {
-            // A link we will not embed — a Drive share, say. Still worth giving
-            // them, just not as a player we can seek.
-            const link = document.createElement('a');
-            link.className = 'btn small';
-            link.href = report.videoUrl;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.textContent = 'Open the match video';
-            host.append(link);
-        }
-        setText('md-video-note', report.videoUrl
-            ? 'That video link cannot be played inside PitchIQ, so the times below '
-              + 'are match-clock readings.'
-            : 'No video for this match yet — ask your coach to add one. The times '
-              + 'below are match-clock readings.');
-    }
-
-    renderScrubber(report, moments, touches, offset);
-    renderMoments(report, moments, touches, offset);
+    open.video = renderMatchVideo(
+        {
+            video: byId('md-video'),
+            strip: byId('md-scrubber'),
+            list: byId('md-moments'),
+            note: byId('md-video-note'),
+        },
+        {
+            url: report.videoUrl,
+            offsetS: offset,
+            marks,
+            clockText,
+            // So a mark tagged in stoppage time does not fall off the end of a
+            // bar drawn to ninety minutes.
+            extraTimes: (report.timeline || []).map((e) => e.clockS || 0),
+            emptyText: 'Nothing was tagged for you in this match.',
+            // Taken over rather than left to the module: a tap with no video
+            // should say why, and the video wants scrolling into view.
+            onSeek: (clockS) => seekTo(clockS, offset),
+            notes: {
+                embed: touches.length
+                    ? `${plural(moments.length, 'tagged moment')} and `
+                      + `${plural(touches.length, 'touch', 'touches')} found in the `
+                      + 'video. Tap any of them to jump there.'
+                    : `${plural(moments.length, 'moment')}. Tap one to jump to it.`,
+                link: 'That video link cannot be played inside PitchIQ, so the '
+                    + 'times below are match-clock readings.',
+                none: 'No video for this match yet — ask your coach to add one. '
+                    + 'The times below are match-clock readings.',
+            },
+        },
+    );
 }
 
-/** A strip of the match with a tick at each moment, tappable. */
-function renderScrubber(report, moments, touches, offset) {
-    const strip = byId('md-scrubber');
-    strip.innerHTML = '';
-
-    // The match end, so ticks sit in proportion. Falls back to 90 minutes when
-    // nothing later was tagged.
-    const end = Math.max(
-        90 * 60,
-        ...(report.timeline || []).map((e) => e.clockS || 0),
-        ...touches,
-    ) || 5400;
-
-    const tick = (clockS, className, label) => {
-        const mark = document.createElement('button');
-        mark.type = 'button';
-        mark.className = `tick ${className}`;
-        mark.style.left = `${Math.min(100, (clockS / end) * 100)}%`;
-        mark.title = `${clockText(clockS)} — ${label}`;
-        mark.setAttribute('aria-label', mark.title);
-        mark.addEventListener('click', () => seekTo(clockS, offset));
-        strip.append(mark);
-    };
-
-    for (const t of touches) tick(t, 'is-touch', 'Touch');
-    for (const m of moments) tick(m.clockS, `is-${m.type}`, m.label);
-
-    const half = document.createElement('span');
-    half.className = 'tick-half';
-    half.style.left = `${Math.min(100, ((45 * 60) / end) * 100)}%`;
-    strip.append(half);
-}
-
-function renderMoments(report, moments, touches, offset) {
-    const list = byId('md-moments');
-    list.innerHTML = '';
-
-    if (!moments.length && !touches.length) {
-        list.innerHTML =
-            '<div class="empty">Nothing was tagged for you in this match.</div>';
-        return;
-    }
-
-    const rows = [
-        ...moments.map((m) => ({ clockS: m.clockS, label: m.label, type: m.type })),
-        ...touches.map((t) => ({ clockS: t, label: 'Touch', type: 'touch' })),
-    ].sort((a, b) => a.clockS - b.clockS);
-
-    for (const row of rows) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = `moment is-${row.type}`;
-        button.innerHTML = '<span class="m-clock"></span><span class="m-label"></span>';
-        button.querySelector('.m-clock').textContent = clockText(row.clockS);
-        button.querySelector('.m-label').textContent = row.label;
-        button.addEventListener('click', () => seekTo(row.clockS, offset));
-        list.append(button);
-    }
+/**
+ * Everything markable in this match, as the shared timeline's mark shape.
+ *
+ * Touches first so a tagged moment paints over one — a goal and the touch that
+ * scored it land on the same pixel, and the goal is the one worth seeing.
+ */
+function marksFor(report, moments, touches) {
+    return [
+        ...touches.map((clockS) => ({ clockS, type: 'touch', label: 'Touch' })),
+        ...moments.map((m) => ({ clockS: m.clockS, type: m.type, label: m.label })),
+    ];
 }
 
 function seekTo(clockS, offset) {

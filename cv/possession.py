@@ -21,11 +21,17 @@ team has held the ball for a minimum spell.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
 from .teams import TEAM_A, TEAM_B, UNKNOWN
+
+# A fourth label beside the two teams and `unknown`, used only when a tagged log
+# says the ball was out of play. Not a team, and deliberately not `unknown`:
+# "they were fighting for it" and "the referee had blown" are different things
+# and had been indistinguishable in every possession figure to date.
+DEAD = 'dead'
 
 # How close a player must be to count as having the ball, in multiples of the
 # median player height in that frame. Roughly a stride and a half.
@@ -42,6 +48,9 @@ class FrameState:
     holder_track: int | None
     team: str
     distance_px: float | None
+    # Whether the ball was located at all on this frame. Defaults to True so a
+    # hand-built state in a test still means what it looks like it means.
+    ball_seen: bool = True
 
 
 @dataclass
@@ -49,13 +58,17 @@ class PossessionSummary:
     team_a_s: float = 0.0
     team_b_s: float = 0.0
     contested_s: float = 0.0
+    # A slice of contested_s rather than a bucket beside it — see summarise().
     no_ball_s: float = 0.0
+    # Time the tagged log says the ball was out of play. Zero when no log was
+    # supplied, which means "nobody told us" and not "there were no stoppages".
+    dead_ball_s: float = 0.0
     turnovers: int = 0
     spells: list[tuple[str, float, float]] = field(default_factory=list)
 
     @property
     def live_s(self) -> float:
-        """Time with a clear holder. Contested and ball-missing time excluded."""
+        """Time with a clear holder. Contested, ball-missing and dead excluded."""
         return self.team_a_s + self.team_b_s
 
     def share(self, team: str) -> float:
@@ -67,11 +80,12 @@ class PossessionSummary:
     def summary_line(self, name_a: str = 'Team A', name_b: str = 'Team B') -> str:
         if self.live_s <= 0:
             return 'no possession established'
+        dead = f', {self.dead_ball_s:.0f}s dead' if self.dead_ball_s else ''
         return (
             f'{name_a} {self.share(TEAM_A) * 100:.0f}% / '
             f'{name_b} {self.share(TEAM_B) * 100:.0f}%  '
-            f'({self.live_s:.0f}s live, {self.contested_s:.0f}s contested, '
-            f'{self.turnovers} turnovers)'
+            f'({self.live_s:.0f}s live, {self.contested_s:.0f}s contested'
+            f'{dead}, {self.turnovers} turnovers)'
         )
 
 
@@ -87,13 +101,26 @@ def frame_holder(
     boxes,
     team_of,
     radius_player_heights: float = POSSESSION_RADIUS_PLAYER_HEIGHTS,
+    is_player=None,
 ) -> FrameState | tuple:
     """Nearest player to the ball in one frame, if anyone is close enough.
 
     `boxes` is [(track_id, xyxy)]; `team_of` maps a track id to a team.
+
+    `is_player` filters out anybody `cv/participants.py` decided is not playing,
+    and it is applied *before* the scale is measured as well as before the
+    search. Both matter. A referee standing next to the ball wins the
+    nearest-player test outright; a row of substitutes on the touchline, small
+    in a wide frame, drags the median player height down and quietly shrinks the
+    possession radius for everyone.
     """
     if ball_xy is None or not boxes:
         return None, UNKNOWN, None
+
+    if is_player is not None:
+        boxes = [b for b in boxes if is_player(b[0])]
+        if not boxes:
+            return None, UNKNOWN, None
 
     scale = median_player_height(boxes)
     if scale <= 0:
@@ -116,7 +143,9 @@ def frame_holder(
     return best_id, team_of(best_id), best_distance
 
 
-def build_states(frames, ball_by_frame, boxes_by_frame, team_of, timestamps) -> list[FrameState]:
+def build_states(
+    frames, ball_by_frame, boxes_by_frame, team_of, timestamps, is_player=None,
+) -> list[FrameState]:
     """Per-frame holder for a run of frames."""
     states: list[FrameState] = []
     for frame_index in frames:
@@ -124,12 +153,14 @@ def build_states(frames, ball_by_frame, boxes_by_frame, team_of, timestamps) -> 
             ball_by_frame.get(frame_index),
             boxes_by_frame.get(frame_index, []),
             team_of,
+            is_player=is_player,
         )
         states.append(FrameState(
             timestamp_s=timestamps.get(frame_index, 0.0),
             holder_track=holder,
             team=team,
             distance_px=distance,
+            ball_seen=ball_by_frame.get(frame_index) is not None,
         ))
     return states
 
@@ -169,6 +200,7 @@ def smooth_states(states: list[FrameState], window: int = 15) -> list[FrameState
             holder_track=state.holder_track,
             team=best,
             distance_px=state.distance_px,
+            ball_seen=state.ball_seen,
         ))
 
     return smoothed
@@ -178,13 +210,29 @@ def summarise(
     states: list[FrameState],
     min_spell_s: float = MIN_POSSESSION_SPELL_S,
     smooth_window: int = 15,
+    phases=None,
 ) -> PossessionSummary:
-    """Aggregate per-frame holders into possession, smoothing out flicker."""
+    """Aggregate per-frame holders into possession, smoothing out flicker.
+
+    `phases` is a `cv.phases.PhaseTable` already shifted onto the same clock as
+    the states. Without one, every stoppage is counted as possession by whoever
+    was standing over the ball.
+    """
     summary = PossessionSummary()
     if len(states) < 2:
         return summary
 
     states = smooth_states(states, smooth_window)
+
+    # Applied after smoothing, not before. A dead ball is a fact from the log
+    # rather than a noisy per-frame estimate, and running it through a mode
+    # filter would let a busy passage either side vote it away.
+    if phases is not None:
+        states = [
+            state if phases.is_live(state.timestamp_s)
+            else replace(state, team=DEAD)
+            for state in states
+        ]
 
     # Group consecutive frames sharing a team into candidate spells.
     raw: list[tuple[str, float, float]] = []
@@ -230,6 +278,8 @@ def summarise(
             summary.team_a_s += duration
         elif team == TEAM_B:
             summary.team_b_s += duration
+        elif team == DEAD:
+            summary.dead_ball_s += duration
         else:
             summary.contested_s += duration
 
@@ -242,10 +292,25 @@ def summarise(
         1 for a, b in zip(held, held[1:]) if a[0] != b[0]
     )
 
-    total_span = states[-1].timestamp_s - states[0].timestamp_s
-    summary.no_ball_s = max(
-        0.0, total_span - summary.live_s - summary.contested_s
-    )
+    # How much of the window had no ball in it at all.
+    #
+    # This is a *diagnostic*, not a fourth bucket: the spells above already tile
+    # the whole window, and a frame with no ball resolves to no holder and so is
+    # already inside `contested_s`. It is reported separately because those two
+    # are very different things to a coach — "both teams were fighting for it"
+    # and "we could not see it" read identically in a possession split, and only
+    # one of them is football.
+    #
+    # It used to be computed as span minus the other two, which the tiling makes
+    # identically zero. That is the sort of number that looks fine forever.
+    #
+    # Taken as a share of the window rather than a count of frames times a frame
+    # duration. The spells above measure the intervals *between* timestamps, of
+    # which there is one fewer than there are frames, and a count-based figure
+    # here would sit a frame above the window it is supposed to fit inside.
+    span = states[-1].timestamp_s - states[0].timestamp_s
+    unseen = sum(1 for s in states if not s.ball_seen)
+    summary.no_ball_s = span * unseen / len(states)
 
     return summary
 

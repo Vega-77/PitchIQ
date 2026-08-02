@@ -11,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from cv.phases import DeadSpan, PhaseTable
 from cv.possession import (
     FrameState,
     frame_holder,
@@ -211,10 +212,49 @@ class TestFrameHolder:
         assert median_player_height(boxes) == pytest.approx(105, abs=1)
 
 
-def states(sequence, fps=FPS):
+class TestExcludingNonPlayers:
+    """A referee trailing play is regularly the closest figure to the ball."""
+
+    def test_the_nearest_figure_can_be_ignored(self):
+        boxes = boxes_at({1: (105, 400), 2: (140, 400)})
+
+        holder, _, _ = frame_holder((100, 400), boxes, lambda t: TEAM_A)
+        assert holder == 1, 'nearest wins when everybody counts'
+
+        holder, _, _ = frame_holder(
+            (100, 400), boxes, lambda t: TEAM_A, is_player=lambda t: t != 1,
+        )
+        assert holder == 2, 'and the next nearest wins when they do not'
+
+    def test_non_players_do_not_set_the_scale(self):
+        """The radius is measured in player heights, so a row of small figures
+        on a distant touchline quietly shrinks it for everyone."""
+        boxes = boxes_at({1: (100, 400)}, height=200)
+        boxes += boxes_at({2: (900, 100), 3: (950, 100)}, height=20)
+        ball = (100 + 150, 400)
+
+        holder, _, _ = frame_holder(ball, boxes, lambda t: TEAM_A)
+        assert holder is None, 'the tiny figures dragged the median down'
+
+        holder, _, _ = frame_holder(
+            ball, boxes, lambda t: TEAM_A, is_player=lambda t: t == 1,
+        )
+        assert holder == 1
+
+    def test_excluding_everybody_is_not_a_crash(self):
+        holder, team, _ = frame_holder(
+            (100, 400), boxes_at({1: (100, 400)}), lambda t: TEAM_A,
+            is_player=lambda t: False,
+        )
+        assert holder is None
+        assert team == UNKNOWN
+
+
+def states(sequence, fps=FPS, ball_seen=True):
     """Build per-frame states from a list of team labels."""
     return [
-        FrameState(timestamp_s=i / fps, holder_track=None, team=team, distance_px=0.0)
+        FrameState(timestamp_s=i / fps, holder_track=None, team=team,
+                   distance_px=0.0, ball_seen=ball_seen)
         for i, team in enumerate(sequence)
     ]
 
@@ -255,6 +295,90 @@ class TestSummary:
 
         assert summary.turnovers == 0
         assert summary.share(TEAM_A) > 0.95
+
+
+class TestDeadBall:
+    """A player standing over the ball waiting to take a throw-in is a very
+    clear holder, and every possession figure counted him as one."""
+
+    def phases(self, start_s, end_s):
+        return PhaseTable(spans=[DeadSpan(start_s, end_s, 'out_of_bounds', 'throw_in')])
+
+    def test_stoppages_leave_the_possession_split(self):
+        # 4s of A, then 4s where A is standing over the ball out of play.
+        sequence = [TEAM_A] * int(8 * FPS)
+
+        without = summarise(states(sequence))
+        with_log = summarise(states(sequence), phases=self.phases(4.0, 8.0))
+
+        assert without.dead_ball_s == 0.0
+        assert with_log.dead_ball_s == pytest.approx(4.0, abs=0.2)
+        assert with_log.live_s == pytest.approx(without.live_s - 4.0, abs=0.2)
+
+    def test_the_split_itself_is_unchanged_when_both_teams_lose_the_same_time(self):
+        sequence = [TEAM_A] * int(4 * FPS) + [TEAM_B] * int(4 * FPS)
+        summary = summarise(states(sequence), phases=self.phases(3.5, 4.5))
+
+        assert summary.share(TEAM_A) == pytest.approx(0.5, abs=0.05)
+
+    def test_a_dead_stretch_does_not_count_as_a_turnover(self):
+        sequence = (
+            [TEAM_A] * int(3 * FPS) + [TEAM_A] * int(2 * FPS)
+            + [TEAM_B] * int(3 * FPS)
+        )
+        summary = summarise(states(sequence), phases=self.phases(3.0, 5.0))
+
+        assert summary.turnovers == 1, 'A to B, through a stoppage'
+
+    def test_no_log_means_no_dead_time_recorded(self):
+        """Zero because nobody told us, which the report has to say elsewhere."""
+        summary = summarise(states([TEAM_A] * int(4 * FPS)))
+        assert summary.dead_ball_s == 0.0
+
+    def test_dead_time_is_not_eroded_by_the_smoothing(self):
+        """The log is a fact, not a noisy per-frame estimate.
+
+        Labels go on after the mode filter, so the whole span survives. Applied
+        before it, a busy passage either side votes the edges away and a
+        two-second stoppage arrives as a second and a half.
+        """
+        sequence = [TEAM_A] * int(8 * FPS)
+        summary = summarise(states(sequence), phases=self.phases(3.0, 5.0))
+
+        assert summary.dead_ball_s == pytest.approx(2.0, abs=0.15)
+
+
+class TestBallMissing:
+    """`no_ball_s` used to be span minus the other two, which the spells tile
+    completely — so it was identically zero and looked fine forever."""
+
+    def test_counts_the_time_with_no_ball_in_frame(self):
+        seen = states([UNKNOWN] * int(2 * FPS))
+        unseen = states([UNKNOWN] * int(2 * FPS), ball_seen=False)
+        for i, state in enumerate(unseen):
+            unseen[i] = FrameState(
+                timestamp_s=2.0 + i / FPS, holder_track=None, team=UNKNOWN,
+                distance_px=None, ball_seen=False,
+            )
+
+        summary = summarise(seen + unseen)
+        assert summary.no_ball_s == pytest.approx(2.0, abs=0.15)
+
+    def test_is_zero_when_the_ball_was_always_there(self):
+        assert summarise(states([TEAM_A] * int(4 * FPS))).no_ball_s == 0.0
+
+    def test_is_a_slice_of_contested_not_a_bucket_beside_it(self):
+        """Documented as a diagnostic. If it ever starts double-counting, the
+        three numbers stop summing to the window and nobody notices."""
+        unseen = [
+            FrameState(timestamp_s=i / FPS, holder_track=None, team=UNKNOWN,
+                       distance_px=None, ball_seen=False)
+            for i in range(int(3 * FPS))
+        ]
+        summary = summarise(unseen)
+
+        assert summary.no_ball_s > 0
+        assert summary.contested_s >= summary.no_ball_s
 
     def test_a_real_change_still_registers(self):
         sequence = [TEAM_A] * int(3 * FPS) + [TEAM_B] * int(3 * FPS)

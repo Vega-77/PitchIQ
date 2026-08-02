@@ -50,7 +50,11 @@ coaches to the allowlist) can't be scripted from the repo.
 
 **Next up:** re-measure everything on native-resolution footage from a camera
 that holds still. That single input unblocks calibration, tracking quality and
-possession simultaneously.
+possession simultaneously. Everything reachable without it has now been built —
+non-player exclusion, in-play/dead-ball splitting, the narrowed cluster picker,
+the review tool with recall, and match video on every report (see "Also built
+ahead of the footage" below) — so the footage is genuinely the only thing left
+gating the rest of the catalog.
 
 ### Built ahead of the footage
 
@@ -156,6 +160,74 @@ in footage at all, and whether the right shooter, keeper and defenders reach
 synthetic data; what has never happened is one run end to end on a real match,
 because that needs a calibration. Points most likely to need work are marked
 `UNVERIFIED` inline.
+
+### Also built ahead of the footage (2026-08-02)
+
+Four more phases that need no calibration and no real footage — chosen in that
+order on purpose, the small corrections to numbers that were already wrong
+first, then the tool that needs the other three to have produced something to
+review.
+
+**Non-players are classified, not silently mixed into team stats**
+(`cv/participants.py`). Every track gets a verdict — `player` / `offfield` /
+`official` / `unsure` — from screen time, how far it strayed from its own
+median position measured in its own body heights (so a zooming camera doesn't
+change the answer), and, when a calibration exists, how much of the time it sat
+off the pitch. Only `offfield` is auto-excluded; a referee and a goalkeeper are
+indistinguishable on these features without a goalmouth to measure against, so
+`official` is flagged and kept — carrying a referee is a smaller error than
+dropping a keeper. Every exclusion travels with the reason string that produced
+it, all the way into the report JSON and onto the coach's screen. Fixed two real
+bugs on the way past: `team_shape` was being built from every track on the
+pitch, both teams and the referee together, and reported as Team A's; and
+`no_ball_s` was structurally always zero regardless of the footage.
+
+**In-play vs. dead-ball, from the tag log alone** (`cv/phases.py`) — the first
+thing under `cv/` to read the human tag log rather than the video. A dead span
+is shrunk at both ends by a slop margin and never grown, because calling live
+football dead deletes possession invisibly; an untagged restart times out
+rather than swallowing the rest of the half (with a shorter cap after a goal,
+since nothing tags the kickoff that follows one). Feeds `cv/possession.py` — a
+player standing over the ball waiting for a throw-in no longer counts as
+possession, and `dead_ball_s` / `live_share` are new quality figures — and
+`cv/events.py`, where every derived event now carries `in_play` and PPDA
+(defined on open play) excludes the dead ones. This is *not* yet a cross-check
+against an independent CV signal for out-of-bounds; today the tag log is the
+only source, which is the gap the original Phase 9 bullet below still names.
+
+**The cluster picker narrows by who was actually on** (`assets/report.js`,
+`coach/coach.js`) — `rankRosterForCluster` converts a cluster's first/last
+sighting from video time into match-clock time using the video offset, then
+ranks the roster by how much each player's stints overlap it. The picker groups
+into "On the pitch then" / "Everyone else" rather than filtering: the video
+offset is the single most fiddly number in the app, and hiding based on it
+would hide the correct player exactly when the offset is wrong.
+
+**The review tool, including recall** (`cv/publish.py`, `coach/coach.js`) —
+`cvStats/events` is now published (capped at 1500, keeping the most confident
+but re-sorted into clock order so a truncated list reads as a truncated list
+rather than as the pipeline having stopped finding things), plus a
+coach-writable `cvReview/decisions` overlay kept deliberately apart from the
+pipeline-authored `cvStats`, so a coach's correction can never be mistaken for
+a measurement. A coach confirms, reassigns or rejects each candidate against
+the embedded video — and separately records what the video *missed*, because
+precision alone doesn't say whether the ball detector is good enough; recall
+does.
+
+**The match video reaches every report, not just the player portal.** A shared
+`assets/match-video.js` puts the same embed-or-link-or-nothing decision and the
+same tappable tick strip on the coach's match view, the half-time page, and
+player reports — one module instead of three copies of the same judgement call.
+Goals, cards and substitutions are marked on the team-facing versions, not
+every restart; a strip with eighty ticks on it stops being something to scan.
+A video link pasted after reports were already published used to never reach
+players until somebody thought to re-publish; it now pushes onto the existing
+`playerReports` documents directly.
+
+**What none of this needed:** a calibration or a frame of real match footage.
+All four ran against the human tag log, roster stints, and fixture data, and
+are covered by `tests/test_participants.py`, `tests/test_phases.py`, and
+`tests/video.test.js`.
 
 Two open questions found while writing them, both pinned by tests so they cannot
 be quietly forgotten:
@@ -537,8 +609,16 @@ camera losing the ball for 12s at a time.
 - [x] **[Demo]** Ball detection feasibility spike — done, see Reality Check for results
 - [x] **Ball tracked separately from players** (`cv/ball.py`). Measured on 30s of real footage: the detector finds the ball in 60% of frames, but routing those through the multi-object tracker yielded **1.6%** — MOT confirms a track only when detections associate consistently frame to frame, and a small, fast, low-confidence object never clears that bar. Treating the ball as a single-object path-finding problem instead (dynamic programming over candidates, then interpolation) gives **83% coverage**, visually verified against the actual ball in frame
 - [x] Class filtering at predict time (person + sports ball only), which removes the spurious car/dog/umbrella detections a generic COCO model produces on stadium footage
-- [ ] Referee detection and exclusion from team stats
-- [ ] Excluding non-players in frame: coaches, subs, ball boys, sideline spectators
+- [x] Referee flagged and kept, not excluded — `cv/participants.py` marks anyone
+      moving like a player but matching neither kit as `official`, because
+      without a calibration a referee and a goalkeeper are indistinguishable
+      and dropping a keeper is the worse mistake. A true referee-vs-goalkeeper
+      split still needs a calibration to give it a goalmouth to measure against.
+- [x] Excluding non-players in frame — `cv/participants.py`: static touchline
+      figures (coaches, subs, spectators) excluded by how little they moved in
+      their own body heights; genuinely off-pitch figures excluded once a
+      calibration exists. Every threshold is a guess never checked against a
+      real touchline, so every exclusion carries its reason into the report.
 - [ ] Tune confidence threshold against real footage — the spike used 0.08 to surface marginal detections for analysis, which is too permissive for production
 - [ ] **[MVP]** Fine-tune detectors on your own footage once you have labeled data — the Phase 11 review tool produces this as a side effect of normal use
 
@@ -628,7 +708,7 @@ real roster player is a human job, cheaper now thanks to Phase 3.
 - [ ] **[Demo]** Team discrimination via jersey color clustering (k-means on shirt pixels) — Team A / Team B / goalkeepers / referee
 - [ ] Goalkeeper detection (distinct kit, stays near one goal)
 - [ ] **[Demo]** Consume the Phase 3 live substitution log to know exactly which roster players are on the field per team at any timestamp. This doesn't automatically solve *which* tracked blob is *which* name — a human still makes that call once per continuous tracking segment (Phase 11); the sub log shrinks the candidate list and gives a sanity check (if 11 players should be visible and only 10 are tracked, that's a missed-detection alert)
-- [ ] **[Demo]** Remaining manual track-ID → roster-player mapping happens in the review tool, narrowed down by the sub log
+- [x] **[Demo]** Remaining manual track-ID → roster-player mapping happens in the review tool, narrowed down by the sub log — `rankRosterForCluster` plus the coach picker's "On the pitch then" / "Everyone else" grouping. Reorders rather than filters, since a wrong video offset would otherwise hide the right answer along with the wrong ones.
 - [ ] **[Stretch]** Jersey number OCR, used only as a suggestion to speed up mapping
 - [ ] Handling broken tracks (same player split into 2+ IDs) — reviewer merges them
 
@@ -649,7 +729,10 @@ fiction; `tests/test_metrics.py` pins both the problem and the fix.
 
 ## 9. Ball Possession & Game State
 - [ ] **[Demo]** Determine which player/team currently has the ball (proximity + velocity correlation)
-- [ ] **[Demo]** In-play vs. dead-ball state — cross-check CV-detected out-of-bounds against the Phase 3 tablet's tap rather than trusting either alone
+- [x] Dead-ball spans derived from the Phase 3 tag log (`cv/phases.py`) — feeds
+      possession (a throw-in wait no longer counts as possession) and stamps
+      `in_play` on every derived event. See "Also built ahead of the footage" above.
+- [ ] **[Demo]** Cross-check that against an independent CV signal (ball leaving frame / going out of bounds) rather than trusting the tag log alone — not built; today the tag log is the only source, so a stoppage nobody tagged is invisible to the pipeline.
 - [ ] Half/period and clock tracking, driven by the Phase 3 period-boundary taps
 
 ## 10. Event Detection
@@ -693,9 +776,9 @@ wall `shot_height` hits in Phase 12.
 Pre-populated with Phase 3's live-tagged events and subs, plus Phase 10's CV
 candidates — the reviewer's job is verifying/correcting/filling gaps, not labeling from
 scratch.
-- [ ] **[Demo]** Timeline UI showing both live-tagged and CV-candidate events, synced to video playback
-- [ ] **[Demo]** Confirm / edit / delete / add-new-event controls per timeline entry
-- [ ] **[Demo]** Track-ID → roster-player assignment UI with thumbnail crops, pre-narrowed by the sub log
+- [x] **[Demo]** Timeline UI showing CV-candidate events, synced to video playback (`coach/coach.js`'s review section). Live-tagged events still live on the match page's own separate timeline; a single merged strip showing both is still open.
+- [x] **[Demo]** Confirm / edit / delete / add-new-event controls per timeline entry — confirm, reassign-type-or-player ("edited"), reject, plus recording an event the video missed, which is the recall half of validating the detector, not an extra.
+- [ ] **[Demo]** Track-ID → roster-player assignment UI with thumbnail crops, pre-narrowed by the sub log — the narrowing shipped (Phase 7); thumbnail crops did not.
 - [ ] Merge-tracks control for split IDs
 - [ ] Save finalized data as the source of truth for stats, profiles, xG logging, and the player portal
 - [ ] Doubles as the ground-truth labeling tool for Phase 16 validation, and as a source of labeled data for fine-tuning detectors later (Phase 5)
@@ -732,6 +815,12 @@ than the workaround, which matters given the data class.
 
 ## 15. Frontend / Dashboard
 - [ ] **[Demo]** Coach halftime view: sideline/mobile-friendly, high-signal, minimal reading — built from the Stats Catalog's halftime section
+- [x] Match video (YouTube or a direct file link) on the coach match view and
+      the half-time page, not just the player portal — goals, cards and subs
+      marked on a shared tick strip (`assets/match-video.js`), one module
+      instead of three copies of the embed-or-link-or-nothing decision. A link
+      saved after reports were already published now pushes onto the existing
+      `playerReports` documents rather than waiting for a re-publish.
 - [ ] **[MVP]** Coach tactical dashboard, player portal view (Phase 14), event timeline synced to video (shared with the Phase 11 review tool)
 - [ ] **[Stretch]** Live tracking overlay on video (bounding boxes, IDs, mini-map)
 

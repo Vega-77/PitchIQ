@@ -24,6 +24,12 @@ import pytest
 from cv.events import COMPLETED, EventLog, Pass
 from cv.identity import PlayerCluster
 from cv.metrics import MovementStats
+from cv.participants import (
+    ROLE_OFFFIELD,
+    ROLE_OFFICIAL,
+    ParticipantReport,
+    ParticipantVerdict,
+)
 from cv.pipeline import MatchReport, PlayerReport
 from cv.possession import PossessionSummary
 from cv.report_json import SCHEMA_VERSION, team_stats
@@ -134,6 +140,78 @@ class TestAbsentNotZero:
         track = a_report().to_json()['tracks'][0]
         assert track['distance_m'] is None
         assert track['top_speed_kmh'] is None
+
+
+class TestShapeBelongsToATeam:
+    """A single shape over every track on the pitch is the bounding box of the
+    match — two banks of players plus the referee — and it was reported as Team
+    A's formation until `MatchReport.shape` became a dict keyed by team.
+    """
+
+    SHAPE_A = {'width_m': 40.0, 'depth_m': 30.0, 'compactness_m': 12.0}
+    SHAPE_B = {'width_m': 52.0, 'depth_m': 44.0, 'compactness_m': 18.0}
+
+    def test_each_team_gets_its_own(self):
+        report = a_report(calibrated=True,
+                          shape={TEAM_A: self.SHAPE_A, TEAM_B: self.SHAPE_B})
+        teams = report.to_json()['teams']
+
+        assert teams[TEAM_A]['shape'] == self.SHAPE_A
+        assert teams[TEAM_B]['shape'] == self.SHAPE_B
+
+    def test_team_b_is_not_handed_an_empty_shape_by_default(self):
+        report = a_report(calibrated=True,
+                          shape={TEAM_A: self.SHAPE_A, TEAM_B: self.SHAPE_B})
+        assert report.to_json()['teams'][TEAM_B]['shape'] != {}
+
+    def test_a_missing_team_is_empty_rather_than_an_error(self):
+        report = a_report(calibrated=True, shape={TEAM_A: self.SHAPE_A})
+        assert report.to_json()['teams'][TEAM_B]['shape'] == {}
+
+
+class TestParticipants:
+    def scene(self):
+        report = a_report()
+        report.participants = ParticipantReport(by_track={
+            1: ParticipantVerdict(
+                track_id=1, role=ROLE_OFFFIELD, reason='never moved',
+                sightings=300, screen_time_s=30.0, spread_ph=0.2,
+                travel_ph_per_min=1.0, edge_share=0.9, off_pitch_share=None,
+                kit_known=False,
+            ),
+            2: ParticipantVerdict(
+                track_id=2, role=ROLE_OFFICIAL, reason='neither kit',
+                sightings=300, screen_time_s=30.0, spread_ph=6.0,
+                travel_ph_per_min=90.0, edge_share=0.1, off_pitch_share=0.0,
+                kit_known=False,
+            ),
+        })
+        return report
+
+    def test_every_verdict_is_carried_with_its_reason(self):
+        """An exclusion that cannot be audited is indistinguishable from a bug."""
+        data = self.scene().to_json()
+        rows = {row['track_id']: row for row in data['participants']}
+
+        assert rows[1]['role'] == ROLE_OFFFIELD
+        assert rows[1]['reason'] == 'never moved'
+        assert rows[2]['role'] == ROLE_OFFICIAL
+
+    def test_the_size_of_the_correction_is_in_quality(self):
+        quality = self.scene().to_json()['quality']
+        assert quality['excluded_tracks'] == 1
+        assert quality['flagged_officials'] == 1
+
+    def test_an_unavailable_off_pitch_test_is_null_not_zero(self):
+        """Zero claims we looked and they were on the pitch every time."""
+        rows = {r['track_id']: r for r in self.scene().to_json()['participants']}
+        assert rows[1]['off_pitch_share'] is None
+        assert rows[2]['off_pitch_share'] == 0.0
+
+    def test_a_report_without_the_pass_is_not_an_error(self):
+        data = a_report().to_json()
+        assert data['participants'] == []
+        assert data['quality']['excluded_tracks'] == 0
 
 
 class TestBallHonesty:

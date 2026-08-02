@@ -412,16 +412,53 @@ service cloud.firestore {
           allow delete: if isCoach(t);
         }
 
+        // ---- cvReview: a human's verdict on what the pipeline claimed ----
+        //
+        // The same split as cvMapping, for the same reason. cvStats says what
+        // the video appeared to show and no client may touch it; this says what
+        // a coach thinks of that, and only a coach may write it. Keeping them
+        // apart means a correction can never be mistaken for a measurement.
+        //
+        // One document rather than one per event: a review session is hundreds
+        // of small decisions, and hundreds of writes on a phone at the side of
+        // a pitch is not the same thing as one debounced write.
+        //
+        // The shapes inside `byEvent` and `missed` are not validated here.
+        // Rules cannot reach into a nested map, which cvMapping already lives
+        // with. The client validates; these caps are what stop a runaway write
+        // becoming a document nobody can read.
+        match /cvReview/{doc} {
+          allow get, list: if isTagger(t);
+
+          allow create, update: if isCoach(t)
+            && request.resource.data.keys().hasOnly(
+                 ['byEvent', 'missed', 'updatedAt', 'updatedBy'])
+            && request.resource.data.byEvent is map
+            && request.resource.data.byEvent.size() <= 1500
+            && request.resource.data.missed is list
+            && request.resource.data.missed.size() <= 300
+            && request.resource.data.updatedBy == uid()
+            && isTimestampNow(request.resource.data.updatedAt);
+
+          allow delete: if isCoach(t);
+        }
+
         // ---- playerReports: the only team data a player ever reads ----
         match /playerReports/{p} {
           allow get, list: if isCoach(t);
 
+          // validVideo() matters more here than on the match document. This is
+          // the copy the player portal actually reads, and the string in it
+          // becomes an iframe src on a page a sixteen-year-old opens. The match
+          // document has been guarded since the field existed; this one was
+          // reachable through the same coach account and was not.
           allow create, update: if isCoach(t)
             && request.resource.data.published is bool
             && request.resource.data.minutesPlayed is number
             && request.resource.data.minutesPlayed >= 0
             && request.resource.data.goals is int
-            && request.resource.data.goals >= 0;
+            && request.resource.data.goals >= 0
+            && validVideo();
 
           allow delete: if isCoach(t);
         }

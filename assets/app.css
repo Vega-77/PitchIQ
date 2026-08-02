@@ -926,6 +926,16 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
     justify-content: center;
 }
 .video-frame:empty { display: none; }
+/* Footage we will not embed, offered as a link. Sized to the link rather than
+   to the video it stands in for — a button alone in a 16:9 black box reads as a
+   player that failed, which is the opposite of what happened. */
+.video-frame.is-link {
+    aspect-ratio: auto;
+    max-height: none;
+    padding: 16px;
+    background: var(--surface);
+    justify-content: flex-start;
+}
 .match-video { width: 100%; height: 100%; border: 0; display: block; }
 
 /* The match as a strip, with a tick wherever this player did something. The
@@ -960,6 +970,23 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
 .tick.is-sub { background: var(--accent); }
 /* Touches are the many; they sit thinner so a goal still reads at a glance. */
 .tick.is-touch { width: 3px; margin-left: -1.5px; height: 11px; background: var(--line-hi); }
+
+/* Events found in the footage, on the coach's review strip. Three weights, not
+   eight colours: a strip where every type is its own hue is a strip nobody can
+   read at a glance, which is the only thing a strip is for.
+
+   Passes and carries are the many and sit thin. Defensive actions are the ones
+   a coach scans for. A shot is rare and is the loudest thing on the bar. */
+.tick.is-pass,
+.tick.is-carry { width: 3px; margin-left: -1.5px; height: 11px; background: var(--line-hi); }
+
+.tick.is-tackle,
+.tick.is-interception,
+.tick.is-recovery,
+.tick.is-clearance,
+.tick.is-duel { width: 6px; margin-left: -3px; background: var(--accent); opacity: .75; }
+
+.tick.is-shot { background: var(--warn); height: 22px; }
 
 .tick-half {
     position: absolute;
@@ -997,6 +1024,199 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
 .moment.is-goal .m-label { color: var(--text); font-weight: 600; }
 .moment.is-card { border-left: 3px solid var(--card-yellow); }
 .moment.is-touch .m-label { color: var(--text-faint); }
+
+/* ------------------------------------------------- checking what CV found */
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+
+.chip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    cursor: pointer;
+    min-height: 34px;
+}
+.chip:hover { border-color: var(--line-hi); }
+.chip.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #04120f;
+    font-weight: 600;
+}
+
+.btn.tiny {
+    min-height: 32px;
+    min-width: 34px;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    border-radius: 8px;
+}
+.btn.tiny.on { background: var(--accent); border-color: var(--accent); color: #04120f; }
+
+.review-list { max-height: 620px; overflow-y: auto; }
+
+/* Same grid discipline as .cluster-row: named areas, and min-width:0 on the
+   text cell so a long label shortens instead of forcing the row wider than the
+   phone it is being read on. */
+.review-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+        "seek mark acts"
+        "edit edit edit";
+    align-items: center;
+    gap: 10px;
+}
+.review-row .review-seek { grid-area: seek; min-width: 0; }
+.review-row .review-mark { grid-area: mark; }
+.review-row .review-acts { grid-area: acts; display: flex; gap: 6px; }
+.review-row .review-edit { grid-area: edit; }
+
+.review-seek {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.88rem;
+}
+.review-clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--text-faint);
+    min-width: 52px;
+}
+.review-what { color: var(--text); font-weight: 600; }
+/* A stoppage marker, not a verdict — it says where the candidate came from, so
+   it stays quiet next to the confirm/reject colours that mean a human decided
+   something. */
+.review-dead {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    border: 1px solid var(--line-hi);
+    border-radius: 5px;
+    padding: 1px 5px;
+    white-space: nowrap;
+}
+.review-who { font-size: 0.8rem; min-width: 0; overflow-wrap: anywhere; }
+
+/* The verdict, as a left edge. Legible in a long scrolling list in a way a
+   changed background colour is not. */
+.review-row.is-confirmed { border-left: 3px solid var(--good); }
+.review-row.is-rejected { border-left: 3px solid var(--danger); }
+.review-row.is-rejected .review-what { text-decoration: line-through; }
+.review-row.is-edited { border-left: 3px solid var(--warn); }
+
+.review-edit {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding-top: 10px;
+    margin-top: 4px;
+    border-top: 1px solid var(--line);
+}
+.review-edit .field { margin: 0; }
+
+.review-missed {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+.review-missed .field { margin: 0; }
+
+@media (max-width: 640px) {
+    /* The actions get their own row rather than squeezing the label to one
+       letter per line — the mistake the cluster rows made at 375px. */
+    .review-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "seek mark"
+            "acts acts"
+            "edit edit";
+        row-gap: 8px;
+    }
+    .review-row .review-acts { justify-content: flex-start; }
+    /* Clock and type stay on one line and the name wraps under them. Stacking
+       all three costs 30px a row, and a review session is hundreds of rows. */
+    .review-seek { flex-wrap: wrap; gap: 4px 10px; }
+    .review-seek .review-clock { min-width: 46px; }
+    .review-seek .review-who { flex-basis: 100%; }
+    .review-missed .field, .review-edit .field { flex: 1 1 100%; }
+}
+
+/* What we made of the pasted video link, said as it is typed. The warn case is
+   the one that matters — a Drive share link is a good link to footage that we
+   will not embed, and without this the coach finds out by opening a player's
+   report and seeing a bare button. */
+.video-hint {
+    margin: -6px 0 16px;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--text-faint);
+}
+.video-hint.is-good { color: var(--good); }
+.video-hint.is-warn { color: var(--warn); }
+.video-hint:empty { margin: 0; }
+
+/* Who the pipeline ruled out. Two kinds of row and they are not the same news:
+   one figure was removed from the counts, the other is still inside them and
+   might be a goalkeeper. The badge carries that difference in words, and the
+   left edge repeats it in colour, so neither has to be inferred from the tone
+   of a sentence. */
+.excluded-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+}
+/* min-width:0 for the same reason it is on .cluster-row and .review-row: the
+   reason strings are long sentences, and without it the grid refuses to shrink
+   the cell and the row grows wider than the phone. */
+.excluded-row .grow { min-width: 0; }
+.excluded-row.is-offfield { border-left: 3px solid var(--line-hi); }
+.excluded-row.is-official { border-left: 3px solid var(--warn); }
+
+.excluded-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--surface-hi);
+    color: var(--text-faint);
+}
+.excluded-row.is-official .excluded-badge {
+    background: rgba(251, 191, 36, 0.14);
+    color: var(--warn);
+}
+
+@media (max-width: 640px) {
+    /* The badge takes the full width above the text rather than eating half the
+       row: "Kept, but unsure" beside a two-line sentence leaves the sentence
+       four characters wide. */
+    .excluded-row {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 8px;
+    }
+    .excluded-badge { justify-self: start; }
+}
 
 /* The header of a single match, score pulled out to the right. */
 .match-head {

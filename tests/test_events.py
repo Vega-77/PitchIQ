@@ -37,6 +37,7 @@ from cv.events import (
     ppda,
 )
 from cv.frames import FrameRecord, FrameTable
+from cv.phases import DeadSpan, PhaseTable
 from cv.pitch import MatchOrientation, Pitch
 from cv.teams import TEAM_A, TEAM_B
 from cv.touches import Touch, TouchConfidence, TouchSequence
@@ -436,6 +437,39 @@ class TestPpda:
         """Dividing by zero actions is not "pressed infinitely badly"."""
         log = derive([touch(0.0, 1, TEAM_B), touch(1.0, 2, TEAM_B)])
         assert ppda(log, PITCH, TEAM_A, 'right') is None
+
+
+class TestInPlay:
+    """A restart is still a real event; it is just not open play."""
+
+    def phases(self, start_s, end_s):
+        return PhaseTable(spans=[
+            DeadSpan(start_s, end_s, 'out_of_bounds', 'throw_in'),
+        ])
+
+    def test_events_during_a_stoppage_are_flagged_not_dropped(self):
+        touches = [
+            touch(0.0, 1, TEAM_A), touch(0.5, 2, TEAM_A),
+            touch(4.0, 3, TEAM_A), touch(4.5, 4, TEAM_A),
+        ]
+        log = derive(touches, phases=self.phases(3.5, 5.0))
+
+        # Four touches by four players is three links: 1->2, 2->3, 3->4.
+        assert len(log.passes()) == 3, 'the throw-in is still a pass'
+        by_time = {round(p.timestamp_s, 1): p.in_play for p in log.passes()}
+        assert by_time[0.0] is True
+        assert by_time[0.5] is True
+        assert by_time[4.0] is False
+
+    def test_everything_is_in_play_without_a_log(self):
+        """True means nobody told us, not that we checked."""
+        log = derive([touch(0.0, 1, TEAM_A), touch(0.5, 2, TEAM_A)])
+        assert all(e.in_play for e in log)
+
+    def test_the_flag_reaches_the_json(self):
+        log = derive([touch(0.0, 1, TEAM_A), touch(0.5, 2, TEAM_A)],
+                     phases=self.phases(0.0, 5.0))
+        assert log.to_json()['events'][0]['in_play'] is False
 
 
 class TestSerialisation:

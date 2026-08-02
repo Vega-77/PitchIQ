@@ -364,11 +364,16 @@ def segment_touches(
     velocity_window: int = VELOCITY_WINDOW,
     min_separation_s: float = MIN_SEPARATION_S,
     max_gap_frames: int = MAX_GAP_FRAMES,
+    is_player=None,
 ) -> TouchSequence:
     """Find the moments somebody touched the ball.
 
     Expects `table.records` to carry ball positions already — run
     `frames.attach_trajectory` first.
+
+    `is_player` keeps anyone not in the match out of the attribution. It matters
+    more here than almost anywhere: a touch is credited to the nearest figure,
+    and a referee trailing play is regularly the nearest figure to the ball.
     """
     records, times, points, observed = _ball_series(table)
     sequence = TouchSequence(gaps=find_gaps(table, max_gap_frames))
@@ -384,6 +389,8 @@ def segment_touches(
 
     for i, record in enumerate(records):
         boxes = record.boxes()
+        if is_player is not None:
+            boxes = [b for b in boxes if is_player(b[0])]
         scale = local_scale_px(record.ball_xy, boxes)
         scales[i] = scale
 

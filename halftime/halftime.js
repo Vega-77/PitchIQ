@@ -10,16 +10,18 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=18';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=19';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../assets/db.js?v=18';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=18';
+} from '../assets/db.js?v=19';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=19';
+import { possessionIsInPlay } from '../assets/report.js?v=19';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=19';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
     tally,
-} from '../assets/ui.js?v=18';
+} from '../assets/ui.js?v=19';
 
 const VIEWS = ['view-error', 'view-report'];
 
@@ -183,7 +185,11 @@ function renderTallies() {
     setText('numbers-note',
         `From ${plural(total, 'tagged event')}. Fouls and cards are counted `
         + 'against whoever committed them.'
-        + (state.cv ? ' Dotted rows were measured from the video.' : ''));
+        + (state.cv ? ' Dotted rows were measured from the video.' : '')
+        // One clause, not the coach page's full quality line. This page is read
+        // standing up in three minutes, and the only caveat that changes how the
+        // possession row above is read is what its denominator was.
+        + (cvLiveNote() || ''));
 }
 
 /** The rows that came from footage rather than from somebody's thumb. */
@@ -199,7 +205,11 @@ function cvTallies() {
     const possession = cvConfidence(quality, 'possession');
 
     const rows = [
-        ['Possession %', pct(ours.possession_pct), pct(theirs.possession_pct),
+        // "in play" only when a tagged log told the pipeline when it wasn't.
+        // Without one this is still possession of every second including the
+        // ones spent waiting for a throw-in, and the label must not upgrade it.
+        [possessionIsInPlay(quality) ? 'Possession in play %' : 'Possession %',
+            pct(ours.possession_pct), pct(theirs.possession_pct),
             'high', possession],
         ['Passes completed', ours.passes_completed, theirs.passes_completed,
             'high', events],
@@ -218,6 +228,21 @@ function cvTallies() {
 }
 
 const pct = (share) => (share == null ? null : Math.round(share * 100));
+
+/** The one caveat that changes how the possession row is read, or nothing. */
+function cvLiveNote() {
+    // Only worth saying when a possession row was actually drawn. `cvTallies`
+    // drops it when the pipeline could not measure one, and a caveat about a
+    // figure nobody can see is just another sentence in the way.
+    if (state.cv?.teams?.team_a?.possession_pct == null) return '';
+    const quality = state.cv.quality || {};
+    if (!possessionIsInPlay(quality)) {
+        return ' Possession counts stoppages as play — no tagged log reached'
+            + ' the video run.';
+    }
+    return ` The tagged log put ${Math.round(quality.live_share * 100)}% of the`
+        + ' half in play, and possession is measured over that.';
+}
 
 // ---------------------------------------------------------------- minutes
 
@@ -357,7 +382,67 @@ async function load() {
     renderTallies();
     renderMinutes();
     renderTimeline();
+    renderVideo();
     showOnly('view-report', VIEWS);
+}
+
+// ---------------------------------------------------------------- the video
+//
+// Usually nothing. At half-time the footage is still on somebody's phone at the
+// side of the pitch, and this page is being read four minutes after the whistle.
+// It earns its place on the second visit — the walk-through the next day opens
+// the same URL, and the goals are already marked on the strip.
+//
+// Hidden without a link, rather than shown empty. Every moment it would mark is
+// already listed under "How it went" a few inches above, so an empty video block
+// would be the same information twice with the interesting half missing.
+
+let video = null;
+
+function renderVideo() {
+    const block = byId('match-video-block');
+    const url = state.match?.videoUrl;
+
+    video?.destroy?.();
+    video = null;
+
+    if (!url) {
+        block.classList.add('hidden');
+        return;
+    }
+    block.classList.remove('hidden');
+
+    const nameById = new Map(state.roster.map((r) => [r.id, r.playerName]));
+    const usName = state.team.name || 'Us';
+    const themName = state.match.opponentName || 'Them';
+
+    const marks = teamMarks(state.log, (entry) => describeEvent(entry, {
+        usName, themName, playerName: nameById.get(entry.playerId),
+    }));
+
+    video = renderMatchVideo(
+        {
+            video: byId('match-video'),
+            strip: byId('match-scrubber'),
+            list: byId('match-moments'),
+            note: byId('match-video-note'),
+        },
+        {
+            url,
+            offsetS: state.match.videoOffsetS ?? 0,
+            marks,
+            clockText,
+            extraTimes: state.log.map((e) => e.matchClockS || 0),
+            emptyText: 'No goals, cards or substitutions tagged yet.',
+            notes: {
+                embed: `${plural(marks.length, 'moment')} marked. Tap one to jump `
+                    + 'straight to it.',
+                link: 'That link cannot be played inside PitchIQ, so the times '
+                    + 'below are match-clock readings rather than buttons.',
+                none: '',
+            },
+        },
+    );
 }
 
 function init() {

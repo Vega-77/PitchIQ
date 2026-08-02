@@ -1,20 +1,27 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=18';
+} from '../assets/auth.js?v=19';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
     aggregateMatch, publishReports, seasonSummary, playerSeason, seasonTotals,
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
-} from '../assets/db.js?v=18';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=18';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=18';
-import { videoKind } from '../assets/video.js?v=18';
+    readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
+} from '../assets/db.js?v=19';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=19';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=19';
+import {
+    NOT_A_PLAYER, rankRosterForCluster, possessionIsInPlay, cvQualityNotes,
+    roughDuration, shapeConfidence,
+} from '../assets/report.js?v=19';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=19';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=19';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=19';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
-    statCard, figure, cardChips, timelineRow, minutesChart,
-} from '../assets/ui.js?v=18';
+    statCard, figure, cardChips, timelineRow, minutesChart, confidenceMark,
+} from '../assets/ui.js?v=19';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -587,18 +594,24 @@ async function openMatch(matchId) {
     byId('loading').classList.remove('hidden');
 
     try {
-        const [match, roster, log, cv, cvMapping] = await Promise.all([
-            getMatch(state.team.id, matchId),
-            listMatchRoster(state.team.id, matchId),
-            listLog(state.team.id, matchId),
-            // Absent for any match nobody filmed, which is most of them, so a
-            // failure here must not take the tagged report down with it.
-            readCvStats(state.team.id, matchId).catch(() => null),
-            readCvMapping(state.team.id, matchId).catch(() => ({})),
-        ]);
+        const [match, roster, log, cv, cvMapping, cvEvents, cvReview] =
+            await Promise.all([
+                getMatch(state.team.id, matchId),
+                listMatchRoster(state.team.id, matchId),
+                listLog(state.team.id, matchId),
+                // Absent for any match nobody filmed, which is most of them, so
+                // a failure here must not take the tagged report down with it.
+                readCvStats(state.team.id, matchId).catch(() => null),
+                readCvMapping(state.team.id, matchId).catch(() => ({})),
+                readCvEvents(state.team.id, matchId).catch(() => null),
+                readCvReview(state.team.id, matchId)
+                    .catch(() => ({ byEvent: {}, missed: [] })),
+            ]);
 
         const stats = aggregateMatch(log, roster);
-        state.match = { ...match, stats, log, roster, cv, cvMapping };
+        state.match = {
+            ...match, stats, log, roster, cv, cvMapping, cvEvents, cvReview,
+        };
 
         // Merge the video's per-player figures onto the tagged ones, so the
         // table can be one table. Only for figures a coach has matched to a
@@ -627,11 +640,15 @@ async function openMatch(matchId) {
         if (note) byId('team-stats').before(note);
 
         renderPlayerTable(stats.players);
+        renderMatchVideoBlock();
         renderTimeline(log, roster);
         renderClusterMapping();
+        renderExcluded();
+        renderReview();
 
         byId('input-video-url').value = match.videoUrl || '';
         byId('input-video-offset').value = match.videoOffsetS ?? 0;
+        updateVideoHint();
 
         const publish = byId('btn-publish');
         publish.disabled = false;
@@ -689,8 +706,13 @@ function cvTeamRows() {
     const possession = cvConfidence(quality, 'possession');
 
     const rows = [
+        // The label carries the denominator, because the denominator changed.
+        // With a tagged log the dead time is out of it and this is possession
+        // of a ball that was in play; without one it is the older, weaker
+        // figure and must not claim otherwise.
         [ours.possession_pct == null ? null : `${Math.round(ours.possession_pct * 100)}%`,
-            'Possession', possession],
+            possessionIsInPlay(quality) ? 'Possession, ball in play' : 'Possession',
+            possession],
         [ours.passes_attempted, 'Passes attempted', events],
         [ours.pass_accuracy == null ? null : `${Math.round(ours.pass_accuracy * 100)}%`,
             'Pass accuracy', events],
@@ -707,11 +729,40 @@ function cvTeamRows() {
         [ours.recoveries, 'Recoveries', events],
         [ours.duels, 'Ground duels', events],
         [ours.ppda == null ? null : ours.ppda.toFixed(1), 'PPDA', events],
+        ...shapeRows(ours.shape, cv.calibrationErrorM),
     ];
 
     // A null is "not measured", usually for want of a calibration. Printing a
     // zero instead would claim the pipeline looked and found none.
     return rows.filter(([value]) => value != null);
+}
+
+/**
+ * How spread out we played, in metres — ours only.
+ *
+ * `report_json` used to publish one shape built from every track on the pitch,
+ * both teams and the referee together, and label it Team A's. It is now built
+ * per team, and this reads the team's own. Reading `cv.teams.team_a.shape`
+ * rather than a top-level field is what makes that hold: there is no longer a
+ * single number that could be handed to the wrong side.
+ *
+ * Empty until a calibration exists, which is every run today — width in metres
+ * is not something a pixel can answer. The null filter below drops all three
+ * rows in that case rather than printing three zeroes.
+ */
+function shapeRows(shape, calibrationErrorM) {
+    if (!shape || shape.width_m == null) return [];
+    const band = shapeConfidence(calibrationErrorM);
+    const metres = (value) => (value == null ? null : `${Math.round(value)}m`);
+
+    return [
+        [metres(shape.width_m), 'Average width', band],
+        [metres(shape.depth_m), 'Average depth', band],
+        // Mean distance from each player to the team's own centre. Deliberately
+        // not coloured good or bad: a compact side is well-drilled or it is
+        // pinned in its own half, and this number cannot tell the difference.
+        [metres(shape.compactness_m), 'Compactness', band],
+    ];
 }
 
 /** The banner over the estimated section, naming what limited it. */
@@ -723,16 +774,7 @@ function cvNote() {
     const note = document.createElement('div');
     note.className = 'cv-note';
 
-    // Seen, not "has a position for" — the rest were drawn in between
-    // sightings, and saying a straight line was "visible" would overstate what
-    // the video actually showed.
-    const coverage = quality.ball_seen_share;
-    const bits = [];
-    if (coverage != null) bits.push(`the ball was visible in ${Math.round(coverage * 100)}% of frames`);
-    if (!cv.calibrated) bits.push('no pitch calibration, so nothing is in metres');
-    if (quality.tracks_per_cluster > 2) {
-        bits.push(`tracking broke each player into about ${Math.round(quality.tracks_per_cluster)} pieces`);
-    }
+    const bits = cvQualityNotes(quality, { calibrated: cv.calibrated });
 
     note.innerHTML = '<span></span>';
     note.querySelector('span').textContent = bits.length
@@ -914,11 +956,17 @@ function clusterRow(cluster, mapping) {
     if (cluster.colour) swatch.style.background = labToCss(cluster.colour);
     else swatch.classList.add('unknown');
 
+    const offset = state.match.videoOffsetS ?? 0;
+    const fromS = (cluster.first_seen_s ?? 0) - offset;
+    const toS = (cluster.last_seen_s ?? 0) - offset;
+
     row.querySelector('.title').textContent = `Figure ${cluster.cluster_id + 1}`;
     row.querySelector('.sub').textContent = [
         cluster.team === 'unknown' ? 'kit unclear' : cluster.team.replace('_', ' '),
         plural(cluster.track_ids?.length || 1, 'fragment'),
-        `${Math.round((cluster.minutes_tracked || 0) * 60)}s on screen`,
+        // On the match clock, not the video's, so it can be read against the
+        // substitutions below it.
+        `${clockText(Math.max(0, fromS))}–${clockText(Math.max(0, toS))}`,
     ].join(' · ');
 
     row.querySelector('.figures').append(figure(cluster.sightings ?? 0, 'frames'));
@@ -931,17 +979,44 @@ function clusterRow(cluster, mapping) {
     blank.textContent = 'Not matched';
     select.append(blank);
 
-    // Every rostered player, every time. A player who left and came back is
-    // genuinely several figures, so the same name has to stay pickable after
-    // it has been used — cv/identity.py only rejoins fragments seconds apart.
-    for (const player of state.match.roster) {
+    const notPlayer = document.createElement('option');
+    notPlayer.value = NOT_A_PLAYER;
+    notPlayer.textContent = 'Not a player (referee, bench)';
+    select.append(notPlayer);
+
+    // Grouped by who was on the pitch while this figure was on screen, and
+    // never filtered by it. The offset relating the two clocks is the fiddliest
+    // number in the app, and if it is wrong then so is every overlap here —
+    // hiding the players who do not fit would hide the right answer.
+    //
+    // Every rostered player stays pickable however many times they have been
+    // used. A player who left the frame and came back is genuinely several
+    // figures; cv/identity.py only rejoins fragments seconds apart.
+    const ranked = rankRosterForCluster(state.match.roster, cluster, {
+        videoOffsetS: offset,
+        matchEndS: state.match.stats?.matchEndS ?? 0,
+    });
+
+    const onPitch = document.createElement('optgroup');
+    onPitch.label = 'On the pitch then';
+    const others = document.createElement('optgroup');
+    others.label = 'Everyone else';
+
+    for (const { entry, overlapS, overlapShare } of ranked) {
         const option = document.createElement('option');
-        option.value = player.id;
-        option.textContent = player.jerseyNumber != null
-            ? `${player.jerseyNumber} · ${player.playerName}`
-            : player.playerName;
-        select.append(option);
+        option.value = entry.id;
+        const name = entry.jerseyNumber != null
+            ? `${entry.jerseyNumber} · ${entry.playerName}`
+            : entry.playerName;
+        option.textContent = overlapS > 0
+            ? `${name} — on for ${Math.round(overlapShare * 100)}% of it`
+            : name;
+        (overlapS > 0 ? onPitch : others).append(option);
     }
+
+    if (onPitch.children.length) select.append(onPitch);
+    if (others.children.length) select.append(others);
+
     select.value = mapping[key] || '';
 
     select.addEventListener('change', () => {
@@ -961,10 +1036,15 @@ function clusterRow(cluster, mapping) {
 
 function updateMappingNote() {
     const clusters = state.match?.cv?.identity?.clusters || [];
-    const matched = Object.keys(state.match?.cvMapping || {}).length;
+    const answers = Object.values(state.match?.cvMapping || {});
+    // Ruled out is an answer, but it is not a player, and counting it as one
+    // would tell a coach their stats are further along than they are.
+    const matched = answers.filter((id) => id && id !== NOT_A_PLAYER).length;
+    const ruledOut = answers.filter((id) => id === NOT_A_PLAYER).length;
+    const tail = ruledOut ? ` ${plural(ruledOut, 'figure')} ruled out.` : '';
 
     setText('cv-clusters-note', matched
-        ? `${matched} of ${clusters.length} tracked figures matched. `
+        ? `${matched} of ${clusters.length} tracked figures matched.${tail} `
           + 'Publish the reports again to send these numbers to the players.'
         : `The video tracked ${clusters.length} figures and cannot tell who is `
           + 'who — shirt numbers are a few pixels tall at this distance. Match '
@@ -998,6 +1078,632 @@ async function saveMappingNow() {
     } catch (err) {
         if (badge) badge.textContent = '';
         toast(err.message || 'Could not save that match-up.', true);
+    }
+}
+
+// ------------------------------------------------------------- the match video
+//
+// The same strip the player portal puts a teenager's own touches on, with the
+// whole team's moments instead. Goals, cards and substitutions only — see
+// teamMarks() for why the restarts and the fouls are left off.
+//
+// Hidden without a playable link, unlike the portal's version, which shows the
+// moment list regardless. Here the moments are already listed in full further
+// down the page, so a video block with no video would be the same information
+// twice with the interesting half missing.
+
+let matchVideo = null;
+
+function renderMatchVideoBlock() {
+    const block = byId('match-video-block');
+    const url = state.match?.videoUrl;
+
+    matchVideo?.destroy?.();
+    matchVideo = null;
+
+    if (!url) {
+        block.classList.add('hidden');
+        return;
+    }
+    block.classList.remove('hidden');
+
+    const { usName, themName } = teamLabels();
+    const nameById = new Map((state.match.roster || []).map((r) => [r.id, r.playerName]));
+    const marks = teamMarks(state.match.log || [], (entry) => describeEvent(entry, {
+        usName, themName, playerName: nameById.get(entry.playerId),
+    }));
+
+    matchVideo = renderMatchVideo(
+        {
+            video: byId('match-video'),
+            strip: byId('match-scrubber'),
+            list: byId('match-moments'),
+            note: byId('match-video-note'),
+        },
+        {
+            url,
+            offsetS: state.match.videoOffsetS ?? 0,
+            marks,
+            clockText,
+            // So a mark tagged in stoppage time does not fall off the end of a
+            // bar drawn to ninety minutes.
+            extraTimes: (state.match.log || []).map((e) => e.matchClockS || 0),
+            emptyText: 'No goals, cards or substitutions were tagged.',
+            notes: {
+                embed: `${plural(marks.length, 'moment')} marked. Tap one to jump `
+                    + 'straight to it. Only goals, cards and substitutions are '
+                    + 'marked — the restarts would bury them.',
+                link: 'That link cannot be played inside PitchIQ, so the times '
+                    + 'below are match-clock readings rather than buttons.',
+                none: '',
+            },
+        },
+    );
+}
+
+/**
+ * Say what we made of the link, as it is typed.
+ *
+ * The rule this exists for is invisible otherwise: a Google Drive share link is
+ * a perfectly good link to footage and PitchIQ will not embed it, because the
+ * page behind it is a Drive page rather than a video and putting an arbitrary
+ * page in an iframe is not worth the convenience. A coach who pastes one and
+ * gets no feedback until they open a player's report has been let down by the
+ * form, not by the rule.
+ */
+function updateVideoHint() {
+    const hint = byId('video-kind-hint');
+    const url = byId('input-video-url').value.trim();
+    const kind = url ? videoKind(url) : null;
+
+    hint.classList.remove('is-good', 'is-warn');
+    if (!url) {
+        hint.textContent = '';
+        return;
+    }
+
+    if (kind === 'youtube') {
+        hint.classList.add('is-good');
+        hint.textContent = 'YouTube — plays here, and every moment becomes a button.';
+    } else if (kind === 'file') {
+        hint.classList.add('is-good');
+        hint.textContent = 'A video file — plays here, and every moment becomes a button.';
+    } else {
+        hint.classList.add('is-warn');
+        hint.textContent = 'This will be saved as a link players can open, but it '
+            + 'will not play inside PitchIQ, so nothing will be tappable. A '
+            + 'YouTube link, or a direct link to an .mp4, does both. A Google '
+            + 'Drive or Hudl share page cannot be embedded.';
+    }
+}
+
+/** Tear the match video down. Called when the match view is left. */
+function leaveMatchVideo() {
+    matchVideo?.destroy?.();
+    matchVideo = null;
+}
+
+// --------------------------------------------------- who was left out, and why
+//
+// The detector finds people, not players. A referee, a substitute warming up
+// and somebody's dad on a folding chair all arrive as tracks, and
+// cv/participants.py drops or flags them before any number above is counted.
+//
+// That correction is invisible in the stats it corrects — a possession figure
+// looks the same whether nine spectators were removed from it or none were. So
+// it is shown here in full, with the sentence that produced each decision,
+// because every threshold in that module is a guess that has never met a real
+// touchline. A coach who can read "never moved more than 0.4 of a body length
+// in 41 minutes" can tell a stationary parent from a wrongly-dropped keeper.
+// A coach shown only "9 excluded" cannot.
+
+const ROLE_TEXT = {
+    offfield: ['Left out', 'Nothing above counts this figure.'],
+    official: ['Kept, but unsure', 'Counted in everything above.'],
+};
+
+function renderExcluded() {
+    const section = byId('cv-excluded-block');
+    if (!section) return;
+
+    const cv = state.match?.cv;
+    const notes = cv?.participants || [];
+    const quality = cv?.quality || {};
+    // Both spellings, for the same reason cvConfidence takes both: the quality
+    // block arrives snake_cased from Python, and the emulator fixtures write it
+    // camelCased.
+    const excluded = quality.excluded_tracks ?? quality.excludedTracks ?? 0;
+    const officials = quality.flagged_officials ?? quality.flaggedOfficials ?? 0;
+
+    // Hidden when there is nothing to report, and *also* when the run predates
+    // this field — an empty list under a heading saying figures were left out
+    // reads as a claim that none were, which is not something an older report
+    // can support.
+    if (!notes.length && !excluded && !officials) {
+        section.classList.add('hidden');
+        return;
+    }
+    section.classList.remove('hidden');
+
+    setText('cv-excluded-note', excludedNote(excluded, officials, notes.length));
+
+    const host = byId('cv-excluded');
+    host.innerHTML = '';
+    for (const note of notes) host.append(excludedRow(note));
+}
+
+function excludedNote(excluded, officials, shown) {
+    const parts = [];
+    if (excluded) {
+        parts.push(`${plural(excluded, 'tracked figure')} left out of every `
+            + 'number above — the pipeline judged them not to be playing.');
+    }
+    if (officials) {
+        // The one that needs saying out loud. Without a calibration there is no
+        // goalmouth to measure anyone against, so a referee and a goalkeeper
+        // look identical on every feature available, and the pipeline keeps
+        // both rather than risk deleting a player. That means a referee may be
+        // inside the counts above.
+        parts.push(`${plural(officials, 'figure')} moving like a player but `
+            + 'matching neither kit — a referee, or your goalkeeper. They are '
+            + 'still counted, because dropping a keeper is the worse mistake.');
+    }
+    if (!parts.length) parts.push('Nothing was left out of this run.');
+    if (shown && shown < excluded + officials) {
+        parts.push(`Showing the ${shown} that were on screen longest.`);
+    }
+    return parts.join(' ');
+}
+
+function excludedRow(note) {
+    const [badge, effect] = ROLE_TEXT[note.role] || ['Left out', ''];
+
+    const row = document.createElement('div');
+    row.className = `list-item excluded-row is-${note.role}`;
+    row.innerHTML = `
+        <span class="excluded-badge"></span>
+        <div class="grow">
+            <div class="title"></div>
+            <div class="sub"></div>
+        </div>`;
+
+    row.querySelector('.excluded-badge').textContent = badge;
+    // "Track", never "Figure". The numbered figures above are *clusters*, and
+    // an excluded track never became one — it is dropped before clustering
+    // runs. Sharing the word would invite a coach to match "Figure 3" here to
+    // "Figure 3" there, and they are two different numbering schemes that
+    // happen to start at the same place.
+    row.querySelector('.title').textContent = `Track ${note.trackId}`;
+    // The pipeline's own sentence, unedited. Rewording it here would put a
+    // second author between the threshold and the person judging it.
+    row.querySelector('.sub').textContent = [
+        note.reason,
+        note.screenTimeS ? `on screen for ${roughDuration(note.screenTimeS)}` : '',
+        effect,
+    ].filter(Boolean).join(' · ');
+
+    return row;
+}
+
+// ------------------------------------------------------- checking the video
+//
+// The pipeline produces candidates and this is where a human says whether they
+// are real. Two halves, and both are needed:
+//
+//   - judging what it found gives precision. Of the 84 passes it claims, how
+//     many happened?
+//   - recording what it missed gives recall. Of the passes that happened, how
+//     many did it find? Nothing in the pipeline's own output can answer that,
+//     because a thing it never saw leaves no trace to disagree with.
+//
+// Recall is the number that decides whether the ball detector is good enough,
+// so the "record a miss" half is not an extra.
+
+const REVIEW_TYPES = [
+    'pass', 'carry', 'shot', 'tackle', 'interception', 'recovery',
+    'clearance', 'duel',
+];
+
+const CONFIRMED = 'confirmed';
+const REJECTED = 'rejected';
+const EDITED = 'edited';
+
+const reviewState = {
+    filter: 'all', unreviewedOnly: false, inPlayOnly: false, video: null,
+};
+
+/**
+ * How many candidates fell inside a stoppage the tagged log knows about.
+ *
+ * Dead-ball events are stamped, never dropped — a throw-in is a real pass and a
+ * coach counts it. But they are the events most likely to be junk: the ball is
+ * stationary, players are walking, and the touch detector has nothing moving to
+ * key on. So they are worth being able to set aside while reviewing, and worth
+ * being able to look at on their own.
+ *
+ * Zero when no tagged log reached the run, because `inPlay` then defaults to
+ * true on every event — which is an absence of information, not a match with no
+ * stoppages in it. The filter hides itself in that case rather than offering a
+ * control that cannot do anything.
+ */
+function deadBallCount() {
+    const events = state.match?.cvEvents?.events || [];
+    return events.filter((e) => e.inPlay === false).length;
+}
+
+function renderReview() {
+    const block = byId('cv-review-block');
+    const events = state.match?.cvEvents?.events || [];
+
+    // Absent for every match published before this tool existed. Hidden rather
+    // than shown empty: an empty list reads as "the video found nothing".
+    if (!events.length) {
+        block.classList.add('hidden');
+        return;
+    }
+    block.classList.remove('hidden');
+
+    renderReviewVideo();
+    renderReviewFilters();
+    renderReviewList();
+    updateReviewProgress();
+}
+
+function renderReviewVideo() {
+    const host = byId('cv-review-video');
+    const url = state.match.videoUrl;
+
+    reviewState.video?.destroy?.();
+    reviewState.video = null;
+    host.innerHTML = '';
+
+    if (url && videoKind(url)) {
+        reviewState.video = mountVideo(host, url);
+        setText('cv-review-note',
+            'Tap any row to jump the video there.');
+    } else {
+        setText('cv-review-note', url
+            ? 'That video link cannot be played inside PitchIQ, so the times '
+              + 'below are readings rather than something to tap.'
+            : 'Add a video link above and every row below becomes tappable.');
+    }
+}
+
+/** Tear the embedded video down. Called when the match view is left. */
+function leaveReview() {
+    reviewState.video?.destroy?.();
+    reviewState.video = null;
+}
+
+function reviewSeek(clockS) {
+    if (!reviewState.video) return;
+    reviewState.video.seek(videoTime(clockS, state.match.videoOffsetS ?? 0));
+    byId('cv-review-video').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/** Video time to match clock — the inverse of videoTime(). */
+function toMatchClock(timestampS) {
+    return Math.max(0, (timestampS || 0) - (state.match.videoOffsetS ?? 0));
+}
+
+function visibleEvents() {
+    const events = state.match?.cvEvents?.events || [];
+    const decided = state.match?.cvReview?.byEvent || {};
+    return events.filter((e) => {
+        if (reviewState.filter !== 'all' && e.type !== reviewState.filter) return false;
+        if (reviewState.unreviewedOnly && decided[e.id]) return false;
+        if (reviewState.inPlayOnly && e.inPlay === false) return false;
+        return true;
+    });
+}
+
+function renderReviewFilters() {
+    const host = byId('cv-review-filters');
+    host.innerHTML = '';
+
+    const counts = state.match?.cvEvents?.counts || {};
+    const options = [
+        ['all', `Everything (${(state.match.cvEvents.events || []).length})`],
+        ...REVIEW_TYPES
+            .filter((type) => counts[type])
+            .map((type) => [type, `${type} (${counts[type]})`]),
+    ];
+
+    for (const [value, label] of options) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'chip';
+        chip.textContent = label;
+        chip.classList.toggle('on', reviewState.filter === value);
+        chip.addEventListener('click', () => {
+            reviewState.filter = value;
+            renderReviewFilters();
+            renderReviewList();
+        });
+        host.append(chip);
+    }
+
+    const toggles = [
+        ['Not checked yet', 'unreviewedOnly', true],
+        // Only offered when the log actually marked some of these dead. See
+        // deadBallCount() for why an absent log is not the same as none.
+        [`Hide the ${deadBallCount()} in stoppages`, 'inPlayOnly', deadBallCount() > 0],
+    ];
+
+    for (const [label, key, show] of toggles) {
+        if (!show) continue;
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'chip';
+        chip.textContent = label;
+        chip.classList.toggle('on', reviewState[key]);
+        chip.addEventListener('click', () => {
+            reviewState[key] = !reviewState[key];
+            renderReviewFilters();
+            renderReviewList();
+        });
+        host.append(chip);
+    }
+}
+
+function renderReviewList() {
+    const host = byId('cv-review-list');
+    host.innerHTML = '';
+
+    const events = visibleEvents();
+    const marks = events.map((e) => ({
+        id: e.id,
+        clockS: toMatchClock(e.timestampS),
+        type: e.type,
+        label: `${e.type}${e.outcome ? ` (${e.outcome})` : ''}`,
+    }));
+
+    renderStrip(byId('cv-review-scrubber'), {
+        marks,
+        endS: timelineEnd([
+            ...marks,
+            ...(state.match.cvReview?.missed || []).map((m) => ({ clockS: m.clockS })),
+        ]),
+        onSeek: reviewSeek,
+        clockText,
+    });
+
+    if (!events.length) {
+        host.innerHTML = '<div class="empty">Nothing matches that filter.</div>';
+        return;
+    }
+
+    // A half can produce hundreds of these and the DOM cost of all of them at
+    // once is real. The filters above are how you get to the rest.
+    for (const event of events.slice(0, 200)) host.append(reviewRow(event));
+
+    if (events.length > 200) {
+        const more = document.createElement('div');
+        more.className = 'empty';
+        more.textContent =
+            `Showing the first 200 of ${events.length}. Filter to see the rest.`;
+        host.append(more);
+    }
+}
+
+function reviewRow(event) {
+    const decided = state.match.cvReview.byEvent[event.id];
+    const clockS = toMatchClock(event.timestampS);
+
+    const row = document.createElement('div');
+    row.className = 'list-item review-row';
+    if (decided) row.classList.add(`is-${decided.status}`);
+    row.innerHTML = `
+        <button type="button" class="review-seek">
+            <span class="review-clock"></span>
+            <span class="review-what"></span>
+            <span class="review-dead hidden">dead ball</span>
+            <span class="review-who muted"></span>
+        </button>
+        <div class="review-mark"></div>
+        <div class="review-acts">
+            <button type="button" class="btn tiny" data-act="confirmed" title="Really happened">✓</button>
+            <button type="button" class="btn tiny" data-act="edited" title="Wrong player or type">✎</button>
+            <button type="button" class="btn tiny" data-act="rejected" title="Did not happen">✗</button>
+        </div>
+        <div class="review-edit hidden"></div>`;
+
+    row.querySelector('.review-clock').textContent = clockText(clockS);
+    row.querySelector('.review-what').textContent =
+        decided?.type || event.type;
+    row.querySelector('.review-who').textContent = whoIs(event.trackId);
+    // Marked, not hidden. A pass from a throw-in is a real pass, and the coach
+    // deciding whether this one happened should know the ball was not moving
+    // when the detector claimed it did — that is the case it gets wrong most.
+    if (event.inPlay === false) {
+        row.querySelector('.review-dead').classList.remove('hidden');
+    }
+    row.querySelector('.review-mark').append(
+        confidenceMark(confidenceBand(event.confidence)),
+    );
+
+    row.querySelector('.review-seek').addEventListener('click', () => reviewSeek(clockS));
+
+    for (const button of row.querySelectorAll('[data-act]')) {
+        button.classList.toggle('on', decided?.status === button.dataset.act);
+        button.addEventListener('click', () => {
+            if (button.dataset.act === EDITED) {
+                toggleReviewEdit(row, event);
+                return;
+            }
+            decide(event.id, { status: button.dataset.act });
+            renderReviewList();
+            updateReviewProgress();
+        });
+    }
+
+    return row;
+}
+
+/**
+ * Which player a tracked figure belongs to, going through the mapping above.
+ *
+ * Unmapped is the common case and says so plainly. Naming a guess here would
+ * put a real student's name against an event nobody has agreed they were part
+ * of, which is the one thing this whole feature is built to avoid.
+ */
+function whoIs(trackId) {
+    const clusters = state.match?.cv?.identity?.clusters || [];
+    const cluster = clusters.find((c) => (c.track_ids || []).includes(trackId));
+    if (!cluster) return 'unknown figure';
+
+    const playerId = state.match.cvMapping?.[String(cluster.cluster_id)];
+    if (playerId === NOT_A_PLAYER) return 'ruled out as not a player';
+    if (!playerId) return `figure ${cluster.cluster_id + 1}, unmatched`;
+
+    const player = state.match.roster.find((p) => p.id === playerId);
+    return player ? player.playerName : `figure ${cluster.cluster_id + 1}`;
+}
+
+function confidenceBand(value) {
+    if (value >= 0.7) return 'high';
+    if (value >= 0.45) return 'medium';
+    return 'low';
+}
+
+function toggleReviewEdit(row, event) {
+    const host = row.querySelector('.review-edit');
+    if (!host.classList.contains('hidden')) {
+        host.classList.add('hidden');
+        host.innerHTML = '';
+        return;
+    }
+
+    host.classList.remove('hidden');
+    host.innerHTML = `
+        <label class="field"><span>It was really a</span><select class="edit-type"></select></label>
+        <label class="field"><span>by</span><select class="edit-who"></select></label>
+        <button type="button" class="btn tiny edit-save">Save</button>`;
+
+    const decided = state.match.cvReview.byEvent[event.id] || {};
+    const typeSelect = host.querySelector('.edit-type');
+    for (const type of REVIEW_TYPES) {
+        const option = document.createElement('option');
+        option.value = type;
+        option.textContent = type;
+        typeSelect.append(option);
+    }
+    typeSelect.value = decided.type || event.type;
+
+    const whoSelect = host.querySelector('.edit-who');
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = 'not sure';
+    whoSelect.append(blank);
+    for (const player of state.match.roster) {
+        const option = document.createElement('option');
+        option.value = player.id;
+        option.textContent = player.jerseyNumber != null
+            ? `${player.jerseyNumber} · ${player.playerName}`
+            : player.playerName;
+        whoSelect.append(option);
+    }
+    whoSelect.value = decided.playerId || '';
+
+    host.querySelector('.edit-save').addEventListener('click', () => {
+        decide(event.id, {
+            status: EDITED,
+            type: typeSelect.value,
+            playerId: whoSelect.value || null,
+        });
+        renderReviewList();
+        updateReviewProgress();
+    });
+}
+
+function decide(eventId, verdict) {
+    const next = { ...state.match.cvReview.byEvent };
+    // Tapping the same verdict again clears it, so a mis-tap is one tap to fix
+    // rather than a decision that cannot be taken back.
+    if (next[eventId]?.status === verdict.status && verdict.status !== EDITED) {
+        delete next[eventId];
+    } else {
+        next[eventId] = verdict;
+    }
+    state.match.cvReview = { ...state.match.cvReview, byEvent: next };
+    queueReviewSave();
+}
+
+function updateReviewProgress() {
+    const total = (state.match?.cvEvents?.events || []).length;
+    const decided = Object.values(state.match?.cvReview?.byEvent || {});
+    const missed = (state.match?.cvReview?.missed || []).length;
+
+    const real = decided.filter((d) => d.status !== REJECTED).length;
+    const parts = [`${decided.length} of ${total} checked`];
+    if (decided.length) {
+        parts.push(`${Math.round((real / decided.length) * 100)}% of those were real`);
+    }
+    parts.push(missed
+        ? `${plural(missed, 'miss', 'misses')} recorded`
+        : 'no misses recorded yet');
+
+    setText('cv-review-progress', parts.join(' · '));
+}
+
+/** "12:30" or "750" to seconds. Returns null for anything else. */
+function parseClock(text) {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return null;
+
+    const parts = trimmed.split(':');
+    if (parts.length > 2 || parts.some((p) => !/^\d+$/.test(p))) return null;
+
+    const seconds = parts.length === 2
+        ? Number(parts[0]) * 60 + Number(parts[1])
+        : Number(parts[0]);
+    return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
+}
+
+function doRecordMiss() {
+    const clockS = parseClock(byId('input-missed-clock').value);
+    if (clockS === null) {
+        toast('Give the time as minutes and seconds, like 12:30.', true);
+        return;
+    }
+
+    const missed = [
+        ...(state.match.cvReview.missed || []),
+        { clockS, type: byId('input-missed-type').value, playerId: null },
+    ].sort((a, b) => a.clockS - b.clockS);
+
+    // The rules cap this at 300. Refuse here rather than letting the save fail
+    // with a permission error that says nothing about what went wrong.
+    if (missed.length > 300) {
+        toast('That is 300 misses recorded — more than enough to judge by.', true);
+        return;
+    }
+
+    state.match.cvReview = { ...state.match.cvReview, missed };
+    byId('input-missed-clock').value = '';
+    queueReviewSave();
+    renderReviewList();
+    updateReviewProgress();
+    toast(`Recorded a missed ${missed.at(-1).type} at ${clockText(clockS)}.`);
+}
+
+let reviewSaveTimer = null;
+function queueReviewSave() {
+    clearTimeout(reviewSaveTimer);
+    reviewSaveTimer = setTimeout(saveReviewNow, 600);
+}
+
+async function saveReviewNow() {
+    const badge = byId('cv-review-state');
+    try {
+        if (badge) badge.textContent = 'Saving…';
+        await saveCvReview(
+            state.user, state.team.id, state.match.id, state.match.cvReview,
+        );
+        if (badge) badge.textContent = 'Saved';
+    } catch (err) {
+        if (badge) badge.textContent = '';
+        toast(err.message || 'Could not save that.', true);
     }
 }
 
@@ -1085,12 +1791,6 @@ async function doSaveVideo() {
     const url = byId('input-video-url').value.trim();
     const offset = Number(byId('input-video-offset').value) || 0;
 
-    if (url && !videoKind(url)) {
-        // Saved anyway — a Drive or Hudl link is still worth giving a player,
-        // it just cannot be embedded and seeked. Say so rather than refusing.
-        toast('Saved, but that link cannot be played inside PitchIQ.');
-    }
-
     button.disabled = true;
     try {
         await updateMatch(state.team.id, state.match.id, {
@@ -1099,12 +1799,78 @@ async function doSaveVideo() {
         });
         state.match.videoUrl = url || null;
         state.match.videoOffsetS = offset;
-        if (!url || videoKind(url)) toast('Video link saved');
+
+        // The players' copies. `publishReports` takes them at publish time, and
+        // the ordinary order of events — publish after the match, upload the
+        // footage that evening, paste the link — leaves every one of them
+        // saying "no video for this match yet" forever. See pushVideoToReports.
+        const reached = await pushVideoToReports(
+            state.team.id, state.match.id, url || null, offset,
+        );
+
+        // The review tool below and the block above both embed this same video
+        // and read this same offset. Without these they keep the old ones until
+        // the page is reloaded, which reads as the link not having saved.
+        renderMatchVideoBlock();
+        if (!byId('cv-review-block').classList.contains('hidden')) renderReview();
+
+        // One message, after the write rather than before it. A link we will
+        // not embed is still saved — a Drive or Hudl link is worth giving a
+        // player, it just cannot be seeked — so this says what happened rather
+        // than refusing, and it says it once the writing is actually done.
+        const added = reached
+            ? `, and added to ${plural(reached, 'published report')}`
+            : '';
+        toast(url && !videoKind(url)
+            ? `Saved${added}, but that link cannot be played inside PitchIQ.`
+            : `Video link saved${added}`);
     } catch (err) {
         toast(err.message || 'Could not save the video link.', true);
     } finally {
         button.disabled = false;
     }
+}
+
+/**
+ * Hand the tagged log to the video pipeline, as a file.
+ *
+ * A file rather than the pipeline reading Firestore itself. The service account
+ * cv/publish.py uses bypasses every security rule, so the less it is allowed to
+ * touch the better — it writes CV stats and nothing else, and giving it a read
+ * path into a match would widen that for no gain. This runs as the coach, under
+ * the rules, and the pipeline gets a plain list of events.
+ *
+ * The ids ride along so a file found later can say which match it came from.
+ */
+function doDownloadLog() {
+    const payload = {
+        teamId: state.team.id,
+        matchId: state.match.id,
+        opponentName: state.match.opponentName ?? null,
+        matchDate: state.match.date ?? null,
+        // The same number typed in above. The log runs on the match clock and
+        // the footage does not, and this is what relates them.
+        videoOffsetS: state.match.videoOffsetS ?? 0,
+        entries: state.match.log ?? [],
+    };
+
+    const stamp = (state.match.date || 'match').replace(/[^\w-]/g, '');
+    download(`pitchiq-log-${stamp}-${state.match.id}.json`,
+             JSON.stringify(payload, null, 2));
+    toast(`Downloaded ${plural(payload.entries.length, 'tagged event')}.`);
+}
+
+function download(filename, text) {
+    const url = URL.createObjectURL(
+        new Blob([text], { type: 'application/json' })
+    );
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    // Revoked on the next tick rather than immediately: Safari has not started
+    // reading the blob by the time click() returns.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 async function doPublish() {
@@ -1193,10 +1959,28 @@ function init() {
     byId('btn-invite-coach').addEventListener('click', doInviteCoach);
     byId('btn-add-player').addEventListener('click', doAddPlayer);
     byId('btn-create-match').addEventListener('click', doCreateMatch);
-    byId('btn-back').addEventListener('click', () => show('view-main'));
+    byId('btn-back').addEventListener('click', () => {
+        // Leaving the match has to take the video with it. A hidden iframe
+        // keeps playing, and a coach walking away from a page that is still
+        // talking has no obvious way to stop it.
+        leaveReview();
+        leaveMatchVideo();
+        show('view-main');
+    });
     byId('btn-back-roster').addEventListener('click', () => show('view-main'));
     byId('btn-publish').addEventListener('click', doPublish);
     byId('btn-save-video').addEventListener('click', doSaveVideo);
+    byId('input-video-url').addEventListener('input', updateVideoHint);
+    byId('btn-download-log').addEventListener('click', doDownloadLog);
+    byId('btn-cv-missed').addEventListener('click', doRecordMiss);
+
+    const missedType = byId('input-missed-type');
+    for (const type of REVIEW_TYPES) {
+        const option = document.createElement('option');
+        option.value = type;
+        option.textContent = type;
+        missedType.append(option);
+    }
     byId('input-date').value = new Date().toISOString().slice(0, 10);
 
     onUser((user) => {

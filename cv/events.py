@@ -134,6 +134,14 @@ class EventBase:
     end_m: tuple[float, float] | None = None
     confidence: float = 0.0
     tags: tuple[str, ...] = ()
+    # Whether the tagged log says the ball was in play at this moment.
+    #
+    # True by default, and that default means "nobody told us" rather than "we
+    # checked". Dead-ball events are kept rather than dropped: a throw-in is a
+    # real pass and a coach counts it. What this flag exists for is the handful
+    # of measures that are only defined on open play — PPDA foremost — and for
+    # a reviewer who wants to see restarts separately.
+    in_play: bool = True
 
     def to_json(self) -> dict:
         return {
@@ -147,6 +155,7 @@ class EventBase:
             'end_m': list(self.end_m) if self.end_m else None,
             'confidence': round(self.confidence, 3),
             'tags': list(self.tags),
+            'in_play': self.in_play,
         }
 
 
@@ -372,6 +381,7 @@ def derive_events(
     period: str = 'first_half',
     side_of_team: dict[str, str] | None = None,
     keeper_tracks: set[int] | None = None,
+    phases=None,
 ) -> EventLog:
     """Turn a touch sequence into events.
 
@@ -380,6 +390,10 @@ def derive_events(
     apart but has no idea which one is the home team, and without that there is
     no way to know which goal anyone is attacking. Absent it, everything
     positional is left as None rather than assumed.
+
+    `phases` is a `cv.phases.PhaseTable` on the same clock as the table, and
+    only sets each event's `in_play` flag. Nothing is discarded for being a
+    restart — see `EventBase.in_play` for why.
     """
     pitch = pitch or (table.calibration.pitch if table.calibration else Pitch())
     orientation = orientation or MatchOrientation()
@@ -420,6 +434,15 @@ def derive_events(
 
     log.events.extend(_carries(ordered, table, pitch))
     log.events.sort(key=lambda e: e.timestamp_s)
+
+    # Stamped in one pass at the end rather than threaded through eight
+    # constructors, all of which would have to remember it.
+    if phases is not None:
+        log.events = [
+            replace(event, in_play=phases.is_live(event.timestamp_s))
+            for event in log.events
+        ]
+
     return log
 
 
@@ -747,6 +770,11 @@ def ppda(
         action in their definition and are undetectable from bounding boxes, so
         our denominator is short by every foul in the match. The bias has a
         known direction and an unknown size.
+
+    Restarts are excluded from both sides of the ratio. Pressing is a thing a
+    team does to open play, and counting the throw-in a defender takes
+    unopposed as a "pass allowed" flatters whoever they were playing against.
+    Without a tagged log nothing is marked as a restart and this is a no-op.
     """
     if attacking_end_of_opponent is None:
         return None
@@ -766,11 +794,11 @@ def ppda(
     opponent = _other(pressing_team)
     allowed = sum(
         1 for p in log.passes(opponent)
-        if in_zone(p.start_m) and p.outcome != UNKNOWN_OUTCOME
+        if p.in_play and in_zone(p.start_m) and p.outcome != UNKNOWN_OUTCOME
     )
     actions = sum(
         1 for e in log.by_type(TACKLE, INTERCEPTION, RECOVERY, DUEL)
-        if e.team == pressing_team and in_zone(e.start_m)
+        if e.in_play and e.team == pressing_team and in_zone(e.start_m)
     )
 
     if not actions:

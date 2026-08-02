@@ -7,11 +7,11 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=18';
-import { EVENT_TYPES } from './events.js?v=18';
+import { db } from './firebase-init.js?v=19';
+import { EVENT_TYPES } from './events.js?v=19';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
-import { playerTimeline, cvStatsByPlayer, cvReportFields } from './report.js?v=18';
+import { playerTimeline, cvStatsByPlayer, cvReportFields } from './report.js?v=19';
 
 export { playerTimeline, cvStatsByPlayer, cvReportFields };
 
@@ -525,6 +525,41 @@ export async function publishReports(teamId, matchId, match, team, players, scor
 }
 
 /** Season totals derived from finalized matches. */
+/**
+ * Push a changed video link onto reports that were already published.
+ *
+ * `publishReports` copies `videoUrl` onto every player's document, because a
+ * player's entire read surface is that one document — there is no rules-only
+ * way to let them see a field of the match. That copy is taken at publish time,
+ * which means the very common order of events breaks it: publish the reports
+ * after the match, upload the footage that evening, paste the link. Every
+ * player's report keeps saying "no video for this match yet" until somebody
+ * thinks to publish a second time, and nothing on the page suggests that.
+ *
+ * So saving a link fixes the copies too. Update, never create: a report exists
+ * because a coach published the match, and inventing one here would put a
+ * document in front of a player for a match whose reports were never finished.
+ *
+ * Returns how many were updated, so the coach is told a number rather than
+ * being left to wonder whether it reached anyone.
+ */
+export async function pushVideoToReports(teamId, matchId, videoUrl, videoOffsetS) {
+    const snap = await getDocs(
+        collection(db, 'teams', teamId, 'matches', matchId, 'playerReports')
+    );
+    if (snap.empty) return 0;
+
+    const batch = writeBatch(db);
+    for (const report of snap.docs) {
+        batch.update(report.ref, {
+            videoUrl: videoUrl || null,
+            videoOffsetS: videoOffsetS ?? 0,
+        });
+    }
+    await batch.commit();
+    return snap.size;
+}
+
 export function seasonSummary(matches) {
     const played = matches.filter((m) => m.finalized);
 
@@ -697,6 +732,49 @@ export function saveCvMapping(user, teamId, matchId, byCluster) {
     return setDoc(
         doc(db, 'teams', teamId, 'matches', matchId, 'cvMapping', 'players'),
         { byCluster: cleaned, updatedAt: serverTimestamp(), updatedBy: user.uid },
+    );
+}
+
+/**
+ * The individual events the pipeline found, for checking one at a time.
+ *
+ * Absent for any match published before the review tool existed, and for any
+ * run that predates schema 2 — so the caller gets null and hides the tool
+ * rather than showing an empty list that looks like "it found nothing".
+ */
+export async function readCvEvents(teamId, matchId) {
+    const snap = await getDoc(
+        doc(db, 'teams', teamId, 'matches', matchId, 'cvStats', 'events')
+    ).catch(() => null);
+    return snap?.exists() ? snap.data() : null;
+}
+
+/**
+ * What a coach decided about those events.
+ *
+ * `byEvent` is keyed by event id: confirmed, rejected, or edited with what it
+ * should have been. `missed` is the other half of the same job — the moments
+ * the pipeline found nothing and should have. Precision comes from the first
+ * and recall only from the second, and recall is the number that says whether
+ * the detector is good enough.
+ */
+export async function readCvReview(teamId, matchId) {
+    const snap = await getDoc(
+        doc(db, 'teams', teamId, 'matches', matchId, 'cvReview', 'decisions')
+    ).catch(() => null);
+    const data = snap?.exists() ? snap.data() : {};
+    return { byEvent: data.byEvent || {}, missed: data.missed || [] };
+}
+
+export function saveCvReview(user, teamId, matchId, review) {
+    return setDoc(
+        doc(db, 'teams', teamId, 'matches', matchId, 'cvReview', 'decisions'),
+        {
+            byEvent: review.byEvent || {},
+            missed: review.missed || [],
+            updatedAt: serverTimestamp(),
+            updatedBy: user.uid,
+        },
     );
 }
 
