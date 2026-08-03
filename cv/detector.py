@@ -1,4 +1,14 @@
-"""YOLO detection restricted to the two classes PitchIQ cares about."""
+"""YOLO detection restricted to the two classes PitchIQ cares about.
+
+`ultralytics` is imported inside the constructor rather than at module scope,
+which is the same arrangement `cv/xg_bridge.py` uses for onnxruntime and for the
+same reason. It drags in torch — two gigabytes of it — and almost nothing in
+this package needs a detector: the pipeline takes one by injection, every test
+supplies a fake, and `import cv.pipeline` on a machine that only wanted to read
+a report JSON should not require a GPU stack. The cost of getting this wrong is
+paid at import time by everyone, and the cost of getting it right is one import
+statement in the one place that actually builds a model.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +16,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from ultralytics import YOLO
 
 # COCO class indices in the pretrained YOLO weights.
 CLASS_PERSON = 0
@@ -49,6 +58,8 @@ class PersonBallDetector:
         imgsz: int = 960,
         device: str | int | None = None,
     ) -> None:
+        from ultralytics import YOLO
+
         self.model = YOLO(str(weights))
         self.conf = conf
         self.imgsz = imgsz

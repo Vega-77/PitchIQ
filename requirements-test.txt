@@ -1,0 +1,17 @@
+# What the test suite needs, which is much less than the pipeline needs.
+#
+# `cv/detector.py` imports ultralytics inside its constructor rather than at
+# module scope, so nothing under test ever pulls in torch — the pipeline takes a
+# detector by injection and every test supplies a fake. That turns a two-gigabyte
+# CI install into a small one, and it is why this file can exist at all.
+#
+# The versions here MUST match requirements.txt. tests/test_requirements.py
+# fails if they drift, so this cannot quietly fall behind.
+
+opencv-python==5.0.0.93
+numpy==2.4.4
+onnxruntime==1.28.0
+
+# Not in requirements.txt: only the tests and the pre-commit check use these.
+pytest==9.1.1
+pyflakes==3.4.0
