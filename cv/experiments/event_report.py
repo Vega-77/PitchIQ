@@ -136,6 +136,27 @@ def main(argv: list[str] | None = None) -> int:
                   f'{span.opened_by:14s}  {span.closed_by or "(timed out)"}')
         print()
 
+    if report.reconciliation is not None:
+        rec = report.reconciliation
+        goals = rec.counts('goal')
+        print(f'  goals: {goals["agreed"]} agreed, {goals["cv_only"]} found '
+              f'but never tagged, {goals["tag_only"]} tagged but never found')
+
+        if rec.exits_checked:
+            exits = rec.counts('exit')
+            rate = rec.rate('exit')
+            print(f'  ball out of play: {exits["agreed"]} agreed, '
+                  f'{exits["cv_only"]} unseen by the tagger, '
+                  f'{exits["tag_only"]} unseen here'
+                  + (f'  ({rate:.0%} agreement)' if rate is not None else ''))
+        else:
+            print('  ball out of play: not checked (needs a calibration)')
+
+        for entry in rec.disagreements('goal'):
+            side = 'video only' if entry.status == 'cv_only' else 'tag only '
+            print(f'  disagreement  {clock(entry.at_s)}  {side}')
+        print()
+
     if args.touches and report.touches:
         print('  touches')
         print('  time      track  team      dist  prox  motn  obs   sep   score')

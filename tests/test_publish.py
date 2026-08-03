@@ -87,8 +87,8 @@ class FakeClient:
 GuardedClient = FakeClient
 
 
-def a_report(tracks=None, clusters=None):
-    return {
+def a_report(tracks=None, clusters=None, **extra):
+    return {**{
         'schema_version': 1,
         'source': 'clip.mp4',
         'window': {'start_s': 0, 'end_s': 15},
@@ -109,7 +109,7 @@ def a_report(tracks=None, clusters=None):
             'top_speed_kmh': None, 'sprint_count': None, 'minutes_tracked': 12.0,
         }],
         'events': [],
-    }
+    }, **extra}
 
 
 # ------------------------------------------------------------------ guards
@@ -348,6 +348,16 @@ class TestPayloads:
     def test_summary_keeps_the_schema_version(self):
         """There is no build step, so a reader cannot be updated in lockstep."""
         assert summary_payload(a_report())['schemaVersion'] == 1
+
+    def test_the_reconciliation_travels_to_the_coach(self):
+        """Small enough to carry whole, and the one part of the report that
+        says where a reviewer should start."""
+        block = {'goal_agreement': 0.5, 'disagreements': [{'status': 'tag_only'}]}
+        payload = summary_payload(a_report(reconciliation=block))
+        assert payload['reconciliation'] == block
+
+    def test_a_run_with_no_tagged_log_publishes_null_not_an_empty_object(self):
+        assert summary_payload(a_report())['reconciliation'] is None
 
     def test_an_empty_report_still_produces_a_valid_payload(self):
         payload = summary_payload({})

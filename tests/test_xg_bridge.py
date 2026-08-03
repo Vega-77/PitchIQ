@@ -17,6 +17,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from cv.calibration import Calibration
 from cv.pitch import STATSBOMB_LENGTH, MatchOrientation, Pitch
 from cv.xg_bridge import (
     DEFAULT_SHOT_HEIGHT,
@@ -25,6 +26,7 @@ from cv.xg_bridge import (
     build_features,
     feature_vector,
     in_shot_cone,
+    shot_context_from_tracking,
 )
 
 REPO = Path(__file__).resolve().parents[1]
@@ -242,3 +244,96 @@ class TestOrientationIntegration:
         ), pitch)
 
         assert first['distance_to_goal'] < second['distance_to_goal']
+
+
+class TestKeeperGuess:
+    """Who gets taken for the goalkeeper when nobody says.
+
+    This is the one place in the bridge where a wrong answer looks entirely
+    normal: every feature still computes, the vector is still twelve wide, and
+    the number that comes out is simply about a different person. It went
+    untested from the day it was written until the day something finally called
+    it, and it was inverted the whole time.
+    """
+
+    SCALE = 20.0
+
+    def calibration(self, pitch):
+        homography = np.array([
+            [1 / self.SCALE, 0.0, 0.0],
+            [0.0, 1 / self.SCALE, 0.0],
+            [0.0, 0.0, 1.0],
+        ], dtype=np.float64)
+        return Calibration(homography, pitch, image_size=(1920, 1080))
+
+    def box(self, x_m, y_m):
+        """A box whose bottom centre — the only part read — sits on the pitch."""
+        x, y = x_m * self.SCALE, y_m * self.SCALE
+        return (x - 10, y - 36, x + 10, y)
+
+    def context(self, pitch, players, **kwargs):
+        teams = {track: team for track, team, _, _ in players}
+        return shot_context_from_tracking(
+            ball_px=(95 * self.SCALE, 34 * self.SCALE),
+            player_boxes=[(t, self.box(x, y)) for t, _, x, y in players],
+            shooter_track=7,
+            team_of=teams.get,
+            calibration=self.calibration(pitch),
+            orientation=MatchOrientation(home_attacks_first_half='right'),
+            side='us',
+            period='first_half',
+            **kwargs,
+        )
+
+    def test_the_keeper_is_the_one_in_the_goal_being_shot_at(self, pitch):
+        """Not the deepest opponent, which is the far end of the pitch.
+
+        Shooting right at a keeper on his line, with a centre-back who has
+        dropped fifty metres the other way. Guessing the centre-back tells the
+        model the goal is empty.
+        """
+        context = self.context(pitch, [
+            (7, 'a', 95.0, 34.0),          # shooter
+            (30, 'b', 103.0, 34.0),        # keeper, on his line
+            (20, 'b', 40.0, 34.0),         # deepest opponent, nowhere near it
+        ])
+        assert context.keeper_m == (103.0, 34.0)
+        assert context.defenders_m == [(40.0, 34.0)]
+
+    def test_it_flips_with_the_half(self, pitch):
+        context = shot_context_from_tracking(
+            ball_px=(10 * self.SCALE, 34 * self.SCALE),
+            player_boxes=[
+                (7, self.box(10.0, 34.0)),
+                (30, self.box(2.0, 34.0)),
+                (20, self.box(65.0, 34.0)),
+            ],
+            shooter_track=7,
+            team_of={7: 'a', 30: 'b', 20: 'b'}.get,
+            calibration=self.calibration(pitch),
+            orientation=MatchOrientation(home_attacks_first_half='right'),
+            side='us',
+            period='kickoff_2nd',
+        )
+        assert context.attacking_end == 'left'
+        assert context.keeper_m == (2.0, 34.0)
+
+    def test_naming_the_keeper_beats_guessing(self, pitch):
+        """A named keeper is used even when he is nowhere sensible.
+
+        The point is that the caller's answer wins outright — `cv/keeper.py` and
+        a human both know things this geometry does not.
+        """
+        context = self.context(pitch, [
+            (7, 'a', 95.0, 34.0),
+            (30, 'b', 103.0, 34.0),
+            (20, 'b', 40.0, 34.0),
+        ], keeper_track=20)
+        assert context.keeper_m == (40.0, 34.0)
+        assert context.defenders_m == [(103.0, 34.0)]
+
+    def test_no_opponents_leaves_the_keeper_unknown(self, pitch):
+        """Rather than promoting a team-mate or inventing one."""
+        context = self.context(pitch, [(7, 'a', 95.0, 34.0), (9, 'a', 90.0, 30.0)])
+        assert context.keeper_m is None
+        assert context.defenders_m == []

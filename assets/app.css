@@ -1139,6 +1139,107 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
 }
 .review-missed .field { margin: 0; }
 
+/* Where the tagged log and the video contradict each other. Given the loudest
+   treatment in this block on purpose: two independent records disagreeing about
+   a goal is a stronger signal than anything the pipeline's own confidence can
+   produce, and it is settled by twenty seconds of watching. */
+.conflicts {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border: 1px solid var(--warn);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--warn) 8%, transparent);
+}
+.conflicts-head {
+    margin: 0 0 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--warn);
+}
+.conflict-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    width: 100%;
+    padding: 6px 0;
+    background: none;
+    border: 0;
+    color: var(--text);
+    text-align: left;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.conflict-row + .conflict-row { border-top: 1px solid var(--line); }
+.conflict-clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    min-width: 52px;
+    flex: none;
+}
+
+/* Precision and recall, per event type. Same grid discipline as .review-row:
+   named columns and a text cell that shortens rather than forcing the table
+   wider than the phone reading it. */
+/* The grid lives on the container and the rows are `display: contents`, so
+   every row shares one set of column widths. With the grid on each row instead,
+   an `auto` column sizes to that row's own content and the percentages land at
+   a different x on every line — which is exactly as unreadable as it sounds in
+   a table whose entire purpose is comparing numbers down a column. */
+.scorecard {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    margin-bottom: 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+}
+.scorecard-row { display: contents; }
+.scorecard-row > * {
+    padding: 7px 8px;
+    text-align: right;
+    align-self: baseline;
+}
+.scorecard-row > :first-child {
+    padding-left: 12px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: left;
+}
+.scorecard-row > :last-child { padding-right: 12px; }
+.scorecard-row:not(.is-head) > * { border-top: 1px solid var(--line); }
+.scorecard-row.is-head > * {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    background: var(--surface-hi);
+}
+.scorecard-row.is-total > * { font-weight: 700; background: var(--surface-hi); }
+/* Not a footnote. A percentage with no denominator beside it is the single
+   easiest thing on this page to over-read. */
+.scorecard-note {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 8px 12px;
+    border-top: 1px solid var(--line);
+    font-size: 0.75rem;
+    color: var(--text-faint);
+}
+
+@media (max-width: 640px) {
+    /* "Checked" is the column to lose first — it is a raw count, and the two
+       rates are what the table is for. */
+    .scorecard { grid-template-columns: minmax(0, 1fr) auto auto; }
+    .scorecard-row > :nth-child(4) { display: none; }
+    .scorecard-row > :nth-child(3) { padding-right: 12px; }
+    .conflict-row { flex-wrap: wrap; gap: 2px 12px; }
+}
+
 @media (max-width: 640px) {
     /* The actions get their own row rather than squeezing the label to one
        letter per line — the mistake the cluster rows made at 375px. */

@@ -40,13 +40,17 @@ from .events import (
     TACKLE,
     EventLog,
     ppda,
+    turnovers_by_third,
 )
 from .identity import PlayerCluster, fragmentation
 from .teams import TEAM_A, TEAM_B
 
 # 2: `participants` added, `shape` became per team, `no_ball_s` became a real
 #    measurement instead of an identity that was always zero.
-SCHEMA_VERSION = 2
+# 3: `reconciliation` added, and `xg` started carrying a number — `attach_xg`
+#    had no caller until now, so every xG field in a version 2 document is null
+#    because nothing computed it, not because no shots were found.
+SCHEMA_VERSION = 3
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -105,6 +109,19 @@ class TeamStats:
 
     ppda: float | None = None
     shape: dict[str, float] = field(default_factory=dict)
+    # Where this team's possession happened, as shares of its own total, named
+    # from its own attacking direction. None without a calibration, and None for
+    # a team that never held the ball — three zeroes would say the ball was
+    # spread evenly across a pitch it never touched.
+    territory: dict | None = None
+    # How the shape differed late in the window against early. None on a clip
+    # too short to have two halves worth comparing — which is every run so far.
+    shape_drift: dict | None = None
+    # Giveaways by third, from this team's own direction. The defensive-third
+    # count is the one the catalog asks for by name: a ball lost in front of
+    # your own goal is a different event from one lost in theirs, and a single
+    # turnover total hides exactly that.
+    turnovers_by_third: dict | None = None
 
     @property
     def pass_accuracy(self) -> float | None:
@@ -141,6 +158,9 @@ class TeamStats:
             'duels': _num(self.duels),
             'ppda': _round(self.ppda, 2),
             'shape': {k: _round(v, 1) for k, v in self.shape.items()},
+            'territory': self.territory,
+            'shape_drift': self.shape_drift,
+            'turnovers_by_third': self.turnovers_by_third,
         }
 
 
@@ -223,6 +243,9 @@ def team_stats(
     shape: dict | None = None,
     opponent_attacking_end: str | None = None,
     pitch=None,
+    territory: dict | None = None,
+    shape_drift: dict | None = None,
+    attacking_end: str | None = None,
 ) -> TeamStats:
     """Aggregate one team's events.
 
@@ -272,8 +295,13 @@ def team_stats(
 
         if pitch is not None:
             stats.ppda = ppda(log, pitch, team, opponent_attacking_end)
+            stats.turnovers_by_third = turnovers_by_third(
+                log, pitch, team, attacking_end,
+            )
 
     stats.shape = shape or {}
+    stats.territory = territory
+    stats.shape_drift = shape_drift
     return stats
 
 
@@ -374,13 +402,29 @@ def build_report_json(
 
     players_by_track = {p.track_id: p for p in report.players}
 
+    split = getattr(report, 'territory', None)
+    territory_json = split.to_json() if split else {}
+
+    # Both were missing entirely until 2026-08-02, and `ppda` was therefore
+    # None in every report this project has ever produced — not because the
+    # footage could not support it, but because nothing handed the function a
+    # pitch to measure the pressing zone on.
+    pitch = getattr(report, 'pitch', None)
+    ends = getattr(report, 'attacking_ends', None) or {}
+
     teams = {}
     for team in (TEAM_A, TEAM_B):
+        other = TEAM_B if team == TEAM_A else TEAM_A
         teams[team] = team_stats(
             log, team,
             calibrated=calibrated,
             possession_pct=possession.share(team) if possession else None,
             shape=(report.shape or {}).get(team) or {},
+            territory=territory_json.get(team),
+            shape_drift=_drift_json(report, team),
+            pitch=pitch,
+            attacking_end=ends.get(team),
+            opponent_attacking_end=ends.get(other),
         ).to_json()
 
     tracks = track_stats(
@@ -417,6 +461,13 @@ def build_report_json(
         # that cannot be audited is indistinguishable from a bug.
         'participants': (
             report.participants.to_json() if report.participants else []
+        ),
+        # None, not an empty comparison. Without a tagged log there was nothing
+        # to check this run against, which is a different statement from the two
+        # records having been checked and found to agree about nothing.
+        'reconciliation': (
+            report.reconciliation.to_json()
+            if getattr(report, 'reconciliation', None) else None
         ),
     }
 
@@ -477,4 +528,21 @@ def _quality(report, log: EventLog) -> dict:
             if report.phases and report.duration_s else None
         ),
         'stoppages': len(report.phases.spans) if report.phases else None,
+        # How often this run and the person with the tablet described the same
+        # moment the same way. Not an accuracy — both can be wrong together —
+        # but a drift across several matches means something changed.
+        'goal_agreement': _agreement(report, 'goal'),
+        'exit_agreement': _agreement(report, 'exit'),
     }
+
+
+def _drift_json(report, team: str) -> dict | None:
+    drift = (getattr(report, 'shape_drift', None) or {}).get(team)
+    return drift.to_json() if drift else None
+
+
+def _agreement(report, kind: str) -> float | None:
+    reconciliation = getattr(report, 'reconciliation', None)
+    if reconciliation is None:
+        return None
+    return _round(reconciliation.rate(kind), 3)

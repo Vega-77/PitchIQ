@@ -10,18 +10,18 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=19';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=21';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../assets/db.js?v=19';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=19';
-import { possessionIsInPlay } from '../assets/report.js?v=19';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=19';
+} from '../assets/db.js?v=21';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=21';
+import { possessionIsInPlay, cvReads } from '../assets/report.js?v=21';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=21';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
     tally,
-} from '../assets/ui.js?v=19';
+} from '../assets/ui.js?v=21';
 
 const VIEWS = ['view-error', 'view-report'];
 
@@ -106,6 +106,17 @@ function renderDecisions() {
         list.append(decision('info',
             `${plural(bench.length, 'substitute')} unused`,
             bench.map((p) => p.playerName).join(', ')));
+    }
+
+    // What the video saw, as sentences. Last in this block on purpose: a
+    // second yellow is a decision to make right now, and a read on the shape is
+    // something to talk about — the ordering says which is which without
+    // needing a heading to say so.
+    //
+    // Marked `est` rather than `info` so an estimate never sits in the same
+    // visual register as a card somebody was actually shown.
+    for (const read of cvReads(state.cv)) {
+        list.append(decision('est', read.title, read.detail));
     }
 
     if (!list.children.length) {
@@ -217,6 +228,14 @@ function cvTallies() {
         ['Interceptions', ours.interceptions, theirs.interceptions, 'high', events],
         ['Recoveries', ours.recoveries, theirs.recoveries, 'high', events],
         ['Shots', ours.shots, theirs.shots, 'high', events],
+        ['Shots on target', ours.shots_on_target, theirs.shots_on_target,
+            'high', events],
+        // The catalog's headline number, and until now the pipeline never
+        // computed it — see cv/xg_bridge.py. One decimal place, because two
+        // would claim a precision the noise measurement says is not there.
+        [xgLabel(), xg(ours.xg), xg(theirs.xg), 'high', events],
+        ['Entries into the final third', ours.final_third_entries,
+            theirs.final_third_entries, 'high', events],
     ];
 
     return rows
@@ -228,6 +247,15 @@ function cvTallies() {
 }
 
 const pct = (share) => (share == null ? null : Math.round(share * 100));
+
+// One decimal place. Two would claim a precision the model does not have: half
+// a metre of position error moves a single shot's xG by about 0.066, so the
+// second decimal is noise wearing a number's clothes. See tests/test_xg_noise.py.
+const xg = (value) => (value == null ? null : Number(value.toFixed(1)));
+
+// Named for what it is rather than as "xG", which means nothing to most of the
+// people who will read this page standing on a touchline.
+const xgLabel = () => 'Chances created (xG)';
 
 /** The one caveat that changes how the possession row is read, or nothing. */
 function cvLiveNote() {

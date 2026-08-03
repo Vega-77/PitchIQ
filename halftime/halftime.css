@@ -130,6 +130,17 @@
 }
 .decision.info { border-left-color: var(--accent); }
 
+/* Measured from the video, not tapped by a person. Deliberately the quietest
+   row in this list: a dashed edge and no accent colour, so an estimate never
+   sits in the same visual register as a card somebody was actually shown. The
+   same distinction the dotted tally rows make further down the page. */
+.decision.est {
+    border-left-style: dashed;
+    border-left-color: var(--line-hi);
+    background: transparent;
+}
+.decision.est .d-title { color: var(--text-dim); font-weight: 600; }
+
 .decision .d-title { font-size: 1rem; font-weight: 650; line-height: 1.3; }
 .decision.warn .d-title { color: var(--warn); }
 .decision.bad .d-title { color: var(--danger); }

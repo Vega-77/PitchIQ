@@ -302,6 +302,20 @@ export function cvQualityNotes(quality, options = {}) {
             + (stoppages ? ` across ${stoppages} stoppage${stoppages === 1 ? '' : 's'}` : ''));
     }
 
+    // Two records of the same match, and how often they told the same story.
+    // Not an accuracy: both can be wrong about the same moment in the same
+    // direction, and this would call that agreement. What it is good for is the
+    // trend — a run of matches where the two drift apart means something
+    // changed, and it is worth knowing which before believing the rest.
+    const rec = options.reconciliation;
+    const goalRate = rec?.goal_agreement ?? rec?.goalAgreement;
+    const goals = rec?.goals || {};
+    const compared = (goals.agreed || 0) + (goals.cv_only || 0) + (goals.tag_only || 0);
+    if (goalRate != null && compared) {
+        notes.push(`the video and the tagged log agree on ${goals.agreed || 0} `
+            + `of ${compared} goal${compared === 1 ? '' : 's'}`);
+    }
+
     // Carried in the counts above, not removed from them. Without a
     // calibration there is no goalmouth to measure anyone against, so a referee
     // and a goalkeeper are identical on every feature the classifier has, and
@@ -312,6 +326,25 @@ export function cvQualityNotes(quality, options = {}) {
     if (officials) {
         notes.push(`${officials} figure${officials === 1 ? '' : 's'} matching `
             + 'neither kit still counted — a referee, or your goalkeeper');
+    }
+
+    // Only once there is an xG figure on screen to caveat. Both facts below are
+    // biases with a known direction, which is worth more to a coach than a
+    // vague warning: headers are scored generously, and a loose calibration
+    // widens every shot's number without moving the total much.
+    //
+    // The 0.5m figure is not a guess. Measured against the real model
+    // (tests/test_xg_noise.py): half a metre of position error moves one shot's
+    // xG by ~0.066 on a 0.47 baseline, and at 4m the spread exceeds the number
+    // itself.
+    if (options.shots) {
+        const error = options.calibrationErrorM;
+        notes.push('xG counts every shot as struck with the foot — one camera '
+            + 'cannot see the ball\'s height'
+            + (error > 1.0
+                ? `, and at ${error.toFixed(1)}m of calibration error each shot's `
+                    + 'figure is loose enough that only the total is worth reading'
+                : ''));
     }
 
     const perCluster = q.tracks_per_cluster ?? q.tracksPerCluster;
@@ -396,4 +429,301 @@ export function playerTimeline(log, roster, playerId) {
     return entries
         .sort((a, b) => a.clockS - b.clockS)
         .slice(0, MAX_TIMELINE);
+}
+
+// ------------------------------------------------------ scoring the reviewer
+//
+// The review tool has been collecting verdicts since it shipped and computing
+// nothing from them beyond "84 of 512 checked". The two numbers it exists to
+// produce are precision and recall, and they need different halves of the data:
+// precision comes from judging what the pipeline claimed, recall only from
+// recording what it never claimed at all. A detector that finds six passes a
+// half and gets all six right has perfect precision and is useless.
+//
+// The awkward case is an edit. A reviewer who changes a "tackle" to an
+// "interception" has said two things at once: the pipeline was wrong to call it
+// a tackle, and it was right that *something* happened there. Both matter, and
+// collapsing them either way produces a flattering number. So an edit that
+// changes the type counts against the type it claimed and in favour of the type
+// it should have been.
+
+const CONFIRMED_STATUS = 'confirmed';
+const REJECTED_STATUS = 'rejected';
+const EDITED_STATUS = 'edited';
+
+function emptyScore() {
+    return {
+        truePositives: 0,   // claimed this type, and it was
+        falsePositives: 0,  // claimed this type, and it was not
+        detected: 0,        // really this type, and the moment was found
+        missed: 0,          // really this type, and nothing was found
+        unreviewed: 0,
+        precision: null,
+        recall: null,
+    };
+}
+
+function ratio(numerator, denominator) {
+    // Null, not zero. Zero is a measurement; this is the absence of one, and a
+    // scorecard reading 0% for a type nobody has looked at would be read as a
+    // detector that gets everything wrong.
+    return denominator ? numerator / denominator : null;
+}
+
+/**
+ * Precision and recall per event type, from a coach's review decisions.
+ *
+ * `events` is `cvStats/events`'s list, `review` is the `cvReview/decisions`
+ * document: `{ byEvent: {id: {status, type?, playerId?}}, missed: [{clockS,
+ * type}] }`.
+ *
+ * Everything here describes **the events actually reviewed**, and the caller
+ * must say so on screen. Precision over twelve of five hundred events is a fact
+ * about those twelve, and a reviewer who checked the twelve most obvious ones
+ * has not measured the detector.
+ */
+export function reviewScore(events, review) {
+    const byEvent = review?.byEvent || {};
+    const byType = {};
+    const at = (type) => (byType[type] = byType[type] || emptyScore());
+
+    for (const event of events || []) {
+        const claimed = event.type;
+        const decision = byEvent[event.id];
+
+        if (!decision) {
+            at(claimed).unreviewed += 1;
+            continue;
+        }
+
+        // An edit that only reassigns the player leaves the type standing, and
+        // is a success for the type — the pipeline found the right kind of
+        // thing and pinned it on the wrong person. Identity is a separate
+        // problem with its own separate fix.
+        const truth = decision.status === EDITED_STATUS && decision.type
+            ? decision.type
+            : claimed;
+
+        if (decision.status === REJECTED_STATUS) {
+            at(claimed).falsePositives += 1;
+            continue;
+        }
+
+        if (truth === claimed) {
+            at(claimed).truePositives += 1;
+            at(claimed).detected += 1;
+        } else {
+            at(claimed).falsePositives += 1;
+            // Found, but called something else. Still found, which is the only
+            // question recall asks.
+            at(truth).detected += 1;
+        }
+    }
+
+    for (const miss of review?.missed || []) {
+        if (miss?.type) at(miss.type).missed += 1;
+    }
+
+    for (const score of Object.values(byType)) {
+        score.precision = ratio(
+            score.truePositives, score.truePositives + score.falsePositives,
+        );
+        score.recall = ratio(score.detected, score.detected + score.missed);
+    }
+
+    const overall = emptyScore();
+    for (const score of Object.values(byType)) {
+        for (const key of [
+            'truePositives', 'falsePositives', 'detected', 'missed', 'unreviewed',
+        ]) {
+            overall[key] += score[key];
+        }
+    }
+    overall.precision = ratio(
+        overall.truePositives, overall.truePositives + overall.falsePositives,
+    );
+    overall.recall = ratio(overall.detected, overall.detected + overall.missed);
+
+    return { byType, overall };
+}
+
+/**
+ * The reviewed set as a file, for tuning a detector on later.
+ *
+ * This is the reason the review tool is worth using on footage whose numbers
+ * mean nothing yet: it produces labelled data as a side effect, and labelled
+ * data is what a fine-tune needs. Until now those labels could only be read
+ * back out of the Firestore console one document at a time.
+ *
+ * `meta` carries whatever says which match this is. A labels file that cannot
+ * say what it belongs to is worthless in a month, which is exactly when someone
+ * will open it.
+ *
+ * The two halves are on **different clocks**, and the field names say so rather
+ * than leaving it to be discovered. A pipeline event is stamped in video
+ * seconds; a recorded miss is typed by a human off the match clock. They are
+ * related by `videoOffsetS`, which is why it travels in the file — converting
+ * here would bake in whatever the offset happened to be at export time, and the
+ * offset is the number in this app most likely to be corrected later.
+ */
+export function reviewLabels(events, review, meta = {}) {
+    const byEvent = review?.byEvent || {};
+
+    return {
+        format: 'pitchiq-review-labels',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        ...meta,
+        // Stated rather than implied. A consumer that treats the unreviewed
+        // events as negatives would be training on the pipeline's own guesses.
+        note: 'Only events with a verdict are labelled. Anything absent from '
+            + '`labelled` was never looked at, and is not a negative example. '
+            + 'labelled[].videoS is a position in the video; missed[].clockS is '
+            + 'a match-clock reading a person typed. videoS = clockS + '
+            + 'videoOffsetS.',
+        labelled: (events || [])
+            .filter((event) => byEvent[event.id])
+            .map((event) => {
+                const decision = byEvent[event.id];
+                return {
+                    id: event.id,
+                    videoS: event.timestampS,
+                    claimedType: event.type,
+                    verdict: decision.status,
+                    actualType: decision.status === REJECTED_STATUS
+                        ? null
+                        : (decision.type || event.type),
+                    playerId: decision.playerId ?? null,
+                    trackId: event.trackId ?? null,
+                    confidence: event.confidence ?? null,
+                    inPlay: event.inPlay ?? null,
+                };
+            }),
+        // The other half, and the one nothing else in the system can supply: a
+        // thing the pipeline never saw leaves no record to disagree with.
+        missed: (review?.missed || []).map((miss) => ({
+            clockS: miss.clockS,
+            type: miss.type,
+            playerId: miss.playerId ?? null,
+        })),
+        counts: {
+            events: (events || []).length,
+            labelled: Object.keys(byEvent).length,
+            missed: (review?.missed || []).length,
+        },
+    };
+}
+
+// ------------------------------------------------- reading the half out loud
+//
+// The stats catalog asks for "plain-language flags over raw tables" at
+// half-time, and gives the shape of them: *"RB has covered 20% less ground than
+// LB"*, *"team compactness dropped in the last 15 minutes"*. A coach has three
+// minutes and is standing up. A table of eighteen numbers is not a read on the
+// half; three sentences are.
+//
+// Every threshold below is a guess, none has been checked against a real match,
+// and the consequence of setting one too low is worse than it looks: a flag
+// that fires every game stops being read, and takes the ones that matter with
+// it. So they are set where a difference is large enough that a coach would
+// have noticed it themselves — the value here is confirmation and a number to
+// say out loud, not detection.
+
+// Share of your own possession spent in your own third before it is worth
+// saying. An even spread across three thirds is 33%, so this is already well
+// clear of ordinary.
+const PINNED_BACK_SHARE = 0.45;
+
+// Metres a shape figure has to move. Matches MIN_DRIFT_M in cv/metrics.py, and
+// is about a player's worth of spacing.
+const SHAPE_MOVE_M = 3.0;
+
+// Giveaways in your own defensive third before it is a pattern rather than a
+// bad minute.
+const DANGEROUS_GIVEAWAYS = 5;
+
+const SHAPE_WORDS = {
+    width_m: ['wider', 'narrower'],
+    depth_m: ['longer front to back', 'shorter front to back'],
+    compactness_m: ['more spread out', 'more compact'],
+};
+
+/**
+ * What the video says about the half, as sentences rather than rows.
+ *
+ * `cv` is the published `cvStats/summary` document. Returns
+ * `[{ title, detail }]`, worst-first-ish and often empty — empty is the correct
+ * and common answer, and a caller should render nothing rather than a heading
+ * over a blank space.
+ *
+ * Reads only `teams.team_a`, which is always the coach's own side.
+ */
+export function cvReads(cv) {
+    const ours = cv?.teams?.team_a;
+    if (!ours) return [];
+
+    const reads = [];
+    const pct = (v) => Math.round(v * 100);
+
+    // Where the ball was, not just how much of it you had. The two come apart
+    // exactly where it matters: a side pinned in its own half can hold 60% of
+    // the ball and be losing.
+    const territory = ours.territory;
+    if (territory && territory.defensive >= PINNED_BACK_SHARE) {
+        reads.push({
+            title: 'You had the ball, but not where it counts',
+            detail: `${pct(territory.defensive)}% of your possession was in your `
+                + `own third, and ${pct(territory.attacking)}% in theirs.`,
+        });
+    }
+
+    // Whether the shape held. Deliberately not toned good or bad — a side that
+    // tightened up was well-drilled or was pinned back, and this cannot tell
+    // the difference.
+    const change = ours.shape_drift?.change || {};
+    const moved = Object.entries(SHAPE_WORDS)
+        .map(([key, [grew, shrank]]) => [key, change[key], grew, shrank])
+        .filter(([, value]) => value != null && Math.abs(value) >= SHAPE_MOVE_M);
+
+    if (moved.length) {
+        reads.push({
+            title: 'Your shape changed during the half',
+            detail: moved
+                .map(([, value, grew, shrank]) =>
+                    `${Math.round(Math.abs(value))}m ${value > 0 ? grew : shrank}`)
+                .join(', ') + ' by the end of it.',
+        });
+    }
+
+    // Giveaways in front of your own goal. A single turnover count cannot say
+    // this, which is why it is counted by third.
+    const lost = ours.turnovers_by_third;
+    if (lost && lost.defensive >= DANGEROUS_GIVEAWAYS) {
+        reads.push({
+            title: `${lost.defensive} giveaways in your own third`,
+            detail: 'Passes lost in front of your own goal — the ones that turn '
+                + 'straight into a chance against you.',
+        });
+    }
+
+    // Chances created against chances taken. Both directions are worth saying:
+    // one is bad luck or bad finishing, the other is a lead that flatters.
+    if (ours.xg != null && ours.goals != null && ours.shots) {
+        const gap = ours.goals - ours.xg;
+        if (gap <= -1.0) {
+            reads.push({
+                title: 'You have made more than you have taken',
+                detail: `${ours.shots} shots worth about ${ours.xg.toFixed(1)} `
+                    + `expected goals, and ${ours.goals} scored.`,
+            });
+        } else if (gap >= 1.0) {
+            reads.push({
+                title: 'The scoreline is ahead of the chances',
+                detail: `${ours.goals} from about ${ours.xg.toFixed(1)} expected `
+                    + `goals across ${ours.shots} shots.`,
+            });
+        }
+    }
+
+    return reads;
 }

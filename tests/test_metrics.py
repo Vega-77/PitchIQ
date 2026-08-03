@@ -17,6 +17,9 @@ from cv.metrics import (
     heatmap,
     movement_stats,
     smooth_positions,
+    ShapeDrift,
+    drift_notes,
+    shape_drift,
     team_shape,
 )
 
@@ -195,3 +198,113 @@ class TestTeamShape:
 
     def test_handles_no_players(self):
         assert team_shape({})["width_m"] == 0.0
+
+
+class TestShapeDrift:
+    """Whether the shape held, which is a different question from what it was.
+
+    The catalog asks for "team compactness dropped in the last 15 minutes" as a
+    plain sentence. That needs two averages either side of a split rather than a
+    single mean over the window, and it needs to refuse to answer when there is
+    not enough on one side to average.
+    """
+
+    def spread_apart(self, n=200, start_gap=4.0, end_gap=20.0):
+        """Four players who begin tight and end strung out across the pitch."""
+        by_track = {}
+        for track, offset in enumerate([-1.5, -0.5, 0.5, 1.5]):
+            points = []
+            for i in range(n):
+                gap = start_gap + (end_gap - start_gap) * i / (n - 1)
+                points.append((52.0, 34.0 + offset * gap))
+            by_track[track] = series(points, track_id=track)
+        return by_track
+
+    def steady(self, n=200):
+        return {
+            track: series([(52.0, 34.0 + offset * 8.0)] * n, track_id=track)
+            for track, offset in enumerate([-1.5, -0.5, 0.5, 1.5])
+        }
+
+    def test_a_side_that_spread_out_is_measured_as_wider_late(self):
+        drift = shape_drift(self.spread_apart())
+        assert drift is not None
+        assert drift.late['width_m'] > drift.early['width_m']
+        assert drift.change('width_m') > 0
+
+    def test_a_side_that_held_its_shape_shows_no_meaningful_change(self):
+        drift = shape_drift(self.steady())
+        assert abs(drift.change('width_m')) < 0.5
+
+    def test_it_refuses_to_answer_on_too_short_a_clip(self):
+        """None, not a zero drift. Two averages over three snapshots each
+        describe a moment, and reporting that as "no change" is a claim nobody
+        measured."""
+        assert shape_drift(self.steady(n=6)) is None
+
+    def test_an_explicit_split_is_honoured(self):
+        """So a caller can ask about the last fifteen minutes specifically,
+        rather than only about the halfway point of whatever it ran on.
+
+        Asserted on where the two windows sit, not on the size of the gap
+        between them: on a side spreading at a steady rate the gap is the same
+        wherever you cut, which is a property of the ramp rather than of this
+        function.
+        """
+        by_track = self.spread_apart(n=400)
+        cut_late = shape_drift(by_track, split_s=12.0)
+        cut_early = shape_drift(by_track, split_s=4.0)
+
+        assert cut_late.split_s == 12.0
+        # A later cut means both windows sit later, so both are wider.
+        assert cut_late.late['width_m'] > cut_early.late['width_m']
+        assert cut_late.early['width_m'] > cut_early.early['width_m']
+
+    def test_no_players_gives_nothing_rather_than_zeroes(self):
+        assert shape_drift({}) is None
+
+    def test_it_serialises_with_the_change_alongside_the_two_halves(self):
+        data = shape_drift(self.spread_apart()).to_json()
+        assert set(data) == {'early', 'late', 'split_s', 'change'}
+        assert data['change']['width_m'] == pytest.approx(
+            data['late']['width_m'] - data['early']['width_m'], abs=0.11,
+        )
+
+
+class TestDriftNotes:
+    def test_it_says_which_way_a_figure_moved(self):
+        drift = ShapeDrift(
+            early={'width_m': 30.0, 'depth_m': 20.0, 'compactness_m': 10.0},
+            late={'width_m': 40.0, 'depth_m': 20.0, 'compactness_m': 10.0},
+            split_s=100.0,
+        )
+        notes = drift_notes(drift)
+        assert notes == ['spread 10m wider']
+
+    def test_shrinking_reads_differently_from_growing(self):
+        drift = ShapeDrift(
+            early={'width_m': 40.0, 'depth_m': 20.0, 'compactness_m': 10.0},
+            late={'width_m': 30.0, 'depth_m': 20.0, 'compactness_m': 10.0},
+            split_s=100.0,
+        )
+        assert drift_notes(drift) == ['squeezed 10m narrower']
+
+    def test_a_small_move_is_not_worth_a_sentence(self):
+        """A flag that fires every match is not a flag."""
+        drift = ShapeDrift(
+            early={'width_m': 30.0, 'depth_m': 20.0, 'compactness_m': 10.0},
+            late={'width_m': 31.0, 'depth_m': 20.5, 'compactness_m': 10.2},
+            split_s=100.0,
+        )
+        assert drift_notes(drift) == []
+
+    def test_every_figure_that_moved_gets_its_own_sentence(self):
+        drift = ShapeDrift(
+            early={'width_m': 30.0, 'depth_m': 20.0, 'compactness_m': 8.0},
+            late={'width_m': 40.0, 'depth_m': 32.0, 'compactness_m': 14.0},
+            split_s=100.0,
+        )
+        assert len(drift_notes(drift)) == 3
+
+    def test_nothing_to_describe_is_an_empty_list_not_a_crash(self):
+        assert drift_notes(None) == []

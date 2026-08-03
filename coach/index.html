@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=19">
-    <link rel="stylesheet" href="coach.css?v=19">
+    <link rel="stylesheet" href="../assets/app.css?v=21">
+    <link rel="stylesheet" href="coach.css?v=21">
 </head>
 <body>
 
@@ -376,6 +376,14 @@
             <p class="muted" id="cv-review-note" style="margin:8px 0 12px; font-size:0.8rem"></p>
             <div id="cv-review-scrubber" class="scrubber"></div>
 
+            <!-- Where the two records of this match contradict each other.
+                 Above the list on purpose: a moment two independent records
+                 disagree about is worth more of a reviewer's attention than a
+                 moment only one of them spoke about. -->
+            <div id="cv-conflicts" class="conflicts hidden"></div>
+
+            <div id="cv-scorecard" class="scorecard hidden"></div>
+
             <div id="cv-review-filters" class="chips"></div>
             <div id="cv-review-list" class="list review-list"></div>
 
@@ -390,6 +398,9 @@
                     <select id="input-missed-type"></select>
                 </label>
                 <button id="btn-cv-missed" class="btn secondary">Record a miss</button>
+                <!-- Built in the browser from data already loaded, so no read
+                     and no server. Same approach as the tag-log download. -->
+                <button id="btn-cv-labels" class="btn secondary">Download the labels</button>
             </div>
             <p class="muted" style="margin:8px 0 0; font-size:0.8rem">
                 Recording what the video <em>failed</em> to see is the only way to
@@ -460,6 +471,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=19"></script>
+<script type="module" src="coach.js?v=21"></script>
 </body>
 </html>

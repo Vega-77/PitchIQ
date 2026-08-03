@@ -51,6 +51,12 @@ class FrameState:
     # Whether the ball was located at all on this frame. Defaults to True so a
     # hand-built state in a test still means what it looks like it means.
     ball_seen: bool = True
+    # Where the ball was, in metres, when there is a calibration to say. Carried
+    # here rather than looked up later because the holder and the position are
+    # the same fact about the same frame, and joining them back together by
+    # timestamp afterwards is an opportunity to get it wrong. Used by
+    # cv/territory.py; None without a calibration, which is most runs so far.
+    ball_m: tuple[float, float] | None = None
 
 
 @dataclass
@@ -145,8 +151,15 @@ def frame_holder(
 
 def build_states(
     frames, ball_by_frame, boxes_by_frame, team_of, timestamps, is_player=None,
+    ball_m_by_frame=None,
 ) -> list[FrameState]:
-    """Per-frame holder for a run of frames."""
+    """Per-frame holder for a run of frames.
+
+    `ball_m_by_frame` is the same ball positions projected onto the pitch, when
+    there is a calibration to do it with. Optional, and absent on every run
+    without one — see `FrameState.ball_m`.
+    """
+    ball_m_by_frame = ball_m_by_frame or {}
     states: list[FrameState] = []
     for frame_index in frames:
         holder, team, distance = frame_holder(
@@ -161,6 +174,7 @@ def build_states(
             team=team,
             distance_px=distance,
             ball_seen=ball_by_frame.get(frame_index) is not None,
+            ball_m=ball_m_by_frame.get(frame_index),
         ))
     return states
 
@@ -195,15 +209,40 @@ def smooth_states(states: list[FrameState], window: int = 15) -> list[FrameState
         # evenly between "A has it" and "nobody does" is a passage of play, not
         # a stoppage.
         best = max(counts.items(), key=lambda kv: (kv[1], kv[0] != UNKNOWN))[0]
-        smoothed.append(FrameState(
-            timestamp_s=state.timestamp_s,
-            holder_track=state.holder_track,
-            team=best,
-            distance_px=state.distance_px,
-            ball_seen=state.ball_seen,
-        ))
+        # `replace` rather than a fresh constructor, so a field added to
+        # FrameState later cannot be silently dropped here — which is exactly
+        # what happened to `ball_m` the first time it was added.
+        smoothed.append(replace(state, team=best))
 
     return smoothed
+
+
+def prepare_states(
+    states: list[FrameState],
+    smooth_window: int = 15,
+    phases=None,
+) -> list[FrameState]:
+    """Smooth the team labels, then mark dead-ball frames.
+
+    Public because possession is no longer the only thing that reads these.
+    `cv/territory.py` has to see the *same* labels the possession split was
+    built from — territory derived from raw per-frame answers while possession
+    used smoothed ones would produce two figures about the same half that
+    quietly disagree.
+
+    Order matters and is the same as it has always been: a dead ball is a fact
+    from the tagged log rather than a noisy estimate, so running it through the
+    mode filter would let a busy passage either side vote it away.
+    """
+    states = smooth_states(states, smooth_window)
+
+    if phases is not None:
+        states = [
+            state if phases.is_live(state.timestamp_s)
+            else replace(state, team=DEAD)
+            for state in states
+        ]
+    return states
 
 
 def summarise(
@@ -222,17 +261,10 @@ def summarise(
     if len(states) < 2:
         return summary
 
-    states = smooth_states(states, smooth_window)
-
-    # Applied after smoothing, not before. A dead ball is a fact from the log
-    # rather than a noisy per-frame estimate, and running it through a mode
-    # filter would let a busy passage either side vote it away.
-    if phases is not None:
-        states = [
-            state if phases.is_live(state.timestamp_s)
-            else replace(state, team=DEAD)
-            for state in states
-        ]
+    # A caller that has already prepared its states — because it also wanted
+    # them for territory — passes `smooth_window=0` and `phases=None`, and this
+    # becomes a no-op rather than a second pass over the same data.
+    states = prepare_states(states, smooth_window, phases)
 
     # Group consecutive frames sharing a team into candidate spells.
     raw: list[tuple[str, float, float]] = []
@@ -315,7 +347,10 @@ def summarise(
     return summary
 
 
-# Territory-by-thirds is deliberately absent. Without a calibration the frame
-# is not a fixed part of the pitch, so on a panning camera "the left third"
-# means somewhere different every second. It becomes meaningful once Phase 4
-# supplies a homography to divide the actual field with.
+# Territory-by-thirds lives in cv/territory.py, and is still gated on the same
+# thing it always was: without a calibration the frame is not a fixed part of
+# the pitch, so on a panning camera "the left third" means somewhere different
+# every second. What changed is that `FrameState` now carries `ball_m` when
+# there is a homography to produce it, so the split can be taken from the same
+# per-frame answers the possession figures came from rather than reconstructed
+# alongside them.

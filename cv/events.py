@@ -373,6 +373,34 @@ def _tags(pitch: Pitch, start_m, end_m, attacking_end: str | None) -> tuple[str,
 # ---------------------------------------------------------------- derivation
 
 
+def attacking_end_for(
+    orientation: MatchOrientation,
+    side_of_team: dict[str, str] | None,
+    period: str,
+    team: str,
+    *,
+    calibrated: bool = True,
+) -> str | None:
+    """Which goal a colour cluster is attacking, or None if nothing can say.
+
+    Three separate things have to be true before this has an answer: there is a
+    calibration, so the two ends are distinguishable at all; somebody said which
+    cluster is which side, which no amount of vision supplies; and the period is
+    known, because the sides swap at half time.
+
+    Module-level rather than a closure inside `derive_events` because the xG
+    bridge needs the same answer for the same shot. Two places working out which
+    way a team kicks is how a second-half sign error gets in, and it would show
+    up as plausible xG for shots at the wrong goal rather than as a crash.
+    """
+    if not calibrated or not side_of_team:
+        return None
+    side = side_of_team.get(team)
+    if side not in ('us', 'them'):
+        return None
+    return orientation.attacking_end(side, period)
+
+
 def derive_events(
     touches: TouchSequence,
     table: FrameTable,
@@ -403,13 +431,9 @@ def derive_events(
     calibrated = table.calibration is not None
 
     def attacking_end(team: str) -> str | None:
-        """Which goal this colour cluster is attacking, if we can know."""
-        if not calibrated or not side_of_team:
-            return None
-        side = side_of_team.get(team)
-        if side not in ('us', 'them'):
-            return None
-        return orientation.attacking_end(side, period)
+        return attacking_end_for(
+            orientation, side_of_team, period, team, calibrated=calibrated,
+        )
 
     ordered = sorted(touches, key=lambda t: t.timestamp_s)
 
@@ -752,6 +776,46 @@ def pressure_by_team(touches: TouchSequence, table: FrameTable) -> dict[str, int
     for touch in touches:
         if touch.team in counts and _pressure(table, touch) > 0:
             counts[touch.team] += 1
+    return counts
+
+
+def turnovers_by_third(
+    log: EventLog,
+    pitch: Pitch,
+    team: str,
+    attacking_end: str | None,
+) -> dict[str, int] | None:
+    """Where `team` gave the ball away, counted by third of the pitch.
+
+    The catalog asks for "dangerous turnover locations — giveaways in your own
+    defensive third", and possession could not answer it: `PossessionSummary`
+    counts turnovers but a spell is `(team, start_s, end_s)` with no position in
+    it at all. The event log has positions, so the count comes from here.
+
+    A giveaway is a pass this team attempted and did not complete. Deliberately
+    not "every time possession changed hands": a tackle by the opposition is
+    also a turnover, and blaming the player who was tackled for a giveaway is a
+    different claim from the one a coach reads here. Unknown-outcome passes are
+    excluded too — we could not see whether it found a teammate, and counting
+    that as a loss would blame the detector's blind spots on the defence.
+
+    Located at where the pass *started*, which is where the player was when they
+    made the decision. The end point is where the ball ended up, and a hopeful
+    ball from the edge of your own box that lands in midfield was a bad decision
+    taken in a dangerous place.
+
+    Returns None without an attacking end, since a third cannot be named.
+    """
+    if attacking_end is None:
+        return None
+
+    counts = {
+        zones.DEFENSIVE_THIRD: 0, zones.MIDDLE_THIRD: 0, zones.ATTACKING_THIRD: 0,
+    }
+    for event in log.passes(team):
+        if event.outcome != INCOMPLETE or event.start_m is None:
+            continue
+        counts[zones.third(pitch, event.start_m[0], attacking_end)] += 1
     return counts
 
 

@@ -9,16 +9,16 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=19';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=19';
-import { CARD_COLOURS } from '../assets/events.js?v=19';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=19';
-import { videoTime } from '../assets/video.js?v=19';
-import { renderMatchVideo } from '../assets/match-video.js?v=19';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=21';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=21';
+import { CARD_COLOURS } from '../assets/events.js?v=21';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=21';
+import { videoTime } from '../assets/video.js?v=21';
+import { renderMatchVideo } from '../assets/match-video.js?v=21';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=19';
+} from '../assets/ui.js?v=21';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 

@@ -663,6 +663,33 @@ describe('cvQualityNotes', () => {
         assert.ok(Array.isArray(report.cvQualityNotes(null)));
         assert.ok(Array.isArray(report.cvQualityNotes(undefined, {})));
     });
+
+    // The xG caveat only exists because xG is now a real number rather than a
+    // permanent null. It says the one thing about it that is a bias rather than
+    // noise: a header is scored as a foot shot, every time, upward.
+    test('the header bias is named whenever there are shots to caveat', () => {
+        assert.match(joined({}, { shots: 4 }), /struck with the foot/);
+    });
+
+    test('no shots, no xG caveat', () => {
+        // Nothing on screen to qualify. A caveat about a figure the coach
+        // cannot see is noise in the line that carries the real warnings.
+        assert.doesNotMatch(joined({}, { shots: 0 }), /foot/);
+        assert.doesNotMatch(joined({}, {}), /foot/);
+    });
+
+    test('a loose calibration adds the per-shot warning, a tight one does not', () => {
+        // Measured, not guessed: at 0.5m the mean xG shift is 0.066 on a 0.47
+        // baseline, and it keeps widening. See tests/test_xg_noise.py.
+        const loose = joined({}, { shots: 3, calibrationErrorM: 2.4 });
+        assert.match(loose, /2\.4m of calibration error/);
+        assert.match(loose, /only the total is worth reading/);
+
+        assert.doesNotMatch(
+            joined({}, { shots: 3, calibrationErrorM: 0.4 }),
+            /calibration error/,
+        );
+    });
 });
 
 // ------------------------------------------------------- the video on a page
@@ -765,5 +792,256 @@ describe('teamMarks', () => {
     test('an empty log is an empty list', () => {
         assert.deepEqual(matchVideo.teamMarks([], describe_), []);
         assert.deepEqual(matchVideo.teamMarks(null, describe_), []);
+    });
+});
+
+// ------------------------------------------------- scoring the review tool
+//
+// The review tool has been collecting verdicts since it shipped and computing
+// nothing but "84 of 512 checked" from them. These are the two numbers it
+// exists for, and the reason they need their own tests is that the obvious
+// implementation of either one flatters the detector.
+
+describe('reviewScore', () => {
+    const events = (...types) =>
+        types.map((type, i) => ({ id: `e${i}`, type }));
+
+    const score = (evts, byEvent = {}, missed = []) =>
+        report.reviewScore(evts, { byEvent, missed });
+
+    test('a confirmed event is a success for its type', () => {
+        const s = score(events('pass'), { e0: { status: 'confirmed' } });
+        assert.equal(s.byType.pass.precision, 1);
+    });
+
+    test('a rejected event counts against the type it claimed', () => {
+        const s = score(events('pass', 'pass'), {
+            e0: { status: 'confirmed' }, e1: { status: 'rejected' },
+        });
+        assert.equal(s.byType.pass.precision, 0.5);
+    });
+
+    test('unreviewed events are excluded from both numbers, not counted wrong', () => {
+        // The alternative is a scorecard that starts at 0% and climbs as
+        // somebody works through it, which reads as a broken detector.
+        const s = score(events('pass', 'pass'), { e0: { status: 'confirmed' } });
+        assert.equal(s.byType.pass.precision, 1);
+        assert.equal(s.byType.pass.unreviewed, 1);
+    });
+
+    test('an edit that only fixes the player leaves the type standing', () => {
+        // The pipeline found the right kind of thing and pinned it on the wrong
+        // person. Identity is a separate problem with a separate fix, and
+        // charging it to the detector hides both.
+        const s = score(events('pass'), {
+            e0: { status: 'edited', playerId: 'p7' },
+        });
+        assert.equal(s.byType.pass.precision, 1);
+    });
+
+    test('an edit that changes the type charges one and credits the other', () => {
+        // Two statements at once: wrong to call it a tackle, right that
+        // something happened. Collapsing either way produces a kind number.
+        const s = score(events('tackle'), {
+            e0: { status: 'edited', type: 'interception' },
+        });
+        assert.equal(s.byType.tackle.precision, 0);
+        assert.equal(s.byType.interception.detected, 1);
+        assert.equal(s.byType.interception.recall, 1);
+    });
+
+    test('recall comes from the misses and nothing else can supply it', () => {
+        // A thing the pipeline never saw leaves no record to disagree with, so
+        // no amount of judging what it did find can produce this number.
+        const found = score(events('pass'), { e0: { status: 'confirmed' } });
+        assert.equal(found.byType.pass.recall, 1);
+
+        const withMisses = score(
+            events('pass'), { e0: { status: 'confirmed' } },
+            [{ clockS: 10, type: 'pass' }, { clockS: 20, type: 'pass' }],
+        );
+        assert.equal(withMisses.byType.pass.recall, 1 / 3);
+    });
+
+    test('a miss of a type the pipeline never claimed still counts', () => {
+        const s = score(events('pass'), {}, [{ clockS: 5, type: 'shot' }]);
+        assert.equal(s.byType.shot.recall, 0);
+        assert.equal(s.byType.shot.missed, 1);
+    });
+
+    test('nothing reviewed gives null, not zero', () => {
+        // Zero is a measurement. This is the absence of one, and a scorecard
+        // reading 0% for a type nobody looked at is read as a broken detector.
+        const s = score(events('pass'));
+        assert.equal(s.byType.pass.precision, null);
+        assert.equal(s.byType.pass.recall, null);
+        assert.equal(s.overall.precision, null);
+    });
+
+    test('the overall figures are the sum of the parts, not an average of rates', () => {
+        // Averaging per-type rates would let one confirmed clearance weigh as
+        // much as four hundred passes.
+        const s = score(events('pass', 'pass', 'pass', 'shot'), {
+            e0: { status: 'confirmed' },
+            e1: { status: 'confirmed' },
+            e2: { status: 'confirmed' },
+            e3: { status: 'rejected' },
+        });
+        assert.equal(s.overall.precision, 0.75);
+    });
+
+    test('an empty review and an empty event list do not throw', () => {
+        assert.equal(report.reviewScore([], {}).overall.precision, null);
+        assert.equal(report.reviewScore(null, null).overall.recall, null);
+    });
+});
+
+describe('reviewLabels', () => {
+    const events = [
+        { id: 'a', type: 'pass', timestampS: 60, trackId: 4, confidence: 0.8 },
+        { id: 'b', type: 'tackle', timestampS: 90, trackId: 9, confidence: 0.4 },
+        { id: 'c', type: 'shot', timestampS: 120 },
+    ];
+
+    const labels = (byEvent, missed = [], meta = {}) =>
+        report.reviewLabels(events, { byEvent, missed }, meta);
+
+    test('only events with a verdict are labelled', () => {
+        // Treating the rest as negatives would train a detector on the
+        // pipeline's own unchecked guesses.
+        const out = labels({ a: { status: 'confirmed' } });
+        assert.deepEqual(out.labelled.map((l) => l.id), ['a']);
+    });
+
+    test('an edited event records what it should have been', () => {
+        const out = labels({ b: { status: 'edited', type: 'interception' } });
+        assert.equal(out.labelled[0].claimedType, 'tackle');
+        assert.equal(out.labelled[0].actualType, 'interception');
+    });
+
+    test('a rejected event has no actual type — nothing happened there', () => {
+        const out = labels({ a: { status: 'rejected' } });
+        assert.equal(out.labelled[0].actualType, null);
+    });
+
+    test('the misses travel too, since they are the half nothing else has', () => {
+        const out = labels({}, [{ clockS: 300, type: 'shot' }]);
+        assert.deepEqual(out.missed, [{ clockS: 300, type: 'shot', playerId: null }]);
+    });
+
+    test('the two halves are named for the clocks they are actually on', () => {
+        // An event is stamped in video seconds by the pipeline; a miss is typed
+        // by a human off the match clock. Calling both `clockS` would put two
+        // different clocks under one name in one file, which is the exact
+        // confusion `videoOffsetS` exists to keep visible.
+        const out = labels({ a: { status: 'confirmed' } }, [{ clockS: 300, type: 'shot' }]);
+        assert.equal(out.labelled[0].videoS, 60);
+        assert.equal(out.labelled[0].clockS, undefined);
+        assert.equal(out.missed[0].clockS, 300);
+        assert.match(out.note, /videoS = clockS \+ videoOffsetS/);
+    });
+
+    test('the file says what match it belongs to', () => {
+        // Worthless in a month otherwise, which is exactly when it gets opened.
+        const out = labels({}, [], { matchId: 'm1', teamId: 't1' });
+        assert.equal(out.matchId, 'm1');
+        assert.equal(out.format, 'pitchiq-review-labels');
+    });
+
+    test('it survives a JSON round trip, which is the only thing it is for', () => {
+        const out = labels({ a: { status: 'confirmed' } }, [], { matchId: 'm1' });
+        assert.deepEqual(JSON.parse(JSON.stringify(out)), out);
+    });
+});
+
+// --------------------------------------------- reading the half out loud
+//
+// The catalog asks for plain-language flags rather than tables at half-time.
+// The risk with a flag is not that it is wrong, it is that it fires every
+// match — a flag that always appears stops being read and takes the ones that
+// matter with it. So most of these test silence.
+
+describe('cvReads', () => {
+    const cv = (team) => ({ teams: { team_a: team } });
+
+    test('a side pinned in its own third is told so', () => {
+        const reads = report.cvReads(cv({
+            territory: { defensive: 0.52, middle: 0.31, attacking: 0.17 },
+        }));
+        assert.equal(reads.length, 1);
+        assert.match(reads[0].detail, /52% of your possession was in your own third/);
+        assert.match(reads[0].detail, /17% in theirs/);
+    });
+
+    test('an ordinary spread across the thirds says nothing', () => {
+        // An even split is 33% each, so this must stay quiet well past that.
+        assert.deepEqual(report.cvReads(cv({
+            territory: { defensive: 0.36, middle: 0.34, attacking: 0.30 },
+        })), []);
+    });
+
+    test('a shape that moved is described in both directions at once', () => {
+        const reads = report.cvReads(cv({
+            shape_drift: { change: { width_m: 6.2, depth_m: 0.4, compactness_m: -4.1 } },
+        }));
+        assert.equal(reads.length, 1);
+        assert.match(reads[0].detail, /6m wider/);
+        assert.match(reads[0].detail, /4m more compact/);
+        // depth barely moved, so it is not mentioned at all
+        assert.doesNotMatch(reads[0].detail, /front to back/);
+    });
+
+    test('a shape that held is not remarked on', () => {
+        assert.deepEqual(report.cvReads(cv({
+            shape_drift: { change: { width_m: 1.1, depth_m: -0.8, compactness_m: 0.2 } },
+        })), []);
+    });
+
+    test('giveaways in your own third are counted, not just totalled', () => {
+        const reads = report.cvReads(cv({
+            turnovers_by_third: { defensive: 9, middle: 3, attacking: 1 },
+        }));
+        assert.match(reads[0].title, /9 giveaways in your own third/);
+    });
+
+    test('a couple of giveaways is a bad minute, not a pattern', () => {
+        assert.deepEqual(report.cvReads(cv({
+            turnovers_by_third: { defensive: 2, middle: 8, attacking: 4 },
+        })), []);
+    });
+
+    test('chances made against chances taken, in both directions', () => {
+        const wasteful = report.cvReads(cv({ xg: 2.4, goals: 1, shots: 11 }));
+        assert.match(wasteful[0].title, /made more than you have taken/);
+
+        const flattered = report.cvReads(cv({ xg: 0.6, goals: 2, shots: 4 }));
+        assert.match(flattered[0].title, /scoreline is ahead of the chances/);
+    });
+
+    test('a normal conversion rate is not a story', () => {
+        assert.deepEqual(report.cvReads(cv({ xg: 1.4, goals: 1, shots: 8 })), []);
+    });
+
+    test('nothing measured means nothing said', () => {
+        // Every field here is null on an uncalibrated run, which is every run
+        // so far. The page must render no heading rather than an empty one.
+        assert.deepEqual(report.cvReads(null), []);
+        assert.deepEqual(report.cvReads({}), []);
+        assert.deepEqual(report.cvReads(cv({})), []);
+        assert.deepEqual(report.cvReads(cv({
+            territory: null, shape_drift: null, turnovers_by_third: null,
+            xg: null, goals: null, shots: null,
+        })), []);
+    });
+
+    test('a half with several problems reports all of them', () => {
+        const reads = report.cvReads(cv({
+            territory: { defensive: 0.52, middle: 0.31, attacking: 0.17 },
+            shape_drift: { change: { width_m: 6.2, depth_m: 0, compactness_m: 0 } },
+            turnovers_by_third: { defensive: 9, middle: 3, attacking: 1 },
+            xg: 2.4, goals: 1, shots: 11,
+        }));
+        assert.equal(reads.length, 4);
+        assert.ok(reads.every((r) => r.title && r.detail));
     });
 });

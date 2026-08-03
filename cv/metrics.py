@@ -210,22 +210,38 @@ def heatmap(
     return grid / total if total else grid
 
 
-def team_shape(series_by_track: dict[int, PositionSeries]) -> dict[str, float]:
-    """Width, depth and compactness averaged over time.
+EMPTY_SHAPE = {"width_m": 0.0, "depth_m": 0.0, "compactness_m": 0.0}
 
-    Compactness is the mean distance from each player to the team's centroid —
-    the roadmap's "did the shape stretch in the last fifteen minutes" question,
-    which is exactly the sort of thing a coach genuinely cannot eyeball.
+# Fewest instants either side of the split before a drift figure is offered. A
+# comparison drawn from three snapshots is describing a moment, not a trend.
+MIN_DRIFT_SAMPLES = 20
+
+# How much a shape figure has to move before it is worth a sentence. Metres,
+# and a guess like every other threshold in this package — set here because
+# three metres is about a player's worth of spacing, and anything smaller is
+# inside the noise a jittering detection box produces anyway.
+MIN_DRIFT_M = 3.0
+
+
+def shape_samples(series_by_track: dict[int, PositionSeries]):
+    """Per-instant width, depth and spread, with the times they belong to.
+
+    Split out of `team_shape` because averaging is only one of the questions
+    worth asking of these. The other is whether they moved, which needs the
+    samples rather than the mean, and recomputing them separately would let the
+    two answers drift apart over time.
+
+    Returns `(times, widths, depths, spreads)`, all the same length, covering
+    only the instants where at least three players were on screen — two players
+    have a width but not a shape.
     """
     if not series_by_track:
-        return {"width_m": 0.0, "depth_m": 0.0, "compactness_m": 0.0}
+        return [], [], [], []
 
     # Snap to a common time base so players are compared at the same instants.
     times = sorted({round(t, 1) for s in series_by_track.values() for t in s.timestamps_s})
-    if not times:
-        return {"width_m": 0.0, "depth_m": 0.0, "compactness_m": 0.0}
 
-    widths, depths, spreads = [], [], []
+    kept, widths, depths, spreads = [], [], [], []
 
     for t in times:
         points = []
@@ -238,16 +254,136 @@ def team_shape(series_by_track: dict[int, PositionSeries]) -> dict[str, float]:
             continue
 
         arr = np.array(points)
+        kept.append(t)
         depths.append(float(np.ptp(arr[:, 0])))  # ndarray.ptp() went away in NumPy 2
         widths.append(float(np.ptp(arr[:, 1])))
         centroid = arr.mean(axis=0)
         spreads.append(float(np.mean(np.linalg.norm(arr - centroid, axis=1))))
 
+    return kept, widths, depths, spreads
+
+
+def team_shape(series_by_track: dict[int, PositionSeries]) -> dict[str, float]:
+    """Width, depth and compactness averaged over time.
+
+    Compactness is the mean distance from each player to the team's centroid.
+    For whether it *changed* — the roadmap's "did the shape stretch in the last
+    fifteen minutes" question, which is the sort of thing a coach genuinely
+    cannot eyeball — see `shape_drift`.
+    """
+    _, widths, depths, spreads = shape_samples(series_by_track)
     if not widths:
-        return {"width_m": 0.0, "depth_m": 0.0, "compactness_m": 0.0}
+        return dict(EMPTY_SHAPE)
 
     return {
         "width_m": float(np.mean(widths)),
         "depth_m": float(np.mean(depths)),
         "compactness_m": float(np.mean(spreads)),
     }
+
+
+@dataclass
+class ShapeDrift:
+    """The same three figures, early in the window and late in it."""
+
+    early: dict[str, float]
+    late: dict[str, float]
+    split_s: float
+
+    def change(self, key: str) -> float | None:
+        """Late minus early, in metres. Positive means it grew."""
+        if key not in self.early or key not in self.late:
+            return None
+        return self.late[key] - self.early[key]
+
+    def to_json(self) -> dict:
+        return {
+            'early': {k: round(v, 1) for k, v in self.early.items()},
+            'late': {k: round(v, 1) for k, v in self.late.items()},
+            'split_s': round(float(self.split_s), 1),
+            'change': {
+                k: round(self.change(k), 1) for k in self.early
+                if self.change(k) is not None
+            },
+        }
+
+
+def shape_drift(
+    series_by_track: dict[int, PositionSeries],
+    split_s: float | None = None,
+    min_samples: int = MIN_DRIFT_SAMPLES,
+) -> ShapeDrift | None:
+    """How the shape differed late in the window compared with early.
+
+    Two averages either side of a split rather than a fitted trend, because two
+    averages are a thing a coach can be told — "you were four metres wider in
+    the last twenty minutes" — and a gradient in metres per second is not.
+
+    `split_s` defaults to the midpoint of the observed window. Returns None,
+    never a zero drift, when either side has too few instants to average: a
+    comparison drawn from three snapshots describes a moment, not a trend, and
+    reporting it as "no change" would be a claim nobody measured.
+    """
+    times, widths, depths, spreads = shape_samples(series_by_track)
+    if not times:
+        return None
+
+    if split_s is None:
+        split_s = (times[0] + times[-1]) / 2
+
+    early_idx = [i for i, t in enumerate(times) if t < split_s]
+    late_idx = [i for i, t in enumerate(times) if t >= split_s]
+
+    if len(early_idx) < min_samples or len(late_idx) < min_samples:
+        return None
+
+    def mean_of(values, indices):
+        return float(np.mean([values[i] for i in indices]))
+
+    return ShapeDrift(
+        early={
+            'width_m': mean_of(widths, early_idx),
+            'depth_m': mean_of(depths, early_idx),
+            'compactness_m': mean_of(spreads, early_idx),
+        },
+        late={
+            'width_m': mean_of(widths, late_idx),
+            'depth_m': mean_of(depths, late_idx),
+            'compactness_m': mean_of(spreads, late_idx),
+        },
+        split_s=float(split_s),
+    )
+
+
+# What each figure growing actually means on a pitch, in a coach's words.
+DRIFT_TEXT = {
+    'width_m': ('spread {n:.0f}m wider', 'squeezed {n:.0f}m narrower'),
+    'depth_m': ('stretched {n:.0f}m longer front to back',
+                'compressed {n:.0f}m front to back'),
+    'compactness_m': ('drifted {n:.0f}m further apart',
+                      'tightened up by {n:.0f}m'),
+}
+
+
+def drift_notes(drift: ShapeDrift | None, min_change_m: float = MIN_DRIFT_M):
+    """Plain sentences for whichever figures actually moved.
+
+    Empty when nothing moved much, which should be the common case. A flag that
+    fires every match is not a flag, and the catalog asks for plain-language
+    flags precisely so that the ones that appear are worth reading.
+
+    Deliberately not coloured good or bad. A side that tightened up was
+    well-drilled or was pinned in its own half, and this number cannot tell the
+    difference — the same reason `coach.js` refuses to tone the compactness row.
+    """
+    if drift is None:
+        return []
+
+    notes = []
+    for key, (grew, shrank) in DRIFT_TEXT.items():
+        change = drift.change(key)
+        if change is None or abs(change) < min_change_m:
+            continue
+        template = grew if change > 0 else shrank
+        notes.append(template.format(n=abs(change)))
+    return notes

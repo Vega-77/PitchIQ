@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=19';
+} from '../assets/auth.js?v=21';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,20 +8,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=19';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=19';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=19';
+} from '../assets/db.js?v=21';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=21';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=21';
 import {
     NOT_A_PLAYER, rankRosterForCluster, possessionIsInPlay, cvQualityNotes,
-    roughDuration, shapeConfidence,
-} from '../assets/report.js?v=19';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=19';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=19';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=19';
+    roughDuration, shapeConfidence, reviewScore, reviewLabels,
+} from '../assets/report.js?v=21';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=21';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=21';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=21';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, figure, cardChips, timelineRow, minutesChart, confidenceMark,
-} from '../assets/ui.js?v=19';
+} from '../assets/ui.js?v=21';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -774,7 +774,13 @@ function cvNote() {
     const note = document.createElement('div');
     note.className = 'cv-note';
 
-    const bits = cvQualityNotes(quality, { calibrated: cv.calibrated });
+    const bits = cvQualityNotes(quality, {
+        calibrated: cv.calibrated,
+        // So the xG caveat appears only once there is an xG row to caveat.
+        shots: cv.teams?.team_a?.shots,
+        calibrationErrorM: cv.calibrationErrorM,
+        reconciliation: cv.reconciliation,
+    });
 
     note.innerHTML = '<span></span>';
     note.querySelector('span').textContent = bits.length
@@ -1344,9 +1350,57 @@ function renderReview() {
     block.classList.remove('hidden');
 
     renderReviewVideo();
+    renderConflicts();
     renderReviewFilters();
     renderReviewList();
     updateReviewProgress();
+}
+
+/**
+ * The moments the tagged log and the video analysis contradict each other.
+ *
+ * Goals only, and above everything else in this block. Two independent records
+ * of the same match disagreeing about a goal is the strongest signal either of
+ * them produces — far stronger than a low-confidence pass the pipeline is
+ * merely unsure about — and it takes a reviewer twenty seconds to settle.
+ *
+ * Hidden when the two agree, and hidden when there was no tagged log to compare
+ * against. Those are different facts, but neither of them is something to put
+ * on screen: the first is silence because nothing is wrong, and the second is
+ * already said in the quality note above.
+ */
+function renderConflicts() {
+    const host = byId('cv-conflicts');
+    const entries = state.match?.cv?.reconciliation?.disagreements || [];
+    host.innerHTML = '';
+    host.classList.toggle('hidden', !entries.length);
+    if (!entries.length) return;
+
+    const heading = document.createElement('p');
+    heading.className = 'conflicts-head';
+    heading.textContent = plural(entries.length, 'goal')
+        + ' the tagged log and the video disagree about';
+    host.append(heading);
+
+    for (const entry of entries) {
+        const seconds = entry.status === 'tag_only' ? entry.tag_s : entry.cv_s;
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'conflict-row';
+
+        const when = document.createElement('span');
+        when.className = 'conflict-clock';
+        when.textContent = clockText(toMatchClock(seconds));
+
+        const what = document.createElement('span');
+        what.textContent = entry.status === 'tag_only'
+            ? 'tagged as a goal, but the video found no shot going in'
+            : 'the video has a goal here that nobody tagged';
+
+        row.append(when, what);
+        row.addEventListener('click', () => seekReview(toMatchClock(seconds)));
+        host.append(row);
+    }
 }
 
 function renderReviewVideo() {
@@ -1644,6 +1698,121 @@ function updateReviewProgress() {
         : 'no misses recorded yet');
 
     setText('cv-review-progress', parts.join(' · '));
+    renderScorecard();
+}
+
+/**
+ * Precision and recall per event type, from the verdicts recorded so far.
+ *
+ * These are the two numbers this whole tool exists to produce, and until now
+ * nothing computed either of them. They are also the two numbers easiest to
+ * read as more than they are, so the caption is not decoration: everything here
+ * describes **the events actually checked**. Precision over twelve of five
+ * hundred is a fact about those twelve, and somebody who checked the twelve most
+ * obvious ones has measured their own eye, not the detector.
+ *
+ * Recall is the one that decides whether the ball detector is good enough,
+ * because a detector that finds six passes a half and gets all six right scores
+ * perfectly on precision and is useless.
+ */
+function renderScorecard() {
+    const host = byId('cv-scorecard');
+    const events = state.match?.cvEvents?.events || [];
+    const { byType, overall } = reviewScore(events, state.match?.cvReview);
+
+    const rows = Object.entries(byType)
+        .filter(([, s]) => s.truePositives + s.falsePositives + s.missed > 0)
+        .sort((a, b) => b[1].truePositives + b[1].falsePositives
+            - (a[1].truePositives + a[1].falsePositives));
+
+    host.innerHTML = '';
+    host.classList.toggle('hidden', !rows.length);
+    if (!rows.length) return;
+
+    // A dash, not 0%. Nothing has been checked of that type, and a zero would
+    // read as a detector that gets everything wrong.
+    const rate = (value) => (value == null ? '—' : `${Math.round(value * 100)}%`);
+
+    const head = document.createElement('div');
+    head.className = 'scorecard-row is-head';
+    for (const text of ['', 'Right', 'Found', 'Checked']) {
+        const cell = document.createElement('span');
+        cell.textContent = text;
+        head.append(cell);
+    }
+    host.append(head);
+
+    for (const [type, s] of [...rows, ['Everything', overall]]) {
+        const row = document.createElement('div');
+        row.className = 'scorecard-row';
+        row.classList.toggle('is-total', type === 'Everything');
+
+        const checked = s.truePositives + s.falsePositives;
+        const cells = [
+            type,
+            rate(s.precision),
+            // Recall's denominator is what really happened, so it only means
+            // anything once somebody has recorded a miss. Saying "100%" off the
+            // back of no misses at all would be the most flattering possible
+            // reading of no data.
+            s.missed ? rate(s.recall) : '—',
+            s.missed ? `${checked} · ${plural(s.missed, 'miss', 'misses')}`
+                : String(checked),
+        ];
+        for (const text of cells) {
+            const cell = document.createElement('span');
+            cell.textContent = text;
+            row.append(cell);
+        }
+        host.append(row);
+    }
+
+    const caption = document.createElement('p');
+    caption.className = 'scorecard-note';
+    caption.textContent = `Out of the ${overall.truePositives + overall.falsePositives}`
+        + ` you have checked, not the ${events.length} the video found.`
+        + (overall.missed
+            ? ''
+            : ' "Found" stays blank until you record something it missed —'
+                + ' that is the half nothing else can tell you.');
+    host.append(caption);
+}
+
+/**
+ * The reviewed set as a file on the coach's machine.
+ *
+ * Built and downloaded entirely in the browser: the data is already loaded, so
+ * this needs no Firestore read, no rules change and no server. It is the same
+ * approach as the tag-log download beside it.
+ */
+function doDownloadLabels() {
+    const labels = reviewLabels(
+        state.match?.cvEvents?.events || [],
+        state.match?.cvReview,
+        {
+            teamId: state.team.id,
+            matchId: state.match.id,
+            opponent: state.match.opponent || null,
+            playedOn: state.match.playedOn || null,
+            videoOffsetS: state.match.videoOffsetS ?? 0,
+        },
+    );
+
+    if (!labels.labelled.length && !labels.missed.length) {
+        toast('Nothing reviewed yet, so there is nothing to export.', true);
+        return;
+    }
+
+    const blob = new Blob([JSON.stringify(labels, null, 2)],
+        { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `pitchiq-labels-${state.match.id}.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+
+    toast(`Exported ${plural(labels.labelled.length, 'label')}`
+        + ` and ${plural(labels.missed.length, 'miss', 'misses')}.`);
 }
 
 /** "12:30" or "750" to seconds. Returns null for anything else. */
@@ -1973,6 +2142,7 @@ function init() {
     byId('input-video-url').addEventListener('input', updateVideoHint);
     byId('btn-download-log').addEventListener('click', doDownloadLog);
     byId('btn-cv-missed').addEventListener('click', doRecordMiss);
+    byId('btn-cv-labels').addEventListener('click', doDownloadLabels);
 
     const missedType = byId('input-missed-type');
     for (const type of REVIEW_TYPES) {

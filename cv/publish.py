@@ -154,6 +154,10 @@ def summary_payload(report_json: dict) -> dict:
     tens of thousands of touches, Firestore documents cap at a megabyte, and
     nothing in the app reads individual events. They stay in the JSON file for
     anyone doing analysis.
+
+    `reconciliation` does travel, whole. It is a rate, three counts and the
+    handful of goals the two records disagree about — a few hundred bytes, and
+    the one part of the report that tells a reviewer where to start.
     """
     return {
         'schemaVersion': report_json.get('schema_version'),
@@ -168,6 +172,7 @@ def summary_payload(report_json: dict) -> dict:
         'teams': report_json.get('teams') or {},
         'keepers': report_json.get('keepers') or [],
         'participants': participant_notes(report_json),
+        'reconciliation': report_json.get('reconciliation'),
     }
 
 

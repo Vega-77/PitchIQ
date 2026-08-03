@@ -48,13 +48,22 @@ confirmation of what camera system the school actually runs.
 console steps (creating the project, enabling Google sign-in, deploying rules, adding
 coaches to the allowlist) can't be scripted from the repo.
 
-**Next up:** re-measure everything on native-resolution footage from a camera
-that holds still. That single input unblocks calibration, tracking quality and
-possession simultaneously. Everything reachable without it has now been built —
-non-player exclusion, in-play/dead-ball splitting, the narrowed cluster picker,
-the review tool with recall, and match video on every report (see "Also built
-ahead of the footage" below) — so the footage is genuinely the only thing left
-gating the rest of the catalog.
+**Next up:** get the footage. Native resolution, from a camera that holds still,
+framed so jersey numbers are faintly legible — `FOOTAGE_DAY.md` is the whole
+briefing, including what to check before leaving the field and what order to run
+things in afterwards. That single input unblocks calibration, tracking quality
+and possession simultaneously.
+
+Everything reachable without it has now been built, in two passes: non-player
+exclusion, in-play/dead-ball splitting, the narrowed cluster picker, the review
+tool with recall, and match video on every report; then xG actually being
+computed rather than merely computable, the tag-log/CV reconciliation, precision
+and recall out of the review tool, and a regression harness waiting for its
+first baseline (see the two "built ahead of the footage" sections below).
+
+The honest summary of that second pass: most of what it did was **connect things
+that were already written and called by nothing**. That is worth saying plainly,
+because it means the remaining gap is not a shortage of code.
 
 ### Built ahead of the footage
 
@@ -240,6 +249,111 @@ be quietly forgotten:
   value and a homography maps a plane. The training-set median is substituted,
   so the feature carries no information from the actual shot.
 
+### Connecting what was already built (2026-08-02, later)
+
+Three things in the build order turned out to be **written, tested in isolation,
+and called by nothing**. The repo looked further along than it was, and the
+symptom in each case was silence rather than an error.
+
+**xG was never computed.** `cv/xg_bridge.py` is 351 lines, agrees with the
+browser's copy of the model to six decimal places across eleven scenarios, and
+had no caller: `attach_xg` appeared exactly once in the repo, at its own
+definition. So `Shot.xg` was permanently null, `teams.*.xg` was permanently
+null, and `coach/coach.js` — which has always rendered an "Expected goals" row —
+filtered it out on every match. The UI was finished; the number behind it was
+never plugged in. `xg_for_shots` now assembles a `ShotContext` per shot from the
+frame it happened in and `cv/pipeline.py` calls it, gated on a calibration.
+
+Wiring it surfaced a real bug in code nothing had ever exercised.
+`shot_context_from_tracking` guessed the goalkeeper as the opponent nearest the
+goal *the shooter was defending* — the opposite end. On a shot at the right-hand
+goal, the keeper standing on his line was counted as a defender blocking the
+shot, and whichever opponent had dropped deepest, often fifty metres the wrong
+side of the ball, was handed to the model as the keeper. The model was therefore
+told the goal was unguarded on every shot where nobody named the keeper, which
+inflates xG. No published number was ever affected, because nothing called it.
+Fixed, and `tests/test_xg_bridge.py::TestKeeperGuess` now pins the geometry in
+both halves.
+
+**The noise question got an answer.** `validate_against_noise` was written for
+Testing Strategy #6 and had never been executed. Measured against the real
+model, 400 trials over five spots averaging 0.472 xG:
+
+| position noise | mean xG shift | p95 | max |
+|---|---|---|---|
+| 0.25 m | 0.059 | 0.147 | 0.236 |
+| 0.50 m | 0.066 | 0.175 | 0.236 |
+| 1.00 m | 0.076 | 0.204 | 0.459 |
+| 2.00 m | 0.096 | 0.240 | 0.657 |
+| 4.00 m | 0.159 | 0.513 | 0.676 |
+
+Half a metre — the error `calibrate/` accepts as good — moves one shot's xG by
+about 0.066 typically and 0.17 in the tail: fine for "that was a decent chance",
+not fine for ranking two shots 0.1 apart. At 4 m the p95 shift exceeds the xG
+itself, which is the point past which per-shot numbers should not be shown.
+Summing helps a lot; these are per-shot, and a half's worth averages most of it
+out. The coach's quality note now carries both this and the header bias.
+
+**The two records of a match are compared** (`cv/reconcile.py`). The tagged
+vocabulary is about why play stopped, the derived vocabulary about what a player
+did, and they intersect on exactly one word — `goal` — which is also the one
+worth getting right above all others. Goals are matched within 15 s and anything
+unmatched becomes a warning and a row at the top of the review block, seekable.
+Separately, `zones.leaves_play` finally has a caller: walking the **observed**
+ball points (an interpolated point is a straight line drawn between two
+sightings, and a straight line through the corner flag is not evidence) gives
+ball-exit candidates, checked against tagged throw-ins and corners. That is the
+independent cross-check Phase 9 has been asking for — until now the tag log was
+the pipeline's only source, so a stoppage nobody tagged was invisible and a
+mistaken tap was unquestionable. `SCHEMA_VERSION` → 3.
+
+**The review tool computes the numbers it exists for.** It had been collecting
+confirmations, edits, rejections and misses since it shipped, and deriving from
+them one blended "% of those were real". Now precision and recall per event
+type, with the edit case handled honestly: an edit that only reassigns the
+player leaves the type standing, while an edit that changes the type counts
+against the type claimed *and* as a detection of the type it should have been —
+because a mislabelled event was still found, and finding is what recall
+measures. Both are `null` rather than `0` where nothing has been reviewed, and
+the caption says out loud that these describe the events checked, not the match.
+"Download the labels" exports the labelled set for fine-tuning later, built in
+the browser from data already loaded.
+
+**A regression suite, finally** (`cv/experiments/compare_reports.py`,
+`baselines/`). There was no golden file, snapshot or stored expected output
+anywhere in the repo. Every threshold in `cv/touches.py`, `cv/participants.py`
+and `cv/phases.py` is a guess; the unit tests pin what those guesses *are*, not
+what they *do* to a real match, so changing one leaves every test passing. The
+diff compares two report JSONs within a tolerance, ignores `processing_s`, and
+treats null-becoming-zero as a difference rather than a rounding — that
+particular change being the one this project has spent the most effort
+preventing. `baselines/` is empty on purpose: there is no footage worth
+believing yet, and a synthetic baseline would pin the pipeline to its own
+current bugs and call that a regression suite.
+
+**The half-time catalog, and a third dead field** (`cv/territory.py`,
+`metrics.shape_drift`, `events.turnovers_by_third`, `report.cvReads`). Possession
+said how much and never where; shape said what it was and never whether it held;
+turnovers were counted with no position attached, so "giveaways in your own
+defensive third" — a line the catalog asks for by name — could not be answered
+at all. All three are now measured, and surface on the half-time page as
+sentences rather than as more rows, because that page is read standing up in
+three minutes.
+
+Wiring those up turned up the same failure a third time: `build_report_json`
+never passed `team_stats` a pitch, so the guard `if pitch is not None` was never
+satisfied and **`ppda` has been null in every report this project has ever
+produced** — not for want of footage, but because nothing handed the function a
+pitch to measure the pressing zone on. The coach page has been rendering a PPDA
+row that could never appear. `MatchReport` now carries the pitch and each team's
+attacking end, and `tests/test_report_json.py::TestPositionalFieldsReachTheJson`
+pins the plumbing separately from the arithmetic.
+
+**`FOOTAGE_DAY.md`** collects what a person needs at the field — camera framing
+and the measured cost of getting it wrong, the calibration frame, what to brief
+the tagger on (restarts above all, since an untagged one deletes real football),
+a leaving-the-field checklist, and the intake order with the stop conditions.
+
 ### What the CV work has established so far
 
 Ranked by how much trouble each is, after auditing everything built so far:
@@ -374,12 +488,22 @@ Applies across every phase below — how we know each piece actually works, not 
    positions per frame, exact event timestamps/types) before trusting any full game.
    Rerun the pipeline against these fixed clips after every change and diff the output
    — this is your regression suite.
+   **Half built (2026-08-02):** `cv/experiments/compare_reports.py` is the diff,
+   and `baselines/` is where a believed run goes. What is still missing is a
+   clip worth believing — the directory is deliberately empty, because a
+   synthetic baseline would pin the pipeline to its own current bugs. The
+   per-frame hand-labelling half does not exist at all; the review tool produces
+   *event* labels as a side effect of normal use, which is a cheaper substitute
+   for the event half and no substitute for the box half.
 2. **Metrics per stage, not just the final stat.** If a final number looks wrong, you
    need to trace *which stage* broke it:
    - Detection → mAP against labeled boxes
    - Tracking → identity-switch rate / IDF1 (does a track ID stay on the same real person)
    - Calibration → reprojection error in metres on known pitch landmarks
    - Events → precision/recall per event type against the ground-truth clips
+     (**built**: `reviewScore` in `assets/report.js`, shown as a scorecard in the
+     review tool. Detection mAP and tracking IDF1 remain unbuilt — both need
+     per-frame labels, which nothing produces)
 3. **Feature-parity test (specific to this codebase).** `main.py`'s `parse()` and
    `xg-sandbox/xg-model.js`'s feature calc must produce identical 12-feature vectors for the
    same synthetic scenario. Write a small harness that feeds known synthetic
@@ -393,10 +517,17 @@ Applies across every phase below — how we know each piece actually works, not 
    independently inferred (ball crossed the goal line). A rising disagreement rate over
    several games is an early warning that either the CV or the live-tagging process has
    a problem — treat it as a standing metric, not a one-time check.
+   **Built** (`cv/reconcile.py`): goals compared head to head, ball exits
+   compared against tagged restarts, both rates carried in `quality` and
+   published. The cross-match trend it is meant to feed needs several matches to
+   exist first.
 6. **Validate model behavior on noisy inputs, not just clean ones.** Feed the existing
    xG model synthetic features with realistic CV-derived noise (jitter, occasional
    gaps) added, not just the clean values `main.py` was trained on — a fast way to find
    out if calibration degrades before relying on it live.
+   **Done, 2026-08-02** — figures in the Current Status section above. Position
+   jitter is covered; *gaps* are not, because a shot with no position simply
+   gets no xG rather than a degraded one.
 7. **Staged rollout.** Don't move on to team identification until detection+tracking
    hit an acceptable bar on the ground-truth clips. Don't trust the halftime path until
    several full games' worth of it have been checked against the fuller post-game
@@ -725,14 +856,33 @@ fiction; `tests/test_metrics.py` pins both the problem and the fix.
 - [x] **[Demo]** Per-player speed, distance covered, sprint counts, heatmaps
 - [x] Implausible-speed rejection, so one identity switch cannot dominate a total; the discard count is reported, since a high one means the whole figure deserves suspicion
 - [x] Team shape: width, depth, compactness — needs no player identity, so it survives Phase 6's fragmentation
-- [ ] Acceleration, and per-third territory splits
+- [x] Per-third territory splits (`cv/territory.py`) — where each team had the
+      ball, named from that team's own attacking direction, taken from the same
+      smoothed per-frame labels the possession split is built from so the two
+      figures cannot disagree about the same half. Contested and dead-ball time
+      belongs to nobody. Needs a calibration, like everything in metres.
+- [x] Shape drift (`metrics.shape_drift`) — the same width/depth/compactness
+      figures early in the window against late, so "you were four metres wider
+      by the end" is sayable. Two averages either side of a split rather than a
+      fitted gradient, because two averages are a thing a coach can be told.
+      Returns None rather than a zero drift when either side is too short to
+      average.
+- [ ] Acceleration
 
 ## 9. Ball Possession & Game State
 - [ ] **[Demo]** Determine which player/team currently has the ball (proximity + velocity correlation)
 - [x] Dead-ball spans derived from the Phase 3 tag log (`cv/phases.py`) — feeds
       possession (a throw-in wait no longer counts as possession) and stamps
       `in_play` on every derived event. See "Also built ahead of the footage" above.
-- [ ] **[Demo]** Cross-check that against an independent CV signal (ball leaving frame / going out of bounds) rather than trusting the tag log alone — not built; today the tag log is the only source, so a stoppage nobody tagged is invisible to the pipeline.
+- [x] **[Demo]** Cross-check that against an independent CV signal (ball leaving
+      frame / going out of bounds) rather than trusting the tag log alone —
+      `cv/reconcile.py`'s `ball_exits` walks the observed ball points through
+      `zones.leaves_play` and checks the result against tagged throw-ins,
+      corners and goal kicks. Only observed points count: an interpolated one is
+      a straight line drawn between two sightings, so letting it cross a
+      boundary would invent stoppages precisely where the pipeline saw least.
+      Needs a calibration, and needs ball coverage good enough to mean anything
+      — so the rate it produces will be meaningless until the footage improves.
 - [ ] Half/period and clock tracking, driven by the Phase 3 period-boundary taps
 
 ## 10. Event Detection
@@ -749,8 +899,23 @@ adjacent pairs (`cv/events.py`), not seven separate detectors.
 - [x] **[Demo]** Goal detection — via `zones.enters_goal_mouth`; must still be cross-checked against a live tap
 - [x] Turnover / tackle detection, plus interceptions, recoveries and ground duels
 - [x] Carries, pressure counts, PPDA
-- [ ] Stoppage candidate flagging (ball out, play stopped) — the live tap usually already has the type (e.g. "corner"), so this is mostly a cross-check, not the primary source
-- [ ] Reconciliation logic: where CV and live tags agree, treat as high confidence; where they disagree or one is missing, flag prominently for the Phase 11 reviewer
+- [x] Stoppage candidate flagging (ball out, play stopped) — `reconcile.ball_exits`,
+      and used as the cross-check rather than as a primary source, exactly as
+      this bullet anticipated
+- [x] Turnovers located by third (`events.turnovers_by_third`) — the catalog's
+      "dangerous turnover locations" ask. `PossessionSummary` counts turnovers
+      but a spell carries no position at all, so the count comes off the event
+      log, at the point the pass was played rather than where it ended up
+- [x] Reconciliation logic: where CV and live tags agree, treat as high
+      confidence; where they disagree or one is missing, flag prominently for
+      the Phase 11 reviewer — `cv/reconcile.py`. The two vocabularies intersect
+      on exactly one word, `goal`, and that is deliberately all that is compared
+      head to head; inventing overlap where there is none would manufacture
+      agreement. Disagreements become warnings and sit at the top of the review
+      block, seekable. **Not an accuracy**: both records can be wrong about the
+      same moment in the same direction, and this would call that agreement. It
+      is a standing metric to watch drift on, exactly as Testing Strategy #5
+      frames it.
 - [ ] **[Stretch]** Offside detection — leave human-marked-only for the foreseeable future
 
 **What is written but unmeasured.** Every threshold in `cv/touches.py` is a guess,
@@ -781,21 +946,56 @@ scratch.
 - [ ] **[Demo]** Track-ID → roster-player assignment UI with thumbnail crops, pre-narrowed by the sub log — the narrowing shipped (Phase 7); thumbnail crops did not.
 - [ ] Merge-tracks control for split IDs
 - [ ] Save finalized data as the source of truth for stats, profiles, xG logging, and the player portal
-- [ ] Doubles as the ground-truth labeling tool for Phase 16 validation, and as a source of labeled data for fine-tuning detectors later (Phase 5)
+- [x] Doubles as the ground-truth labeling tool for Phase 16 validation, and as
+      a source of labeled data for fine-tuning detectors later (Phase 5) —
+      "Download the labels" exports the reviewed set as JSON, built in the
+      browser from data already loaded. It states in the file that unreviewed
+      events are **not** negatives, since a consumer that assumed otherwise
+      would train on the pipeline's own unchecked guesses.
+- [x] Report precision and recall per event type from those decisions
+      (`reviewScore`) — the numbers the tool exists to produce, and previously
+      collected but never computed. An edit that only reassigns the player
+      leaves the type standing; an edit that changes the type counts against the
+      type claimed and as a detection of the type it should have been, because a
+      mislabelled event was still found. Null rather than zero where nothing has
+      been checked, and captioned with the denominator.
 
 ## 12. Shot Feature Extraction → Existing xG Model
 Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model6.onnx`).
-- [ ] **[Demo]** At shot detection/confirmation, extract the same 12 features the model expects, using the correct attacking-goal direction for the half (Phase 4)
+- [x] **[Demo]** At shot detection/confirmation, extract the same 12 features
+      the model expects, using the correct attacking-goal direction for the half
+      (Phase 4) — `xg_for_shots`, called from `cv/pipeline.py`. The direction
+      now comes from one shared `attacking_end_for`, rather than the event layer
+      and the xG layer each working it out; two places deciding which way a team
+      kicks is how a second-half sign error gets in, and it would show up as
+      plausible xG for shots at the wrong goal rather than as a crash.
 - [ ] Body part classification (foot vs. header) — pose estimation, or a manual tag as post-game fallback
 - [ ] `shot_height` is a z-axis value a flat single camera + homography can't give directly — pose estimation or ball-trajectory arc fitting needed; flagged as an open problem
-- [ ] **[Demo]** Feed features into the existing ONNX model, log predicted xG
-- [ ] **[Demo]** Validate the model against CV-derived (noisier) features before trusting it live (Testing Strategy #6) — retrain with realistic noise added if calibration visibly degrades
+- [x] **[Demo]** Feed features into the existing ONNX model, log predicted xG —
+      and note that until 2026-08-02 this was written but never called, so every
+      xG in a schema-2 document is null because nothing computed it, not because
+      no shots were found
+- [x] **[Demo]** Validate the model against CV-derived (noisier) features before
+      trusting it live (Testing Strategy #6) — measured, see the table above.
+      Half a metre of position error moves a single shot by ~0.066 on a 0.47
+      baseline; at 4 m the p95 shift exceeds the xG itself. Pinned by
+      `tests/test_xg_noise.py`. Retraining with noise is not needed yet: the
+      per-shot spread is wide but team totals average most of it out, and the
+      real gate is still whether a shot can be detected at all
+- [ ] Show per-shot xG only when the calibration supports it — the note now
+      warns above 1 m of error, but nothing yet *withholds* the number, and
+      above ~4 m the error bar is wider than the quantity
 - [ ] Log actual outcome (goal/save/block/miss) to check predictions against reality later
 
 ## 13. Player & Team Statistics / Profiles
 - [ ] `Player` domain model beyond the current UI stub in `xg-sandbox/geometry.js`: identity, team, jersey number, role, per-match stat accumulator
 - [ ] `Team` domain model: roster, formation, aggregate stats
-- [ ] **[Demo]** Compute the halftime-tier stats first (possession, shot map/xG, distance, sprint counts, live-tagged event counts)
+- [x] **[Demo]** Compute the halftime-tier stats first (possession, xG, distance,
+      sprint counts, live-tagged event counts) — all now computed and published.
+      The **shot map** is the one piece of that line still missing: `events_payload`
+      strips `start_m` from every event, so no shot coordinate reaches the client
+      and there is nothing to plot. Nothing in `assets/` draws a pitch surface yet
+      either (`pitch-backdrop.js` is decorative).
 - [ ] **[MVP]** Full post-game tactical catalog (passing networks, phase-of-play, pressing trends)
 - [ ] Use the Phase 3 sub log to scope each player's stats to their actual minutes played
 - [ ] **[Stretch]** Cross-match / season aggregation per player
@@ -814,7 +1014,15 @@ than the workaround, which matters given the data class.
       controls are in place, the consent conversation is not a code change
 
 ## 15. Frontend / Dashboard
-- [ ] **[Demo]** Coach halftime view: sideline/mobile-friendly, high-signal, minimal reading — built from the Stats Catalog's halftime section
+- [x] **[Demo]** Coach halftime view: sideline/mobile-friendly, high-signal,
+      minimal reading — built from the Stats Catalog's halftime section. The
+      catalog's "plain-language flags over raw tables" is `report.cvReads`:
+      pinned-back territory, shape drift, giveaways in your own third, and
+      chances made against chances taken, as sentences in the decisions block
+      rather than as more rows. Styled deliberately quieter than a card
+      somebody was actually shown. Every threshold behind them is a guess, set
+      high on purpose — a flag that fires every match stops being read and takes
+      the ones that matter with it.
 - [x] Match video (YouTube or a direct file link) on the coach match view and
       the half-time page, not just the player portal — goals, cards and subs
       marked on a shared tick strip (`assets/match-video.js`), one module
@@ -826,9 +1034,22 @@ than the workaround, which matters given the data class.
 
 ## 16. Validation & Demo Logistics
 - [ ] **[Demo]** Ground-truth comparison using the Phase 11 tool on a short labeled clip before trusting a full game
-- [ ] **[Demo]** Camera hardware/placement plan for the actual high school field — resolve the elevation/coverage question from the Reality Check concretely, don't leave it open until game day
+- [x] **[Demo]** Camera hardware/placement plan for the actual high school field
+      — `FOOTAGE_DAY.md`, written to be read at the field rather than at a desk:
+      framing rules with the measured cost of getting them wrong, fixed not
+      auto-tracking, native export not a screen recording, and elevation
+      preferred. What it cannot settle from here is which camera the school
+      actually runs and where it can be put — that is a conversation, not a
+      commit.
+- [x] Brief whoever runs the tablet, in writing, before game day —
+      `FOOTAGE_DAY.md` §3. The kick-off marker, stoppage **and restart** pairs
+      (an untagged restart caps a dead span and silently deletes real football),
+      and substitutions, in that order of importance.
+- [x] An intake order with stop conditions — `FOOTAGE_DAY.md` §5. `spike_detect`
+      first, because if ball coverage is near zero nothing downstream is worth
+      running.
 - [ ] Lighting/weather robustness check (outdoor field, not a broadcast studio)
-- [ ] Identify and briefly train whoever will run the Phase 3 tablet during the actual demo game — the live data is only as good as the person entering it
+- [ ] Identify and briefly train whoever will run the Phase 3 tablet during the actual demo game — the live data is only as good as the person entering it. The briefing is written (`FOOTAGE_DAY.md` §3); the person is not identified.
 - [ ] **[Demo]** Dry run on real footage from the old team well before the target test date — also the first real test of the ball-detection spike and the homography/attacking-direction logic
 - [ ] **[MVP]** Validate the halftime path end-to-end under a real clock — can it actually finish in time
 

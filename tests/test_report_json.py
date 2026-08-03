@@ -322,6 +322,100 @@ class TestQuality:
         assert data['trustworthy'] is False
 
 
+class TestPositionalFieldsReachTheJson:
+    """The report builder has to hand `team_stats` a pitch and a direction.
+
+    It did neither until 2026-08-02, so `ppda` was None in every report this
+    project has produced — not because the footage could not support it, but
+    because the guard `if pitch is not None` was never satisfied. These pin the
+    plumbing rather than the arithmetic, which is tested in test_events.py.
+    """
+
+    def a_positional_report(self):
+        from cv.pitch import Pitch
+
+        report = a_report(calibrated=True)
+        report.pitch = Pitch()
+        report.attacking_ends = {TEAM_A: 'right', TEAM_B: 'left'}
+        return report
+
+    def test_without_a_pitch_the_positional_fields_are_null(self):
+        team = a_report(calibrated=True).to_json()['teams'][TEAM_A]
+        assert team['ppda'] is None
+        assert team['turnovers_by_third'] is None
+
+    def test_with_one_they_are_computed(self):
+        team = self.a_positional_report().to_json()['teams'][TEAM_A]
+        assert team['turnovers_by_third'] == {
+            'defensive': 0, 'middle': 0, 'attacking': 0,
+        }
+
+    def test_each_team_is_given_the_other_team_direction_for_pressing(self):
+        """PPDA is measured in the zone the *opponent* is building out of, so
+        handing both teams the same end would measure the wrong half."""
+        from cv.report_json import team_stats
+
+        ends = {TEAM_A: 'right', TEAM_B: 'left'}
+        for team in (TEAM_A, TEAM_B):
+            other = TEAM_B if team == TEAM_A else TEAM_A
+            assert ends[team] != ends[other]
+
+        report = self.a_positional_report()
+        data = report.to_json()['teams']
+        assert data[TEAM_A]['turnovers_by_third'] is not None
+        assert data[TEAM_B]['turnovers_by_third'] is not None
+        assert team_stats(EventLog(), TEAM_A, calibrated=True).ppda is None
+
+    def test_territory_and_drift_are_null_when_the_run_had_neither(self):
+        team = a_report(calibrated=True).to_json()['teams'][TEAM_A]
+        assert team['territory'] is None
+        assert team['shape_drift'] is None
+
+
+class TestReconciliation:
+    """Absent is not zero, one more time.
+
+    A run with no tagged log was never compared against anything. Reporting
+    that as 0% agreement would say the two records contradicted each other on
+    every goal, which is a claim about the match rather than about what we were
+    given to check.
+    """
+
+    def a_reconciliation(self, **kwargs):
+        from cv.reconcile import Disagreement, Reconciliation
+
+        return Reconciliation(entries=[
+            Disagreement('goal', 'agreed', cv_s=600.0, tag_s=602.0),
+            Disagreement('goal', 'tag_only', tag_s=1200.0),
+        ], **kwargs)
+
+    def test_no_tagged_log_leaves_it_null_rather_than_empty(self):
+        data = a_report().to_json()
+        assert data['reconciliation'] is None
+        assert data['quality']['goal_agreement'] is None
+        assert data['quality']['exit_agreement'] is None
+
+    def test_the_agreement_rate_reaches_the_quality_block(self):
+        data = a_report(reconciliation=self.a_reconciliation()).to_json()
+        assert data['quality']['goal_agreement'] == 0.5
+
+    def test_the_disagreements_travel_whole(self):
+        """A rate says how bad it is; the list says where to look."""
+        data = a_report(reconciliation=self.a_reconciliation()).to_json()
+        entries = data['reconciliation']['disagreements']
+        assert [e['status'] for e in entries] == ['tag_only']
+        assert entries[0]['tag_s'] == 1200.0
+
+    def test_exits_unchecked_is_distinct_from_exits_that_agreed(self):
+        data = a_report(reconciliation=self.a_reconciliation()).to_json()
+        assert data['reconciliation']['exits_checked'] is False
+        assert data['reconciliation']['exits'] is None
+
+    def test_the_whole_block_round_trips_as_json(self):
+        data = a_report(reconciliation=self.a_reconciliation()).to_json()
+        assert json.loads(json.dumps(data))['reconciliation'] is not None
+
+
 class TestTeamRollup:
     def test_passes_are_counted_per_team(self):
         log = EventLog(events=[

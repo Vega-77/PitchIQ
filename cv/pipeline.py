@@ -27,7 +27,7 @@ import numpy as np
 
 from .ball import BallTrajectory, build_trajectory
 from .calibration import Calibration
-from .events import EventLog, derive_events
+from .events import EventLog, attach_xg, attacking_end_for, derive_events
 from .frames import FrameTable, TrackedFramePass, attach_trajectory
 from .frame_sampler import video_info
 from .identity import PlayerCluster, merge_tracks
@@ -38,14 +38,24 @@ from .metrics import (
     PositionSeries,
     heatmap,
     movement_stats,
+    ShapeDrift,
+    shape_drift,
     smooth_positions,
     team_shape,
 )
 from .participants import ParticipantReport, classify_participants
 from .phases import PhaseTable, phases_from_log
 from .pitch import MatchOrientation, Pitch
-from .possession import PossessionSummary, build_states, summarise
+from .possession import (
+    PossessionSummary,
+    build_states,
+    prepare_states,
+    summarise,
+)
+from .reconcile import Reconciliation, reconcile, warnings_for
 from .teams import TEAM_A, TEAM_B, assign_teams, separation
+from .territory import TerritorySplit, territory
+from .xg_bridge import xg_for_shots
 
 # Tracks shorter than this are noise — a detection that flickered for a fraction
 # of a second rather than a player who was there.
@@ -96,6 +106,9 @@ class MatchReport:
     # team's shape — it is the bounding box of the match, and it was reported as
     # Team A's until this became a dict.
     shape: dict[str, dict[str, float]] = field(default_factory=dict)
+    # Whether that shape held. Keyed by team, and absent for a team whose window
+    # was too short to have an early and a late half worth comparing.
+    shape_drift: dict[str, ShapeDrift] = field(default_factory=dict)
     ball: BallTrajectory | None = None
 
     touches: TouchSequence | None = None
@@ -104,8 +117,22 @@ class MatchReport:
     keepers: KeeperAssignment | None = None
     keeper_stats: list = field(default_factory=list)
     participants: ParticipantReport | None = None
+    # Where each team had the ball, not just how much. None without a
+    # calibration: on a panning camera a third of the frame is not a third of
+    # the pitch.
+    territory: TerritorySplit | None = None
+    # The pitch these metres are measured on, and which goal each team was
+    # attacking. Carried because report_json needs both to name a third or to
+    # work out a pressing zone, and had neither — which is why `ppda` was null
+    # in every report ever produced, regardless of the footage.
+    pitch: Pitch | None = None
+    attacking_ends: dict[str, str | None] = field(default_factory=dict)
     # None means no tagged log was supplied — not that there were no stoppages.
     phases: PhaseTable | None = None
+    # Where the tagged log and this run tell different stories. None for the
+    # same reason: with nothing to compare against there is no comparison, which
+    # is not the same as the two records having agreed.
+    reconciliation: Reconciliation | None = None
 
     kit_separation: float = 0.0
     clear_holder_share: float = 0.0
@@ -398,6 +425,15 @@ def analyse_match(
     ball_by_frame = {
         r.frame_index: r.ball_xy for r in table.records if r.ball_xy is not None
     }
+    # Ball positions in metres, when there is a homography to make them. This is
+    # what lets territory be taken from the same per-frame answers possession
+    # came from, rather than reconstructed next to them and left to drift.
+    ball_m_by_frame = {}
+    if calibration is not None:
+        ball_m_by_frame = {
+            index: calibration.to_pitch(*xy) for index, xy in ball_by_frame.items()
+        }
+
     states = build_states(
         [r.frame_index for r in table.records],
         ball_by_frame,
@@ -405,8 +441,25 @@ def analyse_match(
         table.team_of,
         {r.frame_index: r.timestamp_s for r in table.records},
         is_player=is_player,
+        ball_m_by_frame=ball_m_by_frame,
     )
-    report.possession = summarise(states, phases=report.phases)
+
+    # Prepared once and shared. Smoothing and dead-ball marking are what turn
+    # noisy per-frame guesses into the labels the possession split is built
+    # from, and territory has to agree with that split rather than describe a
+    # slightly different match.
+    states = prepare_states(states, phases=report.phases)
+    report.possession = summarise(states, smooth_window=0)
+
+    attacking_ends = {
+        team: attacking_end_for(orientation, side_of_team, period, team)
+        for team in (TEAM_A, TEAM_B)
+    }
+    report.attacking_ends = attacking_ends
+    report.pitch = pitch if calibration is not None else None
+
+    if calibration is not None and any(attacking_ends.values()):
+        report.territory = territory(states, pitch, attacking_ends)
 
     clear = sum(1 for s in states if s.team in (TEAM_A, TEAM_B))
     report.clear_holder_share = clear / len(states) if states else 0.0
@@ -443,6 +496,41 @@ def analyse_match(
         report.keeper_stats = keeper_reports(
             report.events, report.keepers, pitch, defending_ends
         )
+
+    # ---- expected goals ----
+    #
+    # Runs here, before `to_json`, because the per-team and per-cluster xG
+    # totals are summed out of the event log at serialisation time. Attach
+    # first and both totals come out right with nothing else to change.
+    #
+    # Gated on a calibration for the same reason shots themselves are: without
+    # one there is no `start_m`, and a shot with no position on the pitch has
+    # nothing to be expected about.
+    if calibration is not None and report.events is not None:
+        xg_by_event, xg_warnings = xg_for_shots(
+            report.events, table, calibration, orientation, period,
+            side_of_team, report.keepers,
+        )
+        attach_xg(report.events, xg_by_event)
+        report.warnings.extend(xg_warnings)
+
+    # ---- the two records, side by side ----
+    #
+    # Only worth doing when there is a second record to compare against. The
+    # goals are checked whatever else happened; the ball leaving play needs a
+    # calibration, because without one there is no boundary to cross.
+    #
+    # A disputed goal becomes a warning, and `trustworthy` is `not warnings`, so
+    # a run where the two records disagree about a goal correctly stops
+    # presenting itself as reliable.
+    if tag_log:
+        report.reconciliation = reconcile(
+            report.events, tag_log,
+            trajectory=report.ball,
+            calibration=calibration,
+            video_offset_s=video_offset_s,
+        )
+        report.warnings.extend(warnings_for(report.reconciliation))
 
     if report.touches is not None and not report.touches.touches:
         report.warnings.append(_no_touches_reason(report))
@@ -506,6 +594,11 @@ def analyse_match(
             if table.team_of(track_id) == team
         }
         report.shape[team] = team_shape(own) if own else {}
+        # How it differed late in the window against early. None on a short
+        # clip, where there is nothing either side of the split to average.
+        drift = shape_drift(own) if own else None
+        if drift is not None:
+            report.shape_drift[team] = drift
 
     # A team cannot be wider than the pitch or deeper than it is long. If it
     # comes out that way the homography is wrong, or the camera moved after it

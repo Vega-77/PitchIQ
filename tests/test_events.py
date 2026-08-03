@@ -35,6 +35,7 @@ from cv.events import (
     UNKNOWN_OUTCOME,
     derive_events,
     ppda,
+    turnovers_by_third,
 )
 from cv.frames import FrameRecord, FrameTable
 from cv.phases import DeadSpan, PhaseTable
@@ -505,3 +506,69 @@ class TestSerialisation:
     def test_pass_type_is_named_in_the_output(self):
         log = derive([touch(0.0, 1, TEAM_A), touch(0.5, 2, TEAM_A)])
         assert log.to_json()['events'][0]['type'] == PASS
+
+
+class TestTurnoversByThird(TestCalibrated):
+    """Where the ball was given away, which possession could never say.
+
+    `PossessionSummary` counts turnovers and a spell is `(team, start_s,
+    end_s)` — no position anywhere in it. The catalog asks for giveaways in
+    your own defensive third by name, so the count comes off the event log.
+    """
+
+    def giveaway(self, x_m):
+        """A pass from x_m that an opponent receives — a loss of the ball."""
+        return [
+            self.at(0.0, 1, TEAM_A, x_m, MID_Y),
+            self.at(1.0, 30, TEAM_B, x_m + 6.0, MID_Y),
+        ]
+
+    def counts(self, touches, team=TEAM_A, end='right'):
+        return turnovers_by_third(self.derive(touches), PITCH, team, end)
+
+    def test_a_giveaway_in_your_own_third_is_counted_there(self):
+        assert self.counts(self.giveaway(12.0))['defensive'] == 1
+
+    def test_a_giveaway_in_their_third_is_counted_there(self):
+        assert self.counts(self.giveaway(90.0))['attacking'] == 1
+
+    def test_it_is_located_where_the_pass_started(self):
+        """Where the player was when they made the decision, not where the ball
+        ended up. A hopeful ball out of your own box that lands in midfield was
+        a bad decision taken in a dangerous place."""
+        touches = [
+            self.at(0.0, 1, TEAM_A, 12.0, MID_Y),
+            self.at(1.0, 30, TEAM_B, 55.0, MID_Y),
+        ]
+        assert self.counts(touches)['defensive'] == 1
+        assert self.counts(touches)['middle'] == 0
+
+    def test_a_completed_pass_is_not_a_giveaway(self):
+        touches = [
+            self.at(0.0, 1, TEAM_A, 12.0, MID_Y),
+            self.at(1.0, 2, TEAM_A, 30.0, MID_Y),
+        ]
+        assert sum(self.counts(touches).values()) == 0
+
+    def test_the_other_team_giving_it_away_is_not_yours(self):
+        assert sum(self.counts(self.giveaway(12.0), team=TEAM_B).values()) == 0
+
+    def test_the_thirds_are_named_from_this_team_own_direction(self):
+        """The same spot is a defensive giveaway for one side and an attacking
+        one for the other, and both are the sentence that side's coach wants."""
+        touches = [
+            self.at(0.0, 1, TEAM_A, 12.0, MID_Y),
+            self.at(1.0, 30, TEAM_B, 18.0, MID_Y),
+        ]
+        assert self.counts(touches, end='right')['defensive'] == 1
+        assert self.counts(touches, end='left')['attacking'] == 1
+
+    def test_no_direction_means_no_answer_rather_than_zeroes(self):
+        assert self.counts(self.giveaway(12.0), end=None) is None
+
+    def test_an_empty_log_gives_three_zeroes_not_nothing(self):
+        """A team that lost the ball nowhere did play; zero is a measurement
+        here, unlike the unknown-direction case above."""
+        assert turnovers_by_third(derive([]), PITCH, TEAM_A, 'right') == {
+            'defensive': 0, 'middle': 0, 'attacking': 0,
+        }

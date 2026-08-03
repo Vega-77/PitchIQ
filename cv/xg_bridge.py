@@ -4,9 +4,11 @@
 
 `build_features`, `feature_vector` and `_predict` now run against the real model
 and agree with the browser to three decimal places on the same shot; see
-tests/test_xg_parity.py. What remains unverified is upstream of here: whether a
-shot can be spotted in footage at all, and whether the shooter, keeper and
-defenders handed to `ShotContext` are the right ones.
+tests/test_xg_parity.py. `xg_for_shots` connects that to the pipeline, which
+until 2026-08-02 nothing did — `attach_xg` had no caller, so every xG figure
+from the report JSON to a player's phone was null. What remains unverified is
+upstream of here: whether a shot can be spotted in footage at all, and whether
+the shooter, keeper and defenders handed to `ShotContext` are the right ones.
 
 This is where the computer vision work meets the model already trained in
 `PitchIQHelper/main.py` and already running in `xg-sandbox/xg-model.js`. The feature
@@ -21,11 +23,27 @@ Two things are known to be unresolved rather than merely untested:
   training data is substituted, which is honest but means the feature carries no
   information from this shot.
 
-* **The model has never seen CV-derived inputs.** It was trained on clean,
-  human-verified StatsBomb data. Positions from detection and homography are
-  noisier, and a calibrated model can lose its calibration on inputs noisier
-  than its training set. `validate_against_noise` exists to measure that before
-  anyone trusts the output.
+* **The model has never seen CV-derived inputs**, and it is sensitive to that.
+  It was trained on clean, human-verified StatsBomb data; positions from
+  detection and homography are not. Measured 2026-08-02 by
+  `validate_against_noise`, 400 trials over five spots averaging 0.472 xG:
+
+        noise    mean shift   p95     max
+        0.25 m     0.059     0.147   0.236
+        0.50 m     0.066     0.175   0.236
+        1.00 m     0.076     0.204   0.459
+        2.00 m     0.096     0.240   0.657
+        4.00 m     0.159     0.513   0.676
+
+  So half a metre of position error — the band `cv/calibrate.py` accepts as a
+  good calibration — moves a single shot's xG by about 0.066 typically and 0.17
+  at the 95th percentile. That is fine for "a decent chance" and not fine for
+  ranking two shots 0.1 apart. At 4 m the p95 shift exceeds the xG itself, which
+  is the point past which per-shot numbers should not be shown at all.
+
+  Summing helps: these are per-shot, and a half's worth of shots averages most
+  of it out, so a team total is much steadier than any row above. Pinned by
+  tests/test_xg_noise.py.
 
 * **Pitch dimensions change the answer.** `Pitch.to_statsbomb` normalises by
   the configured pitch length, so a penalty spot — 11m out on any field — reads
@@ -208,10 +226,19 @@ def shot_context_from_tracking(
     their own goal, which is usually right and occasionally catastrophically
     wrong: a covering centre-back on the line gets taken for the keeper, and
     every keeper feature then describes the wrong person.
+
+    "Their own goal" is the goal the shooter is *attacking*. This searched the
+    shooter's own end instead until 2026-08-02, which inverted the guess
+    completely: the keeper standing on his line was counted as a defender
+    blocking the shot, and whichever opponent had dropped deepest — often fifty
+    metres the wrong side of the ball — was handed to the model as the keeper.
+    The model was therefore told the goal was unguarded on every shot where
+    nobody named the keeper, which inflates xG. Nothing called this function at
+    the time, so no published number was ever affected; see
+    tests/test_xg_bridge.py::TestKeeperGuess.
     """
     pitch = calibration.pitch
     attacking_end = orientation.attacking_end(side, period)
-    defending_end = orientation.defending_end(side, period)
 
     shooter_m = None
     keeper_m = None
@@ -231,7 +258,7 @@ def shot_context_from_tracking(
         shooter_m = calibration.to_pitch(*ball_px)
 
     if keeper_m is None and keeper_track is None and opponents:
-        goal = pitch.goal_centre(defending_end)
+        goal = pitch.goal_centre(attacking_end)
         keeper_m = min(opponents, key=lambda p: math.dist(p, goal))
         opponents = [p for p in opponents if p is not keeper_m]
 
@@ -242,6 +269,118 @@ def shot_context_from_tracking(
         defenders_m=opponents,
         **kwargs,
     )
+
+
+def xg_for_shots(
+    log,
+    table,
+    calibration: Calibration,
+    orientation: MatchOrientation,
+    period: str,
+    side_of_team: dict[str, str] | None = None,
+    keepers=None,
+    session=None,
+) -> tuple[dict[str, float], list[str]]:
+    """{event_id: xG} for every shot in the log, plus warnings worth carrying.
+
+    This is the seam the whole module existed for and did not have. `attach_xg`
+    was written, `predict_xg` was written, the browser and the pipeline were
+    checked against each other to six decimal places — and nothing ever called
+    any of it, so every `xg` field from here to the player's phone has been null
+    since the day it was added.
+
+    Everything the model needs is already on the event or in the frame it came
+    from. `start_m` is where the ball was struck; `under_pressure` was counted by
+    the touch layer; `in_play` says whether a tagger saw a stoppage. The only
+    thing fetched fresh is the other twenty-one people, which needs the frame.
+
+    Two failures are handled rather than raised, because losing one column beats
+    losing the match report:
+
+    * onnxruntime missing or the model unreadable. Somebody running possession
+      numbers on a laptop should not need a 200 MB inference runtime installed.
+    * a shot with no `start_m`, or a team whose attacking end is unknown. Both
+      mean the same thing — nothing here can say which goal it was aimed at, and
+      guessing would produce a number for a shot at the wrong end.
+    """
+    from .events import Shot, attacking_end_for
+
+    shots = [e for e in log.events if isinstance(e, Shot)]
+    if not shots:
+        return {}, []
+
+    if session is None:
+        try:
+            session = load_session()
+        except Exception as error:                       # noqa: BLE001
+            return {}, [f'expected goals unavailable: {error}']
+
+    pitch = calibration.pitch
+    xg_by_event: dict[str, float] = {}
+    skipped = 0
+
+    for shot in shots:
+        attacking_end = attacking_end_for(
+            orientation, side_of_team, period, shot.team,
+        )
+        if attacking_end is None or shot.start_m is None:
+            skipped += 1
+            continue
+
+        frame = table.at(shot.frame_index)
+        boxes = frame.boxes() if frame is not None else []
+
+        # Whoever is between this shot and the goal is the *other* team's
+        # keeper. Passing it explicitly matters: `shot_context_from_tracking`
+        # otherwise picks the defender nearest their own goal, which its own
+        # docstring calls occasionally catastrophic — a covering centre-back on
+        # the line gets taken for the keeper and every keeper feature then
+        # describes the wrong person.
+        keeper_track = None
+        if keepers is not None:
+            for team, tracks in (keepers.by_team or {}).items():
+                if team != shot.team and tracks:
+                    keeper_track = next(iter(tracks))
+                    break
+
+        context = shot_context_from_tracking(
+            ball_px=shot.start_xy_px,
+            player_boxes=boxes,
+            shooter_track=shot.track_id,
+            team_of=table.team_of,
+            calibration=calibration,
+            orientation=orientation,
+            side=(side_of_team or {}).get(shot.team, 'us'),
+            period=period,
+            keeper_track=keeper_track,
+            under_pressure=shot.under_pressure,
+            # A shot inside a tagged stoppage is a set piece of some kind. The
+            # log knows which — corner, free kick, penalty — but that does not
+            # travel on the event, so this says only "not open play", which is
+            # the single bit the model actually takes. With no tagged log
+            # `in_play` is True throughout and this is the old assumption,
+            # unchanged and now visible.
+            is_open_play=shot.in_play,
+            # Always False, and not a default we could improve on: one fixed
+            # camera cannot see the ball's height. Headed chances are therefore
+            # scored as foot shots, which biases their xG upward.
+            is_header=False,
+        )
+
+        try:
+            xg_by_event[shot.event_id] = _predict(
+                session, feature_vector(context, pitch)
+            )
+        except Exception as error:                       # noqa: BLE001
+            return xg_by_event, [f'expected goals stopped early: {error}']
+
+    warnings = []
+    if skipped:
+        warnings.append(
+            f'{skipped} of {len(shots)} shots got no expected-goals figure, '
+            'because nothing said which goal that team was attacking'
+        )
+    return xg_by_event, warnings
 
 
 def validate_against_noise(
