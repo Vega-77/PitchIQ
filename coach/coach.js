@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=21';
+} from '../assets/auth.js?v=22';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,20 +8,21 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=21';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=21';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=21';
+} from '../assets/db.js?v=22';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=22';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=22';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=22';
 import {
     NOT_A_PLAYER, rankRosterForCluster, possessionIsInPlay, cvQualityNotes,
     roughDuration, shapeConfidence, reviewScore, reviewLabels,
-} from '../assets/report.js?v=21';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=21';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=21';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=21';
+} from '../assets/report.js?v=22';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=22';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=22';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=22';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, figure, cardChips, timelineRow, minutesChart, confidenceMark,
-} from '../assets/ui.js?v=21';
+} from '../assets/ui.js?v=22';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -643,6 +644,7 @@ async function openMatch(matchId) {
         renderMatchVideoBlock();
         renderTimeline(log, roster);
         renderClusterMapping();
+        renderShots();
         renderExcluded();
         renderReview();
 
@@ -763,6 +765,56 @@ function shapeRows(shape, calibrationErrorM) {
         // pinned in its own half, and this number cannot tell the difference.
         [metres(shape.compactness_m), 'Compactness', band],
     ];
+}
+
+/**
+ * Both sides' shots, side by side.
+ *
+ * Each map is mirrored so that team attacks right, which is what makes them
+ * comparable: two maps facing each other would be a diagram of the pitch, and
+ * the question a coach has is "how good were the chances", not "which end".
+ * The mirroring is done in cv/report_json.py so no renderer can forget it.
+ *
+ * Clicking a shot seeks the match video, which is the whole reason to place
+ * them rather than count them.
+ */
+function renderShots() {
+    const block = byId('cv-shots-block');
+    const cv = state.match?.cv;
+
+    const sides = [
+        ['us', 'team_a', 'cv-shots-us', 'cv-shots-us-cap'],
+        ['them', 'team_b', 'cv-shots-them', 'cv-shots-them-cap'],
+    ];
+
+    let any = false;
+    for (const [label, key, hostId, capId] of sides) {
+        const marks = cv?.teams?.[key]?.shot_map || [];
+        const drawn = renderShotMap(byId(hostId), marks, {
+            onPick: (mark) => seekMatchVideo(
+                Math.max(0, (mark.video_s || 0) - (state.match.videoOffsetS ?? 0)),
+            ),
+            label: `${label === 'us' ? 'Our' : 'Their'} shots on the pitch`,
+        });
+        any = any || drawn;
+
+        const totals = shotSummary(marks);
+        const who = label === 'us'
+            ? (state.team?.name || 'Us')
+            : (state.match?.opponent || 'Them');
+        setText(capId, drawn
+            ? `${who} — ${totals.goals} from ${plural(totals.shots, 'shot')}`
+                + (totals.xg != null ? `, ${totals.xg.toFixed(2)} xG` : '')
+            : `${who} — no shots placed`);
+        byId(hostId).classList.toggle('is-empty', !drawn);
+    }
+
+    block.classList.toggle('hidden', !any);
+    if (!any) return;
+
+    setText('cv-shots-note',
+        'Both halves are drawn attacking right, so the two maps can be compared. '
+        + 'Bigger circles were better chances. Click one to jump the video there.');
 }
 
 /** The banner over the estimated section, naming what limited it. */
@@ -1099,6 +1151,23 @@ async function saveMappingNow() {
 // twice with the interesting half missing.
 
 let matchVideo = null;
+
+/**
+ * Jump the match video to a match-clock moment.
+ *
+ * Separate from the review block's `seekReview`, which drives its own player.
+ * Two videos on one page is unusual, but the review tool is a working surface
+ * and the match video is the one a coach shows somebody — merging them would
+ * mean scrolling away from the shot map to see the shot.
+ */
+function seekMatchVideo(clockS) {
+    if (!matchVideo) {
+        toast('Add a playable video link to jump to a moment.', true);
+        return;
+    }
+    matchVideo.seek(videoTime(clockS, state.match.videoOffsetS ?? 0));
+    byId('match-video').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 
 function renderMatchVideoBlock() {
     const block = byId('match-video-block');

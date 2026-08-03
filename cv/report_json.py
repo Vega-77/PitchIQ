@@ -43,6 +43,7 @@ from .events import (
     turnovers_by_third,
 )
 from .identity import PlayerCluster, fragmentation
+from .pitch import Pitch
 from .teams import TEAM_A, TEAM_B
 
 # 2: `participants` added, `shape` became per team, `no_ball_s` became a real
@@ -55,6 +56,12 @@ SCHEMA_VERSION = 3
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
 FRAGMENTATION_LIMIT = 40
+
+# Default pitch, used only to mirror a shot map onto one attacking direction.
+# The real dimensions come from the calibration; a few centimetres of
+# difference moves a plotted dot by less than its own radius.
+PITCH_LENGTH_M = Pitch().length_m
+PITCH_WIDTH_M = Pitch().width_m
 
 
 def _num(value):
@@ -121,6 +128,9 @@ class TeamStats:
     # without it cannot be read: "they stayed high" and "they sat deep" are the
     # same picture flipped.
     attacking_end: str | None = None
+    # Every shot as a point on a pitch, already mirrored so the team attacks
+    # right. None without a calibration or a known direction.
+    shot_map: list[dict] | None = None
     # Giveaways by third, from this team's own direction. The defensive-third
     # count is the one the catalog asks for by name: a ball lost in front of
     # your own goal is a different event from one lost in theirs, and a single
@@ -166,6 +176,7 @@ class TeamStats:
             'shape_drift': self.shape_drift,
             'turnovers_by_third': self.turnovers_by_third,
             'attacking_end': self.attacking_end,
+            'shot_map': self.shot_map,
         }
 
 
@@ -193,6 +204,9 @@ class TrackStats:
     tackles: int = 0
     interceptions: int = 0
     recoveries: int = 0
+
+    # This cluster's shots as points, same convention as the team's.
+    shot_map: list[dict] | None = None
 
     # When each touch happened, in seconds. Carried per cluster rather than
     # only as a count so the player portal can put a mark on the match video
@@ -232,6 +246,7 @@ class TrackStats:
             'tackles': _num(self.tackles),
             'interceptions': _num(self.interceptions),
             'recoveries': _num(self.recoveries),
+            'shot_map': self.shot_map,
             'touch_times_s': [_round(t, 2) for t in self.touch_times_s],
             'heatmap': self.heatmap,
         }
@@ -297,6 +312,7 @@ def team_stats(
         stats.goals = sum(1 for s in shots if s.outcome == GOAL)
         scored = [s.xg for s in shots if s.xg is not None]
         stats.xg = sum(scored) if scored else None
+        stats.shot_map = shot_marks(shots, attacking_end)
 
         if pitch is not None:
             stats.ppda = ppda(log, pitch, team, opponent_attacking_end)
@@ -309,6 +325,50 @@ def team_stats(
     stats.territory = territory
     stats.shape_drift = shape_drift
     return stats
+
+
+def shot_marks(shots, attacking_end: str | None) -> list[dict] | None:
+    """Shots as points on a pitch, always attacking to the right.
+
+    A shot map is only readable if every shot on it faces the same way, so the
+    flip happens here rather than in three renderers. `x_m` and `y_m` are
+    therefore not raw pitch coordinates: they are the position expressed as if
+    this team were attacking the right-hand goal, whichever end they actually
+    attacked. Naming them anything shorter would invite somebody to plot a
+    second-half shot at the wrong end and never notice.
+
+    Kept beside the counts rather than in the event list. `events_payload` drops
+    positions for good reasons that still hold for passes and carries — they are
+    null without a calibration and nothing plots them — but a half has a dozen
+    shots, and those are the ones somebody wants to see on a pitch.
+
+    None without an attacking end, since the flip cannot be decided. An empty
+    list means a calibrated run in which nobody shot, which is a real answer.
+    """
+    if attacking_end is None:
+        return None
+
+    marks = []
+    for shot in shots:
+        if shot.start_m is None:
+            continue
+        x, y = float(shot.start_m[0]), float(shot.start_m[1])
+        if attacking_end == 'left':
+            # Mirror through the centre, both axes, so left and right stay
+            # consistent with each other and a shot from the right wing does
+            # not migrate to the left one.
+            x, y = PITCH_LENGTH_M - x, PITCH_WIDTH_M - y
+
+        marks.append({
+            'video_s': _round(shot.timestamp_s, 2),
+            'x_m': _round(x, 1),
+            'y_m': _round(y, 1),
+            'xg': _round(shot.xg, 3),
+            'outcome': shot.outcome,
+            'on_target': bool(shot.on_target),
+            'track_id': shot.track_id,
+        })
+    return marks
 
 
 def _merge_heatmaps(pairs) -> list[list[float]] | None:
@@ -347,10 +407,12 @@ def track_stats(
     log: EventLog,
     players_by_track: dict | None = None,
     calibrated: bool = False,
+    attacking_ends: dict[str, str | None] | None = None,
 ) -> list[TrackStats]:
     """Per-cluster rollups, merging movement in from the per-track reports."""
     out: list[TrackStats] = []
     players_by_track = players_by_track or {}
+    attacking_ends = attacking_ends or {}
 
     for cluster in clusters:
         stats = TrackStats(
@@ -389,6 +451,7 @@ def track_stats(
             stats.goals = sum(1 for s in shots if s.outcome == GOAL)
             scored = [s.xg for s in shots if s.xg is not None]
             stats.xg = sum(scored) if scored else None
+            stats.shot_map = shot_marks(shots, attacking_ends.get(cluster.team))
 
             # Movement is per track; a cluster covers the ground all its
             # fragments did.
@@ -477,6 +540,7 @@ def build_report_json(
 
     tracks = track_stats(
         report.clusters, log, players_by_track, calibrated=calibrated,
+        attacking_ends=ends,
     )
 
     warnings = list(report.warnings)

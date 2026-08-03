@@ -17,11 +17,12 @@ Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_report_json.py
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import numpy as np
 import pytest
 
-from cv.events import COMPLETED, EventLog, Pass
+from cv.events import COMPLETED, EventLog, Pass, Shot
 from cv.identity import PlayerCluster
 from cv.metrics import MovementStats
 from cv.participants import (
@@ -32,7 +33,7 @@ from cv.participants import (
 )
 from cv.pipeline import MatchReport, PlayerReport
 from cv.possession import PossessionSummary
-from cv.report_json import SCHEMA_VERSION, team_stats
+from cv.report_json import SCHEMA_VERSION, shot_marks, team_stats
 from cv.teams import TEAM_A, TEAM_B
 from cv.touches import Touch, TouchConfidence, TouchSequence
 
@@ -484,3 +485,66 @@ class TestShape:
         """A team with no events is still a team, not a missing key."""
         teams = a_report().to_json()['teams']
         assert set(teams) == {TEAM_A, TEAM_B}
+
+
+class TestShotMarks:
+    """Shots as points, always attacking right.
+
+    The flip lives here rather than in three renderers, so the thing worth
+    testing is that it is a mirror and not a translation — a shot from the right
+    wing must not migrate to the left one.
+    """
+
+    def shot(self, x, y, xg=0.2, outcome='saved', on_target=True):
+        return Shot(
+            event_id='s1', type='shot', timestamp_s=612.0, frame_index=1,
+            team=TEAM_A, track_id=9, start_xy_px=(0.0, 0.0),
+            start_m=(x, y), xg=xg, outcome=outcome, on_target=on_target,
+        )
+
+    def test_attacking_right_is_left_alone(self):
+        mark = shot_marks([self.shot(95.0, 20.0)], 'right')[0]
+        assert (mark['x_m'], mark['y_m']) == (95.0, 20.0)
+
+    def test_attacking_left_is_mirrored_through_the_centre(self):
+        """Both axes, not just the length.
+
+        Mirroring x alone would keep a shot from the right wing on the right of
+        the picture, when from the attacking team's point of view it came from
+        their left. That is a wrong answer that looks entirely normal.
+        """
+        mark = shot_marks([self.shot(10.0, 20.0)], 'left')[0]
+        assert mark['x_m'] == 95.0
+        assert mark['y_m'] == 48.0
+
+    def test_distance_to_the_attacked_goal_survives_the_flip(self):
+        """The invariant the whole mirror exists to preserve."""
+        right = shot_marks([self.shot(95.0, 34.0)], 'right')[0]
+        left = shot_marks([self.shot(10.0, 34.0)], 'left')[0]
+        assert right['x_m'] == left['x_m']
+
+    def test_no_direction_means_no_map_rather_than_an_unflipped_one(self):
+        assert shot_marks([self.shot(95.0, 20.0)], None) is None
+
+    def test_a_calibrated_run_with_no_shots_is_an_empty_list(self):
+        """Distinct from None. One says nobody shot, the other says we could
+        not have placed a shot if they had."""
+        assert shot_marks([], 'right') == []
+
+    def test_a_shot_with_no_position_is_skipped_not_placed_at_zero(self):
+        shot = self.shot(95.0, 20.0)
+        shot = replace(shot, start_m=None)
+        assert shot_marks([shot], 'right') == []
+
+    def test_the_outcome_and_xg_travel_with_the_point(self):
+        mark = shot_marks(
+            [self.shot(99.0, 34.0, xg=0.62, outcome='goal', on_target=True)], 'right',
+        )[0]
+        assert mark['outcome'] == 'goal'
+        assert mark['on_target'] is True
+        assert mark['xg'] == 0.62
+        assert mark['video_s'] == 612.0
+
+    def test_it_is_json_safe(self):
+        marks = shot_marks([self.shot(95.0, 20.0)], 'right')
+        assert json.loads(json.dumps(marks))[0]['x_m'] == 95.0

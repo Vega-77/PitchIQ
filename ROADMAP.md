@@ -481,6 +481,12 @@ Architectural consequences:
 
 ## Testing, Validation & Debugging Strategy
 
+**CI runs all three suites on every push** (`.github/workflows/tests.yml`), which
+until 2026-08-03 nothing did — 834 tests existed and the only thing between a
+broken pipeline and a deployed site was whether somebody remembered. The Python
+job installs `requirements-test.txt` rather than the full pipeline: `cv/detector.py`
+imports ultralytics lazily, so nothing under test pulls in torch.
+
 Applies across every phase below — how we know each piece actually works, not just
 "the final number looked plausible":
 
@@ -990,12 +996,12 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model6.
 ## 13. Player & Team Statistics / Profiles
 - [ ] `Player` domain model beyond the current UI stub in `xg-sandbox/geometry.js`: identity, team, jersey number, role, per-match stat accumulator
 - [ ] `Team` domain model: roster, formation, aggregate stats
-- [x] **[Demo]** Compute the halftime-tier stats first (possession, xG, distance,
-      sprint counts, live-tagged event counts) — all now computed and published.
-      The **shot map** is the one piece of that line still missing: `events_payload`
-      strips `start_m` from every event, so no shot coordinate reaches the client
-      and there is nothing to plot. Nothing in `assets/` draws a pitch surface yet
-      either (`pitch-backdrop.js` is decorative).
+- [x] **[Demo]** Compute the halftime-tier stats first (possession, shot map/xG,
+      distance, sprint counts, live-tagged event counts) — all computed,
+      published and drawn. Shot coordinates travel beside the counts rather than
+      in the event list, which still drops positions for passes and carries for
+      the reasons it always did; a half has a dozen shots and those are the ones
+      worth placing.
 - [ ] **[MVP]** Full post-game tactical catalog (passing networks, phase-of-play, pressing trends)
 - [ ] Use the Phase 3 sub log to scope each player's stats to their actual minutes played
 - [ ] **[Stretch]** Cross-match / season aggregation per player
@@ -1029,6 +1035,10 @@ than the workaround, which matters given the data class.
       instead of three copies of the embed-or-link-or-nothing decision. A link
       saved after reports were already published now pushes onto the existing
       `playerReports` documents rather than waiting for a re-publish.
+- [x] Shot maps and heatmaps, on both the coach's match view and a player's own
+      report, each shot clickable to seek the video. Both halves of a shot map
+      are mirrored to attack right in `report_json` rather than in a renderer, so
+      a second-half shot cannot be plotted at the wrong end by a page that forgot.
 - [ ] **[MVP]** Coach tactical dashboard, player portal view (Phase 14), event timeline synced to video (shared with the Phase 11 review tool)
 - [ ] **[Stretch]** Live tracking overlay on video (bounding boxes, IDs, mini-map)
 

@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=21">
-    <link rel="stylesheet" href="coach.css?v=21">
+    <link rel="stylesheet" href="../assets/app.css?v=22">
+    <link rel="stylesheet" href="coach.css?v=22">
 </head>
 <body>
 
@@ -346,6 +346,23 @@
             </div>
         </section>
 
+        <!-- Both sides' shots, mirrored so each team attacks right. Hidden
+             until there is a calibration to place them with. -->
+        <section class="block hidden" id="cv-shots-block">
+            <h3>Shots</h3>
+            <p class="muted" id="cv-shots-note" style="margin:-4px 0 14px"></p>
+            <div class="shot-maps">
+                <figure>
+                    <figcaption id="cv-shots-us-cap">Us</figcaption>
+                    <div id="cv-shots-us" class="shot-map"></div>
+                </figure>
+                <figure>
+                    <figcaption id="cv-shots-them-cap">Them</figcaption>
+                    <div id="cv-shots-them" class="shot-map"></div>
+                </figure>
+            </div>
+        </section>
+
         <section class="block hidden" id="cv-clusters-block">
             <h3>Who the video tracked <span id="cv-save-state" class="save-state"></span></h3>
             <p class="muted" id="cv-clusters-note"></p>
@@ -471,6 +488,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=21"></script>
+<script type="module" src="coach.js?v=22"></script>
 </body>
 </html>

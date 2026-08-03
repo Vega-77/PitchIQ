@@ -21,6 +21,7 @@ import * as video from '../assets/video.js';
 import * as report from '../assets/report.js';
 import * as matchVideo from '../assets/match-video.js';
 import * as heatmap from '../assets/heatmap.js';
+import * as markMod from '../assets/shot-map.js';
 
 // ---------------------------------------------------------------- video URLs
 
@@ -1132,5 +1133,82 @@ describe('cellAt and busiestCell', () => {
     test('an empty grid has no busiest cell', () => {
         assert.equal(heatmap.busiestCell({ cols: 2, rows: 2, values: [0, 0, 0, 0] }), null);
         assert.equal(heatmap.busiestCell(null), null);
+    });
+});
+
+// ------------------------------------------------------------- the shot map
+//
+// The mirroring happens in Python (cv/report_json.py::shot_marks) so no
+// renderer can forget it, which leaves two things worth pinning here: the size
+// scale, and the totals printed under the map.
+
+describe('markRadius', () => {
+    test('area scales with xG, not radius', () => {
+        // Scaling the radius directly makes a 0.4 chance look four times a 0.1
+        // one instead of twice, and every shot map that does it overstates the
+        // good chances. Area ∝ r², so r ∝ √xg.
+        const area = (xg) => Math.PI * markMod.markRadius(xg) ** 2;
+        const base = markMod.markRadius(0);
+
+        // With the floor subtracted, the growth is √-shaped.
+        const grow = (xg) => markMod.markRadius(xg) - base;
+        assert.ok(Math.abs(grow(0.4) / grow(0.1) - 2) < 0.001);
+        assert.ok(area(0.4) > area(0.1));
+    });
+
+    test('a shot with no xG still gets a dot', () => {
+        // Every shot before the model was wired in has a null xG. It happened
+        // whether or not it could be scored, and hiding it would undercount.
+        assert.equal(markMod.markRadius(null), markMod.markRadius(0));
+        assert.ok(markMod.markRadius(undefined) > 0);
+    });
+
+    test('an impossible xG is clamped rather than trusted', () => {
+        assert.equal(markMod.markRadius(5), markMod.markRadius(1));
+        assert.equal(markMod.markRadius(-1), markMod.markRadius(0));
+    });
+});
+
+describe('markClass', () => {
+    test('three outcomes and no more', () => {
+        assert.equal(markMod.markClass({ outcome: 'goal', on_target: true }), 'is-goal');
+        assert.equal(markMod.markClass({ outcome: 'saved', on_target: true }), 'is-on-target');
+        assert.equal(markMod.markClass({ outcome: 'off_target' }), 'is-off');
+        assert.equal(markMod.markClass(null), 'is-off');
+    });
+});
+
+describe('shotSummary', () => {
+    const marks = [
+        { xg: 0.4, outcome: 'goal', on_target: true },
+        { xg: 0.05, outcome: 'off_target', on_target: false },
+        { xg: 0.2, outcome: 'saved', on_target: true },
+    ];
+
+    test('counts the three things worth printing', () => {
+        const out = markMod.shotSummary(marks);
+        assert.equal(out.shots, 3);
+        assert.equal(out.onTarget, 2);
+        assert.equal(out.goals, 1);
+        assert.ok(Math.abs(out.xg - 0.65) < 1e-9);
+    });
+
+    test('no xG anywhere gives null, not zero', () => {
+        // A run before the model was wired in has no expected goals, which is
+        // not the same as a half with no chances in it.
+        const out = markMod.shotSummary([{ outcome: 'off_target', on_target: false }]);
+        assert.equal(out.xg, null);
+        assert.equal(out.shots, 1);
+    });
+
+    test('xG sums only over the shots that carry one', () => {
+        const out = markMod.shotSummary([{ xg: 0.3, on_target: true }, { on_target: false }]);
+        assert.ok(Math.abs(out.xg - 0.3) < 1e-9);
+        assert.equal(out.shots, 2);
+    });
+
+    test('nothing at all does not throw', () => {
+        assert.deepEqual(markMod.shotSummary(null),
+            { shots: 0, onTarget: 0, goals: 0, xg: null });
     });
 });

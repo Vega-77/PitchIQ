@@ -1,0 +1,153 @@
+// Every shot, as a point on the attacking half, sized by how good a chance it
+// was.
+//
+// The xG model has existed since before the CV work started and nothing has
+// ever drawn a shot on a pitch, because no shot coordinate reached the browser:
+// `events_payload` drops `start_m` from every event, for reasons that are still
+// right for passes and carries. Shots are different — there are a dozen a half
+// and they are the ones anybody wants to see placed.
+//
+//     Everything attacks right.
+//
+// The mirroring happens in `cv/report_json.py::shot_marks`, not here, so a
+// second-half shot cannot end up plotted at the wrong end by a renderer that
+// forgot. By the time a mark reaches this module, `x_m`/`y_m` already mean
+// "position as if attacking the right-hand goal".
+//
+//     Area, not radius.
+//
+// A dot's size encodes xG through its area, because that is what the eye
+// actually compares. Scaling the radius by xG makes a 0.4 chance look four
+// times the chance of a 0.1 one instead of four times the area, and every shot
+// map that does it overstates the good chances.
+
+import {
+    PITCH_LENGTH_M, PITCH_WIDTH_M, pitchMarkings,
+} from './pitch-backdrop.js?v=22';
+
+const NS = 'http://www.w3.org/2000/svg';
+
+// Only the attacking half is drawn. A shot from inside your own half is worth
+// about 0.005 xG and happens twice a season; giving it half the picture costs
+// every other shot half its resolution.
+const FROM_X = PITCH_LENGTH_M / 2;
+
+// Metres of radius. The floor exists so a 0.01 chance is still visible as a
+// thing that happened — a shot map that hides the bad ones flatters the team.
+const MIN_R = 0.9;
+const MAX_R = 3.4;
+
+function el(name, attrs) {
+    const node = document.createElementNS(NS, name);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+    return node;
+}
+
+/**
+ * Radius in metres for a chance worth `xg`.
+ *
+ * Square-rooted so **area** scales with xG. A null xG — every shot before the
+ * bridge was wired up, and any shot the model could not be run for — draws at
+ * the floor rather than not at all: the shot happened whether or not it could
+ * be scored.
+ */
+export function markRadius(xg) {
+    if (xg == null) return MIN_R;
+    const clamped = Math.max(0, Math.min(1, xg));
+    return MIN_R + (MAX_R - MIN_R) * Math.sqrt(clamped);
+}
+
+/** Which visual class a shot gets, from its outcome. */
+export function markClass(mark) {
+    if (mark?.outcome === 'goal') return 'is-goal';
+    if (mark?.on_target) return 'is-on-target';
+    return 'is-off';
+}
+
+/**
+ * Totals worth printing under the map: shots, on target, goals, and xG.
+ *
+ * xG is null rather than 0 when no shot carried one — a run before the model
+ * was wired in has no expected goals, which is not the same as no chances.
+ */
+export function shotSummary(marks) {
+    const list = marks || [];
+    const scored = list.filter((m) => m.xg != null);
+    return {
+        shots: list.length,
+        onTarget: list.filter((m) => m.on_target).length,
+        goals: list.filter((m) => m.outcome === 'goal').length,
+        xg: scored.length ? scored.reduce((sum, m) => sum + m.xg, 0) : null,
+    };
+}
+
+/**
+ * The attacking half with every shot on it.
+ *
+ * `onPick` makes each shot a button that seeks the video to it, which is the
+ * thing that turns a picture into something a coach uses. Without one the marks
+ * are inert circles and no cursor changes.
+ */
+export function shotMapSvg(marks, { onPick = null } = {}) {
+    const svg = el('svg', {
+        viewBox: `${FROM_X - 2} -2 ${PITCH_LENGTH_M - FROM_X + 4} ${PITCH_WIDTH_M + 4}`,
+        preserveAspectRatio: 'xMidYMid meet',
+        class: 'shot-map-svg',
+        role: 'img',
+    });
+
+    svg.appendChild(pitchMarkings({ width: 0.3 }));
+
+    // Biggest first, so a tap-in never buries the half-chance beside it.
+    const ordered = [...(marks || [])].sort(
+        (a, b) => markRadius(b.xg) - markRadius(a.xg),
+    );
+
+    for (const mark of ordered) {
+        // A shot from the defending half is real but off this picture. Pinned
+        // to the halfway line rather than dropped: the count under the map
+        // includes it, so removing the dot entirely would not add up.
+        const x = Math.max(FROM_X, Number(mark.x_m) || 0);
+        const y = Number(mark.y_m) || 0;
+
+        const dot = el('circle', {
+            cx: x, cy: y, r: markRadius(mark.xg),
+            class: `shot-mark ${markClass(mark)}`,
+        });
+
+        const label = [
+            mark.outcome === 'goal' ? 'Goal' : (mark.on_target ? 'On target' : 'Off target'),
+            mark.xg != null ? `${mark.xg.toFixed(2)} xG` : null,
+        ].filter(Boolean).join(' · ');
+        dot.appendChild(el('title', {})).textContent = label;
+
+        if (onPick) {
+            dot.classList.add('is-pickable');
+            dot.addEventListener('click', () => onPick(mark));
+        }
+        svg.appendChild(dot);
+    }
+
+    return svg;
+}
+
+/**
+ * Put a shot map into `host`. Returns false when there is nothing to draw, so a
+ * caller hides the section rather than showing an empty half-pitch.
+ *
+ * An empty array and a null are different and both draw nothing: null means no
+ * calibration, an empty array means a calibrated run in which nobody shot. The
+ * caller has the wording for that distinction; this only reports that it drew
+ * nothing.
+ */
+export function renderShotMap(host, marks, options = {}) {
+    if (!host) return false;
+    host.innerHTML = '';
+    if (!marks?.length) return false;
+
+    const svg = shotMapSvg(marks, options);
+    svg.setAttribute('aria-label', options.label
+        || `${marks.length} shots, placed on the pitch and sized by chance quality`);
+    host.appendChild(svg);
+    return true;
+}

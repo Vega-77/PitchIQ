@@ -326,6 +326,10 @@ def player_report_fields(track_stats: dict, attacking_end: str | None = None) ->
         f'{CV_FIELD_PREFIX}Heatmap': _flat_heatmap(track_stats.get('heatmap')),
         # Which way they were playing, so the heatmap above can be read.
         f'{CV_FIELD_PREFIX}AttackingEnd': attacking_end,
+        # Their own shots as points, already mirrored to attack right. A dozen
+        # a half at most, and each one is a flat dict of numbers — no nested
+        # arrays, which Firestore would refuse.
+        f'{CV_FIELD_PREFIX}ShotMap': track_stats.get('shot_map'),
     }
 
 

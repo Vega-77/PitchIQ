@@ -1430,3 +1430,51 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
 /* Which way they were playing. Dimmer than the markings — it is a label, and
    the pitch is the subject. */
 .heatmap-arrow { color: var(--text-faint); }
+
+/* --------------------------------------------------------------- shot map */
+/*
+   Half a pitch — the attacking half — with a dot per shot, sized by area so a
+   0.4 chance looks four times a 0.1 one rather than sixteen.
+*/
+.shot-map {
+    /* Half the length, full width, plus the viewBox's 2m margin. */
+    aspect-ratio: 56.5 / 72;
+    width: 100%;
+    max-width: 380px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 10px;
+    color: var(--line-hi);
+}
+.shot-map-svg { width: 100%; height: 100%; display: block; }
+.shot-map.is-empty { display: none; }
+
+/* Outcome as colour, and only three of them. A goal, one the keeper had to
+   deal with, and one that never troubled anybody — any finer distinction is
+   beyond what the pipeline can honestly claim about a shot. */
+.shot-mark { fill: var(--text-faint); fill-opacity: 0.5; stroke: none; }
+.shot-mark.is-on-target { fill: var(--accent); fill-opacity: 0.65; }
+.shot-mark.is-goal {
+    fill: var(--good);
+    fill-opacity: 0.9;
+    stroke: var(--good);
+    stroke-width: 0.4;
+}
+.shot-mark.is-pickable { cursor: pointer; }
+.shot-mark.is-pickable:hover { fill-opacity: 1; }
+
+/* Two maps side by side on the coach's view, stacked on a phone. */
+.shot-maps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+.shot-maps figure { margin: 0; flex: 1 1 260px; min-width: 0; }
+.shot-maps figcaption {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    overflow-wrap: anywhere;
+}

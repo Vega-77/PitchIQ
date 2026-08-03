@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=21">
-    <link rel="stylesheet" href="player.css?v=21">
+    <link rel="stylesheet" href="../assets/app.css?v=22">
+    <link rel="stylesheet" href="player.css?v=22">
 </head>
 <body>
 
@@ -130,6 +130,12 @@
             <div id="md-heatmap" class="heatmap"></div>
         </section>
 
+        <section class="block hidden" id="md-shots-block">
+            <h3>Your shots</h3>
+            <p class="muted" id="md-shots-note" style="margin:-4px 0 14px"></p>
+            <div id="md-shots" class="shot-map"></div>
+        </section>
+
         <!-- The video, and the player's own moments as marks along it. -->
         <section class="block" id="md-video-block">
             <h3>Watch your moments</h3>
@@ -148,6 +154,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="player.js?v=21"></script>
+<script type="module" src="player.js?v=22"></script>
 </body>
 </html>

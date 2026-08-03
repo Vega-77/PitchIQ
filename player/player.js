@@ -9,17 +9,18 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=21';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=21';
-import { CARD_COLOURS } from '../assets/events.js?v=21';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=21';
-import { renderHeatmap } from '../assets/heatmap.js?v=21';
-import { videoTime } from '../assets/video.js?v=21';
-import { renderMatchVideo } from '../assets/match-video.js?v=21';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=22';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=22';
+import { CARD_COLOURS } from '../assets/events.js?v=22';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=22';
+import { renderHeatmap } from '../assets/heatmap.js?v=22';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=22';
+import { videoTime } from '../assets/video.js?v=22';
+import { renderMatchVideo } from '../assets/match-video.js?v=22';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=21';
+} from '../assets/ui.js?v=22';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -280,6 +281,40 @@ function renderMatchStats(report) {
     }
 
     renderPlayerHeatmap(report);
+    renderPlayerShots(report);
+}
+
+/**
+ * This player's shots, placed on the half they were attacking.
+ *
+ * Every shot is a button that seeks the video to it, which is the point — a
+ * player is not going to scrub ninety minutes to find the one they hit wide,
+ * and being able to watch it is the difference between a statistic and
+ * something they learn from.
+ */
+function renderPlayerShots(report) {
+    const block = byId('md-shots-block');
+    const marks = report.cvShotMap || [];
+
+    const drawn = renderShotMap(byId('md-shots'), marks, {
+        onPick: (mark) => seekTo(
+            Math.max(0, (mark.video_s || 0) - (report.videoOffsetS ?? 0)),
+            report.videoOffsetS ?? 0,
+        ),
+        label: 'Your shots, placed on the pitch and sized by how good a chance each was',
+    });
+
+    block.classList.toggle('hidden', !drawn);
+    if (!drawn) return;
+
+    const totals = shotSummary(marks);
+    setText('md-shots-note',
+        `${plural(totals.shots, 'shot')}, ${totals.onTarget} on target`
+        + (totals.goals ? `, ${plural(totals.goals, 'goal')}` : '')
+        + (totals.xg != null
+            ? ` — worth about ${totals.xg.toFixed(2)} expected goals.`
+            : '.')
+        + ' Bigger circles were better chances. Tap one to watch it.');
 }
 
 /**
