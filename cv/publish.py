@@ -266,17 +266,31 @@ def events_payload(report_json: dict, limit: int = MAX_EVENTS) -> dict:
 
 
 def identity_payload(report_json: dict, mapping: dict[str, str] | None = None) -> dict:
-    """The clusters, and whichever of them a human has put a name to."""
+    """The clusters, and whichever of them a human has put a name to.
+
+    Heatmaps are flattened on the way through. Firestore refuses nested arrays
+    outright — a list of lists cannot be written at all — so passing `tracks`
+    straight through would have failed the whole publish the first time a
+    calibrated run produced one. It never has, which is the only reason this was
+    not found sooner.
+    """
+    tracks = []
+    for track in report_json.get('tracks') or []:
+        if track.get('heatmap') is None:
+            tracks.append(track)
+            continue
+        tracks.append(track | {'heatmap': _flat_heatmap(track['heatmap'])})
+
     return {
         'clusters': report_json.get('clusters') or [],
-        'tracks': report_json.get('tracks') or [],
+        'tracks': tracks,
         # cluster_id -> playerId. Empty until a coach fills it in, which is the
         # gate on anything per-player reaching a season.
         'playerByCluster': mapping or {},
     }
 
 
-def player_report_fields(track_stats: dict) -> dict:
+def player_report_fields(track_stats: dict, attacking_end: str | None = None) -> dict:
     """CV fields for one player's match report, all prefixed.
 
     Prefixed so a coach looking at a report can always tell which numbers a
@@ -303,6 +317,33 @@ def player_report_fields(track_stats: dict) -> dict:
         # numbers and a Firestore document stops at a megabyte — and a strip
         # with two thousand ticks on it is unreadable anyway.
         f'{CV_FIELD_PREFIX}TouchTimes': (track_stats.get('touch_times_s') or [])[:MAX_TOUCH_TIMES],
+        # Where they spent the match, as a 12x8 occupancy grid. Stored as a flat
+        # list with its shape beside it, because Firestore refuses nested arrays
+        # — a list of lists cannot be written at all, which is a rule that
+        # produces a runtime error rather than a lint failure.
+        #
+        # ~96 floats, so it costs less than the touch times next to it.
+        f'{CV_FIELD_PREFIX}Heatmap': _flat_heatmap(track_stats.get('heatmap')),
+        # Which way they were playing, so the heatmap above can be read.
+        f'{CV_FIELD_PREFIX}AttackingEnd': attacking_end,
+    }
+
+
+def _flat_heatmap(grid) -> dict | None:
+    """A 2-D grid as `{cols, rows, values}`, or None if there is nothing.
+
+    None rather than an empty grid: a player with no heatmap was not tracked in
+    metres, and a grid of zeroes would draw as a pitch somebody stood still on.
+    """
+    if not grid:
+        return None
+    rows = len(grid[0]) if grid[0] else 0
+    if not rows:
+        return None
+    return {
+        'cols': len(grid),
+        'rows': rows,
+        'values': [round(float(v), 5) for column in grid for v in column],
     }
 
 
@@ -376,7 +417,11 @@ def publish(
             )
             continue
 
-        report_ref.update(player_report_fields(track))
+        # The team's attacking end travels with the player, since it is what
+        # makes their heatmap readable and they never see the team document.
+        end = ((report_json.get('teams') or {}).get(track.get('team')) or {}
+               ).get('attacking_end')
+        report_ref.update(player_report_fields(track, attacking_end=end))
         written['playerReports'] += 1
 
     return written

@@ -1398,3 +1398,35 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
     .figures { gap: 12px; }
     .figure { min-width: 38px; }
 }
+
+/* ---------------------------------------------------------------- heatmap */
+/*
+   A pitch with the busy squares shaded. The markings are drawn on top of the
+   cells rather than under them, so a hot square never swallows the penalty box
+   that makes it readable.
+*/
+.heatmap {
+    /* The pitch is 105x68, and the viewBox carries a 2m margin either side. */
+    aspect-ratio: 109 / 72;
+    width: 100%;
+    /* Capped, because the aspect ratio means width buys height: at the full
+       1120px shell this would be a 740px-tall block and everything else on the
+       page would be below the fold. A pitch does not get more readable past
+       about this size — the cells are already 50px across. */
+    max-width: 620px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 10px;
+    color: var(--line-hi);
+}
+.heatmap-svg { width: 100%; height: 100%; display: block; }
+
+/* One colour at varying opacity rather than a rainbow ramp. A blue-to-red
+   scale implies a scale somebody could read values off, and this is an
+   occupancy share nobody should be reading to two figures. */
+.heatmap-cells rect { fill: var(--accent); }
+
+/* Which way they were playing. Dimmer than the markings — it is a label, and
+   the pitch is the subject. */
+.heatmap-arrow { color: var(--text-faint); }

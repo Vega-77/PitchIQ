@@ -20,6 +20,7 @@ import assert from 'node:assert/strict';
 import * as video from '../assets/video.js';
 import * as report from '../assets/report.js';
 import * as matchVideo from '../assets/match-video.js';
+import * as heatmap from '../assets/heatmap.js';
 
 // ---------------------------------------------------------------- video URLs
 
@@ -1043,5 +1044,93 @@ describe('cvReads', () => {
         }));
         assert.equal(reads.length, 4);
         assert.ok(reads.every((r) => r.title && r.detail));
+    });
+});
+
+// ------------------------------------------------------------- the heatmap
+//
+// The grid was computed per track, never carried across to the cluster, and
+// never drawn — declared, published and null on every run. These cover the two
+// things that can silently produce a plausible wrong picture: the weighting,
+// and which axis is which.
+
+describe('mergeHeatmaps', () => {
+    // 2 wide (along the pitch) by 2 deep (across it), column-major.
+    const grid = (values) => ({ cols: 2, rows: 2, values });
+
+    const corner = grid([1, 0, 0, 0]);   // one end
+    const far = grid([0, 0, 0, 1]);      // the other
+
+    test('one grid comes back normalised', () => {
+        const out = heatmap.mergeHeatmaps([{ grid: grid([2, 0, 0, 2]), minutes: 10 }]);
+        assert.deepEqual(out.values, [0.5, 0, 0, 0.5]);
+    });
+
+    test('minutes decide the weight, not the number of fragments', () => {
+        // The failure this prevents: a player tracked cleanly for 45 minutes
+        // plus once more for eight seconds at the edge of frame, shown with a
+        // hotspot at the edge of frame.
+        const out = heatmap.mergeHeatmaps([
+            { grid: corner, minutes: 45 },
+            { grid: far, minutes: 5 },
+        ]);
+        assert.equal(out.values[0], 0.9);
+        assert.equal(out.values[3], 0.1);
+    });
+
+    test('a fragment with no minutes still counts, but barely', () => {
+        const out = heatmap.mergeHeatmaps([
+            { grid: corner, minutes: 30 },
+            { grid: far, minutes: 0 },
+        ]);
+        assert.ok(out.values[0] > 0.99);
+        assert.ok(out.values[3] > 0);
+    });
+
+    test('grids of different shapes are skipped, not stretched', () => {
+        // Two bin counts mean two different runs, and resampling one onto the
+        // other would invent positions.
+        const out = heatmap.mergeHeatmaps([
+            { grid: corner, minutes: 10 },
+            { grid: { cols: 3, rows: 3, values: new Array(9).fill(1) }, minutes: 10 },
+        ]);
+        assert.equal(out.cols, 2);
+        assert.deepEqual(out.values, [1, 0, 0, 0]);
+    });
+
+    test('nothing to draw gives null, not an empty pitch', () => {
+        // An empty pitch reads as a player who never moved.
+        assert.equal(heatmap.mergeHeatmaps([]), null);
+        assert.equal(heatmap.mergeHeatmaps(null), null);
+        assert.equal(heatmap.mergeHeatmaps([{ grid: null, minutes: 90 }]), null);
+        assert.equal(heatmap.mergeHeatmaps([{ grid: grid([0, 0, 0, 0]), minutes: 9 }]), null);
+    });
+
+    test('a malformed grid is refused rather than half-read', () => {
+        assert.equal(heatmap.isGrid({ cols: 2, rows: 2, values: [1, 2] }), false);
+        assert.equal(heatmap.isGrid({ cols: 0, rows: 0, values: [] }), false);
+        assert.equal(heatmap.isGrid(undefined), false);
+    });
+});
+
+describe('cellAt and busiestCell', () => {
+    // 3 along the pitch by 2 across it. Column-major, so index = x * rows + y.
+    const grid = { cols: 3, rows: 2, values: [0, 0, 0, 0.7, 0.3, 0] };
+
+    test('x runs along the pitch and y across it', () => {
+        // Getting this backwards draws a plausible picture of somebody who
+        // played sideways, which is the kind of wrong that survives review.
+        assert.equal(heatmap.cellAt(grid, 1, 1), 0.7);
+        assert.equal(heatmap.cellAt(grid, 2, 0), 0.3);
+        assert.equal(heatmap.cellAt(grid, 0, 0), 0);
+    });
+
+    test('the busiest cell is found in the same coordinates', () => {
+        assert.deepEqual(heatmap.busiestCell(grid), { x: 1, y: 1, share: 0.7 });
+    });
+
+    test('an empty grid has no busiest cell', () => {
+        assert.equal(heatmap.busiestCell({ cols: 2, rows: 2, values: [0, 0, 0, 0] }), null);
+        assert.equal(heatmap.busiestCell(null), null);
     });
 });

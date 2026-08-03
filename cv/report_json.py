@@ -117,6 +117,10 @@ class TeamStats:
     # How the shape differed late in the window against early. None on a clip
     # too short to have two halves worth comparing — which is every run so far.
     shape_drift: dict | None = None
+    # Which goal this team attacked in this period. Published because a heatmap
+    # without it cannot be read: "they stayed high" and "they sat deep" are the
+    # same picture flipped.
+    attacking_end: str | None = None
     # Giveaways by third, from this team's own direction. The defensive-third
     # count is the one the catalog asks for by name: a ball lost in front of
     # your own goal is a different event from one lost in theirs, and a single
@@ -161,6 +165,7 @@ class TeamStats:
             'territory': self.territory,
             'shape_drift': self.shape_drift,
             'turnovers_by_third': self.turnovers_by_third,
+            'attacking_end': self.attacking_end,
         }
 
 
@@ -299,10 +304,42 @@ def team_stats(
                 log, pitch, team, attacking_end,
             )
 
+    stats.attacking_end = attacking_end
     stats.shape = shape or {}
     stats.territory = territory
     stats.shape_drift = shape_drift
     return stats
+
+
+def _merge_heatmaps(pairs) -> list[list[float]] | None:
+    """Several tracks' occupancy grids into one, weighted by time tracked.
+
+    `pairs` is `[(grid, minutes)]`. Each grid is already normalised to sum to 1,
+    which is why the weighting matters: added raw, a fragment lasting eight
+    seconds would count as much as one lasting half an hour, and a player
+    tracked cleanly through a half plus once more at the edge of frame would
+    show a hotspot at the edge of frame.
+
+    Returns plain lists of floats, not a numpy array — everything leaving this
+    module has to survive `json.dumps`.
+    """
+    usable = [(g, m) for g, m in pairs if g is not None and np.size(g)]
+    if not usable:
+        return None
+
+    total = np.zeros_like(np.asarray(usable[0][0], dtype=float))
+    for grid, minutes in usable:
+        array = np.asarray(grid, dtype=float)
+        if array.shape != total.shape:
+            continue
+        # A fragment with no minutes recorded still happened, so it counts for
+        # something rather than nothing — but only just.
+        total += array * (minutes if minutes and minutes > 0 else 0.001)
+
+    weight = float(total.sum())
+    if weight <= 0:
+        return None
+    return [[round(float(v), 5) for v in row] for row in (total / weight)]
 
 
 def track_stats(
@@ -375,6 +412,17 @@ def track_stats(
                 stats.top_speed_kmh = top
                 stats.sprint_count = sprints
                 stats.sprint_distance_m = sprint_distance
+
+            # Where the cluster spent its time. The grid is computed per track
+            # in the pipeline and was never carried across to the cluster, so
+            # `TrackStats.heatmap` serialised as null on every run — declared,
+            # published, and never once filled in.
+            stats.heatmap = _merge_heatmaps([
+                (players_by_track.get(t).heatmap, players_by_track[t].minutes_tracked)
+                for t in cluster.track_ids
+                if players_by_track.get(t) is not None
+                and players_by_track[t].heatmap is not None
+            ])
 
         out.append(stats)
 

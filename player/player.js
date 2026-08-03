@@ -13,6 +13,7 @@ import { onUser, signOut, configWarning } from '../assets/auth.js?v=21';
 import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=21';
 import { CARD_COLOURS } from '../assets/events.js?v=21';
 import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=21';
+import { renderHeatmap } from '../assets/heatmap.js?v=21';
 import { videoTime } from '../assets/video.js?v=21';
 import { renderMatchVideo } from '../assets/match-video.js?v=21';
 import {
@@ -277,6 +278,46 @@ function renderMatchStats(report) {
     if (report.cvTackles != null) {
         grid.append(statCard(report.cvTackles, 'Tackles won', 'is-muted', trust));
     }
+
+    renderPlayerHeatmap(report);
+}
+
+/**
+ * Where this player spent the match.
+ *
+ * One report is one player, so there is nothing to merge here — the pipeline
+ * already combined their clusters, weighted by how long each was tracked. The
+ * merge function still runs, because handing it a single grid is how it
+ * normalises and validates one.
+ *
+ * The caption carries the caveat rather than a confidence mark: a heatmap
+ * assembled from nine fragments is a weaker claim than one tracked cleanly, and
+ * that is a sentence rather than three pips.
+ */
+function renderPlayerHeatmap(report) {
+    const block = byId('md-heatmap-block');
+    const drawn = renderHeatmap(
+        byId('md-heatmap'),
+        [{ grid: report.cvHeatmap, minutes: report.cvMinutesTracked }],
+        {
+            attackingEnd: report.cvAttackingEnd || null,
+            label: 'A pitch, shaded where you spent most of your time',
+        },
+    );
+
+    block.classList.toggle('hidden', !drawn);
+    if (!drawn) return;
+
+    const fragments = report.cvClusterCount || 0;
+    setText('md-heatmap-note',
+        'Shaded where you spent the most time.'
+        + (report.cvMinutesTracked
+            ? ` From ${Math.round(report.cvMinutesTracked)} minutes the video tracked you.`
+            : '')
+        + (fragments > 2
+            ? ` The video lost and refound you ${fragments} times, so this is`
+                + ' rougher than it looks.'
+            : ''));
 }
 
 // ---------------------------------------------------------------- the video

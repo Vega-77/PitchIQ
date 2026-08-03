@@ -22,39 +22,61 @@ function el(name, attrs) {
     return node;
 }
 
+// The pitch, in metres, so anything drawn on top can be positioned in the same
+// units cv/ measures in and nothing has to convert.
+export const PITCH_LENGTH_M = L;
+export const PITCH_WIDTH_M = W;
+export const PITCH_VIEWBOX = `-2 -2 ${L + 4} ${W + 4}`;
+
+/**
+ * The markings as a `<g>`, in metres.
+ *
+ * Separate from `pitchSvg` because the same lines are wanted twice over: once
+ * faintly behind a page header, and once at full strength under a heatmap or a
+ * shot map, where they are the reference that makes the plot readable rather
+ * than ornament. Two copies of this geometry would be two chances to draw a
+ * penalty box in the wrong place, and only one of them would be noticed.
+ */
+export function pitchMarkings({ width = 0.35 } = {}) {
+    const group = el('g', {});
+    const stroke = { stroke: 'currentColor', 'stroke-width': width, fill: 'none' };
+    const cy = W / 2;
+
+    group.appendChild(el('rect', { x: 0, y: 0, width: L, height: W, ...stroke }));
+    group.appendChild(el('line', { x1: L / 2, y1: 0, x2: L / 2, y2: W, ...stroke }));
+    group.appendChild(el('circle', { cx: L / 2, cy, r: CIRCLE_R, ...stroke }));
+    group.appendChild(el('circle', {
+        cx: L / 2, cy, r: 0.6, fill: 'currentColor', stroke: 'none',
+    }));
+
+    for (const side of [0, 1]) {
+        const x = side ? L - PEN_LEN : 0;
+        const sx = side ? L - SIX_LEN : 0;
+        group.appendChild(el('rect', {
+            x, y: cy - PEN_W / 2, width: PEN_LEN, height: PEN_W, ...stroke,
+        }));
+        group.appendChild(el('rect', {
+            x: sx, y: cy - SIX_W / 2, width: SIX_LEN, height: SIX_W, ...stroke,
+        }));
+        group.appendChild(el('circle', {
+            cx: side ? L - 11 : 11, cy, r: 0.6, fill: 'currentColor', stroke: 'none',
+        }));
+    }
+
+    return group;
+}
+
 /** Build the markings as an <svg>, viewBox in metres so nothing needs scaling. */
 export function pitchSvg({ opacity = 0.5 } = {}) {
     const svg = el('svg', {
-        viewBox: `-2 -2 ${L + 4} ${W + 4}`,
+        viewBox: PITCH_VIEWBOX,
         preserveAspectRatio: 'xMidYMid slice',
         fill: 'none',
         'aria-hidden': 'true',
         focusable: 'false',
     });
     svg.style.opacity = opacity;
-
-    const stroke = { stroke: 'currentColor', 'stroke-width': 0.35, fill: 'none' };
-    const cy = W / 2;
-
-    svg.appendChild(el('rect', { x: 0, y: 0, width: L, height: W, ...stroke }));
-    svg.appendChild(el('line', { x1: L / 2, y1: 0, x2: L / 2, y2: W, ...stroke }));
-    svg.appendChild(el('circle', { cx: L / 2, cy, r: CIRCLE_R, ...stroke }));
-    svg.appendChild(el('circle', { cx: L / 2, cy, r: 0.6, fill: 'currentColor', stroke: 'none' }));
-
-    for (const side of [0, 1]) {
-        const x = side ? L - PEN_LEN : 0;
-        const sx = side ? L - SIX_LEN : 0;
-        svg.appendChild(el('rect', {
-            x, y: cy - PEN_W / 2, width: PEN_LEN, height: PEN_W, ...stroke,
-        }));
-        svg.appendChild(el('rect', {
-            x: sx, y: cy - SIX_W / 2, width: SIX_LEN, height: SIX_W, ...stroke,
-        }));
-        svg.appendChild(el('circle', {
-            cx: side ? L - 11 : 11, cy, r: 0.6, fill: 'currentColor', stroke: 'none',
-        }));
-    }
-
+    svg.appendChild(pitchMarkings());
     return svg;
 }
 

@@ -122,6 +122,14 @@
             <div id="md-stats" class="stat-grid"></div>
         </section>
 
+        <!-- Hidden until there is a grid to draw. An empty pitch reads as a
+             player who never moved, which is worse than showing nothing. -->
+        <section class="block hidden" id="md-heatmap-block">
+            <h3>Where you played</h3>
+            <p class="muted" id="md-heatmap-note" style="margin:-4px 0 14px"></p>
+            <div id="md-heatmap" class="heatmap"></div>
+        </section>
+
         <!-- The video, and the player's own moments as marks along it. -->
         <section class="block" id="md-video-block">
             <h3>Watch your moments</h3>
