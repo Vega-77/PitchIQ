@@ -424,3 +424,23 @@ html, body {
     .live-footer { padding: 8px 14px 12px; }
     .last-strip { padding: 8px 14px; }
 }
+
+/* The signed-out state stretched a single button the full width of whatever it
+   was opened on — fine on the phone this is mostly used from, absurd on a
+   1400px laptop, where one mint bar spanned the screen above an empty page.
+   Capped and centred, with room to say what the tool is for. */
+#signin-block {
+    max-width: 420px;
+    margin: 40px auto 0;
+    padding: 26px 24px 24px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    text-align: center;
+}
+#signin-block .signin-lede {
+    margin: 0 0 18px;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}

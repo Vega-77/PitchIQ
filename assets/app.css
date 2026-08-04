@@ -1505,3 +1505,62 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
     margin-bottom: 8px;
     overflow-wrap: anywhere;
 }
+
+/* ---------------------------------------------------------------- footer */
+/*
+   Every page ended by running out of content into several hundred pixels of
+   empty background, which reads as a page that failed to finish rendering
+   rather than as a page that finished. A footer is the cheapest thing that
+   says "this is the end", and it carries the two links people actually hunt
+   for — the other surfaces, and what state the project is in.
+*/
+.site-foot {
+    max-width: var(--shell);
+    margin: 56px auto 0;
+    padding: 22px 24px 40px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 24px;
+    font-size: 0.82rem;
+    color: var(--text-faint);
+}
+.site-foot nav { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.site-foot a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    color: var(--text-dim);
+}
+.site-foot a:hover { color: var(--accent); }
+.site-foot .foot-note { margin-left: auto; }
+
+@media (max-width: 640px) {
+    .site-foot { margin-top: 36px; padding-bottom: 32px; }
+    .site-foot .foot-note { margin-left: 0; flex-basis: 100%; }
+}
+
+/* A native file input renders as a light system button, which on a dark page
+   looks like a piece of another application. Styled to match the rest of the
+   form controls, with the button part given the same treatment as .btn. */
+input[type="file"] {
+    padding: 9px 12px;
+    cursor: pointer;
+}
+input[type="file"]::file-selector-button {
+    margin: -2px 12px -2px -4px;
+    padding: 8px 14px;
+    border: 1px solid var(--line-hi);
+    border-radius: 7px;
+    background: var(--surface-hi);
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.86rem;
+    cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}

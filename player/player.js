@@ -9,18 +9,18 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=23';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=23';
-import { CARD_COLOURS } from '../assets/events.js?v=23';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=23';
-import { renderHeatmap } from '../assets/heatmap.js?v=23';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=23';
-import { videoTime } from '../assets/video.js?v=23';
-import { renderMatchVideo } from '../assets/match-video.js?v=23';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=24';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=24';
+import { CARD_COLOURS } from '../assets/events.js?v=24';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=24';
+import { renderHeatmap } from '../assets/heatmap.js?v=24';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=24';
+import { videoTime } from '../assets/video.js?v=24';
+import { renderMatchVideo } from '../assets/match-video.js?v=24';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=23';
+} from '../assets/ui.js?v=24';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 

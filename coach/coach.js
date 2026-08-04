@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=23';
+} from '../assets/auth.js?v=24';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,21 +8,21 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=23';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=23';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=23';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=23';
+} from '../assets/db.js?v=24';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=24';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=24';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=24';
 import {
     NOT_A_PLAYER, rankRosterForCluster, possessionIsInPlay, cvQualityNotes,
     roughDuration, shapeConfidence, reviewScore, reviewLabels,
-} from '../assets/report.js?v=23';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=23';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=23';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=23';
+} from '../assets/report.js?v=24';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=24';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=24';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=24';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, figure, cardChips, timelineRow, minutesChart, confidenceMark,
-} from '../assets/ui.js?v=23';
+} from '../assets/ui.js?v=24';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 

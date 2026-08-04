@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/app.css?v=23">
-    <link rel="stylesheet" href="assets/landing.css?v=23">
+    <link rel="stylesheet" href="assets/app.css?v=24">
+    <link rel="stylesheet" href="assets/landing.css?v=24">
 </head>
 <body>
 
@@ -29,21 +29,46 @@
     <!-- signed out -->
     <section id="view-marketing">
         <div class="hero has-backdrop" id="landing-hero">
-            <div class="eyebrow">High school football analytics</div>
-            <h1>Every corner, card and goal — <em>recorded properly</em>.</h1>
-            <p class="lede">
-                Tag a match from the sideline on a tablet. PitchIQ turns those taps
-                into minutes played, goals and assists, cards and team totals, then
-                gives every player a private report of their own game.
-            </p>
-            <div class="hero-actions">
-                <button id="btn-hero-signin" class="btn primary">Sign in with Google</button>
-                <a class="btn" href="xg-sandbox/">Try the xG sandbox</a>
+            <div class="hero-copy">
+                <div class="eyebrow">High school football analytics</div>
+                <h1>Every corner, card and goal — <em>recorded properly</em>.</h1>
+                <p class="lede">
+                    Tag a match from the sideline on a tablet. PitchIQ turns those taps
+                    into minutes played, goals and assists, cards and team totals, then
+                    gives every player a private report of their own game.
+                </p>
+                <div class="hero-actions">
+                    <button id="btn-hero-signin" class="btn primary">Sign in with Google</button>
+                    <a class="btn" href="xg-sandbox/">Try the xG sandbox</a>
+                </div>
+                <p class="muted">
+                    Coaches need an invite to create a team. Players sign in with the
+                    address their coach put on the roster.
+                </p>
             </div>
-            <p class="muted">
-                Coaches need an invite to create a team. Players sign in with the
-                address their coach put on the roster.
-            </p>
+
+            <!-- What the player actually receives, rather than a description of
+                 it. Static and clearly a sample — it is the product, and the
+                 right half of the hero was empty without it. -->
+            <aside class="hero-sample" aria-label="Example of a player's match report">
+                <div class="sample-head">
+                    <span class="sample-tag">A player's report</span>
+                    <span class="sample-score">2 <span>&ndash;</span> 1</span>
+                </div>
+                <div class="sample-opp">vs Linden &middot; 12 Sept</div>
+                <div class="sample-grid">
+                    <div class="sample-stat"><b>78&prime;</b><span>Minutes</span></div>
+                    <div class="sample-stat"><b>1</b><span>Goal</span></div>
+                    <div class="sample-stat"><b>1</b><span>Assist</span></div>
+                    <div class="sample-stat"><b>41</b><span>Touches</span></div>
+                </div>
+                <ul class="sample-moments">
+                    <li><span>23&prime;</span> You assisted Jordan Cho</li>
+                    <li><span>61&prime;</span> You scored</li>
+                    <li><span>74&prime;</span> Came off</li>
+                </ul>
+                <p class="sample-foot">Only they and their coaches can see it.</p>
+            </aside>
         </div>
 
         <section class="block">
@@ -154,6 +179,17 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="assets/landing.js?v=23"></script>
+<script type="module" src="assets/landing.js?v=24"></script>
+<footer class="site-foot">
+    <nav aria-label="Site">
+        <a href="./">Home</a>
+        <a href="./coach/">Coach</a>
+        <a href="./player/">Player</a>
+        <a href="./calibrate/">Calibrate</a>
+        <a href="./xg-sandbox/">xG sandbox</a>
+    </nav>
+    <span class="foot-note">PitchIQ &middot; beta, built for one high school season</span>
+</footer>
+
 </body>
 </html>
