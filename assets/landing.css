@@ -25,7 +25,7 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-size: 11px;
+    font-size: 0.78rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1.4px;
@@ -59,7 +59,7 @@
 .flow-step .step-n {
     display: block;
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 0.74rem;
     font-weight: 700;
     letter-spacing: 1px;
     color: var(--accent);
@@ -74,7 +74,7 @@
     color: var(--text);
 }
 
-.flow-step p { margin: 0; font-size: 14px; color: var(--text-dim); line-height: 1.6; }
+.flow-step p { margin: 0; font-size: 0.88rem; color: var(--text-dim); line-height: 1.6; }
 
 /* Status table for what is and is not built yet — honesty as a design element
    rather than a wall of prose. */
@@ -85,10 +85,10 @@
     gap: 14px;
     background: var(--surface);
     padding: 13px 18px;
-    font-size: 14px;
+    font-size: 0.88rem;
 }
 .status-row .what { flex: 1; }
-.status-row .note { color: var(--text-faint); font-size: 13px; }
+.status-row .note { color: var(--text-faint); font-size: 0.82rem; }
 
 #user-chip { font-size: 0.82rem; color: var(--text-dim); }
 

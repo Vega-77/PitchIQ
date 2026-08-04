@@ -7,10 +7,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=22">
-    <link rel="stylesheet" href="tagging.css?v=22">
+    <link rel="stylesheet" href="../assets/app.css?v=23">
+    <link rel="stylesheet" href="tagging.css?v=23">
 </head>
 <body>
+
+<!-- The document heading. Hidden because this is a fullscreen tool whose every
+     pixel is a tap target and whose three views each have their own title —
+     but a page with no h1 at all is a page a screen reader cannot introduce. -->
+<h1 class="sr-only">PitchIQ live tagging</h1>
 
 <!-- ===================== SETUP ===================== -->
 <section id="view-setup" class="view active">
@@ -268,6 +273,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="tagging.js?v=22"></script>
+<script type="module" src="tagging.js?v=23"></script>
 </body>
 </html>

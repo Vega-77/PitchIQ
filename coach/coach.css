@@ -23,17 +23,17 @@
 .record-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 
 .record {
-    font-size: 25px;
+    font-size: 1.47rem;
     font-weight: 750;
     font-variant-numeric: tabular-nums;
     letter-spacing: -.8px;
 }
-.record-gd { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.record-gd { font-size: 1.12rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .record-gd.pos { color: var(--good); }
 .record-gd.neg { color: var(--danger); }
 
 .record-key {
-    font-size: 10px;
+    font-size: 0.74rem;
     font-weight: 650;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -105,7 +105,7 @@
 
 .tab-count {
     display: inline-block;
-    font-size: 11px;
+    font-size: 0.76rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--text-faint);
@@ -126,7 +126,7 @@
    topbar so it is answerable from every screen without scrolling. */
 .team-switch { display: flex; align-items: center; gap: 8px; margin: 0; }
 .team-switch > span {
-    font-size: 0.62rem;
+    font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;

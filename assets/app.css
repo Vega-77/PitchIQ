@@ -172,7 +172,7 @@ a:hover { color: var(--accent-hi); }
     color: var(--text);
 }
 .brand span {
-    font-size: 0.68rem;
+    font-size: 0.72rem;
     font-weight: 600;
     letter-spacing: 1.4px;
     text-transform: uppercase;
@@ -191,7 +191,27 @@ a:hover { color: var(--accent-hi); }
     color: var(--text-dim);
 }
 
+/* Bare text links in the top bar were 22px tall — a fine mouse target and a
+   poor thumb one, on a bar that is mostly used from a phone or a tablet on a
+   touchline. Padded to the same 40px the buttons beside them already use, which
+   also removes the reason the bar's height needed pinning above: every child is
+   now the same height whether it is a link or a button. */
+.topbar-user > a:not(.btn) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 4px;
+}
+
 .shell { max-width: var(--shell); margin: 0 auto; padding: 0 24px 72px; }
+
+/* A large monitor. Prose is capped at 62ch by `.lede` independently of this, so
+   the extra width goes to the things that actually want it — rosters, the
+   player table, the review list — rather than to line length. Below this the
+   shell stays at 1120px, which is where the reading measure was tuned. */
+@media (min-width: 1500px) {
+    :root { --shell: 1280px; }
+}
 
 /* ---------------------------------------------------------------- backdrop */
 
@@ -254,12 +274,17 @@ h2 {
     margin: 0 0 14px;
 }
 
-/* Section eyebrow: small, spaced, with a short accent rule. */
+/* Section eyebrow: small, spaced, with a short accent rule.
+   0.82rem (~14px) rather than the 0.72 it started at. This is the heading on
+   every section in the app, and uppercase letter-spaced text is *harder* to
+   read than sentence case at the same size, not easier — so a label of this
+   importance deserves more size than body text, not less. The file header
+   argues exactly this and the eyebrows were not obeying it. */
 h3 {
     display: flex;
     align-items: center;
     gap: 9px;
-    font-size: 0.72rem;
+    font-size: 0.82rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1.1px;
@@ -339,7 +364,7 @@ input::placeholder { color: var(--text-faint); }
 label.field { display: block; margin-bottom: 16px; }
 label.field > span {
     display: block;
-    font-size: 0.72rem;
+    font-size: 0.82rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -462,7 +487,7 @@ button.list-item:hover, a.list-item:hover {
 .figure .n.neg { color: var(--danger); }
 .figure .n.dim { color: var(--text-faint); }
 .figure .k {
-    font-size: 0.56rem;
+    font-size: 0.7rem;
     font-weight: 650;
     text-transform: uppercase;
     letter-spacing: .9px;
@@ -494,9 +519,11 @@ button.list-item:hover, a.list-item:hover {
     color: var(--accent);
 }
 
-/* Small accent label above a heading, e.g. "Season". */
+/* Small accent label above a heading, e.g. "Season". Was 0.62rem, which is
+   10.5px — comfortably into the range this project's own type scale exists to
+   avoid. */
 .eyebrow-mini {
-    font-size: 0.62rem;
+    font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1.4px;
@@ -554,7 +581,7 @@ button.list-item:hover, a.list-item:hover {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 0.7rem;
+    font-size: 0.78rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .9px;
@@ -781,7 +808,7 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
 
 .tl-text { font-size: 0.85rem; }
 .tl-text .who { color: var(--text-dim); }
-.tl-side { font-size: 0.72rem; font-weight: 650; text-transform: uppercase; letter-spacing: .8px; color: var(--text-faint); }
+.tl-side { font-size: 0.78rem; font-weight: 650; text-transform: uppercase; letter-spacing: .8px; color: var(--text-faint); }
 
 /* ---------------------------------------------------------------- states */
 
@@ -1098,7 +1125,7 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
    it stays quiet next to the confirm/reject colours that mean a human decided
    something. */
 .review-dead {
-    font-size: 0.68rem;
+    font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -1227,7 +1254,7 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
     margin: 0;
     padding: 8px 12px;
     border-top: 1px solid var(--line);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--text-faint);
 }
 

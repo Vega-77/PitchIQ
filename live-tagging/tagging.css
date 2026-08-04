@@ -57,7 +57,7 @@ html, body {
 .match-card:active { transform: translateY(0); }
 
 .match-card .vs {
-    font-size: 10px;
+    font-size: 0.74rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1.2px;
@@ -147,7 +147,7 @@ html, body {
 .btn-kickoff:hover { box-shadow: 0 0 0 1px rgba(255,255,255,.2), 0 22px 60px rgba(47,125,79,.5); }
 .btn-kickoff:active { transform: scale(.97); }
 .k-main { font-size: 27px; font-weight: 750; letter-spacing: 1.5px; }
-.k-sub { font-size: 12px; text-transform: uppercase; letter-spacing: 1.4px; opacity: .75; }
+.k-sub { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1.4px; opacity: .75; }
 
 /* ---------------------------------------------------------------- live */
 
@@ -306,7 +306,7 @@ html, body {
     flex-shrink: 0;
 }
 .last-label {
-    font-size: 10px;
+    font-size: 0.74rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1.1px;
@@ -354,7 +354,7 @@ html, body {
 .sheet-head h2 { margin: 0; font-size: 20px; }
 
 .sheet-question {
-    font-size: 12px;
+    font-size: 0.8rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1.2px;
@@ -385,7 +385,7 @@ html, body {
 }
 .choice:hover { background: var(--surface-hi); border-color: var(--line-hi); }
 .choice:active { transform: scale(.97); }
-.choice .sub { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-faint); }
+.choice .sub { font-size: 0.76rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-faint); }
 
 .choice.us { border-color: rgba(77,214,193,.4); }
 .choice.us:hover { background: var(--accent-dim); }
@@ -411,7 +411,7 @@ html, body {
 .pick-list li.used { opacity: .5; }
 .pick-list .num { font-variant-numeric: tabular-nums; font-weight: 750; color: var(--accent); min-width: 28px; }
 .pick-list .nm { flex: 1; font-weight: 550; }
-.pick-list .empty { color: var(--text-faint); font-size: 13px; justify-content: center; cursor: default; }
+.pick-list .empty { color: var(--text-faint); font-size: 0.86rem; justify-content: center; cursor: default; }
 
 .sub-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
 
