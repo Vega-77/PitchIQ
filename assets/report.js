@@ -563,8 +563,17 @@ export function cvQualityNotes(quality, options = {}) {
             notes.push(`xG is not shown${at} — the model moves further than the `
                 + 'number is worth when the positions are that loose');
         } else {
-            notes.push('xG counts every shot as struck with the foot — one camera '
-                + 'cannot see the ball\'s height'
+            // Named as an assumption with an owner rather than a flat
+            // limitation, now that there is something to be done about it. The
+            // count is what stops the caveat reading as unfixed on a match
+            // where it has been fixed.
+            const tagged = options.headersTagged || 0;
+            notes.push('xG counts every shot as struck with the foot'
+                + (tagged
+                    ? ` except the ${tagged} you tagged as `
+                        + `${tagged === 1 ? 'a header' : 'headers'}`
+                    : ' until somebody says otherwise')
+                + ' — one camera cannot see the ball\'s height'
                 + (trust === 'total'
                     ? `, and${at} only the total is shown: each shot on its own is `
                         + 'looser than the differences a shot map would draw'
@@ -1054,7 +1063,8 @@ export function reviewLabels(events, review, meta = {}) {
             // verdict beside it is still a human statement about that moment,
             // and it is the only statement in here a finishing model could
             // ever be trained on.
-            .filter((event) => byEvent[event.id]?.status || byEvent[event.id]?.result)
+            .filter((event) => byEvent[event.id]?.status
+                || byEvent[event.id]?.result || byEvent[event.id]?.header)
             .map((event) => {
                 const decision = byEvent[event.id];
                 return {
@@ -1068,7 +1078,13 @@ export function reviewLabels(events, review, meta = {}) {
                     // What the shot did, when somebody said. Null on everything
                     // that is not a shot, and on shots nobody has marked.
                     result: decision.result ?? null,
+                    // Whether it was headed. The pipeline cannot see this at
+                    // all, so every true here is a label that exists nowhere
+                    // else — and body part is exactly what a pose model would
+                    // need to be trained on.
+                    header: decision.header === true,
                     xg: event.xg ?? null,
+                    xgHeader: event.xgHeader ?? null,
                     playerId: decision.playerId ?? null,
                     trackId: event.trackId ?? null,
                     confidence: event.confidence ?? null,
@@ -1178,12 +1194,24 @@ export function shotLedger(events, review) {
         const retyped = decision.status === EDITED_STATUS
             && decision.type && decision.type !== SHOT_TYPE;
 
+        // Which xG counts depends on a thing the camera cannot see, so the
+        // pipeline sent both and the coach picks. No fallback when a header was
+        // tagged on a run that predates the second reading: scoring it as a foot
+        // shot anyway is exactly the error being corrected, so it drops out of
+        // the check with a null instead.
+        const header = decision.header === true;
+        const xgFoot = event.xg ?? null;
+        const xgHeader = event.xgHeader ?? null;
+
         rows.push({
             id: event.id,
             timestampS: event.timestampS ?? null,
             team: event.team ?? null,
             trackId: event.trackId ?? null,
-            xg: event.xg ?? null,
+            xgFoot,
+            xgHeader,
+            header,
+            xg: header ? xgHeader : xgFoot,
             // What the pipeline made of it. Shown, never used as an answer.
             guessed: event.outcome ?? null,
             result: SHOT_RESULT_VALUES.has(decision.result) ? decision.result : null,
@@ -1193,6 +1221,96 @@ export function shotLedger(events, review) {
 
     rows.sort((a, b) => (a.timestampS ?? 0) - (b.timestampS ?? 0));
     return rows;
+}
+
+/**
+ * What the coach's header tags did to the total, or null if they tagged none.
+ *
+ * Worth stating as a movement rather than just showing a corrected figure. A
+ * total that quietly drops from 1.42 to 1.05 between two visits looks like a
+ * bug; the same drop with "three headers" beside it is the tool working.
+ *
+ * `unscorable` counts headers on runs old enough to carry only the foot
+ * reading. Those leave the total rather than staying in it wrong, which is the
+ * right answer and a surprising one, so it is said out loud.
+ */
+export function headerCorrection(rows) {
+    let headers = 0;
+    let unscorable = 0;
+    let from = 0;
+    let to = 0;
+
+    for (const row of rows || []) {
+        if (!row?.counted || !row.header) continue;
+        headers += 1;
+        if (row.xgHeader == null) {
+            unscorable += 1;
+            continue;
+        }
+        from += row.xgFoot ?? 0;
+        to += row.xgHeader;
+    }
+
+    if (!headers) return null;
+    return { headers, unscorable, from: round4(from), to: round4(to) };
+}
+
+/**
+ * The header tags as a sentence, or null when there are none.
+ *
+ * The two halves are separate sentences because they are separate facts, and
+ * running them together produced the reading this exists to stop: a match where
+ * every tagged header was unscorable said "which took 0.00 xG down to 0.00",
+ * which is arithmetically true and says the opposite of what happened.
+ */
+export function headerNote(correction) {
+    if (!correction?.headers) return null;
+    const { headers, unscorable, from, to } = correction;
+    const scored = headers - unscorable;
+    const parts = [];
+
+    if (scored) {
+        parts.push(`${scored} shot${scored === 1 ? '' : 's'} you tagged as a`
+            + ` header ${scored === 1 ? 'is' : 'are'} scored as one, which took`
+            + ` ${from.toFixed(2)} xG down to ${to.toFixed(2)}.`);
+    }
+    if (unscorable) {
+        const it = unscorable === 1 ? 'it is' : 'they are';
+        parts.push(`${unscorable}${scored ? ' more' : ''} came from a run made`
+            + ' before the header figure existed, so'
+            + ` ${it} left out of these totals rather than counted as foot`
+            + ' shots. Re-running the pipeline brings'
+            + ` ${unscorable === 1 ? 'it' : 'them'} back.`);
+    }
+    return parts.join(' ');
+}
+
+/**
+ * Shot-map marks with the coach's body-part tags applied.
+ *
+ * Joined on `event_id`, which is why the pipeline started emitting one onto each
+ * mark: a rounded timestamp is not an identity, and two shots inside the same
+ * second would swap their corrections without anything looking wrong.
+ *
+ * Marks the ledger says nothing about pass through untouched, so a report from
+ * before any of this existed renders exactly as it did.
+ */
+export function correctedShotMarks(marks, rows) {
+    const byId = new Map();
+    for (const row of rows || []) {
+        // `counted` as well as `header`, so this and `headerCorrection` are
+        // always describing the same set of shots. A map that has quietly
+        // corrected one more shot than the sentence under it claims is the kind
+        // of half-a-goal discrepancy nobody ever tracks down.
+        if (row?.id != null && row.header && row.counted && row.xg != null) {
+            byId.set(row.id, row.xg);
+        }
+    }
+    if (!byId.size) return marks || [];
+
+    return (marks || []).map((mark) => (byId.has(mark.event_id)
+        ? { ...mark, xg: byId.get(mark.event_id), is_header: true }
+        : mark));
 }
 
 /**

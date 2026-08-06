@@ -255,6 +255,9 @@ def events_payload(report_json: dict, limit: int = MAX_EVENTS) -> dict:
                 'inPlay': event.get('in_play', True),
                 'outcome': event.get('outcome'),
                 'xg': event.get('xg'),
+                # The same shot scored as a header, so the shot log can apply a
+                # coach's body-part tag without a model in the browser.
+                'xgHeader': event.get('xg_header'),
                 'receiverTrackId': event.get('receiver_track_id'),
             }
             for event in events

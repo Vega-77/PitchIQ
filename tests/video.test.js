@@ -1140,6 +1140,15 @@ describe('reviewLabels', () => {
         assert.deepEqual(out.labelled.map((l) => l.id), ['a']);
     });
 
+    test('a header tag is a label of its own', () => {
+        // The only field in the file the pipeline cannot produce at all — one
+        // fixed camera never sees the ball's height — and the one a pose model
+        // would have to be trained on.
+        const out = labels({ c: { header: true } });
+        assert.deepEqual(out.labelled.map((l) => l.id), ['c']);
+        assert.equal(out.labelled[0].header, true);
+    });
+
     test('a shot marked with no verdict is still a label', () => {
         // "That one was saved" is a human statement about that moment, and the
         // only ground truth in the file a finishing model could learn from.
@@ -1248,6 +1257,190 @@ describe('shotLedger', () => {
         // some other way and must not reach the tally.
         const [, second] = ledger({ s2: { result: 'nutmeg' } });
         assert.equal(second.result, null);
+    });
+});
+
+describe('tagging a shot as a header', () => {
+    // 0.72 off the foot, 0.43 off the head — the real model's own numbers for a
+    // six-yard chance. The gap is why this is a control and not a footnote.
+    const events = [
+        { id: 's1', type: 'shot', timestampS: 100, xg: 0.72, xgHeader: 0.43 },
+        { id: 's2', type: 'shot', timestampS: 200, xg: 0.10, xgHeader: 0.08 },
+    ];
+    const ledger = (byEvent = {}) => report.shotLedger(events, { byEvent });
+
+    test('an untagged shot is the foot reading', () => {
+        const [first] = ledger();
+        assert.equal(first.xg, 0.72);
+        assert.equal(first.header, false);
+    });
+
+    test('a tagged one is the header reading, and both stay visible', () => {
+        const [first] = ledger({ s1: { header: true } });
+        assert.equal(first.xg, 0.43);
+        assert.equal(first.xgFoot, 0.72);
+        assert.equal(first.xgHeader, 0.43);
+    });
+
+    test('a header on a run with no header reading has no xG at all', () => {
+        // Falling back to the foot figure would score it as exactly the thing
+        // the coach just said it was not, which is the error being corrected.
+        // Null takes it out of the check instead.
+        const rows = report.shotLedger(
+            [{ id: 'old', type: 'shot', timestampS: 1, xg: 0.3 }],
+            { byEvent: { old: { header: true, result: 'goal' } } },
+        );
+        assert.equal(rows[0].xg, null);
+        assert.equal(report.xgTally(rows), null);
+    });
+
+    test('the tally uses the corrected number', () => {
+        const rows = ledger({
+            s1: { header: true, result: 'goal' }, s2: { result: 'saved' },
+        });
+        const tally = report.xgTally(rows);
+        assert.equal(tally.predicted, 0.53);
+        assert.equal(tally.variance, report.xgTally([
+            { xg: 0.43, result: 'goal', counted: true },
+            { xg: 0.10, result: 'saved', counted: true },
+        ]).variance);
+    });
+});
+
+describe('headerCorrection', () => {
+    const rows = (...specs) => specs.map(([xgFoot, xgHeader, header], i) => ({
+        id: `s${i}`, xgFoot, xgHeader, header, counted: true,
+        xg: header ? xgHeader : xgFoot,
+    }));
+
+    test('no tags means nothing to say, not a correction of zero', () => {
+        assert.equal(report.headerCorrection(rows([0.72, 0.43, false])), null);
+    });
+
+    test('it reports the movement, not just the new total', () => {
+        // A total that silently drops between two visits looks like a bug. The
+        // same drop with "two headers" beside it is the tool working.
+        const out = report.headerCorrection(
+            rows([0.72, 0.43, true], [0.10, 0.08, true], [0.30, 0.20, false]),
+        );
+        assert.equal(out.headers, 2);
+        assert.equal(out.from, 0.82);
+        assert.equal(out.to, 0.51);
+    });
+
+    test('a header with no header reading is counted and named', () => {
+        const out = report.headerCorrection(rows([0.30, null, true]));
+        assert.equal(out.headers, 1);
+        assert.equal(out.unscorable, 1);
+        // It left the total rather than staying in it wrong, so neither side of
+        // the movement includes it.
+        assert.equal(out.from, 0);
+        assert.equal(out.to, 0);
+    });
+
+    test('a rejected shot is not corrected', () => {
+        const out = report.headerCorrection([{
+            id: 'x', xgFoot: 0.72, xgHeader: 0.43, header: true,
+            xg: 0.43, counted: false,
+        }]);
+        assert.equal(out, null);
+    });
+});
+
+describe('the foot-shot caveat knows when it has been answered', () => {
+    const notes = (options) => report.cvQualityNotes({}, { shots: 4, ...options });
+
+    test('untagged, it names the assumption and that it can be settled', () => {
+        const line = notes({}).find((n) => n.includes('struck with the foot'));
+        assert.match(line, /until somebody says otherwise/);
+    });
+
+    test('tagged, it says how many were corrected', () => {
+        // Otherwise a coach who has just tagged three headers is told, on the
+        // same screen, that nothing was tagged.
+        const line = notes({ headersTagged: 3 })
+            .find((n) => n.includes('struck with the foot'));
+        assert.match(line, /except the 3 you tagged as headers/);
+        assert.doesNotMatch(line, /until somebody/);
+    });
+
+    test('one is a header, not headers', () => {
+        const line = notes({ headersTagged: 1 })
+            .find((n) => n.includes('struck with the foot'));
+        assert.match(line, /except the 1 you tagged as a header/);
+    });
+});
+
+describe('headerNote', () => {
+    const note = (headers, unscorable, from, to) =>
+        report.headerNote({ headers, unscorable, from, to });
+
+    test('no tags, nothing to say', () => {
+        assert.equal(report.headerNote(null), null);
+        assert.equal(note(0, 0, 0, 0), null);
+    });
+
+    test('a scorable tag reports the movement', () => {
+        assert.match(note(2, 0, 0.82, 0.51), /0\.82 xG down to 0\.51/);
+    });
+
+    test('an all-unscorable match does not claim a 0.00 to 0.00 correction', () => {
+        // What this exists to stop. Running the two facts into one sentence
+        // produced "which took 0.00 xG down to 0.00" — arithmetically true and
+        // the opposite of what happened.
+        const text = note(1, 1, 0, 0);
+        assert.doesNotMatch(text, /0\.00/);
+        assert.match(text, /left out of these totals/);
+        assert.match(text, /rather than counted as foot shots/);
+    });
+
+    test('a mixed match says both things, and which is which', () => {
+        const text = note(3, 1, 0.82, 0.51);
+        assert.match(text, /2 shots you tagged as a header are scored as one/);
+        assert.match(text, /1 more came from a run/);
+    });
+});
+
+describe('correctedShotMarks', () => {
+    const marks = [
+        { event_id: 's1', x_m: 99, y_m: 34, xg: 0.72 },
+        { event_id: 's2', x_m: 80, y_m: 40, xg: 0.10 },
+    ];
+
+    test('a report nobody has tagged renders exactly as it did', () => {
+        assert.equal(report.correctedShotMarks(marks, []), marks);
+    });
+
+    test('a tagged shot is redrawn at its header value', () => {
+        const out = report.correctedShotMarks(marks, [
+            { id: 's1', header: true, xg: 0.43, counted: true },
+        ]);
+        assert.equal(out[0].xg, 0.43);
+        assert.equal(out[0].is_header, true);
+        // Untouched, and still the same object — nothing else on the map moves.
+        assert.equal(out[1], marks[1]);
+    });
+
+    test('marks from before event ids existed are left alone', () => {
+        // The join is on the id, never the timestamp: two shots inside one
+        // second would swap their corrections and nothing would look wrong.
+        const old = [{ video_s: 100, xg: 0.72 }];
+        const out = report.correctedShotMarks(old, [
+            { id: 's1', header: true, xg: 0.43, counted: true },
+        ]);
+        assert.equal(out[0].xg, 0.72);
+    });
+
+    test('the map and the note describe the same set of shots', () => {
+        // Both skip a rejected shot and both skip an unscorable one. A map that
+        // has corrected one more shot than the sentence under it claims is the
+        // kind of half-a-goal discrepancy nobody ever tracks down.
+        const rows = [
+            { id: 's1', header: true, xg: null, xgFoot: 0.72, xgHeader: null, counted: true },
+            { id: 's2', header: true, xg: 0.08, xgFoot: 0.10, xgHeader: 0.08, counted: false },
+        ];
+        assert.equal(report.correctedShotMarks(marks, rows), marks);
+        assert.equal(report.headerCorrection(rows).from, 0);
     });
 });
 

@@ -360,10 +360,19 @@ def shot_marks(shots, attacking_end: str | None) -> list[dict] | None:
             x, y = PITCH_LENGTH_M - x, PITCH_WIDTH_M - y
 
         marks.append({
+            # The join key. Without it a browser holding a coach's per-shot
+            # corrections has only a rounded timestamp to match a mark against,
+            # and two shots in the same second would silently swap.
+            'event_id': shot.event_id,
             'video_s': _round(shot.timestamp_s, 2),
             'x_m': _round(x, 1),
             'y_m': _round(y, 1),
             'xg': _round(shot.xg, 3),
+            # The same shot scored as a header. Not an alternative estimate of
+            # the same quantity — it is the answer to a different question the
+            # camera cannot settle, and it only replaces `xg` once a human says
+            # which one this was.
+            'xg_header': _round(shot.xg_header, 3),
             'outcome': shot.outcome,
             'on_target': bool(shot.on_target),
             'track_id': shot.track_id,

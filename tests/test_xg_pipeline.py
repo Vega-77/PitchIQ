@@ -153,8 +153,70 @@ class TestAgainstTheRealModel:
 
         assert warnings == []
         assert len(xg) == 1
-        value = next(iter(xg.values()))
+        value, _header = next(iter(xg.values()))
         assert 0.0 < value < 1.0
+
+    def test_every_shot_comes_back_scored_both_ways(self):
+        """One camera cannot see the ball's height, so both answers travel.
+
+        The gap is the reason this is not a footnote on `xg`: the same chance
+        struck with the head is worth a fraction of what it is worth off the
+        foot, and until a human says which it was the report is claiming the
+        more generous of the two.
+        """
+        pytest.importorskip('onnxruntime')
+        log, table = strike(others=[(30, TEAM_B, L - 2.0, MID_Y)])
+        xg, _ = run(log, table)
+
+        foot, header = next(iter(xg.values()))
+        assert 0.0 < header < foot < 1.0
+
+    def test_both_readings_land_on_the_shot(self):
+        pytest.importorskip('onnxruntime')
+        log, table = strike(others=[(30, TEAM_B, L - 2.0, MID_Y)])
+        attach_xg(log, run(log, table)[0])
+
+        shot = log.shots()[0]
+        assert shot.xg is not None
+        assert shot.xg_header is not None
+        # `is_header` stays False: the pipeline never claims to know. A coach's
+        # tag lives in cvReview and never overwrites a measurement here.
+        assert shot.is_header is False
+
+    def test_the_header_reading_survives_serialisation(self):
+        """It is useless unless it reaches the browser, which is where the
+        body part is actually decided."""
+        pytest.importorskip('onnxruntime')
+        log, table = strike(others=[(30, TEAM_B, L - 2.0, MID_Y)])
+        attach_xg(log, run(log, table)[0])
+
+        # Straight to `shot_marks`: the report's own shot map needs an attacking
+        # end resolved from an orientation this fixture has no reason to build,
+        # and what is being pinned here is the serialisation, not that.
+        from cv.report_json import shot_marks
+        mark = shot_marks(log.shots(), 'right')[0]
+        assert mark['xg_header'] < mark['xg']
+        # The join key. Without it the browser can only match a correction to a
+        # mark by rounded timestamp, and two shots in one second would swap.
+        assert mark['event_id'] == log.shots()[0].event_id
+
+    def test_the_team_total_stays_the_foot_reading(self):
+        """`teams.*.xg` is what the pipeline measured, and it measured a foot
+        shot. Correcting it for headers is a human's judgement, applied where
+        the other human judgements live rather than folded into the total the
+        machine produced."""
+        pytest.importorskip('onnxruntime')
+        log, table = strike(others=[(30, TEAM_B, L - 2.0, MID_Y)])
+        attach_xg(log, run(log, table)[0])
+
+        report = MatchReport(source='fixture', duration_s=10.0, processing_s=0.1)
+        report.events = log
+        report.movement_available = True
+        data = report.to_json()
+
+        assert data['teams'][TEAM_A]['xg'] == pytest.approx(
+            log.shots()[0].xg, abs=1e-3
+        )
 
     def test_the_number_reaches_the_event_and_the_team_total(self):
         """The point of the whole exercise: `Shot.xg` stops being None."""
@@ -184,8 +246,8 @@ class TestAgainstTheRealModel:
         close, close_table = strike(x_m=L - 5.0)
         far, far_table = strike(x_m=L - 40.0)
 
-        close_xg = next(iter(run(close, close_table)[0].values()))
-        far_xg = next(iter(run(far, far_table)[0].values()))
+        close_xg, _ = next(iter(run(close, close_table)[0].values()))
+        far_xg, _ = next(iter(run(far, far_table)[0].values()))
         assert close_xg > far_xg
 
     def test_naming_the_keeper_changes_the_answer(self):
@@ -205,8 +267,8 @@ class TestAgainstTheRealModel:
         ]
         log, table = strike(others=others)
 
-        guessed = next(iter(run(log, table)[0].values()))
-        told = next(iter(run(
+        guessed, _ = next(iter(run(log, table)[0].values()))
+        told, _ = next(iter(run(
             log, table, keepers=KeeperAssignment(by_team={TEAM_B: {30}}),
         )[0].values()))
 

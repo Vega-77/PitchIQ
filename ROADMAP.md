@@ -1147,7 +1147,48 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       and the xG layer each working it out; two places deciding which way a team
       kicks is how a second-half sign error gets in, and it would show up as
       plausible xG for shots at the wrong goal rather than as a crash.
-- [ ] Body part classification (foot vs. header) — pose estimation, or a manual tag as post-game fallback
+- [x] **Body part classification (foot vs. header)** — the manual tag, taken as
+      far as it goes. Pose estimation is still open and now much less urgent.
+
+      **Measured first.** Against the real model, the same position struck with
+      the head is worth a fraction of what it is worth off the foot: **1.25x at
+      a tight angle, 1.69x from six yards, 1.78x from the penalty spot, 3.71x
+      from the edge of the box.** Every shot in the report was being scored as a
+      foot shot, so headed chances — mostly close range, where the ratio is
+      worst — were inflated by a third to three times over. That is larger than
+      the position noise the entire `xgTrust` ladder exists to manage, and
+      unlike noise it runs one way. It was also about to corrupt the new xG
+      check: headers inflate `predicted`, so the calibration would have drifted
+      toward "the model is rating these too high" for a reason that has nothing
+      to do with the model.
+
+      **Both answers precomputed.** `xg_for_shots` now returns `(foot, header)`
+      per shot and `Shot.xg_header` carries the second. The question is binary
+      and the model is cheap, so two numbers ship instead of an inference
+      runtime on a coach's phone — no onnxruntime in the browser, no async, no
+      CDN dependency on the match page, and the correction works offline.
+
+      **`event_id` on every shot mark**, which is what makes the join sound. A
+      rounded timestamp is not an identity, and two shots inside the same second
+      would have swapped corrections with nothing looking wrong.
+
+      **The tag lives in `cvReview`, never in `cvStats`.** Same boundary as
+      `cvMapping`: a coach's judgement must stay distinguishable from a
+      measurement. `teams.*.xg` remains what the pipeline measured; the
+      correction is applied at render time to the map, its caption, the shot log
+      and the xG check together, so the page never shows a corrected total
+      beside an uncorrected one.
+
+      A header tagged on a run made before this shipped is scored as **nothing**
+      rather than falling back to the foot figure — that fallback is precisely
+      the error being corrected. It leaves the totals and the row says so.
+      Found in the browser: with every tagged header unscorable, the note read
+      *"which took 0.00 xG down to 0.00"*, which is true and says the opposite of
+      what happened. `headerNote` now keeps the two facts as two sentences.
+
+      The tags also travel in the labels export beside both readings. Body part
+      is the one field in that file the pipeline cannot produce at all, and it is
+      exactly what a pose model would have to be trained on.
 - [x] ~~`shot_height` is a z-axis value a flat single camera + homography can't give directly~~ — resolved by deleting the question. It was the height the ball *ended* at, so no amount of pose estimation would have recovered it before the shot was taken. See the retrain item below
 - [x] **[Demo]** Feed features into the existing ONNX model, log predicted xG —
       and note that until 2026-08-02 this was written but never called, so every

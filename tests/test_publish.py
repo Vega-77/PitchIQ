@@ -247,7 +247,7 @@ class TestEvents:
         doc = events_payload({'events': [an_event()]})
         assert set(doc['events'][0]) == {
             'id', 'type', 'timestampS', 'trackId', 'team', 'confidence',
-            'inPlay', 'outcome', 'xg', 'receiverTrackId',
+            'inPlay', 'outcome', 'xg', 'xgHeader', 'receiverTrackId',
         }
 
     def test_the_in_play_flag_reaches_the_client(self):

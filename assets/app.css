@@ -1382,10 +1382,18 @@ td.num.cv-partial {
    it is being marked on. */
 .shot-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "seek results";
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "seek results part";
     align-items: center;
     gap: 10px;
+}
+/* Separated from the five outcome buttons by a rule, because it answers a
+   different question — what the shot was struck with, not what it did — and
+   six buttons in one strip would read as one six-way choice. */
+.shot-row .shot-part {
+    grid-area: part;
+    padding-left: 10px;
+    border-left: 1px solid var(--line);
 }
 .shot-row .shot-seek {
     grid-area: seek;
@@ -1424,6 +1432,14 @@ td.num.cv-partial {
 .shot-row.is-out .shot-side, .shot-row.is-out .shot-xg {
     text-decoration: line-through;
 }
+
+/* A tagged header carries a corrected number, so the row says so at a glance
+   rather than only in the line underneath. Marked on the left edge in the same
+   idiom the review rows use for a verdict — this is a human's judgement sitting
+   on top of a measurement, which is exactly what that edge means everywhere
+   else on this page. */
+.shot-row.is-header { border-left: 3px solid var(--accent); }
+.shot-row.is-header .shot-xg { color: var(--text); font-weight: 600; }
 
 /* The one place a prediction meets what happened. Tinted by verdict, but the
    two "no difference found" states are deliberately NOT both green: one of them
@@ -1465,13 +1481,17 @@ td.num.cv-partial {
     /* The answers get their own row rather than five buttons squeezed beside a
        clock — the mistake the review rows made at 375px. */
     .shot-row {
-        grid-template-columns: minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) auto;
         grid-template-areas:
-            "seek"
-            "results";
+            "seek seek"
+            "results part";
         row-gap: 8px;
+        align-items: start;
     }
     .shot-row .shot-seek .shot-guess { flex-basis: 100%; }
+    /* Still to the right of the outcome buttons, and still fenced off from
+       them, but no longer holding a column open on a 375px row. */
+    .shot-row .shot-part { padding-left: 8px; }
 }
 
 @media (max-width: 640px) {

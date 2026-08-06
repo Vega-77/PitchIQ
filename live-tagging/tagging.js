@@ -13,17 +13,17 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=30';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=31';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=30';
+} from '../assets/db.js?v=31';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=30';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=30';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=30';
+} from '../assets/events.js?v=31';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=31';
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=31';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {

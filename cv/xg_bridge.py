@@ -102,7 +102,7 @@ Two things are known to be unresolved rather than merely untested:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
@@ -327,8 +327,19 @@ def xg_for_shots(
     side_of_team: dict[str, str] | None = None,
     keepers=None,
     session=None,
-) -> tuple[dict[str, float], list[str]]:
-    """{event_id: xG} for every shot in the log, plus warnings worth carrying.
+) -> tuple[dict[str, tuple[float, float]], list[str]]:
+    """{event_id: (foot xG, header xG)} per shot, plus warnings worth carrying.
+
+    Both readings, because one fixed camera cannot see the ball's height and the
+    difference is not small: measured against this model, scoring a header as a
+    foot shot overstates it by 1.3x at a tight angle and 3.7x from the edge of
+    the box. That is larger than the position noise the whole `xgTrust` ladder
+    was built to manage, and it runs one way.
+
+    So the body part is left to whoever watches the video, and both answers are
+    precomputed here rather than shipping a model to the browser to recompute
+    one. A binary question with a cheap model on both branches wants two numbers,
+    not an inference runtime on the coach's phone.
 
     This is the seam the whole module existed for and did not have. `attach_xg`
     was written, `predict_xg` was written, the browser and the pipeline were
@@ -363,7 +374,7 @@ def xg_for_shots(
             return {}, [f'expected goals unavailable: {error}']
 
     pitch = calibration.pitch
-    xg_by_event: dict[str, float] = {}
+    xg_by_event: dict[str, tuple[float, float]] = {}
     skipped = 0
 
     for shot in shots:
@@ -408,16 +419,19 @@ def xg_for_shots(
             # `in_play` is True throughout and this is the old assumption,
             # unchanged and now visible.
             is_open_play=shot.in_play,
-            # Always False, and not a default we could improve on: one fixed
-            # camera cannot see the ball's height. Headed chances are therefore
-            # scored as foot shots, which biases their xG upward.
+            # Set per branch below. The context is otherwise identical: body
+            # part is the only feature that changes, which is what makes
+            # computing both cheap enough to do unconditionally.
             is_header=False,
         )
 
         try:
-            xg_by_event[shot.event_id] = _predict(
-                session, feature_vector(context, pitch)
+            foot = _predict(session, feature_vector(context, pitch))
+            header = _predict(
+                session,
+                feature_vector(replace(context, is_header=True), pitch),
             )
+            xg_by_event[shot.event_id] = (foot, header)
         except Exception as error:                       # noqa: BLE001
             return xg_by_event, [f'expected goals stopped early: {error}']
 

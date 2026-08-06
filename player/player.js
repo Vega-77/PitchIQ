@@ -9,22 +9,22 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=30';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=30';
-import { CARD_COLOURS } from '../assets/events.js?v=30';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=30';
-import { renderHeatmap } from '../assets/heatmap.js?v=30';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=30';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=31';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=31';
+import { CARD_COLOURS } from '../assets/events.js?v=31';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=31';
+import { renderHeatmap } from '../assets/heatmap.js?v=31';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=31';
 import {
     xgTrust, metresPerMinute, coverageNote,
-} from '../assets/report.js?v=30';
-import { samplePlayerReport, SAMPLE_NOTICE } from '../assets/sample-report.js?v=30';
-import { videoTime } from '../assets/video.js?v=30';
-import { renderMatchVideo } from '../assets/match-video.js?v=30';
+} from '../assets/report.js?v=31';
+import { samplePlayerReport, SAMPLE_NOTICE } from '../assets/sample-report.js?v=31';
+import { videoTime } from '../assets/video.js?v=31';
+import { renderMatchVideo } from '../assets/match-video.js?v=31';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=30';
+} from '../assets/ui.js?v=31';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 

@@ -200,10 +200,16 @@ class Shot(EventBase):
     under_pressure: bool = False
     pressure_count: int = 0
     xg: float | None = None
-    # Always False. A single fixed camera cannot see the ball's height, so every
-    # header is scored as a foot shot — which biases xG upward for headed
-    # chances. Present as a field so the bias is visible in the output rather
-    # than only in this comment.
+    # The same shot scored as a header instead. A single fixed camera cannot see
+    # the ball's height, so the pipeline cannot tell which this was — but the
+    # question has exactly two answers, so both are computed here and a human
+    # picks later. Measured against the real model, the difference is 1.3x to
+    # 3.7x, which is far too large to leave as a footnote on `xg`.
+    xg_header: float | None = None
+    # Always False *from the pipeline*. Kept as a field so the assumption is
+    # visible in the output rather than only in this comment; a coach's tag
+    # lives in cvReview, beside their other judgements, and never overwrites a
+    # measurement here.
     is_header: bool = False
 
     def to_json(self) -> dict:
@@ -215,6 +221,7 @@ class Shot(EventBase):
             'under_pressure': self.under_pressure,
             'pressure_count': self.pressure_count,
             'xg': self.xg,
+            'xg_header': self.xg_header,
             'is_header': self.is_header,
         }
 
@@ -870,12 +877,18 @@ def ppda(
     return allowed / actions
 
 
-def attach_xg(log: EventLog, xg_by_event: dict[str, float]) -> None:
+def attach_xg(log: EventLog, xg_by_event: dict[str, tuple[float, float]]) -> None:
     """Write xG onto shots, keyed by event id.
+
+    Each value is `(foot, header)` — the same shot scored both ways, because
+    nothing here can see which it was and the two differ by more than any other
+    uncertainty in the number. Whoever watches the video decides; both readings
+    travel so that decision costs no second pass over the footage.
 
     Kept separate from derivation so `cv/events.py` never has to import
     onnxruntime — the event layer is pure geometry and stays that way.
     """
     for index, event in enumerate(log.events):
         if isinstance(event, Shot) and event.event_id in xg_by_event:
-            log.events[index] = replace(event, xg=xg_by_event[event.event_id])
+            foot, header = xg_by_event[event.event_id]
+            log.events[index] = replace(event, xg=foot, xg_header=header)

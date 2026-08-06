@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=30';
+} from '../assets/auth.js?v=31';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,28 +8,29 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=30';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=30';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=30';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=30';
+} from '../assets/db.js?v=31';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=31';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=31';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=31';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
-} from '../assets/sample-report.js?v=30';
+} from '../assets/sample-report.js?v=31';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
     groupStats, teamStatRows, trackedCoverage, metresPerMinute,
     TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, xgTally, sumXgTallies,
-    xgCalibration, calibrationNote,
-} from '../assets/report.js?v=30';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=30';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=30';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=30';
+    xgCalibration, calibrationNote, headerCorrection, headerNote,
+    correctedShotMarks,
+} from '../assets/report.js?v=31';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=31';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=31';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=31';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark,
-} from '../assets/ui.js?v=30';
+} from '../assets/ui.js?v=31';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -776,10 +777,17 @@ function renderShots() {
     ];
 
     const trust = xgTrust(cv?.calibrationErrorM);
+    // Any shot the coach has tagged as a header is redrawn and re-totalled at
+    // its header xG. Applied here rather than only in the log below so the map,
+    // its caption and the check underneath all say the same thing — two totals
+    // for the same shots, one corrected and one not, is worse than neither.
+    const ledger = shotLedger(
+        state.match?.cvEvents?.events || [], state.match?.cvReview,
+    );
 
     let any = false;
     for (const [label, key, hostId, capId] of sides) {
-        const marks = cv?.teams?.[key]?.shot_map || [];
+        const marks = correctedShotMarks(cv?.teams?.[key]?.shot_map || [], ledger);
         const drawn = renderShotMap(byId(hostId), marks, {
             onPick: (mark) => seekMatchVideo(
                 Math.max(0, (mark.video_s || 0) - (state.match.videoOffsetS ?? 0)),
@@ -807,13 +815,15 @@ function renderShots() {
     if (!any) return;
 
     // The sentence about circle size only holds while the circles have one.
+    const corrected = headerNote(headerCorrection(ledger));
     setText('cv-shots-note',
         'Both halves are drawn attacking right, so the two maps can be compared. '
         + (trust === 'shot'
             ? 'Bigger circles were better chances. '
             : 'Every shot is drawn the same size — the calibration is too loose to '
                 + 'rank them against each other. ')
-        + 'Click one to jump the video there.');
+        + 'Click one to jump the video there.'
+        + (corrected ? ` ${corrected}` : ''));
 }
 
 // ---------------------------------------------- marking the model's homework
@@ -864,7 +874,13 @@ function renderShotLog() {
         + 'What the video made of each one is printed beside it and is not an '
         + 'answer to this — it is read off a ball the pipeline only sees in '
         + 'some frames, and grading the model against another guess measures '
-        + 'nothing.'
+        + 'nothing. '
+        // The other half of the row, and the one that changes a published
+        // figure rather than adding to it.
+        + 'Tap Header on any that were headed: one fixed camera cannot see the '
+        + 'ball\'s height, so every shot above is scored as if it were struck '
+        + 'with the foot, and that overstates a headed chance by a third to '
+        + 'three times over.'
         + (dropped
             ? ` ${plural(dropped, 'candidate')} struck out below: you rejected `
               + 'them as something other than a shot, so they count for nothing '
@@ -892,6 +908,7 @@ function shotLogRow(row) {
     // reject it in the block below looks like a bug, and this is the only thing
     // on screen that explains why the tally just moved.
     item.classList.toggle('is-out', !row.counted);
+    item.classList.toggle('is-header', row.header);
     item.innerHTML = `
         <button type="button" class="shot-seek">
             <span class="shot-clock"></span>
@@ -899,7 +916,11 @@ function shotLogRow(row) {
             <span class="shot-xg"></span>
             <span class="shot-guess muted"></span>
         </button>
-        <div class="shot-results"></div>`;
+        <div class="shot-results"></div>
+        <div class="shot-part">
+            <button type="button" class="btn tiny shot-header-btn"
+                    title="Score this as a header instead of a foot shot">Header</button>
+        </div>`;
 
     item.querySelector('.shot-clock').textContent = clockText(clockS);
     item.querySelector('.shot-side').textContent = row.team === 'team_b'
@@ -911,11 +932,15 @@ function shotLogRow(row) {
     item.querySelector('.shot-xg').textContent =
         (trust === 'shot' && row.xg != null) ? `${row.xg.toFixed(2)} xG` : '';
     item.querySelector('.shot-guess').textContent = row.counted
-        ? (row.guessed ? `video read it as ${row.guessed.replace(/_/g, ' ')}` : '')
+        ? shotAside(row)
         : 'not a shot, per the review below';
 
     item.querySelector('.shot-seek')
         .addEventListener('click', () => seekMatchVideo(clockS));
+
+    const headerButton = item.querySelector('.shot-header-btn');
+    headerButton.classList.toggle('on', row.header);
+    headerButton.addEventListener('click', () => toggleHeader(row.id));
 
     const results = item.querySelector('.shot-results');
     for (const { value, label } of SHOT_RESULTS) {
@@ -929,6 +954,52 @@ function shotLogRow(row) {
     }
 
     return item;
+}
+
+/**
+ * The quiet line beside each shot: what the video read, and what a header tag
+ * did to the number.
+ *
+ * The movement is shown rather than only the new figure. A coach who taps
+ * "Header" and watches 0.72 become 0.43 has learnt something real about how the
+ * model sees the game; one who just sees 0.43 has watched a number change for
+ * no stated reason.
+ */
+function shotAside(row) {
+    if (row.header) {
+        if (row.xgHeader == null) {
+            // Deliberately dropped rather than scored as a foot shot. Doing
+            // that anyway is precisely the error the tag exists to fix.
+            return 'scored as a header — this run predates that reading, so it '
+                + 'is left out of the check below';
+        }
+        const was = row.xgFoot == null ? null : row.xgFoot.toFixed(2);
+        return `scored as a header${was ? ` — ${was} off the foot` : ''}`;
+    }
+    return row.guessed ? `video read it as ${row.guessed.replace(/_/g, ' ')}` : '';
+}
+
+/**
+ * Say a shot was headed, or take it back.
+ *
+ * The one thing on this page that changes a number the pipeline produced, which
+ * is why it is stored in cvReview beside the coach's other judgements and never
+ * written back over `cvStats`. A correction has to stay distinguishable from a
+ * measurement; the shot map applies it at render time instead.
+ */
+function toggleHeader(eventId) {
+    const byEvent = { ...state.match.cvReview.byEvent };
+    const before = byEvent[eventId] || {};
+    const next = { ...before, header: !before.header };
+
+    if (!next.header && next.result == null && !next.status) delete byEvent[eventId];
+    else byEvent[eventId] = next;
+
+    state.match.cvReview = { ...state.match.cvReview, byEvent };
+    queueReviewSave();
+    renderShotLog();
+    // The map above is drawn from the same tags, so it moves with them.
+    renderShots();
 }
 
 /**
@@ -947,7 +1018,7 @@ function markShot(eventId, result) {
         ? { ...before, result: null }
         : { ...before, result };
 
-    if (next.result == null && !next.status) delete byEvent[eventId];
+    if (next.result == null && !next.status && !next.header) delete byEvent[eventId];
     else byEvent[eventId] = next;
 
     state.match.cvReview = { ...state.match.cvReview, byEvent };
@@ -1080,6 +1151,11 @@ function cvNote() {
         shots: cv.teams?.team_a?.shots,
         calibrationErrorM: cv.calibrationErrorM,
         reconciliation: cv.reconciliation,
+        // So the foot-shot caveat stops claiming to be unfixed on a match where
+        // the coach has already fixed it.
+        headersTagged: headerCorrection(shotLedger(
+            state.match?.cvEvents?.events || [], state.match?.cvReview,
+        ))?.headers || 0,
     });
 
     // "Measured from video" is a claim, and on the preview it is false. The
@@ -2095,11 +2171,14 @@ function toggleReviewEdit(row, event) {
 function decide(eventId, verdict) {
     const next = { ...state.match.cvReview.byEvent };
     const before = next[eventId];
-    // What a shot did is a separate answer from whether it was a shot, and it
-    // survives every verdict here — including a rejection, which takes the shot
-    // out of the xG check without throwing away what the coach saw. Undoing a
-    // mis-tapped rejection therefore does not mean marking the shot again.
-    const kept = before?.result ? { result: before.result } : null;
+    // What a shot did, and what it was struck with, are separate answers from
+    // whether it was a shot at all. Both survive every verdict here — including
+    // a rejection, which takes the shot out of the xG check without throwing
+    // away what the coach saw. Undoing a mis-tapped rejection therefore does not
+    // mean marking the shot again.
+    const kept = {};
+    if (before?.result) kept.result = before.result;
+    if (before?.header) kept.header = true;
 
     // Tapping the same verdict again clears it, so a mis-tap is one tap to fix
     // rather than a decision that cannot be taken back.
