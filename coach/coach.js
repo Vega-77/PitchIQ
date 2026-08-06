@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=25';
+} from '../assets/auth.js?v=26';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,24 +8,26 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=25';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=25';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=25';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=25';
+} from '../assets/db.js?v=26';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=26';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=26';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=26';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
-} from '../assets/sample-report.js?v=25';
+} from '../assets/sample-report.js?v=26';
 import {
-    NOT_A_PLAYER, rankRosterForCluster, possessionIsInPlay, cvQualityNotes,
-    roughDuration, shapeConfidence, reviewScore, reviewLabels, xgTrust,
-} from '../assets/report.js?v=25';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=25';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=25';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=25';
+    NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
+    roughDuration, reviewScore, reviewLabels, xgTrust,
+    groupStats, teamStatRows,
+} from '../assets/report.js?v=26';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=26';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=26';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=26';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
-    statCard, figure, cardChips, timelineRow, minutesChart, confidenceMark,
-} from '../assets/ui.js?v=25';
+    statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
+    confidenceMark,
+} from '../assets/ui.js?v=26';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -693,108 +695,58 @@ async function openMatch(matchId) {
     }
 }
 
+/**
+ * The whole match as boxes, sorted into the questions they answer.
+ *
+ * Tagged counts and video-derived figures go into the same set of groups rather
+ * than into a tagged block and a video block. A coach asking "did we pass it
+ * forward" does not care which half of the system knew the answer, and the
+ * confidence mark on the video rows is what says which is which — that
+ * distinction belongs on the row, not in the page layout.
+ */
 function renderTeamStats(stats) {
-    const grid = byId('team-stats');
-    grid.innerHTML = '';
+    const host = byId('team-stats');
+    host.innerHTML = '';
 
-    const { us, them } = stats.counts;
-
-    // Corners and free kicks are counted for whoever was awarded them; fouls,
-    // cards and offside are recorded against the offender, so "our fouls" means
-    // fouls we committed. Labels say so explicitly.
-    const rows = [
-        [us.goal, 'Goals for', 'is-good'],
-        [them.goal, 'Goals against', ''],
-        [us.corner, 'Corners won', ''],
-        [them.corner, 'Corners conceded', 'is-muted'],
-        [us.foul, 'Fouls committed', ''],
-        [them.foul, 'Fouls won', 'is-muted'],
-        [us.card, 'Our cards', us.card ? 'is-warn' : 'is-muted'],
-        [us.offside, 'Offsides against us', 'is-muted'],
-        [stats.subs, 'Substitutions', 'is-muted'],
-    ];
-
-    for (const [value, label, tone] of rows) grid.append(statCard(value, label, tone));
-
-    // Video-derived figures join the same grid, each marked. Same grid because
-    // a coach wants one picture of the match; marked because "17 tackles" read
-    // off footage and "2 goals" somebody tapped are different kinds of claim.
-    for (const [value, label, confidence] of cvTeamRows()) {
-        grid.append(statCard(value, label, 'is-muted', confidence));
-    }
-}
-
-/** Team figures the pipeline derived, as [value, label, confidence] rows. */
-function cvTeamRows() {
     const cv = activeCv();
-    const ours = cv?.teams?.team_a;
-    if (!ours) return [];
-
-    const quality = cv.quality || {};
-    const events = cvConfidence(quality, 'events');
-    const possession = cvConfidence(quality, 'possession');
+    const quality = cv?.quality || {};
 
     const rows = [
-        // The label carries the denominator, because the denominator changed.
-        // With a tagged log the dead time is out of it and this is possession
-        // of a ball that was in play; without one it is the older, weaker
-        // figure and must not claim otherwise.
-        [ours.possession_pct == null ? null : `${Math.round(ours.possession_pct * 100)}%`,
-            possessionIsInPlay(quality) ? 'Possession, ball in play' : 'Possession',
-            possession],
-        [ours.passes_attempted, 'Passes attempted', events],
-        [ours.pass_accuracy == null ? null : `${Math.round(ours.pass_accuracy * 100)}%`,
-            'Pass accuracy', events],
-        [ours.progressive_passes, 'Progressive passes', events],
-        [ours.final_third_entries, 'Final-third entries', events],
-        [ours.box_entries, 'Entries into the box', events],
-        [ours.crosses, 'Crosses', events],
-        [ours.switches, 'Switches of play', events],
-        [ours.shots, 'Shots', events],
-        [ours.shots_on_target, 'Shots on target', events],
-        // Withheld, not zeroed, when the calibration is too loose to support it.
-        // A team total averages a lot of per-shot noise away, which is why it
-        // survives a band that per-shot xG does not — but not every band.
-        [(ours.xg == null || xgTrust(cv.calibrationErrorM) === 'none')
-            ? null : ours.xg.toFixed(2), 'Expected goals', events],
-        [ours.tackles, 'Tackles', events],
-        [ours.interceptions, 'Interceptions', events],
-        [ours.recoveries, 'Recoveries', events],
-        [ours.duels, 'Ground duels', events],
-        [ours.ppda == null ? null : ours.ppda.toFixed(1), 'PPDA', events],
-        ...shapeRows(ours.shape, cv.calibrationErrorM),
+        ...taggedStatRows(stats),
+        ...teamStatRows(cv, {
+            events: cvConfidence(quality, 'events'),
+            possession: cvConfidence(quality, 'possession'),
+        }),
     ];
 
-    // A null is "not measured", usually for want of a calibration. Printing a
-    // zero instead would claim the pipeline looked and found none.
-    return rows.filter(([value]) => value != null);
+    for (const group of groupStats(rows)) host.append(statGroup(group));
 }
 
 /**
- * How spread out we played, in metres — ours only.
+ * The figures somebody tapped on a tablet.
  *
- * `report_json` used to publish one shape built from every track on the pitch,
- * both teams and the referee together, and label it Team A's. It is now built
- * per team, and this reads the team's own. Reading `cv.teams.team_a.shape`
- * rather than a top-level field is what makes that hold: there is no longer a
- * single number that could be handed to the wrong side.
- *
- * Empty until a calibration exists, which is every run today — width in metres
- * is not something a pixel can answer. The null filter below drops all three
- * rows in that case rather than printing three zeroes.
+ * Corners and free kicks are counted for whoever was awarded them; fouls, cards
+ * and offside are recorded against the offender, so "our fouls" means fouls we
+ * committed. The labels say so, because a column of numbers cannot.
  */
-function shapeRows(shape, calibrationErrorM) {
-    if (!shape || shape.width_m == null) return [];
-    const band = shapeConfidence(calibrationErrorM);
-    const metres = (value) => (value == null ? null : `${Math.round(value)}m`);
-
+function taggedStatRows(stats) {
+    const { us, them } = stats.counts;
     return [
-        [metres(shape.width_m), 'Average width', band],
-        [metres(shape.depth_m), 'Average depth', band],
-        // Mean distance from each player to the team's own centre. Deliberately
-        // not coloured good or bad: a compact side is well-drilled or it is
-        // pinned in its own half, and this number cannot tell the difference.
-        [metres(shape.compactness_m), 'Compactness', band],
+        { type: 'match', label: 'Goals for', value: us.goal ?? 0, tone: 'is-good' },
+        { type: 'match', label: 'Goals against', value: them.goal ?? 0, tone: '' },
+        { type: 'match', label: 'Corners won', value: us.corner ?? 0, tone: '' },
+        { type: 'match', label: 'Corners conceded', value: them.corner ?? 0, tone: 'is-muted' },
+        { type: 'match', label: 'Fouls committed', value: us.foul ?? 0, tone: '' },
+        { type: 'match', label: 'Fouls won', value: them.foul ?? 0, tone: 'is-muted' },
+        {
+            type: 'match', label: 'Our cards', value: us.card ?? 0,
+            tone: us.card ? 'is-warn' : 'is-muted',
+        },
+        {
+            type: 'match', label: 'Offsides against us',
+            value: us.offside ?? 0, tone: 'is-muted',
+        },
+        { type: 'match', label: 'Substitutions', value: stats.subs ?? 0, tone: 'is-muted' },
     ];
 }
 

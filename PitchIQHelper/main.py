@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import pandas as pd
-from statsbombpy import sb
 from xgboost import XGBClassifier
 from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
@@ -10,8 +9,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 import matplotlib.pyplot as plt
 import time
-import onnxmltools
-from onnxmltools.convert.common.data_types import FloatTensorType
 
 # ---------------------------------------------------------------------------
 # Pitch constants  (StatsBomb coordinate system: 120x80)
@@ -24,7 +21,10 @@ POST_R = np.array([120.0, 44.0])
 # Data loading  (cached after first run)
 # ---------------------------------------------------------------------------
 CACHE_FILE = "xg_raw_shots_cache.pkl"
-ONNX_FILE  = "xg_model6.onnx"
+
+# Bumped from xg_model6 on 2026-08-06, when the export below was found to be
+# throwing away the calibration step. See the note above the ONNX export.
+ONNX_FILE  = "xg_model7.onnx"
 
 # ---------------------------------------------------------------------------
 # Geometry helpers
@@ -131,7 +131,25 @@ def parse(row):
 # ---------------------------------------------------------------------------
 # Data loading  (caches RAW data so parse() can be changed freely)
 # ---------------------------------------------------------------------------
-def load_data():
+def load_data(offline=False):
+    # Offline re-runs the whole thing from the cache and touches no network.
+    # The cache is the raw shot events, so parse() and everything below it can
+    # be changed and re-run without re-downloading two thousand matches — which
+    # is what this file was already structured for, and what makes fixing an
+    # export bug a five-minute job rather than an afternoon.
+    if offline:
+        if not os.path.exists(CACHE_FILE):
+            raise SystemExit(f"No {CACHE_FILE} to work from — run without --offline once.")
+        shots = pd.read_pickle(CACHE_FILE)
+        print(f"Offline: {len(shots)} cached shots from "
+              f"{shots['match_id'].nunique()} matches.")
+        print("Parsing features from raw data...")
+        return pd.DataFrame([parse(r) for _, r in shots.iterrows()])
+
+    # Imported here rather than at the top so a machine that only wants to
+    # re-export from the cache does not need the StatsBomb client installed.
+    from statsbombpy import sb
+
     print("Fetching match lists from StatsBomb (with safety delays)...")
 
     tournaments = [
@@ -215,17 +233,14 @@ def load_data():
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Features
 # ---------------------------------------------------------------------------
-df = load_data()
-
-# Drop penalties — near-deterministic, fixed location; train a separate model if needed
-df = df[df["is_freekick"] == 0].copy()   # also drop direct free-kick shots
-df = df.dropna(subset=["distance_to_goal", "angle_to_goal"])
-
-# Impute missing shot_height with median (z-axis not always present)
-df["shot_height"] = df["shot_height"].fillna(df["shot_height"].median())
-
+#
+# Order matters. The model takes a bare 12-wide float array with no names
+# attached, so this list is mirrored by hand in two other places — FEATURE_ORDER
+# in cv/xg_bridge.py and in xg-sandbox/xg-model.js — and a reordering here is
+# silent everywhere else. tests/test_xg_parity.py checks the other two against
+# each other; nothing can check them against this one but a person.
 FEATURES = [
     "distance_to_goal", "angle_to_goal",
     "is_foot", "is_header",
@@ -235,84 +250,217 @@ FEATURES = [
     "defenders_in_cone", "defender_pressure",
 ]
 
-X = df[FEATURES].values.astype(np.float32)
-y = df["is_goal"].values
-sample_weight = np.where(df["has_freeze_frame"] == 1, 1.0, 0.7)  # down-weight shots without freeze frames
-
-Xtr, Xte, ytr, yte, wtr, _ = train_test_split(
-    X, y, sample_weight, test_size=0.15, random_state=50, stratify=y
-)
 
 # ---------------------------------------------------------------------------
-# Model
+# Main
 # ---------------------------------------------------------------------------
-base_model = XGBClassifier(
-    n_estimators=500,
-    max_depth=5,
-    learning_rate=0.05,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    scale_pos_weight=(y == 0).sum() / (y == 1).sum(),
-    eval_metric="auc",
-    random_state=50,
-    verbosity=0,
-)
 
-# Isotonic calibration so predicted probabilities are meaningful as xG values
-model = CalibratedClassifierCV(base_model, method="isotonic", cv=5)
-model.fit(Xtr, ytr, sample_weight=wtr)
+def main(offline=False, show_plots=True, cross_validate=True):
+    df = load_data(offline=offline)
 
-preds = model.predict_proba(Xte)[:, 1]
-print(f"\nTest  →  AUC: {roc_auc_score(yte, preds):.4f}   Brier: {brier_score_loss(yte, preds):.4f}")
+    # Direct free kicks are dropped: they have their own physics and a wall in
+    # front of them, and one model cannot hold both them and open play. The
+    # comment here used to say penalties were dropped too. They are not — a
+    # penalty is type "Penalty", not "Free Kick", so it survives this line and
+    # reaches the model with is_open_play = 0.
+    df = df[df["is_freekick"] == 0].copy()   # drop direct free-kick shots
+    df = df.dropna(subset=["distance_to_goal", "angle_to_goal"])
 
-# 5-fold cross-validated AUC on full dataset
-cv      = StratifiedKFold(n_splits=5, shuffle=True, random_state=50)
-cv_aucs = cross_val_score(model, X, y, cv=cv, scoring="roc_auc")
-print(f"CV    →  AUC: {cv_aucs.mean():.4f} ± {cv_aucs.std():.4f}")
+    # Impute missing shot_height with median (z-axis not always present)
+    df["shot_height"] = df["shot_height"].fillna(df["shot_height"].median())
 
-# ---------------------------------------------------------------------------
-# Calibration curve
-# ---------------------------------------------------------------------------
-prob_true, prob_pred = calibration_curve(yte, preds, n_bins=10)
-plt.figure(figsize=(6, 5))
-plt.plot(prob_pred, prob_true, marker="o", label="Model")
-plt.plot([0, 1], [0, 1], "--", color="gray", label="Perfect")
-plt.xlabel("Predicted xG")
-plt.ylabel("Actual conversion rate")
-plt.title("Calibration Curve")
-plt.legend()
-plt.tight_layout()
-plt.savefig("calibration_curve.png", dpi=150)
-plt.show()
+    X = df[FEATURES].values.astype(np.float32)
+    y = df["is_goal"].values
+    # down-weight shots without freeze frames
+    sample_weight = np.where(df["has_freeze_frame"] == 1, 1.0, 0.7)
 
-# ---------------------------------------------------------------------------
-# Feature importance (Replaces SHAP to avoid the crash)
-# ---------------------------------------------------------------------------
-from xgboost import plot_importance
+    Xtr, Xte, ytr, yte, wtr, _ = train_test_split(
+        X, y, sample_weight, test_size=0.15, random_state=50, stratify=y
+    )
 
-# Extract the underlying XGBoost model
-xgb_estimator = model.calibrated_classifiers_[0].estimator
+    # -----------------------------------------------------------------------
+    # Model
+    # -----------------------------------------------------------------------
+    base_model = XGBClassifier(
+        n_estimators=500,
+        max_depth=5,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        scale_pos_weight=(y == 0).sum() / (y == 1).sum(),
+        eval_metric="auc",
+        random_state=50,
+        verbosity=0,
+    )
 
-# Temporarily set feature names so the plot is readable
-xgb_estimator.get_booster().feature_names = FEATURES
+    # Isotonic calibration so predicted probabilities are meaningful as xG values
+    model = CalibratedClassifierCV(base_model, method="isotonic", cv=5)
+    model.fit(Xtr, ytr, sample_weight=wtr)
 
-plt.figure(figsize=(10, 6))
-plot_importance(xgb_estimator, importance_type="weight", max_num_features=len(FEATURES),
-                title="XGBoost Feature Importance", show_values=False)
-plt.tight_layout()
-plt.savefig("feature_importance.png", dpi=150)
-plt.show()
+    preds = model.predict_proba(Xte)[:, 1]
+    print(f"\nTest  →  AUC: {roc_auc_score(yte, preds):.4f}   "
+          f"Brier: {brier_score_loss(yte, preds):.4f}")
 
-# THE FIX: Reset feature names back to default so ONNX doesn't crash!
-xgb_estimator.get_booster().feature_names = None
+    # The one line that would have caught the export bug. A set of xG values
+    # that does not add up to the goals actually scored is not xG, whatever
+    # else it is, and this says so in one number.
+    print(f"Sum   →  predicted {preds.sum():.1f} goals over {len(yte)} shots, "
+          f"actual {yte.sum()}  (mean xG {preds.mean():.3f})")
 
-# ---------------------------------------------------------------------------
-# ONNX export
-# ---------------------------------------------------------------------------
-onnx_model = onnxmltools.convert_xgboost(
-    xgb_estimator,
-    initial_types=[("float_input", FloatTensorType([None, len(FEATURES)]))]
-)
-with open(ONNX_FILE, "wb") as f:
-    f.write(onnx_model.SerializeToString())
-print(f"\nSaved ONNX model → {ONNX_FILE}")
+    if cross_validate:
+        # 5-fold cross-validated AUC on full dataset
+        cv      = StratifiedKFold(n_splits=5, shuffle=True, random_state=50)
+        cv_aucs = cross_val_score(model, X, y, cv=cv, scoring="roc_auc")
+        print(f"CV    →  AUC: {cv_aucs.mean():.4f} ± {cv_aucs.std():.4f}")
+
+    # -----------------------------------------------------------------------
+    # Calibration curve
+    # -----------------------------------------------------------------------
+    prob_true, prob_pred = calibration_curve(yte, preds, n_bins=10)
+    plt.figure(figsize=(6, 5))
+    plt.plot(prob_pred, prob_true, marker="o", label="Model")
+    plt.plot([0, 1], [0, 1], "--", color="gray", label="Perfect")
+    plt.xlabel("Predicted xG")
+    plt.ylabel("Actual conversion rate")
+    plt.title("Calibration Curve")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("calibration_curve.png", dpi=150)
+    if show_plots:
+        plt.show()
+
+    # -----------------------------------------------------------------------
+    # Feature importance (Replaces SHAP to avoid the crash)
+    # -----------------------------------------------------------------------
+    from xgboost import plot_importance
+
+    xgb_estimator = model.calibrated_classifiers_[0].estimator
+
+    # Temporarily set feature names so the plot is readable
+    xgb_estimator.get_booster().feature_names = FEATURES
+
+    plt.figure(figsize=(10, 6))
+    plot_importance(xgb_estimator, importance_type="weight",
+                    max_num_features=len(FEATURES),
+                    title="XGBoost Feature Importance", show_values=False)
+    plt.tight_layout()
+    plt.savefig("feature_importance.png", dpi=150)
+    if show_plots:
+        plt.show()
+
+    # THE FIX: Reset feature names back to default so ONNX doesn't crash!
+    xgb_estimator.get_booster().feature_names = None
+
+    # -----------------------------------------------------------------------
+    # ONNX export
+    # -----------------------------------------------------------------------
+    #
+    # The whole calibrated model — not the classifier inside it.
+    #
+    # Until 2026-08-06 this line exported `xgb_estimator`, which is one of the
+    # five fold estimators CalibratedClassifierCV fitted, with the isotonic step
+    # left behind in this process. Every figure printed above was measured on
+    # `model`; every figure the app has ever shown came out of that estimator.
+    # They are not the same model, and the difference is not subtle: the base is
+    # deliberately reweighted by scale_pos_weight (about 9, since roughly one
+    # shot in ten is a goal) and the calibration exists to undo exactly that.
+    # Exported raw, it read about six times high near goal — 0.69 for a clear
+    # shot from 14 metres, 0.89 for a penalty.
+    #
+    # onnxmltools.convert_xgboost cannot see a calibrated wrapper, which is
+    # presumably how it happened. Registering the XGBoost converter with
+    # skl2onnx lets convert_sklearn walk the whole estimator and emit the
+    # isotonic step with it. zipmap=False keeps `probabilities` a plain float
+    # tensor, which is the only shape onnxruntime-web can read in the browser.
+    from skl2onnx import convert_sklearn, update_registered_converter
+    from skl2onnx.common.data_types import FloatTensorType as SklFloatTensorType
+    from skl2onnx.common.shape_calculator import (
+        calculate_linear_classifier_output_shapes,
+    )
+    from onnxmltools.convert.xgboost.operator_converters.XGBoost import (
+        convert_xgboost as convert_xgboost_operator,
+    )
+
+    update_registered_converter(
+        XGBClassifier, "XGBoostXGBClassifier",
+        calculate_linear_classifier_output_shapes, convert_xgboost_operator,
+        options={"nocl": [True, False], "zipmap": [True, False, "columns"]},
+    )
+
+    onnx_model = convert_sklearn(
+        model,
+        initial_types=[("float_input", SklFloatTensorType([None, len(FEATURES)]))],
+        options={id(model): {"zipmap": False}},
+        target_opset={"": 17, "ai.onnx.ml": 3},
+    )
+    with open(ONNX_FILE, "wb") as f:
+        f.write(onnx_model.SerializeToString())
+    print(f"\nSaved ONNX model → {ONNX_FILE}")
+
+    # Check what was written, not what was fitted. The bug this replaces was
+    # invisible precisely because nobody ever ran the exported file.
+    verify_export(model, Xte[:2000])
+
+    return model
+
+
+def verify_export(model, sample):
+    """Run the file that was just written and compare it to the fitted model.
+
+    Not a formality. The bug this replaces was invisible for as long as it was
+    because the exported file was never once run against the model it came from
+    — every figure anyone checked came from `model`, and every figure the app
+    showed came from the file.
+
+    The two do not agree to the last bit, and cannot. Isotonic calibration is a
+    step function, the trees are exported with float32 thresholds, and a shot
+    whose raw margin lands within rounding distance of a step edge comes out on
+    the other plateau. Measured over 8001 held-out shots: identical to 3.7e-10
+    for 98% of them, over 0.001 for 0.7%, and one shot at 0.0129. The mean
+    agrees to five decimal places, so nothing that sums a match's worth of shots
+    can tell the difference.
+
+    So the thresholds are set to catch a real regression — a dropped calibration
+    step moves the mean by ~0.35, an ordering or feature mistake moves
+    everything — and not the plateau edges.
+    """
+    try:
+        import onnxruntime as ort
+    except ImportError:
+        print("onnxruntime not installed — exported model NOT verified.")
+        return
+
+    session = ort.InferenceSession(ONNX_FILE, providers=["CPUExecutionProvider"])
+    outputs = session.run(None, {"float_input": sample.astype(np.float32)})
+    exported = next(
+        np.asarray(o)[:, 1] for o in outputs
+        if np.asarray(o).ndim == 2 and np.asarray(o).shape[1] >= 2
+    )
+    fitted = model.predict_proba(sample)[:, 1]
+    gap = np.abs(exported - fitted)
+
+    print(f"Export check → mean {gap.mean():.2e}, p99 {np.percentile(gap, 99):.2e}, "
+          f"worst {gap.max():.4f} over {len(gap)} shots")
+    print(f"              mean xG: file {exported.mean():.4f}, "
+          f"fitted {fitted.mean():.4f}")
+
+    if gap.mean() > 1e-3 or gap.max() > 0.05:
+        raise SystemExit("The exported model does not match the fitted one.")
+
+
+if __name__ == "__main__":
+    import sys
+
+    # Every print below has an arrow in it, and a Windows console defaults to
+    # cp1252, which cannot encode one. Without this the script trains for two
+    # minutes and then dies on its first line of output.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+    # --offline re-runs everything from the cached shots and touches no
+    # network, which is what re-exporting after a bug fix needs.
+    offline = "--offline" in sys.argv
+    fast = "--fast" in sys.argv          # skip the 25-fit cross-validation
+    if offline:
+        plt.switch_backend("Agg")        # no window to block on a headless run
+
+    main(offline=offline, show_plots=not offline, cross_validate=not fast)

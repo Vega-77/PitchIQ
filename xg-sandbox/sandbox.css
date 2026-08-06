@@ -54,7 +54,21 @@ body { display: flex; flex-direction: column; }
     flex-direction: column;
     gap: 10px;
     flex: 1;
+    /* The controls scroll; the head and the xG readout do not. Without this the
+       body simply grows and pushes the readout off the bottom of the screen —
+       which it did the moment the presets and the feature list were added, and
+       the number is the entire point of the page. `min-height: 0` is the part
+       that actually does it: a flex child will not shrink below its content
+       without it, so overflow alone changes nothing. */
+    min-height: 0;
+    overflow-y: auto;
 }
+
+/* Nothing in a scrolling column may be squashed to fit it. Flex children shrink
+   by default, so the moment the body started scrolling the feature list — the
+   one block with no intrinsic height of its own — collapsed from twelve rows to
+   two pixels while all twelve were still in the DOM. */
+.panel-body > * { flex-shrink: 0; }
 
 .panel-actions {
     display: flex;
@@ -80,6 +94,58 @@ body { display: flex; flex-direction: column; }
     font-size: 0.76rem;
     line-height: 1.45;
     color: var(--text-faint);
+}
+
+/* ---------------------------------------------------------------- presets */
+
+.preset-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.preset-row .preset {
+    flex: 1 1 auto;
+    /* Two per row at the panel's width, and the long sample-match names get a
+       row of their own rather than being truncated to "Sample match —". */
+    min-width: calc(50% - 3px);
+}
+
+.preset-row .preset.active {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Empty until a preset is picked, so it must not hold a line of space. */
+#preset-detail:empty { display: none; }
+
+/* --------------------------------------------------------- what it sees */
+
+.feature-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.feature-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    padding: 5px 10px;
+    font-size: 0.76rem;
+}
+.feature-row:nth-child(odd) { background: rgba(255, 255, 255, 0.02); }
+
+.feature-row .f-name { color: var(--text-faint); }
+.feature-row .f-value {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+    white-space: nowrap;
 }
 
 /* ---------------------------------------------------------------- sliders */
@@ -287,11 +353,52 @@ input[type="range"]:disabled::-moz-range-thumb { background: var(--text-faint); 
    along the bottom, so the pitch keeps most of the screen. */
 body.portrait .sandbox { flex-direction: column; }
 
+/* On a phone the page scrolls, and only on a phone.
+ *
+ * Landscape is a fixed viewport with a pitch that fills whatever it is given —
+ * that is the design and it works. Portrait was the same design squeezed into
+ * a column, and it never fitted: at 42% of the layout the panel was 210px
+ * against roughly 220px of head, buttons and xG readout, so the readout was
+ * clipped and the controls got about 24px of scroll between them. Adding the
+ * presets and the feature list made a bad thing worse rather than breaking a
+ * good one.
+ *
+ * So in portrait the pitch takes a fixed slice of the screen and everything
+ * below it is an ordinary scrolling page, with the number stuck to the bottom
+ * so it stays readable while you scroll the controls that change it. */
+html:has(body.portrait) { height: auto; overflow: auto; }
+
+body.portrait {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+}
+
+body.portrait .sandbox { height: auto; min-height: 0; }
+
+body.portrait #display {
+    flex: none;
+    height: 46vh;
+}
+
 body.portrait .panel {
     width: 100%;
-    height: 42%;
+    height: auto;
     border-left: none;
     border-top: 1px solid var(--line);
+    overflow: visible;
+}
+
+body.portrait .panel-body {
+    overflow: visible;
+    min-height: 0;
+}
+
+/* The answer stays on screen while the controls that change it scroll past. */
+body.portrait .xg-readout {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
 }
 
 /* Compact rather than gone. Hiding the head saved about 70px and cost the
@@ -312,7 +419,17 @@ body.portrait .panel-body {
 body.portrait .section-label { width: 100%; margin: 4px 0 2px; }
 body.portrait .slider-row { width: calc(50% - 10px); }
 body.portrait .toggle-grid,
+body.portrait .preset-row,
+body.portrait .feature-list,
 body.portrait .note { width: 100%; }
+
+/* Two columns of six rather than one column of twelve, so the feature list
+   does not become most of the scroll on a phone. */
+body.portrait .feature-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+}
 
 body.portrait .panel-actions { flex-direction: row; padding: 10px 16px; }
 body.portrait .xg-readout { padding: 12px 16px; }

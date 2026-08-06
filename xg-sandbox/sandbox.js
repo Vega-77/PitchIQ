@@ -6,8 +6,9 @@
 // xg-model.js, so the one part that has to stay in step with the trained model
 // is not tangled up with drawing code.
 
-import { Vector, Player } from './geometry.js?v=25';
-import { predictXg } from './xg-model.js?v=25';
+import { Vector, Player } from './geometry.js?v=26';
+import { predictXg, buildFeatures, FEATURE_ORDER } from './xg-model.js?v=26';
+import { PRESETS, fromMetres } from './presets.js?v=26';
 
 const canvas = document.getElementById('display');
 const ctx = canvas.getContext('2d');
@@ -62,6 +63,7 @@ let pitchRect = { x: 0, y: 0, w: 0, h: 0 };
 let lastCanvasSize = { w: 0, h: 0 };
 
 const byId = (id) => document.getElementById(id);
+const setText = (id, value) => { const el = byId(id); if (el) el.textContent = value; };
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -92,8 +94,76 @@ function init() {
     bindCanvas();
     bindButtons();
     bindSliders();
-    refreshReadouts();
+    bindPresets();
+
+    // Open on a shot rather than on the positions above, which are only there
+    // to create the players. They put the shooter 37 metres out, which was a
+    // reasonable-looking arrangement while `toStatsBomb` was doubling every
+    // distance and is a shot worth 0.011 now that it is not — a first screen
+    // showing "about 1 in 90" teaches nobody anything about the model.
+    applyPreset(PRESETS.find((preset) => preset.id === 'edge-of-the-box'));
     loop();
+}
+
+// ---------------------------------------------------------------------------
+// Presets
+// ---------------------------------------------------------------------------
+
+function bindPresets() {
+    const row = byId('presets');
+    if (!row) return;
+
+    for (const preset of PRESETS) {
+        const button = document.createElement('button');
+        button.className = 'btn small preset';
+        button.type = 'button';
+        button.textContent = preset.name;
+        button.title = preset.detail;
+        button.addEventListener('click', () => applyPreset(preset));
+        row.append(button);
+    }
+}
+
+/**
+ * Put every player where a preset says, and set the toggles with them.
+ *
+ * All ten, not just the three the model weighs. A preset that moved the shooter
+ * and left the previous scenario's defenders standing where they were would
+ * produce a number belonging to neither.
+ */
+function applyPreset(preset) {
+    keeper.position = fromMetres(preset.keeper);
+    preset.defenders.forEach((spot, i) => {
+        players.defence[i + 1].position = fromMetres(spot);
+    });
+
+    // The shooter is always attack[0], so a preset also undoes any number of
+    // presses of "Switch shooter".
+    [shooter] = players.attack;
+    shooter.position = fromMetres(preset.shooter);
+    preset.attackers.forEach((spot, i) => {
+        players.attack[i + 1].position = fromMetres(spot);
+    });
+
+    byId('is_foot').checked = preset.shot.isFoot;
+    byId('is_header').checked = preset.shot.isHeader;
+    byId('under_pressure').checked = preset.shot.underPressure;
+    byId('is_open_play').checked = preset.shot.isOpenPlay;
+
+    setText('preset-detail', preset.detail);
+    for (const button of document.querySelectorAll('.preset')) {
+        button.classList.toggle('active', button.textContent === preset.name);
+    }
+
+    refreshReadouts();
+}
+
+/** A preset stops describing the pitch the moment somebody drags a player. */
+function clearPresetMark() {
+    for (const button of document.querySelectorAll('.preset.active')) {
+        button.classList.remove('active');
+    }
+    setText('preset-detail', '');
 }
 
 function bindCanvas() {
@@ -221,6 +291,7 @@ function handleDragging() {
             if (Vector.dist(toScreen(player.position), mouse) < GRAB_RADIUS) {
                 dragging = player;
                 dragging.isDragging = true;
+                clearPresetMark();
                 break;
             }
         }
@@ -389,12 +460,14 @@ function bindSliders() {
             slider.move(value);
             showValue(slider, value);
             refreshReadouts([slider.id]);
+            clearPresetMark();
         });
     }
 
     // Shot height is the one input with no position to derive it from.
     byId('shot_height').addEventListener('input', (e) => {
         setDisplay('val-shot-height', e.target.value, ' m', 1);
+        clearPresetMark();
     });
 }
 
@@ -649,8 +722,9 @@ function drawPlayer(player) {
 // xG
 // ---------------------------------------------------------------------------
 
-async function updateXg() {
-    const xg = await predictXg({
+/** Everything the model is about to be told, from where the players are. */
+function shotSetup() {
+    return {
         shooter: shooter.position,
         keeper: keeper.position,
         defenders: players.defence
@@ -663,9 +737,130 @@ async function updateXg() {
             isOpenPlay: byId('is_open_play').checked,
             height: parseFloat(byId('shot_height').value),
         },
-    });
+    };
+}
 
-    byId('xg-value').textContent = xg === null ? '—' : xg.toFixed(3);
+// One inference at a time, and always the newest one.
+//
+// An onnxruntime session cannot run twice at once — the second call fails with
+// "Session already started" and then the whole session goes to "Session
+// mismatch". This loop runs sixty times a second and used to fire a run each
+// time, which worked only because the old model answered inside a frame.
+// xg_model7 averages five folds and does not, so every frame of a drag failed
+// and the readout sat on "—".
+//
+// Latest-wins rather than a queue: while a run is in flight, later frames
+// overwrite `pending`, so the number that lands is the one for where the
+// players are now and not for a position the mouse left forty frames ago.
+let running = false;
+let pending = null;
+
+async function updateXg() {
+    const setup = shotSetup();
+    // Cheap arithmetic, no model. This can and should keep up with the drag.
+    renderFeatures(buildFeatures(setup));
+
+    pending = setup;
+    if (running) return;
+
+    running = true;
+    try {
+        while (pending) {
+            const next = pending;
+            pending = null;
+            const xg = await predictXg(next);
+            byId('xg-value').textContent = xg === null ? '—' : xg.toFixed(3);
+            setText('xg-odds', xg === null ? 'chance of scoring' : odds(xg));
+        }
+    } finally {
+        running = false;
+    }
+}
+
+/**
+ * The same probability said in a way a person can hold: "about 1 in 5".
+ *
+ * 0.216 is a number a coach has no feel for, and the feel is the thing worth
+ * having — it is what makes "we had four of those" mean something. Rounded to a
+ * whole number of shots on purpose, because the model is nowhere near precise
+ * enough to distinguish one in six from one in seven.
+ */
+function odds(xg) {
+    if (xg == null) return '';
+    if (xg >= 0.995) return 'a certainty';
+    if (xg < 0.005) return 'not worth a number';
+    const one_in = Math.round(1 / xg);
+    return one_in <= 1 ? 'better than even' : `about 1 in ${one_in}`;
+}
+
+// ---------------------------------------------------------------------------
+// What the model sees
+//
+// The twelve numbers, as they are handed over. This is the panel that would
+// have made two separate bugs obvious the day they were introduced: a distance
+// of 45.7 where the slider above it said 20 m, and a keeper feature standing in
+// for a keeper who was never found. Both were invisible while the only thing on
+// screen was the answer.
+//
+// Deliberately in the model's own units rather than converted to metres.
+// StatsBomb space is 120x80 over a full pitch, so a distance here is about 0.88
+// of a metre, and rewriting it into metres would hide exactly the mismatch this
+// is for.
+// ---------------------------------------------------------------------------
+
+const FEATURE_LABELS = {
+    distance_to_goal: 'Distance to goal',
+    angle_to_goal: 'Angle of the goalmouth',
+    is_foot: 'Struck with the foot',
+    is_header: 'Header',
+    under_pressure: 'Under pressure',
+    is_open_play: 'Open play',
+    shot_height: 'Shot height',
+    keeper_distance_to_goal: "Keeper's distance to goal",
+    keeper_angle_coverage: 'Angle the keeper covers',
+    keeper_off_line: 'Keeper off his line',
+    defenders_in_cone: 'Defenders in the lane',
+    defender_pressure: 'Weighted defender pressure',
+};
+
+// Radians on the wire, degrees on the screen. Nobody reads 0.35 rad.
+const IN_DEGREES = new Set(['angle_to_goal', 'keeper_angle_coverage']);
+const FLAGS = new Set([
+    'is_foot', 'is_header', 'under_pressure', 'is_open_play', 'keeper_off_line',
+]);
+
+function featureText(name, value) {
+    if (FLAGS.has(name)) return value ? 'yes' : 'no';
+    if (IN_DEGREES.has(name)) return `${(value * (180 / Math.PI)).toFixed(1)}°`;
+    if (name === 'defenders_in_cone') return String(Math.round(value));
+    if (name === 'shot_height') return `${value.toFixed(2)} m`;
+    return value.toFixed(2);
+}
+
+let featureRows = null;
+
+function renderFeatures(features) {
+    const host = byId('features');
+    if (!host) return;
+
+    // Built once and then only written to. This runs inside the animation
+    // loop, and rebuilding twelve rows sixty times a second would make the
+    // page's own drawing the slowest thing on it.
+    if (!featureRows) {
+        featureRows = new Map();
+        for (const name of FEATURE_ORDER) {
+            const row = document.createElement('div');
+            row.className = 'feature-row';
+            row.innerHTML = '<span class="f-name"></span><span class="f-value num"></span>';
+            row.querySelector('.f-name').textContent = FEATURE_LABELS[name] || name;
+            host.append(row);
+            featureRows.set(name, row.querySelector('.f-value'));
+        }
+    }
+
+    for (const name of FEATURE_ORDER) {
+        featureRows.get(name).textContent = featureText(name, features[name]);
+    }
 }
 
 init();
@@ -681,4 +876,9 @@ window._sandbox = {
     measurements: () => Object.fromEntries(
         SLIDERS.map((slider) => [slider.id, slider.measure()]),
     ),
+    // So a preset can be placed and its measurements read back without
+    // synthesising a click on a button whose text may change.
+    applyPreset,
+    /** The twelve numbers, for checking them against the metres on screen. */
+    features: () => buildFeatures(shotSetup()),
 };

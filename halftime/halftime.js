@@ -10,19 +10,21 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=25';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=26';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../assets/db.js?v=25';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=25';
-import { possessionIsInPlay, cvReads, xgTrust } from '../assets/report.js?v=25';
-import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=25';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=25';
+} from '../assets/db.js?v=26';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=26';
+import {
+    possessionIsInPlay, cvReads, xgTrust, groupStats,
+} from '../assets/report.js?v=26';
+import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=26';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=26';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
-    tally,
-} from '../assets/ui.js?v=25';
+    tally, groupHead,
+} from '../assets/ui.js?v=26';
 
 const VIEWS = ['view-error', 'view-report'];
 
@@ -173,26 +175,24 @@ function renderTallies() {
     const list = byId('tallies');
     list.innerHTML = '';
 
-    const { us, them } = state.stats.counts;
-
-    const rows = [
-        ['Corners', us.corner, them.corner, 'high'],
-        ['Free kicks won', us.free_kick, them.free_kick, 'high'],
-        ['Fouls committed', us.foul, them.foul, 'low'],
-        ['Offside', us.offside, them.offside, 'low'],
-        ['Cards', us.card, them.card, 'low'],
-    ];
-
-    for (const [label, ours, theirs, better] of rows) {
-        if (!ours && !theirs) continue;
-        list.append(tally(label, ours, theirs, better));
+    // Video-derived rows sit in the same groups as the tapped ones, each
+    // carrying a confidence mark. Same groups because a coach wants one picture
+    // of the half; marked because an estimated pass count and a tapped corner
+    // count are not the same kind of fact, and nothing else on the row says so.
+    //
+    // Grouped by the same list the coach's full report uses. Thirteen bars in
+    // one column is a wall on a phone, and the headings are what let somebody
+    // standing in a changing room find the two they came for. They are also the
+    // one thing keeping this page and the match view agreeing about what counts
+    // as attacking rather than passing.
+    for (const group of groupStats([...taggedTallies(), ...cvTallies()])) {
+        list.append(groupHead(group.title));
+        for (const row of group.rows) {
+            list.append(tally(
+                row.label, row.value, row.theirs, row.better, row.confidence,
+            ));
+        }
     }
-
-    // Video-derived rows sit in the same list, each carrying a confidence mark.
-    // Same list because a coach wants one picture of the half; marked because
-    // an estimated pass count and a tapped corner count are not the same kind
-    // of fact, and nothing else on the row would say so.
-    list.append(...cvTallies());
 
     if (!list.children.length) {
         list.innerHTML = '<div class="empty">Nothing tagged yet beyond the restarts.</div>';
@@ -208,6 +208,22 @@ function renderTallies() {
         // standing up in three minutes, and the only caveat that changes how the
         // possession row above is read is what its denominator was.
         + (cvLiveNote() || ''));
+}
+
+/** The counts somebody tapped, as typed rows for `groupStats`. */
+function taggedTallies() {
+    const { us, them } = state.stats.counts;
+
+    return [
+        ['match', 'Corners', us.corner, them.corner, 'high'],
+        ['match', 'Free kicks won', us.free_kick, them.free_kick, 'high'],
+        ['match', 'Fouls committed', us.foul, them.foul, 'low'],
+        ['match', 'Offside', us.offside, them.offside, 'low'],
+        ['match', 'Cards', us.card, them.card, 'low'],
+    ]
+        .filter(([, , ours, theirs]) => ours || theirs)
+        .map(([type, label, value, theirs, better]) =>
+            ({ type, label, value, theirs, better }));
 }
 
 /** The rows that came from footage rather than from somebody's thumb. */
@@ -227,37 +243,39 @@ function cvTallies() {
         // "in play" only when a tagged log told the pipeline when it wasn't.
         // Without one this is still possession of every second including the
         // ones spent waiting for a throw-in, and the label must not upgrade it.
-        [possessionIsInPlay(quality) ? 'Possession in play %' : 'Possession %',
+        ['possession',
+            possessionIsInPlay(quality) ? 'Possession in play %' : 'Possession %',
             pct(ours.possession_pct), pct(theirs.possession_pct),
             'high', possession],
-        ['Passes completed', ours.passes_completed, theirs.passes_completed,
+        ['passing', 'Passes completed', ours.passes_completed, theirs.passes_completed,
             'high', events],
-        ['Tackles', ours.tackles, theirs.tackles, 'high', events],
-        ['Interceptions', ours.interceptions, theirs.interceptions, 'high', events],
-        ['Recoveries', ours.recoveries, theirs.recoveries, 'high', events],
-        ['Shots', ours.shots, theirs.shots, 'high', events],
-        ['Shots on target', ours.shots_on_target, theirs.shots_on_target,
+        ['defending', 'Tackles', ours.tackles, theirs.tackles, 'high', events],
+        ['defending', 'Interceptions', ours.interceptions, theirs.interceptions,
             'high', events],
-        // The catalog's headline number, and until now the pipeline never
+        ['defending', 'Recoveries', ours.recoveries, theirs.recoveries, 'high', events],
+        ['attacking', 'Shots', ours.shots, theirs.shots, 'high', events],
+        ['attacking', 'Shots on target', ours.shots_on_target, theirs.shots_on_target,
+            'high', events],
+        // The catalog's headline number, and until 2026-08-02 the pipeline never
         // computed it — see cv/xg_bridge.py. One decimal place, because two
         // would claim a precision the noise measurement says is not there.
-        [xgLabel(), xg(ours.xg), xg(theirs.xg), 'high', events],
-        ['Entries into the final third', ours.final_third_entries,
+        ['attacking', xgLabel(), xg(ours.xg), xg(theirs.xg), 'high', events],
+        ['attacking', 'Entries into the final third', ours.final_third_entries,
             theirs.final_third_entries, 'high', events],
     ];
 
     return rows
         // A null means the pipeline could not measure it — usually for want of
         // a calibration. Showing a zero would say it measured none.
-        .filter(([, a, b]) => (a || b) && a != null && b != null)
-        .map(([label, a, b, better, confidence]) =>
-            tally(label, a, b, better, confidence));
+        .filter(([, , a, b]) => (a || b) && a != null && b != null)
+        .map(([type, label, value, theirs2, better, confidence]) =>
+            ({ type, label, value, theirs: theirs2, better, confidence }));
 }
 
 const pct = (share) => (share == null ? null : Math.round(share * 100));
 
 // One decimal place. Two would claim a precision the model does not have: half
-// a metre of position error moves a single shot's xG by about 0.066, so the
+// a metre of position error moves a single shot's xG by about 0.035, so the
 // second decimal is noise wearing a number's clothes. See tests/test_xg_noise.py.
 //
 // Null at a calibration too loose to support even a total, which drops the row

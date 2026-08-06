@@ -422,6 +422,44 @@ button.list-item:hover, a.list-item:hover {
 
 /* ---------------------------------------------------------------- stats */
 
+/* Groups of boxes, one per question a coach is asking. The gap between groups
+   is a good deal larger than the gap inside one — that spacing is the whole
+   mechanism, and a uniform gap would put twenty-five boxes back in one pile
+   with some headings scattered through it. */
+.stat-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+}
+
+.group-head {
+    margin-bottom: 10px;
+}
+.group-head h4 {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--text-dim);
+    margin: 0;
+}
+/* auto-fill, not auto-fit, once the grid is one of several stacked ones.
+   auto-fit collapses the empty tracks, so a group of three boxes stretches each
+   to twice the width of the six above it — which reads as a claim that those
+   three matter more, and this project's whole line on shot maps is that a size
+   difference is a claim. */
+.stat-group .stat-grid {
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+}
+
+/* What the figures underneath are a share of. Said once above the group
+   instead of six times inside the labels. */
+.group-head .group-note {
+    font-size: 0.78rem;
+    color: var(--text-faint);
+    margin: 3px 0 0;
+}
+
 .stat-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
@@ -894,6 +932,14 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
 /* ---------------------------------------------------------------- tallies */
 
 .tally-list { display: flex; flex-direction: column; gap: 14px; }
+
+/* Headings inside a column of bars. Extra room above and none below, so a
+   heading reads as attached to what follows it rather than floating between
+   two groups — the one thing that would make the grouping worse than none. */
+.tally-list .group-head {
+    margin: 8px 0 -2px;
+}
+.tally-list .group-head:first-child { margin-top: 0; }
 
 /* Numbers flank a split bar, so the gap registers before either figure is
    actually read. */

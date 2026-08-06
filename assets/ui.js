@@ -91,6 +91,56 @@ export function statCard(value, label, tone = '', confidence = null) {
     return el;
 }
 
+/**
+ * The heading over one kind of statistic.
+ *
+ * Its own element rather than a bare `<h4>` because both shapes of stat list
+ * need it — the coach's grid of boxes and the half-time page's column of
+ * us-against-them bars — and they should not drift into looking like two
+ * different ideas. `note` is for what the figures underneath are a share *of*;
+ * putting that once above six boxes beats repeating it in six labels.
+ */
+export function groupHead(title, note = '') {
+    const head = document.createElement('div');
+    head.className = 'group-head';
+    head.innerHTML = '<h4></h4><p class="group-note"></p>';
+    head.querySelector('h4').textContent = title;
+
+    const caption = head.querySelector('.group-note');
+    if (note) caption.textContent = note;
+    else caption.remove();
+
+    return head;
+}
+
+/**
+ * One titled block of stat boxes, from a group out of `groupStats`.
+ *
+ * Anything carrying a confidence mark is muted unless the caller says
+ * otherwise: a figure a machine estimated should not sit in the same visual
+ * register as a goal somebody pressed a button for, and the mark alone is easy
+ * to miss at arm's length.
+ */
+export function statGroup({ title, note = '', rows = [] }) {
+    const section = document.createElement('section');
+    section.className = 'stat-group';
+    section.append(groupHead(title, note));
+
+    const grid = document.createElement('div');
+    grid.className = 'stat-grid';
+    for (const row of rows) {
+        grid.append(statCard(
+            row.value,
+            row.label,
+            row.tone ?? (row.confidence ? 'is-muted' : ''),
+            row.confidence,
+        ));
+    }
+
+    section.append(grid);
+    return section;
+}
+
 /** Confidence levels, worst first, so a caller can compare them. */
 export const CONFIDENCE_LEVELS = ['low', 'medium', 'high'];
 

@@ -23,6 +23,10 @@ import * as matchVideo from '../assets/match-video.js';
 import * as heatmap from '../assets/heatmap.js';
 import * as markMod from '../assets/shot-map.js';
 import * as sample from '../assets/sample-report.js';
+// The sandbox's model half and its preset table. Neither touches the DOM or
+// onnxruntime at import time — the session is only built on the first predict.
+import * as xgModel from '../xg-sandbox/xg-model.js';
+import * as presets from '../xg-sandbox/presets.js';
 
 // ---------------------------------------------------------------- video URLs
 
@@ -682,7 +686,7 @@ describe('cvQualityNotes', () => {
     });
 
     test('a loose calibration adds the per-shot warning, a tight one does not', () => {
-        // Measured, not guessed: at 0.5m the mean xG shift is 0.066 on a 0.47
+        // Measured, not guessed: at 0.5m the mean xG shift is 0.035 on a 0.254
         // baseline, and it keeps widening. See tests/test_xg_noise.py.
         const loose = joined({}, { shots: 3, calibrationErrorM: 2.4 });
         assert.match(loose, /2\.4m of calibration error/);
@@ -1057,6 +1061,291 @@ describe('cvReads', () => {
     });
 });
 
+// ----------------------------------------------------------- the sandbox
+//
+// The gap these close is a specific one. tests/test_xg_parity.py builds a
+// scenario in StatsBomb space and converts it into each side's convention, so
+// it proves Python and JavaScript agree about a point — and cannot notice that
+// the point is not where the sandbox says it is. It did not notice for months:
+// `toStatsBomb` mapped the sandbox's half pitch onto a full StatsBomb one, so
+// every shot reached the model at twice its distance, and the parity test's own
+// inverse carried the same mistake and agreed with it perfectly.
+//
+// So these start from metres — the units on the sliders, which is the only
+// place a person can tell whether the answer is right.
+
+describe('the sandbox speaks the same units as the pipeline', () => {
+    // The sandbox's 0-1 space: x across 68m, y out from the goal line over the
+    // 52.5m half it draws.
+    const at = (acrossM, fromGoalM) => ({ x: acrossM / 68, y: fromGoalM / 52.5 });
+
+    // StatsBomb is 120 long and 80 wide over a 105x68 pitch, so a unit is 0.875m
+    // along it and 0.85m across it. **The space is not isotropic in metres**,
+    // and neither is cv/pitch.py's `to_statsbomb`, which does the same thing:
+    // an angle in model space is about 3% wider than the one a protractor would
+    // measure on the grass. That is inherited from how the model was trained
+    // and is not something to correct here — but it does mean a diagonal cannot
+    // be converted with one factor, which is what the first draft of these
+    // tests tried and why two of them failed against correct code.
+    const UNITS_PER_M = 120 / 105;
+    const ACROSS_PER_M = 80 / 68;
+
+    const featuresFor = (shooter, keeper = at(34, 2), defenders = []) =>
+        xgModel.buildFeatures({
+            shooter,
+            keeper,
+            defenders,
+            shot: {
+                isFoot: true, isHeader: false, underPressure: false,
+                isOpenPlay: true, height: 0.6,
+            },
+        });
+
+    test('a shot the sliders call 20m is 20m to the model', () => {
+        // The regression itself. This read 45.71 units — 40m — while the
+        // Distance slider above it said 20.
+        const { distance_to_goal: distance } = featuresFor(at(34, 20));
+        assert.ok(
+            Math.abs(distance / UNITS_PER_M - 20) < 0.05,
+            `${distance} units is ${(distance / UNITS_PER_M).toFixed(1)}m`,
+        );
+    });
+
+    test('distance is measured to the goal from anywhere on the half', () => {
+        for (const [across, out] of [[34, 5], [34, 30], [34, 52.5], [45, 11], [20, 25]]) {
+            // Each axis scaled by its own factor, because they differ.
+            const expected = Math.hypot(
+                out * UNITS_PER_M, (across - 34) * ACROSS_PER_M,
+            );
+            const units = featuresFor(at(across, out)).distance_to_goal;
+            assert.ok(Math.abs(units - expected) < 0.05,
+                `(${across}, ${out}) -> ${units.toFixed(2)}, wanted ${expected.toFixed(2)}`);
+        }
+    });
+
+    test('the goalmouth subtends the angle trigonometry says it does', () => {
+        // The goal is 8 units of an 80-unit width, which on a 68m pitch is
+        // 6.8m and not the regulation 7.32 — another thing baked into the
+        // training data. So the check is done in units, where it is exact.
+        //
+        // The old mapping halved this to 10 degrees, and how much of the goal a
+        // shooter can see is most of why a shot scores what it does.
+        const degrees = featuresFor(at(34, 20)).angle_to_goal * (180 / Math.PI);
+        const expected =
+            2 * Math.atan(4 / (20 * UNITS_PER_M)) * (180 / Math.PI);
+        assert.ok(Math.abs(degrees - expected) < 0.05,
+            `${degrees.toFixed(2)} deg, trigonometry says ${expected.toFixed(2)}`);
+    });
+
+    test('the halfway line is halfway, not the far goal', () => {
+        // y = 1 is the top of what the sandbox draws. Under the old mapping it
+        // came out at the opposite goal line, 0 units from the wrong goal.
+        const { distance_to_goal: far } = featuresFor(at(34, 52.5));
+        assert.ok(Math.abs(far - 60) < 0.5, `${far} units`);
+    });
+
+    test('a keeper on his line is not counted as having come out', () => {
+        // keeper_off_line is a hard threshold at 3 units, so doubling the scale
+        // flipped it for any keeper more than 1.3m off his line.
+        assert.equal(featuresFor(at(34, 12), at(34, 1)).keeper_off_line, 0);
+        assert.equal(featuresFor(at(34, 12), at(34, 6)).keeper_off_line, 1);
+    });
+});
+
+describe('the sandbox presets', () => {
+    test('every preset places all ten players inside the half', () => {
+        for (const preset of presets.PRESETS) {
+            const spots = [
+                preset.shooter, preset.keeper,
+                ...preset.defenders, ...preset.attackers,
+            ];
+            assert.equal(spots.length, 10, preset.id);
+            for (const spot of spots) {
+                const position = presets.fromMetres(spot);
+                assert.ok(position.x >= 0 && position.x <= 1, `${preset.id} ${spot}`);
+                assert.ok(position.y >= 0 && position.y <= 1, `${preset.id} ${spot}`);
+            }
+        }
+    });
+
+    test('the arrays are the length the sandbox has slots for', () => {
+        // applyPreset writes into players.defence[1..4] and players.attack[1..4].
+        // A fifth entry would be dropped in silence and the scenario would be
+        // subtly not the one described.
+        for (const preset of presets.PRESETS) {
+            assert.equal(preset.defenders.length, 4, preset.id);
+            assert.equal(preset.attackers.length, 4, preset.id);
+        }
+    });
+
+    test('every preset says what it is, under a name of its own', () => {
+        const ids = presets.PRESETS.map((p) => p.id);
+        assert.equal(new Set(ids).size, ids.length);
+        for (const preset of presets.PRESETS) {
+            assert.ok(preset.name && preset.detail, preset.id);
+            assert.ok(preset.shot.isOpenPlay !== undefined, preset.id);
+        }
+    });
+
+    test('the penalty is the one thing the model can be told about a penalty', () => {
+        // There is no penalty feature. Twelve yards and is_open_play = 0 is the
+        // whole of it, so a preset that left open play on would be a preset of
+        // an ordinary shot from the spot.
+        const penalty = presets.presetById('penalty');
+        assert.equal(penalty.shot.isOpenPlay, false);
+        assert.ok(Math.abs(penalty.shooter[1] - 11) < 0.5);
+    });
+
+    test('the sample-match presets sit where the fixture publishes the shots', () => {
+        // What makes the number on the coach's preview reproducible here. The
+        // fixture is metres on a 105x68 pitch attacking right, so a shot at x_m
+        // is 105 - x_m out from the goal line.
+        const shots = sample.sampleCvSummary().teams.team_a.shot_map;
+        for (const [id, videoS] of [
+            ['sample-opener', 412.4], ['sample-miss', 908.7],
+        ]) {
+            const shot = shots.find((s) => s.video_s === videoS);
+            const [across, out] = presets.presetById(id).shooter;
+            assert.ok(Math.abs(across - shot.y_m) < 0.05, id);
+            assert.ok(Math.abs(out - (105 - shot.x_m)) < 0.05, id);
+        }
+    });
+});
+
+// ------------------------------------------------------- stats, by kind
+//
+// The grouping is presentation, so most of what could be tested here would just
+// restate the table. What is worth pinning is the handful of decisions that
+// would be silent failures on a coach's screen: a dropped row, a caption
+// attached to figures that are not there, and the two pages disagreeing about
+// which group a statistic belongs in.
+
+describe('groupStats', () => {
+    const row = (type, label, value = 1) => ({ type, label, value });
+
+    test('keeps the order of the type list, not the order rows arrive in', () => {
+        const groups = report.groupStats([
+            row('defending', 'Tackles'),
+            row('match', 'Goals for'),
+            row('passing', 'Passes attempted'),
+        ]);
+        assert.deepEqual(groups.map((g) => g.id), ['match', 'passing', 'defending']);
+    });
+
+    test('drops a group with nothing in it rather than heading a blank space', () => {
+        const groups = report.groupStats([row('match', 'Goals for')]);
+        assert.equal(groups.length, 1);
+    });
+
+    test('drops a row the pipeline could not measure, and keeps a measured zero', () => {
+        // The distinction the whole project turns on. A null is "not measured";
+        // a zero is a measurement, and dropping it would delete a real answer.
+        const groups = report.groupStats([
+            { type: 'attacking', label: 'Shots', value: 0 },
+            { type: 'attacking', label: 'Expected goals', value: null },
+            { type: 'attacking', label: 'Crosses', value: undefined },
+        ]);
+        assert.deepEqual(groups[0].rows.map((r) => r.label), ['Shots']);
+    });
+
+    test('keeps a row whose type it does not recognise', () => {
+        // Visibly wrong beats silently gone: a typo in a type name must not
+        // delete a measured figure from a coach's screen.
+        const groups = report.groupStats([row('possesion', 'Possession')]);
+        assert.equal(groups.length, 1);
+        assert.equal(groups[0].rows.length, 1);
+    });
+
+    test('drops a caption whose figures are not on screen', () => {
+        // Both notes explain a denominator that only some rows have. A caption
+        // about thirds, over a group with no thirds in it, would be read as
+        // applying to whatever is there.
+        const withThirds = report.groupStats([
+            row('possession', 'Possession'),
+            { type: 'possession', label: 'In their third', value: '17%', explained: true },
+        ]);
+        const without = report.groupStats([row('possession', 'Possession')]);
+
+        assert.match(withThirds[0].note, /thirds/i);
+        assert.equal(without[0].note, '');
+    });
+});
+
+describe('teamStatRows', () => {
+    const cv = (team = {}, extra = {}) => ({
+        quality: {}, teams: { team_a: { team: 'team_a', ...team } }, ...extra,
+    });
+    const labelled = (rows) => Object.fromEntries(rows.map((r) => [r.label, r]));
+
+    test('says nothing at all without a video run', () => {
+        assert.deepEqual(report.teamStatRows(null), []);
+        assert.deepEqual(report.teamStatRows({ teams: {} }), []);
+    });
+
+    test('every row carries a type this module knows', () => {
+        // The check that makes the unknown-type fallback above a safety net
+        // rather than something anyone relies on.
+        const known = new Set(report.STAT_TYPES.map((t) => t.id));
+        const rows = report.teamStatRows(cv({
+            possession_pct: 0.5, passes_attempted: 100, shots: 3, tackles: 4,
+            territory: { defensive: 0.4, middle: 0.4, attacking: 0.2 },
+            shape: { width_m: 40, depth_m: 30, compactness_m: 14 },
+        }));
+        for (const r of rows) assert.ok(known.has(r.type), `${r.label}: ${r.type}`);
+    });
+
+    test('the possession label says what it was divided by', () => {
+        // Two different claims wearing the same percentage. With a tagged log
+        // the dead time is out of the denominator; without one, a player
+        // standing over the ball waiting to take a throw counts as possession.
+        const withLog = report.teamStatRows({
+            quality: { live_share: 0.7 }, teams: { team_a: { possession_pct: 0.58 } },
+        });
+        const without = report.teamStatRows(cv({ possession_pct: 0.58 }));
+
+        assert.ok(labelled(withLog)['Possession, ball in play']);
+        assert.ok(labelled(without).Possession);
+    });
+
+    test('the passing breakdowns are shares of what was attempted', () => {
+        // Counts alone cannot say how direct a side was: 142 forward passes is
+        // a different story out of 341 than out of 160.
+        const rows = labelled(report.teamStatRows(cv({
+            passes_attempted: 341,
+            passes_by_direction: { forward: 142, sideways: 131, backward: 68 },
+            passes_by_length: { short: 198, medium: 109, long: 34 },
+        })));
+        assert.equal(rows['Played forward'].value, '42%');
+        assert.equal(rows['Played long'].value, '10%');
+    });
+
+    test('a breakdown with no total to divide by is not shown', () => {
+        const rows = labelled(report.teamStatRows(cv({
+            passes_by_direction: { forward: 142 },
+        })));
+        assert.equal(rows['Played forward'].value, null);
+    });
+
+    test('the shape rows wait for a calibration', () => {
+        // Width in metres is not something a pixel can answer, and three
+        // zeroes would say the team stood on top of each other.
+        assert.deepEqual(report.shapeStatRows(null, 0.4), []);
+        assert.deepEqual(report.shapeStatRows({ width_m: null }, 0.4), []);
+        assert.equal(report.shapeStatRows({ width_m: 41.2 }, 0.4).length, 3);
+    });
+
+    test('expected goals is withheld, not zeroed, past the trust band', () => {
+        const shown = labelled(report.teamStatRows(
+            cv({ xg: 1.44 }, { calibrationErrorM: 0.4 }),
+        ));
+        const withheld = labelled(report.teamStatRows(
+            cv({ xg: 1.44 }, { calibrationErrorM: 9.0 }),
+        ));
+        assert.equal(shown['Expected goals'].value, '1.44');
+        assert.equal(withheld['Expected goals'].value, null);
+    });
+});
+
 // ------------------------------------------------------------- the heatmap
 //
 // The grid was computed per track, never carried across to the cluster, and
@@ -1272,14 +1561,14 @@ describe('xgTrust', () => {
     });
 
     test('past a metre only the total is', () => {
-        // At 2m the p95 shift is 0.240 on a 0.472 baseline — half the quantity.
+        // At 2m the p95 shift is 0.201 on a 0.254 baseline — most of the quantity.
         assert.equal(report.xgTrust(1.01), 'total');
         assert.equal(report.xgTrust(2), 'total');
         assert.equal(report.xgTrust(4.0), 'total');
     });
 
     test('past four metres the error bar is wider than the number', () => {
-        // Measured: p95 shift 0.513 against a mean clean xG of 0.472.
+        // Measured: p95 shift 0.344 against a mean clean xG of 0.254.
         assert.equal(report.xgTrust(4.01), 'none');
         assert.equal(report.xgTrust(50), 'none');
     });

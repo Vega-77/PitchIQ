@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=25">
-    <link rel="stylesheet" href="sandbox.css?v=25">
+    <link rel="stylesheet" href="../assets/app.css?v=26">
+    <link rel="stylesheet" href="sandbox.css?v=26">
 </head>
 <body>
 
@@ -38,6 +38,12 @@
         </div>
 
         <div class="panel-body">
+            <div class="section-label">Start from</div>
+            <!-- Filled from presets.js, so the list is one edit and the two
+                 sample-match entries stay in step with the fixture. -->
+            <div class="preset-row" id="presets"></div>
+            <p class="note" id="preset-detail"></p>
+
             <div class="section-label">Shot</div>
 
             <div class="slider-row">
@@ -59,9 +65,14 @@
             <div class="slider-row">
                 <div class="slider-label-row">
                     <span class="slider-name">Shot height</span>
-                    <span class="slider-value" id="val-shot-height">0.0 m</span>
+                    <span class="slider-value" id="val-shot-height">0.6 m</span>
                 </div>
-                <input type="range" id="shot_height" min="0" max="2.5" step="0.1" value="0">
+                <!-- 0.6 is DEFAULT_SHOT_HEIGHT: what cv/xg_bridge.py substitutes
+                     because one fixed camera cannot see the ball's height. This
+                     slider used to start at 0, so the sandbox and the CV
+                     pipeline described the same shot differently until somebody
+                     moved it. -->
+                <input type="range" id="shot_height" min="0" max="2.5" step="0.1" value="0.6">
             </div>
 
             <div class="section-label">Situation</div>
@@ -112,7 +123,14 @@
                     </span>
                 </label>
             </div>
-            <p class="note">Free kicks aren't modelled — they were left out of the training data.</p>
+            <p class="note">
+                Free kicks aren't modelled — they were left out of the training
+                data. Shot height is worth knowing about too: the model learned it
+                as the height the ball <em>ended</em> at, which is the outcome
+                rather than the shot, so dragging it above the crossbar sends
+                this to nothing. The CV pipeline can never measure it and always
+                sends 0.6&nbsp;m.
+            </p>
 
             <div class="section-label">Defender</div>
 
@@ -149,6 +167,18 @@
                 </div>
                 <input type="range" id="keeper_angle_coverage" min="0" max="100" step="1" value="40">
             </div>
+
+            <div class="section-label">What the model sees</div>
+            <!-- The twelve numbers as they are handed over, in the model's own
+                 units. Worth its space: both coordinate bugs this page has had
+                 were invisible while the only thing on screen was the answer. -->
+            <div class="feature-list" id="features"></div>
+            <p class="note">
+                StatsBomb units, not metres — 120 long by 80 wide, so a distance
+                here is about 0.88&nbsp;m. Shown unconverted on purpose: this is
+                the vector, and rewriting it would hide a mismatch rather than
+                show one.
+            </p>
         </div>
 
         <div class="panel-actions">
@@ -159,7 +189,7 @@
         <div class="xg-readout">
             <div class="xg-meta">
                 <span class="xg-label">Expected goals</span>
-                <span class="xg-sublabel">chance of scoring</span>
+                <span class="xg-sublabel" id="xg-odds">chance of scoring</span>
             </div>
             <span id="xg-value">—</span>
         </div>
@@ -167,7 +197,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
-<script type="module" src="sandbox.js?v=25"></script>
+<script type="module" src="sandbox.js?v=26"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

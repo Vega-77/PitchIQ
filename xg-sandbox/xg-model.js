@@ -6,7 +6,12 @@
 // exactly — the model takes a bare 12-wide float array with no names attached,
 // so a reordering here fails silently rather than loudly.
 
-const MODEL_URL = './xg_model6.onnx';
+// The calibrated model. xg_model6 was the classifier from inside the
+// calibration wrapper, exported without it, and read about six times high near
+// goal — a clear shot from 14 metres came out at 0.69. See the ONNX export note
+// in PitchIQHelper/main.py. Larger than the old file because five folds are
+// averaged, which is the same reason its numbers add up to goals scored.
+const MODEL_URL = './xg_model7.onnx';
 
 export const FEATURE_ORDER = [
     'distance_to_goal',
@@ -26,6 +31,19 @@ export const FEATURE_ORDER = [
 // StatsBomb pitch: 120 x 80, attacking towards x = 120.
 const SB_LENGTH = 120.0;
 const SB_WIDTH = 80.0;
+
+// The sandbox draws one half, so its y axis spans half a pitch — 60 StatsBomb
+// units, not 120.
+//
+// It used to say 120, and that single number doubled the distance of every shot
+// this page has ever modelled. A shot the Distance slider called 20 m reached
+// the model as 45.7 units, which is 40 m, with the goalmouth subtending 10
+// degrees instead of 20. tests/test_xg_parity.py could not catch it: it builds
+// a scenario in StatsBomb space and converts into each side's convention, so it
+// proved the two agreed about a point and never asked whether the point was
+// where the sandbox said it was. The check that closes that gap now lives in
+// tests/video.test.js, against the metres the sliders display.
+const SB_HALF_LENGTH = SB_LENGTH / 2;
 const GOAL_CENTRE = { x: SB_LENGTH, y: SB_WIDTH / 2 };
 const POST_LEFT = { x: SB_LENGTH, y: 36.0 };
 const POST_RIGHT = { x: SB_LENGTH, y: 44.0 };
@@ -51,10 +69,12 @@ const length = (v) => Math.hypot(v.x, v.y);
  * Sandbox coordinates (0-1 across the width, 0-1 from the goal line) into
  * StatsBomb space. The sandbox draws the attack moving up the screen, so its
  * y axis runs the opposite way to StatsBomb's x.
+ *
+ * `position.y = 1` is the halfway line, which is 60 units out and not 120.
  */
 export function toStatsBomb(position) {
     return {
-        x: (1.0 - position.y) * SB_LENGTH,
+        x: SB_LENGTH - position.y * SB_HALF_LENGTH,
         y: position.x * SB_WIDTH,
     };
 }

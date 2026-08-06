@@ -10,6 +10,14 @@ from the report JSON to a player's phone was null. What remains unverified is
 upstream of here: whether a shot can be spotted in footage at all, and whether
 the shooter, keeper and defenders handed to `ShotContext` are the right ones.
 
+The model itself was replaced on 2026-08-06. Everything before that date ran
+xg_model6, which was exported out of the middle of a CalibratedClassifierCV
+without the isotonic step, and read about six times high near goal. xg_model7 is
+the whole calibrated estimator: over the 53,337 training shots it predicts 6,061
+goals against the 6,014 actually scored, and tracks the real conversion rate to
+within about a point in every distance band. Any figure, note or screenshot from
+before that date is on the old scale.
+
 This is where the computer vision work meets the model already trained in
 `PitchIQHelper/main.py` and already running in `xg-sandbox/xg-model.js`. The feature
 order below must match `FEATURES` in main.py exactly; a mismatch does not raise,
@@ -17,29 +25,56 @@ it silently produces a plausible-looking wrong number.
 
 Two things are known to be unresolved rather than merely untested:
 
-* **shot_height is not recoverable here.** It is a z-axis value, and a
-  homography maps a plane. There is no way to get it from one fixed camera
-  without pose estimation or fitting the ball's flight arc. The median from the
-  training data is substituted, which is honest but means the feature carries no
-  information from this shot.
+* **shot_height is not recoverable here, and it should not have been a feature
+  at all.** It is a z-axis value, and a homography maps a plane. There is no way
+  to get it from one fixed camera without pose estimation or fitting the ball's
+  flight arc, so DEFAULT_SHOT_HEIGHT is substituted on every shot.
+
+  Worse: in the training script it is `end_location[2]` — **where the ball
+  finished**, which is known only after the shot. It is an outcome dressed as a
+  feature. 8,733 of the training shots have a height above 3 m and convert at
+  exactly 0.000, because a ball that ended four metres up went over the bar and
+  the model can see that.
+
+  Measured 2026-08-06 over all 53,337 training shots:
+
+        shot_height          AUC     Brier    predicted goals   actual
+        the real end height  0.935   0.061        6,061          6,014
+        fixed at 0.6         0.857   0.080        9,213          6,014
+
+  **The second row is the one this module produces.** Feeding the constant costs
+  about 0.08 of AUC and inflates the total by about half, in one direction, at
+  every band: 0.144 predicted against 0.069 actual, 0.249 against 0.151. So the
+  calibration is right for the data the model was fitted on and optimistic for
+  the data the pipeline sends it, and a published xG total from this path should
+  be read as an over-estimate until the model is retrained without the feature.
+  That retraining is the single most valuable thing left to do to xG.
 
 * **The model has never seen CV-derived inputs**, and it is sensitive to that.
   It was trained on clean, human-verified StatsBomb data; positions from
-  detection and homography are not. Measured 2026-08-02 by
-  `validate_against_noise`, 400 trials over five spots averaging 0.472 xG:
+  detection and homography are not. Re-measured 2026-08-06 by
+  `validate_against_noise` against xg_model7, 400 trials over five spots
+  averaging 0.254 xG:
 
-        noise    mean shift   p95     max
-        0.25 m     0.059     0.147   0.236
-        0.50 m     0.066     0.175   0.236
-        1.00 m     0.076     0.204   0.459
-        2.00 m     0.096     0.240   0.657
-        4.00 m     0.159     0.513   0.676
+        noise    mean shift   p95     max     share of the baseline
+        0.25 m     0.024     0.060   0.106      9%  /  24%
+        0.50 m     0.035     0.084   0.168     14%  /  33%
+        1.00 m     0.043     0.101   0.173     17%  /  40%
+        2.00 m     0.064     0.201   0.495     25%  /  79%
+        4.00 m     0.106     0.344   0.506     42%  / 135%
 
   So half a metre of position error — the band `cv/calibrate.py` accepts as a
-  good calibration — moves a single shot's xG by about 0.066 typically and 0.17
-  at the 95th percentile. That is fine for "a decent chance" and not fine for
-  ranking two shots 0.1 apart. At 4 m the p95 shift exceeds the xG itself, which
-  is the point past which per-shot numbers should not be shown at all.
+  good calibration — moves a single shot's xG by about 0.035 typically and 0.084
+  at the 95th percentile, a seventh and a third of the number. That is fine for
+  "a decent chance" and not fine for ranking two shots 0.1 apart. At 4 m the p95
+  shift exceeds the xG itself, which is the point past which per-shot numbers
+  should not be shown at all.
+
+  The earlier table, measured on the uncalibrated xg_model6, was about twice as
+  large in absolute terms on a baseline about twice as large. The ratios are
+  what the display bands in assets/report.js are set from, and the ratios
+  barely moved — recalibrating the outputs did not make the model any less
+  sensitive to a metre of position error.
 
   Summing helps: these are per-shot, and a half's worth of shots averages most
   of it out, so a team total is much steadier than any row above. Pinned by
@@ -92,14 +127,16 @@ POST_R = np.array([STATSBOMB_LENGTH, 44.0])
 DEFAULT_SHOT_HEIGHT = 0.6
 
 # The model the browser loads, and therefore the model behind every xG number
-# anyone has actually looked at.
+# anyone has actually looked at. Naming one file here means the pipeline and
+# the sandbox cannot quietly end up on different models.
 #
-# There is a second file of the same name in PitchIQHelper/, the output of a
-# later re-run of the training script that was never adopted. The two are not
-# interchangeable — they disagree by up to 0.29 xG on the same shot, which is
-# the difference between a half chance and a good one. Naming the file here
-# means the pipeline and the sandbox cannot quietly end up on different models.
-MODEL_PATH = Path(__file__).resolve().parents[1] / 'xg-sandbox' / 'xg_model6.onnx'
+# xg_model6 was retired on 2026-08-06. It was the raw XGBoost classifier out of
+# the middle of a CalibratedClassifierCV, exported without the isotonic step
+# that made its probabilities mean anything, and with scale_pos_weight ~= 9
+# still pushing them up — so it read about six times high near goal and its
+# numbers did not sum to goals. Every xG this project showed before that date
+# came from it. See the ONNX export note in PitchIQHelper/main.py.
+MODEL_PATH = Path(__file__).resolve().parents[1] / 'xg-sandbox' / 'xg_model7.onnx'
 
 
 def load_session(model_path: str | Path | None = None):
@@ -401,7 +438,8 @@ def validate_against_noise(
     positions carries meaningfully more uncertainty than xG from hand-tagged
     ones, and should be presented with that in mind.
 
-    `session` is an onnxruntime InferenceSession for xg_model6.onnx.
+    `session` is an onnxruntime InferenceSession for the model named by
+    MODEL_PATH — `load_session()` with no argument gives the right one.
     """
     rng = np.random.default_rng(seed)
 

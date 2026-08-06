@@ -268,9 +268,14 @@ const XG_TOTAL_LIMIT_M = 4.0;
  * How much of the xG on a run is worth showing: `'shot'`, `'total'` or `'none'`.
  *
  * The model was measured against deliberately noisy positions, and the answer
- * was not flattering. On a 0.47 baseline, half a metre of position error moves a
- * single shot by 0.066 on average and 0.175 at the 95th percentile; at four
- * metres the p95 shift is 0.513, which is **larger than the quantity itself**.
+ * was not flattering. On a 0.254 baseline, half a metre of position error moves
+ * a single shot by 0.035 on average and 0.084 at the 95th percentile — a
+ * seventh and a third of it; at four metres the p95 shift is 0.344, which is
+ * **larger than the quantity itself**.
+ *
+ * The bands are set from those ratios rather than from the absolute shifts,
+ * which is why they survived the model being recalibrated on 2026-08-06. Every
+ * figure in the table halved and every ratio stayed where it was.
  *
  * So there are three honest states rather than a number and a warning beside it:
  *
@@ -371,7 +376,7 @@ export function cvQualityNotes(quality, options = {}) {
     //
     // The 0.5m figure is not a guess. Measured against the real model
     // (tests/test_xg_noise.py): half a metre of position error moves one shot's
-    // xG by ~0.066 on a 0.47 baseline, and at 4m the spread exceeds the number
+    // xG by ~0.035 on a 0.254 baseline, and at 4m the spread exceeds the number
     // itself.
     if (options.shots) {
         const error = options.calibrationErrorM;
@@ -399,6 +404,243 @@ export function cvQualityNotes(quality, options = {}) {
     }
 
     return notes;
+}
+
+// --------------------------------------------------------- stats, by kind
+//
+// The coach's match view was one grid of twenty-five boxes in the order they
+// happened to be written, tagged counts and video-derived figures interleaved,
+// and the half-time page was a flat list built separately from the same
+// document. Both grew a row at a time and neither was ever laid out.
+//
+// A coach does not read twenty-five numbers. They ask a question — did we keep
+// the ball, did we pass it forward, did we make chances, did we defend — and
+// look for the two or three numbers that answer it. Grouping is what makes that
+// possible without reading every box, and it is the only reason several
+// published figures below could be added at all: territory, giveaways by third
+// and the passing breakdowns have been in the document since they were
+// computed, and there was nowhere to put them that would not have made the pile
+// worse.
+//
+// Both pages group by this list rather than each keeping their own, because the
+// interesting failure is not a missing heading — it is the two pages quietly
+// disagreeing about whether a switch of play is passing or attacking, in a
+// project whose whole premise is that the half-time page and the full report
+// describe the same match.
+
+export const STAT_TYPES = [
+    { id: 'match', title: 'The match' },
+    {
+        id: 'possession',
+        title: 'Possession',
+        note: 'Thirds are shares of your own time on the ball, not of the match.',
+    },
+    { id: 'passing', title: 'Passing' },
+    { id: 'attacking', title: 'Attacking' },
+    { id: 'defending', title: 'Defending' },
+    {
+        id: 'shape',
+        title: 'Shape',
+        note: 'Averaged across the run, and only as good as the calibration.',
+    },
+];
+
+/**
+ * Rows into `[{ id, title, note, rows }]`, in the order above, empties dropped.
+ *
+ * A group's note is only kept when a row that needs it survived. Both notes
+ * above explain a denominator that some rows have and others do not — the
+ * thirds, and the shape figures — and a caption explaining a denominator for
+ * figures that are not on screen is worse than no caption, because a reader
+ * will attach it to whatever is.
+ *
+ * A row with an unrecognised type is kept, in a group of its own at the end.
+ * Dropping it would be the worse failure by a distance: a typo in a type name
+ * would silently delete a measured number from a coach's screen and leave the
+ * page looking complete. This way it is visibly wrong, and
+ * `every row carries a type this module knows` catches it in the test suite
+ * before anyone sees it.
+ */
+export function groupStats(rows) {
+    const known = new Map(STAT_TYPES.map((type) => [type.id, { ...type, rows: [] }]));
+    const extra = new Map();
+
+    for (const row of rows || []) {
+        // Absent is not zero, one more time. A null here is a figure the
+        // pipeline could not measure — usually for want of a calibration — and
+        // a box reading 0 would say it looked and found none.
+        if (row == null || row.value == null) continue;
+        const group = known.get(row.type)
+            || extra.get(row.type)
+            || extra.set(row.type, { id: row.type, title: row.type, rows: [] })
+                .get(row.type);
+        group.rows.push(row);
+    }
+
+    return [...known.values(), ...extra.values()]
+        .filter((group) => group.rows.length)
+        .map((group) => (
+            group.note && !group.rows.some((row) => row.explained)
+                ? { ...group, note: '' }
+                : group
+        ));
+}
+
+const share = (value) => (value == null ? null : `${Math.round(value * 100)}%`);
+
+/**
+ * The video-derived figures for the coach's own side, typed and labelled.
+ *
+ * `confidence` carries the marks the caller worked out from the quality block —
+ * passed in rather than computed here because grading them lives in db.js,
+ * which this module cannot import and stay testable.
+ *
+ * Reads `teams.team_a` only, which is always the coach's own side.
+ */
+export function teamStatRows(cv, confidence = {}) {
+    const ours = cv?.teams?.team_a;
+    if (!ours) return [];
+
+    const quality = cv.quality || {};
+    const events = confidence.events || null;
+    const territory = ours.territory || {};
+    const attempted = ours.passes_attempted || 0;
+    const byLength = ours.passes_by_length || {};
+    const byDirection = ours.passes_by_direction || {};
+    const lost = ours.turnovers_by_third || {};
+
+    // A breakdown is only worth a percentage if it is a share of something
+    // this run actually counted. Without the total these are bare counts with
+    // no denominator, and a bare 142 says nothing about how direct a side was.
+    const ofAttempted = (count) =>
+        (attempted && count != null ? count / attempted : null);
+
+    return [
+        {
+            type: 'possession',
+            // The label carries the denominator, because the denominator
+            // changed. With a tagged log the dead time is out of it and this is
+            // possession of a ball that was in play; without one it is the
+            // older, weaker figure and must not claim otherwise.
+            label: possessionIsInPlay(quality) ? 'Possession, ball in play' : 'Possession',
+            value: share(ours.possession_pct),
+            confidence: confidence.possession || null,
+        },
+        { type: 'possession', label: 'Touches', value: ours.touches, confidence: events },
+        { type: 'possession', label: 'Carries', value: ours.carries, confidence: events },
+        {
+            type: 'possession', label: 'In your own third', explained: true,
+            value: share(territory.defensive), confidence: confidence.possession || null,
+        },
+        {
+            type: 'possession', label: 'In the middle third', explained: true,
+            value: share(territory.middle), confidence: confidence.possession || null,
+        },
+        {
+            type: 'possession', label: 'In their third', explained: true,
+            value: share(territory.attacking), confidence: confidence.possession || null,
+        },
+
+        { type: 'passing', label: 'Passes attempted', value: attempted || null, confidence: events },
+        {
+            type: 'passing', label: 'Pass accuracy',
+            value: share(ours.pass_accuracy), confidence: events,
+        },
+        {
+            type: 'passing', label: 'Progressive passes',
+            value: ours.progressive_passes, confidence: events,
+        },
+        // How direct a side was, which is the question the buckets exist to
+        // answer and which the raw counts do not. Both are shares of what they
+        // attempted, so a side that passed less does not look less direct.
+        {
+            type: 'passing', label: 'Played forward',
+            value: share(ofAttempted(byDirection.forward)), confidence: events,
+        },
+        {
+            type: 'passing', label: 'Played long',
+            value: share(ofAttempted(byLength.long)), confidence: events,
+        },
+        { type: 'passing', label: 'Switches of play', value: ours.switches, confidence: events },
+
+        {
+            type: 'attacking', label: 'Final-third entries',
+            value: ours.final_third_entries, confidence: events,
+        },
+        {
+            type: 'attacking', label: 'Entries into the box',
+            value: ours.box_entries, confidence: events,
+        },
+        { type: 'attacking', label: 'Crosses', value: ours.crosses, confidence: events },
+        { type: 'attacking', label: 'Shots', value: ours.shots, confidence: events },
+        {
+            type: 'attacking', label: 'Shots on target',
+            value: ours.shots_on_target, confidence: events,
+        },
+        // Withheld, not zeroed, when the calibration is too loose to support it.
+        // A team total averages a lot of per-shot noise away, which is why it
+        // survives a band that per-shot xG does not — but not every band.
+        {
+            type: 'attacking', label: 'Expected goals',
+            value: (ours.xg == null || xgTrust(cv.calibrationErrorM) === 'none')
+                ? null : ours.xg.toFixed(2),
+            confidence: events,
+        },
+
+        { type: 'defending', label: 'Tackles', value: ours.tackles, confidence: events },
+        {
+            type: 'defending', label: 'Interceptions',
+            value: ours.interceptions, confidence: events,
+        },
+        { type: 'defending', label: 'Recoveries', value: ours.recoveries, confidence: events },
+        { type: 'defending', label: 'Ground duels', value: ours.duels, confidence: events },
+        {
+            type: 'defending', label: 'PPDA',
+            value: ours.ppda == null ? null : ours.ppda.toFixed(1), confidence: events,
+        },
+        // The giveaways that turn straight into a chance against you. A single
+        // turnover count cannot say this, which is why it is counted by third.
+        {
+            type: 'defending', label: 'Lost in your own third',
+            value: lost.defensive ?? null, confidence: events,
+        },
+
+        ...shapeStatRows(ours.shape, cv.calibrationErrorM),
+    ];
+}
+
+/**
+ * How spread out we played, in metres — ours only.
+ *
+ * `report_json` used to publish one shape built from every track on the pitch,
+ * both teams and the referee together, and label it Team A's. It is now built
+ * per team, and this reads the team's own.
+ *
+ * Empty until a calibration exists, which is every run today — width in metres
+ * is not something a pixel can answer.
+ */
+export function shapeStatRows(shape, calibrationErrorM) {
+    if (!shape || shape.width_m == null) return [];
+    const band = shapeConfidence(calibrationErrorM);
+    const metres = (value) => (value == null ? null : `${Math.round(value)}m`);
+
+    return [
+        {
+            type: 'shape', label: 'Average width', explained: true,
+            value: metres(shape.width_m), confidence: band,
+        },
+        {
+            type: 'shape', label: 'Average depth', explained: true,
+            value: metres(shape.depth_m), confidence: band,
+        },
+        // Mean distance from each player to the team's own centre. Deliberately
+        // not coloured good or bad: a compact side is well-drilled or it is
+        // pinned in its own half, and this number cannot tell the difference.
+        {
+            type: 'shape', label: 'Compactness', explained: true,
+            value: metres(shape.compactness_m), confidence: band,
+        },
+    ];
 }
 
 const PERIOD_TEXT = {

@@ -179,8 +179,8 @@ Worth saying in advance so it reads as a known limit rather than a failure:
 - **Headers are scored as foot shots**, always, so xG for headed chances reads
   high. One camera cannot see the ball's height.
 - **Per-shot xG is loose.** Measured: half a metre of position error moves a
-  single shot's xG by ~0.066 on a 0.47 baseline. Read the team total, not the
-  gap between two individual shots.
+  single shot's xG by ~0.035 on a 0.254 baseline — a seventh of it. Read the
+  team total, not the gap between two individual shots.
 - **A referee may be counted as a player.** Without a calibration a referee and a
   goalkeeper look identical on every feature available, so both are kept — losing
   a keeper is the worse error. The count of flagged figures is shown next to the

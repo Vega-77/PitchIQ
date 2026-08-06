@@ -15,7 +15,7 @@ Everything is expressed in StatsBomb space and converted into each side's own
 input convention, because that is the only place the two agree by definition:
 
     Python  metres      -> Pitch.to_statsbomb()
-    JS      normalised  -> toStatsBomb()   x = (1 - ny) * 120, y = nx * 80
+    JS      normalised  -> toStatsBomb()   x = 120 - ny * 60, y = nx * 80
 
 Skipped automatically when Node isn't installed.
 
@@ -25,6 +25,7 @@ Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_xg_parity.py -
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -56,9 +57,19 @@ def normalised_from_statsbomb(sx: float, sy: float) -> dict[str, float]:
     """StatsBomb -> the sandbox's 0-1 half-pitch coordinates.
 
     The inverse of toStatsBomb() in xg-model.js. The sandbox draws the attack
-    moving up the screen, so its y axis runs opposite to StatsBomb's x.
+    moving up the screen, so its y axis runs opposite to StatsBomb's x, and it
+    draws one half, so y = 1 is 60 units out rather than 120.
+
+    Being an exact inverse is what makes this file prove less than it looks
+    like it proves: it and `toStatsBomb` shared a wrong constant until
+    2026-08-06 and agreed with each other perfectly the whole time. Every
+    scenario below is still worth having — feature order, fallbacks and the cone
+    test are all real risks — but the mapping from a place on the pitch to a
+    point in model space is checked in tests/video.test.js instead, against the
+    metres the sandbox puts on screen.
     """
-    return {"x": sy / STATSBOMB_WIDTH, "y": 1.0 - sx / STATSBOMB_LENGTH}
+    half = STATSBOMB_LENGTH / 2
+    return {"x": sy / STATSBOMB_WIDTH, "y": (STATSBOMB_LENGTH - sx) / half}
 
 
 def js_features(shooter, keeper, defenders, shot) -> dict[str, float]:
@@ -205,17 +216,29 @@ def test_closer_shots_score_higher_through_the_real_model():
 
 
 def test_the_pipeline_and_the_browser_load_the_same_model():
-    """Two files named xg_model6.onnx exist and are not the same model.
+    """One model file, named in two places, and they have to be the same one.
 
-    xg-sandbox/ holds the one the browser fetches; PitchIQHelper/ holds the
-    output of a later training run that was never adopted. They disagree by up
-    to 0.29 xG on the same shot. This pins the pipeline to the browser's copy,
-    so a coach cannot be shown one number by the sandbox and a different one by
-    the CV path for the same chance.
+    Several .onnx files sit in PitchIQHelper/ from successive training runs, and
+    they are not interchangeable: xg_model6 and xg_model7 disagree by 0.46 on a
+    clear shot from 14 metres, which is the whole difference between a good
+    chance and a routine one. If the sandbox and the CV pipeline ever load
+    different files, a coach gets one number for a chance from the sandbox and
+    another for the same chance from the match report, and nothing on either
+    screen would explain why.
+
+    The browser's filename is read out of the JavaScript rather than written
+    here, so this checks that the two agree instead of checking that both match
+    a third copy of the name that a rename would leave behind — which is exactly
+    what it did before, and what turned a model swap into a test failure about
+    nothing.
     """
     from cv.xg_bridge import MODEL_PATH
 
-    browser_model = REPO / 'xg-sandbox' / 'xg_model6.onnx'
+    source = JS_MODEL.read_text(encoding='utf-8')
+    match = re.search(r"MODEL_URL\s*=\s*'\./([^']+)'", source)
+    assert match, 'could not find MODEL_URL in xg-sandbox/xg-model.js'
+
+    browser_model = JS_MODEL.parent / match.group(1)
     assert MODEL_PATH == browser_model, (
         f'the pipeline would load {MODEL_PATH}, the browser loads {browser_model}'
     )

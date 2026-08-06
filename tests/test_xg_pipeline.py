@@ -6,7 +6,7 @@ of `derive_events`, the other players read out of the frame it happened in, and 
 probability landing on the event and summing into the team total.
 
 Everything here is synthetic except the model, which is the real
-`xg-sandbox/xg_model6.onnx`. That leaves exactly one link untested — whether the
+`xg-sandbox/xg_model7.onnx`. That leaves exactly one link untested — whether the
 shot was a shot — and that one needs footage.
 
 Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_xg_pipeline.py -q
