@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=27';
+} from '../assets/auth.js?v=28';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,26 +8,27 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=27';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=27';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=27';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=27';
+} from '../assets/db.js?v=28';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=28';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=28';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=28';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
-} from '../assets/sample-report.js?v=27';
+} from '../assets/sample-report.js?v=28';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
-    groupStats, teamStatRows,
-} from '../assets/report.js?v=27';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=27';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=27';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=27';
+    groupStats, teamStatRows, trackedCoverage, metresPerMinute,
+    TRACKED_SHARE_FLOOR,
+} from '../assets/report.js?v=28';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=28';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=28';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=28';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark,
-} from '../assets/ui.js?v=27';
+} from '../assets/ui.js?v=28';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -645,7 +646,7 @@ async function openMatch(matchId) {
         // Merge the video's per-player figures onto the tagged ones, so the
         // table can be one table. Only for figures a coach has matched to a
         // player — anything else is a guess with a name attached.
-        mergeCvPlayers(stats.players, state.match);
+        mergeCvPlayers(stats.players, state.match, stats.matchEndS);
 
         setText('match-title', `vs ${match.opponentName || '—'}`);
         setText('match-sub',
@@ -904,6 +905,40 @@ function renderPlayerTable(players) {
     );
 
     for (const player of ordered) body.append(playerTableRow(player));
+    setText('player-table-note', coverageSummary(players));
+}
+
+/**
+ * What the video column is worth across the roster, in one line.
+ *
+ * Per-player coverage is four figures a coach has no reason to read one by one.
+ * What they need to know before comparing the last column is whether it rests on
+ * most of each player's match or on scraps of it, and which players are the
+ * scraps — so the ones below the floor are named, and nobody else is mentioned.
+ */
+function coverageSummary(players) {
+    const measured = players.filter((p) => p.cvTrackedShare != null);
+    if (!measured.length) return '';
+
+    const thin = measured
+        .filter((p) => p.cvTrackedShare < TRACKED_SHARE_FLOOR)
+        .sort((a, b) => a.cvTrackedShare - b.cvTrackedShare);
+
+    const head = `Metres a minute is measured over the time the video held each`
+        + ` player, not the time they played — ${measured.length} of`
+        + ` ${players.length} were matched to a tracked figure at all.`;
+
+    if (!thin.length) return head;
+
+    // Named rather than counted. "Four players are thin" sends a coach hunting;
+    // the names are what makes the caveat actionable, and past three it becomes
+    // a list nobody reads, so the rest are a count.
+    const names = thin.slice(0, 3).map((p) => p.playerName).join(', ');
+    const rest = thin.length > 3 ? ` and ${thin.length - 3} more` : '';
+    const pct = Math.round(TRACKED_SHARE_FLOOR * 100);
+    return `${head} It held ${names}${rest} for under ${pct}% of their filmed`
+        + ' minutes, so those rows are a sample of the match rather than the'
+        + ' whole of it.';
 }
 
 function playerTableRow(player) {
@@ -912,9 +947,10 @@ function playerTableRow(player) {
     // Tagged columns first, then the video ones, so the trustworthy numbers are
     // the ones a coach reads without scrolling sideways on a phone.
     const tagged = [player.minutesPlayed, player.goals, player.assists, player.fouls];
+    const rate = metresPerMinute(player.cvDistanceM, player.cvMinutesTracked);
     const derived = [
         player.cvTouches, player.cvPassesCompleted, player.cvTackles,
-        player.cvDistanceM == null ? null : (player.cvDistanceM / 1000).toFixed(2),
+        rate == null ? null : Math.round(rate),
     ];
 
     tr.innerHTML = `
@@ -949,6 +985,18 @@ function playerTableRow(player) {
         cell.textContent = value == null ? '—' : value;
         if (value == null || !Number(value)) cell.classList.add('zero');
     });
+
+    // The rate is the only column whose meaning changes with coverage: the
+    // counts beside it are undercounts either way, but a rate over a fifth of
+    // someone's minutes is a claim about a fifth of their match while looking
+    // exactly like a claim about all of it.
+    const share = player.cvTrackedShare;
+    if (share != null && share < TRACKED_SHARE_FLOOR && derived[3] != null) {
+        const cell = cvCells[3];
+        cell.classList.add('cv-partial');
+        cell.title = `Measured over ${Math.round(share * 100)}% of the minutes`
+            + ' this player was on screen for';
+    }
 
     return tr;
 }
@@ -1172,7 +1220,9 @@ async function saveMappingNow() {
         );
         if (badge) badge.textContent = 'Saved';
         // The per-player table reads the mapping, so it has to be rebuilt.
-        mergeCvPlayers(state.match.stats.players, state.match);
+        mergeCvPlayers(
+            state.match.stats.players, state.match, state.match.stats.matchEndS,
+        );
         renderPlayerTable(state.match.stats.players);
     } catch (err) {
         if (badge) badge.textContent = '';
@@ -2010,14 +2060,22 @@ function labToCss(lab) {
  * figure actually clears the row it was feeding — otherwise a mistake would
  * stay on screen until the page was reloaded.
  */
-function mergeCvPlayers(players, match) {
+function mergeCvPlayers(players, match, matchEndS = null) {
     const stats = cvStatsByPlayer(match.cv?.identity?.tracks, match.cvMapping);
+    const context = {
+        window: match.cv?.window,
+        videoOffsetS: match.videoOffsetS ?? 0,
+        matchEndS,
+    };
 
     for (const player of players) {
         for (const key of Object.keys(player)) {
             if (key.startsWith('cv')) delete player[key];
         }
-        Object.assign(player, cvReportFields(stats[player.id]));
+        Object.assign(player, cvReportFields(
+            stats[player.id],
+            trackedCoverage(stats[player.id]?.minutes_tracked, player.stints, context),
+        ));
     }
 }
 
@@ -2175,6 +2233,12 @@ async function doPublish() {
                 // figure to them. No mapping, no cv* fields.
                 cvTracks: state.match.cv?.identity?.tracks,
                 cvMapping: state.match.cvMapping,
+                // Both only exist to say what each player's video figures were
+                // measured over. Without the window a short clip would score
+                // every player against the whole match and read as a tracker
+                // that lost everybody.
+                cvWindow: state.match.cv?.window,
+                matchEndS: state.match.stats.matchEndS,
             },
         );
         toast('Player reports published');

@@ -100,11 +100,24 @@ export function cvStatsByPlayer(tracks, byCluster) {
     return out;
 }
 
-/** The `cv`-prefixed fields for one player's match report. */
-export function cvReportFields(stats) {
+/**
+ * The `cv`-prefixed fields for one player's match report.
+ *
+ * `coverage` is optional and comes from the roster rather than the pipeline —
+ * Python has no sub log and cannot compute it, which is why these two fields
+ * have no twin in `cv/publish.py::player_report_fields`. Without it the report
+ * is exactly what it was before, with the totals unqualified.
+ */
+export function cvReportFields(stats, coverage = null) {
     if (!stats) return {};
     const num = (v) => (v == null ? null : v);
     return {
+        // How much of this player's own minutes the figures above rest on, so
+        // the player's page can say it without re-reading the roster and the
+        // window — neither of which a player is allowed to see.
+        cvMinutesOnPitch: coverage?.onPitchS == null ? null : coverage.onPitchS / 60,
+        cvMinutesFilmed: coverage?.watchedS == null ? null : coverage.watchedS / 60,
+        cvTrackedShare: coverage?.share ?? null,
         cvTouches: num(stats.touches),
         cvPassesAttempted: num(stats.passes_attempted),
         cvPassesCompleted: num(stats.passes_completed),
@@ -202,6 +215,164 @@ export function rankRosterForCluster(roster, cluster, options = {}) {
             b.overlapS - a.overlapS
             || (a.entry.jerseyNumber ?? 999) - (b.entry.jerseyNumber ?? 999)
         ));
+}
+
+// --------------------------------------------- how much of a match was watched
+//
+// A player's card puts "Minutes 71" next to "km covered 1.9". Those are two
+// different denominators printed as one row. The first is the sub log — the
+// whole time they were on the pitch. The second is the video: however much of
+// that the tracker kept hold of, inside whatever window of footage was actually
+// processed. At 3.4 tracks per player the gap between them is not small, and a
+// coach ranking a roster by the second column is mostly ranking who the tracker
+// happened to follow.
+//
+// So every per-player figure from the video carries the share of that player's
+// own minutes it was measured over. Nothing here scales a figure up to what it
+// would have been: a total measured over a third of someone's match is a third
+// of a total, and tripling it would be inventing the other two thirds. The
+// comparable figure is a rate, and it is offered as its own number.
+
+/**
+ * Below this share of a player's minutes, a video total is a sample, not a total.
+ *
+ * Set where the arithmetic stops being a rounding difference and starts being a
+ * different claim: at 0.8 a distance reads a fifth low, which is wrong but still
+ * recognisably the player's match. At 0.5 it is half their match with the label
+ * of a whole one.
+ */
+export const TRACKED_SHARE_FLOOR = 0.7;
+
+/**
+ * The stretch of footage that was processed, in match-clock seconds.
+ *
+ * `window` is in video seconds, because it is a pair of seek positions in a
+ * file. Stints are in match clock, because that is what a tablet on the
+ * touchline records. The offset the coach typed in beside the video link is the
+ * only thing relating them — `videoS = clockS + offsetS`, per `videoTime` in
+ * video.js — and getting this backwards would score a substitute against the
+ * warm-up.
+ *
+ * An absent bound means the pipeline ran to that edge of the file, so it is
+ * answered from the match rather than guessed at: kick-off for a missing start,
+ * and the last thing the log recorded for a missing end. With neither the window
+ * nor a match end there is nothing to answer from, and this returns null —
+ * which is a different thing from a window of zero length.
+ */
+export function windowClockRange(window, options = {}) {
+    const { videoOffsetS = 0, matchEndS = null } = options;
+    const startVideoS = window?.start_s ?? window?.startS ?? null;
+    const endVideoS = window?.end_s ?? window?.endS ?? null;
+
+    const endS = endVideoS == null ? matchEndS : endVideoS - videoOffsetS;
+    if (endS == null) return null;
+
+    const startS = startVideoS == null ? 0 : startVideoS - videoOffsetS;
+    return { startS: Math.max(0, startS), endS };
+}
+
+/**
+ * How one player's video figures relate to the match they actually played.
+ *
+ * Three different spans, and the difference between them is the whole point:
+ *
+ *   - `onPitchS` — what the sub log says they played.
+ *   - `watchedS` — how much of that fell inside the processed footage. On a
+ *     three-minute clip this is three minutes for everyone, which is why the
+ *     window has to be intersected rather than assumed away: without it every
+ *     player on a short clip would show a coverage of about 3%, and the figure
+ *     would be a statement about the clip rather than about them.
+ *   - `trackedS` — how much of *that* the tracker held on to. The shortfall is
+ *     fragmentation, and it is the number nobody has been able to see per
+ *     player until now.
+ *
+ * Every field is null rather than zero when it cannot be answered. A player
+ * whose stints were never recorded did not play no minutes.
+ */
+export function trackedCoverage(minutesTracked, stints, context = {}) {
+    const { window, videoOffsetS = 0, matchEndS = null } = context;
+
+    const trackedS = minutesTracked == null ? null : minutesTracked * 60;
+    const known = Array.isArray(stints) && stints.length > 0 && matchEndS != null;
+    const range = windowClockRange(window, { videoOffsetS, matchEndS });
+
+    const onPitchS = known ? stintOverlapS(stints, 0, matchEndS, matchEndS) : null;
+    const watchedS = known && range
+        ? stintOverlapS(stints, range.startS, range.endS, matchEndS)
+        : null;
+
+    // `watchedS` of zero is falsy on purpose. A player who was not on the pitch
+    // for any of the processed footage has no share — not a share of nothing.
+    const share = trackedS != null && watchedS ? trackedS / watchedS : null;
+    return { trackedS, onPitchS, watchedS, share };
+}
+
+/**
+ * Metres per minute of the time the video actually held a player.
+ *
+ * The one movement figure that survives fragmentation. A total is a fraction of
+ * the truth when the tracker only had someone for half of their match; a rate
+ * over the half it did have is still a rate. It is also what makes a substitute
+ * who played twenty minutes comparable to a starter who played eighty, which a
+ * column of kilometres never was.
+ *
+ * Not unbiased, and worth saying so: the tracker loses people in the congested,
+ * fast passages where they are working hardest, so this reads low rather than
+ * randomly. Low and comparable beats a total that is neither.
+ */
+export function metresPerMinute(distanceM, minutesTracked) {
+    if (distanceM == null || !minutesTracked) return null;
+    return distanceM / minutesTracked;
+}
+
+/**
+ * One sentence on how much of a player's match the video was able to measure.
+ *
+ * The fraction is against `watchedS`, not against the minutes they played, and
+ * the difference matters on any run short of a full match: a three-minute clip
+ * of a player who was on for seventy would otherwise report 4% and read as a
+ * tracker that lost them, when in fact nobody filmed the other sixty-seven
+ * minutes. Filmed and played are named separately whenever they differ, because
+ * they are two different shortfalls and only one of them is the software's.
+ *
+ * Null when there is nothing to say — no sub log, no window, no confirmed
+ * cluster — since a sentence hedging about a number that is not on screen is
+ * noise, and this sits under figures that are often all a player has.
+ */
+export function coverageNote(coverage, options = {}) {
+    const { second = false } = options;
+    const { trackedS, onPitchS, watchedS, share } = coverage || {};
+    if (share == null || trackedS == null) return null;
+
+    const they = second ? 'you' : 'they';
+    const mins = (seconds) => Math.round(seconds / 60);
+
+    // Above one means two figures mapped to this player were on screen at once,
+    // which one player cannot be — so it is evidence the mapping double-counts,
+    // and every total resting on it is inflated. Said outright rather than
+    // clamped to a tidy 100%, which would hide the only symptom.
+    if (share > 1.15) {
+        return `Two of the tracked figures matched to ${second ? 'you' : 'this player'}`
+            + ' were on screen at the same time, so these totals count part of'
+            + ' the match twice.';
+    }
+
+    const tracked = mins(trackedS);
+    const played = onPitchS == null ? null : mins(onPitchS);
+    const filmed = mins(watchedS);
+
+    // Within a minute they are the same span, and saying it twice would invite
+    // the reader to look for a distinction that is not there.
+    const partial = played != null && Math.abs(played - filmed) >= 1;
+    const head = partial
+        ? `The video covered ${filmed} of the ${played} minutes ${they} played,`
+            + ` and measured ${tracked} of those`
+        : `The video measured ${tracked}`
+            + (played == null ? ' minutes' : ` of the ${played} minutes ${they} played`);
+
+    if (share >= TRACKED_SHARE_FLOOR) return `${head}.`;
+    return `${head} — so the totals here are part of the match rather than all`
+        + ' of it, and the rate is the fairer comparison.';
 }
 
 // ------------------------------------------------- what the figures rest on

@@ -7,13 +7,15 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=27';
-import { EVENT_TYPES } from './events.js?v=27';
+import { db } from './firebase-init.js?v=28';
+import { EVENT_TYPES } from './events.js?v=28';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
-import { playerTimeline, cvStatsByPlayer, cvReportFields } from './report.js?v=27';
+import {
+    playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage,
+} from './report.js?v=28';
 
-export { playerTimeline, cvStatsByPlayer, cvReportFields };
+export { playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage };
 
 export const PERIOD_STATUS = {
     kickoff_1st: 'first_half',
@@ -471,6 +473,16 @@ export async function publishReports(teamId, matchId, match, team, players, scor
     // attached is the one thing that would make these numbers untrustworthy.
     const cvByPlayer = cvStatsByPlayer(extra.cvTracks, extra.cvMapping);
 
+    // What each player's video figures were measured over. The roster is the
+    // only thing that knows this — Python never sees the sub log — so the join
+    // happens here, at the one point where the stints, the processed window and
+    // the tracked minutes are all in the same scope.
+    const coverageContext = {
+        window: extra.cvWindow,
+        videoOffsetS: match.videoOffsetS ?? 0,
+        matchEndS: extra.matchEndS ?? null,
+    };
+
     for (const player of players) {
         const rosterDoc = await getDoc(
             doc(db, 'teams', teamId, 'players', player.id)
@@ -509,7 +521,14 @@ export async function publishReports(teamId, matchId, match, team, players, scor
                 videoUrl: match.videoUrl || null,
                 videoOffsetS: match.videoOffsetS ?? 0,
 
-                ...cvReportFields(cvByPlayer[player.id]),
+                ...cvReportFields(
+                    cvByPlayer[player.id],
+                    trackedCoverage(
+                        cvByPlayer[player.id]?.minutes_tracked,
+                        player.stints,
+                        coverageContext,
+                    ),
+                ),
             }
         );
     }

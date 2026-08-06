@@ -1170,7 +1170,47 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       question the buckets exist to answer and 142 forward passes does not
       answer it
 - [ ] **[MVP]** Full post-game tactical catalog (passing networks, phase-of-play, pressing trends)
-- [ ] Use the Phase 3 sub log to scope each player's stats to their actual minutes played
+- [x] **Use the Phase 3 sub log to scope each player's stats to their actual
+      minutes played** (2026-08-06). Every per-player card printed *Minutes 71*
+      from the sub log directly beside *km covered 1.9* from the video, and
+      those two have never had the same denominator: the first is the whole time
+      they were on the pitch, the second is however much of it the tracker held
+      on to, inside whatever window of footage was processed. Unlabelled and
+      side by side they read as one claim, and the comparison a coach actually
+      makes — who ran the most — was mostly a ranking of who the tracker
+      followed. At 3.4 tracks per player that is not a small effect.
+
+      `trackedCoverage` in `assets/report.js` intersects each player's stints
+      with the processed window and divides the tracked minutes by the result.
+      Intersecting is the part that has to be right: without it a three-minute
+      clip would score every player against a ninety-minute match and report 3%
+      coverage for everyone, which is a statement about the clip and not about
+      them. Filmed and played are reported separately whenever they differ,
+      because they are two different shortfalls and only one is the software's.
+
+      **Nothing is scaled up.** A total measured over a third of someone's match
+      is a third of a total, and tripling it would be inventing the other two
+      thirds. The comparable figure is a rate, so the coach's roster column
+      changed from **km to m/min** — the same measurement with minutes played
+      and tracker coverage both divided out. That reordered the table
+      immediately on test data: a player subbed at 25 minutes read 1.40 km
+      against a starter's 5.20 and looked like she barely moved; as a rate both
+      are 127 m/min. The hardest worker on the pitch, at 144, was a substitute
+      the kilometre column ranked last.
+
+      Rows resting on under 70% of a player's filmed minutes are marked, and the
+      players concerned are **named** in the note under the table rather than
+      counted — a dotted underline is not something a phone can hover over, and
+      "four players are thin" only sends a coach hunting. A share above 1.15 is
+      reported as what it is: two figures mapped to one player were on screen at
+      once, which one player cannot be, so the mapping is double-counting and
+      every total above it is inflated. Said outright rather than clamped to a
+      tidy 100%, which would hide the only symptom.
+
+      The join lives in JavaScript because Python never sees the sub log — these
+      are the first two `cv*` fields with no twin in `cv/publish.py`, and
+      `cvReportFields` takes the coverage as an optional second argument so a
+      report published without one is exactly what it was before.
 - [ ] **[Stretch]** Cross-match / season aggregation per player
 
 ## 14. Player Portal & Accounts

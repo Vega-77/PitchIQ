@@ -708,6 +708,17 @@ th.cv { font-style: italic; }
    and the rule never fires. */
 th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
 
+/* A figure the video measured over a minority of the player's filmed minutes.
+   Underlined rather than dimmed: `td.num.zero` already spends dimming on
+   "this is nothing", and "this is real but partial" is a different claim that
+   would be unreadable as a second shade of grey. The names are also spelled out
+   in the note under the table, because a dotted underline is not something a
+   phone can hover over. */
+td.num.cv-partial {
+    text-decoration: underline dotted var(--text-faint);
+    text-underline-offset: 3px;
+}
+
 /* ------------------------------------------------------ tracked figures */
 
 /* Four things per row: a kit swatch, who the figure is, how much of it was

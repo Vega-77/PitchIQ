@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=27">
-    <link rel="stylesheet" href="player.css?v=27">
+    <link rel="stylesheet" href="../assets/app.css?v=28">
+    <link rel="stylesheet" href="player.css?v=28">
 </head>
 <body>
 
@@ -139,6 +139,10 @@
         <section class="block">
             <h3>Your match</h3>
             <div id="md-stats" class="stat-grid"></div>
+            <!-- What the video-derived cards above were measured over. Empty and
+                 hidden until there is something to say — most of these reports
+                 have no footage behind them at all. -->
+            <p class="muted hidden" id="md-stats-note" style="margin:14px 0 0"></p>
         </section>
 
         <!-- Hidden until there is a grid to draw. An empty pitch reads as a
@@ -173,7 +177,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="player.js?v=27"></script>
+<script type="module" src="player.js?v=28"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

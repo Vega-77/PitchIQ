@@ -349,6 +349,15 @@ export function samplePlayerReport() {
         cvTopSpeedKmh: 27.4,
         cvSprintCount: 21,
         cvMinutesTracked: 71.5,
+        // Played the whole 90, all of it filmed, and the tracker held them for
+        // 71.5 of those minutes — a share of 0.79. Above the floor on purpose:
+        // the preview should show the clean version of the coverage sentence,
+        // and the caveated one is already covered by the team preview's 3.4
+        // tracks per player. A fixture where every caveat fires at once teaches
+        // nobody which caveat means what.
+        cvMinutesOnPitch: 90,
+        cvMinutesFilmed: 90,
+        cvTrackedShare: 71.5 / 90,
         cvTouchTimes: OUR_SHOTS.map((s) => s.video_s),
         // Three fragments. Below the threshold that adds the "lost and refound
         // you" caveat, so the clean version of the note is what shows — the

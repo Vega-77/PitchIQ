@@ -9,20 +9,22 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=27';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=27';
-import { CARD_COLOURS } from '../assets/events.js?v=27';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=27';
-import { renderHeatmap } from '../assets/heatmap.js?v=27';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=27';
-import { xgTrust } from '../assets/report.js?v=27';
-import { samplePlayerReport, SAMPLE_NOTICE } from '../assets/sample-report.js?v=27';
-import { videoTime } from '../assets/video.js?v=27';
-import { renderMatchVideo } from '../assets/match-video.js?v=27';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=28';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=28';
+import { CARD_COLOURS } from '../assets/events.js?v=28';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=28';
+import { renderHeatmap } from '../assets/heatmap.js?v=28';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=28';
+import {
+    xgTrust, metresPerMinute, coverageNote,
+} from '../assets/report.js?v=28';
+import { samplePlayerReport, SAMPLE_NOTICE } from '../assets/sample-report.js?v=28';
+import { videoTime } from '../assets/video.js?v=28';
+import { renderMatchVideo } from '../assets/match-video.js?v=28';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=27';
+} from '../assets/ui.js?v=28';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -273,6 +275,14 @@ function renderMatchStats(report) {
             (report.cvDistanceM / 1000).toFixed(2), 'km covered', 'is-muted', trust,
         ));
     }
+    // Beside the total rather than instead of it. The kilometres are the figure
+    // a player wants and the one that shrinks when the tracker loses them; the
+    // rate is the one that survives, and the one that can be compared against a
+    // team-mate who played a different number of minutes.
+    const rate = metresPerMinute(report.cvDistanceM, report.cvMinutesTracked);
+    if (rate != null) {
+        grid.append(statCard(Math.round(rate), 'Metres a minute', 'is-muted', trust));
+    }
     if (report.cvTopSpeedKmh != null) {
         grid.append(statCard(
             report.cvTopSpeedKmh.toFixed(1), 'Top speed km/h', 'is-muted', trust,
@@ -282,8 +292,38 @@ function renderMatchStats(report) {
         grid.append(statCard(report.cvTackles, 'Tackles won', 'is-muted', trust));
     }
 
+    renderCoverageNote(report);
     renderPlayerHeatmap(report);
     renderPlayerShots(report);
+}
+
+/**
+ * How much of this player's match the video actually measured.
+ *
+ * The card grid puts "Minutes 71" next to "km covered 1.9" and those have never
+ * had the same denominator — the first is the sub log, the second is however
+ * much of it the tracker held on to. Side by side and unlabelled they read as
+ * one claim, and a player comparing their kilometres to a team-mate's is mostly
+ * comparing who the tracker followed.
+ *
+ * Written out rather than shown as a confidence mark: three pips can say "trust
+ * this less", but they cannot say *why*, and the why here is a specific number
+ * of minutes the player can check against their own memory of the game.
+ */
+function renderCoverageNote(report) {
+    const note = byId('md-stats-note');
+    const text = coverageNote(
+        {
+            trackedS: report.cvMinutesTracked == null ? null : report.cvMinutesTracked * 60,
+            onPitchS: report.cvMinutesOnPitch == null ? null : report.cvMinutesOnPitch * 60,
+            watchedS: report.cvMinutesFilmed == null ? null : report.cvMinutesFilmed * 60,
+            share: report.cvTrackedShare ?? null,
+        },
+        { second: true },
+    );
+
+    note.textContent = text || '';
+    note.classList.toggle('hidden', !text);
 }
 
 /**

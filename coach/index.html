@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=27">
-    <link rel="stylesheet" href="coach.css?v=27">
+    <link rel="stylesheet" href="../assets/app.css?v=28">
+    <link rel="stylesheet" href="coach.css?v=28">
 </head>
 <body>
 
@@ -351,11 +351,21 @@
                             <th class="num cv cv-first" title="Estimated from video">Touches</th>
                             <th class="num cv" title="Estimated from video">Passes</th>
                             <th class="num cv" title="Estimated from video">Tackles</th>
-                            <th class="num cv" title="Estimated from video">km</th>
+                            <!-- A rate, not a total, and deliberately so. A
+                                 kilometre column ranks a roster by who was on
+                                 the pitch longest and who the tracker happened
+                                 to keep hold of; metres a minute is the same
+                                 measurement with both of those divided out, so
+                                 a substitute and a starter can be read against
+                                 each other. The totals are on each player's own
+                                 report, where there is room to say what they
+                                 were measured over. -->
+                            <th class="num cv" title="Metres per minute of the time the video tracked them">m/min</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
                 </table>
+                <p class="muted" id="player-table-note" style="margin:12px 0 0"></p>
             </div>
         </section>
 
@@ -501,7 +511,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=27"></script>
+<script type="module" src="coach.js?v=28"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

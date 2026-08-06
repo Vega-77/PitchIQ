@@ -430,6 +430,186 @@ describe('stintOverlapS', () => {
     });
 });
 
+describe('windowClockRange', () => {
+    const END = 5400;
+
+    test('video seconds become match clock through the offset', () => {
+        // The recording started two minutes before kick-off, so video 300s is
+        // match clock 180s.
+        const range = report.windowClockRange(
+            { start_s: 300, end_s: 900 }, { videoOffsetS: 120, matchEndS: END },
+        );
+        assert.deepEqual(range, { startS: 180, endS: 780 });
+    });
+
+    test('it reads the camelCase spelling too', () => {
+        // The window arrives from Python as snake_case and could reach a page
+        // through a payload that renamed it. Both spellings, one meaning.
+        assert.deepEqual(
+            report.windowClockRange({ startS: 0, endS: 600 }, { matchEndS: END }),
+            { startS: 0, endS: 600 },
+        );
+    });
+
+    test('a missing end means the pipeline ran to the end of the file', () => {
+        const range = report.windowClockRange({ start_s: 0 }, { matchEndS: END });
+        assert.deepEqual(range, { startS: 0, endS: END });
+    });
+
+    test('footage that starts before kick-off is clamped to kick-off', () => {
+        // The warm-up is not part of anybody's minutes, and a negative start
+        // would silently widen every player's denominator.
+        const range = report.windowClockRange(
+            { start_s: 0, end_s: 600 }, { videoOffsetS: 120, matchEndS: END },
+        );
+        assert.equal(range.startS, 0);
+    });
+
+    test('with neither an end nor a match there is nothing to answer from', () => {
+        assert.equal(report.windowClockRange({}, {}), null);
+        assert.equal(report.windowClockRange(null, {}), null);
+    });
+});
+
+describe('trackedCoverage', () => {
+    const END = 5400;
+    const WHOLE = { window: { start_s: 0, end_s: END }, matchEndS: END };
+
+    test('a starter tracked for all of their half is fully covered', () => {
+        // On 0-1800, and the tracker held them for all 30 minutes.
+        const cover = report.trackedCoverage(30, STINTS.starter, WHOLE);
+        assert.equal(cover.onPitchS, 1800);
+        assert.equal(cover.watchedS, 1800);
+        assert.equal(cover.share, 1);
+    });
+
+    test('fragmentation shows up as a share below one', () => {
+        const cover = report.trackedCoverage(12, STINTS.starter, WHOLE);
+        assert.equal(cover.share, 0.4);
+    });
+
+    test('a short clip is not held against the tracker', () => {
+        // Five minutes of footage from a thirty-minute stint, and the tracker
+        // had the player for all five. Measuring against their minutes played
+        // would report 17% and read as a tracker that lost them.
+        const cover = report.trackedCoverage(5, STINTS.starter, {
+            window: { start_s: 0, end_s: 300 }, matchEndS: END,
+        });
+        assert.equal(cover.onPitchS, 1800);
+        assert.equal(cover.watchedS, 300);
+        assert.equal(cover.share, 1);
+    });
+
+    test('a substitute is scored against the part of the window they played', () => {
+        // On at 30:00; the window is the first 40 minutes, so ten of their
+        // minutes were filmed and the tracker had six of them.
+        const cover = report.trackedCoverage(6, STINTS.sub, {
+            window: { start_s: 0, end_s: 2400 }, matchEndS: END,
+        });
+        assert.equal(cover.watchedS, 600);
+        assert.equal(cover.share, 0.6);
+    });
+
+    test('a player who was not on for any of the footage has no share', () => {
+        // Not a share of zero. The window ended before they came on, so there
+        // is nothing this run can say about them either way.
+        const cover = report.trackedCoverage(0, STINTS.sub, {
+            window: { start_s: 0, end_s: 600 }, matchEndS: END,
+        });
+        assert.equal(cover.watchedS, 0);
+        assert.equal(cover.share, null);
+    });
+
+    test('no sub log means no answer, not a zero', () => {
+        for (const stints of [null, [], undefined]) {
+            const cover = report.trackedCoverage(30, stints, WHOLE);
+            assert.equal(cover.onPitchS, null);
+            assert.equal(cover.share, null);
+            // The tracked minutes are still known — only the denominator is not.
+            assert.equal(cover.trackedS, 1800);
+        }
+    });
+
+    test('an unmatched player has no tracked time and no share', () => {
+        const cover = report.trackedCoverage(null, STINTS.starter, WHOLE);
+        assert.equal(cover.trackedS, null);
+        assert.equal(cover.share, null);
+        // The denominator survives: the sub log knows this without the video.
+        assert.equal(cover.onPitchS, 1800);
+    });
+
+    test('two clusters on screen at once push the share above one', () => {
+        // Which is the only symptom of a mapping that double-counts, so it has
+        // to survive rather than be clamped to a tidy 100%.
+        const cover = report.trackedCoverage(45, STINTS.starter, WHOLE);
+        assert.ok(cover.share > 1.15);
+    });
+});
+
+describe('coverageNote', () => {
+    const END = 5400;
+    const WHOLE = { window: { start_s: 0, end_s: END }, matchEndS: END };
+    const noteFor = (mins, stints, ctx = WHOLE, opts) =>
+        report.coverageNote(report.trackedCoverage(mins, stints, ctx), opts);
+
+    test('good coverage states the minutes and stops', () => {
+        const note = noteFor(27, STINTS.starter);
+        assert.match(note, /27 of the 30 minutes/);
+        assert.doesNotMatch(note, /part of the match/);
+    });
+
+    test('thin coverage says the totals are a sample', () => {
+        const note = noteFor(12, STINTS.starter);
+        assert.match(note, /part of the match rather than all of it/);
+    });
+
+    test('filmed and played are named separately when they differ', () => {
+        // Otherwise the sentence blames the tracker for minutes nobody filmed.
+        const note = noteFor(5, STINTS.starter, {
+            window: { start_s: 0, end_s: 300 }, matchEndS: END,
+        });
+        assert.match(note, /covered 5 of the 30 minutes/);
+        assert.match(note, /measured 5 of those/);
+    });
+
+    test('a double-counting mapping is called out, not smoothed over', () => {
+        const note = noteFor(45, STINTS.starter);
+        assert.match(note, /same time/);
+        assert.match(note, /twice/);
+    });
+
+    test('it addresses a player directly on their own report', () => {
+        assert.match(noteFor(27, STINTS.starter, WHOLE, { second: true }), /you played/);
+        assert.match(noteFor(27, STINTS.starter), /they played/);
+    });
+
+    test('nothing to say is null, not an empty hedge', () => {
+        assert.equal(noteFor(30, null), null);
+        assert.equal(noteFor(null, STINTS.starter), null);
+        assert.equal(report.coverageNote(null), null);
+    });
+});
+
+describe('metresPerMinute', () => {
+    test('it is a rate over the time the video actually had them', () => {
+        assert.equal(report.metresPerMinute(6000, 60), 100);
+    });
+
+    test('a substitute and a starter become comparable', () => {
+        // 2km in 20 tracked minutes beats 6km in 80. The kilometre column says
+        // the opposite, which is the whole reason this exists.
+        assert.ok(
+            report.metresPerMinute(2000, 20) > report.metresPerMinute(6000, 80),
+        );
+    });
+
+    test('no distance or no tracked time is null, never zero', () => {
+        assert.equal(report.metresPerMinute(null, 60), null);
+        assert.equal(report.metresPerMinute(6000, 0), null);
+        assert.equal(report.metresPerMinute(6000, null), null);
+    });
+});
+
 describe('rankRosterForCluster', () => {
     // The cluster was on screen from 5:00 to 7:00 of a video that started two
     // minutes before kick-off — so 3:00 to 5:00 on the match clock.
@@ -515,6 +695,29 @@ describe('cvReportFields', () => {
     test('an unmapped player gets no cv fields at all', () => {
         // Not zeroes. A zero says the video measured them and found nothing.
         assert.deepEqual(report.cvReportFields(undefined), {});
+    });
+
+    test('coverage travels onto the report when it is known', () => {
+        const stats = report.cvStatsByPlayer([track(0)], { 0: ME })[ME];
+        const fields = report.cvReportFields(
+            stats,
+            report.trackedCoverage(30, [{ inS: 0, outS: 2700 }], {
+                window: { start_s: 0, end_s: 2700 }, matchEndS: 5400,
+            }),
+        );
+        assert.equal(fields.cvMinutesOnPitch, 45);
+        assert.equal(fields.cvMinutesFilmed, 45);
+        assert.ok(Math.abs(fields.cvTrackedShare - 30 / 45) < 1e-9);
+    });
+
+    test('without coverage the report is what it always was', () => {
+        // Python has no sub log, so a run published before this existed — or by
+        // anything but the coach's page — simply carries no denominator.
+        const stats = report.cvStatsByPlayer([track(0)], { 0: ME })[ME];
+        const fields = report.cvReportFields(stats);
+        assert.equal(fields.cvMinutesOnPitch, null);
+        assert.equal(fields.cvTrackedShare, null);
+        assert.ok(fields.cvTouches != null);
     });
 });
 
@@ -1672,6 +1875,31 @@ describe('the sample match', () => {
         for (const shot of mine) {
             assert.ok(ours.some((s) => s.video_s === shot.video_s));
         }
+    });
+
+    test("the sample player's coverage is its own arithmetic", () => {
+        // Three literals that could drift apart into a preview showing a share
+        // its own two minute figures contradict.
+        const me = sample.samplePlayerReport();
+        assert.ok(Math.abs(
+            me.cvTrackedShare - me.cvMinutesTracked / me.cvMinutesFilmed,
+        ) < 1e-9);
+        assert.ok(me.cvMinutesFilmed <= me.cvMinutesOnPitch);
+    });
+
+    test('the sample previews the clean coverage sentence', () => {
+        // Deliberate: the caveated wording is already exercised by the team
+        // preview's 3.4 tracks per player, and a fixture where every caveat
+        // fires at once teaches nobody which caveat means what.
+        const me = sample.samplePlayerReport();
+        const note = report.coverageNote({
+            trackedS: me.cvMinutesTracked * 60,
+            onPitchS: me.cvMinutesOnPitch * 60,
+            watchedS: me.cvMinutesFilmed * 60,
+            share: me.cvTrackedShare,
+        }, { second: true });
+        assert.match(note, /72 of the 90 minutes you played/);
+        assert.doesNotMatch(note, /part of the match/);
     });
 
     test('the quality block trips the warnings it is meant to', () => {
