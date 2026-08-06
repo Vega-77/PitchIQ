@@ -6,12 +6,18 @@
 // exactly — the model takes a bare 12-wide float array with no names attached,
 // so a reordering here fails silently rather than loudly.
 
-// The calibrated model. xg_model6 was the classifier from inside the
-// calibration wrapper, exported without it, and read about six times high near
-// goal — a clear shot from 14 metres came out at 0.69. See the ONNX export note
-// in PitchIQHelper/main.py. Larger than the old file because five folds are
-// averaged, which is the same reason its numbers add up to goals scored.
-const MODEL_URL = './xg_model7.onnx';
+// The calibrated model, on the eleven features a camera can actually produce.
+//
+// Two predecessors were retired on 2026-08-06. xg_model6 was the classifier from
+// inside the calibration wrapper, exported without it, and read about six times
+// high near goal. xg_model7 fixed that but still took `shot_height`, which is
+// where the ball *ended* — an outcome, and one nothing here can measure, so a
+// constant was substituted and the totals came out about half again too high.
+// See the notes in PitchIQHelper/main.py.
+//
+// Larger than the old files because five folds are averaged, which is the same
+// reason its numbers add up to goals actually scored.
+const MODEL_URL = './xg_model8.onnx';
 
 export const FEATURE_ORDER = [
     'distance_to_goal',
@@ -20,7 +26,6 @@ export const FEATURE_ORDER = [
     'is_header',
     'under_pressure',
     'is_open_play',
-    'shot_height',
     'keeper_distance_to_goal',
     'keeper_angle_coverage',
     'keeper_off_line',
@@ -56,10 +61,6 @@ const KEEPER_OFF_LINE_M = 3.0;
 // value it never saw while learning.
 const NO_KEEPER_DISTANCE = 5.0;
 const NO_KEEPER_POSITION = { x: 115.0, y: 40.0 };
-
-// Stand-in for the z-axis when the height of the shot is unknown, matching
-// DEFAULT_SHOT_HEIGHT in cv/xg_bridge.py.
-const DEFAULT_SHOT_HEIGHT = 0.6;
 
 const dot = (a, b) => a.x * b.x + a.y * b.y;
 const minus = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
@@ -108,11 +109,12 @@ export function inShotCone(point, ball) {
 }
 
 /**
- * The 12 numbers the model wants, from positions the sandbox already holds.
+ * The 11 numbers the model wants, from positions the sandbox already holds.
  *
- * `shot` carries the toggles and the height slider. Note there is no free-kick
- * feature: direct free kicks were dropped from the training set entirely
- * (PitchIQHelper/main.py), so the model has no way to represent one.
+ * `shot` carries the toggles. Two things it deliberately does not carry: there
+ * is no free-kick feature, because direct free kicks were dropped from the
+ * training set entirely, and no shot height, because that was the height the
+ * ball *finished* at and has been dropped from the model (PitchIQHelper/main.py).
  */
 export function buildFeatures({ shooter, keeper, defenders, shot }) {
     const ball = toStatsBomb(shooter);
@@ -124,7 +126,6 @@ export function buildFeatures({ shooter, keeper, defenders, shot }) {
         is_header: shot.isHeader ? 1 : 0,
         under_pressure: shot.underPressure ? 1 : 0,
         is_open_play: shot.isOpenPlay ? 1 : 0,
-        shot_height: shot.height ?? DEFAULT_SHOT_HEIGHT,
         // The no-keeper case, which the sandbox never reaches because it always
         // draws one — but the CV pipeline reaches it whenever the keeper is out
         // of frame or missed. This used to substitute the shooter's own angle,

@@ -1,6 +1,6 @@
 """Python and JavaScript must agree about what a shot looks like to the model.
 
-`cv/xg_bridge.py` and `xg-sandbox/xg-model.js` each build the same 12-feature
+`cv/xg_bridge.py` and `xg-sandbox/xg-model.js` each build the same 11-feature
 vector for the same xG model, independently, in two languages. The Python side
 is checked against the training script by tests/test_xg_bridge.py. The
 JavaScript side, until this file, was checked against nothing.
@@ -33,7 +33,7 @@ from pathlib import Path
 import pytest
 
 from cv.pitch import STATSBOMB_LENGTH, STATSBOMB_WIDTH, Pitch
-from cv.xg_bridge import DEFAULT_SHOT_HEIGHT, FEATURE_ORDER, ShotContext, build_features
+from cv.xg_bridge import FEATURE_ORDER, ShotContext, build_features
 
 REPO = Path(__file__).resolve().parents[1]
 JS_MODEL = REPO / "xg-sandbox" / "xg-model.js"
@@ -101,14 +101,13 @@ def python_features(shooter, keeper, defenders, shot) -> dict[str, float]:
         is_header=shot["isHeader"],
         under_pressure=shot["underPressure"],
         is_open_play=shot["isOpenPlay"],
-        shot_height=shot["height"],
     )
     return build_features(context, PITCH)
 
 
 FOOT = {"isFoot": True, "isHeader": False, "underPressure": False,
-        "isOpenPlay": True, "height": DEFAULT_SHOT_HEIGHT}
-HEADER = {**FOOT, "isFoot": False, "isHeader": True, "height": 1.9}
+        "isOpenPlay": True}
+HEADER = {**FOOT, "isFoot": False, "isHeader": True}
 PRESSURED = {**FOOT, "underPressure": True}
 SET_PIECE = {**FOOT, "isOpenPlay": False}
 

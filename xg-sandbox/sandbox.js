@@ -6,9 +6,9 @@
 // xg-model.js, so the one part that has to stay in step with the trained model
 // is not tangled up with drawing code.
 
-import { Vector, Player } from './geometry.js?v=26';
-import { predictXg, buildFeatures, FEATURE_ORDER } from './xg-model.js?v=26';
-import { PRESETS, fromMetres } from './presets.js?v=26';
+import { Vector, Player } from './geometry.js?v=27';
+import { predictXg, buildFeatures, FEATURE_ORDER } from './xg-model.js?v=27';
+import { PRESETS, fromMetres } from './presets.js?v=27';
 
 const canvas = document.getElementById('display');
 const ctx = canvas.getContext('2d');
@@ -464,11 +464,6 @@ function bindSliders() {
         });
     }
 
-    // Shot height is the one input with no position to derive it from.
-    byId('shot_height').addEventListener('input', (e) => {
-        setDisplay('val-shot-height', e.target.value, ' m', 1);
-        clearPresetMark();
-    });
 }
 
 function showValue(slider, value) {
@@ -487,7 +482,6 @@ function refreshReadouts(skipIds = []) {
         byId(slider.id).value = value;
         showValue(slider, value);
     }
-    setDisplay('val-shot-height', byId('shot_height').value, ' m', 1);
 }
 
 /**
@@ -735,7 +729,6 @@ function shotSetup() {
             isHeader: byId('is_header').checked,
             underPressure: byId('under_pressure').checked,
             isOpenPlay: byId('is_open_play').checked,
-            height: parseFloat(byId('shot_height').value),
         },
     };
 }
@@ -746,7 +739,7 @@ function shotSetup() {
 // "Session already started" and then the whole session goes to "Session
 // mismatch". This loop runs sixty times a second and used to fire a run each
 // time, which worked only because the old model answered inside a frame.
-// xg_model7 averages five folds and does not, so every frame of a drag failed
+// the current model averages five folds and does not, so every frame of a drag failed
 // and the readout sat on "—".
 //
 // Latest-wins rather than a queue: while a run is in flight, later frames
@@ -796,7 +789,7 @@ function odds(xg) {
 // ---------------------------------------------------------------------------
 // What the model sees
 //
-// The twelve numbers, as they are handed over. This is the panel that would
+// The eleven numbers, as they are handed over. This is the panel that would
 // have made two separate bugs obvious the day they were introduced: a distance
 // of 45.7 where the slider above it said 20 m, and a keeper feature standing in
 // for a keeper who was never found. Both were invisible while the only thing on
@@ -815,7 +808,6 @@ const FEATURE_LABELS = {
     is_header: 'Header',
     under_pressure: 'Under pressure',
     is_open_play: 'Open play',
-    shot_height: 'Shot height',
     keeper_distance_to_goal: "Keeper's distance to goal",
     keeper_angle_coverage: 'Angle the keeper covers',
     keeper_off_line: 'Keeper off his line',
@@ -833,7 +825,6 @@ function featureText(name, value) {
     if (FLAGS.has(name)) return value ? 'yes' : 'no';
     if (IN_DEGREES.has(name)) return `${(value * (180 / Math.PI)).toFixed(1)}°`;
     if (name === 'defenders_in_cone') return String(Math.round(value));
-    if (name === 'shot_height') return `${value.toFixed(2)} m`;
     return value.toFixed(2);
 }
 
@@ -879,6 +870,6 @@ window._sandbox = {
     // So a preset can be placed and its measurements read back without
     // synthesising a click on a button whose text may change.
     applyPreset,
-    /** The twelve numbers, for checking them against the metres on screen. */
+    /** The eleven numbers, for checking them against the metres on screen. */
     features: () => buildFeatures(shotSetup()),
 };

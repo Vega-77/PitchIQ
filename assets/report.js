@@ -261,32 +261,37 @@ export function shapeConfidence(calibrationErrorM) {
 // Metres of mean calibration error at which per-shot xG, and then xG at all,
 // stop being worth printing. Both come off the measured noise table in
 // tests/test_xg_noise.py rather than from taste.
-const XG_PER_SHOT_LIMIT_M = 1.0;
+//
+// The per-shot limit tightened from 1.0m to 0.5m on 2026-08-06, when the model
+// was retrained without `shot_height`. Dropping a feature made the rest carry
+// more of the answer, so position error moves the result further: a single
+// shot's 95th-percentile shift is half the quantity at 0.5m and 89% of it at
+// 1.0m. A number whose error bar is nearly as wide as itself is not a number.
+const XG_PER_SHOT_LIMIT_M = 0.5;
 const XG_TOTAL_LIMIT_M = 4.0;
 
 /**
  * How much of the xG on a run is worth showing: `'shot'`, `'total'` or `'none'`.
  *
  * The model was measured against deliberately noisy positions, and the answer
- * was not flattering. On a 0.254 baseline, half a metre of position error moves
- * a single shot by 0.035 on average and 0.084 at the 95th percentile — a
- * seventh and a third of it; at four metres the p95 shift is 0.344, which is
+ * was not flattering. On a 0.188 baseline, half a metre of position error moves
+ * a single shot by 0.030 on average and 0.095 at the 95th percentile — half the
+ * quantity; at one metre the p95 shift is 89% of it and at two metres it is
  * **larger than the quantity itself**.
  *
- * The bands are set from those ratios rather than from the absolute shifts,
- * which is why they survived the model being recalibrated on 2026-08-06. Every
- * figure in the table halved and every ratio stayed where it was.
+ * Both bands are measured rather than chosen, and they are measured on
+ * different things, because they are claims about different numbers:
  *
- * So there are three honest states rather than a number and a warning beside it:
- *
- *   - `'shot'` — under a metre. Good enough for "that was a decent chance". Not
- *     good enough to rank two shots 0.1 apart, which is why the caveat stays.
- *   - `'total'` — up to four metres. Individual shots are too loose to compare,
- *     but the errors are independent per shot and a half's worth largely cancel,
- *     so the team total survives what a single number does not.
- *   - `'none'` — beyond that the error bar is wider than the number. There is
- *     nothing to print, and printing it with a warning attached would still
- *     leave a specific-looking figure on screen, which is what people remember.
+ *   - `'shot'` — up to **0.5m**, which is also the fit `calibrate/` calls good.
+ *     Good enough for "that was a decent chance". Not good enough to rank two
+ *     shots 0.1 apart, which is why the caveat stays.
+ *   - `'total'` — up to **4m**. Per-shot errors are independent and mostly
+ *     cancel: simulated over a half's six shots, the *total* lands within 8% of
+ *     the truth at 0.5m, 12% at 1m, 18% at 2m and 26% at 4m, while a single
+ *     shot at 1m is already carrying an error bar nearly as wide as itself.
+ *   - `'none'` — beyond four metres, when even the total is not worth printing.
+ *     Printing it with a warning attached would still leave a specific-looking
+ *     figure on screen, which is what people remember.
  *
  * A null error is not a good error and is not treated as one — but it is also
  * not evidence of a bad fit, so it lands on `'total'`: the reading that stays
@@ -376,7 +381,7 @@ export function cvQualityNotes(quality, options = {}) {
     //
     // The 0.5m figure is not a guess. Measured against the real model
     // (tests/test_xg_noise.py): half a metre of position error moves one shot's
-    // xG by ~0.035 on a 0.254 baseline, and at 4m the spread exceeds the number
+    // xG by ~0.030 on a 0.188 baseline, and by 2m the spread exceeds the number
     // itself.
     if (options.shots) {
         const error = options.calibrationErrorM;

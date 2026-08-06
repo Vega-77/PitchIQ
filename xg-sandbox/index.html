@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=26">
-    <link rel="stylesheet" href="sandbox.css?v=26">
+    <link rel="stylesheet" href="../assets/app.css?v=27">
+    <link rel="stylesheet" href="sandbox.css?v=27">
 </head>
 <body>
 
@@ -62,18 +62,12 @@
                 <input type="range" id="angle_to_goal" min="0.1" max="90" step="0.1" value="45">
             </div>
 
-            <div class="slider-row">
-                <div class="slider-label-row">
-                    <span class="slider-name">Shot height</span>
-                    <span class="slider-value" id="val-shot-height">0.6 m</span>
-                </div>
-                <!-- 0.6 is DEFAULT_SHOT_HEIGHT: what cv/xg_bridge.py substitutes
-                     because one fixed camera cannot see the ball's height. This
-                     slider used to start at 0, so the sandbox and the CV
-                     pipeline described the same shot differently until somebody
-                     moved it. -->
-                <input type="range" id="shot_height" min="0" max="2.5" step="0.1" value="0.6">
-            </div>
+            <!-- The shot-height slider lived here until 2026-08-06. It drove a
+                 feature that turned out to be the height the ball *ended* at —
+                 the outcome, not the shot — so sliding it above the crossbar
+                 sent the number to zero, which looked like physics and was
+                 really the model reading the answer off the back of the page.
+                 The feature is gone from the model and the control with it. -->
 
             <div class="section-label">Situation</div>
 
@@ -123,14 +117,7 @@
                     </span>
                 </label>
             </div>
-            <p class="note">
-                Free kicks aren't modelled — they were left out of the training
-                data. Shot height is worth knowing about too: the model learned it
-                as the height the ball <em>ended</em> at, which is the outcome
-                rather than the shot, so dragging it above the crossbar sends
-                this to nothing. The CV pipeline can never measure it and always
-                sends 0.6&nbsp;m.
-            </p>
+            <p class="note">Free kicks aren't modelled — they were left out of the training data.</p>
 
             <div class="section-label">Defender</div>
 
@@ -169,7 +156,7 @@
             </div>
 
             <div class="section-label">What the model sees</div>
-            <!-- The twelve numbers as they are handed over, in the model's own
+            <!-- The eleven numbers as they are handed over, in the model's own
                  units. Worth its space: both coordinate bugs this page has had
                  were invisible while the only thing on screen was the answer. -->
             <div class="feature-list" id="features"></div>
@@ -197,7 +184,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
-<script type="module" src="sandbox.js?v=26"></script>
+<script type="module" src="sandbox.js?v=27"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

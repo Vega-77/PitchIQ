@@ -128,7 +128,7 @@ export function sampleHeatmap(
 // a freeze frame behind it — where the keeper was standing, who was between the
 // ball and the goal — written down in tests/test_sample_xg.py, and each `xg` is
 // what `cv/xg_bridge.predict_xg` returns for that frame against the real
-// xg_model7.onnx. That test re-runs the model and fails if a figure here drifts
+// xg_model8.onnx. That test re-runs the model and fails if a figure here drifts
 // from what the model says, so this is a fixture that cannot quietly become
 // fiction.
 //
@@ -136,25 +136,25 @@ export function sampleHeatmap(
 // what the model does with a set of positions, not what a match looked like.
 //
 // Two of them are worth reading twice. The 6-metre miss at 908.7 is the best
-// chance in the match at 0.535, and it went off target — which is the whole
+// chance in the match at 0.479, and it went off target — which is the whole
 // argument for having xG on the page at all. The block from 29 metres at 1204.2
 // is **0.0**, not null: two defenders in front of it and a calibrated model says
 // a shot from there is worth nothing. Absent is not zero, and this is the zero.
 
 const OUR_SHOTS = [
-    { video_s: 412.4, x_m: 92.1, y_m: 33.8, xg: 0.216, outcome: 'goal', on_target: true, track_id: 7 },
-    { video_s: 631.0, x_m: 84.6, y_m: 27.2, xg: 0.033, outcome: 'saved', on_target: true, track_id: 11 },
-    { video_s: 908.7, x_m: 99.2, y_m: 38.4, xg: 0.535, outcome: 'off_target', on_target: false, track_id: 7 },
+    { video_s: 412.4, x_m: 92.1, y_m: 33.8, xg: 0.098, outcome: 'goal', on_target: true, track_id: 7 },
+    { video_s: 631.0, x_m: 84.6, y_m: 27.2, xg: 0.013, outcome: 'saved', on_target: true, track_id: 11 },
+    { video_s: 908.7, x_m: 99.2, y_m: 38.4, xg: 0.479, outcome: 'off_target', on_target: false, track_id: 7 },
     { video_s: 1204.2, x_m: 76.3, y_m: 41.9, xg: 0.0, outcome: 'blocked', on_target: false, track_id: 4 },
-    { video_s: 1655.8, x_m: 95.8, y_m: 30.1, xg: 0.327, outcome: 'saved', on_target: true, track_id: 9 },
-    { video_s: 2210.5, x_m: 88.4, y_m: 34.6, xg: 0.165, outcome: 'goal', on_target: true, track_id: 11 },
+    { video_s: 1655.8, x_m: 95.8, y_m: 30.1, xg: 0.109, outcome: 'saved', on_target: true, track_id: 9 },
+    { video_s: 2210.5, x_m: 88.4, y_m: 34.6, xg: 0.099, outcome: 'goal', on_target: true, track_id: 11 },
 ];
 
 const THEIR_SHOTS = [
-    { video_s: 520.3, x_m: 81.7, y_m: 24.5, xg: 0.003, outcome: 'off_target', on_target: false, track_id: 23 },
-    { video_s: 1420.9, x_m: 97.4, y_m: 35.2, xg: 0.461, outcome: 'goal', on_target: true, track_id: 19 },
-    { video_s: 1888.1, x_m: 90.2, y_m: 44.8, xg: 0.083, outcome: 'saved', on_target: true, track_id: 23 },
-    { video_s: 2402.6, x_m: 72.9, y_m: 31.4, xg: 0.003, outcome: 'off_target', on_target: false, track_id: 27 },
+    { video_s: 520.3, x_m: 81.7, y_m: 24.5, xg: 0.009, outcome: 'off_target', on_target: false, track_id: 23 },
+    { video_s: 1420.9, x_m: 97.4, y_m: 35.2, xg: 0.390, outcome: 'goal', on_target: true, track_id: 19 },
+    { video_s: 1888.1, x_m: 90.2, y_m: 44.8, xg: 0.025, outcome: 'saved', on_target: true, track_id: 23 },
+    { video_s: 2402.6, x_m: 72.9, y_m: 31.4, xg: 0.008, outcome: 'off_target', on_target: false, track_id: 27 },
 ];
 
 /** The team total, so it is the sum of the map and cannot drift from it. */

@@ -1554,21 +1554,28 @@ describe('xgTrust', () => {
     // The bands are read off tests/test_xg_noise.py, measured against the real
     // model. They are not taste, and changing one means re-running that.
 
-    test('under a metre, a single shot is worth showing', () => {
+    test('on a good calibration, a single shot is worth showing', () => {
+        // 0.5m is where calibrate/ calls a fit good, and it is now also where
+        // per-shot xG stops. The band was 1.0m against the 12-feature model;
+        // dropping shot_height made the model lean harder on position, so the
+        // p95 shift at 1m went from 40% of the number to 89% of it.
         assert.equal(report.xgTrust(0), 'shot');
         assert.equal(report.xgTrust(0.5), 'shot');
-        assert.equal(report.xgTrust(1.0), 'shot');
     });
 
-    test('past a metre only the total is', () => {
-        // At 2m the p95 shift is 0.201 on a 0.254 baseline — most of the quantity.
-        assert.equal(report.xgTrust(1.01), 'total');
+    test('past half a metre only the total is', () => {
+        // At 1m a single shot's p95 shift is 0.168 on a 0.188 baseline — nearly
+        // the whole quantity. The total survives because per-shot errors are
+        // independent: over a half's six shots it lands within 12% at 1m.
+        assert.equal(report.xgTrust(0.51), 'total');
+        assert.equal(report.xgTrust(1.0), 'total');
         assert.equal(report.xgTrust(2), 'total');
         assert.equal(report.xgTrust(4.0), 'total');
     });
 
-    test('past four metres the error bar is wider than the number', () => {
-        // Measured: p95 shift 0.344 against a mean clean xG of 0.254.
+    test('past four metres even the total is not worth printing', () => {
+        // Measured: a six-shot total moves 26% at 4m, and a single shot's p95
+        // shift is twice the number.
         assert.equal(report.xgTrust(4.01), 'none');
         assert.equal(report.xgTrust(50), 'none');
     });

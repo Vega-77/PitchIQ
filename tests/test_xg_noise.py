@@ -6,32 +6,36 @@ had ever run it. The model was trained on hand-verified StatsBomb positions.
 Ours come out of a detector and a homography, and are wrong by tens of
 centimetres at best.
 
-    Re-measured 2026-08-06 on xg-sandbox/xg_model7.onnx, 400 trials, seed 0,
-    across five spots with a mean clean xG of 0.254:
+    Re-measured 2026-08-06 on xg-sandbox/xg_model8.onnx, 400 trials, seed 0,
+    across five spots with a mean clean xG of 0.188:
 
-        noise    mean shift   p95     max      as a share of the 0.254 baseline
-        0.25 m     0.024     0.060   0.106       9%   /  24%
-        0.50 m     0.035     0.084   0.168      14%   /  33%
-        1.00 m     0.043     0.101   0.173      17%   /  40%
-        2.00 m     0.064     0.201   0.495      25%   /  79%
-        4.00 m     0.106     0.344   0.506      42%   / 135%
+        noise    mean shift   p95     max      as a share of the 0.188 baseline
+        0.25 m     0.019     0.065   0.099      10%   /  34%
+        0.50 m     0.030     0.095   0.253      16%   /  50%
+        1.00 m     0.043     0.168   0.267      23%   /  89%
+        2.00 m     0.062     0.242   0.538      33%   / 129%
+        4.00 m     0.107     0.380   0.624      57%   / 202%
 
 The honest reading: **half a metre of position error moves a shot's xG by about
-0.035 on average, and by 0.084 at the 95th percentile.** Against a baseline of
-0.254 that is a 14% swing typically and a 33% swing in the tail. A calibration
-inside the 0.5 m band `cv/calibrate.py` treats as good therefore still leaves
-per-shot xG meaningfully uncertain — good enough for "that was a decent chance",
-not for comparing two shots that differ by 0.1.
+0.030 on average, and by 0.095 at the 95th percentile** — half the quantity.
+A calibration inside the 0.5 m band `cv/calibrate.py` treats as good therefore
+still leaves per-shot xG meaningfully uncertain: good enough for "that was a
+decent chance", not for comparing two shots that differ by 0.1. **At one metre
+the tail is 89% of the number, and at two it exceeds it.**
 
-The previous table, measured on xg_model6, read roughly twice as large in
-absolute terms (0.066 mean and 0.175 p95 at half a metre) — but on a baseline
-of 0.472, because that model was exported without its calibration and read
-about six times high near goal. **As a share of the quantity being measured the
-two tables are almost identical**, 14%/33% against 14%/37%. Which is the point
-worth keeping: this measures how far the model moves when its inputs move, and
-recalibrating the outputs did not make the model less sensitive to a metre of
-position error. The trust bands in assets/report.js are set off the ratios, so
-they did not move either.
+This table has now been measured against three models and the trend is worth
+recording, because it runs the opposite way to intuition:
+
+    model      what changed                      p95 at 0.5 m, as a share
+    xg_model6  (uncalibrated)                             37%
+    xg_model7  calibration restored                       33%
+    xg_model8  shot_height dropped                        50%
+
+Recalibrating the outputs barely moved the ratios. Removing a feature moved them
+a lot, and for a plain reason: with eleven features instead of twelve, distance
+and angle carry more of the answer, so moving a player moves the answer further.
+**A more honest model is a more position-sensitive one**, and the per-shot
+display band in assets/report.js tightened from 1.0 m to 0.5 m to match.
 
 Two things it does not say. It measures *sensitivity*, not *calibration*: a
 model can shift a lot under noise and still be right on average, which is what
@@ -82,7 +86,7 @@ class TestTheHarnessItself:
         The band was 0.2-0.8 and the baseline was 0.472, which should have been
         read as a warning rather than a pass: five ordinary spots, one of them
         30 metres out, averaging a coin flip is not what an xG model does. It
-        now averages 0.254.
+        now averages 0.188.
         """
         assert 0.1 < measure(session, 0.5)['mean_baseline_xg'] < 0.6
 
@@ -97,24 +101,24 @@ class TestSensitivity:
         shifts = [measure(session, n)['mean_shift'] for n in (0.25, 0.5, 1.0, 2.0, 4.0)]
         assert shifts == sorted(shifts)
 
-    def test_a_good_calibration_still_costs_about_a_seventh_of_the_answer(
+    def test_a_good_calibration_still_costs_about_a_sixth_of_the_answer(
         self, session
     ):
         """The headline figure, pinned so a model swap cannot quietly change it.
 
         0.5 m is the error `cv/calibrate.py` accepts as good. Half a metre of it
-        moves a typical shot's xG by ~0.035 on a 0.254 baseline. The bounds are
-        loose on purpose: this pins the order of magnitude, not the digits, so
-        it fails on a real regression rather than on a numpy version.
+        moves a typical shot's xG by ~0.030 on a 0.188 baseline — about a sixth,
+        with a tail at half. The bounds are loose on purpose: this pins the
+        order of magnitude, not the digits, so it fails on a real regression
+        rather than on a numpy version.
 
         A share of the answer, not an absolute figure, is what this test is
-        about — and it is why the name still reads the same after the model was
-        recalibrated and every number in it halved.
+        about, and it is the share that decides where the display bands go.
         """
         result = measure(session, 0.5)
-        assert 0.02 < result['mean_shift'] < 0.07
+        assert 0.015 < result['mean_shift'] < 0.06
         assert result['p95_shift'] < 0.15
-        assert result['mean_shift'] / result['mean_baseline_xg'] < 0.25
+        assert result['mean_shift'] / result['mean_baseline_xg'] < 0.30
 
     def test_the_result_barely_moves_across_seeds(self, session):
         """400 trials is enough that the figures above are the model's, not the
@@ -124,10 +128,23 @@ class TestSensitivity:
         assert abs(a - b) < 0.01
 
     def test_a_bad_calibration_is_worse_than_useless_per_shot(self, session):
-        """At 4 m the p95 shift exceeds the baseline xG itself.
+        """By 2 m the p95 shift exceeds the baseline xG itself.
 
-        This is the number that says a poorly calibrated run should not publish
-        per-shot xG at all — the error bar is wider than the quantity.
+        This is the number that says a loosely calibrated run should not publish
+        per-shot xG — the error bar is wider than the quantity. It used to take
+        4 m to reach this point; on the 11-feature model it takes 2, which is
+        why `XG_PER_SHOT_LIMIT_M` came down to 0.5.
         """
-        result = measure(session, 4.0)
-        assert result['p95_shift'] > result['mean_baseline_xg'] * 0.9
+        assert measure(session, 2.0)['p95_shift'] > measure(session, 2.0)['mean_baseline_xg']
+
+    def test_a_good_calibration_is_still_only_good_enough_for_the_total(self, session):
+        """Where the two display bands part company.
+
+        At the fit `calibrate/` calls good, a single shot's tail is already half
+        the quantity. That is the whole argument for showing a team total on
+        runs where no individual figure is worth printing — pinned here so a
+        model swap that changes it cannot pass quietly.
+        """
+        result = measure(session, 0.5)
+        assert result['p95_shift'] / result['mean_baseline_xg'] > 0.3
+        assert result['p95_shift'] / result['mean_baseline_xg'] < 0.8

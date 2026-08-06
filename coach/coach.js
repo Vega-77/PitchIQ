@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=26';
+} from '../assets/auth.js?v=27';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,26 +8,26 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=26';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=26';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=26';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=26';
+} from '../assets/db.js?v=27';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=27';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=27';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=27';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
-} from '../assets/sample-report.js?v=26';
+} from '../assets/sample-report.js?v=27';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
     groupStats, teamStatRows,
-} from '../assets/report.js?v=26';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=26';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=26';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=26';
+} from '../assets/report.js?v=27';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=27';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=27';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=27';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark,
-} from '../assets/ui.js?v=26';
+} from '../assets/ui.js?v=27';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 

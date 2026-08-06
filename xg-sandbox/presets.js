@@ -22,7 +22,7 @@
 // for the opposite reason — they were dropped from the training set, so there
 // is nothing to place.
 
-import { Vector } from './geometry.js?v=26';
+import { Vector } from './geometry.js?v=27';
 
 // The half the sandbox draws. Matching WIDTH_M and HALF_LENGTH_M in sandbox.js,
 // and the 105x68 default in cv/pitch.py that the sample match is measured on.
@@ -120,7 +120,8 @@ export const PRESETS = [
         id: 'sample-opener',
         name: 'Sample match — the opener',
         detail: 'The goal at 6:52 in the preview data. Thirteen metres, two '
-            + 'defenders in the lane. Worth 0.216, and it went in.',
+            + 'defenders in the lane. Worth 0.098 — and it went in, which is '
+            + 'most goals: the chance was never the likely outcome.',
         shooter: [33.8, 12.9],
         keeper: [34.4, 1.8],
         defenders: [[34.3, 9.4], [32.7, 6.9], [28, 18], [40, 19]],
@@ -130,7 +131,7 @@ export const PRESETS = [
     {
         id: 'sample-miss',
         name: 'Sample match — the miss',
-        detail: 'The best chance in the preview data at 0.535, six metres out '
+        detail: 'The best chance in the preview data at 0.479, six metres out '
             + 'with the keeper committed. It went off target, which is the '
             + 'whole reason a coach wants this number.',
         shooter: [38.4, 5.8],

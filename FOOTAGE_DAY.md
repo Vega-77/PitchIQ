@@ -178,9 +178,12 @@ Worth saying in advance so it reads as a known limit rather than a failure:
   correct outcome given the input, not a bug, and better footage is the fix.
 - **Headers are scored as foot shots**, always, so xG for headed chances reads
   high. One camera cannot see the ball's height.
-- **Per-shot xG is loose.** Measured: half a metre of position error moves a
-  single shot's xG by ~0.035 on a 0.254 baseline — a seventh of it. Read the
-  team total, not the gap between two individual shots.
+- **Per-shot xG is loose, and the calibration decides whether you see it at
+  all.** Measured: half a metre of position error moves a single shot's xG by
+  ~0.030 on a 0.188 baseline, with a tail at half the number. Past 0.5 m of
+  calibration error the per-shot figures stop being shown and only the team
+  total is — which is another reason to get the reprojection error under 0.5 m
+  before you leave the field. Read the total, not the gap between two shots.
 - **A referee may be counted as a player.** Without a calibration a referee and a
   goalkeeper look identical on every feature available, so both are kept — losing
   a keeper is the worse error. The count of flagged figures is shown next to the

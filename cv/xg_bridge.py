@@ -1,4 +1,4 @@
-"""Turn a detected shot into the 12 features the existing xG model expects.
+"""Turn a detected shot into the 11 features the existing xG model expects.
 
     STATUS — the model half is verified; the shot-detection half is not.
 
@@ -12,11 +12,12 @@ the shooter, keeper and defenders handed to `ShotContext` are the right ones.
 
 The model itself was replaced on 2026-08-06. Everything before that date ran
 xg_model6, which was exported out of the middle of a CalibratedClassifierCV
-without the isotonic step, and read about six times high near goal. xg_model7 is
-the whole calibrated estimator: over the 53,337 training shots it predicts 6,061
-goals against the 6,014 actually scored, and tracks the real conversion rate to
-within about a point in every distance band. Any figure, note or screenshot from
-before that date is on the old scale.
+without the isotonic step, and read about six times high near goal. It was
+replaced twice the same day — xg_model7 restored the calibration, xg_model8
+dropped `shot_height` (see below). Over the 53,337 training shots xg_model8
+predicts 6,057 goals against the 6,014 actually scored, AUC 0.884, and tracks
+the real conversion rate closely in every distance band. Any figure, note or
+screenshot from before 2026-08-06 is on a different scale.
 
 This is where the computer vision work meets the model already trained in
 `PitchIQHelper/main.py` and already running in `xg-sandbox/xg-model.js`. The feature
@@ -25,60 +26,68 @@ it silently produces a plausible-looking wrong number.
 
 Two things are known to be unresolved rather than merely untested:
 
-* **shot_height is not recoverable here, and it should not have been a feature
-  at all.** It is a z-axis value, and a homography maps a plane. There is no way
-  to get it from one fixed camera without pose estimation or fitting the ball's
-  flight arc, so DEFAULT_SHOT_HEIGHT is substituted on every shot.
+* **shot_height was never a feature, and is gone.** *(Resolved 2026-08-06 —
+  kept here because it is the most instructive thing this module has hit.)*
 
-  Worse: in the training script it is `end_location[2]` — **where the ball
-  finished**, which is known only after the shot. It is an outcome dressed as a
-  feature. 8,733 of the training shots have a height above 3 m and convert at
-  exactly 0.000, because a ball that ended four metres up went over the bar and
-  the model can see that.
+  It is a z-axis value, and a homography maps a plane, so there was no way to
+  get it from one fixed camera and a constant was substituted on every shot.
+  That much was known and documented. What was not: in the training script it is
+  `end_location[2]` — **where the ball finished** — which is known only after the
+  shot. An outcome dressed as a feature. 8,733 of the training shots end above
+  3 m and convert at exactly 0.000, because a ball that ended four metres up
+  went over the bar and the model could see that.
 
-  Measured 2026-08-06 over all 53,337 training shots:
+  Measured over all 53,337 training shots:
 
-        shot_height          AUC     Brier    predicted goals   actual
-        the real end height  0.935   0.061        6,061          6,014
-        fixed at 0.6         0.857   0.080        9,213          6,014
+        model / input                     AUC     Brier   predicted   actual
+        12 features, real end height     0.935   0.061      6,061      6,014
+        12 features, height fixed at 0.6 0.857   0.080      9,213      6,014
+        11 features, no height at all    0.884   0.073      6,057      6,014
 
-  **The second row is the one this module produces.** Feeding the constant costs
-  about 0.08 of AUC and inflates the total by about half, in one direction, at
-  every band: 0.144 predicted against 0.069 actual, 0.249 against 0.151. So the
-  calibration is right for the data the model was fitted on and optimistic for
-  the data the pipeline sends it, and a published xG total from this path should
-  be read as an over-estimate until the model is retrained without the feature.
-  That retraining is the single most valuable thing left to do to xG.
+  The middle row is what this module produced for as long as the feature
+  existed: a total half again too high, in one direction, at every band. The
+  first row is the one every printed metric described and no camera could ever
+  reach. Dropping the feature beats feeding it a constant on **every** axis at
+  once — better AUC, better Brier, and a total that lands on the goals actually
+  scored.
+
+  The general lesson, which is worth more than the fix: a feature the production
+  path cannot supply is not a bonus that degrades gracefully. It is a hole the
+  model has learned to lean on, and filling it with a constant puts the model
+  somewhere it has never been.
 
 * **The model has never seen CV-derived inputs**, and it is sensitive to that.
   It was trained on clean, human-verified StatsBomb data; positions from
   detection and homography are not. Re-measured 2026-08-06 by
-  `validate_against_noise` against xg_model7, 400 trials over five spots
-  averaging 0.254 xG:
+  `validate_against_noise` against xg_model8, 400 trials over five spots
+  averaging 0.188 xG:
 
         noise    mean shift   p95     max     share of the baseline
-        0.25 m     0.024     0.060   0.106      9%  /  24%
-        0.50 m     0.035     0.084   0.168     14%  /  33%
-        1.00 m     0.043     0.101   0.173     17%  /  40%
-        2.00 m     0.064     0.201   0.495     25%  /  79%
-        4.00 m     0.106     0.344   0.506     42%  / 135%
+        0.25 m     0.019     0.065   0.099     10%  /  34%
+        0.50 m     0.030     0.095   0.253     16%  /  50%
+        1.00 m     0.043     0.168   0.267     23%  /  89%
+        2.00 m     0.062     0.242   0.538     33%  / 129%
+        4.00 m     0.107     0.380   0.624     57%  / 202%
 
   So half a metre of position error — the band `cv/calibrate.py` accepts as a
-  good calibration — moves a single shot's xG by about 0.035 typically and 0.084
-  at the 95th percentile, a seventh and a third of the number. That is fine for
-  "a decent chance" and not fine for ranking two shots 0.1 apart. At 4 m the p95
-  shift exceeds the xG itself, which is the point past which per-shot numbers
-  should not be shown at all.
+  good calibration — moves a single shot's xG by about 0.030 typically and 0.095
+  at the 95th percentile, half the number. That is fine for "a decent chance"
+  and not fine for ranking two shots 0.1 apart. At 2 m the p95 shift exceeds the
+  xG itself, which is the point past which per-shot numbers are meaningless.
 
-  The earlier table, measured on the uncalibrated xg_model6, was about twice as
-  large in absolute terms on a baseline about twice as large. The ratios are
-  what the display bands in assets/report.js are set from, and the ratios
-  barely moved — recalibrating the outputs did not make the model any less
-  sensitive to a metre of position error.
+  **Removing shot_height made the model more position-sensitive, not less**, and
+  in hindsight obviously: with eleven features instead of twelve, distance and
+  angle carry more of the answer, so moving a player moves the answer further.
+  The p95 at half a metre went from a third of the number to half of it, and the
+  per-shot display band in assets/report.js tightened from 1 m to 0.5 m to
+  match. A more honest model is a fussier one about where its inputs came from.
 
-  Summing helps: these are per-shot, and a half's worth of shots averages most
-  of it out, so a team total is much steadier than any row above. Pinned by
-  tests/test_xg_noise.py.
+  Summing helps, and by a measured amount rather than a hoped-for one: simulated
+  over a half's six shots, the *total* lands within 8% of the truth at 0.5 m,
+  12% at 1 m, 18% at 2 m and 26% at 4 m, while a single shot at 1 m already
+  carries an error bar nearly as wide as itself. That gap between the two is the
+  whole reason `xgTrust` has a band where the total shows and no individual
+  figure does. Pinned by tests/test_xg_noise.py.
 
 * **Pitch dimensions change the answer.** `Pitch.to_statsbomb` normalises by
   the configured pitch length, so a penalty spot — 11m out on any field — reads
@@ -109,7 +118,6 @@ FEATURE_ORDER = [
     'is_header',
     'under_pressure',
     'is_open_play',
-    'shot_height',
     'keeper_distance_to_goal',
     'keeper_angle_coverage',
     'keeper_off_line',
@@ -122,21 +130,28 @@ GOAL = np.array([STATSBOMB_LENGTH, STATSBOMB_WIDTH / 2])
 POST_L = np.array([STATSBOMB_LENGTH, 36.0])
 POST_R = np.array([STATSBOMB_LENGTH, 44.0])
 
-# Stand-in for the unobtainable z-axis. Taken from the training distribution;
-# see the module docstring.
-DEFAULT_SHOT_HEIGHT = 0.6
+# No stand-in for the z axis any more, because there is no z-axis feature.
+# DEFAULT_SHOT_HEIGHT was substituted on every shot until 2026-08-06, when
+# `shot_height` turned out to be where the ball *finished* rather than anything
+# about the shot — so feeding a constant was feeding the model a claim about the
+# outcome, and a wrong one. See the module docstring.
 
 # The model the browser loads, and therefore the model behind every xG number
 # anyone has actually looked at. Naming one file here means the pipeline and
 # the sandbox cannot quietly end up on different models.
 #
-# xg_model6 was retired on 2026-08-06. It was the raw XGBoost classifier out of
-# the middle of a CalibratedClassifierCV, exported without the isotonic step
-# that made its probabilities mean anything, and with scale_pos_weight ~= 9
-# still pushing them up — so it read about six times high near goal and its
-# numbers did not sum to goals. Every xG this project showed before that date
-# came from it. See the ONNX export note in PitchIQHelper/main.py.
-MODEL_PATH = Path(__file__).resolve().parents[1] / 'xg-sandbox' / 'xg_model7.onnx'
+# Two predecessors were retired on 2026-08-06.
+#
+# xg_model6 was the raw XGBoost classifier out of the middle of a
+# CalibratedClassifierCV, exported without the isotonic step that made its
+# probabilities mean anything, and with scale_pos_weight ~= 9 still pushing them
+# up — so it read about six times high near goal. Every xG this project showed
+# before that date came from it.
+#
+# xg_model7 fixed the calibration and still took `shot_height`, which nothing
+# here can measure, so a constant went in and the totals came out about half
+# again too high. xg_model8 drops the feature; see the module docstring.
+MODEL_PATH = Path(__file__).resolve().parents[1] / 'xg-sandbox' / 'xg_model8.onnx'
 
 
 def load_session(model_path: str | Path | None = None):
@@ -164,7 +179,6 @@ class ShotContext:
     is_header: bool = False
     under_pressure: bool = False
     is_open_play: bool = True
-    shot_height: float | None = None
 
 
 def shot_angle(location: np.ndarray) -> float:
@@ -192,7 +206,7 @@ def in_shot_cone(point: np.ndarray, ball: np.ndarray) -> bool:
 
 
 def build_features(context: ShotContext, pitch: Pitch) -> dict[str, float]:
-    """Metres -> the 12 features, expressed in StatsBomb space."""
+    """Metres -> the 11 features, expressed in StatsBomb space."""
     ball = np.array(pitch.to_statsbomb(*context.shooter_m, context.attacking_end))
 
     distance = float(np.linalg.norm(ball - GOAL))
@@ -224,10 +238,6 @@ def build_features(context: ShotContext, pitch: Pitch) -> dict[str, float]:
         'is_header': 1.0 if context.is_header else 0.0,
         'under_pressure': 1.0 if context.under_pressure else 0.0,
         'is_open_play': 1.0 if context.is_open_play else 0.0,
-        'shot_height': (
-            context.shot_height if context.shot_height is not None
-            else DEFAULT_SHOT_HEIGHT
-        ),
         'keeper_distance_to_goal': keeper_distance,
         'keeper_angle_coverage': keeper_angle,
         'keeper_off_line': keeper_off_line,

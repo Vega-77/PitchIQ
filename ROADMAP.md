@@ -158,7 +158,7 @@ Two real defects came out of writing it:
 - **~~There are two different models both called `xg_model6.onnx`.~~** Resolved
   on 2026-08-06, and by then the smaller half of a bigger problem — see *The xG
   model was never the model that was measured* below. Both `xg_model6` files are
-  retired; `xg_model7.onnx` is the only model either path loads, and the parity
+  retired; `xg_model8.onnx` is the only model either path loads, and the parity
   test now reads the browser's filename out of `xg-model.js` rather than
   restating it, so a future swap is one edit and not a test failure about a
   name.
@@ -245,9 +245,11 @@ be quietly forgotten:
   95m pitch and ~12.0 on a 110m one. Whether that matches how StatsBomb
   normalises their own data has not been confirmed against their documentation.
   Until it is, measure the real field rather than accepting the default.
-- **`shot_height` is not recoverable** from one fixed camera — it is a z-axis
-  value and a homography maps a plane. The training-set median is substituted,
-  so the feature carries no information from the actual shot.
+- **~~`shot_height` is not recoverable~~ — and never should have been asked
+  for.** It is a z-axis value and a homography maps a plane, so a constant was
+  substituted. It was also `end_location[2]` in the training script: where the
+  ball *finished*, an outcome rather than a property of the shot. Dropped from
+  the model on 2026-08-06; see Phase 12 for the three-way comparison.
 
 ### The xG model was never the model that was measured (2026-08-06)
 
@@ -267,23 +269,25 @@ which is the exact thing the calibration existed to undo.
 
 What that produced, against what the same shots actually convert at:
 
-| shot | `xg_model6` | `xg_model7` | real |
+Both models fed the same shot, with the height the pipeline would have sent:
+
+| shot | `xg_model6` | `xg_model8` | real |
 |---|---|---|---|
-| clear, 6 m, central | 0.839 | 0.511 | ~0.4 |
-| clear, 14 m, central | 0.694 | 0.230 | ~0.2 |
-| clear, 22 m, central | 0.101 | 0.077 | ~0.06 |
-| penalty | 0.889 | 0.743 † | ~0.76 |
+| clear, 6 m, central | 0.907 | 0.373 | ~0.4 |
+| clear, 14 m, central | 0.612 | 0.153 | ~0.15 |
+| clear, 22 m, central | 0.216 | 0.043 | ~0.05 |
+| penalty, keeper on his line | 0.806 | 0.282 † | ~0.76 |
 
-† measured over the 776 central set-piece shots in the training data, which
-convert at 0.737. A hand-built penalty with no other players on the pitch reads
-lower, because a keeper standing 1.5 m off his line is a different shot to the
-model than one standing on it.
+† still wrong, and not for this reason. Almost every penalty in the training
+data has no freeze frame, so the model has barely seen one with a keeper drawn
+on the line; over the 776 real central set-piece shots, which convert at 0.737,
+it predicts 0.743. The sandbox's penalty preset says so on the button.
 
-The retrained export (`xg_model7.onnx`, the whole calibrated estimator, via
-`skl2onnx` with the XGBoost converter registered so the wrapper converts too)
-now **predicts 6,061 goals across the 53,337 training shots against the 6,014
-actually scored**, and tracks the real conversion rate to within about a point
-in every distance band. AUC 0.905, Brier 0.069.
+The retrained export (the whole calibrated estimator, via `skl2onnx` with the
+XGBoost converter registered so the wrapper converts too) **predicts 6,057 goals
+across the 53,337 training shots against the 6,014 actually scored**, and tracks
+the real conversion rate closely in every distance band. AUC 0.884, Brier
+0.073.
 
 Three things worth keeping from this:
 
@@ -305,10 +309,27 @@ Still open: the recalibrated model reads a little high in the 0.05–0.10 band
 converts 0.447). Both are small next to what was fixed, and neither is worth
 chasing before there is real footage.
 
-**Not still open, and worse: `shot_height` is an outcome, not a feature.** See
-Phase 12 for the numbers. It is where the ball *finished*, the pipeline can
-never supply it, and feeding the constant it does supply inflates the total by
-about half. Retraining without it is now the top xG item.
+**And behind it, a bigger one: `shot_height` was an outcome, not a feature.**
+It is where the ball *finished*, so it is known only after the shot; 8,733
+training shots end above 3 m and convert at exactly 0.000, because the model can
+see they went over the bar. No camera can supply it, so the pipeline sent a
+constant, and scored that way the freshly-calibrated model predicted **9,213
+goals against 6,014**. Dropped the same day:
+
+| model / input | AUC | Brier | predicted | actual |
+|---|---|---|---|---|
+| 12 features, real end height | 0.935 | 0.061 | 6,061 | 6,014 |
+| 12 features, height fixed at 0.6 | 0.857 | 0.080 | **9,213** | 6,014 |
+| **11 features, no height at all** | **0.884** | **0.073** | **6,057** | 6,014 |
+
+The middle row is what the pipeline actually produced. The top row is what every
+printed metric described and no camera could ever reach. **Dropping the feature
+beats feeding it a constant on every axis at once.**
+
+The general lesson is worth more than the fix: a feature the production path
+cannot supply is not a bonus that degrades gracefully. It is a hole the model
+has learned to lean on, and filling it with a constant puts the model somewhere
+it has never been.
 
 ### The sandbox was modelling every shot at twice its distance (2026-08-06)
 
@@ -337,7 +358,7 @@ Two smaller things fell out of the same work:
   are 0.6.
 - **The sandbox could not run the new model.** Its render loop fired an
   inference every frame, which worked only because the old model answered inside
-  one; `xg_model7` averages five folds and does not, so every frame failed with
+  one; the current model averages five folds and does not, so every frame failed with
   "Session already started" and the readout sat on "—". Runs are serialised now,
   latest-wins, so a drag lands on the position the mouse is at rather than one
   it left forty frames ago.
@@ -370,30 +391,37 @@ both halves.
 
 **The noise question got an answer.** `validate_against_noise` was written for
 Testing Strategy #6 and had never been executed. Re-measured 2026-08-06 against
-`xg_model7`, 400 trials over five spots averaging 0.254 xG:
+`xg_model8`, 400 trials over five spots averaging 0.188 xG:
 
 | position noise | mean xG shift | p95 | max | share of the baseline |
 |---|---|---|---|---|
-| 0.25 m | 0.024 | 0.060 | 0.106 | 9% / 24% |
-| 0.50 m | 0.035 | 0.084 | 0.168 | 14% / 33% |
-| 1.00 m | 0.043 | 0.101 | 0.173 | 17% / 40% |
-| 2.00 m | 0.064 | 0.201 | 0.495 | 25% / 79% |
-| 4.00 m | 0.106 | 0.344 | 0.506 | 42% / 135% |
+| 0.25 m | 0.019 | 0.065 | 0.099 | 10% / 34% |
+| 0.50 m | 0.030 | 0.095 | 0.253 | 16% / 50% |
+| 1.00 m | 0.043 | 0.168 | 0.267 | 23% / 89% |
+| 2.00 m | 0.062 | 0.242 | 0.538 | 33% / 129% |
+| 4.00 m | 0.107 | 0.380 | 0.624 | 57% / 202% |
 
 Half a metre — the error `calibrate/` accepts as good — moves one shot's xG by
-about 0.035 typically and 0.084 in the tail, a seventh and a third of the
-number: fine for "that was a decent chance", not fine for ranking two shots 0.1
-apart. At 4 m the p95 shift exceeds the xG itself, which is the point past which
-per-shot numbers should not be shown. Summing helps a lot; these are per-shot,
-and a half's worth averages most of it out. The coach's quality note now carries
-both this and the header bias.
+about 0.030 typically and 0.095 in the tail — half the number: fine for "that
+was a decent chance", not fine for ranking two shots 0.1 apart. At 2 m the p95
+shift exceeds the xG itself. Summing helps, by a measured amount: simulated over
+a half's six shots the *total* lands within 8% at 0.5 m, 12% at 1 m, 18% at 2 m
+and 26% at 4 m. The coach's quality note carries both this and the header bias.
 
-The first run of this table was against the uncalibrated `xg_model6` and every
-absolute figure in it was about twice as large — on a baseline about twice as
-large. **As a share of the quantity, the two tables agree to a point or two**,
-which is the useful result: recalibrating the outputs did not make the model any
-less sensitive to a metre of position error, and the display bands, which are
-set off the ratios, did not move.
+Measured now against three models, and the trend runs the opposite way to
+intuition:
+
+| model | what changed | p95 at 0.5 m, as a share |
+|---|---|---|
+| `xg_model6` | (uncalibrated) | 37% |
+| `xg_model7` | calibration restored | 33% |
+| `xg_model8` | `shot_height` dropped | 50% |
+
+Recalibrating the outputs barely moved the ratios. **Removing a feature moved
+them a lot**, and for a plain reason: with eleven features instead of twelve,
+distance and angle carry more of the answer, so moving a player moves the answer
+further. A more honest model is a fussier one about where its inputs came from,
+and the per-shot display band tightened from 1 m to 0.5 m to match.
 
 **The two records of a match are compared** (`cv/reconcile.py`). The tagged
 vocabulary is about why play stopped, the derived vocabulary about what a player
@@ -724,7 +752,7 @@ own sake:
 - **Database: SQLite for local demo development, Postgres if/when it needs to run
   somewhere shared.** Both are boring, well-understood choices — no need for a
   specialized time-series database at the data volume estimated in Phase 2.
-- **Model interchange: ONNX**, exactly like the existing `xg_model7.onnx` — train in
+- **Model interchange: ONNX**, exactly like the existing `xg_model8.onnx` — train in
   Python, run inference in the browser via `onnxruntime-web`, already proven in this
   codebase. Any future detector could follow the same pattern if in-browser inference
   is ever wanted, though server-side Python inference is simpler for month 1.
@@ -1068,7 +1096,7 @@ scratch.
       been checked, and captioned with the denominator.
 
 ## 12. Shot Feature Extraction → Existing xG Model
-Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model7.onnx`).
+Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.onnx`).
 - [x] **[Demo]** At shot detection/confirmation, extract the same 12 features
       the model expects, using the correct attacking-goal direction for the half
       (Phase 4) — `xg_for_shots`, called from `cv/pipeline.py`. The direction
@@ -1077,15 +1105,15 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model7.
       kicks is how a second-half sign error gets in, and it would show up as
       plausible xG for shots at the wrong goal rather than as a crash.
 - [ ] Body part classification (foot vs. header) — pose estimation, or a manual tag as post-game fallback
-- [ ] `shot_height` is a z-axis value a flat single camera + homography can't give directly — pose estimation or ball-trajectory arc fitting needed; flagged as an open problem
+- [x] ~~`shot_height` is a z-axis value a flat single camera + homography can't give directly~~ — resolved by deleting the question. It was the height the ball *ended* at, so no amount of pose estimation would have recovered it before the shot was taken. See the retrain item below
 - [x] **[Demo]** Feed features into the existing ONNX model, log predicted xG —
       and note that until 2026-08-02 this was written but never called, so every
       xG in a schema-2 document is null because nothing computed it, not because
       no shots were found
 - [x] **[Demo]** Validate the model against CV-derived (noisier) features before
       trusting it live (Testing Strategy #6) — measured, see the table above.
-      Half a metre of position error moves a single shot by ~0.035 on a 0.254
-      baseline; at 4 m the p95 shift exceeds the xG itself. Pinned by
+      Half a metre of position error moves a single shot by ~0.030 on a 0.188
+      baseline; at 2 m the p95 shift exceeds the xG itself. Pinned by
       `tests/test_xg_noise.py`. Retraining with noise is not needed yet: the
       per-shot spread is wide but team totals average most of it out, and the
       real gate is still whether a shot can be detected at all
@@ -1095,8 +1123,8 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model7.
       figure shows and the shot map sizes by it; to 4 m only the team total
       shows and every dot on the map draws the same size, because a size
       difference is a claim that two chances differ by the amount they look
-      like they do; past 4 m nothing shows, since the p95 shift (0.344) exceeds
-      a typical xG (0.254). The hover label drops the number on exactly the
+      like they do; past 4 m nothing shows, since even a six-shot total moves
+      26% by then. The hover label drops the number on exactly the
       bands the radius does — a figure the map has stopped drawing but a
       tooltip still reports is the same claim made quietly. The band is applied
       identically on the coach, half-time and player pages, which is why
@@ -1104,24 +1132,17 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model7.
       never reads the team document, and without it the portal would have sized
       a map the coach's own page had flattened
 - [x] **Retrain and re-export the model with its calibration attached** —
-      `xg_model7.onnx`, 2026-08-06. See *The xG model was never the model that
+      `xg_model8.onnx`, 2026-08-06. See *The xG model was never the model that
       was measured* above for what was wrong and by how much. `main.py --offline`
       now re-runs the whole thing from the cached shots without touching the
       network, verifies the exported file against the fitted estimator before it
       finishes, and prints predicted-goals against goals-actually-scored, which
       is the one line that would have caught the original bug
-- [ ] **Retrain without `shot_height`.** It is `end_location[2]` — where the
-      ball finished — so it is an outcome, not a feature: 8,733 training shots
-      end above 3 m and convert at exactly 0.000, because the model can see they
-      went over the bar. The CV pipeline can never measure it and always sends
-      the constant 0.6, and scored that way the same model predicts **9,213
-      goals against 6,014 actually scored** (AUC 0.857 against 0.935). So every
-      band over-predicts by roughly half: 0.144 against 0.069 actual, 0.249
-      against 0.151. **This is now the largest known error in the xG path** —
-      larger than the calibration bug it was found behind — and the fix is a
-      retrain on eleven features, touching `FEATURES` in `main.py`,
-      `FEATURE_ORDER` in `cv/xg_bridge.py` and `xg-sandbox/xg-model.js`, plus
-      the sandbox's height slider
+- [x] **Retrain without `shot_height`** — `xg_model8.onnx`, 2026-08-06, eleven
+      features. See the table above for what it was costing. The sandbox's
+      height slider went with it, since there is no longer a feature for it to
+      drive, and `xgTrust`'s per-shot band tightened from 1 m to 0.5 m because
+      the leaner model leans harder on position
 - [ ] Log actual outcome (goal/save/block/miss) to check predictions against reality later
 
 ## 13. Player & Team Statistics / Profiles
@@ -1210,21 +1231,30 @@ than the workaround, which matters given the data class.
       recorded in `tests/test_sample_xg.py`, which re-runs the real model and
       fails if the fixture drifts from it. That makes it a golden file for the
       one number here nobody can sanity-check by eye: the same ten frames were
-      worth 4.15 xG under `xg_model6` and are worth 1.83 under `xg_model7`, and
+      worth 4.15 xG under `xg_model6`, 1.83 under `xg_model7` and 1.23 under
+      `xg_model8`, and
       before this file nothing in the repo would have noticed a swap that size.
 
       Two of the shots are also presets in the sandbox, so the number on the
-      preview can be reproduced by clicking its name. One of them is 0.0 — a
-      blocked shot from 29 metres with two defenders in front of it, which is a
-      calibrated model saying *nothing*, not a model that failed to run.
-      Absent is not zero, and the preview now carries the zero.
+      preview can be reproduced by clicking its name — checked in the browser:
+      0.098 and 0.479 in both places. One shot is 0.0 — a block from 29 metres
+      with two defenders in front of it, which is a calibrated model saying
+      *nothing*, not a model that failed to run. Absent is not zero, and the
+      preview now carries the zero.
 - [x] **Presets and a feature readout in the xG sandbox.** Eight scenarios that
       place all ten players and set the toggles, because dragging dots until
       they resemble a chance you had in mind is slow and never quite the shot
-      you meant. Alongside them, the twelve numbers the model actually receives,
+      you meant. Alongside them, the eleven numbers the model actually receives,
       in the model's own units — which is the panel that would have made both of
       this page's coordinate bugs obvious on the day they were written, while
       the only thing on screen was the answer.
+
+      What they read now, which is the first time these have been worth
+      quoting: tap-in 0.79, one on one 0.34, edge of the box 0.08, twenty-eight
+      metres 0.02. The penalty is 0.26 and should be about 0.76 — the model's
+      one visible blind spot, because almost every penalty it trained on had no
+      freeze frame, so it has barely seen a keeper drawn on the line from twelve
+      yards. The button says so.
 
       Opt-in and offered only where there is no real run to confuse it with —
       never near the cluster picker or the review tool, both of which write

@@ -22,9 +22,10 @@ POST_R = np.array([120.0, 44.0])
 # ---------------------------------------------------------------------------
 CACHE_FILE = "xg_raw_shots_cache.pkl"
 
-# Bumped from xg_model6 on 2026-08-06, when the export below was found to be
-# throwing away the calibration step. See the note above the ONNX export.
-ONNX_FILE  = "xg_model7.onnx"
+# xg_model6 -> 7 on 2026-08-06, when the export below was found to be throwing
+# away the calibration step; 7 -> 8 the same day, dropping shot_height. See the
+# note above the ONNX export, and the one above FEATURES.
+ONNX_FILE  = "xg_model8.onnx"
 
 # ---------------------------------------------------------------------------
 # Geometry helpers
@@ -245,10 +246,28 @@ FEATURES = [
     "distance_to_goal", "angle_to_goal",
     "is_foot", "is_header",
     "under_pressure", "is_open_play",
-    "shot_height",
     "keeper_distance_to_goal", "keeper_angle_coverage", "keeper_off_line",
     "defenders_in_cone", "defender_pressure",
 ]
+
+# shot_height is deliberately not in that list, and parse() still computes it so
+# this note has something to point at.
+#
+# It is `end_location[2]` — the height the ball was at when it finished, which
+# is known only after the shot is taken. It is an outcome wearing a feature's
+# clothes, and the model used it exactly that way: 8,733 of these shots end
+# above 3 m and convert at 0.000, because a ball four metres up went over the
+# bar and the model can see it.
+#
+# A single fixed camera plus a homography cannot measure the z axis at all, so
+# cv/xg_bridge.py could only ever substitute a constant — and scored that way
+# the 12-feature model predicted 9,213 goals against the 6,014 actually scored,
+# because the constant sits in the band where most shots on target live. The
+# feature was not free information; it was a leak that made the training numbers
+# look good and the production numbers wrong by half.
+#
+# Dropping it costs real accuracy on this dataset and buys accuracy on the only
+# inputs the pipeline can actually produce.
 
 
 # ---------------------------------------------------------------------------

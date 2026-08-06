@@ -20,7 +20,6 @@ import pytest
 from cv.calibration import Calibration
 from cv.pitch import STATSBOMB_LENGTH, MatchOrientation, Pitch
 from cv.xg_bridge import (
-    DEFAULT_SHOT_HEIGHT,
     FEATURE_ORDER,
     ShotContext,
     build_features,
@@ -61,7 +60,7 @@ class TestFeatureParity:
 
     def test_vector_has_twelve_columns(self, pitch):
         vector = feature_vector(ShotContext(shooter_m=(95.0, 34.0)), pitch)
-        assert vector.shape == (1, 12)
+        assert vector.shape == (1, 11)
         assert vector.dtype == np.float32
 
     def test_vector_follows_the_declared_order(self, pitch):
@@ -179,16 +178,19 @@ class TestBodyPart:
 
 
 class TestShotHeight:
-    def test_falls_back_when_unknown(self, pitch):
-        """A single fixed camera cannot recover the z axis, so this feature
-        carries no information from the shot itself. Documented, not hidden."""
-        features = build_features(ShotContext(shooter_m=(95.0, 34.0)), pitch)
-        assert features['shot_height'] == DEFAULT_SHOT_HEIGHT
+    def test_the_model_is_not_told_a_shot_height(self, pitch):
+        """There is no z-axis feature any more, and there should not be one.
 
-    def test_uses_a_supplied_value(self, pitch):
-        features = build_features(
-            ShotContext(shooter_m=(95.0, 34.0), shot_height=1.8), pitch)
-        assert features['shot_height'] == 1.8
+        `shot_height` was `end_location[2]` in the training script: the height
+        the ball finished at, which is the outcome and not the shot. A single
+        fixed camera cannot recover the z axis at all, so this module could only
+        ever have substituted a constant — and a constant claim about the
+        outcome is a wrong claim about the outcome. Dropped from the model on
+        2026-08-06; see the module docstring for what it was costing.
+        """
+        features = build_features(ShotContext(shooter_m=(95.0, 34.0)), pitch)
+        assert 'shot_height' not in features
+        assert 'shot_height' not in FEATURE_ORDER
 
 
 class TestPitchSizeSensitivity:
