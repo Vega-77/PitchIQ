@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=24">
-    <link rel="stylesheet" href="coach.css?v=24">
+    <link rel="stylesheet" href="../assets/app.css?v=25">
+    <link rel="stylesheet" href="coach.css?v=25">
 </head>
 <body>
 
@@ -314,6 +314,19 @@
             <span class="action-go">&rsaquo;</span>
         </a>
 
+        <!-- Turns the video-derived blocks on with invented numbers, so the
+             layout can be checked before there is footage to fill it. Shown
+             only when this match has no real run — a preview offered next to
+             real data is an invitation to confuse the two. -->
+        <div class="sample-toggle hidden" id="cv-sample-toggle">
+            <div class="grow">
+                <strong>Nothing was filmed for this match</strong>
+                <span id="cv-sample-hint">See what the video-derived sections look
+                    like, using made-up numbers.</span>
+            </div>
+            <button id="btn-cv-sample" class="btn small">Preview with sample data</button>
+        </div>
+
         <section class="block">
             <h3>Team</h3>
             <div id="team-stats" class="stat-grid"></div>
@@ -488,7 +501,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=24"></script>
+<script type="module" src="coach.js?v=25"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

@@ -10,18 +10,19 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=24';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=25';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../assets/db.js?v=24';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=24';
-import { possessionIsInPlay, cvReads } from '../assets/report.js?v=24';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=24';
+} from '../assets/db.js?v=25';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=25';
+import { possessionIsInPlay, cvReads, xgTrust } from '../assets/report.js?v=25';
+import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=25';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=25';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
     tally,
-} from '../assets/ui.js?v=24';
+} from '../assets/ui.js?v=25';
 
 const VIEWS = ['view-error', 'view-report'];
 
@@ -35,7 +36,13 @@ const matchId = params.get('match');
 
 const state = {
     team: null, match: null, log: [], roster: [], stats: null, cv: null,
+    // Whether the video-derived rows are being previewed with invented numbers.
+    // Nothing on this page writes, so the preview reaches every one of them.
+    cvPreview: false,
 };
+
+/** The video-derived document the page should render — real, or the sample. */
+const activeCv = () => (state.cvPreview ? sampleCvSummary() : state.cv);
 
 function fail(message) {
     setText('error-msg', message);
@@ -115,7 +122,7 @@ function renderDecisions() {
     //
     // Marked `est` rather than `info` so an estimate never sits in the same
     // visual register as a card somebody was actually shown.
-    for (const read of cvReads(state.cv)) {
+    for (const read of cvReads(activeCv())) {
         list.append(decision('est', read.title, read.detail));
     }
 
@@ -196,7 +203,7 @@ function renderTallies() {
     setText('numbers-note',
         `From ${plural(total, 'tagged event')}. Fouls and cards are counted `
         + 'against whoever committed them.'
-        + (state.cv ? ' Dotted rows were measured from the video.' : '')
+        + (activeCv() ? sampleOrMeasuredNote() : '')
         // One clause, not the coach page's full quality line. This page is read
         // standing up in three minutes, and the only caveat that changes how the
         // possession row above is read is what its denominator was.
@@ -205,13 +212,14 @@ function renderTallies() {
 
 /** The rows that came from footage rather than from somebody's thumb. */
 function cvTallies() {
-    if (!state.cv) return [];
+    const cv = activeCv();
+    if (!cv) return [];
 
-    const ours = state.cv.teams?.team_a;
-    const theirs = state.cv.teams?.team_b;
+    const ours = cv.teams?.team_a;
+    const theirs = cv.teams?.team_b;
     if (!ours || !theirs) return [];
 
-    const quality = state.cv.quality || {};
+    const quality = cv.quality || {};
     const events = cvConfidence(quality, 'events');
     const possession = cvConfidence(quality, 'possession');
 
@@ -251,19 +259,39 @@ const pct = (share) => (share == null ? null : Math.round(share * 100));
 // One decimal place. Two would claim a precision the model does not have: half
 // a metre of position error moves a single shot's xG by about 0.066, so the
 // second decimal is noise wearing a number's clothes. See tests/test_xg_noise.py.
-const xg = (value) => (value == null ? null : Number(value.toFixed(1)));
+//
+// Null at a calibration too loose to support even a total, which drops the row
+// rather than printing a figure with an error bar wider than itself. See
+// `xgTrust`; the band is shared with the coach's page so a coach cannot be shown
+// a number at half time that the full report then withholds.
+const xg = (value) => {
+    if (value == null || xgTrust(activeCv()?.calibrationErrorM) === 'none') return null;
+    return Number(value.toFixed(1));
+};
 
 // Named for what it is rather than as "xG", which means nothing to most of the
 // people who will read this page standing on a touchline.
 const xgLabel = () => 'Chances created (xG)';
+
+/**
+ * What the dotted rows are — measured, or invented.
+ *
+ * The dotted rows sit in the same list as corners somebody tapped, and the only
+ * thing distinguishing them is this sentence and a confidence mark. On the
+ * preview that sentence has to change, or the page claims a video it never had.
+ */
+const sampleOrMeasuredNote = () => (state.cvPreview
+    ? ` ${SAMPLE_NOTICE}`
+    : ' Dotted rows were measured from the video.');
 
 /** The one caveat that changes how the possession row is read, or nothing. */
 function cvLiveNote() {
     // Only worth saying when a possession row was actually drawn. `cvTallies`
     // drops it when the pipeline could not measure one, and a caveat about a
     // figure nobody can see is just another sentence in the way.
-    if (state.cv?.teams?.team_a?.possession_pct == null) return '';
-    const quality = state.cv.quality || {};
+    const cv = activeCv();
+    if (cv?.teams?.team_a?.possession_pct == null) return '';
+    const quality = cv.quality || {};
     if (!possessionIsInPlay(quality)) {
         return ' Possession counts stoppages as play — no tagged log reached'
             + ' the video run.';
@@ -393,6 +421,10 @@ async function load() {
     state.roster = roster;
     state.log = log;
     state.cv = cv;
+    // Off on every load, including a refresh. Refresh is the button a coach
+    // presses when they expect new numbers; coming back to invented ones
+    // wearing the same dotted rows is the worst moment for this to be on.
+    state.cvPreview = false;
     state.stats = aggregateMatch(log, roster);
 
     setText('ht-period', PERIOD_HEADINGS[match.status] || 'So far');
@@ -411,7 +443,36 @@ async function load() {
     renderMinutes();
     renderTimeline();
     renderVideo();
+    renderSampleToggle();
     showOnly('view-report', VIEWS);
+}
+
+/** Offered only when this match has no run of its own. */
+function renderSampleToggle() {
+    const row = byId('ht-sample-toggle');
+    if (!row) return;
+
+    const offerable = !state.cv;
+    row.classList.toggle('hidden', !offerable);
+    row.classList.toggle('is-on', state.cvPreview);
+    if (!offerable) return;
+
+    byId('btn-ht-sample').textContent = state.cvPreview
+        ? 'Hide the sample'
+        : 'Preview with sample data';
+    setText('ht-sample-hint', state.cvPreview
+        ? SAMPLE_NOTICE
+        : 'See the rows a filmed match adds, using made-up numbers.');
+}
+
+function toggleSample() {
+    state.cvPreview = !state.cvPreview;
+    // Both, not just the tallies: cvReads writes the plain-language rows into
+    // the decisions block, and leaving those stale would put a read about the
+    // sample's shape next to a page that had stopped showing the sample.
+    renderDecisions();
+    renderTallies();
+    renderSampleToggle();
 }
 
 // ---------------------------------------------------------------- the video
@@ -481,6 +542,8 @@ function init() {
         timelineExpanded = !timelineExpanded;
         renderTimeline();
     });
+
+    byId('btn-ht-sample').addEventListener('click', toggleSample);
 
     byId('btn-refresh').addEventListener('click', () => {
         byId('loading').classList.remove('hidden');

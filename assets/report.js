@@ -258,6 +258,42 @@ export function shapeConfidence(calibrationErrorM) {
     return 'low';
 }
 
+// Metres of mean calibration error at which per-shot xG, and then xG at all,
+// stop being worth printing. Both come off the measured noise table in
+// tests/test_xg_noise.py rather than from taste.
+const XG_PER_SHOT_LIMIT_M = 1.0;
+const XG_TOTAL_LIMIT_M = 4.0;
+
+/**
+ * How much of the xG on a run is worth showing: `'shot'`, `'total'` or `'none'`.
+ *
+ * The model was measured against deliberately noisy positions, and the answer
+ * was not flattering. On a 0.47 baseline, half a metre of position error moves a
+ * single shot by 0.066 on average and 0.175 at the 95th percentile; at four
+ * metres the p95 shift is 0.513, which is **larger than the quantity itself**.
+ *
+ * So there are three honest states rather than a number and a warning beside it:
+ *
+ *   - `'shot'` — under a metre. Good enough for "that was a decent chance". Not
+ *     good enough to rank two shots 0.1 apart, which is why the caveat stays.
+ *   - `'total'` — up to four metres. Individual shots are too loose to compare,
+ *     but the errors are independent per shot and a half's worth largely cancel,
+ *     so the team total survives what a single number does not.
+ *   - `'none'` — beyond that the error bar is wider than the number. There is
+ *     nothing to print, and printing it with a warning attached would still
+ *     leave a specific-looking figure on screen, which is what people remember.
+ *
+ * A null error is not a good error and is not treated as one — but it is also
+ * not evidence of a bad fit, so it lands on `'total'`: the reading that stays
+ * true across the whole band it might be in.
+ */
+export function xgTrust(calibrationErrorM) {
+    if (calibrationErrorM == null) return 'total';
+    if (calibrationErrorM <= XG_PER_SHOT_LIMIT_M) return 'shot';
+    if (calibrationErrorM <= XG_TOTAL_LIMIT_M) return 'total';
+    return 'none';
+}
+
 /**
  * What limited a video-derived run, worst news first, as plain sentences.
  *
@@ -339,12 +375,20 @@ export function cvQualityNotes(quality, options = {}) {
     // itself.
     if (options.shots) {
         const error = options.calibrationErrorM;
-        notes.push('xG counts every shot as struck with the foot — one camera '
-            + 'cannot see the ball\'s height'
-            + (error > 1.0
-                ? `, and at ${error.toFixed(1)}m of calibration error each shot's `
-                    + 'figure is loose enough that only the total is worth reading'
-                : ''));
+        const trust = xgTrust(error);
+        const at = error == null ? '' : ` at ${error.toFixed(1)}m of calibration error`;
+
+        if (trust === 'none') {
+            notes.push(`xG is not shown${at} — the model moves further than the `
+                + 'number is worth when the positions are that loose');
+        } else {
+            notes.push('xG counts every shot as struck with the foot — one camera '
+                + 'cannot see the ball\'s height'
+                + (trust === 'total'
+                    ? `, and${at} only the total is shown: each shot on its own is `
+                        + 'looser than the differences a shot map would draw'
+                    : ''));
+        }
     }
 
     const perCluster = q.tracks_per_cluster ?? q.tracksPerCluster;

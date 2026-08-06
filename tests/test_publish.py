@@ -316,6 +316,28 @@ class TestPerPlayerGate:
         assert fields[f'{CV_FIELD_PREFIX}Touches'] == 9
         assert fields[f'{CV_FIELD_PREFIX}PassesCompleted'] == 4
 
+    def test_the_calibration_error_travels_to_each_player(self):
+        """A player never reads the team document.
+
+        Without this field the player portal cannot apply `xgTrust`, and would
+        size its shot map by an xG the coach's own page had already decided was
+        too loose to size by — the same match told two different ways, on the
+        page with the least context to notice.
+        """
+        report = a_report()
+        report['calibration_error_m'] = 2.5
+        client = GuardedClient()
+        publish(report, 'team1', 'match1', {'0': 'playerA'}, client=client)
+
+        fields = client.store['teams/team1/matches/match1/playerReports/playerA']
+        assert fields[f'{CV_FIELD_PREFIX}CalibrationErrorM'] == 2.5
+
+    def test_an_uncalibrated_run_says_so_rather_than_omitting_it(self):
+        """None, not absent. A missing key and a known-absent calibration read
+        identically to the browser, and only one of them is a fact."""
+        fields = player_report_fields({'touches': 1})
+        assert fields[f'{CV_FIELD_PREFIX}CalibrationErrorM'] is None
+
     def test_every_written_field_is_prefixed(self):
         """So a coach can always tell an estimate from something a human tapped,
         and so removing them later is one filter."""

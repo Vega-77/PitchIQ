@@ -22,6 +22,7 @@ import * as report from '../assets/report.js';
 import * as matchVideo from '../assets/match-video.js';
 import * as heatmap from '../assets/heatmap.js';
 import * as markMod from '../assets/shot-map.js';
+import * as sample from '../assets/sample-report.js';
 
 // ---------------------------------------------------------------- video URLs
 
@@ -685,12 +686,20 @@ describe('cvQualityNotes', () => {
         // baseline, and it keeps widening. See tests/test_xg_noise.py.
         const loose = joined({}, { shots: 3, calibrationErrorM: 2.4 });
         assert.match(loose, /2\.4m of calibration error/);
-        assert.match(loose, /only the total is worth reading/);
+        assert.match(loose, /only the total is shown/);
 
         assert.doesNotMatch(
             joined({}, { shots: 3, calibrationErrorM: 0.4 }),
             /calibration error/,
         );
+    });
+
+    test('past the point of usefulness the note says xG is gone, not caveated', () => {
+        // The header bias is a caveat on a number being shown. Once there is no
+        // number, repeating it would imply one is up there somewhere.
+        const gone = joined({}, { shots: 3, calibrationErrorM: 6 });
+        assert.match(gone, /xG is not shown/);
+        assert.doesNotMatch(gone, /struck with the foot/);
     });
 });
 
@@ -1167,6 +1176,30 @@ describe('markRadius', () => {
         assert.equal(markMod.markRadius(5), markMod.markRadius(1));
         assert.equal(markMod.markRadius(-1), markMod.markRadius(0));
     });
+
+    test('a trust band below per-shot flattens every radius', () => {
+        // The whole point: a size difference is a claim that two chances differ
+        // by the amount they look like they differ, and a loose calibration
+        // cannot support it. Measured, at 4m of error the p95 shift in one
+        // shot's xG is larger than a typical xG.
+        for (const band of ['total', 'none']) {
+            const flat = markMod.markRadius(0.7, band);
+            assert.equal(markMod.markRadius(0.02, band), flat);
+            assert.equal(markMod.markRadius(null, band), flat);
+        }
+    });
+
+    test('the flat radius sits between the extremes it replaces', () => {
+        // Not the floor and not the ceiling — either would read as every shot
+        // being uniformly poor or uniformly excellent.
+        const flat = markMod.markRadius(0.4, 'total');
+        assert.ok(flat > markMod.markRadius(0));
+        assert.ok(flat < markMod.markRadius(1));
+    });
+
+    test('sizing is on by default, so an unaware caller gets the old map', () => {
+        assert.equal(markMod.markRadius(0.4), markMod.markRadius(0.4, 'shot'));
+    });
 });
 
 describe('markClass', () => {
@@ -1210,5 +1243,233 @@ describe('shotSummary', () => {
     test('nothing at all does not throw', () => {
         assert.deepEqual(markMod.shotSummary(null),
             { shots: 0, onTarget: 0, goals: 0, xg: null });
+    });
+
+    test('the total survives the band that per-shot xG does not', () => {
+        // Per-shot errors are independent, so a half of them largely cancel.
+        // That is the entire reason 'total' exists as a band of its own.
+        const out = markMod.shotSummary(marks, 'total');
+        assert.ok(Math.abs(out.xg - 0.65) < 1e-9);
+        assert.equal(out.shots, 3);
+    });
+
+    test("at 'none' the counts stay and the xG goes", () => {
+        const out = markMod.shotSummary(marks, 'none');
+        assert.equal(out.xg, null);
+        assert.equal(out.shots, 3);
+        assert.equal(out.goals, 1);
+    });
+});
+
+describe('xgTrust', () => {
+    // The bands are read off tests/test_xg_noise.py, measured against the real
+    // model. They are not taste, and changing one means re-running that.
+
+    test('under a metre, a single shot is worth showing', () => {
+        assert.equal(report.xgTrust(0), 'shot');
+        assert.equal(report.xgTrust(0.5), 'shot');
+        assert.equal(report.xgTrust(1.0), 'shot');
+    });
+
+    test('past a metre only the total is', () => {
+        // At 2m the p95 shift is 0.240 on a 0.472 baseline — half the quantity.
+        assert.equal(report.xgTrust(1.01), 'total');
+        assert.equal(report.xgTrust(2), 'total');
+        assert.equal(report.xgTrust(4.0), 'total');
+    });
+
+    test('past four metres the error bar is wider than the number', () => {
+        // Measured: p95 shift 0.513 against a mean clean xG of 0.472.
+        assert.equal(report.xgTrust(4.01), 'none');
+        assert.equal(report.xgTrust(50), 'none');
+    });
+
+    test('an unknown error is not treated as a good one', () => {
+        // But it is not evidence of a bad fit either, so it lands on the
+        // reading that stays true across the band it might be in.
+        assert.equal(report.xgTrust(null), 'total');
+        assert.equal(report.xgTrust(undefined), 'total');
+        assert.notEqual(report.xgTrust(null), 'shot');
+    });
+});
+
+// ------------------------------------------------------------ sample data
+//
+// The sample exists so the CV blocks can be seen before there is footage. That
+// only works if it stays the same shape as a real published run, and if it goes
+// through the same renderers rather than a preview path of its own. These tests
+// hold both, plus the rule that nothing sampled is ever mistaken for real.
+
+describe('sampleHeatmap', () => {
+    test('is a grid the real renderer accepts', () => {
+        // Not a bespoke shape for the preview. If this ever fails, the preview
+        // has started proving something other than what it claims to.
+        assert.ok(heatmap.isGrid(sample.sampleHeatmap()));
+    });
+
+    test('sums to 1, which every consumer of mergeHeatmaps assumes', () => {
+        const grid = sample.sampleHeatmap();
+        const total = grid.values.reduce((a, b) => a + b, 0);
+        assert.ok(Math.abs(total - 1) < 1e-4, `summed to ${total}`);
+    });
+
+    test('is deterministic, so two loads draw the same pitch', () => {
+        assert.deepEqual(sample.sampleHeatmap(), sample.sampleHeatmap());
+    });
+
+    test('has a hotspot rather than an even wash', () => {
+        // A flat grid is drawn as nothing by the FLOOR in heatmap.js, so a
+        // sample without a peak would preview an empty pitch.
+        const grid = sample.sampleHeatmap();
+        const busiest = heatmap.busiestCell(grid);
+        assert.ok(busiest);
+        assert.ok(heatmap.cellAt(grid, busiest.x, busiest.y)
+            > 4 / (grid.cols * grid.rows));
+    });
+});
+
+describe('the sample match', () => {
+    test('every object says it is a sample', () => {
+        assert.ok(sample.isSample(sample.sampleCvSummary()));
+        assert.ok(sample.isSample(sample.samplePlayerReport()));
+        assert.ok(!sample.isSample({}));
+        assert.ok(!sample.isSample(null));
+    });
+
+    test('the calibration is good enough to size a shot map by', () => {
+        // Stated in the module docstring as a deliberate choice. If it drifts
+        // past a metre the preview silently stops showing the sized map, which
+        // is most of what there is to look at.
+        const cv = sample.sampleCvSummary();
+        assert.equal(report.xgTrust(cv.calibrationErrorM), 'shot');
+    });
+
+    test('the shot map agrees with the shot count beside it', () => {
+        // A preview whose own figures contradict each other teaches whoever
+        // reads it to stop checking whether figures agree.
+        for (const key of ['team_a', 'team_b']) {
+            const team = sample.sampleCvSummary().teams[key];
+            assert.equal(team.shot_map.length, team.shots);
+            assert.equal(
+                team.shot_map.filter((s) => s.on_target).length,
+                team.shots_on_target,
+            );
+            assert.equal(
+                team.shot_map.filter((s) => s.outcome === 'goal').length,
+                team.goals,
+            );
+        }
+    });
+
+    test('the team xG is the sum of the shots on the map', () => {
+        const team = sample.sampleCvSummary().teams.team_a;
+        const summed = markMod.shotSummary(team.shot_map).xg;
+        assert.ok(Math.abs(summed - team.xg) < 0.005, `${summed} vs ${team.xg}`);
+    });
+
+    test("the player's shots are on their own team's map", () => {
+        // Track 7 is one of team_a's shooters. If the two drifted apart the
+        // preview would be a preview of a bug.
+        const mine = sample.samplePlayerReport().cvShotMap;
+        const ours = sample.sampleCvSummary().teams.team_a.shot_map;
+        assert.ok(mine.length);
+        for (const shot of mine) {
+            assert.ok(ours.some((s) => s.video_s === shot.video_s));
+        }
+    });
+
+    test('the quality block trips the warnings it is meant to', () => {
+        // The point of a realistic sample: a preview of a flawless run would
+        // hide every caveat these pages exist to show.
+        const cv = sample.sampleCvSummary();
+        const notes = report.cvQualityNotes(cv.quality, {
+            calibrated: cv.calibrated,
+            shots: cv.teams.team_a.shots,
+            calibrationErrorM: cv.calibrationErrorM,
+            reconciliation: cv.reconciliation,
+        }).join(' | ');
+
+        assert.match(notes, /83% of frames/);
+        assert.match(notes, /into about 3 pieces/);
+        assert.match(notes, /matching neither kit/);
+        assert.match(notes, /agree on 3 of 4 goals/);
+    });
+
+    test('it produces plain-language reads for the half-time page', () => {
+        // cvReads only fires above deliberately high thresholds. A sample that
+        // never trips one would leave the whole decisions block unpreviewable.
+        const reads = report.cvReads(sample.sampleCvSummary());
+        assert.ok(reads.length >= 2, `only ${reads.length} reads`);
+        assert.match(reads.map((r) => r.title).join(' | '), /not where it counts/);
+    });
+
+    test('it carries a goal disagreement to look at', () => {
+        // The highest-value row in the review block, and the one most likely to
+        // be wired up wrong precisely because it is rare on real data.
+        const { disagreements } = sample.sampleCvSummary().reconciliation;
+        assert.equal(disagreements.length, 1);
+        assert.equal(disagreements[0].status, 'tag_only');
+        assert.ok(disagreements[0].tag_s > 0);
+    });
+});
+
+describe('the sample breakdowns add up', () => {
+    // A breakdown that does not sum to its own total is the kind of thing a
+    // fixture should never model as acceptable — whoever reads the preview to
+    // learn the shape of the data would learn the wrong shape.
+    for (const key of ['team_a', 'team_b']) {
+        for (const field of ['passes_by_length', 'passes_by_direction']) {
+            test(`${key}.${field} sums to passes attempted`, () => {
+                const team = sample.sampleCvSummary().teams[key];
+                const total = Object.values(team[field]).reduce((a, b) => a + b, 0);
+                assert.equal(total, team.passes_attempted);
+            });
+        }
+    }
+
+    test('possession shares across the two sides make a whole match', () => {
+        const { team_a: a, team_b: b } = sample.sampleCvSummary().teams;
+        assert.ok(Math.abs(a.possession_pct + b.possession_pct - 1) < 1e-9);
+    });
+
+    test("each territory split is a whole of that side's own possession", () => {
+        for (const key of ['team_a', 'team_b']) {
+            const t = sample.sampleCvSummary().teams[key].territory;
+            const total = t.defensive + t.middle + t.attacking;
+            assert.ok(Math.abs(total - 1) < 1e-9, `${key} summed to ${total}`);
+        }
+    });
+
+    test('completed passes never exceed attempted', () => {
+        for (const key of ['team_a', 'team_b']) {
+            const t = sample.sampleCvSummary().teams[key];
+            assert.ok(t.passes_completed <= t.passes_attempted);
+            assert.ok(Math.abs(
+                t.passes_completed / t.passes_attempted - t.pass_accuracy,
+            ) < 0.001);
+        }
+    });
+});
+
+describe('the sample heatmap agrees with the sample shots', () => {
+    test('the busiest cell is in the half this player attacks', () => {
+        // Caught by looking at it, not by a test: the first version put a
+        // striker's heatmap on the halfway line, right beside their own shot
+        // map showing two shots from inside the box. Both plots passed every
+        // assertion and described different players.
+        const report = sample.samplePlayerReport();
+        const grid = report.cvHeatmap;
+        const busiest = heatmap.busiestCell(grid);
+
+        assert.equal(report.cvAttackingEnd, 'right');
+        assert.ok(busiest.x >= grid.cols / 2,
+            `busiest column ${busiest.x} is in the defending half`);
+    });
+
+    test('their shots are in the same half the heatmap is', () => {
+        // 105m pitch, already mirrored to attack right by report_json.
+        for (const shot of sample.samplePlayerReport().cvShotMap) {
+            assert.ok(shot.x_m > 52.5, `shot at ${shot.x_m}m`);
+        }
     });
 });

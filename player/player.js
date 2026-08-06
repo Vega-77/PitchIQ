@@ -9,18 +9,20 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=24';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=24';
-import { CARD_COLOURS } from '../assets/events.js?v=24';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=24';
-import { renderHeatmap } from '../assets/heatmap.js?v=24';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=24';
-import { videoTime } from '../assets/video.js?v=24';
-import { renderMatchVideo } from '../assets/match-video.js?v=24';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=25';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=25';
+import { CARD_COLOURS } from '../assets/events.js?v=25';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=25';
+import { renderHeatmap } from '../assets/heatmap.js?v=25';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=25';
+import { xgTrust } from '../assets/report.js?v=25';
+import { samplePlayerReport, SAMPLE_NOTICE } from '../assets/sample-report.js?v=25';
+import { videoTime } from '../assets/video.js?v=25';
+import { renderMatchVideo } from '../assets/match-video.js?v=25';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=24';
+} from '../assets/ui.js?v=25';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -295,26 +297,35 @@ function renderMatchStats(report) {
 function renderPlayerShots(report) {
     const block = byId('md-shots-block');
     const marks = report.cvShotMap || [];
+    // The same band the coach's page applies, from the error published onto
+    // this report. A player comparing their map to what their coach was shown
+    // has to be looking at the same claim.
+    const trust = xgTrust(report.cvCalibrationErrorM);
+    const sized = trust === 'shot';
 
     const drawn = renderShotMap(byId('md-shots'), marks, {
         onPick: (mark) => seekTo(
             Math.max(0, (mark.video_s || 0) - (report.videoOffsetS ?? 0)),
             report.videoOffsetS ?? 0,
         ),
-        label: 'Your shots, placed on the pitch and sized by how good a chance each was',
+        label: sized
+            ? 'Your shots, placed on the pitch and sized by how good a chance each was'
+            : 'Your shots, placed on the pitch',
+        xgTrust: trust,
     });
 
     block.classList.toggle('hidden', !drawn);
     if (!drawn) return;
 
-    const totals = shotSummary(marks);
+    const totals = shotSummary(marks, trust);
     setText('md-shots-note',
         `${plural(totals.shots, 'shot')}, ${totals.onTarget} on target`
         + (totals.goals ? `, ${plural(totals.goals, 'goal')}` : '')
         + (totals.xg != null
             ? ` — worth about ${totals.xg.toFixed(2)} expected goals.`
             : '.')
-        + ' Bigger circles were better chances. Tap one to watch it.');
+        + (sized ? ' Bigger circles were better chances.' : '')
+        + ' Tap one to watch it.');
 }
 
 /**
@@ -486,7 +497,39 @@ function renderTeam(report) {
 function showEmpty(message) {
     mountPitchBackdrop(byId('empty-hero'), { opacity: 0.16 });
     if (message) setText('empty-msg', message);
+    renderEmptySample();
     showOnly('view-empty', VIEWS);
+}
+
+/**
+ * The two plots a filmed match adds, drawn from the sample fixture.
+ *
+ * Through the same two renderers the real report uses, which is the only
+ * arrangement worth having — a bespoke preview would prove the preview works.
+ *
+ * Safe here in a way it would not be on a real report: this view only exists
+ * when the player has nothing published, so there is no genuine figure on the
+ * page for an invented one to be confused with. The plots carry the dashed
+ * sample border anyway, because a screenshot loses the heading above them.
+ */
+function renderEmptySample() {
+    const report = samplePlayerReport();
+
+    renderHeatmap(
+        byId('empty-sample-heatmap'),
+        [{ grid: report.cvHeatmap, minutes: report.cvMinutesTracked }],
+        {
+            attackingEnd: report.cvAttackingEnd,
+            label: 'Example heatmap: a pitch shaded where a player spent their time',
+        },
+    );
+
+    renderShotMap(byId('empty-sample-shots'), report.cvShotMap, {
+        label: 'Example shot map: two shots placed on the pitch',
+        xgTrust: xgTrust(report.cvCalibrationErrorM),
+    });
+
+    setText('empty-sample-note', SAMPLE_NOTICE);
 }
 
 async function loadReports(user) {

@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=24">
-    <link rel="stylesheet" href="halftime.css?v=24">
+    <link rel="stylesheet" href="../assets/app.css?v=25">
+    <link rel="stylesheet" href="halftime.css?v=25">
 </head>
 <body>
 
@@ -42,6 +42,18 @@
             </div>
             <div class="ht-clock" id="ht-clock"></div>
         </header>
+
+        <!-- Only when this match has no video run of its own. The half-time
+             page is the one most likely to be checked the night before a game,
+             and the video-derived rows are invisible until there is footage. -->
+        <div class="sample-toggle hidden" id="ht-sample-toggle">
+            <div class="grow">
+                <strong>No video for this match</strong>
+                <span id="ht-sample-hint">See the rows a filmed match adds, using
+                    made-up numbers.</span>
+            </div>
+            <button id="btn-ht-sample" class="btn small">Preview with sample data</button>
+        </div>
 
         <!-- One column on a phone, two once there is room. Decisions always
              span the full width and come first, on every size. -->
@@ -95,7 +107,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="halftime.js?v=24"></script>
+<script type="module" src="halftime.js?v=25"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

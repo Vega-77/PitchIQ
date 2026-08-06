@@ -1409,6 +1409,87 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
 }
 .cv-note strong { color: var(--text-dim); font-weight: 650; }
 
+/* ------------------------------------------------------------ sample data */
+/*
+   Invented numbers in the real layout, so the video-derived blocks can be
+   looked at before there is footage to fill them.
+
+   Marked in amber rather than the accent, which is reserved for live data — the
+   comment on --accent says so and this is the exact case it was reserved
+   against. Amber is already the site's "read this before believing the thing
+   next to it" colour, which is precisely the job.
+
+   The dashes are load-bearing. A screenshot of this page will end up in a chat
+   or a slide deck with no banner text visible around it, and a dashed edge
+   survives that crop where a sentence does not.
+*/
+.sample-toggle {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 13px 15px;
+    margin-bottom: 16px;
+    border: 1px dashed var(--line-hi);
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-faint);
+}
+.sample-toggle .grow { min-width: 220px; }
+.sample-toggle strong {
+    display: block;
+    color: var(--text-dim);
+    font-weight: 650;
+    margin-bottom: 2px;
+}
+.sample-toggle.is-on {
+    border-color: var(--warn);
+    background: rgba(251, 191, 36, 0.06);
+}
+.sample-toggle.is-on strong { color: var(--warn); }
+
+.cv-note.is-sample {
+    border-style: dashed;
+    border-left: 3px solid var(--warn);
+    background: rgba(251, 191, 36, 0.05);
+}
+.cv-note.is-sample strong { color: var(--warn); }
+
+/* Anything drawn from the fixture, so a plot cropped out of the page still
+   carries the mark. `.heatmap` and `.shot-map` are the two that get screenshotted. */
+.is-sample-plot {
+    border: 1px dashed var(--warn);
+    border-radius: var(--radius);
+    padding: 6px;
+}
+
+/* A heatmap beside a shot map, which are not the same shape: a heatmap is the
+   whole 105x68 pitch and a shot map is half of it, so at equal widths the shot
+   map renders about twice as tall and the two bottom edges miss each other by a
+   couple of hundred pixels. Given twice the width, the heatmap comes out the
+   same height as its neighbour.
+
+   Below 620px they stack, which is where equal-width columns would have become
+   too narrow to read either plot. */
+.sample-pair {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    align-items: start;
+}
+@media (min-width: 620px) {
+    .sample-pair { grid-template-columns: 2fr 1fr; }
+}
+.sample-pair figure { margin: 0; min-width: 0; }
+.sample-pair figcaption {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+}
+
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
 }

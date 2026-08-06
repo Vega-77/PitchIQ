@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=24';
+} from '../assets/auth.js?v=25';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,21 +8,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=24';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=24';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=24';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=24';
+} from '../assets/db.js?v=25';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=25';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=25';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=25';
+import {
+    sampleCvSummary, SAMPLE_NOTICE, isSample,
+} from '../assets/sample-report.js?v=25';
 import {
     NOT_A_PLAYER, rankRosterForCluster, possessionIsInPlay, cvQualityNotes,
-    roughDuration, shapeConfidence, reviewScore, reviewLabels,
-} from '../assets/report.js?v=24';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=24';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=24';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=24';
+    roughDuration, shapeConfidence, reviewScore, reviewLabels, xgTrust,
+} from '../assets/report.js?v=25';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=25';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=25';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=25';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, figure, cardChips, timelineRow, minutesChart, confidenceMark,
-} from '../assets/ui.js?v=24';
+} from '../assets/ui.js?v=25';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -36,9 +39,29 @@ const state = {
     matches: [],
     staff: [],
     match: null,
+    // Whether the video-derived blocks are being previewed with invented
+    // numbers. Never persisted and never sent anywhere; it resets every time a
+    // match is opened, so nobody can arrive at a page that is quietly lying.
+    cvPreview: false,
 };
 
 const show = (view) => showOnly(view, VIEWS);
+
+/**
+ * The video-derived document the read-only blocks should render.
+ *
+ * The sample goes through the same renderers as a real run rather than a
+ * preview path of its own, which is the only version of this worth building: a
+ * second path would prove that the second path works.
+ *
+ * Deliberately not used by the cluster picker or the review tool. Both write
+ * back to Firestore, and a confirm tapped against an invented event id would
+ * put a decision about nothing into a real document. The sample carries no
+ * `identity` and no events, so those blocks stay empty on their own — but they
+ * read `state.match.cv` directly regardless, so the boundary does not depend on
+ * the fixture staying that way.
+ */
+const activeCv = () => (state.cvPreview ? sampleCvSummary() : state.match?.cv);
 
 const teamLabels = () => ({
     usName: state.team?.name || 'Us',
@@ -613,6 +636,9 @@ async function openMatch(matchId) {
         state.match = {
             ...match, stats, log, roster, cv, cvMapping, cvEvents, cvReview,
         };
+        // Off on every open. A preview that survived navigating to another match
+        // would show one match's invented numbers under another match's title.
+        state.cvPreview = false;
 
         // Merge the video's per-player figures onto the tagged ones, so the
         // table can be one table. Only for figures a coach has matched to a
@@ -647,6 +673,7 @@ async function openMatch(matchId) {
         renderShots();
         renderExcluded();
         renderReview();
+        renderSampleToggle();
 
         byId('input-video-url').value = match.videoUrl || '';
         byId('input-video-offset').value = match.videoOffsetS ?? 0;
@@ -699,7 +726,7 @@ function renderTeamStats(stats) {
 
 /** Team figures the pipeline derived, as [value, label, confidence] rows. */
 function cvTeamRows() {
-    const cv = state.match?.cv;
+    const cv = activeCv();
     const ours = cv?.teams?.team_a;
     if (!ours) return [];
 
@@ -725,7 +752,11 @@ function cvTeamRows() {
         [ours.switches, 'Switches of play', events],
         [ours.shots, 'Shots', events],
         [ours.shots_on_target, 'Shots on target', events],
-        [ours.xg == null ? null : ours.xg.toFixed(2), 'Expected goals', events],
+        // Withheld, not zeroed, when the calibration is too loose to support it.
+        // A team total averages a lot of per-shot noise away, which is why it
+        // survives a band that per-shot xG does not — but not every band.
+        [(ours.xg == null || xgTrust(cv.calibrationErrorM) === 'none')
+            ? null : ours.xg.toFixed(2), 'Expected goals', events],
         [ours.tackles, 'Tackles', events],
         [ours.interceptions, 'Interceptions', events],
         [ours.recoveries, 'Recoveries', events],
@@ -780,12 +811,14 @@ function shapeRows(shape, calibrationErrorM) {
  */
 function renderShots() {
     const block = byId('cv-shots-block');
-    const cv = state.match?.cv;
+    const cv = activeCv();
 
     const sides = [
         ['us', 'team_a', 'cv-shots-us', 'cv-shots-us-cap'],
         ['them', 'team_b', 'cv-shots-them', 'cv-shots-them-cap'],
     ];
+
+    const trust = xgTrust(cv?.calibrationErrorM);
 
     let any = false;
     for (const [label, key, hostId, capId] of sides) {
@@ -795,10 +828,11 @@ function renderShots() {
                 Math.max(0, (mark.video_s || 0) - (state.match.videoOffsetS ?? 0)),
             ),
             label: `${label === 'us' ? 'Our' : 'Their'} shots on the pitch`,
+            xgTrust: trust,
         });
         any = any || drawn;
 
-        const totals = shotSummary(marks);
+        const totals = shotSummary(marks, trust);
         const who = label === 'us'
             ? (state.team?.name || 'Us')
             : (state.match?.opponent || 'Them');
@@ -807,19 +841,66 @@ function renderShots() {
                 + (totals.xg != null ? `, ${totals.xg.toFixed(2)} xG` : '')
             : `${who} — no shots placed`);
         byId(hostId).classList.toggle('is-empty', !drawn);
+        // Marked on the plot itself, not only in the banner above it. These get
+        // screenshotted and pasted somewhere with no banner in the crop.
+        byId(hostId).classList.toggle('is-sample-plot', drawn && isSample(cv));
     }
 
     block.classList.toggle('hidden', !any);
     if (!any) return;
 
+    // The sentence about circle size only holds while the circles have one.
     setText('cv-shots-note',
         'Both halves are drawn attacking right, so the two maps can be compared. '
-        + 'Bigger circles were better chances. Click one to jump the video there.');
+        + (trust === 'shot'
+            ? 'Bigger circles were better chances. '
+            : 'Every shot is drawn the same size — the calibration is too loose to '
+                + 'rank them against each other. ')
+        + 'Click one to jump the video there.');
+}
+
+/**
+ * The control that turns the sample on, and what it says.
+ *
+ * Offered only when this match has no real run. A preview button sitting beside
+ * genuine figures is an invitation to mix the two up, and the case it exists
+ * for — "there is nothing here and I cannot tell whether that is right" — only
+ * arises when there is nothing here.
+ */
+function renderSampleToggle() {
+    const row = byId('cv-sample-toggle');
+    if (!row) return;
+
+    const offerable = !state.match?.cv;
+    row.classList.toggle('hidden', !offerable);
+    row.classList.toggle('is-on', state.cvPreview);
+    if (!offerable) return;
+
+    byId('btn-cv-sample').textContent = state.cvPreview
+        ? 'Hide the sample'
+        : 'Preview with sample data';
+    setText('cv-sample-hint', state.cvPreview
+        ? SAMPLE_NOTICE
+        : 'See what the video-derived sections look like, using made-up numbers.');
+}
+
+/** Flip the preview and redraw only the blocks it can reach. */
+function toggleSample() {
+    state.cvPreview = !state.cvPreview;
+
+    renderTeamStats(state.match.stats);
+    document.querySelector('.cv-note')?.remove();
+    const note = cvNote();
+    if (note) byId('team-stats').before(note);
+
+    renderShots();
+    renderExcluded();
+    renderSampleToggle();
 }
 
 /** The banner over the estimated section, naming what limited it. */
 function cvNote() {
-    const cv = state.match?.cv;
+    const cv = activeCv();
     if (!cv) return null;
 
     const quality = cv.quality || {};
@@ -834,13 +915,21 @@ function cvNote() {
         reconciliation: cv.reconciliation,
     });
 
+    // "Measured from video" is a claim, and on the preview it is false. The
+    // banner is the one element guaranteed to sit above every estimated block,
+    // which makes it the right place to carry the correction.
+    const sampled = isSample(cv);
+    if (sampled) note.classList.add('is-sample');
+
     note.innerHTML = '<span></span>';
-    note.querySelector('span').textContent = bits.length
-        ? `Measured from video: ${bits.join('; ')}. Treat these as estimates.`
-        : 'Measured from video. Treat these as estimates.';
+    note.querySelector('span').textContent = sampled
+        ? `${SAMPLE_NOTICE} Nothing here was measured: ${bits.join('; ')}.`
+        : (bits.length
+            ? `Measured from video: ${bits.join('; ')}. Treat these as estimates.`
+            : 'Measured from video. Treat these as estimates.');
 
     const strong = document.createElement('strong');
-    strong.textContent = 'Estimated ';
+    strong.textContent = sampled ? 'Sample ' : 'Estimated ';
     note.prepend(strong);
     return note;
 }
@@ -1281,7 +1370,7 @@ function renderExcluded() {
     const section = byId('cv-excluded-block');
     if (!section) return;
 
-    const cv = state.match?.cv;
+    const cv = activeCv();
     const notes = cv?.participants || [];
     const quality = cv?.quality || {};
     // Both spellings, for the same reason cvConfidence takes both: the quality
@@ -2212,6 +2301,7 @@ function init() {
     byId('btn-download-log').addEventListener('click', doDownloadLog);
     byId('btn-cv-missed').addEventListener('click', doRecordMiss);
     byId('btn-cv-labels').addEventListener('click', doDownloadLabels);
+    byId('btn-cv-sample').addEventListener('click', toggleSample);
 
     const missedType = byId('input-missed-type');
     for (const type of REVIEW_TYPES) {

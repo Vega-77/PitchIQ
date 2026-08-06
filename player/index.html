@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=24">
-    <link rel="stylesheet" href="player.css?v=24">
+    <link rel="stylesheet" href="../assets/app.css?v=25">
+    <link rel="stylesheet" href="player.css?v=25">
 </head>
 <body>
 
@@ -63,6 +63,25 @@
             <p class="muted" style="margin-top:16px">
                 Only you and your coaches can see this page.
             </p>
+        </section>
+
+        <!-- A real rendered sample rather than a description of one. It lives
+             in the empty state on purpose: there is definitionally no real
+             report here to mistake it for, and it answers the question this
+             page otherwise leaves open — what is it that I am waiting for. -->
+        <section class="block" id="empty-sample-block">
+            <h3>If your coach films a match</h3>
+            <p class="muted" id="empty-sample-note" style="margin:-4px 0 14px"></p>
+            <div class="sample-pair">
+                <figure>
+                    <figcaption>Where you played</figcaption>
+                    <div id="empty-sample-heatmap" class="heatmap is-sample-plot"></div>
+                </figure>
+                <figure>
+                    <figcaption>Your shots</figcaption>
+                    <div id="empty-sample-shots" class="shot-map is-sample-plot"></div>
+                </figure>
+            </div>
         </section>
     </section>
 
@@ -154,7 +173,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="player.js?v=24"></script>
+<script type="module" src="player.js?v=25"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

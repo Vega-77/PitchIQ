@@ -988,9 +988,20 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model6.
       `tests/test_xg_noise.py`. Retraining with noise is not needed yet: the
       per-shot spread is wide but team totals average most of it out, and the
       real gate is still whether a shot can be detected at all
-- [ ] Show per-shot xG only when the calibration supports it — the note now
-      warns above 1 m of error, but nothing yet *withholds* the number, and
-      above ~4 m the error bar is wider than the quantity
+- [x] Show per-shot xG only when the calibration supports it — `xgTrust`
+      (`assets/report.js`) turns the measured noise table into three states
+      rather than a number with a warning beside it. Under 1 m the per-shot
+      figure shows and the shot map sizes by it; to 4 m only the team total
+      shows and every dot on the map draws the same size, because a size
+      difference is a claim that two chances differ by the amount they look
+      like they do; past 4 m nothing shows, since the p95 shift (0.513) exceeds
+      a typical xG (0.472). The hover label drops the number on exactly the
+      bands the radius does — a figure the map has stopped drawing but a
+      tooltip still reports is the same claim made quietly. The band is applied
+      identically on the coach, half-time and player pages, which is why
+      `cvCalibrationErrorM` is now published onto each player report: a player
+      never reads the team document, and without it the portal would have sized
+      a map the coach's own page had flattened
 - [ ] Log actual outcome (goal/save/block/miss) to check predictions against reality later
 
 ## 13. Player & Team Statistics / Profiles
@@ -1039,6 +1050,28 @@ than the workaround, which matters given the data class.
       report, each shot clickable to seek the video. Both halves of a shot map
       are mirrored to attack right in `report_json` rather than in a renderer, so
       a second-half shot cannot be plotted at the wrong end by a page that forgot.
+- [x] A sample run the pages can be checked against before there is footage
+      (`assets/sample-report.js`). Every video-derived block hides itself when
+      there is nothing to draw, which is right and which also meant that until
+      today most of what has been built was invisible and a mis-wiring between
+      the pipeline and a renderer could not be seen at all. The fixture is
+      shaped key-for-key like `summary_payload` and `player_report_fields` and
+      goes through the same renderers — a preview with a path of its own would
+      only prove that path works — and `tests/test_sample_report.py` fails when
+      Python starts publishing a field it does not carry. It found two on its
+      first run.
+
+      Deliberately not flawless: 83% ball coverage, 3.4 tracks per player, two
+      officials it could not rule out, one goal the records disagree about. A
+      preview of a perfect run would hide every caveat these pages exist to
+      show and set an expectation the footage will not meet. The one generous
+      figure is the 0.42 m calibration, so the shot map previews its sized
+      form; that is a stated choice rather than an accident.
+
+      Opt-in and offered only where there is no real run to confuse it with —
+      never near the cluster picker or the review tool, both of which write
+      back, and a confirm tapped against an invented event id would put a
+      decision about nothing into a real document.
 - [ ] **[MVP]** Coach tactical dashboard, player portal view (Phase 14), event timeline synced to video (shared with the Phase 11 review tool)
 - [ ] **[Stretch]** Live tracking overlay on video (bounding boxes, IDs, mini-map)
 

@@ -290,7 +290,11 @@ def identity_payload(report_json: dict, mapping: dict[str, str] | None = None) -
     }
 
 
-def player_report_fields(track_stats: dict, attacking_end: str | None = None) -> dict:
+def player_report_fields(
+    track_stats: dict,
+    attacking_end: str | None = None,
+    calibration_error_m: float | None = None,
+) -> dict:
     """CV fields for one player's match report, all prefixed.
 
     Prefixed so a coach looking at a report can always tell which numbers a
@@ -330,6 +334,13 @@ def player_report_fields(track_stats: dict, attacking_end: str | None = None) ->
         # a half at most, and each one is a flat dict of numbers — no nested
         # arrays, which Firestore would refuse.
         f'{CV_FIELD_PREFIX}ShotMap': track_stats.get('shot_map'),
+        # How good the homography was, carried per report because a player never
+        # reads the team document. Without it the player portal would have no
+        # way to apply `xgTrust` and would size its shot map by an xG the
+        # coach's own page had already decided was too loose to size by — the
+        # same match, told two different ways, on the page with less context to
+        # spot it.
+        f'{CV_FIELD_PREFIX}CalibrationErrorM': calibration_error_m,
     }
 
 
@@ -425,7 +436,11 @@ def publish(
         # makes their heatmap readable and they never see the team document.
         end = ((report_json.get('teams') or {}).get(track.get('team')) or {}
                ).get('attacking_end')
-        report_ref.update(player_report_fields(track, attacking_end=end))
+        report_ref.update(player_report_fields(
+            track,
+            attacking_end=end,
+            calibration_error_m=report_json.get('calibration_error_m'),
+        ))
         written['playerReports'] += 1
 
     return written
