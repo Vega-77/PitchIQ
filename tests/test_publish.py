@@ -386,6 +386,27 @@ class TestPayloads:
         assert payload['teams'] == {}
         assert payload['trustworthy'] is False
 
+    def test_a_figures_picture_reaches_the_document_it_is_picked_in(self):
+        """The crop is the whole point of the picker and travels with it.
+
+        Nothing here reshapes clusters, so this is guarding an omission rather
+        than a transform: `identity_payload` flattens the *tracks*' heatmaps and
+        passes clusters through, and a future flattening of clusters that forgot
+        the thumbnail would leave a picker full of empty frames.
+        """
+        report = a_report(clusters=[{
+            'cluster_id': 0, 'sightings': 900,
+            'thumb': 'data:image/jpeg;base64,abc', 'thumb_height_px': 71.0,
+        }])
+        cluster = identity_payload(report)['clusters'][0]
+        assert cluster['thumb'] == 'data:image/jpeg;base64,abc'
+        assert cluster['thumb_height_px'] == 71.0
+
+    def test_a_figure_never_seen_cleanly_publishes_a_null_picture(self):
+        """Not an empty string, which an `<img src>` would try to load."""
+        report = a_report(clusters=[{'cluster_id': 0, 'thumb': None}])
+        assert identity_payload(report)['clusters'][0]['thumb'] is None
+
 
 class TestParticipantNotes:
     """Why figures were left out, carried to the screen with the counts.

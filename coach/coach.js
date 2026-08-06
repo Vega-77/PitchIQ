@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=28';
+} from '../assets/auth.js?v=29';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,27 +8,27 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=28';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=28';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=28';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=28';
+} from '../assets/db.js?v=29';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=29';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=29';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=29';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
-} from '../assets/sample-report.js?v=28';
+} from '../assets/sample-report.js?v=29';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
     groupStats, teamStatRows, trackedCoverage, metresPerMinute,
     TRACKED_SHARE_FLOOR,
-} from '../assets/report.js?v=28';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=28';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=28';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=28';
+} from '../assets/report.js?v=29';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=29';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=29';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=29';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark,
-} from '../assets/ui.js?v=28';
+} from '../assets/ui.js?v=29';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -1084,11 +1084,62 @@ function renderClusterMapping() {
     }
 }
 
+// A crop below this many pixels tall in the original footage has no face, no
+// number and no hair in it. Matching cv/thumbs.py's own floor for storing one
+// at all; this second, higher line is about how much to believe what you see.
+const FAINT_THUMB_PX = 40;
+
+/**
+ * What a tracked figure looked like — the picture, or an honest substitute.
+ *
+ * This is the control the whole mapping step turns on. Everything else in the
+ * row (a time span, a fragment count, a kit swatch) describes the figure
+ * without answering the only question being asked, which is visual.
+ *
+ * The kit swatch survives as a strip along the bottom rather than being
+ * replaced. On the wide framing this pipeline runs on, a crop is often too small
+ * to read a shirt colour off, and which side somebody was on is the one thing
+ * the clustering is genuinely confident about.
+ */
+function clusterFace(cluster) {
+    const face = document.createElement('div');
+    face.className = 'cluster-thumb';
+
+    if (cluster.thumb) {
+        const img = document.createElement('img');
+        // Not from a URL: the crop is a data: URI written by the pipeline, so
+        // there is no request, no storage bucket and no third party involved in
+        // showing a photograph of a minor.
+        img.src = cluster.thumb;
+        img.alt = `Tracked figure ${cluster.cluster_id + 1}`;
+        img.loading = 'lazy';
+        face.append(img);
+
+        const seen = cluster.thumb_height_px;
+        if (seen != null && seen < FAINT_THUMB_PX) {
+            face.classList.add('faint');
+            face.title = `Only ${Math.round(seen)} pixels tall in the footage`;
+        }
+    } else {
+        // Not an empty box: with no text, "the tracker never saw this figure
+        // cleanly" and "the image has not loaded yet" look exactly the same.
+        face.classList.add('none');
+        face.textContent = 'no clear view';
+    }
+
+    const kit = document.createElement('span');
+    kit.className = 'kit';
+    if (cluster.colour) kit.style.background = labToCss(cluster.colour);
+    else kit.style.background = 'var(--line)';
+    face.append(kit);
+
+    return face;
+}
+
 function clusterRow(cluster, mapping) {
     const row = document.createElement('div');
     row.className = 'list-item cluster-row';
     row.innerHTML = `
-        <span class="cluster-swatch"></span>
         <div class="grow">
             <div class="title"></div>
             <div class="sub"></div>
@@ -1098,10 +1149,7 @@ function clusterRow(cluster, mapping) {
             <span class="sr-only">Who is this?</span>
             <select></select>
         </label>`;
-
-    const swatch = row.querySelector('.cluster-swatch');
-    if (cluster.colour) swatch.style.background = labToCss(cluster.colour);
-    else swatch.classList.add('unknown');
+    row.prepend(clusterFace(cluster));
 
     const offset = state.match.videoOffsetS ?? 0;
     const fromS = (cluster.first_seen_s ?? 0) - offset;

@@ -68,6 +68,7 @@ from .calibration import Calibration
 from .detector import CLASS_BALL, CLASS_PERSON, DEFAULT_WEIGHTS, PersonBallDetector
 from .possession import median_player_height
 from .teams import UNKNOWN, shirt_colour
+from .thumbs import Thumb, consider
 
 # Columns of FrameRecord.players.
 COL_TRACK_ID, COL_X1, COL_Y1, COL_X2, COL_Y2, COL_CONF = range(6)
@@ -170,6 +171,11 @@ class FrameTable:
     frame_height: int
     records: list[FrameRecord] = field(default_factory=list)
     team_by_track: dict[int, str] = field(default_factory=dict)
+    # The best picture of each track seen so far, chosen online by cv/thumbs.py.
+    # Track-keyed rather than frame-keyed, which is why it sits here beside
+    # `team_by_track` instead of being a fourth thing `run` hands back: it is a
+    # fact about an identity that spans the window, not about a frame.
+    thumb_by_track: dict[int, Thumb] = field(default_factory=dict)
     calibration: Calibration | None = None
 
     # Built on first use. Records are usually contiguous, but a strided run
@@ -355,6 +361,7 @@ class TrackedFramePass:
                 players = self._as_player_array(tracks)
 
                 self._sample_colours(frame, players, absolute, colour_samples)
+                self._sample_thumbs(frame, players, absolute, table.thumb_by_track)
 
                 candidates = self._ball_candidates(balls, absolute, timestamp)
                 if candidates:
@@ -418,6 +425,38 @@ class TrackedFramePass:
             ))
             if colour is not None:
                 held.append(colour)
+
+    def _sample_thumbs(
+        self,
+        frame: np.ndarray,
+        players: np.ndarray,
+        absolute: int,
+        thumbs: dict[int, Thumb],
+    ) -> None:
+        """Keep the best picture of each player, for the same reason as colours.
+
+        Shares `colour_every` rather than getting a cadence of its own. Both are
+        asking the same thing of the same pixels — take something small off this
+        detection while it still exists — and a second interval would be a
+        second thing to tune with no evidence for either setting.
+        """
+        if absolute % self.colour_every:
+            return
+
+        for row in players:
+            track_id = int(row[COL_TRACK_ID])
+            thumbs[track_id] = consider(
+                thumbs.get(track_id), frame, track_id, absolute,
+                (
+                    float(row[COL_X1]), float(row[COL_Y1]),
+                    float(row[COL_X2]), float(row[COL_Y2]),
+                ),
+            )
+            # `consider` returns None only when there was nothing held and this
+            # sighting was unusable, and a None entry would look like a track
+            # that was considered and rejected forever.
+            if thumbs[track_id] is None:
+                del thumbs[track_id]
 
     def _ball_candidates(
         self, balls, absolute: int, timestamp: float

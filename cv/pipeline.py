@@ -55,6 +55,7 @@ from .possession import (
 from .reconcile import Reconciliation, reconcile, warnings_for
 from .teams import TEAM_A, TEAM_B, assign_teams, separation
 from .territory import TerritorySplit, territory
+from .thumbs import attach_thumbs, fit_budget
 from .xg_bridge import xg_for_shots
 
 # Tracks shorter than this are noise — a detection that flickered for a fraction
@@ -476,6 +477,20 @@ def analyse_match(
     # to. This does not name anyone — that stays a human job — but it turns a
     # hundred tracks into a list short enough for a coach to work through.
     report.clusters = merge_tracks(table, colour_samples, is_player=is_player)
+
+    # Each figure gets the best picture the pass cut of any fragment it was
+    # built from. The budget runs after, not before: which cluster deserves the
+    # bytes is only answerable once the fragments have been joined, since a
+    # person split five ways is one row in the picker and not five.
+    #
+    # Deliberately not warned about when the budget bites. `trustworthy` is
+    # `not warnings` (cv/report_json.py), and a run whose briefest figures went
+    # without a picture is not a run whose numbers are worse — it is the same
+    # run with a smaller convenience. The picker says which rows have no
+    # thumbnail, which is both the only place it matters and the only place
+    # anyone can act on it.
+    attach_thumbs(report.clusters, table.thumb_by_track)
+    fit_budget(report.clusters)
 
     # ---- keepers ----
     defending_ends = _defending_ends(orientation, side_of_team, period)

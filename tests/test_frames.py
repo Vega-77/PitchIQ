@@ -396,6 +396,70 @@ class TestSinglePass:
         assert len(colours[100]) == 4
 
 
+class TestThumbnails:
+    """The picture of each figure has to be taken here or not at all.
+
+    What survives a batch is a few numbers per detection, never the image — the
+    same constraint that puts colour sampling in this loop. These check the
+    bookkeeping around that, not the cropping itself (tests/test_thumbs.py).
+    """
+
+    def test_a_tracked_figure_comes_out_with_a_picture(self):
+        runner, _, _ = make_pass(
+            lambda i: [player_row(h=70.0)], colour_every=1,
+        )
+        table, _, _ = runner.run(
+            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            batches=one_batch(0, 4),
+        )
+        assert set(table.thumb_by_track) == {100}
+        assert table.thumb_by_track[100].data_uri.startswith('data:image/jpeg')
+
+    def test_the_biggest_sighting_wins_across_frames(self):
+        """A player runs towards the camera and gets more recognisable."""
+        heights = {0: 40.0, 1: 55.0, 2: 96.0, 3: 62.0}
+        runner, _, _ = make_pass(
+            lambda i: [player_row(h=heights[i])], colour_every=1,
+        )
+        table, _, _ = runner.run(
+            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            batches=one_batch(0, 4),
+        )
+        held = table.thumb_by_track[100]
+        assert held.height_px == 96.0
+        assert held.frame_index == 2
+
+    def test_a_figure_never_seen_cleanly_has_no_entry_at_all(self):
+        """Not a None sitting in the dict.
+
+        A None would read as a track that was considered and permanently
+        rejected, when in fact every sighting so far has just been unusable.
+        """
+        runner, _, _ = make_pass(
+            # Wider than tall the whole way through — two players in one box.
+            lambda i: [player_row(w=120.0, h=70.0)], colour_every=1,
+        )
+        table, _, _ = runner.run(
+            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            batches=one_batch(0, 4),
+        )
+        assert table.thumb_by_track == {}
+
+    def test_it_shares_the_colour_cadence(self):
+        """One interval for both, because both ask the same thing of the same
+        pixels. A second one would be a second thing to tune with no evidence
+        for either setting."""
+        runner, _, _ = make_pass(
+            lambda i: [player_row(h=40.0 + i)], colour_every=4,
+        )
+        table, _, _ = runner.run(
+            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            batches=one_batch(0, 8),
+        )
+        # Frames 0 and 4 were sampled; 4 is the taller of the two.
+        assert table.thumb_by_track[100].frame_index == 4
+
+
 class TestStride:
     def test_stride_skips_frames_before_inference(self):
         """Skipping after inference would save nothing — inference is the cost."""

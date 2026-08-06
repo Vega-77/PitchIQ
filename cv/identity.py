@@ -79,6 +79,12 @@ class PlayerCluster:
     sightings: int = 0
     colour: tuple[float, float, float] | None = None
     heatmap: list[list[float]] | None = None
+    # A `data:` URI cut from the footage by cv/thumbs.py, so a coach can match a
+    # figure to a teenager by looking at it rather than by reading a time span.
+    # None whenever the tracker never saw this person cleanly and whole, which
+    # is a real answer and not a failure — the kit swatch stays either way.
+    thumb: str | None = None
+    thumb_height_px: float | None = None
 
     @property
     def minutes_tracked(self) -> float:
@@ -95,6 +101,11 @@ class PlayerCluster:
             'sightings': self.sightings,
             'colour': list(self.colour) if self.colour else None,
             'heatmap': self.heatmap,
+            'thumb': self.thumb,
+            # How tall the crop was in the footage. Carried so the picker can
+            # say "this is all there was" rather than silently drawing a 30px
+            # portrait at the same size as a 120px one.
+            'thumb_height_px': self.thumb_height_px,
         }
 
 

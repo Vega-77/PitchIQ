@@ -1078,8 +1078,51 @@ candidates — the reviewer's job is verifying/correcting/filling gaps, not labe
 scratch.
 - [x] **[Demo]** Timeline UI showing CV-candidate events, synced to video playback (`coach/coach.js`'s review section). Live-tagged events still live on the match page's own separate timeline; a single merged strip showing both is still open.
 - [x] **[Demo]** Confirm / edit / delete / add-new-event controls per timeline entry — confirm, reassign-type-or-player ("edited"), reject, plus recording an event the video missed, which is the recall half of validating the detector, not an extra.
-- [ ] **[Demo]** Track-ID → roster-player assignment UI with thumbnail crops, pre-narrowed by the sub log — the narrowing shipped (Phase 7); thumbnail crops did not.
-- [ ] Merge-tracks control for split IDs
+- [x] **[Demo]** Track-ID → roster-player assignment UI with thumbnail crops,
+      pre-narrowed by the sub log. The narrowing shipped with Phase 7; **the
+      crops shipped 2026-08-06** (`cv/thumbs.py`). Until then the picker
+      described each figure as *"team a · 3 fragments · 12:04–19:31 · 2,410
+      frames"* beside a swatch of kit colour, which describes a figure without
+      answering the only question being asked, and the question is visual:
+      *that is the tall one who plays left back.*
+
+      Cut inside the decode loop, because what survives a batch is a few
+      numbers per detection and never the image — the same constraint that puts
+      colour sampling there, and the reason this is a scoring function plus an
+      encoder rather than a pass of its own. It shares `colour_every` rather
+      than getting a cadence of its own: both are asking the same thing of the
+      same pixels, and a second interval would be a second thing to tune with
+      no evidence for either setting.
+
+      **Most of the work is the refusals**, because a picker full of bad crops
+      is worse than a picker full of swatches — a coach can tell a swatch is
+      uninformative and cannot tell that the smudge they just named was two
+      people. Nothing clipped by the frame edge, since half a player is not
+      recognisable and reads as a smaller one. Nothing wider than it is tall,
+      which is a merged box or somebody on the ground; that rule earns its keep
+      because a merged box is *large*, so ranking on size alone would make it
+      the portrait of both players. And **never upscaled** on the way in: a
+      player forty pixels tall gets a forty-pixel picture, because blowing every
+      crop up to a uniform size would invent detail the sensor never recorded
+      and make an unusable one look usable. Under 40 px the row says so.
+
+      One thing the browser check caught that no unit test would have:
+      `object-fit: cover` on a 35×104 crop threw away 40% of the height —
+      the head and the feet, which is most of what makes a teenager
+      recognisable at this distance. It is `contain` in a person-shaped frame.
+
+      Cheap enough not to need managing: a real crop encodes to about **1.1 KB**,
+      so forty figures is ~47 KB against a 1 MB document. The budget in
+      `fit_budget` is a safety net that serves the longest-tracked figures
+      first, and deliberately raises **no warning** when it bites —
+      `trustworthy` is `not warnings`, and a run whose briefest figures went
+      without a picture is not a run whose numbers are worse.
+- [ ] Merge-tracks control for split IDs — **largely already possible**: the
+      picker is many-to-one and `cvStatsByPlayer` sums across every cluster
+      mapped to the same player, so merging two fragments is done by naming
+      them both. What is missing is only the convenience of saying so once
+      rather than twice, and the count of fragments a player was assembled from
+      is already reported as the caveat it is
 - [ ] Save finalized data as the source of truth for stats, profiles, xG logging, and the player portal
 - [x] Doubles as the ground-truth labeling tool for Phase 16 validation, and as
       a source of labeled data for fine-tuning detectors later (Phase 5) —
