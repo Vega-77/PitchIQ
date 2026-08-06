@@ -1,8 +1,8 @@
 import {
     landmarks, LANDMARK_GROUPS, fitHomography, applyHomography,
-} from './pitch-model.js?v=29';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=29';
-import { byId, setText, toast, plural } from '../assets/ui.js?v=29';
+} from './pitch-model.js?v=30';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=30';
+import { byId, setText, toast, plural } from '../assets/ui.js?v=30';
 
 const state = {
     image: null,

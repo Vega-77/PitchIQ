@@ -1186,7 +1186,54 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       height slider went with it, since there is no longer a feature for it to
       drive, and `xgTrust`'s per-shot band tightened from 1 m to 0.5 m because
       the leaner model leans harder on position
-- [ ] Log actual outcome (goal/save/block/miss) to check predictions against reality later
+- [x] **Log actual outcome (goal/save/block/miss) to check predictions against
+      reality** — a shot ledger under the shot maps on the coach's match page,
+      one row per detected shot, five buttons on each. Stored as `result` beside
+      the existing verdict in `cvReview/decisions`, which is the whole reason it
+      goes there: a shot the coach *rejected* is not a shot, and it falls out of
+      the check for free.
+
+      Two rules make the marking worth anything. **The verdict has to come from
+      a person.** `Shot.outcome` is already in the report, read off a ball the
+      pipeline sees in about 60% of frames; grading the xG model against a ball
+      detector's guess measures the agreement of two guesses. It is printed
+      beside the buttons and never preselects one — a prefilled answer clicked
+      past is an unmarked shot with a signature on it. **And goals are rare.**
+      Under the model each shot is its own weighted coin, so a set of shots
+      should produce `Σ xg` goals with variance `Σ xg(1−xg)`; two standard
+      deviations is the gap the sample could actually have found, and it is
+      printed in the same breath as the difference rather than as a footnote.
+
+      The two "no gap found" states are deliberately **not** the same word.
+      `consistent` means the sample was big enough that a model 50% out would
+      have shown; `inconclusive` means it was not. The threshold is a **share of
+      the prediction, not a number of goals** — the band grows with √n and the
+      prediction with n, so a goal-denominated threshold calls three shots
+      conclusive and a season inconclusive, exactly inverted. On typical
+      chances, telling a good model from one half out takes about **150 shots**:
+      a season of both teams', and the app says so instead of implying sooner.
+
+      A directional verdict is also withheld below four expected goals, because
+      the band is a normal approximation to a sum of coin flips and is worthless
+      when the expected count is tiny. Caught in the browser, not by a test: two
+      long-range efforts and one lucky finish were being reported as *"the model
+      is rating these chances too low"*.
+
+      The four-number tally is stored on the **match document**, so the season
+      line on the matches tab costs no reads at all — `listMatches` already
+      returns whole documents. `variance` travels rather than a standard
+      deviation because variances add and roots do not, and storing the root
+      would widen every season band and turn real miscalibration into "cannot
+      tell". Its own coach-only rule, separate from the tagger-writable one
+      above, and every bound in it is an arithmetic invariant rather than a
+      guessed cap: `predicted ≤ shots`, `scored ≤ shots`, `variance ≥ 0`. The
+      marks also travel in the labels export beside the xG that predicted them,
+      which is the only ground truth this system produces.
+
+      Withheld entirely when `xgTrust` is `'none'` — a run whose positions are
+      too loose for the app to print a total is too loose to quietly become a
+      season's evidence. The marks are still kept and can be re-checked against
+      a better calibration.
 
 ## 13. Player & Team Statistics / Profiles
 - [ ] `Player` domain model beyond the current UI stub in `xg-sandbox/geometry.js`: identity, team, jersey number, role, per-match stat accumulator

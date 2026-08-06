@@ -1047,6 +1047,15 @@ describe('reviewScore', () => {
         assert.equal(s.byType.pass.unreviewed, 1);
     });
 
+    test('recording what a shot did is not a verdict on whether it was one', () => {
+        // The same map holds both answers. Reading a bare `result` as a
+        // confirmation would let the xG log inflate this scorecard from the
+        // other end of the page, without anyone having checked anything.
+        const s = score(events('shot'), { e0: { result: 'saved' } });
+        assert.equal(s.byType.shot.precision, null);
+        assert.equal(s.byType.shot.unreviewed, 1);
+    });
+
     test('an edit that only fixes the player leaves the type standing', () => {
         // The pipeline found the right kind of thing and pinned it on the wrong
         // person. Identity is a separate problem with a separate fix, and
@@ -1124,11 +1133,20 @@ describe('reviewLabels', () => {
     const labels = (byEvent, missed = [], meta = {}) =>
         report.reviewLabels(events, { byEvent, missed }, meta);
 
-    test('only events with a verdict are labelled', () => {
+    test('only events a human touched are labelled', () => {
         // Treating the rest as negatives would train a detector on the
         // pipeline's own unchecked guesses.
         const out = labels({ a: { status: 'confirmed' } });
         assert.deepEqual(out.labelled.map((l) => l.id), ['a']);
+    });
+
+    test('a shot marked with no verdict is still a label', () => {
+        // "That one was saved" is a human statement about that moment, and the
+        // only ground truth in the file a finishing model could learn from.
+        const out = labels({ c: { result: 'saved' } });
+        assert.deepEqual(out.labelled.map((l) => l.id), ['c']);
+        assert.equal(out.labelled[0].result, 'saved');
+        assert.equal(out.labelled[0].verdict, null);
     });
 
     test('an edited event records what it should have been', () => {
@@ -1169,6 +1187,243 @@ describe('reviewLabels', () => {
     test('it survives a JSON round trip, which is the only thing it is for', () => {
         const out = labels({ a: { status: 'confirmed' } }, [], { matchId: 'm1' });
         assert.deepEqual(JSON.parse(JSON.stringify(out)), out);
+    });
+});
+
+// ------------------------------------------ marking the model's predictions
+//
+// The arithmetic that decides whether an xG number survives contact with a real
+// pitch. Two things are worth guarding here and they pull in opposite
+// directions: the tally must count the right shots, and the verdict must refuse
+// to say anything the sample cannot support. The second is the one a future
+// change will quietly break, because "12 shots, predicted 1.2, scored 3" looks
+// like a finding right up until you work out the band.
+
+describe('shotLedger', () => {
+    const events = [
+        { id: 's2', type: 'shot', timestampS: 200, xg: 0.4, team: 'team_a', outcome: 'goal' },
+        { id: 'p1', type: 'pass', timestampS: 150 },
+        { id: 's1', type: 'shot', timestampS: 100, xg: 0.1, team: 'team_b' },
+    ];
+    const ledger = (byEvent = {}) => report.shotLedger(events, { byEvent });
+
+    test('only shots, in the order they were taken', () => {
+        assert.deepEqual(ledger().map((r) => r.id), ['s1', 's2']);
+    });
+
+    test('an unmarked shot still counts — it just has no result yet', () => {
+        const [first] = ledger();
+        assert.equal(first.result, null);
+        assert.equal(first.counted, true);
+    });
+
+    test('the pipeline\'s own reading travels, but never as an answer', () => {
+        // Shown beside the buttons so a coach can sanity-check it. If this ever
+        // became the default `result`, the check would be grading the xG model
+        // against a ball detector, which is two guesses agreeing.
+        const row = ledger().find((r) => r.id === 's2');
+        assert.equal(row.guessed, 'goal');
+        assert.equal(row.result, null);
+    });
+
+    test('a rejected shot stays in the list and stops counting', () => {
+        const [, second] = ledger({ s2: { status: 'rejected', result: 'goal' } });
+        assert.equal(second.counted, false);
+        // Kept, so undoing a mis-tap does not mean marking it again.
+        assert.equal(second.result, 'goal');
+    });
+
+    test('a shot edited into something else stops being a shot', () => {
+        const [, second] = ledger({ s2: { status: 'edited', type: 'pass' } });
+        assert.equal(second.counted, false);
+    });
+
+    test('an edit that only reassigns the player leaves it a shot', () => {
+        const [, second] = ledger({ s2: { status: 'edited', type: 'shot', playerId: 'p' } });
+        assert.equal(second.counted, true);
+    });
+
+    test('a result nobody offered is not a result', () => {
+        // The buttons are the vocabulary. Anything else reached the document
+        // some other way and must not reach the tally.
+        const [, second] = ledger({ s2: { result: 'nutmeg' } });
+        assert.equal(second.result, null);
+    });
+});
+
+describe('xgTally', () => {
+    const row = (xg, result, counted = true) => ({ xg, result, counted });
+
+    test('nothing marked is null, not a row of zeroes', () => {
+        assert.equal(report.xgTally([row(0.3, null)]), null);
+        assert.equal(report.xgTally([]), null);
+    });
+
+    test('predicted, scored and variance over the marked shots', () => {
+        const tally = report.xgTally([row(0.5, 'goal'), row(0.2, 'saved')]);
+        assert.deepEqual(tally, {
+            shots: 2, predicted: 0.7, scored: 1, variance: 0.41,
+        });
+    });
+
+    test('only a goal is a goal', () => {
+        const tally = report.xgTally(
+            ['saved', 'blocked', 'off_target', 'woodwork'].map((r) => row(0.2, r)),
+        );
+        assert.equal(tally.scored, 0);
+        assert.equal(tally.shots, 4);
+    });
+
+    test('a shot with no xG is skipped on both sides at once', () => {
+        // Counting its goal without its prediction would credit the team with a
+        // goal the model was never asked about — the one mistake here that
+        // makes the answer wrong in a direction nobody would question.
+        const tally = report.xgTally([row(null, 'goal'), row(0.5, 'goal')]);
+        assert.equal(tally.shots, 1);
+        assert.equal(tally.scored, 1);
+        assert.equal(tally.predicted, 0.5);
+    });
+
+    test('a shot that is not counted contributes nothing', () => {
+        assert.equal(report.xgTally([row(0.5, 'goal', false)]), null);
+    });
+});
+
+describe('sumXgTallies', () => {
+    test('variances add, which is the whole reason they are stored', () => {
+        // Storing a standard deviation instead would make the season figure
+        // wrong in the reassuring direction: sqrt(a)+sqrt(b) > sqrt(a+b), so
+        // the band would come out too wide and every real miscalibration would
+        // read as "cannot tell".
+        const out = report.sumXgTallies([
+            { shots: 2, predicted: 0.7, scored: 1, variance: 0.41 },
+            { shots: 3, predicted: 0.6, scored: 0, variance: 0.48 },
+        ]);
+        assert.deepEqual(out, { shots: 5, predicted: 1.3, scored: 1, variance: 0.89 });
+    });
+
+    test('a season nobody has marked is null', () => {
+        assert.equal(report.sumXgTallies([null, undefined, { shots: 0 }]), null);
+    });
+});
+
+describe('xgCalibration', () => {
+    // Twelve identical half-chances: predicted 6, sd 1.73, band 3.46.
+    const evens = (shots, scored) => ({
+        shots, scored, predicted: shots * 0.5, variance: shots * 0.25,
+    });
+
+    test('nothing marked says nothing, in nulls rather than zeroes', () => {
+        const cal = report.xgCalibration(null);
+        assert.equal(cal.shots, 0);
+        assert.equal(cal.predicted, null);
+        assert.equal(cal.verdict, null);
+    });
+
+    test('the band is two standard deviations of the goals themselves', () => {
+        const cal = report.xgCalibration(evens(12, 6));
+        assert.equal(Math.round(cal.sd * 1000), 1732);
+        assert.equal(Math.round(cal.band * 100), 346);
+    });
+
+    test('a small sample that found no gap is inconclusive, not agreement', () => {
+        // Six shots cannot tell a good model from one half out, so "the model
+        // agrees" would be the most flattering possible reading of no data.
+        const cal = report.xgCalibration(evens(6, 3));
+        assert.equal(cal.verdict, 'inconclusive');
+    });
+
+    test('a big enough sample that found no gap does mean agreement', () => {
+        // 150 shots at a typical 0.1 each: predicted 15, band 7.3 against a 7.5
+        // threshold. That is roughly a season of both teams' shots, and it is
+        // the honest answer to "how long before this says anything" — the
+        // resolving power grows with the square root, so there is no shortcut.
+        const cal = report.xgCalibration({
+            shots: 150, scored: 15, predicted: 15, variance: 13.5,
+        });
+        assert.equal(cal.verdict, 'consistent');
+    });
+
+    test('the threshold is a share of the prediction, not a number of goals', () => {
+        // The easy inversion. A goal-denominated threshold would call these six
+        // shots conclusive — their band is a narrow 1.2 goals — and a whole
+        // season inconclusive, because the band grows with √n while the
+        // prediction grows with n.
+        const tiny = report.xgCalibration({
+            shots: 6, scored: 1, predicted: 0.6, variance: 0.54,
+        });
+        assert.ok(tiny.band < 1.5, 'a small sample has a narrow absolute band');
+        assert.equal(tiny.verdict, 'inconclusive');
+    });
+
+    test('more goals than predicted, past the band, means the model is low', () => {
+        const cal = report.xgCalibration(evens(12, 11));
+        assert.equal(cal.verdict, 'model_low');
+        assert.equal(cal.gap, 5);
+    });
+
+    test('two long shots and one lucky finish accuses nobody', () => {
+        // The band is a normal approximation to a sum of coin flips, and on a
+        // tenth of an expected goal it is meaningless — the real distribution is
+        // almost all mass at zero. Left ungated this reads "the model is rating
+        // these too low", off one shot going in, which is the exact over-reading
+        // every other line here exists to prevent.
+        const cal = report.xgCalibration({
+            shots: 2, scored: 1, predicted: 0.111, variance: 0.101,
+        });
+        assert.ok(cal.gap > cal.band, 'the raw band would have called this');
+        assert.equal(cal.verdict, 'inconclusive');
+    });
+
+    test('fewer goals than predicted, past the band, means the model is high', () => {
+        assert.equal(report.xgCalibration(evens(12, 1)).verdict, 'model_high');
+    });
+
+    test('a gap wider than a wide band is still a finding', () => {
+        // The order of the checks matters. A sample too small to resolve a 50%
+        // error can still resolve a 100% one, and calling that "inconclusive"
+        // would throw away the only unambiguous evidence this tool produces.
+        const cal = report.xgCalibration(evens(8, 8));
+        assert.ok(cal.band >= cal.predicted * 0.5, 'too small to resolve a half');
+        assert.equal(cal.verdict, 'model_low');
+    });
+});
+
+describe('calibrationNote', () => {
+    const note = (tally, options) =>
+        report.calibrationNote(report.xgCalibration(tally), options);
+
+    test('nothing marked has nothing to say', () => {
+        assert.equal(note(null), null);
+    });
+
+    test('the band is in the same breath as the difference', () => {
+        // Not a footnote. "Predicted 6, scored 3" is the reading a coach takes
+        // from two numbers side by side, and on twelve shots it means nothing.
+        const text = note({ shots: 12, scored: 3, predicted: 6, variance: 3 });
+        assert.match(text, /12 shots/);
+        assert.match(text, /6\.00 xG/);
+        assert.match(text, /±3\.5 goals/);
+    });
+
+    test('an inconclusive sample is told to keep going, not told it agrees', () => {
+        const text = note({ shots: 6, scored: 3, predicted: 3, variance: 1.5 });
+        assert.match(text, /Keep marking/);
+        assert.doesNotMatch(text, /agree/);
+    });
+
+    test('a real gap says which way the model is wrong', () => {
+        const text = note({ shots: 12, scored: 11, predicted: 6, variance: 3 });
+        assert.match(text, /rating these chances too low/);
+    });
+
+    test('the season line says it is a season', () => {
+        const text = note(
+            { shots: 150, scored: 15, predicted: 15, variance: 13.5 },
+            { over: 'marked across the season' },
+        );
+        assert.match(text, /marked across the season/);
+        assert.match(text, /the model and this pitch agree/);
     });
 });
 

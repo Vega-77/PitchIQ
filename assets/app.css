@@ -1376,6 +1376,104 @@ td.num.cv-partial {
     color: var(--text-faint);
 }
 
+/* The shot log: one row per detected shot, five answers on each. Same grid
+   discipline as .review-row — named areas and min-width:0 on the text cell, so
+   a long opponent name shortens instead of forcing the row wider than the phone
+   it is being marked on. */
+.shot-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "seek results";
+    align-items: center;
+    gap: 10px;
+}
+.shot-row .shot-seek {
+    grid-area: seek;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.88rem;
+}
+.shot-row .shot-results {
+    grid-area: results;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.shot-clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--text-faint);
+    min-width: 52px;
+}
+.shot-side { font-weight: 600; }
+.shot-xg { font-variant-numeric: tabular-nums; color: var(--text-faint); }
+.shot-guess { font-size: 0.8rem; min-width: 0; overflow-wrap: anywhere; }
+
+/* Rejected below, so it counts for nothing here. Struck through rather than
+   removed: the tally moved and this is the only thing that says why. */
+.shot-row.is-out { opacity: 0.55; }
+.shot-row.is-out .shot-side, .shot-row.is-out .shot-xg {
+    text-decoration: line-through;
+}
+
+/* The one place a prediction meets what happened. Tinted by verdict, but the
+   two "no difference found" states are deliberately NOT both green: one of them
+   means the model agrees, and the other means the sample is too small to have
+   noticed if it did not. */
+.xg-check {
+    margin-bottom: 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--line-hi);
+    border-radius: 10px;
+    background: var(--surface-hi);
+}
+.xg-check.is-consistent { border-left-color: var(--good); }
+.xg-check.is-inconclusive { border-left-color: var(--line-hi); }
+.xg-check.is-model_low, .xg-check.is-model_high { border-left-color: var(--warn); }
+
+.xg-check-figures {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 28px;
+    margin-bottom: 10px;
+}
+.xg-check-figures > div { display: flex; align-items: baseline; gap: 7px; }
+.xg-check-figures b {
+    font-size: 1.25rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+}
+.xg-check-figures span { font-size: 0.8rem; color: var(--text-faint); }
+/* The band is context for the other two, not a third measurement. */
+.xg-check-figures > div:last-child b {
+    font-size: 1rem;
+    color: var(--text-faint);
+}
+.xg-check-note { margin: 0; font-size: 0.85rem; color: var(--text-dim); }
+
+@media (max-width: 640px) {
+    /* The answers get their own row rather than five buttons squeezed beside a
+       clock — the mistake the review rows made at 375px. */
+    .shot-row {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            "seek"
+            "results";
+        row-gap: 8px;
+    }
+    .shot-row .shot-seek .shot-guess { flex-basis: 100%; }
+}
+
 @media (max-width: 640px) {
     /* "Checked" is the column to lose first — it is a raw count, and the two
        rates are what the table is for. */

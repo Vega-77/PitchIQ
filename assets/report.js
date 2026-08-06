@@ -953,7 +953,11 @@ export function reviewScore(events, review) {
         const claimed = event.type;
         const decision = byEvent[event.id];
 
-        if (!decision) {
+        // A verdict, specifically. The same map also holds what a coach said a
+        // shot *did*, and an entry carrying only that has said nothing about
+        // whether the pipeline was right to call it a shot — counting it as a
+        // confirmation would let the xG log quietly inflate this scorecard.
+        if (!decision?.status) {
             at(claimed).unreviewed += 1;
             continue;
         }
@@ -1038,23 +1042,33 @@ export function reviewLabels(events, review, meta = {}) {
         ...meta,
         // Stated rather than implied. A consumer that treats the unreviewed
         // events as negatives would be training on the pipeline's own guesses.
-        note: 'Only events with a verdict are labelled. Anything absent from '
+        note: 'Only events a human touched are labelled. Anything absent from '
             + '`labelled` was never looked at, and is not a negative example. '
             + 'labelled[].videoS is a position in the video; missed[].clockS is '
             + 'a match-clock reading a person typed. videoS = clockS + '
-            + 'videoOffsetS.',
+            + 'videoOffsetS. labelled[].result is what a coach said a shot did, '
+            + 'and labelled[].xg is what the model predicted before anyone '
+            + 'looked — the pair is the only ground truth this system produces.',
         labelled: (events || [])
-            .filter((event) => byEvent[event.id])
+            // Either half counts as a label. A shot marked "saved" with no
+            // verdict beside it is still a human statement about that moment,
+            // and it is the only statement in here a finishing model could
+            // ever be trained on.
+            .filter((event) => byEvent[event.id]?.status || byEvent[event.id]?.result)
             .map((event) => {
                 const decision = byEvent[event.id];
                 return {
                     id: event.id,
                     videoS: event.timestampS,
                     claimedType: event.type,
-                    verdict: decision.status,
+                    verdict: decision.status ?? null,
                     actualType: decision.status === REJECTED_STATUS
                         ? null
                         : (decision.type || event.type),
+                    // What the shot did, when somebody said. Null on everything
+                    // that is not a shot, and on shots nobody has marked.
+                    result: decision.result ?? null,
+                    xg: event.xg ?? null,
                     playerId: decision.playerId ?? null,
                     trackId: event.trackId ?? null,
                     confidence: event.confidence ?? null,
@@ -1074,6 +1088,251 @@ export function reviewLabels(events, review, meta = {}) {
             missed: (review?.missed || []).length,
         },
     };
+}
+
+// -------------------------------------------- marking the model's predictions
+//
+// The xG model was fitted on a hundred thousand-odd StatsBomb shots taken by
+// professionals. Nothing in it has ever seen a high school pitch, and until
+// somebody records what a shot actually did there is no evidence either way:
+// every number on the shot map is a prediction nobody has ever marked.
+//
+// Two rules make the marking worth doing.
+//
+// **The verdict has to come from a person.** `Shot.outcome` is already in the
+// report, inferred from a ball the pipeline sees in roughly 60% of frames, and
+// grading one model against another model's guess measures the agreement of two
+// guesses. So the pipeline's own reading is shown beside the buttons and never
+// preselects one — a prefilled answer clicked past is an unmarked shot with a
+// signature on it.
+//
+// **Goals are rare and a match is small.** Ten shots worth 1.2 xG between them
+// will produce anywhere from none to four goals with nothing wrong anywhere, so
+// a bare "predicted 1.2, scored 3" reads as a broken model and is not evidence
+// of one. Everything below therefore carries the size of the gap this many
+// shots could actually have detected, and refuses to call anything smaller.
+//
+// The tally is deliberately four numbers rather than a verdict. A verdict is
+// only worth reading over a season, and a season is these four summed.
+
+export const SHOT_RESULTS = [
+    { value: 'goal', label: 'Goal' },
+    { value: 'saved', label: 'Saved' },
+    { value: 'blocked', label: 'Blocked' },
+    { value: 'off_target', label: 'Off target' },
+    { value: 'woodwork', label: 'Woodwork' },
+];
+
+const SHOT_RESULT_VALUES = new Set(SHOT_RESULTS.map((r) => r.value));
+
+// The smallest miscalibration worth being able to see, as a share of the goals
+// predicted.
+//
+// A share, not a number of goals, and this is the easy thing to get backwards.
+// The band grows with the square root of the shot count and the prediction grows
+// with the count itself, so a threshold measured in goals would call three shots
+// conclusive and a season inconclusive — precisely inverted. At half, the
+// question is "could this sample tell a good model from one that is 50% out",
+// which on typical chances takes about 150 shots: a season of both teams' shots,
+// and honest about being one.
+const RESOLVABLE_SHARE = 0.5;
+
+// How many goals a sample has to expect before the band is allowed to accuse
+// the model of anything.
+//
+// The band is a normal approximation to a sum of coin flips, and that
+// approximation is poor when the expected count is tiny — the real distribution
+// is sharply skewed, so two standard deviations is nowhere near the 95% it
+// implies. Without this gate, two half-chances and one lucky finish come out as
+// "the model is rating these too low", which is precisely the over-reading every
+// other line here exists to prevent. The usual np ≥ 5 rule of thumb, relaxed a
+// little and applied from both ends.
+const MIN_EXPECTED = 4;
+
+const SHOT_TYPE = 'shot';
+
+const round4 = (value) => Math.round(value * 1e4) / 1e4;
+
+/**
+ * Every detected shot, with whatever a coach has said happened to it.
+ *
+ * Built from `cvStats/events` rather than the shot map, because the map carries
+ * positions and no ids — and an id is what lets a verdict outlive the page.
+ *
+ * Rejected and retyped shots stay in the list, marked rather than removed. A row
+ * that disappears the moment you reject it looks like a bug, and the struck-out
+ * row is the only thing that explains why the tally below just moved.
+ */
+export function shotLedger(events, review) {
+    const byEvent = review?.byEvent || {};
+    const rows = [];
+
+    for (const event of events || []) {
+        if (event.type !== SHOT_TYPE) continue;
+        const decision = byEvent[event.id] || {};
+
+        // Two ways a shot stops being one, and they have to be handled
+        // together: rejected outright, or edited into some other kind of event.
+        // Either way the moment is no longer a shot, and a chance the model was
+        // never asked about cannot be evidence about the model.
+        const retyped = decision.status === EDITED_STATUS
+            && decision.type && decision.type !== SHOT_TYPE;
+
+        rows.push({
+            id: event.id,
+            timestampS: event.timestampS ?? null,
+            team: event.team ?? null,
+            trackId: event.trackId ?? null,
+            xg: event.xg ?? null,
+            // What the pipeline made of it. Shown, never used as an answer.
+            guessed: event.outcome ?? null,
+            result: SHOT_RESULT_VALUES.has(decision.result) ? decision.result : null,
+            counted: decision.status !== REJECTED_STATUS && !retyped,
+        });
+    }
+
+    rows.sort((a, b) => (a.timestampS ?? 0) - (b.timestampS ?? 0));
+    return rows;
+}
+
+/**
+ * The four numbers a match contributes to the check, or null if it contributes
+ * none.
+ *
+ * `variance` travels rather than a standard deviation because variances add and
+ * standard deviations do not — a season is the sum of these, and storing the
+ * root would make the season figure quietly wrong in the safe-looking direction.
+ *
+ * A shot with no xG is skipped on both sides at once. Counting its goal without
+ * its prediction would credit the team with a goal the model was never asked to
+ * predict, which is the one arithmetic mistake here that flatters nobody and
+ * still ruins the answer.
+ */
+export function xgTally(rows) {
+    let shots = 0;
+    let predicted = 0;
+    let scored = 0;
+    let variance = 0;
+
+    for (const row of rows || []) {
+        if (!row?.counted || row.result == null || row.xg == null) continue;
+        shots += 1;
+        predicted += row.xg;
+        // Bernoulli: a shot worth 0.5 is the most uncertain one there is, and a
+        // tap-in worth 0.95 barely widens the band at all.
+        variance += row.xg * (1 - row.xg);
+        if (row.result === 'goal') scored += 1;
+    }
+
+    if (!shots) return null;
+    return {
+        shots,
+        predicted: round4(predicted),
+        scored,
+        variance: round4(variance),
+    };
+}
+
+/** Several matches' tallies as one. Null when none of them had anything. */
+export function sumXgTallies(tallies) {
+    const total = { shots: 0, predicted: 0, scored: 0, variance: 0 };
+    let any = false;
+
+    for (const tally of tallies || []) {
+        if (!tally?.shots) continue;
+        any = true;
+        total.shots += tally.shots;
+        total.predicted += tally.predicted || 0;
+        total.scored += tally.scored || 0;
+        total.variance += tally.variance || 0;
+    }
+
+    if (!any) return null;
+    total.predicted = round4(total.predicted);
+    total.variance = round4(total.variance);
+    return total;
+}
+
+/**
+ * What a tally says about the model, and how much it is entitled to say.
+ *
+ * Under the model each shot is its own coin weighted by its xG, so the goals a
+ * set of shots should produce has mean `Σ xg` and variance `Σ xg(1−xg)`. Two
+ * standard deviations is the gap this sample could have detected; anything
+ * inside it is what chance does to a small number of shots, not a finding.
+ *
+ * `verdict`:
+ *  - `model_low`  — more went in than predicted, past what chance covers
+ *  - `model_high` — fewer did
+ *  - `consistent` — no gap, on a sample that could have found a sizeable one
+ *  - `inconclusive` — no gap, on a sample that could not have found one anyway
+ *
+ * The last two are the pair that matters. Collapsing them into "agrees" is how a
+ * model gets declared fit for a season on the strength of nine shots.
+ */
+export function xgCalibration(tally) {
+    if (!tally?.shots) {
+        return {
+            shots: 0, predicted: null, scored: null,
+            sd: null, band: null, gap: null, verdict: null,
+        };
+    }
+
+    const { shots, predicted, scored, variance } = tally;
+    const sd = Math.sqrt(variance);
+    const band = 2 * sd;
+    const gap = scored - predicted;
+
+    // A gap wider than the band is a real difference however wide the band is —
+    // a sample too small to find a 50% error can still find a 300% one, and
+    // that is the only unambiguous evidence this tool ever produces. But only
+    // once the approximation behind the band holds at all: below `MIN_EXPECTED`
+    // the accusation is an artefact of the maths, not a finding about football.
+    const trustworthyBand = predicted >= MIN_EXPECTED
+        && shots - predicted >= MIN_EXPECTED;
+
+    let verdict;
+    if (trustworthyBand && gap > band) verdict = 'model_low';
+    else if (trustworthyBand && -gap > band) verdict = 'model_high';
+    else if (!trustworthyBand || band >= predicted * RESOLVABLE_SHARE) {
+        verdict = 'inconclusive';
+    } else verdict = 'consistent';
+
+    return { shots, predicted, scored, sd, band, gap, verdict };
+}
+
+/**
+ * The calibration as a sentence, because the numbers alone mislead.
+ *
+ * "Predicted 1.2, scored 3" is the reading a coach will take from a table, and
+ * on twelve shots it means nothing whatsoever. The band has to be in the same
+ * breath as the difference or it will not be read at all.
+ */
+export function calibrationNote(cal, options = {}) {
+    if (!cal?.shots) return null;
+    const { over = 'you have marked' } = options;
+
+    const shots = `${cal.shots} shot${cal.shots === 1 ? '' : 's'}`;
+    const head = `The ${shots} ${over} were worth ${cal.predicted.toFixed(2)} xG`
+        + ` between them, and ${cal.scored} went in.`;
+    const band = cal.band.toFixed(1);
+    const gap = Math.abs(cal.gap).toFixed(1);
+
+    if (cal.verdict === 'inconclusive') {
+        return `${head} That is inside the ±${band} goals chance alone moves a`
+            + ` sample this size — ${shots} could not tell a good model from one`
+            + ' that is half out either way. Keep marking.';
+    }
+    if (cal.verdict === 'consistent') {
+        return `${head} That is inside the ±${band} goals chance alone moves a`
+            + ' sample this size, and there are now enough shots that a model half'
+            + ' out would have shown. So far the model and this pitch agree.';
+    }
+    const direction = cal.verdict === 'model_low'
+        ? 'more than it expected, so it is rating these chances too low'
+        : 'fewer than it expected, so it is rating these chances too high';
+    return `${head} That is ${gap} goals ${direction} — further than the ±${band}`
+        + ' goals chance accounts for on this many shots.';
 }
 
 // ------------------------------------------------- reading the half out loud

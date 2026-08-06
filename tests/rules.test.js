@@ -508,6 +508,63 @@ describe('match video link', () => {
 });
 
 // ---------------------------------------------------------------------------
+// xgCheck — how the model's predictions did against what happened
+//
+// Four numbers on the match document, summed across the season without being
+// re-checked. So every bound here is an invariant of the arithmetic rather than
+// a guessed cap: a document that breaks one silently corrupts the season figure,
+// and nothing downstream would notice.
+// ---------------------------------------------------------------------------
+
+describe('the xG check tally', () => {
+  const match = (who = COACH) => doc(as(who), 'teams', TEAM, 'matches', MATCH);
+  const good = { shots: 12, predicted: 1.44, scored: 2, variance: 1.08 };
+
+  it('a coach can record it', async () => {
+    await assertSucceeds(updateDoc(match(), { xgCheck: good }));
+  });
+
+  it('clearing it is allowed — nobody has marked a shot yet', async () => {
+    // Null is the real answer for almost every match, and has to stay writable
+    // so unmarking the last shot can take the match back out of the season sum.
+    await assertSucceeds(updateDoc(match(), { xgCheck: null }));
+  });
+
+  it('a player cannot record it', async () => {
+    await assertFails(updateDoc(match(PLAYER), { xgCheck: good }));
+  });
+
+  it('rejects more goals than shots', async () => {
+    await assertFails(updateDoc(match(), { xgCheck: { ...good, scored: 13 } }));
+  });
+
+  it('rejects a prediction bigger than the shot count', async () => {
+    // `predicted` is a sum of probabilities, so it cannot exceed one per shot.
+    await assertFails(updateDoc(match(), { xgCheck: { ...good, predicted: 13 } }));
+  });
+
+  it('rejects a negative variance', async () => {
+    // The band is its square root, and a negative one would come out NaN and
+    // render as a verdict rather than as an error.
+    await assertFails(updateDoc(match(), { xgCheck: { ...good, variance: -1 } }));
+  });
+
+  it('rejects a tally with no shots in it', async () => {
+    // Absent is not zero. A match nobody marked writes null, not a row of
+    // zeroes that would drag the season's shot count without adding evidence.
+    await assertFails(updateDoc(match(), { xgCheck: { ...good, shots: 0 } }));
+  });
+
+  it('rejects extra keys', async () => {
+    await assertFails(updateDoc(match(), { xgCheck: { ...good, verdict: 'good' } }));
+  });
+
+  it('rejects a string where a number belongs', async () => {
+    await assertFails(updateDoc(match(), { xgCheck: { ...good, predicted: '1.44' } }));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // cvStats — what the video pipeline derived
 // ---------------------------------------------------------------------------
 

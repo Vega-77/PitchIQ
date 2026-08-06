@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=29';
+} from '../assets/auth.js?v=30';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,27 +8,28 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=29';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=29';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=29';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=29';
+} from '../assets/db.js?v=30';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=30';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=30';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=30';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
-} from '../assets/sample-report.js?v=29';
+} from '../assets/sample-report.js?v=30';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
     groupStats, teamStatRows, trackedCoverage, metresPerMinute,
-    TRACKED_SHARE_FLOOR,
-} from '../assets/report.js?v=29';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=29';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=29';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=29';
+    TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, xgTally, sumXgTallies,
+    xgCalibration, calibrationNote,
+} from '../assets/report.js?v=30';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=30';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=30';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=30';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark,
-} from '../assets/ui.js?v=29';
+} from '../assets/ui.js?v=30';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -548,6 +549,8 @@ function renderMatches() {
     const list = byId('match-list');
     list.innerHTML = '';
 
+    renderSeasonXgCheck();
+
     if (!state.matches.length) {
         list.innerHTML =
             '<div class="empty">No matches yet.<br>'
@@ -674,6 +677,7 @@ async function openMatch(matchId) {
         renderTimeline(log, roster);
         renderClusterMapping();
         renderShots();
+        renderShotLog();
         renderExcluded();
         renderReview();
         renderSampleToggle();
@@ -810,6 +814,216 @@ function renderShots() {
             : 'Every shot is drawn the same size — the calibration is too loose to '
                 + 'rank them against each other. ')
         + 'Click one to jump the video there.');
+}
+
+// ---------------------------------------------- marking the model's homework
+//
+// Every xG on the map above is a prediction, and nothing in this app has ever
+// checked one. The model was fitted on professional shots; a high school pitch
+// is a different game played by different bodies, and whether the number
+// transfers is an empirical question nobody has asked.
+//
+// So a coach says what each detected shot did, and the arithmetic in
+// assets/report.js compares that to what the model said. The two design rules
+// live there; what matters here is the second one, because it decides the
+// layout: on a dozen shots the answer is always "cannot tell", and a card that
+// only ever says that would be switched off. Hence the season line on the
+// matches tab. The per-match card exists to be filled in, not to be believed.
+
+/**
+ * Every shot the pipeline found, with what a coach says became of it.
+ *
+ * Built from the event list rather than the shot map. The map has positions and
+ * no ids, and an id is what lets a verdict outlive the page — but it also means
+ * a shot dropped from a truncated event list is missing here, which is said out
+ * loud rather than left to be discovered.
+ *
+ * Real runs only. The sample carries no events, so this stays hidden under the
+ * preview on its own — the same boundary the picker and the review tool keep,
+ * and for the same reason: a verdict tapped against an invented id would write a
+ * decision about nothing into a real document.
+ */
+function renderShotLog() {
+    const block = byId('cv-shotlog-block');
+    const rows = shotLedger(
+        state.match?.cvEvents?.events || [], state.match?.cvReview,
+    );
+
+    block.classList.toggle('hidden', !rows.length);
+    if (!rows.length) return;
+
+    // Counted over the shots that still are ones, so this reads the same as the
+    // card below it. Two counts with different denominators sitting a line apart
+    // is one claim as far as anyone reading them is concerned.
+    const live = rows.filter((r) => r.counted);
+    const marked = live.filter((r) => r.result != null).length;
+    const dropped = rows.length - live.length;
+    const truncated = state.match?.cvEvents?.truncated;
+    setText('cv-shotlog-note',
+        `${marked} of ${plural(live.length, 'shot')} marked. `
+        + 'What the video made of each one is printed beside it and is not an '
+        + 'answer to this — it is read off a ball the pipeline only sees in '
+        + 'some frames, and grading the model against another guess measures '
+        + 'nothing.'
+        + (dropped
+            ? ` ${plural(dropped, 'candidate')} struck out below: you rejected `
+              + 'them as something other than a shot, so they count for nothing '
+              + 'here.'
+            : '')
+        + (truncated
+            ? ' The event list was trimmed to the most confident candidates, so '
+              + 'some shots may not be here.'
+            : ''));
+
+    const host = byId('cv-shotlog');
+    host.innerHTML = '';
+    for (const row of rows) host.append(shotLogRow(row));
+
+    renderXgCheck();
+}
+
+function shotLogRow(row) {
+    const clockS = toMatchClock(row.timestampS);
+    const trust = xgTrust(state.match?.cv?.calibrationErrorM);
+
+    const item = document.createElement('div');
+    item.className = 'list-item shot-row';
+    // Struck through rather than removed. A row that vanishes the moment you
+    // reject it in the block below looks like a bug, and this is the only thing
+    // on screen that explains why the tally just moved.
+    item.classList.toggle('is-out', !row.counted);
+    item.innerHTML = `
+        <button type="button" class="shot-seek">
+            <span class="shot-clock"></span>
+            <span class="shot-side"></span>
+            <span class="shot-xg"></span>
+            <span class="shot-guess muted"></span>
+        </button>
+        <div class="shot-results"></div>`;
+
+    item.querySelector('.shot-clock').textContent = clockText(clockS);
+    item.querySelector('.shot-side').textContent = row.team === 'team_b'
+        ? (state.match?.opponentName || 'Them')
+        : (state.team?.name || 'Us');
+    // Withheld on exactly the bands the shot map withholds a radius. A per-shot
+    // number this page has stopped drawing but still prints beside the buttons
+    // would be the same claim made quietly.
+    item.querySelector('.shot-xg').textContent =
+        (trust === 'shot' && row.xg != null) ? `${row.xg.toFixed(2)} xG` : '';
+    item.querySelector('.shot-guess').textContent = row.counted
+        ? (row.guessed ? `video read it as ${row.guessed.replace(/_/g, ' ')}` : '')
+        : 'not a shot, per the review below';
+
+    item.querySelector('.shot-seek')
+        .addEventListener('click', () => seekMatchVideo(clockS));
+
+    const results = item.querySelector('.shot-results');
+    for (const { value, label } of SHOT_RESULTS) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn tiny';
+        button.textContent = label;
+        button.classList.toggle('on', row.result === value);
+        button.addEventListener('click', () => markShot(row.id, value));
+        results.append(button);
+    }
+
+    return item;
+}
+
+/**
+ * Record — or clear — what a shot did.
+ *
+ * Merged into whatever verdict the review tool already holds for this event
+ * rather than replacing it. The two are different questions: "was that a shot"
+ * and "what did it do", and answering one must not silently unanswer the other.
+ */
+function markShot(eventId, result) {
+    const byEvent = { ...state.match.cvReview.byEvent };
+    const before = byEvent[eventId] || {};
+    // Tapping the same answer again clears it, matching the review buttons —
+    // a mis-tap is one tap to fix rather than a mark that cannot be taken back.
+    const next = before.result === result
+        ? { ...before, result: null }
+        : { ...before, result };
+
+    if (next.result == null && !next.status) delete byEvent[eventId];
+    else byEvent[eventId] = next;
+
+    state.match.cvReview = { ...state.match.cvReview, byEvent };
+    queueReviewSave();
+    renderShotLog();
+}
+
+/**
+ * The tally this match contributes to the check, or null if it contributes
+ * nothing.
+ *
+ * Null at `xgTrust` 'none' even when shots have been marked, and that is the
+ * point of putting the gate here rather than in the renderer: this is also what
+ * gets stored on the match document and summed across the season, and a run
+ * whose positions are too loose for the app to print a total is too loose to
+ * quietly become a season's evidence. The marks themselves are still kept —
+ * they are worth having, and worth re-checking against a better calibration.
+ */
+function matchXgTally() {
+    if (xgTrust(state.match?.cv?.calibrationErrorM) === 'none') return null;
+    return xgTally(shotLedger(
+        state.match?.cvEvents?.events || [], state.match?.cvReview,
+    ));
+}
+
+function renderXgCheck() {
+    const host = byId('cv-xg-check');
+    const cal = xgCalibration(matchXgTally());
+
+    host.innerHTML = '';
+    host.classList.toggle('hidden', !cal.shots);
+    if (!cal.shots) return;
+
+    host.className = `xg-check is-${cal.verdict}`;
+
+    const figures = document.createElement('div');
+    figures.className = 'xg-check-figures';
+    const pairs = [
+        [cal.predicted.toFixed(2), 'the model expected'],
+        [String(cal.scored), cal.scored === 1 ? 'goal went in' : 'goals went in'],
+        [`±${cal.band.toFixed(1)}`, 'chance alone, on this many shots'],
+    ];
+    for (const [value, label] of pairs) {
+        const cell = document.createElement('div');
+        cell.innerHTML = '<b></b><span></span>';
+        cell.querySelector('b').textContent = value;
+        cell.querySelector('span').textContent = label;
+        figures.append(cell);
+    }
+    host.append(figures);
+
+    const note = document.createElement('p');
+    note.className = 'xg-check-note';
+    note.textContent = calibrationNote(cal);
+    host.append(note);
+}
+
+/**
+ * The same check across every match, from tallies already in hand.
+ *
+ * `listMatches` returns whole match documents, so this costs nothing beyond the
+ * read the list needed anyway. That is the whole reason the tally is stored
+ * there rather than recomputed: the alternative is reading every match's review
+ * document on every dashboard load, to answer a question that changes once a
+ * fortnight.
+ */
+function renderSeasonXgCheck() {
+    const host = byId('season-xg');
+    if (!host) return;
+
+    const cal = xgCalibration(sumXgTallies(state.matches.map((m) => m.xgCheck)));
+    host.classList.toggle('hidden', !cal.shots);
+    if (!cal.shots) return;
+
+    setText('season-xg-note',
+        calibrationNote(cal, { over: 'marked across the season' }));
 }
 
 /**
@@ -1880,12 +2094,20 @@ function toggleReviewEdit(row, event) {
 
 function decide(eventId, verdict) {
     const next = { ...state.match.cvReview.byEvent };
+    const before = next[eventId];
+    // What a shot did is a separate answer from whether it was a shot, and it
+    // survives every verdict here — including a rejection, which takes the shot
+    // out of the xG check without throwing away what the coach saw. Undoing a
+    // mis-tapped rejection therefore does not mean marking the shot again.
+    const kept = before?.result ? { result: before.result } : null;
+
     // Tapping the same verdict again clears it, so a mis-tap is one tap to fix
     // rather than a decision that cannot be taken back.
-    if (next[eventId]?.status === verdict.status && verdict.status !== EDITED) {
-        delete next[eventId];
+    if (before?.status === verdict.status && verdict.status !== EDITED) {
+        if (kept) next[eventId] = kept;
+        else delete next[eventId];
     } else {
-        next[eventId] = verdict;
+        next[eventId] = { ...kept, ...verdict };
     }
     state.match.cvReview = { ...state.match.cvReview, byEvent: next };
     queueReviewSave();
@@ -1907,6 +2129,9 @@ function updateReviewProgress() {
 
     setText('cv-review-progress', parts.join(' · '));
     renderScorecard();
+    // Rejecting a candidate up here takes it out of the xG check down there.
+    // Redrawn from the same state rather than patched, so the two cannot drift.
+    renderShotLog();
 }
 
 /**
@@ -2071,17 +2296,54 @@ function queueReviewSave() {
 }
 
 async function saveReviewNow() {
-    const badge = byId('cv-review-state');
+    // Two badges, one save. The review block and the shot log write the same
+    // document from opposite ends of the page, and whichever one the coach is
+    // looking at has to be the one that says it worked.
+    const badges = ['cv-review-state', 'cv-shotlog-state']
+        .map((id) => byId(id)).filter(Boolean);
+    const say = (text) => badges.forEach((b) => { b.textContent = text; });
+
     try {
-        if (badge) badge.textContent = 'Saving…';
+        say('Saving…');
         await saveCvReview(
             state.user, state.team.id, state.match.id, state.match.cvReview,
         );
-        if (badge) badge.textContent = 'Saved';
+        await saveXgCheck();
+        say('Saved');
     } catch (err) {
-        if (badge) badge.textContent = '';
+        say('');
         toast(err.message || 'Could not save that.', true);
     }
+}
+
+/**
+ * Roll this match's four-number tally onto its own document.
+ *
+ * Written here rather than at publish time because the season line has to move
+ * as the marking is done — a coach who marks six shots and sees nothing change
+ * anywhere has been given a button and no reason to press it again.
+ *
+ * Skipped whenever the tally is unchanged, which is most saves: the review
+ * document is written on every verdict, and only the shot buttons move this.
+ */
+async function saveXgCheck() {
+    const tally = matchXgTally();
+    const before = state.match.xgCheck ?? null;
+    const same = tally == null
+        ? before == null
+        : before != null
+            && before.shots === tally.shots
+            && before.scored === tally.scored
+            && before.predicted === tally.predicted
+            && before.variance === tally.variance;
+    if (same) return;
+
+    await updateMatch(state.team.id, state.match.id, { xgCheck: tally });
+    state.match.xgCheck = tally;
+    // The dashboard's copy of this match, so the season line is right the
+    // moment a coach goes back — without re-reading anything.
+    const listed = state.matches.find((m) => m.id === state.match.id);
+    if (listed) listed.xgCheck = tally;
 }
 
 /**

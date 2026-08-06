@@ -116,6 +116,34 @@ service cloud.firestore {
                 && request.resource.data.videoOffsetS <= 36000));
     }
 
+    // The xG check tally on a match document. Null is the real, common answer:
+    // it means nobody has marked a shot in this match, and every bound below is
+    // an actual invariant of the arithmetic rather than a guessed cap.
+    //
+    // `predicted` is a sum of probabilities so it cannot exceed the shot count;
+    // `variance` is a sum of p(1-p) so it cannot either; and a team cannot score
+    // more goals than it took shots. A document that breaks one of those would
+    // silently corrupt the season figure, which is summed without re-checking.
+    function xgCheck() {
+      return request.resource.data.xgCheck;
+    }
+    function validXgCheck() {
+      return request.resource.data.get('xgCheck', null) == null
+        || (xgCheck().keys().hasOnly(['shots', 'predicted', 'scored', 'variance'])
+            && xgCheck().shots is int
+            && xgCheck().shots > 0
+            && xgCheck().shots <= 200
+            && xgCheck().scored is int
+            && xgCheck().scored >= 0
+            && xgCheck().scored <= xgCheck().shots
+            && xgCheck().predicted is number
+            && xgCheck().predicted >= 0
+            && xgCheck().predicted <= xgCheck().shots
+            && xgCheck().variance is number
+            && xgCheck().variance >= 0
+            && xgCheck().variance <= xgCheck().shots);
+    }
+
     // ------------------------------------------------------------------
     // users — UI hints only. Forging this document achieves nothing.
     // ------------------------------------------------------------------
@@ -290,6 +318,20 @@ service cloud.firestore {
           && request.resource.data.status in
                ['scheduled', 'first_half', 'halftime', 'second_half', 'full_time']
           && validVideo();
+
+        // The xG check: four numbers summarising which of this match's shots a
+        // coach has marked, and what the model predicted for them. Stored here
+        // rather than in cvReview so the season figure costs no extra reads —
+        // the dashboard already loads every match document.
+        //
+        // A separate rule from the one above because that one lets a *tagger*
+        // write, and this is a coach's judgement about the model rather than a
+        // fact about the match. Same reasoning that keeps cvMapping out of
+        // cvStats: a correction must never be writable by whoever can write a
+        // measurement.
+        allow update: if isCoach(t)
+          && changed(['xgCheck'])
+          && validXgCheck();
 
         allow delete: if isCoach(t);
 

@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=29">
-    <link rel="stylesheet" href="coach.css?v=29">
+    <link rel="stylesheet" href="../assets/app.css?v=30">
+    <link rel="stylesheet" href="coach.css?v=30">
 </head>
 <body>
 
@@ -144,6 +144,16 @@
         </nav>
 
         <div id="tab-matches">
+            <!-- Every marked shot across the season, in one line. One match can
+                 never answer this — a dozen shots is far too few for goals to
+                 stop being noise — so the per-match card mostly says "keep
+                 marking" and this is where the answer eventually turns up. It
+                 costs no extra reads: the tally is a handful of numbers stored
+                 on each match document the list above already loaded. -->
+            <section class="card hidden" id="season-xg" style="margin-bottom:16px">
+                <h3 style="margin-bottom:6px">Is the xG model right about this pitch?</h3>
+                <p class="muted" id="season-xg-note" style="margin:0"></p>
+            </section>
             <div class="split">
                 <section>
                     <h3>Matches</h3>
@@ -386,6 +396,20 @@
             </div>
         </section>
 
+        <!-- The only place a prediction ever meets what happened. The xG model
+             was fitted on professional shots and has never seen a pitch like
+             this one, so until somebody marks a shot there is no evidence
+             either way. The pipeline's own reading of each outcome is shown
+             and never preselected — see assets/report.js, "marking the model's
+             predictions", for why a prefilled answer would measure nothing. -->
+        <section class="block hidden" id="cv-shotlog-block">
+            <h3>What actually happened
+                <span id="cv-shotlog-state" class="save-state"></span></h3>
+            <p class="muted" id="cv-shotlog-note" style="margin:-4px 0 14px"></p>
+            <div id="cv-xg-check" class="xg-check hidden"></div>
+            <div id="cv-shotlog" class="list shot-log"></div>
+        </section>
+
         <section class="block hidden" id="cv-clusters-block">
             <h3>Who the video tracked <span id="cv-save-state" class="save-state"></span></h3>
             <p class="muted" id="cv-clusters-note"></p>
@@ -511,7 +535,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=29"></script>
+<script type="module" src="coach.js?v=30"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>
