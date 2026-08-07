@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=34">
-    <link rel="stylesheet" href="coach.css?v=34">
+    <link rel="stylesheet" href="../assets/app.css?v=35">
+    <link rel="stylesheet" href="coach.css?v=35">
 </head>
 <body>
 
@@ -288,6 +288,20 @@
             <p class="muted" id="pv-chart-note" style="margin-top:10px"></p>
         </section>
 
+        <!-- Same block, same module, same arithmetic as the player's own page.
+             This is the one comparison a coach and a player have together, and
+             it goes badly if the two of them are looking at figures worked out
+             two different ways. -->
+        <section class="block hidden" id="pv-form-block">
+            <h3>Form across the season</h3>
+            <p class="muted" style="margin:-4px 0 16px">
+                Each dot is a match, oldest on the left. The line is the season,
+                and a bigger dot is a match the video followed them for longer.
+            </p>
+            <div id="pv-form-charts" class="form-row"></div>
+            <p class="muted" id="pv-form-note" style="margin-top:16px"></p>
+        </section>
+
         <section class="block">
             <h3>Match by match</h3>
             <div id="pv-matches" class="card-list"></div>
@@ -562,7 +576,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=34"></script>
+<script type="module" src="coach.js?v=35"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

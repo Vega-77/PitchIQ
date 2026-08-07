@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=34">
-    <link rel="stylesheet" href="player.css?v=34">
+    <link rel="stylesheet" href="../assets/app.css?v=35">
+    <link rel="stylesheet" href="player.css?v=35">
 </head>
 <body>
 
@@ -82,6 +82,15 @@
                     <div id="empty-sample-shots" class="shot-map is-sample-plot"></div>
                 </figure>
             </div>
+
+            <!-- What several filmed matches turn into. Shown here rather than
+                 only on a real season because this is the view that has to
+                 answer "what am I waiting for", and one match cannot. -->
+            <figure style="margin:20px 0 0">
+                <figcaption>How a season reads</figcaption>
+                <div id="empty-sample-form" class="form-row is-sample-plot"></div>
+            </figure>
+            <p class="muted" id="empty-sample-form-note" style="margin:14px 0 0"></p>
         </section>
     </section>
 
@@ -106,6 +115,22 @@
             <h3>Your minutes, match by match</h3>
             <div id="minutes-chart" class="chart"></div>
             <p class="muted" id="chart-note" style="margin-top:10px"></p>
+        </section>
+
+        <!-- The video-derived figures as rates across the season rather than
+             as one pile of totals. A sum hides which matches it came from and
+             treats a match tracked for six minutes as equal evidence to one
+             tracked for seventy. Every match gets a slot including the ones
+             nobody filmed, because closing the gaps would space the filmed
+             matches evenly and imply they were evenly spaced in the season. -->
+        <section class="block hidden" id="form-block">
+            <h3>How your season has gone</h3>
+            <p class="muted" style="margin:-4px 0 16px">
+                Each dot is a match, oldest on the left. The line is your season,
+                and a bigger dot is a match the video followed you for longer.
+            </p>
+            <div id="form-charts" class="form-row"></div>
+            <p class="muted" id="form-note" style="margin-top:16px"></p>
         </section>
 
         <section class="block">
@@ -177,7 +202,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="player.js?v=34"></script>
+<script type="module" src="player.js?v=35"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

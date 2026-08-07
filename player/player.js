@@ -9,22 +9,26 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=34';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=34';
-import { CARD_COLOURS } from '../assets/events.js?v=34';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=34';
-import { renderHeatmap } from '../assets/heatmap.js?v=34';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=34';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=35';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=35';
+import { CARD_COLOURS } from '../assets/events.js?v=35';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=35';
+import { renderHeatmap } from '../assets/heatmap.js?v=35';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=35';
 import {
     xgTrust, metresPerMinute, coverageNote,
-} from '../assets/report.js?v=34';
-import { samplePlayerReport, SAMPLE_NOTICE } from '../assets/sample-report.js?v=34';
-import { videoTime } from '../assets/video.js?v=34';
-import { renderMatchVideo } from '../assets/match-video.js?v=34';
+} from '../assets/report.js?v=35';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=35';
+import { renderForms } from '../assets/form-chart.js?v=35';
+import {
+    samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
+} from '../assets/sample-report.js?v=35';
+import { videoTime } from '../assets/video.js?v=35';
+import { renderMatchVideo } from '../assets/match-video.js?v=35';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=34';
+} from '../assets/ui.js?v=35';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -160,6 +164,32 @@ function renderChart(reports) {
         ? 'The line is 90 minutes, oldest match on the left. Highlighted bars are '
           + `matches you scored or assisted in — ${plural(scored, 'match', 'matches')}.`
         : 'The line is 90 minutes, oldest match on the left.');
+}
+
+/**
+ * The video-derived figures as rates across the season, not as one pile.
+ *
+ * `seasonTotals` adds these up, and for the headline counts above that is
+ * right. For anything you would compare — is she covering more ground than she
+ * was — a sum is the wrong shape: it hides which matches it came from, and it
+ * treats a match tracked for six minutes as equal evidence to one tracked for
+ * seventy. Every arithmetic decision behind this is in assets/season.js.
+ *
+ * Hidden entirely below three placed matches. Two dots with a line through them
+ * is a much stronger claim than the two numbers it is made of.
+ */
+function renderForm(reports) {
+    const block = byId('form-block');
+    if (!block) return;
+
+    const forms = seasonForms(reports);
+    const drawn = renderForms(byId('form-charts'), forms, {
+        minPoints: MIN_FORM_POINTS,
+    });
+    block.classList.toggle('hidden', !drawn);
+    if (!drawn) return;
+
+    setText('form-note', formNote(forms, { measured: 'were filmed' }));
 }
 
 // ---------------------------------------------------------------- matches
@@ -569,6 +599,13 @@ function renderEmptySample() {
         xgTrust: xgTrust(report.cvCalibrationErrorM),
     });
 
+    // A season, not a match. The other two plots answer "what does one filmed
+    // match give me"; this one answers "and what is it for", which is the
+    // question a player with an empty page is actually asking.
+    const forms = seasonForms(sampleSeason());
+    renderForms(byId('empty-sample-form'), forms, { minPoints: MIN_FORM_POINTS });
+    setText('empty-sample-form-note', formNote(forms, { measured: 'were filmed' }));
+
     setText('empty-sample-note', SAMPLE_NOTICE);
 }
 
@@ -586,6 +623,7 @@ async function loadReports(user) {
 
     renderSeason(reports);
     renderChart(reports);
+    renderForm(reports);
     renderMatches(reports);
     showOnly('view-reports', VIEWS);
 }

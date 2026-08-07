@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=34';
+} from '../assets/auth.js?v=35';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,18 +8,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=34';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=34';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=34';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=34';
+} from '../assets/db.js?v=35';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=35';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=35';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=35';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=34';
+} from '../assets/sample-report.js?v=35';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=34';
-import { renderPassMap } from '../assets/pass-map.js?v=34';
+} from '../assets/passing.js?v=35';
+import { renderPassMap } from '../assets/pass-map.js?v=35';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=35';
+import { renderForms } from '../assets/form-chart.js?v=35';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -27,15 +29,15 @@ import {
     TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, xgTally, sumXgTallies,
     xgCalibration, calibrationNote, headerCorrection, headerNote,
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
-} from '../assets/report.js?v=34';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=34';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=34';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=34';
+} from '../assets/report.js?v=35';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=35';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=35';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=35';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark,
-} from '../assets/ui.js?v=34';
+} from '../assets/ui.js?v=35';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -475,6 +477,7 @@ async function openPlayer(player) {
         stats.append(...cvSeasonCards(totals));
 
         renderPlayerChart(reports);
+        renderPlayerForm(reports);
         renderPlayerMatches(reports);
         show('view-player');
         window.scrollTo(0, 0);
@@ -502,6 +505,25 @@ function renderPlayerChart(reports) {
         ? `The line is 90 minutes, oldest match on the left. Highlighted bars are `
           + `matches they scored or assisted in — ${plural(involved, 'match', 'matches')}.`
         : 'The line is 90 minutes, oldest match on the left.');
+}
+
+/**
+ * The video-derived figures as rates across the season.
+ *
+ * Same module and same arithmetic as the player's own page, deliberately. This
+ * is the one number a coach and a player look at together, and the conversation
+ * goes badly if the two screens worked it out differently.
+ */
+function renderPlayerForm(reports) {
+    const block = byId('pv-form-block');
+    if (!block) return;
+
+    const forms = seasonForms(reports);
+    const drawn = renderForms(byId('pv-form-charts'), forms, {
+        minPoints: MIN_FORM_POINTS,
+    });
+    block.classList.toggle('hidden', !drawn);
+    if (drawn) setText('pv-form-note', formNote(forms, { measured: 'were filmed' }));
 }
 
 function renderPlayerMatches(reports) {

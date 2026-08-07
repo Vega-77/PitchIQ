@@ -27,6 +27,9 @@ import * as passing from '../assets/passing.js';
 // Only the sizing rules are exercised here — everything else in the module
 // touches the DOM, and this suite deliberately has none.
 import * as passMod from '../assets/pass-map.js';
+import * as season from '../assets/season.js';
+// Same split again: the scale and the radius are pure, the rest builds nodes.
+import * as formMod from '../assets/form-chart.js';
 // The sandbox's model half and its preset table. Neither touches the DOM or
 // onnxruntime at import time — the session is only built on the first predict.
 import * as xgModel from '../xg-sandbox/xg-model.js';
@@ -2011,6 +2014,189 @@ describe('calibrationNote', () => {
         );
         assert.match(text, /marked across the season/);
         assert.match(text, /the model and this pitch agree/);
+    });
+});
+
+// ------------------------------------------------------- a season, as a line
+//
+// The measures a season chart can carry, and the three ways a season chart
+// lies: by averaging rates instead of pooling them, by closing the gaps where
+// nothing was measured, and by drawing a number that partial coverage bends in
+// a direction beside three it only makes noisier.
+
+describe('seasonForm', () => {
+    // newest first, the order playerSeason returns
+    const match = (opponent, extra = {}) => ({ opponentName: opponent, ...extra });
+    const filmed = (opponent, minutes, distance) =>
+        match(opponent, { cvMinutesTracked: minutes, cvDistanceM: distance });
+
+    test('an unknown measure is null, not an empty chart', () => {
+        assert.equal(season.seasonForm([], 'nonsense'), null);
+    });
+
+    test('the season figure is pooled, not the mean of the match rates', () => {
+        // A full match at 100 and a ten-minute fragment at 40. The mean of the
+        // two rates is 70; the player's actual season is 5400m over 60 minutes,
+        // which is 90. The fragment gets a sixth of the say, not half.
+        const form = season.seasonForm([
+            filmed('recent', 10, 400), filmed('older', 50, 5000),
+        ], 'distancePerMin');
+        assert.equal(form.pooled, 90);
+        assert.notEqual(form.pooled, 70);
+    });
+
+    test('oldest match is first, whatever order the database used', () => {
+        const form = season.seasonForm([
+            filmed('last', 50, 5000), filmed('first', 50, 4000),
+        ], 'distancePerMin');
+        assert.deepEqual(form.points.map((p) => p.opponent), ['first', 'last']);
+    });
+
+    test('a match nobody filmed keeps its slot on the axis', () => {
+        // Closing the gap would space three filmed matches evenly and imply
+        // they happened evenly across the season, which nobody measured.
+        const form = season.seasonForm([
+            filmed('c', 50, 5000), match('b'), filmed('a', 50, 4500),
+        ], 'distancePerMin');
+        assert.equal(form.points.length, 3);
+        assert.equal(form.points[1].value, null);
+        assert.equal(form.points[1].filmed, false);
+        assert.equal(form.unfilmed, 1);
+    });
+
+    test('a match tracked for too few minutes is counted, not plotted', () => {
+        const form = season.seasonForm([
+            filmed('b', 4, 380), filmed('a', 50, 4500),
+        ], 'distancePerMin');
+        assert.equal(form.thin, 1);
+        assert.equal(form.measured, 1);
+        assert.equal(form.points[1].value, null);
+        assert.equal(form.points[1].thin, true);
+    });
+
+    test('the thin match is out of the season figure as well as off the chart', () => {
+        // Otherwise the line sits somewhere the dots around it cannot explain.
+        const withThin = season.seasonForm([
+            filmed('b', 4, 40), filmed('a', 50, 5000),
+        ], 'distancePerMin');
+        const without = season.seasonForm([filmed('a', 50, 5000)], 'distancePerMin');
+        assert.equal(withThin.pooled, without.pooled);
+    });
+
+    test('pass accuracy is floored on attempts, not on minutes', () => {
+        // Both halves of a ratio come from the same span, so the minutes are
+        // not what makes it thin — the number of passes is.
+        const form = season.seasonForm([{
+            opponentName: 'a', cvMinutesTracked: 80,
+            cvPassesAttempted: 4, cvPassesCompleted: 3,
+        }], 'passAccuracy');
+        assert.equal(form.thin, 1);
+        assert.equal(form.measured, 0);
+    });
+
+    test('top speed pools as a maximum and is marked as bent downward', () => {
+        const form = season.seasonForm([
+            { opponentName: 'b', cvMinutesTracked: 60, cvTopSpeedKmh: 26.0 },
+            { opponentName: 'a', cvMinutesTracked: 60, cvTopSpeedKmh: 28.5 },
+        ], 'topSpeed');
+        assert.equal(form.pooled, 28.5);
+        assert.equal(form.biased, 'low');
+    });
+
+    test('a season with nothing filmed produces no charts at all', () => {
+        assert.deepEqual(season.seasonForms([match('a'), match('b')]), []);
+    });
+});
+
+describe('formNote', () => {
+    test('the counts are per match, not read off one measure', () => {
+        // Pass accuracy is floored on attempts and the rest on minutes, so a
+        // match can be thin in one and fine in another. A caption that assumed
+        // they agreed would be right almost always, which is the worst
+        // frequency for a wrong number to be wrong at.
+        const reports = [{
+            opponentName: 'a', cvMinutesTracked: 70, cvDistanceM: 6800,
+            cvPassesAttempted: 3, cvPassesCompleted: 2,
+        }];
+        const note = season.formNote(season.seasonForms(reports));
+        assert.match(note, /1 of 1 matches/);
+        assert.doesNotMatch(note, /more (was|were) filmed/);
+    });
+
+    test('the downward bias on top speed is named once', () => {
+        const reports = [
+            { opponentName: 'b', cvMinutesTracked: 60, cvTopSpeedKmh: 26, cvDistanceM: 5800 },
+            { opponentName: 'a', cvMinutesTracked: 60, cvTopSpeedKmh: 27, cvDistanceM: 5900 },
+        ];
+        const note = season.formNote(season.seasonForms(reports));
+        assert.equal(note.match(/Top speed/g).length, 1);
+        assert.match(note, /floor rather than a figure/);
+    });
+});
+
+describe('the season chart geometry', () => {
+    const form = (low, high) => ({ low, high });
+
+    test('a flat season sits on the middle line rather than dividing by zero', () => {
+        const scale = formMod.formScale(form(90, 90));
+        assert.ok(isFinite(scale.y(90)));
+        assert.ok(Math.abs(scale.y(90) - scale.y(90)) < 1e-9);
+        assert.ok(scale.min < 90 && scale.max > 90);
+    });
+
+    test('the axis fits the data rather than starting at zero', () => {
+        // A dot chart may do this and a bar chart may not: a dot's height is a
+        // position, a bar's length is a quantity. The two ends are printed on
+        // the card because of it.
+        const scale = formMod.formScale(form(88, 100));
+        assert.ok(scale.min > 0);
+        assert.ok(scale.min < 88 && scale.max > 100);
+    });
+
+    test('dot area is proportional to the minutes behind the point', () => {
+        const big = formMod.pointRadius(80, 80);
+        const small = formMod.pointRadius(20, 80);
+        // Four times the minutes, four times the area — not four times across.
+        assert.ok(Math.abs((big / small) ** 2 - 4) < 0.01);
+    });
+
+    test('a point with no minutes still draws, at the floor', () => {
+        assert.ok(formMod.pointRadius(0, 80) > 0);
+    });
+
+    test('one match sits in the middle instead of hard against the edge', () => {
+        assert.equal(formMod.slotX(0, 1), 50);
+    });
+});
+
+describe('the sample season', () => {
+    test('it arrives newest first, the way the database returns it', () => {
+        // A fixture in any other order would preview a season running backwards
+        // and every assertion about it would still pass.
+        const dates = sample.sampleSeason().map((r) => r.matchDate);
+        assert.deepEqual(dates, [...dates].sort().reverse());
+    });
+
+    test('it carries the two gaps a real season is full of', () => {
+        const form = season.seasonForm(sample.sampleSeason(), 'distancePerMin');
+        assert.equal(form.unfilmed, 2);
+        assert.equal(form.thin, 1);
+        assert.equal(form.measured, 5);
+    });
+
+    test('the season figure is the pooled one, to the metre', () => {
+        const form = season.seasonForm(sample.sampleSeason(), 'distancePerMin');
+        const drawn = form.points.filter((p) => p.value != null);
+        const metres = drawn.reduce((s, p) => s + p.of, 0);
+        const minutes = drawn.reduce((s, p) => s + p.per, 0);
+        assert.ok(Math.abs(form.pooled - metres / minutes) < 1e-9);
+    });
+
+    test('every measure has enough points to be worth a line', () => {
+        for (const form of season.seasonForms(sample.sampleSeason())) {
+            assert.ok(form.measured >= season.MIN_FORM_POINTS,
+                `${form.key} has ${form.measured}`);
+        }
     });
 });
 

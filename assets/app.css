@@ -1842,6 +1842,74 @@ td.num.cv-partial {
 .pass-node.is-pickable { cursor: pointer; }
 .pass-node.is-pickable:hover .pass-dot { fill: var(--good); }
 
+/* A season, as a row of small traces.
+   Small multiples rather than one chart with a picker: four measures side by
+   side is the comparison worth making, and a selector hides three quarters of
+   the data behind a click nobody makes. `minmax(0, 1fr)` rather than `1fr`
+   because an SVG in a grid track refuses to shrink below its intrinsic width
+   otherwise, which is how a row of charts pushes a phone sideways. */
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+    gap: 18px;
+}
+.form-card {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 12px 14px 10px;
+    min-width: 0;
+}
+.form-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.form-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+/* The season figure, in the position a headline number goes. It is the pooled
+   one — see assets/season.js — and the line in the chart below is drawn at the
+   same value, so the two cannot disagree. */
+.form-mean-v {
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+/* Matches the viewBox in assets/form-chart.js exactly, so uniform scaling fills
+   the box rather than letterboxing inside it. The chart draws circles and a
+   stretched circle is an oval, which is the one thing a mark sized by area
+   cannot afford to be. */
+.form-plot { aspect-ratio: 100 / 32; }
+.form-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+/* The two ends of the axis, printed because the axis does not start at zero. */
+.form-foot {
+    margin-top: 6px;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.form-mean {
+    stroke: var(--line-hi);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+}
+.form-link { stroke: var(--accent); stroke-width: 1.5; stroke-opacity: 0.55; }
+.form-dot { fill: var(--accent); stroke: var(--surface); stroke-width: 0.4; }
+/* A match that happened and could not be measured. On the floor, faint, and
+   never the same shape as a value — a gap that looked like a low reading would
+   be the worst possible way to draw one. */
+.form-gap { fill: var(--line-hi); fill-opacity: 0.55; }
+.form-gap.is-thin { fill: var(--warn); fill-opacity: 0.7; }
+
 /* The press, quarter-hour by quarter-hour.
    Horizontal bars rather than an SVG chart: there are three to six of them, each
    needs a time range and two raw counts printed beside it, and text inside an

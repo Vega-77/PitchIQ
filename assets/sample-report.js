@@ -509,3 +509,81 @@ export function samplePlayerReport() {
         cvCalibrationErrorM: 0.42,
     };
 }
+
+/**
+ * A season of published reports for one player, newest first.
+ *
+ * `playerSeason` hands them back in that order and the season chart reverses
+ * them itself, so a fixture in any other order would preview a season running
+ * backwards and every assertion about it would still pass.
+ *
+ * Eight matches, and deliberately not eight clean ones. Two were never filmed
+ * and one was filmed and tracked for six minutes, because those are the two
+ * things a real season is full of and they are exactly what the chart has to
+ * refuse to draw through. A fixture of eight good matches would preview a
+ * feature that does not exist.
+ *
+ * The **order** of the gaps was chosen rather than sprinkled. The chart joins
+ * consecutive measured matches and never draws across a gap, so a fixture with
+ * a gap between every measured pair renders as five loose dots and proves only
+ * half the rule. This one has two runs of adjacent filmed matches and two
+ * separate breaks, so both halves of that behaviour show up in the preview.
+ *
+ * The story in the numbers is a player whose work rate climbed across the
+ * season while her passing wobbled and then held — a shape worth being able to
+ * see, and the reason for drawing rates rather than adding totals up.
+ */
+export function sampleSeason() {
+    const played = (n, opponent, date, extra) => ({
+        isSample: true,
+        matchId: `sample-${n}`,
+        opponentName: opponent,
+        matchDate: date,
+        minutesPlayed: extra.minutesPlayed ?? 90,
+        goals: extra.goals || 0,
+        assists: extra.assists || 0,
+        yellowCards: 0,
+        redCards: 0,
+        fouls: extra.fouls || 0,
+        ...extra,
+    });
+
+    // Oldest first here because that is the order the story reads in; reversed
+    // on the way out so the fixture matches what the database returns.
+    const season = [
+        // A run of two, so the chart has a segment to draw.
+        played(1, 'Hillsborough', '2026-03-14', {
+            goals: 0, cvMinutesTracked: 42, cvDistanceM: 3700, cvTouches: 48,
+            cvPassesAttempted: 31, cvPassesCompleted: 24, cvTopSpeedKmh: 25.9,
+        }),
+        played(2, 'Montgomery', '2026-03-21', {
+            goals: 1, cvMinutesTracked: 48, cvDistanceM: 4290, cvTouches: 55,
+            cvPassesAttempted: 38, cvPassesCompleted: 29, cvTopSpeedKmh: 26.3,
+        }),
+        // Nobody brought a camera. Not a zero, and not a missing match.
+        played(3, 'Princeton', '2026-03-28', { goals: 0, assists: 1, minutesPlayed: 78 }),
+        // And a second run, either side of the break.
+        played(4, 'West Windsor', '2026-04-04', {
+            goals: 0, cvMinutesTracked: 58, cvDistanceM: 5300, cvTouches: 71,
+            cvPassesAttempted: 44, cvPassesCompleted: 33, cvTopSpeedKmh: 26.8,
+        }),
+        played(5, 'Notre Dame', '2026-04-11', {
+            goals: 1, cvMinutesTracked: 66, cvDistanceM: 6250, cvTouches: 84,
+            cvPassesAttempted: 52, cvPassesCompleted: 41, cvTopSpeedKmh: 27.1,
+        }),
+        // Filmed, and the tracker lost her after six minutes. Every figure in
+        // this row is real and none of them is a match.
+        played(6, 'Steinert', '2026-04-18', {
+            goals: 0, cvMinutesTracked: 6, cvDistanceM: 520, cvTouches: 8,
+            cvPassesAttempted: 5, cvPassesCompleted: 4, cvTopSpeedKmh: 24.1,
+        }),
+        played(7, 'Allentown', '2026-04-25', { goals: 2 }),
+        played(8, 'Robbinsville', '2026-05-02', {
+            goals: 0, assists: 2, cvMinutesTracked: 74, cvDistanceM: 7350,
+            cvTouches: 101, cvPassesAttempted: 66, cvPassesCompleted: 54,
+            cvTopSpeedKmh: 28.0,
+        }),
+    ];
+
+    return season.reverse();
+}

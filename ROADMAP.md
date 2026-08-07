@@ -1517,7 +1517,54 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       are the first two `cv*` fields with no twin in `cv/publish.py`, and
       `cvReportFields` takes the coverage as an optional second argument so a
       report published without one is exactly what it was before.
-- [ ] **[Stretch]** Cross-match / season aggregation per player
+- [x] **[Stretch] Cross-match aggregation per player — as rates across a run of
+      matches, not as one pile of totals** (2026-08-07). `seasonTotals` added the
+      video-derived fields up, and for the headline counts that is right. For
+      anything a reader would *compare* it is the wrong shape twice: it hides
+      which matches it came from, and it treats a match tracked for six minutes
+      as equal evidence to one tracked for seventy. Coverage has ranged that far
+      and will keep ranging that far.
+
+      `assets/season.js` (zero imports, so the pure suite covers it) turns a
+      season into per-match rates and one season figure, **pooled** — the sum of
+      the numerators over the sum of the denominators. Averaging the per-match
+      rates instead gives a twelve-minute fragment the same say as a full match,
+      and on this pipeline fragments are the common case. Pinned by a test where
+      the two answers are 70 and 90.
+
+      **Which measures survive partial coverage, and one that does not.** A rate
+      is measured over exactly the span it is divided by, so less coverage makes
+      it noisier and not wrong. A ratio of two counts from the same span — pass
+      accuracy — is safest of all; both halves are missing the same minutes, and
+      it is floored on attempts rather than on minutes for that reason. **Top
+      speed is different**: a maximum over a partial observation is biased
+      *down*, it does not average out, and a season best from thin coverage is a
+      floor rather than a figure. That is named in the note, once, because a
+      downward-bent number plotted beside three unbent ones reads as a player
+      who is slowing down.
+
+      Three refusals in the drawing. Every match keeps its slot including the
+      ones nobody filmed, since closing the gaps would space the filmed matches
+      evenly and imply they were evenly spaced in the season — a claim about
+      time nobody measured. A line joins consecutive measured matches and
+      **never crosses a gap**. And a match tracked below ten minutes is counted
+      and named but not plotted, and is left out of the season figure too — a
+      reference line the surrounding dots cannot explain is worse than a
+      slightly narrower one.
+
+      The axis does **not** start at zero, which reverses the rule the pressing
+      bars and the passing nodes follow, and the reversal is the point: a bar's
+      length is a quantity and a dot's height is a position. The two ends of the
+      range are printed on every card as the price of it. Caught in the browser:
+      `preserveAspectRatio="none"` — copied from the minutes chart, which draws
+      rectangles — stretched every dot into an oval at phone width, 3.13 pixels
+      per unit across against 1.94 down. Fixed by matching the container's
+      aspect ratio to the viewBox instead of distorting the marks.
+
+      Also caught in the browser and invisible to every test: `Element.append()`
+      returns undefined where `appendChild()` returns the node, so the chained
+      hover labels were setting `textContent` on nothing. The pure suite has no
+      DOM and passed throughout.
 
 ## 14. Player Portal & Accounts
 Superseded the "shared code + PIN" plan: Firebase Auth made real accounts cheaper
