@@ -10,21 +10,22 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=39';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=40';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../assets/db.js?v=39';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=39';
+} from '../assets/db.js?v=40';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=40';
 import {
     possessionIsInPlay, cvReads, xgTrust, groupStats, clockFromMatch,
-} from '../assets/report.js?v=39';
-import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=39';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=39';
+    SHARE, COUNT, RATE,
+} from '../assets/report.js?v=40';
+import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=40';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=40';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
     tally, groupHead,
-} from '../assets/ui.js?v=39';
+} from '../assets/ui.js?v=40';
 
 const VIEWS = ['view-error', 'view-report'];
 
@@ -191,7 +192,8 @@ function renderTallies() {
         list.append(groupHead(group.title));
         for (const row of group.rows) {
             list.append(tally(
-                row.label, row.value, row.theirs, row.better, row.confidence,
+                row.label, row.usN, row.themN, row.better, row.confidence,
+                { kind: row.kind },
             ));
         }
     }
@@ -216,6 +218,9 @@ function renderTallies() {
 function taggedTallies() {
     const { us, them } = state.stats.counts;
 
+    // Every one of these is a count, so none is drawn as a split: five corners
+    // to one and fifty to ten are not the same half, and a split bar cannot
+    // tell them apart. See `comparePair` in report.js.
     return [
         ['match', 'Corners', us.corner, them.corner, 'high'],
         ['match', 'Free kicks won', us.free_kick, them.free_kick, 'high'],
@@ -224,8 +229,8 @@ function taggedTallies() {
         ['match', 'Cards', us.card, them.card, 'low'],
     ]
         .filter(([, , ours, theirs]) => ours || theirs)
-        .map(([type, label, value, theirs, better]) =>
-            ({ type, label, value, theirs, better }));
+        .map(([type, label, usN, themN, better]) =>
+            ({ type, label, usN, themN, better, kind: COUNT, value: usN }));
 }
 
 /** The rows that came from footage rather than from somebody's thumb. */
@@ -245,12 +250,20 @@ function cvTallies() {
         // "in play" only when a tagged log told the pipeline when it wasn't.
         // Without one this is still possession of every second including the
         // ones spent waiting for a throw-in, and the label must not upgrade it.
+        // The only true split on the page: their possession IS the rest of
+        // ours, so the boundary between the two is the whole story and the bar
+        // is always full. Nothing else here works that way.
         ['possession',
             possessionIsInPlay(quality) ? 'Possession in play %' : 'Possession %',
             pct(ours.possession_pct), pct(theirs.possession_pct),
-            'high', possession],
+            'high', possession, SHARE],
         ['passing', 'Passes completed', ours.passes_completed, theirs.passes_completed,
             'high', events],
+        // Percentages of two different denominators, so each runs on its own
+        // 0-100 scale. As a split these would come out near even whatever the
+        // gap between them.
+        ['passing', 'Pass accuracy %', pct(ours.pass_accuracy), pct(theirs.pass_accuracy),
+            'high', events, RATE],
         ['defending', 'Tackles', ours.tackles, theirs.tackles, 'high', events],
         ['defending', 'Interceptions', ours.interceptions, theirs.interceptions,
             'high', events],
@@ -270,8 +283,10 @@ function cvTallies() {
         // A null means the pipeline could not measure it — usually for want of
         // a calibration. Showing a zero would say it measured none.
         .filter(([, , a, b]) => (a || b) && a != null && b != null)
-        .map(([type, label, value, theirs2, better, confidence]) =>
-            ({ type, label, value, theirs: theirs2, better, confidence }));
+        // A count unless the row says otherwise, because most of them are. The
+        // two that are not — possession and pass accuracy — say so above.
+        .map(([type, label, usN, themN, better, confidence, kind = COUNT]) =>
+            ({ type, label, usN, themN, better, confidence, kind, value: usN }));
 }
 
 const pct = (share) => (share == null ? null : Math.round(share * 100));

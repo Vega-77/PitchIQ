@@ -1015,9 +1015,13 @@ td.num.cv-partial {
 
 /* Numbers flank a split bar, so the gap registers before either figure is
    actually read. */
+/* The number columns size to their content with a floor, rather than being
+   fixed. They used to hold bare counts; they now hold '58%', '0.80' and '41m',
+   and a fixed 2.2rem clipped every one of those on a phone. The floor is what
+   keeps the bars starting at the same place down a column. */
 .tally {
     display: grid;
-    grid-template-columns: 2.2rem 1fr 2.2rem;
+    grid-template-columns: minmax(2.9rem, auto) minmax(0, 1fr) minmax(2.9rem, auto);
     align-items: center;
     gap: 10px;
 }
@@ -1034,10 +1038,44 @@ td.num.cv-partial {
 .tally.ours-good .t-us { color: var(--good); }
 .tally.ours-bad .t-them { color: var(--good); }
 
+/* Two geometries in one row, because the bar's length is a claim and three
+   different claims live in the same list. See `tally` in ui.js.
+
+   is-split   the halves themselves are sized and each is full, so the boundary
+              between them moves. Only correct when their figure is the rest of
+              ours.
+   is-opposed the halves are equal and each grows from the centre outward, so a
+              count keeps its magnitude and a rate keeps its own scale. The
+              track behind each side stays visible, which is what says "this is
+              a length out of a possible length" rather than "this is a share".
+*/
 .t-bar { display: flex; gap: 3px; height: 9px; }
-.t-fill { border-radius: 3px; min-width: 3px; transition: width .2s ease; }
-.t-fill.us { background: var(--accent); }
-.t-fill.them { background: var(--line-hi); }
+.t-half { display: flex; min-width: 0; }
+.t-half > i {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    transition: width .2s ease;
+}
+.t-half.us { justify-content: flex-end; }
+.t-half.us > i { background: var(--accent); }
+.t-half.them > i { background: var(--line-hi); }
+
+/* Split: each half is exactly as wide as its share and filled completely. */
+.t-bar.is-split .t-half { flex-basis: 0; min-width: 3px; }
+.t-bar.is-split .t-half > i { width: 100%; }
+
+/* Opposed: equal halves, with the unfilled part left showing as a track. */
+.t-bar.is-opposed .t-half {
+    flex: 1 1 0;
+    background: var(--line);
+    border-radius: 3px;
+}
+
+/* A row whose pair could not be drawn keeps its numbers and loses its bar, so
+   the space closes up rather than leaving an empty track that reads as two
+   zeroes. */
+.tally.is-flat { grid-template-columns: auto auto; justify-content: center; }
 
 .t-label {
     grid-column: 1 / -1;
@@ -2147,3 +2185,48 @@ input[type="file"]::file-selector-button:hover {
    only visible signal on this block to one element on one page. */
 .clock-note.is-good { color: var(--good); }
 .clock-note.is-warn { color: var(--warn); }
+
+/* Which colour is which side, once and at the top, rather than on every bar.
+   Repeating two team names down twenty rows is noise; not saying them at all
+   leaves every bar as two anonymous lengths. */
+.tally-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin: 0 0 18px;
+}
+.tk-side {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    font-size: 0.78rem;
+    font-weight: 650;
+    color: var(--text-dim);
+}
+.tk-side > i {
+    flex: none;
+    width: 14px;
+    height: 9px;
+    border-radius: 3px;
+}
+.tk-side.us > i { background: var(--accent); }
+.tk-side.them > i { background: var(--line-hi); }
+.tk-side > b {
+    font-weight: 650;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* A count whose lead is inside the noise — see `insideNoise` in report.js.
+   Hollow, not hidden: the split is still the best estimate available, and
+   removing the bar would be its own kind of claim. What it must not do is look
+   as solid as a lead that was actually measured, because a bar is read before
+   the two small numbers beside it. */
+.tally.is-tentative .t-half > i {
+    background: transparent;
+    border: 1px solid var(--line-hi);
+}
+.tally.is-tentative .t-half.us > i { border-color: var(--accent); opacity: 0.55; }
+.tally.is-tentative .num { color: var(--text-faint); }

@@ -5,6 +5,8 @@
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
+import { comparePair, COUNT } from './report.js?v=40';
+
 export const byId = (id) => document.getElementById(id);
 
 /** Set text content by element id, tolerating a missing element. */
@@ -121,23 +123,57 @@ export function groupHead(title, note = '') {
  * register as a goal somebody pressed a button for, and the mark alone is easy
  * to miss at arm's length.
  */
+/**
+ * A titled group of figures, as bars where there are two sides and cards where
+ * there is one.
+ *
+ * A row carrying a `kind` is a comparison — the pipeline measured the same
+ * thing for both teams — and gets a bar, because the interesting fact about 58%
+ * possession is their 42%. A row without one is ours alone (goals we scored,
+ * fouls we conceded) and stays a card.
+ *
+ * The two forms are deliberately different shapes rather than the same box with
+ * an extra number in it: a reader should be able to tell at a glance which
+ * figures have something to be compared against.
+ */
 export function statGroup({ title, note = '', rows = [] }) {
     const section = document.createElement('section');
     section.className = 'stat-group';
     section.append(groupHead(title, note));
 
-    const grid = document.createElement('div');
-    grid.className = 'stat-grid';
-    for (const row of rows) {
-        grid.append(statCard(
-            row.value,
-            row.label,
-            row.tone ?? (row.confidence ? 'is-muted' : ''),
-            row.confidence,
-        ));
+    const cards = rows.filter((row) => !row.kind);
+    const bars = rows.filter((row) => row.kind);
+
+    if (cards.length) {
+        const grid = document.createElement('div');
+        grid.className = 'stat-grid';
+        for (const row of cards) {
+            grid.append(statCard(
+                row.value,
+                row.label,
+                row.tone ?? (row.confidence ? 'is-muted' : ''),
+                row.confidence,
+            ));
+        }
+        section.append(grid);
     }
 
-    section.append(grid);
+    if (bars.length) {
+        const list = document.createElement('div');
+        list.className = 'tally-list';
+        for (const row of bars) {
+            list.append(tally(row.label, row.usN, row.themN, row.better, row.confidence, {
+                kind: row.kind,
+                // The already-formatted figures — '58%', '1.42', '38m'. The raw
+                // numbers drive the bar and these drive the text, so a bar can
+                // never disagree with the number printed beside it.
+                usText: row.value,
+                themText: row.themValue,
+            }));
+        }
+        section.append(list);
+    }
+
     return section;
 }
 
@@ -172,43 +208,98 @@ export function confidenceMark(level = 'low', note = '') {
 }
 
 /**
- * One paired us/them row with a proportional bar.
+ * One paired us/them row, drawn as the kind of comparison it actually is.
  *
- * Shared by the halftime view and the coach's match view. The bar matters more
+ * Shared by the half-time view and the coach's match view. The bar matters more
  * than the numbers: at arm's length across a changing room, the gap is visible
- * before either figure is read.
+ * before either figure is read. Which is exactly why its geometry has to be
+ * right — a bar that is easy to read at a glance is a bar that is believed at a
+ * glance.
+ *
+ * Two geometries, chosen by `kind` (see `comparePair` in report.js):
+ *
+ *   split    — the boundary moves and the track is always full. Correct when
+ *              their figure is the rest of ours: possession of the ball, and
+ *              counts, where the total is however many there were.
+ *   opposed  — each side grows from a fixed centre against its own full of
+ *              100%. For a rate, where the two are shares of different
+ *              denominators and do not add up at all.
+ *
+ * Every row was drawn as a split until now, which is how 84% pass accuracy
+ * against 71% has been showing as a near dead heat.
+ *
+ * A count whose lead is smaller than chance would hand out is drawn hollow —
+ * see `insideNoise`. Three shots to one is three quarters of the shots and it
+ * is also four shots, and the bar is the part a coach reads first.
  *
  * `better` says which direction is good ('high' or 'low'), so fouls conceded
  * and corners won can sit in the same list without one of them being coloured
- * backwards.
+ * backwards. Null leaves both sides uncoloured, which is the honest answer for
+ * a figure like compactness that is not good or bad on its own.
  */
-export function tally(label, ours = 0, theirs = 0, better = 'high', confidence = null) {
+export function tally(label, ours, theirs, better = 'high', confidence = null,
+                      options = {}) {
+    const { kind = COUNT, usText = null, themText = null } = options;
+
     const row = document.createElement('div');
     row.className = 'tally';
     row.innerHTML = `
         <span class="t-us num"></span>
-        <div class="t-bar"><div class="t-fill us"></div><div class="t-fill them"></div></div>
+        <div class="t-bar">
+            <span class="t-half us"><i></i></span>
+            <span class="t-half them"><i></i></span>
+        </div>
         <span class="t-them num"></span>
         <div class="t-label"></div>`;
 
-    row.querySelector('.t-us').textContent = ours;
-    row.querySelector('.t-them').textContent = theirs;
+    // An em dash rather than a zero for a figure nobody measured. This is the
+    // one place the two sides can disagree about whether they exist: the
+    // opposition's copy is missing from every report published before both
+    // sides were carried.
+    const text = (raw, formatted) => (
+        formatted != null ? formatted : (raw == null ? '—' : String(raw))
+    );
+    row.querySelector('.t-us').textContent = text(ours, usText);
+    row.querySelector('.t-them').textContent = text(theirs, themText);
 
     const caption = row.querySelector('.t-label');
     caption.textContent = label;
     if (confidence) caption.append(confidenceMark(confidence));
 
-    const total = ours + theirs;
-    const share = total ? (ours / total) * 100 : 50;
-    row.querySelector('.t-fill.us').style.width = `${share}%`;
-    row.querySelector('.t-fill.them').style.width = `${100 - share}%`;
+    const bars = comparePair(ours, theirs, kind);
+    const bar = row.querySelector('.t-bar');
+    if (!bars) {
+        // Nothing honest to draw. The numbers stay; the bar goes, rather than
+        // showing a dead heat or an empty track that reads as two zeroes.
+        bar.remove();
+        row.classList.add('is-flat');
+        return row;
+    }
 
-    // Colour the side that is ahead on a count where being ahead is good, and
-    // the side that is ahead on a count where it is not.
-    if (total && ours !== theirs) {
+    bar.classList.add(`is-${bars.mode}`);
+    // Hollow rather than hidden. The split is still the best estimate and
+    // removing it would be its own kind of lie; what it must not do is look as
+    // solid as a lead that was actually measured.
+    row.classList.toggle('is-tentative', Boolean(bars.tentative));
+    const [us, them] = bar.querySelectorAll('.t-half');
+    if (bars.mode === 'split') {
+        // The halves themselves are sized, and each fill is the whole of its
+        // half — that is what makes the boundary move.
+        us.style.flexGrow = String(bars.us);
+        them.style.flexGrow = String(bars.them);
+    } else {
+        // Equal halves, each filled from the centre outward.
+        us.querySelector('i').style.width = `${bars.us}%`;
+        them.querySelector('i').style.width = `${bars.them}%`;
+    }
+
+    // Colour the side that is ahead where being ahead is good, and the side
+    // that is ahead where it is not. Never on a lead the count cannot support:
+    // a green number is a verdict, and this one has not earned it.
+    if (better && !bars.tentative && ours !== theirs
+        && ours != null && theirs != null) {
         const weLead = ours > theirs;
-        const goodForUs = better === 'high' ? weLead : !weLead;
-        row.classList.add(goodForUs ? 'ours-good' : 'ours-bad');
+        row.classList.add((better === 'high') === weLead ? 'ours-good' : 'ours-bad');
     }
 
     return row;

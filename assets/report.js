@@ -962,7 +962,8 @@ export const STAT_TYPES = [
     {
         id: 'possession',
         title: 'Possession',
-        note: 'Thirds are shares of your own time on the ball, not of the match.',
+        note: 'Thirds are each side’s share of its own time on the ball, '
+            + 'not of the match — so the two rows do not add up to 100%.',
     },
     { id: 'passing', title: 'Passing' },
     { id: 'attacking', title: 'Attacking' },
@@ -998,7 +999,14 @@ export function groupStats(rows) {
         // Absent is not zero, one more time. A null here is a figure the
         // pipeline could not measure — usually for want of a calibration — and
         // a box reading 0 would say it looked and found none.
-        if (row == null || row.value == null) continue;
+        //
+        // A comparison row survives on either side having one. The asymmetric
+        // case is real: PPDA is null for a side that made no defensive actions
+        // at all, and dropping the row would take the opposition's figure down
+        // with it — which is the half a coach most wants when their own is
+        // missing for that reason.
+        if (row == null) continue;
+        if (row.value == null && (!row.kind || row.themValue == null)) continue;
         const group = known.get(row.type)
             || extra.get(row.type)
             || extra.set(row.type, { id: row.type, title: row.type, rows: [] })
@@ -1017,6 +1025,128 @@ export function groupStats(rows) {
 
 const share = (value) => (value == null ? null : `${Math.round(value * 100)}%`);
 
+// ------------------------------------------------- comparing the two sides
+//
+// The pipeline has always measured both teams — `report_json.build_report_json`
+// runs `team_stats` over TEAM_A and TEAM_B and publishes each — and until now
+// the coach's report read only its own side. Twenty-five figures about the
+// opposition, computed, published, and rendered nowhere. A possession of 58%
+// says very little on its own and everything next to their 42%.
+//
+// Drawing the pair is where it gets easy to lie, because a bar is read before
+// either number beside it. Three different claims live in the same list:
+//
+//   SHARE — a share of a continuous whole. Possession of time, and little else.
+//           Their figure is the rest of ours, the boundary between them is the
+//           entire story, and there is no count behind it to be short of.
+//
+//   COUNT — a share of some number of discrete events. Shots, tackles, corners.
+//           Also a split — twelve shots to four really is three quarters of the
+//           shots — but with a catch a share cannot express on its own: three
+//           shots to one is also three quarters, and it is four shots in a
+//           whole match. So a count carries whether its lead is bigger than
+//           chance, and a bar that is not says so instead of looking decisive.
+//
+//   RATE  — each figure is a percentage of its own denominator. Pass accuracy
+//           of 84% against 71% is not a 54/46 split of anything; the two do not
+//           add up and must not be drawn as though they did. Each runs 0-100 on
+//           its own scale.
+//
+//   LEVEL — a magnitude with no denominator at all. PPDA, and every shape
+//           figure in metres. "38 metres wide" is not a share of anything and
+//           neither side owns part of the other's, so the two are simply drawn
+//           against whichever was larger. Splitting these is the worst of the
+//           four mistakes available: a PPDA of 6.9 against 14.8 would read as
+//           having had 32% of the pressing, which is not a quantity.
+//
+// `tally` in ui.js drew every row as a share, which is how the half-time page
+// has been showing 84% against 71% as a near dead heat.
+
+/** A share of a continuous whole — their figure is the rest of ours. */
+export const SHARE = 'share';
+/** A share of some number of discrete events, which may be too few to mean it. */
+export const COUNT = 'count';
+/** Each figure is a percentage of its own denominator, on a 0-100 scale. */
+export const RATE = 'rate';
+/** A magnitude with no denominator — metres, or passes per defensive action. */
+export const LEVEL = 'level';
+
+/**
+ * How much of the track each side's bar fills, and whether to believe it.
+ *
+ * Returns `{ us, them, mode, tentative }`, or null when there is nothing honest
+ * to draw — a pair with a side missing is not a pair, and filling the other
+ * half with zero would report a nil return the pipeline never saw.
+ *
+ * `mode` is what the renderer needs: `'split'` (the two fill the track between
+ * them, boundary moving) or `'opposed'` (each grows from a fixed centre against
+ * its own full). Shares and counts are both splits; only their honesty differs.
+ */
+export function comparePair(us, them, kind = COUNT) {
+    const a = num(us);
+    const b = num(them);
+    if (a == null || b == null) return null;
+
+    if (kind === RATE) {
+        // Percentages of their own denominators, so full is 100. Both arrive in
+        // the unit the row prints — 84, not 0.84 — so the bar and the number
+        // beside it cannot come apart.
+        return {
+            us: clampPct(a), them: clampPct(b), mode: 'opposed', tentative: false,
+        };
+    }
+
+    if (kind === LEVEL) {
+        // No denominator, so full is whichever side was larger and the other is
+        // drawn against it. Negative levels are not a thing any of these
+        // measure, and a magnitude of nothing on both sides is nothing to draw.
+        const scale = Math.max(Math.abs(a), Math.abs(b));
+        if (!(scale > 0)) return null;
+        return {
+            us: clampPct((Math.abs(a) / scale) * 100),
+            them: clampPct((Math.abs(b) / scale) * 100),
+            mode: 'opposed',
+            tentative: false,
+        };
+    }
+
+    const total = a + b;
+    // Two figures that are supposed to be a whole and sum to nothing are not a
+    // whole. Half and half would draw a dead heat nobody measured.
+    if (!(total > 0)) return null;
+
+    return {
+        us: (a / total) * 100,
+        them: (b / total) * 100,
+        mode: 'split',
+        tentative: kind === COUNT && insideNoise(a, b),
+    };
+}
+
+/**
+ * Is this lead smaller than the one chance alone would hand out?
+ *
+ * Each event is a coin toss between the two sides under a null of no
+ * difference, so the count on one side has standard deviation sqrt(n)/2 and the
+ * gap between them has sqrt(n). Two of those is the usual bar, which lands at
+ * `|a - b| < 2*sqrt(n)`:
+ *
+ *     3 shots to 1     gap 2   against 4.0   — inside the noise
+ *     12 to 4          gap 8   against 8.0   — just outside it
+ *     30 to 10         gap 20  against 12.6  — outside it
+ *
+ * The same reasoning `xgCalibration` uses on marked shots and `pressingRead`
+ * uses on scored blocks, and for the same reason: a coach shown 75% of the
+ * shots will read it as dominance whether it was four shots or forty.
+ */
+export function insideNoise(a, b) {
+    const n = a + b;
+    if (!(n > 0)) return true;
+    return Math.abs(a - b) < 2 * Math.sqrt(n);
+}
+
+const clampPct = (value) => Math.max(0, Math.min(100, value));
+
 /**
  * The video-derived figures for the coach's own side, typed and labelled.
  *
@@ -1030,145 +1160,167 @@ export function teamStatRows(cv, confidence = {}) {
     const ours = cv?.teams?.team_a;
     if (!ours) return [];
 
+    // The opposition's copy of the same measurements. Absent on a report
+    // published before both sides were carried, and absent is not zero: every
+    // row below degrades to a one-sided figure rather than drawing a bar that
+    // says the other team did nothing.
+    const theirs = cv?.teams?.team_b || null;
+
     const quality = cv.quality || {};
     const events = confidence.events || null;
-    const territory = ours.territory || {};
-    const attempted = ours.passes_attempted || 0;
-    const byLength = ours.passes_by_length || {};
-    const byDirection = ours.passes_by_direction || {};
-    const lost = ours.turnovers_by_third || {};
+    const possession = confidence.possession || null;
+    const trust = xgTrust(cv.calibrationErrorM);
 
-    // A breakdown is only worth a percentage if it is a share of something
-    // this run actually counted. Without the total these are bare counts with
-    // no denominator, and a bare 142 says nothing about how direct a side was.
-    const ofAttempted = (count) =>
-        (attempted && count != null ? count / attempted : null);
+    /**
+     * One comparable row.
+     *
+     * `pick` reads a figure off one side, so the same function reads both and
+     * the two can never drift apart — the failure that matters here is not a
+     * wrong number, it is our column and their column being taken from
+     * different fields.
+     */
+    const row = (type, label, kind, pick, options = {}) => {
+        const { format = (v) => v, better = null, confidence: mark = events,
+                explained = false } = options;
+        const usN = pick(ours);
+        const themN = theirs ? pick(theirs) : null;
+        return {
+            type, label, kind, better, explained, confidence: mark,
+            value: usN == null ? null : format(usN),
+            themValue: themN == null ? null : format(themN),
+            usN, themN,
+        };
+    };
+
+    // Every figure a row carries is in the unit the row prints — 84 for a
+    // percentage, not 0.84 — so a bar drawn from it can never disagree with the
+    // number written beside it. The pipeline speaks in fractions; this is where
+    // that stops.
+    const asPct = (fraction) => (fraction == null ? null : fraction * 100);
+    const pctText = (value) => `${Math.round(value)}%`;
+
+    // A breakdown is only worth a percentage if it is a share of something this
+    // run actually counted, and it has to be each side's own total — dividing
+    // their forward passes by our attempts would be a number about nobody.
+    const ofAttempted = (side, count) => {
+        const total = side.passes_attempted || 0;
+        return total && count != null ? asPct(count / total) : null;
+    };
 
     return [
         {
-            type: 'possession',
             // The label carries the denominator, because the denominator
             // changed. With a tagged log the dead time is out of it and this is
             // possession of a ball that was in play; without one it is the
             // older, weaker figure and must not claim otherwise.
-            label: possessionIsInPlay(quality) ? 'Possession, ball in play' : 'Possession',
-            value: share(ours.possession_pct),
-            confidence: confidence.possession || null,
+            ...row('possession',
+                possessionIsInPlay(quality) ? 'Possession, ball in play' : 'Possession',
+                SHARE, (t) => t.possession_pct,
+                { format: share, better: 'high', confidence: possession }),
         },
-        { type: 'possession', label: 'Touches', value: ours.touches, confidence: events },
-        { type: 'possession', label: 'Carries', value: ours.carries, confidence: events },
-        {
-            type: 'possession', label: 'In your own third', explained: true,
-            value: share(territory.defensive), confidence: confidence.possession || null,
-        },
-        {
-            type: 'possession', label: 'In the middle third', explained: true,
-            value: share(territory.middle), confidence: confidence.possession || null,
-        },
-        {
-            type: 'possession', label: 'In their third', explained: true,
-            value: share(territory.attacking), confidence: confidence.possession || null,
-        },
+        row('possession', 'Touches', COUNT, (t) => t.touches, { better: 'high' }),
+        row('possession', 'Carries', COUNT, (t) => t.carries, { better: 'high' }),
 
-        { type: 'passing', label: 'Passes attempted', value: attempted || null, confidence: events },
-        {
-            type: 'passing', label: 'Pass accuracy',
-            value: share(ours.pass_accuracy), confidence: events,
-        },
-        {
-            type: 'passing', label: 'Progressive passes',
-            value: ours.progressive_passes, confidence: events,
-        },
+        // Relabelled from "in your own third" now that the row has two owners:
+        // each figure is that side's share of its own time on the ball, in its
+        // own end of the pitch, so a possessive would be pointing at one of two
+        // teams and the reader would have to guess which.
+        row('possession', 'Own third', RATE, (t) => asPct(t.territory?.defensive),
+            { format: pctText, confidence: possession, explained: true }),
+        row('possession', 'Middle third', RATE, (t) => asPct(t.territory?.middle),
+            { format: pctText, confidence: possession, explained: true }),
+        row('possession', 'Opposition third', RATE, (t) => asPct(t.territory?.attacking),
+            { format: pctText, confidence: possession, explained: true }),
+
+        row('passing', 'Passes attempted', COUNT, (t) => t.passes_attempted || null,
+            { better: 'high' }),
+        row('passing', 'Pass accuracy', RATE, (t) => asPct(t.pass_accuracy),
+            { format: pctText, better: 'high' }),
+        row('passing', 'Progressive passes', COUNT, (t) => t.progressive_passes,
+            { better: 'high' }),
         // How direct a side was, which is the question the buckets exist to
-        // answer and which the raw counts do not. Both are shares of what they
-        // attempted, so a side that passed less does not look less direct.
-        {
-            type: 'passing', label: 'Played forward',
-            value: share(ofAttempted(byDirection.forward)), confidence: events,
-        },
-        {
-            type: 'passing', label: 'Played long',
-            value: share(ofAttempted(byLength.long)), confidence: events,
-        },
-        { type: 'passing', label: 'Switches of play', value: ours.switches, confidence: events },
+        // answer and which the raw counts do not. Shares of each side's own
+        // attempts, so a side that passed less does not look less direct.
+        // Neither direction is good: a long ball is a route one team chose.
+        row('passing', 'Played forward', RATE,
+            (t) => ofAttempted(t, t.passes_by_direction?.forward), { format: pctText }),
+        row('passing', 'Played long', RATE,
+            (t) => ofAttempted(t, t.passes_by_length?.long), { format: pctText }),
+        row('passing', 'Switches of play', COUNT, (t) => t.switches, { better: 'high' }),
 
-        {
-            type: 'attacking', label: 'Final-third entries',
-            value: ours.final_third_entries, confidence: events,
-        },
-        {
-            type: 'attacking', label: 'Entries into the box',
-            value: ours.box_entries, confidence: events,
-        },
-        { type: 'attacking', label: 'Crosses', value: ours.crosses, confidence: events },
-        { type: 'attacking', label: 'Shots', value: ours.shots, confidence: events },
-        {
-            type: 'attacking', label: 'Shots on target',
-            value: ours.shots_on_target, confidence: events,
-        },
+        row('attacking', 'Final-third entries', COUNT, (t) => t.final_third_entries,
+            { better: 'high' }),
+        row('attacking', 'Entries into the box', COUNT, (t) => t.box_entries,
+            { better: 'high' }),
+        row('attacking', 'Crosses', COUNT, (t) => t.crosses, { better: 'high' }),
+        row('attacking', 'Shots', COUNT, (t) => t.shots, { better: 'high' }),
+        row('attacking', 'Shots on target', COUNT, (t) => t.shots_on_target,
+            { better: 'high' }),
         // Withheld, not zeroed, when the calibration is too loose to support it.
         // A team total averages a lot of per-shot noise away, which is why it
         // survives a band that per-shot xG does not — but not every band.
-        {
-            type: 'attacking', label: 'Expected goals',
-            value: (ours.xg == null || xgTrust(cv.calibrationErrorM) === 'none')
-                ? null : ours.xg.toFixed(2),
-            confidence: events,
-        },
+        row('attacking', 'Expected goals', COUNT,
+            (t) => (trust === 'none' ? null : t.xg),
+            { format: (v) => v.toFixed(2), better: 'high' }),
 
-        { type: 'defending', label: 'Tackles', value: ours.tackles, confidence: events },
-        {
-            type: 'defending', label: 'Interceptions',
-            value: ours.interceptions, confidence: events,
-        },
-        { type: 'defending', label: 'Recoveries', value: ours.recoveries, confidence: events },
-        { type: 'defending', label: 'Ground duels', value: ours.duels, confidence: events },
-        {
-            type: 'defending', label: 'PPDA',
-            value: ours.ppda == null ? null : ours.ppda.toFixed(1), confidence: events,
-        },
+        row('defending', 'Tackles', COUNT, (t) => t.tackles, { better: 'high' }),
+        row('defending', 'Interceptions', COUNT, (t) => t.interceptions,
+            { better: 'high' }),
+        row('defending', 'Recoveries', COUNT, (t) => t.recoveries, { better: 'high' }),
+        row('defending', 'Ground duels', COUNT, (t) => t.duels, { better: 'high' }),
+        // Passes allowed per defensive action. Not a share of anything — the
+        // two sides do not divide a fixed quantity of pressing between them —
+        // so it is drawn against whichever was larger. Fewer means pressing
+        // harder, so the low side is the good one and the bar has to be told.
+        row('defending', 'PPDA', LEVEL, (t) => t.ppda,
+            { format: (v) => v.toFixed(1), better: 'low' }),
         // The giveaways that turn straight into a chance against you. A single
         // turnover count cannot say this, which is why it is counted by third.
-        {
-            type: 'defending', label: 'Lost in your own third',
-            value: lost.defensive ?? null, confidence: events,
-        },
+        row('defending', 'Lost in own third', COUNT,
+            (t) => t.turnovers_by_third?.defensive, { better: 'low' }),
 
-        ...shapeStatRows(ours.shape, cv.calibrationErrorM),
+        ...shapeStatRows(ours.shape, theirs?.shape, cv.calibrationErrorM),
     ];
 }
 
 /**
- * How spread out we played, in metres — ours only.
+ * How spread out each side played, in metres.
  *
  * `report_json` used to publish one shape built from every track on the pitch,
  * both teams and the referee together, and label it Team A's. It is now built
- * per team, and this reads the team's own.
+ * per team, and both are read here — a side that was 8m narrower than the
+ * opposition is a fact about the match, where "38m wide" on its own is a number
+ * with nothing to lean on.
  *
  * Empty until a calibration exists, which is every run today — width in metres
- * is not something a pixel can answer.
+ * is not something a pixel can answer. Their shape may be absent while ours is
+ * not, and then the rows draw one-sided rather than against a zero.
+ *
+ * None of these is coloured good or bad. A compact side is well-drilled or it
+ * is pinned in its own half, and no number here can tell the difference.
  */
-export function shapeStatRows(shape, calibrationErrorM) {
+export function shapeStatRows(shape, theirShape, calibrationErrorM) {
     if (!shape || shape.width_m == null) return [];
     const band = shapeConfidence(calibrationErrorM);
-    const metres = (value) => (value == null ? null : `${Math.round(value)}m`);
+    const metres = (value) => `${Math.round(value)}m`;
+
+    const row = (label, key) => {
+        const usN = shape[key] ?? null;
+        const themN = theirShape?.[key] ?? null;
+        return {
+            type: 'shape', label, kind: LEVEL, better: null, explained: true,
+            confidence: band,
+            value: usN == null ? null : metres(usN),
+            themValue: themN == null ? null : metres(themN),
+            usN, themN,
+        };
+    };
 
     return [
-        {
-            type: 'shape', label: 'Average width', explained: true,
-            value: metres(shape.width_m), confidence: band,
-        },
-        {
-            type: 'shape', label: 'Average depth', explained: true,
-            value: metres(shape.depth_m), confidence: band,
-        },
-        // Mean distance from each player to the team's own centre. Deliberately
-        // not coloured good or bad: a compact side is well-drilled or it is
-        // pinned in its own half, and this number cannot tell the difference.
-        {
-            type: 'shape', label: 'Compactness', explained: true,
-            value: metres(shape.compactness_m), confidence: band,
-        },
+        row('Average width', 'width_m'),
+        row('Average depth', 'depth_m'),
+        // Mean distance from each player to their own team's centre.
+        row('Compactness', 'compactness_m'),
     ];
 }
 

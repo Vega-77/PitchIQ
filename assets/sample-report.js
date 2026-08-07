@@ -297,7 +297,7 @@ export function sampleCvSummary() {
                 duels: 44,
                 // 130 to 15, and unlike ours it holds all the way through —
                 // the contrast is the point of carrying the opponent's blocks
-                // at all, even though nothing draws them today.
+                // at all.
                 ppda: 8.67,
                 pressing_segments: [
                     { start_s: 0, end_s: 900, allowed: 40, actions: 5, ppda: 8.0 },

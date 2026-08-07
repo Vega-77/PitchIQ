@@ -3646,3 +3646,206 @@ describe('what the quality note says about the wobble', () => {
         assert.doesNotMatch(said, /wobble/);
     });
 });
+
+/**
+ * Comparing the two sides, and the three different claims a bar can make.
+ *
+ * The pipeline has always measured both teams and the coach's report read one.
+ * These cover the join, and — more importantly — the arithmetic that decides
+ * how long each bar is, because a bar is read before either number beside it
+ * and a wrong one is believed at a glance.
+ */
+describe('comparePair', () => {
+    test('a share puts the boundary where the share is', () => {
+        // Possession of the ball: their figure IS the rest of ours, and there
+        // is no count behind it that could be too small.
+        const bars = report.comparePair(58, 42, report.SHARE);
+        assert.equal(bars.mode, 'split');
+        assert.equal(Math.round(bars.us), 58);
+        assert.equal(Math.round(bars.them), 42);
+        assert.equal(bars.tentative, false);
+    });
+
+    test('a share of two figures that sum to nothing is not a share', () => {
+        // Half and half would draw a dead heat nobody measured.
+        assert.equal(report.comparePair(0, 0, report.SHARE), null);
+    });
+
+    test('a count is a split too — twelve shots to four is three quarters', () => {
+        const bars = report.comparePair(12, 4, report.COUNT);
+        assert.equal(bars.mode, 'split');
+        assert.equal(bars.us, 75);
+    });
+
+    test('but a count says when its lead is smaller than chance', () => {
+        // Three shots to one is also three quarters, and it is four shots in a
+        // whole match. Same bar, and only one of them means anything.
+        assert.equal(report.comparePair(30, 10, report.COUNT).tentative, false);
+        assert.equal(report.comparePair(3, 1, report.COUNT).tentative, true);
+        // The shares really are identical, which is the point.
+        assert.equal(report.comparePair(3, 1, report.COUNT).us,
+                     report.comparePair(30, 10, report.COUNT).us);
+    });
+
+    test('a share is never called tentative, because it has no count', () => {
+        // 58% of the ball is not 58 of anything. Applying an event-count band
+        // to a share of time would invent a sample size.
+        assert.equal(report.comparePair(3, 1, report.SHARE).tentative, false);
+    });
+
+    test('rates run on their own scale, because they are not a whole', () => {
+        // 84% and 71% pass accuracy are shares of two different denominators.
+        // Drawn as a split they come out 54/46, which is a number about nothing.
+        const bars = report.comparePair(84, 71, report.RATE);
+        assert.equal(bars.mode, 'opposed');
+        assert.equal(bars.us, 84);
+        assert.equal(bars.them, 71);
+    });
+
+    test('a rate is clamped rather than overflowing its track', () => {
+        assert.equal(report.comparePair(140, -5, report.RATE).us, 100);
+        assert.equal(report.comparePair(140, -5, report.RATE).them, 0);
+    });
+
+    test('a pair with a side missing is not a pair', () => {
+        // Filling the other half with zero would report a nil return the
+        // pipeline never saw. Every kind refuses it.
+        for (const kind of [report.SHARE, report.COUNT, report.RATE]) {
+            assert.equal(report.comparePair(12, null, kind), null, kind);
+            assert.equal(report.comparePair(null, 12, kind), null, kind);
+        }
+    });
+
+    test('counts of nothing on both sides draw nothing', () => {
+        assert.equal(report.comparePair(0, 0, report.COUNT), null);
+    });
+});
+
+describe('insideNoise', () => {
+    test('the band is two standard deviations of an even split', () => {
+        // Under a null of no difference each event is a coin toss, so the gap
+        // between the two counts has standard deviation sqrt(n). These are the
+        // three worked examples in the docstring.
+        assert.equal(report.insideNoise(3, 1), true);      // gap 2 vs 4.0
+        assert.equal(report.insideNoise(12, 4), false);    // gap 8 vs 8.0
+        assert.equal(report.insideNoise(30, 10), false);   // gap 20 vs 12.6
+    });
+
+    test('a dead heat is always inside it', () => {
+        assert.equal(report.insideNoise(50, 50), true);
+    });
+
+    test('it takes more events to call the same ratio', () => {
+        // 60/40 is the same ratio at every scale, and only becomes a finding
+        // once there are enough of them.
+        assert.equal(report.insideNoise(6, 4), true);
+        assert.equal(report.insideNoise(60, 40), false);
+    });
+
+    test('nothing at all is not a lead', () => {
+        assert.equal(report.insideNoise(0, 0), true);
+    });
+});
+
+describe('the opponent reaches the report', () => {
+    const CV = {
+        calibrationErrorM: 0.4,
+        quality: { live_share: 0.7 },
+        teams: {
+            team_a: {
+                possession_pct: 0.58, touches: 400, shots: 12, pass_accuracy: 0.84,
+                passes_attempted: 300, passes_by_direction: { forward: 90 },
+                tackles: 14, xg: 1.4,
+                territory: { defensive: 0.2, middle: 0.5, attacking: 0.3 },
+                shape: { width_m: 38, depth_m: 30, compactness_m: 12 },
+            },
+            team_b: {
+                possession_pct: 0.42, touches: 300, shots: 4, pass_accuracy: 0.71,
+                passes_attempted: 200, passes_by_direction: { forward: 80 },
+                tackles: 9, xg: 0.5,
+                territory: { defensive: 0.35, middle: 0.45, attacking: 0.2 },
+                shape: { width_m: 30, depth_m: 26, compactness_m: 10 },
+            },
+        },
+    };
+
+    const find = (rows, label) => rows.find((r) => r.label === label);
+
+    test('every comparable row carries both sides', () => {
+        const rows = report.teamStatRows(CV);
+        const compared = rows.filter((r) => r.kind);
+        assert.ok(compared.length >= 15);
+        for (const row of compared) {
+            assert.ok('themN' in row, `${row.label} has no opposition figure`);
+        }
+    });
+
+    test('the two sides are read off the same field, never two', () => {
+        const shots = find(report.teamStatRows(CV), 'Shots');
+        assert.equal(shots.usN, 12);
+        assert.equal(shots.themN, 4);
+        assert.equal(shots.kind, report.COUNT);
+    });
+
+    test('possession is the only share of a continuous whole', () => {
+        // Everything else is either a count of events or a rate on its own
+        // denominator. Getting this wrong would put an event-count noise band
+        // on a share of time.
+        const rows = report.teamStatRows(CV);
+        const shares = rows.filter((r) => r.kind === report.SHARE);
+        assert.equal(shares.length, 1);
+        assert.match(shares[0].label, /Possession/);
+    });
+
+    test('a share of each side\'s own attempts uses that side\'s own total', () => {
+        // 90 of our 300 is 30%; 80 of their 200 is 40%. Dividing their forward
+        // passes by our attempts would give 27% — a number about nobody.
+        const forward = find(report.teamStatRows(CV), 'Played forward');
+        assert.equal(forward.value, '30%');
+        assert.equal(forward.themValue, '40%');
+        assert.equal(forward.kind, report.RATE);
+    });
+
+    test('shape is compared too, since a width means little on its own', () => {
+        const width = find(report.teamStatRows(CV), 'Average width');
+        assert.equal(width.value, '38m');
+        assert.equal(width.themValue, '30m');
+    });
+
+    test('a report with no opposition block degrades to one side', () => {
+        // Every report published before both sides were carried. The rows stay
+        // and the bars drop out, rather than the opposition reading as zero.
+        const rows = report.teamStatRows({ ...CV, teams: { team_a: CV.teams.team_a } });
+        const shots = find(rows, 'Shots');
+        assert.equal(shots.usN, 12);
+        assert.equal(shots.themN, null);
+        assert.equal(report.comparePair(shots.usN, shots.themN, shots.kind), null);
+    });
+
+    test('a row measurable only for them survives to be shown', () => {
+        // The asymmetric case is real: PPDA is null for a side that made no
+        // defensive actions at all, and dropping the row would take the
+        // opposition's figure with it.
+        const cv = {
+            ...CV,
+            teams: {
+                team_a: { ...CV.teams.team_a, ppda: null },
+                team_b: { ...CV.teams.team_b, ppda: 8.2 },
+            },
+        };
+        const rows = report.groupStats(report.teamStatRows(cv))
+            .flatMap((g) => g.rows);
+        const ppda = find(rows, 'PPDA');
+        assert.ok(ppda, 'the row was dropped along with their figure');
+        assert.equal(ppda.value, null);
+        assert.equal(ppda.themValue, '8.2');
+    });
+
+    test('fewer passes does not read as less direct', () => {
+        // They attempted two thirds of what we did. If both breakdowns were
+        // shares of our total, every one of theirs would be understated by a
+        // third and they would look like a side that never went forward.
+        const forward = find(report.teamStatRows(CV), 'Played forward');
+        assert.ok(forward.themN > forward.usN);
+    });
+});

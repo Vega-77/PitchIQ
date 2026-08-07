@@ -1669,6 +1669,56 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       offset is; the half-time read quotes video minutes when nobody has synced
       the clock, since a wrong match minute reads as fact and a video minute
       reads as a position in the footage.
+- [x] **Show the opposition's figures beside our own** (2026-08-07). The
+      pipeline has run `team_stats` over both TEAM_A and TEAM_B since the
+      function existed, and `build_report_json` has published both; the coach's
+      report read `teams.team_a` and stopped. Twenty-five figures about the
+      opposition, computed, published, and rendered nowhere — a possession of
+      58% saying very little on its own and everything beside their 42%.
+
+      Adding the second column meant deciding what a bar between two figures is
+      allowed to claim, and there turned out to be four different claims sharing
+      one list. `tally` drew all of them as a split.
+
+      **SHARE** — a share of a continuous whole. Their possession IS the rest of
+      ours, the boundary between them is the whole story, and there is no count
+      behind it that could be too small. Possession, and nothing else on the
+      page.
+
+      **COUNT** — a share of some number of discrete events. Also a split: twelve
+      shots to four really is three quarters of the shots. But three shots to one
+      is *also* three quarters, and it is four shots in a match, so a count
+      carries whether its lead is bigger than chance. Each event is a coin toss
+      under a null of no difference, so the gap has standard deviation √n and the
+      band is `|a − b| < 2√n`: 3–1 is inside it, 12–4 sits on the line, 30–10 is
+      outside. Inside it the bar is drawn hollow and neither side is coloured —
+      a green number is a verdict and that one has not earned it. Same reasoning
+      as `xgCalibration` and `pressingRead`, for the same reason.
+
+      **RATE** — each figure a percentage of its own denominator. 84% pass
+      accuracy against 71% is not a 54/46 split of anything, so each runs 0–100
+      on its own scale from a fixed centre. Drawn as a split, which is what the
+      half-time page has been doing, any two accuracies look like a dead heat.
+
+      **LEVEL** — a magnitude with no denominator at all: PPDA, and every shape
+      figure in metres. Drawn against whichever side was larger. Splitting these
+      would be the worst of the four available mistakes — a PPDA of 6.9 against
+      14.8 reading as *32% of the pressing*, which is not a quantity.
+
+      Two of those were found by looking at it rather than by reasoning: the
+      rate bars came out one pixel wide, because a row's `usN` was the pipeline's
+      fraction while its text was the formatted percentage. Every figure a row
+      carries is now in the unit the row prints, so a bar cannot disagree with
+      the number beside it.
+
+      Each side's breakdowns are shares of **its own** total — dividing their
+      forward passes by our attempts would be a number about nobody, and would
+      make any side that passed less look like one that never went forward. A
+      row survives on either side having a figure, because PPDA is null for a
+      side that made no defensive actions and dropping the row would take the
+      opposition's number with it.
+
+      415 pure JS · 120 emulator · 765 Python.
 - [ ] **[MVP]** The last of the post-game tactical catalog: phase-of-play —
       what the side did in build-up, in progression and in the final third,
       separately. Nothing measures it yet and the shape of the answer is not

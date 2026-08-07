@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=39';
+} from '../assets/auth.js?v=40';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,20 +8,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=39';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=39';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=39';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=39';
+} from '../assets/db.js?v=40';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=40';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=40';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=40';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=39';
+} from '../assets/sample-report.js?v=40';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=39';
-import { renderPassMap } from '../assets/pass-map.js?v=39';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=39';
-import { renderForms } from '../assets/form-chart.js?v=39';
+} from '../assets/passing.js?v=40';
+import { renderPassMap } from '../assets/pass-map.js?v=40';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=40';
+import { renderForms } from '../assets/form-chart.js?v=40';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -30,15 +30,15 @@ import {
     xgCalibration, calibrationNote, headerCorrection, headerNote,
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
     clockFromMatch, clockMapNote, HALF_TIME,
-} from '../assets/report.js?v=39';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=39';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=39';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=39';
+} from '../assets/report.js?v=40';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=40';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=40';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=40';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark,
-} from '../assets/ui.js?v=39';
+} from '../assets/ui.js?v=40';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -760,6 +760,17 @@ function renderTeamStats(stats) {
     ];
 
     for (const group of groupStats(rows)) host.append(statGroup(group));
+
+    // The key only earns its place once there are bars to key. Half the rows
+    // here are ours alone — goals we scored, fouls we conceded — and a legend
+    // over a column of single-sided cards would be pointing at nothing.
+    const key = byId('tally-key');
+    if (key) {
+        const { usName, themName } = teamLabels();
+        setText('tk-us', usName);
+        setText('tk-them', themName);
+        key.hidden = !host.querySelector('.tally');
+    }
 }
 
 /**
