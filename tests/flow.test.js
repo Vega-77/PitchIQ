@@ -287,6 +287,52 @@ describe('publishing and the player portal', () => {
         assert.equal(mine.reduce((t, r) => t + r.minutesPlayed, 0), 135);
         assert.equal(mine.reduce((t, r) => t + r.goals, 0), 1);
     });
+
+    /**
+     * The write order the app actually uses, and the bug it used to hide.
+     *
+     * A coach publishes first, which creates the document. `cv/publish.py` then
+     * fills in the heatmap, the shot map's attacking end and the calibration
+     * error — it updates, never creates, precisely because a report exists
+     * because a coach made one. Then the coach goes back, corrects something,
+     * and publishes again.
+     *
+     * That third step used to be a `set()` with no merge, so it silently
+     * deleted everything the pipeline had added. Nothing caught it because
+     * nothing in the app reads those fields back before the player's own page
+     * does, by which time the coach is long gone. Tagging headers gave coaches
+     * a strong new reason to re-publish, which is what turned a latent bug into
+     * a likely one.
+     */
+    it('re-publishing keeps what the pipeline added afterwards', async () => {
+        const coachDb = as(COACH);
+        const ref = doc(coachDb, 'teams', TEAM, 'matches', 'match1', 'playerReports', 'p1');
+        const base = {
+            linkedUid: PLAYER.uid, published: true, playerName: 'Alex Vega',
+            jerseyNumber: 9, minutesPlayed: 90, goals: 1, cards: 0, stints: [],
+            matchDate: '2026-07-01', opponentName: 'Linden', teamName: 'South Brunswick',
+        };
+
+        await assertSucceeds(setDoc(ref, base));
+
+        // The pipeline's pass, exactly as cv/publish.py does it.
+        await assertSucceeds(updateDoc(ref, {
+            cvHeatmap: { cols: 2, rows: 2, values: [0.1, 0.2, 0.3, 0.4] },
+            cvAttackingEnd: 'right',
+            cvCalibrationErrorM: 0.42,
+        }));
+
+        // The coach publishes again, the way assets/db.js now writes it.
+        await assertSucceeds(setDoc(
+            ref, { ...base, goals: 2 }, { merge: true },
+        ));
+
+        const after = (await getDoc(ref)).data();
+        assert.equal(after.goals, 2, 'the correction landed');
+        assert.equal(after.cvAttackingEnd, 'right', 'the pipeline\'s work survived');
+        assert.equal(after.cvCalibrationErrorM, 0.42);
+        assert.deepEqual(after.cvHeatmap.values, [0.1, 0.2, 0.3, 0.4]);
+    });
 });
 
 // ---------------------------------------------------------------- staff

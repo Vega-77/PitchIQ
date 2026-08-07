@@ -1189,6 +1189,24 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       The tags also travel in the labels export beside both readings. Body part
       is the one field in that file the pipeline cannot produce at all, and it is
       exactly what a pose model would have to be trained on.
+
+      **The corrections reach the players.** A publish carries the tagged
+      headers into each player's own `cvXg` and `cvShotMap`, so the same match
+      cannot read one way on the coach's page and another on a sixteen-year-old's
+      — the worst kind of disagreement, because neither side can see the other
+      well enough to notice. Their shot map labels a headed dot as one, since it
+      is drawn smaller than a foot shot from the same spot and nothing else on
+      that page would explain why.
+
+      This turned up a **pre-existing bug that the header tag made likely**:
+      `publishReports` wrote each report with `set()` and no merge, so every
+      re-publish silently deleted the heatmap, attacking end and calibration
+      error that `cv/publish.py` adds *afterwards*. Nothing read those fields
+      back before the player's own page did, by which point the coach was long
+      gone. It is a merge now, with every video field explicitly nulled when a
+      player has no confirmed mapping — which is what the overwrite used to do
+      for free — and `tests/flow.test.js` walks the real publish → pipeline →
+      re-publish order.
 - [x] ~~`shot_height` is a z-axis value a flat single camera + homography can't give directly~~ — resolved by deleting the question. It was the height the ball *ended* at, so no amount of pose estimation would have recovered it before the shot was taken. See the retrain item below
 - [x] **[Demo]** Feed features into the existing ONNX model, log predicted xG —
       and note that until 2026-08-02 this was written but never called, so every

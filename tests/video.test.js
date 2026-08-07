@@ -692,9 +692,95 @@ describe('cvReportFields', () => {
         assert.equal(report.cvReportFields(stats).cvClusterCount, 2);
     });
 
-    test('an unmapped player gets no cv fields at all', () => {
-        // Not zeroes. A zero says the video measured them and found nothing.
-        assert.deepEqual(report.cvReportFields(undefined), {});
+    test('an unmapped player gets every cv field nulled', () => {
+        // Nulls, not zeroes: a zero says the video measured them and found
+        // nothing. And nulls rather than *nothing*, which is the change — the
+        // publish is a merge now, so an omitted key keeps whatever was there,
+        // and a player whose cluster a coach un-mapped would have gone on
+        // carrying the numbers from before.
+        const fields = report.cvReportFields(undefined);
+        assert.ok(Object.keys(fields).length > 15);
+        assert.ok(Object.values(fields).every((v) => v === null));
+    });
+
+    test('the nulls reach the fields only the pipeline writes', () => {
+        // The heatmap, the attacking end and the calibration error are written
+        // by cv/publish.py after this document exists. Under a merge, nothing
+        // else would ever clear them.
+        const fields = report.cvReportFields(undefined);
+        for (const key of ['cvHeatmap', 'cvAttackingEnd', 'cvCalibrationErrorM',
+            'cvShotMap']) {
+            assert.equal(fields[key], null, key);
+        }
+    });
+
+    test('a mapped player leaves the pipeline-only fields alone', () => {
+        // The other half of the merge. This payload must not mention the
+        // heatmap at all, or every re-publish would blank it — which is exactly
+        // what the old overwrite was doing.
+        const stats = report.cvStatsByPlayer([track(0)], { 0: ME })[ME];
+        const fields = report.cvReportFields(stats);
+        assert.equal('cvHeatmap' in fields, false);
+        assert.equal('cvAttackingEnd' in fields, false);
+        assert.equal('cvCalibrationErrorM' in fields, false);
+    });
+
+    test('a header the coach tagged reaches the player\'s own numbers', () => {
+        // Otherwise the same match reads one way on the coach's page and
+        // another on the player's, and neither side can see the other well
+        // enough to notice.
+        const shooter = {
+            ...track(0),
+            xg: 0.82,
+            shot_map: [
+                { event_id: 'a', video_s: 10, xg: 0.72, xg_header: 0.43 },
+                { event_id: 'b', video_s: 20, xg: 0.10, xg_header: 0.08 },
+            ],
+        };
+        const stats = report.cvStatsByPlayer([shooter], { 0: ME })[ME];
+        const fields = report.cvReportFields(stats, null, [
+            { id: 'a', header: true, xg: 0.43, counted: true },
+        ]);
+
+        assert.equal(fields.cvXg, 0.53);
+        assert.equal(fields.cvShotMap[0].xg, 0.43);
+        assert.equal(fields.cvShotMap[0].is_header, true);
+        assert.equal(fields.cvShotMap[1].xg, 0.10);
+    });
+
+    test('with nothing tagged the total is the pipeline\'s own', () => {
+        const shooter = {
+            ...track(0),
+            xg: 0.82,
+            shot_map: [
+                { event_id: 'a', video_s: 10, xg: 0.72 },
+                { event_id: 'b', video_s: 20, xg: 0.10 },
+            ],
+        };
+        const stats = report.cvStatsByPlayer([shooter], { 0: ME })[ME];
+        assert.equal(report.cvReportFields(stats).cvXg, 0.82);
+    });
+
+    test('a player with no shot map keeps the xG the pipeline gave them', () => {
+        // A report from before shot coordinates were published still has a
+        // per-track total, and summing an empty list would zero it.
+        const stats = report.cvStatsByPlayer(
+            [{ ...track(0), xg: 0.4 }], { 0: ME },
+        )[ME];
+        assert.equal(report.cvReportFields(stats).cvXg, 0.4);
+    });
+
+    test('shots from two clusters land in one map, in order', () => {
+        // A player split by the tracker is still one player, and their shots
+        // arrive in whatever order the mapping happened to be written in.
+        const stats = report.cvStatsByPlayer([
+            { ...track(0), shot_map: [{ event_id: 'late', video_s: 90, xg: 0.2 }] },
+            { ...track(1), shot_map: [{ event_id: 'early', video_s: 10, xg: 0.3 }] },
+        ], { 0: ME, 1: ME })[ME];
+        assert.deepEqual(
+            report.cvReportFields(stats).cvShotMap.map((m) => m.event_id),
+            ['early', 'late'],
+        );
     });
 
     test('coverage travels onto the report when it is known', () => {
@@ -1431,15 +1517,27 @@ describe('correctedShotMarks', () => {
         assert.equal(out[0].xg, 0.72);
     });
 
-    test('the map and the note describe the same set of shots', () => {
-        // Both skip a rejected shot and both skip an unscorable one. A map that
-        // has corrected one more shot than the sentence under it claims is the
-        // kind of half-a-goal discrepancy nobody ever tracks down.
+    test('a rejected shot keeps the number the pipeline gave it', () => {
         const rows = [
-            { id: 's1', header: true, xg: null, xgFoot: 0.72, xgHeader: null, counted: true },
             { id: 's2', header: true, xg: 0.08, xgFoot: 0.10, xgHeader: 0.08, counted: false },
         ];
         assert.equal(report.correctedShotMarks(marks, rows), marks);
+        assert.equal(report.headerCorrection(rows), null);
+    });
+
+    test('a header the run cannot score leaves the total instead of sitting in it', () => {
+        // The bug this replaced: the mark kept its foot xG, so the caption
+        // counted a shot the sentence under it said had been dropped and the
+        // check below it agreed had been dropped. Null is what makes all three
+        // agree — shotSummary skips it and markRadius draws it at the floor, so
+        // the dot stays on the pitch without contributing a number nobody
+        // believes.
+        const rows = [
+            { id: 's1', header: true, xg: null, xgFoot: 0.72, xgHeader: null, counted: true },
+        ];
+        const out = report.correctedShotMarks(marks, rows);
+        assert.equal(out[0].xg, null);
+        assert.equal(markMod.shotSummary(out).xg, 0.10);
         assert.equal(report.headerCorrection(rows).from, 0);
     });
 });
@@ -2148,6 +2246,42 @@ describe('markClass', () => {
         assert.equal(markMod.markClass({ outcome: 'saved', on_target: true }), 'is-on-target');
         assert.equal(markMod.markClass({ outcome: 'off_target' }), 'is-off');
         assert.equal(markMod.markClass(null), 'is-off');
+    });
+});
+
+describe('markLabel', () => {
+    test('a headed chance says so, beside its number', () => {
+        // Otherwise the dot is simply smaller than a foot shot from the same
+        // spot for a reason the reader cannot see — and on the player's own
+        // page there is nothing else on screen that would explain it.
+        assert.equal(
+            markMod.markLabel({ xg: 0.43, is_header: true, on_target: true }),
+            'On target · header · 0.43 xG',
+        );
+    });
+
+    test('a foot shot says nothing extra', () => {
+        assert.equal(
+            markMod.markLabel({ xg: 0.72, on_target: true }), 'On target · 0.72 xG',
+        );
+    });
+
+    test('a header the run could not score still says it was one', () => {
+        // The number is gone on purpose; the reason it is gone is the only
+        // thing left worth showing.
+        assert.equal(
+            markMod.markLabel({ xg: null, is_header: true, outcome: 'goal' }),
+            'Goal · header',
+        );
+    });
+
+    test('the label drops xG on the same bands the radius does', () => {
+        // A number the map has stopped drawing but a tooltip still reports is
+        // the same claim made quietly, and the quiet one gets written down.
+        assert.equal(
+            markMod.markLabel({ xg: 0.43, on_target: true }, 'total'), 'On target',
+        );
+        assert.equal(markMod.markRadius(0.43, 'total'), markMod.markRadius(0.9, 'total'));
     });
 });
 

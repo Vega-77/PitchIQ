@@ -70,7 +70,7 @@ export function cvStatsByPlayer(tracks, byCluster) {
         const track = byId.get(String(clusterId));
         if (!track) continue;
 
-        const acc = out[playerId] ||= { clusters: [], touchTimes: [] };
+        const acc = out[playerId] ||= { clusters: [], touchTimes: [], shotMap: [] };
         acc.clusters.push(Number(clusterId));
 
         for (const key of SUMMED) {
@@ -84,6 +84,11 @@ export function cvStatsByPlayer(tracks, byCluster) {
             acc[key] = Math.max(acc[key] ?? 0, value);
         }
         if (Array.isArray(track.touch_times_s)) acc.touchTimes.push(...track.touch_times_s);
+        // Their own shots, so a publish can carry the coach's body-part
+        // corrections into the player's report. Without these the coach's page
+        // would show a corrected total and the player's would show the
+        // uncorrected one for the same match.
+        if (Array.isArray(track.shot_map)) acc.shotMap.push(...track.shot_map);
     }
 
     for (const acc of Object.values(out)) {
@@ -91,6 +96,7 @@ export function cvStatsByPlayer(tracks, byCluster) {
         // combined touch list has to be re-sorted before it means anything as
         // a timeline.
         acc.touchTimes.sort((a, b) => a - b);
+        acc.shotMap.sort((a, b) => (a.video_s ?? 0) - (b.video_s ?? 0));
         acc.touchTimes = acc.touchTimes.slice(0, MAX_TOUCH_TIMES);
         acc.clusters.sort((a, b) => a - b);
         acc.passAccuracy = acc.passes_attempted
@@ -100,17 +106,60 @@ export function cvStatsByPlayer(tracks, byCluster) {
     return out;
 }
 
+// Everything a player's report can hold from the video, including the four
+// fields `cv/publish.py` writes and this module does not. Used to blank them
+// all when a player has no confirmed mapping.
+//
+// It has to be a list rather than "whatever this function returns", because the
+// publish is a merge now: a key the payload leaves out is a key that keeps
+// whatever it had. Before the merge, an unmapped player was cleaned up by the
+// overwrite; the same write was also silently deleting the pipeline's heatmaps
+// and shot maps on every re-publish, which is the bug that forced the merge.
+/**
+ * Total xG over a set of marks, or null when not one of them carries a figure.
+ *
+ * Null rather than zero, matching `shotSummary`: a run from before the model was
+ * wired in has no expected goals, which is not the same as no chances. A header
+ * the run cannot score is also null and drops out here, which is the point —
+ * the player's total then leaves it out exactly as the coach's map does.
+ */
+function sumXg(marks) {
+    const scored = (marks || []).filter((m) => m.xg != null);
+    if (!scored.length) return null;
+    return Math.round(scored.reduce((sum, m) => sum + m.xg, 0) * 1e4) / 1e4;
+}
+
+const CV_REPORT_KEYS = [
+    'cvMinutesOnPitch', 'cvMinutesFilmed', 'cvTrackedShare', 'cvTouches',
+    'cvPassesAttempted', 'cvPassesCompleted', 'cvCarries', 'cvTackles',
+    'cvInterceptions', 'cvRecoveries', 'cvShots', 'cvXg', 'cvDistanceM',
+    'cvTopSpeedKmh', 'cvSprintCount', 'cvMinutesTracked', 'cvTouchTimes',
+    'cvClusterCount', 'cvShotMap',
+    // Written only by the pipeline, cleared only here.
+    'cvHeatmap', 'cvAttackingEnd', 'cvCalibrationErrorM',
+];
+
 /**
  * The `cv`-prefixed fields for one player's match report.
  *
  * `coverage` is optional and comes from the roster rather than the pipeline —
- * Python has no sub log and cannot compute it, which is why these two fields
- * have no twin in `cv/publish.py::player_report_fields`. Without it the report
- * is exactly what it was before, with the totals unqualified.
+ * Python has no sub log and cannot compute it, which is why those fields have
+ * no twin in `cv/publish.py::player_report_fields`. Without it the report is
+ * exactly what it was before, with the totals unqualified.
+ *
+ * `shotRows` is the coach's shot ledger. It is what carries a body-part tag
+ * through to the player: without it the coach's own page would show a corrected
+ * total for a match and the player's page would show the uncorrected one.
+ *
+ * With no stats at all, every video field is explicitly nulled rather than
+ * omitted. Omitting them was right while this was an overwrite and is wrong now
+ * that it is a merge — a player whose cluster a coach un-mapped would otherwise
+ * keep the numbers from before.
  */
-export function cvReportFields(stats, coverage = null) {
-    if (!stats) return {};
+export function cvReportFields(stats, coverage = null, shotRows = null) {
+    if (!stats) return Object.fromEntries(CV_REPORT_KEYS.map((k) => [k, null]));
     const num = (v) => (v == null ? null : v);
+    const marks = correctedShotMarks(stats.shotMap || [], shotRows);
     return {
         // How much of this player's own minutes the figures above rest on, so
         // the player's page can say it without re-reading the roster and the
@@ -126,7 +175,12 @@ export function cvReportFields(stats, coverage = null) {
         cvInterceptions: num(stats.interceptions),
         cvRecoveries: num(stats.recoveries),
         cvShots: num(stats.shots),
-        cvXg: num(stats.xg),
+        // Summed off the corrected marks rather than off the pipeline's own
+        // per-track total, so the header tags reach it. Falls back to the
+        // pipeline's figure when there are no marks to sum — a report from
+        // before shot maps existed still has an xG.
+        cvXg: marks.length ? sumXg(marks) : num(stats.xg),
+        cvShotMap: marks,
         cvDistanceM: num(stats.distance_m),
         cvTopSpeedKmh: num(stats.top_speed_kmh),
         cvSprintCount: num(stats.sprint_count),
@@ -1294,6 +1348,14 @@ export function headerNote(correction) {
  *
  * Marks the ledger says nothing about pass through untouched, so a report from
  * before any of this existed renders exactly as it did.
+ *
+ * A header the run cannot score comes out with a **null** xG rather than its
+ * foot figure. That is what makes the map agree with everything around it:
+ * `shotSummary` skips a null and `markRadius` draws it at the floor, so the dot
+ * stays on the pitch — the shot happened — while the caption's total, the
+ * sentence under it and the check below all leave it out together. Keeping the
+ * foot figure here would have left the map counting a shot the note beside it
+ * said had been dropped.
  */
 export function correctedShotMarks(marks, rows) {
     const byId = new Map();
@@ -1302,9 +1364,7 @@ export function correctedShotMarks(marks, rows) {
         // always describing the same set of shots. A map that has quietly
         // corrected one more shot than the sentence under it claims is the kind
         // of half-a-goal discrepancy nobody ever tracks down.
-        if (row?.id != null && row.header && row.counted && row.xg != null) {
-            byId.set(row.id, row.xg);
-        }
+        if (row?.id != null && row.header && row.counted) byId.set(row.id, row.xg);
     }
     if (!byId.size) return marks || [];
 

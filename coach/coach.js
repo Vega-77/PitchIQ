@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=31';
+} from '../assets/auth.js?v=32';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,13 +8,13 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=31';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=31';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=31';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=31';
+} from '../assets/db.js?v=32';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=32';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=32';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=32';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
-} from '../assets/sample-report.js?v=31';
+} from '../assets/sample-report.js?v=32';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -22,15 +22,15 @@ import {
     TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, xgTally, sumXgTallies,
     xgCalibration, calibrationNote, headerCorrection, headerNote,
     correctedShotMarks,
-} from '../assets/report.js?v=31';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=31';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=31';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=31';
+} from '../assets/report.js?v=32';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=32';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=32';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=32';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark,
-} from '../assets/ui.js?v=31';
+} from '../assets/ui.js?v=32';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -666,19 +666,17 @@ async function openMatch(matchId) {
 
         renderTeamStats(stats);
 
-        // Rebuilt rather than appended: openMatch runs again every time a coach
-        // goes back and picks another match, and a stacking banner is the
-        // classic way that goes unnoticed.
-        document.querySelector('.cv-note')?.remove();
-        const note = cvNote();
-        if (note) byId('team-stats').before(note);
+        // The banner, the shot maps and the shot log all read the review
+        // document, so they go through the one function that draws all three.
+        // It also rebuilds the banner rather than appending — openMatch runs
+        // again every time a coach goes back and picks another match, and a
+        // stacking banner is the classic way that goes unnoticed.
+        redrawShotViews();
 
         renderPlayerTable(stats.players);
         renderMatchVideoBlock();
         renderTimeline(log, roster);
         renderClusterMapping();
-        renderShots();
-        renderShotLog();
         renderExcluded();
         renderReview();
         renderSampleToggle();
@@ -997,9 +995,9 @@ function toggleHeader(eventId) {
 
     state.match.cvReview = { ...state.match.cvReview, byEvent };
     queueReviewSave();
-    renderShotLog();
-    // The map above is drawn from the same tags, so it moves with them.
-    renderShots();
+    // The map, its caption and the quality banner are all drawn from these
+    // tags, so they move with them.
+    redrawShotViews();
 }
 
 /**
@@ -1122,14 +1120,37 @@ function renderSampleToggle() {
         : 'See what the video-derived sections look like, using made-up numbers.');
 }
 
+/** Put the quality banner back, from whatever the state now says. */
+function redrawCvNote() {
+    document.querySelector('.cv-note')?.remove();
+    const note = cvNote();
+    if (note) byId('team-stats').before(note);
+}
+
+/**
+ * Everything the shot ledger feeds, redrawn together.
+ *
+ * Four surfaces read it — the shot maps, their caption, the quality banner and
+ * the log with its check — and they are spread from the top of the page to the
+ * bottom. Redrawing a subset is how they end up contradicting each other, which
+ * is exactly what happened twice: rejecting a tagged header in the review block
+ * left the map still showing the correction, and tagging one left the banner
+ * still saying nothing had been tagged.
+ *
+ * Cheap enough to do wholesale — a match has a dozen shots, not a thousand.
+ */
+function redrawShotViews() {
+    redrawCvNote();
+    renderShots();
+    renderShotLog();
+}
+
 /** Flip the preview and redraw only the blocks it can reach. */
 function toggleSample() {
     state.cvPreview = !state.cvPreview;
 
     renderTeamStats(state.match.stats);
-    document.querySelector('.cv-note')?.remove();
-    const note = cvNote();
-    if (note) byId('team-stats').before(note);
+    redrawCvNote();
 
     renderShots();
     renderExcluded();
@@ -2190,6 +2211,11 @@ function decide(eventId, verdict) {
     }
     state.match.cvReview = { ...state.match.cvReview, byEvent: next };
     queueReviewSave();
+    // Rejecting a candidate up here takes it out of the xG check down there,
+    // and off the shot map above if it was a tagged header. One rule, applied
+    // at every point that writes to cvReview: the ledger changed, so redraw
+    // everything drawn from it.
+    redrawShotViews();
 }
 
 function updateReviewProgress() {
@@ -2208,9 +2234,6 @@ function updateReviewProgress() {
 
     setText('cv-review-progress', parts.join(' · '));
     renderScorecard();
-    // Rejecting a candidate up here takes it out of the xG check down there.
-    // Redrawn from the same state rather than patched, so the two cannot drift.
-    renderShotLog();
 }
 
 /**
@@ -2628,6 +2651,13 @@ async function doPublish() {
                 // that lost everybody.
                 cvWindow: state.match.cv?.window,
                 matchEndS: state.match.stats.matchEndS,
+                // The shots a coach said were headed. Without these the same
+                // match would read one way on this page and another on the
+                // player's, which is the worst kind of disagreement — neither
+                // side can see the other to know there is one.
+                cvShotRows: shotLedger(
+                    state.match.cvEvents?.events || [], state.match.cvReview,
+                ),
             },
         );
         toast('Player reports published');

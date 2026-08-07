@@ -22,7 +22,7 @@
 // for the opposite reason — they were dropped from the training set, so there
 // is nothing to place.
 
-import { Vector } from './geometry.js?v=31';
+import { Vector } from './geometry.js?v=32';
 
 // The half the sandbox draws. Matching WIDTH_M and HALF_LENGTH_M in sandbox.js,
 // and the 105x68 default in cv/pitch.py that the sample match is measured on.

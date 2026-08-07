@@ -7,13 +7,13 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=31';
-import { EVENT_TYPES } from './events.js?v=31';
+import { db } from './firebase-init.js?v=32';
+import { EVENT_TYPES } from './events.js?v=32';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage,
-} from './report.js?v=31';
+} from './report.js?v=32';
 
 export { playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage };
 
@@ -528,8 +528,19 @@ export async function publishReports(teamId, matchId, match, team, players, scor
                         player.stints,
                         coverageContext,
                     ),
+                    // The coach's body-part tags, so a player's own shot map
+                    // and xG say what the coach's screen says.
+                    extra.cvShotRows || null,
                 ),
-            }
+            },
+            // Merged, not overwritten. `cv/publish.py` fills in the heatmap,
+            // the shot map's attacking end and the calibration error *after*
+            // this document is created — a plain set() deleted all of them
+            // every time a coach re-published, and nothing noticed because
+            // nothing here reads them back. cvReportFields nulls every video
+            // field explicitly when a player has no mapping, which is what the
+            // overwrite used to do for free.
+            { merge: true },
         );
     }
 

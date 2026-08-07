@@ -31,7 +31,7 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, pitchMarkings,
-} from './pitch-backdrop.js?v=31';
+} from './pitch-backdrop.js?v=32';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -77,6 +77,29 @@ export function markClass(mark) {
     if (mark?.outcome === 'goal') return 'is-goal';
     if (mark?.on_target) return 'is-on-target';
     return 'is-off';
+}
+
+/**
+ * The hover label for one dot.
+ *
+ * Split out of the renderer so it can be tested without a DOM — it carries two
+ * rules that are easy to break silently and impossible to see in a screenshot.
+ *
+ * The first: xG is dropped on exactly the bands the radius is. A number the map
+ * has stopped drawing but a tooltip still reports is the same claim made
+ * quietly, and the quiet one is what people write down.
+ *
+ * The second: a header says so. Its dot is smaller than a foot shot from the
+ * same spot, and on a player's own page nothing else on screen would explain
+ * why. A circle that shrank for an unstated reason is a claim the reader cannot
+ * check.
+ */
+export function markLabel(mark, xgTrust = 'shot') {
+    return [
+        mark?.outcome === 'goal' ? 'Goal' : (mark?.on_target ? 'On target' : 'Off target'),
+        mark?.is_header ? 'header' : null,
+        (xgTrust === 'shot' && mark?.xg != null) ? `${mark.xg.toFixed(2)} xG` : null,
+    ].filter(Boolean).join(' · ');
 }
 
 /**
@@ -137,14 +160,7 @@ export function shotMapSvg(marks, { onPick = null, xgTrust = 'shot' } = {}) {
             class: `shot-mark ${markClass(mark)}`,
         });
 
-        // The hover label drops xG on exactly the bands the radius does. A
-        // number the map has stopped drawing but a tooltip still reports is
-        // the same claim made quietly, and it is the one people write down.
-        const label = [
-            mark.outcome === 'goal' ? 'Goal' : (mark.on_target ? 'On target' : 'Off target'),
-            (xgTrust === 'shot' && mark.xg != null) ? `${mark.xg.toFixed(2)} xG` : null,
-        ].filter(Boolean).join(' · ');
-        dot.appendChild(el('title', {})).textContent = label;
+        dot.appendChild(el('title', {})).textContent = markLabel(mark, xgTrust);
 
         if (onPick) {
             dot.classList.add('is-pickable');
