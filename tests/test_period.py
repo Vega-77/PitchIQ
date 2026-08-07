@@ -15,7 +15,7 @@ Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_period.py -q
 
 from __future__ import annotations
 
-from cv.phases import periods_from_log
+from cv.phases import VideoClock, periods_from_log
 from cv.pipeline import MatchReport, _resolve_period
 
 
@@ -31,7 +31,9 @@ BOTH_HALVES = [
 
 def a_report(log=None, duration_s=900.0, offset_s=0.0):
     report = MatchReport(source='clip.mp4', duration_s=duration_s, processing_s=1.0)
-    report.periods = periods_from_log(log).shifted(offset_s) if log else None
+    report.periods = (
+        periods_from_log(log).on_video(VideoClock(offset_s)) if log else None
+    )
     return report
 
 

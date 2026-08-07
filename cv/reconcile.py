@@ -41,6 +41,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from . import zones
+from .phases import VideoClock
 
 # A tagger taps a goal after the ball crosses the line, usually after watching
 # the celebration start. Fifteen seconds is generous on purpose: matching a real
@@ -169,22 +170,28 @@ def _clock_of(entry) -> float | None:
     return float(value)
 
 
-def tagged_times(entries, types, video_offset_s: float = 0.0) -> list[float]:
+def tagged_times(entries, types, clock: VideoClock | None = None) -> list[float]:
     """When the tagger recorded each of `types`, in video seconds.
 
     The log runs on the match clock and everything else here on video time. The
-    conversion happens once, at the edge, exactly as `PhaseTable.shifted` does
+    conversion happens once, at the edge, exactly as `PhaseTable.on_video` does
     it — converting per comparison is how half of them end up on the wrong
     clock.
+
+    It matters here more than almost anywhere: the goal window is fifteen
+    seconds, and a half-time interval is fifty times that. On a single-anchor
+    clock every second-half goal misses its own match by so far that the two
+    records would be reported as disagreeing about all of them.
     """
+    clock = clock or VideoClock()
     wanted = frozenset(types)
     out = []
     for entry in entries or ():
         kind = entry.get('type') if hasattr(entry, 'get') else None
-        clock = _clock_of(entry)
-        if clock is None or kind not in wanted:
+        clock_s = _clock_of(entry)
+        if clock_s is None or kind not in wanted:
             continue
-        out.append(clock + video_offset_s)
+        out.append(clock.to_video(clock_s))
     return sorted(out)
 
 
@@ -277,7 +284,7 @@ def reconcile(
     tag_entries=None,
     trajectory=None,
     calibration=None,
-    video_offset_s: float = 0.0,
+    clock: VideoClock | None = None,
     goal_window_s: float = GOAL_WINDOW_S,
     stoppage_window_s: float = STOPPAGE_WINDOW_S,
 ) -> Reconciliation:
@@ -295,7 +302,7 @@ def reconcile(
         e.timestamp_s for e in (log.events if log else [])
         if getattr(e, 'outcome', None) == GOAL
     )
-    tag_goals = tagged_times(tag_entries, {GOAL}, video_offset_s)
+    tag_goals = tagged_times(tag_entries, {GOAL}, clock)
 
     agreed, cv_only, tag_only = pair_up(cv_goals, tag_goals, goal_window_s)
     for cv_s, tag_s in agreed:
@@ -311,7 +318,7 @@ def reconcile(
     exits_checked = trajectory is not None and calibration is not None
 
     if exits_checked:
-        tag_exits = tagged_times(tag_entries, EXIT_TYPES, video_offset_s)
+        tag_exits = tagged_times(tag_entries, EXIT_TYPES, clock)
         exit_times = [e.timestamp_s for e in exits]
         boundary_at = {e.timestamp_s: e.boundary for e in exits}
 

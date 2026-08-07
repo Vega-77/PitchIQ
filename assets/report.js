@@ -234,12 +234,203 @@ export function stintOverlapS(stints, startS, endS, matchEndS) {
     return total;
 }
 
+// ------------------------------------------------- video time vs the match clock
+//
+// Two clocks, and until now one subtraction related them.
+//
+// The tablet keeps a match clock: zero at the first kick-off, and **frozen for
+// the whole of half-time** — `advancePeriod` in tagging.js stops it at the
+// break and restarts it from the same second. The video's clock is a position
+// in a file and freezes for nothing; it runs straight through the oranges.
+//
+// So `clockS = videoS - offsetS` is exact for the first half and wrong for the
+// entire second half by however long that break lasted, in both directions at
+// once. A goal tagged at 52:30 seeks to a video position somewhere in the
+// middle of the interval, and a shot the pipeline found at video 68:00 is
+// reported as the 68th minute of a match that was 53 minutes old. Ten to
+// fifteen minutes of error on every second-half timestamp in the app, and
+// invisible, because both numbers come out looking like plausible minutes.
+//
+// Fixing it needs exactly one fact the offset does not carry: where in the
+// video the second half kicks off. Nothing can derive it. The break's length is
+// not in the tag log — the tag log is the thing that froze — so the coach
+// supplies it the way they already supply the first offset, and the clock the
+// second half restarts on comes from the tablet, which knew it at the time and
+// now writes it down.
+//
+// With both anchors the map is piecewise and exact at each of them. With only
+// the offset it degrades to precisely today's behaviour and says so, so a
+// caller can decline to quote a match minute it cannot stand behind.
+
+export const FIRST_HALF = 'first_half';
+export const HALF_TIME = 'half_time';
+export const SECOND_HALF = 'second_half';
+
+/**
+ * The map between a position in the footage and a reading on the match clock.
+ *
+ * `secondHalfClockS` is what the tablet's clock read when the second half
+ * kicked off — which, because it froze at the break, is also what it read when
+ * the first half ended. `secondHalfVideoS` is where that same moment sits in
+ * the video.
+ *
+ * A pair that implies a **negative** break is refused outright rather than
+ * used. It means one of the two numbers is mistyped, and honouring it would
+ * make the map run backwards: two different moments in the footage would map to
+ * one reading on the clock, and the marks on the timeline would cross over each
+ * other. Today's one-anchor behaviour is wrong by a known amount in a known
+ * direction; a non-monotonic clock is wrong in a way nothing downstream could
+ * even describe. `inconsistent` is set so the coach can be told which it is,
+ * because a silently ignored number reads as a field that does not work.
+ *
+ * `period` is `null`, never a guess, whenever only the offset is known. Half of
+ * the point here is being able to say "this is a position in the footage, not a
+ * match minute".
+ */
+export function matchClockMap(options = {}) {
+    const { videoOffsetS = 0, secondHalfVideoS = null, secondHalfClockS = null } = options;
+
+    const offsetS = Number(videoOffsetS) || 0;
+    const kickoffS = num(secondHalfVideoS);
+    const restartClockS = num(secondHalfClockS);
+
+    // Both halves of the anchor, and a clock that actually ran before it. A
+    // second half restarting at 00:00 is not a second half.
+    const paired = kickoffS != null && restartClockS != null && restartClockS > 0;
+    const breakS = paired ? (kickoffS - offsetS) - restartClockS : null;
+    const inconsistent = paired && breakS < 0;
+    const knowsSecondHalf = paired && !inconsistent;
+
+    return {
+        videoOffsetS: offsetS,
+        knowsSecondHalf,
+        inconsistent,
+        // How long the video spent on the interval. Null when unknown — which
+        // is a different thing from a match played without a break.
+        breakS: knowsSecondHalf ? breakS : null,
+        secondHalfVideoS: knowsSecondHalf ? kickoffS : null,
+        secondHalfClockS: knowsSecondHalf ? restartClockS : null,
+
+        /** What the clock read at a position in the footage. */
+        toClock(videoS) {
+            const v = Number(videoS) || 0;
+            if (!knowsSecondHalf) {
+                return { clockS: Math.max(0, v - offsetS), period: null };
+            }
+            if (v >= kickoffS) {
+                return { clockS: restartClockS + (v - kickoffS), period: SECOND_HALF };
+            }
+            const first = v - offsetS;
+            // Inside the break the clock really did read the same second the
+            // whole time, so that is what is returned — with the period saying
+            // it is a frozen reading rather than a moment in a half.
+            if (first >= restartClockS) {
+                return { clockS: restartClockS, period: HALF_TIME };
+            }
+            return { clockS: Math.max(0, first), period: FIRST_HALF };
+        },
+
+        /** Where in the footage the clock read this.
+         *
+         * The restart's own second belongs to the second half: a `kickoff_2nd`
+         * tag and the `halftime` tag before it share a clock reading, and of the
+         * two positions that could mean, the restart is the one worth seeking
+         * to.
+         */
+        toVideo(clockS) {
+            const c = Math.max(0, Number(clockS) || 0);
+            if (knowsSecondHalf && c >= restartClockS) {
+                return kickoffS + (c - restartClockS);
+            }
+            return Math.max(0, c + offsetS);
+        },
+
+        /** Which half a position in the footage falls in, or null. */
+        periodAt(videoS) {
+            return this.toClock(videoS).period;
+        },
+    };
+}
+
+const num = (value) => (
+    typeof value === 'number' && Number.isFinite(value) ? value : null
+);
+
+/**
+ * The clock map for a match document, or for a player's copy of one.
+ *
+ * Both carry the same three fields under the same names — `pushVideoToReports`
+ * makes sure of it — so the coach's screen, the half-time view and the player
+ * portal cannot end up converting the same moment differently. Which was the
+ * previous state of affairs by accident rather than by design: they each did
+ * the same subtraction separately, and they were each wrong by the same
+ * fifteen minutes, so nothing ever disagreed loudly enough to notice.
+ */
+/**
+ * What the two numbers beside the video link add up to, in a sentence.
+ *
+ * Four states, and the one worth the most is the first: a coach who has never
+ * filled the second field in has no reason to suspect anything is wrong, since
+ * the timestamps they get look like ordinary minutes. So the absence is stated
+ * as a consequence — moments placed as if the match never stopped — rather than
+ * as a blank field.
+ *
+ * `clockText` is passed in rather than imported: this module has no imports by
+ * design so the whole of it can be tested without a DOM, and `renderMatchVideo`
+ * already takes its formatter the same way.
+ */
+export function clockMapNote(inputs = {}, clockText = (s) => `${Math.round(s)}s`) {
+    const { videoOffsetS = 0, secondHalfVideoS = null, halfTimeClockS = null } = inputs;
+
+    if (num(secondHalfVideoS) == null) {
+        return {
+            tone: 'muted',
+            text: 'Without this, second-half moments are placed as if the match '
+                + 'never stopped — every one of them lands late by however long '
+                + 'the break ran.',
+        };
+    }
+    if (num(halfTimeClockS) == null || halfTimeClockS <= 0) {
+        return {
+            tone: 'warn',
+            text: 'Nobody tapped half-time on the tablet for this match, so there '
+                + 'is no clock reading to line this up against. Saved, but not '
+                + 'used until there is one.',
+        };
+    }
+
+    const breakS = (secondHalfVideoS - (Number(videoOffsetS) || 0)) - halfTimeClockS;
+    if (breakS < 0) {
+        return {
+            tone: 'warn',
+            text: `That puts the second-half kick-off before the first half ended `
+                + `— the tablet had the clock at ${clockText(halfTimeClockS)} when `
+                + `half-time was tapped. One of these two numbers is wrong, so the `
+                + `second half is still being placed without them.`,
+        };
+    }
+    return {
+        tone: 'ok',
+        text: `Half-time ran ${clockText(breakS)} in the footage. Second-half `
+            + 'moments are placed across it.',
+    };
+}
+
+export function clockFromMatch(match) {
+    return matchClockMap({
+        videoOffsetS: match?.videoOffsetS ?? 0,
+        secondHalfVideoS: match?.secondHalfVideoS ?? null,
+        secondHalfClockS: match?.halfTimeClockS ?? null,
+    });
+}
+
 /**
  * Rank a roster by how well each player's time on the pitch fits a cluster's.
  *
  * The cluster's first and last sightings are in video time and the stints are
- * in match clock, related by the offset the coach typed in beside the video
- * link: `videoS = clockS + offsetS`, per `videoTime` in video.js.
+ * in match clock, related by `matchClockMap` above — which is piecewise across
+ * the break, so a substitute who came on in the second half is scored against
+ * the right stretch of footage rather than one shifted by the interval.
  *
  * Returned in full and sorted, never filtered. If that offset is wrong — and it
  * is the single most fiddly number in the app — then every overlap here is
@@ -247,9 +438,10 @@ export function stintOverlapS(stints, startS, endS, matchEndS) {
  * have hidden the right answer.
  */
 export function rankRosterForCluster(roster, cluster, options = {}) {
-    const { videoOffsetS = 0, matchEndS = 0 } = options;
-    const startS = (cluster?.first_seen_s ?? 0) - videoOffsetS;
-    const endS = (cluster?.last_seen_s ?? 0) - videoOffsetS;
+    const { matchEndS = 0 } = options;
+    const clock = clockOf(options);
+    const startS = clock.toClock(cluster?.first_seen_s ?? 0).clockS;
+    const endS = clock.toClock(cluster?.last_seen_s ?? 0).clockS;
     const span = Math.max(0, endS - startS);
 
     return (roster || [])
@@ -302,10 +494,8 @@ export const TRACKED_SHARE_FLOOR = 0.7;
  *
  * `window` is in video seconds, because it is a pair of seek positions in a
  * file. Stints are in match clock, because that is what a tablet on the
- * touchline records. The offset the coach typed in beside the video link is the
- * only thing relating them — `videoS = clockS + offsetS`, per `videoTime` in
- * video.js — and getting this backwards would score a substitute against the
- * warm-up.
+ * touchline records. `matchClockMap` above is the only thing relating them, and
+ * getting this backwards would score a substitute against the warm-up.
  *
  * An absent bound means the pipeline ran to that edge of the file, so it is
  * answered from the match rather than guessed at: kick-off for a missing start,
@@ -314,15 +504,28 @@ export const TRACKED_SHARE_FLOOR = 0.7;
  * which is a different thing from a window of zero length.
  */
 export function windowClockRange(window, options = {}) {
-    const { videoOffsetS = 0, matchEndS = null } = options;
+    const { matchEndS = null } = options;
+    const clock = clockOf(options);
     const startVideoS = window?.start_s ?? window?.startS ?? null;
     const endVideoS = window?.end_s ?? window?.endS ?? null;
 
-    const endS = endVideoS == null ? matchEndS : endVideoS - videoOffsetS;
+    const endS = endVideoS == null ? matchEndS : clock.toClock(endVideoS).clockS;
     if (endS == null) return null;
 
-    const startS = startVideoS == null ? 0 : startVideoS - videoOffsetS;
+    const startS = startVideoS == null ? 0 : clock.toClock(startVideoS).clockS;
     return { startS: Math.max(0, startS), endS };
+}
+
+/**
+ * The clock map a caller supplied, or the one its offset alone describes.
+ *
+ * Every one of these options bags used to carry a bare `videoOffsetS`, and a
+ * caller that still does gets exactly the behaviour it had. There is only one
+ * implementation of the conversion; this is only two ways of naming what is
+ * known about it.
+ */
+function clockOf(options = {}) {
+    return options.clock || matchClockMap({ videoOffsetS: options.videoOffsetS ?? 0 });
 }
 
 /**
@@ -344,11 +547,11 @@ export function windowClockRange(window, options = {}) {
  * whose stints were never recorded did not play no minutes.
  */
 export function trackedCoverage(minutesTracked, stints, context = {}) {
-    const { window, videoOffsetS = 0, matchEndS = null } = context;
+    const { window, matchEndS = null } = context;
 
     const trackedS = minutesTracked == null ? null : minutesTracked * 60;
     const known = Array.isArray(stints) && stints.length > 0 && matchEndS != null;
-    const range = windowClockRange(window, { videoOffsetS, matchEndS });
+    const range = windowClockRange(window, { clock: clockOf(context), matchEndS });
 
     const onPitchS = known ? stintOverlapS(stints, 0, matchEndS, matchEndS) : null;
     const watchedS = known && range
@@ -1676,10 +1879,10 @@ export function safeToClose(state) {
  * caller hides the block instead of captioning a blank.
  */
 export function pressingTrend(segments, options = {}) {
-    const { videoOffsetS = 0 } = options;
     if (!segments?.length) return null;
 
-    const minute = (s) => Math.max(0, Math.round((s - videoOffsetS) / 60));
+    const clock = clockOf(options);
+    const minute = (s) => Math.max(0, Math.round(clock.toClock(s).clockS / 60));
     const blocks = segments.map((seg) => ({
         startS: seg.start_s ?? null,
         endS: seg.end_s ?? null,

@@ -9,26 +9,25 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=37';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=37';
-import { CARD_COLOURS } from '../assets/events.js?v=37';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=37';
-import { renderHeatmap } from '../assets/heatmap.js?v=37';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=37';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=38';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=38';
+import { CARD_COLOURS } from '../assets/events.js?v=38';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=38';
+import { renderHeatmap } from '../assets/heatmap.js?v=38';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=38';
 import {
-    xgTrust, metresPerMinute, coverageNote,
-} from '../assets/report.js?v=37';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=37';
-import { renderForms } from '../assets/form-chart.js?v=37';
+    xgTrust, metresPerMinute, coverageNote, clockFromMatch,
+} from '../assets/report.js?v=38';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=38';
+import { renderForms } from '../assets/form-chart.js?v=38';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=37';
-import { videoTime } from '../assets/video.js?v=37';
-import { renderMatchVideo } from '../assets/match-video.js?v=37';
+} from '../assets/sample-report.js?v=38';
+import { renderMatchVideo } from '../assets/match-video.js?v=38';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=37';
+} from '../assets/ui.js?v=38';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -374,10 +373,7 @@ function renderPlayerShots(report) {
     const sized = trust === 'shot';
 
     const drawn = renderShotMap(byId('md-shots'), marks, {
-        onPick: (mark) => seekTo(
-            Math.max(0, (mark.video_s || 0) - (report.videoOffsetS ?? 0)),
-            report.videoOffsetS ?? 0,
-        ),
+        onPick: (mark) => seekTo(clock.toClock(mark.video_s || 0).clockS, clock),
         label: sized
             ? 'Your shots, placed on the pitch and sized by how good a chance each was'
             : 'Your shots, placed on the pitch',
@@ -464,7 +460,7 @@ function renderVideo(report) {
     }
     block.classList.remove('hidden');
 
-    const offset = report.videoOffsetS ?? 0;
+    const clock = clockFromMatch(report);
     const marks = marksFor(report, moments, touches);
 
     open.video = renderMatchVideo(
@@ -476,7 +472,7 @@ function renderVideo(report) {
         },
         {
             url: report.videoUrl,
-            offsetS: offset,
+            clock,
             marks,
             clockText,
             // So a mark tagged in stoppage time does not fall off the end of a
@@ -485,7 +481,7 @@ function renderVideo(report) {
             emptyText: 'Nothing was tagged for you in this match.',
             // Taken over rather than left to the module: a tap with no video
             // should say why, and the video wants scrolling into view.
-            onSeek: (clockS) => seekTo(clockS, offset),
+            onSeek: (clockS) => seekTo(clockS, clock),
             notes: {
                 embed: touches.length
                     ? `${plural(moments.length, 'tagged moment')} and `
@@ -514,12 +510,12 @@ function marksFor(report, moments, touches) {
     ];
 }
 
-function seekTo(clockS, offset) {
+function seekTo(clockS, clock) {
     if (!open.video) {
         toast('No playable video for this match yet.');
         return;
     }
-    open.video.seek(videoTime(clockS, offset));
+    open.video.seek(clock.toVideo(clockS));
     byId('md-video').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 

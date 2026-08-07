@@ -151,14 +151,9 @@ function mountYouTube(host, url, onReady) {
     };
 }
 
-/**
- * Where in the video a match-clock moment happened.
- *
- * The clock starts at kick-off; the recording almost never does. Without the
- * offset every marker on the timeline lands at the wrong moment — usually
- * during the warm-up — which looks like the whole feature is broken rather
- * than like one number is unset.
- */
-export function videoTime(matchClockS, offsetS = 0) {
-    return Math.max(0, (matchClockS || 0) + (offsetS || 0));
-}
+// Where in the video a match-clock moment happened used to live here, as
+// `videoTime(clockS, offsetS)`. It is now `matchClockMap(...).toVideo` in
+// report.js, because a single offset is only correct until half-time: the
+// tablet's clock stops for the break and the footage does not. See the section
+// comment there. It moved rather than being wrapped so that there is one
+// conversion in the app and not two that agree for forty-five minutes.

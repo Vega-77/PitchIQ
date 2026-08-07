@@ -113,7 +113,27 @@ service cloud.firestore {
         && (request.resource.data.get('videoOffsetS', null) == null
             || (request.resource.data.videoOffsetS is number
                 && request.resource.data.videoOffsetS >= -3600
-                && request.resource.data.videoOffsetS <= 36000));
+                && request.resource.data.videoOffsetS <= 36000))
+        // Where in the footage the second half kicks off. The second anchor of
+        // the clock map: with only the first, every second-half timestamp is
+        // out by the length of the interval. Never negative — it is a position
+        // in a file, and one before the start of the file is not a typo worth
+        // storing.
+        && (request.resource.data.get('secondHalfVideoS', null) == null
+            || (request.resource.data.secondHalfVideoS is number
+                && request.resource.data.secondHalfVideoS >= 0
+                && request.resource.data.secondHalfVideoS <= 36000));
+    }
+
+    // What the tablet's clock read when the first half ended — which, because
+    // the clock freezes for the break, is also what it read when the second
+    // half kicked off. Written by the tagger at the half-time tap, not typed by
+    // anyone, so the bound is the same MAX_CLOCK_S the log entries carry.
+    function validHalfTimeClock() {
+      return request.resource.data.get('halfTimeClockS', null) == null
+        || (request.resource.data.halfTimeClockS is number
+            && request.resource.data.halfTimeClockS > 0
+            && request.resource.data.halfTimeClockS <= 12000);
     }
 
     // The xG check tally on a match document. Null is the real, common answer:
@@ -302,6 +322,7 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(
                ['opponentName', 'date', 'status', 'finalized',
                 'scoreUs', 'scoreThem', 'videoUrl', 'videoOffsetS',
+                'secondHalfVideoS', 'halfTimeClockS',
                 'createdAt', 'createdBy'])
           && request.resource.data.opponentName is string
           && request.resource.data.opponentName.size() <= 80
@@ -310,14 +331,17 @@ service cloud.firestore {
           && request.resource.data.finalized == false
           && request.resource.data.createdBy == uid()
           && validVideo()
+          && validHalfTimeClock()
           && isTimestampNow(request.resource.data.createdAt);
 
         allow update: if isTagger(t)
           && changed(['opponentName', 'date', 'status', 'finalized',
-                      'scoreUs', 'scoreThem', 'videoUrl', 'videoOffsetS'])
+                      'scoreUs', 'scoreThem', 'videoUrl', 'videoOffsetS',
+                      'secondHalfVideoS', 'halfTimeClockS'])
           && request.resource.data.status in
                ['scheduled', 'first_half', 'halftime', 'second_half', 'full_time']
-          && validVideo();
+          && validVideo()
+          && validHalfTimeClock();
 
         // The xG check: four numbers summarising which of this match's shots a
         // coach has marked, and what the model predicted for them. Stored here
@@ -500,7 +524,8 @@ service cloud.firestore {
             && request.resource.data.minutesPlayed >= 0
             && request.resource.data.goals is int
             && request.resource.data.goals >= 0
-            && validVideo();
+            && validVideo()
+            && validHalfTimeClock();
 
           allow delete: if isCoach(t);
         }

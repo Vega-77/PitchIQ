@@ -45,7 +45,8 @@ from .metrics import (
 )
 from .participants import ParticipantReport, classify_participants
 from .phases import (
-    FIRST_HALF, PeriodTable, PhaseTable, periods_from_log, phases_from_log,
+    FIRST_HALF, SECOND_HALF, PeriodTable, PhaseTable, VideoClock,
+    periods_from_log, phases_from_log,
 )
 from .pitch import MatchOrientation, Pitch
 from .possession import (
@@ -277,6 +278,7 @@ def analyse_match(
     side_of_team: dict[str, str] | None = None,
     tag_log=None,
     video_offset_s: float = 0.0,
+    second_half_video_s: float | None = None,
 ) -> MatchReport:
     """Run the full pipeline over a video.
 
@@ -288,7 +290,12 @@ def analyse_match(
     it. It is what tells this pipeline when the ball was out of play; without it
     every stoppage counts as possession for whoever was standing over the ball.
     `video_offset_s` relates the two clocks, and is the same number the coach
-    already types in beside the video link.
+    already types in beside the video link. It is only the first half of that
+    relation: the tablet's clock stops for the interval and the footage does
+    not, so `second_half_video_s` — where the restart sits in this file — is
+    what makes a second-half timestamp land where it happened. Without it the
+    clock stays single-anchored and everything after the break is out by the
+    length of the break. See `phases.VideoClock`.
 
     Speed and fragmentation, on the same 15s 720p window (450 frames, RTX
     4060). Three fresh processes each, one model per process, medians given
@@ -412,12 +419,30 @@ def analyse_match(
             'participants before trusting any count here'
         )
 
+    # ---- the two clocks ----
+    #
+    # Built once, here, and everything that touches a tagged timestamp goes
+    # through it. The second half of the anchor comes out of the log itself —
+    # the clock reading the break froze at is where the second-half span starts
+    # — so only the video position has to be supplied.
+    tagged_periods = periods_from_log(tag_log) if tag_log else PeriodTable()
+    clock = VideoClock.from_periods(
+        tagged_periods, video_offset_s, second_half_video_s,
+    )
+    has_second_half = any(s.period == SECOND_HALF for s in tagged_periods.spans)
+    if has_second_half and not clock.knows_break:
+        report.warnings.append(
+            'the log has a second half but nothing says where it kicks off in '
+            'this video, so every second-half timestamp is placed as if the '
+            'match never stopped for the interval'
+        )
+
     # ---- in play or not ----
     #
-    # Shifted onto video time once, here, rather than converting every
-    # timestamp that later meets it.
+    # Put onto video time once, here, rather than converting every timestamp
+    # that later meets it.
     report.phases = (
-        phases_from_log(tag_log).shifted(video_offset_s) if tag_log else None
+        phases_from_log(tag_log).on_video(clock) if tag_log else None
     )
     if report.phases is None:
         report.warnings.append(
@@ -431,9 +456,7 @@ def analyse_match(
         )
 
     # ---- which half ----
-    report.periods = (
-        periods_from_log(tag_log).shifted(video_offset_s) if tag_log else None
-    )
+    report.periods = tagged_periods.on_video(clock) if tag_log else None
     period = _resolve_period(report, period, start_s, end_s)
 
     # ---- possession ----
@@ -557,7 +580,7 @@ def analyse_match(
             report.events, tag_log,
             trajectory=report.ball,
             calibration=calibration,
-            video_offset_s=video_offset_s,
+            clock=clock,
         )
         report.warnings.extend(warnings_for(report.reconciliation))
 

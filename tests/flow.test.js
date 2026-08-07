@@ -168,6 +168,35 @@ describe('match tagging', () => {
         const snap = await getDoc(logPath(db, 'devA_000005'));
         assert.equal(snap.data().playerId, 'p1');
     });
+
+    it('the half-time tap writes the clock the halves split on, and undo takes it back', async () => {
+        // The batch `writePeriod` sends: the log entry and the match status,
+        // plus — only at half-time — the clock reading. That reading is the
+        // second anchor of the clock map, and this is the one place in the app
+        // that knows it, because the tablet's clock freezes here and nothing
+        // downstream can recover the length of the break afterwards.
+        const db = as(COACH);
+        const matchRef = doc(db, 'teams', TEAM, 'matches', MATCH);
+
+        const batch = writeBatch(db);
+        batch.set(logPath(db, 'devA_000009'), entry({
+            seq: 9, kind: 'period', type: 'halftime', matchClockS: 2760,
+            revert: { prevStatus: 'first_half' },
+        }));
+        batch.update(matchRef, { status: 'halftime', halfTimeClockS: 2760 });
+        await assertSucceeds(batch.commit());
+
+        assert.equal((await getDoc(matchRef)).data().halfTimeClockS, 2760);
+
+        // Undo. Left behind, the reading would anchor the second half to a
+        // break the log no longer says happened.
+        const undo = writeBatch(db);
+        undo.update(matchRef, { status: 'first_half', halfTimeClockS: null });
+        undo.delete(logPath(db, 'devA_000009'));
+        await assertSucceeds(undo.commit());
+
+        assert.equal((await getDoc(matchRef)).data().halfTimeClockS, null);
+    });
 });
 
 describe('substitutions', () => {

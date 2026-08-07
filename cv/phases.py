@@ -144,16 +144,17 @@ class PhaseTable:
             return 0.0
         return max(0.0, 1.0 - self.dead_between(start_s, end_s) / window)
 
-    def shifted(self, offset_s: float) -> PhaseTable:
-        """The same spans on another clock.
+    def on_video(self, clock: VideoClock) -> PhaseTable:
+        """The same spans on video time.
 
-        The log runs on the match clock and the pipeline on video time, related
-        by the offset already stored on the match. Converting the table once is
-        less error-prone than converting every timestamp that meets it.
+        Converting the table once is less error-prone than converting every
+        timestamp that meets it. `clock` rather than a bare offset because the
+        offset alone stops being right at half-time — see VideoClock.
         """
         return PhaseTable(spans=[
             DeadSpan(
-                start_s=s.start_s + offset_s, end_s=s.end_s + offset_s,
+                start_s=clock.to_video(s.start_s),
+                end_s=clock.to_video(s.end_s),
                 opened_by=s.opened_by, closed_by=s.closed_by,
             )
             for s in self.spans
@@ -274,19 +275,146 @@ class PeriodTable:
                 best, longest = span.period, overlap
         return best
 
-    def shifted(self, offset_s: float) -> PeriodTable:
-        """The same spans on video time. Same reasoning as `PhaseTable`."""
+    def on_video(self, clock: VideoClock) -> PeriodTable:
+        """The same spans on video time. Same reasoning as `PhaseTable`.
+
+        Worth noticing what the two-anchor clock does here: the first half now
+        ends where the whistle went rather than where the second half starts, so
+        the interval becomes a gap between the spans instead of being absorbed
+        into one of them. `PeriodTable.at` already answers None inside it.
+        """
         return PeriodTable(spans=[
             PeriodSpan(
                 period=s.period,
-                start_s=s.start_s + offset_s,
-                end_s=None if s.end_s is None else s.end_s + offset_s,
+                start_s=clock.to_video(s.start_s),
+                end_s=None if s.end_s is None else clock.to_video_end(s.end_s),
             )
             for s in self.spans
         ])
 
     def to_json(self) -> dict:
         return {'spans': [s.to_json() for s in self.spans]}
+
+
+# ------------------------------------------------- the two clocks, and the break
+#
+# The tag log runs on a match clock that **stops at half-time**: the tablet
+# freezes it at the break and restarts it from the same second (`advancePeriod`
+# in live-tagging/tagging.js). The video runs on a file position, which freezes
+# for nothing.
+#
+# So adding one offset to every tagged reading is exact for the first half and
+# wrong for the whole of the second by however long the interval ran — ten to
+# fifteen minutes, typically. Everything that meets a tagged timestamp inherits
+# that: the dead spans land in the wrong place, every tagged goal misses its
+# reconciliation window by two orders of magnitude more than the window, and
+# `PeriodTable` — which decides which way each team is attacking, and through
+# that mirrors every shot map, heatmap and xG figure — is shifted across the
+# very boundary it exists to find.
+#
+# The clock the second half restarts on is in the log already: it is the start
+# of the second-half span. The position of that moment in the video is not, and
+# nothing can derive it, so it is supplied — the same way the kick-off offset
+# always has been.
+
+
+@dataclass(frozen=True)
+class VideoClock:
+    """Match-clock seconds to video seconds, piecewise across the break.
+
+    With only `video_offset_s` this is the plain addition it has always been,
+    and `knows_break` says so. Two numbers that imply a negative interval are
+    refused rather than used: honouring them would make the map run backwards,
+    and a non-monotonic clock breaks things that a merely shifted one does not.
+    """
+
+    video_offset_s: float = 0.0
+    # Where the second half kicks off in the footage.
+    second_half_video_s: float | None = None
+    # What the tablet's clock read at that moment. Taken from the log, not
+    # typed by anyone — see `VideoClock.from_periods`.
+    second_half_clock_s: float | None = None
+
+    @property
+    def knows_break(self) -> bool:
+        if self.second_half_video_s is None or self.second_half_clock_s is None:
+            return False
+        if self.second_half_clock_s <= 0:
+            return False
+        return self.break_s >= 0
+
+    @property
+    def break_s(self) -> float:
+        """How long the footage spent on the interval. Meaningless unless
+        `knows_break`; negative there is exactly what makes it meaningless."""
+        if self.second_half_video_s is None or self.second_half_clock_s is None:
+            return 0.0
+        return (
+            (self.second_half_video_s - self.video_offset_s)
+            - self.second_half_clock_s
+        )
+
+    def to_video(self, clock_s: float) -> float:
+        """Where in the footage the clock read this.
+
+        The restart's own second belongs to the second half: `halftime` and
+        `kickoff_2nd` share a reading, and the restart is the position worth
+        having.
+        """
+        if self.knows_break and clock_s >= self.second_half_clock_s:
+            return self.second_half_video_s + (clock_s - self.second_half_clock_s)
+        return clock_s + self.video_offset_s
+
+    def to_video_end(self, clock_s: float) -> float:
+        """The same conversion, resolving the shared second the other way.
+
+        The whistle and the restart are one reading on the clock and two
+        positions in the footage. `to_video` sends that reading to the restart,
+        which is what a tag placed at it means. The *end* of the first half
+        means the other one: it is where play stopped, not where it began
+        again. Without this distinction the first half's span swallows the
+        interval, and a frame of somebody eating an orange is reported as
+        first-half football — drawn at whichever end of the pitch that implies.
+        """
+        if self.knows_break and clock_s <= self.second_half_clock_s:
+            return clock_s + self.video_offset_s
+        return self.to_video(clock_s)
+
+    def to_clock(self, video_s: float) -> float:
+        """What the clock read at a position in the footage.
+
+        Inside the interval this is the frozen reading — which is the truth: the
+        clock really did show that second for the whole break.
+        """
+        if not self.knows_break:
+            return video_s - self.video_offset_s
+        if video_s >= self.second_half_video_s:
+            return self.second_half_clock_s + (video_s - self.second_half_video_s)
+        return min(video_s - self.video_offset_s, self.second_half_clock_s)
+
+    @classmethod
+    def from_periods(
+        cls,
+        periods: PeriodTable,
+        video_offset_s: float = 0.0,
+        second_half_video_s: float | None = None,
+    ) -> VideoClock:
+        """Build one from the log's own periods plus the one fact it lacks.
+
+        Half of the answer is already in the tag log — the second half's span
+        starts on the clock reading the break froze at — so only the video
+        position has to come from outside. Passing that alone, with no second
+        half in the log to pin it to, leaves the clock in its one-anchor state
+        rather than anchoring it to a guess.
+        """
+        restart = next(
+            (s.start_s for s in periods.spans if s.period == SECOND_HALF), None
+        )
+        return cls(
+            video_offset_s=video_offset_s,
+            second_half_video_s=second_half_video_s,
+            second_half_clock_s=restart,
+        )
 
 
 def periods_from_log(entries) -> PeriodTable:

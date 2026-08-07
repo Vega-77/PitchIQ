@@ -2073,3 +2073,77 @@ input[type="file"]::file-selector-button:hover {
     border-color: var(--accent);
     color: var(--accent);
 }
+
+/* The two timing fields, drawn to scale.
+   
+   Two numbers in two boxes are two numbers. The same two drawn as a recording
+   with a lead-in, a half and a break are a thing a coach can check at a glance:
+   a break taking three quarters of the bar is a typo nobody has to read a
+   sentence to catch.
+   
+   Only the known part is drawn. The second half runs to the end of the footage
+   and nothing here knows where that is, so it is an open segment with a fixed
+   share rather than one sized by a guess at how long a half lasts — and it is
+   striped, so "we do not know how long this is" is visible rather than implied. */
+.clock-map {
+    display: flex;
+    align-items: stretch;
+    gap: 3px;
+    height: 46px;
+    margin: 4px 0 0;
+}
+.cm-part {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    padding: 0 8px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--line);
+    color: var(--text-faint);
+}
+.cm-part.is-first { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+.cm-part.is-break { background: color-mix(in srgb, var(--warn) 26%, transparent); }
+.cm-part.is-second {
+    /* Fixed share, not a measurement: the footage's length is not known here. */
+    flex: 0 0 22%;
+    background: repeating-linear-gradient(
+        135deg,
+        var(--line) 0 6px,
+        transparent 6px 12px
+    );
+}
+.cm-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cm-time {
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+}
+/* Two floors, because a segment can be narrow and it can be a sliver.
+   A two-minute lead-in beside a forty-six minute half is a sliver, and at 375px
+   it is twenty-four pixels wide — enough to show "0" of "02:00", which reads as
+   a rendering fault rather than as a short segment. So the label goes first and
+   the reading goes second, leaving a bare band of colour. The title attribute
+   carries both the whole way down, and the proportion is what the strip is
+   for. */
+.cm-part { container-type: inline-size; }
+@container (max-width: 54px) {
+    .cm-label { display: none; }
+}
+@container (max-width: 34px) {
+    .cm-time { display: none; }
+}
+/* Class-scoped, not `#clock-map-note` — an id selector here would have tied the
+   only visible signal on this block to one element on one page. */
+.clock-note.is-good { color: var(--good); }
+.clock-note.is-warn { color: var(--warn); }

@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=37';
+} from '../assets/auth.js?v=38';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,20 +8,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=37';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=37';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=37';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=37';
+} from '../assets/db.js?v=38';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=38';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=38';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=38';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=37';
+} from '../assets/sample-report.js?v=38';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=37';
-import { renderPassMap } from '../assets/pass-map.js?v=37';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=37';
-import { renderForms } from '../assets/form-chart.js?v=37';
+} from '../assets/passing.js?v=38';
+import { renderPassMap } from '../assets/pass-map.js?v=38';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=38';
+import { renderForms } from '../assets/form-chart.js?v=38';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -29,15 +29,16 @@ import {
     TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, xgTally, sumXgTallies,
     xgCalibration, calibrationNote, headerCorrection, headerNote,
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
-} from '../assets/report.js?v=37';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=37';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=37';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=37';
+    clockFromMatch, clockMapNote, HALF_TIME,
+} from '../assets/report.js?v=38';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=38';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=38';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=38';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark,
-} from '../assets/ui.js?v=37';
+} from '../assets/ui.js?v=38';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -716,7 +717,9 @@ async function openMatch(matchId) {
 
         byId('input-video-url').value = match.videoUrl || '';
         byId('input-video-offset').value = match.videoOffsetS ?? 0;
+        byId('input-second-half').value = match.secondHalfVideoS ?? '';
         updateVideoHint();
+        renderClockMap();
 
         const publish = byId('btn-publish');
         publish.disabled = false;
@@ -820,9 +823,7 @@ function renderShots() {
     for (const [label, key, hostId, capId] of sides) {
         const marks = correctedShotMarks(cv?.teams?.[key]?.shot_map || [], ledger);
         const drawn = renderShotMap(byId(hostId), marks, {
-            onPick: (mark) => seekMatchVideo(
-                Math.max(0, (mark.video_s || 0) - (state.match.videoOffsetS ?? 0)),
-            ),
+            onPick: (mark) => seekMatchVideo(toMatchClock(mark.video_s)),
             label: `${label === 'us' ? 'Our' : 'Their'} shots on the pitch`,
             xgTrust: trust,
         });
@@ -971,7 +972,7 @@ function renderPressing() {
 
     const cv = activeCv();
     const trend = pressingTrend(cv?.teams?.team_a?.pressing_segments, {
-        videoOffsetS: state.match?.videoOffsetS ?? 0,
+        clock: clockMap(),
     });
     block.classList.toggle('hidden', !trend);
     if (!trend) return;
@@ -1088,7 +1089,7 @@ function shotLogRow(row) {
                     title="Score this as a header instead of a foot shot">Header</button>
         </div>`;
 
-    item.querySelector('.shot-clock').textContent = clockText(clockS);
+    item.querySelector('.shot-clock').textContent = clockAt(row.timestampS);
     item.querySelector('.shot-side').textContent = row.team === 'team_b'
         ? (state.match?.opponentName || 'Them')
         : (state.team?.name || 'Us');
@@ -1685,9 +1686,9 @@ function clusterRow(cluster, mapping) {
         </label>`;
     row.prepend(clusterFace(cluster));
 
-    const offset = state.match.videoOffsetS ?? 0;
-    const fromS = (cluster.first_seen_s ?? 0) - offset;
-    const toS = (cluster.last_seen_s ?? 0) - offset;
+    const clock = clockMap();
+    const fromS = clock.toClock(cluster.first_seen_s ?? 0).clockS;
+    const toS = clock.toClock(cluster.last_seen_s ?? 0).clockS;
 
     row.querySelector('.title').textContent = `Figure ${cluster.cluster_id + 1}`;
     row.querySelector('.sub').textContent = [
@@ -1722,7 +1723,7 @@ function clusterRow(cluster, mapping) {
     // used. A player who left the frame and came back is genuinely several
     // figures; cv/identity.py only rejoins fragments seconds apart.
     const ranked = rankRosterForCluster(state.match.roster, cluster, {
-        videoOffsetS: offset,
+        clock,
         matchEndS: state.match.stats?.matchEndS ?? 0,
     });
 
@@ -1838,7 +1839,7 @@ function seekMatchVideo(clockS) {
         toast('Add a playable video link to jump to a moment.', true);
         return;
     }
-    matchVideo.seek(videoTime(clockS, state.match.videoOffsetS ?? 0));
+    matchVideo.seek(clockMap().toVideo(clockS));
     byId('match-video').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -1870,7 +1871,7 @@ function renderMatchVideoBlock() {
         },
         {
             url,
-            offsetS: state.match.videoOffsetS ?? 0,
+            clock: clockMap(),
             marks,
             clockText,
             // So a mark tagged in stoppage time does not fall off the end of a
@@ -1923,6 +1924,82 @@ function updateVideoHint() {
             + 'YouTube link, or a direct link to an .mp4, does both. A Google '
             + 'Drive or Hudl share page cannot be embedded.';
     }
+}
+
+/**
+ * Draw what the two timing fields describe, and say what follows from it.
+ *
+ * The strip is the part worth having. Two numbers in two boxes are two numbers;
+ * the same two drawn to scale are a recording with a lead-in, a half, a break
+ * and a second half still running — and a break drawn as three quarters of the
+ * bar is a typo a coach spots without reading anything.
+ *
+ * Only the part that is actually known gets drawn. The second half runs to the
+ * end of the footage and nothing here knows where that is, so it is an open
+ * segment rather than a segment sized by a guess at how long a half lasts.
+ */
+function renderClockMap() {
+    const host = byId('clock-map');
+    const note = byId('clock-map-note');
+    if (!host || !note) return;
+
+    const inputs = {
+        videoOffsetS: Number(byId('input-video-offset').value) || 0,
+        secondHalfVideoS: secondHalfInput(),
+        halfTimeClockS: state.match?.halfTimeClockS ?? null,
+    };
+
+    const { tone, text } = clockMapNote(inputs, clockText);
+    note.textContent = text;
+    note.classList.toggle('is-warn', tone === 'warn');
+    note.classList.toggle('is-good', tone === 'ok');
+
+    host.innerHTML = '';
+    host.classList.toggle('hidden', tone !== 'ok');
+    if (tone !== 'ok') return;
+
+    const leadInS = Math.max(0, inputs.videoOffsetS);
+    const firstHalfS = inputs.halfTimeClockS;
+    const breakS = inputs.secondHalfVideoS - leadInS - firstHalfS;
+
+    const segments = [
+        ['lead-in', 'Before kick-off', leadInS],
+        ['first', 'First half', firstHalfS],
+        ['break', 'Half-time', breakS],
+    ].filter(([, , seconds]) => seconds > 0);
+
+    const total = segments.reduce((sum, [, , seconds]) => sum + seconds, 0);
+    for (const [kind, label, seconds] of segments) {
+        const part = document.createElement('span');
+        part.className = `cm-part is-${kind}`;
+        // Sized by share of the footage up to the restart, so the segments are
+        // in proportion to each other and to nothing invented.
+        part.style.flex = `${seconds / total}`;
+        part.title = `${label} — ${clockText(seconds)}`;
+        part.append(labelled('cm-label', label), labelled('cm-time', clockText(seconds)));
+        host.append(part);
+    }
+
+    const rest = document.createElement('span');
+    rest.className = 'cm-part is-second';
+    rest.title = 'Second half — runs to the end of the footage';
+    rest.append(labelled('cm-label', 'Second half'), labelled('cm-time', 'to the end'));
+    host.append(rest);
+}
+
+function labelled(className, text) {
+    const span = document.createElement('span');
+    span.className = className;
+    span.textContent = text;
+    return span;
+}
+
+/** The typed second-half kick-off, or null for a field left blank. */
+function secondHalfInput() {
+    const raw = byId('input-second-half').value.trim();
+    if (!raw) return null;
+    const value = Number(raw);
+    return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
 /** Tear the match video down. Called when the match view is left. */
@@ -2132,7 +2209,7 @@ function renderConflicts() {
 
         const when = document.createElement('span');
         when.className = 'conflict-clock';
-        when.textContent = clockText(toMatchClock(seconds));
+        when.textContent = clockAt(seconds);
 
         const what = document.createElement('span');
         what.textContent = entry.status === 'tag_only'
@@ -2173,13 +2250,30 @@ function leaveReview() {
 
 function reviewSeek(clockS) {
     if (!reviewState.video) return;
-    reviewState.video.seek(videoTime(clockS, state.match.videoOffsetS ?? 0));
+    reviewState.video.seek(clockMap().toVideo(clockS));
     byId('cv-review-video').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-/** Video time to match clock — the inverse of videoTime(). */
+/** This match's map between the footage and the clock. See clockFromMatch. */
+const clockMap = () => clockFromMatch(state.match);
+
+/** What the clock read at a position in the footage. */
 function toMatchClock(timestampS) {
-    return Math.max(0, (timestampS || 0) - (state.match.videoOffsetS ?? 0));
+    return clockMap().toClock(timestampS || 0).clockS;
+}
+
+/**
+ * That reading as a label — except during the break, where there isn't one.
+ *
+ * The clock froze at half-time, so every moment in the interval shares the
+ * second the first half ended on. Printing that second is not wrong so much as
+ * meaningless: three things drawn at 45:12 did not happen at the same time.
+ * Only ever seen once the second-half anchor is set, since without it nothing
+ * knows the break is there at all.
+ */
+function clockAt(timestampS) {
+    const { clockS, period } = clockMap().toClock(timestampS || 0);
+    return period === HALF_TIME ? 'half-time' : clockText(clockS);
 }
 
 function visibleEvents() {
@@ -2304,7 +2398,7 @@ function reviewRow(event) {
         </div>
         <div class="review-edit hidden"></div>`;
 
-    row.querySelector('.review-clock').textContent = clockText(clockS);
+    row.querySelector('.review-clock').textContent = clockAt(event.timestampS);
     row.querySelector('.review-what').textContent =
         decided?.type || event.type;
     row.querySelector('.review-who').textContent = whoIs(event.trackId);
@@ -2553,6 +2647,8 @@ function doDownloadLabels() {
             opponent: state.match.opponent || null,
             playedOn: state.match.playedOn || null,
             videoOffsetS: state.match.videoOffsetS ?? 0,
+            secondHalfVideoS: state.match.secondHalfVideoS ?? null,
+            halfTimeClockS: state.match.halfTimeClockS ?? null,
         },
     );
 
@@ -2699,7 +2795,7 @@ function mergeCvPlayers(players, match, matchEndS = null) {
     const stats = cvStatsByPlayer(match.cv?.identity?.tracks, match.cvMapping);
     const context = {
         window: match.cv?.window,
-        videoOffsetS: match.videoOffsetS ?? 0,
+        clock: clockFromMatch(match),
         matchEndS,
     };
 
@@ -2762,28 +2858,36 @@ async function doSaveVideo() {
     const button = byId('btn-save-video');
     const url = byId('input-video-url').value.trim();
     const offset = Number(byId('input-video-offset').value) || 0;
+    const secondHalfVideoS = secondHalfInput();
 
     button.disabled = true;
     try {
         await updateMatch(state.team.id, state.match.id, {
             videoUrl: url || null,
             videoOffsetS: offset,
+            secondHalfVideoS,
         });
         state.match.videoUrl = url || null;
         state.match.videoOffsetS = offset;
+        state.match.secondHalfVideoS = secondHalfVideoS;
 
         // The players' copies. `publishReports` takes them at publish time, and
         // the ordinary order of events — publish after the match, upload the
         // footage that evening, paste the link — leaves every one of them
         // saying "no video for this match yet" forever. See pushVideoToReports.
         const reached = await pushVideoToReports(
-            state.team.id, state.match.id, url || null, offset,
+            state.team.id, state.match.id, url || null, {
+                videoOffsetS: offset,
+                secondHalfVideoS,
+                halfTimeClockS: state.match.halfTimeClockS ?? null,
+            },
         );
 
         // The review tool below and the block above both embed this same video
         // and read this same offset. Without these they keep the old ones until
         // the page is reloaded, which reads as the link not having saved.
         renderMatchVideoBlock();
+        renderClockMap();
         if (!byId('cv-review-block').classList.contains('hidden')) renderReview();
 
         // One message, after the write rather than before it. A link we will
@@ -2820,9 +2924,12 @@ function doDownloadLog() {
         matchId: state.match.id,
         opponentName: state.match.opponentName ?? null,
         matchDate: state.match.date ?? null,
-        // The same number typed in above. The log runs on the match clock and
-        // the footage does not, and this is what relates them.
+        // The numbers typed in above. The log runs on the match clock and the
+        // footage does not, and these are what relate them — all three, since
+        // the offset alone stops being right at half-time.
         videoOffsetS: state.match.videoOffsetS ?? 0,
+        secondHalfVideoS: state.match.secondHalfVideoS ?? null,
+        halfTimeClockS: state.match.halfTimeClockS ?? null,
         entries: state.match.log ?? [],
     };
 
@@ -2956,6 +3063,10 @@ function init() {
     byId('btn-publish').addEventListener('click', doPublish);
     byId('btn-save-video').addEventListener('click', doSaveVideo);
     byId('input-video-url').addEventListener('input', updateVideoHint);
+    // Redrawn as it is typed, not on save. The strip is there to catch a wrong
+    // number, and catching it after the write is most of a round trip too late.
+    byId('input-video-offset').addEventListener('input', renderClockMap);
+    byId('input-second-half').addEventListener('input', renderClockMap);
     byId('btn-download-log').addEventListener('click', doDownloadLog);
     byId('btn-cv-missed').addEventListener('click', doRecordMiss);
     byId('btn-cv-labels').addEventListener('click', doDownloadLabels);

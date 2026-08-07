@@ -7,15 +7,17 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=37';
-import { EVENT_TYPES } from './events.js?v=37';
+import { db } from './firebase-init.js?v=38';
+import { EVENT_TYPES } from './events.js?v=38';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
-    playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage,
-} from './report.js?v=37';
+    playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
+} from './report.js?v=38';
 
-export { playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage };
+export {
+    playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
+};
 
 export const PERIOD_STATUS = {
     kickoff_1st: 'first_half',
@@ -275,9 +277,17 @@ export async function writePeriod(user, teamId, matchId, { deviceId, seq, period
         }
     );
 
-    batch.update(doc(db, 'teams', teamId, 'matches', matchId), {
-        status: PERIOD_STATUS[period],
-    });
+    // The clock stops at the break and restarts from the same second, so this
+    // one reading is both the end of the first half and the start of the
+    // second. It is written onto the match because that is where every reader
+    // of the footage looks: without it nothing outside the tag log can tell a
+    // second-half video position from a first-half one, and the offset alone
+    // puts every second-half moment out by the length of the interval. See
+    // `matchClockMap` in report.js.
+    const patch = { status: PERIOD_STATUS[period] };
+    if (period === 'halftime') patch.halfTimeClockS = matchClockS;
+
+    batch.update(doc(db, 'teams', teamId, 'matches', matchId), patch);
 
     await batch.commit();
 }
@@ -370,9 +380,13 @@ export async function undoEntry(teamId, matchId, entry) {
     }
 
     if (entry.kind === 'period' && entry.revert?.prevStatus) {
-        batch.update(doc(db, 'teams', teamId, 'matches', matchId), {
-            status: entry.revert.prevStatus,
-        });
+        const patch = { status: entry.revert.prevStatus };
+        // Undoing the half-time tap has to take the clock reading with it. Left
+        // behind, it would anchor the second half to a break that the log no
+        // longer says happened, and every second-half timestamp would be
+        // converted against it.
+        if (entry.type === 'halftime') patch.halfTimeClockS = null;
+        batch.update(doc(db, 'teams', teamId, 'matches', matchId), patch);
     }
 
     batch.delete(entryRef);
@@ -514,7 +528,7 @@ export async function publishReports(teamId, matchId, match, team, players, scor
     // the tracked minutes are all in the same scope.
     const coverageContext = {
         window: extra.cvWindow,
-        videoOffsetS: match.videoOffsetS ?? 0,
+        clock: clockFromMatch(match),
         matchEndS: extra.matchEndS ?? null,
     };
 
@@ -554,7 +568,11 @@ export async function publishReports(teamId, matchId, match, team, players, scor
                 timeline: playerTimeline(log, roster, player.id),
                 matchId,
                 videoUrl: match.videoUrl || null,
+                // All three, because the player portal seeks this footage too
+                // and one offset only reaches half-time. See `clockFromMatch`.
                 videoOffsetS: match.videoOffsetS ?? 0,
+                secondHalfVideoS: match.secondHalfVideoS ?? null,
+                halfTimeClockS: match.halfTimeClockS ?? null,
 
                 ...cvReportFields(
                     cvByPlayer[player.id],
@@ -608,7 +626,7 @@ export async function publishReports(teamId, matchId, match, team, players, scor
  * Returns how many were updated, so the coach is told a number rather than
  * being left to wonder whether it reached anyone.
  */
-export async function pushVideoToReports(teamId, matchId, videoUrl, videoOffsetS) {
+export async function pushVideoToReports(teamId, matchId, videoUrl, timing = {}) {
     const snap = await getDocs(
         collection(db, 'teams', teamId, 'matches', matchId, 'playerReports')
     );
@@ -618,7 +636,13 @@ export async function pushVideoToReports(teamId, matchId, videoUrl, videoOffsetS
     for (const report of snap.docs) {
         batch.update(report.ref, {
             videoUrl: videoUrl || null,
-            videoOffsetS: videoOffsetS ?? 0,
+            // The whole clock, not just the kick-off. A player whose copy had
+            // the offset but not the second anchor would seek every one of
+            // their second-half touches into the interval — which looks like
+            // the video being broken rather than like a number being unset.
+            videoOffsetS: timing.videoOffsetS ?? 0,
+            secondHalfVideoS: timing.secondHalfVideoS ?? null,
+            halfTimeClockS: timing.halfTimeClockS ?? null,
         });
     }
     await batch.commit();

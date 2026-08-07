@@ -16,8 +16,9 @@
 // dropping it silently would lose the coach's footage rather than declining to
 // frame it.
 
-import { mount, videoKind } from './video.js?v=37';
-import { renderStrip, renderMomentList, timelineEnd } from './timeline.js?v=37';
+import { mount, videoKind } from './video.js?v=38';
+import { renderStrip, renderMomentList, timelineEnd } from './timeline.js?v=38';
+import { matchClockMap } from './report.js?v=38';
 
 /**
  * What we can do with a link: 'embed', 'link' or 'none'.
@@ -48,9 +49,15 @@ export function videoPlacement(url) {
  */
 export function renderMatchVideo(hosts, options) {
     const {
-        url, offsetS = 0, marks = [], notes = {}, emptyText, clockText,
+        url, marks = [], notes = {}, emptyText, clockText,
         halfS, endFloorS, extraTimes = [],
     } = options;
+
+    // `clock` is the whole map, not just the kick-off offset, because seeking a
+    // second-half mark with the offset alone lands in the middle of half-time.
+    // An `offsetS` on its own is still accepted and still means what it meant.
+    const clock = options.clock
+        || matchClockMap({ videoOffsetS: options.offsetS ?? 0 });
 
     const placement = videoPlacement(url);
     let handle = null;
@@ -88,9 +95,7 @@ export function renderMatchVideo(hosts, options) {
     // tap quietly do nothing, and it wants to scroll the video into view. Its
     // handler closes over its own handle, so it is passed rather than derived.
     const onSeek = options.onSeek
-        || (handle
-            ? (clockS) => handle.seek(Math.max(0, (clockS || 0) + (offsetS || 0)))
-            : undefined);
+        || (handle ? (clockS) => handle.seek(clock.toVideo(clockS)) : undefined);
 
     // The strip runs to the end of the match, or later if anything was tagged
     // past it, so a mark at 94 minutes does not fall off the end of the bar.

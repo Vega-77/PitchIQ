@@ -13,6 +13,7 @@ import pytest
 from cv.ball import BallPoint, BallTrajectory
 from cv.calibration import Calibration
 from cv.events import Shot
+from cv.phases import VideoClock
 from cv.pitch import Pitch
 from cv.reconcile import (
     AGREED,
@@ -99,7 +100,8 @@ class TestReadingTheLog:
         assert tagged_times(entries, {'goal'}) == [100.0]
 
     def test_the_offset_is_applied_once_at_the_edge(self):
-        assert tagged_times([tag('goal', 100.0)], {'goal'}, 12.0) == [112.0]
+        clock = VideoClock(12.0)
+        assert tagged_times([tag('goal', 100.0)], {'goal'}, clock) == [112.0]
 
     def test_junk_is_skipped_rather_than_placed_at_zero(self):
         entries = [
@@ -145,7 +147,7 @@ class TestGoals:
         """The log is on the match clock, the pipeline on video time. Without
         this every goal in a match with an offset reads as two disagreements."""
         result = reconcile(
-            _Log([shot(700.0)]), [tag('goal', 600.0)], video_offset_s=100.0,
+            _Log([shot(700.0)]), [tag('goal', 600.0)], clock=VideoClock(100.0),
         )
         assert result.rate(GOAL) == 1.0
 

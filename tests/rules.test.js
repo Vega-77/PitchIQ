@@ -499,6 +499,35 @@ describe('match video link', () => {
     }));
   });
 
+  // The second anchor of the clock map. Without it every second-half moment is
+  // placed as if the match never stopped for the interval.
+  it('a coach can say where the second half kicks off', async () => {
+    await assertSucceeds(updateDoc(match(), { secondHalfVideoS: 3660 }));
+    await assertSucceeds(updateDoc(match(), { secondHalfVideoS: null }));
+  });
+
+  it('rejects a second-half position before the start of the file', async () => {
+    // Unlike the kick-off offset, which may be negative when the recording
+    // started after kick-off, this is a seek position in a file.
+    await assertFails(updateDoc(match(), { secondHalfVideoS: -60 }));
+    await assertFails(updateDoc(match(), { secondHalfVideoS: 999999 }));
+    await assertFails(updateDoc(match(), { secondHalfVideoS: 'after the oranges' }));
+  });
+
+  it('the tagger can record the clock the halves split on', async () => {
+    await assertSucceeds(updateDoc(match(), { halfTimeClockS: 2760 }));
+    await assertSucceeds(updateDoc(match(), { halfTimeClockS: null }));
+  });
+
+  it('rejects a half-time reading no clock could have shown', async () => {
+    // Zero is refused as well as absurd: a first half that ended at 00:00 did
+    // not happen, and a map anchored on it would put the whole match in the
+    // second half.
+    await assertFails(updateDoc(match(), { halfTimeClockS: 0 }));
+    await assertFails(updateDoc(match(), { halfTimeClockS: -1 }));
+    await assertFails(updateDoc(match(), { halfTimeClockS: 99999 }));
+  });
+
   it('a player cannot attach a video', async () => {
     await assertFails(updateDoc(
       doc(as(PLAYER), 'teams', TEAM, 'matches', MATCH),
@@ -758,8 +787,22 @@ describe('cvStats', () => {
     // stored report.
     await assertSucceeds(updateDoc(
       doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p1'),
-      { videoUrl: 'https://youtu.be/dQw4w9WgXcQ', videoOffsetS: 120 },
+      {
+        videoUrl: 'https://youtu.be/dQw4w9WgXcQ',
+        videoOffsetS: 120,
+        secondHalfVideoS: 3660,
+        halfTimeClockS: 2760,
+      },
     ));
+  });
+
+  it('a player report refuses timing numbers the match document would refuse', async () => {
+    // Same guard, same reason: this copy is what the portal seeks with, so a
+    // pair that ran the clock backwards would put a player's second-half
+    // touches in front of their first-half ones.
+    const base = doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p1');
+    await assertFails(updateDoc(base, { secondHalfVideoS: -60 }));
+    await assertFails(updateDoc(base, { halfTimeClockS: 0 }));
   });
 
   it('a player report refuses a video link that is not https', async () => {

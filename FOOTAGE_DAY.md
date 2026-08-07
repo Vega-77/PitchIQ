@@ -39,7 +39,9 @@ Cropping and upscaling do not bring it back — those pixels were never recorded
   camera actually captured. Every measurement we have was taken on a 720p screen
   recording, and they are close to a worst case for that reason.
 - **One continuous file per half** if the camera will do it. Splits mean a second
-  video offset to keep track of.
+  video offset to keep track of; one file for both halves means noting where the
+  second half kicks off instead. Either way it is one number, and it is far
+  easier to read off the camera on the day than to reconstruct a week later.
 
 The wide stadium rig is a once-a-season venue for this team. Design for the
 tighter position, which is what almost every game actually uses.
@@ -98,6 +100,14 @@ nobody knows about is not.
 - [ ] Video copied off the camera, and it plays
 - [ ] Both halves present, and which file is which is written down
 - [ ] **Video offset noted** — seconds from the start of the video to kick-off
+- [ ] **Second-half kick-off noted** — seconds from the start of the video to
+      the restart, when both halves are in one file. The tablet's clock stops
+      for the break and the recording does not, so without this every
+      second-half timestamp lands late by however long the interval ran — ten
+      to fifteen minutes, reading as plausible minutes the whole time. Scrub
+      to the restart and read the time off the player. Both numbers go in the
+      coach page's video form, which draws them back as a strip so a typo is
+      visible before it saves
 - [ ] Tag log downloaded from the coach page
 - [ ] Calibration frame grabbed, or the landmark clicks saved
 - [ ] Pitch dimensions measured and written down
@@ -138,9 +148,13 @@ python -m cv.experiments.event_report \
     --video clips/first-half.mp4 \
     --calibration clips/first-half.calib.json \
     --tag-log clips/first-half.log.json \
-    --video-offset 137 \
     --json baselines/2026-08-15-first-half.json
 ```
+
+Both timing numbers ride in the downloaded log, so there is nothing to retype.
+`--video-offset` and `--second-half-video` exist to override the file, which is
+what you want after re-cutting the video and before saving the new numbers on
+the coach page.
 
 Read the output next to the video. Specifically:
 

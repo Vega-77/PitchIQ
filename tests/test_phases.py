@@ -15,7 +15,7 @@ import json
 
 import pytest
 
-from cv.experiments.event_report import load_tag_log
+from cv.experiments.event_report import load_tag_log, load_video_timing
 from cv.phases import (
     DEAD_CAP_S,
     MAX_DEAD_S,
@@ -23,6 +23,7 @@ from cv.phases import (
     DeadSpan,
     PeriodSpan,
     PhaseTable,
+    VideoClock,
     periods_from_log,
     phases_from_log,
 )
@@ -190,7 +191,7 @@ class TestClockConversion:
 
     def test_shifting_moves_every_span(self):
         table = PhaseTable(spans=[DeadSpan(100.0, 120.0, 'foul', 'free_kick')])
-        shifted = table.shifted(30.0)
+        shifted = table.on_video(VideoClock(30.0))
 
         assert shifted.spans[0].start_s == pytest.approx(130.0)
         assert shifted.spans[0].end_s == pytest.approx(150.0)
@@ -199,14 +200,14 @@ class TestClockConversion:
 
     def test_shifting_keeps_why_each_span_exists(self):
         table = PhaseTable(spans=[DeadSpan(100.0, 120.0, 'foul', None)])
-        span = table.shifted(-10.0).spans[0]
+        span = table.on_video(VideoClock(-10.0)).spans[0]
 
         assert span.opened_by == 'foul'
         assert span.timed_out
 
     def test_the_original_is_untouched(self):
         table = PhaseTable(spans=[DeadSpan(100.0, 120.0, 'foul', 'free_kick')])
-        table.shifted(500.0)
+        table.on_video(VideoClock(500.0))
         assert table.spans[0].start_s == 100.0
 
 
@@ -249,6 +250,32 @@ class TestLoadingTheFile:
             'entries': [entry('out_of_bounds', 100.0), entry('throw_in', 140.0)],
         })
         assert len(phases_from_log(load_tag_log(path)).spans) == 1
+
+    def test_the_timing_numbers_ride_along_in_the_same_file(self, tmp_path):
+        # Both are typed into the coach's video form and both are needed to
+        # place a second-half timestamp, so carrying them here beats asking
+        # whoever runs the pipeline to remember two numbers from a browser tab.
+        path = self.write(tmp_path, {
+            'videoOffsetS': 120, 'secondHalfVideoS': 3660,
+            'entries': [entry('foul', 100.0)],
+        })
+        assert load_video_timing(path) == {
+            'videoOffsetS': 120.0, 'secondHalfVideoS': 3660.0,
+        }
+
+    def test_a_bare_list_carries_no_timing_rather_than_zeroes(self, tmp_path):
+        # The older shape, and what an export from anywhere else looks like. A
+        # zero offset is a claim that the recording started at kick-off.
+        path = self.write(tmp_path, [entry('foul', 100.0)])
+        assert load_video_timing(path) == {}
+        assert load_video_timing(None) == {}
+
+    def test_junk_in_those_fields_is_left_out(self, tmp_path):
+        path = self.write(tmp_path, {
+            'videoOffsetS': 'two minutes', 'secondHalfVideoS': True,
+            'entries': [],
+        })
+        assert load_video_timing(path) == {}
 
 
 class TestJunkInput:
@@ -343,7 +370,7 @@ class TestPeriodsFromLog:
     def test_the_offset_moves_it_onto_video_time(self):
         table = periods_from_log([
             entry('kickoff_2nd', 3600.0), entry('full_time', 6300.0),
-        ]).shifted(-3500.0)
+        ]).on_video(VideoClock(-3500.0))
         assert table.at(200.0) == 'second_half'
         assert table.at(3600.0) is None
 
@@ -377,3 +404,128 @@ class TestWhatAWindowCovers:
     def test_an_open_ended_half_still_wins_a_window_it_holds(self):
         table = periods_from_log([entry('kickoff_2nd', 0.0)])
         assert table.dominant(100.0, 900.0) == 'second_half'
+
+
+class TestVideoClock:
+    """The interval, which one offset cannot cross.
+
+    A tablet's clock stops at half-time and a recording does not, so the
+    relation between the two is piecewise and every consumer of a tagged
+    timestamp inherits whichever version it was given. These are the numbers
+    from a real shape: recording started two minutes early, first half ran
+    46:00, thirteen minutes of oranges.
+    """
+
+    OFFSET = 120.0
+    FIRST_HALF_S = 46 * 60.0
+    BREAK_S = 13 * 60.0
+    RESTART_VIDEO_S = OFFSET + FIRST_HALF_S + BREAK_S
+
+    def clock(self):
+        return VideoClock(
+            video_offset_s=self.OFFSET,
+            second_half_video_s=self.RESTART_VIDEO_S,
+            second_half_clock_s=self.FIRST_HALF_S,
+        )
+
+    def test_the_first_half_is_the_plain_offset(self):
+        clock = self.clock()
+        assert clock.to_video(0.0) == pytest.approx(self.OFFSET)
+        assert clock.to_clock(self.OFFSET + 600.0) == pytest.approx(600.0)
+
+    def test_the_second_half_is_not_carried_through_the_break(self):
+        clock = self.clock()
+        ten_minutes_in = self.FIRST_HALF_S + 600.0
+
+        assert clock.to_video(ten_minutes_in) == pytest.approx(
+            self.RESTART_VIDEO_S + 600.0
+        )
+        # And the size of what a single offset would have got wrong.
+        naive = ten_minutes_in + self.OFFSET
+        assert clock.to_video(ten_minutes_in) - naive == pytest.approx(self.BREAK_S)
+
+    def test_the_break_reports_the_reading_it_froze_on(self):
+        clock = self.clock()
+        mid_break = self.OFFSET + self.FIRST_HALF_S + 300.0
+        assert clock.to_clock(mid_break) == pytest.approx(self.FIRST_HALF_S)
+
+    def test_it_round_trips_on_both_sides(self):
+        clock = self.clock()
+        for clock_s in (0.0, 600.0, self.FIRST_HALF_S, self.FIRST_HALF_S + 900.0):
+            assert clock.to_clock(clock.to_video(clock_s)) == pytest.approx(clock_s)
+
+    def test_the_restart_second_belongs_to_the_second_half(self):
+        # `halftime` and `kickoff_2nd` share a reading, and the restart is the
+        # position worth having.
+        assert self.clock().to_video(self.FIRST_HALF_S) == pytest.approx(
+            self.RESTART_VIDEO_S
+        )
+
+    def test_with_one_anchor_it_is_the_old_behaviour(self):
+        clock = VideoClock(video_offset_s=self.OFFSET)
+        assert not clock.knows_break
+        assert clock.to_video(600.0) == pytest.approx(720.0)
+        assert clock.to_clock(720.0) == pytest.approx(600.0)
+
+    def test_a_negative_break_is_refused_rather_than_honoured(self):
+        # The second half cannot kick off before the first one ended. Using it
+        # would map two positions in the footage to one reading on the clock.
+        clock = VideoClock(
+            video_offset_s=self.OFFSET,
+            second_half_video_s=self.OFFSET + 30 * 60.0,
+            second_half_clock_s=self.FIRST_HALF_S,
+        )
+        assert not clock.knows_break
+        assert clock.to_video(2400.0) == pytest.approx(2400.0 + self.OFFSET)
+
+    def test_it_never_runs_backwards(self):
+        # The property everything drawn on a timeline rests on.
+        clock = self.clock()
+        previous = float('-inf')
+        for video_s in range(0, 7000, 17):
+            reading = clock.to_clock(float(video_s))
+            assert reading >= previous
+            previous = reading
+
+    def test_from_periods_takes_the_restart_clock_out_of_the_log(self):
+        # Half the answer is already tagged: the second-half span starts on the
+        # reading the break froze at. Only the video position has to be given.
+        periods = periods_from_log([
+            entry('kickoff_1st', 0.0), entry('halftime', 2760.0),
+            entry('kickoff_2nd', 2760.0), entry('full_time', 5400.0),
+        ])
+        clock = VideoClock.from_periods(periods, 120.0, 3660.0)
+
+        assert clock.second_half_clock_s == pytest.approx(2760.0)
+        assert clock.break_s == pytest.approx(780.0)
+
+    def test_from_periods_without_a_second_half_stays_single_anchored(self):
+        # A video position with no tagged restart to pin it to is not enough to
+        # anchor anything, and guessing 45 minutes would invent the boundary
+        # this whole module exists to read.
+        periods = periods_from_log([entry('kickoff_1st', 0.0)])
+        clock = VideoClock.from_periods(periods, 120.0, 3660.0)
+        assert not clock.knows_break
+
+    def test_the_break_becomes_a_gap_between_the_spans(self):
+        # On a single-anchor clock the first half's video span swallowed the
+        # interval, so a frame from the oranges was reported as first-half
+        # football and drawn at whichever end that implies.
+        periods = periods_from_log([
+            entry('kickoff_1st', 0.0), entry('halftime', 2760.0),
+            entry('kickoff_2nd', 2760.0),
+        ])
+        table = periods.on_video(VideoClock.from_periods(periods, 0.0, 3540.0))
+
+        assert table.at(2000.0) == 'first_half'
+        assert table.at(3000.0) is None          # in the break
+        assert table.at(3600.0) == 'second_half'
+
+    def test_dead_spans_move_with_it_too(self):
+        table = PhaseTable(spans=[DeadSpan(3000.0, 3020.0, 'foul', 'free_kick')])
+        clock = VideoClock(0.0, second_half_video_s=3540.0,
+                           second_half_clock_s=2760.0)
+        moved = table.on_video(clock).spans[0]
+
+        assert moved.start_s == pytest.approx(3780.0)
+        assert moved.opened_by == 'foul'

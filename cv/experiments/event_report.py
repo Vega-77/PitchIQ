@@ -74,10 +74,19 @@ def build_parser() -> argparse.ArgumentParser:
                              'coach page. Without it every stoppage counts as '
                              'possession for whoever stood over the ball')
     parser.add_argument('--video-offset', dest='video_offset', type=float,
-                        default=0.0,
+                        default=None,
                         help='seconds to add to a match clock reading to get '
                              'the position in this video — the same number the '
-                             'coach types beside the video link')
+                             'coach types beside the video link. Read from the '
+                             'downloaded log when it carries one')
+    parser.add_argument('--second-half-video', dest='second_half_video',
+                        type=float, default=None,
+                        help='seconds into this video that the second half '
+                             'kicks off. The tablet stops its clock for the '
+                             'interval and the recording does not, so without '
+                             'this every second-half timestamp is placed late '
+                             'by the length of the break. Read from the '
+                             'downloaded log when it carries one')
     return parser
 
 
@@ -98,8 +107,41 @@ def load_tag_log(path: str | None):
     return entries
 
 
+def load_video_timing(path: str | None) -> dict:
+    """The clock numbers the coach page writes into the same download.
+
+    Both of them are typed into the coach's video form and both are needed to
+    place a second-half timestamp, so carrying them in the file beats asking
+    whoever runs the pipeline to remember two numbers from a browser tab. A bare
+    list of entries — the older shape, and what an export from anywhere else
+    looks like — carries neither, and returns nothing rather than zeroes.
+    """
+    if not path:
+        return {}
+
+    data = json.loads(Path(path).read_text(encoding='utf-8'))
+    if not isinstance(data, dict):
+        return {}
+
+    out = {}
+    for key in ('videoOffsetS', 'secondHalfVideoS'):
+        value = data.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            out[key] = float(value)
+    return out
+
+
+def _pick(*candidates):
+    """The first thing that was actually supplied. The last is the default."""
+    for value in candidates:
+        if value is not None:
+            return value
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    timing = load_video_timing(args.tag_log)
 
     video = Path(args.video)
     if not video.exists():
@@ -126,7 +168,13 @@ def main(argv: list[str] | None = None) -> int:
         period=args.period,
         side_of_team=side_of_team,
         tag_log=load_tag_log(args.tag_log),
-        video_offset_s=args.video_offset,
+        # A flag beats the file, and the file beats nothing. Which is the right
+        # precedence for a number that is right in the file until somebody
+        # re-cuts the video and has not saved the new one yet.
+        video_offset_s=_pick(args.video_offset, timing.get('videoOffsetS'), 0.0),
+        second_half_video_s=_pick(
+            args.second_half_video, timing.get('secondHalfVideoS'), None,
+        ),
     )
 
     print()

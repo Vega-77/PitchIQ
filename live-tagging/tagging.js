@@ -13,18 +13,18 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=37';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=38';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=37';
+} from '../assets/db.js?v=38';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=37';
-import { syncState, safeToClose } from '../assets/report.js?v=37';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=37';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=37';
+} from '../assets/events.js?v=38';
+import { syncState, safeToClose } from '../assets/report.js?v=38';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=38';
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=38';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -393,7 +393,9 @@ async function resumeMatch() {
 
     const mine = log.filter((e) => e.deviceId === state.device);
     state.seq = mine.reduce((max, e) => Math.max(max, e.seq || 0), 0);
-    state.myEntries = mine.map((e) => ({ id: e.id, kind: e.kind, revert: e.revert }));
+    state.myEntries = mine.map((e) => ({
+        id: e.id, kind: e.kind, type: e.type, revert: e.revert,
+    }));
 
     const status = state.match?.status || 'scheduled';
     byId('period-label').textContent =
@@ -444,7 +446,7 @@ async function doKickoff() {
             prevStatus: state.match?.status || 'scheduled',
         });
         state.myEntries.push({
-            id: logId(state.device, seq), kind: 'period',
+            id: logId(state.device, seq), kind: 'period', type: 'kickoff_1st',
             revert: { prevStatus: state.match?.status || 'scheduled' },
         });
         state.match.status = 'first_half';
@@ -708,9 +710,14 @@ async function advancePeriod() {
             deviceId: state.device, seq, period: next, matchClockS: now, prevStatus: status,
         });
         state.myEntries.push({
-            id: logId(state.device, seq), kind: 'period', revert: { prevStatus: status },
+            // `type` so undo knows a half-time tap from any other period tap:
+            // that one also wrote the clock reading the second half is anchored
+            // to, and undoing it has to take that with it.
+            id: logId(state.device, seq), kind: 'period', type: next,
+            revert: { prevStatus: status },
         });
         state.match.status = PERIOD_STATUS[next];
+        if (next === 'halftime') state.match.halfTimeClockS = now;
 
         if (next === 'halftime') {
             // Freeze: the break must never be counted as match time.

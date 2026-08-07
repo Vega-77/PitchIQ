@@ -1181,9 +1181,60 @@ fiction; `tests/test_metrics.py` pins both the problem and the fix.
       match view, amber, kept separate from it: the note is what every figure
       below rests on and is always true, a warning is something that went wrong
       once and may be fixable.
-- [ ] Match-clock tracking within a period — the taps give the boundaries, and
-      nothing yet maps a video second to a match minute inside one except the
-      single `videoOffsetS` the coach types in
+- [x] **Match-clock tracking within a period** (2026-08-07). The tablet's clock
+      **stops at half-time** — `advancePeriod` freezes it at the break and
+      restarts it from the same second — and the video's clock stops for
+      nothing. So `clockS = videoS - videoOffsetS` was exact for the first half
+      and wrong for the whole of the second by however long the interval ran, in
+      both directions at once: a goal tagged at 52:30 seeked into the middle of
+      the oranges, and a shot found at video 68:00 was reported as the 68th
+      minute of a match that was 53 minutes old. Ten to fifteen minutes of error
+      on every second-half timestamp in the app, invisible because both numbers
+      come out looking like plausible minutes.
+
+      Four independent copies of that subtraction in the browser — `videoTime`,
+      an inline one in `renderMatchVideo`, three in `report.js`, `toMatchClock`
+      in coach.js — and three more in Python, through `PhaseTable.shifted`,
+      `PeriodTable.shifted` and `reconcile.tagged_times`. All seven replaced by
+      one map on each side: `matchClockMap` in report.js and `phases.VideoClock`.
+      The Python one is the worse loss: `PeriodTable` is what decides which way
+      each team is attacking, so a shift across the very boundary it exists to
+      find mirrors every shot map, heatmap, pressing zone, territory split and
+      xG figure in the report.
+
+      Fixing it needs exactly one fact the offset does not carry — where in the
+      video the second half kicks off. Nothing can derive it: the break's length
+      is not in the tag log, because the tag log is the thing that froze. So the
+      coach supplies it (`secondHalfVideoS`, a second field beside the offset)
+      and the clock it restarts on comes from the tablet, which knew it at the
+      time and now writes it down (`halfTimeClockS`, written by `writePeriod` at
+      the half-time tap and cleared again if that tap is undone). In Python
+      only the video position has to be given, because `VideoClock.from_periods`
+      reads the restart's clock reading straight out of the log's own spans.
+
+      Three rules the arithmetic follows. A pair implying a **negative** break is
+      refused rather than used — a non-monotonic clock maps two positions in the
+      footage to one reading, which is wrong in a way nothing downstream could
+      describe, where a shifted one is wrong by a known amount in a known
+      direction. Inside the break the clock returns the **frozen** reading and
+      labels it, because that is the truth and because printing 45:12 on three
+      things that did not happen together is worse than saying "half-time". And
+      the whistle and the restart are one reading and two positions, so
+      `to_video` sends a tag there to the restart while `to_video_end` sends the
+      first half's boundary to the whistle — without that distinction the first
+      half's span swallowed the interval and a frame of somebody eating an
+      orange was reported as first-half football, drawn at whichever end that
+      implies. That one was found by a test, not by reasoning.
+
+      With no second anchor everything degrades to exactly the old behaviour and
+      **says so**: no period is claimed, and the coach's form states the
+      consequence rather than showing an empty field — a coach who never fills
+      it in has no other way to suspect anything, since the timestamps they get
+      look like ordinary minutes. The strip beside the fields draws the lead-in,
+      the half and the break to scale, so a break taking three quarters of the
+      bar is a typo caught before it saves rather than after.
+
+      384 pure JS · 120 emulator · 739 Python.
 
 ## 10. Event Detection
 CV produces automatic *candidates*, reconciled against the Phase 3 live-tagged events
