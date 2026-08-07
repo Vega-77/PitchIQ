@@ -10,21 +10,21 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=33';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=34';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../assets/db.js?v=33';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=33';
+} from '../assets/db.js?v=34';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=34';
 import {
     possessionIsInPlay, cvReads, xgTrust, groupStats,
-} from '../assets/report.js?v=33';
-import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=33';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=33';
+} from '../assets/report.js?v=34';
+import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=34';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=34';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
     tally, groupHead,
-} from '../assets/ui.js?v=33';
+} from '../assets/ui.js?v=34';
 
 const VIEWS = ['view-error', 'view-report'];
 
@@ -124,7 +124,9 @@ function renderDecisions() {
     //
     // Marked `est` rather than `info` so an estimate never sits in the same
     // visual register as a card somebody was actually shown.
-    for (const read of cvReads(activeCv())) {
+    for (const read of cvReads(activeCv(), {
+        videoOffsetS: state.match?.videoOffsetS ?? 0,
+    })) {
         list.append(decision('est', read.title, read.detail));
     }
 

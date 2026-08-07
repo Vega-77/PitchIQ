@@ -7,13 +7,13 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=33';
-import { EVENT_TYPES } from './events.js?v=33';
+import { db } from './firebase-init.js?v=34';
+import { EVENT_TYPES } from './events.js?v=34';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage,
-} from './report.js?v=33';
+} from './report.js?v=34';
 
 export { playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage };
 

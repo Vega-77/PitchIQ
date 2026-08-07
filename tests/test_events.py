@@ -33,8 +33,12 @@ from cv.events import (
     SAVED,
     TACKLE,
     UNKNOWN_OUTCOME,
+    DefensiveAction,
+    EventLog,
+    Pass,
     derive_events,
     ppda,
+    pressing_segments,
     turnovers_by_third,
 )
 from cv.frames import FrameRecord, FrameTable
@@ -438,6 +442,116 @@ class TestPpda:
         """Dividing by zero actions is not "pressed infinitely badly"."""
         log = derive([touch(0.0, 1, TEAM_B), touch(1.0, 2, TEAM_B)])
         assert ppda(log, PITCH, TEAM_A, 'right') is None
+
+
+# Team B attacks right, so its own defensive 40% is the left of the pitch and
+# the zone team A presses in is everything from x = 40 rightwards.
+IN_ZONE = (70.0, MID_Y)
+OUT_OF_ZONE = (10.0, MID_Y)
+
+
+def a_pass(t, at=IN_ZONE, team=TEAM_B, outcome=COMPLETED, in_play=True):
+    return Pass(
+        event_id=f'p{t}', type=PASS, timestamp_s=t, frame_index=int(t * FPS),
+        team=team, track_id=1, start_xy_px=(0.0, 0.0), start_m=at,
+        outcome=outcome, in_play=in_play,
+    )
+
+
+def an_action(t, at=IN_ZONE, team=TEAM_A, kind=TACKLE, in_play=True):
+    return DefensiveAction(
+        event_id=f'a{t}', type=kind, timestamp_s=t, frame_index=int(t * FPS),
+        team=team, track_id=2, start_xy_px=(0.0, 0.0), start_m=at,
+        in_play=in_play,
+    )
+
+
+class TestPressingSegments:
+    """The trend, on hand-written events rather than derived ones.
+
+    Placing an event at a chosen second and a chosen metre is the whole point
+    here, and deriving one from touches gives control over neither.
+    """
+
+    def segments(self, events, start_s=0.0, end_s=1800.0, segment_s=900.0):
+        return pressing_segments(
+            EventLog(events=events), PITCH, TEAM_A, 'right',
+            start_s, end_s, segment_s,
+        )
+
+    def test_a_window_too_short_for_two_blocks_has_no_trend(self):
+        """One number redrawn as one bar is not a trend."""
+        assert self.segments([a_pass(10.0)], end_s=600.0) is None
+
+    def test_it_is_none_without_a_direction_of_play(self):
+        assert pressing_segments(
+            EventLog(events=[a_pass(10.0)]), PITCH, TEAM_A, None, 0.0, 1800.0,
+        ) is None
+
+    def test_each_event_lands_in_exactly_one_block(self):
+        """Boundaries are half-open, or an event on one is counted twice."""
+        segments = self.segments([a_pass(899.9), a_pass(900.0), a_pass(900.1)])
+        assert [s['allowed'] for s in segments] == [1, 2]
+
+    def test_the_blocks_sum_to_the_whole_match_figure(self):
+        events = [a_pass(t) for t in (100.0, 500.0, 1000.0, 1500.0)]
+        events += [an_action(t) for t in (200.0, 1100.0)]
+        segments = self.segments(events)
+        log = EventLog(events=events)
+        assert sum(s['allowed'] for s in segments) == 4
+        assert sum(s['actions'] for s in segments) == 2
+        assert ppda(log, PITCH, TEAM_A, 'right') == pytest.approx(2.0)
+
+    def test_a_thin_block_keeps_its_counts_and_loses_its_ratio(self):
+        """Two challenges is a number about two moments, not about a spell."""
+        events = [a_pass(t) for t in (100.0, 200.0, 300.0)]
+        events += [an_action(t) for t in (150.0, 250.0)]
+        first = self.segments(events)[0]
+        assert (first['allowed'], first['actions']) == (3, 2)
+        assert first['ppda'] is None
+
+    def test_a_block_that_clears_the_floor_gets_its_ratio(self):
+        events = [a_pass(float(i)) for i in range(10)]
+        events += [an_action(float(100 + i)) for i in range(5)]
+        first = self.segments(events)[0]
+        assert first['actions'] == 5
+        assert first['ppda'] == pytest.approx(2.0)
+
+    def test_a_spell_with_no_challenge_at_all_still_reports_the_passes(self):
+        """The strongest possible non-press is the one with no ratio.
+
+        Reporting it as a gap would delete the finding; reporting it as zero
+        would invert it.
+        """
+        first = self.segments([a_pass(float(i)) for i in range(20)])[0]
+        assert first['allowed'] == 20
+        assert first['actions'] == 0
+        assert first['ppda'] is None
+
+    def test_the_zone_and_the_restarts_are_the_same_ones_ppda_uses(self):
+        events = [
+            a_pass(10.0), a_pass(20.0, at=OUT_OF_ZONE), a_pass(30.0, in_play=False),
+        ]
+        events += [
+            an_action(40.0), an_action(50.0, at=OUT_OF_ZONE),
+            an_action(60.0, team=TEAM_B),
+        ]
+        first = self.segments(events)[0]
+        assert (first['allowed'], first['actions']) == (1, 1)
+
+    def test_a_short_last_block_is_folded_into_the_one_before_it(self):
+        """Three minutes beside fifteen is two bars the eye wrongly compares."""
+        segments = self.segments([], end_s=2000.0)
+        assert len(segments) == 2
+        assert segments[-1]['start_s'] == 900.0
+        assert segments[-1]['end_s'] == 2000.0
+
+    def test_the_blocks_tile_the_window_with_no_gap(self):
+        segments = self.segments([], end_s=2700.0)
+        assert segments[0]['start_s'] == 0.0
+        assert segments[-1]['end_s'] == 2700.0
+        for earlier, later in zip(segments, segments[1:]):
+            assert earlier['end_s'] == later['start_s']
 
 
 class TestInPlay:

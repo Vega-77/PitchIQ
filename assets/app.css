@@ -1842,6 +1842,71 @@ td.num.cv-partial {
 .pass-node.is-pickable { cursor: pointer; }
 .pass-node.is-pickable:hover .pass-dot { fill: var(--good); }
 
+/* The press, quarter-hour by quarter-hour.
+   Horizontal bars rather than an SVG chart: there are three to six of them, each
+   needs a time range and two raw counts printed beside it, and text inside an
+   SVG at 375px is the one thing that has never survived a phone here.
+   A longer bar is a *softer* press — see the block's comment in coach/index.html
+   for why the number is not inverted to fix that. */
+.press-trend { display: grid; gap: 12px; max-width: 620px; }
+.press-row {
+    display: grid;
+    grid-template-columns: 4.2rem 1fr 2.6rem;
+    grid-template-areas: 'when bar value' '. counts counts';
+    align-items: center;
+    gap: 4px 10px;
+}
+.press-when {
+    grid-area: when;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+}
+/* The track is drawn full width so the bars share one baseline at zero. A bar
+   measured from the shortest instead would make an ordinary quarter-hour look
+   like a collapse. */
+.press-bar {
+    grid-area: bar;
+    height: 14px;
+    border-radius: 7px;
+    background: var(--line);
+    overflow: hidden;
+    min-width: 0;
+}
+.press-bar > span {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 7px;
+}
+.press-value {
+    grid-area: value;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.press-counts {
+    grid-area: counts;
+    font-size: 0.76rem;
+    color: var(--text-dim);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+/* No bar, and the reason in its place. Kept the height of a bar so the rows
+   stay on one rhythm and a missing ratio does not read as a missing block. */
+.press-none {
+    grid-area: bar;
+    font-size: 0.76rem;
+    line-height: 14px;
+    color: var(--text-dim);
+    font-style: italic;
+}
+/* A spell in which nobody was challenged at all. Accented rather than greyed:
+   it is the strongest finding the chart can carry, and it is the one that looks
+   most like missing data. */
+.press-row.is-unchallenged .press-none { color: var(--warn); font-style: normal; }
+
 /* Two maps side by side on the coach's view, stacked on a phone. */
 .shot-maps {
     display: flex;

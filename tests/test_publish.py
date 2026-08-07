@@ -397,6 +397,18 @@ class TestPayloads:
     def test_a_run_with_no_tagged_log_publishes_null_not_an_empty_object(self):
         assert summary_payload(a_report())['reconciliation'] is None
 
+    def test_the_pressing_blocks_reach_the_coach_with_the_team(self):
+        """Six blocks of four small numbers, nowhere near the document cap, and
+        the chart on the match view has no other source for them."""
+        blocks = [
+            {'start_s': 0, 'end_s': 900, 'allowed': 48, 'actions': 12, 'ppda': 4.0},
+            {'start_s': 900, 'end_s': 1800, 'allowed': 45, 'actions': 3, 'ppda': None},
+        ]
+        payload = summary_payload(a_report(teams={
+            'team_a': {'ppda': 6.2, 'pressing_segments': blocks},
+        }))
+        assert payload['teams']['team_a']['pressing_segments'] == blocks
+
     def test_an_empty_report_still_produces_a_valid_payload(self):
         payload = summary_payload({})
         assert payload['teams'] == {}

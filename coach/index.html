@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=33">
-    <link rel="stylesheet" href="coach.css?v=33">
+    <link rel="stylesheet" href="../assets/app.css?v=34">
+    <link rel="stylesheet" href="coach.css?v=34">
 </head>
 <body>
 
@@ -409,6 +409,20 @@
             <p class="muted" id="cv-passing-link" style="margin:12px 0 0"></p>
         </section>
 
+        <!-- The second piece of the catalog, and the first that is about time
+             rather than space. One PPDA for a whole match cannot tell a side
+             that squeezed for twenty minutes from one that pressed evenly, and
+             those are different teams. Bars run the wrong way round on purpose:
+             PPDA is passes *allowed*, so longer is a softer press. Plotting its
+             reciprocal would read more naturally and would disagree with the
+             PPDA row in the table above. -->
+        <section class="block hidden" id="cv-pressing-block">
+            <h3>How long the press lasted</h3>
+            <p class="muted" id="cv-pressing-lede" style="margin:-4px 0 14px"></p>
+            <div id="cv-pressing" class="press-trend"></div>
+            <p class="muted" id="cv-pressing-note" style="margin:14px 0 0"></p>
+        </section>
+
         <!-- The only place a prediction ever meets what happened. The xG model
              was fitted on professional shots and has never seen a pitch like
              this one, so until somebody marks a shot there is no evidence
@@ -548,7 +562,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=33"></script>
+<script type="module" src="coach.js?v=34"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

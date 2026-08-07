@@ -1513,6 +1513,143 @@ export function calibrationNote(cal, options = {}) {
         + ' goals chance accounts for on this many shots.';
 }
 
+// ------------------------------------------------------- the press, over time
+//
+// One PPDA for a whole match answers "did they press" and hides the question a
+// coach actually asks, which is "for how long". A side that squeezed for twenty
+// minutes and then sat off has the same match figure as one that pressed evenly
+// throughout, and those are different teams playing differently.
+//
+// `cv/events.py::pressing_segments` does the counting and decides which blocks
+// have a denominator worth a ratio; nothing here second-guesses it. A block
+// arrives with `ppda: null` for one of two reasons and the difference is the
+// whole reading — `actions: 0` is a spell in which nobody was challenged, which
+// is the strongest possible finding, and a small non-zero count is a spell too
+// quiet to score. Both draw no bar. Only one of them is news.
+//
+//     Longer bar, worse press.
+//
+// PPDA is passes *allowed*, so it runs backwards from every other bar on this
+// site. The alternative — plotting its reciprocal, so bigger meant harder —
+// reads more naturally and would put a number on screen that disagrees with the
+// PPDA row printed directly above it. Two numbers side by side describing one
+// thing with different denominators is the failure this whole app keeps
+// tripping over, so the direction is stated in words instead.
+
+/**
+ * The press block by block, with the bar lengths worked out.
+ *
+ * `share` is measured against the longest bar and **from zero**, not from the
+ * shortest. A bar chart that starts at the minimum makes a 10% difference look
+ * total, and the differences here are already inside the noise more often than
+ * not.
+ *
+ * Returns null rather than an empty trend when there is nothing to draw, so a
+ * caller hides the block instead of captioning a blank.
+ */
+export function pressingTrend(segments, options = {}) {
+    const { videoOffsetS = 0 } = options;
+    if (!segments?.length) return null;
+
+    const minute = (s) => Math.max(0, Math.round((s - videoOffsetS) / 60));
+    const blocks = segments.map((seg) => ({
+        startS: seg.start_s ?? null,
+        endS: seg.end_s ?? null,
+        allowed: seg.allowed ?? 0,
+        actions: seg.actions ?? 0,
+        ppda: seg.ppda ?? null,
+        startMin: seg.start_s == null ? null : minute(seg.start_s),
+        endMin: seg.end_s == null ? null : minute(seg.end_s),
+        // Two different silences, and the note tells them apart.
+        unchallenged: (seg.ppda ?? null) == null && !(seg.actions ?? 0),
+        thin: (seg.ppda ?? null) == null && (seg.actions ?? 0) > 0,
+    }));
+
+    const scored = blocks.filter((b) => b.ppda != null);
+    const longest = Math.max(0, ...scored.map((b) => b.ppda));
+    for (const block of blocks) {
+        block.share = block.ppda == null || !longest ? null : block.ppda / longest;
+    }
+
+    return {
+        blocks,
+        scored: scored.length,
+        thin: blocks.filter((b) => b.thin).length,
+        unchallenged: blocks.filter((b) => b.unchallenged).length,
+        hardest: scored.length
+            ? scored.reduce((a, b) => (b.ppda < a.ppda ? b : a)) : null,
+        softest: scored.length
+            ? scored.reduce((a, b) => (b.ppda > a.ppda ? b : a)) : null,
+    };
+}
+
+// How much worse the last scored block has to be than the first before it is
+// worth saying the press dropped off.
+//
+// Set from the denominator, not from taste. A block holds roughly ten defensive
+// actions, which as a count carries about ±32%; the ratio of two such blocks
+// therefore moves about ±45% on chance alone, so a factor under about 1.8 is
+// indistinguishable from an ordinary quarter-hour. Blocks without a ratio take
+// no part in this comparison at all.
+const PRESS_DROP_FACTOR = 1.8;
+
+/**
+ * What the trend says out loud. Null when it says nothing.
+ *
+ * Deliberately compares first scored block against last rather than fitting a
+ * slope. "You allowed twice as many passes per challenge by the end" is a thing
+ * a coach can be told; a gradient in PPDA per minute is not, and on four points
+ * a fitted slope is mostly a picture of the noise anyway.
+ */
+export function pressingRead(trend) {
+    const scored = (trend?.blocks || []).filter((b) => b.ppda != null);
+    if (scored.length < 2) return null;
+
+    const first = scored[0];
+    const last = scored[scored.length - 1];
+    if (last.ppda < first.ppda * PRESS_DROP_FACTOR) return null;
+
+    return {
+        title: 'Your press faded',
+        detail: `Early on you challenged every ${first.ppda.toFixed(1)} passes`
+            + ` they made; by minute ${last.startMin}–${last.endMin} it took`
+            + ` ${last.ppda.toFixed(1)}.`,
+    };
+}
+
+/**
+ * The caveats under the chart. Always returns at least the foul one.
+ *
+ * The foul caveat is not decoration. Fouls are a defensive action in the
+ * standard definition and are invisible to a bounding box, so every figure here
+ * is short a denominator and reads high — a known direction and an unknown size,
+ * which is exactly the kind of bias that has to be printed beside the number
+ * rather than buried in a Python docstring.
+ */
+export function pressingNote(trend) {
+    if (!trend) return null;
+    const parts = [];
+
+    // One counter, so the two sentences cannot end up as "One block" beside
+    // "1 block" — which is what the first version did.
+    const blocks = (n) => (n === 1 ? 'One block' : `${n} blocks`);
+
+    if (trend.unchallenged) {
+        parts.push(`${blocks(trend.unchallenged)} `
+            + `${trend.unchallenged === 1 ? 'has' : 'have'} no bar because nobody `
+            + 'made a challenge in the pressing zone at all — that is the '
+            + 'reading, not a gap.');
+    }
+    if (trend.thin) {
+        parts.push(`${blocks(trend.thin)} had too few challenges to divide by, `
+            + 'so only the counts are shown.');
+    }
+
+    parts.push('Fouls count as a challenge in the usual definition of this figure '
+        + 'and a camera cannot see them, so every bar here runs a little long.');
+    return parts.join(' ');
+}
+
 // ------------------------------------------------- reading the half out loud
 //
 // The stats catalog asks for "plain-language flags over raw tables" at
@@ -1556,8 +1693,13 @@ const SHAPE_WORDS = {
  * over a blank space.
  *
  * Reads only `teams.team_a`, which is always the coach's own side.
+ *
+ * `options.videoOffsetS` only affects the minutes quoted in the pressing read.
+ * Left out it quotes video minutes, which are the right minutes when nobody has
+ * synced the clock — a wrong match minute reads as fact, a video minute reads
+ * as a position in the footage.
  */
-export function cvReads(cv) {
+export function cvReads(cv, options = {}) {
     const ours = cv?.teams?.team_a;
     if (!ours) return [];
 
@@ -1604,6 +1746,11 @@ export function cvReads(cv) {
                 + 'straight into a chance against you.',
         });
     }
+
+    // Whether the press lasted. The half-time page is the one place this read
+    // can still be acted on, which is most of why it exists.
+    const faded = pressingRead(pressingTrend(ours.pressing_segments, options));
+    if (faded) reads.push(faded);
 
     // Chances created against chances taken. Both directions are worth saying:
     // one is bad luck or bad finishing, the other is a lead that flatters.

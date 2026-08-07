@@ -367,6 +367,32 @@ class TestPositionalFieldsReachTheJson:
         assert data[TEAM_B]['turnovers_by_third'] is not None
         assert team_stats(EventLog(), TEAM_A, calibrated=True).ppda is None
 
+    def test_a_fifteen_second_clip_has_no_pressing_trend(self):
+        """The default fixture is a clip, and a clip holds no blocks."""
+        team = self.a_positional_report().to_json()['teams'][TEAM_A]
+        assert team['pressing_segments'] is None
+
+    def test_a_full_match_gets_one_block_per_quarter_hour(self):
+        report = self.a_positional_report()
+        report.duration_s = 90 * 60.0
+        segments = report.to_json()['teams'][TEAM_A]['pressing_segments']
+        assert len(segments) == 6
+        assert segments[-1]['end_s'] == 5400.0
+
+    def test_the_blocks_cover_the_processed_window_not_the_whole_video(self):
+        """`--end` is optional, so the fallback has to be what was processed.
+
+        Tiling from zero to the length of the file would put five empty blocks
+        in front of a clip taken from the second half.
+        """
+        report = self.a_positional_report()
+        report.duration_s = 30 * 60.0
+        segments = report.to_json(
+            window={'start_s': 2700.0},
+        )['teams'][TEAM_A]['pressing_segments']
+        assert segments[0]['start_s'] == 2700.0
+        assert segments[-1]['end_s'] == 4500.0
+
     def test_territory_and_drift_are_null_when_the_run_had_neither(self):
         team = a_report(calibrated=True).to_json()['teams'][TEAM_A]
         assert team['territory'] is None

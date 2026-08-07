@@ -2014,6 +2014,124 @@ describe('calibrationNote', () => {
     });
 });
 
+// ----------------------------------------------------- the press, over time
+
+describe('pressingTrend', () => {
+    const seg = (start, allowed, actions, ppda) => ({
+        start_s: start, end_s: start + 900, allowed, actions, ppda,
+    });
+
+    test('no segments means no chart, not an empty one', () => {
+        assert.equal(report.pressingTrend(null), null);
+        assert.equal(report.pressingTrend([]), null);
+    });
+
+    test('bar length is measured from zero, not from the shortest block', () => {
+        // A chart that starts at the minimum turns an ordinary quarter-hour
+        // into a collapse, and the differences here are inside the noise more
+        // often than not.
+        const trend = report.pressingTrend([
+            seg(0, 40, 10, 4), seg(900, 80, 10, 8),
+        ]);
+        assert.deepEqual(trend.blocks.map((b) => b.share), [0.5, 1]);
+    });
+
+    test('the two kinds of silence are told apart', () => {
+        const trend = report.pressingTrend([
+            seg(0, 40, 10, 4),
+            seg(900, 30, 0, null),      // nobody challenged at all
+            seg(1800, 25, 2, null),     // too few to divide by
+        ]);
+        assert.deepEqual(trend.blocks.map((b) => b.unchallenged),
+            [false, true, false]);
+        assert.deepEqual(trend.blocks.map((b) => b.thin), [false, false, true]);
+        assert.deepEqual(trend.blocks.map((b) => b.share), [1, null, null]);
+        assert.equal(trend.scored, 1);
+    });
+
+    test('the video offset moves the minutes onto the match clock', () => {
+        const trend = report.pressingTrend([seg(900, 40, 10, 4)],
+            { videoOffsetS: 300 });
+        assert.equal(trend.blocks[0].startMin, 10);
+        assert.equal(trend.blocks[0].endMin, 25);
+    });
+
+    test('a clock that would run negative is pinned at kickoff', () => {
+        // An offset larger than the timestamp means the offset is wrong, and
+        // "minute -4" is a worse way to say so than "minute 0".
+        const trend = report.pressingTrend([seg(0, 40, 10, 4)],
+            { videoOffsetS: 600 });
+        assert.equal(trend.blocks[0].startMin, 0);
+    });
+
+    test('the hardest and softest spells are the ones with ratios', () => {
+        const trend = report.pressingTrend([
+            seg(0, 40, 10, 4), seg(900, 30, 0, null), seg(1800, 90, 10, 9),
+        ]);
+        assert.equal(trend.hardest.ppda, 4);
+        assert.equal(trend.softest.ppda, 9);
+    });
+});
+
+describe('pressingRead', () => {
+    const trend = (...ppdas) => report.pressingTrend(ppdas.map((p, i) => ({
+        start_s: i * 900, end_s: (i + 1) * 900,
+        allowed: 40, actions: 10, ppda: p,
+    })));
+
+    test('a press that more than doubled its cost is called out', () => {
+        const read = report.pressingRead(trend(4, 6, 9));
+        assert.match(read.detail, /every 4\.0 passes/);
+        assert.match(read.detail, /took 9\.0/);
+    });
+
+    test('a quarter-hour of ordinary variation says nothing', () => {
+        // ~10 actions a block carries about ±32%, so the ratio of two blocks
+        // moves ~±45% on chance alone. Anything under that is not a finding.
+        assert.equal(report.pressingRead(trend(6, 7, 9)), null);
+    });
+
+    test('a press that held says nothing', () => {
+        assert.equal(report.pressingRead(trend(8, 7.5, 8.2)), null);
+    });
+
+    test('blocks without a ratio take no part in the comparison', () => {
+        // The last block is the loudest one on the chart and the least
+        // measurable. Reading a slope into it would invent the finding.
+        assert.equal(report.pressingRead(trend(8, 8.2, null)), null);
+    });
+
+    test('one scored block is not a trend', () => {
+        assert.equal(report.pressingRead(trend(4, null)), null);
+    });
+});
+
+describe('pressingNote', () => {
+    const trend = (...blocks) => report.pressingTrend(blocks);
+    const block = (allowed, actions, ppda) => ({
+        start_s: 0, end_s: 900, allowed, actions, ppda,
+    });
+
+    test('the foul caveat is always there', () => {
+        // Fouls count as a challenge in the standard definition and a camera
+        // cannot see one, so every bar runs long — a known direction and an
+        // unknown size, which has to sit beside the number.
+        assert.match(report.pressingNote(trend(block(40, 10, 4))), /Fouls/);
+    });
+
+    test('a spell with no challenge at all is named as the reading', () => {
+        const text = report.pressingNote(trend(block(30, 0, null)));
+        assert.match(text, /nobody made a challenge/);
+        assert.match(text, /not a gap/);
+    });
+
+    test('a thin block is described as thin, not as empty', () => {
+        const text = report.pressingNote(trend(block(25, 2, null)));
+        assert.match(text, /too few challenges to divide by/);
+        assert.doesNotMatch(text, /nobody made a challenge/);
+    });
+});
+
 // --------------------------------------------- reading the half out loud
 //
 // The catalog asks for plain-language flags rather than tables at half-time.
@@ -2833,6 +2951,42 @@ describe('the sample breakdowns add up', () => {
         const { team_a: a, team_b: b } = sample.sampleCvSummary().teams;
         assert.ok(Math.abs(a.possession_pct + b.possession_pct - 1) < 1e-9);
     });
+
+    for (const key of ['team_a', 'team_b']) {
+        test(`${key} pressing blocks add back up to its PPDA`, () => {
+            // The chart sits directly under the row that prints this number.
+            // Hand-written fixture segments that did not divide back to it
+            // would model exactly the failure the real pipeline avoids by
+            // counting both figures through one function.
+            const team = sample.sampleCvSummary().teams[key];
+            const sum = (field) => team.pressing_segments
+                .reduce((total, s) => total + s[field], 0);
+            assert.ok(Math.abs(sum('allowed') / sum('actions') - team.ppda) < 0.01);
+        });
+
+        test(`${key} pressing blocks tile the processed window`, () => {
+            const cv = sample.sampleCvSummary();
+            const blocks = cv.teams[key].pressing_segments;
+            assert.equal(blocks[0].start_s, cv.window.start_s);
+            assert.equal(blocks[blocks.length - 1].end_s, cv.window.end_s);
+            for (let i = 1; i < blocks.length; i += 1) {
+                assert.equal(blocks[i].start_s, blocks[i - 1].end_s);
+            }
+        });
+
+        test(`${key} withholds a ratio exactly where the pipeline would`, () => {
+            // MIN_PRESSING_ACTIONS in cv/events.py. A fixture that scored a
+            // three-challenge block would preview a page the pipeline cannot
+            // produce.
+            for (const s of sample.sampleCvSummary().teams[key].pressing_segments) {
+                assert.equal(s.ppda == null, s.actions < 5,
+                    `${s.actions} challenges scored ${s.ppda}`);
+                if (s.ppda != null) {
+                    assert.ok(Math.abs(s.allowed / s.actions - s.ppda) < 0.01);
+                }
+            }
+        });
+    }
 
     test("each territory split is a whole of that side's own possession", () => {
         for (const key of ['team_a', 'team_b']) {

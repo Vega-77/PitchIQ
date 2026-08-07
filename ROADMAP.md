@@ -1424,9 +1424,58 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       `sampleCvSummary` — that fixture carries no events so the review tool and
       the shot log stay empty under the preview, since both write back. Drawing
       writes nothing, so this one is safe to hand over.
-- [ ] **[MVP]** The rest of the post-game tactical catalog: phase-of-play and
-      pressing trends. PPDA already exists in `cv/events.py` and is published;
-      neither is drawn anywhere yet
+- [x] **[MVP] Pressing trends — how long the press lasted, not just whether
+      there was one** (2026-08-07). PPDA has been computed and published as one
+      number per team since 2026-08-02, and one number for a whole match answers
+      the question nobody asks. A side that squeezed for twenty minutes and then
+      sat off has the same match figure as one that pressed evenly throughout,
+      and pressing is exhausting enough that which of those happened is most of
+      the read. This is also the first video block on the coach's page that is
+      about *time* rather than a total or a shape.
+
+      `ppda` is now a thin wrapper over `count_pressing`, which both it and the
+      new `pressing_segments` call. Two implementations of "outside their own
+      40%" is exactly how a chart ends up disagreeing with the number printed
+      directly above it, and that number is printed directly above it.
+
+      **The counts travel with the ratio, because the ratio breaks at the bottom
+      end.** A quarter-hour with thirty passes allowed and no challenge at all is
+      the strongest non-press there is, and it has no PPDA — dividing by zero is
+      undefined, so the one figure that would describe it best is the one that
+      cannot exist. `PressingCount` carries both numbers so that spell still
+      says something, and the page draws no bar for it in the warning colour
+      with *never challenged* written where the bar would be. Below five
+      challenges a block keeps its counts and loses its ratio: a floor for
+      legibility, not a significance test, and even at five the ratio carries
+      about ±45%. The note under the chart names both silences separately,
+      because only one of them is news and they look identical.
+
+      Fifteen-minute blocks, set by the denominator rather than by taste — a
+      team makes roughly fifty defensive actions in the pressing zone across a
+      match, so a quarter-hour holds about ten. Five-minute blocks would give a
+      prettier chart of two or three apiece, which is a picture of noise. A
+      window too short for two blocks returns None rather than one bar, and a
+      remainder under half a block is folded into the one before it: three
+      minutes of football drawn beside fifteen is two bars the eye compares
+      directly and should not.
+
+      **A longer bar is a worse press**, which runs backwards from everything
+      else on the site. Plotting the reciprocal so bigger meant harder reads
+      more naturally and would put a number on screen disagreeing with the PPDA
+      row above it, so the direction is stated in words instead. Bars are
+      measured from zero, and `pressingRead` only calls a fade when the last
+      scored block costs 1.8× the first — set from the ±45% two such blocks move
+      on chance alone, not from what looks like a slope.
+
+      Timestamps stay in video seconds all the way to the browser, where the
+      offset is; the half-time read quotes video minutes when nobody has synced
+      the clock, since a wrong match minute reads as fact and a video minute
+      reads as a position in the footage.
+- [ ] **[MVP]** The last of the post-game tactical catalog: phase-of-play —
+      what the side did in build-up, in progression and in the final third,
+      separately. Nothing measures it yet and the shape of the answer is not
+      settled; `territory` (possession by third) and `turnovers_by_third` are
+      the closest things that exist and neither is phase-of-play
 - [x] **Use the Phase 3 sub log to scope each player's stats to their actual
       minutes played** (2026-08-06). Every per-player card printed *Minutes 71*
       from the sub log directly beside *km covered 1.9* from the video, and

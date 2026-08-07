@@ -111,6 +111,25 @@ BLOCK_DISTANCE_M = 5.0
 # PPDA is conventionally measured outside the pressing team's own 40%.
 PPDA_ZONE_FRACTION = 0.6
 
+# How long a slice of the match one pressing figure covers.
+#
+# Fifteen minutes, because the denominator decides this and nothing else. A team
+# makes somewhere around fifty defensive actions in the pressing zone across a
+# full match, so a quarter-hour block holds roughly ten — few enough that the
+# ratio is rough, many enough that it is a ratio. Five-minute blocks would give
+# a prettier chart of two or three actions apiece, which is a picture of noise.
+PRESSING_SEGMENT_S = 15 * 60.0
+
+# Below this many defensive actions a segment carries its counts and no ratio.
+#
+# A floor for legibility, not a significance test. Treating the action count as
+# Poisson, five of them puts roughly ±45% around the ratio, so even a segment
+# that clears this bar is a rough number — it is just no longer a number built
+# from two events. Segments below it are still reported, still drawn, and still
+# said out loud in the note, because "we barely challenged them for twenty
+# minutes" is the finding, not a gap in the data.
+MIN_PRESSING_ACTIONS = 5
+
 
 def _other(team: str) -> str:
     if team == TEAM_A:
@@ -826,6 +845,82 @@ def turnovers_by_third(
     return counts
 
 
+@dataclass(frozen=True)
+class PressingCount:
+    """The two numbers PPDA is made of, kept together.
+
+    The ratio alone cannot be read at the bottom end. A spell with thirty passes
+    allowed and no challenge at all is the strongest non-press there is, and it
+    has no ratio — dividing by zero is undefined, so the one figure that would
+    describe it best is the one figure that cannot exist. Carrying the counts
+    means that spell still says something.
+    """
+
+    allowed: int
+    actions: int
+
+    @property
+    def ppda(self) -> float | None:
+        """None when nobody challenged. Not infinity, and certainly not zero."""
+        if not self.actions:
+            return None
+        return self.allowed / self.actions
+
+
+def count_pressing(
+    log: EventLog,
+    pitch: Pitch,
+    pressing_team: str,
+    attacking_end_of_opponent: str | None,
+    since_s: float | None = None,
+    until_s: float | None = None,
+) -> PressingCount | None:
+    """Passes allowed and defensive actions in the pressing zone, over a span.
+
+    One definition of the zone, one definition of an action, used by both the
+    whole-match figure and every segment of it. Two implementations of "outside
+    their own 40%" is exactly how a chart ends up disagreeing with the number
+    printed above it.
+
+    `since_s` is inclusive and `until_s` exclusive, so consecutive segments
+    tile the window without counting an event on a boundary twice.
+    """
+    if attacking_end_of_opponent is None:
+        return None
+
+    boundary = pitch.length_m * (1 - PPDA_ZONE_FRACTION)
+
+    def in_zone(point) -> bool:
+        if point is None:
+            return False
+        # Distance from the opponent's own goal line, along their attack.
+        forward = (
+            point[0] if attacking_end_of_opponent == 'right'
+            else pitch.length_m - point[0]
+        )
+        return forward >= boundary
+
+    def in_span(event) -> bool:
+        if since_s is not None and event.timestamp_s < since_s:
+            return False
+        if until_s is not None and event.timestamp_s >= until_s:
+            return False
+        return True
+
+    opponent = _other(pressing_team)
+    allowed = sum(
+        1 for p in log.passes(opponent)
+        if p.in_play and in_span(p) and in_zone(p.start_m)
+        and p.outcome != UNKNOWN_OUTCOME
+    )
+    actions = sum(
+        1 for e in log.by_type(TACKLE, INTERCEPTION, RECOVERY, DUEL)
+        if e.in_play and e.team == pressing_team and in_span(e)
+        and in_zone(e.start_m)
+    )
+    return PressingCount(allowed=allowed, actions=actions)
+
+
 def ppda(
     log: EventLog,
     pitch: Pitch,
@@ -847,34 +942,87 @@ def ppda(
     unopposed as a "pass allowed" flatters whoever they were playing against.
     Without a tagged log nothing is marked as a restart and this is a no-op.
     """
+    counted = count_pressing(log, pitch, pressing_team, attacking_end_of_opponent)
+    return counted.ppda if counted else None
+
+
+def _segment_bounds(
+    start_s: float, end_s: float, segment_s: float,
+) -> list[tuple[float, float]]:
+    """Tile `[start_s, end_s)` in blocks, with no runt at the end.
+
+    A block shorter than half a segment is folded into the one before it rather
+    than drawn beside it. Three minutes of football next to fifteen is two bars
+    the eye compares directly and should not — the short one is quiet because it
+    is short, which looks identical to a team that stopped pressing.
+    """
+    span = end_s - start_s
+    if span <= 0 or segment_s <= 0:
+        return []
+
+    count = max(1, int(span // segment_s))
+    bounds = [
+        (start_s + i * segment_s, start_s + (i + 1) * segment_s)
+        for i in range(count)
+    ]
+    # Whatever is left over extends the last block. By construction the
+    # remainder is under one full segment, so this never doubles a block.
+    bounds[-1] = (bounds[-1][0], end_s)
+    return bounds
+
+
+def pressing_segments(
+    log: EventLog,
+    pitch: Pitch,
+    pressing_team: str,
+    attacking_end_of_opponent: str | None,
+    start_s: float,
+    end_s: float,
+    segment_s: float = PRESSING_SEGMENT_S,
+) -> list[dict] | None:
+    """How the press held up across the window, block by block.
+
+    A single PPDA for a whole match answers "did they press" and hides the
+    question a coach actually asks, which is "for how long". A team that
+    squeezed for twenty minutes and then dropped off has the same match figure
+    as one that pressed evenly throughout, and those are different teams.
+
+    Returns None, never an empty list or a single block, when the window is too
+    short to hold two segments. One number redrawn as one bar is not a trend,
+    and presenting it as one would invite reading a slope that was never
+    measured.
+
+    Timestamps are video seconds, matching every other event in the report. The
+    match clock lives in the browser, where the video offset is, and converting
+    here would bake in the one number in this app most likely to be wrong.
+    """
     if attacking_end_of_opponent is None:
         return None
 
-    boundary = pitch.length_m * (1 - PPDA_ZONE_FRACTION)
-
-    def in_zone(point) -> bool:
-        if point is None:
-            return False
-        # Distance from the opponent's own goal line, along their attack.
-        forward = (
-            point[0] if attacking_end_of_opponent == 'right'
-            else pitch.length_m - point[0]
-        )
-        return forward >= boundary
-
-    opponent = _other(pressing_team)
-    allowed = sum(
-        1 for p in log.passes(opponent)
-        if p.in_play and in_zone(p.start_m) and p.outcome != UNKNOWN_OUTCOME
-    )
-    actions = sum(
-        1 for e in log.by_type(TACKLE, INTERCEPTION, RECOVERY, DUEL)
-        if e.in_play and e.team == pressing_team and in_zone(e.start_m)
-    )
-
-    if not actions:
+    bounds = _segment_bounds(start_s, end_s, segment_s)
+    if len(bounds) < 2:
         return None
-    return allowed / actions
+
+    out = []
+    for since, until in bounds:
+        counted = count_pressing(
+            log, pitch, pressing_team, attacking_end_of_opponent, since, until,
+        )
+        ratio = counted.ppda
+        out.append({
+            'start_s': round(since, 1),
+            'end_s': round(until, 1),
+            'allowed': counted.allowed,
+            'actions': counted.actions,
+            # Withheld on a thin denominator, but the counts stay. A reader who
+            # wants the rough number can divide; what they cannot do is mistake
+            # it for one of the segments that earned its ratio.
+            'ppda': (
+                round(ratio, 2) if ratio is not None
+                and counted.actions >= MIN_PRESSING_ACTIONS else None
+            ),
+        })
+    return out
 
 
 def attach_xg(log: EventLog, xg_by_event: dict[str, tuple[float, float]]) -> None:

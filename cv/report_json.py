@@ -40,6 +40,7 @@ from .events import (
     TACKLE,
     EventLog,
     ppda,
+    pressing_segments,
     turnovers_by_third,
 )
 from .identity import PlayerCluster, fragmentation
@@ -51,7 +52,9 @@ from .teams import TEAM_A, TEAM_B
 # 3: `reconciliation` added, and `xg` started carrying a number — `attach_xg`
 #    had no caller until now, so every xG field in a version 2 document is null
 #    because nothing computed it, not because no shots were found.
-SCHEMA_VERSION = 3
+# 4: `pressing_segments` added per team. Purely additive — a version 3 reader
+#    sees a key it does not know and every other number is unchanged.
+SCHEMA_VERSION = 4
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -115,6 +118,11 @@ class TeamStats:
     duels: int = 0
 
     ppda: float | None = None
+    # The same figure block by block across the window, so a press that lasted
+    # twenty minutes is distinguishable from one that lasted the match. None
+    # without a calibration, without a known direction, or on a window too short
+    # to hold two blocks — a trend needs at least two points to be a trend.
+    pressing_segments: list[dict] | None = None
     shape: dict[str, float] = field(default_factory=dict)
     # Where this team's possession happened, as shares of its own total, named
     # from its own attacking direction. None without a calibration, and None for
@@ -171,6 +179,7 @@ class TeamStats:
             'recoveries': _num(self.recoveries),
             'duels': _num(self.duels),
             'ppda': _round(self.ppda, 2),
+            'pressing_segments': self.pressing_segments,
             'shape': {k: _round(v, 1) for k, v in self.shape.items()},
             'territory': self.territory,
             'shape_drift': self.shape_drift,
@@ -266,6 +275,7 @@ def team_stats(
     territory: dict | None = None,
     shape_drift: dict | None = None,
     attacking_end: str | None = None,
+    span_s: tuple[float, float] | None = None,
 ) -> TeamStats:
     """Aggregate one team's events.
 
@@ -319,6 +329,10 @@ def team_stats(
             stats.turnovers_by_third = turnovers_by_third(
                 log, pitch, team, attacking_end,
             )
+            if span_s is not None:
+                stats.pressing_segments = pressing_segments(
+                    log, pitch, team, opponent_attacking_end, *span_s,
+                )
 
     stats.attacking_end = attacking_end
     stats.shape = shape or {}
@@ -532,6 +546,19 @@ def build_report_json(
     pitch = getattr(report, 'pitch', None)
     ends = getattr(report, 'attacking_ends', None) or {}
 
+    # The span the pressing blocks tile. `end_s` is optional on the command
+    # line — nobody passes `--end` when they mean "to the end of the clip" — so
+    # it falls back to however much footage was actually processed rather than
+    # to however long the file is. The blocks have to describe the events that
+    # exist, not the minutes that were skipped.
+    span_start = float((window or {}).get('start_s') or 0.0)
+    span_end = (window or {}).get('end_s')
+    span = (
+        span_start,
+        float(span_end) if span_end is not None
+        else span_start + float(report.duration_s or 0.0),
+    )
+
     teams = {}
     for team in (TEAM_A, TEAM_B):
         other = TEAM_B if team == TEAM_A else TEAM_A
@@ -545,6 +572,7 @@ def build_report_json(
             pitch=pitch,
             attacking_end=ends.get(team),
             opponent_attacking_end=ends.get(other),
+            span_s=span,
         ).to_json()
 
     tracks = track_stats(

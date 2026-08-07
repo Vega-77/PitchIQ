@@ -179,7 +179,7 @@ const totalXg = (shots) =>
 export function sampleCvSummary() {
     return {
         isSample: true,
-        schemaVersion: 3,
+        schemaVersion: 4,
         source: 'sample',
         window: { start_s: 0, end_s: 2700 },
         durationS: 2700,
@@ -236,7 +236,20 @@ export function sampleCvSummary() {
                 interceptions: 22,
                 recoveries: 39,
                 duels: 44,
-                ppda: 11.3,
+                // 145 passes allowed to 21 challenges across the 45 minutes.
+                // The blocks below are that total split three ways and they
+                // have to agree with it, because the chart sits under the row
+                // that prints this number.
+                ppda: 6.9,
+                // A side that pressed hard, eased off, and stopped. The last
+                // block is deliberately too thin to divide: three challenges is
+                // a number about three moments, and the preview should show
+                // what the page does with one rather than only the happy case.
+                pressing_segments: [
+                    { start_s: 0, end_s: 900, allowed: 48, actions: 12, ppda: 4.0 },
+                    { start_s: 900, end_s: 1800, allowed: 52, actions: 6, ppda: 8.67 },
+                    { start_s: 1800, end_s: 2700, allowed: 45, actions: 3, ppda: null },
+                ],
                 shape: { width_m: 41.2, depth_m: 33.8, compactness_m: 14.6 },
                 // Fires the pinned-back read: more than PINNED_BACK_SHARE of
                 // possession spent in their own third.
@@ -271,7 +284,15 @@ export function sampleCvSummary() {
                 interceptions: 18,
                 recoveries: 33,
                 duels: 44,
-                ppda: 8.7,
+                // 130 to 15, and unlike ours it holds all the way through —
+                // the contrast is the point of carrying the opponent's blocks
+                // at all, even though nothing draws them today.
+                ppda: 8.67,
+                pressing_segments: [
+                    { start_s: 0, end_s: 900, allowed: 40, actions: 5, ppda: 8.0 },
+                    { start_s: 900, end_s: 1800, allowed: 46, actions: 5, ppda: 9.2 },
+                    { start_s: 1800, end_s: 2700, allowed: 44, actions: 5, ppda: 8.8 },
+                ],
                 shape: { width_m: 37.9, depth_m: 30.2, compactness_m: 13.1 },
                 territory: { defensive: 0.31, middle: 0.38, attacking: 0.31 },
                 shape_drift: null,

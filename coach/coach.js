@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=33';
+} from '../assets/auth.js?v=34';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,34 +8,34 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=33';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=33';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=33';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=33';
+} from '../assets/db.js?v=34';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=34';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=34';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=34';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=33';
+} from '../assets/sample-report.js?v=34';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=33';
-import { renderPassMap } from '../assets/pass-map.js?v=33';
+} from '../assets/passing.js?v=34';
+import { renderPassMap } from '../assets/pass-map.js?v=34';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
     groupStats, teamStatRows, trackedCoverage, metresPerMinute,
     TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, xgTally, sumXgTallies,
     xgCalibration, calibrationNote, headerCorrection, headerNote,
-    correctedShotMarks,
-} from '../assets/report.js?v=33';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=33';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=33';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=33';
+    correctedShotMarks, pressingTrend, pressingNote, pressingRead,
+} from '../assets/report.js?v=34';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=34';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=34';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=34';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark,
-} from '../assets/ui.js?v=33';
+} from '../assets/ui.js?v=34';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -677,6 +677,12 @@ async function openMatch(matchId) {
         // again every time a coach goes back and picks another match, and a
         // stacking banner is the classic way that goes unnoticed.
         redrawShotViews();
+        // Not on that redraw: the press is counted by the pipeline and no
+        // verdict a coach records can move it. Drawing it there would be
+        // harmless and would also say it depends on the review, which it does
+        // not — the block that never changes should not be in the list of
+        // blocks that go stale.
+        renderPressing();
 
         renderPlayerTable(stats.players);
         renderMatchVideoBlock();
@@ -895,6 +901,73 @@ function renderPassing() {
     setText('cv-passing-note', networkNote(network, { truncated }));
     setText('cv-passing-link',
         strongestLink(foldEdges(network.edges), nameOf) || '');
+}
+
+// ------------------------------------------------- how long the press lasted
+//
+// The first thing on this page that is about *time*. Every other video block
+// answers "how much" over the whole window, and a press is the statistic where
+// that hides the most: pressing is exhausting, so the question is never whether
+// a side pressed but how long they managed it for.
+//
+// The arithmetic and every refusal in it are in assets/report.js; the pipeline
+// has already decided which blocks have a denominator worth dividing by. What
+// this does is lay them out so the two kinds of silence stay distinguishable —
+// a block where nobody challenged at all is the loudest thing the chart can
+// say, and it looks identical to missing data unless it is labelled.
+
+function pressRow(block) {
+    const row = document.createElement('div');
+    row.className = 'press-row';
+    if (block.unchallenged) row.classList.add('is-unchallenged');
+
+    const when = block.startMin == null ? '' : `${block.startMin}–${block.endMin}'`;
+    const counts = `${plural(block.allowed, 'pass', 'passes')} allowed, `
+        + `${plural(block.actions, 'challenge')}`;
+
+    // A bar only where there is a ratio behind it. The two blocks that get no
+    // bar say why in words rather than showing an empty track the eye reads as
+    // a small number.
+    const bar = block.share == null
+        ? `<div class="press-none">${block.unchallenged
+            ? 'never challenged' : 'too few to divide'}</div>`
+        : `<div class="press-bar"><span style="width:${
+            Math.round(block.share * 100)}%"></span></div>`;
+
+    row.innerHTML = `
+        <div class="press-when">${when}</div>
+        ${bar}
+        <div class="press-value">${
+            block.ppda == null ? '—' : block.ppda.toFixed(1)}</div>
+        <div class="press-counts">${counts}</div>`;
+    return row;
+}
+
+function renderPressing() {
+    const block = byId('cv-pressing-block');
+    if (!block) return;
+
+    const cv = activeCv();
+    const trend = pressingTrend(cv?.teams?.team_a?.pressing_segments, {
+        videoOffsetS: state.match?.videoOffsetS ?? 0,
+    });
+    block.classList.toggle('hidden', !trend);
+    if (!trend) return;
+
+    const host = byId('cv-pressing');
+    host.innerHTML = '';
+    host.classList.toggle('is-sample-plot', state.cvPreview);
+    for (const row of trend.blocks) host.appendChild(pressRow(row));
+
+    // The lede carries the direction of the bars, because a reader who takes
+    // "longer is worse" from the chart alone will take it wrong.
+    const lede = ['Passes the opposition strung together for every challenge you '
+        + 'made in their half, quarter-hour by quarter-hour. A longer bar is a '
+        + 'softer press.'];
+    const faded = pressingRead(trend);
+    if (faded) lede.push(faded.detail);
+    setText('cv-pressing-lede', lede.join(' '));
+    setText('cv-pressing-note', pressingNote(trend));
 }
 
 // ---------------------------------------------- marking the model's homework
@@ -1231,6 +1304,7 @@ function toggleSample() {
 
     renderShots();
     renderPassing();
+    renderPressing();
     renderExcluded();
     renderSampleToggle();
 }
