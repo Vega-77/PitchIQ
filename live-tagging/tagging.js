@@ -13,17 +13,18 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=36';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=37';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
-    writeEvent, writePeriod, writeSubstitution, undoEntry,
+    writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=36';
+} from '../assets/db.js?v=37';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=36';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=36';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=36';
+} from '../assets/events.js?v=37';
+import { syncState, safeToClose } from '../assets/report.js?v=37';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=37';
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=37';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -57,6 +58,12 @@ const state = {
     // The event currently being described in the sheet.
     draft: null,
     sub: { outId: null, inId: null },
+    // What Firestore says has actually reached the server, and the listener
+    // saying it. A null count is "not asked yet" rather than "nothing queued":
+    // there can be writes sitting in IndexedDB from a session that ended badly,
+    // and opening on a confident zero would say they were safe.
+    sync: { pending: null, fromCache: true, total: 0 },
+    stopSync: null,
 };
 
 // ---------------------------------------------------------------- ui
@@ -145,15 +152,50 @@ setInterval(() => {
     if (byId('view-live').classList.contains('active')) paintClock();
 }, 250);
 
-function updateOnlineIndicator() {
-    const dot = byId('sync-dot');
-    if (!dot) return;
-    const offline = !navigator.onLine;
-    dot.classList.toggle('offline', offline);
-    dot.title = offline ? 'No internet — your taps are saved and will upload later' : 'Saved';
+/**
+ * The sync chip, from what Firestore reports rather than what the browser
+ * guesses.
+ *
+ * This used to be `navigator.onLine` and a tooltip, and both halves were wrong
+ * for the place this tool is used. `onLine` reports a link rather than a
+ * reachable server, so a school Wi-Fi with a captive portal reads as connected
+ * and the dot said "Saved" while nothing had been saved. And a tooltip on a
+ * tablet is a tooltip nobody can open — the count has to be on the screen.
+ *
+ * Quiet when everything is up: a nine-pixel green dot and no words. The chip
+ * only grows text when there is something to say, so the words appearing is
+ * itself the signal.
+ */
+function updateSyncIndicator() {
+    const chip = byId('sync-dot');
+    if (!chip) return;
+
+    const view = syncState({ ...state.sync, online: navigator.onLine });
+    chip.className = `sync-chip is-${view.tone}`;
+    chip.title = view.detail;
+
+    let label = chip.querySelector('b');
+    if (!label) {
+        chip.innerHTML = '<i></i><b></b>';
+        label = chip.querySelector('b');
+    }
+    label.textContent = view.tone === 'ok' ? '' : view.label;
 }
-window.addEventListener('online', updateOnlineIndicator);
-window.addEventListener('offline', updateOnlineIndicator);
+
+/** Follow one match's log until the page moves on. */
+function watchMatchSync() {
+    state.stopSync?.();
+    state.stopSync = watchSync(state.teamId, state.matchId, (next) => {
+        state.sync = next;
+        updateSyncIndicator();
+    });
+}
+
+// `fromCache` is the authority and these are only a hint, but they arrive
+// faster than a listener notices — a tablet that goes into a dead spot should
+// say so immediately rather than at the next snapshot.
+window.addEventListener('online', updateSyncIndicator);
+window.addEventListener('offline', updateSyncIndicator);
 
 const nextSeq = () => ++state.seq;
 
@@ -370,6 +412,7 @@ async function resumeMatch() {
     }
 
     showView('live');
+    watchMatchSync();
     renderClockChrome();
 
     // Real elapsed time cannot be recovered after a reload, so the clock comes
@@ -415,6 +458,7 @@ async function doKickoff() {
         renderScore();
         setLast('kick-off');
         showView('live');
+        watchMatchSync();
     } catch (err) {
         toast(err.message || 'Could not start the match.', true);
     }
@@ -844,17 +888,45 @@ function init() {
     // cannot be recovered on return, so the sheet says what will actually
     // happen rather than asking a bare "are you sure".
     byId('btn-exit-live').addEventListener('click', () => {
-        const running = state.running;
-        byId('exit-note').textContent = running
-            ? `Everything you've tapped is saved. The clock is at ${clockText(matchClock())} `
-              + 'and will be paused there when you come back, so check it against '
-              + "the referee's before carrying on."
-            : "Everything you've tapped is saved. The clock is already paused.";
+        // "Everything you've tapped is saved" was said here unconditionally,
+        // at the exact moment it matters most and with nothing behind it. The
+        // listener knows, so it says so — and when it is not true, that leads.
+        const safe = safeToClose(state.sync);
+        const waiting = state.sync.pending;
+
+        // Three cases, not two. The first version had only "safe" and "not
+        // safe", so the not-yet-asked state — where `pending` is null — printed
+        // "null taps have not reached the server yet".
+        let saved;
+        if (safe) {
+            saved = "Everything you've tapped is on the server.";
+        } else if (waiting == null) {
+            saved = 'Still checking what has reached the server. Give it a few '
+                + 'seconds before closing this page.';
+        } else {
+            saved = `${waiting} tap${waiting === 1 ? '' : 's'} `
+                + `${waiting === 1 ? 'has' : 'have'} not reached the server yet. `
+                + 'Leave this page open somewhere with a signal until the counter '
+                + `clears — closing it now keeps ${waiting === 1 ? 'it' : 'them'} `
+                + 'on this tablet, and only this tablet.';
+        }
+
+        byId('exit-note').textContent = state.running
+            ? `${saved} The clock is at ${clockText(matchClock())} and will be `
+              + 'paused there when you come back, so check it against the '
+              + "referee's before carrying on."
+            : `${saved} The clock is already paused.`;
+
+        byId('exit-note').classList.toggle('is-warn', !safe);
+        byId('btn-exit-go').textContent = safe ? 'Leave' : 'Leave anyway';
         byId('overlay-exit').classList.add('open');
     });
     byId('btn-exit-stay').addEventListener('click', () =>
         byId('overlay-exit').classList.remove('open'));
-    byId('btn-exit-go').addEventListener('click', () => { location.href = '../'; });
+    byId('btn-exit-go').addEventListener('click', () => {
+        state.stopSync?.();
+        location.href = '../';
+    });
 
     byId('btn-clock').addEventListener('click', openClockSheet);
     byId('btn-clock-close').addEventListener('click', () =>

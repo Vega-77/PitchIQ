@@ -2017,6 +2017,93 @@ describe('calibrationNote', () => {
     });
 });
 
+// ------------------------------------- what has actually reached the server
+//
+// The tablet tags at a field. `navigator.onLine` reports a link rather than a
+// reachable server, so a school Wi-Fi with a captive portal reads as connected
+// — and the old indicator said "Saved" on the strength of it.
+
+describe('syncState', () => {
+    test('connected with nothing outstanding is the quiet case', () => {
+        const s = report.syncState({ pending: 0, fromCache: false, online: true });
+        assert.equal(s.tone, 'ok');
+        assert.equal(s.label, 'Saved');
+    });
+
+    test('outstanding taps are counted on the chip, not hidden in a tooltip', () => {
+        // A tooltip on a tablet is a tooltip nobody can open.
+        const s = report.syncState({ pending: 3, fromCache: true, online: false });
+        assert.equal(s.tone, 'waiting');
+        assert.equal(s.label, '3 waiting');
+        assert.match(s.detail, /saved on this tablet/);
+    });
+
+    test('one waiting tap is written as one thing, not "1 taps are"', () => {
+        const s = report.syncState({ pending: 1, fromCache: true });
+        assert.match(s.detail, /1 tap is saved/);
+        assert.match(s.detail, /has not reached/);
+        // The sentence keeps agreeing with itself all the way to the end; the
+        // first version switched to "they" halfway through.
+        assert.match(s.detail, /until it does/);
+        assert.match(s.detail, /it uploads on its own/);
+    });
+
+    test('counting beats connectedness — waiting wins even when online', () => {
+        // A write can be outstanding on a perfectly good connection, and that
+        // is the moment somebody must not close the tab.
+        const s = report.syncState({ pending: 2, fromCache: false, online: true });
+        assert.equal(s.tone, 'waiting');
+    });
+
+    test('disconnected with nothing outstanding is reassuring, and true', () => {
+        // An acknowledged write is on the server by definition, so this is not
+        // a hedge — it is the strongest thing that can honestly be said.
+        const s = report.syncState({ pending: 0, fromCache: true, online: true });
+        assert.equal(s.tone, 'stale');
+        assert.match(s.detail, /Everything tapped so far is on the server/);
+    });
+
+    test('either signal saying disconnected is enough', () => {
+        // Claiming a connection that is not there is the error that loses a
+        // match; claiming none while one exists costs twenty seconds.
+        assert.equal(report.syncState({ fromCache: true, online: true }).tone, 'stale');
+        assert.equal(report.syncState({ fromCache: false, online: false }).tone, 'stale');
+    });
+
+    test('before the listener reports, it says so rather than reassuring', () => {
+        // "Everything tapped so far is on the server" is the one sentence here
+        // that must never be said on no evidence.
+        const s = report.syncState({ pending: null, fromCache: true });
+        assert.equal(s.label, 'Checking');
+        assert.doesNotMatch(s.detail, /is on the server/);
+    });
+
+    test('an empty call assumes a healthy connection and nothing queued', () => {
+        assert.equal(report.syncState().tone, 'ok');
+        assert.equal(report.syncState({}).tone, 'ok');
+    });
+});
+
+describe('safeToClose', () => {
+    test('only an empty queue is safe', () => {
+        assert.equal(report.safeToClose({ pending: 0 }), true);
+        assert.equal(report.safeToClose({ pending: 1 }), false);
+    });
+
+    test('a connection nobody has is not what makes it unsafe', () => {
+        // Offline with everything acknowledged: walking away loses nothing.
+        assert.equal(report.safeToClose({ pending: 0, fromCache: true }), true);
+    });
+
+    test('an unknown state is not safe', () => {
+        // Saying "yes, go ahead" on no information is the same failure the old
+        // navigator.onLine indicator made, in the place it costs a match.
+        assert.equal(report.safeToClose(null), false);
+        assert.equal(report.safeToClose({}), false);
+        assert.equal(report.safeToClose({ pending: null }), false);
+    });
+});
+
 // ------------------------------------------------------------ which half
 //
 // The period decides which goal each side attacked, and every pitch drawing on

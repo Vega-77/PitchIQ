@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=36">
-    <link rel="stylesheet" href="tagging.css?v=36">
+    <link rel="stylesheet" href="../assets/app.css?v=37">
+    <link rel="stylesheet" href="tagging.css?v=37">
 </head>
 <body>
 
@@ -125,7 +125,10 @@
                 <span class="dash">–</span>
                 <span id="score-them">0</span>
             </div>
-            <span id="sync-dot" class="sync-dot" title="Synced"></span>
+            <!-- What has reached the server, from Firestore's own snapshot
+                 metadata rather than navigator.onLine, which reports a link
+                 and not a reachable one. -->
+            <span id="sync-dot" class="sync-chip is-stale" title="Waiting to hear from the server"><i></i><b></b></span>
             <button id="btn-exit-live" class="btn small ghost" title="Leave tagging">Exit</button>
         </div>
     </header>
@@ -277,6 +280,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="tagging.js?v=36"></script>
+<script type="module" src="tagging.js?v=37"></script>
 </body>
 </html>

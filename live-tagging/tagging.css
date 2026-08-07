@@ -250,8 +250,40 @@ html, body {
 }
 .score .dash { color: var(--text-faint); font-weight: 400; }
 
-.sync-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--good); flex-shrink: 0; }
-.sync-dot.offline { background: var(--warn); }
+/* What has actually reached the server.
+
+   A chip rather than a bare dot, because the count is the point and it used to
+   live in a `title` — a tooltip on a tablet is a tooltip nobody can open. It
+   stays a bare dot while everything is up, so the words appearing is itself the
+   signal rather than one more thing always on screen. */
+.sync-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.sync-chip i {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--good);
+    flex-shrink: 0;
+}
+.sync-chip b { font-weight: inherit; }
+.sync-chip b:empty { display: none; }
+
+/* Amber for taps still on the tablet — the one state somebody has to act on,
+   and the site's existing "read this before believing the thing next to it"
+   colour. Dim for a lost connection with nothing outstanding, which is a fact
+   worth showing and not a problem to solve. */
+.sync-chip.is-waiting i { background: var(--warn); }
+.sync-chip.is-waiting b { color: var(--warn); }
+.sync-chip.is-stale i { background: var(--text-faint); }
+.sync-chip.is-stale b { color: var(--text-faint); }
 
 /* Event grid fills the space; goal spans two columns because it is the one
    tap that must never be fumbled. */
@@ -444,3 +476,6 @@ html, body {
     font-size: 0.9rem;
     line-height: 1.5;
 }
+
+/* The exit sheet's note, when leaving would strand taps on this tablet. */
+#exit-note.is-warn { color: var(--warn); }

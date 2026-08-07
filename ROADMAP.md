@@ -870,7 +870,51 @@ configure and no server to start.**
 - [x] **[Demo]** Period-boundary buttons: kickoff (1st half), halftime, kickoff (2nd half), full-time. Halftime freezes the clock and the 2nd-half kickoff resumes from that same value, so the break never gets counted as match time.
 - [x] **[Demo]** "Undo last" control — one tap, always visible in the header
 - [x] **[Demo]** Timestamp sync: the kickoff screen prompts for the clap/marker at the moment of the tap, giving one clock offset for the whole match
-- [ ] **[MVP]** Offline-first entry with sync-when-available — matters once you're past a single-laptop-on-site setup
+- [x] **[MVP] Offline-first entry with sync-when-available** (2026-08-07). Most
+      of the machinery was already here and unticked: `persistentLocalCache`
+      with a multi-tab manager in `assets/firebase-init.js`, every write a
+      `writeBatch` rather than a transaction (a batch queues offline, a
+      transaction fails outright), undo by direct document reference so it needs
+      no query, and log ordering by `matchClockS` rather than
+      `serverTimestamp()` — which reads as null locally and then resolves to
+      sync time, misordering exactly when offline.
+
+      What was missing was the **truth**. The sync dot read `navigator.onLine`,
+      which reports a link and not a reachable server, so a school Wi-Fi with a
+      captive portal or a dead uplink read as connected and the tooltip said
+      "Saved" while nothing had been saved. And nothing counted outstanding
+      writes, so the person holding the tablet could not know when it was safe to
+      close it — which is the only question they actually have.
+
+      Firestore knew both all along. `watchSync` listens with
+      `includeMetadataChanges`, without which the one moment that matters — a
+      queued write finally being acknowledged, which changes no field on any
+      document — never fires a snapshot at all. `hasPendingWrites` is an exact
+      per-document count of what is still only on the tablet; `fromCache` is the
+      honest replacement for `onLine`. When the two signals disagree the
+      pessimistic one wins: claiming a connection that is not there is the error
+      that loses a match, claiming none while one exists costs twenty seconds.
+
+      The count went from a `title` to the screen, because a tooltip on a tablet
+      is a tooltip nobody can open. The chip stays a bare green dot while
+      everything is up, so the words appearing is itself the signal.
+
+      **Zero pending while disconnected is reassuring and true** — an
+      acknowledged write is on the server by definition — and is worded that way
+      rather than hedged. **Unknown is not.** `safeToClose` returns false for a
+      count it has not been given, and the exit sheet, which used to say
+      "Everything you've tapped is saved" unconditionally at the exact moment
+      that claim matters most, now has three branches. It had two, and the
+      not-yet-asked one printed *"null taps have not reached the server yet"* —
+      caught in the browser, along with a sentence that started singular and
+      finished plural.
+
+      `tests/flow.test.js` drives a real client through `disableNetwork` and
+      back: two taps made offline, counted as pending, cleared on reconnect, and
+      present on the server afterwards. The `setDoc`s there are deliberately not
+      awaited — offline that promise does not settle until the server
+      acknowledges, which is precisely why the tagging UI must never block on
+      one.
 - [ ] Decide role split: one app covering both subs + events, or two simpler single-purpose roles/devices — worth testing both at the demo dry run
 - [ ] Basic weatherproofing for an outdoor tablet (case, screen usable with sun glare)
 - [ ] Live-tagged data feeds directly into the halftime report and pre-populates the Phase 11 review tool as a head start

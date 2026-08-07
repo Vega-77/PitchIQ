@@ -3,17 +3,17 @@
 
 import {
     doc, collection, collectionGroup,
-    getDoc, getDocs, setDoc, updateDoc, deleteDoc,
+    getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot,
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=36';
-import { EVENT_TYPES } from './events.js?v=36';
+import { db } from './firebase-init.js?v=37';
+import { EVENT_TYPES } from './events.js?v=37';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage,
-} from './report.js?v=36';
+} from './report.js?v=37';
 
 export { playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage };
 
@@ -389,6 +389,41 @@ export async function listLog(teamId, matchId) {
     return snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .sort((a, b) => a.matchClockS - b.matchClockS);
+}
+
+/**
+ * Watch how much of the log is still only on this tablet.
+ *
+ * `includeMetadataChanges` is the whole point of this listener. Without it a
+ * snapshot only fires when the *data* changes, so the moment that matters most
+ * — a queued write finally being acknowledged, which changes no field on any
+ * document — never arrives, and the indicator would sit on "waiting" until
+ * somebody tapped something else.
+ *
+ * `hasPendingWrites` is per document and exact: it is false once the server has
+ * acknowledged that write. `fromCache` is per snapshot and says the read never
+ * reached the server at all, which is the honest replacement for
+ * `navigator.onLine` — a link is not a reachable server, and a school field
+ * with a captive portal has the first without the second.
+ *
+ * Returns the unsubscribe function. One listener over a collection that holds
+ * around two hundred entries by full time, and the page already read the whole
+ * thing twice.
+ */
+export function watchSync(teamId, matchId, onChange) {
+    return onSnapshot(
+        collection(db, 'teams', teamId, 'matches', matchId, 'log'),
+        { includeMetadataChanges: true },
+        (snap) => onChange({
+            pending: snap.docs.filter((d) => d.metadata.hasPendingWrites).length,
+            fromCache: snap.metadata.fromCache,
+            total: snap.size,
+        }),
+        // A listener that dies takes the indicator's meaning with it, and a
+        // stuck "Saved" is worse than no indicator. Report it as disconnected,
+        // which is the pessimistic answer and the safe one.
+        () => onChange({ pending: 0, fromCache: true, total: 0 }),
+    );
 }
 
 // ---------------------------------------------------------------- stats

@@ -17,8 +17,9 @@ import {
     initializeTestEnvironment, assertSucceeds, assertFails,
 } from '@firebase/rules-unit-testing';
 import {
-    doc, setDoc, getDoc, updateDoc, collection, getDocs,
+    doc, setDoc, getDoc, updateDoc, collection, getDocs, onSnapshot,
     query, where, collectionGroup, writeBatch, serverTimestamp,
+    disableNetwork, enableNetwork,
 } from 'firebase/firestore';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -417,5 +418,90 @@ describe('adding a second coach', () => {
         assert.equal(varsity.docs.length, 2);
         assert.equal(jv.docs.length, 1);
         assert.equal(jv.docs[0].data().name, 'Freshman Kid');
+    });
+});
+
+/**
+ * What the tablet can honestly claim about a tap at a field with no signal.
+ *
+ * `persistentLocalCache` makes the write survive; this is about whether the
+ * person holding the tablet is told the truth about it. The old indicator read
+ * `navigator.onLine`, which reports a link rather than a reachable server — so
+ * on a school Wi-Fi with a captive portal it said "Saved" while nothing had
+ * been saved.
+ *
+ * These drive a real client through a real disconnection, because the property
+ * being tested is Firestore's snapshot metadata and nothing else can produce
+ * it. The arithmetic over that metadata is pure and lives in
+ * assets/report.js::syncState, covered without an emulator in video.test.js.
+ */
+describe('knowing what has reached the server', () => {
+    const logPath = (db, id) =>
+        doc(db, 'teams', TEAM, 'matches', MATCH, 'log', id);
+
+    const tap = (seq, clock) => ({
+        kind: 'event', type: 'corner', matchClockS: clock, side: 'us',
+        playerId: null, subOutId: null, subInId: null, detail: null,
+        source: 'live_tag', seq, deviceId: 'devA', revert: null,
+        tappedAt: Date.now(), createdAt: serverTimestamp(),
+        createdBy: COACH.uid,
+    });
+
+    /** The same count `watchSync` reports, off one snapshot. */
+    const pendingIn = (snap) =>
+        snap.docs.filter((d) => d.metadata.hasPendingWrites).length;
+
+    /** Wait for a metadata-bearing snapshot that satisfies `ready`. */
+    function until(db, ready) {
+        return new Promise((resolve, reject) => {
+            const stop = onSnapshot(
+                collection(db, 'teams', TEAM, 'matches', MATCH, 'log'),
+                { includeMetadataChanges: true },
+                (snap) => {
+                    if (!ready(snap)) return;
+                    stop();
+                    resolve(snap);
+                },
+                (err) => { stop(); reject(err); },
+            );
+            setTimeout(() => { stop(); reject(new Error('no matching snapshot')); }, 5000);
+        });
+    }
+
+    it('counts a tap made with no connection, and clears it on reconnect', async () => {
+        const db = as(COACH);
+
+        // Warm the listener up while connected, so the first offline snapshot
+        // is a change rather than an initial load.
+        await until(db, (s) => !s.metadata.fromCache);
+
+        await disableNetwork(db);
+
+        // Not awaited: offline, setDoc's promise does not settle until the
+        // server acknowledges, which is the whole reason the tagging UI must
+        // never block on it. The local write lands immediately regardless.
+        setDoc(logPath(db, 'devA_000101'), tap(101, 60));
+        setDoc(logPath(db, 'devA_000102'), tap(102, 120));
+
+        const offline = await until(db, (s) => pendingIn(s) === 2);
+        assert.equal(offline.metadata.fromCache, true,
+            'a disconnected read never reached the server');
+
+        await enableNetwork(db);
+
+        const back = await until(db, (s) => pendingIn(s) === 0);
+        assert.equal(back.metadata.fromCache, false);
+        // And the taps are really there rather than merely no longer pending.
+        const ids = back.docs.map((d) => d.id);
+        assert.ok(ids.includes('devA_000101'));
+        assert.ok(ids.includes('devA_000102'));
+    });
+
+    it('a write made while connected is not pending for long', async () => {
+        const db = as(COACH);
+        await setDoc(logPath(db, 'devA_000201'), tap(201, 200));
+        const snap = await until(db, (s) =>
+            s.docs.some((d) => d.id === 'devA_000201') && pendingIn(s) === 0);
+        assert.equal(pendingIn(snap), 0);
     });
 });

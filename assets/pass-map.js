@@ -31,8 +31,8 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, PITCH_VIEWBOX, pitchMarkings,
-} from './pitch-backdrop.js?v=36';
-import { foldEdges } from './passing.js?v=36';
+} from './pitch-backdrop.js?v=37';
+import { foldEdges } from './passing.js?v=37';
 
 const NS = 'http://www.w3.org/2000/svg';
 
