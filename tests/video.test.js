@@ -2017,6 +2017,50 @@ describe('calibrationNote', () => {
     });
 });
 
+// ------------------------------------------------------------ which half
+//
+// The period decides which goal each side attacked, and every pitch drawing on
+// these pages is built from that. A wrong answer mirrors all of them and
+// changes how none of them look, so the only defence is saying when nobody
+// actually knows.
+
+describe('periodNote', () => {
+    test('a log-settled period says nothing', () => {
+        // A correct answer arrived at correctly is not a caveat, and a note
+        // that fires on every run takes the ones that matter down with it.
+        assert.deepEqual(report.periodNote('second_half', 'log'), []);
+    });
+
+    test('a period somebody typed says nothing either', () => {
+        assert.deepEqual(report.periodNote('second_half', 'flag'), []);
+    });
+
+    test('a defaulted period names the assumption and its consequence', () => {
+        const [line] = report.periodNote('first_half', 'default');
+        assert.match(line, /nothing said which half/);
+        assert.match(line, /the first half/);
+        assert.match(line, /mirrored/);
+    });
+
+    test('an old report with no period field is left alone', () => {
+        // Nothing published before this existed recorded the decision, and
+        // caveating every one of them retroactively is noise, not honesty.
+        assert.deepEqual(report.periodNote(undefined, undefined), []);
+    });
+
+    test('it reaches the quality note the coach actually reads', () => {
+        const notes = report.cvQualityNotes({}, {
+            calibrated: true, period: 'first_half', periodSource: 'default',
+        });
+        assert.ok(notes.some((n) => n.includes('nothing said which half')));
+
+        const settled = report.cvQualityNotes({}, {
+            calibrated: true, period: 'first_half', periodSource: 'log',
+        });
+        assert.ok(!settled.some((n) => n.includes('which half')));
+    });
+});
+
 // ------------------------------------------------------- a season, as a line
 //
 // The measures a season chart can carry, and the three ways a season chart

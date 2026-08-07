@@ -1089,7 +1089,57 @@ fiction; `tests/test_metrics.py` pins both the problem and the fix.
       boundary would invent stoppages precisely where the pipeline saw least.
       Needs a calibration, and needs ball coverage good enough to mean anything
       — so the rate it produces will be meaningless until the footage improves.
-- [ ] Half/period and clock tracking, driven by the Phase 3 period-boundary taps
+- [x] **Half tracking, driven by the Phase 3 period-boundary taps** (2026-08-07).
+      `MatchOrientation.attacking_end` flips the whole pitch on the period, and
+      the period came from one string defaulting to `first_half`. Process a
+      second half and forget `--period` and every shot map, heatmap reading,
+      pressing zone, territory split, turnover-by-third, passing network and xG
+      figure in the report is mirrored — and the output looks **exactly as
+      plausible** as a correct one. There is no downstream check that could
+      catch it: a shot map at the wrong end is a shot map.
+
+      The tagger has been tapping `kickoff_1st`, `kickoff_2nd`, `halftime` and
+      `full_time` since Phase 3 and nothing had ever read them for this.
+      `periods_from_log` in `cv/phases.py` turns them into spans; the CLI flag
+      now defaults to **None** and exists to override the log or to stand in
+      when there is none. A flag that disagrees with the log loses, and the
+      disagreement is said out loud, because one of the two is wrong and it
+      matters which.
+
+      Three refusals. The break belongs to **neither** half — nobody is
+      attacking anything while the sides swap over — and so does everything
+      before the first kickoff, because a shot in the warm-up is not first-half
+      football. A half nobody closed runs open-ended rather than being assumed
+      to last forty-five minutes, since that would invent the one boundary the
+      whole thing turns on. And a window that runs **through** the break has no
+      single right answer: it is drawn as whichever half holds most of it, and
+      warned about in terms of what that costs, which makes the run
+      untrustworthy — correctly, since half of it is backwards.
+
+      A window that touches none of the log's halves warns about the **video
+      offset** instead, which is the likeliest cause and is also silently
+      misplacing every dead span.
+
+      Published as `period` and `period_source` (schema 5), and the quality note
+      speaks only when the source is `default` — a correct answer arrived at
+      correctly is not a caveat, and a note that fires on every run takes the
+      ones that matter with it.
+
+      **Found by asking where the new warning would appear: nothing had ever
+      drawn `warnings` at all.** `report_json` has published the list since the
+      pipeline existed, `trustworthy` is defined as `not warnings`, and no page
+      rendered either. Every warning written so far — the untagged restarts, the
+      disputed goals, the fragmentation cap, the missing tag log — was a
+      judgement the pipeline made about its own output that no coach could see,
+      which also means the rule *"a warning is only ever about data quality,
+      never a cosmetic limit"* was being enforced on behalf of a reader who did
+      not exist. `.cv-warnings` now sits above the quality note on the coach's
+      match view, amber, kept separate from it: the note is what every figure
+      below rests on and is always true, a warning is something that went wrong
+      once and may be fixable.
+- [ ] Match-clock tracking within a period — the taps give the boundaries, and
+      nothing yet maps a video second to a match minute inside one except the
+      single `videoOffsetS` the coach types in
 
 ## 10. Event Detection
 CV produces automatic *candidates*, reconciled against the Phase 3 live-tagged events

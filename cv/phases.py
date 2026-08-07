@@ -167,6 +167,172 @@ class PhaseTable:
         }
 
 
+# ------------------------------------------------------------ which half it is
+#
+# `MatchOrientation.attacking_end` flips the whole pitch on the period, because
+# teams change ends at the break. Everything positional rests on it: the shot
+# maps, the heatmaps' reading, the pressing zone, the territory split, the
+# turnovers by third, the passing network, and — through `attacking_end` —
+# every xG figure.
+#
+# Until now that came from one string, defaulting to `first_half`. Process a
+# second half and forget the flag and every one of those is mirrored, and the
+# output looks exactly as plausible as a correct one. There is no downstream
+# check that could catch it: a shot map at the wrong end is a shot map.
+#
+# The tagger has been tapping `kickoff_1st`, `kickoff_2nd`, `halftime` and
+# `full_time` since Phase 3 and nothing has ever read them for this. They are a
+# record of which half was being played and when, which is exactly the question,
+# so the flag becomes a fallback rather than the source.
+
+FIRST_HALF = 'first_half'
+SECOND_HALF = 'second_half'
+
+# The taps that begin a period. `halftime` and `full_time` (ENDS_PLAY) close one
+# without opening another, which is what makes a window that runs past the break
+# detectable rather than merely unattributed.
+PERIOD_STARTS = {'kickoff_1st': FIRST_HALF, 'kickoff_2nd': SECOND_HALF}
+
+
+@dataclass(frozen=True)
+class PeriodSpan:
+    period: str
+    start_s: float
+    # None means the log never closed it — no `halftime` tap, or the log simply
+    # ends. Open-ended rather than guessed at: assuming a half is 45 minutes
+    # would invent a boundary, and the boundary is the whole point here.
+    end_s: float | None = None
+
+    def covers(self, clock_s: float) -> bool:
+        return clock_s >= self.start_s and (self.end_s is None or clock_s < self.end_s)
+
+    def to_json(self) -> dict:
+        return {
+            'period': self.period,
+            'start_s': round(float(self.start_s), 2),
+            'end_s': None if self.end_s is None else round(float(self.end_s), 2),
+        }
+
+
+@dataclass
+class PeriodTable:
+    """Which half was being played, when. Empty when nobody tapped a kickoff."""
+
+    spans: list[PeriodSpan] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        self.spans = sorted(self.spans, key=lambda s: s.start_s)
+
+    def __bool__(self) -> bool:
+        return bool(self.spans)
+
+    def at(self, clock_s: float) -> str | None:
+        """The period at an instant, or None where the log does not say.
+
+        None before the first kickoff and inside the break, and both of those
+        are real answers rather than gaps to be filled. A shot in the warm-up is
+        not first-half football, and neither team is attacking anything at all
+        while the sides are swapping over.
+        """
+        for span in self.spans:
+            if span.covers(clock_s):
+                return span.period
+        return None
+
+    def covering(self, start_s: float, end_s: float) -> list[str]:
+        """Every period a window touches, in order, without repeats.
+
+        More than one is the loud case: a window that runs through the break has
+        no single answer to "which way were they attacking", so nothing that
+        depends on it is right for the whole of it.
+        """
+        out: list[str] = []
+        for span in self.spans:
+            if span.start_s >= end_s:
+                break
+            if span.end_s is not None and span.end_s <= start_s:
+                continue
+            if span.period not in out:
+                out.append(span.period)
+        return out
+
+    def dominant(self, start_s: float, end_s: float) -> str | None:
+        """The period holding most of a window.
+
+        Only meaningful when a window straddles the break, and then it is the
+        least wrong single answer rather than a right one — five minutes of the
+        first half in front of forty of the second should be read as a second
+        half, and the caller still has to say out loud that part of it is
+        mirrored. Ties go to whichever came first, which is arbitrary and
+        cannot matter: at a tie both answers are equally wrong.
+        """
+        best, longest = None, 0.0
+        for span in self.spans:
+            finish = end_s if span.end_s is None else min(span.end_s, end_s)
+            overlap = finish - max(span.start_s, start_s)
+            if overlap > longest:
+                best, longest = span.period, overlap
+        return best
+
+    def shifted(self, offset_s: float) -> PeriodTable:
+        """The same spans on video time. Same reasoning as `PhaseTable`."""
+        return PeriodTable(spans=[
+            PeriodSpan(
+                period=s.period,
+                start_s=s.start_s + offset_s,
+                end_s=None if s.end_s is None else s.end_s + offset_s,
+            )
+            for s in self.spans
+        ])
+
+    def to_json(self) -> dict:
+        return {'spans': [s.to_json() for s in self.spans]}
+
+
+def periods_from_log(entries) -> PeriodTable:
+    """The halves, from the kickoff and end-of-period taps.
+
+    A second kickoff of the same kind is ignored rather than treated as a
+    restart — a tagger who taps `kickoff_2nd` twice has tapped twice, not
+    played two second halves — and a kickoff while a period is open closes the
+    one before it, which is what a missing `halftime` tap looks like.
+    """
+    usable = []
+    for entry in entries or ():
+        clock = _clock_of(entry)
+        kind = entry.get('type') if hasattr(entry, 'get') else None
+        if clock is None or not isinstance(kind, str):
+            continue
+        if kind in PERIOD_STARTS or kind in ENDS_PLAY:
+            usable.append((clock, kind))
+    usable.sort(key=lambda pair: pair[0])
+
+    spans: list[PeriodSpan] = []
+    open_period: str | None = None
+    open_at = 0.0
+
+    def close(at: float) -> None:
+        nonlocal open_period
+        if open_period is not None:
+            spans.append(PeriodSpan(open_period, open_at, at))
+            open_period = None
+
+    for clock, kind in usable:
+        if kind in ENDS_PLAY:
+            close(clock)
+            continue
+        period = PERIOD_STARTS[kind]
+        if period == open_period:
+            continue
+        close(clock)
+        open_period, open_at = period, clock
+
+    if open_period is not None:
+        spans.append(PeriodSpan(open_period, open_at, None))
+
+    return PeriodTable(spans=spans)
+
+
 def _clock_of(entry) -> float | None:
     value = entry.get('matchClockS') if hasattr(entry, 'get') else None
     if isinstance(value, bool) or not isinstance(value, (int, float)):

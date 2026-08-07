@@ -21,7 +21,9 @@ from cv.phases import (
     MAX_DEAD_S,
     TAG_SLOP_S,
     DeadSpan,
+    PeriodSpan,
     PhaseTable,
+    periods_from_log,
     phases_from_log,
 )
 
@@ -274,3 +276,104 @@ class TestJunkInput:
     def test_a_boolean_clock_is_not_a_number(self):
         """True == 1 in Python, and a clock of one second is not a stoppage."""
         assert phases_from_log([{'type': 'foul', 'matchClockS': True}]).spans == []
+
+
+# ---------------------------------------------------------------- which half
+#
+# The taps have been in the log since Phase 3 and nothing read them for this.
+# What they decide is which way each team was kicking, and that flips every
+# positional figure in a report — so the tests worth having are the ones about
+# refusing to answer: no kickoff taps, a window in the break, a window that runs
+# through it.
+
+
+class TestPeriodsFromLog:
+    def test_no_kickoff_taps_is_an_empty_table_not_a_guess(self):
+        table = periods_from_log([entry('foul', 100.0), entry('goal', 300.0)])
+        assert not table
+        assert table.at(200.0) is None
+
+    def test_a_kickoff_opens_a_half_that_halftime_closes(self):
+        table = periods_from_log([
+            entry('kickoff_1st', 0.0), entry('halftime', 2700.0),
+        ])
+        assert table.spans == [PeriodSpan('first_half', 0.0, 2700.0)]
+
+    def test_both_halves(self):
+        table = periods_from_log([
+            entry('kickoff_1st', 0.0), entry('halftime', 2700.0),
+            entry('kickoff_2nd', 3600.0), entry('full_time', 6300.0),
+        ])
+        assert [s.period for s in table.spans] == ['first_half', 'second_half']
+        assert table.at(1000.0) == 'first_half'
+        assert table.at(5000.0) == 'second_half'
+
+    def test_the_break_belongs_to_neither_half(self):
+        """Nobody is attacking anything while the sides are swapping over."""
+        table = periods_from_log([
+            entry('kickoff_1st', 0.0), entry('halftime', 2700.0),
+            entry('kickoff_2nd', 3600.0),
+        ])
+        assert table.at(3000.0) is None
+
+    def test_before_the_first_kickoff_belongs_to_neither(self):
+        """A shot in the warm-up is not first-half football."""
+        table = periods_from_log([entry('kickoff_1st', 120.0)])
+        assert table.at(60.0) is None
+        assert table.at(200.0) == 'first_half'
+
+    def test_a_missing_halftime_tap_is_closed_by_the_next_kickoff(self):
+        table = periods_from_log([
+            entry('kickoff_1st', 0.0), entry('kickoff_2nd', 3600.0),
+        ])
+        assert table.spans[0] == PeriodSpan('first_half', 0.0, 3600.0)
+        assert table.spans[1].end_s is None
+
+    def test_a_half_nobody_closed_runs_open_rather_than_being_guessed_at(self):
+        """Assuming 45 minutes would invent the one boundary that matters."""
+        assert periods_from_log([entry('kickoff_1st', 0.0)]).spans[0].end_s is None
+
+    def test_a_double_tap_is_one_kickoff(self):
+        table = periods_from_log([
+            entry('kickoff_2nd', 3600.0), entry('kickoff_2nd', 3602.0),
+        ])
+        assert len(table.spans) == 1
+        assert table.spans[0].start_s == 3600.0
+
+    def test_the_offset_moves_it_onto_video_time(self):
+        table = periods_from_log([
+            entry('kickoff_2nd', 3600.0), entry('full_time', 6300.0),
+        ]).shifted(-3500.0)
+        assert table.at(200.0) == 'second_half'
+        assert table.at(3600.0) is None
+
+
+class TestWhatAWindowCovers:
+    def both_halves(self):
+        return periods_from_log([
+            entry('kickoff_1st', 0.0), entry('halftime', 2700.0),
+            entry('kickoff_2nd', 3600.0), entry('full_time', 6300.0),
+        ])
+
+    def test_a_window_inside_one_half_covers_one(self):
+        assert self.both_halves().covering(600.0, 1200.0) == ['first_half']
+
+    def test_a_window_through_the_break_covers_both(self):
+        assert self.both_halves().covering(2400.0, 3900.0) == [
+            'first_half', 'second_half',
+        ]
+
+    def test_a_window_entirely_in_the_break_covers_nothing(self):
+        assert self.both_halves().covering(2800.0, 3400.0) == []
+
+    def test_the_dominant_half_is_the_one_holding_most_of_the_window(self):
+        # Five minutes of the first half in front of forty of the second reads
+        # as a second half, even though neither answer is right for all of it.
+        assert self.both_halves().dominant(2400.0, 6000.0) == 'second_half'
+
+    def test_dominant_is_none_when_the_window_touches_no_half(self):
+        assert self.both_halves().dominant(2800.0, 3400.0) is None
+
+    def test_an_open_ended_half_still_wins_a_window_it_holds(self):
+        table = periods_from_log([entry('kickoff_2nd', 0.0)])
+        assert table.dominant(100.0, 900.0) == 'second_half'

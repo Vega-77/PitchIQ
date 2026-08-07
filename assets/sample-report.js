@@ -179,7 +179,13 @@ const totalXg = (shots) =>
 export function sampleCvSummary() {
     return {
         isSample: true,
-        schemaVersion: 4,
+        schemaVersion: 5,
+        // Which half, and what decided it. `log` is the good case on purpose:
+        // the caveated version of this is a one-line change and the preview
+        // already carries plenty of caveats, whereas nobody has yet seen what
+        // the confident version reads like.
+        period: 'first_half',
+        periodSource: 'log',
         source: 'sample',
         window: { start_s: 0, end_s: 2700 },
         durationS: 2700,

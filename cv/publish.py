@@ -165,6 +165,8 @@ def summary_payload(report_json: dict) -> dict:
         'window': report_json.get('window') or {},
         'durationS': report_json.get('duration_s'),
         'calibrated': report_json.get('calibrated', False),
+        'period': report_json.get('period'),
+        'periodSource': report_json.get('period_source'),
         'calibrationErrorM': report_json.get('calibration_error_m'),
         'quality': report_json.get('quality') or {},
         'warnings': report_json.get('warnings') or [],

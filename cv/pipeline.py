@@ -44,7 +44,9 @@ from .metrics import (
     team_shape,
 )
 from .participants import ParticipantReport, classify_participants
-from .phases import PhaseTable, phases_from_log
+from .phases import (
+    FIRST_HALF, PeriodTable, PhaseTable, periods_from_log, phases_from_log,
+)
 from .pitch import MatchOrientation, Pitch
 from .possession import (
     PossessionSummary,
@@ -130,6 +132,12 @@ class MatchReport:
     attacking_ends: dict[str, str | None] = field(default_factory=dict)
     # None means no tagged log was supplied — not that there were no stoppages.
     phases: PhaseTable | None = None
+    # Which half this run covers, and where that answer came from. Published
+    # because the answer flips the whole pitch and nothing on screen has ever
+    # said which way it was decided.
+    period: str = 'first_half'
+    period_source: str = 'default'
+    periods: PeriodTable | None = None
     # Where the tagged log and this run tell different stories. None for the
     # same reason: with nothing to compare against there is no comparison, which
     # is not the same as the two records having agreed.
@@ -265,7 +273,7 @@ def analyse_match(
     orientation: MatchOrientation | None = None,
     tracker: str = 'botsort.yaml',
     stride: int = 1,
-    period: str = 'first_half',
+    period: str | None = None,
     side_of_team: dict[str, str] | None = None,
     tag_log=None,
     video_offset_s: float = 0.0,
@@ -421,6 +429,12 @@ def analyse_match(
             f'{report.phases.timed_out} stoppages in the log never had a '
             'restart tagged, and were capped rather than measured'
         )
+
+    # ---- which half ----
+    report.periods = (
+        periods_from_log(tag_log).shifted(video_offset_s) if tag_log else None
+    )
+    period = _resolve_period(report, period, start_s, end_s)
 
     # ---- possession ----
     ball_by_frame = {
@@ -640,6 +654,71 @@ def analyse_match(
 
     report.processing_s = time.perf_counter() - started
     return report
+
+
+def _resolve_period(
+    report: MatchReport,
+    given: str | None,
+    start_s: float | None,
+    end_s: float | None,
+) -> str:
+    """Which half this window is, and how much the answer can be trusted.
+
+    The tagged log wins over the flag, which is the whole point. The flag is a
+    default somebody has to remember to change; the log is a record of what
+    somebody actually watched. Getting this wrong flips the pitch for every
+    positional figure in the report and produces output that looks exactly as
+    plausible as correct output, so the cheapest source is the wrong one to
+    trust.
+
+    Sets `report.period_source` to `'log'`, `'flag'` or `'default'` so a reader
+    can see which of those happened rather than having to know the precedence.
+    """
+    begin = float(start_s or 0.0)
+    finish = (
+        float(end_s) if end_s is not None
+        else begin + float(report.duration_s or 0.0)
+    )
+    covered = report.periods.covering(begin, finish) if report.periods else []
+
+    if len(covered) > 1:
+        # Nothing can be right for the whole of this. `dominant` is the least
+        # wrong single answer and the warning says the rest out loud, because
+        # the part on the other side of the break is mirrored and there is no
+        # way to see that in the output.
+        chosen = report.periods.dominant(begin, finish) or covered[0]
+        report.period, report.period_source = chosen, 'log'
+        report.warnings.append(
+            'this window runs through the break — the tagged log has '
+            f'{" and ".join(covered)} in it. Everything positional is drawn as '
+            f'{chosen.replace("_", " ")}, so the other half of it is mirrored: '
+            'process each half separately'
+        )
+        return chosen
+
+    if len(covered) == 1:
+        report.period, report.period_source = covered[0], 'log'
+        if given and given != covered[0]:
+            report.warnings.append(
+                f'--period said {given} and the tagged log says {covered[0]}; '
+                'the log wins, but one of the two is wrong and it is worth '
+                'knowing which'
+            )
+        return covered[0]
+
+    if report.periods:
+        # A log with halves in it, none of which the window touches. The video
+        # offset is the likeliest culprit, and it is the same number the dead
+        # spans are shifted by — so this is quietly wrong for those too.
+        report.warnings.append(
+            'the tagged log has kickoffs in it but none of them lands inside '
+            'the processed window — check the video offset, which also decides '
+            'where the stoppages sit'
+        )
+
+    report.period = given or FIRST_HALF
+    report.period_source = 'flag' if given else 'default'
+    return report.period
 
 
 def _defending_ends(

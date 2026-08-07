@@ -147,6 +147,12 @@ Read the output next to the video. Specifically:
 - Do the **participants** ruled out look like coaches and substitutes, with
   reasons that make sense?
 - Is **live share** below 1.0 and are the stoppages roughly where they happened?
+- Does it say the **right half**? The kickoff taps in the log answer this, so
+  there is no `--period` flag in the command above and there should not need to
+  be. If the report says the wrong one, or says it decided by `default`, stop:
+  the period flips which goal each side is attacking, so every shot map,
+  heatmap, pressing figure and passing diagram is mirrored — and all of them
+  will look completely normal.
 - Do the **goals reconcile** — same count as the tag log, at the same times?
 - Are the **shape** figures plausible for how the team actually set up?
 

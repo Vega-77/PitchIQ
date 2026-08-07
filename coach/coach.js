@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=35';
+} from '../assets/auth.js?v=36';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,20 +8,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=35';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=35';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=35';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=35';
+} from '../assets/db.js?v=36';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=36';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=36';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=36';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=35';
+} from '../assets/sample-report.js?v=36';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=35';
-import { renderPassMap } from '../assets/pass-map.js?v=35';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=35';
-import { renderForms } from '../assets/form-chart.js?v=35';
+} from '../assets/passing.js?v=36';
+import { renderPassMap } from '../assets/pass-map.js?v=36';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=36';
+import { renderForms } from '../assets/form-chart.js?v=36';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -29,15 +29,15 @@ import {
     TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, xgTally, sumXgTallies,
     xgCalibration, calibrationNote, headerCorrection, headerNote,
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
-} from '../assets/report.js?v=35';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=35';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=35';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=35';
+} from '../assets/report.js?v=36';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=36';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=36';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=36';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark,
-} from '../assets/ui.js?v=35';
+} from '../assets/ui.js?v=36';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -1291,8 +1291,52 @@ function renderSampleToggle() {
 /** Put the quality banner back, from whatever the state now says. */
 function redrawCvNote() {
     document.querySelector('.cv-note')?.remove();
+    document.querySelector('.cv-warnings')?.remove();
+
     const note = cvNote();
     if (note) byId('team-stats').before(note);
+    // Above the note, because the two say different things. The note is what
+    // these numbers rest on and is always true; a warning is something that
+    // went wrong in this particular run.
+    const warnings = cvWarnings();
+    if (warnings) (note || byId('team-stats')).before(warnings);
+}
+
+/**
+ * What the pipeline itself flagged about this run, or null.
+ *
+ * `report_json` has published a `warnings` list since the pipeline existed and
+ * **nothing has ever drawn it**. `trustworthy` is defined as `not warnings`
+ * (cv/report_json.py), so every one of them was a judgement the pipeline made
+ * about its own output that no coach could see — which also means the rule
+ * "a warning is only ever about data quality, never a cosmetic limit" was being
+ * enforced against a reader who did not exist.
+ *
+ * Separate from the quality note on purpose. The note is a standing set of
+ * caveats about how these figures are made; this is a list of things that were
+ * wrong with this run and might be fixable — an untagged restart, a goal the
+ * two records disagree about, a window that ran through half-time.
+ */
+function cvWarnings() {
+    const list = activeCv()?.warnings || [];
+    if (!list.length) return null;
+
+    const block = document.createElement('div');
+    block.className = 'cv-warnings';
+    block.innerHTML = '<strong></strong><ul></ul>';
+    block.querySelector('strong').textContent = list.length === 1
+        ? 'One thing to know about this run'
+        : `${list.length} things to know about this run`;
+
+    const ul = block.querySelector('ul');
+    for (const text of list) {
+        const li = document.createElement('li');
+        // textContent, not innerHTML: these strings are assembled in Python and
+        // interpolate a source filename among other things.
+        li.textContent = text;
+        ul.append(li);
+    }
+    return block;
 }
 
 /**
@@ -1346,6 +1390,11 @@ function cvNote() {
         shots: cv.teams?.team_a?.shots,
         calibrationErrorM: cv.calibrationErrorM,
         reconciliation: cv.reconciliation,
+        // Which half, and what decided it. Every pitch picture below this
+        // banner is drawn from the answer, and a wrong one mirrors all of them
+        // without changing how any of them look.
+        period: cv.period,
+        periodSource: cv.periodSource,
         // So the foot-shot caveat stops claiming to be unfixed on a match where
         // the coach has already fixed it.
         headersTagged: headerCorrection(shotLedger(

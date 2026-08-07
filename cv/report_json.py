@@ -54,7 +54,11 @@ from .teams import TEAM_A, TEAM_B
 #    because nothing computed it, not because no shots were found.
 # 4: `pressing_segments` added per team. Purely additive — a version 3 reader
 #    sees a key it does not know and every other number is unchanged.
-SCHEMA_VERSION = 4
+# 5: `period` and `period_source` added. Also additive, and worth a version of
+#    its own because it is the first field that says how confident the report is
+#    about which way the teams were kicking — every version 4 document and
+#    earlier was drawn as whatever the `--period` flag happened to say.
+SCHEMA_VERSION = 5
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -598,6 +602,11 @@ def build_report_json(
         'duration_s': _round(report.duration_s, 1),
         'processing_s': _round(report.processing_s, 1),
         'calibrated': calibrated,
+        # Which half, and whether anything but a default said so. Both travel
+        # because the period flips every pitch-relative figure in this file and
+        # nothing else in it records the decision.
+        'period': getattr(report, 'period', None),
+        'period_source': getattr(report, 'period_source', None),
         'calibration_error_m': _round(report.calibration_error_m, 3),
         'quality': _quality(report, log),
         'warnings': warnings,

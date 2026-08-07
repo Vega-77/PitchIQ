@@ -538,6 +538,31 @@ export function xgTrust(calibrationErrorM) {
  * that is not a complaint is the live share, and that is there because it says
  * what the possession figure above was divided by.
  */
+/** How a half reads in a sentence. */
+export const PERIOD_WORDS = {
+    first_half: 'the first half',
+    second_half: 'the second half',
+};
+
+/**
+ * The caveat about which half this is — an array, usually empty.
+ *
+ * Empty when the tagged log settled it, because a correct answer arrived at
+ * correctly is not a caveat and a note that fires on every run stops being
+ * read. `'flag'` is quiet too: somebody typed it, so somebody knows.
+ *
+ * `'default'` is the one that speaks. It means nothing said which half this
+ * was, so the pipeline assumed the first — and on second-half footage that
+ * assumption mirrors every pitch drawing in the report without changing how
+ * any of them look.
+ */
+export function periodNote(period, source) {
+    if (source !== 'default') return [];
+    const half = PERIOD_WORDS[period] || 'the first half';
+    return [`nothing said which half this was, so it is drawn as ${half}`
+        + ' — if it was the other one, every pitch picture here is mirrored'];
+}
+
 export function cvQualityNotes(quality, options = {}) {
     const q = quality || {};
     const { calibrated = false } = options;
@@ -559,6 +584,16 @@ export function cvQualityNotes(quality, options = {}) {
     }
 
     if (!calibrated) notes.push('no pitch calibration, so nothing is in metres');
+
+    // Which half, and only when nothing but a default said so.
+    //
+    // The period decides which goal each side was attacking, and every pitch
+    // picture on these pages is drawn from that: get it wrong and the shot
+    // maps, the heatmaps, the pressing zone and the passing network are all
+    // mirrored, and every one of them still looks right. When the tagged log
+    // answered it there is nothing to say. When nothing did, the reader is
+    // looking at an assumption and should be told which one.
+    notes.push(...periodNote(options.period, options.periodSource));
 
     // Absent is not zero, again. No log means stoppages are still being counted
     // as football, and saying so is the difference between a coach reading the
