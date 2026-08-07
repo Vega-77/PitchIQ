@@ -342,6 +342,12 @@ def player_report_fields(
         f'{CV_FIELD_PREFIX}DistanceM': track_stats.get('distance_m'),
         f'{CV_FIELD_PREFIX}TopSpeedKmh': track_stats.get('top_speed_kmh'),
         f'{CV_FIELD_PREFIX}SprintCount': track_stats.get('sprint_count'),
+        # Bursts, and the wobble that decides whether they were worth counting.
+        # Both may be null, and null is not zero here: a fragment shorter than a
+        # burst window, or a track too noisy to read one off, is a question that
+        # went unanswered rather than a player who never accelerated.
+        f'{CV_FIELD_PREFIX}Accelerations': track_stats.get('accelerations'),
+        f'{CV_FIELD_PREFIX}PositionNoiseM': track_stats.get('position_noise_m'),
         f'{CV_FIELD_PREFIX}MinutesTracked': track_stats.get('minutes_tracked'),
         # Every touch, in seconds, so the player portal can mark them on the
         # match video. Capped because a full match of touches is thousands of

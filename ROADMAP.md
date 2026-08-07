@@ -1057,7 +1057,36 @@ should lead with them rather than with per-player figures.
       **partly done**. `cv/identity.py` rejoins fragments seconds apart on kit
       colour and timing; anyone who went off and came back later stays split,
       and the picker's many-to-one mapping is what covers that case instead
-- [ ] Track smoothing (Kalman filter or similar) before computing speed/distance
+- [x] **Track smoothing before computing speed and distance** — built since
+      `cv/metrics.py` existed, and deliberately **not** a Kalman filter: one
+      needs tuning that cannot be validated without ground-truth tracks, and an
+      untuned filter lags hardest during direction changes, which are exactly
+      the moments that matter. A centred moving average is crude and has no
+      hidden parameter to get wrong.
+
+      What was missing was knowing what it costs, and that is now measured
+      (`tests/test_bursts.py`, at the nine-frame window the pipeline actually
+      uses). Positional jitter of size σ gives a player who **never moved**
+      about 353σ metres every minute — 18m at 0.05, 35m at 0.10, 71m at 0.20 —
+      while a player genuinely jogging 180m in that minute is inflated only to
+      189m at σ=0.20. The error is one-sided, since noise can only add distance,
+      and it lands almost entirely on players who were standing about. A
+      substitute warming up on the touchline is the worst case in the report.
+
+      `position_noise_m` measures σ per track from the second difference of the
+      raw position, which is what separates a wobble from a movement: a real
+      trajectory is smooth, so its second difference is roughly a·dt², about a
+      centimetre at 30fps, while white noise gives σ√6. A **median** rather than
+      a mean is what lets the real accelerations mixed in be ignored. It
+      recovers σ to within 0.7% from 0.02m to 0.20m, and it is the first figure
+      this pipeline has published about the quality of its own tracking rather
+      than about the football.
+- [ ] **Re-fit the smoothing window against curved paths.** The measurement
+      above is straight-line only, so it shows what a shorter window costs and
+      not what a longer one would: a one-second window cuts the phantom distance
+      by two thirds, and would also cut the corner off every real turn. Nothing
+      here changes until the second half of that is measured, because moving
+      the window silently would move every distance figure already published.
 - [ ] **[MVP]** Tracking fast enough to keep up during live first-half play, not just accurately in a batch job
 
 ## 7. Team & Player Identification
@@ -1109,7 +1138,31 @@ fiction; `tests/test_metrics.py` pins both the problem and the fix.
       fitted gradient, because two averages are a thing a coach can be told.
       Returns None rather than a zero drift when either side is too short to
       average.
-- [ ] Acceleration
+- [x] **Acceleration**, as bursts rather than as a second derivative. Each
+      derivative multiplies the noise: the jitter that fakes 6 m/s of speed
+      between two frames fakes 180 m/s² between three, fifteen times what a
+      human can produce. A frame-to-frame acceleration is therefore not a noisy
+      version of the real thing, it is noise with the real thing somewhere
+      inside it.
+
+      So a burst is a **speed gain sustained across a second** — one derivative
+      of an already-smoothed speed, averaged over long enough that zero-mean
+      jitter cancels while a real acceleration does not. Measured on synthetic
+      tracks (`tests/test_bursts.py`), reading bursts straight off the
+      pipeline's own smoothing gives 40 false ones per minute at σ=0.20 against
+      37 real, and no threshold separates them because they are the same noise.
+      Smoothing the burst pass over a full second instead gives **zero** false
+      bursts at every level to 0.20m and finds all eight real ones exactly, on
+      all forty seeds tried. At 0.20m the count drops to 6-8, and the shortfall
+      is one-sided: noise loses bursts, it does not invent them.
+
+      Two costs, both stated rather than warned about. A burst shorter than the
+      window reads low — a true 10 m/s² over 0.4s comes out at 3.6 — which is
+      the direction worth being wrong in. And past 0.3m of positional wobble the
+      count is refused outright rather than reported, because there it is a
+      count of the jitter and it would sit on a player's card looking exactly
+      like a count of their runs. Null, never zero: a player watched for half a
+      second did not fail to accelerate.
 
 ## 9. Ball Possession & Game State
 - [x] **[Demo]** Determine which player/team currently has the ball —

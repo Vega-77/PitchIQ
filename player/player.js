@@ -9,25 +9,25 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=38';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=38';
-import { CARD_COLOURS } from '../assets/events.js?v=38';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=38';
-import { renderHeatmap } from '../assets/heatmap.js?v=38';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=38';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=39';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=39';
+import { CARD_COLOURS } from '../assets/events.js?v=39';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=39';
+import { renderHeatmap } from '../assets/heatmap.js?v=39';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=39';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch,
-} from '../assets/report.js?v=38';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=38';
-import { renderForms } from '../assets/form-chart.js?v=38';
+} from '../assets/report.js?v=39';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=39';
+import { renderForms } from '../assets/form-chart.js?v=39';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=38';
-import { renderMatchVideo } from '../assets/match-video.js?v=38';
+} from '../assets/sample-report.js?v=39';
+import { renderMatchVideo } from '../assets/match-video.js?v=39';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=38';
+} from '../assets/ui.js?v=39';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -145,6 +145,9 @@ function videoCards(totals) {
     }
     if (totals.cvSprintCount) {
         cards.push(statCard(totals.cvSprintCount, 'Sprints', 'is-muted', 'medium'));
+    }
+    if (totals.cvAccelerations) {
+        cards.push(statCard(totals.cvAccelerations, 'Bursts', 'is-muted', 'medium'));
     }
 
     return cards;
@@ -316,6 +319,12 @@ function renderMatchStats(report) {
         grid.append(statCard(
             report.cvTopSpeedKmh.toFixed(1), 'Top speed km/h', 'is-muted', trust,
         ));
+    }
+    // How many times they went from walking to running hard. Absent, not zero,
+    // when the tracking was too jittery to tell one from the wobble — see
+    // `position_noise_m` in cv/metrics.py, and the note under this grid.
+    if (report.cvAccelerations != null) {
+        grid.append(statCard(report.cvAccelerations, 'Bursts', 'is-muted', trust));
     }
     if (report.cvTackles != null) {
         grid.append(statCard(report.cvTackles, 'Tackles won', 'is-muted', trust));

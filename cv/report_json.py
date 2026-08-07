@@ -58,7 +58,11 @@ from .teams import TEAM_A, TEAM_B
 #    its own because it is the first field that says how confident the report is
 #    about which way the teams were kicking — every version 4 document and
 #    earlier was drawn as whatever the `--period` flag happened to say.
-SCHEMA_VERSION = 5
+# 6: `accelerations`, `top_acceleration_ms2` and `position_noise_m` per cluster.
+#    Additive. The last of those is the first figure the pipeline has published
+#    about the quality of its own tracking rather than about the football, and
+#    it is what decides whether the other two are reported at all.
+SCHEMA_VERSION = 6
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -206,6 +210,16 @@ class TrackStats:
     top_speed_kmh: float | None = None
     sprint_count: int | None = None
     sprint_distance_m: float | None = None
+    # Hard accelerations. None means the question could not be answered — the
+    # fragments were all shorter than one burst window, or the tracking wobbled
+    # too much for the answer to be about the player. Not the same as a player
+    # who never accelerated, and the browser has to keep them apart.
+    accelerations: int | None = None
+    top_acceleration_ms2: float | None = None
+    # How far the raw position wobbled frame to frame, averaged over this
+    # cluster's fragments. The first thing this pipeline has published about the
+    # quality of its own tracking.
+    position_noise_m: float | None = None
 
     touches: int = 0
     passes_attempted: int = 0
@@ -248,6 +262,9 @@ class TrackStats:
             # np.int64 here is not JSON-serialisable while looking identical.
             'sprint_count': _num(self.sprint_count),
             'sprint_distance_m': _round(self.sprint_distance_m, 1),
+            'accelerations': _num(self.accelerations),
+            'top_acceleration_ms2': _round(self.top_acceleration_ms2, 2),
+            'position_noise_m': _round(self.position_noise_m, 3),
             'touches': _num(self.touches),
             'passes_attempted': _num(self.passes_attempted),
             'passes_completed': _num(self.passes_completed),
@@ -487,6 +504,17 @@ def track_stats(
             sprints = 0
             sprint_distance = 0.0
             seen = False
+
+            # Bursts and noise are gathered separately, because a fragment can
+            # contribute distance while having nothing to say about either: one
+            # shorter than a burst window answers None, and summing None into a
+            # total would turn "we could not tell" into "none happened".
+            bursts = 0
+            burst_seen = False
+            hardest = None
+            noises = []
+            minutes = []
+
             for track_id in cluster.track_ids:
                 player = players_by_track.get(track_id)
                 if player is None or player.movement is None:
@@ -497,11 +525,33 @@ def track_stats(
                 sprints += player.movement.sprint_count
                 sprint_distance += player.movement.sprint_distance_m
 
+                if player.movement.accelerations is not None:
+                    burst_seen = True
+                    bursts += player.movement.accelerations
+                    if player.movement.top_acceleration_ms2 is not None:
+                        hardest = max(
+                            hardest if hardest is not None else float('-inf'),
+                            player.movement.top_acceleration_ms2,
+                        )
+                if player.movement.position_noise_m is not None:
+                    noises.append(player.movement.position_noise_m)
+                    minutes.append(max(player.movement.minutes_tracked, 1e-9))
+
             if seen:
                 stats.distance_m = distance
                 stats.top_speed_kmh = top
                 stats.sprint_count = sprints
                 stats.sprint_distance_m = sprint_distance
+            if burst_seen:
+                stats.accelerations = bursts
+                stats.top_acceleration_ms2 = hardest
+            if noises:
+                # Weighted by how long each fragment lasted: a two-second
+                # fragment's noise estimate is built from a handful of samples
+                # and should not outvote a two-minute one's.
+                stats.position_noise_m = sum(
+                    n * m for n, m in zip(noises, minutes)
+                ) / sum(minutes)
 
             # Where the cluster spent its time. The grid is computed per track
             # in the pipeline and was never carried across to the cluster, so
@@ -691,7 +741,30 @@ def _quality(report, log: EventLog) -> dict:
         # but a drift across several matches means something changed.
         'goal_agreement': _agreement(report, 'goal'),
         'exit_agreement': _agreement(report, 'exit'),
+        # How far the tracked position wobbles frame to frame, in metres. The
+        # median across tracks, not the mean: one fragment that caught a
+        # reflection should not set the figure for the run.
+        #
+        # This belongs with the quality block rather than with the football,
+        # because it is the number every figure in metres rests on and the one
+        # nothing has ever reported. It is also what decides whether bursts are
+        # counted at all — see MAX_ACCEL_NOISE_M in cv/metrics.py.
+        'position_noise_m': _round(_median_noise(report), 3),
     }
+
+
+def _median_noise(report) -> float | None:
+    measured = [
+        p.movement.position_noise_m for p in report.players
+        if p.movement is not None and p.movement.position_noise_m is not None
+    ]
+    if not measured:
+        return None
+    measured.sort()
+    mid = len(measured) // 2
+    if len(measured) % 2:
+        return measured[mid]
+    return (measured[mid - 1] + measured[mid]) / 2.0
 
 
 def _drift_json(report, team: str) -> dict | None:

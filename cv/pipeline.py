@@ -38,6 +38,7 @@ from .metrics import (
     PositionSeries,
     heatmap,
     movement_stats,
+    position_noise_m,
     ShapeDrift,
     shape_drift,
     smooth_positions,
@@ -228,12 +229,50 @@ class MatchReport:
         if self.calibration_error_m is not None:
             lines.append(f'  calibration       {self.calibration_error_m:.2f}m error')
 
+        # How much the tracked position wobbles, and what that costs. Printed
+        # here rather than left to the JSON because it is the number every
+        # figure in metres above rests on, and the one nobody has ever seen —
+        # the phantom rate is measured in tests/test_bursts.py.
+        noise = _median_noise_m(self)
+        if noise is not None:
+            lines.append(
+                f'  position wobble   {noise:.3f}m — a motionless player would '
+                f'gain {noise * 353:.0f}m a minute'
+            )
+        hardest = _hardest_burst(self)
+        if hardest is not None:
+            lines.append(f'  hardest burst     {hardest:.1f} m/s2 over 1s')
+
         if self.warnings:
             lines.append('')
             lines.append('  NOT TRUSTWORTHY:')
             lines.extend(f'    - {w}' for w in self.warnings)
 
         return '\n'.join(lines)
+
+
+def _median_noise_m(report) -> float | None:
+    """The typical wobble across this run's tracks. Median, not mean: one
+    fragment that caught a reflection should not speak for the run."""
+    measured = sorted(
+        p.movement.position_noise_m for p in report.players
+        if p.movement is not None and p.movement.position_noise_m is not None
+    )
+    if not measured:
+        return None
+    mid = len(measured) // 2
+    if len(measured) % 2:
+        return measured[mid]
+    return (measured[mid - 1] + measured[mid]) / 2.0
+
+
+def _hardest_burst(report) -> float | None:
+    """The hardest acceleration anyone managed, or None if none was measurable."""
+    measured = [
+        p.movement.top_acceleration_ms2 for p in report.players
+        if p.movement is not None and p.movement.top_acceleration_ms2 is not None
+    ]
+    return max(measured) if measured else None
 
 
 def _touch_line(touches: TouchSequence) -> str:
@@ -624,10 +663,15 @@ def analyse_match(
             timestamps_s=times,
             positions_m=calibration.to_pitch_many(ground),
         )
+        # Measured before smoothing, because smoothing is exactly what it
+        # detects the absence of. It is also the first number this pipeline has
+        # ever produced about how good its own tracking is.
+        noise_m = position_noise_m(series)
+
         smoothed = smooth_positions(series, window=9)
         series_by_track[track_id] = smoothed
 
-        stats = movement_stats(smoothed)
+        stats = movement_stats(smoothed, noise_m=noise_m)
         report.players.append(PlayerReport(
             track_id=track_id,
             team=table.team_of(track_id),

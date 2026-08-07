@@ -207,6 +207,11 @@ export function sampleCvSummary() {
             // which is correct: it is true today and will be true on day one.
             tracks_per_cluster: 3.4,
             touch_confidence: 0.62,
+            // Comfortably under the 0.3m ceiling, so the preview shows bursts
+            // being counted rather than being withheld — the version worth
+            // seeing. At this figure a motionless player still picks up about
+            // 90 metres an hour, and the note under the stats says so.
+            position_noise_m: 0.14,
         },
 
         warnings: [
@@ -494,6 +499,10 @@ export function samplePlayerReport() {
         cvDistanceM: 9340,
         cvTopSpeedKmh: 27.4,
         cvSprintCount: 21,
+        // More bursts than sprints, which is the ordinary relationship: most
+        // hard accelerations never reach 7 m/s.
+        cvAccelerations: 48,
+        cvPositionNoiseM: 0.14,
         cvMinutesTracked: 71.5,
         // Played the whole 90, all of it filmed, and the tracker held them for
         // 71.5 of those minutes — a share of 0.79. Above the floor on purpose:

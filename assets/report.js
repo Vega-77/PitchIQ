@@ -45,8 +45,16 @@ const SUMMED = [
     'touches', 'passes_attempted', 'passes_completed', 'carries',
     'tackles', 'interceptions', 'recoveries', 'shots', 'goals', 'xg',
     'distance_m', 'sprint_count', 'sprint_distance_m', 'minutes_tracked',
+    // Bursts add across fragments the way sprints do. A cluster that could not
+    // answer publishes null and is skipped below rather than adding zero, so a
+    // player whose fragments were all too short or too noisy ends with no
+    // figure instead of with a figure of none.
+    'accelerations',
 ];
-const MAXED = ['top_speed_kmh'];
+// Taken at the worst fragment, not averaged: a player assembled from a clean
+// track and a jittery one is only as trustworthy as the jittery one, and an
+// average would hide it behind the clean one.
+const MAXED = ['top_speed_kmh', 'position_noise_m'];
 
 /**
  * Roll the video's tracked figures up into the players a coach named them as.
@@ -133,7 +141,8 @@ const CV_REPORT_KEYS = [
     'cvMinutesOnPitch', 'cvMinutesFilmed', 'cvTrackedShare', 'cvTouches',
     'cvPassesAttempted', 'cvPassesCompleted', 'cvCarries', 'cvTackles',
     'cvInterceptions', 'cvRecoveries', 'cvShots', 'cvXg', 'cvDistanceM',
-    'cvTopSpeedKmh', 'cvSprintCount', 'cvMinutesTracked', 'cvTouchTimes',
+    'cvTopSpeedKmh', 'cvSprintCount', 'cvAccelerations', 'cvPositionNoiseM',
+    'cvMinutesTracked', 'cvTouchTimes',
     'cvClusterCount', 'cvShotMap',
     // Written only by the pipeline, cleared only here.
     'cvHeatmap', 'cvAttackingEnd', 'cvCalibrationErrorM',
@@ -184,6 +193,8 @@ export function cvReportFields(stats, coverage = null, shotRows = null) {
         cvDistanceM: num(stats.distance_m),
         cvTopSpeedKmh: num(stats.top_speed_kmh),
         cvSprintCount: num(stats.sprint_count),
+        cvAccelerations: num(stats.accelerations),
+        cvPositionNoiseM: num(stats.position_noise_m),
         cvMinutesTracked: num(stats.minutes_tracked),
         cvTouchTimes: stats.touchTimes || [],
         // How many tracked fragments this player was assembled from. Shown to
@@ -766,6 +777,23 @@ export function periodNote(period, source) {
         + ' — if it was the other one, every pitch picture here is mirrored'];
 }
 
+/**
+ * Where `cv/metrics.py` stops reporting bursts. Mirrored here only to word the
+ * caveat; the pipeline is what actually withholds them, and a browser that
+ * disagreed with it would caption a figure that is not on the page.
+ */
+export const ACCEL_NOISE_CEILING_M = 0.3;
+
+/**
+ * Phantom metres a minute, per metre of positional wobble.
+ *
+ * Measured in tests/test_bursts.py against the pipeline's own smoothing: a
+ * player who never moved accumulates 17.6m at 0.05, 35.3m at 0.10 and 70.6m at
+ * 0.20 over sixty seconds. Linear in the noise, which it should be — the step
+ * a wobble fakes is proportional to the wobble.
+ */
+export const PHANTOM_M_PER_MINUTE = 353;
+
 export function cvQualityNotes(quality, options = {}) {
     const q = quality || {};
     const { calibrated = false } = options;
@@ -823,6 +851,30 @@ export function cvQualityNotes(quality, options = {}) {
     if (goalRate != null && compared) {
         notes.push(`the video and the tagged log agree on ${goals.agreed || 0} `
             + `of ${compared} goal${compared === 1 ? '' : 's'}`);
+    }
+
+    // How far the tracked position wobbled, and what that costs.
+    //
+    // Every figure in metres on these pages rests on this, and until now
+    // nothing measured it. It is stated as its consequence rather than as a
+    // number alone, because 0.14m means nothing to a coach and "a player
+    // standing still is credited with running" means a great deal.
+    //
+    // The rate is measured, not estimated: at the pipeline's smoothing, jitter
+    // of size σ gives a motionless player about 353σ metres every minute — 71m
+    // at 0.20, 35m at 0.10, 18m at 0.05. A moving player is inflated far less,
+    // because a real step dominates the wobble added to it, so this is quoted
+    // against standing still rather than as a percentage of a distance total.
+    const noise = q.position_noise_m ?? q.positionNoiseM;
+    if (noise != null && noise > 0) {
+        const phantomM = Math.round(noise * PHANTOM_M_PER_MINUTE);
+        notes.push(`the tracked position wobbles about ${noise.toFixed(2)}m frame `
+            + `to frame, which credits a player standing still with about `
+            + `${phantomM}m a minute`);
+        if (noise > ACCEL_NOISE_CEILING_M) {
+            notes.push('too much wobble to count bursts — past about '
+                + `${ACCEL_NOISE_CEILING_M}m the count is a count of the jitter`);
+        }
     }
 
     // Carried in the counts above, not removed from them. Without a

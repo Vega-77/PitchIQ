@@ -3552,3 +3552,97 @@ describe('everything that converts a timestamp uses the same map', () => {
         assert.equal(trend.blocks[1].startMin, 61);
     });
 });
+
+/**
+ * Bursts and the wobble, on the browser side of the seam.
+ *
+ * The arithmetic lives in cv/metrics.py and is tested there. What can go wrong
+ * here is the joining: a null that becomes a zero on the way through, or a
+ * figure summed that should have been taken at its worst.
+ */
+describe('bursts across a player\'s fragments', () => {
+    const cluster = (id, fields) => ({ cluster_id: id, team: 'team_a', ...fields });
+
+    test('bursts add across the fragments a player was assembled from', () => {
+        const stats = report.cvStatsByPlayer(
+            [cluster(0, { accelerations: 12 }), cluster(1, { accelerations: 7 })],
+            { 0: 'p1', 1: 'p1' },
+        );
+        assert.equal(stats.p1.accelerations, 19);
+    });
+
+    test('a fragment that could not answer is skipped, not counted as none', () => {
+        // One fragment too short to hold a burst window, one that measured 12.
+        // Nineteen would be wrong and so would twelve-out-of-two-fragments; the
+        // right answer is twelve, from the one fragment that could say.
+        const stats = report.cvStatsByPlayer(
+            [cluster(0, { accelerations: 12 }), cluster(1, { accelerations: null })],
+            { 0: 'p1', 1: 'p1' },
+        );
+        assert.equal(stats.p1.accelerations, 12);
+    });
+
+    test('a player whose every fragment was unreadable has no figure at all', () => {
+        // Not zero. Zero says they never accelerated, which nothing measured.
+        const stats = report.cvStatsByPlayer(
+            [cluster(0, { accelerations: null }), cluster(1, { accelerations: null })],
+            { 0: 'p1', 1: 'p1' },
+        );
+        assert.equal(stats.p1.accelerations, undefined);
+        assert.equal(report.cvReportFields(stats.p1).cvAccelerations, null);
+    });
+
+    test('the wobble is taken at the worst fragment, not averaged', () => {
+        // A player stitched from a clean track and a jittery one is only as
+        // trustworthy as the jittery one, and an average would hide it behind
+        // the clean one.
+        const stats = report.cvStatsByPlayer(
+            [cluster(0, { position_noise_m: 0.04 }), cluster(1, { position_noise_m: 0.22 })],
+            { 0: 'p1', 1: 'p1' },
+        );
+        assert.equal(stats.p1.position_noise_m, 0.22);
+    });
+
+    test('both figures reach the published report', () => {
+        const fields = report.cvReportFields({ accelerations: 31, position_noise_m: 0.12 });
+        assert.equal(fields.cvAccelerations, 31);
+        assert.equal(fields.cvPositionNoiseM, 0.12);
+    });
+});
+
+describe('what the quality note says about the wobble', () => {
+    const notes = (quality) => report.cvQualityNotes(quality, { calibrated: true });
+
+    test('it is stated as a consequence, not as a number on its own', () => {
+        // 0.14m means nothing to a coach. "A player standing still is credited
+        // with fifty metres a minute" means a great deal.
+        const said = notes({ position_noise_m: 0.14 }).join(' ');
+        assert.match(said, /standing still/);
+        assert.match(said, /49m a minute/);
+    });
+
+    test('the phantom rate is linear in the wobble', () => {
+        // Both figures are measured in tests/test_bursts.py against the
+        // pipeline's own smoothing. Doubling the wobble doubles the invention.
+        const at = (noise) => notes({ position_noise_m: noise }).join(' ');
+        assert.match(at(0.10), /35m a minute/);
+        assert.match(at(0.20), /71m a minute/);
+    });
+
+    test('past the ceiling it says the bursts were withheld, and why', () => {
+        const said = notes({ position_noise_m: 0.45 }).join(' ');
+        assert.match(said, /count of the jitter/);
+    });
+
+    test('under the ceiling it does not mention bursts at all', () => {
+        const said = notes({ position_noise_m: 0.14 }).join(' ');
+        assert.doesNotMatch(said, /jitter/);
+    });
+
+    test('a run that never measured it says nothing rather than zero', () => {
+        // Every report from before this existed. Claiming a perfectly steady
+        // camera would be the worst of the three possible answers.
+        const said = notes({}).join(' ');
+        assert.doesNotMatch(said, /wobble/);
+    });
+});
