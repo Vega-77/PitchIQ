@@ -322,6 +322,125 @@ export function sampleCvSummary() {
 //
 // Key for key with `cv/publish.py::player_report_fields`.
 
+// ------------------------------------------------------ the passing network
+//
+// A 4-3-3 that built down its own left, which is what the picture should show:
+// the left-back and left midfielder are the busiest pair on the pitch, and the
+// right winger is barely connected to anyone. Positions are mean pass origins
+// in metres, attacking right, so they read as a shape.
+//
+// Deliberately *not* eleven tidy players. Two of the passers are unnamed on
+// purpose (tracks 60 and 61 map to no cluster in the sample) and a handful of
+// passes go nowhere, because the note under the diagram is most of what it is
+// for — a network drawn from two thirds of the passes looks exactly like one
+// drawn from all of them.
+
+const SAMPLE_SHAPE = [
+    // [trackId, playerId, x_m, y_m, passes, completed]
+    [1, 'gk', 8, 34, 24, 21],
+    [2, 'rb', 38, 58, 31, 24],
+    [3, 'rcb', 27, 41, 40, 36],
+    [4, 'lcb', 27, 27, 44, 40],
+    [5, 'lb', 41, 11, 52, 43],
+    [6, 'dm', 46, 34, 58, 50],
+    [7, 'rcm', 58, 45, 41, 32],
+    [8, 'lcm', 61, 20, 55, 46],
+    [9, 'rw', 76, 57, 19, 11],
+    [10, 'st', 79, 34, 27, 17],
+    [11, 'lw', 80, 13, 34, 24],
+];
+
+// Who fed whom. Weighted down the left, and the right winger connects to one
+// player only — the thing a coach is meant to see at a glance.
+const SAMPLE_LINKS = [
+    ['lb', 'lcm', 17], ['lcm', 'lb', 12], ['lcb', 'lb', 14], ['lb', 'lcb', 9],
+    ['lcm', 'lw', 11], ['lw', 'lcm', 7], ['dm', 'lcb', 10], ['lcb', 'dm', 9],
+    ['rcb', 'rb', 12], ['rb', 'rcb', 8], ['dm', 'rcm', 9], ['rcm', 'dm', 8],
+    ['gk', 'rcb', 8], ['gk', 'lcb', 9], ['rcm', 'rw', 6], ['rw', 'rcm', 5],
+    ['lcm', 'st', 7], ['st', 'lcm', 4], ['dm', 'lcm', 8], ['lcm', 'dm', 9],
+    ['rcb', 'lcb', 6], ['lcb', 'rcb', 7], ['lw', 'st', 5], ['st', 'lw', 3],
+];
+
+/**
+ * Pass events shaped exactly like `cvStats/events`, for previewing the network.
+ *
+ * A separate export from `sampleCvSummary` on purpose. That fixture carries no
+ * events at all so the review tool and the shot log stay empty under the
+ * preview — both write back to Firestore, and a verdict tapped against an
+ * invented id would put a decision about nothing into a real document. Drawing
+ * a diagram writes nothing, so this one is safe to hand over, and it is the
+ * only way anybody sees this feature before there is footage.
+ */
+export function samplePassEvents() {
+    const trackOf = new Map(SAMPLE_SHAPE.map(([t, id]) => [id, t]));
+    const events = [];
+    let n = 0;
+
+    const push = (trackId, receiverTrackId, xy, outcome) => {
+        events.push({
+            id: `sample-pass-${n}`,
+            type: 'pass',
+            timestampS: 30 + n * 7,
+            trackId,
+            receiverTrackId,
+            team: 'team_a',
+            confidence: 0.72,
+            inPlay: true,
+            outcome,
+            startM: xy,
+        });
+        n += 1;
+    };
+
+    const posOf = new Map(SAMPLE_SHAPE.map(([, id, x, y]) => [id, [x, y]]));
+    for (const [from, to, count] of SAMPLE_LINKS) {
+        for (let i = 0; i < count; i += 1) {
+            // Scattered a little around the mean, so the average this comes
+            // back out at is an average of something rather than one point
+            // repeated — which is what a real run produces.
+            const [x, y] = posOf.get(from);
+            const jitter = ((i % 5) - 2) * 1.6;
+            push(trackOf.get(from), trackOf.get(to), [x + jitter, y - jitter], 'completed');
+        }
+    }
+
+    // The passes that found nobody. In each player's own count, on no line.
+    for (const [trackId, id, x, y, passes, completed] of SAMPLE_SHAPE) {
+        const made = SAMPLE_LINKS
+            .filter(([from]) => from === id)
+            .reduce((sum, [, , count]) => sum + count, 0);
+        for (let i = 0; i < Math.max(0, passes - made); i += 1) {
+            push(trackId, null, [x, y], i < completed - made ? 'completed' : 'incomplete');
+        }
+    }
+
+    // Two figures nobody has named, so the note has something real to report.
+    for (const trackId of [60, 61]) {
+        for (let i = 0; i < 4; i += 1) push(trackId, null, [52, 34], 'completed');
+    }
+
+    return events;
+}
+
+const SAMPLE_NAMES = {
+    gk: 'Rae Nkemelu', rb: 'Sam Iyer', rcb: 'Jo Marchetti', lcb: 'Kit Osei',
+    lb: 'Dee Okafor', dm: 'Ada Fenwick', rcm: 'Cass Ide', lcm: 'Noor Haddad',
+    rw: 'Bo Lindqvist', st: 'Ren Achebe', lw: 'Val Sorensen',
+};
+
+/**
+ * Which invented figure is which invented player, and what to call them.
+ *
+ * Returned together because the preview needs both and pairing them anywhere
+ * else would let a name drift away from the track it belongs to.
+ */
+export function samplePassMapping() {
+    return {
+        byTrack: new Map(SAMPLE_SHAPE.map(([trackId, playerId]) => [trackId, playerId])),
+        nameOf: (playerId) => SAMPLE_NAMES[playerId] || playerId,
+    };
+}
+
 /**
  * The `cv*` fields one player's match report carries.
  *

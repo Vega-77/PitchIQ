@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=32';
+} from '../assets/auth.js?v=33';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,13 +8,18 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=32';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=32';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=32';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=32';
+} from '../assets/db.js?v=33';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=33';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=33';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=33';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
-} from '../assets/sample-report.js?v=32';
+    samplePassEvents, samplePassMapping,
+} from '../assets/sample-report.js?v=33';
+import {
+    playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
+} from '../assets/passing.js?v=33';
+import { renderPassMap } from '../assets/pass-map.js?v=33';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -22,15 +27,15 @@ import {
     TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, xgTally, sumXgTallies,
     xgCalibration, calibrationNote, headerCorrection, headerNote,
     correctedShotMarks,
-} from '../assets/report.js?v=32';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=32';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=32';
-import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=32';
+} from '../assets/report.js?v=33';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=33';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=33';
+import { mount as mountVideo, videoKind, videoTime } from '../assets/video.js?v=33';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark,
-} from '../assets/ui.js?v=32';
+} from '../assets/ui.js?v=33';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -824,6 +829,74 @@ function renderShots() {
         + (corrected ? ` ${corrected}` : ''));
 }
 
+// ------------------------------------------------------ how the ball moved
+//
+// Everything else video-derived on this page is a total. This is the first
+// thing that is a shape: who the ball actually travelled between, and which
+// pairs never connected at all.
+//
+// It reads the event list rather than the summary document, which puts two
+// limits on it that the note underneath has to carry. Only players a coach has
+// named can appear — a line drawn to an unnamed figure looks exactly like a
+// fact — and only a calibrated run has the metres to place anyone.
+
+/**
+ * Which team's network to draw, and who each figure is.
+ *
+ * Under the preview this hands back invented events and an invented mapping,
+ * because a diagram writes nothing back and this is the only way anyone sees
+ * the feature before there is footage. The review tool and the shot log stay
+ * empty under the same preview for the opposite reason: they write.
+ */
+function passingSource() {
+    if (state.cvPreview) {
+        const { byTrack, nameOf } = samplePassMapping();
+        return { events: samplePassEvents(), byTrack, nameOf, truncated: false };
+    }
+
+    const byTrack = playersByTrack(
+        state.match?.cv?.identity?.clusters || [],
+        state.match?.cvMapping || {},
+        NOT_A_PLAYER,
+    );
+    const nameById = new Map(
+        (state.match?.roster || []).map((p) => [p.id, p.playerName]),
+    );
+    return {
+        events: state.match?.cvEvents?.events || [],
+        byTrack,
+        nameOf: (id) => nameById.get(id) || 'a player',
+        truncated: Boolean(state.match?.cvEvents?.truncated),
+    };
+}
+
+function renderPassing() {
+    const block = byId('cv-passing-block');
+    if (!block) return;
+
+    const { events, byTrack, nameOf, truncated } = passingSource();
+    const cv = activeCv();
+    const network = passingNetwork(events, {
+        byTrack,
+        team: 'team_a',
+        // The same flip the shot maps do, so our side always plays left to
+        // right and two matches can be compared without re-reading which end.
+        attackingEnd: cv?.teams?.team_a?.attacking_end || 'right',
+    });
+
+    const drawn = renderPassMap(byId('cv-passing'), network, {
+        nameOf,
+        label: 'Our players, placed where they passed from, and the passes between them',
+    });
+    block.classList.toggle('hidden', !drawn);
+    byId('cv-passing').classList.toggle('is-sample-plot', drawn && state.cvPreview);
+    if (!drawn) return;
+
+    setText('cv-passing-note', networkNote(network, { truncated }));
+    setText('cv-passing-link',
+        strongestLink(foldEdges(network.edges), nameOf) || '');
+}
+
 // ---------------------------------------------- marking the model's homework
 //
 // Every xG on the map above is a prediction, and nothing in this app has ever
@@ -1143,6 +1216,10 @@ function redrawShotViews() {
     redrawCvNote();
     renderShots();
     renderShotLog();
+    // Not shots, but drawn from the same mapping the picker writes and the same
+    // event list the review tool judges — so it goes stale in exactly the same
+    // places, and belongs on the same redraw.
+    renderPassing();
 }
 
 /** Flip the preview and redraw only the blocks it can reach. */
@@ -1153,6 +1230,7 @@ function toggleSample() {
     redrawCvNote();
 
     renderShots();
+    renderPassing();
     renderExcluded();
     renderSampleToggle();
 }

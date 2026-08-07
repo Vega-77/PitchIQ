@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=32">
-    <link rel="stylesheet" href="coach.css?v=32">
+    <link rel="stylesheet" href="../assets/app.css?v=33">
+    <link rel="stylesheet" href="coach.css?v=33">
 </head>
 <body>
 
@@ -396,6 +396,19 @@
             </div>
         </section>
 
+        <!-- The first piece of the post-game tactical catalog. Every other
+             video block on this page is a total; this one is a shape — which
+             players the ball actually travelled between, and which pairs never
+             connected. Nodes sit where each player passed from on average
+             rather than where they spent their time: the edges are passes, so
+             the positions have to answer the same question. -->
+        <section class="block hidden" id="cv-passing-block">
+            <h3>How the ball moved</h3>
+            <p class="muted" id="cv-passing-note" style="margin:-4px 0 14px"></p>
+            <div id="cv-passing" class="pass-map"></div>
+            <p class="muted" id="cv-passing-link" style="margin:12px 0 0"></p>
+        </section>
+
         <!-- The only place a prediction ever meets what happened. The xG model
              was fitted on professional shots and has never seen a pitch like
              this one, so until somebody marks a shot there is no evidence
@@ -535,7 +548,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=32"></script>
+<script type="module" src="coach.js?v=33"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

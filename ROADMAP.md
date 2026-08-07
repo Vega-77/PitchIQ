@@ -800,6 +800,20 @@ bundler — `npm` is only for the emulator and tests.
 
 ---
 
+## How to read the lists below
+
+A checkbox is **work**: `[ ]` is something still to build or decide, `[x]` is
+something that exists in the repo and can be pointed at. Anything that is a
+finding, a measurement or a constraint is written as prose instead, because a
+fact about the world never gets ticked and leaving it in a checkbox quietly
+inflates how much is left.
+
+That distinction had drifted by 2026-08-06 — seven items were built and never
+ticked, six findings were sitting in checkboxes, and one line appeared twice —
+so the open count meant nothing. Fixed then; worth keeping true.
+
+---
+
 ## 1. Video / Camera Input
 - [ ] **[Demo]** Single **fixed** camera, framed so the pitch fills most of the frame — not a wide shot that merely includes it. This is now a hard requirement, not a preference: see the Reality Check for the measured difference between the two.
 - [ ] **[Demo]** Source footage must be a real export at native resolution. A screen recording of a video player is capped at the browser window's pixels and can silently discard the resolution detection depends on.
@@ -809,8 +823,16 @@ bundler — `npm` is only for the emulator and tests.
 - [ ] Lens distortion correction if using a wide-angle/action camera
 - [x] **[Demo]** Ingestion accepts any decodable video file — `cv/frame_sampler.py` handles this via OpenCV; the format was never the hard constraint, framing is
 - [ ] **[Stretch]** Support moving/auto-tracking camera footage (e.g. Hudl/Veo-style ball-following cameras) — requires continuous homography re-estimation (pitch-line detection or frame-to-frame motion tracking) instead of one-time calibration; sports-broadcast camera-calibration research exists to lean on rather than invent from scratch
-- [ ] **Confirmed empirically:** a ball-following camera drops the ball out of frame entirely for stretches — measured two separate ~12s gaps in a 2.5-minute clip, both during penalty-box phases where the camera pulled wide. Possession, passes, and the xG bridge all go blank during those windows, which is a different and worse failure mode than low confidence. If the platform can export the raw wide/panoramic feed instead of the auto-cropped view, that removes the problem outright (the underlying sensor never moved) — this is the single most valuable thing to ask the coach for.
 - [ ] **[Stretch]** Multi-camera stitching, drone or pan/tilt/zoom coverage
+
+**Measured, on the clip we have:** a ball-following camera drops the ball out of
+frame entirely for stretches — two separate ~12s gaps in a 2.5-minute clip, both
+during penalty-box phases where the camera pulled wide. Possession, passes and
+the xG bridge all go blank across those windows, which is a different and worse
+failure mode than low confidence. If the platform can export the raw
+wide/panoramic feed instead of the auto-cropped view that removes the problem
+outright, since the underlying sensor never moved. **This is the single most
+valuable thing to ask the coach for**, and it is in `FOOTAGE_DAY.md` §1.
 
 ## 2. Data Storage & Backend
 Moved up front — Phase 3's tablet needs somewhere to write to before anything else can happen.
@@ -825,7 +847,13 @@ longer matched the one in use, which is worse than no reference at all.
 - [x] **[Demo]** Run it locally, on a laptop sharing WiFi/hotspot with the tablet at the field — **superseded**: Firestore's offline cache queues taps on the tablet itself and replays them when signal returns, so there is no laptop to keep alive at the field
 - [x] Schema for teams, players, matches, roster entries, substitutions, events — with the `source` field (`live_tag` / `cv_candidate` / `reviewer_confirmed`) already in place, though only `live_tag` is written today. Tracking-frame tables deliberately deferred until Phase 6 exists.
 - [x] Undo endpoint spanning both events and substitutions, reverting roster state and rolling back match status when a period marker is undone
-- [ ] Storage volume isn't a concern for tracking data itself: even at 10fps with 23 tracked objects, a full match is roughly 10-40MB of positions — trivial for any database, including a full season. **Video is the actual heavy cost** (a 90-minute 1080p match is several GB) — decide a retention policy: keep full match video only through the post-game review window, then retain long-term just the short clips tied to confirmed events, not every full match forever
+- [ ] **Decide a video retention policy.** Storage volume is not a concern for
+      the tracking data itself: at 10fps with 23 objects a full match is roughly
+      10-40MB of positions, trivial for a database, including a whole season.
+      Video is the heavy cost — a 90-minute 1080p match is several GB. The
+      likely answer is to keep full match video only through the post-game
+      review window and retain long-term just the clips tied to confirmed
+      events. Nothing hosts video today, so this is a decision waiting on a need
 - [x] **[MVP]** Real auth/accounts and a cloud-hosted option — Google sign-in plus Firestore, so nobody needs to be near a field laptop
 - [x] API layer connecting the tablet, processed match data, and the frontend/portal — the Firestore SDK is the API, and its offline cache is the sync layer
 
@@ -856,8 +884,12 @@ points.json` fits and grades it. Grab a frame first with
 - [x] **[Demo]** Manual calibration: click 4+ known pitch landmarks once per camera setup, producing a homography into pitch metres, with a conversion into the StatsBomb 120×80 space the xG model expects
 - [x] **[Demo]** Attacking direction per period (`MatchOrientation`), so second-half shots are measured against the goal the team is actually attacking
 - [x] Honest error reporting: reprojection error is shown but flagged as optimistic (zero by construction on a 4-point fit), with leave-one-out error as the real number and a suspect-point ranking to locate a mis-click
-- [ ] Recalibration handling if the camera is bumped or zoom changes mid-game
-- [ ] **Pitch dimensions must be measured, not assumed** — distance and speed inherit the error directly, so a 105m default on a 100m field overstates every figure by 5%
+**Pitch dimensions must be measured, not assumed.** Distance and speed inherit
+the error directly, so a 105m default on a 100m field overstates every figure by
+5% — and `Pitch.to_statsbomb` normalises by the configured length, so guessed
+dimensions move every xG number too. The action is in `FOOTAGE_DAY.md` §2:
+measure the actual pitch before the camera goes up.
+
 - [ ] Recalibration handling if the camera is bumped or zoom changes mid-game
 - [ ] **[Stretch]** Automatic pitch-line detection
 - [ ] Strategy for when the camera doesn't see the whole pitch, tied to the coverage risk in the Reality Check
@@ -961,22 +993,53 @@ stats sum across them; top speed takes the maximum, because a player who hit
 31 km/h in one fragment did not hit 62 across two. How many figures a player
 was assembled from is carried through to the report and drives the confidence
 mark — one clean track is a much stronger claim than nine stitched together.
-- [ ] Team-level stats (possession, shape, territory) do not need identity and remain viable at this quality — worth leading the demo with them
-- [ ] **[Demo]** Stable per-player track ID across frames using an existing tracking library (ByteTrack/BoT-SORT-style) — don't build a custom tracker
-- [ ] Ball-specific tracking with interpolation through short occlusion; for longer occlusions (goalmouth scrambles), fall back to the live-tagged event log rather than guessing
-- [ ] Re-identification after a player is occluded or leaves frame briefly
+**Worth knowing:** team-level stats (possession, shape, territory) need no
+identity at all and stay viable at this fragmentation, which is why the demo
+should lead with them rather than with per-player figures.
+
+- [x] **[Demo]** Stable per-player track ID across frames using an existing
+      tracking library — `cv/tracking.py` wraps Ultralytics' ByteTrack. No
+      custom tracker, per the note above. IDs are internally consistent only;
+      resolving one to a name is the human job in Phase 11
+- [x] Ball tracking with interpolation through short occlusion — `cv/ball.py`.
+      `BallPoint.observed` is the load-bearing field: a filled-in point is a
+      straight line drawn between two sightings, and `cv/reconcile.py` refuses
+      to treat one as evidence that the ball crossed a line
+- [ ] For *long* occlusions (goalmouth scrambles), fall back to the live-tagged
+      event log rather than interpolating across them. Not built: today a long
+      gap is left as a gap and reported as `no_ball_s` in the quality block,
+      which is honest but throws away a tag log that knows what happened
+- [ ] Re-identification after a player is occluded or leaves frame briefly —
+      **partly done**. `cv/identity.py` rejoins fragments seconds apart on kit
+      colour and timing; anyone who went off and came back later stays split,
+      and the picker's many-to-one mapping is what covers that case instead
 - [ ] Track smoothing (Kalman filter or similar) before computing speed/distance
 - [ ] **[MVP]** Tracking fast enough to keep up during live first-half play, not just accurately in a batch job
 
 ## 7. Team & Player Identification
 Automatic tracking only needs to be *internally consistent* — resolving a track ID to a
 real roster player is a human job, cheaper now thanks to Phase 3.
-- [ ] **[Demo]** Team discrimination via jersey color clustering (k-means on shirt pixels) — Team A / Team B / goalkeepers / referee
-- [ ] Goalkeeper detection (distinct kit, stays near one goal)
-- [ ] **[Demo]** Consume the Phase 3 live substitution log to know exactly which roster players are on the field per team at any timestamp. This doesn't automatically solve *which* tracked blob is *which* name — a human still makes that call once per continuous tracking segment (Phase 11); the sub log shrinks the candidate list and gives a sanity check (if 11 players should be visible and only 10 are tracked, that's a missed-detection alert)
+- [x] **[Demo]** Team discrimination via jersey colour clustering — `cv/teams.py`.
+      Three decisions carry the accuracy: sample the torso rather than the box
+      (a box is mostly grass, hair and socks), cluster in Lab rather than RGB
+      (shadowed red and sunlit red are far apart in RGB and half a pitch is in
+      shadow), and decide per *track* rather than per frame. Keepers and
+      referees match neither kit and are left unassigned rather than forced
+      into whichever they resemble least
+- [x] Goalkeeper detection (distinct kit, stays near one goal) — `cv/keeper.py`.
+      Colour proposes, position confirms, a human overrides both. Without a
+      calibration there is no position and it returns `method='unavailable'`
+      rather than guessing, because a wrong keeper poisons save percentage,
+      distribution and every keeper feature in the xG model at once
+- [x] **[Demo]** Consume the Phase 3 live substitution log to narrow which
+      roster players could be a given figure — `rankRosterForCluster`. It does
+      not solve *which* blob is *which* name; a human still makes that call
+      once per tracking segment. What it does is shrink the candidate list
 - [x] **[Demo]** Remaining manual track-ID → roster-player mapping happens in the review tool, narrowed down by the sub log — `rankRosterForCluster` plus the coach picker's "On the pitch then" / "Everyone else" grouping. Reorders rather than filters, since a wrong video offset would otherwise hide the right answer along with the wrong ones.
 - [ ] **[Stretch]** Jersey number OCR, used only as a suggestion to speed up mapping
-- [ ] Handling broken tracks (same player split into 2+ IDs) — reviewer merges them
+
+Broken tracks — one player split across several IDs — are handled by the
+many-to-one picker in Phase 11, and tracked there rather than duplicated here.
 
 ## 8. Coordinate Transformation & Movement Metrics
 **Built** in `cv/metrics.py`, though gated on Phase 6's fragmentation before
@@ -1005,7 +1068,15 @@ fiction; `tests/test_metrics.py` pins both the problem and the fix.
 - [ ] Acceleration
 
 ## 9. Ball Possession & Game State
-- [ ] **[Demo]** Determine which player/team currently has the ball (proximity + velocity correlation)
+- [x] **[Demo]** Determine which player/team currently has the ball —
+      `cv/possession.py`, and the one substantial team statistic reachable from
+      pixels alone: it only asks who is nearest the ball, never how far in
+      metres. Two problems had to be solved for the answer to mean anything.
+      **Scale** — "near the ball" is a distance, and in pixels it changes with
+      every zoom, so the radius is expressed in player heights measured from
+      that same frame. **Flicker** — two opponents contesting the ball swap
+      nearest-player several times a second, so a change is only accepted once
+      a team has held it for a minimum spell
 - [x] Dead-ball spans derived from the Phase 3 tag log (`cv/phases.py`) — feeds
       possession (a throw-in wait no longer counts as possession) and stamps
       `in_play` on every derived event. See "Also built ahead of the footage" above.
@@ -1318,7 +1389,44 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       was attempted rather than as counts, because how direct a side was is the
       question the buckets exist to answer and 142 forward passes does not
       answer it
-- [ ] **[MVP]** Full post-game tactical catalog (passing networks, phase-of-play, pressing trends)
+- [x] **[MVP] Passing networks** (2026-08-06) — the first thing on the coach's
+      page that draws a *shape* rather than a total: which players the ball
+      actually travelled between, and which pairs never connected at all. A
+      table of pass counts cannot say that however many columns it has.
+
+      Nodes sit at each player's **mean pass origin**, not their heatmap
+      centroid. The centroid was available and easier, and it averages defensive
+      shape and off-ball running into a diagram whose edges are passes — two
+      questions, one picture, and no way for a reader to tell they had been
+      mixed. That needed `start_m` published on each event; the reason it was
+      originally dropped ("null without a calibration and nothing plots a pitch
+      yet") had quietly stopped being true on both counts.
+
+      Three refusals do most of the work, and the note under the diagram names
+      every one. A pass by a figure **nobody has named** is counted and never
+      drawn, because a line to an unnamed track looks exactly like a fact. An
+      **incomplete** pass belongs in the passer's own count and joins no line —
+      drawing it to whoever was nearest would invent the one thing the diagram
+      exists to show. And a pair who exchanged a single pass is **not a
+      connection**; a hairline between every pair of names is a mesh in which
+      nothing stands out.
+
+      Node area is proportional to passes played, which took two attempts. The
+      obvious `MIN + (MAX − MIN) × √share` looks like the same thing and is
+      proportional to nothing: with the floor added to the *radius*, a player
+      with three times another's passes came out **1.85× the area** on the
+      sample squad, so the picture flattened exactly the difference it exists to
+      show. Clamped at the bottom instead, so it is exact above the floor.
+
+      Previewable without footage: `samplePassEvents` is a 4-3-3 that built down
+      its own left, with two unnamed passers and a realistic 81% completion rate
+      so the caveats preview too. Kept as a separate export from
+      `sampleCvSummary` — that fixture carries no events so the review tool and
+      the shot log stay empty under the preview, since both write back. Drawing
+      writes nothing, so this one is safe to hand over.
+- [ ] **[MVP]** The rest of the post-game tactical catalog: phase-of-play and
+      pressing trends. PPDA already exists in `cv/events.py` and is published;
+      neither is drawn anywhere yet
 - [x] **Use the Phase 3 sub log to scope each player's stats to their actual
       minutes played** (2026-08-06). Every per-player card printed *Minutes 71*
       from the sub log directly beside *km covered 1.9* from the video, and

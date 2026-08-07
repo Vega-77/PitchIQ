@@ -247,8 +247,24 @@ class TestEvents:
         doc = events_payload({'events': [an_event()]})
         assert set(doc['events'][0]) == {
             'id', 'type', 'timestampS', 'trackId', 'team', 'confidence',
-            'inPlay', 'outcome', 'xg', 'xgHeader', 'receiverTrackId',
+            'inPlay', 'outcome', 'xg', 'xgHeader', 'receiverTrackId', 'startM',
         }
+
+    def test_where_the_event_happened_travels(self):
+        """The passing network is drawn from these, so a pass with no position
+        is a player with counts and nowhere to stand."""
+        event = an_event()
+        event['start_m'] = (41.27, 10.94)
+        doc = events_payload({'events': [event]})
+        # One decimal place: a tenth of a metre is already finer than the
+        # homography behind it, and there are up to 1500 of these in one
+        # document.
+        assert doc['events'][0]['startM'] == [41.3, 10.9]
+
+    def test_an_uncalibrated_event_has_no_position_rather_than_zero(self):
+        # Zero is the corner flag. Every consumer has to see absent as absent.
+        doc = events_payload({'events': [an_event()]})
+        assert doc['events'][0]['startM'] is None
 
     def test_the_in_play_flag_reaches_the_client(self):
         event = an_event()

@@ -211,6 +211,18 @@ def participant_notes(
     ]
 
 
+def _round_pair(point) -> list[float] | None:
+    """An (x, y) in metres to one decimal place, or None.
+
+    A tenth of a metre is already far finer than the homography behind it — the
+    trust ladder starts writing figures off at half a metre — so the extra
+    digits are only bytes, and there are up to 1500 of these in one document.
+    """
+    if point is None:
+        return None
+    return [round(float(point[0]), 1), round(float(point[1]), 1)]
+
+
 def events_payload(report_json: dict, limit: int = MAX_EVENTS) -> dict:
     """The individual events, for a human to check one at a time.
 
@@ -219,10 +231,16 @@ def events_payload(report_json: dict, limit: int = MAX_EVENTS) -> dict:
     the opposite job — it exists to put each candidate in front of a coach with
     the video beside it — and it has no other source for them.
 
-    Trimmed to what that tool needs. `start_m`/`end_m` are dropped because they
-    are null without a calibration and nothing plots a pitch yet, and `tags` for
-    the same reason. Roughly 120 bytes an event, so a full cap is about 180KB
-    against Firestore's 1MB.
+    Trimmed to what that tool needs, plus `start_m` — where the ball was when
+    the event happened. That was dropped originally because it is null without a
+    calibration and nothing plotted a pitch; both halves of that reason have
+    since stopped being true, and the passing network is built from these
+    positions. `end_m` stays out: the network aggregates by player, so the
+    receiver's id says everything the far end of the line would. `tags` stay out
+    for the reason `start_m` used to.
+
+    Roughly 140 bytes an event, so a full cap is about 210KB against
+    Firestore's 1MB.
     """
     events = report_json.get('events') or []
     floor = None
@@ -259,6 +277,10 @@ def events_payload(report_json: dict, limit: int = MAX_EVENTS) -> dict:
                 # coach's body-part tag without a model in the browser.
                 'xgHeader': event.get('xg_header'),
                 'receiverTrackId': event.get('receiver_track_id'),
+                # Where the ball was, in pitch metres, at the moment of the
+                # event. Null on an uncalibrated run, which is the whole reason
+                # every consumer of it has to handle absent rather than zero.
+                'startM': _round_pair(event.get('start_m')),
             }
             for event in events
         ],

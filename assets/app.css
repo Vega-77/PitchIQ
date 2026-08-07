@@ -1808,6 +1808,40 @@ td.num.cv-partial {
 .shot-mark.is-pickable { cursor: pointer; }
 .shot-mark.is-pickable:hover { fill-opacity: 1; }
 
+/* The passing network. A whole pitch, not the attacking half — the question is
+   shape, and half of it lives in the defensive end. Wider than the shot maps
+   for the same reason: two players three metres apart have to stay two legible
+   dots, and a network squeezed to phone width is a smudge. */
+.pass-map {
+    /* Full pitch, plus the viewBox's 2m margin on each side. */
+    aspect-ratio: 109 / 72;
+    width: 100%;
+    max-width: 620px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 10px;
+    color: var(--line-hi);
+}
+.pass-map-svg { width: 100%; height: 100%; display: block; }
+.pass-map:empty { display: none; }
+
+/* Lines under, dots over. The width already carries the count, so the colour
+   stays flat — two claims on one mark and neither can be read. */
+.pass-edge {
+    stroke: var(--accent);
+    stroke-opacity: 0.42;
+    stroke-linecap: round;
+}
+.pass-dot {
+    fill: var(--accent);
+    fill-opacity: 0.9;
+    stroke: var(--surface);
+    stroke-width: 0.5;
+}
+.pass-node.is-pickable { cursor: pointer; }
+.pass-node.is-pickable:hover .pass-dot { fill: var(--good); }
+
 /* Two maps side by side on the coach's view, stacked on a phone. */
 .shot-maps {
     display: flex;
