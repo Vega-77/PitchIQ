@@ -302,6 +302,37 @@ class TestQuality:
         ):
             assert key in quality, key
 
+    def test_the_smoothing_window_is_published_beside_what_it_cost(self):
+        # Both, because neither can be worked out from the other any more. The
+        # window is chosen per track from that track's measured wobble, so the
+        # phantom rate stopped being proportional to the wobble — and a browser
+        # holding a constant would caption the figures with a rate for a window
+        # it has no way to know about.
+        report = a_report()
+        report.players = [
+            PlayerReport(
+                track_id=i, team=TEAM_A,
+                movement=MovementStats(track_id=i, position_noise_m=noise,
+                                       minutes_tracked=10.0),
+            )
+            for i, noise in enumerate((0.12, 0.13, 0.26))
+        ]
+        report.smoothing_s = {0: 0.7, 1: 0.7, 2: 1.0}
+
+        quality = report.to_json()['quality']
+        assert quality['position_noise_m'] == 0.13
+        # The mode, not the mean: 0.85 is a window nothing was smoothed at.
+        assert quality['smoothing_s'] == 0.7
+        assert quality['phantom_m_per_minute'] == pytest.approx(19.8, rel=0.05)
+
+    def test_a_run_that_smoothed_nothing_names_no_window(self):
+        # An uncalibrated run has no positions in metres to smooth. Reporting
+        # the default would describe work that never happened, which is the same
+        # mistake as reporting zero for a figure nobody measured.
+        quality = a_report().to_json()['quality']
+        assert quality['smoothing_s'] is None
+        assert quality['phantom_m_per_minute'] is None
+
     def test_keeper_method_defaults_to_unavailable(self):
         assert a_report().to_json()['quality']['keeper_method'] == 'unavailable'
 

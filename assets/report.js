@@ -787,10 +787,16 @@ export const ACCEL_NOISE_CEILING_M = 0.3;
 /**
  * Phantom metres a minute, per metre of positional wobble.
  *
- * Measured in tests/test_bursts.py against the pipeline's own smoothing: a
- * player who never moved accumulates 17.6m at 0.05, 35.3m at 0.10 and 70.6m at
- * 0.20 over sixty seconds. Linear in the noise, which it should be — the step
- * a wobble fakes is proportional to the wobble.
+ * **Only for reports written before schema 7.** It was a single number because
+ * the pipeline smoothed every track over a fixed nine frames; the window is now
+ * fitted to each track's own measured wobble, so the phantom rate stopped being
+ * proportional to the wobble and stopped being derivable from it. A version 7
+ * report publishes `phantom_m_per_minute` and this is not consulted.
+ *
+ * Kept rather than deleted because reports already in Firestore do not have the
+ * new field, and a coach opening last month's match should get the caveat that
+ * was true of it — 353σ was measured against the smoothing that produced those
+ * numbers, and it still describes them.
  */
 export const PHANTOM_M_PER_MINUTE = 353;
 
@@ -860,17 +866,28 @@ export function cvQualityNotes(quality, options = {}) {
     // number alone, because 0.14m means nothing to a coach and "a player
     // standing still is credited with running" means a great deal.
     //
-    // The rate is measured, not estimated: at the pipeline's smoothing, jitter
-    // of size σ gives a motionless player about 353σ metres every minute — 71m
-    // at 0.20, 35m at 0.10, 18m at 0.05. A moving player is inflated far less,
-    // because a real step dominates the wobble added to it, so this is quoted
-    // against standing still rather than as a percentage of a distance total.
+    // The rate is measured, not estimated, and it is now measured *there*: the
+    // pipeline picks each track's smoothing window from its own wobble, so it
+    // is the only place that knows both halves of the arithmetic. Reading the
+    // published figure instead of re-deriving it is what stops this file
+    // quoting a rate for a window it has no way to know about.
+    //
+    // A moving player is inflated far less than a still one, because a real
+    // step dominates the wobble added to it — +0.5% on a jog at 0.20m against
+    // 22m a minute from nothing. So it is quoted against standing still rather
+    // than as a percentage of a distance total.
     const noise = q.position_noise_m ?? q.positionNoiseM;
     if (noise != null && noise > 0) {
-        const phantomM = Math.round(noise * PHANTOM_M_PER_MINUTE);
+        const published = q.phantom_m_per_minute ?? q.phantomMPerMinute;
+        const phantomM = Math.round(published ?? noise * PHANTOM_M_PER_MINUTE);
+        const smoothing = q.smoothing_s ?? q.smoothingS;
+        // Named because it is the one figure on this page that describes a
+        // decision rather than a measurement, and a coach comparing two matches
+        // is entitled to know the second was smoothed harder than the first.
+        const over = smoothing ? `, smoothed over ${smoothing.toFixed(1)}s` : '';
         notes.push(`the tracked position wobbles about ${noise.toFixed(2)}m frame `
-            + `to frame, which credits a player standing still with about `
-            + `${phantomM}m a minute`);
+            + `to frame${over}, which still credits a player standing still with `
+            + `about ${phantomM}m a minute`);
         if (noise > ACCEL_NOISE_CEILING_M) {
             notes.push('too much wobble to count bursts — past about '
                 + `${ACCEL_NOISE_CEILING_M}m the count is a count of the jitter`);

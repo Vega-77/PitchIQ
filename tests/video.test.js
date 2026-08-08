@@ -3615,18 +3615,44 @@ describe('what the quality note says about the wobble', () => {
 
     test('it is stated as a consequence, not as a number on its own', () => {
         // 0.14m means nothing to a coach. "A player standing still is credited
-        // with fifty metres a minute" means a great deal.
-        const said = notes({ position_noise_m: 0.14 }).join(' ');
+        // with twenty metres a minute" means a great deal.
+        const said = notes({
+            position_noise_m: 0.14, smoothing_s: 0.7, phantom_m_per_minute: 21.3,
+        }).join(' ');
         assert.match(said, /standing still/);
-        assert.match(said, /49m a minute/);
+        assert.match(said, /21m a minute/);
     });
 
-    test('the phantom rate is linear in the wobble', () => {
-        // Both figures are measured in tests/test_bursts.py against the
-        // pipeline's own smoothing. Doubling the wobble doubles the invention.
-        const at = (noise) => notes({ position_noise_m: noise }).join(' ');
-        assert.match(at(0.10), /35m a minute/);
-        assert.match(at(0.20), /71m a minute/);
+    test('it quotes the rate the pipeline published, not one of its own', () => {
+        // The window is fitted per track to the measured wobble, so the phantom
+        // rate is no longer proportional to the wobble and this file cannot
+        // work it out. Same noise, two different windows, two different rates —
+        // and a browser deriving it would print the same number for both.
+        const at = (phantom) => notes({
+            position_noise_m: 0.20, smoothing_s: 1.0, phantom_m_per_minute: phantom,
+        }).join(' ');
+        assert.match(at(21.3), /21m a minute/);
+        assert.match(at(49.6), /50m a minute/);
+    });
+
+    test('it says how long the figures behind it were smoothed for', () => {
+        // A coach comparing two matches is entitled to know the second was
+        // smoothed harder than the first, because that is a decision and not a
+        // measurement.
+        const said = notes({
+            position_noise_m: 0.20, smoothing_s: 1.0, phantom_m_per_minute: 21.3,
+        }).join(' ');
+        assert.match(said, /smoothed over 1\.0s/);
+    });
+
+    test('a report from before the window was fitted keeps its own caveat', () => {
+        // Everything already in Firestore. 353σ was measured against the fixed
+        // nine-frame smoothing that produced those numbers, so it is still the
+        // true statement about them — and it is the wrong one about a report
+        // written since. Falling back is not a guess, it is the older answer.
+        const said = notes({ position_noise_m: 0.10 }).join(' ');
+        assert.match(said, /35m a minute/);
+        assert.doesNotMatch(said, /smoothed over/);
     });
 
     test('past the ceiling it says the bursts were withheld, and why', () => {

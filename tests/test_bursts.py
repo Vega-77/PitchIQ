@@ -23,14 +23,22 @@ from cv.metrics import (
     MAX_ACCEL_NOISE_M,
     PositionSeries,
     movement_stats,
+    phantom_m_per_minute,
     position_noise_m,
-    smooth_positions,
+    smooth_for_noise,
+    smoothing_window_s,
 )
 
 FPS = 30.0
 
-# The window the pipeline actually smooths distance over (cv/pipeline.py).
-PIPELINE_WINDOW = 9
+
+def as_pipeline(series):
+    """Smoothed the way the pipeline smooths it, at this track's own noise.
+
+    Was a bare `PIPELINE_WINDOW = 9` here, which stopped being what the
+    pipeline does and would have gone on saying it did.
+    """
+    return smooth_for_noise(series, position_noise_m(series))[0]
 
 
 def track(profile, seconds: float, jitter_m: float = 0.0, seed: int = 0):
@@ -64,9 +72,7 @@ def four_bursts(t):
 
 def measure(series, **kwargs):
     noise = position_noise_m(series)
-    return movement_stats(
-        smooth_positions(series, PIPELINE_WINDOW), noise_m=noise, **kwargs
-    )
+    return movement_stats(as_pipeline(series), noise_m=noise, **kwargs)
 
 
 class TestItDoesNotInventBursts:
@@ -168,7 +174,7 @@ class TestTheNoiseGate:
         # No estimate given means the caller has said it does not know. Refusing
         # on an unknown would delete the figure from every run that predates the
         # measurement.
-        series = smooth_positions(track(four_bursts, 60), PIPELINE_WINDOW)
+        series = as_pipeline(track(four_bursts, 60))
         assert movement_stats(series).accelerations == 8
 
 
@@ -205,7 +211,7 @@ class TestMeasuringTheWobble:
         # what this measures the absence of. Run on a smoothed series it reports
         # a fraction of the truth, and the fraction would look like good news.
         raw = track(four_bursts, 60, jitter_m=0.20, seed=3)
-        smoothed = smooth_positions(raw, PIPELINE_WINDOW)
+        smoothed = as_pipeline(raw)
 
         assert position_noise_m(raw) == pytest.approx(0.20, rel=0.15)
         assert position_noise_m(smoothed) < position_noise_m(raw) / 2
@@ -218,31 +224,51 @@ class TestWhatTheWobbleCosts:
     """Phantom distance, measured. Nothing here changes; it is a record."""
 
     def test_a_motionless_player_is_credited_with_running(self):
-        # At the pipeline's smoothing window, jitter of size sigma gives a
-        # player who never moved roughly 353*sigma metres per minute:
+        # Jitter of size sigma still gives a player who never moved this many
+        # metres a minute, at the window their own wobble earns them:
         #
-        #     0.05m ->  18m      0.10m ->  35m      0.20m ->  71m
+        #     0.05m -> 0.5s -> 10.7m      0.20m -> 1.0s -> 22.3m
+        #     0.10m -> 0.7s -> 15.3m      0.30m -> 1.0s -> 33.5m
         #
-        # That is the size of the correction nobody has been able to make, and
-        # the reason `position_noise_m` is now in the quality block. It is also
-        # what PHANTOM_M_PER_MINUTE in assets/report.js quotes to a coach.
-        for jitter_m, expected in ((0.05, 17.6), (0.10, 35.3), (0.20, 70.6)):
+        # It was 18m, 35m and 71m under the fixed nine-frame window. The
+        # correction is largest exactly where it was worst.
+        #
+        # Not proportional to the noise any more, which is the point: the
+        # window moves with sigma, so doubling the wobble does not double the
+        # phantom. That is why assets/report.js can no longer hold one constant
+        # and reads a published figure instead.
+        for jitter_m, expected in ((0.05, 10.7), (0.10, 15.3), (0.20, 22.3)):
             phantom = np.mean([
                 measure(track(lambda _t: 0.0, 60, jitter_m, seed)).distance_m
                 for seed in range(5)
             ])
             assert phantom == pytest.approx(expected, rel=0.2), f'{jitter_m}m'
 
+    def test_the_published_rate_is_what_a_still_player_actually_gains(self):
+        # `phantom_m_per_minute` is derived rather than fitted — 60·fps·σ·√π/W
+        # — and it is what reaches the coach's screen. If it drifted from what
+        # a motionless track really accumulates, the caveat under the figures
+        # would be describing a different pipeline.
+        for jitter_m in (0.05, 0.10, 0.20):
+            measured = np.mean([
+                measure(track(lambda _t: 0.0, 60, jitter_m, seed)).distance_m
+                for seed in range(5)
+            ])
+            claimed = phantom_m_per_minute(jitter_m, smoothing_window_s(jitter_m))
+            assert claimed == pytest.approx(measured, rel=0.10), f'{jitter_m}m'
+
     def test_a_real_distance_is_inflated_by_the_same_wobble(self):
         # A true 180m jog. The error is one-sided — noise only ever adds
         # distance, never removes it — so this is a bias and not a spread. Far
         # smaller than the standing-still case above, because a real step
-        # dominates the wobble added to it: +4.8% at 0.20m against a phantom
-        # 71m from nothing. Distance totals are safer than they look; a
-        # substitute who spent the half warming up is not.
-        for jitter_m, expected in ((0.0, 179.7), (0.10, 181.9), (0.20, 188.7)):
+        # dominates the wobble added to it: +0.5% at 0.20m against a phantom
+        # 22m from nothing. It was +4.8% before the window was fitted.
+        #
+        # Distance totals are safer than they look; a substitute who spent the
+        # half warming up is still the case to be careful with.
+        for jitter_m, expected in ((0.0, 179.9), (0.10, 180.2), (0.20, 180.7)):
             measured = np.mean([
                 measure(track(jogging, 60, jitter_m, seed)).distance_m
                 for seed in range(5)
             ])
-            assert measured == pytest.approx(expected, rel=0.08), f'{jitter_m}m'
+            assert measured == pytest.approx(expected, rel=0.02), f'{jitter_m}m'

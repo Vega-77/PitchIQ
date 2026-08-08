@@ -209,9 +209,14 @@ export function sampleCvSummary() {
             touch_confidence: 0.62,
             // Comfortably under the 0.3m ceiling, so the preview shows bursts
             // being counted rather than being withheld — the version worth
-            // seeing. At this figure a motionless player still picks up about
-            // 90 metres an hour, and the note under the stats says so.
+            // seeing.
             position_noise_m: 0.14,
+            // The window that wobble earns, and what it still costs. Both come
+            // from the pipeline rather than being re-derived here; see
+            // SMOOTH_BANDS in cv/metrics.py for the fit and `phantom_m_per_minute`
+            // for the arithmetic. 0.14m lands in the middle band.
+            smoothing_s: 0.7,
+            phantom_m_per_minute: 21.3,
         },
 
         warnings: [

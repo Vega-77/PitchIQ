@@ -36,12 +36,14 @@ from .touches import TouchSequence, segment_touches
 from .metrics import (
     MovementStats,
     PositionSeries,
+    DEFAULT_SMOOTH_S,
     heatmap,
     movement_stats,
+    phantom_m_per_minute,
     position_noise_m,
     ShapeDrift,
     shape_drift,
-    smooth_positions,
+    smooth_for_noise,
     team_shape,
 )
 from .participants import ParticipantReport, classify_participants
@@ -148,6 +150,11 @@ class MatchReport:
     kit_separation: float = 0.0
     clear_holder_share: float = 0.0
     calibration_error_m: float | None = None
+    # How long each track was smoothed over, keyed by track id. Not one number
+    # for the run: the window is chosen from each track's own wobble, so a
+    # clean track and a jittery one are deliberately smoothed differently.
+    # Empty when nothing was measured in metres at all.
+    smoothing_s: dict[int, float] = field(default_factory=dict)
 
     # Whether anything here is expressed in metres. Distance, speed, shape and
     # heatmaps all need a homography; without one the tracks still exist and
@@ -235,9 +242,12 @@ class MatchReport:
         # the phantom rate is measured in tests/test_bursts.py.
         noise = _median_noise_m(self)
         if noise is not None:
+            window_s = _typical_smoothing_s(self)
+            phantom = phantom_m_per_minute(noise, window_s)
             lines.append(
-                f'  position wobble   {noise:.3f}m — a motionless player would '
-                f'gain {noise * 353:.0f}m a minute'
+                f'  position wobble   {noise:.3f}m — smoothed over {window_s:.1f}s, '
+                f'which still credits a motionless player with '
+                f'{phantom:.0f}m a minute'
             )
         hardest = _hardest_burst(self)
         if hardest is not None:
@@ -249,6 +259,19 @@ class MatchReport:
             lines.extend(f'    - {w}' for w in self.warnings)
 
         return '\n'.join(lines)
+
+
+def _typical_smoothing_s(report) -> float:
+    """The window most of this run's tracks were smoothed over.
+
+    The mode rather than a mean, because the windows come from a handful of
+    bands and averaging them would report a window nothing was actually
+    smoothed at.
+    """
+    chosen = list(report.smoothing_s.values())
+    if not chosen:
+        return DEFAULT_SMOOTH_S
+    return max(set(chosen), key=chosen.count)
 
 
 def _median_noise_m(report) -> float | None:
@@ -655,6 +678,7 @@ def analyse_match(
         )
 
     series_by_track: dict[int, PositionSeries] = {}
+    smoothing_by_track: dict[int, float] = {}
     for track_id, (times, ground) in sorted(sightings.items()):
         if len(times) < 3:
             continue
@@ -668,7 +692,14 @@ def analyse_match(
         # ever produced about how good its own tracking is.
         noise_m = position_noise_m(series)
 
-        smoothed = smooth_positions(series, window=9)
+        # And the window follows it. A fixed nine frames was right for a clean
+        # track and credited a jittery one with 29 metres a minute it never
+        # ran; see SMOOTH_BANDS for the fit. Choosing per track rather than per
+        # run matters because the noise is per track — a player at the far
+        # touchline is projected through a stretch of the homography that a
+        # player in the centre circle never touches.
+        smoothed, window_s = smooth_for_noise(series, noise_m)
+        smoothing_by_track[track_id] = window_s
         series_by_track[track_id] = smoothed
 
         stats = movement_stats(smoothed, noise_m=noise_m)

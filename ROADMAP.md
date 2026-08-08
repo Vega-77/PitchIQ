@@ -1081,12 +1081,110 @@ should lead with them rather than with per-player figures.
       recovers σ to within 0.7% from 0.02m to 0.20m, and it is the first figure
       this pipeline has published about the quality of its own tracking rather
       than about the football.
-- [ ] **Re-fit the smoothing window against curved paths.** The measurement
-      above is straight-line only, so it shows what a shorter window costs and
-      not what a longer one would: a one-second window cuts the phantom distance
-      by two thirds, and would also cut the corner off every real turn. Nothing
-      here changes until the second half of that is measured, because moving
-      the window silently would move every distance figure already published.
+- [x] **Re-fit the smoothing window against curved paths** (2026-08-08). The
+      window distance was read off had been nine frames since the day movement
+      metrics were written, as a bare number in `cv/pipeline.py`, fitted to
+      nothing. It is the one parameter every figure in metres rests on, and the
+      note above could only say what a *shorter* window costs. This is the other
+      half.
+
+      Two errors set it, and they pull opposite ways. Phantom distance falls as
+      1/W and is exact rather than fitted: smoothing white noise leaves
+      neighbouring samples correlated (W-1)/W, so the step between them is σ√2/W
+      per axis and its 2D magnitude averages σ√π/W — **60·fps·σ·√π / W metres a
+      minute**, matching measurement to three figures at every window and noise
+      level tried.
+
+      The corner loss was the fear, and measuring it is what dissolved it. A
+      moving average over an arc pulls the path onto radius R·sin(θ)/θ with
+      θ = vT/2R, so a turn of angle φ loses φ·R·(1 − sinc θ). Substituting the
+      **tightest radius a person can actually hold** — a footballer manages
+      about 4.5 m/s² sideways, so R ≥ v²/a — cancels the speed out entirely and
+      leaves φ·a·T²/24. A 90° turn costs 0.03m at the old window and 0.29m at a
+      full second, *whatever speed it is taken at*. A fast turn is necessarily a
+      wide one, and that is the whole reason a long window is affordable.
+
+      The real cost is not the curve but the cusp — sprint in, plant, come back
+      the way you came — which an average smears straight through. Metres of
+      real path lost to one 180° stop-turn:
+
+          window      0.2s stop   0.4s stop   0.8s stop
+           0.30s        0.36        0.19        0.09
+           0.50s        0.82        0.52        0.26
+           1.03s        2.12        1.71        1.10
+
+      Two metres a turn sounds ruinous until it is set beside what it buys: at
+      σ=0.20, lengthening the window from 0.3s to 1.0s stops **50 metres a
+      minute** of invented distance. It would take 23 full stop-and-reverses a
+      minute — one every two and a half seconds, all match — before the longer
+      window is the worse of the two.
+
+      So it was fitted rather than argued. Twenty minutes of synthetic ground
+      truth (speeds from the match-play gears, direction changes at a stated
+      rate, every turn held to 4.5 m/s²) at a real 181 m/min, in metres per
+      minute of error:
+
+          window    σ=0.05   σ=0.10   σ=0.15   σ=0.20   σ=0.30
+           0.17s     +2.9    +11.3    +24.4    +41.3    +81.4
+           0.30s     +0.7     +3.5     +7.8    +13.6    +29.4   <- was here
+           0.50s     -0.2     +0.8     +2.5     +4.7    +10.8
+           0.70s     -0.7     -0.2     +0.7     +1.9     +5.2
+           1.03s     -1.7     -1.4     -1.0     -0.5     +1.1
+           1.50s     -3.2     -3.1     -2.9     -2.6     -1.8
+
+      **There is no best window in that table, and that is the finding.** The
+      right one moves with the noise — and `position_noise_m`, added last week,
+      measures the noise per track. So the window now follows it: 0.5s below
+      0.075m of wobble, 0.7s below 0.15m, 1.0s above. That holds the error
+      inside ±2 m/min from σ=0.05 to σ=0.30, where the fixed window drifted to
+      +29 m/min — 1.8km over a match, on a figure a coach reads as kilometres
+      run. Chosen per track rather than per run, because a player at the far
+      touchline is projected through a stretch of the homography a player in
+      the centre circle never touches.
+
+      Fitted at 8 direction changes a minute and then checked against that
+      assumption, since a rule that only holds at the rate it was fitted at is
+      not a rule: across 3 to 25 turns a minute the worst error is -3.3 m/min,
+      and across fragments from 60s down to 5s it is +2.1.
+
+      Top speed and sprint counts came along for free. At σ=0.20 the old window
+      reported an 8.0 m/s sprint as 10.4 and found 8 sprints where there were
+      15; the fitted window reports 8.7 and finds 12.
+
+      Two things fell out of doing it:
+
+      **The window is now in seconds, not frames.** Nine frames is 0.3s at 30fps
+      and 0.6s at 15fps, so the moment anyone subsamples the video to save
+      compute — which is on this roadmap — every distance figure moves without a
+      line of code changing. Written in seconds the frame rate cancels out of
+      the phantom law exactly, and a still player costs the same metres a minute
+      at any sampling.
+
+      **The ends were being shortened, once per fragment.** Padding by repeating
+      the last position pins it and drags the average toward it: 0.37m at the
+      old window, 1.29m at a second, paid at both ends of every track, and the
+      tracker hands over 3.4 fragments per player. Reflecting through the
+      endpoint instead extends the line the player was on, and costs exactly
+      zero on a straight run at any window — even one a third as long as the
+      track. The price is 0.14m more noise per fragment, against 1.29m of real
+      path no longer thrown away.
+
+      The browser's `PHANTOM_M_PER_MINUTE = 353` had to go: it was one number
+      only while the window was one number. The pipeline knows σ, W and the
+      frame rate, so it publishes the rate, and `report.js` reads it — falling
+      back to the old constant for reports already in Firestore, which is not a
+      guess but the answer that was true of them. Schema 7, and the first
+      version where a figure *changed* rather than appeared, so any baseline
+      taken under 6 will correctly diff.
+
+      What did not get better, stated so it is not only in a docstring: **top
+      speed is still biased upward**, because a maximum of a noisy series can
+      only ever be pushed up, never down. The fitted window roughly halves it
+      (+30% to +9% at σ=0.20) and cannot do more. And **the smoothed path is
+      still shorter than the real one** — the corner it cuts is real. The totals
+      agree because the two errors are of a size, not because either went away.
+
+      417 pure JS · 120 emulator · 801 Python.
 - [ ] **[MVP]** Tracking fast enough to keep up during live first-half play, not just accurately in a batch job
 
 ## 7. Team & Player Identification

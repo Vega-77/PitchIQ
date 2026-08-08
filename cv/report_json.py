@@ -44,6 +44,7 @@ from .events import (
     turnovers_by_third,
 )
 from .identity import PlayerCluster, fragmentation
+from .metrics import phantom_m_per_minute
 from .pitch import Pitch
 from .teams import TEAM_A, TEAM_B
 
@@ -62,7 +63,14 @@ from .teams import TEAM_A, TEAM_B
 #    Additive. The last of those is the first figure the pipeline has published
 #    about the quality of its own tracking rather than about the football, and
 #    it is what decides whether the other two are reported at all.
-SCHEMA_VERSION = 6
+# 7: `smoothing_s` and `phantom_m_per_minute` in the quality block. Additive,
+#    but the first version where a figure changed rather than appeared: the
+#    smoothing window is now fitted to each track's measured wobble instead of
+#    being a fixed nine frames, so every distance and speed in a version 7
+#    report is lower than the same footage would have given under version 6 —
+#    by up to 29 metres a minute on noisy tracks. See SMOOTH_BANDS in
+#    cv/metrics.py for the fit. Baselines taken under 6 will diff.
+SCHEMA_VERSION = 7
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -750,7 +758,35 @@ def _quality(report, log: EventLog) -> dict:
         # nothing has ever reported. It is also what decides whether bursts are
         # counted at all — see MAX_ACCEL_NOISE_M in cv/metrics.py.
         'position_noise_m': _round(_median_noise(report), 3),
+        # How long the tracks were smoothed over, and what that wobble still
+        # costs at that window. Both published because the second is no longer
+        # derivable from the first: the window is chosen per track from the
+        # measured noise, so the phantom rate stopped being proportional to the
+        # noise the moment it stopped being a constant window. The browser held
+        # exactly that constant, and this is what retires it.
+        'smoothing_s': _round(_typical_smoothing(report), 2),
+        'phantom_m_per_minute': _round(
+            phantom_m_per_minute(
+                _median_noise(report), _typical_smoothing(report) or 0.0
+            ), 1,
+        ),
     }
+
+
+def _typical_smoothing(report) -> float | None:
+    """The window most of this run's tracks were smoothed over.
+
+    The mode, not a mean: the windows come from three bands, and averaging them
+    would publish a window nothing was actually smoothed at.
+
+    None when nothing was smoothed — an uncalibrated run has no positions in
+    metres to smooth, and naming a window for it would describe work that never
+    happened.
+    """
+    chosen = list(getattr(report, 'smoothing_s', {}).values())
+    if not chosen:
+        return None
+    return max(set(chosen), key=chosen.count)
 
 
 def _median_noise(report) -> float | None:

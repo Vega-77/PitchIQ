@@ -58,8 +58,21 @@ Two flags worth knowing:
   has to line up, so use it knowing that half the numbers are counts and counts
   do not survive a change of window.
 
+## Baselines are tied to a schema version
+
+Record the `schema_version` of every baseline in the table below. A report from
+an older schema does not merely have fewer keys — a version bump can mean the
+same footage now produces different numbers, and the diff will be real rather
+than cosmetic.
+
+So far exactly one bump has done that: **schema 7** fitted the smoothing window
+to each track's measured wobble instead of holding it at nine frames, which
+lowers every distance and speed by up to 29 metres a minute on noisy tracks. Any
+baseline taken under schema 6 will diff against a current run, correctly, and
+should be retaken rather than argued with.
+
 ## What is in here
 
-| file | clip | command | who checked it, and when |
-|---|---|---|---|
-| _(none yet)_ | | | |
+| file | clip | schema | command | who checked it, and when |
+|---|---|---|---|---|
+| _(none yet)_ | | | | |

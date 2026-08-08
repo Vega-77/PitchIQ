@@ -95,6 +95,92 @@ ACCEL_SMOOTH_S = 1.0
 # reported. Measured per track, from the track itself — see `position_noise_m`.
 MAX_ACCEL_NOISE_M = 0.30
 
+# ------------------------------------------------- how long to smooth for
+#
+# The window distance is read off was 9 frames, written as a bare number in the
+# pipeline, and it was never fitted to anything. Two errors decide it, and they
+# pull in opposite directions:
+#
+#   phantom  — a still player accumulates distance from jitter alone. Measured
+#              at 60·fps·σ·√π / W metres a minute, exactly: the smoothed noise
+#              has neighbouring samples correlated (W-1)/W, so the step between
+#              them has size σ√2/W per axis, and a 2D magnitude averages σ√π/W.
+#              Verified to three figures at every window and noise level below.
+#              **Falls as 1/W.**
+#
+#   corners  — a moving average cuts the inside off a turn. On a constant arc
+#              the loss is exact: the average of an arc of half-angle θ = vT/2R
+#              sits at radius R·sin(θ)/θ, so the path shortens by that factor.
+#              Since a person cannot exceed about 4.5 m/s² sideways, R is at
+#              least v²/a, and the metres lost to a turn of angle φ work out at
+#              φ·a·T²/24 — **independent of speed**. A fast turn is necessarily
+#              a wide one, which is the whole reason this is survivable: a 90°
+#              turn costs 0.03m at 0.3s and 0.30m at 1.0s.
+#
+# The real cost is not the smooth arc but the hard cut — decelerate, plant,
+# accelerate back — which is a cusp rather than a curve, and which a long
+# average smears right through. Metres of real path lost to one 180° stop-turn,
+# by how long the player is stopped:
+#
+#     window      0.2s stop   0.4s stop   0.8s stop
+#      0.30s        0.36        0.19        0.09
+#      0.50s        0.82        0.52        0.26
+#      1.03s        2.12        1.71        1.10
+#      1.50s        3.27        2.84        2.11
+#
+# Two metres a turn sounds ruinous until it is put beside the phantom it buys
+# off: at σ=0.20 going from a 0.3s window to a 1.0s one saves 50 metres a minute
+# of invented distance and costs about 2.1 metres for each hard cut. A player
+# would have to stop and reverse 23 times a minute — one every two and a half
+# seconds, for the whole match — before that trade starts to lose.
+#
+# So it was fitted rather than argued. Twenty minutes of synthetic ground truth
+# — speeds drawn from the match-play gears, direction changes at a stated rate,
+# every turn held to 4.5 m/s² — measured through each window, as metres per
+# minute of error against a real 181 m/min:
+#
+#     window    σ=0.05   σ=0.10   σ=0.15   σ=0.20   σ=0.30
+#      0.17s     +2.9    +11.3    +24.4    +41.3    +81.4
+#      0.30s     +0.7     +3.5     +7.8    +13.6    +29.4      <- was here
+#      0.50s     -0.2     +0.8     +2.5     +4.7    +10.8
+#      0.70s     -0.7     -0.2     +0.7     +1.9     +5.2
+#      1.03s     -1.7     -1.4     -1.0     -0.5     +1.1
+#      1.50s     -3.2     -3.1     -2.9     -2.6     -1.8
+#
+# There is no single best window in that table, which is the finding: the right
+# one moves with the noise, and since `position_noise_m` measures the noise per
+# track, the window can follow it. The bands below are the argmin of each
+# column. They hold the error inside ±2 m/min from σ=0.05 to σ=0.30, where the
+# fixed 0.3s window drifts to +29 m/min — 1.8km over a 60-minute track, on a
+# figure a coach reads as kilometres run.
+#
+# Fitted at 8 direction changes a minute, and then checked against that
+# assumption, because a rule that only works at the rate it was fitted at is
+# not a rule. Worst error under the rule, in m/min:
+#
+#     turns/min   σ=0.05   σ=0.10   σ=0.15   σ=0.20   σ=0.30
+#          3       +0.1     +0.3     +1.1     +0.4     +1.9
+#          8       -0.2     -0.2     +0.7     -0.5     +1.1
+#         15       -0.6     -1.1     -0.2     -2.2     -0.6
+#         25       -0.9     -1.6     -0.8     -3.3     -1.7
+#
+# Nothing here says a longer window is more *accurate*, only that the distance
+# it totals is closer. The path itself is smoother than the player's, and the
+# corner it cuts is real. That trade is right for a distance total and it is
+# the reason heatmaps and shape are unaffected either way — a 1s window moves a
+# position by the corner cut, which is under half a metre.
+#
+# Boundaries in metres of measured wobble, and the window in seconds for each.
+# Open-ended at the top: past MAX_ACCEL_NOISE_M the bursts are already refused,
+# and distance survives noise that bursts do not because it is one derivative
+# rather than two.
+SMOOTH_BANDS = ((0.075, 0.5), (0.15, 0.7), (float('inf'), 1.0))
+
+# When nothing measured the noise — a track too short to take a second
+# difference of — the middle band. Guessing low invents distance and guessing
+# high erases it, and the middle is wrong by less than either.
+DEFAULT_SMOOTH_S = 0.7
+
 
 @dataclass
 class PositionSeries:
@@ -150,6 +236,46 @@ def to_pitch_series(track: Track, calib: Calibration) -> PositionSeries:
     return PositionSeries(track.track_id, times, calib.to_pitch_many(pixels))
 
 
+def smoothing_window_s(noise_m: float | None) -> float:
+    """How long to smooth a track whose wobble has been measured.
+
+    See SMOOTH_BANDS above for the measurement this is read off. The window is
+    in seconds rather than frames because it is a claim about the player — how
+    long a real movement takes — and not about the camera. Written as a frame
+    count, as it was, the same code smooths for half as long again the moment
+    anyone subsamples the video to save compute, and every distance figure
+    moves without a line changing.
+    """
+    if noise_m is None or not np.isfinite(noise_m) or noise_m < 0:
+        return DEFAULT_SMOOTH_S
+    for ceiling, window_s in SMOOTH_BANDS:
+        if noise_m < ceiling:
+            return window_s
+    return SMOOTH_BANDS[-1][1]
+
+
+def phantom_m_per_minute(
+    noise_m: float | None, window_s: float, fps: float = 30.0
+) -> float | None:
+    """Metres a minute a motionless player is credited with, at this smoothing.
+
+    Exact rather than fitted: smoothing white noise of size σ over W frames
+    leaves neighbouring samples correlated (W-1)/W, so the step between two of
+    them has size σ√2/W per axis and its 2D magnitude averages σ√π/W. Sixty
+    seconds of those steps is the figure below, and it matches the measured
+    tables to three figures.
+
+    This exists because the browser used to hold the same number as a constant,
+    which was true only while the window was one. The window now follows the
+    noise, so the rate is no longer proportional to the noise, and the only
+    place that knows both is here.
+    """
+    if noise_m is None or noise_m <= 0 or window_s <= 0 or fps <= 0:
+        return None
+    frames = max(1.0, round(window_s * fps))
+    return float(60.0 * fps * noise_m * np.sqrt(np.pi) / frames)
+
+
 def smooth_positions(series: PositionSeries, window: int = 5) -> PositionSeries:
     """Moving-average smoothing over the position series.
 
@@ -158,6 +284,16 @@ def smooth_positions(series: PositionSeries, window: int = 5) -> PositionSeries:
     without ground-truth tracks, and an untuned filter can lag hard during
     direction changes — exactly the moments that matter. This is honest about
     being crude and has no hidden parameters to get wrong.
+
+    The ends are extended by reflecting the path through its own endpoint, not
+    by repeating that endpoint. Repeating it pins the last position and drags
+    the average toward it, which shortens every track by a fixed amount at each
+    end — 1.29m at a one-second window, paid once per fragment, and the tracker
+    hands over 3.4 fragments per player. Reflecting oddly extends the straight
+    line the player was on instead, which costs exactly nothing on a straight
+    run at any window, even one as long as a third of the track. The price is a
+    little extra noise at the very ends, measured at 0.14m per fragment against
+    the 1.29m of real path it stops throwing away.
     """
     n = len(series)
     if n < 3 or window < 2:
@@ -170,7 +306,10 @@ def smooth_positions(series: PositionSeries, window: int = 5) -> PositionSeries:
         return series
 
     pad = window // 2
-    padded = np.pad(series.positions_m, ((pad, pad), (0, 0)), mode="edge")
+    padded = np.pad(
+        series.positions_m, ((pad, pad), (0, 0)),
+        mode="reflect", reflect_type="odd",
+    )
     kernel = np.ones(window) / window
 
     smoothed = np.column_stack([
@@ -217,6 +356,23 @@ def position_noise_m(series: PositionSeries) -> float | None:
         float(np.median(np.abs(second[:, axis])) / 1.652) for axis in (0, 1)
     ]
     return float(np.hypot(*per_axis) / np.sqrt(2))
+
+
+def smooth_for_noise(
+    series: PositionSeries, noise_m: float | None
+) -> tuple[PositionSeries, float]:
+    """Smooth a track over the window its own measured wobble calls for.
+
+    Returns the smoothed series and the window actually used, in seconds. The
+    caller wants both — the window is a fact about how the figures were made
+    and belongs in the report beside them, not only in this module's head.
+
+    One function rather than a band lookup plus a frame conversion plus a call,
+    because those three have to agree and there is no reason for anywhere else
+    to hold two thirds of that.
+    """
+    window_s = smoothing_window_s(noise_m)
+    return smooth_positions(series, _window_for(series, window_s)), window_s
 
 
 def _window_for(series: PositionSeries, seconds: float) -> int:
