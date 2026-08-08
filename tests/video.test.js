@@ -3773,6 +3773,176 @@ describe('insideNoise', () => {
     });
 });
 
+describe('when a difference has earned being called one', () => {
+    const call = (o) => report.verdict(o);
+
+    test('the side that is ahead is named, in the direction that is good', () => {
+        assert.equal(call({ ours: 84, theirs: 71, better: 'high' }), 'ours-good');
+        assert.equal(call({ ours: 71, theirs: 84, better: 'high' }), 'ours-bad');
+    });
+
+    test('and where low is better, the low side is the good one', () => {
+        // PPDA, and everything else where a smaller number is the achievement.
+        assert.equal(call({ ours: 6.9, theirs: 14.8, better: 'low' }), 'ours-good');
+    });
+
+    test('two figures that print the same are not a difference', () => {
+        // The one browser verification caught. 10 possessions in 88 and 8 in 71
+        // are 11.36% and 11.27%; both print "11%", and colouring one put a
+        // verdict beside its own disproof — the reader is looking at the
+        // evidence for it and it says the same thing twice.
+        assert.equal(call({
+            ours: 11.36, theirs: 11.27, usText: '11%', themText: '11%',
+            better: 'high',
+        }), null);
+    });
+
+    test('but the same numbers printed differently still are', () => {
+        // The guard must not swallow a real lead just because it is small.
+        assert.equal(call({
+            ours: 11.36, theirs: 11.27, usText: '11.4%', themText: '11.3%',
+            better: 'high',
+        }), 'ours-good');
+    });
+
+    test('a lead inside the noise is not called either', () => {
+        assert.equal(call({ ours: 3, theirs: 1, better: 'high', tentative: true }), null);
+    });
+
+    test('a row with no better direction is never coloured', () => {
+        // Average width. A wider side is not a better one.
+        assert.equal(call({ ours: 41, theirs: 32 }), null);
+    });
+
+    test('a side with no figure is not beaten by one that has', () => {
+        assert.equal(call({ ours: 84, theirs: null, better: 'high' }), null);
+        assert.equal(call({ ours: null, theirs: 71, better: 'high' }), null);
+    });
+
+    test('a dead heat is a dead heat', () => {
+        assert.equal(call({ ours: 50, theirs: 50, better: 'high' }), null);
+    });
+});
+
+describe('the phase-of-play funnel', () => {
+    // 40 possessions: 28 reach midfield, 12 reach the final third, 5 end in a
+    // shot. 18 start at the back and 9 of those get out of it.
+    const PHASE = {
+        total: 40,
+        started: { defensive: 18, middle: 15, attacking: 7 },
+        reached: { defensive: 40, middle: 28, attacking: 12 },
+        ended: { shot: 5, lost: 20, stopped: 15 },
+        passes: { defensive: 50, middle: 80, attacking: 40 },
+        passes_completed: { defensive: 46, middle: 56, attacking: 22 },
+        escaped_defence: 9,
+    };
+    const cvWith = (phase, theirs = undefined) => ({
+        quality: {},
+        teams: {
+            team_a: { possession_pct: 0.5, phase_of_play: phase },
+            team_b: { possession_pct: 0.5, phase_of_play: theirs },
+        },
+    });
+    const rowsFor = (phase, theirs) => report.teamStatRows(cvWith(phase, theirs));
+    const find = (rows, label) => rows.find((r) => r.label === label);
+
+    test('the funnel is a share of that side’s own possessions', () => {
+        // Never of the match. A team with the ball twice as often would
+        // otherwise look twice as good at moving it.
+        const rows = rowsFor(PHASE);
+        assert.equal(find(rows, 'Reached midfield').value, '70%');
+        assert.equal(find(rows, 'Reached the final third').value, '30%');
+        assert.equal(find(rows, 'Ended in a shot').value, '13%');
+    });
+
+    test('it never widens as it goes forward', () => {
+        // The property that makes a stack of bars readable as a funnel at all.
+        // `reached` is cumulative in the pipeline, and if that ever stopped
+        // being true the bars would grow downward and mean nothing.
+        const rows = rowsFor(PHASE);
+        const stages = ['Reached midfield', 'Reached the final third', 'Ended in a shot']
+            .map((label) => find(rows, label).usN);
+        for (let i = 1; i < stages.length; i += 1) {
+            assert.ok(stages[i] <= stages[i - 1], `${stages[i]} > ${stages[i - 1]}`);
+        }
+    });
+
+    test('the note says a possession counts by how far it got', () => {
+        // The definitional choice a reader would otherwise have to guess at.
+        // "Reached midfield" counts a possession that *began* in the final
+        // third, because the funnel scores by the furthest point reached and
+        // has to stay monotonic to be drawn as one. A side that wins the ball
+        // high a lot is flattered by that, and the caption is where it says so.
+        const groups = report.groupStats(report.teamStatRows(cvWith(PHASE)));
+        const note = groups.find((g) => g.id === 'phases').note;
+        assert.match(note, /furthest point/);
+        assert.match(note, /began in the final third/);
+    });
+
+    test('playing out from the back uses the possessions that started there', () => {
+        // 9 of 18, not 9 of 40. The whole-funnel share is flattered by every
+        // possession that began in midfield already.
+        assert.equal(find(rowsFor(PHASE), 'Out from the back').value, '50%');
+    });
+
+    test('a side that never had it at the back is not scored on getting out', () => {
+        // Absent, not zero: they did not fail to play out from the back.
+        const never = { ...PHASE, started: { defensive: 0, middle: 40 }, escaped_defence: 0 };
+        assert.equal(find(rowsFor(never), 'Out from the back').value, null);
+    });
+
+    test('passing is split by the third it was played from', () => {
+        // The point of the whole feature. 92 / 70 / 55 is a normal side; one
+        // overall figure of 74% hides all three.
+        const rows = rowsFor(PHASE);
+        assert.equal(find(rows, 'Passing at the back').value, '92%');
+        assert.equal(find(rows, 'Passing in midfield').value, '70%');
+        assert.equal(find(rows, 'Passing up front').value, '55%');
+    });
+
+    test('a third nobody passed in has no accuracy rather than none percent', () => {
+        const quiet = {
+            ...PHASE,
+            passes: { defensive: 50, middle: 80, attacking: 0 },
+            passes_completed: { defensive: 46, middle: 56, attacking: 0 },
+        };
+        assert.equal(find(rowsFor(quiet), 'Passing up front').value, null);
+    });
+
+    test('every funnel row is drawn against a fixed hundred, not as a split', () => {
+        // Two sides can both take 30% of their possessions into the final
+        // third. Drawn as a split that reads as a dead heat between figures
+        // that are not shares of one thing at all.
+        const rows = rowsFor(PHASE, PHASE);
+        for (const row of rows.filter((r) => r.type === 'phases' && r.kind)) {
+            if (row.label === 'Possessions') continue;
+            assert.equal(row.kind, report.RATE, row.label);
+        }
+    });
+
+    test('possessions themselves are a count, with the band that goes with it', () => {
+        // 40 against 38 is not a lead in how often you had the ball.
+        const rows = rowsFor(PHASE, { ...PHASE, total: 38 });
+        const row = find(rows, 'Possessions');
+        assert.equal(row.kind, report.COUNT);
+        assert.ok(report.insideNoise(row.usN, row.themN));
+    });
+
+    test('a run that measured no phases shows no phase rows', () => {
+        // Not a column of zeroes. Without a calibration there is no third to
+        // name, so there is nothing to say rather than nothing that happened.
+        const groups = report.groupStats(report.teamStatRows(cvWith(undefined)));
+        assert.equal(groups.find((g) => g.id === 'phases'), undefined);
+    });
+
+    test('the opponent gets the same funnel from the same fields', () => {
+        const rows = rowsFor(PHASE, { ...PHASE, reached: { ...PHASE.reached, attacking: 20 } });
+        const row = find(rows, 'Reached the final third');
+        assert.equal(row.value, '30%');
+        assert.equal(row.themValue, '50%');
+    });
+});
+
 describe('the opponent reaches the report', () => {
     const CV = {
         calibrationErrorM: 0.4,

@@ -1817,11 +1817,74 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       opposition's number with it.
 
       415 pure JS · 120 emulator · 765 Python.
-- [ ] **[MVP]** The last of the post-game tactical catalog: phase-of-play —
-      what the side did in build-up, in progression and in the final third,
-      separately. Nothing measures it yet and the shape of the answer is not
-      settled; `territory` (possession by third) and `turnovers_by_third` are
-      the closest things that exist and neither is phase-of-play
+- [x] **[MVP]** **The last of the post-game tactical catalog: phase-of-play**
+      (2026-08-08). The shape of the answer was the open question, and settling
+      it settled everything else:
+
+      > `territory` says **where the ball was**. Phase-of-play says **what the
+      > team was trying to do there, and whether it worked**.
+
+      That is why neither of the two closest existing things was it. A clearance
+      hoofed out of your own box and a move worked out from the goalkeeper are
+      the same square metre and the same second of possession; territory cannot
+      separate them and a coach cares about almost nothing else.
+
+      So the unit is the **possession**, not the frame and not the event — which
+      is the one structural decision here, and the rest follows from it. New
+      `cv/sequences.py` splits the event log into spells, ending one when any of
+      three things happen: the other team does something, a gap of more than
+      five seconds opens (two touches half a minute apart are two spells with
+      something unrecorded between them), or the ball goes dead. Only a tagged
+      log knows the third, and a throw-in starts a new possession however
+      cleanly it is taken. An event with no position is skipped rather than
+      ending the spell — the homography failing on one frame is not the defence
+      winning the ball.
+
+      Each spell carries where it began, **the furthest third it reached** — not
+      where it ended, because a move worked to the byline and pulled back to the
+      penalty spot reached the final third — and how it finished. A shot beats
+      everything: a move that got the shot away achieved what it was for. An
+      incomplete last pass is `lost`; anything else is `stopped`, which is
+      deliberately not the same thing, for the same reason `turnovers_by_third`
+      counts only incomplete passes rather than every change of hands.
+
+      Rolled up per team that makes a funnel, and a funnel is bars: of this
+      side's own possessions, how many reached midfield, the final third, a
+      shot. On the sample fixture we start 88 possessions to their 71 and get
+      33% of them into the final third against their 44% — more of the ball,
+      less done with it, which is a sentence a coach can act on in a way "47%
+      possession in our own third" is not.
+
+      Two denominators, and the difference between them is the point:
+
+      - the funnel is out of **all** of that side's possessions, and counts one
+        by how far it got — so a possession that *began* in the final third
+        counts as having reached it. A side that wins the ball high is flattered
+        by that, and the caption says so rather than leaving a reader to guess.
+      - **"out from the back"** is out of the possessions that *started* there.
+        56% against their 73%. That is the row that actually answers "can we
+        play out", and the whole-funnel share cannot, because it is flattered by
+        every possession that began in midfield already. A side that never won
+        the ball in its own third gets `null`, not zero: they did not fail to
+        play out from the back.
+
+      Passing is split by the third it was played *from* — where the player was
+      when they made the decision, the convention `turnovers_by_third` already
+      uses. That is the number the whole feature exists for: 92% at the back,
+      70% in midfield, 54% up front is a normal healthy side, and one overall
+      figure of 72% hides all three. Every row is a `RATE`, so the four kinds of
+      bar from the previous item carried the opposition column across for free.
+
+      **One defect, and the browser found it rather than the tests.** 10
+      possessions in 88 and 8 in 71 are different numbers that both print
+      **"11%"** — and the row coloured one of them green, putting a verdict
+      beside its own disproof. The tie is now decided on the printed text rather
+      than the floats behind it, and the rule moved out of `ui.js` into
+      `report.js` as `verdict()`, because whether to state an opinion is a
+      judgement and not a layout, and it should not go untested for want of a
+      DOM.
+
+      436 pure JS · 120 emulator · 828 Python.
 - [x] **Use the Phase 3 sub log to scope each player's stats to their actual
       minutes played** (2026-08-06). Every per-player card printed *Minutes 71*
       from the sub log directly beside *km covered 1.9* from the video, and

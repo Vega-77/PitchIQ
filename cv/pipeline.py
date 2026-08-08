@@ -52,6 +52,7 @@ from .phases import (
     periods_from_log, phases_from_log,
 )
 from .pitch import MatchOrientation, Pitch
+from .sequences import PhaseOfPlay, Sequence, phase_of_play, sequences
 from .possession import (
     PossessionSummary,
     build_states,
@@ -146,6 +147,14 @@ class MatchReport:
     # same reason: with nothing to compare against there is no comparison, which
     # is not the same as the two records having agreed.
     reconciliation: Reconciliation | None = None
+    # Possessions, and what each team did with them. None rather than empty
+    # without a calibration: a run that could not name a third did not watch a
+    # team that never got out of its own.
+    #
+    # Not to be confused with `phases` above, which is the dead-ball span table.
+    # That one is about the clock; this one is about the football.
+    possessions: list[Sequence] | None = None
+    phase_of_play: dict[str, PhaseOfPlay] = field(default_factory=dict)
 
     kit_separation: float = 0.0
     clear_holder_share: float = 0.0
@@ -627,6 +636,22 @@ def analyse_match(
         )
         attach_xg(report.events, xg_by_event)
         report.warnings.extend(xg_warnings)
+
+    # ---- phase of play ----
+    #
+    # Split into possessions once and rolled up per team, rather than each team
+    # re-splitting the same log: the boundaries are a property of the match, not
+    # of whoever is asking, and two teams disagreeing about where one possession
+    # ended would be a contradiction rather than a difference of view.
+    if calibration is not None and report.events is not None:
+        report.possessions = sequences(report.events, pitch, attacking_ends)
+        for team in (TEAM_A, TEAM_B):
+            funnel = phase_of_play(
+                report.possessions, report.events, pitch, team,
+                attacking_ends.get(team),
+            )
+            if funnel is not None:
+                report.phase_of_play[team] = funnel
 
     # ---- the two records, side by side ----
     #

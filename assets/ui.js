@@ -5,7 +5,7 @@
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
-import { comparePair, COUNT } from './report.js?v=41';
+import { comparePair, verdict, COUNT } from './report.js?v=42';
 
 export const byId = (id) => document.getElementById(id);
 
@@ -294,13 +294,12 @@ export function tally(label, ours, theirs, better = 'high', confidence = null,
     }
 
     // Colour the side that is ahead where being ahead is good, and the side
-    // that is ahead where it is not. Never on a lead the count cannot support:
-    // a green number is a verdict, and this one has not earned it.
-    if (better && !bars.tentative && ours !== theirs
-        && ours != null && theirs != null) {
-        const weLead = ours > theirs;
-        row.classList.add((better === 'high') === weLead ? 'ours-good' : 'ours-bad');
-    }
+    // that is ahead where it is not — but only where that has been earned. The
+    // rule is in report.js, where it can be tested without a DOM.
+    const called = verdict({
+        ours, theirs, usText, themText, better, tentative: bars.tentative,
+    });
+    if (called) row.classList.add(called);
 
     return row;
 }

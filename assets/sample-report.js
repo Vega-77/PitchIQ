@@ -270,6 +270,24 @@ export function sampleCvSummary() {
                 // Fires the pinned-back read: more than PINNED_BACK_SHARE of
                 // possession spent in their own third.
                 territory: { defensive: 0.47, middle: 0.36, attacking: 0.17 },
+                // A side that gets the ball a lot and struggles to move it: 88
+                // possessions, only a third reach the final third, and the
+                // passing falls off a cliff once they do. The interesting shape
+                // to preview, because a funnel that only narrows gently shows
+                // nothing a coach would act on.
+                //
+                // Consistent by construction: reached is cumulative, so
+                // defensive >= middle >= attacking >= shots, and 41 of the 88
+                // started at the back with 23 escaping it.
+                phase_of_play: {
+                    total: 88,
+                    started: { defensive: 41, middle: 34, attacking: 13 },
+                    reached: { defensive: 88, middle: 61, attacking: 29 },
+                    ended: { shot: 10, lost: 44, stopped: 34 },
+                    passes: { defensive: 121, middle: 154, attacking: 76 },
+                    passes_completed: { defensive: 111, middle: 108, attacking: 41 },
+                    escaped_defence: 23,
+                },
                 shape_drift: {
                     change: { width_m: 4.3, depth_m: -3.6, compactness_m: 1.1 },
                 },
@@ -311,6 +329,18 @@ export function sampleCvSummary() {
                 ],
                 shape: { width_m: 37.9, depth_m: 30.2, compactness_m: 13.1 },
                 territory: { defensive: 0.31, middle: 0.38, attacking: 0.31 },
+                // Fewer possessions and a wider funnel — they do more with
+                // less, which is what makes the two columns worth showing side
+                // by side rather than either one alone.
+                phase_of_play: {
+                    total: 71,
+                    started: { defensive: 26, middle: 31, attacking: 14 },
+                    reached: { defensive: 71, middle: 55, attacking: 31 },
+                    ended: { shot: 8, lost: 33, stopped: 30 },
+                    passes: { defensive: 84, middle: 119, attacking: 65 },
+                    passes_completed: { defensive: 74, middle: 65, attacking: 32 },
+                    escaped_defence: 19,
+                },
                 shape_drift: null,
                 attacking_end: 'left',
                 shot_map: THEIR_SHOTS,

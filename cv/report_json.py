@@ -145,6 +145,14 @@ class TeamStats:
     # a team that never held the ball — three zeroes would say the ball was
     # spread evenly across a pitch it never touched.
     territory: dict | None = None
+    # What this team did with its possessions: where they began, how far they
+    # got, how they ended, and how the passing held up in each third. Counts
+    # rather than shares, because a funnel drawn from four possessions is noise
+    # and only the denominator can say so.
+    #
+    # Different from `territory` on purpose. That says where the ball was; this
+    # says what the team was trying to do there and whether it worked.
+    phase_of_play: dict | None = None
     # How the shape differed late in the window against early. None on a clip
     # too short to have two halves worth comparing — which is every run so far.
     shape_drift: dict | None = None
@@ -198,6 +206,7 @@ class TeamStats:
             'pressing_segments': self.pressing_segments,
             'shape': {k: _round(v, 1) for k, v in self.shape.items()},
             'territory': self.territory,
+            'phase_of_play': self.phase_of_play,
             'shape_drift': self.shape_drift,
             'turnovers_by_third': self.turnovers_by_third,
             'attacking_end': self.attacking_end,
@@ -302,6 +311,7 @@ def team_stats(
     opponent_attacking_end: str | None = None,
     pitch=None,
     territory: dict | None = None,
+    phase_of_play: dict | None = None,
     shape_drift: dict | None = None,
     attacking_end: str | None = None,
     span_s: tuple[float, float] | None = None,
@@ -366,6 +376,7 @@ def team_stats(
     stats.attacking_end = attacking_end
     stats.shape = shape or {}
     stats.territory = territory
+    stats.phase_of_play = phase_of_play
     stats.shape_drift = shape_drift
     return stats
 
@@ -630,6 +641,7 @@ def build_report_json(
             possession_pct=possession.share(team) if possession else None,
             shape=(report.shape or {}).get(team) or {},
             territory=territory_json.get(team),
+            phase_of_play=_phase_json(report, team),
             shape_drift=_drift_json(report, team),
             pitch=pitch,
             attacking_end=ends.get(team),
@@ -801,6 +813,17 @@ def _median_noise(report) -> float | None:
     if len(measured) % 2:
         return measured[mid]
     return (measured[mid - 1] + measured[mid]) / 2.0
+
+
+def _phase_json(report, team: str) -> dict | None:
+    """One team's possession funnel, or None if this run could not build one.
+
+    `getattr` rather than a direct read because `team_stats` is called by tests
+    and experiments with reports assembled by hand, and a missing attribute
+    there should mean "not measured" rather than raise.
+    """
+    funnel = (getattr(report, 'phase_of_play', None) or {}).get(team)
+    return funnel.to_json() if funnel else None
 
 
 def _drift_json(report, team: str) -> dict | None:

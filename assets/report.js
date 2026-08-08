@@ -982,6 +982,15 @@ export const STAT_TYPES = [
         note: 'Thirds are each side’s share of its own time on the ball, '
             + 'not of the match — so the two rows do not add up to 100%.',
     },
+    {
+        id: 'phases',
+        title: 'Phase of play',
+        note: 'Each row is a share of that side’s own possessions, so the two '
+            + 'columns do not add up. A possession counts by the furthest point '
+            + 'it reached, so one that began in the final third counts as '
+            + 'having got there. “Out from the back” is the exception: it is '
+            + 'out of the possessions that started there, not out of all of them.',
+    },
     { id: 'passing', title: 'Passing' },
     { id: 'attacking', title: 'Attacking' },
     { id: 'defending', title: 'Defending' },
@@ -1156,6 +1165,38 @@ export function comparePair(us, them, kind = COUNT) {
  * uses on scored blocks, and for the same reason: a coach shown 75% of the
  * shots will read it as dominance whether it was four shots or forty.
  */
+/**
+ * Which side, if either, has earned being called the better one.
+ *
+ * Lives here rather than in the renderer because it is a judgement and not a
+ * layout: it decides whether a coach sees a green number, which is the closest
+ * thing these pages have to an opinion. `tests/video.test.js` can only load
+ * modules that import nothing, and a rule about when to state a verdict is
+ * exactly the kind that should not go untested for want of a DOM.
+ *
+ * Returns 'ours-good', 'ours-bad' or null, matching the row classes.
+ *
+ * Two ways to earn nothing:
+ *
+ * - **the lead is inside the noise.** Handled upstream by `comparePair`, which
+ *   is where the count that decides it lives.
+ * - **the two print the same thing.** 10 possessions in 88 and 8 in 71 are
+ *   different numbers and both print "11%". Colouring one of them puts a
+ *   verdict beside its own disproof: the reader is looking at the evidence and
+ *   it says the same thing twice.
+ */
+export function verdict(options = {}) {
+    const { ours, theirs, usText, themText, better, tentative = false } = options;
+    if (!better || tentative || ours == null || theirs == null) return null;
+
+    const shown = (raw, formatted) => (formatted != null ? formatted : raw);
+    if (shown(ours, usText) === shown(theirs, themText)) return null;
+    if (ours === theirs) return null;
+
+    const weLead = ours > theirs;
+    return (better === 'high') === weLead ? 'ours-good' : 'ours-bad';
+}
+
 export function insideNoise(a, b) {
     const n = a + b;
     if (!(n > 0)) return true;
@@ -1224,6 +1265,39 @@ export function teamStatRows(cv, confidence = {}) {
         return total && count != null ? asPct(count / total) : null;
     };
 
+    // The funnel, read off the counts the pipeline publishes rather than off
+    // percentages it has already worked out. Counts are what survive being
+    // combined and what let a browser say a figure rests on too few
+    // possessions to mean anything.
+    const reached = (side, third) => {
+        const phase = side.phase_of_play;
+        const total = phase?.total || 0;
+        const n = phase?.reached?.[third];
+        return total && n != null ? asPct(n / total) : null;
+    };
+    const endedIn = (side, how) => {
+        const phase = side.phase_of_play;
+        const total = phase?.total || 0;
+        const n = phase?.ended?.[how];
+        return total && n != null ? asPct(n / total) : null;
+    };
+    // Out of the possessions that *started* at the back — not out of all of
+    // them. A side that never won the ball in its own third did not fail to
+    // play out from it, so this is null there rather than zero.
+    const outFromTheBack = (side) => {
+        const phase = side.phase_of_play;
+        const started = phase?.started?.defensive || 0;
+        const escaped = phase?.escaped_defence;
+        return started && escaped != null ? asPct(escaped / started) : null;
+    };
+    const accuracyIn = (side, third) => {
+        const phase = side.phase_of_play;
+        const attempted = phase?.passes?.[third] || 0;
+        const completed = phase?.passes_completed?.[third];
+        return attempted && completed != null
+            ? asPct(completed / attempted) : null;
+    };
+
     return [
         {
             // The label carries the denominator, because the denominator
@@ -1248,6 +1322,44 @@ export function teamStatRows(cv, confidence = {}) {
             { format: pctText, confidence: possession, explained: true }),
         row('possession', 'Opposition third', RATE, (t) => asPct(t.territory?.attacking),
             { format: pctText, confidence: possession, explained: true }),
+
+        // --- phase of play ---
+        //
+        // The funnel. `territory` above says where the ball was; these say what
+        // the side was trying to do there and whether it came off, which is the
+        // distinction that made phase-of-play worth building separately rather
+        // than as another slice of the same time.
+        //
+        // Every share is out of that side's own possessions, never out of the
+        // match: a team with the ball twice as often would otherwise look twice
+        // as good at moving it.
+        row('phases', 'Possessions', COUNT, (t) => t.phase_of_play?.total || null,
+            { confidence: possession }),
+        row('phases', 'Reached midfield', RATE, (t) => reached(t, 'middle'),
+            { format: pctText, better: 'high', explained: true,
+              confidence: possession }),
+        row('phases', 'Reached the final third', RATE, (t) => reached(t, 'attacking'),
+            { format: pctText, better: 'high', explained: true,
+              confidence: possession }),
+        row('phases', 'Ended in a shot', RATE, (t) => endedIn(t, 'shot'),
+            { format: pctText, better: 'high', explained: true,
+              confidence: possession }),
+        // Its own denominator, and the row that actually answers "can we play
+        // out from the back". The whole-funnel share above is flattered by
+        // every possession that began in midfield already.
+        row('phases', 'Out from the back', RATE, outFromTheBack,
+            { format: pctText, better: 'high', explained: true,
+              confidence: possession }),
+        // The point of the whole feature. A side at 92% in its own third and
+        // 54% in the opposition's is a normal, healthy team; one overall figure
+        // of 72% hides both halves, and 60% at the back is a problem nobody
+        // would otherwise see.
+        row('phases', 'Passing at the back', RATE, (t) => accuracyIn(t, 'defensive'),
+            { format: pctText, better: 'high', explained: true }),
+        row('phases', 'Passing in midfield', RATE, (t) => accuracyIn(t, 'middle'),
+            { format: pctText, better: 'high', explained: true }),
+        row('phases', 'Passing up front', RATE, (t) => accuracyIn(t, 'attacking'),
+            { format: pctText, better: 'high', explained: true }),
 
         row('passing', 'Passes attempted', COUNT, (t) => t.passes_attempted || null,
             { better: 'high' }),
