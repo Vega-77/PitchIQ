@@ -1341,6 +1341,28 @@ td.num.cv-partial {
 }
 .review-who { font-size: 0.8rem; min-width: 0; overflow-wrap: anywhere; }
 
+/* What a human tapped near this candidate. Quiet, and in the accent rather than
+   a verdict colour: it is evidence for the decision, not the decision. */
+.review-near {
+    font-size: 0.76rem;
+    color: var(--accent);
+    white-space: nowrap;
+    opacity: 0.85;
+}
+
+/* A row from the tagged log rather than from the video. Dashed, because it is
+   the other record: nothing here was claimed by the pipeline, nothing here is
+   scored, and it must not read as one more candidate waiting to be checked. */
+.review-row.is-tagged {
+    border-style: dashed;
+    background: none;
+}
+.review-row.is-tagged .review-what { font-weight: 500; color: var(--text-dim); }
+.review-row.is-tagged .review-clock { color: var(--text-faint); }
+/* The one place the log has something to tell the pipeline: a goal it recorded
+   that no candidate stands near. */
+.review-row.is-missed-goal { border-left: 3px solid var(--warn); }
+
 /* The verdict, as a left edge. Legible in a long scrolling list in a way a
    changed background colour is not. */
 .review-row.is-confirmed { border-left: 3px solid var(--good); }

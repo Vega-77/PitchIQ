@@ -917,7 +917,61 @@ configure and no server to start.**
       one.
 - [ ] Decide role split: one app covering both subs + events, or two simpler single-purpose roles/devices — worth testing both at the demo dry run
 - [ ] Basic weatherproofing for an outdoor tablet (case, screen usable with sun glare)
-- [ ] Live-tagged data feeds directly into the halftime report and pre-populates the Phase 11 review tool as a head start
+- [x] **Live-tagged data feeds directly into the halftime report and
+      pre-populates the Phase 11 review tool as a head start** (2026-08-09).
+      The half-time half has been true since `halftime/` shipped — that page is
+      built from tagged data alone. The review half was not, and Phase 11's own
+      opening line had been claiming it: *"pre-populated with Phase 3's
+      live-tagged events and subs... the reviewer's job is verifying,
+      correcting, filling gaps, not labeling from scratch."*
+
+      What was actually there was one column of the pipeline's candidates. The
+      tagged log sat in a different strip on a different part of the page, so a
+      reviewer wanting to know what a human had said about 34:11 had to scroll
+      away from the row they were judging and find it by eye.
+
+      That is the wrong shape for the work. Judging a candidate is almost always
+      a question about context — *was the ball even in play, and what had just
+      happened?* — and the log is the only record that can answer it. So
+      `reviewFeed` in `assets/report.js` merges the two into one column in time
+      order, and each candidate now carries the tagged entry nearest to it:
+      **"pass · throw-in 2s before"**, which is the touch the detector gets
+      wrong most and the hardest one to judge without scrubbing.
+
+      **A tagged row is not a candidate, and the code says so in four places.**
+      It carries no verdict buttons, because there is nothing for a reviewer to
+      confirm about a human's own record. It never enters precision, never
+      enters recall, and never moves the "checked so far" count — a tagged
+      corner is not something the pipeline claimed, and counting it as agreement
+      would credit the detector with work nobody did. It is drawn dashed and
+      unweighted so it cannot read as one more thing waiting to be checked. And
+      it stays out of the type filters: filtering to `pass` means "show me the
+      passes it claims", so the log gets a chip of its own instead.
+
+      The one place the log has something to tell the pipeline is **a goal it
+      tapped that no candidate stands near** — a miss the pipeline made and a
+      human already proved. Until now recording that meant reading a clock off
+      one strip and typing it into a box on another, which is asking a coach to
+      be a worse copy of a file that already exists. One tap now, and the row
+      says "miss recorded" afterwards rather than offering again.
+
+      Two windows, both with reasons. Six seconds for context, which is a
+      restart — the whistle, the walk, the throw; wider and every pass in a busy
+      passage picks up a foul it had nothing to do with. Fifteen for pairing a
+      goal, mirroring `GOAL_WINDOW_S` in `cv/reconcile.py` so the browser cannot
+      offer to record a miss the pipeline's own reconciliation counted as found.
+      **Any** shot nearby counts as found, even one scored as saved: recall asks
+      whether the moment was found, which is the rule `reviewScore` already
+      applies to a retyped event.
+
+      Verified against a seeded emulator with both records of the same match, so
+      the merge, the rules and the save were exercised together rather than
+      separately: the throw-in at 03:34 lands between the two passes it
+      produced, the goal at 04:35 with a shot beside it offers nothing, and the
+      one at 11:30 records a missed `shot` at 690s that reaches Firestore
+      through the real rules.
+
+      471 pure JS · 120 emulator.
 - [x] **Fixed:** resuming an interrupted match still picks the clock up *paused* at the last logged event — real elapsed time genuinely can't be recovered after a reload — but the clock is now a control. It turns amber and reads "paused · tap to set" whenever the half is live and the clock is stopped, and tapping it opens a sheet to wind the time to the referee's watch and restart. Before this, a stopped clock looked like an ordinary clock that happened to read 34:12, and stamped every remaining event of the half with 34:12.
 
 ## 4. Field Calibration (pixel space → pitch metres)
@@ -1506,7 +1560,14 @@ wall `shot_height` hits in Phase 12.
 Pre-populated with Phase 3's live-tagged events and subs, plus Phase 10's CV
 candidates — the reviewer's job is verifying/correcting/filling gaps, not labeling from
 scratch.
-- [x] **[Demo]** Timeline UI showing CV-candidate events, synced to video playback (`coach/coach.js`'s review section). Live-tagged events still live on the match page's own separate timeline; a single merged strip showing both is still open.
+- [x] **[Demo]** Timeline UI showing CV-candidate events, synced to video
+      playback (`coach/coach.js`'s review section). **The merged list shipped
+      2026-08-09**: the review column now holds both records in time order, with
+      the tagged entries read-only and each candidate carrying whatever a human
+      tapped within six seconds of it. See Phase 3 for why a tagged row is
+      deliberately not a candidate. The match page keeps its own timeline, which
+      is a different job — that one is the match as it happened, for a coach who
+      is not reviewing anything.
 - [x] **[Demo]** Confirm / edit / delete / add-new-event controls per timeline entry — confirm, reassign-type-or-player ("edited"), reject, plus recording an event the video missed, which is the recall half of validating the detector, not an extra.
 - [x] **[Demo]** Track-ID → roster-player assignment UI with thumbnail crops,
       pre-narrowed by the sub log. The narrowing shipped with Phase 7; **the

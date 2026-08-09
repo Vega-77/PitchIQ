@@ -1626,6 +1626,150 @@ export function playerTimeline(log, roster, playerId) {
 // changes the type counts against the type it claimed and in favour of the type
 // it should have been.
 
+// -------------------------------------------------- two records, one column
+//
+// Phase 11 opens by saying the review tool is "pre-populated with Phase 3's
+// live-tagged events and subs, plus Phase 10's CV candidates — the reviewer's
+// job is verifying/correcting/filling gaps, not labeling from scratch". Half of
+// that was true. The list held the pipeline's candidates and nothing else; the
+// tagged log sat in a different strip on a different part of the page, and a
+// reviewer wanting to know what a human had said about 34:11 had to scroll away
+// from the row they were judging and find it by eye.
+//
+// That is the wrong shape for the actual work. Judging a candidate is almost
+// always a question about context — *was the ball even in play, and what had
+// just happened?* — and the log is the only record that can answer it. So the
+// two records are merged into one column, in time order.
+//
+//     What a tagged row is, and what it is not.
+//
+// It is a human's own record of the match, made at the time. There is nothing
+// for a reviewer to confirm about it and it carries no verdict buttons. It is
+// **never** a candidate: it does not enter precision, it does not enter recall,
+// and it does not move the "checked so far" count. A tagged corner is not
+// something the pipeline claimed, so counting it as agreement would inflate
+// every figure on the scorecard with work nobody did.
+//
+// The one place the log does more than sit there is a **goal it tapped that no
+// candidate stands near**. That is a miss the pipeline made and a human already
+// proved, and until now recording it meant typing a clock into a text box from
+// memory. One tap is the head start the roadmap is asking for.
+
+export const FROM_VIDEO = 'video';
+export const FROM_TAGGED = 'tagged';
+
+/**
+ * How close a tagged entry has to sit before it is worth showing on a
+ * candidate's own row.
+ *
+ * Six seconds is a restart: the whistle, the walk, the throw. Wider and every
+ * pass in a busy passage picks up a foul from further away than it was caused
+ * by; narrower and the throw-in itself — the case this exists for, because it
+ * is the touch the detector gets wrong most — stops being labelled.
+ */
+export const NEARBY_TAG_S = 6.0;
+
+/**
+ * How far from a tagged goal a candidate shot may sit and still be that goal.
+ *
+ * Mirrors `GOAL_WINDOW_S` in `cv/reconcile.py`, for the same reason: a tagger
+ * taps a goal after the ball crosses the line and usually after the celebration
+ * has started. The two numbers have to agree, or the browser would offer to
+ * record a miss for a goal the pipeline's own reconciliation counted as found.
+ */
+export const GOAL_PAIR_S = 15.0;
+
+/** How close a recorded miss has to be to count as the same miss. */
+const SAME_MISS_S = 5.0;
+
+const PERIOD_KIND = 'period';
+
+/**
+ * The pipeline's candidates and the tagged log, merged in time order.
+ *
+ * `events` are in **video** seconds and the log in **match clock** seconds, so
+ * `clock` does the conversion once here rather than at every comparison — the
+ * same rule `cv/phases.py` keeps, and it matters more than usual because the
+ * windows above are seconds wide and a half-time interval is fifty times that.
+ *
+ * Period markers are left out. `halftime` and `kickoff_2nd` share a clock
+ * reading with everything else in the interval, so a row for one would claim a
+ * position in the order that it does not have.
+ */
+export function reviewFeed(events, log, options = {}) {
+    const {
+        clock = matchClockMap({}),
+        missed = [],
+        nearbyS = NEARBY_TAG_S,
+        goalPairS = GOAL_PAIR_S,
+    } = options;
+
+    const candidates = (events || []).map((event) => {
+        const { clockS, period } = clock.toClock(event.timestampS || 0);
+        return { source: FROM_VIDEO, event, id: event.id, type: event.type, clockS, period };
+    });
+
+    const tagged = (log || [])
+        .filter((e) => e && e.kind !== PERIOD_KIND && typeof e.matchClockS === 'number')
+        .map((entry, index) => ({
+            source: FROM_TAGGED,
+            entry,
+            // Not the log document's own id: an entry has one and a sub does
+            // not, and a row keyed on undefined would collide with every other
+            // sub in the half.
+            id: `tag:${index}`,
+            type: entry.kind === 'sub' ? 'sub' : entry.type,
+            clockS: entry.matchClockS,
+            period: null,
+        }));
+
+    // Only real ball events give a candidate its context. A substitution says
+    // the tagger was busy, not that the ball was anywhere in particular.
+    const context = tagged.filter((item) => item.type !== 'sub');
+    for (const item of candidates) {
+        const near = nearest(context, item.clockS, nearbyS);
+        item.nearbyTag = near
+            ? { type: near.type, clockS: near.clockS, gapS: near.clockS - item.clockS }
+            : null;
+    }
+
+    // A goal the log recorded and no candidate stands near. `shot` rather than
+    // `goal` because the pipeline's vocabulary has no goal in it — a goal is a
+    // shot whose outcome was one — and **any** shot nearby counts as found,
+    // even one scored as saved. Recall asks whether the moment was found, which
+    // is the same rule `reviewScore` applies to a retyped event.
+    const shots = candidates.filter((item) => item.event.type === 'shot');
+    for (const item of tagged) {
+        item.suggestion = null;
+        if (item.type !== 'goal') continue;
+        if (nearest(shots, item.clockS, goalPairS)) continue;
+        item.suggestion = {
+            type: 'shot',
+            clockS: item.clockS,
+            recorded: (missed || []).some(
+                (m) => m && m.type === 'shot'
+                    && Math.abs((m.clockS ?? 0) - item.clockS) <= SAME_MISS_S,
+            ),
+        };
+    }
+
+    // Ties go to the video. The tagger taps after the ball crosses the line, so
+    // a shot and the goal it became read in the order they happened.
+    const rank = (item) => (item.source === FROM_VIDEO ? 0 : 1);
+    return [...candidates, ...tagged]
+        .sort((a, b) => a.clockS - b.clockS || rank(a) - rank(b));
+}
+
+function nearest(items, clockS, windowS) {
+    let best = null;
+    for (const item of items) {
+        const gap = Math.abs(item.clockS - clockS);
+        if (gap > windowS) continue;
+        if (!best || gap < Math.abs(best.clockS - clockS)) best = item;
+    }
+    return best;
+}
+
 const CONFIRMED_STATUS = 'confirmed';
 const REJECTED_STATUS = 'rejected';
 const EDITED_STATUS = 'edited';

@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=43';
+} from '../assets/auth.js?v=44';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,20 +8,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=43';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=43';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=43';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=43';
+} from '../assets/db.js?v=44';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=44';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=44';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=44';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=43';
+} from '../assets/sample-report.js?v=44';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=43';
-import { renderPassMap } from '../assets/pass-map.js?v=43';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=43';
-import { renderForms } from '../assets/form-chart.js?v=43';
+} from '../assets/passing.js?v=44';
+import { renderPassMap } from '../assets/pass-map.js?v=44';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=44';
+import { renderForms } from '../assets/form-chart.js?v=44';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -30,15 +30,18 @@ import {
     xgCalibration, calibrationNote, headerCorrection, headerNote,
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
     clockFromMatch, clockMapNote, HALF_TIME, blindSplit,
-} from '../assets/report.js?v=43';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=43';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=43';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=43';
+    reviewFeed, FROM_VIDEO, FROM_TAGGED,
+} from '../assets/report.js?v=44';
+import {
+    CARD_COLOURS, EVENTS, describeEvent, timelineTone,
+} from '../assets/events.js?v=44';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=44';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=44';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=43';
+} from '../assets/ui.js?v=44';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -2310,13 +2313,35 @@ function clockAt(timestampS) {
     return period === HALF_TIME ? 'half-time' : clockText(clockS);
 }
 
-function visibleEvents() {
-    const events = state.match?.cvEvents?.events || [];
+/** Both records of this match, merged and put on the clock. See `reviewFeed`. */
+function reviewItems() {
+    return reviewFeed(
+        state.match?.cvEvents?.events || [],
+        state.match?.log || [],
+        { clock: clockMap(), missed: state.match?.cvReview?.missed || [] },
+    );
+}
+
+/**
+ * The merged feed, minus whatever the chips are hiding.
+ *
+ * A tagged row survives `all` and the `tagged` chip and nothing else. Filtering
+ * to `pass` means "show me the passes it claims", and a corner is not one of
+ * those — leaving the log in would make every type filter a mixed list. The
+ * two toggles are about candidates by definition: a tagged entry has no verdict
+ * to be missing, and its own `inPlay` is not a thing the log ever recorded.
+ */
+function visibleItems() {
     const decided = state.match?.cvReview?.byEvent || {};
-    return events.filter((e) => {
-        if (reviewState.filter !== 'all' && e.type !== reviewState.filter) return false;
-        if (reviewState.unreviewedOnly && decided[e.id]) return false;
-        if (reviewState.inPlayOnly && e.inPlay === false) return false;
+    return reviewItems().filter((item) => {
+        if (item.source === FROM_TAGGED) {
+            return reviewState.filter === 'all' || reviewState.filter === FROM_TAGGED;
+        }
+        if (reviewState.filter === FROM_TAGGED) return false;
+        const event = item.event;
+        if (reviewState.filter !== 'all' && event.type !== reviewState.filter) return false;
+        if (reviewState.unreviewedOnly && decided[event.id]) return false;
+        if (reviewState.inPlayOnly && event.inPlay === false) return false;
         return true;
     });
 }
@@ -2326,11 +2351,17 @@ function renderReviewFilters() {
     host.innerHTML = '';
 
     const counts = state.match?.cvEvents?.counts || {};
+    const taggedCount = reviewItems()
+        .filter((item) => item.source === FROM_TAGGED).length;
     const options = [
         ['all', `Everything (${(state.match.cvEvents.events || []).length})`],
         ...REVIEW_TYPES
             .filter((type) => counts[type])
             .map((type) => [type, `${type} (${counts[type]})`]),
+        // Last, and only when there is a log. These are not a kind of candidate
+        // — they are the other record — so they sit apart from the type chips
+        // rather than reading as one more thing the detector found.
+        ...(taggedCount ? [[FROM_TAGGED, `tagged by hand (${taggedCount})`]] : []),
     ];
 
     for (const [value, label] of options) {
@@ -2374,13 +2405,18 @@ function renderReviewList() {
     const host = byId('cv-review-list');
     host.innerHTML = '';
 
-    const events = visibleEvents();
-    const marks = events.map((e) => ({
-        id: e.id,
-        clockS: toMatchClock(e.timestampS),
-        type: e.type,
-        label: `${e.type}${e.outcome ? ` (${e.outcome})` : ''}`,
-    }));
+    const items = visibleItems();
+    // The strip stays the pipeline's own. It is a picture of what the detector
+    // found across the half, and salting it with human taps would make a run
+    // that found nothing look busy.
+    const marks = items
+        .filter((item) => item.source === FROM_VIDEO)
+        .map(({ event }) => ({
+            id: event.id,
+            clockS: toMatchClock(event.timestampS),
+            type: event.type,
+            label: `${event.type}${event.outcome ? ` (${event.outcome})` : ''}`,
+        }));
 
     renderStrip(byId('cv-review-scrubber'), {
         marks,
@@ -2392,27 +2428,86 @@ function renderReviewList() {
         clockText,
     });
 
-    if (!events.length) {
+    if (!items.length) {
         host.innerHTML = '<div class="empty">Nothing matches that filter.</div>';
         return;
     }
 
     // A half can produce hundreds of these and the DOM cost of all of them at
     // once is real. The filters above are how you get to the rest.
-    for (const event of events.slice(0, 200)) host.append(reviewRow(event));
+    for (const item of items.slice(0, 200)) {
+        host.append(item.source === FROM_TAGGED ? taggedRow(item) : reviewRow(item));
+    }
 
-    if (events.length > 200) {
+    if (items.length > 200) {
         const more = document.createElement('div');
         more.className = 'empty';
         more.textContent =
-            `Showing the first 200 of ${events.length}. Filter to see the rest.`;
+            `Showing the first 200 of ${items.length}. Filter to see the rest.`;
         host.append(more);
     }
 }
 
-function reviewRow(event) {
+/**
+ * One entry from the tagged log, sitting where it happened.
+ *
+ * Read-only on purpose, and visibly a different kind of thing. This is a
+ * human's own record made at the time; there is no candidate here to confirm or
+ * reject, and offering the buttons would invite a reviewer to "check" a fact
+ * that was never in question and quietly imply it had been scored.
+ *
+ * The exception is a goal with nothing found near it, which is the one place
+ * the log can tell the pipeline something: that is a miss, already proved, and
+ * one tap records it instead of typing the clock back in from memory.
+ */
+function taggedRow(item) {
+    const row = document.createElement('div');
+    row.className = 'list-item review-row is-tagged';
+    row.innerHTML = `
+        <button type="button" class="review-seek">
+            <span class="review-clock"></span>
+            <span class="review-what"></span>
+            <span class="review-who muted">tagged by hand</span>
+        </button>
+        <div class="review-acts"></div>`;
+
+    row.querySelector('.review-clock').textContent = clockText(item.clockS);
+    // The same wording the match timeline uses, from the same helper. Two
+    // strips on one page naming the same team differently would read as two
+    // different matches.
+    row.querySelector('.review-what').textContent = describeEvent(item.entry, {
+        ...teamLabels(),
+        playerName: state.match?.roster
+            ?.find((p) => p.id === item.entry.playerId)?.playerName,
+    });
+    row.querySelector('.review-seek')
+        .addEventListener('click', () => reviewSeek(item.clockS));
+
+    const acts = row.querySelector('.review-acts');
+    if (item.suggestion) {
+        row.classList.add('is-missed-goal');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn tiny';
+        if (item.suggestion.recorded) {
+            button.textContent = 'miss recorded';
+            button.disabled = true;
+        } else {
+            button.textContent = 'the video missed this';
+            button.addEventListener('click', () => recordMiss(
+                item.suggestion.clockS, item.suggestion.type,
+            ));
+        }
+        acts.append(button);
+    }
+
+    return row;
+}
+
+function reviewRow(item) {
+    const event = item.event;
     const decided = state.match.cvReview.byEvent[event.id];
-    const clockS = toMatchClock(event.timestampS);
+    const clockS = item.clockS;
 
     const row = document.createElement('div');
     row.className = 'list-item review-row';
@@ -2422,6 +2517,7 @@ function reviewRow(event) {
             <span class="review-clock"></span>
             <span class="review-what"></span>
             <span class="review-dead hidden">dead ball</span>
+            <span class="review-near hidden"></span>
             <span class="review-who muted"></span>
         </button>
         <div class="review-mark"></div>
@@ -2441,6 +2537,15 @@ function reviewRow(event) {
     // when the detector claimed it did — that is the case it gets wrong most.
     if (event.inPlay === false) {
         row.querySelector('.review-dead').classList.remove('hidden');
+    }
+    // What a human said was happening within a few seconds of this. Almost
+    // every hard judgement here is a question about context — a "pass" two
+    // seconds after a throw-in is the throw — and until now answering it meant
+    // scrolling to a different strip on a different part of the page.
+    if (item.nearbyTag) {
+        const near = row.querySelector('.review-near');
+        near.classList.remove('hidden');
+        near.textContent = `${tagLabel(item.nearbyTag.type)} ${gapWords(item.nearbyTag.gapS)}`;
     }
     row.querySelector('.review-mark').append(
         confidenceMark(confidenceBand(event.confidence)),
@@ -2462,6 +2567,22 @@ function reviewRow(event) {
     }
 
     return row;
+}
+
+/** A tagged type as a coach would say it — "throw-in", not "throw_in". */
+function tagLabel(type) {
+    return EVENTS[type]?.label?.toLowerCase() || type.replace(/_/g, ' ');
+}
+
+/**
+ * How far a tagged entry sits from a candidate, in words rather than a signed
+ * number. "2s before" and "-2" are the same fact and only one of them can be
+ * read at a glance while judging four hundred rows.
+ */
+function gapWords(gapS) {
+    const seconds = Math.round(Math.abs(gapS));
+    if (!seconds) return 'at the same moment';
+    return `${seconds}s ${gapS < 0 ? 'before' : 'after'}`;
 }
 
 /**
@@ -2723,25 +2844,39 @@ function doRecordMiss() {
         toast('Give the time as minutes and seconds, like 12:30.', true);
         return;
     }
+    if (recordMiss(clockS, byId('input-missed-type').value)) {
+        byId('input-missed-clock').value = '';
+    }
+}
 
+/**
+ * Add one thing the video did not find. Returns whether it went in.
+ *
+ * Shared by the typed form and by the one-tap button on a tagged goal, so both
+ * routes produce the same record and hit the same cap. The button is the whole
+ * point of merging the two records: the tagger already wrote down that a goal
+ * happened at 34:12, and asking a coach to read that off one strip and retype
+ * it into another is asking them to be a worse copy of a file that exists.
+ */
+function recordMiss(clockS, type) {
     const missed = [
         ...(state.match.cvReview.missed || []),
-        { clockS, type: byId('input-missed-type').value, playerId: null },
+        { clockS, type, playerId: null },
     ].sort((a, b) => a.clockS - b.clockS);
 
     // The rules cap this at 300. Refuse here rather than letting the save fail
     // with a permission error that says nothing about what went wrong.
     if (missed.length > 300) {
         toast('That is 300 misses recorded — more than enough to judge by.', true);
-        return;
+        return false;
     }
 
     state.match.cvReview = { ...state.match.cvReview, missed };
-    byId('input-missed-clock').value = '';
     queueReviewSave();
     renderReviewList();
     updateReviewProgress();
-    toast(`Recorded a missed ${missed.at(-1).type} at ${clockText(clockS)}.`);
+    toast(`Recorded a missed ${type} at ${clockText(clockS)}.`);
+    return true;
 }
 
 let reviewSaveTimer = null;
