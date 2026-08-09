@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=46';
+} from '../assets/auth.js?v=48';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,20 +8,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=46';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=46';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=46';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=46';
+} from '../assets/db.js?v=48';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=48';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=48';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=48';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=46';
+} from '../assets/sample-report.js?v=48';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=46';
-import { renderPassMap } from '../assets/pass-map.js?v=46';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=46';
-import { renderForms } from '../assets/form-chart.js?v=46';
+} from '../assets/passing.js?v=48';
+import { renderPassMap } from '../assets/pass-map.js?v=48';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=48';
+import { renderForms } from '../assets/form-chart.js?v=48';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -31,17 +31,17 @@ import {
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
     clockFromMatch, clockMapNote, HALF_TIME, blindSplit,
     reviewFeed, FROM_VIDEO, FROM_TAGGED, printStamp,
-} from '../assets/report.js?v=46';
+} from '../assets/report.js?v=48';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=46';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=46';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=46';
+} from '../assets/events.js?v=48';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=48';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=48';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=46';
+} from '../assets/ui.js?v=48';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -1362,16 +1362,20 @@ function cvWarnings() {
 }
 
 /**
- * Everything the shot ledger feeds, redrawn together.
+ * Everything the review feeds, redrawn together.
  *
- * Four surfaces read it — the shot maps, their caption, the quality banner and
- * the log with its check — and they are spread from the top of the page to the
- * bottom. Redrawing a subset is how they end up contradicting each other, which
- * is exactly what happened twice: rejecting a tagged header in the review block
- * left the map still showing the correction, and tagging one left the banner
- * still saying nothing had been tagged.
+ * Five surfaces read it — the shot maps, their caption, the quality banner, the
+ * log with its check, and now the player table — and they are spread from the
+ * top of the page to the bottom. Redrawing a subset is how they end up
+ * contradicting each other, which is exactly what happened twice before:
+ * rejecting a tagged header in the review block left the map still showing the
+ * correction, and tagging one left the banner still saying nothing had been
+ * tagged. It happened a third time the day the player table started reading the
+ * review — a rejected tackle vanished from the scorecard and stayed in the
+ * player's row.
  *
- * Cheap enough to do wholesale — a match has a dozen shots, not a thousand.
+ * Cheap enough to do wholesale — a match has a dozen shots and a squad, not a
+ * thousand of either.
  */
 function redrawShotViews() {
     redrawCvNote();
@@ -1381,6 +1385,14 @@ function redrawShotViews() {
     // event list the review tool judges — so it goes stale in exactly the same
     // places, and belongs on the same redraw.
     renderPassing();
+    // The per-player figures now carry the coach's verdicts, so the table is a
+    // view of the review like every other surface above.
+    if (state.match?.stats?.players) {
+        mergeCvPlayers(
+            state.match.stats.players, state.match, state.match.stats.matchEndS,
+        );
+        renderPlayerTable(state.match.stats.players);
+    }
 }
 
 /** Flip the preview and redraw only the blocks it can reach. */
@@ -1499,6 +1511,15 @@ function coverageSummary(players) {
     const measured = players.filter((p) => p.cvTrackedShare != null);
     if (!measured.length) return '';
 
+    // A number that moved between two visits looks like a bug unless something
+    // says a person moved it. Named as a count of players rather than of
+    // events, because the table is a list of players.
+    const corrected = measured.filter((p) => p.cvReviewed).length;
+    const reviewed = corrected
+        ? ` Your review has adjusted the video columns for `
+            + `${plural(corrected, 'player')}.`
+        : '';
+
     const thin = measured
         .filter((p) => p.cvTrackedShare < TRACKED_SHARE_FLOOR)
         .sort((a, b) => a.cvTrackedShare - b.cvTrackedShare);
@@ -1507,7 +1528,7 @@ function coverageSummary(players) {
         + ` player, not the time they played — ${measured.length} of`
         + ` ${players.length} were matched to a tracked figure at all.`;
 
-    if (!thin.length) return head;
+    if (!thin.length) return head + reviewed;
 
     // Named rather than counted. "Four players are thin" sends a coach hunting;
     // the names are what makes the caveat actionable, and past three it becomes
@@ -1517,7 +1538,7 @@ function coverageSummary(players) {
     const pct = Math.round(TRACKED_SHARE_FLOOR * 100);
     return `${head} It held ${names}${rest} for under ${pct}% of their filmed`
         + ' minutes, so those rows are a sample of the match rather than the'
-        + ' whole of it.';
+        + ' whole of it.' + reviewed;
 }
 
 function playerTableRow(player) {
@@ -2968,7 +2989,14 @@ function labToCss(lab) {
  * stay on screen until the page was reloaded.
  */
 function mergeCvPlayers(players, match, matchEndS = null) {
-    const stats = cvStatsByPlayer(match.cv?.identity?.tracks, match.cvMapping);
+    // The coach's own verdicts go in here, not just onto the scorecard. Until
+    // they did, a coach could reject thirty phantom passes, watch precision
+    // fall, and still hand the player a report crediting them with all thirty.
+    const stats = cvStatsByPlayer(match.cv?.identity?.tracks, match.cvMapping, {
+        events: match.cvEvents?.events,
+        review: match.cvReview,
+        clusters: match.cv?.identity?.clusters,
+    });
     const context = {
         window: match.cv?.window,
         clock: clockFromMatch(match),
@@ -3151,6 +3179,13 @@ async function doPublish() {
                 // figure to them. No mapping, no cv* fields.
                 cvTracks: state.match.cv?.identity?.tracks,
                 cvMapping: state.match.cvMapping,
+                // The review, so a published report carries the same
+                // corrections the coach is looking at. Sending the tracks
+                // without them would publish the uncorrected figures from the
+                // screen that shows the corrected ones.
+                cvEvents: state.match.cvEvents?.events,
+                cvReview: state.match.cvReview,
+                cvClusters: state.match.cv?.identity?.clusters,
                 // Both only exist to say what each player's video figures were
                 // measured over. Without the window a short clip would score
                 // every player against the whole match and read as a tracker

@@ -69,7 +69,7 @@ const MAXED = ['top_speed_kmh', 'position_noise_m'];
  * So this is many-to-one on purpose, and the arithmetic has to respect what
  * each stat means. Touches add. Top speed does not.
  */
-export function cvStatsByPlayer(tracks, byCluster) {
+export function cvStatsByPlayer(tracks, byCluster, options = {}) {
     const byId = new Map((tracks || []).map((t) => [String(t.cluster_id), t]));
     const out = {};
 
@@ -111,7 +111,135 @@ export function cvStatsByPlayer(tracks, byCluster) {
             ? acc.passes_completed / acc.passes_attempted
             : null;
     }
+
+    // The coach's verdicts, applied last. See `reviewedCorrections` for what
+    // moves and what deliberately does not — and note the order: accuracy is
+    // recomputed after the corrections, because a rejected pass changes both
+    // halves of that fraction.
+    const deltas = reviewedCorrections(
+        options.events, options.review, options.clusters, byCluster,
+    );
+    for (const [playerId, delta] of Object.entries(deltas)) {
+        const acc = out[playerId];
+        // A correction for somebody with no mapped cluster has nowhere to land.
+        // Making one up would invent a player's whole video record out of one
+        // retyped tackle, which is worse than losing the correction.
+        if (!acc) continue;
+        for (const [key, change] of Object.entries(delta)) {
+            if (acc[key] == null) continue;
+            acc[key] = Math.max(0, acc[key] + change);
+        }
+        acc.reviewed = true;
+        acc.passAccuracy = acc.passes_attempted
+            ? acc.passes_completed / acc.passes_attempted
+            : null;
+    }
     return out;
+}
+
+// Which published counter each kind of event feeds. `shot` is deliberately
+// absent: a shot's fate is already decided by the ledger and carried by
+// `correctedShotMarks`, and a second subtraction here would take it off twice.
+// `clearance` and `duel` are absent because nothing publishes them — a retype
+// into one removes the original and adds nothing, which is the truth.
+const EVENT_COUNTERS = {
+    pass: 'passes_attempted',
+    carry: 'carries',
+    tackle: 'tackles',
+    interception: 'interceptions',
+    recovery: 'recoveries',
+};
+
+/**
+ * What the coach's review does to each player's video figures.
+ *
+ * The review tool's whole purpose is to correct the pipeline, and until now its
+ * corrections reached the scorecard and the xG check and **nothing a player
+ * ever saw**. A coach could reject thirty phantom passes, watch precision fall,
+ * and still publish a report crediting the player with all thirty.
+ *
+ *     What moves.
+ *
+ * The event counts, and only the event counts. A rejected pass is a pass that
+ * did not happen. A pass retyped as a tackle is one fewer pass and one more
+ * tackle. A tackle reassigned to another player moves whole — which is the
+ * correction that matters most, because it is how a coach fixes an identity the
+ * cluster mapping got wrong without re-doing the mapping.
+ *
+ *     What does not, and why.
+ *
+ * Distance, top speed, sprints and bursts come from the *track*, not from the
+ * event list. No verdict about an event is a verdict about where a player ran,
+ * and subtracting metres because a pass was imaginary would be inventing a
+ * correction nobody made. Touches are left alone for the same reason: a touch
+ * is a moment the ball's motion changed near a player, and rejecting the event
+ * derived from it does not prove the ball never moved.
+ *
+ *     What stays counted.
+ *
+ * Everything unreviewed. The review is partial by nature — twelve events out of
+ * five hundred — so this starts from the pipeline's totals and subtracts what a
+ * human contradicted, rather than starting from nothing and adding what a human
+ * confirmed. The other way round, a coach who checked ten events would wipe out
+ * the match.
+ */
+export function reviewedCorrections(events, review, clusters, byCluster) {
+    const byEvent = review?.byEvent || {};
+    if (!events?.length || !Object.keys(byEvent).length) return {};
+
+    // Track id to player, the same walk `whoIs` does on the coach's screen:
+    // events carry track ids, the mapping is keyed by cluster.
+    const playerOfTrack = new Map();
+    for (const cluster of clusters || []) {
+        const playerId = (byCluster || {})[String(cluster.cluster_id)];
+        if (!playerId || playerId === NOT_A_PLAYER) continue;
+        for (const trackId of cluster.track_ids || []) {
+            playerOfTrack.set(Number(trackId), playerId);
+        }
+    }
+
+    const deltas = {};
+    const bump = (playerId, key, by) => {
+        if (!playerId || !key || !by) return;
+        const delta = deltas[playerId] ||= {};
+        delta[key] = (delta[key] ?? 0) + by;
+    };
+
+    for (const event of events) {
+        const decision = byEvent[event.id];
+        if (!decision || decision.status === CONFIRMED_STATUS) continue;
+
+        const from = playerOfTrack.get(Number(event.trackId));
+        if (!from) continue;
+
+        const claimed = EVENT_COUNTERS[event.type];
+        const rejected = decision.status === REJECTED_STATUS;
+        const retyped = decision.status === EDITED_STATUS
+            && decision.type && decision.type !== event.type;
+        const moved = decision.status === EDITED_STATUS
+            && decision.playerId && decision.playerId !== from;
+
+        if (!rejected && !retyped && !moved) continue;
+
+        // Off the player it was credited to, under the type it was claimed as.
+        bump(from, claimed, -1);
+        if (event.type === 'pass' && event.outcome === 'completed') {
+            bump(from, 'passes_completed', -1);
+        }
+        if (rejected) continue;
+
+        // And back on, wherever the coach put it. A pass retyped into a shot
+        // adds nothing: the pipeline never computed a position or an xG for it,
+        // so it cannot become a shot anything downstream could use.
+        const to = moved ? decision.playerId : from;
+        const becomes = EVENT_COUNTERS[retyped ? decision.type : event.type];
+        bump(to, becomes, +1);
+        if (!retyped && event.type === 'pass' && event.outcome === 'completed') {
+            bump(to, 'passes_completed', +1);
+        }
+    }
+
+    return deltas;
 }
 
 // Everything a player's report can hold from the video, including the four
@@ -143,7 +271,7 @@ const CV_REPORT_KEYS = [
     'cvInterceptions', 'cvRecoveries', 'cvShots', 'cvXg', 'cvDistanceM',
     'cvTopSpeedKmh', 'cvSprintCount', 'cvAccelerations', 'cvPositionNoiseM',
     'cvMinutesTracked', 'cvTouchTimes',
-    'cvClusterCount', 'cvShotMap',
+    'cvClusterCount', 'cvShotMap', 'cvReviewed',
     // Written only by the pipeline, cleared only here.
     'cvHeatmap', 'cvAttackingEnd', 'cvCalibrationErrorM',
 ];
@@ -168,7 +296,8 @@ const CV_REPORT_KEYS = [
 export function cvReportFields(stats, coverage = null, shotRows = null) {
     if (!stats) return Object.fromEntries(CV_REPORT_KEYS.map((k) => [k, null]));
     const num = (v) => (v == null ? null : v);
-    const marks = correctedShotMarks(stats.shotMap || [], shotRows);
+    const published = stats.shotMap || [];
+    const marks = correctedShotMarks(published, shotRows);
     return {
         // How much of this player's own minutes the figures above rest on, so
         // the player's page can say it without re-reading the roster and the
@@ -183,12 +312,26 @@ export function cvReportFields(stats, coverage = null, shotRows = null) {
         cvTackles: num(stats.tackles),
         cvInterceptions: num(stats.interceptions),
         cvRecoveries: num(stats.recoveries),
-        cvShots: num(stats.shots),
+        // Counted off the corrected marks for the same reason the xG below is:
+        // a shot the coach rejected is not a shot, and a report that dropped it
+        // from the map while keeping it in the count would disagree with
+        // itself. `published` rather than `marks.length` decides the fallback —
+        // otherwise a player whose only shot was rejected would fall back to
+        // the pipeline's total and get it handed straight back.
+        cvShots: published.length ? marks.length : num(stats.shots),
         // Summed off the corrected marks rather than off the pipeline's own
         // per-track total, so the header tags reach it. Falls back to the
         // pipeline's figure when there are no marks to sum — a report from
         // before shot maps existed still has an xG.
-        cvXg: marks.length ? sumXg(marks) : num(stats.xg),
+        //
+        // Three outcomes, not two, and the middle one is the point. Marks that
+        // survive with no xG between them give null: those shots happened and
+        // cannot be scored. Marks that were all rejected give **zero**: a coach
+        // looked and concluded there were none, which is a measurement rather
+        // than an absence, and it is what makes this agree with `cvShots: 0`.
+        cvXg: published.length
+            ? (marks.length ? sumXg(marks) : 0)
+            : num(stats.xg),
         cvShotMap: marks,
         cvDistanceM: num(stats.distance_m),
         cvTopSpeedKmh: num(stats.top_speed_kmh),
@@ -201,6 +344,11 @@ export function cvReportFields(stats, coverage = null, shotRows = null) {
         // the coach, because a player stitched out of nine pieces is a weaker
         // claim than one tracked cleanly throughout.
         cvClusterCount: (stats.clusters || []).length,
+        // Whether a human moved any of the counts above. A figure that changed
+        // between two visits looks like a bug unless something says a coach
+        // changed it — and it travels to the player's own report for the same
+        // reason every other caveat does.
+        cvReviewed: Boolean(stats.reviewed),
     };
 }
 
@@ -2224,18 +2372,27 @@ export function headerNote(correction) {
  */
 export function correctedShotMarks(marks, rows) {
     const byId = new Map();
+    // Shots the coach said were not shots. Dropped rather than kept with a null
+    // xG, because unlike an unscorable header — which happened and cannot be
+    // scored — a rejected shot did not happen, and a dot on a shot map is a
+    // claim that it did.
+    const gone = new Set();
     for (const row of rows || []) {
+        if (row?.id == null) continue;
+        if (!row.counted) { gone.add(row.id); continue; }
         // `counted` as well as `header`, so this and `headerCorrection` are
         // always describing the same set of shots. A map that has quietly
         // corrected one more shot than the sentence under it claims is the kind
         // of half-a-goal discrepancy nobody ever tracks down.
-        if (row?.id != null && row.header && row.counted) byId.set(row.id, row.xg);
+        if (row.header) byId.set(row.id, row.xg);
     }
-    if (!byId.size) return marks || [];
+    if (!byId.size && !gone.size) return marks || [];
 
-    return (marks || []).map((mark) => (byId.has(mark.event_id)
-        ? { ...mark, xg: byId.get(mark.event_id), is_header: true }
-        : mark));
+    return (marks || [])
+        .filter((mark) => !gone.has(mark.event_id))
+        .map((mark) => (byId.has(mark.event_id)
+            ? { ...mark, xg: byId.get(mark.event_id), is_header: true }
+            : mark));
 }
 
 /**

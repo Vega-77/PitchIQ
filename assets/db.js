@@ -7,13 +7,13 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=46';
-import { EVENT_TYPES } from './events.js?v=46';
+import { db } from './firebase-init.js?v=48';
+import { EVENT_TYPES } from './events.js?v=48';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
-} from './report.js?v=46';
+} from './report.js?v=48';
 
 export {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
@@ -520,7 +520,11 @@ export async function publishReports(teamId, matchId, match, team, players, scor
     // Without one this is empty and no cv* field is written at all — an
     // unconfirmed cluster is a guess about identity, and a guess with a name
     // attached is the one thing that would make these numbers untrustworthy.
-    const cvByPlayer = cvStatsByPlayer(extra.cvTracks, extra.cvMapping);
+    const cvByPlayer = cvStatsByPlayer(extra.cvTracks, extra.cvMapping, {
+        events: extra.cvEvents,
+        review: extra.cvReview,
+        clusters: extra.cvClusters,
+    });
 
     // What each player's video figures were measured over. The roster is the
     // only thing that knows this — Python never sees the sub log — so the join

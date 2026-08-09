@@ -1683,7 +1683,63 @@ scratch.
       them both. What is missing is only the convenience of saying so once
       rather than twice, and the count of fragments a player was assembled from
       is already reported as the caveat it is
-- [ ] Save finalized data as the source of truth for stats, profiles, xG logging, and the player portal
+- [x] **Save finalized data as the source of truth for stats, profiles, xG
+      logging, and the player portal** (2026-08-09). The review tool exists to
+      correct the pipeline, and its corrections reached the scorecard, the shot
+      map and the xG check — and **nothing a player ever saw**. A coach could
+      reject thirty phantom passes, watch precision fall on the scorecard, and
+      still publish a report crediting the player with all thirty.
+      `cvStatsByPlayer` summed the pipeline's per-cluster totals and had never
+      been shown the coach's verdicts at all.
+
+      One rule now: **the coach's verdicts are the source of truth for the
+      event-derived figures**, on their own screen and in the published report,
+      which are computed from the same call.
+
+      What moves is the event counts, and only those. A rejected pass is a pass
+      that did not happen. A pass retyped as a tackle is one fewer pass and one
+      more tackle. A tackle reassigned to another player moves whole — which is
+      the correction that matters most, because it is how a coach fixes an
+      identity the cluster mapping got wrong without redoing the mapping.
+
+      What does not move, and the reason is the same each time:
+
+      - **Distance, top speed, sprints and bursts** come from the *track*, not
+        from the event list. No verdict about an event is a verdict about where
+        a player ran, and subtracting metres because a pass was imaginary would
+        be inventing a correction nobody made.
+      - **Touches**, for the same reason: a touch is a moment the ball's motion
+        changed near a player, and rejecting the event derived from it does not
+        prove the ball never moved.
+      - **Shots and xG** are left to the ledger that already decides them. A
+        second subtraction here would take a rejected shot off twice. What did
+        change is that `correctedShotMarks` now **drops** a rejected shot rather
+        than keeping it with its original number — unlike an unscorable header,
+        which happened and cannot be scored, a rejected shot did not happen, and
+        a dot on a shot map is a claim that it did. The count and the xG are
+        both read off that one list, so they cannot disagree.
+
+      And what stays counted: **everything unreviewed**. The review is partial by
+      nature — twelve events out of five hundred — so this starts from the
+      pipeline's totals and subtracts what a human contradicted, rather than
+      starting from nothing and adding what a human confirmed. The other way
+      round, a coach who checked ten events would wipe out the match.
+
+      A corrected figure says so, on both pages. A number that moved between two
+      visits looks like a bug unless something says a person moved it — *"your
+      review has adjusted the video columns for 2 players"* on the coach's
+      table, and on the player's own page *"your coach has checked some of these
+      against the video and corrected them"*.
+
+      **The browser found the defect, and it was the same one as last time.**
+      The corrections computed correctly and the player table never redrew: on
+      the emulator, rejecting a tackle dropped it from the scorecard and left it
+      in the player's row. `redrawShotViews` is the one function every write to
+      `cvReview` goes through, and the player table is now a view of the review
+      like the four surfaces already on it. Verified live afterwards: 5 tackles
+      → reject → 4 with the note appearing → undo → 5 with the note gone.
+
+      505 pure JS · 120 emulator.
 - [x] Doubles as the ground-truth labeling tool for Phase 16 validation, and as
       a source of labeled data for fine-tuning detectors later (Phase 5) —
       "Download the labels" exports the reviewed set as JSON, built in the

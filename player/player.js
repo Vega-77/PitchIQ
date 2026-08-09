@@ -9,25 +9,25 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=46';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=46';
-import { CARD_COLOURS } from '../assets/events.js?v=46';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=46';
-import { renderHeatmap } from '../assets/heatmap.js?v=46';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=46';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=48';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=48';
+import { CARD_COLOURS } from '../assets/events.js?v=48';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=48';
+import { renderHeatmap } from '../assets/heatmap.js?v=48';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=48';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
-} from '../assets/report.js?v=46';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=46';
-import { renderForms } from '../assets/form-chart.js?v=46';
+} from '../assets/report.js?v=48';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=48';
+import { renderForms } from '../assets/form-chart.js?v=48';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=46';
-import { renderMatchVideo } from '../assets/match-video.js?v=46';
+} from '../assets/sample-report.js?v=48';
+import { renderMatchVideo } from '../assets/match-video.js?v=48';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=46';
+} from '../assets/ui.js?v=48';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -369,8 +369,16 @@ function renderCoverageNote(report) {
         { second: true },
     );
 
-    note.textContent = text || '';
-    note.classList.toggle('hidden', !text);
+    // Their coach checked some of these against the video and changed them.
+    // Worth saying on the player's own page too: without it, a figure that
+    // differs from what a team-mate remembers has no explanation.
+    const corrected = report.cvReviewed
+        ? 'Your coach has checked some of these against the video and corrected them.'
+        : '';
+    const full = [text, corrected].filter(Boolean).join(' ');
+
+    note.textContent = full;
+    note.classList.toggle('hidden', !full);
 }
 
 /**

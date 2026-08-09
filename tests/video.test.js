@@ -1821,11 +1821,18 @@ describe('correctedShotMarks', () => {
         assert.equal(out[0].xg, 0.72);
     });
 
-    test('a rejected shot keeps the number the pipeline gave it', () => {
+    test('a rejected shot leaves the map rather than being corrected on it', () => {
+        // It used to keep its mark and its original number, which was right
+        // about the number and wrong about the mark: a dot on a shot map is a
+        // claim that a shot happened there, and the coach has just said it did
+        // not. Tagging it a header changes nothing either — a rejected shot is
+        // not a header, it is not a shot.
         const rows = [
             { id: 's2', header: true, xg: 0.08, xgFoot: 0.10, xgHeader: 0.08, counted: false },
         ];
-        assert.equal(report.correctedShotMarks(marks, rows), marks);
+        const out = report.correctedShotMarks(marks, rows);
+        assert.ok(!out.some((m) => m.event_id === 's2'));
+        assert.ok(out.length < marks.length);
         assert.equal(report.headerCorrection(rows), null);
     });
 
@@ -4480,5 +4487,193 @@ describe('what a printed sheet says about itself', () => {
     test('a date given as a string is still a date', () => {
         assert.match(report.printStamp({ printedAt: '2026-05-02T10:00:00Z' }),
             /^printed .*2026/);
+    });
+});
+
+describe('the review reaches the numbers a player sees', () => {
+    const clusters = [
+        { cluster_id: 0, track_ids: [3, 4] },
+        { cluster_id: 1, track_ids: [9] },
+    ];
+    const mapping = { 0: 'alex', 1: 'sam' };
+    const tracks = [
+        { cluster_id: 0, passes_attempted: 10, passes_completed: 8, carries: 4,
+          tackles: 2, interceptions: 1, recoveries: 1, touches: 40,
+          distance_m: 8000, top_speed_kmh: 27, sprint_count: 12 },
+        { cluster_id: 1, passes_attempted: 5, passes_completed: 3, carries: 1,
+          tackles: 0, interceptions: 0, recoveries: 0, touches: 20,
+          distance_m: 6000, top_speed_kmh: 25, sprint_count: 6 },
+    ];
+    const ev = (id, type, trackId, extra = {}) =>
+        ({ id, type, trackId, ...extra });
+
+    const stats = (events, byEvent) => report.cvStatsByPlayer(tracks, mapping, {
+        events, review: { byEvent }, clusters,
+    });
+
+    test('with no review the figures are the pipeline\'s own', () => {
+        const plain = report.cvStatsByPlayer(tracks, mapping);
+        assert.equal(plain.alex.passes_attempted, 10);
+        assert.equal(plain.alex.reviewed, undefined);
+    });
+
+    test('a rejected pass leaves both halves of the accuracy', () => {
+        const out = stats(
+            [ev('e1', 'pass', 3, { outcome: 'completed' })],
+            { e1: { status: 'rejected' } },
+        );
+        assert.equal(out.alex.passes_attempted, 9);
+        assert.equal(out.alex.passes_completed, 7);
+        assert.equal(out.alex.passAccuracy, 7 / 9);
+    });
+
+    test('an incomplete pass rejected takes only the attempt', () => {
+        const out = stats(
+            [ev('e1', 'pass', 3, { outcome: 'incomplete' })],
+            { e1: { status: 'rejected' } },
+        );
+        assert.equal(out.alex.passes_attempted, 9);
+        assert.equal(out.alex.passes_completed, 8);
+    });
+
+    test('a confirmed event changes nothing', () => {
+        const out = stats([ev('e1', 'pass', 3)], { e1: { status: 'confirmed' } });
+        assert.equal(out.alex.passes_attempted, 10);
+    });
+
+    test('an unreviewed event stays counted', () => {
+        // The review is twelve events out of five hundred. Counting only what a
+        // human confirmed would wipe out the match.
+        const out = stats([ev('e1', 'pass', 3), ev('e2', 'pass', 3)],
+            { e1: { status: 'rejected' } });
+        assert.equal(out.alex.passes_attempted, 9);
+    });
+
+    test('a retyped event moves from one counter to the other', () => {
+        const out = stats([ev('e1', 'pass', 3, { outcome: 'completed' })],
+            { e1: { status: 'edited', type: 'tackle' } });
+        assert.equal(out.alex.passes_attempted, 9);
+        assert.equal(out.alex.passes_completed, 7);
+        assert.equal(out.alex.tackles, 3);
+    });
+
+    test('an event reassigned to another player moves whole', () => {
+        // The correction that matters most: it is how a coach fixes an identity
+        // the cluster mapping got wrong, without redoing the mapping.
+        const out = stats([ev('e1', 'tackle', 3)],
+            { e1: { status: 'edited', playerId: 'sam' } });
+        assert.equal(out.alex.tackles, 1);
+        assert.equal(out.sam.tackles, 1);
+    });
+
+    test('retyped and reassigned at once lands under both corrections', () => {
+        const out = stats([ev('e1', 'pass', 3)],
+            { e1: { status: 'edited', type: 'carry', playerId: 'sam' } });
+        assert.equal(out.alex.passes_attempted, 9);
+        assert.equal(out.sam.carries, 2);
+    });
+
+    test('an edit that only renames the player it already was does nothing', () => {
+        const out = stats([ev('e1', 'tackle', 3)],
+            { e1: { status: 'edited', playerId: 'alex' } });
+        assert.equal(out.alex.tackles, 2);
+    });
+
+    test('a retype into something nothing publishes just removes the original', () => {
+        const out = stats([ev('e1', 'pass', 3)],
+            { e1: { status: 'edited', type: 'duel' } });
+        assert.equal(out.alex.passes_attempted, 9);
+        assert.equal(out.alex.duels, undefined);
+    });
+
+    test('distance, speed and touches are untouched by any verdict', () => {
+        // They come from the track, not from the event list. No verdict about
+        // an event is a verdict about where a player ran.
+        const out = stats(
+            [ev('e1', 'pass', 3), ev('e2', 'carry', 3), ev('e3', 'tackle', 3)],
+            { e1: { status: 'rejected' }, e2: { status: 'rejected' },
+              e3: { status: 'rejected' } },
+        );
+        assert.equal(out.alex.distance_m, 8000);
+        assert.equal(out.alex.top_speed_kmh, 27);
+        assert.equal(out.alex.sprint_count, 12);
+        assert.equal(out.alex.touches, 40);
+    });
+
+    test('a counter cannot be driven below zero', () => {
+        const rejected = {};
+        const events = [];
+        for (let i = 0; i < 12; i += 1) {
+            events.push(ev(`e${i}`, 'tackle', 3));
+            rejected[`e${i}`] = { status: 'rejected' };
+        }
+        assert.equal(stats(events, rejected).alex.tackles, 0);
+    });
+
+    test('a shot is left to the ledger rather than counted twice', () => {
+        // `correctedShotMarks` already decides a shot's fate. A second
+        // subtraction here would take it off the total twice.
+        const out = stats([ev('e1', 'shot', 3)], { e1: { status: 'rejected' } });
+        assert.equal(out.alex.shots, undefined);
+    });
+
+    test('a correction for an unmapped figure is dropped, not invented', () => {
+        const out = stats([ev('e1', 'pass', 77)], { e1: { status: 'rejected' } });
+        assert.equal(out.alex.passes_attempted, 10);
+    });
+
+    test('a corrected player is marked as corrected', () => {
+        // A number that silently moved between two visits looks like a bug.
+        const out = stats([ev('e1', 'pass', 3)], { e1: { status: 'rejected' } });
+        assert.equal(out.alex.reviewed, true);
+        assert.equal(out.sam.reviewed, undefined);
+    });
+});
+
+describe('a rejected shot leaves the map it was drawn on', () => {
+    const mark = (id, xg) => ({ event_id: id, xg, video_s: 10 });
+
+    test('a rejected shot is dropped rather than kept at zero', () => {
+        // Unlike an unscorable header — which happened and cannot be scored —
+        // a rejected shot did not happen, and a dot on a map claims it did.
+        const rows = [{ id: 'a', counted: false }, { id: 'b', counted: true }];
+        const out = report.correctedShotMarks([mark('a', 0.4), mark('b', 0.1)], rows);
+        assert.deepEqual(out.map((m) => m.event_id), ['b']);
+    });
+
+    test('the count and the xG fall together, off the same list', () => {
+        const stats = { shotMap: [mark('a', 0.4), mark('b', 0.1)], shots: 2, xg: 0.5 };
+        const rows = [{ id: 'a', counted: false }, { id: 'b', counted: true }];
+        const fields = report.cvReportFields(stats, null, rows);
+        assert.equal(fields.cvShots, 1);
+        assert.ok(Math.abs(fields.cvXg - 0.1) < 1e-9);
+    });
+
+    test('a player whose only shot was rejected is not handed it back', () => {
+        // The fallback exists for reports written before shot maps did. An
+        // emptied map is not an absent one.
+        const stats = { shotMap: [mark('a', 0.4)], shots: 1, xg: 0.4 };
+        const fields = report.cvReportFields(stats, null, [{ id: 'a', counted: false }]);
+        assert.equal(fields.cvShots, 0);
+        assert.equal(fields.cvXg, 0);
+    });
+
+    test('a report from before shot maps still reports its own total', () => {
+        const fields = report.cvReportFields({ shots: 3, xg: 0.9 }, null, null);
+        assert.equal(fields.cvShots, 3);
+        assert.equal(fields.cvXg, 0.9);
+    });
+
+    test('headers are still corrected, not dropped', () => {
+        const rows = [{ id: 'a', counted: true, header: true, xg: 0.12 }];
+        const out = report.correctedShotMarks([mark('a', 0.4)], rows);
+        assert.equal(out.length, 1);
+        assert.equal(out[0].xg, 0.12);
+        assert.equal(out[0].is_header, true);
+    });
+
+    test('a shot the ledger says nothing about is left alone', () => {
+        const out = report.correctedShotMarks([mark('a', 0.4)], []);
+        assert.deepEqual(out.map((m) => m.xg), [0.4]);
     });
 });
