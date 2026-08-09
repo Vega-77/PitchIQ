@@ -32,7 +32,7 @@ from .blind import (
 from .calibration import Calibration
 from .events import EventLog, attach_xg, attacking_end_for, derive_events
 from .frames import FrameTable, TrackedFramePass, attach_trajectory
-from .frame_sampler import video_info
+from .frame_sampler import effective_fps, stride_for_fps, video_info
 from .identity import PlayerCluster, merge_tracks
 from .keeper import KeeperAssignment, identify_keepers, keeper_reports
 from .touches import TouchSequence, segment_touches
@@ -44,6 +44,7 @@ from .metrics import (
     movement_stats,
     phantom_m_per_minute,
     position_noise_m,
+    sampling_warnings,
     ShapeDrift,
     shape_drift,
     smooth_for_noise,
@@ -164,6 +165,13 @@ class MatchReport:
     possessions: list[Sequence] | None = None
     phase_of_play: dict[str, PhaseOfPlay] = field(default_factory=dict)
 
+    # What the footage runs at, and what this run actually looked at. Two
+    # numbers rather than a stride, because a stride is a ratio to a rate
+    # nobody wrote down — and because every rule about sampling, including the
+    # floor the smoothing window sets, is expressed in hertz.
+    source_fps: float = 0.0
+    sample_fps: float = 0.0
+
     kit_separation: float = 0.0
     clear_holder_share: float = 0.0
     calibration_error_m: float | None = None
@@ -240,6 +248,15 @@ class MatchReport:
                 f'  players merged    {len(self.clusters)} from '
                 f'{sum(len(c.track_ids) for c in self.clusters)} tracks'
             )
+        # Only when it is not simply every frame. A line saying "30fps of a
+        # 30fps clip" is noise; a line saying 15 of 60 is the single most
+        # important fact about how the figures below were produced.
+        if self.sample_fps and self.source_fps > self.sample_fps + 0.01:
+            lines.append(
+                f'  sampled           {self.sample_fps:.1f} of '
+                f'{self.source_fps:.1f} frames a second'
+            )
+
         if self.possession:
             lines.append(f'  possession        {self.possession.summary_line()}')
 
@@ -379,6 +396,7 @@ def analyse_match(
     orientation: MatchOrientation | None = None,
     tracker: str = 'botsort.yaml',
     stride: int = 1,
+    sample_fps: float | None = None,
     period: str | None = None,
     side_of_team: dict[str, str] | None = None,
     tag_log=None,
@@ -427,19 +445,41 @@ def analyse_match(
     clusters — and a human confirms the result. That made the problem smaller,
     not absent.
 
-    `stride` is the remaining speed lever: process every Nth frame. It used to
-    apply to tracking only; now that there is one pass it skips detection too,
-    so it costs ball coverage as well as identity. Since ball coverage is what
-    bounds every event statistic downstream, raise it only when a run is too
-    slow to finish at all.
+    `sample_fps` is the speed lever, and it is stated in hertz because that is
+    the only unit any of this is true in. `stride` still works and is what
+    actually reaches the frame loop, but a stride is a ratio to a number nobody
+    said out loud: stride 2 is fifteen frames a second on a camcorder and
+    thirty on a phone, and those are different analyses run by the same flag.
+    Given `sample_fps`, the stride is worked out from the source and the rate
+    that really ran is published.
+
+    What it costs splits cleanly in two, and the two halves disagree.
+
+    **The movement figures do not care.** Measured synthetically against
+    constructed truth in tests/test_sampling.py: distance, mean speed, sprints
+    and bursts are flat from 60Hz down to 6Hz, and top speed moves less with
+    the rate than it does with a tenth of a metre of positional wobble. The
+    reason is that the smoothing window is stated in seconds, so the smoothed
+    path is nearly the same curve at any rate — the average simply holds fewer
+    samples. That ends at three samples, which is `metrics.min_sample_hz()` and
+    currently six a second; below it the burst count starts reporting wobble.
+
+    **Tracking and the ball do care**, and they are what actually bounds the
+    rate. Measured on real footage:
 
         botsort.yaml,   stride 1      100 tracks, longest 449/450
         bytetrack.yaml, stride 1      119 tracks, longest 418
         botsort.yaml,   stride 2       70 tracks, longest 225/225
 
-    The defaults keep the slower, better option: fragmentation is already the
-    weakest link, so halving the run time by fragmenting further would be
-    optimising the wrong thing.
+    A third of the tracks and half the longest one, for half the compute. Since
+    ball coverage bounds every event statistic downstream and fragmentation is
+    already the weakest link, the default stays every frame.
+
+    So the useful finding is narrower than "subsample everything": the movement
+    figures were never the reason to run at full rate. The one place that is
+    free money is a source above 30fps — a phone export at stride 1 does twice
+    the inference of a camcorder for figures that measure the same to within a
+    percent, and `sample_fps=30` is how to stop paying for it.
 
     (`track_imgsz` is gone. It set a separate image size for the tracking pass,
     and there is no longer a separate pass for it to size.)
@@ -466,6 +506,18 @@ def analyse_match(
     # not the image.
     info = video_info(video_path)
     fps = info.fps or 30.0
+
+    # The rate asked for, turned into the stride that can actually be run, then
+    # back into the rate that will actually happen. A 30fps clip asked for 12
+    # gets 15, and 15 is what the report says — quoting the request would
+    # describe a run nobody did.
+    if sample_fps:
+        stride = stride_for_fps(fps, sample_fps)
+    stride = max(1, stride)
+    report.source_fps = fps
+    report.sample_fps = effective_fps(fps, stride)
+
+    report.warnings.extend(sampling_warnings(report.sample_fps))
 
     single_pass = TrackedFramePass(
         conf=conf, ball_conf=ball_conf, imgsz=imgsz, device=device, tracker=tracker,

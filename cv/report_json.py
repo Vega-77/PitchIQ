@@ -75,7 +75,13 @@ from .teams import TEAM_A, TEAM_B
 #    one number covering both "the ball was off the pitch during a throw-in"
 #    and "we lost twenty seconds of live football", which are not remotely the
 #    same problem. See cv/blind.py.
-SCHEMA_VERSION = 8
+# 9: `source_fps` and `sample_fps` in the quality block. Additive, and the
+#    first fields that say how the run was *performed* rather than what it
+#    found — every figure in metres belongs to a particular sample rate, and
+#    until now a report analysed at half rate looked identical to one that was
+#    not. See tests/test_sampling.py for what that costs (almost nothing, which
+#    is itself the reason it has to be stated rather than assumed).
+SCHEMA_VERSION = 9
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -780,6 +786,13 @@ def _quality(report, log: EventLog) -> dict:
         # because it is the number every figure in metres rests on and the one
         # nothing has ever reported. It is also what decides whether bursts are
         # counted at all — see MAX_ACCEL_NOISE_M in cv/metrics.py.
+        # What the footage runs at and what this run looked at. Both, because
+        # neither means anything alone: 15 a second is half a camcorder and a
+        # quarter of a phone. None rather than zero when nothing recorded it —
+        # every report written before schema 9, which were all full rate but
+        # cannot prove it.
+        'source_fps': _round(report.source_fps or None, 2),
+        'sample_fps': _round(report.sample_fps or None, 2),
         'position_noise_m': _round(_median_noise(report), 3),
         # How long the tracks were smoothed over, and what that wobble still
         # costs at that window. Both published because the second is no longer

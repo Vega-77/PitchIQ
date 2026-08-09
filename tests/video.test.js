@@ -4377,3 +4377,43 @@ describe('the tagged log never scores the pipeline', () => {
         assert.ok(items[0].suggestion);
     });
 });
+
+describe('what rate the run was read at', () => {
+    const joined = (q) => report.cvQualityNotes(q).join(' | ');
+
+    test('a run that skipped frames says so, in both rates', () => {
+        // One number would not do it: 15 a second is half a camcorder and a
+        // quarter of a phone, and only the pair says which happened.
+        assert.match(joined({ source_fps: 60, sample_fps: 15 }),
+            /read at 15 of the footage's 60 frames a second/);
+    });
+
+    test('a run that read every frame says nothing', () => {
+        // "30 of 30" is noise in a list of caveats.
+        assert.doesNotMatch(joined({ source_fps: 30, sample_fps: 30 }),
+            /frames a second/);
+    });
+
+    test('a hair of floating-point drift is not a skipped frame', () => {
+        assert.doesNotMatch(joined({ source_fps: 29.97, sample_fps: 29.97 }),
+            /frames a second/);
+    });
+
+    test('broadcast rates read as sentences rather than as long decimals', () => {
+        assert.match(joined({ source_fps: 59.94, sample_fps: 29.97 }),
+            /read at 30 of the footage's 59.9 frames a second/);
+    });
+
+    test('a report written before the rate was recorded claims nothing', () => {
+        // Every one of them ran at full rate and none of them can prove it,
+        // so the honest thing is silence rather than an assumption.
+        assert.doesNotMatch(joined({ ball_seen_share: 0.8 }), /frames a second/);
+        assert.doesNotMatch(joined({ source_fps: 30 }), /frames a second/);
+        assert.doesNotMatch(joined({ sample_fps: 15 }), /frames a second/);
+    });
+
+    test('camelCase reaches it too', () => {
+        assert.match(joined({ sourceFps: 60, sampleFps: 30 }),
+            /read at 30 of the footage's 60 frames a second/);
+    });
+});

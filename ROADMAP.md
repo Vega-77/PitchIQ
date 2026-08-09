@@ -819,7 +819,68 @@ so the open count meant nothing. Fixed then; worth keeping true.
 - [ ] **[Demo]** Source footage must be a real export at native resolution. A screen recording of a video player is capped at the browser window's pixels and can silently discard the resolution detection depends on.
 - [ ] **[Demo]** Record to a file and process afterward for the first working pipeline; treat true incremental/live processing as later hardening
 - [ ] **[MVP]** Process first-half footage incrementally during play so the halftime report can be ready close to the actual break
-- [ ] Frame sampling strategy — every frame, or subsample (e.g. 10-15 fps) to cut compute cost
+- [x] **Frame sampling strategy — every frame, or subsample to cut compute
+      cost** (2026-08-09). The question had half an answer already: the `stride`
+      docstring records what skipping frames costs **tracking**, measured on
+      real footage — 100 tracks down to 70, the longest falling from 449 frames
+      to 225. Nothing had measured what it costs the numbers a coach reads.
+
+      Measured now, synthetically, against constructed truth the way the
+      smoothing window was fitted (`tests/test_sampling.py`). A 30Hz source at
+      each stride, against its own noiseless truth:
+
+          rate     distance %   top speed %   sprints   bursts
+          30.0        -0.3         -1.4        +0.0      -0.1
+          15.0        -0.3         -1.3        -0.1      -0.4
+          10.0        -0.4         -1.4        +0.0      -0.2
+           7.5        -0.3         -1.1        -0.1      -0.9
+           5.0        -0.2         -0.7        -0.2      -0.4
+
+      **Nothing happens.** Distance, mean speed, sprints and bursts are flat
+      from 60Hz down to 6Hz, and top speed moves less with the rate than it does
+      with a tenth of a metre of positional wobble — measured: the spread across
+      every rate is smaller than the gap between a clean track and one wobbling
+      by 0.15m at a fixed rate.
+
+      That is the previous item paying out. The smoothing window is stated in
+      **seconds**, so the smoothed path is nearly the same curve whatever the
+      sample rate; the average simply holds fewer samples. Which is also exactly
+      where it ends. Below three samples a window stops being an average, and
+      the failure it exists to prevent arrives immediately:
+
+          6 Hz    bursts  +0.0 a minute   (three samples in the narrowest band)
+          2 Hz    bursts  +4.0 a minute   (wobble counted as acceleration)
+          1 Hz    bursts  -6.8 a minute   (nothing left to see one through)
+
+      So there is a floor, it is `metrics.min_sample_hz()`, and it is a fact
+      about the smoothing rather than about football — widen the bands and it
+      moves with them, which is pinned by a test. At the current fit it is six
+      a second.
+
+      **The lever is now stated in hertz**, because that is the only unit any of
+      this is true in. A stride is a ratio to a number nobody said out loud:
+      *stride 2* is fifteen frames a second on a camcorder and thirty on a
+      phone, and those are different analyses run by the same flag — the same
+      mistake the smoothing window made when it was nine frames instead of 0.7
+      seconds. `analyse_match(sample_fps=...)` works the stride out from the
+      source, and the report publishes both the source rate and the rate that
+      actually ran. Not the rate that was asked for: a 30fps clip asked for 12
+      gets 15, and quoting 12 would describe a run nobody did.
+
+      **Where this is free money.** `FOOTAGE_DAY.md` asks for a native export
+      and phones shoot 60. At stride 1 that is twice the inference of a 30fps
+      clip for figures that measure the same to within half a percent, so
+      `--sample-fps 30` halves the run for nothing. Going *below* 30 is a
+      different trade and the footage-day guide says not to: the movement
+      figures would survive it and the tracker would not, and identity is
+      already the weakest link.
+
+      Which is the useful shape of the answer, and narrower than "subsample
+      everything": **the movement figures were never the reason to run at full
+      rate.** Tracking and ball coverage are, and they are the two things a
+      lower rate actually damages.
+
+      `SCHEMA_VERSION` 8 → 9. 477 pure JS · 120 emulator · 912 Python.
 - [ ] Lens distortion correction if using a wide-angle/action camera
 - [x] **[Demo]** Ingestion accepts any decodable video file — `cv/frame_sampler.py` handles this via OpenCV; the format was never the hard constraint, framing is
 - [ ] **[Stretch]** Support moving/auto-tracking camera footage (e.g. Hudl/Veo-style ball-following cameras) — requires continuous homography re-estimation (pitch-line detection or frame-to-frame motion tracking) instead of one-time calibration; sports-broadcast camera-calibration research exists to lean on rather than invent from scratch

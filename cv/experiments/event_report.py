@@ -53,6 +53,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--imgsz', type=int, default=1280)
     parser.add_argument('--device', default='0')
     parser.add_argument('--stride', type=int, default=1)
+    parser.add_argument('--sample-fps', type=float, default=None,
+                        help='analyse at about this many frames a second')
     # No default on purpose. With a tagged log the kickoff taps answer this, and
     # a default of `first_half` is how a second half gets processed with the
     # whole pitch mirrored and no sign of it anywhere in the output.
@@ -165,6 +167,7 @@ def main(argv: list[str] | None = None) -> int:
         imgsz=args.imgsz,
         device=args.device if args.device == 'cpu' else int(args.device),
         stride=args.stride,
+        sample_fps=args.sample_fps,
         period=args.period,
         side_of_team=side_of_team,
         tag_log=load_tag_log(args.tag_log),

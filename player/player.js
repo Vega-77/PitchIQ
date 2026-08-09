@@ -9,25 +9,25 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=44';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=44';
-import { CARD_COLOURS } from '../assets/events.js?v=44';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=44';
-import { renderHeatmap } from '../assets/heatmap.js?v=44';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=44';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=45';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=45';
+import { CARD_COLOURS } from '../assets/events.js?v=45';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=45';
+import { renderHeatmap } from '../assets/heatmap.js?v=45';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=45';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch,
-} from '../assets/report.js?v=44';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=44';
-import { renderForms } from '../assets/form-chart.js?v=44';
+} from '../assets/report.js?v=45';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=45';
+import { renderForms } from '../assets/form-chart.js?v=45';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=44';
-import { renderMatchVideo } from '../assets/match-video.js?v=44';
+} from '../assets/sample-report.js?v=45';
+import { renderMatchVideo } from '../assets/match-video.js?v=45';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=44';
+} from '../assets/ui.js?v=45';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 

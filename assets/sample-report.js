@@ -196,6 +196,11 @@ export function sampleCvSummary() {
             // Measured on the real spike, not invented: the ball is the hard
             // part and the preview should say so.
             ball_seen_share: 0.83,
+            // A phone export read at half rate — the case the sampling
+            // measurement exists for, and the one the preview should show,
+            // because a full-rate run says nothing about it at all.
+            source_fps: 60,
+            sample_fps: 30,
             no_ball_s: 459,
             live_share: 0.71,
             stoppages: 34,

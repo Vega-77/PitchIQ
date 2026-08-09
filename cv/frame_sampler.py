@@ -30,6 +30,37 @@ class SampledFrame:
     image: np.ndarray
 
 
+def stride_for_fps(source_fps: float, target_fps: float | None) -> int:
+    """How many frames to skip to analyse a clip at roughly `target_fps`.
+
+    The lever used to be the stride itself, which is not a quantity — it is a
+    ratio to a number nobody stated. Every measurement about it, and every rule
+    that depends on it, is in hertz: *stride 2* is fifteen a second on a
+    camcorder and thirty on a phone, and those are different analyses run by the
+    same flag. This is the same mistake the smoothing window made when it was
+    nine frames instead of 0.7 seconds, and it is worth more here, because a
+    60fps export at stride 1 is doing twice the work of a 30fps one for figures
+    that measure the same to within a percent.
+
+    Never below 1: a target above the source cannot invent frames, and asking
+    for one is not an error — it is a clip that already runs slower than the
+    ceiling and should be left alone.
+    """
+    if not target_fps or target_fps <= 0 or source_fps <= 0:
+        return 1
+    return max(1, int(round(source_fps / target_fps)))
+
+
+def effective_fps(source_fps: float, stride: int) -> float:
+    """The rate a run actually analysed, which is what belongs in the report.
+
+    Not the target that was asked for. A 30fps source at a 12fps target strides
+    2 and analyses at 15, and a report that quoted 12 would be describing a run
+    that did not happen.
+    """
+    return source_fps / max(1, stride) if source_fps > 0 else 0.0
+
+
 def video_info(video_path: str | Path) -> VideoInfo:
     path = Path(video_path)
     cap = cv2.VideoCapture(str(path))

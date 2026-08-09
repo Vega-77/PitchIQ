@@ -45,6 +45,12 @@ def build_parser() -> argparse.ArgumentParser:
                         help='process every Nth frame; costs ball coverage as '
                              'well as identity, so raise it only when a run '
                              'will not otherwise finish')
+    parser.add_argument('--sample-fps', type=float, default=None,
+                        help='analyse at about this many frames a second, '
+                             'working the stride out from the source. The '
+                             'movement figures are flat down to 6; tracking is '
+                             'not, so the reason to use this is a source above '
+                             '30fps, which is doing double work for nothing')
     return parser
 
 
@@ -78,6 +84,7 @@ def main(argv: list[str] | None = None) -> int:
         device=device,
         tracker=args.tracker,
         stride=args.stride,
+        sample_fps=args.sample_fps,
     )
 
     print()

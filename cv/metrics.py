@@ -181,6 +181,50 @@ SMOOTH_BANDS = ((0.075, 0.5), (0.15, 0.7), (float('inf'), 1.0))
 # high erases it, and the middle is wrong by less than either.
 DEFAULT_SMOOTH_S = 0.7
 
+# The fewest samples a smoothing window may contain and still be an average.
+#
+# Two is a midpoint and one is the sample itself, so below three the window
+# stops smoothing and the wobble it was hiding comes back. Measured rather than
+# argued: at three samples every movement figure is where it was at thirty, and
+# at two the burst count jumps by four a minute on a track with 0.15m of wobble
+# — noise being counted as acceleration, which is the exact failure the window
+# exists to prevent. See tests/test_sampling.py.
+MIN_SAMPLES_IN_WINDOW = 3
+
+
+def min_sample_hz(bands=SMOOTH_BANDS) -> float:
+    """The slowest frame rate every smoothing band still survives.
+
+    Set by the narrowest band, because that is the strictest requirement and
+    which band a track lands in is not known until its wobble is measured. At
+    the current fit that is 0.5s, so three samples means six a second.
+
+    This is the floor on *sampling*, and it is a fact about the smoothing
+    rather than about football — which is why it lives here beside the bands
+    rather than in the sampler.
+    """
+    narrowest = min(seconds for _, seconds in bands)
+    return MIN_SAMPLES_IN_WINDOW / narrowest if narrowest > 0 else 0.0
+
+
+def sampling_warnings(sample_fps: float | None) -> list[str]:
+    """Whether a run read too few frames a second for the window to work.
+
+    Worded around the figure that actually breaks. Distance and speed are still
+    about right below the floor — measured at −1.3% and −3.2% at one frame a
+    second — and saying "the numbers are wrong" would send a reader to doubt
+    the wrong ones. What goes is the burst count, in both directions: four a
+    minute invented at two frames a second and seven a minute missed at one.
+    """
+    floor = min_sample_hz()
+    if not sample_fps or sample_fps <= 0 or sample_fps >= floor:
+        return []
+    return [
+        f'analysed at {sample_fps:.1f} frames a second, below the {floor:.0f} '
+        f'the smoothing window needs — distance and speed are still about '
+        f'right, but the burst count is reporting wobble rather than football'
+    ]
+
 
 @dataclass
 class PositionSeries:

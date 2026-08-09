@@ -148,8 +148,19 @@ python -m cv.experiments.event_report \
     --video clips/first-half.mp4 \
     --calibration clips/first-half.calib.json \
     --tag-log clips/first-half.log.json \
+    --sample-fps 30 \
     --json baselines/2026-08-15-first-half.json
 ```
+
+`--sample-fps 30` matters only if the camera shot faster than that, and phones
+shoot 60 by default. Above thirty a second the run is doing double the
+inference for figures that measure the same to within a percent — distance,
+speed, sprints and bursts are all flat from 60 down to 6. **Do not go below 30
+to save time on the first clip.** The movement figures would survive it; the
+tracker would not, and identity is already the weakest link (a stride of 2 cost
+a third of the tracks and half the longest one on the spike footage). See
+`tests/test_sampling.py` for the measurement and `analyse_match` for both
+halves of the trade.
 
 Both timing numbers ride in the downloaded log, so there is nothing to retype.
 `--video-offset` and `--second-half-video` exist to override the file, which is

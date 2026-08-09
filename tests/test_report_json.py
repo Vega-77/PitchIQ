@@ -430,6 +430,38 @@ class TestPositionalFieldsReachTheJson:
         assert team['shape_drift'] is None
 
 
+class TestTheRateItRanAt:
+    """Two numbers rather than a stride, and null rather than an assumption.
+
+    Every figure in metres belongs to a particular sample rate, and until
+    schema 9 a run that skipped every other frame produced a document
+    indistinguishable from one that did not.
+    """
+
+    def test_a_full_rate_run_publishes_the_same_number_twice(self):
+        data = a_report(source_fps=30.0, sample_fps=30.0).to_json()
+        assert data['quality']['source_fps'] == 30.0
+        assert data['quality']['sample_fps'] == 30.0
+
+    def test_a_subsampled_run_publishes_what_it_actually_read(self):
+        data = a_report(source_fps=60.0, sample_fps=30.0).to_json()
+        assert data['quality']['sample_fps'] == 30.0
+
+    def test_a_report_that_never_recorded_it_says_null_not_zero(self):
+        """Zero frames a second is not a claim anyone should be able to read.
+
+        Every report written before this existed ran at full rate and none of
+        them can prove it, so the honest value is absent.
+        """
+        quality = a_report().to_json()['quality']
+        assert quality['source_fps'] is None
+        assert quality['sample_fps'] is None
+
+    def test_a_broadcast_rate_keeps_enough_of_itself_to_be_recognised(self):
+        data = a_report(source_fps=59.94, sample_fps=29.97).to_json()
+        assert data['quality']['source_fps'] == 59.94
+
+
 class TestWhatWasNeverSeen:
     """`no_ball_s` split into its parts, and what happens when nothing split it.
 

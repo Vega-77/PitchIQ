@@ -874,6 +874,8 @@ export function cvQualityNotes(quality, options = {}) {
     const q = quality || {};
     const { calibrated = false } = options;
     const pct = (value) => `${Math.round(value * 100)}%`;
+    // 29.97 is a real frame rate and "29.97 of 59.94" is not a sentence.
+    const round1 = (value) => String(Math.round(value * 10) / 10);
     const notes = [];
 
     // Seen, not "has a position for" — the rest were drawn in between
@@ -901,6 +903,22 @@ export function cvQualityNotes(quality, options = {}) {
             + (lost ? ` — ${lost}` : ''));
     } else if (lost) {
         notes.push(lost);
+    }
+
+    // Only when the run skipped frames. Saying "30 of 30" is noise; saying
+    // "15 of 60" is the single most important fact about how everything below
+    // was produced, and a report that skipped frames used to look identical to
+    // one that did not.
+    //
+    // Stated flatly rather than as a warning, because it was measured and it
+    // costs under a percent of any distance down to six a second — see
+    // tests/test_sampling.py. The pipeline raises a real warning below that
+    // floor, and this note is not the place to repeat it.
+    const sourceFps = q.source_fps ?? q.sourceFps;
+    const sampleFps = q.sample_fps ?? q.sampleFps;
+    if (sourceFps && sampleFps && sourceFps > sampleFps + 0.01) {
+        notes.push(`read at ${round1(sampleFps)} of the footage's `
+            + `${round1(sourceFps)} frames a second`);
     }
 
     if (!calibrated) notes.push('no pitch calibration, so nothing is in metres');
