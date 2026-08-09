@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=45">
-    <link rel="stylesheet" href="player.css?v=45">
+    <link rel="stylesheet" href="../assets/app.css?v=46">
+    <link rel="stylesheet" href="player.css?v=46">
 </head>
 <body>
 
@@ -144,9 +144,12 @@
          above; everything it shows was written into their own report at
          publish time, so it needs no extra reads and exposes nothing new. -->
     <section id="view-match" class="hidden">
-        <button id="btn-back" class="btn small ghost" style="margin:24px 0 0">
-            &lsaquo; All matches
-        </button>
+        <!-- Only ever on paper. See the print block in app.css. -->
+        <p class="print-stamp" id="md-print-stamp"></p>
+        <div class="row-actions" style="margin:24px 0 0">
+            <button id="btn-back" class="btn small ghost">&lsaquo; All matches</button>
+            <button id="btn-print" class="btn small ghost">Print / save as PDF</button>
+        </div>
 
         <header class="match-head">
             <div class="grow">
@@ -187,7 +190,8 @@
         <!-- The video, and the player's own moments as marks along it. -->
         <section class="block" id="md-video-block">
             <h3>Watch your moments</h3>
-            <p class="muted" id="md-video-note" style="margin:-4px 0 14px"></p>
+            <!-- "Tap any row to jump the video there" is not true of paper. -->
+            <p class="muted no-print" id="md-video-note" style="margin:-4px 0 14px"></p>
             <div id="md-video" class="video-frame"></div>
             <div id="md-scrubber" class="scrubber"></div>
             <div id="md-moments" class="moment-list"></div>
@@ -202,7 +206,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="player.js?v=45"></script>
+<script type="module" src="player.js?v=46"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

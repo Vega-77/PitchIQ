@@ -667,6 +667,55 @@ export function possessionIsInPlay(quality) {
     return (quality?.live_share ?? quality?.liveShare) != null;
 }
 
+/**
+ * What a printed sheet says about itself, along its top edge.
+ *
+ * A page that has left the app has left everything that made it readable: the
+ * navigation saying whose account it came from, the tab title saying which
+ * match, and the reader's own memory of having clicked through to it. Three
+ * months later it is a piece of paper with a teenager's name and some numbers
+ * on it, and the two questions somebody will ask of it — *whose is this, and
+ * how old is it* — are exactly the two the screen never had to answer.
+ *
+ * The date is when the sheet was printed, not when the match was played. Both
+ * matter and they are not the same fact: a report re-printed after a coach
+ * corrected the review says something different from the one printed the night
+ * of the game, and only the printing date distinguishes them.
+ *
+ * `subject` is the person or team the page is about, `matchLine` the fixture.
+ * Either may be missing — a page is still worth stamping with the half of the
+ * answer it has.
+ */
+export function printStamp(options = {}) {
+    const { subject, matchLine, printedAt = new Date(), estimated = false } = options;
+
+    const parts = [];
+    if (subject) parts.push(subject);
+    if (matchLine) parts.push(matchLine);
+
+    const day = printedAt instanceof Date ? printedAt : new Date(printedAt);
+    const printed = Number.isNaN(day.getTime())
+        ? null
+        : day.toLocaleDateString(undefined, {
+            year: 'numeric', month: 'short', day: 'numeric',
+        });
+    if (printed) parts.push(`printed ${printed}`);
+
+    // Not a footnote. Whatever caveat block travelled onto the page can be a
+    // sheet away by the time a number is read out loud, and this line is on
+    // every one of them.
+    //
+    // It also has to say what the little marks are. On screen `cvMark` carries
+    // its explanation in a title attribute; on paper it is three dots beside a
+    // number, which is worse than no mark at all — it looks like a footnote
+    // reference to a footnote that is not there.
+    if (estimated) {
+        parts.push('figures marked ··· were estimated from video, not tapped');
+    }
+
+    return parts.join(' · ');
+}
+
 /** Seconds as "4m 20s", or "20s" under a minute. For prose, not for a table. */
 export function roughDuration(seconds) {
     const total = Math.round(seconds || 0);

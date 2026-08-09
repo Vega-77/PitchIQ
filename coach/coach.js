@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=45';
+} from '../assets/auth.js?v=46';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,20 +8,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=45';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=45';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=45';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=45';
+} from '../assets/db.js?v=46';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=46';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=46';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=46';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=45';
+} from '../assets/sample-report.js?v=46';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=45';
-import { renderPassMap } from '../assets/pass-map.js?v=45';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=45';
-import { renderForms } from '../assets/form-chart.js?v=45';
+} from '../assets/passing.js?v=46';
+import { renderPassMap } from '../assets/pass-map.js?v=46';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=46';
+import { renderForms } from '../assets/form-chart.js?v=46';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -30,18 +30,18 @@ import {
     xgCalibration, calibrationNote, headerCorrection, headerNote,
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
     clockFromMatch, clockMapNote, HALF_TIME, blindSplit,
-    reviewFeed, FROM_VIDEO, FROM_TAGGED,
-} from '../assets/report.js?v=45';
+    reviewFeed, FROM_VIDEO, FROM_TAGGED, printStamp,
+} from '../assets/report.js?v=46';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=45';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=45';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=45';
+} from '../assets/events.js?v=46';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=46';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=46';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=45';
+} from '../assets/ui.js?v=46';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -687,6 +687,13 @@ async function openMatch(matchId) {
         setText('match-sub',
             `${match.date || 'no date'} · ${(match.status || 'scheduled').replace(/_/g, ' ')}`
             + (match.finalized ? ' · reports published' : ''));
+
+        setText('match-print-stamp', printStamp({
+            subject: state.team?.name || null,
+            matchLine: `vs ${match.opponentName || '—'}`
+                + (match.date ? ` · ${match.date}` : ''),
+            estimated: Boolean(activeCv()),
+        }));
 
         setText('score-us', stats.counts.us.goal ?? 0);
         setText('score-them', stats.counts.them.goal ?? 0);
@@ -3220,6 +3227,7 @@ function init() {
     byId('btn-invite-coach').addEventListener('click', doInviteCoach);
     byId('btn-add-player').addEventListener('click', doAddPlayer);
     byId('btn-create-match').addEventListener('click', doCreateMatch);
+    byId('btn-print').addEventListener('click', () => window.print());
     byId('btn-back').addEventListener('click', () => {
         // Leaving the match has to take the video with it. A hidden iframe
         // keeps playing, and a coach walking away from a page that is still

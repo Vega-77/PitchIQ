@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=45">
-    <link rel="stylesheet" href="coach.css?v=45">
+    <link rel="stylesheet" href="../assets/app.css?v=46">
+    <link rel="stylesheet" href="coach.css?v=46">
 </head>
 <body>
 
@@ -314,7 +314,12 @@
 
     <!-- one match -->
     <section id="view-match" class="hidden">
-        <button id="btn-back" class="btn small ghost" style="margin:24px 0 18px">&lsaquo; All matches</button>
+        <!-- Only ever on paper. See the print block in app.css. -->
+        <p class="print-stamp" id="match-print-stamp"></p>
+        <div class="row-actions" style="margin:24px 0 18px">
+            <button id="btn-back" class="btn small ghost">&lsaquo; All matches</button>
+            <button id="btn-print" class="btn small ghost">Print / save as PDF</button>
+        </div>
 
         <div class="match-head">
             <div>
@@ -458,14 +463,14 @@
             <div id="cv-shotlog" class="list shot-log"></div>
         </section>
 
-        <section class="block hidden" id="cv-clusters-block">
+        <section class="block hidden no-print" id="cv-clusters-block">
             <h3>Who the video tracked <span id="cv-save-state" class="save-state"></span></h3>
             <p class="muted" id="cv-clusters-note"></p>
             <div id="cv-clusters" class="list"></div>
         </section>
 
         <!-- The match itself, with the goals, cards and subs marked on it. -->
-        <section class="block hidden" id="match-video-block">
+        <section class="block hidden no-print" id="match-video-block">
             <h3>The match</h3>
             <p class="muted" id="match-video-note" style="margin:-4px 0 14px"></p>
             <div id="match-video" class="video-frame"></div>
@@ -527,7 +532,7 @@
             <div id="timeline" class="timeline"></div>
         </section>
 
-        <section class="block">
+        <section class="block no-print">
             <h3>Match video</h3>
             <div class="card">
                 <p class="muted" style="margin:0 0 16px">
@@ -568,7 +573,7 @@
             </div>
         </section>
 
-        <section class="block">
+        <section class="block no-print">
             <h3>Send this match to the video pipeline</h3>
             <div class="card">
                 <p class="muted" style="margin:0 0 16px">
@@ -581,7 +586,7 @@
             </div>
         </section>
 
-        <section class="block">
+        <section class="block no-print">
             <h3>Publish</h3>
             <div class="card">
                 <p class="muted" style="margin:0 0 16px">
@@ -597,7 +602,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=45"></script>
+<script type="module" src="coach.js?v=46"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

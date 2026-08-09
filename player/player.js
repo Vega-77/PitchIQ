@@ -9,25 +9,25 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=45';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=45';
-import { CARD_COLOURS } from '../assets/events.js?v=45';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=45';
-import { renderHeatmap } from '../assets/heatmap.js?v=45';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=45';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=46';
+import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=46';
+import { CARD_COLOURS } from '../assets/events.js?v=46';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=46';
+import { renderHeatmap } from '../assets/heatmap.js?v=46';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=46';
 import {
-    xgTrust, metresPerMinute, coverageNote, clockFromMatch,
-} from '../assets/report.js?v=45';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=45';
-import { renderForms } from '../assets/form-chart.js?v=45';
+    xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
+} from '../assets/report.js?v=46';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=46';
+import { renderForms } from '../assets/form-chart.js?v=46';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=45';
-import { renderMatchVideo } from '../assets/match-video.js?v=45';
+} from '../assets/sample-report.js?v=46';
+import { renderMatchVideo } from '../assets/match-video.js?v=46';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=45';
+} from '../assets/ui.js?v=46';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -255,6 +255,15 @@ function openMatch(report) {
     setText('md-score-us', report.scoreUs ?? '—');
     setText('md-score-them', report.scoreThem ?? '—');
     setText('md-line', matchLine(report));
+
+    // Only ever seen on paper, where the page has lost everything that said
+    // whose report this is. See `printStamp`.
+    setText('md-print-stamp', printStamp({
+        subject: report.playerName || open.playerName || null,
+        matchLine: `vs ${report.opponentName || '—'}`
+            + (report.matchDate ? ` · ${report.matchDate}` : ''),
+        estimated: Boolean(report.cvTrackedShare != null || report.cvDistanceM != null),
+    }));
 
     renderMatchStats(report);
     renderVideo(report);
@@ -640,6 +649,7 @@ function init() {
     byId('btn-signout').addEventListener('click', () =>
         signOut().then(() => { location.href = '../'; }));
 
+    byId('btn-print').addEventListener('click', () => window.print());
     byId('btn-back').addEventListener('click', () => {
         // Tear the player down on the way out, or a YouTube iframe keeps
         // playing behind the season list.

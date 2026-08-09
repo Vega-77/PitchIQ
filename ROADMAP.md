@@ -137,10 +137,18 @@ Still open:
   All of the above was measured on a panning, zooming camera where tracks
   fragment for reasons that have nothing to do with the tracker. The choice
   between BoT-SORT and ByteTrack should be made against a fixed camera.
-- [ ] **The double model pass.** Detection runs over the window, then the tracker
-  runs the model again over the same frames — 7.6s of the 19.9s. Collapsing them
-  means running the tracker at the ball's much lower confidence threshold, which
-  would flood it with junk tracks, so it is not the free win it looks like.
+- [x] **The double model pass** — gone since the pipeline became one pass, and
+  this entry outlived it. `TrackedFramePass.run` calls the detector once per
+  batch and hands the tracker the detections it already has, so no frame is
+  inferred twice.
+
+  The objection recorded here was real and is worth keeping: collapsing the two
+  by running the tracker at the ball's much lower confidence threshold would
+  have flooded it with junk tracks. That is not how it was solved. The model
+  runs once at the low threshold, the output is split by class, and **only
+  people reach the tracker** — so the ball keeps its permissive threshold and
+  the tracker keeps its strict one. Two thresholds on one pass, rather than one
+  threshold on two.
 
 **`cv/xg_bridge.py`'s model half is now verified** (2026-07-31). `onnxruntime`
 is in the venv, `_predict` has run against the real model, and Python agrees
@@ -2168,7 +2176,57 @@ than the workaround, which matters given the data class.
       verified against the roster document's stored address
 - [x] Per-player report view, scoped to that player's own stats
 - [x] **[Demo]** Season history across matches (one collection-group query)
-- [ ] Report delivery beyond the in-app view (email/PDF)
+- [x] **Report delivery beyond the in-app view — the PDF half** (2026-08-09).
+      A print stylesheet and a *Print / save as PDF* button on the coach's match
+      view and on a player's own report. No library, no server, no new
+      dependency: the browser already makes PDFs and the only thing missing was
+      a page worth handing over.
+
+      Three things change on paper and each is a claim rather than a taste.
+
+      1. **The palette inverts.** This design is a near-black pushed toward
+         turf; printed as-is it either empties a cartridge or comes out a grey
+         rectangle with numbers hidden in it. Every colour is a variable, so the
+         inversion is one block — and the pitch drawings and heatmaps follow for
+         free, because they were already drawn in `currentColor`.
+      2. **The chrome goes.** Nothing on a sheet of paper can be signed out of,
+         filtered, scrubbed or played, and a printed button is a small lie about
+         what the reader can do. Whole panels go with it: hiding a control but
+         keeping the prose explaining that control — *"paste a link to the
+         footage"* — is worse than keeping both, which is what the first browser
+         check showed and what `.no-print` now fixes.
+      3. **The caveats stay, and stay attached.** The one that matters. On
+         screen the quality banner sits above the figures and a reader who
+         forgets it can scroll back; on paper they cannot, and a page of
+         confident-looking numbers with *"measured from video, treat as
+         estimates"* two sheets earlier is a worse artifact than no printout at
+         all. So the banner is never hidden, and it is glued to what follows it
+         with `break-after: avoid`. Nothing readable is allowed to split across
+         a fold either — a stat cut in half is not half a stat, it is a misprint.
+
+      **Every sheet says what it is.** `printStamp` puts the subject, the
+      fixture, and the date it was *printed* along the top edge. A page that has
+      left the app has left everything that made it readable — the navigation
+      saying whose account it came from, the tab title saying which match — and
+      three months later it is a piece of paper with a teenager's name and some
+      numbers on it. The printing date is deliberately not the match date: a
+      sheet re-printed after a coach corrected the review says something
+      different from one printed on the night, and nothing else tells them
+      apart.
+
+      The stamp also explains the confidence marks, which the second browser
+      check turned up: on screen `···` carries its meaning in a title
+      attribute, and on paper it is three bare dots beside a number — a
+      reference to a footnote that is not there.
+
+      **Email is not built and this is not a step toward it.** It needs a server
+      that can send mail; the whole app is static files on GitHub Pages plus
+      Firestore rules, and adding Cloud Functions for it means a billing account
+      and a new attack surface for a system holding students' data. A coach who
+      wants to send a report can already attach the PDF. Worth revisiting only
+      if somebody asks for it.
+
+      484 pure JS · 120 emulator.
 - [ ] **[Stretch]** App Check + browser-key referrer restriction before this is public
 - [ ] Parental/guardian awareness before real students' data goes in — the technical
       controls are in place, the consent conversation is not a code change

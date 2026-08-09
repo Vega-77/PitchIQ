@@ -2313,3 +2313,134 @@ input[type="file"]::file-selector-button:hover {
 }
 .tally.is-tentative .t-half.us > i { border-color: var(--accent); opacity: 0.55; }
 .tally.is-tentative .num { color: var(--text-faint); }
+
+/* ------------------------------------------------------------------ paper
+ *
+ * A report that leaves the app.
+ *
+ * Three things change on paper and each is a claim rather than a preference.
+ *
+ * 1. The palette inverts. This design is a near-black pushed toward turf, and
+ *    printing it either empties a cartridge or comes out as a grey rectangle
+ *    with numbers hidden in it. Every colour below is a variable, so the whole
+ *    inversion is one block — and the pitch drawings and heatmaps follow it for
+ *    free, because they are drawn in `currentColor`.
+ *
+ * 2. The chrome goes. Nothing on a sheet of paper can be signed out of,
+ *    filtered, scrubbed or played, and a printed button is a small lie about
+ *    what the reader can do.
+ *
+ * 3. **The caveats stay, and stay attached.** This is the one that matters. On
+ *    screen the quality banner sits above the figures and a reader who forgets
+ *    it can scroll back; on paper they cannot, and a page of confident-looking
+ *    numbers with the "measured from video, treat as estimates" line two sheets
+ *    earlier is a worse artifact than no printout at all. So the banner is
+ *    never hidden, and it is glued to whatever follows it.
+ */
+@media print {
+    :root {
+        --bg: #ffffff;
+        --bg-raised: #ffffff;
+        --surface: #ffffff;
+        --surface-hi: #f4f6f5;
+        --line: #c9d2cd;
+        --line-hi: #9aa8a1;
+
+        --text: #101815;
+        --text-dim: #3d4b44;
+        --text-faint: #61706a;
+
+        /* Darkened, because the screen accent is a floodlight and paper has no
+           backlight to carry it. Both of these end up as ink. */
+        --accent: #0f7a68;
+        --accent-hi: #0b5c4e;
+        --accent-dim: rgba(15, 122, 104, 0.10);
+
+        --good: #16794a;
+        --warn: #8a5a06;
+        --danger: #a32b2b;
+    }
+
+    @page { margin: 14mm; }
+
+    body {
+        background: #fff;
+        color: var(--text);
+    }
+
+    /* Bars, swatches and fills are the figure, not decoration — a bar that
+       prints as bare paper says the opposite of what it measures. */
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Things a sheet of paper cannot do. */
+    .topbar,
+    .site-foot,
+    .toast,
+    .btn,
+    .chips,
+    .video-frame,
+    .scrubber,
+    .tabs,
+    .review-list,
+    .review-missed,
+    #cv-review-block,
+    #config-slot,
+    .action-card,
+    .save-state,
+    input, select, textarea, label.field,
+    .no-print { display: none !important; }
+
+    /* Blocks keep their edges but lose the raised-card look, which on paper
+       reads as a smudge rather than as depth. */
+    .block,
+    .stat,
+    .list-item {
+        box-shadow: none;
+        border: 1px solid var(--line);
+        background: #fff;
+    }
+
+    .shell, .wrap { max-width: none; padding: 0; }
+
+    /* Nothing readable is worth splitting across a fold. A stat cut in half is
+       not half a stat, it is a misprint. */
+    .block,
+    .stat,
+    .tally,
+    .stack,
+    .figure,
+    .list-item,
+    .stat-group { break-inside: avoid; page-break-inside: avoid; }
+
+    /* The caveat and the numbers it qualifies are one thing. */
+    .cv-note,
+    .cv-warnings {
+        display: flex !important;
+        break-inside: avoid;
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+    .cv-warnings { display: block !important; }
+    h3, h4, .group-head { break-after: avoid; page-break-after: avoid; }
+
+    /* What this sheet is, who it is about and when it was made. Hidden on
+       screen, where the page itself answers all three. */
+    .print-stamp {
+        display: block !important;
+        margin: 0 0 18px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--text);
+        font-size: 0.78rem;
+        color: var(--text-dim);
+    }
+    .print-stamp b { color: var(--text); font-weight: 750; }
+}
+
+/* Off screen entirely — see the print block above for what it is for. */
+.print-stamp { display: none; }
+
+/* A pair of small buttons on one line — back out, or take it with you. */
+.row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
