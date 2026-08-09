@@ -70,7 +70,12 @@ from .teams import TEAM_A, TEAM_B
 #    report is lower than the same footage would have given under version 6 —
 #    by up to 29 metres a minute on noisy tracks. See SMOOTH_BANDS in
 #    cv/metrics.py for the fit. Baselines taken under 6 will diff.
-SCHEMA_VERSION = 7
+# 8: `blind` in the quality block. Additive, and a split of a figure that was
+#    already there rather than a new measurement: `no_ball_s` has always been
+#    one number covering both "the ball was off the pitch during a throw-in"
+#    and "we lost twenty seconds of live football", which are not remotely the
+#    same problem. See cv/blind.py.
+SCHEMA_VERSION = 8
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -745,6 +750,12 @@ def _quality(report, log: EventLog) -> dict:
         'no_ball_s': _round(
             report.possession.no_ball_s if report.possession else None, 1
         ),
+        # What that total was made of. A throw-in and a lost twenty seconds of
+        # live football both land in `no_ball_s`, and only one of them is a
+        # hole in the report — added together, the well-tagged half looks worse
+        # than the untagged one. `checked` is False when no log reached the run,
+        # and the three figures inside are then null rather than zero.
+        'blind': report.blindness.to_json() if report.blindness else None,
         # None rather than zero when no tagged log was supplied. Zero would say
         # the ball was never out of play for the whole window, which is a
         # claim about the match rather than about what we were told.

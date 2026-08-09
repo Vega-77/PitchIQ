@@ -430,6 +430,59 @@ class TestPositionalFieldsReachTheJson:
         assert team['shape_drift'] is None
 
 
+class TestWhatWasNeverSeen:
+    """`no_ball_s` split into its parts, and what happens when nothing split it.
+
+    The figure has been in the quality block since possession was first
+    measured, covering both a throw-in the camera could not follow the ball
+    through and a stretch of live football nobody saw. Only the second is a
+    hole in the report, and the two added together hid it — worse, hid it more
+    the better the tagging was.
+    """
+
+    def a_blindness(self, **kwargs):
+        from cv.blind import ACCOUNTED, DEAD, UNEXPLAINED, Blindness, BlindSpell
+
+        return Blindness(spells=[
+            BlindSpell(10.0, 40.0, DEAD),
+            BlindSpell(60.0, 70.0, ACCOUNTED, ('corner',)),
+            BlindSpell(100.0, 120.0, UNEXPLAINED),
+        ], **kwargs)
+
+    def test_no_run_of_it_leaves_the_key_null_rather_than_absent(self):
+        assert a_report().to_json()['quality']['blind'] is None
+
+    def test_the_split_reaches_the_quality_block(self):
+        blind = a_report(blindness=self.a_blindness(checked=True)).to_json()
+        published = blind['quality']['blind']
+        assert published['dead_s'] == 30.0
+        assert published['accounted_s'] == 10.0
+        assert published['unexplained_s'] == 20.0
+        assert published['total_s'] == 60.0
+
+    def test_an_unchecked_run_withholds_the_parts_and_keeps_the_total(self):
+        """Three zeroes would read as a clean bill of health for a run
+        where no check was possible at all."""
+        from cv.blind import UNCHECKED, Blindness, BlindSpell
+
+        unchecked = Blindness(spells=[BlindSpell(0.0, 40.0, UNCHECKED)])
+        published = a_report(blindness=unchecked).to_json()['quality']['blind']
+        assert published['total_s'] == 40.0
+        assert published['checked'] is False
+        assert published['dead_s'] is None
+        assert published['unexplained_s'] is None
+
+    def test_only_the_unaccounted_stretches_travel_as_places_to_look(self):
+        published = a_report(
+            blindness=self.a_blindness(checked=True),
+        ).to_json()['quality']['blind']
+        assert [s['kind'] for s in published['worst']] == ['unexplained']
+
+    def test_the_whole_block_round_trips_as_json(self):
+        data = a_report(blindness=self.a_blindness(checked=True)).to_json()
+        assert json.loads(json.dumps(data))['quality']['blind'] is not None
+
+
 class TestReconciliation:
     """Absent is not zero, one more time.
 

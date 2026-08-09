@@ -26,6 +26,9 @@ import cv2
 import numpy as np
 
 from .ball import BallTrajectory, build_trajectory
+from .blind import (
+    ACCOUNTED, DEAD, UNEXPLAINED, Blindness, blindness, blindness_warnings,
+)
 from .calibration import Calibration
 from .events import EventLog, attach_xg, attacking_end_for, derive_events
 from .frames import FrameTable, TrackedFramePass, attach_trajectory
@@ -137,6 +140,11 @@ class MatchReport:
     attacking_ends: dict[str, str | None] = field(default_factory=dict)
     # None means no tagged log was supplied — not that there were no stoppages.
     phases: PhaseTable | None = None
+    # Every stretch with no ball located, sorted into stoppages, stretches the
+    # log explains, and stretches nothing does. `possession.no_ball_s` is the
+    # total of these; this is what that total was made of, and only the last
+    # part of it is a defect.
+    blindness: Blindness | None = None
     # Which half this run covers, and where that answer came from. Published
     # because the answer flips the whole pitch and nothing on screen has ever
     # said which way it was decided.
@@ -234,6 +242,13 @@ class MatchReport:
             )
         if self.possession:
             lines.append(f'  possession        {self.possession.summary_line()}')
+
+        # What the run never saw, and how much of that was football. The total
+        # has been printable since possession existed and was never worth much
+        # on its own: a well-tagged half full of throw-ins looks worse than an
+        # untagged one, which is backwards.
+        if self.blindness and self.blindness.spells:
+            lines.append(f'  unseen            {_blind_line(self.blindness)}')
         for team, shape in sorted(self.shape.items()):
             if not shape:
                 continue
@@ -316,6 +331,25 @@ def _touch_line(touches: TouchSequence) -> str:
         f'p10 {touches.confidence_percentile(10):.2f}, '
         f'{len(touches.gaps)} unseen spans'
     )
+
+
+def _blind_line(seen: Blindness) -> str:
+    """The unseen total, then what it was made of and the worst single piece."""
+    total = f'{seen.total_s:.0f}s with no ball'
+    if not seen.checked:
+        return f'{total} — no tagged log, so none of it is accounted for'
+
+    parts = (
+        f'{seen.seconds(DEAD):.0f}s dead, '
+        f'{seen.seconds(ACCOUNTED):.0f}s explained, '
+        f'{seen.seconds(UNEXPLAINED):.0f}s not'
+    )
+    worst = seen.longest()
+    at = (
+        f'; worst {worst.duration_s:.0f}s from {worst.start_s:.0f}s'
+        if worst else ''
+    )
+    return f'{total} — {parts}{at}'
 
 
 def _event_line(events: EventLog) -> str:
@@ -559,6 +593,16 @@ def analyse_match(
     # slightly different match.
     states = prepare_states(states, phases=report.phases)
     report.possession = summarise(states, smooth_window=0)
+
+    # ---- what was missed, and whether that was anyone's fault ----
+    #
+    # From the same prepared states, so the split is a split of the very
+    # `no_ball_s` reported beside it rather than a second count of the same
+    # thing arrived at separately.
+    report.blindness = blindness(
+        states, phases=report.phases, tag_log=tag_log, clock=clock,
+    )
+    report.warnings.extend(blindness_warnings(report.blindness))
 
     attacking_ends = {
         team: attacking_end_for(orientation, side_of_team, period, team)

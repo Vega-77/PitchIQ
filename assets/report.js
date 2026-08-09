@@ -800,6 +800,76 @@ export const ACCEL_NOISE_CEILING_M = 0.3;
  */
 export const PHANTOM_M_PER_MINUTE = 353;
 
+/**
+ * What the stretches with no ball in them were, as a bar's worth of segments.
+ *
+ * `no_ball_s` has always been one figure covering two things a coach would
+ * never put in the same sentence: the ball spending eleven seconds in a
+ * teenager's hands behind the touchline, and twenty seconds of live football
+ * nobody could see. Only the second is a hole in the report — nothing in it
+ * reached possession, territory or the event list — and added together the
+ * first hides it. Worse, it hides it *more* the better the tagging was.
+ *
+ * Returns null when there was nothing unseen, or when no tagged log reached the
+ * run so nothing sorted it. The second case is deliberately not drawn as one
+ * undifferentiated bar: a bar whose whole length is "unknown" claims a split
+ * was measured and came out that way. The quality note says so in words
+ * instead, which is what it is for.
+ */
+export function blindSplit(quality) {
+    const q = quality || {};
+    const blind = q.blind || null;
+    if (!blind) return null;
+
+    const totalS = blind.total_s ?? blind.totalS ?? 0;
+    if (!(totalS > 0)) return null;
+
+    // The longest single stretch nothing accounted for, and where in the
+    // footage it starts. The same total lost as one blackout or as a hundred
+    // flickers are different failures, and only the first takes a passage of
+    // football with it — so the worst one travels beside the split rather than
+    // being averaged into it. Published longest-first by cv/blind.py.
+    const first = (blind.worst || [])[0] || null;
+    const worst = first ? {
+        startS: first.start_s ?? first.startS,
+        durationS: first.duration_s ?? first.durationS,
+    } : null;
+
+    const checked = Boolean(blind.checked);
+    if (!checked) return { totalS, checked, worst, unexplainedS: null, segments: [] };
+
+    const pick = (a, b) => blind[a] ?? blind[b] ?? 0;
+    const parts = [
+        { key: 'dead', label: 'Ball was out of play', seconds: pick('dead_s', 'deadS') },
+        {
+            key: 'accounted',
+            label: 'Tagged something nearby',
+            seconds: pick('accounted_s', 'accountedS'),
+        },
+        {
+            key: 'unexplained',
+            label: 'Live play, unaccounted for',
+            seconds: pick('unexplained_s', 'unexplainedS'),
+        },
+    ];
+
+    // Shares of the blind time, not of the match. Taken over the parts rather
+    // than over `total_s` so the bar always fills its track: the three come
+    // from the same partition and should sum to the total, and a rounding
+    // difference must not leave a sliver of bare track that reads as a fourth
+    // unnamed category.
+    const sum = parts.reduce((acc, part) => acc + part.seconds, 0);
+    return {
+        totalS,
+        checked,
+        worst,
+        unexplainedS: pick('unexplained_s', 'unexplainedS'),
+        segments: parts
+            .filter((part) => part.seconds > 0)
+            .map((part) => ({ ...part, share: sum > 0 ? part.seconds / sum : 0 })),
+    };
+}
+
 export function cvQualityNotes(quality, options = {}) {
     const q = quality || {};
     const { calibrated = false } = options;
@@ -811,13 +881,26 @@ export function cvQualityNotes(quality, options = {}) {
     // video actually showed. The seconds say the same thing as the percentage,
     // in the unit a coach can picture, so they travel together rather than as
     // two sentences that would read as two separate problems.
+    // The unseen total is worth much less than the part of it that was
+    // football. A well-tagged half is full of throw-ins nobody could have
+    // filmed the ball through, and quoting the raw figure makes that half look
+    // worse than one where the tagger never turned up. So when the run was
+    // checked, the sentence ends on the part that is actually a hole.
     const seen = q.ball_seen_share ?? q.ballSeenShare;
     const noBall = q.no_ball_s ?? q.noBallS;
+    const blind = blindSplit(q);
+    let lost = '';
+    if (blind && blind.checked) {
+        lost = `of the ${roughDuration(blind.totalS)} with no ball in sight, `
+            + `${roughDuration(blind.unexplainedS)} was live play nothing accounts for`;
+    } else if (noBall) {
+        lost = `${roughDuration(noBall)} of the clip with no ball in sight`;
+    }
     if (seen != null) {
         notes.push(`the ball was visible in ${pct(seen)} of frames`
-            + (noBall ? ` — ${roughDuration(noBall)} of the clip with none in sight` : ''));
-    } else if (noBall) {
-        notes.push(`${roughDuration(noBall)} of the clip with no ball in sight`);
+            + (lost ? ` — ${lost}` : ''));
+    } else if (lost) {
+        notes.push(lost);
     }
 
     if (!calibrated) notes.push('no pitch calibration, so nothing is in metres');

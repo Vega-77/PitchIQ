@@ -5,7 +5,7 @@
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
-import { comparePair, verdict, COUNT } from './report.js?v=42';
+import { comparePair, verdict, COUNT } from './report.js?v=43';
 
 export const byId = (id) => document.getElementById(id);
 
@@ -302,6 +302,64 @@ export function tally(label, ours, theirs, better = 'high', confidence = null,
     if (called) row.classList.add(called);
 
     return row;
+}
+
+/**
+ * One track cut into named pieces, with a key underneath.
+ *
+ * The fourth shape of bar on these pages, and the first that is not about two
+ * teams. `tally` draws a claim about a match; this draws the composition of a
+ * single quantity — where a whole went, when the whole is the interesting thing
+ * and the parts are what it turned out to be made of.
+ *
+ * Segments arrive already carrying their shares, because deciding what the
+ * denominator is is a judgement and belongs in report.js where it can be tested
+ * without a DOM. This only draws them.
+ *
+ * A segment below a couple of percent still gets a visible sliver rather than
+ * being rounded out of existence: the key beside it names a real number of
+ * seconds, and a key entry with no mark against it is worse than a mark that is
+ * slightly too wide.
+ */
+export function stackBar(segments, options = {}) {
+    const { label = '', tone = '' } = options;
+    const parts = (segments || []).filter((part) => part && part.share > 0);
+
+    const el = document.createElement('div');
+    el.className = 'stack';
+    if (tone) el.classList.add(tone);
+    if (!parts.length) return el;
+
+    const bar = document.createElement('div');
+    bar.className = 's-bar';
+    const key = document.createElement('ul');
+    key.className = 's-key';
+
+    for (const part of parts) {
+        const seg = document.createElement('span');
+        seg.className = `s-seg is-${part.key}`;
+        seg.style.flexGrow = String(part.share);
+        bar.append(seg);
+
+        const item = document.createElement('li');
+        const swatch = document.createElement('i');
+        swatch.className = `is-${part.key}`;
+        const text = document.createElement('span');
+        text.textContent = part.label;
+        const value = document.createElement('b');
+        value.textContent = part.text ?? String(part.seconds ?? '');
+        item.append(swatch, text, value);
+        key.append(item);
+    }
+
+    if (label) {
+        const caption = document.createElement('div');
+        caption.className = 's-label';
+        caption.textContent = label;
+        el.append(caption);
+    }
+    el.append(bar, key);
+    return el;
 }
 
 /**

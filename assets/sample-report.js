@@ -199,6 +199,30 @@ export function sampleCvSummary() {
             no_ball_s: 459,
             live_share: 0.71,
             stoppages: 34,
+            // What those 459 seconds turned out to be. Most of it is stoppages
+            // — that is what a well-tagged half looks like from a camera, and
+            // showing it is the point: 95s of live football nobody could see
+            // is a very different report from 459s of blindness, and the two
+            // were the same number until cv/blind.py split them.
+            //
+            // The three add to the total, and the worst single stretch is
+            // under the threshold that would have raised a warning, which is
+            // why there is no matching entry in `warnings` below.
+            blind: {
+                total_s: 459,
+                checked: true,
+                dead_s: 268,
+                accounted_s: 96,
+                unexplained_s: 95,
+                worst: [
+                    { start_s: 1284, end_s: 1312, duration_s: 28,
+                      kind: 'unexplained', tags: [] },
+                    { start_s: 402, end_s: 421, duration_s: 19,
+                      kind: 'unexplained', tags: [] },
+                    { start_s: 2211, end_s: 2225, duration_s: 14,
+                      kind: 'unexplained', tags: [] },
+                ],
+            },
             // Kept, never dropped — see cv/participants.py. Two figures the
             // classifier could not rule out are inside the counts above.
             flagged_officials: 2,

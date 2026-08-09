@@ -4045,3 +4045,152 @@ describe('the opponent reaches the report', () => {
         assert.ok(forward.themN > forward.usN);
     });
 });
+
+describe('what the run could not see', () => {
+    const split = (blind) => report.blindSplit({ blind });
+    const checked = {
+        total_s: 400, checked: true,
+        dead_s: 250, accounted_s: 100, unexplained_s: 50, worst: [],
+    };
+
+    test('nothing unseen is nothing to draw', () => {
+        assert.equal(report.blindSplit({}), null);
+        assert.equal(report.blindSplit({ blind: null }), null);
+        assert.equal(split({ total_s: 0, checked: true }), null);
+    });
+
+    test('the three parts come back in the order they happened to a coach', () => {
+        // Stoppages first because that is most of it and none of it is a
+        // problem; the hole is last, where the eye finishes.
+        assert.deepEqual(
+            split(checked).segments.map((s) => s.key),
+            ['dead', 'accounted', 'unexplained'],
+        );
+    });
+
+    test('the shares are of the blind time, not of the match', () => {
+        const parts = split(checked).segments;
+        assert.equal(parts[0].share, 0.625);
+        assert.equal(parts[2].share, 0.125);
+    });
+
+    test('the segments fill the track exactly', () => {
+        const total = split(checked).segments
+            .reduce((acc, s) => acc + s.share, 0);
+        assert.ok(Math.abs(total - 1) < 1e-9);
+    });
+
+    test('a part measured at zero gets no segment rather than an empty one', () => {
+        const parts = split({
+            total_s: 100, checked: true,
+            dead_s: 0, accounted_s: 40, unexplained_s: 60,
+        }).segments;
+        assert.deepEqual(parts.map((s) => s.key), ['accounted', 'unexplained']);
+    });
+
+    test('an unchecked run draws no bar at all', () => {
+        // A bar whose whole length is one unnamed block claims a split was
+        // measured and came out that way. Nothing measured it.
+        const unchecked = split({
+            total_s: 400, checked: false,
+            dead_s: null, accounted_s: null, unexplained_s: null,
+        });
+        assert.deepEqual(unchecked.segments, []);
+        assert.equal(unchecked.unexplainedS, null);
+        assert.equal(unchecked.totalS, 400);
+    });
+
+    test('camelCase reaches it too, the way every other quality field does', () => {
+        const parts = report.blindSplit({
+            blind: {
+                totalS: 100, checked: true,
+                deadS: 50, accountedS: 30, unexplainedS: 20,
+            },
+        }).segments;
+        assert.deepEqual(parts.map((s) => s.seconds), [50, 30, 20]);
+    });
+});
+
+describe('the quality note about what was missed', () => {
+    const joined = (q) => report.cvQualityNotes(q).join(' | ');
+    const blind = {
+        total_s: 459, checked: true,
+        dead_s: 268, accounted_s: 96, unexplained_s: 95, worst: [],
+    };
+
+    test('a checked run ends the sentence on the part that is a hole', () => {
+        // 459s of blindness and 95s of missing football are very different
+        // reports, and the second is the one a coach can do anything with.
+        const note = joined({ ball_seen_share: 0.83, no_ball_s: 459, blind });
+        assert.match(note, /83% of frames/);
+        assert.match(note, /of the 7m 39s with no ball in sight/);
+        assert.match(note, /1m 35s was live play nothing accounts for/);
+    });
+
+    test('a well-tagged half no longer looks worse than an untagged one', () => {
+        // The bug this fixes: the same footage, tagged and untagged, and the
+        // tagged run reported a bigger number for the same tracking.
+        const tagged = joined({ ball_seen_share: 0.83, no_ball_s: 459, blind });
+        const untagged = joined({ ball_seen_share: 0.83, no_ball_s: 459 });
+        assert.match(untagged, /7m 39s of the clip with no ball in sight/);
+        assert.doesNotMatch(untagged, /nothing accounts for/);
+        assert.ok(tagged.includes('1m 35s'));
+    });
+
+    test('an unchecked run falls back to the total it can stand behind', () => {
+        const note = joined({
+            ball_seen_share: 0.83, no_ball_s: 459,
+            blind: { total_s: 459, checked: false, dead_s: null,
+                     accounted_s: null, unexplained_s: null },
+        });
+        assert.match(note, /7m 39s of the clip with no ball in sight/);
+        assert.doesNotMatch(note, /accounts for/);
+    });
+
+    test('the split still gets said when ball coverage itself is missing', () => {
+        const note = joined({ no_ball_s: 459, blind });
+        assert.match(note, /^of the 7m 39s with no ball in sight/);
+    });
+
+    test('a run that never lost the ball says nothing about it', () => {
+        assert.doesNotMatch(joined({ ball_seen_share: 1 }), /no ball in sight/);
+    });
+});
+
+describe('the worst stretch the run lost', () => {
+    const withWorst = (worst) => report.blindSplit({
+        blind: {
+            total_s: 400, checked: true,
+            dead_s: 250, accounted_s: 100, unexplained_s: 50, worst,
+        },
+    });
+
+    test('the longest one comes back, since that is the order it arrives in', () => {
+        // A hundred flickers and one blackout lose the same minutes and are
+        // not the same failure. cv/blind.py sorts longest-first.
+        const split = withWorst([
+            { start_s: 1284, duration_s: 28, kind: 'unexplained' },
+            { start_s: 402, duration_s: 19, kind: 'unexplained' },
+        ]);
+        assert.deepEqual(split.worst, { startS: 1284, durationS: 28 });
+    });
+
+    test('a run with nothing worth naming has no worst stretch', () => {
+        assert.equal(withWorst([]).worst, null);
+        assert.equal(withWorst(undefined).worst, null);
+    });
+
+    test('an unchecked run still says where its longest gap was', () => {
+        // The split is withheld because nothing sorted it; where the footage
+        // went dark was measured either way.
+        const split = report.blindSplit({
+            blind: {
+                total_s: 400, checked: false,
+                dead_s: null, accounted_s: null, unexplained_s: null,
+                worst: [{ start_s: 90, duration_s: 45, kind: 'unchecked' }],
+            },
+        });
+        assert.deepEqual(split.worst, { startS: 90, durationS: 45 });
+        assert.deepEqual(split.segments, []);
+    });
+});

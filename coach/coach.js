@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=42';
+} from '../assets/auth.js?v=43';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,20 +8,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=42';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=42';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=42';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=42';
+} from '../assets/db.js?v=43';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=43';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=43';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=43';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=42';
+} from '../assets/sample-report.js?v=43';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=42';
-import { renderPassMap } from '../assets/pass-map.js?v=42';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=42';
-import { renderForms } from '../assets/form-chart.js?v=42';
+} from '../assets/passing.js?v=43';
+import { renderPassMap } from '../assets/pass-map.js?v=43';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=43';
+import { renderForms } from '../assets/form-chart.js?v=43';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -29,16 +29,16 @@ import {
     TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, xgTally, sumXgTallies,
     xgCalibration, calibrationNote, headerCorrection, headerNote,
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
-    clockFromMatch, clockMapNote, HALF_TIME,
-} from '../assets/report.js?v=42';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=42';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=42';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=42';
+    clockFromMatch, clockMapNote, HALF_TIME, blindSplit,
+} from '../assets/report.js?v=43';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=43';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=43';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=43';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
-    confidenceMark,
-} from '../assets/ui.js?v=42';
+    confidenceMark, stackBar,
+} from '../assets/ui.js?v=43';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -1430,6 +1430,29 @@ function cvNote() {
     const strong = document.createElement('strong');
     strong.textContent = sampled ? 'Sample ' : 'Estimated ';
     note.prepend(strong);
+
+    // What the run never saw, drawn rather than described. The sentence above
+    // can carry one figure out of the split; the bar is the only thing that
+    // shows the proportion, which is the whole reason the split exists — a
+    // coach needs to know at a glance whether the missing time was stoppages
+    // or football.
+    const blind = blindSplit(quality);
+    if (blind?.segments?.length) {
+        // The worst single stretch beside the total, because the same lost
+        // minutes as one blackout and as a hundred flickers are different
+        // failures and only one of them is worth scrubbing to. In video time,
+        // which is what somebody would type into the player.
+        const worst = blind.worst
+            ? ` · longest ${roughDuration(blind.worst.durationS)} `
+                + `at ${clockText(blind.worst.startS)}`
+            : '';
+        note.append(stackBar(
+            blind.segments.map((part) => ({
+                ...part, text: roughDuration(part.seconds),
+            })),
+            { label: `No ball found — ${roughDuration(blind.totalS)} in total${worst}` },
+        ));
+    }
     return note;
 }
 

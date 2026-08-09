@@ -1092,6 +1092,54 @@ td.num.cv-partial {
     margin-top: -6px;
 }
 
+/* One quantity cut into named pieces — see `stackBar` in ui.js. Not a tally:
+   there are no two sides here, only a whole and what it turned out to be made
+   of, so the track is filled end to end and the key does the naming.
+
+   The colours are the claim. Dead-ball time is drawn in the dimmest thing on
+   the page because it is not a problem; the unaccounted-for stretch is the only
+   one that gets a warning colour, because it is the only part of the bar that
+   is a hole in the report. */
+.stack { display: flex; flex-direction: column; gap: 8px; }
+
+.s-label {
+    font-size: 0.7rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+}
+
+.s-bar {
+    display: flex;
+    gap: 2px;
+    height: 10px;
+    border-radius: 3px;
+    overflow: hidden;
+}
+/* A sliver rather than nothing for a piece worth a second or two: the key names
+   a real figure beside it, and an entry with no mark against it reads as a
+   category that was measured at zero. */
+.s-seg { flex-basis: 0; min-width: 4px; border-radius: 2px; }
+
+.s-seg.is-dead, .s-key i.is-dead { background: var(--line-hi); }
+.s-seg.is-accounted, .s-key i.is-accounted { background: var(--accent); }
+.s-seg.is-unexplained, .s-key i.is-unexplained { background: var(--warn); }
+
+.s-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+}
+.s-key li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.s-key i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.s-key b { font-variant-numeric: tabular-nums; color: var(--text); }
+
 /* ---------------------------------------------------------- match video */
 
 /* 16:9 without the padding-top trick, and capped so a monitor does not turn
@@ -1671,6 +1719,7 @@ td.num.cv-partial {
 .cv-note {
     display: flex;
     align-items: flex-start;
+    flex-wrap: wrap;
     gap: 10px;
     padding: 11px 13px;
     border: 1px solid var(--line);
@@ -1682,6 +1731,18 @@ td.num.cv-partial {
     margin-bottom: 16px;
 }
 .cv-note strong { color: var(--text-dim); font-weight: 650; }
+
+/* The banner is a flex row of a label and a paragraph; the bar is neither, and
+   belongs on its own line under both. A rule above it because the sentence
+   ends and a picture begins — without one the key reads as a continuation of
+   the prose. */
+.cv-note .stack {
+    flex-basis: 100%;
+    min-width: 0;
+    margin-top: 4px;
+    padding-top: 11px;
+    border-top: 1px solid var(--line);
+}
 
 /* What the pipeline flagged about this particular run.
    Amber and above the note, because the two are different kinds of statement:

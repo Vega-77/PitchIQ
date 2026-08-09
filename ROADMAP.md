@@ -1049,10 +1049,73 @@ should lead with them rather than with per-player figures.
       `BallPoint.observed` is the load-bearing field: a filled-in point is a
       straight line drawn between two sightings, and `cv/reconcile.py` refuses
       to treat one as evidence that the ball crossed a line
-- [ ] For *long* occlusions (goalmouth scrambles), fall back to the live-tagged
-      event log rather than interpolating across them. Not built: today a long
-      gap is left as a gap and reported as `no_ball_s` in the quality block,
-      which is honest but throws away a tag log that knows what happened
+- [x] **For *long* occlusions, fall back to the live-tagged event log rather
+      than interpolating across them** (2026-08-09). Not a fallback in the
+      literal sense, and working out why was the item. The log has no ball
+      positions in it. Anything filled in from it would be invented, and
+      strictly worse than the honest gap that was already there — the reason
+      `ball.MAX_INTERPOLATION_GAP_S` refuses to draw a line across more than a
+      second in the first place is that a real ball gets kicked.
+
+      What the log genuinely knows is **why nobody could see the ball**, and
+      that turned out to be worth more than a position would have been, because
+      `no_ball_s` has been one number covering two things a coach would never
+      put in the same sentence:
+
+      > the ball spent eleven seconds in a teenager's hands behind the
+      > touchline — and there is twenty seconds of live football nobody saw.
+
+      The first is not a failure. Those frames are dead-ball time, already
+      excluded from possession by `cv/phases.py`, and no camera was going to
+      find that ball. The second is a hole in the match: possession, territory,
+      the pressing trend and every event derived from a touch are all silent
+      about it and none of them say so. Added together the first hides the
+      second — and hides it **more the better the tagging was**, so a
+      well-tagged half reported a bigger number than an untagged one for
+      exactly the same tracking. That is backwards, and it had been on the
+      coach's screen since possession was first measured.
+
+      New `cv/blind.py` cuts each unseen stretch against the dead-ball spans and
+      then checks what is left against the log. Three kinds come out: `dead`
+      (inside a tagged stoppage), `accounted` (live by the phase table, but a
+      tag sits inside it or just outside), and `unexplained` — live football,
+      nothing tagged anywhere near, the pipeline simply lost the ball. Only the
+      third is a defect, and it is the figure the whole module exists to
+      produce.
+
+      Three decisions worth writing down:
+
+      - **A straddling gap is split, not voted on.** Twenty seconds covering a
+        twelve-second stoppage is twelve seconds explained and eight not.
+        Deciding it on a majority would either forgive eight seconds of real
+        blackout or invent twelve seconds of one, depending which way the gap
+        happened to lean.
+      - **`accounted` needs a window, not strict containment** — five seconds,
+        for two structural reasons. `phases.TAG_SLOP_S` shrinks every dead span
+        by two seconds at each end on purpose, so a gap that really was a
+        stoppage keeps a live-looking sliver at both ends. And taggers tap the
+        restart without tapping what caused it: a `corner` with no
+        `out_of_bounds` in front of it opens no span at all, while the ball
+        spent the previous few seconds out of play and out of shot.
+      - **"Nobody looked" is its own kind, not zero.** Without a log the
+        stretches are `unchecked` and the three figures are published as null.
+        Three zeroes beside a four-minute total would read as a clean bill of
+        health for a run where no check was possible.
+
+      The split is drawn as a stacked bar on the coach's banner — the fourth
+      shape of bar on these pages and the first that is not about two teams:
+      one whole and what it turned out to be made of. Stoppages in the dimmest
+      colour available, because they are not a problem; the unaccounted-for
+      stretch in the warning amber, because it is the only part of the bar that
+      is a hole in the report. The longest single stretch travels beside the
+      total, since the same lost minutes as one blackout and as a hundred
+      flickers are different failures and only the first takes a passage of
+      football with it. A stretch over thirty seconds with nothing to explain
+      it raises a warning — one warning with a count, not one per stretch,
+      because `trustworthy` is `not warnings` and a list that is all one thing
+      is a list nobody reads.
+
+      `SCHEMA_VERSION` 7 → 8. 451 pure JS · 120 emulator · 872 Python.
 - [ ] Re-identification after a player is occluded or leaves frame briefly —
       **partly done**. `cv/identity.py` rejoins fragments seconds apart on kit
       colour and timing; anyone who went off and came back later stays split,
