@@ -10,22 +10,22 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=48';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=50';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../assets/db.js?v=48';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=48';
+} from '../assets/db.js?v=50';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=50';
 import {
     possessionIsInPlay, cvReads, xgTrust, groupStats, clockFromMatch,
     SHARE, COUNT, RATE,
-} from '../assets/report.js?v=48';
-import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=48';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=48';
+} from '../assets/report.js?v=50';
+import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=50';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=50';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
     tally, groupHead,
-} from '../assets/ui.js?v=48';
+} from '../assets/ui.js?v=50';
 
 const VIEWS = ['view-error', 'view-report'];
 
@@ -202,6 +202,11 @@ function renderTallies() {
         list.innerHTML = '<div class="empty">Nothing tagged yet beyond the restarts.</div>';
     }
 
+    // Read here rather than closed over. These used to be destructured at the
+    // top of this function; the group-stats refactor moved that line down into
+    // `taggedTallies` and left this behind, so every half-time load threw a
+    // ReferenceError and the page said "can't open that match".
+    const { us, them } = state.stats.counts;
     const total = Object.values(us).reduce((a, b) => a + b, 0)
         + Object.values(them).reduce((a, b) => a + b, 0);
     setText('numbers-note',

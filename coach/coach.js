@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=48';
+} from '../assets/auth.js?v=50';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,20 +8,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=48';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=48';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=48';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=48';
+} from '../assets/db.js?v=50';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=50';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=50';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=50';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=48';
+} from '../assets/sample-report.js?v=50';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=48';
-import { renderPassMap } from '../assets/pass-map.js?v=48';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=48';
-import { renderForms } from '../assets/form-chart.js?v=48';
+} from '../assets/passing.js?v=50';
+import { renderPassMap } from '../assets/pass-map.js?v=50';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=50';
+import { renderForms } from '../assets/form-chart.js?v=50';
 import {
     NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
     roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -29,19 +29,19 @@ import {
     TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, xgTally, sumXgTallies,
     xgCalibration, calibrationNote, headerCorrection, headerNote,
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
-    clockFromMatch, clockMapNote, HALF_TIME, blindSplit,
+    clockFromMatch, clockMapNote, HALF_TIME, SECOND_HALF, blindSplit,
     reviewFeed, FROM_VIDEO, FROM_TAGGED, printStamp,
-} from '../assets/report.js?v=48';
+} from '../assets/report.js?v=50';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=48';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=48';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=48';
+} from '../assets/events.js?v=50';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=50';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=50';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=48';
+} from '../assets/ui.js?v=50';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -1914,6 +1914,7 @@ function renderMatchVideoBlock() {
 
     matchVideo?.destroy?.();
     matchVideo = null;
+    byId('match-now').innerHTML = '';
 
     if (!url) {
         block.classList.add('hidden');
@@ -1943,16 +1944,47 @@ function renderMatchVideoBlock() {
             // bar drawn to ninety minutes.
             extraTimes: (state.match.log || []).map((e) => e.matchClockS || 0),
             emptyText: 'No goals, cards or substitutions were tagged.',
+            onClock: ({ videoS, clockS, period }) => {
+                renderMatchNow(videoS, period);
+                setTimelineNow(clockS);
+            },
             notes: {
                 embed: `${plural(marks.length, 'moment')} marked. Tap one to jump `
-                    + 'straight to it. Only goals, cards and substitutions are '
-                    + 'marked — the restarts would bury them.',
+                    + 'straight to it, and the bar follows the video as it plays. '
+                    + 'Only goals, cards and substitutions are marked — the '
+                    + 'restarts would bury them.',
                 link: 'That link cannot be played inside PitchIQ, so the times '
                     + 'below are match-clock readings rather than buttons.',
                 none: '',
             },
         },
     );
+}
+
+/**
+ * The match clock under the strip, moving with the video.
+ *
+ * The half is named rather than assumed. It is the one thing a reading alone
+ * cannot say — 3:20 belongs to both halves — and it is also the visible proof
+ * that the second-half anchor above is set, since without it `periodAt` has no
+ * opinion and this says nothing about which half it is.
+ */
+function renderMatchNow(videoS, period) {
+    const host = byId('match-now');
+    host.innerHTML = '';
+
+    const clock = document.createElement('span');
+    clock.className = 'now-clock';
+    clock.textContent = clockAt(videoS);
+
+    const what = document.createElement('span');
+    what.textContent = period === HALF_TIME
+        ? 'the video is inside the interval'
+        : (period
+            ? `on the match clock — ${period === SECOND_HALF ? 'second' : 'first'} half`
+            : 'on the match clock');
+
+    host.append(clock, what);
 }
 
 /**
@@ -2200,6 +2232,10 @@ const EDITED = 'edited';
 
 const reviewState = {
     filter: 'all', unreviewedOnly: false, inPlayOnly: false, video: null,
+    // The strip is rebuilt every time a chip is tapped, so the playhead has to
+    // be re-applied afterwards from somewhere. `atS` is the last position the
+    // video reported, in footage seconds, or null if it has not said yet.
+    strip: null, atS: null, stopClock: null,
 };
 
 /**
@@ -2291,26 +2327,87 @@ function renderReviewVideo() {
     const host = byId('cv-review-video');
     const url = state.match.videoUrl;
 
-    reviewState.video?.destroy?.();
-    reviewState.video = null;
+    leaveReview();
     host.innerHTML = '';
 
     if (url && videoKind(url)) {
         reviewState.video = mountVideo(host, url);
         setText('cv-review-note',
             'Tap any row to jump the video there.');
+        // The other direction, and the reason the miss form no longer asks a
+        // coach to read a number off the player: the video reports where it is,
+        // and this is the one place that turns a position in the footage into a
+        // reading on the match clock.
+        reviewState.stopClock = reviewState.video.onTime((videoS) => {
+            reviewState.atS = videoS;
+            reviewState.strip?.setNow(toMatchClock(videoS));
+            renderReviewNow();
+        });
     } else {
         setText('cv-review-note', url
             ? 'That video link cannot be played inside PitchIQ, so the times '
               + 'below are readings rather than something to tap.'
             : 'Add a video link above and every row below becomes tappable.');
     }
+    renderReviewNow();
+}
+
+/**
+ * Where the video is, in the clock the form below it is asking for.
+ *
+ * Shown rather than only used, because the conversion is the whole point: a
+ * coach who can see that 20:07 of footage is 18:07 of football can tell at a
+ * glance whether the kick-off offset above is right, and a wrong offset is
+ * otherwise invisible until every marker lands in the warm-up.
+ */
+function renderReviewNow() {
+    const host = byId('cv-review-now');
+    const button = byId('btn-missed-here');
+    host.innerHTML = '';
+
+    const at = reviewState.atS;
+    const known = reviewState.video && at != null;
+    button.classList.toggle('hidden', !known);
+    if (!known) return;
+
+    const { period } = clockMap().toClock(at);
+    const clock = document.createElement('span');
+    clock.className = 'now-clock';
+    clock.textContent = clockAt(at);
+
+    const what = document.createElement('span');
+    // "half-time on the match clock" would be a reading that does not exist.
+    // The interval has a position in the footage and no position in the match.
+    what.textContent = period === HALF_TIME
+        ? `— ${clockText(Math.round(at))} into the footage`
+        : `on the match clock — ${clockText(Math.round(at))} into the footage`;
+
+    host.append(clock, what);
+}
+
+/** Put the video's own position into the miss box, as a clock reading. */
+function useVideoPosition() {
+    if (reviewState.atS == null) return;
+    const { clockS, period } = clockMap().toClock(reviewState.atS);
+    // Half-time is a real answer to "where is the video" and a useless one to
+    // "when did this happen": every second of the interval reads as the same
+    // second, so a miss recorded here would be filed at a moment the match was
+    // not being played. Refuse rather than write down the frozen reading.
+    if (period === HALF_TIME) {
+        toast('The video is inside half-time — nothing to record there.', true);
+        return;
+    }
+    byId('input-missed-clock').value = clockText(clockS);
 }
 
 /** Tear the embedded video down. Called when the match view is left. */
 function leaveReview() {
+    reviewState.stopClock?.();
+    reviewState.stopClock = null;
     reviewState.video?.destroy?.();
     reviewState.video = null;
+    reviewState.atS = null;
+    reviewState.strip = null;
 }
 
 function reviewSeek(clockS) {
@@ -2446,7 +2543,7 @@ function renderReviewList() {
             label: `${event.type}${event.outcome ? ` (${event.outcome})` : ''}`,
         }));
 
-    renderStrip(byId('cv-review-scrubber'), {
+    reviewState.strip = renderStrip(byId('cv-review-scrubber'), {
         marks,
         endS: timelineEnd([
             ...marks,
@@ -2455,6 +2552,12 @@ function renderReviewList() {
         onSeek: reviewSeek,
         clockText,
     });
+    // A fresh strip knows nothing about where the video got to. Without this
+    // the playhead vanishes on every filter tap and comes back a second later,
+    // which reads as a flicker rather than as a rebuild.
+    if (reviewState.atS != null) {
+        reviewState.strip.setNow(toMatchClock(reviewState.atS));
+    }
 
     if (!items.length) {
         host.innerHTML = '<div class="empty">Nothing matches that filter.</div>';
@@ -3014,9 +3117,27 @@ function mergeCvPlayers(players, match, matchEndS = null) {
     }
 }
 
+// The rows of the timeline in the order they were rendered, so the one the
+// video is inside can be picked out. Newest first, which `nowIndex` does not
+// care about — it is given the same array it is asked about.
+let timelineRows = [];
+
+/**
+ * Light up the tagged entry the match video is currently inside.
+ *
+ * Driven by the match video rather than by the review tool's player, because
+ * this list sits with the match video and a highlight that answered to a
+ * different player would be a second opinion about where "now" is.
+ */
+function setTimelineNow(clockS) {
+    const at = nowIndex(timelineRows, clockS);
+    timelineRows.forEach((row, i) => row.el.classList.toggle('is-now', i === at));
+}
+
 function renderTimeline(log, roster) {
     const list = byId('timeline');
     list.innerHTML = '';
+    timelineRows = [];
 
     if (!log.length) {
         list.innerHTML = '<div class="empty">Nothing was tagged for this match.</div>';
@@ -3027,8 +3148,9 @@ function renderTimeline(log, roster) {
     const { usName, themName } = teamLabels();
 
     for (const entry of log.slice().reverse()) {
+        const clockS = entry.matchClockS;
         const row = timelineRow({
-            clock: clockText(entry.matchClockS),
+            clock: clockText(clockS),
             text: describeEvent(entry, {
                 usName, themName, playerName: nameById.get(entry.playerId),
             }),
@@ -3036,7 +3158,13 @@ function renderTimeline(log, roster) {
                 ? ''
                 : (entry.side === 'them' ? themName : usName),
             tone: timelineTone(entry),
+            // Every tagged entry, not just the ones marked on the strip above.
+            // The strip is deliberately thin — goals, cards and subs — because
+            // eighty ticks is a texture; this list is where the restarts and
+            // the fouls live, and each of them is a moment on the video too.
+            onSeek: matchVideo ? () => seekMatchVideo(clockS) : undefined,
         });
+        timelineRows.push({ clockS, el: row });
 
         if (entry.assistPlayerId && nameById.has(entry.assistPlayerId)) {
             const assist = document.createElement('span');
@@ -3091,6 +3219,9 @@ async function doSaveVideo() {
         // and read this same offset. Without these they keep the old ones until
         // the page is reloaded, which reads as the link not having saved.
         renderMatchVideoBlock();
+        // And the timeline, whose rows are only buttons when there is a player
+        // to seek — pasting the first link is exactly the moment that changes.
+        renderTimeline(state.match.log || [], state.match.roster || []);
         renderClockMap();
         if (!byId('cv-review-block').classList.contains('hidden')) renderReview();
 
@@ -3280,6 +3411,7 @@ function init() {
     byId('input-video-offset').addEventListener('input', renderClockMap);
     byId('input-second-half').addEventListener('input', renderClockMap);
     byId('btn-download-log').addEventListener('click', doDownloadLog);
+    byId('btn-missed-here').addEventListener('click', useVideoPosition);
     byId('btn-cv-missed').addEventListener('click', doRecordMiss);
     byId('btn-cv-labels').addEventListener('click', doDownloadLabels);
     byId('btn-cv-sample').addEventListener('click', toggleSample);

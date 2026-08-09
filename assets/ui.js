@@ -5,7 +5,7 @@
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
-import { comparePair, verdict, COUNT } from './report.js?v=48';
+import { comparePair, verdict, COUNT } from './report.js?v=50';
 
 export const byId = (id) => document.getElementById(id);
 
@@ -389,9 +389,16 @@ export function figure(value, label, tone = '') {
  * about the DOM — deciding what an event *means* is events.js's job.
  * `tone` is '', 'good', 'warn' or 'period'.
  */
-export function timelineRow({ clock, text, sideLabel = '', tone = '' }) {
-    const row = document.createElement('div');
-    row.className = 'tl-row';
+export function timelineRow({ clock, text, sideLabel = '', tone = '', onSeek }) {
+    // A button only when there is somewhere to go. A row that looks tappable
+    // and does nothing is worse than a row that looks like text, and the
+    // half-time view renders this list with no video behind it.
+    const row = document.createElement(onSeek ? 'button' : 'div');
+    row.className = onSeek ? 'tl-row is-seek' : 'tl-row';
+    if (onSeek) {
+        row.type = 'button';
+        row.addEventListener('click', onSeek);
+    }
     row.innerHTML = `
         <span class="tl-clock"></span>
         <span class="tl-marker"><span class="tl-dot"></span></span>

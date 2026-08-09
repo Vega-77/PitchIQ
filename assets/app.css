@@ -882,6 +882,25 @@ td.num.cv-partial {
 }
 .tl-row:last-child { border-bottom: none; }
 
+/* Rows that seek the video. The rail runs down the middle of the list, so
+   these cannot take a border or a background on hover without breaking the
+   line — the affordance is the text lifting instead. */
+button.tl-row {
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    background: none;
+    border-width: 0 0 1px 0;
+    border-style: solid;
+    border-color: var(--line);
+    text-align: left;
+    cursor: pointer;
+}
+.tl-row.is-seek:hover .tl-text,
+.tl-row.is-seek:focus-visible .tl-text { color: var(--accent); }
+.tl-row.is-now .tl-text { color: var(--accent); font-weight: 600; }
+.tl-row.is-now .tl-clock { color: var(--accent); }
+
 .tl-clock {
     font-variant-numeric: tabular-nums;
     font-weight: 650;
@@ -1227,6 +1246,27 @@ td.num.cv-partial {
     pointer-events: none;
 }
 
+/* Where the video actually is. Full height and drawn under the marks, so it
+   reads as a position on the bar rather than as one more thing on it — the
+   marks are what you tap, and a playhead that competed with them for attention
+   would make the strip harder to use, not easier. */
+.tick-now {
+    position: absolute;
+    top: -1px; bottom: -1px;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px rgba(77, 214, 193, .18);
+    pointer-events: none;
+    transition: left .25s linear;
+}
+/* The mark the video is inside. */
+.tick.is-now {
+    transform: translateY(-50%) scaleY(1.45);
+    box-shadow: 0 0 0 2px rgba(77, 214, 193, .55);
+}
+
 .moment-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
 
 .moment {
@@ -1255,6 +1295,32 @@ td.num.cv-partial {
 .moment.is-goal .m-label { color: var(--text); font-weight: 600; }
 .moment.is-card { border-left: 3px solid var(--card-yellow); }
 .moment.is-touch .m-label { color: var(--text-faint); }
+/* Whichever one is playing. */
+.moment.is-now {
+    border-color: var(--accent);
+    background: var(--surface-hi);
+    color: var(--text);
+}
+.moment.is-now .m-clock { color: var(--accent); }
+
+/* What the video's position reads as on the match clock, under the strip. The
+   conversion is the point: a coach reading "18:42" off YouTube is not reading
+   the match clock, and every field in this app that takes a time wants the
+   clock. */
+.now-read {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+    color: var(--text-faint);
+}
+.now-read .now-clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--accent);
+}
+.now-read:empty { display: none; }
 
 /* ------------------------------------------------- checking what CV found */
 

@@ -2361,7 +2361,77 @@ than the workaround, which matters given the data class.
       never near the cluster picker or the review tool, both of which write
       back, and a confirm tapped against an invented event id would put a
       decision about nothing into a real document.
-- [ ] **[MVP]** Coach tactical dashboard, player portal view (Phase 14), event timeline synced to video (shared with the Phase 11 review tool)
+- [x] **[MVP] Coach tactical dashboard, player portal view (Phase 14), event
+      timeline synced to video** (2026-08-09). Two of those three shipped long
+      ago — the dashboard is the match view with its shot map, pass network,
+      pressing trend and territory split, and the portal is Phase 14. This line
+      stayed open on the third clause, and on one word in it: **synced**.
+
+      The sync was one-way. The page could tell the video where to go; the video
+      never told the page anything back. That is not a missing polish item, it
+      is the thing that made a whole panel of the review tool produce wrong
+      data, and the apology was written into the interface: *"the time box does
+      not follow the video — YouTube will not tell a page where it is — so read
+      it off the player and type it in."*
+
+      **It will. It waits to be asked, and nobody had asked.** The embed's API
+      is postMessage in both directions: send `{event: 'listening'}` and it
+      starts sending `infoDelivery` frames carrying `currentTime`, about four a
+      second while playing. Measured in the browser against a real embed — the
+      handshake answers with `initialDelivery` at 0.0 and then streams
+      42.08 → 42.36 → 42.61 → … once it is running. This is what the official
+      IFrame API script does underneath; it is done directly rather than by
+      loading that script, because the only thing wanted out of it is one
+      number and the script is a third-party dependency on every page that shows
+      a video. A `<video>` element needs none of this and reports `timeupdate`.
+
+      **The wrong data it was producing.** "The video missed something at ▁▁"
+      is stored as a *match clock* reading, and the number a coach reads off the
+      player is a position in the *footage*. Those are the same number only when
+      kick-off is the first frame, which it never is — the field right below it
+      exists to say so. So every miss recorded by a careful coach reading the
+      player honestly was filed at the wrong moment, off by the offset, and
+      recall was being measured against it. There is now a **Use the video's
+      time** button that does the conversion, and the conversion is also shown
+      as a sentence, because a coach who can see that 20:07 of footage is 18:07
+      of football can tell at a glance whether the offset above is right — and a
+      wrong offset is otherwise invisible until every marker lands in the
+      warm-up.
+
+      It goes through `matchClockMap`, so the break is handled: inside half-time
+      the button **refuses** rather than filling in the frozen reading. Every
+      second of the interval reads as the same second, and a miss filed there
+      would be filed at a moment the match was not being played. Verified across
+      all three periods on a seeded match — 00:44 of footage → 00:44 first half,
+      01:21 → *half-time*, 02:31 → 01:51 second half.
+
+      **What the sync looks like.** A playhead on every strip, on all three
+      pages, since they all go through `renderMatchVideo`. The mark the video is
+      inside lights up, as does its row in the list underneath — `nowIndex` in
+      `timeline.js`, pure and tested, with a 25-second window because a coach
+      seeking to a goal lands before the ball crosses the line and then watches
+      the celebration, and nothing before a mark ever counts, because lighting
+      up a moment that has not happened gives it away.
+
+      And the Timeline block, which was a dead list of text, is now every tagged
+      entry as a button that seeks. The strip above it is deliberately thin —
+      goals, cards and subs, because eighty ticks is a texture rather than a set
+      of things to jump to — so the restarts and the fouls had nowhere to be
+      tappable. Now they do, and the entry the video is inside is picked out of
+      the seven.
+
+      One property worth naming because it fell out rather than being built:
+      **the playhead freezes during half-time**, at the second the first half
+      ended on, and starts moving again at the restart. It is drawn on the match
+      clock, and the match clock stopped.
+
+      Two players sit on the coach's page at once — the match video and the
+      review tool's own — so a message is only ours if `event.source` is our own
+      frame. An origin check is not enough, and without the source check the
+      match strip would follow the review player. Checked: seeking one moved one
+      playhead and left the other at 0%.
+
+      516 pure JS · 120 emulator.
 - [ ] **[Stretch]** Live tracking overlay on video (bounding boxes, IDs, mini-map)
 
 ## 16. Validation & Demo Logistics

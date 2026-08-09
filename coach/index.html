@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=48">
-    <link rel="stylesheet" href="coach.css?v=48">
+    <link rel="stylesheet" href="../assets/app.css?v=50">
+    <link rel="stylesheet" href="coach.css?v=50">
 </head>
 <body>
 
@@ -475,6 +475,9 @@
             <p class="muted" id="match-video-note" style="margin:-4px 0 14px"></p>
             <div id="match-video" class="video-frame"></div>
             <div id="match-scrubber" class="scrubber"></div>
+            <!-- Filled in as the video plays. Empty until it says something,
+                 and `.now-read:empty` is what keeps the gap from showing. -->
+            <p id="match-now" class="now-read" aria-live="off"></p>
             <div id="match-moments" class="moment-list"></div>
         </section>
 
@@ -492,6 +495,7 @@
             <div id="cv-review-video" class="video-frame"></div>
             <p class="muted" id="cv-review-note" style="margin:8px 0 12px; font-size:0.8rem"></p>
             <div id="cv-review-scrubber" class="scrubber"></div>
+            <p id="cv-review-now" class="now-read" aria-live="off"></p>
 
             <!-- Where the two records of this match contradict each other.
                  Above the list on purpose: a moment two independent records
@@ -510,6 +514,12 @@
                     <input id="input-missed-clock" type="text" inputmode="numeric"
                            placeholder="12:30" size="6">
                 </label>
+                <!-- The box wants a match-clock reading and the player shows a
+                     position in the footage, which are two different numbers
+                     whenever kick-off is not the first frame. This does the
+                     conversion, including across half-time. -->
+                <button id="btn-missed-here" class="btn secondary hidden"
+                        title="Fill the box in from wherever the video is now, converted to the match clock">Use the video's time</button>
                 <label class="field">
                     <span>and it was a</span>
                     <select id="input-missed-type"></select>
@@ -519,11 +529,9 @@
                      and no server. Same approach as the tag-log download. -->
                 <button id="btn-cv-labels" class="btn secondary">Download the labels</button>
             </div>
-            <p class="muted" style="margin:8px 0 0; font-size:0.8rem">
+            <p class="muted" id="cv-missed-help" style="margin:8px 0 0; font-size:0.8rem">
                 Recording what the video <em>failed</em> to see is the only way to
-                tell whether it is missing half the match. The time box does not
-                follow the video — YouTube will not tell a page where it is — so
-                read it off the player and type it in.
+                tell whether it is missing half the match.
             </p>
         </section>
 
@@ -602,7 +610,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=48"></script>
+<script type="module" src="coach.js?v=50"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

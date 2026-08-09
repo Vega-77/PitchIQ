@@ -16,9 +16,9 @@
 // dropping it silently would lose the coach's footage rather than declining to
 // frame it.
 
-import { mount, videoKind } from './video.js?v=48';
-import { renderStrip, renderMomentList, timelineEnd } from './timeline.js?v=48';
-import { matchClockMap } from './report.js?v=48';
+import { mount, videoKind } from './video.js?v=50';
+import { renderStrip, renderMomentList, timelineEnd } from './timeline.js?v=50';
+import { matchClockMap } from './report.js?v=50';
 
 /**
  * What we can do with a link: 'embed', 'link' or 'none'.
@@ -46,6 +46,10 @@ export function videoPlacement(url) {
  * Returns the video handle, or null. The caller owns it and must `destroy()` it
  * when leaving — an iframe removed from view keeps playing, and a page that is
  * still talking after you have navigated away has no obvious off switch.
+ *
+ * `onClock` is called with `{ videoS, clockS, period }` as the video plays,
+ * for a caller that wants to say where it is in words. The playhead on the
+ * strip and the lit row in the list happen here whether or not anyone asks.
  */
 export function renderMatchVideo(hosts, options) {
     const {
@@ -104,14 +108,30 @@ export function renderMatchVideo(hosts, options) {
         endFloorS,
     );
 
-    if (hosts.strip) {
-        renderStrip(hosts.strip, { marks, endS, onSeek, clockText, halfS });
-    }
-    if (hosts.list) {
-        renderMomentList(hosts.list, { marks, onSeek, emptyText, clockText });
-    }
+    const strip = hosts.strip
+        ? renderStrip(hosts.strip, { marks, endS, onSeek, clockText, halfS })
+        : null;
+    const list = hosts.list
+        ? renderMomentList(hosts.list, { marks, onSeek, emptyText, clockText })
+        : null;
 
-    return handle;
+    if (!handle) return null;
+
+    // The other direction. Everything above this line is the page telling the
+    // video where to go; this is the video telling the page where it got to,
+    // which it will only do for a player we control — a link we declined to
+    // embed has no position to report, and neither has an absent one.
+    const stop = handle.onTime((videoS) => {
+        const { clockS, period } = clock.toClock(videoS);
+        strip?.setNow(clockS);
+        list?.setNow(clockS);
+        options.onClock?.({ videoS, clockS, period });
+    });
+
+    return {
+        ...handle,
+        destroy() { stop(); handle.destroy(); },
+    };
 }
 
 // Which tagged entries are worth a mark on a whole-team strip.

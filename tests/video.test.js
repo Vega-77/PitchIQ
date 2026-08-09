@@ -20,6 +20,10 @@ import assert from 'node:assert/strict';
 import * as video from '../assets/video.js';
 import * as report from '../assets/report.js';
 import * as matchVideo from '../assets/match-video.js';
+// Only `nowIndex` is exercised here; the two renderers build DOM. It is in that
+// module rather than in the callers because "which mark is the video inside"
+// is arithmetic, and both the strip and the list have to answer it the same way.
+import * as timeline from '../assets/timeline.js';
 import * as heatmap from '../assets/heatmap.js';
 import * as markMod from '../assets/shot-map.js';
 import * as sample from '../assets/sample-report.js';
@@ -4675,5 +4679,69 @@ describe('a rejected shot leaves the map it was drawn on', () => {
     test('a shot the ledger says nothing about is left alone', () => {
         const out = report.correctedShotMarks([mark('a', 0.4)], []);
         assert.deepEqual(out.map((m) => m.xg), [0.4]);
+    });
+});
+
+// ------------------------------------------------- which moment is playing
+
+describe('the mark the video is inside', () => {
+    // Clock readings, in the order a strip would have been given them.
+    const at = (...seconds) => seconds.map((clockS) => ({ clockS }));
+
+    test('nothing is current before the first mark', () => {
+        // A highlight on a moment that has not happened gives it away, which
+        // is the opposite of what a strip is for.
+        assert.equal(timeline.nowIndex(at(600, 1200), 300), -1);
+    });
+
+    test('a mark just passed is the current one', () => {
+        assert.equal(timeline.nowIndex(at(600, 1200), 605), 0);
+    });
+
+    test('the mark is dropped once the video has moved on', () => {
+        // 25 seconds is the window; 40 is past it.
+        assert.equal(timeline.nowIndex(at(600), 640), -1);
+    });
+
+    test('a mark is still current well into the celebration', () => {
+        assert.equal(timeline.nowIndex(at(600), 620), 0);
+    });
+
+    test('two marks a second apart resolve to the later one', () => {
+        // Both qualify. The one the video has most recently passed is the one
+        // a viewer is looking at.
+        assert.equal(timeline.nowIndex(at(600, 601), 602), 1);
+    });
+
+    test('the answer indexes the array it was given, not a sorted copy', () => {
+        // The strip draws marks in whatever order the page built them and the
+        // list sorts its own; an index into somebody else's ordering would
+        // light up the wrong row.
+        assert.equal(timeline.nowIndex(at(1200, 600), 605), 1);
+    });
+
+    test('a mark exactly on the playhead counts', () => {
+        assert.equal(timeline.nowIndex(at(600), 600), 0);
+    });
+
+    test('a position nobody has reported is not a position at zero', () => {
+        // `currentTime` starts null, and null must not light up the kick-off.
+        assert.equal(timeline.nowIndex(at(0, 600), null), -1);
+        assert.equal(timeline.nowIndex(at(0, 600), undefined), -1);
+    });
+
+    test('marks with no clock reading are skipped rather than counted as zero', () => {
+        const marks = [{ clockS: null }, { clockS: 600 }];
+        assert.equal(timeline.nowIndex(marks, 605), 1);
+    });
+
+    test('an empty strip has nothing current', () => {
+        assert.equal(timeline.nowIndex([], 605), -1);
+        assert.equal(timeline.nowIndex(null, 605), -1);
+    });
+
+    test('the window is adjustable, and a zero window means exactly on it', () => {
+        assert.equal(timeline.nowIndex(at(600), 601, 0), -1);
+        assert.equal(timeline.nowIndex(at(600), 600, 0), 0);
     });
 });
