@@ -1061,6 +1061,38 @@ describe('cvQualityNotes', () => {
     };
     const joined = (q, o) => report.cvQualityNotes(q, o).join(' | ');
 
+    test('a camera that moved says when, because that is the actionable half', () => {
+        // "The camera moved" is a fact; "from 2m 34s onwards" tells a coach
+        // which half of the match to disbelieve and which tripod to check.
+        const notes = report.cvQualityNotes(
+            { camera: { moved: true, first_s: 154, checked: true } },
+            { calibrated: true },
+        );
+        const moved = notes.filter((n) => n.includes('camera moved'));
+        assert.equal(moved.length, 1);
+        assert.match(moved[0], /2m 34s/);
+        assert.match(moved[0], /wrong pitch/);
+    });
+
+    test('a still camera, or one nobody could check, says nothing', () => {
+        const still = { camera: { moved: false, first_s: null, checked: true } };
+        const unchecked = { camera: { moved: false, first_s: null, checked: false } };
+        for (const q of [still, unchecked, {}]) {
+            assert.ok(!report.cvQualityNotes(q, { calibrated: true })
+                .some((n) => n.includes('camera moved')));
+        }
+    });
+
+    test('without a calibration there are no metres to invalidate', () => {
+        // Warning about a moved camera on a run that never claimed a distance
+        // would be noise on the majority of clips.
+        const notes = report.cvQualityNotes(
+            { camera: { moved: true, first_s: 154, checked: true } },
+            { calibrated: false },
+        );
+        assert.ok(!notes.some((n) => n.includes('camera moved')));
+    });
+
     test('a run slower than the football says how late it was, not its ratio', () => {
         // The half-time whistle is the only deadline in this project. "1.4x
         // real time" does not tell a coach they waited eighteen minutes.

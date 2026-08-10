@@ -1290,6 +1290,19 @@ export function cvQualityNotes(quality, options = {}) {
 
     if (!calibrated) notes.push('no pitch calibration, so nothing is in metres');
 
+    // The camera moving is not one more caveat among the others — it is the
+    // precondition for all of them. The homography is fitted from a single
+    // frame, so once the camera has moved every distance, speed, shot position
+    // and heatmap after that moment describes a pitch it is no longer pointed
+    // at. Said with the minute, because "the camera moved" is a fact and "from
+    // 34:12 onwards" is something a coach can act on: that is the half of the
+    // match to disbelieve, and the tripod to check before the next one.
+    const camera = q.camera;
+    if (calibrated && camera?.moved && camera.first_s != null) {
+        notes.push(`the camera moved ${roughDuration(camera.first_s)} into the footage`
+            + ' — everything in metres after that is measured against the wrong pitch');
+    }
+
     // Which half, and only when nothing but a default said so.
     //
     // The period decides which goal each side was attacking, and every pitch

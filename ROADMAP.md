@@ -1063,7 +1063,76 @@ the error directly, so a 105m default on a 100m field overstates every figure by
 dimensions move every xG number too. The action is in `FOOTAGE_DAY.md` §2:
 measure the actual pitch before the camera goes up.
 
-- [ ] Recalibration handling if the camera is bumped or zoom changes mid-game
+- [x] **Notice when the camera moved** (2026-08-10) — the detection half of
+      recalibration. Re-fitting the homography from the new framing is still
+      open below; knowing you need to is not.
+
+      The calibration is one homography, fitted once, from one frame, and every
+      metre goes through it: distance, top speed, sprints, shot positions, xG,
+      heatmaps, territory, shape. A fixed camera is a hard requirement in Phase 4
+      and in `FOOTAGE_DAY.md` §1 — which is the right rule and not a mechanism.
+      Somebody walks into the tripod at half-time and the rule is broken by
+      accident, silently.
+
+      **Silently is the problem.** A stale homography does not fail. It keeps
+      returning plausible coordinates, and every figure downstream keeps its
+      shape — a player still covers seven kilometres, a shot still lands
+      somewhere in the box. The numbers are simply about a pitch the camera is no
+      longer pointed at, and nothing in the report has ever said which half of a
+      match that applies to.
+
+      **Done with data the pipeline already has**, no new model and no second
+      pass over the pixels. Over a second the *median* per-track displacement is
+      near zero, because twenty-two people move in twenty-two directions; a frame
+      that shifts moves all of them by one vector. Measured in player heights via
+      `scale_px`, so one threshold holds at any resolution and camera distance.
+
+      **The median alone is not enough, and the tests found the case that proves
+      it.** With exactly half the pitch sprinting one way and the other half
+      still, the median sits midway between the two groups — dead on any
+      threshold worth setting — because a median describes the middle player, and
+      the middle player is not the frame. What actually separates a camera move
+      is **agreement**: a shift is called only when the median is large *and*
+      most tracks are individually within half a player height of it. In the
+      half-and-half sprint nobody is near the midpoint, so agreement collapses.
+      `tests/test_camera.py` keeps both the rejection and, with agreement
+      disabled, the proof that the median alone would have fired.
+
+      Most of that test file is football that must **not** register — a lone
+      sprinter, a counter-attack, a whole pitch pressing as a unit — because
+      `trustworthy` is `not warnings` and a false positive condemns a good
+      report. When it does fire it is a real warning, unlike the real-time factor
+      added the same day: a slow run is not an inaccurate one, and this is.
+
+      **What it cannot do**, each stated in the module rather than discovered
+      later. It says the calibration went stale and roughly when, not by how
+      much — recovering that needs the pitch lines re-found, which is the
+      `[Stretch]` item below. It cannot tell a bump from a deliberate pan or
+      zoom, and does not try, because both invalidate the homography exactly as
+      completely. And it cannot see a *slow* drift: a tripod settling into soft
+      ground moves the median by a hair per sample, indistinguishable from a team
+      shifting up, and turning the threshold down far enough to catch it turns
+      every counter-attack into a camera bump. A step is what this finds.
+
+      **A verification note worth keeping.** Running it end to end against the
+      real pipeline is what revealed that YOLO detects **zero people** in the
+      synthetic clip these experiments have been using — so `analyse_match`
+      correctly reported `checked=False` and the positive path never ran. The
+      integration test builds the frame table directly instead. The same finding
+      is why the speed figures in Phase 6 above have been corrected.
+
+      **And the flake that had been blamed on the emulator was ours.** The
+      emulator suites ran as `node --test` over three files, which the runner
+      executes in *parallel processes* against a single emulator. Three
+      `clearFirestore()` calls contending on one instance is a race, and it
+      surfaced as whichever test happened to be first in the newest describe
+      block failing in under 20ms with `CANCELLED`. Each file has its own
+      project id, so no data was ever crossing over — it was contention, not
+      interference, which is why it looked so much like infrastructure. Adding
+      `--test-concurrency=1` serialises them; four consecutive full runs clean,
+      against a roughly one-in-three failure rate before.
+
+      `SCHEMA_VERSION` 10 → 11. 554 pure JS · 132 emulator · 979 Python.
 - [ ] **[Stretch]** Automatic pitch-line detection
 - [ ] Strategy for when the camera doesn't see the whole pitch, tied to the coverage risk in the Reality Check
 
@@ -1452,8 +1521,13 @@ should lead with them rather than with per-player figures.
       **What this does not do.** It does not process footage incrementally during
       play — that is the separate open item in Phase 4 — and it does not say
       whether *this* pipeline keeps up with *real* football, because the only
-      footage available is a synthetic clip of coloured blobs, on which detection
-      is unrealistically cheap. Every number above is a statement about one
+      footage available is a synthetic clip of coloured blobs — and, as the
+      camera-shift work turned up the next day, **YOLO detects nothing at all in
+      it**: zero people, every frame. So the rates above are decode plus
+      inference over an empty pitch, with tracking, identity, touches and events
+      all doing no work whatsoever. They are a floor on a floor, and the real
+      figure will be far worse. The tool is right; the only clip it has been
+      pointed at is not football. Every number above is a statement about one
       machine, one clip and one model on one afternoon, which is why the tool
       prints exactly that under its own results and why none of its figures are
       recorded here as a property of the pipeline. What is settled is that the

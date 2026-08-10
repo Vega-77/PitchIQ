@@ -87,7 +87,11 @@ from .teams import TEAM_A, TEAM_B
 #     answers a different question: it is the bill, and this is the itemisation
 #     plus whether the bill would have fitted inside a live half. See
 #     cv/timing.py — in particular why `lag_s` is a floor and not an estimate.
-SCHEMA_VERSION = 10
+# 11: `camera` in the quality block. Additive, and the first field that says
+#     whether the homography every metre goes through was still describing the
+#     right pitch by the end of the window. A version 10 report is not a report
+#     where the camera held still — it is one where nobody looked.
+SCHEMA_VERSION = 11
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -747,6 +751,11 @@ def _quality(report, log: EventLog) -> dict:
             _round(report.timings.realtime_factor(report.duration_s), 3)
             if report.timings else None
         ),
+        # Whether the camera held still, and when it did not. Every figure in
+        # metres is fitted from one frame, so this is the precondition for all
+        # of them — carried whole rather than as a boolean, because "moved at
+        # 34:12" is actionable and "moved" is not.
+        'camera': report.camera.to_json() if report.camera else None,
         'kit_separation': _round(report.kit_separation, 1),
         'clear_holder_share': _round(report.clear_holder_share, 3),
         # Seen and filled-in kept apart. Interpolated points are a straight

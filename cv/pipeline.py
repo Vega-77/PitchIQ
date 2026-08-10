@@ -30,6 +30,7 @@ from .blind import (
     ACCOUNTED, DEAD, UNEXPLAINED, Blindness, blindness, blindness_warnings,
 )
 from .calibration import Calibration
+from .camera import CameraMotion, camera_warnings, detect_camera_shift
 from .events import EventLog, attach_xg, attacking_end_for, derive_events
 from .frames import FrameTable, TrackedFramePass, attach_trajectory
 from .frame_sampler import effective_fps, stride_for_fps, video_info
@@ -196,6 +197,11 @@ class MatchReport:
     # half. `processing_s` above is this object's total; what it could never say
     # is which stage to shorten, or how late the half-time report would be.
     timings: Timings | None = None
+
+    # Whether the camera held still. None when nothing looked. The homography is
+    # fitted once from one frame, so a camera that moved mid-match invalidates
+    # every metre after it — and until this existed, nothing said so.
+    camera: CameraMotion | None = None
 
     @property
     def _ball_frames(self) -> int:
@@ -558,6 +564,15 @@ def analyse_match(
     with timings.stage('ball'):
         report.ball = build_trajectory(ball_candidates, info.width)
         attach_trajectory(table, report.ball)
+
+    # ---- did the camera hold still? ----
+    #
+    # Before anything is measured in metres, because this is the thing that
+    # decides whether those metres mean anything. Cheap: it walks the frames
+    # once and takes a median per sample.
+    with timings.stage('camera'):
+        report.camera = detect_camera_shift(table)
+    report.warnings.extend(camera_warnings(report.camera, calibration is not None))
 
     # ---- teams ----
     #
