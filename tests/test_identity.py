@@ -206,6 +206,90 @@ class TestMerging:
         assert clusters[0].team == UNKNOWN
 
 
+def largest_hole_s(cluster, spans) -> float:
+    """The longest stretch inside a cluster's own span where it was not on screen."""
+    windows = sorted(
+        (spans[t].first_s, spans[t].last_s) for t in cluster.track_ids
+    )
+    hole = 0.0
+    reach = windows[0][1]
+    for first_s, last_s in windows[1:]:
+        hole = max(hole, first_s - reach)
+        reach = max(reach, last_s)
+    return hole
+
+
+class TestSolidInterval:
+    """A cluster's interval has no hole in it longer than `MAX_BRIDGE_S`.
+
+    This is asserted here because something in the *other* language leans on
+    it. `sameFigureCandidates` in assets/report.js offers the coach the other
+    figures that might be the same person, and the one thing it rules out with
+    certainty is a figure that was on screen at the same time. The browser only
+    has `first_seen_s` and `last_seen_s` — the frame sets never leave Python —
+    so it has to make that call from intervals, which is normally far too weak
+    a thing to reason from: two intervals can overlap while sharing no frame.
+
+    They cannot here, and this is why. Every merge joins a pair with a gap
+    between 0 and `MAX_BRIDGE_S`, and a cluster is connected through such
+    pairs, so its interval is solid to within that bridge. An overlap wider
+    than one bridge therefore really is two people.
+
+    If a future merge rule ever bridges a longer absence, this fails — and the
+    browser's exclusion has to be loosened with it, or it will start hiding the
+    right answer.
+    """
+
+    def test_a_bridged_occlusion_leaves_no_hole_wider_than_the_bridge(self):
+        frames = combine(
+            run_of(1, 0, 30, x0=500.0),
+            run_of(2, 36, 30, x0=560.0),
+        )
+        spans = track_spans(table(frames))
+        clusters = merge_tracks(table(frames))
+        assert len(clusters) == 1
+        assert largest_hole_s(clusters[0], spans) <= MAX_BRIDGE_S
+
+    def test_a_chain_of_fragments_stays_solid_end_to_end(self):
+        """Three hops could in principle accumulate; they must not."""
+        frames = combine(
+            run_of(1, 0, 20, x0=500.0),
+            run_of(2, 24, 20, x0=540.0),
+            run_of(3, 48, 20, x0=580.0),
+        )
+        spans = track_spans(table(frames))
+        clusters = merge_tracks(table(frames), min_sightings=5)
+        assert clusters[0].track_ids == {1, 2, 3}
+        assert largest_hole_s(clusters[0], spans) <= MAX_BRIDGE_S
+
+    def test_it_holds_across_a_crowd_of_overlapping_fragments(self):
+        """Twelve fragments of four players, interleaved, some sharing frames.
+
+        The shapes above are the ones the merger was designed for. This one is
+        deliberately messier, because the invariant has to survive the case
+        where union-find is choosing between several plausible continuations.
+        """
+        rng = np.random.default_rng(7)
+        parts = []
+        track_id = 0
+        for lane in range(4):
+            start = 0
+            for _ in range(3):
+                track_id += 1
+                length = int(rng.integers(20, 40))
+                parts.append(run_of(
+                    track_id, start, length, x0=200.0 + lane * 150.0, y=400.0,
+                ))
+                start += length + int(rng.integers(0, 90))
+        frames = combine(*parts)
+        spans = track_spans(table(frames))
+        clusters = merge_tracks(table(frames), min_sightings=5)
+
+        assert clusters, 'the fixture should produce clusters to check'
+        for cluster in clusters:
+            assert largest_hole_s(cluster, spans) <= MAX_BRIDGE_S
+
+
 class TestOutput:
     def test_tiny_clusters_are_dropped_as_noise(self):
         clusters = merge_tracks(table(run_of(1, 0, 3)), min_sightings=20)

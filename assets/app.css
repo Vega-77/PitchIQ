@@ -739,6 +739,85 @@ td.num.cv-partial {
 .cluster-row .grow { grid-area: info; min-width: 0; }
 .cluster-row .figures { grid-area: frames; }
 .cluster-row .cluster-pick { grid-area: picker; }
+/* Placed implicitly rather than as a named area in the template above, and
+   that is deliberate. A declared row is a row whether or not anything lands in
+   it, so every one of the fifteen unnamed figures would have paid a 12px gap
+   for a strip it does not have. An implicit row only exists once something is
+   in it. */
+.cluster-row .same-as { grid-column: 1 / -1; min-width: 0; margin-top: 2px; }
+
+/* The other figures that might be this same player.
+
+   Folded away behind one line by default. A named row is a finished row, and
+   fifteen open shortlists under fifteen finished rows would bury the unnamed
+   ones that still need the coach — which are the whole point of the list. */
+.same-as-toggle {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-size: 12px;
+    color: var(--accent);
+    cursor: pointer;
+    text-align: left;
+}
+.same-as-toggle:hover { text-decoration: underline; }
+
+/* Wraps rather than scrolling sideways. A sideways strip reads well until the
+   last card is half off the edge, and half a face is exactly the thing this
+   control asks the coach to look at. There are rarely more than a handful. */
+.same-as-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 0 2px;
+}
+.same-as-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+    padding: 6px 10px 6px 6px;
+    border: 1px solid var(--line-hi);
+    border-radius: 10px;
+    background: var(--surface-hi);
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.same-as-card:hover { border-color: var(--accent); }
+/* The picture is the control here as much as it is in the row above, but at
+   half the size: this is "is that the same kid?", asked of a face you have
+   already looked at once. */
+.same-as-card .cluster-thumb { width: 26px; height: 50px; }
+.same-as-text { display: flex; flex-direction: column; gap: 2px; max-width: 190px; }
+.same-as-text strong { font-size: 12px; font-weight: 600; }
+.same-as-text small { font-size: 11px; color: var(--text-faint); line-height: 1.25; }
+.same-as-verb {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+}
+
+.same-as-card.joined { border-color: var(--accent); background: var(--accent-dim); }
+
+/* Shown, not hidden. Only one thing in this list is a certainty — two figures
+   on screen together are two people — and a coach who wonders why Figure 12 is
+   not offered deserves the reason on screen rather than an absence. Dimmed and
+   last, with the objection written on the card. */
+.same-as-card.ruled-out { opacity: 0.55; cursor: not-allowed; }
+.same-as-card.ruled-out:hover { border-color: var(--line-hi); }
+.same-as-card.ruled-out .same-as-verb { display: none; }
+
+.same-as-note {
+    margin: 6px 0 2px;
+    max-width: 62ch;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--text-faint);
+}
 
 /* A swatch of the kit colour the clustering settled on. Approximate by
    design — it exists so a coach can recognise which side a tracked figure was

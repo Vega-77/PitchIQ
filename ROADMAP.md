@@ -1240,9 +1240,19 @@ should lead with them rather than with per-player figures.
 
       `SCHEMA_VERSION` 7 → 8. 451 pure JS · 120 emulator · 872 Python.
 - [ ] Re-identification after a player is occluded or leaves frame briefly —
-      **partly done**. `cv/identity.py` rejoins fragments seconds apart on kit
-      colour and timing; anyone who went off and came back later stays split,
-      and the picker's many-to-one mapping is what covers that case instead
+      **partly done**, and the human half of it is now finished. `cv/identity.py`
+      rejoins fragments seconds apart on kit colour and timing; anyone who went
+      off and came back later stays split, and the picker's many-to-one mapping
+      is what covers that case instead. Since 2026-08-10 the picker also
+      *suggests* the rejoin rather than waiting to be told (see the merge-tracks
+      entry in Phase 12), which is a coach pressing one button instead of
+      scrolling forty rows looking for a face.
+
+      What remains open is the automatic half: an appearance model good enough
+      to rejoin a player across a minute rather than across two seconds. That is
+      gated on footage, not on effort — on this camera framing a player is a few
+      dozen pixels tall and the only appearance signal that survives is the kit
+      colour already being used
 - [x] **Track smoothing before computing speed and distance** — built since
       `cv/metrics.py` existed, and deliberately **not** a Kalman filter: one
       needs tuning that cannot be validated without ground-truth tracks, and an
@@ -1677,12 +1687,69 @@ scratch.
       first, and deliberately raises **no warning** when it bites —
       `trustworthy` is `not warnings`, and a run whose briefest figures went
       without a picture is not a run whose numbers are worse.
-- [ ] Merge-tracks control for split IDs — **largely already possible**: the
-      picker is many-to-one and `cvStatsByPlayer` sums across every cluster
-      mapped to the same player, so merging two fragments is done by naming
-      them both. What is missing is only the convenience of saying so once
-      rather than twice, and the count of fragments a player was assembled from
-      is already reported as the caveat it is
+- [x] **Merge-tracks control for split IDs** (2026-08-10). The mechanism was
+      already there and this line said so: the picker is many-to-one,
+      `cvStatsByPlayer` sums across every cluster mapped to the same player, and
+      merging two fragments is done by naming them both. What was missing was
+      only the saying-so.
+
+      That turns out not to be a small thing. `cv/identity.py` will not bridge
+      an absence longer than two seconds, so a player who goes off, or who
+      leaves frame while the camera pans, comes back as a second figure — and
+      the list is ordered by how long each figure was tracked, which puts the
+      two halves of one player's match as far apart as the list gets. Finding
+      the second one means recognising a face in a forty-row list you have
+      already scrolled past, and the cost of not bothering is that a player's
+      distance and touches are quietly the first half of their match only.
+
+      So naming a figure now opens a shortlist under it: **the other figures
+      that could be this same person**, each with a picture, and one press to
+      say so. Press it again to undo. The row's own line becomes "Alex Vega is
+      2 figures · change", which is also the first time the app has said out
+      loud that a player was assembled from more than one.
+
+      **The one thing that can be said with certainty**, and it is the same one
+      `identity.py` leans on: two figures on screen in the same frame are two
+      people, whatever they look like. That is the only candidate the control
+      refuses outright — disabled, not merely dimmed.
+
+      Making that call in the browser needed an argument, because the browser
+      has intervals and not frame sets, and an interval is normally far too weak
+      a thing to reason from — two intervals can overlap while sharing no frame.
+      They cannot here. Every merge in `identity.py` joins a pair with a gap
+      between 0 and `MAX_BRIDGE_S`, and a cluster is connected through such
+      pairs, so **no cluster has a hole in it longer than two seconds**: its
+      interval is solid, and an overlap wider than one bridge really is two
+      people. `tests/test_identity.py::TestSolidInterval` asserts that against
+      the merger itself, including a deliberately messy twelve-fragment run,
+      because it is the load-bearing half of the argument and it lives in the
+      other language. If a future merge rule bridges a longer absence, that test
+      fails and the browser's exclusion has to be loosened with it.
+
+      **Everything else is evidence, so it orders the list rather than
+      shortening it.** How long the gap was, whether the shirt colour matches
+      within the same Lab threshold `identity.py` uses, whether the player just
+      named was even on the pitch for it. Each of those is written on the card —
+      *"40s later, from 07:40"*, *"a different shirt"*, *"— but they were off the
+      pitch"* — and none of them removes a row, for the same reason the picker
+      above it refuses to filter: the video offset is the fiddliest number in the
+      app, and hiding the poor fits would hide the right answer on the day it is
+      wrong. A figure somebody else already has is offered too, saying whose it
+      is; a coach who named a fragment wrongly finds that out here.
+
+      The ruled-out ones are shown as well, greyed, with the objection on them.
+      An empty space where a figure used to be reads as a bug, and the coach
+      wondering why Figure 12 is not offered deserves the answer on screen.
+
+      One regression caught while building it and worth naming, because it was
+      created by this change rather than found: naming a figure now rebuilds
+      every row, since one answer changes what the others can suggest. That is
+      fine for a mouse and quietly hostile to a keyboard — the `<select>` just
+      used no longer exists, focus falls back to the body, and the next Tab
+      starts from the top of the page, fifteen times over. The control the coach
+      pressed is put back under the cursor.
+
+      533 pure JS · 120 emulator · 915 Python.
 - [x] **Save finalized data as the source of truth for stats, profiles, xG
       logging, and the player portal** (2026-08-09). The review tool exists to
       correct the pipeline, and its corrections reached the scorecard, the shot

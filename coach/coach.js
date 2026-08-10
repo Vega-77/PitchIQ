@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=50';
+} from '../assets/auth.js?v=53';
 import {
     createTeam, getTeam, listPlayers, addPlayer, removePlayer, invitePlayer,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
@@ -8,40 +8,40 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=50';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=50';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=50';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=50';
+} from '../assets/db.js?v=53';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=53';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=53';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=53';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=50';
+} from '../assets/sample-report.js?v=53';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=50';
-import { renderPassMap } from '../assets/pass-map.js?v=50';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=50';
-import { renderForms } from '../assets/form-chart.js?v=50';
+} from '../assets/passing.js?v=53';
+import { renderPassMap } from '../assets/pass-map.js?v=53';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=53';
+import { renderForms } from '../assets/form-chart.js?v=53';
 import {
-    NOT_A_PLAYER, rankRosterForCluster, cvQualityNotes,
-    roughDuration, reviewScore, reviewLabels, xgTrust,
+    NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
+    cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
     groupStats, teamStatRows, trackedCoverage, metresPerMinute,
     TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, xgTally, sumXgTallies,
     xgCalibration, calibrationNote, headerCorrection, headerNote,
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
     clockFromMatch, clockMapNote, HALF_TIME, SECOND_HALF, blindSplit,
     reviewFeed, FROM_VIDEO, FROM_TAGGED, printStamp,
-} from '../assets/report.js?v=50';
+} from '../assets/report.js?v=53';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=50';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=50';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=50';
+} from '../assets/events.js?v=53';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=53';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=53';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=50';
+} from '../assets/ui.js?v=53';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -677,6 +677,8 @@ async function openMatch(matchId) {
         // Off on every open. A preview that survived navigating to another match
         // would show one match's invented numbers under another match's title.
         state.cvPreview = false;
+        // Likewise: figure 3 of this match is not figure 3 of the last one.
+        sameAsOpen = null;
 
         // Merge the video's per-player figures onto the tagged ones, so the
         // table can be one table. Only for figures a coach has matched to a
@@ -1682,6 +1684,27 @@ function renderClusterMapping() {
     for (const cluster of ordered) {
         host.append(clusterRow(cluster, mapping));
     }
+    restoreFocus();
+}
+
+/**
+ * The control to put the cursor back on after the list is rebuilt.
+ *
+ * Naming a figure now rebuilds every row, because one answer changes what the
+ * other rows can suggest. That is fine for a mouse and quietly hostile to a
+ * keyboard: the `<select>` the coach just used no longer exists, focus falls
+ * back to the body, and the next Tab starts again from the top of the page —
+ * fifteen times over.
+ */
+let pendingFocus = null;
+
+function restoreFocus() {
+    if (!pendingFocus) return;
+    const { clusterId, control } = pendingFocus;
+    pendingFocus = null;
+    byId('cv-clusters')
+        ?.querySelector(`[data-cluster="${clusterId}"] ${control}`)
+        ?.focus();
 }
 
 // A crop below this many pixels tall in the original footage has no face, no
@@ -1739,6 +1762,7 @@ function clusterFace(cluster) {
 function clusterRow(cluster, mapping) {
     const row = document.createElement('div');
     row.className = 'list-item cluster-row';
+    row.dataset.cluster = String(cluster.cluster_id);
     row.innerHTML = `
         <div class="grow">
             <div class="title"></div>
@@ -1820,13 +1844,194 @@ function clusterRow(cluster, mapping) {
         else delete next[key];
         state.match.cvMapping = next;
 
-        row.classList.toggle('unmatched', !select.value);
+        // The suggestions are about the player just named, so a change of name
+        // is a change of question. Opening the strip on the row the coach is
+        // working on is also the only moment it is worth their attention.
+        sameAsOpen = select.value && select.value !== NOT_A_PLAYER
+            ? cluster.cluster_id
+            : null;
+
+        pendingFocus = { clusterId: cluster.cluster_id, control: 'select' };
         updateMappingNote();
         queueMappingSave();
+        renderClusterMapping();
     });
 
     row.classList.toggle('unmatched', !select.value);
+
+    const strip = sameAsStrip(cluster, mapping);
+    if (strip) row.append(strip);
+
     return row;
+}
+
+// ------------------------------------------------ the same player, seen twice
+//
+// `cv/identity.py` will not bridge an absence longer than two seconds, so a
+// player who goes off, or who leaves frame while the camera pans, comes back as
+// a second figure. Naming both is already the whole fix — the picker is
+// many-to-one and `cvStatsByPlayer` sums across every cluster mapped to a name.
+//
+// What was missing is the saying-so. The list is ordered by how long each
+// figure was tracked, so the two halves of one player's match sit nowhere near
+// each other, and finding the second one means recognising a face in a forty-row
+// list you have already scrolled past. This puts the shortlist under the row
+// you are on, with the reasoning shown rather than implied.
+
+/** The row whose suggestions are open. One at a time; a wall of them is noise. */
+let sameAsOpen = null;
+
+/**
+ * What to say about a candidate, in the order the objections matter.
+ *
+ * A ruled-out row keeps its reason on it. It is there to be seen and dismissed
+ * — an empty space where a figure used to be reads as a bug, and the coach who
+ * wonders "why isn't Figure 12 offered?" deserves the answer on screen.
+ */
+function sameAsWhy(row, clock) {
+    if (row.overlapS > 0 && row.ruledOut) {
+        return `on screen at the same time for ${roughDuration(row.overlapS)}`;
+    }
+    if (row.sameTeam === false) return 'the other team’s kit';
+
+    const bits = [];
+    const at = clock.toClock(row.cluster.first_seen_s ?? 0).clockS;
+    bits.push(row.gapS > 0
+        ? `${roughDuration(row.gapS)} later, from ${clockText(Math.max(0, at))}`
+        : `from ${clockText(Math.max(0, at))}`);
+    if (row.kitS != null && row.kitS > SAME_KIT_CHROMA) bits.push('a different shirt');
+    // Zero is the case worth naming: the player this would join was on the
+    // bench for every second of it, so either the suggestion or the sub log is
+    // wrong. A partial share is ordinary — figures straddle a substitution.
+    // Set off with a dash rather than another dot, because it is an objection
+    // rather than one more fact in the row.
+    return bits.join(' · ')
+        + (row.playedShare === 0 ? ' — but they were off the pitch' : '');
+}
+
+function sameAsCard(row, clusterId, player, playerName) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'same-as-card';
+    card.dataset.same = String(row.cluster.cluster_id);
+    const joined = row.takenBy === null
+        && (state.match.cvMapping || {})[String(row.cluster.cluster_id)] === player;
+    card.classList.toggle('joined', joined);
+    card.classList.toggle('ruled-out', !!row.ruledOut);
+    // Not merely dimmed. Two figures on screen together are two people, and
+    // that is the one thing here that is a certainty rather than evidence — so
+    // it is the one thing the control refuses to let a coach do by mistake.
+    card.disabled = !!row.ruledOut;
+
+    card.append(clusterFace(row.cluster));
+
+    const text = document.createElement('span');
+    text.className = 'same-as-text';
+    const title = document.createElement('strong');
+    title.textContent = `Figure ${row.cluster.cluster_id + 1}`;
+    const why = document.createElement('small');
+    why.textContent = row.takenBy
+        ? `already ${nameOf(row.takenBy)}`
+        : sameAsWhy(row, clockMap());
+    text.append(title, why);
+    card.append(text);
+
+    const verb = document.createElement('span');
+    verb.className = 'same-as-verb';
+    verb.textContent = joined ? '✓ joined' : 'Same player';
+    card.append(verb);
+
+    card.addEventListener('click', () => {
+        const next = { ...(state.match.cvMapping || {}) };
+        const at = String(row.cluster.cluster_id);
+        if (joined) delete next[at];
+        else next[at] = player;
+        state.match.cvMapping = next;
+        toast(joined
+            ? `Figure ${row.cluster.cluster_id + 1} is no longer ${playerName}.`
+            : `Figure ${row.cluster.cluster_id + 1} counts towards ${playerName} too.`);
+        // Back on the card just pressed, not on the row it belongs to: joining
+        // two fragments is often three cards in a row, and the answer to "was
+        // that right?" is the card changing under the cursor.
+        pendingFocus = { clusterId, control: `[data-same="${row.cluster.cluster_id}"]` };
+        updateMappingNote();
+        queueMappingSave();
+        renderClusterMapping();
+    });
+
+    return card;
+}
+
+function nameOf(playerId) {
+    if (playerId === NOT_A_PLAYER) return 'ruled out';
+    const entry = (state.match.roster || []).find((r) => r.id === playerId);
+    return entry?.playerName || 'someone else';
+}
+
+/**
+ * The strip of other figures that could be this same player.
+ *
+ * Ruled-out rows are kept and shown last rather than dropped. Only one thing
+ * here is a certainty — two figures on screen together are two people — and
+ * everything else is evidence; hiding a poor fit on evidence would hide the
+ * right answer on the day the kit colour or the video offset is wrong, which is
+ * the same rule the picker above already follows.
+ */
+function sameAsStrip(cluster, mapping) {
+    const player = mapping[String(cluster.cluster_id)];
+    if (!player || player === NOT_A_PLAYER) return null;
+
+    const clusters = state.match?.cv?.identity?.clusters || [];
+    const rows = sameFigureCandidates(clusters, cluster, {
+        mapping,
+        player,
+        roster: state.match.roster || [],
+        clock: clockMap(),
+        matchEndS: state.match.stats?.matchEndS ?? 0,
+    });
+    if (!rows.length) return null;
+
+    const playerName = nameOf(player);
+    const open = sameAsOpen === cluster.cluster_id;
+    const offered = rows.filter((r) => !r.ruledOut && !r.takenBy).length;
+    const joined = rows.filter(
+        (r) => !r.takenBy && mapping[String(r.cluster.cluster_id)] === player,
+    ).length;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'same-as';
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'same-as-toggle';
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.textContent = joined
+        ? `${playerName} is ${plural(joined + 1, 'figure')} · change`
+        : `${offered ? plural(offered, 'other figure') : 'No other figure'} `
+          + `could also be ${playerName}`;
+    toggle.addEventListener('click', () => {
+        sameAsOpen = open ? null : cluster.cluster_id;
+        renderClusterMapping();
+    });
+    wrap.append(toggle);
+
+    if (!open) return wrap;
+
+    const list = document.createElement('div');
+    list.className = 'same-as-list';
+    for (const row of rows) {
+        list.append(sameAsCard(row, cluster.cluster_id, player, playerName));
+    }
+    wrap.append(list);
+
+    const note = document.createElement('p');
+    note.className = 'same-as-note';
+    note.textContent = 'A player who left the frame and came back is genuinely '
+        + 'two figures, and both count towards them. The ones greyed out were on '
+        + 'screen at the same time, so they are somebody else.';
+    wrap.append(note);
+
+    return wrap;
 }
 
 function updateMappingNote() {

@@ -691,6 +691,162 @@ describe('rankRosterForCluster', () => {
     });
 });
 
+describe('the other figures that could be the same person', () => {
+    // A blue shirt and a red one, in Lab. Far enough apart in chroma to be
+    // different kits by identity.py's own threshold.
+    const BLUE = [50, 20, -40];
+    const BLUEISH = [62, 24, -36];      // same shirt, sunlit half of the pitch
+    const RED = [50, 55, 35];
+
+    const figure = (id, from, to, extra = {}) => ({
+        cluster_id: id,
+        first_seen_s: from,
+        last_seen_s: to,
+        team: 'team_a',
+        colour: BLUE,
+        sightings: 100,
+        ...extra,
+    });
+
+    // Figure 0 was tracked for the first two minutes. Figure 1 picks up twenty
+    // seconds later — the same player back from behind an opponent. Figure 2
+    // was on screen the whole time, so it is somebody else.
+    const clusters = () => [
+        figure(0, 0, 120),
+        figure(1, 140, 260),
+        figure(2, 0, 300),
+        figure(3, 400, 500, { colour: RED, team: 'team_b' }),
+    ];
+
+    const of = (id, options = {}) => report.sameFigureCandidates(
+        clusters(), clusters().find((c) => c.cluster_id === id), options,
+    );
+
+    test('the nearest fragment in time leads', () => {
+        assert.equal(of(0)[0].cluster.cluster_id, 1);
+        assert.equal(of(0)[0].gapS, 20);
+    });
+
+    test('a figure on screen at the same time is ruled out', () => {
+        const two = of(0).find((c) => c.cluster.cluster_id === 2);
+        assert.equal(two.ruledOut, true);
+        assert.equal(two.overlapS, 120);
+    });
+
+    test('an overlap inside one bridge is not an exclusion', () => {
+        // Two seconds is what cv/identity.py will bridge, so an overlap that
+        // small is the rounding at the seam of one player, not two people.
+        // tests/test_identity.py asserts the invariant this rests on.
+        const near = [figure(0, 0, 120), figure(1, 119, 240)];
+        const [only] = report.sameFigureCandidates(near, near[0], {});
+        assert.equal(only.overlapS, 1);
+        assert.equal(only.ruledOut, false);
+    });
+
+    test('a figure in the other kit is ruled out', () => {
+        const three = of(0).find((c) => c.cluster.cluster_id === 3);
+        assert.equal(three.sameTeam, false);
+        assert.equal(three.ruledOut, true);
+    });
+
+    test('nothing is dropped, however badly it fits', () => {
+        // The same rule rankRosterForCluster follows. A ruled-out row is still
+        // a row: the coach can see what was rejected and why.
+        assert.equal(of(0).length, 3);
+        assert.ok(of(0).some((c) => c.cluster.cluster_id === 3));
+    });
+
+    test('the ruled-out figures sort to the bottom', () => {
+        const flags = of(0).map((c) => c.ruledOut);
+        assert.deepEqual(flags, [false, true, true]);
+    });
+
+    test('a shirt that does not match sorts down without being excluded', () => {
+        // Same team, no time clash, but a red shirt among blue ones. Evidence,
+        // not proof: one bad colour sample in shade is a thing that happens.
+        const odd = [
+            figure(0, 0, 120),
+            figure(1, 400, 500, { colour: RED }),
+            figure(2, 140, 260, { colour: RED }),
+        ];
+        const ranked = report.sameFigureCandidates(odd, odd[0], {});
+        assert.ok(ranked.every((c) => !c.ruledOut));
+        assert.ok(ranked[0].kitS > report.SAME_KIT_CHROMA);
+    });
+
+    test('the same shirt in different light still reads as the same shirt', () => {
+        const lit = [figure(0, 0, 120), figure(1, 140, 260, { colour: BLUEISH })];
+        const [only] = report.sameFigureCandidates(lit, lit[0], {});
+        assert.ok(only.kitS < report.SAME_KIT_CHROMA);
+        assert.equal(only.ruledOut, false);
+    });
+
+    test('a missing colour is no evidence rather than a perfect match', () => {
+        assert.equal(report.kitDistance(null, BLUE), null);
+        assert.equal(report.kitDistance(BLUE, undefined), null);
+        const blank = [figure(0, 0, 120), figure(1, 140, 260, { colour: null })];
+        const [only] = report.sameFigureCandidates(blank, blank[0], {});
+        assert.equal(only.kitS, null);
+        assert.equal(only.ruledOut, false);
+    });
+
+    test('an unknown kit is not a different kit', () => {
+        const unsure = [figure(0, 0, 120), figure(1, 140, 260, { team: 'unknown' })];
+        const [only] = report.sameFigureCandidates(unsure, unsure[0], {});
+        assert.equal(only.sameTeam, null);
+        assert.equal(only.ruledOut, false);
+    });
+
+    test('a figure already named as someone else says who has it', () => {
+        const ranked = of(0, { mapping: { 1: 'sub' }, player: 'starter' });
+        assert.equal(ranked[0].takenBy, 'sub');
+    });
+
+    test('a figure someone else already has sorts below the free ones', () => {
+        // Closest in time, so it would lead on the gap alone. It is still
+        // offered — a coach who named it wrongly finds that out here — but it
+        // is not the first thing suggested.
+        const near = [figure(0, 0, 120), figure(1, 130, 200), figure(2, 300, 400)];
+        const ranked = report.sameFigureCandidates(near, near[0], {
+            mapping: { 1: 'sub' }, player: 'starter',
+        });
+        assert.deepEqual(ranked.map((c) => c.cluster.cluster_id), [2, 1]);
+    });
+
+    test('a figure already named as this same player is not "taken"', () => {
+        const ranked = of(0, { mapping: { 1: 'starter' }, player: 'starter' });
+        assert.equal(ranked[0].takenBy, null);
+    });
+
+    test('a candidate is scored against the minutes the player actually played', () => {
+        // Figure 1 ran 140-260 in the video, which is 20-140 on a clock two
+        // minutes behind it. The substitute did not come on until 30:00.
+        const ranked = of(0, {
+            player: 'sub', roster: squad(), videoOffsetS: 120, matchEndS: 5400,
+        });
+        assert.equal(ranked[0].playedShare, 0);
+
+        const starter = of(0, {
+            player: 'starter', roster: squad(), videoOffsetS: 120, matchEndS: 5400,
+        });
+        assert.equal(starter[0].playedShare, 1);
+    });
+
+    test('with nobody named there is no played share to report', () => {
+        assert.equal(of(0)[0].playedShare, null);
+    });
+
+    test('a figure never compares against itself', () => {
+        assert.ok(of(0).every((c) => c.cluster.cluster_id !== 0));
+    });
+
+    test('nothing to compare against is an empty list, not an error', () => {
+        assert.deepEqual(report.sameFigureCandidates([], clusters()[0], {}), []);
+        assert.deepEqual(report.sameFigureCandidates(null, clusters()[0], {}), []);
+        assert.deepEqual(report.sameFigureCandidates(clusters(), null, {}), []);
+    });
+});
+
 describe('cvReportFields', () => {
     test('every field is cv-prefixed', () => {
         const stats = report.cvStatsByPlayer([track(0)], { 0: ME })[ME];
