@@ -96,6 +96,18 @@ service cloud.firestore {
         && s.matches('^[^@/\\s]+@[^@/\\s]+[.][^@/\\s]+$');
     }
 
+    // A player with no email address is an ordinary player — they just cannot
+    // be invited, which the roster says out loud ("No email yet — they cannot
+    // see their report without one"). `emailShape` is exactly right for an
+    // invite key, where a blank is meaningless, and was wrong here: it rejected
+    // every roster document without an address, so a coach could not add such a
+    // player at all, and could not rename, renumber or deactivate one that
+    // predated the check. Found by pressing the button in a browser; every
+    // emulator test happened to use a player who had an email.
+    function optionalEmail(s) {
+      return s == null || s == '' || emailShape(s);
+    }
+
     function isTimestampNow(v) {
       return v == request.time;
     }
@@ -283,7 +295,7 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(
                ['name', 'jerseyNumber', 'emailLower', 'linkedUid', 'active', 'createdAt'])
           && request.resource.data.linkedUid == null
-          && emailShape(request.resource.data.emailLower)
+          && optionalEmail(request.resource.data.emailLower)
           && request.resource.data.active is bool
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
@@ -300,7 +312,7 @@ service cloud.firestore {
           && changed(['name', 'jerseyNumber', 'emailLower', 'linkedUid', 'active'])
           && (request.resource.data.linkedUid == null
               || request.resource.data.linkedUid == resource.data.linkedUid)
-          && emailShape(request.resource.data.emailLower);
+          && optionalEmail(request.resource.data.emailLower);
 
         // The claim: the only write a player ever makes to team data. It is
         // self-verifying — it checks the roster document's own stored email

@@ -2430,8 +2430,88 @@ than the workaround, which matters given the data class.
 
       484 pure JS · 120 emulator.
 - [ ] **[Stretch]** App Check + browser-key referrer restriction before this is public
-- [ ] Parental/guardian awareness before real students' data goes in — the technical
-      controls are in place, the consent conversation is not a code change
+- [x] **Removing a player actually removes them** (2026-08-10). This line used
+      to read *"the technical controls are in place, the consent conversation is
+      not a code change"*. Half of that was true. The **rules** allowed a coach
+      to delete every document naming a student and always had. **Nothing asked
+      them to.**
+
+      `removePlayer` deleted exactly one document — `teams/{t}/players/{p}`, the
+      squad entry — and the coach was shown *"Player removed"*. What stayed:
+      their name, shirt number and stints in the roster of **every match they
+      had played**; their whole published report, with minutes, distance,
+      heatmap and shot map, still readable through the portal by their own
+      account; their email address as an invite key; and their id in
+      `cvMapping.byCluster`, which is the thing that ties a person to a
+      photograph cut out of the footage. A guardian asking for their child's
+      data to be removed would have been told it had been.
+
+      **"Remove" was two intentions wearing one word**, and the button served
+      neither. *They left the team* has to keep the match reports — a report is
+      an account of a match that happened, and deleting it changes the team's
+      own results. *A guardian asked* has to keep nothing. So the row now opens
+      a choice, phrased as the consequence rather than the action:
+
+      - **They left the team** — `active: false`, which had been written on
+        every player document since the first one and which **nothing had ever
+        read**. Now the lineup picker skips them, the roster greys them and
+        sorts them to the bottom, and one press puts them back.
+      - **Erase everything** — every document above, across every match, then
+        the invite, then the squad entry last, because it is the only place the
+        coach could find them again if something failed part way.
+
+      Before confirming, the coach is shown **what is actually there**, read
+      rather than assumed: how many matches hold their name, how many published
+      reports go, how many tracked figures stop pointing at them. A confirmation
+      quoting a number nobody checked is worse than one quoting none. Typed
+      confirmation rather than a click — every other destructive control here can
+      be undone by entering again what was lost, and this one cannot.
+
+      **What is deliberately kept, and said out loud.** The match log stays. It
+      records substitutions by player id and never by name, so once the named
+      documents are gone it holds an identifier that resolves to nobody — and it
+      is also the arithmetic behind *every other player's* minutes. Deleting the
+      entry that put someone on would silently take time off whoever came off
+      for them. Pseudonymous and load-bearing is a good reason to leave
+      something alone; it is not a good reason to let a coach believe it went.
+
+      **Two bugs the tests caught, both in the erase itself.**
+
+      `batch.set(ref, {...}, { merge: true })` on the cluster mapping *looked*
+      right and did nothing: Firestore merges a map field key by key, so writing
+      a smaller `byCluster` leaves every removed key exactly where it was. The
+      erase would have reported success with the figures — and the photographs —
+      still pointing at the student. It is a whole-document write now, which the
+      rules already constrain to exactly three fields.
+
+      And the erase now **reads everything back before saying it worked**. The
+      first version of the emulator test passed intermittently in 17ms, which is
+      too fast to have done the work: the match list had come back empty, the
+      per-match loop had nothing to do, and both the code and the test called
+      that a success. A partial erase reported as a complete one is the single
+      worst outcome this feature has, because nobody will ever check again.
+
+      The consent conversation is still not a code change, and it is still
+      required. What has changed is that the answer to *"can you delete
+      everything you hold about my child?"* is now yes, demonstrably —
+      `tests/flow.test.js` erases a player and then reads the documents back as
+      the **player's own account**, through the collection-group query their
+      portal uses.
+
+      **And a pre-existing bug the browser found that no test would have.**
+      `emailShape` was applied to the roster document as well as to the invite
+      key, and it rejects a blank — so a coach could not add a player without an
+      email address **at all**, nor rename, renumber or deactivate one. The
+      roster says out loud *"No email yet — they cannot see their report without
+      one"*, so this was a supported case that had never worked. Every emulator
+      test happened to use a player who had an address; pressing the button did
+      not. Split into `optionalEmail` for the roster and `emailShape` still
+      guarding the invite key, where a blank really is meaningless.
+
+      551 pure JS · 132 emulator.
+- [ ] Parental/guardian awareness before real students' data goes in — the
+      consent conversation itself, which is not a code change. The technical
+      half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
 - [x] **[Demo]** Coach halftime view: sideline/mobile-friendly, high-signal,

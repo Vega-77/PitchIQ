@@ -1083,3 +1083,74 @@ describe('write validation', () => {
     }));
   });
 });
+
+
+describe('a player with no email address', () => {
+  /**
+   * They are an ordinary player who simply cannot be invited, which the roster
+   * says out loud: "No email yet — they cannot see their report without one".
+   *
+   * The rules did not agree. `emailShape` was applied to the roster document as
+   * well as to the invite key, and it rejects a blank — so a coach could not add
+   * such a player at all, and could not rename, renumber or take one off the
+   * squad. Every emulator test until now happened to use a player who had an
+   * address, so nothing caught it; pressing the button in a browser did.
+   */
+
+  it('can be added', async () => {
+    await assertSucceeds(setDoc(doc(as(COACH), 'teams', TEAM, 'players', 'noemail'), {
+      name: 'No Email Kid', jerseyNumber: 33,
+      emailLower: '', linkedUid: null, active: true,
+      createdAt: serverTimestamp(),
+    }));
+  });
+
+  it('can be taken off the squad, which is what a leaver needs', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'teams', TEAM, 'players', 'noemail'), {
+        name: 'No Email Kid', jerseyNumber: 33,
+        emailLower: '', linkedUid: null, active: true,
+      });
+    });
+    await assertSucceeds(updateDoc(
+      doc(as(COACH), 'teams', TEAM, 'players', 'noemail'), { active: false },
+    ));
+  });
+
+  it('can be edited when the address was never set at all', async () => {
+    // Documents written before the field existed carry null rather than ''.
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'teams', TEAM, 'players', 'legacy'), {
+        name: 'Older Record', jerseyNumber: 12,
+        emailLower: null, linkedUid: null, active: true,
+      });
+    });
+    await assertSucceeds(updateDoc(
+      doc(as(COACH), 'teams', TEAM, 'players', 'legacy'), { jerseyNumber: 13 },
+    ));
+  });
+
+  it('still cannot have a malformed address', async () => {
+    // Relaxing blank must not relax the shape. "not an email" is a typo, and a
+    // typo in this field is an invitation that will never arrive.
+    await assertFails(setDoc(doc(as(COACH), 'teams', TEAM, 'players', 'bad'), {
+      name: 'Typo', jerseyNumber: 44,
+      emailLower: 'not an email', linkedUid: null, active: true,
+      createdAt: serverTimestamp(),
+    }));
+  });
+
+  it('does not relax the invite key, which is still a real address', async () => {
+    // The other half of the split. Blank is fine on a roster document and
+    // meaningless as an invite key, so `emailShape` still guards that one.
+    //
+    // Tested with a malformed address rather than an empty one: an empty
+    // document id cannot be constructed at all — the SDK rejects the path
+    // before any rule is consulted, so a test written that way proves nothing
+    // about the rules and fails for an unrelated reason.
+    await assertFails(setDoc(doc(as(COACH), 'invites', 'not-an-email', 'from', TEAM), {
+      playerId: 'p1', role: 'player', teamName: 'South Brunswick',
+      coachName: 'Head Coach', createdAt: serverTimestamp(), createdBy: COACH.uid,
+    }));
+  });
+});

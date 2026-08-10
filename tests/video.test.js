@@ -4923,3 +4923,111 @@ describe('the mark the video is inside', () => {
         assert.equal(timeline.nowIndex(at(600), 600, 0), 0);
     });
 });
+
+describe('taking a player off, and what that costs', () => {
+    const footprint = (over = {}) => ({
+        matches: [
+            { id: 'm1', label: 'Linden', hasRoster: true, hasReport: true, clusters: 2 },
+            { id: 'm2', label: 'Oak', hasRoster: true, hasReport: false, clusters: 0 },
+            { id: 'm3', label: 'Pine', hasRoster: false, hasReport: false, clusters: 0 },
+        ],
+        hasInvite: true,
+        ...over,
+    });
+    const said = (f) => report.erasureNote(f).lines.join(' | ');
+
+    test('a match they were only named in still counts', () => {
+        // m2 has a roster entry and no report. Their name is in it, so it is a
+        // match the erase reaches, and a coach told "1 match" when the answer
+        // is 2 has been given a number they cannot act on.
+        assert.equal(report.erasureNote(footprint()).matchCount, 2);
+        assert.equal(report.erasureNote(footprint()).reportCount, 1);
+    });
+
+    test('a match they never appeared in is not counted', () => {
+        assert.ok(!said(footprint()).includes('3 matches'));
+    });
+
+    test('having played nothing yet is an ordinary answer', () => {
+        const fresh = report.erasureNote({ matches: [], hasInvite: false });
+        assert.equal(fresh.matchCount, 0);
+        assert.match(fresh.lines[0], /nothing but their squad entry/);
+    });
+
+    test('the tracked figures are named, because they are photographs', () => {
+        // The mapping is what ties a crop cut out of the footage to a person.
+        assert.match(said(footprint()), /2 tracked figures/);
+        assert.match(said(footprint()), /no longer tied to a name/);
+    });
+
+    test('no video mapping means nothing is said about figures', () => {
+        const noCv = footprint({
+            matches: [{ id: 'm1', hasRoster: true, hasReport: true, clusters: 0 }],
+        });
+        assert.ok(!said(noCv).includes('tracked figure'));
+    });
+
+    test('the email is named as the last place it is stored', () => {
+        assert.match(said(footprint()), /invitation goes/);
+        assert.ok(!said(footprint({ hasInvite: false })).includes('invitation goes'));
+    });
+
+    test('what stays is said whenever they were in a match', () => {
+        // A coach never told the log survives has been told the erase was
+        // total, and it is not.
+        assert.match(said(footprint()), /substitutions stay in the match log/);
+    });
+
+    test('and is not said when nothing of theirs stays', () => {
+        // For a player added last week and removed today the erase really does
+        // take everything, and a caveat about what is kept would be a caveat
+        // about nothing.
+        assert.ok(!said({ matches: [], hasInvite: false }).includes('substitutions stay'));
+    });
+
+    test('one match reads as one match', () => {
+        const one = footprint({
+            matches: [{ id: 'm1', hasRoster: true, hasReport: true, clusters: 1 }],
+        });
+        assert.match(said(one), /1 match\b/);
+        assert.match(said(one), /1 published report is deleted/);
+        assert.match(said(one), /1 tracked figure /);
+    });
+
+    test('a missing footprint is not a crash', () => {
+        assert.ok(report.erasureNote().lines.length);
+        assert.ok(report.erasureNote({}).lines.length);
+    });
+});
+
+describe('mappingWithout', () => {
+    const mapping = () => ({ 0: 'p1', 1: 'p2', 2: 'p1', 3: '__not_a_player' });
+
+    test('every cluster pointing at them is dropped', () => {
+        const out = report.mappingWithout(mapping(), 'p1');
+        assert.deepEqual(Object.keys(out).sort(), ['1', '3']);
+    });
+
+    test('nobody else is re-attributed', () => {
+        // The failure that would matter: erasing one student and silently
+        // moving their figures onto another.
+        assert.equal(report.mappingWithout(mapping(), 'p1')['1'], 'p2');
+    });
+
+    test('it does not mutate what it was given', () => {
+        // The caller holds this in `state`. Mutating it would leave the screen
+        // agreeing with a write that has not happened yet.
+        const before = mapping();
+        report.mappingWithout(before, 'p1');
+        assert.equal(Object.keys(before).length, 4);
+    });
+
+    test('a player with no figures leaves the mapping alone', () => {
+        assert.deepEqual(report.mappingWithout(mapping(), 'p9'), mapping());
+    });
+
+    test('no mapping at all is an empty one', () => {
+        assert.deepEqual(report.mappingWithout(null, 'p1'), {});
+        assert.deepEqual(report.mappingWithout(undefined, 'p1'), {});
+    });
+});

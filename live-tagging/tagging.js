@@ -13,18 +13,18 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=54';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=56';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=54';
+} from '../assets/db.js?v=56';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=54';
-import { syncState, safeToClose } from '../assets/report.js?v=54';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=54';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=54';
+} from '../assets/events.js?v=56';
+import { syncState, safeToClose } from '../assets/report.js?v=56';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=56';
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=56';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -319,7 +319,11 @@ async function onMatchChosen(matchId) {
 
     state.match = match;
     state.opponentName = match.opponentName || 'Them';
-    state.players = players;
+    // Anyone who has left the team is not offered for a lineup. Their past
+    // matches are untouched — this is about who can be named in the next one,
+    // and a leaver in the starters list is a mis-tap waiting to happen at the
+    // one moment nobody has time to check.
+    state.players = players.filter((p) => p.active !== false);
     state.roster = roster;
 
     if (roster.length) {

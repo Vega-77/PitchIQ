@@ -224,3 +224,53 @@
     .scoreline { font-size: 32px; }
     .team-hero-stats { max-width: none; }
 }
+
+/* ------------------------------------------------- removing a player, honestly
+
+   The choice between "they left the team" and "erase everything" opens inside
+   the row rather than in a dialog, for the same reason the same-player strip
+   does: the thing being decided about is the row, and a modal that covers it
+   makes a coach confirm a name they can no longer see. */
+.roster-row { flex-wrap: wrap; }
+.remove-choice {
+    flex-basis: 100%;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    min-width: 0;
+}
+.rc-lead { margin: 0 0 10px; font-size: 0.9rem; }
+.rc-options { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Not a paragraph. Each line is a separate thing that will be deleted, and a
+   coach reading a wall of prose about a student's data will read none of it. */
+.rc-lines {
+    margin: 12px 0 0;
+    padding-left: 18px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+    max-width: 70ch;
+}
+.rc-lines li { margin-bottom: 4px; }
+
+.rc-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+    margin-top: 12px;
+}
+.rc-type { display: flex; flex-direction: column; gap: 5px; font-size: 0.78rem; }
+.rc-type strong { color: var(--danger); letter-spacing: 0.04em; }
+.rc-type input {
+    min-height: 38px;
+    max-width: 160px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+}
+
+/* Someone who has left keeps their row and their reports; it just stops looking
+   like a row anybody is about to pick for Saturday. */
+.roster-row.has-left { opacity: 0.62; }
+.roster-row.has-left .jersey { color: var(--text-faint); }

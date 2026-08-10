@@ -7,13 +7,14 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=54';
-import { EVENT_TYPES } from './events.js?v=54';
+import { db } from './firebase-init.js?v=56';
+import { EVENT_TYPES } from './events.js?v=56';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
-} from './report.js?v=54';
+    mappingWithout,
+} from './report.js?v=56';
 
 export {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
@@ -129,8 +130,150 @@ export async function addPlayer(teamId, { name, jerseyNumber, email }) {
     return ref.id;
 }
 
-export function removePlayer(teamId, playerId) {
-    return deleteDoc(doc(db, 'teams', teamId, 'players', playerId));
+/**
+ * Take a player off the squad list, keeping everything they did.
+ *
+ * They have left the team, not the record. Their match reports stay, because a
+ * report is an account of a match that happened and deleting it would change
+ * the team's own results — and the log the minutes are counted from names
+ * nobody, so removing them from it would take time off whoever they replaced.
+ *
+ * A flag rather than a deletion, so it can be undone by a coach who pressed the
+ * wrong row. `active` has existed on every player document since the first one
+ * was written and until now nothing read it.
+ */
+export function setPlayerActive(teamId, playerId, active) {
+    return updateDoc(doc(db, 'teams', teamId, 'players', playerId), { active });
+}
+
+/**
+ * Everywhere this student's name currently is, found by reading rather than
+ * assumed from what ought to exist.
+ *
+ * A coach is about to be asked to confirm something irreversible, and a
+ * confirmation quoting a number nobody checked is worse than one quoting none.
+ * Reads are per match and there are a few dozen in a season, so this is cheap
+ * enough to do on the press rather than kept as a running total that could be
+ * wrong in exactly the situation it matters.
+ */
+export async function playerFootprint(teamId, playerId) {
+    const [matches, player] = await Promise.all([
+        listMatches(teamId),
+        getDoc(doc(db, 'teams', teamId, 'players', playerId)).catch(() => null),
+    ]);
+    const email = player?.exists() ? (player.data().emailLower || '') : '';
+
+    const found = await Promise.all(matches.map(async (match) => {
+        const [roster, report, mapping] = await Promise.all([
+            getDoc(doc(db, 'teams', teamId, 'matches', match.id, 'roster', playerId))
+                .catch(() => null),
+            getDoc(doc(db, 'teams', teamId, 'matches', match.id, 'playerReports', playerId))
+                .catch(() => null),
+            getDoc(doc(db, 'teams', teamId, 'matches', match.id, 'cvMapping', 'players'))
+                .catch(() => null),
+        ]);
+        const byCluster = mapping?.exists() ? (mapping.data().byCluster || {}) : {};
+        return {
+            id: match.id,
+            label: match.opponentName || 'a match',
+            hasRoster: Boolean(roster?.exists()),
+            hasReport: Boolean(report?.exists()),
+            clusters: Object.values(byCluster).filter((id) => id === playerId).length,
+        };
+    }));
+
+    // An invitation cannot be checked for, only removed. The rules let the
+    // invitee read their own invite and nobody else — `emailKey == email()` —
+    // which is what stops a coach account from enumerating students' addresses,
+    // and is a good rule to keep. So this reports whether there is an address
+    // that *would* have one, and the erase deletes blind; deleting a document
+    // that is not there costs nothing and tells no one anything.
+    return { matches: found, hasInvite: Boolean(email) };
+}
+
+/**
+ * Delete everything that names this student, everywhere.
+ *
+ * For the case a guardian asks, which is the case the whole consent
+ * conversation is about. Irreversible on purpose: a soft-deleted erasure is not
+ * an erasure.
+ *
+ * One batch per match rather than one for the season. Firestore caps a batch at
+ * 500 writes and a season is well inside that, but a partial failure halfway
+ * through a single giant batch would leave a state nobody could describe;
+ * per-match, a failure leaves whole matches done and whole matches not, which
+ * is a state the coach can be told about and this can be re-run against.
+ *
+ * The squad document goes last. It is the only place the coach can find this
+ * player again, so deleting it first would strand anything that failed after.
+ */
+export async function erasePlayer(user, teamId, playerId, footprint = null) {
+    const found = footprint || await playerFootprint(teamId, playerId);
+    const player = await getDoc(doc(db, 'teams', teamId, 'players', playerId))
+        .catch(() => null);
+    const email = player?.exists() ? (player.data().emailLower || '') : '';
+
+    for (const match of found.matches) {
+        const batch = writeBatch(db);
+        if (match.hasRoster) {
+            batch.delete(doc(db, 'teams', teamId, 'matches', match.id, 'roster', playerId));
+        }
+        if (match.hasReport) {
+            batch.delete(
+                doc(db, 'teams', teamId, 'matches', match.id, 'playerReports', playerId),
+            );
+        }
+        if (match.clusters) {
+            // Rewritten rather than deleted: the document maps every tracked
+            // figure in the match, and the other players' mappings are somebody
+            // else's work to redo.
+            const ref = doc(db, 'teams', teamId, 'matches', match.id, 'cvMapping', 'players');
+            const snap = await getDoc(ref).catch(() => null);
+            if (snap?.exists()) {
+                // A whole-document write, deliberately not `{ merge: true }`.
+                // Firestore merges a map field key by key, so merging a
+                // *smaller* `byCluster` leaves every removed key exactly where
+                // it was — the erase would appear to work and the figures would
+                // still point at the student. tests/flow.test.js caught this;
+                // the rules cap the document at these three fields, so replacing
+                // it whole cannot drop anything else.
+                batch.set(ref, {
+                    byCluster: mappingWithout(snap.data().byCluster, playerId),
+                    updatedAt: serverTimestamp(),
+                    updatedBy: user.uid,
+                });
+            }
+        }
+        await batch.commit();
+    }
+
+    // Read it all back before saying it worked.
+    //
+    // Everything above is a write that can half-happen: a batch per match, a
+    // match list that came back short, a connection that dropped between two of
+    // them. For an ordinary feature that is what retries are for; for this one
+    // the failure mode is telling a coach a student's data is gone when it is
+    // not, and they have no reason to ever check again. So the claim is
+    // verified rather than assumed, and a leftover is an error rather than a
+    // silence.
+    const left = await playerFootprint(teamId, playerId);
+    const missed = left.matches.filter((m) => m.hasRoster || m.hasReport || m.clusters);
+    if (missed.length) {
+        // Not "nothing was deleted" — plenty was. What is true is that it did
+        // not finish, that the squad entry is still there so this can be run
+        // again, and that until it is the coach should not tell anyone the data
+        // is gone.
+        throw new Error(
+            `${missed.length} of their matches still hold their details, so they `
+            + 'have not been erased. The rest was cleared and they are still on '
+            + 'the roster — run this again.'
+        );
+    }
+
+    // Their address, which lives nowhere else once the squad document is gone.
+    if (email) await cancelInvite(email, teamId).catch(() => {});
+
+    await deleteDoc(doc(db, 'teams', teamId, 'players', playerId));
 }
 
 /** An invite is a pointer; the claim itself re-verifies against the roster. */

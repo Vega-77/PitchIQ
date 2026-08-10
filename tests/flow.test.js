@@ -17,7 +17,7 @@ import {
     initializeTestEnvironment, assertSucceeds, assertFails,
 } from '@firebase/rules-unit-testing';
 import {
-    doc, setDoc, getDoc, updateDoc, collection, getDocs, onSnapshot,
+    doc, setDoc, getDoc, updateDoc, deleteDoc, collection, getDocs, onSnapshot,
     query, where, collectionGroup, writeBatch, serverTimestamp,
     disableNetwork, enableNetwork,
 } from 'firebase/firestore';
@@ -532,5 +532,203 @@ describe('knowing what has reached the server', () => {
         const snap = await until(db, (s) =>
             s.docs.some((d) => d.id === 'devA_000201') && pendingIn(s) === 0);
         assert.equal(pendingIn(snap), 0);
+    });
+});
+
+
+describe('erasing a player', () => {
+    /**
+     * The claim being tested is not "the coach is allowed to delete this" — the
+     * rules always allowed it. It is that after the app's erase, nothing
+     * carrying the student's name is left anywhere a reader can reach.
+     *
+     * So every assertion here reads the documents back rather than trusting the
+     * writes, and the last one reads them back as the *player*, through the
+     * collection-group grant their own portal uses. A report that survives an
+     * erase and is still visible to the person it is about is a different
+     * failure from one that merely survives.
+     */
+
+    /** What the browser does, mirrored: see erasePlayer() in assets/db.js. */
+    async function erase(db, teamId, playerId, uid) {
+        const matches = await getDocs(collection(db, 'teams', teamId, 'matches'));
+
+        for (const match of matches.docs) {
+            const base = ['teams', teamId, 'matches', match.id];
+            const batch = writeBatch(db);
+            batch.delete(doc(db, ...base, 'roster', playerId));
+            batch.delete(doc(db, ...base, 'playerReports', playerId));
+
+            const mapRef = doc(db, ...base, 'cvMapping', 'players');
+            const snap = await getDoc(mapRef);
+            if (snap.exists()) {
+                const kept = {};
+                for (const [cluster, id] of Object.entries(snap.data().byCluster || {})) {
+                    if (id !== playerId) kept[cluster] = id;
+                }
+                // Whole document, never `{ merge: true }`: Firestore merges a
+                // map key by key, so a smaller byCluster leaves the removed
+                // keys in place. This test failed exactly that way first.
+                batch.set(mapRef, {
+                    byCluster: kept, updatedAt: serverTimestamp(), updatedBy: uid,
+                });
+            }
+            await batch.commit();
+        }
+
+        // Read it back before claiming it worked, exactly as erasePlayer()
+        // does. Every write above can half-happen — a batch per match, a match
+        // list that came back short — and the failure mode is telling a coach a
+        // student's data is gone when it is not. It also stops this test from
+        // passing on a run where the match list arrived empty and the loop had
+        // nothing to do, which is how it flaked before the check existed.
+        for (const match of (await getDocs(collection(db, 'teams', teamId, 'matches'))).docs) {
+            const base = ['teams', teamId, 'matches', match.id];
+            const [roster, report] = await Promise.all([
+                getDoc(doc(db, ...base, 'roster', playerId)),
+                getDoc(doc(db, ...base, 'playerReports', playerId)),
+            ]);
+            assert.equal(roster.exists(), false, `roster left in ${match.id}`);
+            assert.equal(report.exists(), false, `report left in ${match.id}`);
+        }
+
+        await deleteDoc(doc(db, 'invites', PLAYER.email, 'from', teamId));
+        await deleteDoc(doc(db, 'teams', teamId, 'players', playerId));
+    }
+
+    beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            const db = ctx.firestore();
+            for (const [id, name, number] of [['p1', 'Alex Vega', 9], ['p2', 'Bench Guy', 15]]) {
+                await setDoc(doc(db, 'teams', TEAM, 'matches', MATCH, 'roster', id), {
+                    playerName: name, jerseyNumber: number,
+                    isStarter: true, isActive: true,
+                    stints: [{ inS: 0, outS: null }], version: 0,
+                });
+                await setDoc(
+                    doc(db, 'teams', TEAM, 'matches', MATCH, 'playerReports', id), {
+                        linkedUid: id === 'p1' ? PLAYER.uid : null,
+                        published: true, playerName: name, jerseyNumber: number,
+                        minutesPlayed: 90, goals: 1, assists: 0, cards: 0,
+                        yellowCards: 0, redCards: 0, fouls: 0,
+                        stints: [{ inS: 0, outS: null }], matchDate: '2026-07-27',
+                    },
+                );
+            }
+            await setDoc(doc(db, 'teams', TEAM, 'matches', MATCH, 'cvMapping', 'players'), {
+                byCluster: { 0: 'p1', 1: 'p2', 2: 'p1' },
+                updatedAt: serverTimestamp(), updatedBy: COACH.uid,
+            });
+            await setDoc(doc(db, 'invites', PLAYER.email, 'from', TEAM), {
+                playerId: 'p1', role: 'player', teamName: 'South Brunswick',
+                coachName: 'Coach', createdAt: serverTimestamp(), createdBy: COACH.uid,
+            });
+        });
+    });
+
+    it('leaves nothing with their name in it', async () => {
+        const db = as(COACH);
+        await erase(db, TEAM, 'p1', COACH.uid);
+
+        const left = await Promise.all([
+            getDoc(doc(db, 'teams', TEAM, 'players', 'p1')),
+            getDoc(doc(db, 'teams', TEAM, 'matches', MATCH, 'roster', 'p1')),
+            getDoc(doc(db, 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p1')),
+        ]);
+        assert.deepEqual(left.map((d) => d.exists()), [false, false, false]);
+    });
+
+    it('takes the report out of the player’s own portal', async () => {
+        // Read the way the portal reads it: a collection-group query scoped to
+        // their uid. A report that outlives an erase and is still visible to
+        // the person it describes is the failure that matters most.
+        const asPlayer = as(PLAYER);
+        const mine = () => getDocs(query(
+            collectionGroup(asPlayer, 'playerReports'),
+            where('linkedUid', '==', PLAYER.uid),
+            where('published', '==', true),
+        ));
+
+        assert.equal((await mine()).size, 1);
+        await erase(as(COACH), TEAM, 'p1', COACH.uid);
+        assert.equal((await mine()).size, 0);
+    });
+
+    it('does not touch anybody else', async () => {
+        // The failure that would be worst: a season of somebody else's work
+        // disappearing because a name next to theirs was erased.
+        const db = as(COACH);
+        await erase(db, TEAM, 'p1', COACH.uid);
+
+        const other = await getDoc(
+            doc(db, 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p2'),
+        );
+        assert.equal(other.data().playerName, 'Bench Guy');
+        assert.equal(other.data().minutesPlayed, 90);
+        assert.ok((await getDoc(doc(db, 'teams', TEAM, 'players', 'p2'))).exists());
+    });
+
+    it('unpicks the tracked figures without re-attributing them', async () => {
+        // The mapping is what ties a crop cut out of the footage to a person.
+        // Clusters 0 and 2 must stop pointing at anyone; cluster 1 must still
+        // be the other player, not shifted along.
+        const db = as(COACH);
+        await erase(db, TEAM, 'p1', COACH.uid);
+
+        const mapping = await getDoc(
+            doc(db, 'teams', TEAM, 'matches', MATCH, 'cvMapping', 'players'),
+        );
+        assert.deepEqual(mapping.data().byCluster, { 1: 'p2' });
+    });
+
+    it('keeps the match log, which names nobody', async () => {
+        // A substitution records ids, never names, and it is the arithmetic
+        // behind every other player's minutes. Deleting it to erase one student
+        // would take time off whoever came on for them.
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), 'teams', TEAM, 'matches', MATCH, 'log', 'e1'), {
+                kind: 'sub', type: 'sub', matchClockS: 1800, side: 'us',
+                subOutId: 'p1', subInId: 'p2', seq: 1, deviceId: 'd1',
+                source: 'live_tag', createdAt: serverTimestamp(), createdBy: COACH.uid,
+            });
+        });
+
+        const db = as(COACH);
+        await erase(db, TEAM, 'p1', COACH.uid);
+
+        const entry = await getDoc(doc(db, 'teams', TEAM, 'matches', MATCH, 'log', 'e1'));
+        assert.ok(entry.exists());
+        // Pseudonymous, and that is the point: what is left is an id that now
+        // resolves to nobody.
+        assert.equal(entry.data().subOutId, 'p1');
+        assert.ok(!JSON.stringify(entry.data()).includes('Alex'));
+    });
+
+    it('removes the invitation, which is where the email address lived', async () => {
+        await erase(as(COACH), TEAM, 'p1', COACH.uid);
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            const gone = await getDoc(
+                doc(ctx.firestore(), 'invites', PLAYER.email, 'from', TEAM),
+            );
+            assert.equal(gone.exists(), false);
+        });
+    });
+
+    it('leaving the team is not erasing, and keeps the reports', async () => {
+        // The other half of the choice. A coach who means "they moved away"
+        // must not lose the team's own record of matches that happened.
+        const db = as(COACH);
+        await assertSucceeds(
+            updateDoc(doc(db, 'teams', TEAM, 'players', 'p1'), { active: false }),
+        );
+
+        const report = await getDoc(
+            doc(db, 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p1'),
+        );
+        assert.equal(report.data().minutesPlayed, 90);
+        assert.equal(
+            (await getDoc(doc(db, 'teams', TEAM, 'players', 'p1'))).data().active,
+            false,
+        );
     });
 });
