@@ -1273,6 +1273,21 @@ export function cvQualityNotes(quality, options = {}) {
             + `${round1(sourceFps)} frames a second`);
     }
 
+    // Only when the run was slower than the football, and phrased as the thing
+    // a coach actually experienced rather than as a ratio. The half-time
+    // whistle is the one deadline in this project; a factor of 1.4 means the
+    // report a coach was waiting for at the break arrived eighteen minutes into
+    // the second half, and "1.4x real time" does not say that to anyone.
+    //
+    // Silent when it keeps up. A batch report produced the following morning is
+    // not improved by being told it could have been live, and the run that
+    // matters here is the one somebody was standing about waiting for.
+    const factor = q.realtime_factor ?? q.realtimeFactor;
+    if (factor != null && factor >= 1) {
+        notes.push('this took longer to work out than the football it watched — '
+            + `about ${roughDuration((factor - 1) * 45 * 60)} behind a live half`);
+    }
+
     if (!calibrated) notes.push('no pitch calibration, so nothing is in metres');
 
     // Which half, and only when nothing but a default said so.

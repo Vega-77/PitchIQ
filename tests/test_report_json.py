@@ -34,6 +34,7 @@ from cv.participants import (
 from cv.pipeline import MatchReport, PlayerReport
 from cv.possession import PossessionSummary
 from cv.report_json import SCHEMA_VERSION, shot_marks, team_stats
+from cv.timing import FIXED, Timings
 from cv.teams import TEAM_A, TEAM_B
 from cv.touches import Touch, TouchConfidence, TouchSequence
 
@@ -690,3 +691,60 @@ class TestShotMarks:
     def test_it_is_json_safe(self):
         marks = shot_marks([self.shot(95.0, 20.0)], 'right')
         assert json.loads(json.dumps(marks))[0]['x_m'] == 95.0
+
+
+class TestTiming:
+    """Whether the run would have fitted inside a live half.
+
+    The arithmetic lives in cv/timing.py and is tested there. What matters here
+    is that it reaches a reader at all, and that an un-instrumented report says
+    so with nulls rather than with zeroes — a report assembled by hand, or one
+    written before this existed, did not achieve real time in no seconds.
+    """
+
+    def timed(self, total_s, footage_s=15.0, **stages):
+        timings = Timings()
+        for name, seconds in stages.items():
+            timings.add(name, seconds)
+        timings.total_s = total_s
+        return a_report(duration_s=footage_s, timings=timings)
+
+    def test_the_breakdown_reaches_the_json(self):
+        data = self.timed(30.0, detect=25.0).to_json()
+        assert data['timing']['total_s'] == pytest.approx(30.0)
+        assert data['timing']['stages'][0]['name'] == 'detect'
+        assert data['timing']['unaccounted_s'] == pytest.approx(5.0)
+
+    def test_the_factor_sits_in_quality_where_the_app_reads_it(self):
+        # 30s of work over 15s of footage. `quality` is the block publish.py
+        # forwards whole, which is how this reaches a coach's screen.
+        data = self.timed(30.0).to_json()
+        assert data['quality']['realtime_factor'] == pytest.approx(2.0)
+
+    def test_a_fixed_cost_is_left_out_of_the_factor(self):
+        timings = Timings()
+        timings.add('load the detector', 20.0, scaling=FIXED)
+        timings.add('detect', 10.0)
+        timings.total_s = 30.0
+        data = a_report(duration_s=15.0, timings=timings).to_json()
+        # Rounded to three places on the way out, like every other figure here.
+        assert data['quality']['realtime_factor'] == pytest.approx(0.667, abs=1e-3)
+        assert data['timing']['keeps_up'] is True
+
+    def test_an_uninstrumented_report_is_null_rather_than_zero(self):
+        data = a_report().to_json()
+        assert data['timing'] is None
+        assert data['quality']['realtime_factor'] is None
+
+    def test_a_slow_run_is_not_a_warning(self):
+        """Taking too long does not make a number wrong.
+
+        `trustworthy` is `not warnings`, so counting slowness as a defect would
+        mark a perfectly good batch report unreliable for having taken its time.
+        """
+        data = self.timed(300.0, detect=290.0).to_json()
+        assert data['quality']['realtime_factor'] == pytest.approx(20.0)
+        assert not any('real' in w or 'slow' in w for w in data['warnings'])
+
+    def test_it_is_json_safe(self):
+        json.dumps(self.timed(30.0, detect=25.0).to_json())

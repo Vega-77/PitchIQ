@@ -81,7 +81,13 @@ from .teams import TEAM_A, TEAM_B
 #    until now a report analysed at half rate looked identical to one that was
 #    not. See tests/test_sampling.py for what that costs (almost nothing, which
 #    is itself the reason it has to be stated rather than assumed).
-SCHEMA_VERSION = 9
+# 10: `timing` at the top level, and `realtime_factor` in the quality block.
+#     Additive, and the second thing a report says about how the run was
+#     performed rather than what it found. `processing_s` was already here and
+#     answers a different question: it is the bill, and this is the itemisation
+#     plus whether the bill would have fitted inside a live half. See
+#     cv/timing.py — in particular why `lag_s` is a floor and not an estimate.
+SCHEMA_VERSION = 10
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -682,6 +688,13 @@ def build_report_json(
         'window': window or {},
         'duration_s': _round(report.duration_s, 1),
         'processing_s': _round(report.processing_s, 1),
+        # Where those seconds went, and whether they would have fitted inside a
+        # live half. None when the run was not instrumented — an old report, or
+        # one assembled by hand — which is a different thing from a run that
+        # took no time.
+        'timing': (
+            report.timings.to_json(report.duration_s) if report.timings else None
+        ),
         'calibrated': calibrated,
         # Which half, and whether anything but a default said so. Both travel
         # because the period flips every pitch-relative figure in this file and
@@ -723,6 +736,17 @@ def _quality(report, log: EventLog) -> dict:
     touches = report.touches
 
     return {
+        # Seconds of work per second of football. Below 1 the run could have
+        # been fed frames as they arrived and still have finished at the
+        # whistle; at or above it the half-time report is late, and `timing`
+        # above says by how much. Deliberately *not* a warning: a slow run is
+        # not an inaccurate one, and `trustworthy` is `not warnings`, so
+        # treating this as a defect would mark a perfectly good batch report
+        # unreliable for taking its time.
+        'realtime_factor': (
+            _round(report.timings.realtime_factor(report.duration_s), 3)
+            if report.timings else None
+        ),
         'kit_separation': _round(report.kit_separation, 1),
         'clear_holder_share': _round(report.clear_holder_share, 3),
         # Seen and filled-in kept apart. Interpolated points are a straight

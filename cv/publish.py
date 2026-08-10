@@ -158,6 +158,12 @@ def summary_payload(report_json: dict) -> dict:
     `reconciliation` does travel, whole. It is a rate, three counts and the
     handful of goals the two records disagree about — a few hundred bytes, and
     the one part of the report that tells a reviewer where to start.
+
+    The `timing` block does not travel, and `quality.realtime_factor` does. The
+    split is deliberate: which stage to shorten is a question for whoever runs
+    the pipeline, and whether the half-time report would have been late is a
+    question for the coach waiting on it. Only the second one belongs in a
+    document every client reads.
     """
     return {
         'schemaVersion': report_json.get('schema_version'),

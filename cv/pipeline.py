@@ -66,6 +66,7 @@ from .possession import (
 from .reconcile import Reconciliation, reconcile, warnings_for
 from .teams import TEAM_A, TEAM_B, assign_teams, separation
 from .territory import TerritorySplit, territory
+from .timing import FIXED, SUPERLINEAR, Timings
 from .thumbs import attach_thumbs, fit_budget
 from .xg_bridge import xg_for_shots
 
@@ -190,6 +191,11 @@ class MatchReport:
     movement_available: bool = False
 
     warnings: list[str] = field(default_factory=list)
+
+    # Where the seconds went, and whether they would have fitted inside a live
+    # half. `processing_s` above is this object's total; what it could never say
+    # is which stage to shorten, or how late the half-time report would be.
+    timings: Timings | None = None
 
     @property
     def _ball_frames(self) -> int:
@@ -492,6 +498,8 @@ def analyse_match(
     orientation = orientation or MatchOrientation()
 
     report = MatchReport(source=video_path.name, duration_s=0.0, processing_s=0.0)
+    timings = Timings()
+    report.timings = timings
 
     # ---- one streamed pass: detect, track, sample colours ----
     #
@@ -519,17 +527,26 @@ def analyse_match(
 
     report.warnings.extend(sampling_warnings(report.sample_fps))
 
-    single_pass = TrackedFramePass(
-        conf=conf, ball_conf=ball_conf, imgsz=imgsz, device=device, tracker=tracker,
-    )
-    table, colour_samples, ball_candidates = single_pass.run(
-        video_path,
-        fps=fps,
-        frame_width=info.width,
-        frame_height=info.height,
-        batches=_stream_batches(video_path, fps, start_s, end_s),
-        stride=stride,
-    )
+    # Timed apart from the pass it belongs to, and marked fixed, because it is
+    # the difference between a machine that can do this live and one that
+    # cannot. Loading YOLO took **13 of the first 21 seconds** the first time
+    # this was measured end to end, on six seconds of footage. Folded into the
+    # total it reads as 3.5x real time; it is the same thirteen seconds on a
+    # forty-five minute half, where it reads as nothing. Counting it as work
+    # that scales would condemn a machine that comfortably keeps up.
+    with timings.stage('load the detector', scaling=FIXED):
+        single_pass = TrackedFramePass(
+            conf=conf, ball_conf=ball_conf, imgsz=imgsz, device=device, tracker=tracker,
+        )
+    with timings.stage('detect, track and sample colour'):
+        table, colour_samples, ball_candidates = single_pass.run(
+            video_path,
+            fps=fps,
+            frame_width=info.width,
+            frame_height=info.height,
+            batches=_stream_batches(video_path, fps, start_s, end_s),
+            stride=stride,
+        )
 
     if not table.records:
         raise ValueError('no frames read from video')
@@ -538,8 +555,9 @@ def analyse_match(
     report.duration_s = len(table.records) * stride / fps
 
     # ---- ball ----
-    report.ball = build_trajectory(ball_candidates, info.width)
-    attach_trajectory(table, report.ball)
+    with timings.stage('ball'):
+        report.ball = build_trajectory(ball_candidates, info.width)
+        attach_trajectory(table, report.ball)
 
     # ---- teams ----
     #
@@ -629,22 +647,23 @@ def analyse_match(
             index: calibration.to_pitch(*xy) for index, xy in ball_by_frame.items()
         }
 
-    states = build_states(
-        [r.frame_index for r in table.records],
-        ball_by_frame,
-        {r.frame_index: r.boxes() for r in table.records},
-        table.team_of,
-        {r.frame_index: r.timestamp_s for r in table.records},
-        is_player=is_player,
-        ball_m_by_frame=ball_m_by_frame,
-    )
+    with timings.stage('possession'):
+        states = build_states(
+            [r.frame_index for r in table.records],
+            ball_by_frame,
+            {r.frame_index: r.boxes() for r in table.records},
+            table.team_of,
+            {r.frame_index: r.timestamp_s for r in table.records},
+            is_player=is_player,
+            ball_m_by_frame=ball_m_by_frame,
+        )
 
     # Prepared once and shared. Smoothing and dead-ball marking are what turn
     # noisy per-frame guesses into the labels the possession split is built
     # from, and territory has to agree with that split rather than describe a
     # slightly different match.
-    states = prepare_states(states, phases=report.phases)
-    report.possession = summarise(states, smooth_window=0)
+        states = prepare_states(states, phases=report.phases)
+        report.possession = summarise(states, smooth_window=0)
 
     # ---- what was missed, and whether that was anyone's fault ----
     #
@@ -680,7 +699,13 @@ def analyse_match(
     # Fragments back into people, so per-player figures have somebody to belong
     # to. This does not name anyone — that stays a human job — but it turns a
     # hundred tracks into a list short enough for a coach to work through.
-    report.clusters = merge_tracks(table, colour_samples, is_player=is_player)
+    #
+    # Timed as non-linear, and that is not a formality. `merge_tracks` is a
+    # quadratic pass over the tracks, and the number of tracks grows with the
+    # footage — so its cost grows faster than the clip it was measured on, and
+    # any projection from a clip to a half is a floor rather than an estimate.
+    with timings.stage('identity', scaling=SUPERLINEAR):
+        report.clusters = merge_tracks(table, colour_samples, is_player=is_player)
 
     # Each figure gets the best picture the pass cut of any fragment it was
     # built from. The budget runs after, not before: which cluster deserves the
@@ -693,24 +718,26 @@ def analyse_match(
     # run with a smaller convenience. The picker says which rows have no
     # thumbnail, which is both the only place it matters and the only place
     # anyone can act on it.
-    attach_thumbs(report.clusters, table.thumb_by_track)
-    fit_budget(report.clusters)
+    with timings.stage('thumbnails'):
+        attach_thumbs(report.clusters, table.thumb_by_track)
+        fit_budget(report.clusters)
 
     # ---- keepers ----
     defending_ends = _defending_ends(orientation, side_of_team, period)
     report.keepers = identify_keepers(table, defending_ends)
 
     # ---- touches, and everything built on them ----
-    report.touches = segment_touches(table, is_player=is_player)
-    report.events = derive_events(
-        report.touches, table,
-        pitch=pitch,
-        orientation=orientation,
-        period=period,
-        side_of_team=side_of_team,
-        keeper_tracks=report.keepers.all_tracks(),
-        phases=report.phases,
-    )
+    with timings.stage('touches and events'):
+        report.touches = segment_touches(table, is_player=is_player)
+        report.events = derive_events(
+            report.touches, table,
+            pitch=pitch,
+            orientation=orientation,
+            period=period,
+            side_of_team=side_of_team,
+            keeper_tracks=report.keepers.all_tracks(),
+            phases=report.phases,
+        )
     if defending_ends and report.keepers.all_tracks():
         report.keeper_stats = keeper_reports(
             report.events, report.keepers, pitch, defending_ends
@@ -726,11 +753,12 @@ def analyse_match(
     # one there is no `start_m`, and a shot with no position on the pitch has
     # nothing to be expected about.
     if calibration is not None and report.events is not None:
-        xg_by_event, xg_warnings = xg_for_shots(
-            report.events, table, calibration, orientation, period,
-            side_of_team, report.keepers,
-        )
-        attach_xg(report.events, xg_by_event)
+        with timings.stage('expected goals'):
+            xg_by_event, xg_warnings = xg_for_shots(
+                report.events, table, calibration, orientation, period,
+                side_of_team, report.keepers,
+            )
+            attach_xg(report.events, xg_by_event)
         report.warnings.extend(xg_warnings)
 
     # ---- phase of play ----
@@ -787,7 +815,7 @@ def analyse_match(
                 minutes_tracked=(times[-1] - times[0]) / 60.0,
             ))
         _warn_on_fragmentation(report)
-        report.processing_s = time.perf_counter() - started
+        report.processing_s = timings.total_s = time.perf_counter() - started
         return report
 
     error = calibration.holdout_error() or calibration.error()
@@ -800,6 +828,10 @@ def analyse_match(
 
     series_by_track: dict[int, PositionSeries] = {}
     smoothing_by_track: dict[int, float] = {}
+    # Timed with a plain pair rather than the `with` block used elsewhere: the
+    # loop is forty lines and wrapping it would reindent all of them to say the
+    # same thing.
+    movement_started = time.perf_counter()
     for track_id, (times, ground) in sorted(sightings.items()):
         if len(times) < 3:
             continue
@@ -831,6 +863,8 @@ def analyse_match(
             heatmap=heatmap(smoothed, pitch.length_m, pitch.width_m),
             minutes_tracked=stats.minutes_tracked,
         ))
+
+    timings.add('movement', time.perf_counter() - movement_started)
 
     # Shape is per team, and each team's is built from that team's own tracks.
     # Measuring it over everyone on the pitch produces the bounding box of the
@@ -871,7 +905,7 @@ def analyse_match(
 
     _warn_on_fragmentation(report)
 
-    report.processing_s = time.perf_counter() - started
+    report.processing_s = timings.total_s = time.perf_counter() - started
     return report
 
 

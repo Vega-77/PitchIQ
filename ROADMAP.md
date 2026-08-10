@@ -826,7 +826,13 @@ so the open count meant nothing. Fixed then; worth keeping true.
 - [ ] **[Demo]** Single **fixed** camera, framed so the pitch fills most of the frame — not a wide shot that merely includes it. This is now a hard requirement, not a preference: see the Reality Check for the measured difference between the two.
 - [ ] **[Demo]** Source footage must be a real export at native resolution. A screen recording of a video player is capped at the browser window's pixels and can silently discard the resolution detection depends on.
 - [ ] **[Demo]** Record to a file and process afterward for the first working pipeline; treat true incremental/live processing as later hardening
-- [ ] **[MVP]** Process first-half footage incrementally during play so the halftime report can be ready close to the actual break
+- [ ] **[MVP]** Process first-half footage incrementally during play so the
+      halftime report can be ready close to the actual break. The **prerequisite
+      is now measurable**: `cv.experiments.speed_report` says whether this
+      machine's real-time factor leaves room to be fed frames as they arrive, and
+      at what sample rate (Phase 6, 2026-08-10). Building the incremental feed
+      before knowing that number would have been building for a deadline nobody
+      had checked was reachable
 - [x] **Frame sampling strategy — every frame, or subsample to cut compute
       cost** (2026-08-09). The question had half an answer already: the `stride`
       docstring records what skipping frames costs **tracking**, measured on
@@ -1381,7 +1387,80 @@ should lead with them rather than with per-player figures.
       agree because the two errors are of a size, not because either went away.
 
       417 pure JS · 120 emulator · 801 Python.
-- [ ] **[MVP]** Tracking fast enough to keep up during live first-half play, not just accurately in a batch job
+- [x] **[MVP] Tracking fast enough to keep up during live first-half play**
+      (2026-08-10) — *measured, not achieved*. The deadline is real and it is the
+      only one in this project: a half-time report handed over ten minutes into
+      the second half describes a match the coach is already losing differently.
+      What was missing was not speed, it was the ability to say anything about
+      speed at all.
+
+      `processing_s` has always been reported. One number, and it answers a
+      different question. "This took eleven minutes" cannot tell anyone whether
+      the report would have existed at the break, and it cannot tell anyone what
+      to change — a smaller model, a lower sample rate and a shorter window are
+      three different fixes and the total looks the same under all of them.
+
+      Now there is `cv/timing.py`: a stage per piece of work, a **real-time
+      factor** (seconds of work per second of football), and the figure worth
+      putting in front of a person, which is not a ratio but a length of time —
+      *how late the report would be*. Plus
+      `python -m cv.experiments.speed_report`, which runs the whole pipeline at
+      several sample rates and names the fastest one that fits a live budget.
+
+      **Three judgements are load-bearing, and one of them was wrong until it was
+      measured.**
+
+      *The remainder is a line, not a rounding error.* Stages never add up to the
+      whole — setup, imports, teardown and everything nobody wrapped fall
+      outside. A breakdown that hides its own gap sends the reader optimising the
+      biggest named stage while a third of the run sits elsewhere. On the very
+      first instrumented run the gap was **60% of the total**, which is exactly
+      the case the decision was made for.
+
+      *A slow run is not an inaccurate one.* `realtime_factor` is deliberately
+      **not** a warning. `trustworthy` is `not warnings`, so counting slowness as
+      a defect would mark a perfectly good batch report unreliable for taking its
+      time. It sits in the quality block; the browser says something only when
+      the factor is at or above 1, and says it as *"this took longer to work out
+      than the football it watched — about 18m behind a live half"*, because
+      "1.4x real time" does not tell a coach they waited.
+
+      *A clip does not scale onto a half by multiplication* — and this is the one
+      the first design got wrong. Three runs back to back over six seconds of
+      synthetic footage:
+
+          cold   8.86s total   1.86s loading the detector   6.99s detecting
+          warm   2.62s total   0.04s loading                2.57s detecting
+          warm   2.02s total   0.04s loading                1.96s detecting
+
+      Divided flat, the cold run reads **1.48x — "cannot keep up, abandon it"**.
+      The same pipeline on the same clip once warm reads **0.33x, comfortably
+      live**. A 4.5x spread that decides the verdict, and none of it about the
+      football. So every stage now declares how its cost grows: `FIXED` for
+      loading a model (paid once, kept out of the rate entirely), `LINEAR` for
+      decode and inference, `SUPERLINEAR` for `identity.merge_tracks`, which is
+      quadratic in tracks that themselves grow with the footage — so a projection
+      containing a meaningful one says **at least** this late rather than this
+      late. The unmeasured remainder is assumed to scale, because on a deadline
+      the pessimistic assumption is the right default.
+
+      The same effect bit the tool itself: whichever sample rate ran first paid
+      the warm-up and read slow, producing **6Hz at 0.42x and 15Hz at 0.36x**,
+      which is backwards. `speed_report` now does a throwaway pass first, after
+      which the same three rates come out 0.14x / 0.37x / 0.71x, in order.
+
+      **What this does not do.** It does not process footage incrementally during
+      play — that is the separate open item in Phase 4 — and it does not say
+      whether *this* pipeline keeps up with *real* football, because the only
+      footage available is a synthetic clip of coloured blobs, on which detection
+      is unrealistically cheap. Every number above is a statement about one
+      machine, one clip and one model on one afternoon, which is why the tool
+      prints exactly that under its own results and why none of its figures are
+      recorded here as a property of the pipeline. What is settled is that the
+      question now has a way of being answered, on the machine that will actually
+      be at the side of the field, before the day rather than after it.
+
+      `SCHEMA_VERSION` 9 → 10. 536 pure JS · 120 emulator · 952 Python.
 
 ## 7. Team & Player Identification
 Automatic tracking only needs to be *internally consistent* — resolving a track ID to a
@@ -2520,7 +2599,12 @@ than the workaround, which matters given the data class.
 - [ ] Lighting/weather robustness check (outdoor field, not a broadcast studio)
 - [ ] Identify and briefly train whoever will run the Phase 3 tablet during the actual demo game — the live data is only as good as the person entering it. The briefing is written (`FOOTAGE_DAY.md` §3); the person is not identified.
 - [ ] **[Demo]** Dry run on real footage from the old team well before the target test date — also the first real test of the ball-detection spike and the homography/attacking-direction logic
-- [ ] **[MVP]** Validate the halftime path end-to-end under a real clock — can it actually finish in time
+- [ ] **[MVP]** Validate the halftime path end-to-end under a real clock — can
+      it actually finish in time. The pipeline half of this is instrumented and
+      answerable without footage (`speed_report`, Phase 6); what is still
+      untested is the whole path under a stopwatch — footage off the camera,
+      pipeline, publish, coach opens the half-time page — on real footage with a
+      real person doing each step
 
 ---
 

@@ -1061,6 +1061,28 @@ describe('cvQualityNotes', () => {
     };
     const joined = (q, o) => report.cvQualityNotes(q, o).join(' | ');
 
+    test('a run slower than the football says how late it was, not its ratio', () => {
+        // The half-time whistle is the only deadline in this project. "1.4x
+        // real time" does not tell a coach they waited eighteen minutes.
+        const notes = report.cvQualityNotes({ realtime_factor: 1.4 });
+        const late = notes.filter((n) => n.includes('longer to work out'));
+        assert.equal(late.length, 1);
+        assert.match(late[0], /18m/);
+    });
+
+    test('a run that kept up says nothing about it', () => {
+        // A batch report produced the next morning is not improved by being
+        // told it could have been live.
+        const notes = report.cvQualityNotes({ realtime_factor: 0.4 });
+        assert.ok(!notes.some((n) => n.includes('longer to work out')));
+    });
+
+    test('an unmeasured run is not a slow one', () => {
+        assert.ok(!report.cvQualityNotes({}).some((n) => n.includes('longer to work out')));
+        assert.ok(!report.cvQualityNotes({ realtime_factor: null })
+            .some((n) => n.includes('longer to work out')));
+    });
+
     test('coverage carries the seconds with it, not as a second complaint', () => {
         // The percentage and the seconds are the same fact in two units, and
         // splitting them would read as two separate problems with the run.

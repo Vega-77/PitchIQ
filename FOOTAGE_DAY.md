@@ -8,6 +8,33 @@ Read it once before the game. Skim points 1 and 4 at the field.
 
 ---
 
+## 0. The week before: find out how fast this machine is
+
+Only if a **half-time** report is wanted. If the plan is to hand something over
+the next morning, skip this — the pipeline can take all night.
+
+```bash
+python -m cv.experiments.speed_report clips/anything.mp4 --seconds 60
+```
+
+Any football footage will do; it is measuring the machine, not the match. It
+prints the seconds of work per second of footage at each sample rate and names
+the fastest rate that leaves headroom, and that rate is what to pass as
+`--sample-fps` on the day.
+
+Two things about it that are easy to get wrong:
+
+- **Run it on the laptop that will actually be at the field.** The same machine
+  on battery and plugged in are different answers, and so is one with a browser
+  open. This is not a property of the pipeline.
+- **Do it in the week, not on the day.** If the answer is "nothing fits", the
+  fix is a smaller model or a shorter window, and neither is something to
+  discover twenty minutes before kick-off. A report that arrives at full-time is
+  still a good report; one that was promised at half-time and arrived at
+  full-time is a broken promise.
+
+---
+
 ## 1. The camera is the whole thing
 
 This is not the most important item because it is first. It is first because
