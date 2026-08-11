@@ -274,3 +274,18 @@
    like a row anybody is about to pick for Saturday. */
 .roster-row.has-left { opacity: 0.62; }
 .roster-row.has-left .jersey { color: var(--text-faint); }
+
+/* What is stored of the students, and the button that removes it. Sits above
+   the figure list rather than under it: a statement about their data, not a
+   footnote to a feature. */
+.thumb-control {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: -4px 0 14px;
+    font-size: 0.82rem;
+    color: var(--text-faint);
+}
+.thumb-note { margin: 0; max-width: 62ch; }
+.thumb-control:empty { display: none; }

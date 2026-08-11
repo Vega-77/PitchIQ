@@ -1154,3 +1154,70 @@ describe('a player with no email address', () => {
     }));
   });
 });
+
+
+describe('the cropped pictures of players', () => {
+  /**
+   * `cvStats` is written only by the Admin SDK and is `allow write: if false`
+   * to every client, which is what stops a browser forging a statistic — a
+   * coach reading a stat line cannot tell a figure the pipeline produced from
+   * one somebody posted.
+   *
+   * That also meant nobody could delete the photographs of their own players,
+   * because they lived in the same document as the numbers. They now have a
+   * document of their own, and a coach may delete exactly that one.
+   *
+   * Deleting is not forging, and these tests are the line between the two.
+   */
+
+  const thumbs = (db) =>
+    doc(db, 'teams', TEAM, 'matches', MATCH, 'cvStats', 'thumbs');
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(thumbs(ctx.firestore()), {
+        byCluster: { 0: { thumb: 'data:image/png;base64,AAA', thumb_height_px: 90 } },
+      });
+    });
+  });
+
+  it('a coach can delete them', async () => {
+    await assertSucceeds(deleteDoc(thumbs(as(COACH))));
+  });
+
+  it('and they are really gone', async () => {
+    await deleteDoc(thumbs(as(COACH)));
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      assert.equal((await getDoc(thumbs(ctx.firestore()))).exists(), false);
+    });
+  });
+
+  it('a coach still cannot write them, only destroy them', async () => {
+    // The invariant that matters: a client may not invent anything in cvStats.
+    await assertFails(setDoc(thumbs(as(COACH)), { byCluster: {} }));
+    await assertFails(updateDoc(thumbs(as(COACH)), { byCluster: {} }));
+  });
+
+  it('the numbers next door are still untouchable', async () => {
+    // Deleting pictures must not have opened a door onto the statistics.
+    const identity = doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'cvStats', 'identity');
+    await assertFails(deleteDoc(identity));
+    await assertFails(setDoc(identity, { clusters: [] }));
+    const summary = doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'cvStats', 'summary');
+    await assertFails(deleteDoc(summary));
+  });
+
+  it('a tagger cannot delete them', async () => {
+    // A tagger runs the tablet on match day. Removing a team's records is not
+    // part of that job.
+    await assertFails(deleteDoc(thumbs(as(ASSISTANT))));
+  });
+
+  it('a stranger cannot delete them', async () => {
+    await assertFails(deleteDoc(thumbs(as(STRANGER))));
+  });
+
+  it('a player cannot delete them', async () => {
+    await assertFails(deleteDoc(thumbs(as(PLAYER))));
+  });
+});

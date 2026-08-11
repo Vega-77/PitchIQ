@@ -7,14 +7,14 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=57';
-import { EVENT_TYPES } from './events.js?v=57';
+import { db } from './firebase-init.js?v=58';
+import { EVENT_TYPES } from './events.js?v=58';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
     mappingWithout,
-} from './report.js?v=57';
+} from './report.js?v=58';
 
 export {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
@@ -894,15 +894,61 @@ export function seasonTotals(reports) {
  */
 export async function readCvStats(teamId, matchId) {
     const base = ['teams', teamId, 'matches', matchId, 'cvStats'];
-    const [summary, identity] = await Promise.all([
+    const [summary, identity, thumbs] = await Promise.all([
         getDoc(doc(db, ...base, 'summary')),
         getDoc(doc(db, ...base, 'identity')),
+        // A separate document so a coach can delete the pictures without
+        // destroying a statistic, and absent whenever they have. See
+        // THUMBS_DOC in cv/publish.py for why they are kept apart at all.
+        getDoc(doc(db, ...base, 'thumbs')).catch(() => null),
     ]);
     if (!summary.exists()) return null;
+
+    const data = identity.exists() ? identity.data() : null;
     return {
         ...summary.data(),
-        identity: identity.exists() ? identity.data() : null,
+        identity: data ? { ...data, clusters: withThumbs(data.clusters, thumbs) } : null,
     };
+}
+
+/**
+ * Put each figure's picture back on its cluster, where the picker expects it.
+ *
+ * Rejoined here rather than at the point of use so that nothing downstream has
+ * to know the pictures live somewhere else — the picker asks a cluster what it
+ * looks like, exactly as it did when the crop was stored inline.
+ *
+ * A missing document, a missing entry and a deleted set all produce the same
+ * thing: a cluster with no `thumb`, which the picker already draws as "no clear
+ * view". A figure the tracker never saw cleanly and one whose picture has been
+ * removed are both figures you cannot look at, and neither is a fault.
+ */
+function withThumbs(clusters, snap) {
+    const byCluster = snap?.exists() ? (snap.data().byCluster || {}) : {};
+    return (clusters || []).map((cluster) => {
+        const found = byCluster[String(cluster.cluster_id)];
+        return found
+            ? { ...cluster, thumb: found.thumb, thumb_height_px: found.thumb_height_px }
+            : cluster;
+    });
+}
+
+/**
+ * Delete every cropped picture from this match.
+ *
+ * The pictures are cut out of the footage so a coach can look at a tracked
+ * figure and say which of their players it is. Once that mapping is done they
+ * have no further job, and what remains is photographs of children in a
+ * database. This is the control that lets somebody act on that.
+ *
+ * Deleting the document rather than emptying it: an empty `byCluster` and no
+ * document read identically to `withThumbs`, and a delete is the one operation
+ * the rules grant a client on `cvStats`. Nothing else in the match is touched —
+ * the clusters, the per-track stats and the coach's mapping all live in
+ * `identity`, which is why the pictures were moved out of it.
+ */
+export function clearThumbs(teamId, matchId) {
+    return deleteDoc(doc(db, 'teams', teamId, 'matches', matchId, 'cvStats', 'thumbs'));
 }
 
 /**

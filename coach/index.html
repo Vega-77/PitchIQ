@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=57">
-    <link rel="stylesheet" href="coach.css?v=57">
+    <link rel="stylesheet" href="../assets/app.css?v=58">
+    <link rel="stylesheet" href="coach.css?v=58">
 </head>
 <body>
 
@@ -466,6 +466,10 @@
         <section class="block hidden no-print" id="cv-clusters-block">
             <h3>Who the video tracked <span id="cv-save-state" class="save-state"></span></h3>
             <p class="muted" id="cv-clusters-note"></p>
+            <!-- What is stored of the students themselves, and the control that
+                 removes it. Above the list rather than buried under it: it is a
+                 statement about their data, not a footnote to a feature. -->
+            <div id="cv-thumb-control" class="thumb-control"></div>
             <div id="cv-clusters" class="list"></div>
         </section>
 
@@ -610,7 +614,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=57"></script>
+<script type="module" src="coach.js?v=58"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

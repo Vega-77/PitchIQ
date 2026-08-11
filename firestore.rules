@@ -464,6 +464,25 @@ service cloud.firestore {
           allow write: if false;
         }
 
+        // ---- the cropped pictures, and the one thing a client may do to them
+        //
+        // `cvStats` is written only by the Admin SDK, and the rule above is what
+        // keeps that true: a coach reading a stat line has no way to tell a
+        // figure the pipeline produced from one a browser posted.
+        //
+        // Deleting is not forging. This grants a coach delete on exactly one
+        // document — the photographs of their players, cut out of the footage so
+        // they could be matched to a name — and nothing else. They cannot create
+        // it, cannot edit it, and cannot touch any document holding a number.
+        // The invariant that matters is that no client may *invent* a
+        // statistic, and destroying a picture cannot invent anything.
+        //
+        // Rules are a union of grants, so this sits alongside the block above
+        // rather than replacing it: everything not named here is still denied.
+        match /cvStats/thumbs {
+          allow delete: if isCoach(t);
+        }
+
         // ---- cvMapping: which tracked figure is which player ----
         //
         // Deliberately NOT part of cvStats. That collection is written only by

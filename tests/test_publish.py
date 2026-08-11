@@ -28,6 +28,7 @@ from cv.publish import (
     MAX_PARTICIPANT_NOTES,
     events_payload,
     identity_payload,
+    thumbs_payload,
     participant_notes,
     player_report_fields,
     publish,
@@ -414,26 +415,32 @@ class TestPayloads:
         assert payload['teams'] == {}
         assert payload['trustworthy'] is False
 
-    def test_a_figures_picture_reaches_the_document_it_is_picked_in(self):
-        """The crop is the whole point of the picker and travels with it.
+    def test_a_figures_picture_still_reaches_the_app(self):
+        """The crop is the whole point of the picker and still travels.
 
-        Nothing here reshapes clusters, so this is guarding an omission rather
-        than a transform: `identity_payload` flattens the *tracks*' heatmaps and
-        passes clusters through, and a future flattening of clusters that forgot
-        the thumbnail would leave a picker full of empty frames.
+        It travels in `thumbs` now rather than inside `identity`, so that a
+        coach can delete the photographs of their players without destroying
+        every statistic in the same document. See TestThePicturesAreKeptApart
+        below, and THUMBS_DOC in cv/publish.py for why.
         """
         report = a_report(clusters=[{
             'cluster_id': 0, 'sightings': 900,
             'thumb': 'data:image/jpeg;base64,abc', 'thumb_height_px': 71.0,
         }])
-        cluster = identity_payload(report)['clusters'][0]
-        assert cluster['thumb'] == 'data:image/jpeg;base64,abc'
-        assert cluster['thumb_height_px'] == 71.0
+        picture = thumbs_payload(report)['byCluster']['0']
+        assert picture['thumb'] == 'data:image/jpeg;base64,abc'
+        assert picture['thumb_height_px'] == 71.0
 
-    def test_a_figure_never_seen_cleanly_publishes_a_null_picture(self):
-        """Not an empty string, which an `<img src>` would try to load."""
+    def test_a_figure_never_seen_cleanly_has_no_entry_at_all(self):
+        """It used to publish an explicit null; now it is simply absent.
+
+        Both read the same to the picker, which draws "no clear view" — and
+        absent is what a deleted set looks like too, so the two cases stay
+        indistinguishable by design.
+        """
         report = a_report(clusters=[{'cluster_id': 0, 'thumb': None}])
-        assert identity_payload(report)['clusters'][0]['thumb'] is None
+        assert thumbs_payload(report)['byCluster'] == {}
+        assert 'thumb' not in identity_payload(report)['clusters'][0]
 
 
 class TestParticipantNotes:
@@ -512,3 +519,57 @@ class TestParticipantNotes:
     def test_the_summary_carries_them(self):
         payload = summary_payload(self.report([self.verdict(7, 'offfield')]))
         assert [n['trackId'] for n in payload['participants']] == [7]
+
+
+class TestThePicturesAreKeptApart:
+    """Photographs of children, in a document that can be deleted on its own.
+
+    They ride into the app so a coach can look at a tracked figure and name it.
+    While they lived inside `identity` next to every per-track statistic, no
+    client could remove them without destroying the match — and `cvStats` is
+    `allow write: if false`, so no client could remove them at all.
+    """
+
+    def report(self, thumbs=True):
+        return {
+            'clusters': [
+                {'cluster_id': 0, 'team': 'team_a', 'sightings': 400,
+                 'thumb': 'data:image/png;base64,AAA' if thumbs else None,
+                 'thumb_height_px': 90.0 if thumbs else None},
+                {'cluster_id': 1, 'team': 'team_b', 'sightings': 200,
+                 'thumb': None, 'thumb_height_px': None},
+            ],
+            'tracks': [],
+        }
+
+    def test_no_picture_survives_in_the_stats_document(self):
+        clusters = identity_payload(self.report())['clusters']
+        assert all('thumb' not in c for c in clusters)
+        assert all('thumb_height_px' not in c for c in clusters)
+
+    def test_everything_else_about_a_figure_stays(self):
+        # The split must cost nothing. A cluster is still a cluster.
+        [first, _] = identity_payload(self.report())['clusters']
+        assert first['cluster_id'] == 0
+        assert first['team'] == 'team_a'
+        assert first['sightings'] == 400
+
+    def test_the_pictures_go_to_their_own_document_keyed_by_cluster(self):
+        by_cluster = thumbs_payload(self.report())['byCluster']
+        assert set(by_cluster) == {'0'}
+        assert by_cluster['0']['thumb'].startswith('data:image/png')
+        assert by_cluster['0']['thumb_height_px'] == 90.0
+
+    def test_a_figure_never_seen_clearly_is_absent_rather_than_null(self):
+        # Absent and deleted then read identically, which is the point: the
+        # picker draws "no clear view" for both, and neither is a fault.
+        assert '1' not in thumbs_payload(self.report())['byCluster']
+
+    def test_a_run_with_no_pictures_at_all_is_an_empty_document(self):
+        assert thumbs_payload(self.report(thumbs=False)) == {'byCluster': {}}
+        assert thumbs_payload({}) == {'byCluster': {}}
+
+    def test_both_payloads_survive_json(self):
+        import json
+        json.dumps(identity_payload(self.report()))
+        json.dumps(thumbs_payload(self.report()))

@@ -48,6 +48,24 @@ SUMMARY_DOC = 'summary'
 IDENTITY_DOC = 'identity'
 EVENTS_DOC = 'events'
 
+# The cropped pictures, kept apart from everything else in cvStats — and this is
+# a privacy decision rather than a data-modelling one.
+#
+# They are photographs of children, cut out of match footage. They exist for one
+# job: letting a coach look at a tracked figure and say which of their players it
+# is. Once that mapping is confirmed the job is done, and what is left is a set
+# of pictures of minors with no remaining purpose, sitting in a database
+# forever.
+#
+# While they lived inside `identity` alongside the clusters and the per-track
+# stats, nobody could remove them without destroying every number in the same
+# document — and `cvStats` is `allow write: if false` to every client, so in
+# practice nobody could remove them at all. In their own document a coach can
+# delete the pictures and keep the match. See `firestore.rules`, which grants
+# delete on this one path and nothing else: a client may destroy these, and
+# still may not fabricate a statistic.
+THUMBS_DOC = 'thumbs'
+
 # Individual events written to Firestore, for the coach review tool.
 #
 # Deliberately capped rather than paginated. A half produces a few hundred of
@@ -306,6 +324,9 @@ def identity_payload(report_json: dict, mapping: dict[str, str] | None = None) -
     straight through would have failed the whole publish the first time a
     calibrated run produced one. It never has, which is the only reason this was
     not found sooner.
+
+    The pictures come out here and go to `thumbs_payload` instead, so that
+    deleting them cannot take a statistic with it. See `THUMBS_DOC`.
     """
     tracks = []
     for track in report_json.get('tracks') or []:
@@ -314,13 +335,44 @@ def identity_payload(report_json: dict, mapping: dict[str, str] | None = None) -
             continue
         tracks.append(track | {'heatmap': _flat_heatmap(track['heatmap'])})
 
+    clusters = [
+        {k: v for k, v in cluster.items() if k not in THUMB_FIELDS}
+        for cluster in (report_json.get('clusters') or [])
+    ]
+
     return {
-        'clusters': report_json.get('clusters') or [],
+        'clusters': clusters,
         'tracks': tracks,
         # cluster_id -> playerId. Empty until a coach fills it in, which is the
         # gate on anything per-player reaching a season.
         'playerByCluster': mapping or {},
     }
+
+
+# What `cv/identity.py` puts on a cluster to describe its picture. Named once so
+# that stripping them out and writing them back cannot drift apart.
+THUMB_FIELDS = ('thumb', 'thumb_height_px')
+
+
+def thumbs_payload(report_json: dict) -> dict:
+    """The pictures, keyed by cluster, in a document of their own.
+
+    Keyed rather than a list so a reader can join without caring about order,
+    and so a cluster with no clear view of it is simply absent — which the
+    picker already draws as "no clear view", the same thing it draws once a
+    coach has deleted the lot. That the two look identical is deliberate: a
+    figure whose picture was never captured and one whose picture has been
+    removed are both figures you cannot see, and neither is a fault.
+    """
+    by_cluster = {}
+    for cluster in report_json.get('clusters') or []:
+        if not cluster.get('thumb'):
+            continue
+        by_cluster[str(cluster['cluster_id'])] = {
+            'thumb': cluster['thumb'],
+            'thumb_height_px': cluster.get('thumb_height_px'),
+        }
+    return {'byCluster': by_cluster}
 
 
 def player_report_fields(
@@ -426,16 +478,24 @@ def publish(
     stats = match_ref.collection(CV_STATS_COLLECTION)
 
     written = {
-        'summary': True, 'identity': True, 'events': 0,
+        'summary': True, 'identity': True, 'thumbs': 0, 'events': 0,
         'playerReports': 0, 'skipped': [],
     }
 
     events = events_payload(report_json)
     written['events'] = len(events['events'])
 
+    thumbs = thumbs_payload(report_json)
+    written['thumbs'] = len(thumbs['byCluster'])
+
     stats.document(SUMMARY_DOC).set(summary_payload(report_json))
     stats.document(IDENTITY_DOC).set(identity_payload(report_json, mapping))
     stats.document(EVENTS_DOC).set(events)
+    # Written with `set`, so re-publishing a match restores pictures a coach
+    # deleted. That is the right way round: the deletion is about not keeping
+    # them lying about, and someone who re-runs the pipeline has asked for them
+    # back. It is also why the control says the pipeline can produce them again.
+    stats.document(THUMBS_DOC).set(thumbs)
 
     if not mapping:
         written['skipped'].append(

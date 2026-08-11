@@ -1,28 +1,28 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=57';
+} from '../assets/auth.js?v=58';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
-    setPlayerActive, playerFootprint, erasePlayer,
+    setPlayerActive, playerFootprint, erasePlayer, clearThumbs,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
     aggregateMatch, publishReports, seasonSummary, playerSeason, seasonTotals,
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=57';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=57';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=57';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=57';
+} from '../assets/db.js?v=58';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=58';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=58';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=58';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=57';
+} from '../assets/sample-report.js?v=58';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=57';
-import { renderPassMap } from '../assets/pass-map.js?v=57';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=57';
-import { renderForms } from '../assets/form-chart.js?v=57';
+} from '../assets/passing.js?v=58';
+import { renderPassMap } from '../assets/pass-map.js?v=58';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=58';
+import { renderForms } from '../assets/form-chart.js?v=58';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -33,17 +33,17 @@ import {
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
     clockFromMatch, clockMapNote, HALF_TIME, SECOND_HALF, blindSplit,
     reviewFeed, FROM_VIDEO, FROM_TAGGED, printStamp,
-} from '../assets/report.js?v=57';
+} from '../assets/report.js?v=58';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=57';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=57';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=57';
+} from '../assets/events.js?v=58';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=58';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=58';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=57';
+} from '../assets/ui.js?v=58';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -1841,6 +1841,7 @@ function renderClusterMapping() {
 
     host.innerHTML = '';
     updateMappingNote();
+    renderThumbControl();
 
     for (const cluster of ordered) {
         host.append(clusterRow(cluster, mapping));
@@ -2211,6 +2212,85 @@ function updateMappingNote() {
           + 'who — shirt numbers are a few pixels tall at this distance. Match '
           + 'the big ones to a player and their stats appear. A figure left '
           + 'unmatched is simply not counted.');
+}
+
+// ------------------------------------------------- the pictures, and dropping them
+//
+// `cv/thumbs.py` cuts a crop of each tracked figure out of the footage so a
+// coach can look at a row and say which of their players it is. They are
+// photographs of children, and they exist for that one job.
+//
+// Once the mapping is done the job is finished, and what is left is pictures of
+// minors in a database with no remaining purpose. Nobody could remove them:
+// they rode inside `cvStats/identity` next to every per-track statistic, and
+// `cvStats` is `allow write: if false` to every client. Now they have their own
+// document, a coach may delete that one document, and deleting it costs no
+// number at all.
+//
+// Not done automatically on the last name being picked. A coach may reasonably
+// want to check their work the next morning, and a control that quietly
+// destroyed evidence the moment it judged you finished would be worse than one
+// that waits to be pressed.
+
+function renderThumbControl() {
+    const host = byId('cv-thumb-control');
+    if (!host) return;
+
+    const clusters = state.match?.cv?.identity?.clusters || [];
+    const withPictures = clusters.filter((c) => c.thumb).length;
+
+    host.innerHTML = '';
+    if (!withPictures) {
+        // Deliberately says the pictures are gone rather than saying nothing.
+        // "There are no photographs of your players stored" is the reassuring
+        // half of this feature, and it only reassures if it is stated.
+        host.textContent = clusters.length
+            ? 'No pictures of the tracked figures are stored for this match.'
+            : '';
+        return;
+    }
+
+    const line = document.createElement('p');
+    line.className = 'thumb-note';
+    line.textContent = `${plural(withPictures, 'picture')} of your players, cut `
+        + 'out of the footage so you could match the figures to names. Once the '
+        + 'matching is done they are not needed.';
+    host.append(line);
+
+    const button = document.createElement('button');
+    button.className = 'btn small secondary';
+    button.textContent = 'Delete the pictures';
+    button.title = 'Deletes only the pictures. Every figure, statistic and name '
+        + 'you have matched stays exactly as it is.';
+    button.addEventListener('click', () => clearMatchThumbs(button));
+    host.append(button);
+}
+
+async function clearMatchThumbs(button) {
+    if (!confirm(
+        'Delete the pictures cut from the footage?\n\n'
+        + 'The figures, their statistics and the names you have matched are all '
+        + 'kept — only the photographs go. Running the pipeline on this match '
+        + 'again would produce them a second time.'
+    )) return;
+
+    button.disabled = true;
+    try {
+        await clearThumbs(state.team.id, state.match.id);
+        // Dropped from what is already on screen rather than re-fetched: the
+        // rows redraw as "no clear view", which is the same thing they show for
+        // a figure the tracker never saw cleanly, and is what they will show on
+        // every future load.
+        for (const cluster of state.match.cv?.identity?.clusters || []) {
+            delete cluster.thumb;
+            delete cluster.thumb_height_px;
+        }
+        renderClusterMapping();
+        toast('The pictures have been deleted. Everything else is untouched.');
+    } catch (err) {
+        toast(err.message || 'Could not delete the pictures.', true);
+        button.disabled = false;
+    }
 }
 
 /**

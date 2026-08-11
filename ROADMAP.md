@@ -922,13 +922,59 @@ longer matched the one in use, which is worse than no reference at all.
 - [x] **[Demo]** Run it locally, on a laptop sharing WiFi/hotspot with the tablet at the field — **superseded**: Firestore's offline cache queues taps on the tablet itself and replays them when signal returns, so there is no laptop to keep alive at the field
 - [x] Schema for teams, players, matches, roster entries, substitutions, events — with the `source` field (`live_tag` / `cv_candidate` / `reviewer_confirmed`) already in place, though only `live_tag` is written today. Tracking-frame tables deliberately deferred until Phase 6 exists.
 - [x] Undo endpoint spanning both events and substitutions, reverting roster state and rolling back match status when a period marker is undone
-- [ ] **Decide a video retention policy.** Storage volume is not a concern for
-      the tracking data itself: at 10fps with 23 objects a full match is roughly
-      10-40MB of positions, trivial for a database, including a whole season.
-      Video is the heavy cost — a 90-minute 1080p match is several GB. The
-      likely answer is to keep full match video only through the post-game
-      review window and retain long-term just the clips tied to confirmed
-      events. Nothing hosts video today, so this is a decision waiting on a need
+- [x] **Retention, for the imagery that actually exists** (2026-08-10). This
+      line used to end *"nothing hosts video today, so this is a decision waiting
+      on a need"*. That stopped being true the day thumbnails shipped, and
+      nobody noticed the premise had expired.
+
+      `cv/thumbs.py` cuts a crop of every tracked figure out of the footage so a
+      coach can look at a row and say which of their players it is. Those are
+      **photographs of children**. They were written into `cvStats/identity`
+      beside the per-track statistics and kept indefinitely, and `cvStats` is
+      `allow write: if false` to every client — which covers delete — so nobody
+      could remove them. Not the coach, not the team, not the erase-a-player path
+      built the same day, which could unpick the mapping that ties a crop to a
+      name and could not touch the crop.
+
+      **The retention rule needs no policy debate**, which is why this closes
+      rather than waiting on one: the pictures exist to let a coach do the
+      mapping. Once it is done they have no remaining purpose, and what is left
+      is pictures of minors in a database with a job that has finished.
+
+      So they live in `cvStats/thumbs` now, alone, and `firestore.rules` grants a
+      coach `delete` on that one document and nothing else. **Deleting is not
+      forging** — the invariant that made `cvStats` untouchable is that no client
+      may *invent* a statistic, and destroying a photograph cannot invent
+      anything. `tests/rules.test.js` draws that line explicitly: a coach may
+      delete the pictures, may not write them, may not touch `identity` or
+      `summary` at all, and a tagger, a player and a stranger may do none of it.
+
+      The control sits above the figure list rather than under it, because it is
+      a statement about students' data and not a footnote to a feature. It says
+      how many pictures are held; once they are gone it says **"No pictures of
+      the tracked figures are stored for this match"**, which is the reassuring
+      half and only reassures if it is stated. Not automatic on the last name
+      being picked: a coach may want to check their work in the morning, and a
+      control that destroyed evidence the moment it judged you finished would be
+      worse than one that waits.
+
+      A deleted picture and one the tracker never caught cleanly both render as
+      *"no clear view"*, deliberately — both are figures you cannot look at, and
+      neither is a fault. Re-running the pipeline writes them again, which the
+      confirmation says out loud, because the point is not keeping them lying
+      about rather than never having them.
+
+      Verified against the emulator: three pictures shown, deleted, and the three
+      figures keep their spans, frame counts and pickers exactly; `cvStats/thumbs`
+      returns 404 while `identity` and `summary` return 200 with every cluster
+      field intact; and it survives a reload.
+
+      **Video itself is still not hosted**, and the paragraph this replaces was
+      right about that part — a 90-minute 1080p match is several GB and nothing
+      stores one. If that changes, the rule above is the one to extend: keep it
+      while it has a job, and have a control that ends it.
+
+      554 pure JS · 139 emulator · 985 Python.
 - [x] **[MVP]** Real auth/accounts and a cloud-hosted option — Google sign-in plus Firestore, so nobody needs to be near a field laptop
 - [x] API layer connecting the tablet, processed match data, and the frontend/portal — the Firestore SDK is the API, and its offline cache is the sync layer
 
