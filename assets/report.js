@@ -1455,6 +1455,82 @@ export function cvQualityNotes(quality, options = {}) {
 // project whose whole premise is that the half-time page and the full report
 // describe the same match.
 
+// ------------------------------------------------------- where they play
+//
+// Four positions, and no more. Football names positions as finely as you like —
+// left-back, holding midfielder, inside forward — and every extra name is
+// another judgement a coach has to make about a sixteen-year-old who probably
+// played three of them this season. Four is what the figures on these pages can
+// actually be read against: a line of the team.
+//
+// The distinction that does real work is the first one. A goalkeeper covers
+// about a third the ground of a midfielder, so their metres a minute belongs on
+// a different scale, and the player table ranked them against each other with
+// nothing saying so.
+//
+// `role` was taken. Everywhere else in this repo it means *access* — coach,
+// tagger, player — and the two must not be confused: one decides what a person
+// may read and the other where they stand on a pitch.
+export const POSITIONS = [
+    { id: 'gk', short: 'GK', label: 'Goalkeeper', plural: 'Goalkeepers' },
+    { id: 'def', short: 'DEF', label: 'Defender', plural: 'Defenders' },
+    { id: 'mid', short: 'MID', label: 'Midfielder', plural: 'Midfielders' },
+    { id: 'fwd', short: 'FWD', label: 'Forward', plural: 'Forwards' },
+];
+
+const POSITION_BY_ID = new Map(POSITIONS.map((p) => [p.id, p]));
+
+/** A position id from anywhere, or null. Anything unrecognised is unset. */
+export function positionOf(value) {
+    return POSITION_BY_ID.has(value) ? value : null;
+}
+
+/** "Midfielder", or null when nobody has said. Never a guess. */
+export function positionLabel(value) {
+    return POSITION_BY_ID.get(value)?.label ?? null;
+}
+
+export const isKeeper = (player) => positionOf(player?.position) === 'gk';
+
+/**
+ * A squad split into lines, in team-sheet order, keepers first.
+ *
+ * **Returns one unnamed group when nobody has a position**, which is the
+ * important case rather than a fallback: a coach who has not filled this in
+ * gets exactly the table they had before, in exactly the order they had it,
+ * instead of a page that has quietly reorganised itself around a field they
+ * have never seen. Headings appear the moment the first player is given a line
+ * and not before.
+ *
+ * Players with no position go to a group at the end rather than into a line
+ * somebody might read as a claim. `compare` orders within a group, so the
+ * existing "most involved first" survives — a line is where you look, and the
+ * standouts still rise inside it.
+ */
+export function groupByPosition(players, compare = null) {
+    const list = [...(players || [])];
+    const sorted = compare ? list.sort(compare) : list;
+
+    if (!sorted.some((p) => positionOf(p.position))) {
+        return [{ id: null, title: null, players: sorted }];
+    }
+
+    const groups = POSITIONS.map((pos) => ({
+        id: pos.id,
+        title: pos.plural,
+        players: sorted.filter((p) => positionOf(p.position) === pos.id),
+    }));
+    groups.push({
+        id: null,
+        // Named as a question rather than as a category. "Other" would read as
+        // a line of the team, and these are players nobody has got to yet.
+        title: 'No position set',
+        players: sorted.filter((p) => !positionOf(p.position)),
+    });
+
+    return groups.filter((g) => g.players.length);
+}
+
 export const STAT_TYPES = [
     { id: 'match', title: 'The match' },
     {

@@ -2177,8 +2177,56 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       a better calibration.
 
 ## 13. Player & Team Statistics / Profiles
-- [ ] `Player` domain model beyond the current UI stub in `xg-sandbox/geometry.js`: identity, team, jersey number, role, per-match stat accumulator
-- [ ] `Team` domain model: roster, formation, aggregate stats
+- [x] **The domain model is the documents, and the one thing it was missing was
+      a position** (2026-08-12). These two lines asked for `Player` and `Team`
+      classes. Checked before building them: `aggregateMatch`, `seasonTotals`,
+      `cvStatsByPlayer`, `cvReportFields` and `trackedCoverage` are **imported by
+      the coach page, the player portal and the half-time page alike** — there is
+      no duplicated per-player arithmetic to consolidate. The model exists. It is
+      a Firestore document shape plus a set of pure functions over it, and
+      wrapping that in classes would add indirection over data that arrives as
+      JSON and has to be serialised straight back.
+
+      **But the item named something that genuinely did not exist**: a playing
+      position. `role` in this repo has only ever meant *access* — coach, tagger,
+      player — and the two must not be confused, since one decides what a person
+      may read and the other where they stand on a pitch.
+
+      It is not decoration. The player table is ranked down one column of metres
+      a minute, and **a goalkeeper covers a fraction of the ground an outfielder
+      does**, so a keeper sat in that ranking as the least mobile player on the
+      pitch — which is not a finding, it is the job. The table now groups into
+      lines, keepers first, and says why once underneath.
+
+      **Four positions and no more.** Football names them as finely as you like,
+      and every extra name is another judgement about a sixteen-year-old who
+      probably played three of them this season. Four is what these figures can
+      be read against: a line of the team.
+
+      **Nothing happens until somebody fills it in.** `groupByPosition` returns a
+      single untitled group when no player has a position, so a coach who has
+      never touched the field gets exactly the table they had, in exactly the
+      order they had it — headings appear on the first position set and not
+      before. An unrecognised value counts as unset, so one stray string cannot
+      switch the layout for the whole squad. The involvement sort survives
+      *inside* each line: grouping adds a heading, it does not take the ranking
+      away.
+
+      A closed vocabulary in `firestore.rules`, not just in the browser. A
+      free-text field on a roster is somewhere to type anything at all about a
+      named minor, and this collection already holds students' email addresses.
+      Verified from a real client with the select bypassed: `'sweeper'`, a map
+      and an int are all refused, and adding `position` to the permitted keys did
+      not open the door it sits beside — a write pairing a valid position with
+      somebody else's `linkedUid` is still rejected.
+
+      The position lives on the squad, not on the match. Nothing here records
+      what a player actually played on a given day, so a report groups by where
+      they play now; snapshotting it into the match roster would look more
+      careful and be worse, since that document is written when the lineup is set
+      and most positions get filled in long afterwards.
+
+      567 pure JS · 149 emulator · 985 Python.
 - [x] **[Demo]** Compute the halftime-tier stats first (possession, shot map/xG,
       distance, sprint counts, live-tagged event counts) — all computed,
       published and drawn. Shot coordinates travel beside the counts rather than

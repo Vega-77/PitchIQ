@@ -5063,3 +5063,121 @@ describe('mappingWithout', () => {
         assert.deepEqual(report.mappingWithout(undefined, 'p1'), {});
     });
 });
+
+describe('where a player plays', () => {
+  /**
+   * The field exists for one reason: a goalkeeper covers a fraction of the
+   * ground an outfielder does, and the player table used to rank them against
+   * each other down one column with nothing saying so.
+   *
+   * The behaviour worth pinning is the *absence* case. Most squads will never
+   * fill this in, and a coach who has not must get back exactly the table they
+   * had — same players, same order, no headings for a field they have never
+   * seen.
+   */
+
+  const squad = (...positions) => positions.map((position, i) => ({
+    id: `p${i}`, playerName: `Player ${i}`, position, goals: 0, minutesPlayed: 90,
+  }));
+
+  const titles = (groups) => groups.map((g) => g.title);
+  const names = (groups) => groups.flatMap((g) => g.players.map((p) => p.id));
+
+  describe('reading a position', () => {
+    test('the four it knows', () => {
+      for (const id of ['gk', 'def', 'mid', 'fwd']) {
+        assert.equal(report.positionOf(id), id);
+      }
+    });
+
+    test('anything else is unset, not an error and not a guess', () => {
+      // A document written before this field existed, a typo, or a value from
+      // some future vocabulary. All of them mean "nobody has said".
+      for (const bad of [null, undefined, '', 'goalkeeper', 'GK', 'striker', 7, {}]) {
+        assert.equal(report.positionOf(bad), null);
+      }
+    });
+
+    test('a label only for the ones it knows', () => {
+      assert.equal(report.positionLabel('mid'), 'Midfielder');
+      assert.equal(report.positionLabel('winger'), null);
+      assert.equal(report.positionLabel(null), null);
+    });
+
+    test('the keeper test does not fire on an unset player', () => {
+      assert.equal(report.isKeeper({ position: 'gk' }), true);
+      assert.equal(report.isKeeper({ position: 'def' }), false);
+      assert.equal(report.isKeeper({ position: null }), false);
+      assert.equal(report.isKeeper({}), false);
+      assert.equal(report.isKeeper(null), false);
+    });
+  });
+
+  describe('grouping a squad', () => {
+    test('nobody has a position, so there are no headings at all', () => {
+      const groups = report.groupByPosition(squad(null, null, null));
+      assert.equal(groups.length, 1);
+      assert.equal(groups[0].title, null);
+      assert.deepEqual(names(groups), ['p0', 'p1', 'p2']);
+    });
+
+    test('an unrecognised value counts as nobody having said', () => {
+      // Guards the case a stray string in one document silently switches the
+      // whole table into a grouped layout with one bogus heading.
+      const groups = report.groupByPosition(squad('striker', 'GK'));
+      assert.equal(groups.length, 1);
+      assert.equal(groups[0].title, null);
+    });
+
+    test('one position set is enough to group the whole table', () => {
+      const groups = report.groupByPosition(squad('gk', null, null));
+      assert.deepEqual(titles(groups), ['Goalkeepers', 'No position set']);
+    });
+
+    test('team-sheet order, keepers first, and empty lines dropped', () => {
+      const groups = report.groupByPosition(squad('fwd', 'gk', 'mid'));
+      assert.deepEqual(titles(groups), ['Goalkeepers', 'Midfielders', 'Forwards']);
+    });
+
+    test('the unset go last, under a heading that is not a line of the team', () => {
+      const groups = report.groupByPosition(squad('mid', null));
+      assert.equal(groups.at(-1).title, 'No position set');
+      assert.deepEqual(groups.at(-1).players.map((p) => p.id), ['p1']);
+    });
+
+    test('the involvement order survives inside a line', () => {
+      // The point of grouping is to add a heading, not to take the ranking
+      // away — a coach still wants the standouts at the top of each line.
+      const players = [
+        { id: 'quiet', position: 'mid', goals: 0 },
+        { id: 'loud', position: 'mid', goals: 3 },
+        { id: 'keeper', position: 'gk', goals: 0 },
+      ];
+      const groups = report.groupByPosition(players, (a, b) => b.goals - a.goals);
+      assert.deepEqual(names(groups), ['keeper', 'loud', 'quiet']);
+    });
+
+    test('everyone survives the grouping', () => {
+      // A dropped player is the failure that would go unnoticed longest: the
+      // table still looks like a table.
+      const players = squad('gk', 'def', 'def', null, 'fwd', 'mid');
+      const groups = report.groupByPosition(players);
+      assert.equal(names(groups).length, players.length);
+      assert.deepEqual(new Set(names(groups)).size, players.length);
+    });
+
+    test('an empty squad, and no squad at all', () => {
+      assert.deepEqual(report.groupByPosition([]), [{ id: null, title: null, players: [] }]);
+      assert.deepEqual(report.groupByPosition(null), [{ id: null, title: null, players: [] }]);
+    });
+
+    test('it does not reorder what it was given', () => {
+      // `state.match.stats.players` is held across re-renders and read by the
+      // coverage note; sorting it in place would reorder somebody else's list.
+      const players = squad('fwd', 'gk');
+      const before = players.map((p) => p.id);
+      report.groupByPosition(players, (a, b) => a.id.localeCompare(b.id));
+      assert.deepEqual(players.map((p) => p.id), before);
+    });
+  });
+});

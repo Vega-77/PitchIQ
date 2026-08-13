@@ -7,14 +7,14 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=60';
-import { EVENT_TYPES } from './events.js?v=60';
+import { db } from './firebase-init.js?v=61';
+import { EVENT_TYPES } from './events.js?v=61';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
-    mappingWithout,
-} from './report.js?v=60';
+    mappingWithout, positionOf,
+} from './report.js?v=61';
 
 export {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
@@ -117,17 +117,34 @@ export async function listPlayers(teamId) {
         .sort((a, b) => (a.jerseyNumber ?? 999) - (b.jerseyNumber ?? 999));
 }
 
-export async function addPlayer(teamId, { name, jerseyNumber, email }) {
+export async function addPlayer(teamId, { name, jerseyNumber, email, position }) {
     const ref = doc(collection(db, 'teams', teamId, 'players'));
     await setDoc(ref, {
         name,
         jerseyNumber: jerseyNumber ?? null,
         emailLower: (email || '').toLowerCase(),
+        // Null rather than a default. A squad list that arrives with everyone
+        // pre-marked as a midfielder is a page of claims nobody made, and the
+        // table reads them as a coach's answer.
+        position: positionOf(position),
         linkedUid: null,
         active: true,
         createdAt: serverTimestamp(),
     });
     return ref.id;
+}
+
+/**
+ * Which line of the team this player is in, or null for unset.
+ *
+ * Nothing is recomputed when it changes: a position is not an input to any
+ * figure, it is a heading over one. That is the whole reason it can be edited
+ * freely months after a match without any published report going stale.
+ */
+export function setPlayerPosition(teamId, playerId, position) {
+    return updateDoc(doc(db, 'teams', teamId, 'players', playerId), {
+        position: positionOf(position),
+    });
 }
 
 /**

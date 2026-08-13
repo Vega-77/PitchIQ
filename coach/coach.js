@@ -1,28 +1,28 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=60';
+} from '../assets/auth.js?v=61';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
-    setPlayerActive, playerFootprint, erasePlayer, clearThumbs,
+    setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
     aggregateMatch, publishReports, seasonSummary, playerSeason, seasonTotals,
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=60';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=60';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=60';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=60';
+} from '../assets/db.js?v=61';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=61';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=61';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=61';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=60';
+} from '../assets/sample-report.js?v=61';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=60';
-import { renderPassMap } from '../assets/pass-map.js?v=60';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=60';
-import { renderForms } from '../assets/form-chart.js?v=60';
+} from '../assets/passing.js?v=61';
+import { renderPassMap } from '../assets/pass-map.js?v=61';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=61';
+import { renderForms } from '../assets/form-chart.js?v=61';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -33,17 +33,18 @@ import {
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
     clockFromMatch, clockMapNote, HALF_TIME, SECOND_HALF, blindSplit,
     reviewFeed, FROM_VIDEO, FROM_TAGGED, printStamp,
-} from '../assets/report.js?v=60';
+    POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
+} from '../assets/report.js?v=61';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=60';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=60';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=60';
+} from '../assets/events.js?v=61';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=61';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=61';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=60';
+} from '../assets/ui.js?v=61';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -279,6 +280,29 @@ function renderRoster() {
     }
 }
 
+/**
+ * The four lines of a team, plus the honest blank.
+ *
+ * The blank reads "Position" rather than "None" or "—": an empty select on a
+ * roster is a question nobody has answered yet, and both of those words look
+ * like answers.
+ */
+function fillPositionSelect(select, chosen) {
+    select.innerHTML = '';
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = 'Position';
+    select.append(none);
+
+    for (const pos of POSITIONS) {
+        const option = document.createElement('option');
+        option.value = pos.id;
+        option.textContent = pos.label;
+        select.append(option);
+    }
+    select.value = positionOf(chosen) || '';
+}
+
 function rosterRow(player) {
     const row = document.createElement('div');
     row.className = 'list-item roster-row';
@@ -288,6 +312,10 @@ function rosterRow(player) {
             <div class="title"></div>
             <div class="sub"></div>
         </button>
+        <label class="pos-pick">
+            <span class="sr-only"></span>
+            <select></select>
+        </label>
         <span class="pill"></span>
         <button class="btn small" data-act="invite">Invite</button>
         <button class="btn small danger" data-act="remove">Remove</button>
@@ -315,6 +343,24 @@ function rosterRow(player) {
         remove.textContent = 'Back on the roster';
         remove.classList.remove('danger');
     }
+
+    // Saved on change, with no confirm and no undo, because there is nothing to
+    // undo: a position is a heading over figures rather than an input to one,
+    // so getting it wrong costs a wrong word and never a wrong number. That is
+    // also why it can be filled in months later, or never.
+    const pick = row.querySelector('.pos-pick select');
+    fillPositionSelect(pick, player.position);
+    row.querySelector('.pos-pick .sr-only').textContent = `Position for ${player.name}`;
+    pick.addEventListener('change', async () => {
+        const chosen = pick.value || null;
+        try {
+            await setPlayerPosition(state.team.id, player.id, chosen);
+            player.position = chosen;
+        } catch (err) {
+            fillPositionSelect(pick, player.position);
+            toast(err.message || 'Could not save the position.', true);
+        }
+    });
 
     row.querySelector('.open-player').addEventListener('click', () => openPlayer(player));
 
@@ -498,10 +544,15 @@ async function doAddPlayer() {
             name,
             jerseyNumber: numberRaw ? Number(numberRaw) : null,
             email,
+            position: byId('input-player-position').value || null,
         });
         for (const id of ['input-player-name', 'input-player-number', 'input-player-email']) {
             byId(id).value = '';
         }
+        // The position is *not* cleared. A coach adding a squad works through it
+        // in lines — four defenders, then the midfield — and re-picking the same
+        // answer eleven times is the kind of small friction that ends with the
+        // field left empty for the whole roster.
         state.players = await listPlayers(state.team.id);
         renderRoster();
         toast(`${name} added`);
@@ -612,7 +663,8 @@ async function openPlayer(player) {
 
         setText('pv-number', player.jerseyNumber ?? '—');
         setText('pv-name', player.name);
-        setText('pv-sub', player.emailLower || 'no email on file');
+        setText('pv-sub', [positionLabel(player.position),
+            player.emailLower || 'no email on file'].filter(Boolean).join(' · '));
 
         const linked = byId('pv-linked');
         const isLinked = Boolean(player.linkedUid);
@@ -1830,10 +1882,19 @@ function renderPlayerTable(players) {
     }
 
     // Most involved first — a coach scanning this wants the standouts on top.
-    const ordered = [...players].sort(
-        (a, b) => (b.goals + b.assists) - (a.goals + a.assists)
-            || b.minutesPlayed - a.minutesPlayed,
-    );
+    // Kept as the order *within* a line rather than replaced by it, so the
+    // grouping below adds a heading without taking the ranking away.
+    const compare = (a, b) => (b.goals + b.assists) - (a.goals + a.assists)
+        || b.minutesPlayed - a.minutesPlayed;
+
+    // A position is a fact about the squad, not about this match: nothing in
+    // this system records what a player actually played on a given day, so a
+    // report opened today groups by where they play *now*. Snapshotting it into
+    // the match roster would look more careful and would be worse — it is
+    // written when the lineup is set, and most positions get filled in long
+    // afterwards, so the snapshot would be empty for every match that mattered.
+    const squad = new Map((state.players || []).map((p) => [p.id, p.position]));
+    const ordered = players.map((p) => ({ ...p, position: squad.get(p.id) ?? null }));
 
     // What the minutes bar is a share of. The match's own length, not the
     // longest shift — a squad nobody rotated would otherwise draw itself with
@@ -1845,8 +1906,16 @@ function renderPlayerTable(players) {
         ...players.map((p) => p.minutesPlayed || 0),
     );
 
-    for (const player of ordered) body.append(playerTableRow(player, full));
-    setText('player-table-note', coverageSummary(players));
+    for (const group of groupByPosition(ordered, compare)) {
+        // No heading at all until somebody has set a position — `groupByPosition`
+        // returns a single untitled group, and the table is exactly the one that
+        // was there before.
+        if (group.title) body.append(positionHeadRow(group, columns));
+        for (const player of group.players) body.append(playerTableRow(player, full));
+    }
+
+    setText('player-table-note',
+        [coverageSummary(players), keeperNote(ordered)].filter(Boolean).join(' '));
 }
 
 /**
@@ -1889,6 +1958,35 @@ function coverageSummary(players) {
     return `${head} It held ${names}${rest} for under ${pct}% of their filmed`
         + ' minutes, so those rows are a sample of the match rather than the'
         + ' whole of it.' + reviewed;
+}
+
+/** A line of the team, as a full-width row across the table. */
+function positionHeadRow(group, columns) {
+    const tr = document.createElement('tr');
+    tr.className = 'pos-head';
+    const th = document.createElement('th');
+    th.colSpan = columns;
+    th.scope = 'rowgroup';
+    th.textContent = group.title;
+    tr.append(th);
+    return tr;
+}
+
+/**
+ * Why a keeper's row is not to be read down the column with the rest.
+ *
+ * This is the whole reason the position field exists. A goalkeeper covers
+ * roughly a third the ground of a midfielder, so in a single ranked table their
+ * metres a minute reads as the least mobile player on the pitch — which is not
+ * a finding, it is the job. The grouping above already separates them; this
+ * says out loud why they are separated, once, and only when there is a keeper
+ * on the sheet to separate.
+ */
+function keeperNote(players) {
+    if (!players.some(isKeeper)) return '';
+    return 'Goalkeepers are listed on their own line: a keeper covers a fraction'
+        + ' of the ground an outfielder does, so metres a minute compares within'
+        + ' a line and not across them.';
 }
 
 function playerTableRow(player, fullMinutes) {

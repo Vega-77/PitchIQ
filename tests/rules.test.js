@@ -1221,3 +1221,82 @@ describe('the cropped pictures of players', () => {
     await assertFails(deleteDoc(thumbs(as(PLAYER))));
   });
 });
+
+describe('where a player plays', () => {
+  /**
+   * A closed vocabulary rather than a string, and the rules are what closes it.
+   * The browser only ever sends one of four values, but the browser is not the
+   * boundary — a free-text field on a roster document is somewhere to type
+   * anything at all about a named minor, and this collection already holds
+   * students' email addresses.
+   */
+
+  const roster = (db, id = 'p1') => doc(db, 'teams', TEAM, 'players', id);
+
+  it('a coach can set one of the four', async () => {
+    for (const position of ['gk', 'def', 'mid', 'fwd']) {
+      await assertSucceeds(updateDoc(roster(as(COACH)), { position }));
+    }
+  });
+
+  it('and can clear it again', async () => {
+    // Unset has to stay reachable: a coach who picked the wrong line needs a
+    // way back to "nobody has said", not only to a different wrong answer.
+    await assertSucceeds(updateDoc(roster(as(COACH)), { position: null }));
+  });
+
+  it('anything outside the four is refused', async () => {
+    for (const bad of ['striker', 'GK', 'goalkeeper', '', 'gk ', 'left-back']) {
+      await assertFails(updateDoc(roster(as(COACH)), { position: bad }));
+    }
+  });
+
+  it('and it has to be a string or null, not a document', async () => {
+    // The shape that would carry the most: a map smuggles arbitrary keys past
+    // a check that only looked at one value.
+    await assertFails(updateDoc(roster(as(COACH)), { position: 7 }));
+    await assertFails(updateDoc(roster(as(COACH)), { position: ['gk'] }));
+    await assertFails(updateDoc(roster(as(COACH)), { position: { id: 'gk' } }));
+  });
+
+  it('a new player can be created with one, or without', async () => {
+    await assertSucceeds(setDoc(doc(as(COACH), 'teams', TEAM, 'players', 'newkeeper'), {
+      name: 'Sam Ortiz', jerseyNumber: 1, emailLower: 'sam@school.org',
+      position: 'gk', linkedUid: null, active: true,
+    }));
+    await assertSucceeds(setDoc(doc(as(COACH), 'teams', TEAM, 'players', 'nopos'), {
+      name: 'Riley Nunez', jerseyNumber: 12, emailLower: 'riley@school.org',
+      linkedUid: null, active: true,
+    }));
+  });
+
+  it('a new player cannot be created with a made-up one', async () => {
+    await assertFails(setDoc(doc(as(COACH), 'teams', TEAM, 'players', 'bogus'), {
+      name: 'Casey Bell', jerseyNumber: 21, emailLower: 'casey@school.org',
+      position: 'sweeper', linkedUid: null, active: true,
+    }));
+  });
+
+  it('a player cannot set their own', async () => {
+    // The one write a player is allowed on team data is claiming their own
+    // slot. Where they play is their coach's call, not theirs.
+    await assertFails(updateDoc(roster(as(PLAYER)), { position: 'fwd' }));
+  });
+
+  it('a tagger cannot set one either', async () => {
+    await assertFails(updateDoc(roster(as(ASSISTANT)), { position: 'fwd' }));
+  });
+
+  it('a stranger cannot read the roster to find out', async () => {
+    await assertFails(getDoc(roster(as(STRANGER))));
+  });
+
+  it('setting it does not smuggle a link to an account', async () => {
+    // `changed()` now permits one more key, so the invariant it was protecting
+    // is worth re-proving: a coach may edit the roster and may never point a
+    // slot at an arbitrary uid.
+    await assertFails(updateDoc(roster(as(COACH)), {
+      position: 'gk', linkedUid: STRANGER.uid,
+    }));
+  });
+});

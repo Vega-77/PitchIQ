@@ -108,6 +108,15 @@ service cloud.firestore {
       return s == null || s == '' || emailShape(s);
     }
 
+    // Which line of the team a player is in. A closed set rather than a string,
+    // because a free-text field on a roster is somewhere to type anything at
+    // all about a named minor, and the only thing reading it wants is one of
+    // four values. Null is the honest default and stays permitted forever —
+    // most squads will never fill this in for the whole roster.
+    function validPosition(p) {
+      return p == null || p in ['gk', 'def', 'mid', 'fwd'];
+    }
+
     function isTimestampNow(v) {
       return v == request.time;
     }
@@ -293,9 +302,11 @@ service cloud.firestore {
 
         allow create: if isCoach(t)
           && request.resource.data.keys().hasOnly(
-               ['name', 'jerseyNumber', 'emailLower', 'linkedUid', 'active', 'createdAt'])
+               ['name', 'jerseyNumber', 'emailLower', 'position', 'linkedUid',
+                'active', 'createdAt'])
           && request.resource.data.linkedUid == null
           && optionalEmail(request.resource.data.emailLower)
+          && validPosition(request.resource.data.get('position', null))
           && request.resource.data.active is bool
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
@@ -309,10 +320,12 @@ service cloud.firestore {
         // but may never point a roster slot at an arbitrary account. Linking is
         // done only by the account owner, in the rule below.
         allow update: if isCoach(t)
-          && changed(['name', 'jerseyNumber', 'emailLower', 'linkedUid', 'active'])
+          && changed(['name', 'jerseyNumber', 'emailLower', 'position',
+                      'linkedUid', 'active'])
           && (request.resource.data.linkedUid == null
               || request.resource.data.linkedUid == resource.data.linkedUid)
-          && optionalEmail(request.resource.data.emailLower);
+          && optionalEmail(request.resource.data.emailLower)
+          && validPosition(request.resource.data.get('position', null));
 
         // The claim: the only write a player ever makes to team data. It is
         // self-verifying — it checks the roster document's own stored email

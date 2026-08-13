@@ -927,6 +927,35 @@ th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
 }
 thead .col-groups + tr th { top: 30px; }
 
+/* A line of the team, across the table. Set in the body rather than as a second
+   header so it scrolls with the rows it heads — it is a divider between groups
+   of players, not a column label, and a sticky one would stack up behind the
+   two that are already pinned. */
+.pos-head th {
+    position: static;
+    text-align: left;
+    font-size: 0.66rem;
+    letter-spacing: 1.6px;
+    font-style: normal;
+    color: var(--text-faint);
+    background: var(--bg-raised);
+    padding: 7px 16px;
+    border-bottom: 1px solid var(--line);
+}
+/* No rule above the very first one — the column headings are directly above it
+   and two lines 7px apart read as a mistake. */
+thead + tbody .pos-head:first-child th { border-top: none; }
+tbody .pos-head th { border-top: 1px solid var(--line); }
+tbody tr.pos-head:hover { background: var(--bg-raised); }
+
+/* The roster's position picker. Narrow on purpose: four words and a blank, next
+   to a name and two buttons that both matter more. */
+.pos-pick select {
+    min-height: 36px;
+    font-size: 0.8rem;
+    min-width: 108px;
+}
+
 /* Minutes, as a length as well as a number. The table is sorted by goals and
    assists, so who actually played the match is not something the row order
    says — and eleven columns of digits is exactly the place a bar earns its
