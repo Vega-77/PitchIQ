@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=59">
-    <link rel="stylesheet" href="player.css?v=59">
+    <link rel="stylesheet" href="../assets/app.css?v=60">
+    <link rel="stylesheet" href="player.css?v=60">
 </head>
 <body>
 
@@ -94,7 +94,7 @@
         </section>
     </section>
 
-    <section id="view-reports" class="hidden">
+    <section id="view-reports" class="hidden wide-report">
         <header class="player-hero has-backdrop" id="player-hero">
             <div class="player-badge" id="player-number">—</div>
             <div class="grow">
@@ -104,6 +104,12 @@
             </div>
         </header>
 
+        <!-- Laid out exactly as the coach's view of the same season is, because
+             it is the same season. The two of them talking about it should be
+             looking at the same arrangement of the same blocks, not at one
+             page's idea of them each. -->
+        <div class="report-body">
+
         <section class="block">
             <h3>Season so far</h3>
             <div id="season-stats" class="stat-grid"></div>
@@ -111,7 +117,7 @@
 
         <!-- The season as a shape rather than a table. A player can see at a
              glance whether their minutes are climbing. -->
-        <section class="block">
+        <section class="block col-half">
             <h3>Your minutes, match by match</h3>
             <div id="minutes-chart" class="chart"></div>
             <p class="muted" id="chart-note" style="margin-top:10px"></p>
@@ -123,7 +129,7 @@
              tracked for seventy. Every match gets a slot including the ones
              nobody filmed, because closing the gaps would space the filmed
              matches evenly and imply they were evenly spaced in the season. -->
-        <section class="block hidden" id="form-block">
+        <section class="block hidden col-half" id="form-block">
             <h3>How your season has gone</h3>
             <p class="muted" style="margin:-4px 0 16px">
                 Each dot is a match, oldest on the left. The line is your season,
@@ -138,12 +144,14 @@
             <p class="muted" style="margin:-4px 0 14px">Tap a match to see your part in it.</p>
             <div id="match-list" class="card-list"></div>
         </section>
+
+        </div><!-- /.report-body -->
     </section>
 
     <!-- One match, from this player's point of view. Opened from the list
          above; everything it shows was written into their own report at
          publish time, so it needs no extra reads and exposes nothing new. -->
-    <section id="view-match" class="hidden">
+    <section id="view-match" class="hidden wide-report">
         <!-- Only ever on paper. See the print block in app.css. -->
         <p class="print-stamp" id="md-print-stamp"></p>
         <div class="row-actions" style="margin:24px 0 0">
@@ -164,6 +172,12 @@
             </div>
         </header>
 
+        <!-- Two columns on a monitor, one on a phone, same as the coach's
+             report of the same match. The pitch pictures pair naturally: a
+             heatmap caps itself at 620px and a shot map at 380, so neither was
+             ever using a full-width row. -->
+        <div class="report-body">
+
         <section class="block">
             <h3>Your match</h3>
             <div id="md-stats" class="stat-grid"></div>
@@ -175,13 +189,13 @@
 
         <!-- Hidden until there is a grid to draw. An empty pitch reads as a
              player who never moved, which is worse than showing nothing. -->
-        <section class="block hidden" id="md-heatmap-block">
+        <section class="block hidden col-half" id="md-heatmap-block">
             <h3>Where you played</h3>
             <p class="muted" id="md-heatmap-note" style="margin:-4px 0 14px"></p>
             <div id="md-heatmap" class="heatmap"></div>
         </section>
 
-        <section class="block hidden" id="md-shots-block">
+        <section class="block hidden col-half" id="md-shots-block">
             <h3>Your shots</h3>
             <p class="muted" id="md-shots-note" style="margin:-4px 0 14px"></p>
             <div id="md-shots" class="shot-map"></div>
@@ -201,12 +215,14 @@
             <h3>How the team did</h3>
             <div id="md-team" class="tally-list"></div>
         </section>
+
+        </div><!-- /.report-body -->
     </section>
 </main>
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="player.js?v=59"></script>
+<script type="module" src="player.js?v=60"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

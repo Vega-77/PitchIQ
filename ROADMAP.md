@@ -2707,6 +2707,46 @@ than the workaround, which matters given the data class.
       lands on its 20px scroll-margin.
 
       554 pure JS · 139 emulator · 985 Python.
+- [x] **The season views, and a width that was being handed to the wrong page**
+      (2026-08-12). The same grid, now on all four report screens, and the id it
+      was keyed to turned out to be shared.
+
+      `#view-match` exists in **`coach/index.html` and `player/index.html`**.
+      The width rule from the entry above was written against that id, so the
+      student's own match report — one column of blocks, no grid — was being
+      stretched to 1500px and looked worse for it. A width that only makes sense
+      with columns under it has to be **asked for**, so it is now a
+      `.wide-report` class each view opts into, and the classes are
+      `.report-layout` / `.report-body` rather than `.match-*` because three of
+      the four views are not a match.
+
+      A coach's view of a player's season went **3,056px to 1,992px — 3.4 screens
+      to 2.2**; the student's own season, which is the same season, went 3.0 to
+      1.8. Minutes and form sit side by side on both. **No rail on either**: four
+      blocks is not fifteen, and a jump list of four is more chrome than
+      navigation.
+
+      The biggest single saving was not the columns. **"Match by match" was eight
+      cards stacked down 1,376px** — eight rows of one card and a great deal of
+      nothing beside each, 750px of page. Two abreast it is 329px, and read
+      left-to-right in pairs it is still a season in order. Scoped to a
+      full-width block inside a report grid: a card list in a half column has no
+      room to split, and the roster and staff lists elsewhere on the coach page
+      are not seasons.
+
+      On the student's match view the two pitch pictures pair — a heatmap caps
+      itself at 620px and a shot map at 380px, so neither was ever using a
+      full-width row. The saving there is small because the heatmap sets the row
+      height either way; the reason to do it is that **two pitches of the same
+      match belong beside each other**, which is where you would hold them to
+      compare.
+
+      Verified against the emulator with a seeded eight-match season, on the
+      coach page and the player portal, at 375, 768 and 1440: single column and
+      a flex card list below 1180px, no page scrolls horizontally at any width,
+      and the top bar tracks the widened view on both pages.
+
+      554 pure JS · 139 emulator · 985 Python.
 - [x] **[Demo]** Coach halftime view: sideline/mobile-friendly, high-signal,
       minimal reading — built from the Stats Catalog's halftime section. The
       catalog's "plain-language flags over raw tables" is `report.cvReads`:

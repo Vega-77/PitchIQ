@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=59">
-    <link rel="stylesheet" href="coach.css?v=59">
+    <link rel="stylesheet" href="../assets/app.css?v=60">
+    <link rel="stylesheet" href="coach.css?v=60">
 </head>
 <body>
 
@@ -263,7 +263,7 @@
     </section>
 
     <!-- one player, across the season -->
-    <section id="view-player" class="hidden">
+    <section id="view-player" class="hidden wide-report">
         <button id="btn-back-roster" class="btn small ghost" style="margin:24px 0 18px">&lsaquo; Back to squad</button>
 
         <div class="player-head">
@@ -275,6 +275,11 @@
             <span class="pill" id="pv-linked"></span>
         </div>
 
+        <!-- Four blocks rather than the match report's fifteen, so no rail:
+             a jump list of four is more chrome than navigation. The grid is
+             the same one either way — see `.report-body` in app.css. -->
+        <div class="report-body">
+
         <section class="block">
             <h3>Season totals</h3>
             <div id="pv-stats" class="stat-grid"></div>
@@ -282,7 +287,7 @@
 
         <!-- The same picture the player sees on their own page, so a coach and
              a player are looking at the same thing when they talk about it. -->
-        <section class="block">
+        <section class="block col-half">
             <h3>Minutes across the season</h3>
             <div id="pv-chart" class="chart"></div>
             <p class="muted" id="pv-chart-note" style="margin-top:10px"></p>
@@ -292,7 +297,7 @@
              This is the one comparison a coach and a player have together, and
              it goes badly if the two of them are looking at figures worked out
              two different ways. -->
-        <section class="block hidden" id="pv-form-block">
+        <section class="block hidden col-half" id="pv-form-block">
             <h3>Form across the season</h3>
             <p class="muted" style="margin:-4px 0 16px">
                 Each dot is a match, oldest on the left. The line is the season,
@@ -310,10 +315,12 @@
                 player's record.
             </p>
         </section>
+
+        </div><!-- /.report-body -->
     </section>
 
     <!-- one match -->
-    <section id="view-match" class="hidden">
+    <section id="view-match" class="hidden wide-report">
         <!-- Only ever on paper. See the print block in app.css. -->
         <p class="print-stamp" id="match-print-stamp"></p>
         <div class="row-actions" style="margin:24px 0 18px">
@@ -361,7 +368,7 @@
              either way — see `.match-layout` in app.css for why the desktop
              arrangement is a grid over the existing markup rather than a
              separate set of it. -->
-        <div class="match-layout">
+        <div class="report-layout">
             <!-- Filled in from whichever blocks are actually on screen. Empty
                  markup on purpose: half of these appear only when a match was
                  filmed, and a rail listing sections that are not there would
@@ -369,7 +376,7 @@
             <nav class="section-rail no-print" id="match-rail"
                  aria-label="Sections of this report"></nav>
 
-        <div class="match-body" id="match-body">
+        <div class="report-body" id="match-body">
 
         <section class="block" id="team-block" data-rail="Team">
             <h3>Team</h3>
@@ -645,14 +652,14 @@
         </section>
         </div><!-- /.block-stack -->
 
-        </div><!-- /.match-body -->
-        </div><!-- /.match-layout -->
+        </div><!-- /.report-body -->
+        </div><!-- /.report-layout -->
     </section>
 </main>
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=59"></script>
+<script type="module" src="coach.js?v=60"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

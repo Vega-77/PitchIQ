@@ -10,7 +10,7 @@ import {
     doc, getDoc, setDoc, updateDoc, collection, getDocs, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { auth, db, isConfigured } from './firebase-init.js?v=59';
+import { auth, db, isConfigured } from './firebase-init.js?v=60';
 
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: 'select_account' });
