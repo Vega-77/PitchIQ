@@ -77,10 +77,24 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n{'OK' if good else 'NEEDS WORK'}")
 
     if not good:
+        # The suspect list above is earned here in a way it is not in the
+        # browser: `Calibration.fit` uses RANSAC for five or more points, which
+        # rejects an outlier and fits the rest exactly, so a single bad click
+        # ends up carrying the whole residual. Measured on synthetic cameras at
+        # eight or more points, the worst point held 100% of the error in every
+        # trial. The picker page solves normal equations instead and spreads a
+        # bad point across all of them, which is why it can only list causes.
+        #
+        # What neither can do is name the cause. A wide-angle lens produces
+        # about 1.1m of error at k1 = -0.03 with every point clicked perfectly,
+        # and re-clicking will never fix it.
         print(
-            "\nUsually one landmark is misplaced or mislabelled. Re-open the picker,\n"
-            "check the yellow outline sits on the painted lines, and fix the point\n"
-            "listed above."
+            "\nThree things do this and these numbers cannot separate them:\n"
+            "  - a wide-angle or action camera; re-clicking will not help, and\n"
+            "    the fix is a narrower lens setting and a fresh frame\n"
+            "  - a misplaced or mislabelled landmark; start with the point\n"
+            "    listed above and check the outline against the painted lines\n"
+            "  - a guessed pitch size; every metre is scaled by it"
         )
 
     out = args.out or Path("cv/calibrations") / f"{args.points.stem}.calib.json"

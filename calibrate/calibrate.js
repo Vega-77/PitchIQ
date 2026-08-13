@@ -1,8 +1,8 @@
 import {
     landmarks, LANDMARK_GROUPS, fitHomography, applyHomography,
-} from './pitch-model.js?v=62';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=62';
-import { byId, setText, toast, plural } from '../assets/ui.js?v=62';
+} from './pitch-model.js?v=63';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=63';
+import { byId, setText, toast, plural } from '../assets/ui.js?v=63';
 
 const state = {
     image: null,
@@ -250,10 +250,33 @@ function renderQuality() {
                 'Good fit. Have a look at the yellow outline — if it sits on the '
                 + 'painted lines, you can save it.';
         } else {
+            // Three causes, and this page cannot tell them apart. It used to
+            // say "one point is probably in the wrong place", which is a
+            // confident single-cause diagnosis and is wrong for a whole class
+            // of camera: measured on a synthetic wide-angle lens, barrel
+            // distortion as mild as k1 = -0.03 gives about 1.1m of error with
+            // every landmark clicked perfectly. A coach with a GoPro would
+            // re-click forever and never fix it, because nothing is wrong with
+            // the clicking.
+            //
+            // Three statistics were tried as a discriminator and all three
+            // failed against the least-squares fit above — see ROADMAP Phase 1
+            // for the numbers. So the page lists the candidates and does not
+            // pick, with the lens first because it is the only one where the
+            // obvious next action is the wrong one.
             verdict.className = 'verdict bad';
-            verdict.textContent =
-                'Something is off. One point is probably in the wrong place or '
-                + 'named wrong; the yellow outline should show you which.';
+            verdict.innerHTML =
+                'Something is off, and these numbers cannot say which of three '
+                + 'things it is:<br>'
+                + '<b>A wide-angle lens.</b> Action cameras and phone "wide" '
+                + 'modes bend straight lines, and no amount of re-clicking '
+                + 'fixes it — switch the camera to its narrow or linear '
+                + 'setting and grab a new frame.<br>'
+                + '<b>A misplaced or mis-named point.</b> Check the yellow '
+                + 'outline against the painted lines; where it sits wrong is '
+                + 'where to look.<br>'
+                + '<b>The pitch size above.</b> If it is a guess rather than a '
+                + 'measurement, every metre here is scaled by that guess.';
         }
     } catch (err) {
         note.className = 'empty';

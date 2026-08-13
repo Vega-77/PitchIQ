@@ -895,7 +895,61 @@ so the open count meant nothing. Fixed then; worth keeping true.
       lower rate actually damages.
 
       `SCHEMA_VERSION` 8 → 9. 477 pure JS · 120 emulator · 912 Python.
-- [ ] Lens distortion correction if using a wide-angle/action camera
+- [ ] Lens distortion correction if using a wide-angle/action camera.
+      **Measured 2026-08-12, and the diagnostic half turned out to be
+      impossible — so the pages stopped pretending otherwise.**
+
+      The motivation is real and bigger than expected. On a synthetic camera,
+      barrel distortion as mild as `k1 = -0.03` gives about **1.1m of mean
+      reprojection error with every landmark clicked perfectly** — already past
+      the 0.5m bar `is_usable` sets. At `-0.06` it is 2.9m, at `-0.25`
+      (GoPro-ish) 6.2m. A wide lens does not degrade a calibration, it
+      disqualifies it.
+
+      The trouble is that **the error looks exactly like careless clicking**:
+      ±12px of jitter on perfect optics gives 2.3m, indistinguishable from mild
+      barrel's 2.0m. Three statistics were tried as a discriminator and all
+      three failed:
+
+      * **residual magnitude against radius from the image centre** — barrel
+        0.52-0.81, but sloppy clicking reached -0.63 and the sign flipped
+        between barrel strengths, because the homography absorbs much of the
+        distortion.
+      * **radial alignment of the pixel residuals** — barrel -0.33 to +0.22,
+        noise spanning -0.39 to +0.39. No separation at all.
+      * **fitting one radial parameter and measuring how far the error drops** —
+        promising at first (noise 1.0-1.3x, mild barrel 2.9-6.6x) and then not:
+        across camera geometries barrel reached as low as 0.99x and noise as
+        high as 6.4x.
+
+      A fourth — **how concentrated the error is in the single worst point** —
+      looked perfect and was an artefact. Under Python's `Calibration.fit` one
+      bad click carries **100% of the residual in every trial at eight or more
+      points**, because `cv2.findHomography` uses RANSAC and fits the remaining
+      points exactly. The picker page solves normal equations instead, and under
+      least squares the same statistic reads 0.27-0.42 for a bad click, a lens
+      and general imprecision alike. **The measurement had to be redone against
+      the fit the page actually uses**, and that is what killed it.
+
+      So no correction and no diagnosis. What did change is that both surfaces
+      stopped asserting a cause they cannot know. The picker said *"One point is
+      probably in the wrong place or named wrong"* and the CLI said *"Usually
+      one landmark is misplaced or mislabelled"*; both now list three
+      candidates — the lens, a misplaced point, a guessed pitch size — and lead
+      with the lens, because it is the only one where the obvious next action
+      (re-click everything) is the wrong one. Checked in the browser by feeding
+      the page six perfectly-placed landmarks from a `k1 = -0.06` camera: 1.15m
+      average error, and the new verdict where the old single-cause claim used
+      to be.
+
+      The Python side keeps its "most suspect points" list, which the same
+      measurement **vindicates** — RANSAC really does isolate the culprit there.
+
+      What remains open is the correction itself, and it is not blocked on
+      cleverness: it needs a per-camera lens calibration (OpenCV chessboard,
+      once per camera), which nobody can produce before there is a camera.
+      Building the undistort path now would add a code path with no caller,
+      which this repo has already had to clean up twice.
 - [x] **[Demo]** Ingestion accepts any decodable video file — `cv/frame_sampler.py` handles this via OpenCV; the format was never the hard constraint, framing is
 - [ ] **[Stretch]** Support moving/auto-tracking camera footage (e.g. Hudl/Veo-style ball-following cameras) — requires continuous homography re-estimation (pitch-line detection or frame-to-frame motion tracking) instead of one-time calibration; sports-broadcast camera-calibration research exists to lean on rather than invent from scratch
 - [ ] **[Stretch]** Multi-camera stitching, drone or pan/tilt/zoom coverage
