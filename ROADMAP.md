@@ -2634,6 +2634,79 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The match report is a dashboard on a monitor, not a scroll**
+      (2026-08-12). Fifteen blocks stacked one to a row came to **8,723px — 6.9
+      screens** on a laptop, for a page that is read at a desk the evening after
+      a game far more often than on a touchline. Measured on the same match with
+      the same data, the two-column layout is **5,274px, 4.2 screens**: the
+      report lost two fifths of its length without losing a block.
+
+      **A grid laid over the existing markup, not a second set of it.** There is
+      one report in the DOM in one order; the desktop arrangement is a
+      stylesheet's opinion about it. So a block that only appears when a match
+      was filmed needs no layout code, print needs none, and the phone keeps the
+      stack it should have — a phone has one column and scrolling is how you use
+      it. Blocks are full width by default and opt into half (`.col-half`),
+      which is the safe way round: too wide is roomy, too narrow breaks its own
+      contents.
+
+      **The rail is built from the blocks that are actually there.** Half of
+      them exist only for a filmed match, and a jump list offering sections that
+      are not on the page is a menu of dead ends. It carries the two counts
+      worth having off-screen — figures still unnamed, events still unchecked —
+      because those decide whether the video columns mean anything and they live
+      eight screens down. Rebuilt only when the set of sections changes, not on
+      every save: the badges tick over constantly while a coach names figures,
+      and throwing the buttons away each time would take the keyboard focus with
+      it, which is the bug the "same figure" strip already had to fix once.
+
+      **More than one rail entry lights at a time, and that is the honest
+      answer.** Two blocks share a row, so at most heights the section you are
+      reading really is two sections. A band — everything overlapping the top
+      45% — lit four of nine, which is a highlight that has stopped pointing at
+      anything; a line across the upper third can only be crossed once per
+      column, so it says at most two.
+
+      **The layout found a bug by reproducing an old one.** The cluster, review
+      and shot rows all had a narrow layout already, keyed to
+      `@media (max-width: 640px)`, with comments about "the mistake the cluster
+      rows made at 375px". Halving the column reproduced that mistake at
+      1440px — a 420px row on a screen nowhere near 640px, stacking its label
+      one letter per line. The rule those rows want has never been about the
+      screen; it is **"this row is narrow"**, and they are now
+      `@container matchblock (max-width: 640px)` over a block that measures
+      itself. One rule serves a phone and a half-width column instead of two
+      that have to be kept in step.
+
+      **The report opts out of the reading measure.** `--shell` is 1120px
+      because that is tuned on prose, and this page is not prose: the widest
+      thing on it is an eleven-column table needing 897px. Halving the shell
+      left it 33px short and put a horizontal scrollbar under the one table a
+      coach reads most, while 450px of monitor sat unused either side.
+      `#view-match` now takes `min(100vw - 64px, 1500px)` — 64px of inset, not
+      48, because `100vw` counts a scrollbar the viewport does not. The top bar
+      follows it via `body:has(#view-match:not(.hidden))`, scoped to the view
+      that is actually wide: a header inset 80px from the content beneath it
+      reads as a mistake, and on the squad and roster screens the bar still
+      lines up with the 1120px column that is under it there.
+
+      Two smaller things the width paid for. The player table's eleven columns
+      now carry a band naming where each number came from — **Tagged during the
+      match** against **Estimated from video** — because the rule between them
+      already said there was a difference and not what it was. And minutes are
+      drawn as well as written: a bar behind each figure, as a share of the
+      match's own length rather than of the longest shift, so a squad nobody
+      rotated does not draw itself as though somebody had. The table is sorted
+      by goals and assists, so nothing in the row order otherwise says who
+      actually played.
+
+      Verified against the emulator at 375, 768, 1280 and 1440: the rail hides
+      below 1180px, every container query fires on the phone exactly as the
+      media queries did, no page scrolls horizontally at any width, the rail
+      rebuilds when the sample preview turns four blocks on, and a rail jump
+      lands on its 20px scroll-margin.
+
+      554 pure JS · 139 emulator · 985 Python.
 - [x] **[Demo]** Coach halftime view: sideline/mobile-friendly, high-signal,
       minimal reading — built from the Stats Catalog's halftime section. The
       catalog's "plain-language flags over raw tables" is `report.cvReads`:

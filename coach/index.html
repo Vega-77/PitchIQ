@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=58">
-    <link rel="stylesheet" href="coach.css?v=58">
+    <link rel="stylesheet" href="../assets/app.css?v=59">
+    <link rel="stylesheet" href="coach.css?v=59">
 </head>
 <body>
 
@@ -356,7 +356,22 @@
             <button id="btn-cv-sample" class="btn small">Preview with sample data</button>
         </div>
 
-        <section class="block">
+        <!-- Two columns and a rail on a monitor, one column on anything
+             narrower. The blocks below are the same blocks in the same order
+             either way — see `.match-layout` in app.css for why the desktop
+             arrangement is a grid over the existing markup rather than a
+             separate set of it. -->
+        <div class="match-layout">
+            <!-- Filled in from whichever blocks are actually on screen. Empty
+                 markup on purpose: half of these appear only when a match was
+                 filmed, and a rail listing sections that are not there would
+                 be a menu of dead ends. -->
+            <nav class="section-rail no-print" id="match-rail"
+                 aria-label="Sections of this report"></nav>
+
+        <div class="match-body" id="match-body">
+
+        <section class="block" id="team-block" data-rail="Team">
             <h3>Team</h3>
             <!-- Which colour is which side. Without it every bar below is two
                  anonymous lengths, and a coach reading the wrong way round
@@ -368,11 +383,21 @@
             <div id="team-stats" class="stat-groups"></div>
         </section>
 
-        <section class="block">
+        <section class="block" id="players-block" data-rail="Players">
             <h3>Players</h3>
             <div class="table-wrap">
                 <table id="player-table">
                     <thead>
+                        <!-- Where each number came from, said once over the
+                             columns instead of eleven times in tooltips. The
+                             boundary rule under "Touches" was already drawn;
+                             this puts a word on either side of it, because a
+                             rule tells you there is a difference and not what
+                             the difference is. -->
+                        <tr class="col-groups">
+                            <th colspan="7">Tagged during the match</th>
+                            <th colspan="4" class="cv cv-first">Estimated from video</th>
+                        </tr>
                         <tr>
                             <th class="num">#</th>
                             <th>Player</th>
@@ -407,7 +432,7 @@
 
         <!-- Both sides' shots, mirrored so each team attacks right. Hidden
              until there is a calibration to place them with. -->
-        <section class="block hidden" id="cv-shots-block">
+        <section class="block hidden" id="cv-shots-block" data-rail="Shots">
             <h3>Shots</h3>
             <p class="muted" id="cv-shots-note" style="margin:-4px 0 14px"></p>
             <div class="shot-maps">
@@ -428,7 +453,7 @@
              connected. Nodes sit where each player passed from on average
              rather than where they spent their time: the edges are passes, so
              the positions have to answer the same question. -->
-        <section class="block hidden" id="cv-passing-block">
+        <section class="block hidden col-half" id="cv-passing-block" data-rail="Passing">
             <h3>How the ball moved</h3>
             <p class="muted" id="cv-passing-note" style="margin:-4px 0 14px"></p>
             <div id="cv-passing" class="pass-map"></div>
@@ -442,7 +467,7 @@
              PPDA is passes *allowed*, so longer is a softer press. Plotting its
              reciprocal would read more naturally and would disagree with the
              PPDA row in the table above. -->
-        <section class="block hidden" id="cv-pressing-block">
+        <section class="block hidden col-half" id="cv-pressing-block" data-rail="Press">
             <h3>How long the press lasted</h3>
             <p class="muted" id="cv-pressing-lede" style="margin:-4px 0 14px"></p>
             <div id="cv-pressing" class="press-trend"></div>
@@ -455,7 +480,7 @@
              either way. The pipeline's own reading of each outcome is shown
              and never preselected — see assets/report.js, "marking the model's
              predictions", for why a prefilled answer would measure nothing. -->
-        <section class="block hidden" id="cv-shotlog-block">
+        <section class="block hidden col-half" id="cv-shotlog-block" data-rail="Shot log">
             <h3>What actually happened
                 <span id="cv-shotlog-state" class="save-state"></span></h3>
             <p class="muted" id="cv-shotlog-note" style="margin:-4px 0 14px"></p>
@@ -463,7 +488,8 @@
             <div id="cv-shotlog" class="list shot-log"></div>
         </section>
 
-        <section class="block hidden no-print" id="cv-clusters-block">
+        <section class="block hidden no-print col-half" id="cv-clusters-block"
+                 data-rail="Tracked figures">
             <h3>Who the video tracked <span id="cv-save-state" class="save-state"></span></h3>
             <p class="muted" id="cv-clusters-note"></p>
             <!-- What is stored of the students themselves, and the control that
@@ -474,7 +500,7 @@
         </section>
 
         <!-- The match itself, with the goals, cards and subs marked on it. -->
-        <section class="block hidden no-print" id="match-video-block">
+        <section class="block hidden no-print" id="match-video-block" data-rail="The match">
             <h3>The match</h3>
             <p class="muted" id="match-video-note" style="margin:-4px 0 14px"></p>
             <div id="match-video" class="video-frame"></div>
@@ -485,13 +511,7 @@
             <div id="match-moments" class="moment-list"></div>
         </section>
 
-        <section class="block hidden" id="cv-excluded-block">
-            <h3>Who the video left out</h3>
-            <p class="muted" id="cv-excluded-note"></p>
-            <div id="cv-excluded" class="list"></div>
-        </section>
-
-        <section class="block hidden" id="cv-review-block">
+        <section class="block hidden" id="cv-review-block" data-rail="Review">
             <h3>Check what the video found
                 <span id="cv-review-state" class="save-state"></span></h3>
             <p class="muted" id="cv-review-progress"></p>
@@ -539,12 +559,22 @@
             </p>
         </section>
 
-        <section class="block">
+        <!-- Moved below the review rather than above it. The two are the same
+             subject — what the video did and did not see — and on a two-column
+             screen a short list of exclusions pairs with the timeline far
+             better than it splits the video from the check on it. -->
+        <section class="block hidden col-half" id="cv-excluded-block" data-rail="Left out">
+            <h3>Who the video left out</h3>
+            <p class="muted" id="cv-excluded-note"></p>
+            <div id="cv-excluded" class="list"></div>
+        </section>
+
+        <section class="block col-half" id="timeline-block" data-rail="Timeline">
             <h3>Timeline</h3>
             <div id="timeline" class="timeline"></div>
         </section>
 
-        <section class="block no-print">
+        <section class="block no-print col-half" id="video-link-block" data-rail="Video link">
             <h3>Match video</h3>
             <div class="card">
                 <p class="muted" style="margin:0 0 16px">
@@ -585,7 +615,11 @@
             </div>
         </section>
 
-        <section class="block no-print">
+        <!-- Two short blocks that are each a single button. Stacked into one
+             grid cell rather than given a column apiece, which would leave a
+             paragraph of text floating in half a screen. -->
+        <div class="block-stack col-half">
+        <section class="block no-print" id="pipeline-block" data-rail="Tag log">
             <h3>Send this match to the video pipeline</h3>
             <div class="card">
                 <p class="muted" style="margin:0 0 16px">
@@ -598,7 +632,7 @@
             </div>
         </section>
 
-        <section class="block no-print">
+        <section class="block no-print" id="publish-block" data-rail="Publish">
             <h3>Publish</h3>
             <div class="card">
                 <p class="muted" style="margin:0 0 16px">
@@ -609,12 +643,16 @@
                 <button id="btn-publish" class="btn primary">Publish player reports</button>
             </div>
         </section>
+        </div><!-- /.block-stack -->
+
+        </div><!-- /.match-body -->
+        </div><!-- /.match-layout -->
     </section>
 </main>
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=58"></script>
+<script type="module" src="coach.js?v=59"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

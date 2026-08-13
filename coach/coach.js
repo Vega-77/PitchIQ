@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=58';
+} from '../assets/auth.js?v=59';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, playerFootprint, erasePlayer, clearThumbs,
@@ -9,20 +9,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=58';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=58';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=58';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=58';
+} from '../assets/db.js?v=59';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=59';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=59';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=59';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=58';
+} from '../assets/sample-report.js?v=59';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=58';
-import { renderPassMap } from '../assets/pass-map.js?v=58';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=58';
-import { renderForms } from '../assets/form-chart.js?v=58';
+} from '../assets/passing.js?v=59';
+import { renderPassMap } from '../assets/pass-map.js?v=59';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=59';
+import { renderForms } from '../assets/form-chart.js?v=59';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -33,17 +33,17 @@ import {
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
     clockFromMatch, clockMapNote, HALF_TIME, SECOND_HALF, blindSplit,
     reviewFeed, FROM_VIDEO, FROM_TAGGED, printStamp,
-} from '../assets/report.js?v=58';
+} from '../assets/report.js?v=59';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=58';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=58';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=58';
+} from '../assets/events.js?v=59';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=59';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=59';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=58';
+} from '../assets/ui.js?v=59';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -887,6 +887,8 @@ async function openMatch(matchId) {
         renderExcluded();
         renderReview();
         renderSampleToggle();
+        // Last, once every block above has decided whether it is on screen.
+        renderMatchRail();
 
         byId('input-video-url').value = match.videoUrl || '';
         byId('input-video-offset').value = match.videoOffsetS ?? 0;
@@ -902,6 +904,11 @@ async function openMatch(matchId) {
 
         show('view-match');
         window.scrollTo(0, 0);
+        // Again, and only now. `renderMatchRail` above built the buttons, but
+        // it measured them while `#view-match` was still hidden — every block
+        // reads as a zero-height box at the origin, so nothing could be marked
+        // as current and the rail opened dead until the first scroll.
+        markRailPosition();
     } catch (err) {
         toast(err.message || 'Could not open that match.', true);
         show('view-main');
@@ -1473,6 +1480,169 @@ function renderSampleToggle() {
         : 'See what the video-derived sections look like, using made-up numbers.');
 }
 
+// ------------------------------------------------------------- the section rail
+//
+// A match report is about fifteen blocks. Stacked one to a row it ran to roughly
+// ten screens on a laptop, which is where this page is actually read — a coach
+// opens it at a desk the evening after the game, not on the touchline. The
+// layout itself is CSS (`.match-layout` in app.css); this is the part that
+// cannot be: which blocks exist on *this* match, and what is still outstanding
+// in each.
+//
+// Only the blocks that are on screen are listed. Half of them appear only when
+// a match was filmed, and a rail offering to jump to a section that is not
+// there is a menu of dead ends.
+
+/** Numbers worth carrying up to the rail — outstanding work, not totals. */
+function railCounts() {
+    const counts = {};
+
+    // Figures still waiting for a name. The count that actually decides whether
+    // the video columns in the table mean anything, and it lives eight screens
+    // down the page.
+    const clusters = state.match?.cv?.identity?.clusters || [];
+    const answered = Object.entries(state.match?.cvMapping || {})
+        .filter(([, id]) => id).length;
+    const unnamed = clusters.length - answered;
+    if (unnamed > 0) {
+        counts['cv-clusters-block'] = {
+            n: unnamed,
+            title: `${plural(unnamed, 'tracked figure')} still unmatched`,
+        };
+    }
+
+    const events = (state.match?.cvEvents?.events || []).length;
+    const checked = Object.keys(state.match?.cvReview?.byEvent || {}).length;
+    if (events - checked > 0) {
+        counts['cv-review-block'] = {
+            n: events - checked,
+            title: `${plural(events - checked, 'event')} not checked yet`,
+        };
+    }
+
+    return counts;
+}
+
+/** The blocks currently on screen, in page order. */
+const railBlocks = () => [
+    ...(byId('match-body')?.querySelectorAll('section.block[data-rail]') || []),
+].filter((block) => !block.classList.contains('hidden'));
+
+function renderMatchRail() {
+    const rail = byId('match-rail');
+    if (!rail) return;
+
+    const blocks = railBlocks();
+    const signature = blocks.map((block) => block.id).join('|');
+
+    // Rebuilt only when the set of sections changes, not on every save. The
+    // badges below tick over constantly as a coach names figures, and throwing
+    // the buttons away each time would take the keyboard focus with them —
+    // which is the same bug the "same figure" strip already had to fix once.
+    if (rail.dataset.signature !== signature) {
+        rail.dataset.signature = signature;
+        rail.innerHTML = '';
+
+        const head = document.createElement('div');
+        head.className = 'rail-head';
+        head.textContent = 'This report';
+        rail.append(head);
+
+        for (const block of blocks) rail.append(railLink(block));
+    }
+
+    const counts = railCounts();
+    for (const link of rail.querySelectorAll('.rail-link')) {
+        const count = counts[link.dataset.target];
+        const tag = link.querySelector('.rail-tag');
+        tag.textContent = count ? count.n : '';
+        tag.hidden = !count;
+        // On the button rather than the badge: the badge is 20px of pill and a
+        // tooltip you have to hit it exactly to see is not a tooltip.
+        if (count) link.title = count.title;
+        else link.removeAttribute('title');
+    }
+
+    markRailPosition();
+}
+
+function railLink(block) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'rail-link';
+    button.dataset.target = block.id;
+
+    const label = document.createElement('span');
+    label.textContent = block.dataset.rail;
+    const tag = document.createElement('span');
+    tag.className = 'rail-tag';
+    tag.hidden = true;
+    button.append(label, tag);
+
+    button.addEventListener('click', () => {
+        block.scrollIntoView({
+            // Somebody who has turned animation off is telling us that a page
+            // sliding under them is unpleasant, not that they want it slower.
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                ? 'auto' : 'smooth',
+            block: 'start',
+        });
+    });
+
+    return button;
+}
+
+/**
+ * Light the rail entries for whatever is being read.
+ *
+ * More than one can be lit, and that is the honest answer rather than a
+ * shortcut: this layout puts two blocks side by side, so at most heights "the
+ * section you are looking at" really is two sections. Picking one of them would
+ * be choosing a winner between two things in the same glance.
+ */
+function markRailPosition() {
+    const rail = byId('match-rail');
+    if (!rail) return;
+    const links = [...rail.querySelectorAll('.rail-link')];
+    // `offsetParent` is null when the rail is display:none — every width below
+    // the breakpoint, where there is no rail to mark.
+    if (!links.length || !rail.offsetParent) return;
+
+    // A line across the upper third, and whatever crosses it is what you are
+    // reading. Tried a band first — everything overlapping the top 45% — and it
+    // lit four entries out of nine, which is a highlight that has stopped
+    // pointing at anything. A line can only be crossed by one block per column,
+    // so it says at most two.
+    const line = window.innerHeight * 0.3;
+
+    let lit = false;
+    for (const link of links) {
+        const box = byId(link.dataset.target)?.getBoundingClientRect();
+        const here = Boolean(box) && box.top <= line && box.bottom > line;
+        link.classList.toggle('is-here', here);
+        lit = lit || here;
+    }
+
+    // Above the first block, or in a gap between rows: point at what is coming
+    // rather than going dark, which reads as the rail having lost track.
+    if (!lit) {
+        const next = links.find(
+            (link) => (byId(link.dataset.target)?.getBoundingClientRect().top ?? -1) > 0,
+        );
+        (next || links[links.length - 1]).classList.add('is-here');
+    }
+}
+
+let railPending = false;
+function onRailScroll() {
+    if (railPending) return;
+    railPending = true;
+    requestAnimationFrame(() => {
+        railPending = false;
+        markRailPosition();
+    });
+}
+
 /** Put the quality banner back, from whatever the state now says. */
 function redrawCvNote() {
     document.querySelector('.cv-note')?.remove();
@@ -1570,6 +1740,9 @@ function toggleSample() {
     renderPressing();
     renderExcluded();
     renderSampleToggle();
+    // The preview turns whole sections on and off, so the rail has to be
+    // rebuilt rather than merely re-counted.
+    renderMatchRail();
 }
 
 /** The banner over the estimated section, naming what limited it. */
@@ -1645,7 +1818,11 @@ function renderPlayerTable(players) {
     const body = byId('player-table').querySelector('tbody');
     body.innerHTML = '';
 
-    const columns = byId('player-table').querySelectorAll('thead th').length;
+    // The *last* header row. There are two now — the upper one groups the
+    // columns by where their numbers came from — and counting every th in the
+    // head would make this colspan two columns too wide.
+    const columns = byId('player-table')
+        .querySelectorAll('thead tr:last-child th').length;
     if (!players.length) {
         body.innerHTML =
             `<tr><td colspan="${columns}" class="muted">No lineup was set for this match.</td></tr>`;
@@ -1658,7 +1835,17 @@ function renderPlayerTable(players) {
             || b.minutesPlayed - a.minutesPlayed,
     );
 
-    for (const player of ordered) body.append(playerTableRow(player));
+    // What the minutes bar is a share of. The match's own length, not the
+    // longest shift — a squad nobody rotated would otherwise draw itself with
+    // eleven full bars and one stub, which is a claim about rotation rather
+    // than about minutes. Falls back to the longest shift only when nothing
+    // knows how long the match ran, where the two are the same thing anyway.
+    const full = Math.max(
+        (state.match?.stats?.matchEndS || 0) / 60,
+        ...players.map((p) => p.minutesPlayed || 0),
+    );
+
+    for (const player of ordered) body.append(playerTableRow(player, full));
     setText('player-table-note', coverageSummary(players));
 }
 
@@ -1704,7 +1891,7 @@ function coverageSummary(players) {
         + ' whole of it.' + reviewed;
 }
 
-function playerTableRow(player) {
+function playerTableRow(player, fullMinutes) {
     const tr = document.createElement('tr');
 
     // Tagged columns first, then the video ones, so the trustworthy numbers are
@@ -1733,6 +1920,22 @@ function playerTableRow(player) {
         // Zeroes recede so the meaningful numbers carry the eye.
         if (!value) cell.classList.add('zero');
     });
+
+    // Minutes, drawn as well as written. The table is sorted by goals and
+    // assists, so nothing in the row order says who actually played the match —
+    // and a column of two-digit numbers is exactly where a length reads faster
+    // than a figure. Only the minutes: a bar behind every column would be a
+    // wall, and these are the only ones that share a scale.
+    if (fullMinutes > 0) {
+        const cell = cells[2];
+        cell.classList.add('bar-cell');
+        const bar = document.createElement('i');
+        bar.className = 'cell-bar';
+        bar.style.setProperty(
+            '--w', Math.min(1, (player.minutesPlayed || 0) / fullMinutes).toFixed(3),
+        );
+        cell.append(bar);
+    }
 
     const cardsCell = tr.querySelector('.cards-cell');
     const chips = cardChips(player.yellowCards, player.redCards, CARD_COLOURS);
@@ -2204,6 +2407,8 @@ function updateMappingNote() {
     const matched = answers.filter((id) => id && id !== NOT_A_PLAYER).length;
     const ruledOut = answers.filter((id) => id === NOT_A_PLAYER).length;
     const tail = ruledOut ? ` ${plural(ruledOut, 'figure')} ruled out.` : '';
+
+    renderMatchRail();
 
     setText('cv-clusters-note', matched
         ? `${matched} of ${clusters.length} tracked figures matched.${tail} `
@@ -3283,6 +3488,7 @@ function updateReviewProgress() {
 
     setText('cv-review-progress', parts.join(' · '));
     renderScorecard();
+    renderMatchRail();
 }
 
 /**
@@ -3861,6 +4067,13 @@ function init() {
     byId('btn-cv-missed').addEventListener('click', doRecordMiss);
     byId('btn-cv-labels').addEventListener('click', doDownloadLabels);
     byId('btn-cv-sample').addEventListener('click', toggleSample);
+
+    // Where the rail's highlight comes from. Passive because it never calls
+    // preventDefault, and a scroll listener that does not say so makes the
+    // browser wait for it before every frame of scrolling. Resize matters too:
+    // crossing the breakpoint is what decides whether there is a rail at all.
+    window.addEventListener('scroll', onRailScroll, { passive: true });
+    window.addEventListener('resize', onRailScroll);
 
     const missedType = byId('input-missed-type');
     for (const type of REVIEW_TYPES) {

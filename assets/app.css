@@ -208,7 +208,10 @@ a:hover { color: var(--accent-hi); }
 /* A large monitor. Prose is capped at 62ch by `.lede` independently of this, so
    the extra width goes to the things that actually want it — rosters, the
    player table, the review list — rather than to line length. Below this the
-   shell stays at 1120px, which is where the reading measure was tuned. */
+   shell stays at 1120px, which is where the reading measure was tuned.
+
+   The match report is the exception and opts out of this entirely — see
+   `#view-match` below. */
 @media (min-width: 1500px) {
     :root { --shell: 1280px; }
 }
@@ -307,6 +310,184 @@ h3::after {
 }
 
 section.block { margin-top: 42px; }
+
+/* -------------------------------------------------- the report, on a monitor
+ *
+ * A match report is around fifteen blocks, and stacked one to a row it was
+ * roughly ten screens of scrolling on a laptop — which is where this page is
+ * actually read. Phones get the stack, because a phone has one column and
+ * scrolling is how you use it. Anything wide enough gets a rail and two
+ * columns.
+ *
+ * Deliberately a grid laid over the existing markup rather than a second set of
+ * it. There is one match report in the DOM, in one order, and the desktop
+ * arrangement is a stylesheet's opinion about it — so a block that appears only
+ * when a match was filmed needs no layout code, and neither does print.
+ *
+ * Two columns and not three. A third would have to come out of the middle one,
+ * and the widest thing on the page — the player table, eleven columns of it —
+ * is already the constraint.
+ */
+
+.match-layout { display: block; }
+.match-body { display: block; }
+
+/* Every block measures itself.
+ *
+ * The cluster rows, the review rows and the shot rows all had a narrow layout
+ * already — written for a phone, keyed to `@media (max-width: 640px)`, with
+ * comments about "the mistake the cluster rows made at 375px". Putting two
+ * blocks side by side reproduced that mistake at 1440px: the same row in a
+ * 420px column, with the screen nowhere near 640px, stacked its label one
+ * letter per line.
+ *
+ * The rule those rows actually want has never been about the screen. It is
+ * "this row is narrow", and a container query is how you say that. Declared at
+ * every width rather than only inside the desktop grid, so a phone and a
+ * half-width column reach the identical rule instead of two that have to be
+ * kept in step.
+ */
+.match-body > .block { container: matchblock / inline-size; }
+
+/* Rail hidden below the breakpoint: on one column the page order *is* the
+   navigation, and a jump list would be a second way to do what scrolling
+   already does. */
+.section-rail { display: none; }
+
+@media (min-width: 1180px) {
+    /* The report takes the monitor.
+     *
+     * `--shell` is 1120px because that is a reading measure, tuned on prose.
+     * This page is not prose — it is a dashboard, and the widest thing on it is
+     * a table of eleven columns that needs 897px. Halving the shell for two
+     * columns left it 33px short and put a horizontal scrollbar under the one
+     * table a coach reads most, while 450px of screen sat unused either side.
+     *
+     * On `#view-match` rather than on the grid alone, so the scoreline and the
+     * half-time card above stay in line with the columns under them. The
+     * negative margin is symmetric arithmetic on the shell's own width, so it
+     * cannot drift; 64px of inset rather than 48 leaves room for a scrollbar,
+     * which `100vw` counts and the viewport does not. */
+    #view-match {
+        --report: min(100vw - 64px, 1500px);
+        width: var(--report);
+        margin-inline: calc((100% - var(--report)) / 2);
+    }
+
+    /* And the bar goes with it. A header inset 80px from the content beneath it
+       reads as a mistake, and the brand no longer lining up with "All matches"
+       is the first thing the eye catches. Scoped to the view that is actually
+       wide rather than widened everywhere: on the squad and roster screens the
+       bar still lines up with a 1120px column, because that is what is under
+       it there. */
+    body:has(#view-match:not(.hidden)) .topbar {
+        max-width: min(100vw - 64px, 1500px);
+    }
+
+    .match-layout {
+        display: grid;
+        grid-template-columns: 168px minmax(0, 1fr);
+        gap: 40px;
+        align-items: start;
+    }
+
+    .match-body {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        /* Larger down the page than across it. Two blocks side by side are read
+           as a pair and want to look like one; two rows apart are separate
+           subjects. A uniform gap makes a grid of sixteen equal things. */
+        gap: 40px 30px;
+        align-items: start;
+    }
+
+    /* Full width unless a block asks for half. The default is the safe way
+       round: a block that is too wide is merely roomy, one that is too narrow
+       breaks its own contents. */
+    .match-body > .block,
+    .match-body > .block-stack { grid-column: span 2; }
+    .match-body > .col-half { grid-column: span 1; }
+
+    /* The gap does the spacing now. Leaving the 42px margin on as well would
+       put it above the first row too, and double it between rows. */
+    .match-body > .block { margin-top: 0; }
+
+    /* Jumped-to blocks land a little below the top edge rather than flush
+       against it, which reads as the page having overshot. */
+    .match-body .block { scroll-margin-top: 20px; }
+
+    .block-stack > .block:first-child { margin-top: 0; }
+
+    .section-rail {
+        display: block;
+        position: sticky;
+        /* Clear of nothing in particular — the top bar scrolls away with the
+           page — but a rail flush against the viewport edge reads as stuck
+           rather than as placed. */
+        top: 20px;
+        align-self: start;
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+        /* The rail is chrome, not content, and should not take a tab stop
+           before every block heading it points at. */
+        scrollbar-width: thin;
+    }
+}
+
+.rail-head {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--text-faint);
+    margin: 0 0 10px 11px;
+}
+
+.rail-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    /* A button, not an anchor: this scrolls the page it is already on, and an
+       href would put a fragment in the history for every glance at the rail. */
+    background: none;
+    border: 0;
+    border-left: 2px solid var(--line);
+    border-radius: 0;
+    font: inherit;
+    font-size: 0.82rem;
+    color: var(--text-faint);
+    text-align: left;
+    padding: 7px 8px 7px 12px;
+    cursor: pointer;
+    transition: color .12s ease, border-color .12s ease;
+}
+.rail-link:hover { color: var(--text-dim); border-left-color: var(--line-hi); }
+
+/* Where you are. More than one can be lit at once and that is correct — two
+   blocks share a row on this layout, so "the current section" is genuinely two
+   sections. Highlighting one of them would be picking a winner between two
+   things the eye is looking at together. */
+.rail-link.is-here {
+    color: var(--text);
+    border-left-color: var(--accent);
+    font-weight: 600;
+}
+
+/* A count where a block has one worth carrying — how many figures are still
+   unnamed, how many events are still unchecked. The rail is the only place on
+   the page where those are visible without scrolling to them. */
+.rail-tag {
+    margin-left: auto;
+    font-size: 0.68rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--bg);
+    background: var(--accent);
+    border-radius: 999px;
+    padding: 1px 6px;
+}
+.rail-link.is-here .rail-tag { background: var(--accent-hi); }
 
 /* ---------------------------------------------------------------- controls */
 
@@ -708,6 +889,44 @@ th.cv { font-style: italic; }
    and the rule never fires. */
 th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
 
+/* The band above the column names that says where the numbers under it came
+   from. Centred and quieter than the names themselves: it labels a region, and
+   read at the same weight it would compete with the headings it is grouping.
+
+   `top: 0` on the row above and `top: 30px` on the row below, because two
+   sticky header rows both pinned at zero land on top of each other. */
+.col-groups th {
+    text-align: center;
+    font-size: 0.64rem;
+    letter-spacing: 1.6px;
+    font-style: normal;
+    padding: 8px 16px 6px;
+    border-bottom: 1px solid var(--line);
+    color: var(--text-faint);
+    top: 0;
+}
+thead .col-groups + tr th { top: 30px; }
+
+/* Minutes, as a length as well as a number. The table is sorted by goals and
+   assists, so who actually played the match is not something the row order
+   says — and eleven columns of digits is exactly the place a bar earns its
+   keep. The share is of the match's own length, not of the longest shift, so a
+   squad nobody rotated does not draw itself as though somebody did. */
+td.bar-cell { position: relative; }
+td.bar-cell .cell-bar {
+    position: absolute;
+    left: 0;
+    bottom: 4px;
+    height: 3px;
+    width: calc(var(--w, 0) * 100%);
+    background: var(--line-hi);
+    border-radius: 0 2px 2px 0;
+    pointer-events: none;
+}
+tbody tr:hover td.bar-cell .cell-bar { background: var(--accent); }
+/* Nobody's bar, rather than a 3px stub that reads as "barely played". */
+td.bar-cell.zero .cell-bar { display: none; }
+
 /* A figure the video measured over a minority of the player's filmed minutes.
    Underlined rather than dimmed: `td.num.zero` already spends dimming on
    "this is nothing", and "this is real but partial" is a different claim that
@@ -908,10 +1127,11 @@ td.num.cv-partial {
     min-height: 40px;
 }
 
-@media (max-width: 640px) {
+@container matchblock (max-width: 640px) {
     /* The picker takes its own line. Fifteen figures at a phone width is a lot
        of scrolling either way, so the row has to stay near two lines rather
-       than sprawling. */
+       than sprawling. Fires on a narrow column as readily as on a narrow
+       screen — see `.match-body > .block` for why that is the same question. */
     .cluster-row {
         grid-template-columns: auto minmax(0, 1fr) auto;
         grid-template-areas:
@@ -1730,7 +1950,7 @@ button.tl-row {
 }
 .xg-check-note { margin: 0; font-size: 0.85rem; color: var(--text-dim); }
 
-@media (max-width: 640px) {
+@container matchblock (max-width: 640px) {
     /* The answers get their own row rather than five buttons squeezed beside a
        clock — the mistake the review rows made at 375px. */
     .shot-row {
@@ -1747,7 +1967,7 @@ button.tl-row {
     .shot-row .shot-part { padding-left: 8px; }
 }
 
-@media (max-width: 640px) {
+@container matchblock (max-width: 640px) {
     /* "Checked" is the column to lose first — it is a raw count, and the two
        rates are what the table is for. */
     .scorecard { grid-template-columns: minmax(0, 1fr) auto auto; }
@@ -1756,7 +1976,7 @@ button.tl-row {
     .conflict-row { flex-wrap: wrap; gap: 2px 12px; }
 }
 
-@media (max-width: 640px) {
+@container matchblock (max-width: 640px) {
     /* The actions get their own row rather than squeezing the label to one
        letter per line — the mistake the cluster rows made at 375px. */
     .review-row {
@@ -2549,6 +2769,14 @@ input[type="file"]::file-selector-button:hover {
     }
 
     .shell, .wrap { max-width: none; padding: 0; }
+
+    /* Paper is one column. The desktop grid is keyed off a screen width that
+       no sheet reaches, so this is belt and braces rather than a fix — but the
+       rail is a jump list, and a jump list printed on paper is a list of words
+       that do nothing. */
+    .match-layout, .match-body, .block-stack { display: block !important; }
+    .match-body > .block { margin-top: 42px; }
+    #view-match { width: auto; margin-inline: 0; }
 
     /* Nothing readable is worth splitting across a fold. A stat cut in half is
        not half a stat, it is a misprint. */
