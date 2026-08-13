@@ -1180,7 +1180,68 @@ measure the actual pitch before the camera goes up.
 
       `SCHEMA_VERSION` 10 → 11. 554 pure JS · 132 emulator · 979 Python.
 - [ ] **[Stretch]** Automatic pitch-line detection
-- [ ] Strategy for when the camera doesn't see the whole pitch, tied to the coverage risk in the Reality Check
+- [x] **How much of the pitch the camera actually saw** (2026-08-12). The
+      strategy this line asked for, and it starts with measuring the thing:
+      nothing did.
+
+      `Calibration.sanity_check` projects the frame corners and asks whether
+      **any** of the image lands near the pitch — the test for a scrambled fit.
+      It never asked how much of the pitch the image covers, and a homography
+      will map a pitch coordinate to a pixel that was never in shot without
+      complaint.
+
+      **An unseen third does not read as unseen. It reads as football that did
+      not happen.** `territory` divides each team's possession across the
+      thirds, so a band out of frame contributes no seconds and comes out as a
+      side that never went there; a heatmap draws it cold; a shot map and every
+      xG behind it need the goalmouth, and a goal out of shot does not produce
+      fewer shots, it produces none.
+
+      `cv/coverage.py` samples the pitch on a metre grid — about 7,000 points,
+      one matrix multiply — and reports the visible share, the share of each
+      third, and whether each six-yard box was in frame. Sampling rather than
+      clipping polygons: no geometry library, and no convex-hull argument about
+      a quadrilateral perspective has bent. Published as
+      `quality.pitch_coverage`, warned on, and said in the browser's caveat list
+      — a goalmouth out of shot outranks and suppresses the percentage, because
+      they are the same mistake seen twice.
+
+      **Two things this turned up that the tests did not have to find.**
+
+      First, a claim of mine that measurement did not support. The docstring
+      said the horizon guard was load-bearing — that grass behind the camera
+      would otherwise "land neatly inside the picture and count as visible".
+      Swept over 750 camera positions, focal lengths and aim points, guarding
+      the sign moves the answer by **at most 0.002**. A camera on the halfway
+      line filming one goal has 3,536 of 7,140 cells behind it and their mirror
+      images land outside the frame anyway. The check stays because it is three
+      lines and is right; the docstring now carries the figure so nobody later
+      assumes otherwise, and `TestProjection` pins it at the only level where it
+      is visible. Two tests that *looked* like they pinned it did not — verified
+      by breaking the guard and watching them pass.
+
+      Second, the sign was inferred from the majority across the batch, which is
+      wrong in exactly the case the check exists for: half the pitch behind the
+      camera makes the vote a coin toss. It is resolved from a reference point
+      instead — whatever is at the centre of the frame is in front of the
+      camera, by construction — so one point answers the same as seven thousand.
+
+      **And the guard that should have caught the new field did not.**
+      `tests/test_sample_report.py` exists to fail when Python publishes a field
+      the preview fixture lacks. It checked top-level keys only, and `quality` is
+      where fields actually get added — so `quality.pitch_coverage` sailed past
+      it. Extended to look inside, it immediately found **thirteen of
+      twenty-nine quality keys missing** from the fixture, drifted in over
+      months: `tracks`, `clusters`, `camera`, `realtime_factor`,
+      `keeper_method` and eight more. All filled in, consistent with the story
+      the fixture already tells rather than freshly invented — 22 figures at the
+      measured 3.4 tracks each is the 75 tracks now recorded.
+
+      `SCHEMA_VERSION` 11 → 12. 573 pure JS · 149 emulator · 1008 Python.
+
+      Not measured yet on a real calibration, because there is no footage. What
+      it will say about the school's camera is the point of measuring it before
+      the first match rather than after.
 
 ## 5. Object Detection (per frame)
 **Built: `cv/` — `PersonBallDetector` (YOLO filtered to person + sports ball) and

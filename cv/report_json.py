@@ -91,7 +91,11 @@ from .teams import TEAM_A, TEAM_B
 #     whether the homography every metre goes through was still describing the
 #     right pitch by the end of the window. A version 10 report is not a report
 #     where the camera held still — it is one where nobody looked.
-SCHEMA_VERSION = 11
+# 12: `pitch_coverage` beside it. Additive. The other question about the same
+#     transform: not whether it still holds, but how much of the pitch it ever
+#     covered. Same reading as version 11 — an older report is not one where the
+#     camera saw the whole pitch, it is one where nobody measured.
+SCHEMA_VERSION = 12
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -756,6 +760,13 @@ def _quality(report, log: EventLog) -> dict:
         # of them — carried whole rather than as a boolean, because "moved at
         # 34:12" is actionable and "moved" is not.
         'camera': report.camera.to_json() if report.camera else None,
+        # How much of the pitch was ever in frame. The companion to `camera`:
+        # that says whether the homography still held, this says how much of the
+        # pitch it covered at all. Null without a calibration, and null when the
+        # calibration carries no frame size — the frame's dimensions are the
+        # boundary being measured against, so without them there is no answer
+        # rather than a full-coverage one.
+        'pitch_coverage': report.coverage.to_json() if report.coverage else None,
         'kit_separation': _round(report.kit_separation, 1),
         'clear_holder_share': _round(report.clear_holder_share, 3),
         # Seen and filled-in kept apart. Interpolated points are a straight

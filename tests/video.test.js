@@ -1061,6 +1061,85 @@ describe('cvQualityNotes', () => {
     };
     const joined = (q, o) => report.cvQualityNotes(q, o).join(' | ');
 
+    // ---- how much of the pitch was in frame ----
+    //
+    // The reason this is said at all: an unseen third does not read as unseen.
+    // Territory divides possession across the thirds, so a band the camera
+    // never held comes out as a side that never went there.
+
+    const coverage = (over) => ({
+        pitch_coverage: {
+            visible_share: 1.0, complete: true,
+            thirds: { left: 1, middle: 1, right: 1 },
+            goalmouths: { left: 1, right: 1 },
+            ...over,
+        },
+    });
+
+    test('a camera that framed the pitch says nothing about it', () => {
+        // The expected case. A line confirming it would be noise in a list
+        // whose entire job is caveats.
+        const notes = report.cvQualityNotes(coverage({}), { calibrated: true });
+        assert.ok(!notes.some((n) => n.includes('pitch')), notes);
+    });
+
+    test('a partial frame says what share of the pitch it was', () => {
+        const text = joined(
+            coverage({ visible_share: 0.82, complete: false }),
+            { calibrated: true },
+        );
+        assert.match(text, /framed 82% of the pitch/);
+        // And says why that matters, rather than leaving a bare percentage.
+        assert.match(text, /shares of that part of it/);
+    });
+
+    test('a goalmouth out of shot outranks the percentage', () => {
+        // Not a matter of degree: shots at that end were not undercounted,
+        // they were never seen, and the shot map is missing them entirely.
+        const text = joined(
+            coverage({
+                visible_share: 0.78, complete: false,
+                goalmouths: { left: 1, right: 0.1 },
+            }),
+            { calibrated: true },
+        );
+        assert.match(text, /1 goalmouth never in shot/);
+        assert.match(text, /no shot at that end was seen/);
+        assert.ok(!text.includes('framed 78%'), text);
+    });
+
+    test('both goalmouths missing reads as both', () => {
+        const text = joined(
+            coverage({
+                visible_share: 0.4, complete: false,
+                goalmouths: { left: 0.0, right: 0.2 },
+            }),
+            { calibrated: true },
+        );
+        assert.match(text, /2 goalmouths never in shot/);
+        assert.match(text, /either end/);
+    });
+
+    test('an uncalibrated run says nothing — there is nothing to measure it in', () => {
+        // It still says "no pitch calibration", which is the note above this
+        // one. What must not appear is a share of a pitch nothing was measured
+        // against.
+        const text = joined(
+            coverage({ visible_share: 0.5, complete: false }),
+            { calibrated: false },
+        );
+        assert.ok(!text.includes('framed'), text);
+        assert.ok(!text.includes('goalmouth'), text);
+    });
+
+    test('a report from before this was measured says nothing', () => {
+        // Absent is not "the camera saw everything" and it is not "the camera
+        // saw nothing" — it is nobody looked, and silence is the honest form.
+        const text = joined({ pitch_coverage: null }, { calibrated: true });
+        assert.ok(!text.includes('framed'), text);
+        assert.ok(!text.includes('goalmouth'), text);
+    });
+
     test('a camera that moved says when, because that is the actionable half', () => {
         // "The camera moved" is a fact; "from 2m 34s onwards" tells a coach
         // which half of the match to disbelieve and which tripod to check.

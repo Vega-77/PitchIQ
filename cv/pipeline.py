@@ -31,6 +31,7 @@ from .blind import (
 )
 from .calibration import Calibration
 from .camera import CameraMotion, camera_warnings, detect_camera_shift
+from .coverage import PitchCoverage, coverage_warnings, pitch_coverage
 from .events import EventLog, attach_xg, attacking_end_for, derive_events
 from .frames import FrameTable, TrackedFramePass, attach_trajectory
 from .frame_sampler import effective_fps, stride_for_fps, video_info
@@ -202,6 +203,12 @@ class MatchReport:
     # fitted once from one frame, so a camera that moved mid-match invalidates
     # every metre after it — and until this existed, nothing said so.
     camera: CameraMotion | None = None
+
+    # How much of the pitch was inside the frame. None without a calibration —
+    # the question is only answerable once pixels map to metres — and the
+    # companion to `camera` above: that one asks whether the homography still
+    # holds, this one asks how much of the pitch it ever covered.
+    coverage: PitchCoverage | None = None
 
     @property
     def _ball_frames(self) -> int:
@@ -573,6 +580,16 @@ def analyse_match(
     with timings.stage('camera'):
         report.camera = detect_camera_shift(table)
     report.warnings.extend(camera_warnings(report.camera, calibration is not None))
+
+    # ---- and how much of the pitch was in it? ----
+    #
+    # Pure geometry over the homography, so it costs nothing and needs no
+    # frames. Beside the camera check because they are the two questions about
+    # the same fitted transform, and both have to be answered before a metre
+    # means anything.
+    if calibration is not None:
+        report.coverage = pitch_coverage(calibration)
+        report.warnings.extend(coverage_warnings(report.coverage))
 
     # ---- teams ----
     #

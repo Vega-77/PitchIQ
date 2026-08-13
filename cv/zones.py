@@ -120,9 +120,19 @@ def in_penalty_area(pitch: Pitch, x_m: float, y_m: float, end: str) -> bool:
     return x0 <= x_m <= x1 and y0 <= y_m <= y1
 
 
+def goal_area(pitch: Pitch, end: str):
+    """The six-yard box as (x_min, x_max, y_min, y_max).
+
+    Public because a caller can want the region itself and not only a
+    membership test — `cv/coverage.py` samples it to ask whether the camera had
+    the goalmouth in frame at all.
+    """
+    return _box(pitch, end, GOAL_AREA_LENGTH_M, GOAL_AREA_WIDTH_M)
+
+
 def in_goal_area(pitch: Pitch, x_m: float, y_m: float, end: str) -> bool:
     """Inside the six-yard box at the given end."""
-    x0, x1, y0, y1 = _box(pitch, end, GOAL_AREA_LENGTH_M, GOAL_AREA_WIDTH_M)
+    x0, x1, y0, y1 = goal_area(pitch, end)
     return x0 <= x_m <= x1 and y0 <= y_m <= y1
 
 

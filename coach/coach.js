@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=61';
+} from '../assets/auth.js?v=62';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -9,20 +9,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=61';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=61';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=61';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=61';
+} from '../assets/db.js?v=62';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=62';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=62';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=62';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=61';
+} from '../assets/sample-report.js?v=62';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=61';
-import { renderPassMap } from '../assets/pass-map.js?v=61';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=61';
-import { renderForms } from '../assets/form-chart.js?v=61';
+} from '../assets/passing.js?v=62';
+import { renderPassMap } from '../assets/pass-map.js?v=62';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=62';
+import { renderForms } from '../assets/form-chart.js?v=62';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -34,17 +34,17 @@ import {
     clockFromMatch, clockMapNote, HALF_TIME, SECOND_HALF, blindSplit,
     reviewFeed, FROM_VIDEO, FROM_TAGGED, printStamp,
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
-} from '../assets/report.js?v=61';
+} from '../assets/report.js?v=62';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=61';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=61';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=61';
+} from '../assets/events.js?v=62';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=62';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=62';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=61';
+} from '../assets/ui.js?v=62';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 

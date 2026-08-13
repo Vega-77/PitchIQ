@@ -1303,6 +1303,33 @@ export function cvQualityNotes(quality, options = {}) {
             + ' — everything in metres after that is measured against the wrong pitch');
     }
 
+    // How much of the pitch was ever in frame — the other question about the
+    // same homography, and the one that changes how a *share* reads rather than
+    // whether a distance is right.
+    //
+    // Worth saying because an unseen third does not look unseen. Territory
+    // divides possession across the thirds, so a band the camera never held
+    // contributes no seconds and comes out as a side that did not go there;
+    // a heatmap draws it cold. Both are readings a coach would act on.
+    //
+    // Only when there is something to say: a camera that framed the pitch is
+    // the expected case and a line confirming it would be noise in a list whose
+    // whole job is caveats.
+    const coverage = q.pitch_coverage;
+    if (calibrated && coverage && !coverage.complete) {
+        const blind = ['left', 'right'].filter(
+            (end) => (coverage.goalmouths?.[end] ?? 1) < 0.6,
+        );
+        notes.push(blind.length
+            // The louder failure, and it is not a matter of degree: shots at
+            // that end were not undercounted, they were never seen, and the
+            // shot map and every xG behind it are missing them entirely.
+            ? `${count(blind.length, 'goalmouth')} never in shot — no shot at`
+              + ` ${blind.length > 1 ? 'either' : 'that'} end was seen`
+            : `the camera framed ${Math.round(coverage.visible_share * 100)}% of`
+              + ' the pitch — shares of the pitch are shares of that part of it');
+    }
+
     // Which half, and only when nothing but a default said so.
     //
     // The period decides which goal each side was attacking, and every pitch

@@ -196,6 +196,20 @@ export function sampleCvSummary() {
             // Measured on the real spike, not invented: the ball is the hard
             // part and the preview should say so.
             ball_seen_share: 0.83,
+            // A camera framed the way FOOTAGE_DAY insists on, which is why this
+            // one is not a flaw like the rest of the block. The whole Reality
+            // Check turns on framing being right, so a preview that shipped a
+            // partial-coverage caveat would teach a coach to expect a line that
+            // should never appear on a well-set-up camera. The metre grid clips
+            // the touchlines by half a cell, so a genuinely complete camera
+            // reads a shade under 1.0 rather than exactly it.
+            pitch_coverage: {
+                visible_share: 0.994,
+                thirds: { left: 0.993, middle: 1.0, right: 0.99 },
+                goalmouths: { left: 1.0, right: 1.0 },
+                complete: true,
+                cell_m: 1.0,
+            },
             // A phone export read at half rate — the case the sampling
             // measurement exists for, and the one the preview should show,
             // because a full-rate run says nothing about it at all.
@@ -228,6 +242,43 @@ export function sampleCvSummary() {
                       kind: 'unexplained', tags: [] },
                 ],
             },
+            // ---- the rest of what a run publishes ----
+            //
+            // Added when a guard that only checked top-level keys was extended
+            // to look inside `quality`, and found thirteen of these missing.
+            // The fixture had been drifting from the published shape for
+            // months and nothing noticed, which is the exact failure
+            // tests/test_sample_report.py exists to catch, one level down.
+            //
+            // Every figure below is consistent with the story the block above
+            // already tells rather than freshly invented: 22 figures at the
+            // measured 3.4 tracks each is 75 tracks, and 83% of frames with a
+            // sighting plus interpolation between them is the 94% filled.
+            tracks: 75,
+            clusters: 22,
+            ball_filled_share: 0.94,
+            clear_holder_share: 0.72,
+            kit_separation: 34.6,
+            // Of 2700 seconds, 71% live — the same split `live_share` states,
+            // written out because the two are published separately and a
+            // preview where they disagreed would be worse than either.
+            dead_ball_s: 783,
+            // Six figures dropped as off-field, and the keeper found the
+            // ordinary way. Both are counts of corrections rather than faults.
+            excluded_tracks: 6,
+            keeper_method: 'colour+position',
+            touch_confidence_p50: 0.66,
+            touch_confidence_p10: 0.31,
+            unseen_spans: 12,
+            // A camera that held still, checked and confirmed. Null would mean
+            // nobody looked, which is a different report — and the preview
+            // should show the case a coach is meant to achieve, matching the
+            // complete `pitch_coverage` above.
+            camera: { checked: true, moved: false, first_s: null, shifts: [] },
+            // Under 1, so the run would have finished before the whistle. The
+            // preview should not carry a lateness warning for a machine
+            // nobody's footage has met yet.
+            realtime_factor: 0.62,
             // Kept, never dropped — see cv/participants.py. Two figures the
             // classifier could not rule out are inside the counts above.
             flagged_officials: 2,
