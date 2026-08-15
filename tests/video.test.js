@@ -5260,3 +5260,100 @@ describe('where a player plays', () => {
     });
   });
 });
+
+describe('the order a reviewer works in', () => {
+  /**
+   * The Testing Strategy has said since it was written that this tool "sorts by
+   * lowest confidence first, so a human's limited review time goes to what's
+   * likely wrong instead of skimming everything uniformly". It never did. The
+   * feed is chronological, and chronological is not a bug — every row seeks the
+   * video, so match order is one forward scrub and doubt order is a jump across
+   * the half per verdict.
+   *
+   * So it is a choice, and what these pin is that choosing it changes the order
+   * and nothing else: same rows, same count, and the tagged record not shuffled
+   * into a ranking it has no place in.
+   */
+
+  const vid = (id, confidence, clockS) => ({
+    source: report.FROM_VIDEO, clockS, event: { id, confidence, type: 'pass' },
+  });
+  const tag = (id, clockS) => ({ source: report.FROM_TAGGED, clockS, id, type: 'goal' });
+
+  const feed = () => [
+    vid('a', 0.9, 10),
+    tag('t1', 20),
+    vid('b', 0.2, 30),
+    vid('c', 0.55, 40),
+    tag('t2', 50),
+  ];
+  const ids = (list) => list.map((i) => i.event?.id ?? i.id);
+
+  test('match order is the default and leaves the feed alone', () => {
+    assert.deepEqual(ids(report.orderFeed(feed())), ['a', 't1', 'b', 'c', 't2']);
+    assert.deepEqual(
+      ids(report.orderFeed(feed(), report.BY_CLOCK)), ['a', 't1', 'b', 'c', 't2'],
+    );
+  });
+
+  test('doubt order puts the least sure candidate first', () => {
+    assert.deepEqual(
+      ids(report.orderFeed(feed(), report.BY_DOUBT)).slice(0, 3), ['b', 'c', 'a'],
+    );
+  });
+
+  test('the tagged record is not ranked, it is appended in its own order', () => {
+    // A tap carries no confidence: the log is a person, not a detector. Sorting
+    // it into a doubt ranking would invent a certainty nobody recorded.
+    const out = ids(report.orderFeed(feed(), report.BY_DOUBT));
+    assert.deepEqual(out.slice(-2), ['t1', 't2']);
+  });
+
+  test('a candidate with no confidence sinks rather than leading', () => {
+    // Missing is not zero. An event the pipeline attached no confidence to is
+    // not the one it was least sure about.
+    const list = [vid('scored', 0.4, 10), vid('blank', null, 20)];
+    assert.deepEqual(ids(report.orderFeed(list, report.BY_DOUBT)), ['scored', 'blank']);
+  });
+
+  test('reordering never adds or drops a row', () => {
+    const before = feed();
+    const after = report.orderFeed(before, report.BY_DOUBT);
+    assert.equal(after.length, before.length);
+    assert.deepEqual(new Set(ids(after)), new Set(ids(before)));
+  });
+
+  test('it does not reorder what it was given', () => {
+    // `visibleItems` builds this fresh each time, but the day it does not, an
+    // in-place sort would reorder the caller's list behind its back.
+    const before = feed();
+    const order = ids(before);
+    report.orderFeed(before, report.BY_DOUBT);
+    assert.deepEqual(ids(before), order);
+  });
+
+  test('an empty feed, and no feed at all', () => {
+    assert.deepEqual(report.orderFeed([], report.BY_DOUBT), []);
+    assert.deepEqual(report.orderFeed(null, report.BY_DOUBT), []);
+  });
+
+  describe('what it costs the numbers', () => {
+    test('doubt order says the sample is deliberately the hard cases', () => {
+      const text = report.orderCaveat(report.BY_DOUBT, 12);
+      assert.match(text, /least sure first/);
+      // The claim that matters: not an average.
+      assert.match(text, /floor, not an average/);
+      assert.match(text, /hardest 12/);
+    });
+
+    test('match order says nothing — an even sample needs no caveat', () => {
+      assert.equal(report.orderCaveat(report.BY_CLOCK, 12), '');
+    });
+
+    test('nothing checked yet, nothing to qualify', () => {
+      // The caveat is about a sample. Before there is one it would be a warning
+      // about numbers that do not exist.
+      assert.equal(report.orderCaveat(report.BY_DOUBT, 0), '');
+    });
+  });
+});

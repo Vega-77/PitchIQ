@@ -652,9 +652,24 @@ Applies across every phase below — how we know each piece actually works, not 
    same synthetic scenario. Write a small harness that feeds known synthetic
    player/ball positions through both and diffs the output — this is pure, already-written
    math, so it's the cheapest first automated test to write, before any CV exists at all.
-4. **Confidence scores travel with every detection/track/event.** The Phase 11 review
-   tool sorts by lowest confidence first, so a human's limited review time goes to what's
-   likely wrong instead of skimming everything uniformly.
+4. **Confidence scores travel with every detection/track/event.** They do, and every
+   review row carries its mark. This line used to go on to say the review tool "sorts by
+   lowest confidence first, so a human's limited review time goes to what's likely wrong
+   instead of skimming everything uniformly" — **it never did**. `reviewFeed` has been
+   chronological since it existed, and nobody checked.
+
+   Chronological is not a bug, which is why the fix was a choice rather than a
+   correction (2026-08-13). Every row seeks the video, so match order is one forward
+   scrub through a half and doubt order is a jump across ninety minutes per verdict —
+   a cost the original claim never accounted for. The review block now has a **Work
+   through** control: *in match order* (the default) or *least sure first*.
+
+   And the second half of the original claim needed saying out loud rather than
+   assuming. Reviewing the least sure first is the fastest way to find what the
+   detector gets wrong, and it makes the reviewed set **deliberately the hard cases** —
+   so precision measured over it is a floor, not an average. `orderCaveat` says exactly
+   that under the scorecard, and only while that order is selected. Without it the tool
+   would have reported a worse number than the truth and called it the truth.
 5. **Reconciliation check between live tags and CV candidates.** Log the agreement rate
    between what the Phase 3 tablet recorded (e.g. "corner") and what the CV pipeline
    independently inferred (ball crossed the goal line). A rising disagreement rate over
@@ -2909,6 +2924,41 @@ than the workaround, which matters given the data class.
       is what a set of alternatives with one chosen should announce.
 
       573 pure JS · 149 emulator · 1008 Python.
+- [x] **A reviewer can work least-sure-first, and is told what that costs**
+      (2026-08-13). Found by checking a claim rather than reading it. Testing
+      Strategy item 4 said the review tool *"sorts by lowest confidence first, so
+      a human's limited review time goes to what's likely wrong instead of
+      skimming everything uniformly"*. **It never did** — `reviewFeed` has been
+      chronological since it existed.
+
+      The obvious fix was the wrong one. Chronological earns its place: every
+      row seeks the video, so match order is one forward scrub through a half
+      and doubt order is a jump across ninety minutes for every verdict. That
+      cost is real and the original claim never accounted for it. So the review
+      block gained a **Work through** control — *in match order*, still the
+      default, or *least sure first* — rather than having its ordering replaced
+      by a line of documentation nobody had tested.
+
+      **The half of the claim that needed saying out loud.** Checking the least
+      sure events first is the fastest way to find what the detector gets wrong,
+      and it makes the reviewed set deliberately the hard cases — so precision
+      measured over it is a **floor, not an average**. The scorecard already said
+      "out of the N you have checked"; it now also says, and only while that
+      order is selected, that the N was not drawn evenly. Without it the tool
+      would have reported a worse number than the truth and presented it as the
+      truth.
+
+      Ordering is not filtering, and the control says so by sitting apart from
+      the chips: those six hide rows, these two change nothing but which comes
+      first. The tagged log is not ranked at all — a tap carries no confidence,
+      because the log is a person rather than a detector, and sorting it into a
+      doubt ranking would invent a certainty nobody recorded.
+
+      Verified in the browser: 14 rows before and after, chronological becoming
+      confidence-ordered and back, the caveat appearing and disappearing with the
+      control, and the group wrapping without a stray rule at 375px.
+
+      583 pure JS · 149 emulator · 1008 Python.
 - [x] **The season views, and a width that was being handed to the wrong page**
       (2026-08-12). The same grid, now on all four report screens, and the id it
       was keyed to turned out to be shared.

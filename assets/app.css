@@ -1705,6 +1705,31 @@ button.tl-row {
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
 
+/* Order is not a filter. The chips beside it all hide rows; this pair only
+   changes which comes first, so it is fenced off with a label rather than
+   sitting as one more thing in a row of things that take events away. Pushed to
+   the end of the line where there is room for it. */
+.chip-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    padding-left: 12px;
+    border-left: 1px solid var(--line);
+}
+.chip-group-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-faint);
+}
+/* On a narrow one the rule and the auto margin both read as damage — the group
+   simply starts a new line. */
+@media (max-width: 640px) {
+    .chip-group { margin-left: 0; padding-left: 0; border-left: 0; }
+}
+
 .chip {
     padding: 6px 12px;
     border-radius: 999px;
@@ -1927,6 +1952,11 @@ button.tl-row {
     border-top: 1px solid var(--line);
     font-size: 0.8rem;
     color: var(--text-faint);
+}
+/* The sampling caveat, which is a stronger claim than the caption above it —
+   it says the numbers are a floor rather than an average. */
+.scorecard-note.is-warn {
+    color: var(--warn);
 }
 
 /* The shot log: one row per detected shot, five answers on each. Same grid

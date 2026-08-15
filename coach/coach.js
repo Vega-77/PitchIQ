@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=64';
+} from '../assets/auth.js?v=65';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -9,20 +9,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=64';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=64';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=64';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=64';
+} from '../assets/db.js?v=65';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=65';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=65';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=65';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=64';
+} from '../assets/sample-report.js?v=65';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=64';
-import { renderPassMap } from '../assets/pass-map.js?v=64';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=64';
-import { renderForms } from '../assets/form-chart.js?v=64';
+} from '../assets/passing.js?v=65';
+import { renderPassMap } from '../assets/pass-map.js?v=65';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=65';
+import { renderForms } from '../assets/form-chart.js?v=65';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -33,18 +33,19 @@ import {
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
     clockFromMatch, clockMapNote, HALF_TIME, SECOND_HALF, blindSplit,
     reviewFeed, FROM_VIDEO, FROM_TAGGED, printStamp,
+    orderFeed, orderCaveat, BY_CLOCK, BY_DOUBT,
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
-} from '../assets/report.js?v=64';
+} from '../assets/report.js?v=65';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=64';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=64';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=64';
+} from '../assets/events.js?v=65';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=65';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=65';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=64';
+} from '../assets/ui.js?v=65';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -2978,6 +2979,11 @@ const EDITED = 'edited';
 
 const reviewState = {
     filter: 'all', unreviewedOnly: false, inPlayOnly: false, video: null,
+    // Match order by default. Every row seeks the video, so going in order is
+    // one forward scrub through a half; going by doubt is a jump across ninety
+    // minutes per verdict. The faster way to find mistakes is the slower way to
+    // watch, and the coach picks.
+    order: BY_CLOCK,
     // The strip is rebuilt every time a chip is tapped, so the playhead has to
     // be re-applied afterwards from somewhere. `atS` is the last position the
     // video reported, in footage seconds, or null if it has not said yet.
@@ -3204,7 +3210,7 @@ function reviewItems() {
  */
 function visibleItems() {
     const decided = state.match?.cvReview?.byEvent || {};
-    return reviewItems().filter((item) => {
+    return orderFeed(reviewItems().filter((item) => {
         if (item.source === FROM_TAGGED) {
             return reviewState.filter === 'all' || reviewState.filter === FROM_TAGGED;
         }
@@ -3214,7 +3220,7 @@ function visibleItems() {
         if (reviewState.unreviewedOnly && decided[event.id]) return false;
         if (reviewState.inPlayOnly && event.inPlay === false) return false;
         return true;
-    });
+    }), reviewState.order);
 }
 
 function renderReviewFilters() {
@@ -3270,6 +3276,40 @@ function renderReviewFilters() {
         });
         host.append(chip);
     }
+
+    // Order is not a filter — it changes nothing about which rows are here —
+    // so it sits in its own group rather than as a seventh chip in a row of
+    // things that hide events.
+    const group = document.createElement('span');
+    group.className = 'chip-group';
+    const heading = document.createElement('span');
+    heading.className = 'chip-group-label';
+    heading.textContent = 'Work through';
+    group.append(heading);
+
+    for (const [value, label, title] of [
+        [BY_CLOCK, 'in match order',
+         'One forward scrub through the half — every row seeks the video'],
+        [BY_DOUBT, 'least sure first',
+         'The fastest way to find what the detector gets wrong, at the cost of '
+         + 'jumping around the video and of a reviewed set that is deliberately '
+         + 'the hard cases'],
+    ]) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'chip';
+        chip.textContent = label;
+        chip.title = title;
+        chip.classList.toggle('on', reviewState.order === value);
+        chip.addEventListener('click', () => {
+            reviewState.order = value;
+            renderReviewFilters();
+            renderReviewList();
+            renderScorecard();
+        });
+        group.append(chip);
+    }
+    host.append(group);
 }
 
 function renderReviewList() {
@@ -3661,6 +3701,18 @@ function renderScorecard() {
             : ' "Found" stays blank until you record something it missed —'
                 + ' that is the half nothing else can tell you.');
     host.append(caption);
+
+    // How the reviewed set was chosen, which the figures above cannot say for
+    // themselves. Only while it is true.
+    const bias = orderCaveat(
+        reviewState.order, overall.truePositives + overall.falsePositives,
+    );
+    if (bias) {
+        const note = document.createElement('p');
+        note.className = 'scorecard-note is-warn';
+        note.textContent = bias;
+        host.append(note);
+    }
 }
 
 /**

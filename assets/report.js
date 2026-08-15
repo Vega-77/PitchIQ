@@ -2159,6 +2159,62 @@ export function playerTimeline(log, roster, playerId) {
 export const FROM_VIDEO = 'video';
 export const FROM_TAGGED = 'tagged';
 
+// The two ways to work through the feed.
+export const BY_CLOCK = 'clock';
+export const BY_DOUBT = 'doubt';
+
+/**
+ * Reorder the merged feed, without changing what is in it.
+ *
+ * The Testing Strategy has claimed since it was written that this tool "sorts by
+ * lowest confidence first, so a human's limited review time goes to what's
+ * likely wrong instead of skimming everything uniformly". It never did — the
+ * feed is chronological, and has been since it existed.
+ *
+ * Chronological is not a bug, though, which is why this is a choice rather than
+ * a correction. Every row seeks the video, and going in match order means
+ * scrubbing forward through a half once; going by doubt means jumping back and
+ * forth across ninety minutes for every verdict. That is the cost the original
+ * claim never accounted for.
+ *
+ * **`BY_DOUBT` buys a better use of an hour and pays for it in what the numbers
+ * then mean.** Checking the least sure events first is the fastest way to find
+ * what the detector gets wrong, and it makes the reviewed set a deliberately
+ * pessimistic sample — precision measured over it is a floor, not an estimate.
+ * `reviewScore` already reports "out of the N you have checked"; `orderCaveat`
+ * below is what says the N was not drawn evenly.
+ *
+ * Tagged rows have no confidence — the log is a person, not a detector, and
+ * there is no doubt attached to a tap. They keep their place on the clock
+ * relative to each other and sort after the candidates, so the other record
+ * stays readable rather than being shuffled into a ranking it is not part of.
+ */
+export function orderFeed(feed, order = BY_CLOCK) {
+    const items = [...(feed || [])];
+    if (order !== BY_DOUBT) return items;
+
+    const doubt = (item) => (
+        item.source === FROM_VIDEO && item.event?.confidence != null
+            ? item.event.confidence
+            : Infinity
+    );
+    return items.sort(
+        (a, b) => doubt(a) - doubt(b) || a.clockS - b.clockS,
+    );
+}
+
+/**
+ * What reading in doubt order does to the numbers underneath.
+ *
+ * Only said while it is true, and it is about the sample rather than the tool:
+ * the scorecard is unchanged, what changed is how the events in it were chosen.
+ */
+export function orderCaveat(order, checked = 0) {
+    if (order !== BY_DOUBT || !checked) return '';
+    return 'You are checking the least sure first, so these are the hardest '
+        + `${checked} the video found — precision here is a floor, not an average.`;
+}
+
 /**
  * How close a tagged entry has to sit before it is worth showing on a
  * candidate's own row.
