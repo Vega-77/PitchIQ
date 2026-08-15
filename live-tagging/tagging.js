@@ -13,18 +13,18 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=68';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=69';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=68';
+} from '../assets/db.js?v=69';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=68';
-import { syncState, safeToClose } from '../assets/report.js?v=68';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=68';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=68';
+} from '../assets/events.js?v=69';
+import { syncState, safeToClose } from '../assets/report.js?v=69';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=69';
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=69';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -866,7 +866,13 @@ function init() {
     if (warning) byId('config-slot').appendChild(warning);
 
     mountPitchBackdrop(byId('tag-header'), { opacity: 0.14 });
-    updateOnlineIndicator();
+    // Renamed with the function it calls. It was not, on 2026-08-07, and
+    // `init()` threw a ReferenceError on this line every time the page loaded —
+    // so no listener below was ever attached and the whole tool was dead for
+    // eight days. Nothing caught it because nothing loads this file: it imports
+    // Firebase, so `tests/video.test.js` cannot, and the emulator suites drive
+    // a Firestore client rather than this page.
+    updateSyncIndicator();
 
     // Reached synchronously from the click, or iPad Safari blocks the popup.
     byId('btn-signin').addEventListener('click', () => {

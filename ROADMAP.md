@@ -39,6 +39,15 @@ jersey numbers robustly in month 1.
 - `xg-sandbox/` — the manual xG sandbox, moved off the site root
 - `halftime/` — the three-minute touchline read, from tagged data alone (Phase 15)
 
+**The live-tagging tool was dead from 2026-08-07 to 2026-08-15** and is
+fixed. `init()` called `updateOnlineIndicator`, which the commit that
+introduced `watchSync` had deleted along with its two window listeners while
+leaving the call behind. A `ReferenceError` on the second statement of the
+entry point meant no button was ever wired up: the tablet showed a sign-in
+screen to a signed-in coach and could do nothing else. Eight days, on the tool
+every other number in this system is derived from, and it was found by opening
+the page. See Phase 3 for what that says about the test suites.
+
 **Blocked on:** footage from the coach — specifically a raw/native-resolution export
 rather than a screen recording, ideally the uncropped wide feed rather than the
 auto-tracked crop (see Phase 1). Also pending: permission to use game footage, and
@@ -1116,6 +1125,61 @@ configure and no server to start.**
       awaited — offline that promise does not settle until the server
       acknowledges, which is precisely why the tagging UI must never block on
       one.
+- [x] **The whole tool was dead for eight days, and nothing could have
+      noticed** (2026-08-15).
+
+      Commit `db4abc5` replaced `updateOnlineIndicator` with
+      `updateSyncIndicator` — deleting the function and the two `window`
+      listeners that used it, and **leaving the call in `init()`**. From that
+      commit on, `live-tagging/tagging.js` threw a `ReferenceError` on the
+      second statement of its entry point. Nothing after it ran: no sign-in
+      handler, no match picker, no lineup. A signed-in coach opening the tablet
+      saw the signed-out screen and had no way forward. The fix is one word.
+
+      That commit's own message ends *"Verified at 768: all four chip states,
+      correct colours, the label hidden when everything is up"* — the CSS states
+      were checked in isolation and the page was never opened.
+
+      **Why no test caught it, which is the part worth keeping.** Three
+      independent reasons, and none of them is carelessness:
+
+      - `tests/video.test.js` can only import modules that import nothing, and
+        `tagging.js` imports Firebase.
+      - the emulator suites drive a Firestore client directly; they never load a
+        page. `tests/flow.test.js` covers the *offline queue* this very commit
+        added — through the SDK, not through the tool.
+      - `pyflakes cv/ tests/` catches exactly this class of error on the Python
+        half every CI run. **The JavaScript half has no equivalent.**
+
+      A dependency-free static check was attempted and **abandoned, on purpose**.
+      Finding bare `name(` call sites and subtracting what a file declares needs
+      a parser, not regexes: the first run produced false positives in fourteen
+      of twenty-nine modules, mostly from template literals containing `${}`
+      throwing off comment and string stripping. A check that cries wolf in half
+      the codebase teaches everyone to skip it, which is the same failure as
+      having none. `esprima` is present transitively but is stuck at ES2017 and
+      cannot parse `?.` or `??`, which this codebase uses throughout.
+
+      So the honest state is: **catching this class of bug in CI needs a real
+      parser (acorn/eslint as a devDependency) or a headless browser, and
+      neither is in the repo.** Until one is, the rule is the one that actually
+      worked — open the page. Every one of the seven was swept afterwards and
+      the other six render fine.
+
+      The tool itself was then driven end to end at 768px against the emulator:
+      match picker, eleven tapped into a lineup, kick-off, a goal with side and
+      scorer and assist, a corner, a substitution, half-time, second-half
+      kick-off. Read back out of Firestore, the log is in clock order, the
+      substitution closes one stint at 59.779s and opens the other at the same
+      instant, and `halfTimeClockS` is written at the restart — the anchor the
+      whole match-clock map depends on.
+
+      One thing left alone and worth recording: the lineup, scorer, assist and
+      substitution lists are `<li>` elements with click handlers, so they are
+      not focusable and not announced as actionable. `assets/timeline.js` states
+      the opposite standard for its own marks — *"real buttons rather than
+      styled spans, so the whole thing is reachable from a keyboard"*. Five
+      lists, and a demo run on a tablet, so it is noted rather than fixed here.
 - [ ] Decide role split: one app covering both subs + events, or two simpler single-purpose roles/devices — worth testing both at the demo dry run
 - [ ] Basic weatherproofing for an outdoor tablet (case, screen usable with sun glare)
 - [x] **Live-tagged data feeds directly into the halftime report and
