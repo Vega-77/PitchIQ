@@ -7,17 +7,22 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=66';
-import { EVENT_TYPES } from './events.js?v=66';
+import { db } from './firebase-init.js?v=67';
+import { EVENT_TYPES } from './events.js?v=67';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
-    mappingWithout, positionOf,
-} from './report.js?v=66';
+    mappingWithout, positionOf, whistleFrom, minutesFrom, knownMinutes,
+} from './report.js?v=67';
 
 export {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
+    // Both moved out of this file so `tests/video.test.js` can reach them.
+    // `minutesFrom` is still exported from here because three pages import it
+    // by that name, and `tests/flow.test.js` used to carry a hand-copied
+    // duplicate of it precisely because it could not be imported.
+    whistleFrom, minutesFrom, knownMinutes,
 };
 
 export const PERIOD_STATUS = {
@@ -618,10 +623,12 @@ export function aggregateMatch(log, roster) {
         if (entry.type in counts[side]) counts[side][entry.type] += 1;
     }
 
-    const fullTime = log.find((e) => e.type === 'full_time');
-    const matchEndS = fullTime
-        ? fullTime.matchClockS
-        : log.reduce((max, e) => Math.max(max, e.matchClockS), 0);
+    // Null when nothing in the log can date a whistle, which is an ordinary
+    // state and not an error: a lineup is set hours before kick-off, so a match
+    // that was filmed and never tagged has a full roster of open stints and an
+    // empty log. `matchEndSource` travels with it because a tagged whistle and
+    // a whistle inferred from the last tap are different facts.
+    const { matchEndS, source: matchEndSource } = whistleFrom(log);
 
     const isOurs = (e) => e.side !== 'them';
 
@@ -649,17 +656,7 @@ export function aggregateMatch(log, roster) {
         ).length,
     }));
 
-    return { counts, subs, matchEndS, players };
-}
-
-/** Sums every stint, so re-entry is counted correctly. */
-export function minutesFrom(stints, matchEndS) {
-    if (!stints?.length) return 0;
-    const seconds = stints.reduce((total, stint) => {
-        const end = stint.outS ?? matchEndS;
-        return total + Math.max(0, end - stint.inS);
-    }, 0);
-    return Math.round(seconds / 60);
+    return { counts, subs, matchEndS, matchEndSource, players };
 }
 
 // ---------------------------------------------------------------- reports
@@ -709,7 +706,18 @@ export async function publishReports(teamId, matchId, match, team, players, scor
                 published: true,
                 playerName: player.playerName,
                 jerseyNumber: player.jerseyNumber ?? null,
-                minutesPlayed: player.minutesPlayed,
+                // `minutesPlayed` stays a number because `firestore.rules`
+                // requires one — `minutesPlayed is number && >= 0` — and every
+                // report already published carries one. The boolean beside it
+                // is what says whether the number is a measurement or a
+                // stand-in, and it needed no rules change: this block has no
+                // `hasOnly`, so it takes a new key as it is.
+                //
+                // Read as *true when absent* on the way back out, which is both
+                // the old behaviour and the right default for every report
+                // written before this field existed.
+                minutesPlayed: player.minutesPlayed ?? 0,
+                minutesKnown: player.minutesPlayed != null,
                 goals: player.goals,
                 assists: player.assists ?? 0,
                 cards: (player.yellowCards ?? 0) + (player.redCards ?? 0),
@@ -864,7 +872,17 @@ export async function playerSeason(teamId, matches, playerId) {
 export function seasonTotals(reports) {
     return reports.reduce((acc, r) => ({
         matches: acc.matches + 1,
-        minutes: acc.minutes + (r.minutesPlayed || 0),
+
+        // Only the matches whose minutes are a measurement. A season total is
+        // divided into for a per-90, and folding a placeholder zero into the
+        // denominator makes every rate above it read high — the same reason
+        // `cvMatches` is counted apart from `matches` two lines down.
+        //
+        // Absent means true. Every report published before `minutesKnown`
+        // existed carries real minutes and no flag, and treating those as
+        // unknown would blank a whole season to fix a handful of matches.
+        minutes: acc.minutes + (knownMinutes(r) ? (r.minutesPlayed || 0) : 0),
+        minutesUnknown: acc.minutesUnknown + (knownMinutes(r) ? 0 : 1),
         goals: acc.goals + (r.goals || 0),
         assists: acc.assists + (r.assists || 0),
         yellowCards: acc.yellowCards + (r.yellowCards || 0),
@@ -891,7 +909,7 @@ export function seasonTotals(reports) {
         // than a zero, which is the same thing the per-match card does.
         cvAccelerations: acc.cvAccelerations + (r.cvAccelerations || 0),
     }), {
-        matches: 0, minutes: 0, goals: 0, assists: 0,
+        matches: 0, minutes: 0, minutesUnknown: 0, goals: 0, assists: 0,
         yellowCards: 0, redCards: 0, fouls: 0,
         cvMatches: 0, cvTouches: 0, cvPassesAttempted: 0, cvPassesCompleted: 0,
         cvCarries: 0, cvTackles: 0, cvInterceptions: 0, cvRecoveries: 0,

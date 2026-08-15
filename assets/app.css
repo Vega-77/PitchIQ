@@ -834,6 +834,13 @@ button.list-item:hover, a.list-item:hover {
 .chart-bar.scored { fill: var(--accent); }
 .chart:hover .chart-bar { fill: var(--text-faint); }
 .chart:hover .chart-bar.scored { fill: var(--accent-hi); }
+/* A match nobody kept the clock for. It has to be visibly not a short bar —
+   a stub in the accent colour would read as a substitute appearance — so it is
+   the floor height in the warning colour, which is what the rest of this app
+   uses for a hole in the record rather than for a low number. */
+.chart-bar.unknown,
+.chart-bar.unknown.scored,
+.chart:hover .chart-bar.unknown { fill: var(--warn); }
 
 .chart-full-line { stroke: var(--line-hi); stroke-width: 1; stroke-dasharray: 3 3; }
 

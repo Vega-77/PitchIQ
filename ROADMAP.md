@@ -2589,6 +2589,71 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       DOM.
 
       436 pure JS · 120 emulator · 828 Python.
+- [x] **A whistle nobody tagged is not a whistle at second zero** (2026-08-15).
+      Not a roadmap line — found by pulling the thread on a bug in the
+      substitution block shipped an hour earlier, which turned out to be one
+      instance of a defect that had been in the minutes arithmetic since it was
+      written.
+
+      `aggregateMatch` derived the end of the match as `max(matchClockS)` over
+      the tag log, **defaulting to zero**. And `setLineup` writes a starter's
+      `{inS: 0, outS: null}` the moment a lineup is set, hours before kick-off.
+      So the most ordinary demo there is — *film a match, run the pipeline,
+      nobody ran the tablet* — produced a full roster of open stints against a
+      whistle at second zero.
+
+      What that did, in order:
+
+      - `minutesFrom` returned **0 for every starter**.
+      - `trackedCoverage` guards on `matchEndS != null`, which zero passes, so a
+        starter came out with `onPitchS` of 0 and `watchedS` of 0. `share` then
+        fell to null and `coverageNote` — the sentence that exists to explain a
+        shortfall — **said nothing at all**.
+      - `cvReportFields` published `cvMinutesOnPitch: 0` beside a real
+        `cvDistanceM` of four kilometres. Three numbers on one card that cannot
+        all be true, and two of them written into a document.
+      - `rankRosterForCluster` scored every stint overlap at zero, so the
+        cluster picker could not offer the right player first — on exactly the
+        run where the picker is the only tool a coach has.
+      - and the player portal read `minutesPlayed` of 0 and told a student, on
+        their own report, that they had been **"an unused substitute"**.
+
+      That last one is the reason this was worth a commit on its own. Everything
+      else is a wrong number; that is a wrong number addressed to a sixteen-year-
+      old about whether they played.
+
+      **The fix is provenance, not a better default.** `whistleFrom(log)` returns
+      the end of the match *and how it was arrived at*: a tagged `full_time`, the
+      last thing anybody tapped, or nothing. Nothing is null, never zero.
+
+      **A closed stint stays knowable without a whistle.** A player who came off
+      on 60 minutes played sixty of them whether or not anyone tagged full time,
+      so only an *open* stint needs the end of the match. Verified in the
+      browser on a fifteen-player untagged squad: five real numbers with bars,
+      ten em dashes without — where before it was fifteen zeros.
+
+      `minutesPlayed` stays a **number** in the published document, because
+      `firestore.rules` requires one and every report already written carries
+      one. `minutesKnown` beside it says whether that number is a measurement,
+      and needed **no rules change** — the `playerReports` block has no
+      `hasOnly`. Absent reads as true, which is both the old behaviour and the
+      right default for the reports written before the question was asked.
+      Season totals count only the matches with a clock, since a placeholder
+      zero in a per-90 denominator makes every rate above it read high.
+
+      Two things fell out of it that were wrong on their own. `stintOverlapS`
+      closed an open stint at second zero rather than at the end of the window
+      asked about — "never on the pitch" rather than "on from here". And
+      `tests/flow.test.js` carried a **hand-copied duplicate** of `minutesFrom`
+      under a comment reading *"mirrors minutesFrom() in assets/db.js"*, with
+      four tests pinning the copy rather than the code. `minutesFrom` moved into
+      the zero-import `report.js` for the same reason `playerTimeline` lives
+      there, and its tests moved with it — out of a suite whose file-scope
+      `beforeEach` charges every test a full `clearFirestore` whether it touches
+      a database or not.
+
+      618 pure JS · 145 emulator · 1008 Python. The emulator count fell by four
+      because those four were pure arithmetic in the wrong file.
 - [x] **Use the Phase 3 sub log to scope each player's stats to their actual
       minutes played** (2026-08-06). Every per-player card printed *Minutes 71*
       from the sub log directly beside *km covered 1.9* from the video, and

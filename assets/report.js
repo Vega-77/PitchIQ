@@ -363,6 +363,133 @@ export function cvReportFields(stats, coverage = null, shotRows = null) {
 // `clusterRow` in coach.js for why that distinction is load-bearing.
 
 /** Everyone on the pitch at a given match-clock moment. */
+// --------------------------------------------------- when the match ended,
+//                                                       and how anyone knows
+//
+// `matchEndS` closes every open stint, so it decides how many minutes each
+// player is recorded as having played. It came out of the tag log as
+// `max(matchClockS)`, defaulting to **zero** — and zero is not a final whistle,
+// it is the absence of one.
+//
+// That default is reachable in the most ordinary way there is. `setLineup`
+// writes a starter's `{inS: 0, outS: null}` the moment a lineup is set, hours
+// before kick-off. So a match that was filmed and processed but that nobody ran
+// the tablet for has a full roster of open stints and an empty log — and every
+// one of those players was recorded as having played **nought minutes**.
+//
+// It did not stop there. `trackedCoverage` guards on `matchEndS != null`, which
+// zero passes, so a starter came out with `onPitchS` of 0 and `watchedS` of 0;
+// `share` then fell to null and `coverageNote` — the sentence that exists to
+// explain a shortfall — said nothing at all. `cvReportFields` published
+// `cvMinutesOnPitch: 0` beside a real `cvDistanceM` of four kilometres. And the
+// player portal, reading `minutesPlayed` of 0, described a starter to their own
+// face as **"an unused substitute"**.
+//
+// The fix is provenance rather than a better default. A whistle that was tagged
+// and a whistle that was inferred from the last thing anybody tapped are two
+// different facts, and no whistle at all is a third.
+
+/** The match was tagged as finished, so this is when it finished. */
+export const FROM_WHISTLE = 'whistle';
+
+/**
+ * Nobody tagged full time, so this is the last thing anybody tapped.
+ *
+ * An underestimate by however long the match ran on afterwards, and only in one
+ * direction — which makes it usable and makes saying so compulsory.
+ */
+export const FROM_LAST_TAG = 'last_tag';
+
+/**
+ * When the match ended, and how that was arrived at.
+ *
+ * Returns `{ matchEndS, source }`, with **both** null when the log holds
+ * nothing that can date a whistle. Null rather than zero: the callers all treat
+ * an absent end as unanswerable and a zero as a real instant, and it is the
+ * second reading that turns a full ninety into nothing.
+ */
+export function whistleFrom(log) {
+    const entries = (log || []).filter((e) => num(e?.matchClockS) != null);
+    if (!entries.length) return { matchEndS: null, source: null };
+
+    const whistle = entries.find((e) => e.type === 'full_time');
+    if (whistle) {
+        return { matchEndS: whistle.matchClockS, source: FROM_WHISTLE };
+    }
+    return {
+        matchEndS: entries.reduce((max, e) => Math.max(max, e.matchClockS), 0),
+        source: FROM_LAST_TAG,
+    };
+}
+
+/**
+ * How many minutes a player was on the pitch, or null when nobody can say.
+ *
+ * Lived in `db.js` until 2026-08-15, where `tests/video.test.js` could not
+ * reach it — so `tests/flow.test.js` carried a hand-copied second version under
+ * a comment reading "mirrors minutesFrom() in assets/db.js", and four tests
+ * pinned the copy. Moved here for the same reason `playerTimeline` is here.
+ *
+ * **A closed stint is still knowable without a whistle.** A player who came off
+ * on 60 minutes played sixty of them whether or not anybody tagged full time,
+ * so only an *open* stint needs the end of the match. That is most of a
+ * substituted squad kept rather than blanked.
+ */
+export function minutesFrom(stints, matchEndS) {
+    if (!stints?.length) return 0;
+
+    let seconds = 0;
+    for (const stint of stints) {
+        const end = stint.outS ?? matchEndS;
+        // Still on the pitch at a whistle nobody recorded. There is no number
+        // here, and zero is the one answer that is certainly wrong.
+        if (num(end) == null) return null;
+        seconds += Math.max(0, end - stint.inS);
+    }
+    return Math.round(seconds / 60);
+}
+
+/**
+ * Whether a published report's `minutesPlayed` is a measurement or a stand-in.
+ *
+ * The document always carries a number — `firestore.rules` requires one, and so
+ * does every report written before this question was asked — so the boolean
+ * beside it is the only thing that can tell the two apart.
+ *
+ * **Absent counts as known.** Reports published before `minutesKnown` existed
+ * carry real minutes and no flag, and reading that absence as "unknown" would
+ * blank whole seasons to fix a handful of matches.
+ */
+export const knownMinutes = (report) => report?.minutesKnown !== false;
+
+/**
+ * What the minutes column is worth, in one sentence, or null when it is fine.
+ *
+ * Said once under a table rather than per row: on an untagged match every row
+ * has the same thing wrong with it, and eleven identical footnotes is a wall a
+ * reader learns to skip.
+ */
+export function minutesNote(source, options = {}) {
+    const { second = false } = options;
+    const who = second ? 'you were' : 'anybody was';
+
+    if (source == null) {
+        const nobody = second
+            ? 'no minutes for you if you were still on at the end'
+            : 'no minutes for anyone still on at the end';
+        return 'Nobody tagged this match, so there is no clock to say when it '
+            + `ended and ${nobody} — not nought minutes, no answer. Anything `
+            + 'the video measured was measured all the same.';
+    }
+    if (source === FROM_LAST_TAG) {
+        return 'Nobody tagged the final whistle, so the match is counted as '
+            + `ending at the last thing anybody tapped. If ${who} still on the `
+            + 'pitch then, the minutes here are short by however long it ran on '
+            + 'afterwards.';
+    }
+    return null;
+}
+
 export function onPitchAt(roster, clockS) {
     const out = new Set();
     for (const entry of roster || []) {
@@ -382,12 +509,19 @@ export function onPitchAt(roster, clockS) {
  *
  * `matchEndS` closes an open stint. A stint with `outS === null` means the
  * player was still on when the log ended, not that they played forever.
+ *
+ * **An unknown match end closes an open stint at the end of the window asked
+ * about, not at second zero.** Passing zero used to do the latter, and every
+ * caller reads the result as time on the pitch: the cluster picker ranked a
+ * whole untagged squad at nought seconds of overlap, so the figure a coach was
+ * looking at could not be offered its own player. Whoever genuinely cannot
+ * answer — `trackedCoverage` — checks for the null itself before asking.
  */
 export function stintOverlapS(stints, startS, endS, matchEndS) {
     if (endS <= startS) return 0;
     let total = 0;
     for (const stint of stints || []) {
-        const end = stint.outS ?? matchEndS;
+        const end = stint.outS ?? (num(matchEndS) ?? endS);
         total += Math.max(0, Math.min(end, endS) - Math.max(stint.inS, startS));
     }
     return total;
@@ -597,7 +731,7 @@ export function clockFromMatch(match) {
  * have hidden the right answer.
  */
 export function rankRosterForCluster(roster, cluster, options = {}) {
-    const { matchEndS = 0 } = options;
+    const { matchEndS = null } = options;
     const clock = clockOf(options);
     const startS = clock.toClock(cluster?.first_seen_s ?? 0).clockS;
     const endS = clock.toClock(cluster?.last_seen_s ?? 0).clockS;
@@ -709,7 +843,7 @@ export function sameFigureCandidates(clusters, cluster, options = {}) {
     const id = cluster?.cluster_id;
     if (id == null) return [];
 
-    const { mapping = {}, player = null, matchEndS = 0 } = options;
+    const { mapping = {}, player = null, matchEndS = null } = options;
     const clock = clockOf(options);
     const mine = seenSpan(cluster);
 

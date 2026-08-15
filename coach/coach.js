@@ -1,29 +1,30 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=66';
+} from '../assets/auth.js?v=67';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
     aggregateMatch, publishReports, seasonSummary, playerSeason, seasonTotals,
+    knownMinutes,
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=66';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=66';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=66';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=66';
+} from '../assets/db.js?v=67';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=67';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=67';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=67';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=66';
+} from '../assets/sample-report.js?v=67';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=66';
-import { renderPassMap } from '../assets/pass-map.js?v=66';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=66';
-import { renderForms } from '../assets/form-chart.js?v=66';
+} from '../assets/passing.js?v=67';
+import { renderPassMap } from '../assets/pass-map.js?v=67';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=67';
+import { renderForms } from '../assets/form-chart.js?v=67';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -38,17 +39,18 @@ import {
     substitutionWindows, substitutionRead, substitutionNote, CHANGE_REASONS,
     matchClockMap,
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
-} from '../assets/report.js?v=66';
+    minutesNote,
+} from '../assets/report.js?v=67';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=66';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=66';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=66';
+} from '../assets/events.js?v=67';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=67';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=67';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=66';
+} from '../assets/ui.js?v=67';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -786,7 +788,7 @@ function matchReportRow(report) {
     }
 
     row.querySelector('.figures').append(
-        figure(report.minutesPlayed ?? 0, 'min'),
+        figure(knownMinutes(report) ? (report.minutesPlayed ?? 0) : '—', 'min'),
         figure(report.goals ?? 0, 'goals'),
         figure(report.assists ?? 0, 'assists'),
     );
@@ -2005,8 +2007,11 @@ function renderPlayerTable(players) {
     // Most involved first — a coach scanning this wants the standouts on top.
     // Kept as the order *within* a line rather than replaced by it, so the
     // grouping below adds a heading without taking the ranking away.
+    // The `?? 0` is load-bearing on an untagged match: subtracting two nulls
+    // gives NaN, a comparator that returns NaN is not an ordering, and the
+    // table would come out in whatever order the sort happened to leave it.
     const compare = (a, b) => (b.goals + b.assists) - (a.goals + a.assists)
-        || b.minutesPlayed - a.minutesPlayed;
+        || (b.minutesPlayed ?? 0) - (a.minutesPlayed ?? 0);
 
     // A position is a fact about the squad, not about this match: nothing in
     // this system records what a player actually played on a given day, so a
@@ -2035,8 +2040,13 @@ function renderPlayerTable(players) {
         for (const player of group.players) body.append(playerTableRow(player, full));
     }
 
-    setText('player-table-note',
-        [coverageSummary(players), keeperNote(ordered)].filter(Boolean).join(' '));
+    setText('player-table-note', [
+        // First, because it is about the leftmost column and it is the reason
+        // the column has dashes in it.
+        minutesNote(state.match?.stats?.matchEndSource),
+        coverageSummary(players),
+        keeperNote(ordered),
+    ].filter(Boolean).join(' '));
 }
 
 /**
@@ -2135,8 +2145,12 @@ function playerTableRow(player, fullMinutes) {
 
     tagged.forEach((value, i) => {
         const cell = cells[i + 2];
-        cell.textContent = value;
-        // Zeroes recede so the meaningful numbers carry the eye.
+        // Null is "nobody can say" and gets the same dash as a missing shirt
+        // number two columns left. Without this it rendered the string "null",
+        // and before that a 0 that read as a player who never came on.
+        cell.textContent = value == null ? '—' : value;
+        // Zeroes recede so the meaningful numbers carry the eye. An unknown
+        // recedes with them: it is not a figure worth the reader's attention.
         if (!value) cell.classList.add('zero');
     });
 
@@ -2145,13 +2159,15 @@ function playerTableRow(player, fullMinutes) {
     // and a column of two-digit numbers is exactly where a length reads faster
     // than a figure. Only the minutes: a bar behind every column would be a
     // wall, and these are the only ones that share a scale.
-    if (fullMinutes > 0) {
+    // No bar for minutes nobody counted. A zero-length bar in a column of full
+    // ones is the most emphatic way there is to say a player did not play.
+    if (fullMinutes > 0 && player.minutesPlayed != null) {
         const cell = cells[2];
         cell.classList.add('bar-cell');
         const bar = document.createElement('i');
         bar.className = 'cell-bar';
         bar.style.setProperty(
-            '--w', Math.min(1, (player.minutesPlayed || 0) / fullMinutes).toFixed(3),
+            '--w', Math.min(1, player.minutesPlayed / fullMinutes).toFixed(3),
         );
         cell.append(bar);
     }

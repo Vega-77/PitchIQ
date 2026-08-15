@@ -9,25 +9,28 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=66';
-import { myReports, seasonTotals, cvPlayerConfidence } from '../assets/db.js?v=66';
-import { CARD_COLOURS } from '../assets/events.js?v=66';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=66';
-import { renderHeatmap } from '../assets/heatmap.js?v=66';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=66';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=67';
+import {
+    myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
+} from '../assets/db.js?v=67';
+import { CARD_COLOURS } from '../assets/events.js?v=67';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=67';
+import { renderHeatmap } from '../assets/heatmap.js?v=67';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=67';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
-} from '../assets/report.js?v=66';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=66';
-import { renderForms } from '../assets/form-chart.js?v=66';
+    minutesNote,
+} from '../assets/report.js?v=67';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=67';
+import { renderForms } from '../assets/form-chart.js?v=67';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=66';
-import { renderMatchVideo } from '../assets/match-video.js?v=66';
+} from '../assets/sample-report.js?v=67';
+import { renderMatchVideo } from '../assets/match-video.js?v=67';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=66';
+} from '../assets/ui.js?v=67';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -52,7 +55,15 @@ function seasonLine(reports, totals) {
     const opening = `${plural(totals.matches, 'match', 'matches')} played`;
 
     if (!totals.goals && !totals.assists) {
-        return `${opening}, ${totals.minutes} minutes on the field.`;
+        // The minutes here are only the matches somebody kept a clock for. On a
+        // season made entirely of untagged matches that total is zero, and
+        // "0 minutes on the field" is the season-sized version of the sentence
+        // this whole change exists to stop printing.
+        if (!totals.minutes) return `${opening}.`;
+        const short = totals.minutesUnknown
+            ? ` from the ${totals.matches - totals.minutesUnknown} with a clock kept`
+            : '';
+        return `${opening}, ${totals.minutes} minutes on the field${short}.`;
     }
 
     const tally = [];
@@ -74,7 +85,10 @@ function renderSeason(reports) {
     grid.innerHTML = '';
     grid.append(
         statCard(totals.matches, 'Matches'),
-        statCard(totals.minutes, 'Minutes played'),
+        statCard(
+            totals.minutes || '—', 'Minutes played',
+            totals.minutesUnknown ? 'is-muted' : '',
+        ),
         statCard(totals.goals, 'Goals', totals.goals ? 'is-good' : 'is-muted'),
         statCard(totals.assists, 'Assists', totals.assists ? 'is-good' : 'is-muted'),
     );
@@ -102,7 +116,12 @@ function renderSeason(reports) {
         ));
     }
 
-    const full = reports.filter((r) => (r.minutesPlayed || 0) >= FULL_MATCH_MIN).length;
+    // Unknown is not short. A match with no clock cannot be counted as a full
+    // one, and must not be counted against them either — it is simply not in
+    // the denominator, which is why the card says nothing when there are none.
+    const full = reports.filter(
+        (r) => knownMinutes(r) && (r.minutesPlayed || 0) >= FULL_MATCH_MIN,
+    ).length;
     if (full) grid.append(statCard(full, 'Full matches', 'is-muted'));
 
     grid.append(...videoCards(totals));
@@ -226,7 +245,7 @@ function renderMatches(reports) {
         }
 
         row.querySelector('.figures').append(
-            figure(report.minutesPlayed ?? 0, 'min'),
+            figure(knownMinutes(report) ? (report.minutesPlayed ?? 0) : '—', 'min'),
             figure(report.goals ?? 0, 'goals'),
             figure(report.assists ?? 0, 'assists'),
         );
@@ -279,8 +298,14 @@ function matchLine(report) {
     if (report.goals) bits.push(plural(report.goals, 'goal'));
     if (report.assists) bits.push(plural(report.assists, 'assist'));
 
-    const minutes = report.minutesPlayed ?? 0;
-    const played = minutes ? `${minutes} minutes` : 'an unused substitute';
+    // A player whose match nobody tagged has no minutes, and the old reading of
+    // that was the single worst sentence this app could produce: `0` fell
+    // through to "an unused substitute", so a student who started and played
+    // ninety minutes opened their own report and was told they had not been on.
+    const minutes = knownMinutes(report) ? (report.minutesPlayed ?? 0) : null;
+    const played = minutes == null
+        ? 'a match nobody kept the clock for'
+        : (minutes ? `${minutes} minutes` : 'an unused substitute');
 
     if (report.scoreUs == null) return bits.length ? bits.join(' and ') : played;
 
@@ -295,7 +320,10 @@ function renderMatchStats(report) {
     const grid = byId('md-stats');
     grid.innerHTML = '';
     grid.append(
-        statCard(report.minutesPlayed ?? 0, 'Minutes'),
+        statCard(
+            knownMinutes(report) ? (report.minutesPlayed ?? 0) : '—', 'Minutes',
+            knownMinutes(report) ? '' : 'is-muted',
+        ),
         statCard(report.goals ?? 0, 'Goals', report.goals ? 'is-good' : 'is-muted'),
         statCard(report.assists ?? 0, 'Assists', report.assists ? 'is-good' : 'is-muted'),
         statCard(report.fouls ?? 0, 'Fouls', 'is-muted'),
@@ -375,7 +403,13 @@ function renderCoverageNote(report) {
     const corrected = report.cvReviewed
         ? 'Your coach has checked some of these against the video and corrected them.'
         : '';
-    const full = [text, corrected].filter(Boolean).join(' ');
+
+    // Why the Minutes card above is a dash. It sits here rather than beside the
+    // card because it is a sentence about the match and not about the number,
+    // and because this is where every other "what this rests on" line already
+    // lives on this page.
+    const clock = knownMinutes(report) ? '' : minutesNote(null, { second: true });
+    const full = [clock, text, corrected].filter(Boolean).join(' ');
 
     note.textContent = full;
     note.classList.toggle('hidden', !full);

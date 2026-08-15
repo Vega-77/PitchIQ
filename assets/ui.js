@@ -5,7 +5,7 @@
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
-import { comparePair, verdict, COUNT } from './report.js?v=66';
+import { comparePair, verdict, COUNT, knownMinutes } from './report.js?v=67';
 
 export const byId = (id) => document.getElementById(id);
 
@@ -454,7 +454,8 @@ function svgEl(name, attrs = {}) {
 export function minutesChart(reports, { fullMatchMinutes = 90 } = {}) {
     const season = reports.slice().reverse();          // oldest first
     const involved = (r) => (r.goals || 0) + (r.assists || 0);
-    const longest = Math.max(fullMatchMinutes, ...season.map((r) => r.minutesPlayed || 0));
+    const minutesOf = (r) => (knownMinutes(r) ? (r.minutesPlayed || 0) : null);
+    const longest = Math.max(fullMatchMinutes, ...season.map((r) => minutesOf(r) || 0));
 
     const W = 100;
     const H = 34;
@@ -478,8 +479,14 @@ export function minutesChart(reports, { fullMatchMinutes = 90 } = {}) {
     }));
 
     season.forEach((report, i) => {
-        const minutes = report.minutesPlayed || 0;
-        const height = Math.max(0.6, (minutes / longest) * H);
+        // A match nobody kept the clock for gets the floor bar and says so,
+        // rather than a zero-height one that reads as a match they sat out.
+        const minutes = minutesOf(report);
+        const height = Math.max(0.6, ((minutes || 0) / longest) * H);
+
+        const classes = ['chart-bar'];
+        if (involved(report)) classes.push('scored');
+        if (minutes == null) classes.push('unknown');
 
         const bar = svgEl('rect', {
             x: i * (barW + gap),
@@ -487,12 +494,13 @@ export function minutesChart(reports, { fullMatchMinutes = 90 } = {}) {
             width: barW,
             height,
             rx: 0.5,
-            class: involved(report) ? 'chart-bar scored' : 'chart-bar',
+            class: classes.join(' '),
         });
 
         const label = svgEl('title');
         label.textContent =
-            `${report.matchDate || ''} vs ${report.opponentName || '—'}: ${minutes}′`
+            `${report.matchDate || ''} vs ${report.opponentName || '—'}: `
+            + (minutes == null ? 'minutes not recorded' : `${minutes}′`)
             + (involved(report) ? `, ${involved(report)} G+A` : '');
         bar.append(label);
 

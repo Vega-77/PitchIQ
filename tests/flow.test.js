@@ -80,35 +80,13 @@ beforeEach(async () => {
     });
 });
 
-// ---------------------------------------------------------------- pure logic
-
-/** Mirrors minutesFrom() in assets/db.js. */
-function minutesFrom(stints, matchEndS) {
-    if (!stints?.length) return 0;
-    const seconds = stints.reduce(
-        (total, s) => total + Math.max(0, (s.outS ?? matchEndS) - s.inS), 0
-    );
-    return Math.round(seconds / 60);
-}
-
-describe('minutes played', () => {
-    it('counts a full match for a starter who never comes off', () => {
-        assert.equal(minutesFrom([{ inS: 0, outS: null }], 5400), 90);
-    });
-
-    it('stops counting at the substitution', () => {
-        assert.equal(minutesFrom([{ inS: 0, outS: 2700 }], 5400), 45);
-    });
-
-    it('sums multiple stints — high school rules allow re-entry', () => {
-        const stints = [{ inS: 0, outS: 1200 }, { inS: 3600, outS: null }];
-        assert.equal(minutesFrom(stints, 5400), 50);
-    });
-
-    it('is zero for an unused substitute', () => {
-        assert.equal(minutesFrom([], 5400), 0);
-    });
-});
+// Pure arithmetic does not live in this file. The `beforeEach` above is at file
+// scope, so every test here pays for a `clearFirestore` round trip and a reseed
+// whether it touches the database or not — and `minutesFrom` used to sit here
+// as a hand-copied duplicate under a comment reading "mirrors minutesFrom() in
+// assets/db.js", pinning the copy rather than the code. It moved into the
+// zero-import `assets/report.js` and its tests moved to `tests/video.test.js`,
+// alongside `whistleFrom` and the rest of the minutes arithmetic.
 
 // ---------------------------------------------------------------- round trip
 

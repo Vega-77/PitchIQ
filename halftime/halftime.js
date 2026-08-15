@@ -10,22 +10,22 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=66';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=67';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../assets/db.js?v=66';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=66';
+} from '../assets/db.js?v=67';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=67';
 import {
     possessionIsInPlay, cvReads, xgTrust, groupStats, clockFromMatch,
     SHARE, COUNT, RATE,
-} from '../assets/report.js?v=66';
-import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=66';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=66';
+} from '../assets/report.js?v=67';
+import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=67';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=67';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
     tally, groupHead,
-} from '../assets/ui.js?v=66';
+} from '../assets/ui.js?v=67';
 
 const VIEWS = ['view-error', 'view-report'];
 
@@ -96,8 +96,12 @@ function renderDecisions() {
     // of them would be an arbitrary pick out of a tie and would read as though
     // those three had done more than the rest. Anyone tied at the top is
     // reported as a group; only a genuinely short list gets named.
-    const longestShift = Math.max(0, ...onField.map((p) => p.minutesPlayed));
-    const atTop = onField.filter((p) => p.minutesPlayed === longestShift);
+    // A half-time log always has entries in it, so these are always numbers in
+    // practice — but the whole point of the change that made them nullable is
+    // that "in practice" was what produced a squad of nought-minute starters.
+    const shift = (p) => p.minutesPlayed ?? 0;
+    const longestShift = Math.max(0, ...onField.map(shift));
+    const atTop = onField.filter((p) => shift(p) === longestShift);
 
     if (longestShift >= LONG_SHIFT_MIN) {
         const restNote = bench.length
@@ -348,7 +352,7 @@ function renderMinutes() {
 
     const played = state.stats.players
         .filter((p) => (p.stints || []).length)
-        .sort((a, b) => b.minutesPlayed - a.minutesPlayed);
+        .sort((a, b) => (b.minutesPlayed ?? 0) - (a.minutesPlayed ?? 0));
 
     if (!played.length) {
         list.innerHTML = '<div class="empty">No lineup was saved for this match.</div>';
@@ -356,6 +360,7 @@ function renderMinutes() {
     }
 
     const most = played[0].minutesPlayed || 1;
+    const known = (p) => p.minutesPlayed != null;
 
     for (const player of played) {
         const row = document.createElement('div');
@@ -369,9 +374,10 @@ function renderMinutes() {
 
         row.querySelector('.jersey').textContent = player.jerseyNumber ?? '—';
         row.querySelector('.m-name').textContent = player.playerName;
-        row.querySelector('.m-fill').style.width =
-            `${Math.round((player.minutesPlayed / most) * 100)}%`;
-        row.querySelector('.m-value').textContent = `${player.minutesPlayed}′`;
+        row.querySelector('.m-fill').style.width = known(player)
+            ? `${Math.round((player.minutesPlayed / most) * 100)}%` : '0%';
+        row.querySelector('.m-value').textContent = known(player)
+            ? `${player.minutesPlayed}′` : '—';
         row.querySelector('.m-cards').append(
             ...cardChips(player.yellowCards, player.redCards, CARD_COLOURS)
         );

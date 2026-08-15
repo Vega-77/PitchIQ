@@ -5660,3 +5660,126 @@ describe('the football either side of a substitution', () => {
     });
   });
 });
+
+describe('a whistle nobody tagged', () => {
+  // The bug this whole section exists for: `setLineup` writes a starter's
+  // {inS: 0, outS: null} when the lineup is set, hours before kick-off. So a
+  // match that was filmed and processed but never tagged has a full roster of
+  // open stints and an empty log — and every one of those players used to be
+  // recorded as having played nought minutes.
+  const starter = [{ inS: 0, outS: null }];
+  const substituted = [{ inS: 0, outS: 60 * 60 }];
+
+  describe('finding the end of the match', () => {
+    test('a tagged full time is the end of the match', () => {
+      assert.deepEqual(
+        report.whistleFrom([
+          { matchClockS: 2700, type: 'halftime' },
+          { matchClockS: 5460, type: 'full_time' },
+        ]),
+        { matchEndS: 5460, source: report.FROM_WHISTLE },
+      );
+    });
+
+    test('with no whistle, the last thing anybody tapped — and it says so', () => {
+      // A real underestimate, in one direction only, which is what makes it
+      // usable and makes carrying the provenance compulsory.
+      assert.deepEqual(
+        report.whistleFrom([
+          { matchClockS: 600, type: 'goal' },
+          { matchClockS: 4080, type: 'corner' },
+        ]),
+        { matchEndS: 4080, source: report.FROM_LAST_TAG },
+      );
+    });
+
+    test('an empty log answers null, not zero', () => {
+      assert.deepEqual(
+        report.whistleFrom([]), { matchEndS: null, source: null },
+      );
+    });
+
+    test('entries with no clock reading cannot date a whistle', () => {
+      // A queued entry that never got a clock is not evidence the match ended
+      // at second zero.
+      assert.deepEqual(
+        report.whistleFrom([{ type: 'goal' }, { type: 'corner' }]),
+        { matchEndS: null, source: null },
+      );
+    });
+  });
+
+  describe('minutes, when the end is unknown', () => {
+    test('a starter still on the pitch has no minutes', () => {
+      assert.equal(report.minutesFrom(starter, null), null);
+    });
+
+    test('a player who came off has all of theirs', () => {
+      // Partial knowledge is knowledge. Sixty minutes were played whether or
+      // not anybody wrote down when the match finished, and blanking this row
+      // would throw away most of a substituted squad to be safe.
+      assert.equal(report.minutesFrom(substituted, null), 60);
+    });
+
+    test('an unused substitute is a real zero', () => {
+      // No stints at all is not the same absence: they were never on, and that
+      // is a fact the empty list states rather than withholds.
+      assert.equal(report.minutesFrom([], null), 0);
+    });
+
+    test('one open stint among several is enough to make the total unknown', () => {
+      assert.equal(
+        report.minutesFrom([{ inS: 0, outS: 1200 }, { inS: 3600, outS: null }], null),
+        null,
+      );
+    });
+
+    test('with a whistle, everything is countable again', () => {
+      assert.equal(report.minutesFrom(starter, 5400), 90);
+      assert.equal(report.minutesFrom(substituted, 5400), 60);
+    });
+  });
+
+  describe('what a published report says about its own minutes', () => {
+    test('absent counts as known', () => {
+      // Every report published before `minutesKnown` existed carries real
+      // minutes and no flag. Reading that absence as "unknown" would blank
+      // whole seasons to fix a handful of matches.
+      assert.equal(report.knownMinutes({ minutesPlayed: 90 }), true);
+      assert.equal(report.knownMinutes({ minutesPlayed: 90, minutesKnown: true }), true);
+      assert.equal(report.knownMinutes({ minutesPlayed: 0, minutesKnown: false }), false);
+    });
+  });
+
+  describe('the sentence under the column', () => {
+    test('a tagged whistle needs no sentence', () => {
+      assert.equal(report.minutesNote(report.FROM_WHISTLE), null);
+    });
+
+    test('no log at all says the number is missing, not nought', () => {
+      const note = report.minutesNote(null);
+      assert.match(note, /Nobody tagged this match/);
+      assert.match(note, /not nought minutes, no answer/);
+    });
+
+    test('no whistle says which direction the error runs', () => {
+      // An underestimate presented without its direction is just a wrong
+      // number, and this one is wrong the same way every time.
+      assert.match(report.minutesNote(report.FROM_LAST_TAG), /short by however long/);
+    });
+
+    test('the player reads it in the second person', () => {
+      assert.match(
+        report.minutesNote(report.FROM_LAST_TAG, { second: true }), /you were still on/,
+      );
+      // And grammatically. The first attempt at this branch substituted a
+      // pronoun into a sentence built for a noun and produced "no minutes for
+      // you still on at the end".
+      assert.match(
+        report.minutesNote(null, { second: true }),
+        /no minutes for you if you were still on at the end/,
+      );
+      assert.match(report.minutesNote(null), /no minutes for anyone still on/);
+    });
+  });
+});
