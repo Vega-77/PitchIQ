@@ -470,7 +470,7 @@ export const knownMinutes = (report) => report?.minutesKnown !== false;
  * reader learns to skip.
  */
 export function minutesNote(source, options = {}) {
-    const { second = false } = options;
+    const { second = false, over = true } = options;
     const who = second ? 'you were' : 'anybody was';
 
     if (source == null) {
@@ -481,6 +481,12 @@ export function minutesNote(source, options = {}) {
             + `ended and ${nobody} — not nought minutes, no answer. Anything `
             + 'the video measured was measured all the same.';
     }
+    // A match still being played has no final whistle to have tagged, and
+    // saying so at every half-time is how a warning becomes wallpaper. The
+    // no-log case above is *not* gated on this: a tablet that has recorded
+    // nothing by half-time is worth knowing about immediately.
+    if (source === FROM_LAST_TAG && !over) return null;
+
     if (source === FROM_LAST_TAG) {
         return 'Nobody tagged the final whistle, so the match is counted as '
             + `ending at the last thing anybody tapped. If ${who} still on the `

@@ -2654,6 +2654,57 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
 
       618 pure JS · 145 emulator · 1008 Python. The emulator count fell by four
       because those four were pure arithmetic in the wrong file.
+- [x] **Three follow-ups from verifying the last change in a browser**
+      (2026-08-15).
+
+      **A match still being played has no final whistle to have missed.** The
+      note shipped an hour earlier read *"nobody tagged the final whistle"* on
+      the coach's view of a match whose status was `halftime` — an accusation
+      about something the coach has not had the chance to do yet, and it would
+      have fired at every half-time of every match, which is exactly how a
+      warning becomes wallpaper. Gated on the match being over. The *no log at
+      all* case is deliberately **not** gated the same way: a tablet that has
+      recorded nothing by half-time is a problem the coach can still fix.
+
+      **The half-time page was re-verified end to end**, which is where this
+      was found — it had been changed in the same commit and never opened.
+      Against a tagged first half stopped at the interval it reads correctly:
+      46′ for the ten who never came off, 32′ and 14′ either side of the
+      substitution on 32 minutes, every tile agreeing with the log.
+
+      **A shot with no position is not a shot at the corner flag.** The shot map
+      read `Number(mark.x_m) || 0`, so a positionless mark would have been drawn
+      at (0, 0) and been indistinguishable from a real shot from the goal line.
+      Nothing produces one — `shot_marks` in `cv/report_json.py` drops them —
+      but an invented point on a picture a coach reads as measurement should be
+      impossible rather than merely unused. **The first attempt at the guard
+      reproduced the bug**: `Number.isFinite(Number(null))` is `true`, because
+      `Number(null)` is `0`. It now demands an actual number.
+
+- [x] **The intermittent test failure was a timer nobody cancelled**
+      (2026-08-15). `tests/flow.test.js` had been failing on roughly half of
+      runs with a 499 *"call already cancelled"* out of `clearFirestore` in a
+      `beforeEach`, on a test that touches none of the machinery involved. It
+      was written off as an emulator flake.
+
+      It is not. `until()` in the offline-queue suite created a five-second
+      timeout and **never cleared it**. That test calls `until()` four times, so
+      four stray timers fired five seconds later — into whatever test happened
+      to be running by then — each calling `stop()` on a listener already torn
+      down. `erasing a player` starts inside that window, and the cancelled
+      `Listen` stream raced its own `clearFirestore`.
+
+      Worth recording that the first diagnosis was **wrong**. Failing runs
+      carried `RESOURCE_EXHAUSTED: Received message larger than max
+      (2158073886 vs 4194304)` — a corrupted gRPC length prefix — and passing
+      runs did not, which looked like a clean correlation across three runs. A
+      fourth run failed with no such error at all. The byte-count garbage was a
+      variant symptom of the same stream teardown, not its cause, and stopping
+      at the first correlation would have shipped a plausible story about a
+      Firebase bug instead of a fix.
+
+      Three consecutive clean runs after clearing the timers, from a baseline of
+      about one failure in two. 622 pure JS · 145 emulator · 1008 Python.
 - [x] **Use the Phase 3 sub log to scope each player's stats to their actual
       minutes played** (2026-08-06). Every per-player card printed *Minutes 71*
       from the sub log directly beside *km covered 1.9* from the video, and

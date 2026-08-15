@@ -10,22 +10,22 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=67';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=68';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../assets/db.js?v=67';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=67';
+} from '../assets/db.js?v=68';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=68';
 import {
     possessionIsInPlay, cvReads, xgTrust, groupStats, clockFromMatch,
     SHARE, COUNT, RATE,
-} from '../assets/report.js?v=67';
-import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=67';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=67';
+} from '../assets/report.js?v=68';
+import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=68';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=68';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
     tally, groupHead,
-} from '../assets/ui.js?v=67';
+} from '../assets/ui.js?v=68';
 
 const VIEWS = ['view-error', 'view-report'];
 

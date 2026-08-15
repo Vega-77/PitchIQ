@@ -3352,7 +3352,7 @@ describe('shotSummary', () => {
 
     test('nothing at all does not throw', () => {
         assert.deepEqual(markMod.shotSummary(null),
-            { shots: 0, onTarget: 0, goals: 0, xg: null });
+            { shots: 0, unplaced: 0, onTarget: 0, goals: 0, xg: null });
     });
 
     test('the total survives the band that per-shot xG does not', () => {
@@ -5661,6 +5661,39 @@ describe('the football either side of a substitution', () => {
   });
 });
 
+describe('a shot with nowhere to go', () => {
+  // `Number(null) || 0` put a positionless shot at (0, 0) — the corner flag —
+  // and the dot that came out was indistinguishable from a real one. Nothing
+  // produces this today, because shot_marks in cv/report_json.py drops
+  // positionless shots, but a picture a coach reads as measurement should not
+  // be able to invent a point at all.
+  test('a mark with no position is not placeable', () => {
+    assert.equal(markMod.placeable({ x_m: 30, y_m: 12 }), true);
+    assert.equal(markMod.placeable({ x_m: 0, y_m: 0 }), true);
+    assert.equal(markMod.placeable({ x_m: null, y_m: 12 }), false);
+    assert.equal(markMod.placeable({ x_m: 30 }), false);
+    assert.equal(markMod.placeable({ x_m: 'wide', y_m: 12 }), false);
+    assert.equal(markMod.placeable(null), false);
+    // The trap this whole guard is about, and the one the first version of it
+    // fell into: Number(null) is 0, and 0 is a finite number on a real pitch.
+    assert.equal(Number.isFinite(Number(null)), true);
+    assert.equal(markMod.placeable({ x_m: undefined, y_m: 12 }), false);
+    assert.equal(markMod.placeable({ x_m: NaN, y_m: 12 }), false);
+  });
+
+  test('the summary counts what it could not place', () => {
+    // The count above the map still includes it — a shot that happened
+    // happened — so the number of dots being short is the only symptom, and
+    // this is what a caller would have to read to say so.
+    const summary = markMod.shotSummary([
+      { x_m: 30, y_m: 12, xg: 0.1, on_target: true },
+      { x_m: null, y_m: null, xg: 0.2 },
+    ]);
+    assert.equal(summary.shots, 2);
+    assert.equal(summary.unplaced, 1);
+  });
+});
+
 describe('a whistle nobody tagged', () => {
   // The bug this whole section exists for: `setLineup` writes a starter's
   // {inS: 0, outS: null} when the lineup is set, hours before kick-off. So a
@@ -5766,6 +5799,21 @@ describe('a whistle nobody tagged', () => {
       // An underestimate presented without its direction is just a wrong
       // number, and this one is wrong the same way every time.
       assert.match(report.minutesNote(report.FROM_LAST_TAG), /short by however long/);
+    });
+
+    test('a match still being played has no whistle to have missed', () => {
+      // Found in the browser at 45:30 of a tagged first half. The status was
+      // "halftime" and the note read "nobody tagged the final whistle", which
+      // is an accusation about something the coach has not had the chance to do
+      // yet — and it would have fired at every half-time of every match.
+      assert.equal(report.minutesNote(report.FROM_LAST_TAG, { over: false }), null);
+      assert.notEqual(report.minutesNote(report.FROM_LAST_TAG, { over: true }), null);
+    });
+
+    test('a tablet that has recorded nothing is worth saying mid-match', () => {
+      // Not gated the same way. By half-time an empty log is a problem the
+      // coach can still do something about.
+      assert.match(report.minutesNote(null, { over: false }), /Nobody tagged this match/);
     });
 
     test('the player reads it in the second person', () => {

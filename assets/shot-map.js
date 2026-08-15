@@ -31,7 +31,7 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, pitchMarkings,
-} from './pitch-backdrop.js?v=67';
+} from './pitch-backdrop.js?v=68';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -108,11 +108,29 @@ export function markLabel(mark, xgTrust = 'shot') {
  * xG is null rather than 0 when no shot carried one — a run before the model
  * was wired in has no expected goals, which is not the same as no chances.
  */
+/**
+ * Has this mark a position the pitch can actually take?
+ *
+ * `typeof === 'number'`, not `Number.isFinite(Number(v))` — the first attempt at
+ * this guard used the latter and reproduced the exact bug it was written to
+ * stop, because **`Number(null)` is `0`** and zero is finite. `Number('')` and
+ * `Number([])` are zero too. The published marks are JSON numbers, so demanding
+ * an actual number is both the correct test and the only one that fails closed.
+ */
+export const placeable = (mark) => (
+    typeof mark?.x_m === 'number' && Number.isFinite(mark.x_m)
+    && typeof mark?.y_m === 'number' && Number.isFinite(mark.y_m)
+);
+
 export function shotSummary(marks, trust = 'shot') {
     const list = marks || [];
     const scored = list.filter((m) => m.xg != null);
     return {
         shots: list.length,
+        // Counted rather than hidden. Zero on every run the pipeline produces;
+        // anything else means a mark reached a map with nowhere to go, and the
+        // number of dots will be short by exactly this much.
+        unplaced: list.filter((m) => !placeable(m)).length,
         onTarget: list.filter((m) => m.on_target).length,
         goals: list.filter((m) => m.outcome === 'goal').length,
         // Withheld entirely at `'none'`. Summing shots whose individual error
@@ -149,11 +167,20 @@ export function shotMapSvg(marks, { onPick = null, xgTrust = 'shot' } = {}) {
     );
 
     for (const mark of ordered) {
+        // A shot with no position at all is not a shot at the corner flag.
+        // `Number(null) || 0` gave it one, and the dot that came out was
+        // indistinguishable from a real shot from the goal line. `shot_marks`
+        // in cv/report_json.py drops positionless shots before they get here,
+        // so nothing produces this today — but the failure mode is an invented
+        // data point on a picture a coach reads as measurement, which is the
+        // kind of thing that should be impossible rather than merely unused.
+        if (!placeable(mark)) continue;
+
         // A shot from the defending half is real but off this picture. Pinned
         // to the halfway line rather than dropped: the count under the map
         // includes it, so removing the dot entirely would not add up.
-        const x = Math.max(FROM_X, Number(mark.x_m) || 0);
-        const y = Number(mark.y_m) || 0;
+        const x = Math.max(FROM_X, mark.x_m);
+        const y = mark.y_m;
 
         const dot = el('circle', {
             cx: x, cy: y, r: markRadius(mark.xg, xgTrust),

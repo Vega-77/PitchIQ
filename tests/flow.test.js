@@ -458,20 +458,51 @@ describe('knowing what has reached the server', () => {
     const pendingIn = (snap) =>
         snap.docs.filter((d) => d.metadata.hasPendingWrites).length;
 
-    /** Wait for a metadata-bearing snapshot that satisfies `ready`. */
+    /**
+     * Wait for a metadata-bearing snapshot that satisfies `ready`.
+     *
+     * **The timeout is cleared when the promise settles, and that is the whole
+     * reason this suite used to poison the one after it.** The first version
+     * left every 5s timer running: this test calls `until` four times, so four
+     * strays fired five seconds later — into whatever test happened to be
+     * running by then — each calling `stop()` on a listener already torn down.
+     * `erasing a player` starts inside that window, and the cancelled `Listen`
+     * stream raced its `beforeEach` `clearFirestore`, which came back as a 499
+     * "call already cancelled" on a test that touches none of this.
+     *
+     * That failure looked random for weeks. It was a timer nobody cancelled.
+     */
     function until(db, ready) {
         return new Promise((resolve, reject) => {
-            const stop = onSnapshot(
+            let stop = () => {};
+            let settled = false;
+
+            const finish = (fn) => (value) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                stop();
+                fn(value);
+            };
+            const ok = finish(resolve);
+            const fail = finish(reject);
+
+            // Created before the listener so the handle exists by the time any
+            // callback could reach `clearTimeout`.
+            const timer = setTimeout(
+                () => fail(new Error('no matching snapshot')), 5000,
+            );
+
+            stop = onSnapshot(
                 collection(db, 'teams', TEAM, 'matches', MATCH, 'log'),
                 { includeMetadataChanges: true },
-                (snap) => {
-                    if (!ready(snap)) return;
-                    stop();
-                    resolve(snap);
-                },
-                (err) => { stop(); reject(err); },
+                (snap) => { if (ready(snap)) ok(snap); },
+                fail,
             );
-            setTimeout(() => { stop(); reject(new Error('no matching snapshot')); }, 5000);
+            // `onSnapshot` never calls back synchronously, but if the wait had
+            // already been settled by the timeout above, detach immediately
+            // rather than leaving a listener nobody will stop.
+            if (settled) stop();
         });
     }
 

@@ -6,9 +6,9 @@
 // xg-model.js, so the one part that has to stay in step with the trained model
 // is not tangled up with drawing code.
 
-import { Vector, Player } from './geometry.js?v=67';
-import { predictXg, buildFeatures, FEATURE_ORDER } from './xg-model.js?v=67';
-import { PRESETS, fromMetres } from './presets.js?v=67';
+import { Vector, Player } from './geometry.js?v=68';
+import { predictXg, buildFeatures, FEATURE_ORDER } from './xg-model.js?v=68';
+import { PRESETS, fromMetres } from './presets.js?v=68';
 
 const canvas = document.getElementById('display');
 const ctx = canvas.getContext('2d');
