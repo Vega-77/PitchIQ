@@ -5357,3 +5357,306 @@ describe('the order a reviewer works in', () => {
     });
   });
 });
+
+describe('the football either side of a substitution', () => {
+  // A clock with a real interval in it, because half of what this feature has
+  // to get right is that the interval exists.
+  const OFFSET_S = 40;
+  const BREAK_S = 13 * 60;
+  const clock = () => report.matchClockMap({
+    videoOffsetS: OFFSET_S,
+    secondHalfVideoS: OFFSET_S + 45 * 60 + BREAK_S,
+    secondHalfClockS: 45 * 60,
+  });
+  const MATCH_END_S = 92 * 60;
+
+  const swap = (name, offS) => ({ playerName: name, stints: [{ inS: 0, outS: offS }] });
+  const on = (name, inS) => ({ playerName: name, stints: [{ inS, outS: null }] });
+
+  /** An even stream of on-ball events, with our share settable per stretch. */
+  const stream = (shares, { stepS = 4, endS = MATCH_END_S } = {}) => {
+    const map = clock();
+    const events = [];
+    let n = 0;
+    for (let clockS = 10; clockS < endS; clockS += stepS) {
+      n += 1;
+      const share = shares(clockS);
+      events.push({
+        id: `e${n}`,
+        type: 'pass',
+        timestampS: map.toVideo(clockS),
+        team: ((n * share) % 1) < share ? 'team_a' : 'team_b',
+        inPlay: true,
+      });
+    }
+    return events;
+  };
+
+  describe('finding the changes', () => {
+    test('a kick-off and a final whistle are not changes', () => {
+      // Everyone has an inS; almost everyone has an outS. Neither is a
+      // substitution, and a block that listed them would open with eleven rows
+      // saying nothing happened.
+      const roster = [
+        { playerName: 'Ana', stints: [{ inS: 0, outS: MATCH_END_S }] },
+        { playerName: 'Ben', stints: [{ inS: 0, outS: null }] },
+      ];
+      assert.deepEqual(
+        report.substitutionChanges(roster, { matchEndS: MATCH_END_S }), [],
+      );
+    });
+
+    test('a double change at one stoppage is one change', () => {
+      const roster = [
+        swap('Ana', 60 * 60), on('Ben', 60 * 60),
+        swap('Cy', 60 * 60 + 25), on('Di', 60 * 60 + 25),
+      ];
+      const changes = report.substitutionChanges(roster, { matchEndS: MATCH_END_S });
+      assert.equal(changes.length, 1);
+      assert.deepEqual(changes[0].on.sort(), ['Ben', 'Di']);
+      assert.deepEqual(changes[0].off.sort(), ['Ana', 'Cy']);
+    });
+
+    test('a match nobody tagged still has substitutions in it', () => {
+      // matchEndS comes off the tag log, so it is 0 on a match with no log —
+      // and 0 taken as a final whistle is a whistle before kick-off. Every
+      // player who came off left "after" it, and the block rendered four
+      // changes where somebody came on and nobody went off.
+      const roster = [swap('Ana', 60 * 60), on('Ben', 60 * 60)];
+      const changes = report.substitutionChanges(roster, { matchEndS: 0 });
+      assert.equal(changes.length, 1);
+      assert.deepEqual(changes[0].off, ['Ana']);
+      assert.deepEqual(changes[0].on, ['Ben']);
+
+      // And the windows that hang off it are not clipped to nothing either.
+      const out = report.substitutionWindows(roster, stream(() => 0.5), {
+        clock: clock(), matchEndS: 0,
+      });
+      assert.equal(out.rows[0].scored, true);
+      assert.equal(out.rows[0].spanS, 600);
+    });
+
+    test('a trickle of changes cannot chain into one group', () => {
+      // Each move is inside CHANGE_GROUP_S of the one before it. Measured from
+      // the group's first move rather than its latest, five of them are three
+      // groups and not one that swallows six minutes of football.
+      const roster = [0, 80, 160, 240, 320].map(
+        (d, i) => on(`P${i}`, 30 * 60 + d),
+      );
+      const changes = report.substitutionChanges(roster, { matchEndS: MATCH_END_S });
+      assert.equal(changes.length, 3);
+    });
+  });
+
+  describe('what the windows are cut against', () => {
+    const windowsFor = (roster, events, extra = {}) => report.substitutionWindows(
+      roster, events,
+      { clock: clock(), matchEndS: MATCH_END_S, ...extra },
+    );
+
+    test('nothing at all when nobody was substituted', () => {
+      // Null, not an empty list: the caller hides the block rather than putting
+      // a heading over a blank.
+      assert.equal(
+        windowsFor([{ playerName: 'Ana', stints: [{ inS: 0, outS: null }] }], []),
+        null,
+      );
+    });
+
+    test('both sides are cut to the shorter of the two', () => {
+      // 62:00 has ten clear minutes before it and only six after, because of
+      // the change at 68:00. Nine minutes against six would have more of
+      // everything in it for a reason that is not football.
+      const roster = [
+        swap('Ana', 62 * 60), on('Ben', 62 * 60),
+        swap('Cy', 68 * 60), on('Di', 68 * 60),
+      ];
+      const out = windowsFor(roster, stream(() => 0.5));
+      assert.equal(out.rows[0].spanS, 6 * 60);
+      assert.equal(
+        out.rows[0].before.us + out.rows[0].before.them,
+        out.rows[0].after.us + out.rows[0].after.them,
+      );
+    });
+
+    test('a window never crosses half-time', () => {
+      // Ten minutes either side of 41:00 would compare the end of one half
+      // against the start of the next, with the oranges in between.
+      const roster = [swap('Ana', 41 * 60), on('Ben', 41 * 60)];
+      const out = windowsFor(roster, stream(() => 0.5));
+      assert.equal(out.rows[0].spanS, 4 * 60);
+      assert.equal(out.rows[0].scored, true);
+    });
+
+    test('a change at the break is listed and never scored', () => {
+      const roster = [swap('Ana', 45 * 60), on('Ben', 45 * 60)];
+      const out = windowsFor(roster, stream(() => 0.5));
+      assert.equal(out.rows[0].atBreak, true);
+      assert.equal(out.rows[0].scored, false);
+      assert.equal(out.rows[0].reason, 'break');
+      assert.equal(out.atBreak, 1);
+      assert.match(report.substitutionNote(out), /team talk/);
+    });
+
+    test('the processed footage is the outer limit', () => {
+      // The clip stops at 70 minutes. Ten minutes after a change on 68:00 is
+      // two minutes of football and eight of nothing having been looked at,
+      // which on screen reads as a team that stopped playing.
+      const roster = [swap('Ana', 68 * 60), on('Ben', 68 * 60)];
+      const map = clock();
+      const out = windowsFor(roster, stream(() => 0.5), {
+        window: { start_s: 0, end_s: map.toVideo(70 * 60) },
+      });
+      assert.equal(out.rows[0].scored, false);
+      assert.equal(out.rows[0].reason, 'footage');
+    });
+
+    test('a clip that runs to the whistle blames the whistle, not the clip', () => {
+      // Both limits land on the same second. "The processed footage runs out"
+      // would send a coach looking for a problem with their video.
+      const roster = [swap('Ana', 90 * 60), on('Ben', 90 * 60)];
+      const map = clock();
+      const out = windowsFor(roster, stream(() => 0.5), {
+        window: { start_s: 0, end_s: map.toVideo(MATCH_END_S) },
+      });
+      assert.equal(out.rows[0].reason, 'edge');
+    });
+
+    test('two changes close together measure neither of them', () => {
+      const roster = [
+        swap('Ana', 60 * 60), on('Ben', 60 * 60),
+        swap('Cy', 62 * 60), on('Di', 62 * 60),
+      ];
+      const out = windowsFor(roster, stream(() => 0.5));
+      assert.deepEqual(out.rows.map((r) => r.reason), ['crowded', 'crowded']);
+      assert.equal(out.scored, 0);
+    });
+
+    test('dead-ball events are left out of the share', () => {
+      const roster = [swap('Ana', 60 * 60), on('Ben', 60 * 60)];
+      const live = stream(() => 0.5);
+      const dead = live.map(
+        (e) => ({ ...e, id: `${e.id}-dead`, team: 'team_b', inPlay: false }),
+      );
+      const out = windowsFor(roster, [...live, ...dead]);
+      const plain = windowsFor(roster, live);
+      assert.equal(out.rows[0].shareBefore, plain.rows[0].shareBefore);
+    });
+  });
+
+  describe('nothing is scored on a clock that cannot place it', () => {
+    test('no second-half anchor, no figures', () => {
+      // Second-half stints are match minutes and second-half events are video
+      // minutes. Without the anchor the offset relates them wrongly by the
+      // whole interval, in the direction that slides a window quietly off the
+      // football it claims to describe.
+      const roster = [swap('Ana', 60 * 60), on('Ben', 60 * 60)];
+      const out = report.substitutionWindows(roster, stream(() => 0.5), {
+        clock: report.matchClockMap({ videoOffsetS: OFFSET_S }),
+        matchEndS: MATCH_END_S,
+      });
+      assert.equal(out.placeable, false);
+      assert.equal(out.rows[0].reason, 'clock');
+      assert.match(report.substitutionNote(out), /second-half kick-off/);
+    });
+
+    test('a first-half clip needs no anchor', () => {
+      // There is no interval inside it to be wrong about.
+      const roster = [swap('Ana', 25 * 60), on('Ben', 25 * 60)];
+      const out = report.substitutionWindows(
+        roster, stream(() => 0.5, { endS: 45 * 60 }),
+        {
+          clock: report.matchClockMap({ videoOffsetS: OFFSET_S }),
+          matchEndS: 45 * 60,
+          period: report.FIRST_HALF,
+        },
+      );
+      assert.equal(out.placeable, true);
+      assert.equal(out.rows[0].scored, true);
+    });
+  });
+
+  describe('whether a swing is a swing', () => {
+    test('a ten-point move off a hundred events is a draw', () => {
+      // Measured, not asserted: at an even split it takes about fourteen
+      // points before a hundred events a window can tell the difference.
+      assert.equal(
+        report.shareShifted({ us: 45, them: 55 }, { us: 55, them: 45 }), false,
+      );
+    });
+
+    test('twenty-two points off a hundred and fifty is not', () => {
+      assert.equal(
+        report.shareShifted({ us: 69, them: 81 }, { us: 102, them: 48 }), true,
+      );
+    });
+
+    test('an empty window decides nothing', () => {
+      assert.equal(
+        report.shareShifted({ us: 0, them: 0 }, { us: 40, them: 40 }), false,
+      );
+    });
+
+    test('the read only fires on a swing that survived', () => {
+      const roster = [swap('Ana', 60 * 60), on('Ben', 60 * 60)];
+      const flat = report.substitutionWindows(roster, stream(() => 0.5), {
+        clock: clock(), matchEndS: MATCH_END_S,
+      });
+      assert.equal(flat.rows[0].tentative, true);
+      assert.equal(report.substitutionRead(flat), null);
+
+      const swung = report.substitutionWindows(
+        roster, stream((c) => (c < 60 * 60 ? 0.4 : 0.68)),
+        { clock: clock(), matchEndS: MATCH_END_S },
+      );
+      assert.equal(swung.rows[0].tentative, false);
+      const read = report.substitutionRead(swung);
+      assert.match(read.title, /Ben/);
+      // Never as a consequence. The change and the reason for it arrive
+      // together and nothing here can pull them apart.
+      assert.match(read.detail, /not because of it/);
+    });
+  });
+
+  describe('what the note is obliged to say', () => {
+    test('the causal caveat is not conditional', () => {
+      const roster = [swap('Ana', 60 * 60), on('Ben', 60 * 60)];
+      for (const events of [[], stream(() => 0.5)]) {
+        const out = report.substitutionWindows(roster, events, {
+          clock: clock(), matchEndS: MATCH_END_S,
+        });
+        assert.match(
+          report.substitutionNote(out), /does not say the substitution did it/,
+        );
+      }
+    });
+
+    test('a truncated event list says the sample is uneven', () => {
+      const roster = [swap('Ana', 60 * 60), on('Ben', 60 * 60)];
+      const out = report.substitutionWindows(roster, stream(() => 0.5), {
+        clock: clock(), matchEndS: MATCH_END_S, truncated: true,
+      });
+      assert.match(report.substitutionNote(out), /truncated/);
+    });
+  });
+
+  describe('the fixture the preview is drawn from', () => {
+    test('one of each thing the block can say', () => {
+      const fixture = sample.sampleSubClock();
+      const out = report.substitutionWindows(
+        sample.sampleSubRoster(), sample.sampleSubEvents(),
+        {
+          clock: report.matchClockMap(fixture),
+          matchEndS: fixture.matchEndS,
+          window: fixture.window,
+        },
+      );
+      assert.deepEqual(
+        out.rows.map((r) => (r.scored ? (r.tentative ? 'draw' : 'read') : r.reason)),
+        ['break', 'read', 'draw', 'edge'],
+      );
+      // The last row is the double change, grouped.
+      assert.equal(out.rows[3].on.length, 2);
+    });
+  });
+});

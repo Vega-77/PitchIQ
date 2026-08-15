@@ -1,10 +1,10 @@
 import {
     signIn, signOut, onUser, resolveAccess, pendingInvites, claimInvite,
     configWarning,
-} from './auth.js?v=65';
-import { mountPitchBackdrop } from './pitch-backdrop.js?v=65';
-import { listMatches, seasonSummary } from './db.js?v=65';
-import { byId, setText, toast, showOnly, figure, signed, plural } from './ui.js?v=65';
+} from './auth.js?v=66';
+import { mountPitchBackdrop } from './pitch-backdrop.js?v=66';
+import { listMatches, seasonSummary } from './db.js?v=66';
+import { byId, setText, toast, showOnly, figure, signed, plural } from './ui.js?v=66';
 
 const VIEWS = ['view-marketing', 'view-nowhere', 'view-routes'];
 

@@ -717,3 +717,112 @@ export function sampleSeason() {
 
     return season.reverse();
 }
+
+// ------------------------------------------- a match with substitutions in it
+//
+// The substitution block needs three things a coach's real match usually has
+// and the other fixtures deliberately do not: stints, both teams' events, and a
+// clock that reaches past half-time. `samplePassEvents` is one team's passes
+// over half an hour and is exactly right for a passing network — a network of
+// two teams' passes would be two networks — so this is its own fixture rather
+// than a widening of that one.
+//
+// Four changes, chosen so the preview shows all four things the block can say
+// rather than four rows of the same thing:
+//
+//   45:00  at the interval — listed, never measured
+//   58:20  measured, and the one swing large enough to survive the noise test
+//   78:00  measured, and a draw, which is what most changes look like
+//   89:30  a double change, grouped into one row, and refused: there are only
+//          two and a half minutes of match left to compare against
+
+const SAMPLE_SUB_MATCH_END_S = 92 * 60;
+
+/** The clock this fixture's stints and events agree on. */
+export function sampleSubClock() {
+    return {
+        videoOffsetS: 42,
+        secondHalfVideoS: 42 + 45 * 60 + 13 * 60,
+        secondHalfClockS: 45 * 60,
+        matchEndS: SAMPLE_SUB_MATCH_END_S,
+        window: { start_s: 0, end_s: 42 + SAMPLE_SUB_MATCH_END_S + 13 * 60 },
+    };
+}
+
+/**
+ * A roster shaped like `teams/{t}/matches/{m}/roster`, carrying stints only.
+ *
+ * Names, not initials: the block prints who came on, and "S. I." beside a
+ * possession share reads as an abbreviation the reader is expected to decode.
+ */
+export function sampleSubRoster() {
+    const start = (name) => ({ playerName: name, stints: [{ inS: 0, outS: null }] });
+    const swap = (name, offS) => ({ playerName: name, stints: [{ inS: 0, outS: offS }] });
+    const on = (name, inS) => ({ playerName: name, stints: [{ inS, outS: null }] });
+
+    return [
+        start('Rae Nkemelu'), start('Jo Marchetti'), start('Kit Osei'),
+        start('Ada Fenwick'), start('Bo Lindqvist'),
+        swap('Sam Iyer', 45 * 60),
+        on('Priya Raman', 45 * 60),
+        swap('Dee Okafor', 58 * 60 + 20),
+        on('Marcus Bell', 58 * 60 + 20),
+        swap('Ren Achebe', 78 * 60),
+        on('Tess Vogel', 78 * 60),
+        // Two at once, thirty seconds apart on the tablet: one decision, and
+        // one row.
+        swap('Val Sorensen', 89 * 60 + 30),
+        on('Ines Duarte', 89 * 60 + 30),
+        swap('Cass Ide', 90 * 60),
+        on('Noor Haddad', 90 * 60),
+    ];
+}
+
+/**
+ * Both teams' on-ball events across the whole match, in video seconds.
+ *
+ * Generated from a share that changes at the two moments worth seeing rather
+ * than hand-listed: the block counts events, and a hundred and fifty of them a
+ * window is what makes its noise test answer anything at all. Written out one
+ * by one they would be a thousand lines of fixture nobody would ever check.
+ *
+ * The share runs at 46% for most of the match, climbs to 68% for exactly the
+ * ten minutes after 58:20 and settles back — a twenty-two point swing, which is
+ * comfortably over the twelve points this many events can resolve, so the
+ * preview shows one real read rather than four "within chance" rows. It falls
+ * back before 78:00 so that change reads as the draw it is meant to be, rather
+ * than picking up the end of somebody else's good spell.
+ */
+export function sampleSubEvents() {
+    const { videoOffsetS, secondHalfVideoS, secondHalfClockS } = sampleSubClock();
+    const toVideo = (clockS) => (clockS >= secondHalfClockS
+        ? secondHalfVideoS + (clockS - secondHalfClockS)
+        : clockS + videoOffsetS);
+
+    // One on-ball event every four seconds between the two sides, which is
+    // roughly what a pipeline that sees the ball produces and is the rate the
+    // window arithmetic was sized against.
+    const STEP_S = 4;
+    const shareAt = (clockS) => (
+        clockS >= 58 * 60 + 20 && clockS < 68 * 60 + 20 ? 0.68 : 0.46
+    );
+
+    const events = [];
+    let n = 0;
+    for (let clockS = 20; clockS < SAMPLE_SUB_MATCH_END_S; clockS += STEP_S) {
+        // Deterministic and evenly spread, so the fixture reads the same on
+        // every machine and the counts are the share rather than a sample of it.
+        n += 1;
+        const ours = ((n * shareAt(clockS)) % 1) < shareAt(clockS);
+        events.push({
+            id: `sample-sub-${n}`,
+            type: n % 47 === 0 ? 'shot' : 'pass',
+            timestampS: toVideo(clockS),
+            team: ours ? 'team_a' : 'team_b',
+            confidence: 0.7,
+            inPlay: true,
+            xg: n % 47 === 0 ? 0.09 : null,
+        });
+    }
+    return events;
+}

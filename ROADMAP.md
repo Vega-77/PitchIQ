@@ -26,12 +26,12 @@ jersey numbers robustly in month 1.
 
 ---
 
-## Current Status (2026-07-27)
+## Current Status (2026-08-15)
 
 **Built and verified:**
 - `cv/` — reusable detection package + `spike_detect` CLI (Phase 5 spike, done)
 - **Firebase backend** — Firestore + Google Auth, replacing the local FastAPI server.
-  `firestore.rules` is the entire security boundary; 43 emulator tests pass via
+  `firestore.rules` is the entire security boundary; 149 emulator tests pass via
   `npm test` (Phase 2 + 14, done for [Demo])
 - **`index.html` / `coach/` / `player/`** — landing, coach dashboard, player portal
   (Phase 15, done for [Demo])
@@ -54,16 +54,27 @@ briefing, including what to check before leaving the field and what order to run
 things in afterwards. That single input unblocks calibration, tracking quality
 and possession simultaneously.
 
-Everything reachable without it has now been built, in two passes: non-player
-exclusion, in-play/dead-ball splitting, the narrowed cluster picker, the review
-tool with recall, and match video on every report; then xG actually being
-computed rather than merely computable, the tag-log/CV reconciliation, precision
-and recall out of the review tool, and a regression harness waiting for its
-first baseline (see the two "built ahead of the footage" sections below).
+Everything reachable without it has now been built, in three passes. First:
+non-player exclusion, in-play/dead-ball splitting, the narrowed cluster picker,
+the review tool with recall, and match video on every report. Then xG actually
+being computed rather than merely computable, the tag-log/CV reconciliation,
+precision and recall out of the review tool, and a regression harness waiting
+for its first baseline (see the two "built ahead of the footage" sections
+below). Then the whole of the stats catalog — passing networks, the pressing
+trend, phase of play, the opponent's figures beside our own, season form as
+rates, the shot ledger and the xG calibration check, playing positions, camera
+coverage, and what the football looked like either side of each substitution —
+plus the desktop layout the report is actually read on.
 
-The honest summary of that second pass: most of what it did was **connect things
+The honest summary of the second pass: most of what it did was **connect things
 that were already written and called by nothing**. That is worth saying plainly,
-because it means the remaining gap is not a shortage of code.
+because it means the remaining gap is not a shortage of code. The third pass
+built new things, and every one of them is waiting on the same input to find out
+whether its numbers mean anything.
+
+**Every remaining unticked item in this document is gated on one of three
+things: footage, hardware, or people.** There is no code left that can be
+written without at least one of them.
 
 ### Built ahead of the footage
 
@@ -721,7 +732,7 @@ shots, and xG are what's at risk.*
 - Phase-of-play breakdown: buildup vs. progression vs. final-third entry success
 - Defensive line height and pressing intensity trend
 - Set-piece outcomes (corner delivery zones, aerial duels won)
-- Substitution impact: team stats in the window before vs. after each sub (exact sub timing comes straight from Phase 3's live log)
+- Substitution impact: team stats in the window before vs. after each sub (exact sub timing comes straight from Phase 3's live log) — **built 2026-08-15, and shipped under a different name;** see the Phase 13 entry for why "impact" is a promise the arithmetic cannot keep
 - Individual positional discipline: heatmap vs. assigned role
 
 **Player — Individual Post-Game Report**
@@ -2619,6 +2630,79 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       are the first two `cv*` fields with no twin in `cv/publish.py`, and
       `cvReportFields` takes the coverage as an optional second argument so a
       report published without one is exactly what it was before.
+- [x] **What the football looked like either side of each change** (2026-08-15).
+      The last unbuilt line of the post-game tactical catalog, and the only one
+      that pays the tablet back. Somebody stands at the side of a pitch for
+      ninety minutes tapping substitutions into an iPad; until now the whole of
+      what those taps bought was a minutes-played column.
+
+      **The heading is "Around each change", and the word "impact" appears
+      nowhere.** That is the finding, not modesty about it. A coach makes a
+      change *because* of what is already happening — a side being overrun
+      brings on a defender, a side chasing brings on a forward — so the change
+      and the reason for it arrive together and one match cannot separate them.
+      The opposition also made changes, and none of theirs are in anybody's log.
+      The scoreline moved on its own. Every one of those confounds a
+      before-and-after, and the note says so in a sentence that is not
+      conditional on anything: *"this says what the football either side looked
+      like — it does not say the substitution did it."*
+
+      **Three ways a window lies, all of them fixed by refusing rather than by
+      adjusting.** Nine minutes of football holds more of everything than six,
+      so both sides are cut to the shorter — not converted to per-minute rates,
+      because the noise test needs counts and a rate would hide that a
+      comparison rests on eleven events. A second change six minutes later means
+      the ten minutes after the first *are* the ten minutes around the second,
+      so windows stop at the neighbouring change and both are dropped if what is
+      left is under four minutes. And events only exist where the pipeline was
+      looking, so a window running past the end of a clip finds nothing — a fact
+      about the clip that reads on screen as a team that stopped playing.
+
+      **Half-time is a wall, not a window.** The most common change there is, and
+      the least measurable: what sits between the two halves of that comparison
+      is fifteen minutes and a team talk. Those changes are listed, because a
+      coach should see that they happened, and never scored. The same wall clips
+      ordinary windows — ten minutes either side of a change on 43 minutes would
+      otherwise compare the end of one half against the start of the next.
+
+      **Nothing is scored at all without a placeable clock.** Second-half stints
+      are match minutes and second-half events are video minutes, and without the
+      second-half kick-off saved against the footage the offset relates them
+      wrongly by the whole interval — ten to fifteen minutes, in the direction
+      that slides a window quietly off the football it claims to describe. A
+      first-half clip needs no anchor and is scored normally, which is the case
+      the half-time page cares about.
+
+      **What the bar can and cannot resolve, measured.** The reading is our share
+      of the on-ball events the video found, and whether it moved is a
+      two-proportion test at the same two-sigma bar `insideNoise` uses — it has
+      to be a different test, because the claim on screen is about a share
+      before against a share after, not about one window's two sides. At an even
+      split the smallest swing that clears it is **32 points on 20 events a
+      window, 18 on 60, 14 on 100, 12 on 150, 7 on 400**. Ten minutes of
+      football is in the low hundreds at best, so **this calls most changes a
+      draw and is right to**: a tool that flagged a ten-point swing off a hundred
+      events would be pointing a coach at a coin toss with a teenager's name
+      attached. Shots are printed as counts and never compared, because ten
+      minutes holds one or two.
+
+      Found by the browser and not by the tests: `matchEndS` comes off the tag
+      log, so a match nobody tagged has one of **zero** — which is not a final
+      whistle, it is the absence of one. Taken literally it is a whistle before
+      kick-off, and it deleted every player who came off (their `outS` was not
+      "before" it) and clipped every second-half window to nothing. The block
+      rendered four changes where somebody came on and nobody went off, and four
+      refusals reading "too near kick-off or the final whistle". Now pinned.
+
+      Previewable without footage: `sampleSubRoster` and `sampleSubEvents` are a
+      match with four changes chosen to show one of each thing the block can
+      say — the interval, a swing large enough to survive, a draw, and a double
+      change grouped into one row and refused. Kept separate from
+      `samplePassEvents`, which is one team's passes over half an hour and right
+      for a passing network; this needs both teams and a clock that reaches past
+      half-time.
+
+      604 pure JS · 149 emulator · 1008 Python.
 - [x] **[Stretch] Cross-match aggregation per player — as rates across a run of
       matches, not as one pile of totals** (2026-08-07). `seasonTotals` added the
       video-derived fields up, and for the headline counts that is right. For

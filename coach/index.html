@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=65">
-    <link rel="stylesheet" href="coach.css?v=65">
+    <link rel="stylesheet" href="../assets/app.css?v=66">
+    <link rel="stylesheet" href="coach.css?v=66">
 </head>
 <body>
 
@@ -488,6 +488,23 @@
             <p class="muted" id="cv-pressing-note" style="margin:14px 0 0"></p>
         </section>
 
+        <!-- The one block on this page built out of the tablet's own record.
+             Somebody stands in the rain tapping substitutions in; until now the
+             only thing that bought was a minutes-played column.
+
+             It says "around", not "impact", everywhere including the heading,
+             and that is not modesty. A change is made because of what is
+             already happening, the opposition made changes nobody logged, and
+             the scoreline moves on its own — see the block comment in
+             assets/report.js for why none of that can be pulled apart on a
+             sample of one match. -->
+        <section class="block hidden col-half" id="cv-subs-block" data-rail="Changes">
+            <h3>Around each change</h3>
+            <p class="muted" id="cv-subs-lede" style="margin:-4px 0 14px"></p>
+            <div id="cv-subs" class="sub-list"></div>
+            <p class="muted" id="cv-subs-note" style="margin:14px 0 0"></p>
+        </section>
+
         <!-- The only place a prediction ever meets what happened. The xG model
              was fitted on professional shots and has never seen a pitch like
              this one, so until somebody marks a shot there is no evidence
@@ -666,7 +683,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=65"></script>
+<script type="module" src="coach.js?v=66"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

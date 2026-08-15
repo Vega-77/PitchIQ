@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=65';
+} from '../assets/auth.js?v=66';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -9,20 +9,21 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=65';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=65';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=65';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=65';
+} from '../assets/db.js?v=66';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=66';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=66';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=66';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=65';
+    sampleSubRoster, sampleSubEvents, sampleSubClock,
+} from '../assets/sample-report.js?v=66';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=65';
-import { renderPassMap } from '../assets/pass-map.js?v=65';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=65';
-import { renderForms } from '../assets/form-chart.js?v=65';
+} from '../assets/passing.js?v=66';
+import { renderPassMap } from '../assets/pass-map.js?v=66';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=66';
+import { renderForms } from '../assets/form-chart.js?v=66';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -34,18 +35,20 @@ import {
     clockFromMatch, clockMapNote, HALF_TIME, SECOND_HALF, blindSplit,
     reviewFeed, FROM_VIDEO, FROM_TAGGED, printStamp,
     orderFeed, orderCaveat, BY_CLOCK, BY_DOUBT,
+    substitutionWindows, substitutionRead, substitutionNote, CHANGE_REASONS,
+    matchClockMap,
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
-} from '../assets/report.js?v=65';
+} from '../assets/report.js?v=66';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=65';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=65';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=65';
+} from '../assets/events.js?v=66';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=66';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=66';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=65';
+} from '../assets/ui.js?v=66';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -937,6 +940,9 @@ async function openMatch(matchId) {
         // not — the block that never changes should not be in the list of
         // blocks that go stale.
         renderPressing();
+        // Same reasoning, and one more: this block is built from the roster's
+        // stints and the tag log's clock, neither of which the review touches.
+        renderSubs();
 
         renderPlayerTable(stats.players);
         renderMatchVideoBlock();
@@ -1235,6 +1241,122 @@ function renderPressing() {
     if (faded) lede.push(faded.detail);
     setText('cv-pressing-lede', lede.join(' '));
     setText('cv-pressing-note', pressingNote(trend));
+}
+
+// ------------------------------------------------ the football around a change
+
+/**
+ * Where the changes, the football and the clock come from.
+ *
+ * Under the preview all three come from the same fixture, and they have to:
+ * mixing a real roster's stints with invented events would put real players'
+ * names over invented possession, which is the one kind of sample data worth
+ * refusing. Reading writes nothing, so previewing this is safe in the way the
+ * passing network is and the review tool is not.
+ */
+function subsSource() {
+    if (state.cvPreview) {
+        const sample = sampleSubClock();
+        return {
+            roster: sampleSubRoster(),
+            events: sampleSubEvents(),
+            clock: matchClockMap(sample),
+            matchEndS: sample.matchEndS,
+            window: sample.window,
+            period: null,
+            truncated: false,
+        };
+    }
+    const cv = state.match?.cv;
+    return {
+        roster: state.match?.roster || [],
+        events: state.match?.cvEvents?.events || [],
+        clock: clockMap(),
+        matchEndS: state.match?.stats?.matchEndS ?? null,
+        window: cv?.window || null,
+        period: cv?.period || null,
+        truncated: Boolean(state.match?.cvEvents?.truncated),
+    };
+}
+
+function subRow(row) {
+    const el = document.createElement('div');
+    el.className = `sub-row${row.scored ? '' : ' is-bare'}`;
+
+    const on = row.on.join(' and ');
+    const off = row.off.join(' and ');
+    // Three real shapes, because a change is not always a swap: a red card
+    // leaves somebody coming off with nobody replacing them, and a returning
+    // player comes on with nobody going off.
+    const who = on && off ? `${on} on for ${off}`
+        : (on ? `${on} on` : `${off} off`);
+
+    const legs = row.scored ? `
+        <div class="sub-legs">
+            ${subLeg('Before', row.shareBefore, row.before)}
+            ${subLeg('After', row.shareAfter, row.after)}
+        </div>
+        <div class="sub-meta">${
+            Math.round(row.spanS / 60)} minutes either side${
+            row.tentative ? ' · swing is within chance' : ''}</div>`
+        : `<div class="sub-why">${CHANGE_REASONS[row.reason] || 'not measured'}</div>`;
+
+    el.innerHTML = `
+        <div class="sub-when">${clockText(row.clockS)}</div>
+        <div class="sub-who"></div>
+        ${legs}`;
+    // Names go in as text, never as markup. Everything else on this row is a
+    // number this file worked out; a player's name is a string somebody typed.
+    el.querySelector('.sub-who').textContent = who;
+    return el;
+}
+
+/** One half of a comparison: the share as a bar, and the shots beside it. */
+function subLeg(label, share, tally) {
+    const pct = share == null ? null : Math.round(share * 100);
+    // "1&ndash;2 shots" reads as a range rather than as a scoreline, and this
+    // is the one figure here nobody should have to look twice at.
+    const shots = tally.shots + tally.shotsAgainst
+        ? `shots ${tally.shots}&ndash;${tally.shotsAgainst}` : 'no shots';
+    return `
+        <div class="sub-leg">
+            <span class="sub-leg-k">${label}</span>
+            <span class="sub-bar"><span style="width:${pct ?? 0}%"></span></span>
+            <span class="sub-leg-v">${pct == null ? '—' : `${pct}%`}</span>
+            <span class="sub-leg-n">${shots}</span>
+        </div>`;
+}
+
+function renderSubs() {
+    const block = byId('cv-subs-block');
+    if (!block) return;
+
+    const src = subsSource();
+    const result = substitutionWindows(src.roster, src.events, {
+        clock: src.clock,
+        matchEndS: src.matchEndS,
+        period: src.period,
+        window: src.window,
+        truncated: src.truncated,
+    });
+    block.classList.toggle('hidden', !result);
+    if (!result) return;
+
+    const host = byId('cv-subs');
+    host.innerHTML = '';
+    host.classList.toggle('is-sample-plot', state.cvPreview);
+    for (const row of result.rows) host.append(subRow(row));
+
+    // The lede says what the bars are before the first one is read. "Share of
+    // the ball" would be a claim about possession; these are the on-ball events
+    // the video found, which is a proxy for it and not the same measurement.
+    const lede = ['Each bar is your share of the on-ball events the video found '
+        + 'in that window, which is as close to possession as an event list '
+        + 'gets.'];
+    const read = substitutionRead(result, clockText);
+    if (read) lede.push(read.detail);
+    setText('cv-subs-lede', lede.join(' '));
+    setText('cv-subs-note', substitutionNote(result));
 }
 
 // ---------------------------------------------- marking the model's homework
@@ -1788,6 +1910,7 @@ function toggleSample() {
     renderShots();
     renderPassing();
     renderPressing();
+    renderSubs();
     renderExcluded();
     renderSampleToggle();
     // The preview turns whole sections on and off, so the rail has to be
