@@ -216,6 +216,40 @@ a:hover { color: var(--accent-hi); }
     :root { --shell: 1280px; }
 }
 
+/* ------------------------------------------------- one section at a time
+ *
+ * The rail loads a section in rather than scrolling to it, so the report is the
+ * height of what you are reading instead of the height of everything. Set by
+ * `showSection` in coach.js; the rule lives here so the two places it must not
+ * happen get it for free.
+ *
+ * **`screen` is load-bearing, not decoration.** On paper every section has to
+ * print, whichever one was on screen when Print was pressed — the rail is a way
+ * of reading, not an edit to the report. Tried it as a print override first and
+ * it was wrong: `.hidden` is `display: none !important` at one class of
+ * specificity, and any `display: block !important` written here outranks it, so
+ * the override would have revealed the blocks a match has no data for. Keeping
+ * print out of the query means there is nothing to override.
+ *
+ * Below 1180px there is no rail either, and a phone showing one section with no
+ * way to reach the rest would be a page with most of itself missing.
+ *
+ * Nothing here is `!important`, so `.hidden` still wins on screen too: a
+ * section the data says is absent cannot be revealed by being chosen.
+ */
+@media screen and (min-width: 1180px) {
+    .report-body.is-sectioned > .block,
+    .report-body.is-sectioned > .block-stack { display: none; }
+
+    /* Alone in the content area, a section takes the width — including the ones
+       that ask for half while they are sharing. Content that caps itself (the
+       pitch maps) still caps; nothing is stretched to fill. */
+    .report-body.is-sectioned > .is-showing {
+        display: block;
+        grid-column: span 2;
+    }
+}
+
 /* ---------------------------------------------------------------- backdrop */
 
 /* Faint pitch markings behind a header. Masked so it dissolves rather than
@@ -419,9 +453,6 @@ section.block { margin-top: 42px; }
        put it above the first row too, and double it between rows. */
     .report-body > .block { margin-top: 0; }
 
-    /* Jumped-to blocks land a little below the top edge rather than flush
-       against it, which reads as the page having overshot. */
-    .report-body .block { scroll-margin-top: 20px; }
 
     /* A season of matches, two abreast.
        Eight cards down a 1376px block is eight rows of one card and a great

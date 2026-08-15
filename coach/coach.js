@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=63';
+} from '../assets/auth.js?v=64';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -9,20 +9,20 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=63';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=63';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=63';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=63';
+} from '../assets/db.js?v=64';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=64';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=64';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=64';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
-} from '../assets/sample-report.js?v=63';
+} from '../assets/sample-report.js?v=64';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=63';
-import { renderPassMap } from '../assets/pass-map.js?v=63';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=63';
-import { renderForms } from '../assets/form-chart.js?v=63';
+} from '../assets/passing.js?v=64';
+import { renderPassMap } from '../assets/pass-map.js?v=64';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=64';
+import { renderForms } from '../assets/form-chart.js?v=64';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -34,17 +34,17 @@ import {
     clockFromMatch, clockMapNote, HALF_TIME, SECOND_HALF, blindSplit,
     reviewFeed, FROM_VIDEO, FROM_TAGGED, printStamp,
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
-} from '../assets/report.js?v=63';
+} from '../assets/report.js?v=64';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=63';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=63';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=63';
+} from '../assets/events.js?v=64';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=64';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=64';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=63';
+} from '../assets/ui.js?v=64';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -62,6 +62,8 @@ const state = {
     // numbers. Never persisted and never sent anywhere; it resets every time a
     // match is opened, so nobody can arrive at a page that is quietly lying.
     cvPreview: false,
+    // Which section the rail is showing, on a screen wide enough to have one.
+    section: null,
 };
 
 const show = (view) => showOnly(view, VIEWS);
@@ -890,6 +892,9 @@ async function openMatch(matchId) {
         // Off on every open. A preview that survived navigating to another match
         // would show one match's invented numbers under another match's title.
         state.cvPreview = false;
+        // Likewise the section being read: a coach deep in one game's review
+        // who opens another should land where every match opens.
+        state.section = null;
         // Likewise: figure 3 of this match is not figure 3 of the last one.
         sameAsOpen = null;
 
@@ -956,11 +961,6 @@ async function openMatch(matchId) {
 
         show('view-match');
         window.scrollTo(0, 0);
-        // Again, and only now. `renderMatchRail` above built the buttons, but
-        // it measured them while `#view-match` was still hidden — every block
-        // reads as a zero-height box at the origin, so nothing could be marked
-        // as current and the rail opened dead until the first scroll.
-        markRailPosition();
     } catch (err) {
         toast(err.message || 'Could not open that match.', true);
         show('view-main');
@@ -1615,7 +1615,7 @@ function renderMatchRail() {
         else link.removeAttribute('title');
     }
 
-    markRailPosition();
+    showSection(state.section);
 }
 
 function railLink(block) {
@@ -1631,68 +1631,65 @@ function railLink(block) {
     tag.hidden = true;
     button.append(label, tag);
 
-    button.addEventListener('click', () => {
-        block.scrollIntoView({
-            // Somebody who has turned animation off is telling us that a page
-            // sliding under them is unpleasant, not that they want it slower.
-            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
-                ? 'auto' : 'smooth',
-            block: 'start',
-        });
-    });
+    button.addEventListener('click', () => showSection(block.id));
 
     return button;
 }
 
 /**
- * Light the rail entries for whatever is being read.
+ * Put one section on screen, and only that one.
  *
- * More than one can be lit, and that is the honest answer rather than a
- * shortcut: this layout puts two blocks side by side, so at most heights "the
- * section you are looking at" really is two sections. Picking one of them would
- * be choosing a winner between two things in the same glance.
+ * The rail used to scroll to a block, which left the report exactly as long as
+ * it had been — the rail was a way of moving around ten screens rather than a
+ * way of not having ten screens. Loading the section in instead means a coach
+ * reads one thing at a time and the page is the height of that thing.
+ *
+ * Desktop only, and the gate is in CSS rather than here: below 1180px there is
+ * no rail, and a phone showing one section with no way to reach the others
+ * would be a page with most of itself missing. The same rule keeps every
+ * section on the paper when this is printed.
+ *
+ * `state.section` survives a re-render but not a different match — see
+ * `openMatch`, which clears it. A coach who was reading the review of one game
+ * and opens another should land where every other match opens.
  */
-function markRailPosition() {
+function showSection(id) {
+    const body = byId('match-body');
     const rail = byId('match-rail');
-    if (!rail) return;
-    const links = [...rail.querySelectorAll('.rail-link')];
-    // `offsetParent` is null when the rail is display:none — every width below
-    // the breakpoint, where there is no rail to mark.
-    if (!links.length || !rail.offsetParent) return;
+    if (!body || !rail) return;
 
-    // A line across the upper third, and whatever crosses it is what you are
-    // reading. Tried a band first — everything overlapping the top 45% — and it
-    // lit four entries out of nine, which is a highlight that has stopped
-    // pointing at anything. A line can only be crossed by one block per column,
-    // so it says at most two.
-    const line = window.innerHeight * 0.3;
+    const blocks = railBlocks();
+    if (!blocks.length) return;
 
-    let lit = false;
-    for (const link of links) {
-        const box = byId(link.dataset.target)?.getBoundingClientRect();
-        const here = Boolean(box) && box.top <= line && box.bottom > line;
-        link.classList.toggle('is-here', here);
-        lit = lit || here;
+    // Fall back to the first section when the chosen one is not available —
+    // turning the sample preview off takes four blocks away, and one of them
+    // may be the one being read.
+    const target = blocks.some((b) => b.id === id) ? id : blocks[0].id;
+    state.section = target;
+
+    body.classList.add('is-sectioned');
+    for (const block of body.querySelectorAll('section.block[data-rail]')) {
+        block.classList.toggle('is-showing', block.id === target);
     }
-
-    // Above the first block, or in a gap between rows: point at what is coming
-    // rather than going dark, which reads as the rail having lost track.
-    if (!lit) {
-        const next = links.find(
-            (link) => (byId(link.dataset.target)?.getBoundingClientRect().top ?? -1) > 0,
+    // The stack of short blocks is one grid cell holding two sections, so it
+    // has to show whenever either of them is the one being read.
+    for (const stack of body.querySelectorAll('.block-stack')) {
+        stack.classList.toggle(
+            'is-showing',
+            [...stack.querySelectorAll('section.block[data-rail]')]
+                .some((b) => b.id === target),
         );
-        (next || links[links.length - 1]).classList.add('is-here');
     }
-}
 
-let railPending = false;
-function onRailScroll() {
-    if (railPending) return;
-    railPending = true;
-    requestAnimationFrame(() => {
-        railPending = false;
-        markRailPosition();
-    });
+    for (const link of rail.querySelectorAll('.rail-link')) {
+        const here = link.dataset.target === target;
+        link.classList.toggle('is-here', here);
+        // The rail is a set of alternatives with one chosen, which is what
+        // aria-current says and what a tab list would be read as. Announced so
+        // a screen reader gets the same "you are here" the accent bar gives.
+        if (here) link.setAttribute('aria-current', 'true');
+        else link.removeAttribute('aria-current');
+    }
 }
 
 /** Put the quality banner back, from whatever the state now says. */
@@ -4166,12 +4163,6 @@ function init() {
     byId('btn-cv-labels').addEventListener('click', doDownloadLabels);
     byId('btn-cv-sample').addEventListener('click', toggleSample);
 
-    // Where the rail's highlight comes from. Passive because it never calls
-    // preventDefault, and a scroll listener that does not say so makes the
-    // browser wait for it before every frame of scrolling. Resize matters too:
-    // crossing the breakpoint is what decides whether there is a rail at all.
-    window.addEventListener('scroll', onRailScroll, { passive: true });
-    window.addEventListener('resize', onRailScroll);
 
     const missedType = byId('input-missed-type');
     for (const type of REVIEW_TYPES) {

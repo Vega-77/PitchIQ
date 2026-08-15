@@ -2870,6 +2870,45 @@ than the workaround, which matters given the data class.
       lands on its 20px scroll-margin.
 
       554 pure JS · 139 emulator · 985 Python.
+- [x] **The rail loads a section in, instead of scrolling to it** (2026-08-13).
+      Asked for directly, and the right correction to the entry above: two
+      columns took the report from 6.9 screens to 4.2, but **it was still one
+      long page** and the rail was a way of moving around it rather than a way
+      of not having it.
+
+      Clicking a rail entry now puts that section in the content area and takes
+      the others out. The longest single section is **1.9 screens** and most are
+      about **one** — Team 1.51, Players 1.08, Shot log 1.04, Timeline 1.04,
+      Tracked figures 1.09. A coach reads one thing at a time, and the page is
+      the height of that thing.
+
+      **The gate is in CSS, not in the click handler**, and `screen` in that
+      media query is load-bearing rather than decoration. Two places must never
+      section: below 1180px there is no rail, so a phone showing one section
+      would be a page with most of itself missing; and on paper a report is a
+      report only if all of it is there.
+
+      Written first as a print override — `display: block !important` to put
+      the sections back — and that was wrong in a way worth recording.
+      `.hidden` is `display: none !important` at one class of specificity, and
+      the override outranked it, so printing would have revealed the blocks a
+      match has **no data for**. Scoping the sectioning to `screen` means print
+      never sees the rule and there is nothing to override. Verified by lifting
+      the real `@media print` block out of the loaded stylesheet and applying
+      it: Team, Players, Shot log and Timeline print, the interactive tooling
+      stays `no-print` as before, and every data-hidden block stays hidden.
+
+      A section that disappears cannot strand a reader. Turning the sample
+      preview off removes four sections, and if one of them is the one being
+      read the view falls back to the first — checked in the browser, reading
+      Passing, preview off, lands on Team with the rail lit.
+
+      Scroll-spy went with it. Nine sections' worth of `getBoundingClientRect`
+      on a throttled scroll listener existed to answer "which of these are you
+      looking at", and there is now exactly one — `aria-current` says so, which
+      is what a set of alternatives with one chosen should announce.
+
+      573 pure JS · 149 emulator · 1008 Python.
 - [x] **The season views, and a width that was being handed to the wrong page**
       (2026-08-12). The same grid, now on all four report screens, and the id it
       was keyed to turned out to be shared.
