@@ -1032,6 +1032,33 @@ describe('roughDuration', () => {
     });
 });
 
+describe('railTarget', () => {
+    test('the section asked for, when it is there', () => {
+        assert.equal(report.railTarget(['a', 'b', 'c'], 'b'), 'b');
+    });
+
+    test('falls back to the first when the chosen one has gone', () => {
+        // The set of sections changes under a reader: turning the sample
+        // preview off takes four blocks away and one of them may be the one
+        // being read. Landing on the first is where every report opens anyway.
+        assert.equal(report.railTarget(['a', 'b'], 'gone'), 'a');
+        assert.equal(report.railTarget(['a', 'b'], null), 'a');
+        assert.equal(report.railTarget(['a', 'b'], undefined), 'a');
+    });
+
+    test('null only when there is genuinely nothing to show', () => {
+        assert.equal(report.railTarget([], 'a'), null);
+        assert.equal(report.railTarget(null, 'a'), null);
+    });
+
+    test('an id that is empty is not a section', () => {
+        // `block.id` is '' for a section nobody gave one, and falling back to
+        // it would toggle every block at once — `groupOf` returns '' for all
+        // of them.
+        assert.equal(report.railTarget(['', 'b'], ''), 'b');
+    });
+});
+
 describe('shapeConfidence', () => {
     test('the bands are the calibrate page own', () => {
         // renderQuality in calibrate.js calls a fit good at 0.5m mean error.

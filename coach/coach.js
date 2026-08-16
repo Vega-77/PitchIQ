@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=69';
+} from '../assets/auth.js?v=70';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,21 +10,21 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=69';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=69';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=69';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=69';
+} from '../assets/db.js?v=70';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=70';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=70';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=70';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=69';
+} from '../assets/sample-report.js?v=70';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=69';
-import { renderPassMap } from '../assets/pass-map.js?v=69';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=69';
-import { renderForms } from '../assets/form-chart.js?v=69';
+} from '../assets/passing.js?v=70';
+import { renderPassMap } from '../assets/pass-map.js?v=70';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=70';
+import { renderForms } from '../assets/form-chart.js?v=70';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -39,18 +39,19 @@ import {
     substitutionWindows, substitutionRead, substitutionNote, CHANGE_REASONS,
     matchClockMap,
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
-    minutesNote,
-} from '../assets/report.js?v=69';
+    minutesNote, FROM_LAST_TAG,
+} from '../assets/report.js?v=70';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=69';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=69';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=69';
+} from '../assets/events.js?v=70';
+import { mountRail } from '../assets/rail.js?v=70';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=70';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=70';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=69';
+} from '../assets/ui.js?v=70';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -68,8 +69,6 @@ const state = {
     // numbers. Never persisted and never sent anywhere; it resets every time a
     // match is opened, so nobody can arrive at a page that is quietly lying.
     cvPreview: false,
-    // Which section the rail is showing, on a screen wide enough to have one.
-    section: null,
 };
 
 const show = (view) => showOnly(view, VIEWS);
@@ -900,7 +899,7 @@ async function openMatch(matchId) {
         state.cvPreview = false;
         // Likewise the section being read: a coach deep in one game's review
         // who opens another should land where every match opens.
-        state.section = null;
+        matchRail?.reset();
         // Likewise: figure 3 of this match is not figure 3 of the last one.
         sameAsOpen = null;
 
@@ -1661,14 +1660,54 @@ function renderSampleToggle() {
 //
 // A match report is about fifteen blocks. Stacked one to a row it ran to roughly
 // ten screens on a laptop, which is where this page is actually read — a coach
-// opens it at a desk the evening after the game, not on the touchline. The
-// layout itself is CSS (`.match-layout` in app.css); this is the part that
-// cannot be: which blocks exist on *this* match, and what is still outstanding
-// in each.
+// opens it at a desk the evening after the game, not on the touchline.
 //
-// Only the blocks that are on screen are listed. Half of them appear only when
-// a match was filmed, and a rail offering to jump to a section that is not
-// there is a menu of dead ends.
+// The rail itself is `assets/rail.js`, shared with the player portal. What
+// belongs here is the two things only this page can answer: which figures are
+// worth standing at the top of the rail, and what is still outstanding in each
+// section.
+
+/** The standing figures beside a match report, whichever section is open. */
+function railFacts() {
+    const stats = state.match?.stats;
+    if (!stats) return [];
+
+    const cv = activeCv();
+    const played = stats.players?.filter((p) => (p.minutesPlayed ?? 0) > 0).length || 0;
+
+    const facts = [{
+        label: 'Score',
+        value: `${stats.counts.us.goal ?? 0}–${stats.counts.them.goal ?? 0}`,
+        tone: 'is-big',
+    }];
+
+    // Absent is not zero, in the rail too. A match nobody tagged has no clock,
+    // and `0'` here would be the same lie the player portal had to stop telling
+    // — that the game was played and lasted no time.
+    const end = stats.matchEndS > 0 ? stats.matchEndS : null;
+    facts.push({
+        label: 'Tagged to',
+        value: end == null ? null : clockText(end),
+        note: end != null && stats.matchEndSource === FROM_LAST_TAG
+            ? 'last tag, not the whistle'
+            : null,
+    });
+    facts.push({ label: 'Players on', value: played || null });
+
+    // Only when there is footage behind the report. A "filmed" row reading an
+    // em dash on the eleven matches out of twelve nobody filmed would be a
+    // standing reminder of the thing this page cannot do anything about.
+    if (cv) {
+        const share = cv.quality?.live_share;
+        facts.push({
+            label: 'Ball in play',
+            value: share == null ? null : `${Math.round(share * 100)}%`,
+            note: isSample(cv) ? 'sample data' : null,
+        });
+    }
+
+    return facts;
+}
 
 /** Numbers worth carrying up to the rail — outstanding work, not totals. */
 function railCounts() {
@@ -1700,121 +1739,21 @@ function railCounts() {
     return counts;
 }
 
-/** The blocks currently on screen, in page order. */
-const railBlocks = () => [
-    ...(byId('match-body')?.querySelectorAll('section.block[data-rail]') || []),
-].filter((block) => !block.classList.contains('hidden'));
-
-function renderMatchRail() {
-    const rail = byId('match-rail');
-    if (!rail) return;
-
-    const blocks = railBlocks();
-    const signature = blocks.map((block) => block.id).join('|');
-
-    // Rebuilt only when the set of sections changes, not on every save. The
-    // badges below tick over constantly as a coach names figures, and throwing
-    // the buttons away each time would take the keyboard focus with them —
-    // which is the same bug the "same figure" strip already had to fix once.
-    if (rail.dataset.signature !== signature) {
-        rail.dataset.signature = signature;
-        rail.innerHTML = '';
-
-        const head = document.createElement('div');
-        head.className = 'rail-head';
-        head.textContent = 'This report';
-        rail.append(head);
-
-        for (const block of blocks) rail.append(railLink(block));
-    }
-
-    const counts = railCounts();
-    for (const link of rail.querySelectorAll('.rail-link')) {
-        const count = counts[link.dataset.target];
-        const tag = link.querySelector('.rail-tag');
-        tag.textContent = count ? count.n : '';
-        tag.hidden = !count;
-        // On the button rather than the badge: the badge is 20px of pill and a
-        // tooltip you have to hit it exactly to see is not a tooltip.
-        if (count) link.title = count.title;
-        else link.removeAttribute('title');
-    }
-
-    showSection(state.section);
-}
-
-function railLink(block) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'rail-link';
-    button.dataset.target = block.id;
-
-    const label = document.createElement('span');
-    label.textContent = block.dataset.rail;
-    const tag = document.createElement('span');
-    tag.className = 'rail-tag';
-    tag.hidden = true;
-    button.append(label, tag);
-
-    button.addEventListener('click', () => showSection(block.id));
-
-    return button;
-}
-
 /**
- * Put one section on screen, and only that one.
+ * The rail, built once and re-rendered whenever the report changes.
  *
- * The rail used to scroll to a block, which left the report exactly as long as
- * it had been — the rail was a way of moving around ten screens rather than a
- * way of not having ten screens. Loading the section in instead means a coach
- * reads one thing at a time and the page is the height of that thing.
- *
- * Desktop only, and the gate is in CSS rather than here: below 1180px there is
- * no rail, and a phone showing one section with no way to reach the others
- * would be a page with most of itself missing. The same rule keeps every
- * section on the paper when this is printed.
- *
- * `state.section` survives a re-render but not a different match — see
- * `openMatch`, which clears it. A coach who was reading the review of one game
- * and opens another should land where every other match opens.
+ * Lazily, because `openMatch` is the first thing that has a body worth wiring
+ * and the page is also opened on views that have no report at all.
  */
-function showSection(id) {
-    const body = byId('match-body');
-    const rail = byId('match-rail');
-    if (!body || !rail) return;
-
-    const blocks = railBlocks();
-    if (!blocks.length) return;
-
-    // Fall back to the first section when the chosen one is not available —
-    // turning the sample preview off takes four blocks away, and one of them
-    // may be the one being read.
-    const target = blocks.some((b) => b.id === id) ? id : blocks[0].id;
-    state.section = target;
-
-    body.classList.add('is-sectioned');
-    for (const block of body.querySelectorAll('section.block[data-rail]')) {
-        block.classList.toggle('is-showing', block.id === target);
-    }
-    // The stack of short blocks is one grid cell holding two sections, so it
-    // has to show whenever either of them is the one being read.
-    for (const stack of body.querySelectorAll('.block-stack')) {
-        stack.classList.toggle(
-            'is-showing',
-            [...stack.querySelectorAll('section.block[data-rail]')]
-                .some((b) => b.id === target),
-        );
-    }
-
-    for (const link of rail.querySelectorAll('.rail-link')) {
-        const here = link.dataset.target === target;
-        link.classList.toggle('is-here', here);
-        // The rail is a set of alternatives with one chosen, which is what
-        // aria-current says and what a tab list would be read as. Announced so
-        // a screen reader gets the same "you are here" the accent bar gives.
-        if (here) link.setAttribute('aria-current', 'true');
-        else link.removeAttribute('aria-current');
-    }
+let matchRail = null;
+function renderMatchRail() {
+    matchRail ||= mountRail({
+        body: byId('match-body'),
+        rail: byId('match-rail'),
+        facts: railFacts,
+        counts: railCounts,
+    });
+    matchRail.render();
 }
 
 /** Put the quality banner back, from whatever the state now says. */

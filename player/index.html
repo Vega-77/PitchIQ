@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=69">
-    <link rel="stylesheet" href="player.css?v=69">
+    <link rel="stylesheet" href="../assets/app.css?v=70">
+    <link rel="stylesheet" href="player.css?v=70">
 </head>
 <body>
 
@@ -107,45 +107,95 @@
         <!-- Laid out exactly as the coach's view of the same season is, because
              it is the same season. The two of them talking about it should be
              looking at the same arrangement of the same blocks, not at one
-             page's idea of them each. -->
-        <div class="report-body">
+             page's idea of them each — including the rail, which this view went
+             without for as long as the coach's report had one.
 
-        <section class="block">
+             The figures are grouped by the question they answer rather than
+             piled into one ribbon of boxes. Thirteen cards in a row is a wall a
+             player has to read left to right to find the one thing they came
+             for, and it also flattened the distinction this project cares most
+             about: a goal somebody pressed a button for and a distance a
+             machine estimated were the same kind of box with a small dot in the
+             corner. Each group below is one or the other, and says so. -->
+        <div class="report-layout">
+            <nav class="section-rail no-print" id="season-rail"
+                 aria-label="Sections of your season"></nav>
+
+        <div class="report-body" id="season-body">
+
+        <section class="block" id="season-totals-block" data-rail="The season">
             <h3>Season so far</h3>
-            <div id="season-stats" class="stat-grid"></div>
-        </section>
-
-        <!-- The season as a shape rather than a table. A player can see at a
-             glance whether their minutes are climbing. -->
-        <section class="block col-half">
-            <h3>Your minutes, match by match</h3>
-            <div id="minutes-chart" class="chart"></div>
-            <p class="muted" id="chart-note" style="margin-top:10px"></p>
-        </section>
-
-        <!-- The video-derived figures as rates across the season rather than
-             as one pile of totals. A sum hides which matches it came from and
-             treats a match tracked for six minutes as equal evidence to one
-             tracked for seventy. Every match gets a slot including the ones
-             nobody filmed, because closing the gaps would space the filmed
-             matches evenly and imply they were evenly spaced in the season. -->
-        <section class="block hidden col-half" id="form-block">
-            <h3>How your season has gone</h3>
             <p class="muted" style="margin:-4px 0 16px">
-                Each dot is a match, oldest on the left. The line is your season,
-                and a bigger dot is a match the video followed you for longer.
+                Everything here was tagged by your coach during the match.
             </p>
-            <div id="form-charts" class="form-row"></div>
-            <p class="muted" id="form-note" style="margin-top:16px"></p>
+            <!-- Side by side once the block is wide enough to hold both. A
+                 lone section takes the whole grid, and eight bars stretched
+                 across 1300px is a chart that has been inflated rather than
+                 drawn — while the totals beside it sit in a ribbon with room
+                 to spare. -->
+            <div class="block-split">
+                <div id="season-stats" class="stat-grid"></div>
+
+                <!-- The season as a shape rather than a table. A player can see
+                     at a glance whether their minutes are climbing. -->
+                <figure class="block-figure">
+                    <figcaption>Your minutes, match by match</figcaption>
+                    <div id="minutes-chart" class="chart"></div>
+                    <p class="muted" id="chart-note" style="margin-top:10px"></p>
+                </figure>
+            </div>
         </section>
 
-        <section class="block">
+        <!-- The video-derived figures, split by the question they answer, each
+             group carrying the trend for its own measures rather than all four
+             traces sitting together under a heading of their own. A metres-per-
+             minute line belongs beside the kilometres it is made of. -->
+        <section class="block hidden col-half" id="season-ball-block" data-rail="On the ball">
+            <h3>On the ball</h3>
+            <p class="muted" id="ball-note" style="margin:-4px 0 16px"></p>
+            <div id="ball-stats" class="stat-grid"></div>
+            <div id="ball-form" class="form-row"></div>
+        </section>
+
+        <section class="block hidden col-half" id="season-running-block" data-rail="Running">
+            <h3>Running</h3>
+            <p class="muted" id="running-note" style="margin:-4px 0 16px"></p>
+            <div id="running-stats" class="stat-grid"></div>
+            <div id="running-form" class="form-row"></div>
+        </section>
+
+        <section class="block hidden col-half" id="season-defending-block" data-rail="Defending">
+            <h3>Defending</h3>
+            <p class="muted" style="margin:-4px 0 16px">
+                Counted from the video, over the filmed matches only.
+            </p>
+            <div id="defending-stats" class="stat-grid"></div>
+        </section>
+
+        <!-- What every trace above rests on, said once. Its own section rather
+             than a caption under each: it is the same set of matches that were
+             thin or unfilmed in all of them, and saying so four times reads as
+             four separate problems.
+
+             A bar per match rather than only the sentence. "6 of 8 matches
+             filmed and tracked long enough to place on a line" is true and
+             leaves a player with no idea which six, or how close the other two
+             came — and the answer to both is the difference between a season
+             that was mostly measured and one that was measured twice. -->
+        <section class="block hidden col-half" id="form-block" data-rail="How much was filmed">
+            <h3>How much was filmed</h3>
+            <p class="muted" id="form-note" style="margin:-4px 0 18px"></p>
+            <div id="coverage-strip" class="coverage-strip"></div>
+        </section>
+
+        <section class="block" id="season-matches-block" data-rail="Every match">
             <h3>Every match</h3>
             <p class="muted" style="margin:-4px 0 14px">Tap a match to see your part in it.</p>
             <div id="match-list" class="card-list"></div>
         </section>
 
         </div><!-- /.report-body -->
+        </div><!-- /.report-layout -->
     </section>
 
     <!-- One match, from this player's point of view. Opened from the list
@@ -172,13 +222,17 @@
             </div>
         </header>
 
-        <!-- Two columns on a monitor, one on a phone, same as the coach's
-             report of the same match. The pitch pictures pair naturally: a
-             heatmap caps itself at 620px and a shot map at 380, so neither was
-             ever using a full-width row. -->
-        <div class="report-body">
+        <!-- Two columns and a rail on a monitor, one column on a phone, same as
+             the coach's report of the same match. The pitch pictures pair
+             naturally: a heatmap caps itself at 620px and a shot map at 380, so
+             neither was ever using a full-width row. -->
+        <div class="report-layout">
+            <nav class="section-rail no-print" id="md-rail"
+                 aria-label="Sections of this match"></nav>
 
-        <section class="block">
+        <div class="report-body" id="md-body">
+
+        <section class="block" id="md-stats-block" data-rail="Your match">
             <h3>Your match</h3>
             <div id="md-stats" class="stat-grid"></div>
             <!-- What the video-derived cards above were measured over. Empty and
@@ -189,20 +243,25 @@
 
         <!-- Hidden until there is a grid to draw. An empty pitch reads as a
              player who never moved, which is worse than showing nothing. -->
-        <section class="block hidden col-half" id="md-heatmap-block">
+        <!-- One rail entry, two blocks. Both are pictures of the same pitch and
+             both cap their own width — a heatmap at 620px and a shot map at 380
+             — so showing either one alone on a monitor leaves most of the row
+             empty beside it while the other sits hidden. -->
+        <section class="block hidden col-half" id="md-heatmap-block"
+                 data-rail="On the pitch" data-rail-group="md-pitch">
             <h3>Where you played</h3>
             <p class="muted" id="md-heatmap-note" style="margin:-4px 0 14px"></p>
             <div id="md-heatmap" class="heatmap"></div>
         </section>
 
-        <section class="block hidden col-half" id="md-shots-block">
+        <section class="block hidden col-half" id="md-shots-block" data-rail-group="md-pitch">
             <h3>Your shots</h3>
             <p class="muted" id="md-shots-note" style="margin:-4px 0 14px"></p>
             <div id="md-shots" class="shot-map"></div>
         </section>
 
         <!-- The video, and the player's own moments as marks along it. -->
-        <section class="block" id="md-video-block">
+        <section class="block" id="md-video-block" data-rail="The match">
             <h3>Watch your moments</h3>
             <!-- "Tap any row to jump the video there" is not true of paper. -->
             <p class="muted no-print" id="md-video-note" style="margin:-4px 0 14px"></p>
@@ -211,18 +270,19 @@
             <div id="md-moments" class="moment-list"></div>
         </section>
 
-        <section class="block">
+        <section class="block" id="md-team-block" data-rail="The team">
             <h3>How the team did</h3>
             <div id="md-team" class="tally-list"></div>
         </section>
 
         </div><!-- /.report-body -->
+        </div><!-- /.report-layout -->
     </section>
 </main>
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="player.js?v=69"></script>
+<script type="module" src="player.js?v=70"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

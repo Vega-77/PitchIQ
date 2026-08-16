@@ -345,6 +345,16 @@ h3::after {
 
 section.block { margin-top: 42px; }
 
+/* Prose inside a block keeps a reading measure.
+ *
+ * `.lede` has capped itself at 62ch since the design system was written, and
+ * the notes under headings never did — which did not matter while every block
+ * was a column in a 1120px shell. A section showing alone on a monitor is
+ * 1300px, and the caveat under a chart was running to about 190 characters a
+ * line. The cap is a shade wider than the lede's because these are captions
+ * rather than opening paragraphs, and they sit under something. */
+section.block > p.muted { max-width: 74ch; }
+
 /* -------------------------------------------------- the report, on a monitor
  *
  * A match report is around fifteen blocks, and stacked one to a row it was
@@ -485,6 +495,51 @@ section.block { margin-top: 42px; }
     }
 }
 
+/* The figures that stay put while the middle of the page changes.
+ *
+ * The rail was navigation and nothing else, which made 168px of a 1500px screen
+ * a column of eight words. These are the things a reader wants without going to
+ * find them — the scoreline, how many minutes, how much of the season was
+ * filmed — and the point of standing them here is that switching sections never
+ * takes them away. */
+.rail-facts {
+    display: grid;
+    gap: 2px;
+    margin: 0 0 24px;
+    padding: 4px 14px 10px;
+    background: linear-gradient(168deg, var(--surface-hi) 0%, var(--surface) 55%, var(--bg-raised) 100%);
+    border: 1px solid var(--line-hi);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    /* A floodlit edge along the top, the same one that marks live data
+       everywhere else. It is what tells the eye this column is a readout and
+       not a menu with a box drawn round it. */
+    border-top: 2px solid var(--accent);
+}
+.rail-facts[hidden] { display: none; }
+
+.rail-fact { display: grid; padding: 9px 0; }
+.rail-fact + .rail-fact { border-top: 1px solid var(--line); }
+
+.rail-fact-k {
+    font-size: 0.64rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--text-faint);
+}
+.rail-fact-v {
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.25;
+    color: var(--text);
+}
+/* The one figure the reader came for, at the size a scoreboard would set it. */
+.rail-fact.is-big .rail-fact-v { font-size: 1.6rem; letter-spacing: -0.5px; }
+.rail-fact.is-good .rail-fact-v { color: var(--good); }
+.rail-fact-n { font-size: 0.72rem; color: var(--text-faint); line-height: 1.4; }
+
 .rail-head {
     font-size: 0.68rem;
     font-weight: 700;
@@ -539,6 +594,41 @@ section.block { margin-top: 42px; }
     padding: 1px 6px;
 }
 .rail-link.is-here .rail-tag { background: var(--accent-hi); }
+
+/* A chart or a picture inside a block that is mostly numbers, with a caption
+   that reads as a caption rather than as a second heading. Used where a figure
+   belongs to the group above it — a minutes chart under the season totals it is
+   the shape of — instead of standing as a section of its own. */
+.block-figure { margin: 26px 0 0; }
+
+/* Two things inside one section, once the section is wide enough for both.
+ *
+ * Keyed to the block's own width rather than the screen's, which is the same
+ * rule `.report-body > .block` established: a half-width column on a monitor is
+ * narrow, and a section showing alone on that monitor is very wide. Stacked
+ * below the threshold, which is what a phone gets and also what the same
+ * section gets when it is sharing a row. */
+.block-split { display: grid; gap: 26px; }
+
+@container reportblock (min-width: 860px) {
+    .block-split {
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+        gap: 34px;
+        align-items: start;
+    }
+    /* The gap is the spacing now, and the caption should sit level with the
+       first row of boxes beside it rather than a chart's height lower. */
+    .block-split > .block-figure { margin-top: 0; }
+}
+
+.block-figure > figcaption {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+}
 
 /* ---------------------------------------------------------------- controls */
 
@@ -2481,6 +2571,58 @@ button.tl-row {
     grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
     gap: 18px;
 }
+/* A trace sits under the total it is the shape of, so it needs the gap a
+   separate block would have had. Empty when the season is too short to draw
+   one, and `:empty` keeps the gap from opening under nothing. */
+.stat-grid + .form-row:not(:empty) { margin-top: 22px; }
+
+/* How much of each match the tracker followed. One row per match, oldest at
+   the top, the bar against 90 minutes rather than against the player's own —
+   a substitute followed for all twenty of their twenty minutes has been
+   measured completely, and a full bar beside a starter's would say the two
+   had the same evidence behind them. */
+.coverage-strip { display: grid; gap: 2px; }
+
+.coverage-row {
+    display: grid;
+    grid-template-columns: minmax(0, 8em) minmax(60px, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 5px 0;
+    font-size: 0.82rem;
+}
+
+.coverage-opp {
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.coverage-track {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--surface-hi);
+    overflow: hidden;
+}
+.coverage-bar {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--accent);
+    transition: width .3s cubic-bezier(.2, .7, .3, 1);
+}
+/* Filmed, and followed for too few minutes to be a point on any of the lines
+   above. Not a failure and not a full measurement either — the warning colour
+   is what the rest of this app uses for a hole in the record. */
+.coverage-bar.is-thin { background: var(--warn); }
+
+.coverage-value {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+.coverage-value.is-faint { color: var(--text-faint); }
 .form-card {
     border: 1px solid var(--line);
     border-radius: 10px;

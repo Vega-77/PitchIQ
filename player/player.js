@@ -9,28 +9,31 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=69';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=70';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=69';
-import { CARD_COLOURS } from '../assets/events.js?v=69';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=69';
-import { renderHeatmap } from '../assets/heatmap.js?v=69';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=69';
+} from '../assets/db.js?v=70';
+import { CARD_COLOURS } from '../assets/events.js?v=70';
+import { mountRail } from '../assets/rail.js?v=70';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=70';
+import { renderHeatmap } from '../assets/heatmap.js?v=70';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=70';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
     minutesNote,
-} from '../assets/report.js?v=69';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=69';
-import { renderForms } from '../assets/form-chart.js?v=69';
+} from '../assets/report.js?v=70';
+import {
+    seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
+} from '../assets/season.js?v=70';
+import { renderForms } from '../assets/form-chart.js?v=70';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=69';
-import { renderMatchVideo } from '../assets/match-video.js?v=69';
+} from '../assets/sample-report.js?v=70';
+import { renderMatchVideo } from '../assets/match-video.js?v=70';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=69';
+} from '../assets/ui.js?v=70';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -124,7 +127,7 @@ function renderSeason(reports) {
     ).length;
     if (full) grid.append(statCard(full, 'Full matches', 'is-muted'));
 
-    grid.append(...videoCards(totals));
+    renderVideoGroups(reports, totals);
 }
 
 /**
@@ -135,41 +138,85 @@ function renderSeason(reports) {
  * worked out by a machine from a video where the ball is visible about two
  * thirds of the time.
  *
- * Only shown for filmed matches, and averaged over those rather than over the
- * season — dividing by matches nobody filmed would quietly halve everything.
+ * Three groups rather than one run of boxes, and each carries the season traces
+ * for its own measures. The four traces used to sit together under one heading
+ * — a metres-per-minute line beside a pass-accuracy line beside a top-speed
+ * line — which made them read as one instrument panel rather than as the trend
+ * behind a particular number. A trace belongs next to the total it is the shape
+ * of.
+ *
+ * Every group hides itself when nothing in it was filmed. `cvMatches` counts
+ * only the filmed matches, so a season with no footage in it loses all three
+ * and the rail loses them with it.
  */
-function videoCards(totals) {
-    if (!totals.cvMatches) return [];
+function renderVideoGroups(reports, totals) {
+    const filmed = totals.cvMatches;
+    const over = `Estimated from ${plural(filmed, 'filmed match', 'filmed matches')}`;
 
-    const cards = [
-        statCard(totals.cvTouches, 'Touches', 'is-muted', 'medium'),
-        statCard(totals.cvTackles, 'Tackles won', 'is-muted', 'medium'),
-    ];
-
+    const ball = [statCard(totals.cvTouches, 'Touches', 'is-muted', 'medium')];
     if (totals.cvPassesAttempted) {
         const accuracy = Math.round(
             (totals.cvPassesCompleted / totals.cvPassesAttempted) * 100,
         );
-        cards.push(statCard(`${accuracy}%`, 'Pass accuracy', 'is-muted', 'medium'));
+        ball.push(
+            statCard(`${accuracy}%`, 'Pass accuracy', 'is-muted', 'medium'),
+            statCard(totals.cvPassesCompleted, 'Passes completed', 'is-muted', 'medium'),
+        );
     }
+    if (totals.cvCarries) {
+        ball.push(statCard(totals.cvCarries, 'Carries', 'is-muted', 'medium'));
+    }
+    if (totals.cvShots) {
+        ball.push(statCard(totals.cvShots, 'Shots', 'is-muted', 'medium'));
+    }
+
+    const running = [];
     if (totals.cvDistanceM) {
-        cards.push(statCard(
+        running.push(statCard(
             (totals.cvDistanceM / 1000).toFixed(1), 'km covered', 'is-muted', 'medium',
         ));
     }
     if (totals.cvTopSpeedKmh) {
-        cards.push(statCard(
+        running.push(statCard(
             totals.cvTopSpeedKmh.toFixed(1), 'Top speed km/h', 'is-muted', 'medium',
         ));
     }
     if (totals.cvSprintCount) {
-        cards.push(statCard(totals.cvSprintCount, 'Sprints', 'is-muted', 'medium'));
+        running.push(statCard(totals.cvSprintCount, 'Sprints', 'is-muted', 'medium'));
     }
     if (totals.cvAccelerations) {
-        cards.push(statCard(totals.cvAccelerations, 'Bursts', 'is-muted', 'medium'));
+        running.push(statCard(totals.cvAccelerations, 'Bursts', 'is-muted', 'medium'));
     }
 
-    return cards;
+    const defending = [statCard(totals.cvTackles, 'Tackles won', 'is-muted', 'medium')];
+    if (totals.cvInterceptions) {
+        defending.push(statCard(totals.cvInterceptions, 'Interceptions', 'is-muted', 'medium'));
+    }
+    if (totals.cvRecoveries) {
+        defending.push(statCard(totals.cvRecoveries, 'Recoveries', 'is-muted', 'medium'));
+    }
+
+    fillGroup('season-ball-block', 'ball-stats', filmed && ball);
+    fillGroup('season-running-block', 'running-stats', filmed && running);
+    fillGroup('season-defending-block', 'defending-stats', filmed && defending);
+
+    setText('ball-note', `${over}. Passing is what the pipeline sees most of, `
+        + 'because a pass is two touches with a ball between them.');
+    setText('running-note', `${over}, over the minutes the tracker actually `
+        + 'held on to you.');
+
+    renderForm(reports);
+}
+
+/** Cards into a group, and the whole block off when there are none. */
+function fillGroup(blockId, gridId, cards) {
+    const block = byId(blockId);
+    const grid = byId(gridId);
+    if (!block || !grid) return;
+
+    grid.innerHTML = '';
+    block.classList.toggle('hidden', !cards || !cards.length);
+    if (cards && cards.length) grid.append(...cards);
 }
 
 // ---------------------------------------------------------------- the season
@@ -188,6 +235,18 @@ function renderChart(reports) {
 }
 
 /**
+ * Which season trace belongs under which group of totals.
+ *
+ * The mapping is here rather than in season.js because it is a layout decision,
+ * not an arithmetic one — the same four measures on the coach's screen are one
+ * row under one heading, and that is right there.
+ */
+const FORM_GROUPS = [
+    { host: 'ball-form', keys: ['touchesPerMin', 'passAccuracy'] },
+    { host: 'running-form', keys: ['distancePerMin', 'topSpeed'] },
+];
+
+/**
  * The video-derived figures as rates across the season, not as one pile.
  *
  * `seasonTotals` adds these up, and for the headline counts above that is
@@ -198,19 +257,86 @@ function renderChart(reports) {
  *
  * Hidden entirely below three placed matches. Two dots with a line through them
  * is a much stronger claim than the two numbers it is made of.
+ *
+ * The caveat block is separate from the traces and stands or falls with all of
+ * them together, because it is one sentence about the same set of matches. Four
+ * copies of it, one per group, would read as four separate problems with the
+ * season rather than one fact about how much of it was filmed.
  */
 function renderForm(reports) {
+    const forms = seasonForms(reports);
+    const byKey = new Map(forms.map((form) => [form.key, form]));
+
+    let anyDrawn = false;
+    for (const group of FORM_GROUPS) {
+        const host = byId(group.host);
+        if (!host) continue;
+        const mine = group.keys.map((key) => byKey.get(key)).filter(Boolean);
+        const drawn = renderForms(host, mine, { minPoints: MIN_FORM_POINTS });
+        anyDrawn ||= Boolean(drawn);
+    }
+
     const block = byId('form-block');
     if (!block) return;
-
-    const forms = seasonForms(reports);
-    const drawn = renderForms(byId('form-charts'), forms, {
-        minPoints: MIN_FORM_POINTS,
-    });
-    block.classList.toggle('hidden', !drawn);
-    if (!drawn) return;
+    block.classList.toggle('hidden', !anyDrawn);
+    if (!anyDrawn) return;
 
     setText('form-note', formNote(forms, { measured: 'were filmed' }));
+    renderCoverage(reports);
+}
+
+/**
+ * A bar per match: how much of it the tracker actually followed them for.
+ *
+ * The sentence above this says "6 of 8 matches filmed and tracked long enough
+ * to place on a line", which is true and leaves the reader knowing neither
+ * which six nor how near the other two came. The bar is the answer to both, and
+ * it is the honest shape for it: the length is the tracked minutes, the track
+ * behind it is the minutes played, and a match nobody filmed is an empty track
+ * rather than a bar of zero length — the same distinction the whole season
+ * chart rests on.
+ *
+ * Oldest first, matching every other run of matches on this page.
+ */
+function renderCoverage(reports) {
+    const host = byId('coverage-strip');
+    if (!host) return;
+    host.innerHTML = '';
+
+    for (const report of [...reports].reverse()) {
+        const played = knownMinutes(report) ? (report.minutesPlayed ?? 0) : null;
+        const tracked = typeof report.cvMinutesTracked === 'number'
+            ? report.cvMinutesTracked : null;
+
+        const row = document.createElement('div');
+        row.className = 'coverage-row';
+
+        const name = document.createElement('span');
+        name.className = 'coverage-opp';
+        name.textContent = report.opponentName || 'opponent';
+
+        const track = document.createElement('span');
+        track.className = 'coverage-track';
+        const bar = document.createElement('span');
+        // Against the match rather than against their own minutes: a substitute
+        // followed for all twenty of their twenty minutes has been measured
+        // completely, and a bar reading full beside a starter's would say they
+        // had the same evidence behind them.
+        const share = tracked == null ? 0 : Math.min(1, tracked / 90);
+        bar.className = `coverage-bar${tracked != null && tracked < MIN_POINT_MINUTES ? ' is-thin' : ''}`;
+        bar.style.width = `${Math.round(share * 100)}%`;
+        track.append(bar);
+
+        const value = document.createElement('span');
+        value.className = 'coverage-value';
+        value.textContent = tracked == null
+            ? 'not filmed'
+            : `${Math.round(tracked)}′ of ${played == null ? '—' : `${played}′`}`;
+        if (tracked == null) value.classList.add('is-faint');
+
+        row.append(name, track, value);
+        host.append(row);
+    }
 }
 
 // ---------------------------------------------------------------- matches
@@ -287,6 +413,10 @@ function openMatch(report) {
     renderMatchStats(report);
     renderVideo(report);
     renderTeam(report);
+    // A player who was reading the shot map of one match and opens another
+    // should land where every match opens, so the rail forgets first.
+    matchRail?.reset();
+    renderMatchRail(report);
 
     showOnly('view-match', VIEWS);
     window.scrollTo(0, 0);
@@ -681,9 +811,93 @@ async function loadReports(user) {
 
     renderSeason(reports);
     renderChart(reports);
-    renderForm(reports);
     renderMatches(reports);
+    // Last, once every block above has decided whether it is on screen: the
+    // rail lists what is there, and a season with no footage behind it has
+    // three fewer sections than one with.
+    renderSeasonRail(reports);
     showOnly('view-reports', VIEWS);
+}
+
+// ------------------------------------------------------------------- the rails
+//
+// Both views get one, and it is the same component the coach's match report
+// uses — see assets/rail.js for why that matters more than it looks like it
+// should. The facts are the difference: a coach's rail stands the scoreline and
+// how much of the match was tagged; a player's stands their own season.
+
+let seasonRail = null;
+function renderSeasonRail(reports) {
+    const totals = seasonTotals(reports);
+    seasonRail ||= mountRail({
+        body: byId('season-body'),
+        rail: byId('season-rail'),
+        heading: 'Your season',
+        facts: () => [
+            { label: 'Matches', value: totals.matches, tone: 'is-big' },
+            {
+                label: 'Minutes',
+                value: totals.minutes || null,
+                // Named rather than left to be inferred from a number that is
+                // quietly short. The alternative is a player dividing by a
+                // total that is missing two matches and never knowing.
+                note: totals.minutesUnknown
+                    ? `${totals.minutesUnknown} without a clock`
+                    : null,
+            },
+            {
+                label: 'Goals + assists',
+                value: totals.goals + totals.assists,
+                tone: totals.goals + totals.assists ? 'is-good' : '',
+            },
+            {
+                label: 'Filmed',
+                value: totals.cvMatches
+                    ? `${totals.cvMatches} of ${totals.matches}`
+                    : 'none yet',
+            },
+        ],
+    });
+    seasonRail.render();
+}
+
+let matchRail = null;
+function renderMatchRail(report) {
+    matchRail ||= mountRail({
+        body: byId('md-body'),
+        rail: byId('md-rail'),
+        heading: 'This match',
+        facts: () => {
+            const minutes = knownMinutes(report) ? (report.minutesPlayed ?? 0) : null;
+            const facts = [];
+            if (report.scoreUs != null) {
+                facts.push({
+                    label: 'Score',
+                    value: `${report.scoreUs}–${report.scoreThem ?? 0}`,
+                    tone: 'is-big',
+                });
+            }
+            facts.push({ label: 'Minutes', value: minutes });
+            facts.push({
+                label: 'Goals + assists',
+                value: (report.goals || 0) + (report.assists || 0),
+                tone: (report.goals || 0) + (report.assists || 0) ? 'is-good' : '',
+            });
+            // Only where there is footage. On the eleven matches in twelve
+            // nobody filmed, a "Followed for" row reading an em dash would be a
+            // standing note about an absence the player cannot do anything
+            // about.
+            if (report.cvMinutesTracked != null) {
+                facts.push({
+                    label: 'Followed for',
+                    value: `${Math.round(report.cvMinutesTracked)}′`,
+                    note: 'of video',
+                });
+            }
+            return facts;
+        },
+    });
+    matchRail.render();
 }
 
 function init() {
