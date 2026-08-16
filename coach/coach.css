@@ -289,3 +289,147 @@
 }
 .thumb-note { margin: 0; max-width: 62ch; }
 .thumb-control:empty { display: none; }
+
+/* ------------------------------------------------- the season, beside the list
+ *
+ * The column next to the fixture list used to be one "New match" form and
+ * roughly 500px of nothing under it — the most visible piece of dead space on
+ * the whole product. It now answers the three questions a coach opens this page
+ * with, in the order they matter: what do I still have to do, how are we going,
+ * and where are the goals coming from.
+ */
+
+.season-aside { display: grid; gap: 26px; align-content: start; }
+
+/* Sticky once the screen is tall and wide enough for it to be a help rather
+   than a thing that jitters. A season is eight to twenty fixtures and the list
+   scrolls past the column beside it; the outstanding work and the run of
+   results are exactly what a coach wants still on screen while they look for
+   the match they are after. Below either threshold it scrolls with the page. */
+@media (min-width: 900px) and (min-height: 700px) {
+    .season-aside {
+        position: sticky;
+        top: 20px;
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+        scrollbar-width: thin;
+    }
+}
+.season-aside > h3 { margin-bottom: 0; }
+/* The grid supplies the gap between panels; a heading's own top margin on top
+   of it would space the second panel differently from the first. */
+.season-aside > section { margin: 0; }
+.season-aside > section > h3 { margin-top: 0; margin-bottom: 12px; }
+
+/* One outstanding job. A button, because pressing it takes you to the tab the
+   work is on — a to-do list that names a job and leaves you to find it is half
+   a feature. */
+.job-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: 100%;
+    background: none;
+    border: 0;
+    border-radius: 8px;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    padding: 10px;
+    margin: -10px -10px 0;
+    width: calc(100% + 20px);
+    cursor: pointer;
+    transition: background .12s ease;
+}
+.job-row:hover { background: var(--surface-hi); }
+.job-row + .job-row { border-top: 1px solid var(--line); margin-top: 4px; }
+
+.job-count {
+    flex-shrink: 0;
+    min-width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(77, 214, 193, .4);
+    color: var(--accent);
+    font-size: 0.8rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.job-title { display: block; font-size: 0.9rem; font-weight: 600; }
+.job-note {
+    display: block;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--text-faint);
+    margin-top: 2px;
+}
+.job-go { color: var(--text-faint); font-size: 18px; line-height: 1.2; }
+.job-row:hover .job-go { color: var(--accent); }
+
+/* The last five results, oldest on the left, the way every form guide is read.
+   The hero above says the record — three wins and two defeats summed into two
+   numbers — and this is the same season with the shape left in. */
+.form-guide { display: flex; gap: 6px; }
+
+.form-pill {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    place-items: center;
+    height: 34px;
+    border-radius: 7px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border: 1px solid var(--line-hi);
+    background: var(--surface-hi);
+    color: var(--text-dim);
+    cursor: default;
+}
+.form-pill.is-w {
+    background: rgba(74, 222, 128, .16);
+    border-color: rgba(74, 222, 128, .45);
+    color: var(--good);
+}
+.form-pill.is-l {
+    background: rgba(248, 113, 113, .14);
+    border-color: rgba(248, 113, 113, .42);
+    color: var(--danger);
+}
+
+/* Both bars against the larger of the pair, so the longer one is full and the
+   shorter reads as a fraction of it. Scaling each to its own maximum would draw
+   two full bars and say nothing. */
+.goal-bars { display: grid; gap: 10px; margin-top: 18px; }
+
+.goal-row {
+    display: grid;
+    grid-template-columns: 5.5em minmax(0, 1fr) 2em;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.8rem;
+}
+.goal-key { color: var(--text-faint); }
+.goal-track {
+    height: 10px;
+    border-radius: 999px;
+    background: var(--surface-hi);
+    overflow: hidden;
+}
+.goal-bar {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    transition: width .35s cubic-bezier(.2, .7, .3, 1);
+}
+.goal-bar.is-good { background: var(--good); }
+.goal-bar.is-bad { background: var(--danger); }
+.goal-value {
+    text-align: right;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}

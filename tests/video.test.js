@@ -1032,6 +1032,128 @@ describe('roughDuration', () => {
     });
 });
 
+describe('the season at a glance', () => {
+    const played = (id, us, them, extra = {}) => ({
+        id, opponentName: id, finalized: true, status: 'full_time',
+        scoreUs: us, scoreThem: them, ...extra,
+    });
+
+    describe('formGuide', () => {
+        test('oldest first, however the list arrived', () => {
+            // The matches tab holds them newest first, and a form guide is read
+            // left to right in the order the season happened.
+            const guide = report.formGuide([
+                played('e', 3, 0), played('d', 1, 1), played('c', 0, 2),
+                played('b', 2, 1), played('a', 1, 0),
+            ]);
+            assert.deepEqual(guide.map((g) => g.id), ['a', 'b', 'c', 'd', 'e']);
+            assert.deepEqual(guide.map((g) => g.result), ['W', 'W', 'L', 'D', 'W']);
+        });
+
+        test('a fixture nobody played is not a gap in the run', () => {
+            // Five results with a hole in the middle would say a match was
+            // played and produced nothing.
+            const guide = report.formGuide([
+                played('c', 1, 0),
+                { id: 'b', finalized: false, status: 'scheduled' },
+                played('a', 0, 1),
+            ]);
+            assert.deepEqual(guide.map((g) => g.id), ['a', 'c']);
+        });
+
+        test('takes the most recent, not the first written', () => {
+            const many = ['f', 'e', 'd', 'c', 'b', 'a'].map((id) => played(id, 1, 0));
+            assert.deepEqual(
+                report.formGuide(many, 3).map((g) => g.id), ['d', 'e', 'f'],
+            );
+        });
+
+        test('nothing played is an empty run rather than a throw', () => {
+            assert.deepEqual(report.formGuide([]), []);
+            assert.deepEqual(report.formGuide(null), []);
+        });
+    });
+
+    describe('seasonJobs', () => {
+        const ids = (jobs) => jobs.map((j) => j.id);
+
+        test('a squad with nothing outstanding has no jobs', () => {
+            const jobs = report.seasonJobs({
+                matches: [played('a', 1, 0)],
+                players: [{ linkedUid: 'u1', position: 'mid' }],
+                today: '2026-05-10',
+            });
+            assert.deepEqual(jobs, []);
+        });
+
+        test('played and not published comes first', () => {
+            const jobs = report.seasonJobs({
+                matches: [{ id: 'a', finalized: false, status: 'full_time' }],
+                players: [{ linkedUid: null, position: null }],
+                today: '2026-05-10',
+            });
+            assert.equal(ids(jobs)[0], 'publish');
+            assert.equal(jobs[0].count, 1);
+            assert.match(jobs[0].title, /1 match to publish/);
+        });
+
+        test('a fixture in the future is not outstanding work', () => {
+            // A match created for Saturday is not a job on Thursday, and
+            // listing it as one would make the panel noise every week.
+            const matches = [
+                { id: 'soon', finalized: false, status: 'scheduled', date: '2026-05-16' },
+                { id: 'gone', finalized: false, status: 'scheduled', date: '2026-05-02' },
+            ];
+            const jobs = report.seasonJobs({ matches, players: [], today: '2026-05-10' });
+            assert.deepEqual(ids(jobs), ['untagged']);
+            assert.equal(jobs[0].count, 1);
+        });
+
+        test('with no date to compare against, nothing is called late', () => {
+            const matches = [{ id: 'gone', finalized: false, status: 'scheduled', date: '2026-05-02' }];
+            assert.deepEqual(ids(report.seasonJobs({ matches, players: [] })), []);
+        });
+
+        test('a player who left the squad is not outstanding work', () => {
+            const players = [
+                { linkedUid: null, position: null, active: false },
+                { linkedUid: null, position: 'gk' },
+            ];
+            const jobs = report.seasonJobs({ players, today: '2026-05-10' });
+            assert.deepEqual(ids(jobs), ['invite']);
+            assert.equal(jobs[0].count, 1);
+        });
+
+        test('an unrecognised position still counts as unset', () => {
+            // `positionOf` is the one authority on what a position is, and a
+            // typo in a document must not read as an answered question.
+            const jobs = report.seasonJobs({
+                players: [{ linkedUid: 'u1', position: 'sweeper' }],
+                today: '2026-05-10',
+            });
+            assert.deepEqual(ids(jobs), ['position']);
+        });
+
+        test('every job carries a count, a next step and where to do it', () => {
+            const jobs = report.seasonJobs({
+                matches: [{ id: 'a', finalized: false, status: 'full_time' }],
+                players: [{ linkedUid: null, position: null }],
+                today: '2026-05-10',
+            });
+            for (const job of jobs) {
+                assert.ok(job.count > 0, `${job.id} has a count`);
+                assert.ok(job.note, `${job.id} says what to do`);
+                assert.ok(['matches', 'roster'].includes(job.tab), `${job.id} has a tab`);
+            }
+        });
+
+        test('called with nothing at all', () => {
+            assert.deepEqual(report.seasonJobs(), []);
+            assert.deepEqual(report.seasonJobs({}), []);
+        });
+    });
+});
+
 describe('railTarget', () => {
     test('the section asked for, when it is there', () => {
         assert.equal(report.railTarget(['a', 'b', 'c'], 'b'), 'b');

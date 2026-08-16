@@ -1645,6 +1645,134 @@ export function railTarget(ids, wanted) {
 // project whose whole premise is that the half-time page and the full report
 // describe the same match.
 
+// --------------------------------------------------- the season, at a glance
+//
+// Two things a squad page can say from documents it has already loaded, and
+// said neither of until now: how the last few games went, and what is still
+// waiting to be done.
+//
+// Both are arithmetic over the match list and the roster, so both live here
+// rather than in coach.js, and both are covered in tests/video.test.js. The
+// second one especially: "what is outstanding" is a claim that a coach will act
+// on, and a job that appears when it should not — or worse, does not appear
+// when it should — is the kind of thing a browser check would never catch.
+
+/** A finalized match, read as a result. Null when it was never played. */
+export function resultOf(match) {
+    if (!match?.finalized) return null;
+    const us = num(match.scoreUs) ?? 0;
+    const them = num(match.scoreThem) ?? 0;
+    if (us > them) return 'W';
+    if (us < them) return 'L';
+    return 'D';
+}
+
+/**
+ * The last few results, oldest first — the way a form guide is always read.
+ *
+ * Only finalized matches. A fixture that has not been played is not a blank in
+ * the run, it is simply not in it: five results with a gap in the middle would
+ * say a match was played and produced nothing.
+ *
+ * The list arrives newest first (that is the order the matches tab wants), so
+ * this takes from the front and reverses.
+ */
+export function formGuide(matches, limit = 5) {
+    const played = (matches || []).filter((m) => m?.finalized);
+    return played
+        .slice(0, Math.max(0, limit))
+        .map((match) => ({
+            id: match.id ?? null,
+            opponentName: match.opponentName || 'opponent',
+            date: match.date || null,
+            result: resultOf(match),
+            scoreUs: num(match.scoreUs) ?? 0,
+            scoreThem: num(match.scoreThem) ?? 0,
+        }))
+        .reverse();
+}
+
+/**
+ * What is still waiting on the coach, most pressing first.
+ *
+ * Every one of these is a job with an obvious next action, which is the test
+ * for whether it belongs here. "3 matches have no footage" is not a job — most
+ * matches never will have — and a panel that lists the shape of the world
+ * rather than the work teaches people to stop reading it.
+ *
+ * `today` is passed in rather than read from the clock, so a test can say what
+ * day it is and so a fixture cannot go stale.
+ */
+export function seasonJobs({ matches = [], players = [], today = null } = {}) {
+    const squad = players.filter((p) => p?.active !== false);
+    const jobs = [];
+
+    // Played and not published. The most pressing by a distance: the match is
+    // over, the numbers exist, and every player is waiting on one press.
+    const unpublished = matches.filter(
+        (m) => !m?.finalized && m?.status === 'full_time',
+    );
+    if (unpublished.length) {
+        jobs.push({
+            id: 'publish',
+            count: unpublished.length,
+            title: `${count(unpublished.length, 'match', 'matches')} to publish`,
+            note: 'Played and tagged. Nobody can see their report until you publish.',
+            tab: 'matches',
+        });
+    }
+
+    // A fixture whose date has passed and which nobody ever started tagging.
+    // Only in the past: a match created for Saturday is not outstanding work on
+    // Thursday, and listing it as such would make this panel noise every week.
+    if (today) {
+        const missed = matches.filter(
+            (m) => !m?.finalized
+                && (!m?.status || m.status === 'scheduled')
+                && m?.date && m.date < today,
+        );
+        if (missed.length) {
+            jobs.push({
+                id: 'untagged',
+                count: missed.length,
+                title: `${count(missed.length, 'match', 'matches')} nobody tagged`,
+                note: 'The date has passed and the tagging tool was never opened '
+                    + 'for it. Minutes cannot be recovered later.',
+                tab: 'matches',
+            });
+        }
+    }
+
+    // Players who have never signed in. They have a report and no way to read
+    // it, which is the whole point of the portal.
+    const unclaimed = squad.filter((p) => !p?.linkedUid);
+    if (unclaimed.length) {
+        jobs.push({
+            id: 'invite',
+            count: unclaimed.length,
+            title: `${count(unclaimed.length, 'player')} not signed in`,
+            note: 'They cannot see their own numbers until they accept an invite.',
+            tab: 'roster',
+        });
+    }
+
+    // A position is not an input to any figure — it is a heading over one — so
+    // this is the least pressing of the four and sits last.
+    const unplaced = squad.filter((p) => !positionOf(p?.position));
+    if (unplaced.length) {
+        jobs.push({
+            id: 'position',
+            count: unplaced.length,
+            title: `${count(unplaced.length, 'player')} with no position`,
+            note: 'The squad list groups by line, and these sit under '
+                + '“No position set”.',
+            tab: 'roster',
+        });
+    }
+
+    return jobs;
+}
+
 // ------------------------------------------------------- where they play
 //
 // Four positions, and no more. Football names positions as finely as you like —

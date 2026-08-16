@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=70';
+} from '../assets/auth.js?v=71';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,21 +10,21 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=70';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=70';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=70';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=70';
+} from '../assets/db.js?v=71';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=71';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=71';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=71';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=70';
+} from '../assets/sample-report.js?v=71';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=70';
-import { renderPassMap } from '../assets/pass-map.js?v=70';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=70';
-import { renderForms } from '../assets/form-chart.js?v=70';
+} from '../assets/passing.js?v=71';
+import { renderPassMap } from '../assets/pass-map.js?v=71';
+import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=71';
+import { renderForms } from '../assets/form-chart.js?v=71';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -40,18 +40,19 @@ import {
     matchClockMap,
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
     minutesNote, FROM_LAST_TAG,
-} from '../assets/report.js?v=70';
+    formGuide, seasonJobs,
+} from '../assets/report.js?v=71';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=70';
-import { mountRail } from '../assets/rail.js?v=70';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=70';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=70';
+} from '../assets/events.js?v=71';
+import { mountRail } from '../assets/rail.js?v=71';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=71';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=71';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar,
-} from '../assets/ui.js?v=70';
+} from '../assets/ui.js?v=71';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -245,6 +246,133 @@ function renderHero() {
         : 'Create a match first');
 
     renderGettingStarted();
+    renderJobs();
+    renderFormGuide(summary);
+}
+
+/**
+ * What is still waiting on this coach, and one press away from being done.
+ *
+ * The arithmetic is `seasonJobs` in report.js, where it is tested; this draws
+ * it. Each row switches to the tab the work is on rather than only naming it —
+ * a to-do list that tells you about a job and then leaves you to find it is
+ * half a feature.
+ */
+function renderJobs() {
+    const block = byId('jobs-block');
+    const list = byId('jobs-list');
+    if (!block || !list) return;
+
+    const jobs = seasonJobs({
+        matches: state.matches,
+        players: state.players,
+        // The local date, not UTC: a coach in New Jersey opening this at eight
+        // in the evening should not be told a match tomorrow is already late.
+        today: localDate(),
+    });
+
+    list.innerHTML = '';
+    block.classList.toggle('hidden', !jobs.length);
+    if (!jobs.length) return;
+
+    for (const job of jobs) {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'job-row';
+        row.addEventListener('click', () => showTab(job.tab));
+
+        const badge = document.createElement('span');
+        badge.className = 'job-count';
+        badge.textContent = job.count;
+
+        const body = document.createElement('span');
+        body.className = 'grow';
+        const title = document.createElement('span');
+        title.className = 'job-title';
+        title.textContent = job.title;
+        const note = document.createElement('span');
+        note.className = 'job-note';
+        note.textContent = job.note;
+        body.append(title, note);
+
+        const go = document.createElement('span');
+        go.className = 'job-go';
+        go.textContent = '›';
+
+        row.append(badge, body, go);
+        list.append(row);
+    }
+}
+
+/** Today where this browser is, as the YYYY-MM-DD a match document holds. */
+function localDate() {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/**
+ * The last five results, and where the goals went.
+ *
+ * The hero above already says the record and the goal difference, which are the
+ * season summed into two numbers. This is the same season with its shape left
+ * in: three wins and two defeats reads very differently depending on which
+ * three, and a record cannot say.
+ */
+function renderFormGuide(summary) {
+    const block = byId('form-guide-block');
+    const strip = byId('form-guide');
+    const bars = byId('goal-bars');
+    if (!block || !strip || !bars) return;
+
+    const guide = formGuide(state.matches, 5);
+    block.classList.toggle('hidden', !guide.length);
+    if (!guide.length) return;
+
+    strip.innerHTML = '';
+    for (const match of guide) {
+        const pill = document.createElement('span');
+        pill.className = `form-pill is-${match.result.toLowerCase()}`;
+        pill.textContent = match.result;
+        // The result alone is three letters and no memory attached. The title
+        // is what turns the strip back into matches a coach was at.
+        pill.title = `${match.date || 'no date'} · ${match.opponentName} `
+            + `${match.scoreUs}–${match.scoreThem}`;
+        strip.append(pill);
+    }
+
+    // Two bars against the larger of the pair, so the longer one is always
+    // full and the shorter is read as a fraction of it. Scaling each to its own
+    // maximum would draw two full bars and say nothing.
+    const most = Math.max(summary.scored, summary.conceded, 1);
+    bars.innerHTML = '';
+    bars.append(
+        goalBar('Scored', summary.scored, most, 'is-good'),
+        goalBar('Conceded', summary.conceded, most, 'is-bad'),
+    );
+}
+
+function goalBar(label, value, most, tone) {
+    const row = document.createElement('div');
+    row.className = 'goal-row';
+
+    const key = document.createElement('span');
+    key.className = 'goal-key';
+    key.textContent = label;
+
+    const track = document.createElement('span');
+    track.className = 'goal-track';
+    const bar = document.createElement('span');
+    bar.className = `goal-bar ${tone}`;
+    bar.style.width = `${Math.round((value / most) * 100)}%`;
+    track.append(bar);
+
+    const num = document.createElement('span');
+    num.className = 'goal-value';
+    num.textContent = value;
+
+    row.append(key, track, num);
+    return row;
 }
 
 /** Tick off setup steps as they're actually completed, and hide once done. */
@@ -4226,15 +4354,26 @@ async function doPublish() {
 
 const TABS = ['matches', 'roster', 'staff'];
 
+/**
+ * Put one tab on screen.
+ *
+ * Extracted from the click handler because the "still to do" panel sends a
+ * coach to the tab a job is on — a to-do list that names a job and then leaves
+ * you to find it is half a feature.
+ */
+function showTab(wanted) {
+    if (!TABS.includes(wanted)) return;
+    for (const tab of document.querySelectorAll('.tab')) {
+        tab.classList.toggle('active', tab.dataset.tab === wanted);
+    }
+    for (const name of TABS) {
+        byId(`tab-${name}`)?.classList.toggle('hidden', name !== wanted);
+    }
+}
+
 function initTabs() {
     for (const tab of document.querySelectorAll('.tab')) {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
-            tab.classList.add('active');
-            for (const name of TABS) {
-                byId(`tab-${name}`).classList.toggle('hidden', name !== tab.dataset.tab);
-            }
-        });
+        tab.addEventListener('click', () => showTab(tab.dataset.tab));
     }
 }
 

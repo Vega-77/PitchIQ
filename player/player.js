@@ -9,31 +9,31 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=70';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=71';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=70';
-import { CARD_COLOURS } from '../assets/events.js?v=70';
-import { mountRail } from '../assets/rail.js?v=70';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=70';
-import { renderHeatmap } from '../assets/heatmap.js?v=70';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=70';
+} from '../assets/db.js?v=71';
+import { CARD_COLOURS } from '../assets/events.js?v=71';
+import { mountRail } from '../assets/rail.js?v=71';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=71';
+import { renderHeatmap } from '../assets/heatmap.js?v=71';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=71';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
     minutesNote,
-} from '../assets/report.js?v=70';
+} from '../assets/report.js?v=71';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=70';
-import { renderForms } from '../assets/form-chart.js?v=70';
+} from '../assets/season.js?v=71';
+import { renderForms } from '../assets/form-chart.js?v=71';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=70';
-import { renderMatchVideo } from '../assets/match-video.js?v=70';
+} from '../assets/sample-report.js?v=71';
+import { renderMatchVideo } from '../assets/match-video.js?v=71';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally,
-} from '../assets/ui.js?v=70';
+} from '../assets/ui.js?v=71';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 

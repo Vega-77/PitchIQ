@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=70">
-    <link rel="stylesheet" href="coach.css?v=70">
+    <link rel="stylesheet" href="../assets/app.css?v=71">
+    <link rel="stylesheet" href="coach.css?v=71">
 </head>
 <body>
 
@@ -159,7 +159,14 @@
                     <h3>Matches</h3>
                     <div id="match-list" class="card-list"></div>
                 </section>
-                <aside>
+                <!-- The column beside the fixture list was one form and 500px
+                     of nothing under it. It is now the standing answer to the
+                     three questions a coach opens this page with: what do I
+                     still have to do, how are we going, and where are the
+                     goals coming from. All three are arithmetic over the match
+                     list and the roster this page has already loaded, so none
+                     of it costs a read. -->
+                <aside class="season-aside">
                     <h3>New match</h3>
                     <div class="card">
                         <label class="field">
@@ -172,6 +179,22 @@
                         </label>
                         <button id="btn-create-match" class="btn primary block">Create match</button>
                     </div>
+
+                    <!-- Hidden when there is nothing outstanding, which is the
+                         point: a panel that is always on screen is a panel
+                         nobody reads. -->
+                    <section class="hidden" id="jobs-block">
+                        <h3>Still to do</h3>
+                        <div class="card" id="jobs-list"></div>
+                    </section>
+
+                    <section class="hidden" id="form-guide-block">
+                        <h3>Recent form</h3>
+                        <div class="card">
+                            <div class="form-guide" id="form-guide"></div>
+                            <div class="goal-bars" id="goal-bars"></div>
+                        </div>
+                    </section>
                 </aside>
             </div>
         </div>
@@ -683,7 +706,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=70"></script>
+<script type="module" src="coach.js?v=71"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>
