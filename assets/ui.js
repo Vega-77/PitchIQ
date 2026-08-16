@@ -5,7 +5,7 @@
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
-import { comparePair, verdict, COUNT, knownMinutes } from './report.js?v=75';
+import { comparePair, verdict, COUNT, knownMinutes } from './report.js?v=78';
 
 export const byId = (id) => document.getElementById(id);
 
@@ -508,4 +508,58 @@ export function minutesChart(reports, { fullMatchMinutes = 90 } = {}) {
     });
 
     return svg;
+}
+
+/**
+ * A bar per match: how much of it the tracker actually followed one player for.
+ *
+ * `formNote` says "5 of 8 matches were filmed and tracked long enough to place
+ * on a line", which is true and leaves the reader knowing neither which five
+ * nor how near the other three came. This is the answer to both.
+ *
+ * The bar is against the match rather than against the player's own minutes: a
+ * substitute followed for all twenty of their twenty minutes has been measured
+ * completely, and a full bar beside a starter's would say the two had the same
+ * evidence behind them. A match nobody filmed is an empty track rather than a
+ * bar of zero length — absent is not zero here either.
+ *
+ * `thinBelow` is `MIN_POINT_MINUTES` from season.js, passed in rather than
+ * imported so this module keeps drawing and stops deciding.
+ */
+export function coverageStrip(reports, { thinBelow = 10, fullMatchMinutes = 90 } = {}) {
+    const host = document.createElement('div');
+    host.className = 'coverage-strip';
+
+    for (const report of [...(reports || [])].reverse()) {   // oldest first
+        const played = knownMinutes(report) ? (report.minutesPlayed ?? 0) : null;
+        const tracked = typeof report?.cvMinutesTracked === 'number'
+            ? report.cvMinutesTracked : null;
+
+        const row = document.createElement('div');
+        row.className = 'coverage-row';
+
+        const name = document.createElement('span');
+        name.className = 'coverage-opp';
+        name.textContent = report?.opponentName || 'opponent';
+
+        const track = document.createElement('span');
+        track.className = 'coverage-track';
+        const bar = document.createElement('span');
+        bar.className = `coverage-bar${tracked != null && tracked < thinBelow ? ' is-thin' : ''}`;
+        bar.style.width = tracked == null
+            ? '0%'
+            : `${Math.round(Math.min(1, tracked / fullMatchMinutes) * 100)}%`;
+        track.append(bar);
+
+        const value = document.createElement('span');
+        value.className = `coverage-value${tracked == null ? ' is-faint' : ''}`;
+        value.textContent = tracked == null
+            ? 'not filmed'
+            : `${Math.round(tracked)}′ of ${played == null ? '—' : `${played}′`}`;
+
+        row.append(name, track, value);
+        host.append(row);
+    }
+
+    return host;
 }

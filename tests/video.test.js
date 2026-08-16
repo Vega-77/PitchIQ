@@ -1032,6 +1032,114 @@ describe('roughDuration', () => {
     });
 });
 
+describe('seasonGroups', () => {
+    const totals = (extra = {}) => ({
+        matches: 8, minutes: 708, minutesUnknown: 0, goals: 4, assists: 3,
+        yellowCards: 0, redCards: 0, fouls: 2,
+        cvMatches: 0, cvTouches: 0, cvPassesAttempted: 0, cvPassesCompleted: 0,
+        cvCarries: 0, cvTackles: 0, cvInterceptions: 0, cvRecoveries: 0,
+        cvShots: 0, cvXg: 0, cvDistanceM: 0, cvTopSpeedKmh: 0, cvSprintCount: 0,
+        cvAccelerations: 0, ...extra,
+    });
+    const ids = (groups) => groups.map((g) => g.id);
+    const labels = (group) => group.rows.map((r) => r.label);
+
+    test('a season nobody filmed is one group, not one and three empty headings', () => {
+        assert.deepEqual(ids(report.seasonGroups([], totals())), ['tagged']);
+    });
+
+    test('footage adds three groups, each saying what it was measured over', () => {
+        const groups = report.seasonGroups([], totals({
+            cvMatches: 6, cvTouches: 367, cvPassesAttempted: 240,
+            cvPassesCompleted: 187, cvDistanceM: 27400, cvTackles: 3,
+        }));
+        assert.deepEqual(ids(groups), ['tagged', 'ball', 'running', 'defending']);
+        for (const group of groups.slice(1)) {
+            assert.match(group.note, /6 filmed matches/);
+        }
+    });
+
+    test('every video figure is marked as estimated', () => {
+        const groups = report.seasonGroups([], totals({
+            cvMatches: 6, cvTouches: 367, cvTackles: 3, cvDistanceM: 27400,
+        }));
+        for (const group of groups.filter((g) => g.id !== 'tagged')) {
+            for (const row of group.rows) {
+                assert.equal(row.confidence, 'medium', `${row.label} is marked`);
+            }
+        }
+        // And nothing in the tagged group is: a goal somebody pressed a button
+        // for must not carry the same mark as a distance a machine guessed.
+        const tagged = groups.find((g) => g.id === 'tagged');
+        assert.ok(tagged.rows.every((row) => !row.confidence));
+    });
+
+    test('a season with no clock kept shows a dash, never nought minutes', () => {
+        const groups = report.seasonGroups([], totals({ minutes: 0, minutesUnknown: 8 }));
+        const minutes = groups[0].rows.find((r) => r.label === 'Minutes played');
+        assert.equal(minutes.value, '—');
+    });
+
+    test('per 90 needs a denominator worth dividing into', () => {
+        assert.ok(!labels(report.seasonGroups([], totals({ minutes: 30 }))[0])
+            .includes('G+A per 90'));
+        assert.ok(labels(report.seasonGroups([], totals({ minutes: 90 }))[0])
+            .includes('G+A per 90'));
+    });
+
+    test('their best afternoon is named, and only when there was one', () => {
+        const season = [
+            { opponentName: 'Linden', goals: 0, assists: 0, minutesPlayed: 90 },
+            { opponentName: 'Summit', goals: 2, assists: 1, minutesPlayed: 90 },
+        ];
+        const rows = report.seasonGroups(season, totals()).find((g) => g.id === 'tagged').rows;
+        const best = rows.find((r) => String(r.label).startsWith('Best'));
+        assert.equal(best.label, 'Best · Summit');
+        assert.equal(best.value, 3);
+
+        const quiet = report.seasonGroups(
+            [{ opponentName: 'Linden', goals: 0, assists: 0 }], totals(),
+        );
+        assert.ok(!labels(quiet[0]).some((l) => String(l).startsWith('Best')));
+    });
+
+    test('a match with no clock is not a short match', () => {
+        // Unknown minutes must not count as a full match and must not count
+        // against them either — it is simply not in the denominator.
+        const season = [
+            { minutesPlayed: 90, minutesKnown: true },
+            { minutesPlayed: 0, minutesKnown: false },
+        ];
+        const full = report.seasonGroups(season, totals()).find((g) => g.id === 'tagged')
+            .rows.find((r) => r.label === 'Full matches');
+        assert.equal(full.value, 1);
+    });
+
+    test('the person changes without mangling the rest of the sentence', () => {
+        // A `.replace(' them.', ' you.')` on the finished string turned "a pass
+        // is two touches with a ball between them" into "…between you", which
+        // is why the voice is an argument rather than a patch.
+        const filmed = totals({
+            cvMatches: 6, cvTouches: 367, cvPassesAttempted: 240,
+            cvPassesCompleted: 187, cvDistanceM: 27400,
+        });
+        const third = report.seasonGroups([], filmed);
+        const second = report.seasonGroups([], filmed, { second: true });
+
+        const noteOf = (groups, id) => groups.find((g) => g.id === id).note;
+        assert.match(noteOf(third, 'running'), /held on to them\./);
+        assert.match(noteOf(second, 'running'), /held on to you\./);
+        for (const groups of [third, second]) {
+            assert.match(noteOf(groups, 'ball'), /a ball between them\./);
+        }
+    });
+
+    test('called with nothing at all', () => {
+        assert.deepEqual(ids(report.seasonGroups()), ['tagged']);
+        assert.deepEqual(ids(report.seasonGroups(null, null)), ['tagged']);
+    });
+});
+
 describe('the season at a glance', () => {
     const played = (id, us, them, extra = {}) => ({
         id, opponentName: id, finalized: true, status: 'full_time',

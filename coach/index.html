@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=75">
-    <link rel="stylesheet" href="coach.css?v=75">
+    <link rel="stylesheet" href="../assets/app.css?v=78">
+    <link rel="stylesheet" href="coach.css?v=78">
 </head>
 <body>
 
@@ -305,39 +305,66 @@
             <span class="pill" id="pv-linked"></span>
         </div>
 
-        <!-- Four blocks rather than the match report's fifteen, so no rail:
-             a jump list of four is more chrome than navigation. The grid is
-             the same one either way — see `.report-body` in app.css. -->
-        <div class="report-body">
+        <!-- The same blocks, in the same order, with the same headings as the
+             player's own page — because it is the same season, and the two of
+             them talking about it should be looking at one arrangement rather
+             than at each page's idea of it. The grouping itself is
+             `seasonGroups` in report.js, shared by both. -->
+        <div class="report-layout">
+            <nav class="section-rail no-print" id="pv-rail"
+                 aria-label="Sections of this player's season"></nav>
 
-        <section class="block">
-            <h3>Season totals</h3>
-            <div id="pv-stats" class="stat-grid"></div>
+        <div class="report-body" id="pv-body">
+
+        <section class="block" id="pv-tagged-block" data-rail="The season">
+            <h3>Season so far</h3>
+            <p class="muted" id="pv-tagged-note" style="margin:-4px 0 16px"></p>
+
+            <div class="block-split">
+                <div id="pv-stats" class="stat-grid"></div>
+
+                <!-- The same picture the player sees on their own page, so a
+                     coach and a player are looking at the same thing when they
+                     talk about it. -->
+                <figure class="block-figure">
+                    <figcaption>Minutes, match by match</figcaption>
+                    <div id="pv-chart" class="chart"></div>
+                    <p class="muted" id="pv-chart-note" style="margin-top:10px"></p>
+                </figure>
+            </div>
         </section>
 
-        <!-- The same picture the player sees on their own page, so a coach and
-             a player are looking at the same thing when they talk about it. -->
-        <section class="block col-half">
-            <h3>Minutes across the season</h3>
-            <div id="pv-chart" class="chart"></div>
-            <p class="muted" id="pv-chart-note" style="margin-top:10px"></p>
+        <section class="block hidden col-half" id="pv-ball-block" data-rail="On the ball">
+            <h3>On the ball</h3>
+            <p class="muted" id="pv-ball-note" style="margin:-4px 0 16px"></p>
+            <div id="pv-ball-stats" class="stat-grid"></div>
+            <div id="pv-ball-form" class="form-row"></div>
         </section>
 
-        <!-- Same block, same module, same arithmetic as the player's own page.
-             This is the one comparison a coach and a player have together, and
-             it goes badly if the two of them are looking at figures worked out
-             two different ways. -->
-        <section class="block hidden col-half" id="pv-form-block">
-            <h3>Form across the season</h3>
-            <p class="muted" style="margin:-4px 0 16px">
-                Each dot is a match, oldest on the left. The line is the season,
-                and a bigger dot is a match the video followed them for longer.
-            </p>
-            <div id="pv-form-charts" class="form-row"></div>
-            <p class="muted" id="pv-form-note" style="margin-top:16px"></p>
+        <section class="block hidden col-half" id="pv-running-block" data-rail="Running">
+            <h3>Running</h3>
+            <p class="muted" id="pv-running-note" style="margin:-4px 0 16px"></p>
+            <div id="pv-running-stats" class="stat-grid"></div>
+            <div id="pv-running-form" class="form-row"></div>
         </section>
 
-        <section class="block">
+        <section class="block hidden col-half" id="pv-defending-block" data-rail="Defending">
+            <h3>Defending</h3>
+            <p class="muted" id="pv-defending-note" style="margin:-4px 0 16px"></p>
+            <div id="pv-defending-stats" class="stat-grid"></div>
+        </section>
+
+        <!-- Same module, same arithmetic as the player's own page. This is the
+             one comparison a coach and a player have together, and it goes
+             badly if the two of them are looking at figures worked out two
+             different ways. -->
+        <section class="block hidden col-half" id="pv-form-block" data-rail="How much was filmed">
+            <h3>How much was filmed</h3>
+            <p class="muted" id="pv-form-note" style="margin:-4px 0 18px"></p>
+            <div id="pv-coverage" class="coverage-strip"></div>
+        </section>
+
+        <section class="block" id="pv-matches-block" data-rail="Every match">
             <h3>Match by match</h3>
             <div id="pv-matches" class="card-list"></div>
             <p class="muted" style="margin-top:12px">
@@ -347,6 +374,7 @@
         </section>
 
         </div><!-- /.report-body -->
+        </div><!-- /.report-layout -->
     </section>
 
     <!-- one match -->
@@ -706,7 +734,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=75"></script>
+<script type="module" src="coach.js?v=78"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

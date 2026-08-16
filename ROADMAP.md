@@ -3182,6 +3182,35 @@ than the workaround, which matters given the data class.
       an empty track for not filmed at all: absent is not zero in a bar chart
       either.
 
+- [x] **A coach and a player now read one season, not two shapes of it**
+      (2026-08-15). Giving the player portal grouped sections and a rail left
+      the coach's view of that same player as a flat ribbon of thirteen boxes —
+      so the two people who look at it together were looking at two different
+      pages about the same eight matches. That is the exact failure the player
+      portal's own comment warns about, introduced by the commit that wrote it.
+
+      **`seasonGroups` in report.js is now the one place that decides which
+      figures belong together**, and it hands back specs rather than elements so
+      it stays importable by a test file with no DOM. The two hand-built piles
+      it replaced had already drifted: one called it "Tackles" and the other
+      "Tackles won", one counted interceptions and the other did not, and only
+      one of them had ever heard of carries. `coverageStrip` moved into ui.js
+      for the same reason, so the bar chart of how much of each match was
+      filmed is the same picture on both screens.
+
+      The coach's view gains the rail, the four groups, the split traces and the
+      coverage strip; its rail also carries one fact the player's does not —
+      whether that student has signed in to the portal — because it is the thing
+      a coach opens the page to check before sending an invite.
+
+      **One bug I wrote and caught in the browser an hour later.** The two pages
+      differ in one sentence: "the minutes the tracker held on to *them*" is
+      "…on to *you*" on the player's own page. I did that with
+      `note.replace(' them.', ' you.')` on the finished string, and it also hit
+      the passing note — which then read "a pass is two touches with a ball
+      between you." The voice is an argument to `seasonGroups` now, and the test
+      that pins it asserts the passing note is unchanged in both persons.
+
 - [x] **The home page tells a coach what today needs, not which teams exist**
       (2026-08-15). The signed-in landing page was a greeting, a team card and
       three links. Its one attempt at saying something useful was a line reading

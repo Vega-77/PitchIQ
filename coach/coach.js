@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=75';
+} from '../assets/auth.js?v=78';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,21 +10,23 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=75';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=75';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=75';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=75';
+} from '../assets/db.js?v=78';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=78';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=78';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=78';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=75';
+} from '../assets/sample-report.js?v=78';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=75';
-import { renderPassMap } from '../assets/pass-map.js?v=75';
-import { seasonForms, formNote, MIN_FORM_POINTS } from '../assets/season.js?v=75';
-import { renderForms } from '../assets/form-chart.js?v=75';
+} from '../assets/passing.js?v=78';
+import { renderPassMap } from '../assets/pass-map.js?v=78';
+import {
+    seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
+} from '../assets/season.js?v=78';
+import { renderForms } from '../assets/form-chart.js?v=78';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -40,19 +42,19 @@ import {
     matchClockMap,
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
     minutesNote, FROM_LAST_TAG,
-    formGuide, seasonJobs,
-} from '../assets/report.js?v=75';
+    formGuide, seasonJobs, seasonGroups,
+} from '../assets/report.js?v=78';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=75';
-import { mountRail } from '../assets/rail.js?v=75';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=75';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=75';
+} from '../assets/events.js?v=78';
+import { mountRail } from '../assets/rail.js?v=78';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=78';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=78';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
-    confidenceMark, stackBar,
-} from '../assets/ui.js?v=75';
+    confidenceMark, stackBar, coverageStrip,
+} from '../assets/ui.js?v=78';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -806,37 +808,88 @@ async function openPlayer(player) {
         linked.textContent = isLinked ? 'Can see reports' : 'Not joined yet';
         linked.classList.toggle('done', isLinked);
 
-        const stats = byId('pv-stats');
-        stats.innerHTML = '';
-        stats.append(
-            statCard(totals.matches, 'Matches'),
-            statCard(totals.minutes, 'Minutes'),
-            statCard(totals.goals, 'Goals', totals.goals ? 'is-good' : 'is-muted'),
-            statCard(totals.assists, 'Assists', totals.assists ? 'is-good' : 'is-muted'),
-            statCard(totals.fouls, 'Fouls', 'is-muted'),
+        // The same four groups the player sees on their own page, from the same
+        // function. Two piles of boxes built twice had already drifted — one
+        // called it "Tackles" and the other "Tackles won", one counted carries
+        // and the other had never heard of them — on the one season a coach and
+        // a player look at together.
+        const groups = new Map(
+            seasonGroups(reports, totals).map((group) => [group.id, group]),
         );
-
-        const cards = totals.yellowCards + totals.redCards;
-        stats.append(statCard(cards, 'Cards', cards ? 'is-warn' : 'is-muted'));
-
-        // Per 90 is the number that survives uneven minutes, which is exactly
-        // the comparison a coach wants between a starter and a squad player.
-        if (totals.minutes >= 45) {
-            const per90 = ((totals.goals + totals.assists) / totals.minutes * 90).toFixed(2);
-            stats.append(statCard(per90, 'G+A per 90', 'is-muted'));
-        }
-
-        stats.append(...cvSeasonCards(totals));
+        fillPlayerGroup('pv-tagged-block', 'pv-stats', groups.get('tagged'), 'pv-tagged-note');
+        fillPlayerGroup('pv-ball-block', 'pv-ball-stats', groups.get('ball'), 'pv-ball-note');
+        fillPlayerGroup('pv-running-block', 'pv-running-stats', groups.get('running'), 'pv-running-note');
+        fillPlayerGroup('pv-defending-block', 'pv-defending-stats', groups.get('defending'), 'pv-defending-note');
 
         renderPlayerChart(reports);
         renderPlayerForm(reports);
         renderPlayerMatches(reports);
+        // A coach who was reading one student's running and opens the next
+        // should land where every player opens.
+        playerRail?.reset();
+        renderPlayerRail(player, totals);
         show('view-player');
         window.scrollTo(0, 0);
     } catch (err) {
         toast(err.message || 'Could not load that player.', true);
         show('view-main');
     }
+}
+
+/** One group into its block, and the block off when the group is not there. */
+function fillPlayerGroup(blockId, gridId, group, noteId) {
+    const block = byId(blockId);
+    const grid = byId(gridId);
+    if (!block || !grid) return;
+
+    grid.innerHTML = '';
+    block.classList.toggle('hidden', !group);
+    if (!group) return;
+
+    for (const row of group.rows) {
+        grid.append(statCard(row.value, row.label, row.tone || '', row.confidence));
+    }
+    if (noteId) setText(noteId, group.note);
+}
+
+/** The rail beside one player's season, and the figures that stand above it. */
+let playerRail = null;
+function renderPlayerRail(player, totals) {
+    playerRail ||= mountRail({
+        body: byId('pv-body'),
+        rail: byId('pv-rail'),
+        heading: 'This season',
+        facts: () => [
+            { label: 'Matches', value: totals.matches || null, tone: 'is-big' },
+            {
+                label: 'Minutes',
+                value: totals.minutes || null,
+                note: totals.minutesUnknown
+                    ? `${totals.minutesUnknown} without a clock`
+                    : null,
+            },
+            {
+                label: 'Goals + assists',
+                value: totals.goals + totals.assists,
+                tone: totals.goals + totals.assists ? 'is-good' : '',
+            },
+            {
+                label: 'Filmed',
+                value: totals.cvMatches
+                    ? `${totals.cvMatches} of ${totals.matches}`
+                    : 'none yet',
+            },
+            // The one fact on this rail that is about the student rather than
+            // the season, and the one a coach most often opens this page to
+            // check before sending an invite.
+            {
+                label: 'Portal',
+                value: player?.linkedUid ? 'signed in' : 'not yet',
+                tone: player?.linkedUid ? 'is-good' : '',
+            },
+        ],
+    });
+    playerRail.render();
 }
 
 /** One player's minutes across the season, same chart the player sees. */
@@ -866,16 +919,40 @@ function renderPlayerChart(reports) {
  * is the one number a coach and a player look at together, and the conversation
  * goes badly if the two screens worked it out differently.
  */
+const PV_FORM_GROUPS = [
+    { host: 'pv-ball-form', keys: ['touchesPerMin', 'passAccuracy'] },
+    { host: 'pv-running-form', keys: ['distancePerMin', 'topSpeed'] },
+];
+
 function renderPlayerForm(reports) {
+    const forms = seasonForms(reports);
+    const byKey = new Map(forms.map((form) => [form.key, form]));
+
+    // Each trace under the total it is the shape of, rather than four unrelated
+    // instruments in one panel — the same split the player's own page makes.
+    let anyDrawn = false;
+    for (const group of PV_FORM_GROUPS) {
+        const host = byId(group.host);
+        if (!host) continue;
+        const mine = group.keys.map((key) => byKey.get(key)).filter(Boolean);
+        anyDrawn = Boolean(renderForms(host, mine, { minPoints: MIN_FORM_POINTS }))
+            || anyDrawn;
+    }
+
     const block = byId('pv-form-block');
     if (!block) return;
+    block.classList.toggle('hidden', !anyDrawn);
+    if (!anyDrawn) return;
 
-    const forms = seasonForms(reports);
-    const drawn = renderForms(byId('pv-form-charts'), forms, {
-        minPoints: MIN_FORM_POINTS,
-    });
-    block.classList.toggle('hidden', !drawn);
-    if (drawn) setText('pv-form-note', formNote(forms, { measured: 'were filmed' }));
+    setText('pv-form-note', formNote(forms, { measured: 'were filmed' }));
+    // The same strip the player sees on their own page. A coach asking why
+    // somebody's running figures look thin should be looking at the same
+    // answer the player is.
+    const strip = byId('pv-coverage');
+    if (strip) {
+        strip.innerHTML = '';
+        strip.append(coverageStrip(reports, { thinBelow: MIN_POINT_MINUTES }));
+    }
 }
 
 function renderPlayerMatches(reports) {
@@ -2269,44 +2346,6 @@ function playerTableRow(player, fullMinutes) {
     }
 
     return tr;
-}
-
-/**
- * Season cards from video, shown only for the matches that were actually
- * filmed.
- *
- * `cvMatches` rather than `matches` is the divisor throughout: averaging
- * touches over a whole season would divide by matches nobody pointed a camera
- * at, and quietly halve every figure.
- */
-function cvSeasonCards(totals) {
-    if (!totals.cvMatches) return [];
-
-    const cards = [
-        statCard(totals.cvMatches, 'Matches filmed', 'is-muted'),
-        statCard(totals.cvTouches, 'Touches', 'is-muted', 'medium'),
-        statCard(totals.cvTackles, 'Tackles', 'is-muted', 'medium'),
-        statCard(totals.cvInterceptions, 'Interceptions', 'is-muted', 'medium'),
-    ];
-
-    if (totals.cvPassesAttempted) {
-        const accuracy = Math.round(
-            (totals.cvPassesCompleted / totals.cvPassesAttempted) * 100,
-        );
-        cards.push(statCard(`${accuracy}%`, 'Pass accuracy', 'is-muted', 'medium'));
-    }
-    if (totals.cvDistanceM) {
-        cards.push(statCard(
-            (totals.cvDistanceM / 1000).toFixed(1), 'km covered', 'is-muted', 'medium',
-        ));
-    }
-    if (totals.cvTopSpeedKmh) {
-        cards.push(statCard(
-            totals.cvTopSpeedKmh.toFixed(1), 'Top speed km/h', 'is-muted', 'medium',
-        ));
-    }
-
-    return cards;
 }
 
 // ---------------------------------------------------------------- who is who

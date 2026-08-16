@@ -1645,6 +1645,154 @@ export function railTarget(ids, wanted) {
 // project whose whole premise is that the half-time page and the full report
 // describe the same match.
 
+// ------------------------------------------------ a player's season, grouped
+//
+// The same season is read on three screens — the player's own page, the coach's
+// view of that player, and the coach's roster. It was three piles of boxes
+// built three times, and they had already drifted: one called it "Tackles" and
+// another "Tackles won", one counted interceptions and another did not, and
+// only one of them had ever heard of carries.
+//
+// Worse than the drift is what a flat pile hides. Thirteen boxes in a row is a
+// wall a reader scans left to right to find the one thing they came for, and it
+// flattens the distinction this project cares most about: a goal somebody
+// pressed a button for and a distance a machine estimated end up as the same
+// box with a small dot in the corner.
+//
+// So the grouping is a decision, made once, here, and tested — and it hands
+// back specs rather than elements, so `statGroup` in ui.js can draw them and
+// this module can stay importable by a test file with no DOM.
+
+const FULL_MATCH_MIN = 80;
+
+/**
+ * A player's season as titled groups of figures.
+ *
+ * `reports` is needed as well as `totals` for the two figures that are about
+ * particular matches rather than about the sum: their best afternoon, and how
+ * many full matches they played. The rest is arithmetic over `seasonTotals`.
+ *
+ * Groups with nothing in them are dropped, so a season nobody filmed comes back
+ * as one group rather than one group and three empty headings.
+ */
+export function seasonGroups(reports, totals, options = {}) {
+    // Whose season this is being read as. A player opens their own page and a
+    // coach opens the same season about somebody else, so one of the notes has
+    // to change person — and doing that by patching the finished string is how
+    // "a pass is two touches with a ball between them" became "…between you".
+    const { second = false } = options;
+    const them = second ? 'you' : 'them';
+    const played = reports || [];
+    const t = totals || {};
+    const involvements = (r) => (r?.goals || 0) + (r?.assists || 0);
+
+    const tagged = [
+        { value: t.matches ?? 0, label: 'Matches' },
+        {
+            // Absent is not zero: a season made of untagged matches has no
+            // minutes total, and printing 0 would say they never played.
+            value: t.minutes || '—',
+            label: 'Minutes played',
+            tone: t.minutesUnknown ? 'is-muted' : '',
+        },
+        { value: t.goals ?? 0, label: 'Goals', tone: t.goals ? 'is-good' : 'is-muted' },
+        { value: t.assists ?? 0, label: 'Assists', tone: t.assists ? 'is-good' : 'is-muted' },
+    ];
+
+    const cards = (t.yellowCards || 0) + (t.redCards || 0);
+    tagged.push({ value: cards, label: 'Cards', tone: cards ? 'is-warn' : 'is-muted' });
+
+    // The figure that survives uneven minutes, which is exactly the comparison
+    // between a starter and a squad player. Below 45 minutes the denominator is
+    // too small to divide into.
+    if (t.minutes >= 45) {
+        tagged.push({
+            value: ((t.goals + t.assists) / t.minutes * 90).toFixed(2),
+            label: 'G+A per 90',
+            tone: 'is-muted',
+        });
+    }
+
+    // Their best afternoon — the thing a player actually opens their own page
+    // to find, and the thing a coach reaches for first in a conversation.
+    const best = played.reduce(
+        (a, b) => (involvements(b) > involvements(a) ? b : a), played[0],
+    );
+    if (best && involvements(best) > 0) {
+        tagged.push({
+            value: involvements(best),
+            label: `Best · ${best.opponentName || 'opponent'}`,
+            tone: 'is-good',
+        });
+    }
+
+    // Unknown is not short. A match with no clock cannot count as a full one,
+    // and must not count against them either — it is simply not in the
+    // denominator, which is why the card says nothing when there are none.
+    const full = played.filter(
+        (r) => knownMinutes(r) && (r.minutesPlayed || 0) >= FULL_MATCH_MIN,
+    ).length;
+    if (full) tagged.push({ value: full, label: 'Full matches', tone: 'is-muted' });
+
+    const groups = [{
+        id: 'tagged',
+        title: 'The season',
+        note: 'Tagged during the match.',
+        rows: tagged,
+    }];
+
+    if (!t.cvMatches) return groups;
+
+    const over = `Estimated from ${count(t.cvMatches, 'filmed match', 'filmed matches')}`;
+    const seen = (value, label) => ({
+        value, label, tone: 'is-muted', confidence: 'medium',
+    });
+
+    const ball = [seen(t.cvTouches ?? 0, 'Touches')];
+    if (t.cvPassesAttempted) {
+        ball.push(
+            seen(`${Math.round((t.cvPassesCompleted / t.cvPassesAttempted) * 100)}%`,
+                'Pass accuracy'),
+            seen(t.cvPassesCompleted, 'Passes completed'),
+        );
+    }
+    if (t.cvCarries) ball.push(seen(t.cvCarries, 'Carries'));
+    if (t.cvShots) ball.push(seen(t.cvShots, 'Shots'));
+
+    const running = [];
+    if (t.cvDistanceM) {
+        running.push(seen((t.cvDistanceM / 1000).toFixed(1), 'km covered'));
+    }
+    if (t.cvTopSpeedKmh) {
+        running.push(seen(t.cvTopSpeedKmh.toFixed(1), 'Top speed km/h'));
+    }
+    if (t.cvSprintCount) running.push(seen(t.cvSprintCount, 'Sprints'));
+    if (t.cvAccelerations) running.push(seen(t.cvAccelerations, 'Bursts'));
+
+    const defending = [seen(t.cvTackles ?? 0, 'Tackles won')];
+    if (t.cvInterceptions) defending.push(seen(t.cvInterceptions, 'Interceptions'));
+    if (t.cvRecoveries) defending.push(seen(t.cvRecoveries, 'Recoveries'));
+
+    groups.push(
+        {
+            id: 'ball',
+            title: 'On the ball',
+            note: `${over}. Passing is what the pipeline sees most of, because a `
+                + 'pass is two touches with a ball between them.',
+            rows: ball,
+        },
+        {
+            id: 'running',
+            title: 'Running',
+            note: `${over}, over the minutes the tracker actually held on to ${them}.`,
+            rows: running,
+        },
+        { id: 'defending', title: 'Defending', note: `${over}.`, rows: defending },
+    );
+
+    return groups.filter((group) => group.rows.length);
+}
+
 // --------------------------------------------------- the season, at a glance
 //
 // Two things a squad page can say from documents it has already loaded, and

@@ -9,39 +9,36 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=75';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=78';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=75';
-import { CARD_COLOURS } from '../assets/events.js?v=75';
-import { mountRail } from '../assets/rail.js?v=75';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=75';
-import { renderHeatmap } from '../assets/heatmap.js?v=75';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=75';
+} from '../assets/db.js?v=78';
+import { CARD_COLOURS } from '../assets/events.js?v=78';
+import { mountRail } from '../assets/rail.js?v=78';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=78';
+import { renderHeatmap } from '../assets/heatmap.js?v=78';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=78';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
-    minutesNote,
-} from '../assets/report.js?v=75';
+    minutesNote, seasonGroups,
+} from '../assets/report.js?v=78';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=75';
-import { renderForms } from '../assets/form-chart.js?v=75';
+} from '../assets/season.js?v=78';
+import { renderForms } from '../assets/form-chart.js?v=78';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=75';
-import { renderMatchVideo } from '../assets/match-video.js?v=75';
+} from '../assets/sample-report.js?v=78';
+import { renderMatchVideo } from '../assets/match-video.js?v=78';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
-    plural, minutesChart, tally,
-} from '../assets/ui.js?v=75';
+    plural, minutesChart, tally, coverageStrip,
+} from '../assets/ui.js?v=78';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
 // The match currently open, and its video handle, so a moment can seek it.
 const open = { report: null, video: null };
-
-// A full match, for working out whether someone played most of one.
-const FULL_MATCH_MIN = 80;
 
 const involvements = (r) => (r.goals || 0) + (r.assists || 0);
 
@@ -79,144 +76,47 @@ function seasonLine(reports, totals) {
     return `${opening}, ${tally.join(' and ')}${spread}.`;
 }
 
+/**
+ * The season, in the groups `seasonGroups` decided on.
+ *
+ * The grouping lives in report.js because this same season is read on three
+ * screens — here, the coach's view of this player, and the coach's roster — and
+ * three copies of "which figures belong together" had already drifted into
+ * disagreeing about what a tackle is called.
+ *
+ * Each group maps to a block, and a block with no group hides itself, which is
+ * what takes the three video sections off the rail for a season nobody filmed.
+ */
 function renderSeason(reports) {
     const totals = seasonTotals(reports);
 
     setText('player-line', seasonLine(reports, totals));
 
-    const grid = byId('season-stats');
-    grid.innerHTML = '';
-    grid.append(
-        statCard(totals.matches, 'Matches'),
-        statCard(
-            totals.minutes || '—', 'Minutes played',
-            totals.minutesUnknown ? 'is-muted' : '',
-        ),
-        statCard(totals.goals, 'Goals', totals.goals ? 'is-good' : 'is-muted'),
-        statCard(totals.assists, 'Assists', totals.assists ? 'is-good' : 'is-muted'),
+    const groups = new Map(
+        seasonGroups(reports, totals, { second: true }).map((g) => [g.id, g]),
     );
-
-    const cards = totals.yellowCards + totals.redCards;
-    grid.append(statCard(cards, 'Cards', cards ? 'is-warn' : 'is-muted'));
-
-    // Goal involvements per 90 is the stat that survives uneven minutes, which
-    // matters a lot for a squad player comparing themselves to a starter.
-    if (totals.minutes >= 45) {
-        const per90 = ((totals.goals + totals.assists) / totals.minutes * 90).toFixed(2);
-        grid.append(statCard(per90, 'G+A per 90', 'is-muted'));
-    }
-
-    // Their best afternoon. Worth naming — it is the thing a player actually
-    // wants to find on their own page.
-    const best = reports.reduce(
-        (a, b) => (involvements(b) > involvements(a) ? b : a), reports[0]
-    );
-    if (involvements(best) > 0) {
-        grid.append(statCard(
-            involvements(best),
-            `Best · ${best.opponentName || 'opponent'}`,
-            'is-good',
-        ));
-    }
-
-    // Unknown is not short. A match with no clock cannot be counted as a full
-    // one, and must not be counted against them either — it is simply not in
-    // the denominator, which is why the card says nothing when there are none.
-    const full = reports.filter(
-        (r) => knownMinutes(r) && (r.minutesPlayed || 0) >= FULL_MATCH_MIN,
-    ).length;
-    if (full) grid.append(statCard(full, 'Full matches', 'is-muted'));
-
-    renderVideoGroups(reports, totals);
-}
-
-/**
- * The numbers that come from footage rather than from the coach's tablet.
- *
- * Marked, every one of them. A player comparing themselves to a teammate
- * deserves to know which figures were watched by a person and which were
- * worked out by a machine from a video where the ball is visible about two
- * thirds of the time.
- *
- * Three groups rather than one run of boxes, and each carries the season traces
- * for its own measures. The four traces used to sit together under one heading
- * — a metres-per-minute line beside a pass-accuracy line beside a top-speed
- * line — which made them read as one instrument panel rather than as the trend
- * behind a particular number. A trace belongs next to the total it is the shape
- * of.
- *
- * Every group hides itself when nothing in it was filmed. `cvMatches` counts
- * only the filmed matches, so a season with no footage in it loses all three
- * and the rail loses them with it.
- */
-function renderVideoGroups(reports, totals) {
-    const filmed = totals.cvMatches;
-    const over = `Estimated from ${plural(filmed, 'filmed match', 'filmed matches')}`;
-
-    const ball = [statCard(totals.cvTouches, 'Touches', 'is-muted', 'medium')];
-    if (totals.cvPassesAttempted) {
-        const accuracy = Math.round(
-            (totals.cvPassesCompleted / totals.cvPassesAttempted) * 100,
-        );
-        ball.push(
-            statCard(`${accuracy}%`, 'Pass accuracy', 'is-muted', 'medium'),
-            statCard(totals.cvPassesCompleted, 'Passes completed', 'is-muted', 'medium'),
-        );
-    }
-    if (totals.cvCarries) {
-        ball.push(statCard(totals.cvCarries, 'Carries', 'is-muted', 'medium'));
-    }
-    if (totals.cvShots) {
-        ball.push(statCard(totals.cvShots, 'Shots', 'is-muted', 'medium'));
-    }
-
-    const running = [];
-    if (totals.cvDistanceM) {
-        running.push(statCard(
-            (totals.cvDistanceM / 1000).toFixed(1), 'km covered', 'is-muted', 'medium',
-        ));
-    }
-    if (totals.cvTopSpeedKmh) {
-        running.push(statCard(
-            totals.cvTopSpeedKmh.toFixed(1), 'Top speed km/h', 'is-muted', 'medium',
-        ));
-    }
-    if (totals.cvSprintCount) {
-        running.push(statCard(totals.cvSprintCount, 'Sprints', 'is-muted', 'medium'));
-    }
-    if (totals.cvAccelerations) {
-        running.push(statCard(totals.cvAccelerations, 'Bursts', 'is-muted', 'medium'));
-    }
-
-    const defending = [statCard(totals.cvTackles, 'Tackles won', 'is-muted', 'medium')];
-    if (totals.cvInterceptions) {
-        defending.push(statCard(totals.cvInterceptions, 'Interceptions', 'is-muted', 'medium'));
-    }
-    if (totals.cvRecoveries) {
-        defending.push(statCard(totals.cvRecoveries, 'Recoveries', 'is-muted', 'medium'));
-    }
-
-    fillGroup('season-ball-block', 'ball-stats', filmed && ball);
-    fillGroup('season-running-block', 'running-stats', filmed && running);
-    fillGroup('season-defending-block', 'defending-stats', filmed && defending);
-
-    setText('ball-note', `${over}. Passing is what the pipeline sees most of, `
-        + 'because a pass is two touches with a ball between them.');
-    setText('running-note', `${over}, over the minutes the tracker actually `
-        + 'held on to you.');
+    fillGroup('season-totals-block', 'season-stats', groups.get('tagged'));
+    fillGroup('season-ball-block', 'ball-stats', groups.get('ball'), 'ball-note');
+    fillGroup('season-running-block', 'running-stats', groups.get('running'), 'running-note');
+    fillGroup('season-defending-block', 'defending-stats', groups.get('defending'), 'defending-note');
 
     renderForm(reports);
 }
 
-/** Cards into a group, and the whole block off when there are none. */
-function fillGroup(blockId, gridId, cards) {
+/** One group into its block, and the block off when the group is not there. */
+function fillGroup(blockId, gridId, group, noteId = null) {
     const block = byId(blockId);
     const grid = byId(gridId);
     if (!block || !grid) return;
 
     grid.innerHTML = '';
-    block.classList.toggle('hidden', !cards || !cards.length);
-    if (cards && cards.length) grid.append(...cards);
+    block.classList.toggle('hidden', !group);
+    if (!group) return;
+
+    for (const row of group.rows) {
+        grid.append(statCard(row.value, row.label, row.tone || '', row.confidence));
+    }
+    if (noteId) setText(noteId, group.note);
 }
 
 // ---------------------------------------------------------------- the season
@@ -282,61 +182,10 @@ function renderForm(reports) {
     if (!anyDrawn) return;
 
     setText('form-note', formNote(forms, { measured: 'were filmed' }));
-    renderCoverage(reports);
-}
 
-/**
- * A bar per match: how much of it the tracker actually followed them for.
- *
- * The sentence above this says "6 of 8 matches filmed and tracked long enough
- * to place on a line", which is true and leaves the reader knowing neither
- * which six nor how near the other two came. The bar is the answer to both, and
- * it is the honest shape for it: the length is the tracked minutes, the track
- * behind it is the minutes played, and a match nobody filmed is an empty track
- * rather than a bar of zero length — the same distinction the whole season
- * chart rests on.
- *
- * Oldest first, matching every other run of matches on this page.
- */
-function renderCoverage(reports) {
-    const host = byId('coverage-strip');
-    if (!host) return;
-    host.innerHTML = '';
-
-    for (const report of [...reports].reverse()) {
-        const played = knownMinutes(report) ? (report.minutesPlayed ?? 0) : null;
-        const tracked = typeof report.cvMinutesTracked === 'number'
-            ? report.cvMinutesTracked : null;
-
-        const row = document.createElement('div');
-        row.className = 'coverage-row';
-
-        const name = document.createElement('span');
-        name.className = 'coverage-opp';
-        name.textContent = report.opponentName || 'opponent';
-
-        const track = document.createElement('span');
-        track.className = 'coverage-track';
-        const bar = document.createElement('span');
-        // Against the match rather than against their own minutes: a substitute
-        // followed for all twenty of their twenty minutes has been measured
-        // completely, and a bar reading full beside a starter's would say they
-        // had the same evidence behind them.
-        const share = tracked == null ? 0 : Math.min(1, tracked / 90);
-        bar.className = `coverage-bar${tracked != null && tracked < MIN_POINT_MINUTES ? ' is-thin' : ''}`;
-        bar.style.width = `${Math.round(share * 100)}%`;
-        track.append(bar);
-
-        const value = document.createElement('span');
-        value.className = 'coverage-value';
-        value.textContent = tracked == null
-            ? 'not filmed'
-            : `${Math.round(tracked)}′ of ${played == null ? '—' : `${played}′`}`;
-        if (tracked == null) value.classList.add('is-faint');
-
-        row.append(name, track, value);
-        host.append(row);
-    }
+    const strip = byId('coverage-strip');
+    strip.innerHTML = '';
+    strip.append(coverageStrip(reports, { thinBelow: MIN_POINT_MINUTES }));
 }
 
 // ---------------------------------------------------------------- matches
