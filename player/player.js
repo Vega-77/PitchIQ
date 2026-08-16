@@ -9,31 +9,31 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=82';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=83';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=82';
-import { CARD_COLOURS } from '../assets/events.js?v=82';
-import { mountRail } from '../assets/rail.js?v=82';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=82';
-import { renderHeatmap } from '../assets/heatmap.js?v=82';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=82';
+} from '../assets/db.js?v=83';
+import { CARD_COLOURS } from '../assets/events.js?v=83';
+import { mountRail } from '../assets/rail.js?v=83';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=83';
+import { renderHeatmap } from '../assets/heatmap.js?v=83';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=83';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
     minutesNote, seasonGroups,
-} from '../assets/report.js?v=82';
+} from '../assets/report.js?v=83';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=82';
-import { renderForms } from '../assets/form-chart.js?v=82';
+} from '../assets/season.js?v=83';
+import { renderForms } from '../assets/form-chart.js?v=83';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=82';
-import { renderMatchVideo } from '../assets/match-video.js?v=82';
+} from '../assets/sample-report.js?v=83';
+import { renderMatchVideo } from '../assets/match-video.js?v=83';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally, coverageStrip,
-} from '../assets/ui.js?v=82';
+} from '../assets/ui.js?v=83';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 

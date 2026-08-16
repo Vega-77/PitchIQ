@@ -3412,6 +3412,91 @@ describe('groupStats', () => {
     });
 });
 
+describe('taggedTeamRows', () => {
+    const counts = (us = {}, them = {}) => ({
+        us: { goal: 0, corner: 0, free_kick: 0, foul: 0, offside: 0, card: 0, ...us },
+        them: { goal: 0, corner: 0, free_kick: 0, foul: 0, offside: 0, card: 0, ...them },
+    });
+    const by = (rows) => Object.fromEntries(rows.map((r) => [r.label, r]));
+
+    test('carries both sides of every figure', () => {
+        // The bug this function was written for: the coach's match report
+        // showed "Our cards" and "Offsides against us" and nothing about the
+        // opposition, while the half-time page showed both — so the fuller
+        // document said less than the three-minute one.
+        const rows = by(report.taggedTeamRows(
+            counts({ card: 1, offside: 2, foul: 3 }, { card: 4, offside: 5, foul: 6 }),
+        ));
+        assert.equal(rows.Cards.usN, 1);
+        assert.equal(rows.Cards.themN, 4);
+        assert.equal(rows.Offside.usN, 2);
+        assert.equal(rows.Offside.themN, 5);
+        assert.equal(rows['Fouls committed'].usN, 3);
+        assert.equal(rows['Fouls committed'].themN, 6);
+    });
+
+    test('every figure the tablet records survives the grouping', () => {
+        // A regression guard with a name. Merging two hand-written lists is
+        // exactly how a figure goes missing, and one already had.
+        const rows = by(report.taggedTeamRows(counts(
+            { goal: 1, corner: 1, free_kick: 1, foul: 1, offside: 1, card: 1 },
+            { goal: 1, corner: 1, free_kick: 1, foul: 1, offside: 1, card: 1 },
+        ), { subs: 2 }));
+        for (const label of ['Goals', 'Corners won', 'Free kicks won',
+            'Fouls committed', 'Offside', 'Cards', 'Substitutions']) {
+            assert.ok(rows[label], `${label} is missing`);
+        }
+    });
+
+    test('drops nothing on a report and drops the empty rows at half-time', () => {
+        const only = counts({ corner: 3 });
+        assert.equal(report.taggedTeamRows(only).length, 6);
+        assert.deepEqual(
+            report.taggedTeamRows(only, { goals: false, dropEmpty: true })
+                .map((r) => r.label),
+            ['Corners won'],
+        );
+    });
+
+    test('leaves the opposition substitutions null, never zero', () => {
+        // Nobody taps the other team's changes, so this is the one row where
+        // the tablet was never asked. Zero would claim they made none.
+        const subs = report.taggedTeamRows(counts(), { subs: 3 }).at(-1);
+        assert.equal(subs.label, 'Substitutions');
+        assert.equal(subs.usN, 3);
+        assert.equal(subs.themN, null);
+    });
+
+    test('leaves the substitutions row out when nobody asked for it', () => {
+        const labels = report.taggedTeamRows(counts()).map((r) => r.label);
+        assert.ok(!labels.includes('Substitutions'));
+    });
+
+    test('reads the restart tags as the noise they are', () => {
+        // Throw-ins, goal kicks and out-of-bounds are tagged so the pipeline
+        // knows when the ball was dead. They are not a read on the match and
+        // neither page shows them.
+        const rows = report.taggedTeamRows(
+            counts({ throw_in: 40, goal_kick: 9, out_of_bounds: 60 }),
+        );
+        assert.deepEqual(rows.filter((r) => r.usN), []);
+    });
+});
+
+describe('taggedCount', () => {
+    test('is the count when something was tagged', () => {
+        assert.equal(report.taggedCount(2, [{ id: 'a' }]), 2);
+        assert.equal(report.taggedCount(0, [{ id: 'a' }]), 0);
+    });
+
+    test('is an em dash when nothing was', () => {
+        // Nil-all is a result. A match nobody ran the tablet for does not have
+        // one, and it used to lead both pages in the largest type on screen.
+        assert.equal(report.taggedCount(0, []), '—');
+        assert.equal(report.taggedCount(undefined, null), '—');
+    });
+});
+
 describe('teamStatRows', () => {
     const cv = (team = {}, extra = {}) => ({
         quality: {}, teams: { team_a: { team: 'team_a', ...team } }, ...extra,

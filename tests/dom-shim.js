@@ -15,7 +15,9 @@
 // nothing else.
 //
 // What it is NOT: a renderer. There is no layout, no cascade, no reflow, so
-// nothing here can tell you a bar is the wrong width or a column has collapsed.
+// nothing here can tell you a column has collapsed. Inline styles ARE written
+// through to the attribute, so markup taken out of here and rendered against
+// the real stylesheet keeps its bar widths — which is how a chart gets looked at.
 // It answers "did this code run, and did it put the right things in the right
 // places" — which is the question both of those bugs failed.
 
@@ -128,7 +130,7 @@ class Element {
         this.childNodes = [];
         this.parentNode = null;
         this.classList = new ClassList(this);
-        this.style = makeStyle();
+        this.style = makeStyle(this);
         this.dataset = makeDataset(this);
         this._listeners = new Map();
         this._value = undefined;
@@ -468,23 +470,48 @@ function makeCanvasContext(canvas) {
     return ctx;
 }
 
-function makeStyle() {
+const cssName = (key) => String(key).replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+
+/**
+ * `el.style`, written through to the `style` attribute.
+ *
+ * Not a detail: half the charts in this codebase are a `<i>` whose width is set
+ * in JavaScript, and a style object that lived only in memory made `outerHTML`
+ * hand back every bar collapsed to nothing. That is invisible while a test only
+ * reads numbers and actively misleading the moment the markup is taken out and
+ * rendered against the real stylesheet — which is the one way a bar chart can
+ * be checked from here at all.
+ */
+function makeStyle(el = null) {
     const store = {};
+    const flush = () => {
+        if (!el) return;
+        const css = Object.entries(store)
+            .filter(([, value]) => value !== '')
+            .map(([key, value]) => `${cssName(key)}: ${value}`)
+            .join('; ');
+        if (css) el.setAttribute('style', css);
+        else el.removeAttribute('style');
+    };
+
     return new Proxy(store, {
         get(target, key) {
             if (key === 'setProperty') {
-                return (k, v) => { target[String(k)] = v == null ? '' : String(v); };
+                return (k, v) => {
+                    target[String(k)] = v == null ? '' : String(v);
+                    flush();
+                };
             }
             if (key === 'removeProperty') {
-                return (k) => { delete target[String(k)]; };
+                return (k) => { delete target[String(k)]; flush(); };
             }
-            if (key === 'getPropertyValue') {
-                return (k) => target[String(k)] ?? '';
-            }
+            if (key === 'getPropertyValue') return (k) => target[String(k)] ?? '';
+            if (key === 'cssText') return el?.getAttribute('style') ?? '';
             return target[key] ?? '';
         },
         set(target, key, value) {
             target[key] = value == null ? '' : String(value);
+            flush();
             return true;
         },
     });

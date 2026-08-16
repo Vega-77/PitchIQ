@@ -287,9 +287,81 @@ test('a match nobody tagged says so, rather than reporting a nil-all half', asyn
 
     assert.ok(shown('view-report'), 'the report never opened');
     assert.equal(text('ht-clock'), 'Nothing tagged yet');
+    // The clock said so and the scoreline three inches above it said 0–0.
+    assert.equal(text('ht-score-us'), '—');
+    assert.equal(text('ht-score-them'), '—');
     assert.match(el('timeline').textContent, /Nothing tagged yet/);
     assert.match(el('minutes').textContent, /No lineup was saved/);
     assert.match(el('decisions').textContent, /Nothing needs a decision/);
+});
+
+test('a match nobody tagged has no score, on either page', async () => {
+    // 0–0 in the largest type on the page, for a match nobody ran the tablet
+    // for. Both pages did this; the half-time clock beneath it already said
+    // "Nothing tagged yet" while the scoreline above contradicted it.
+    await openPage({
+        html: 'coach/index.html',
+        entry: 'coach/coach.js',
+        url: `http://localhost:5000/coach/?team=${TEAM_ID}`,
+        variant: 'untagged-coach',
+    });
+
+    live.document.querySelectorAll('.title')
+        .find((t) => t.textContent.includes('Eastvale'))
+        ?.closest('div')
+        ?.click();
+    await settle();
+
+    assert.equal(text('score-us'), '—');
+    assert.equal(text('score-them'), '—');
+    assert.equal(el('team-stats').textContent.trim(), '',
+        'a match nobody tagged still reported counts');
+    assert.match(text('team-untagged'), /Nobody ran the tablet/);
+});
+
+test('the coach report and the half-time page agree, figure for figure', async () => {
+    // The drift this consolidation was for. Two hand-written lists described
+    // one tag log, and the three-minute half-time read carried figures the full
+    // post-match report did not have at all.
+    const readTallies = () => Object.fromEntries(
+        live.document.querySelectorAll('.tally').map((row) => [
+            row.querySelector('.t-label')?.textContent,
+            `${row.querySelector('.t-us')?.textContent}/${row.querySelector('.t-them')?.textContent}`,
+        ]),
+    );
+
+    await openPage({
+        html: 'halftime/index.html',
+        entry: 'halftime/halftime.js',
+        url: `http://localhost:5000/halftime/?team=${TEAM_ID}&match=${MATCH_ID}`,
+        variant: 'agree-ht',
+    });
+    const atHalfTime = readTallies();
+    assert.ok(Object.keys(atHalfTime).length, 'the half-time page drew no tallies');
+
+    await openPage({
+        html: 'coach/index.html',
+        entry: 'coach/coach.js',
+        url: `http://localhost:5000/coach/?team=${TEAM_ID}`,
+        variant: 'agree-coach',
+    });
+    live.document.querySelectorAll('.title')
+        .find((t) => t.textContent.includes('Northgate'))
+        ?.closest('div')
+        ?.click();
+    await settle();
+    const inTheReport = readTallies();
+
+    // Not equality: the report is a superset on purpose — it keeps the goals
+    // row and the rows neither side registered, both of which the touchline
+    // page drops for a reader who is standing up. What it may never be is
+    // *missing* something the shorter page found room for.
+    for (const [label, value] of Object.entries(atHalfTime)) {
+        assert.ok(label in inTheReport,
+            `the half-time page shows "${label}" and the full report does not`);
+        assert.equal(inTheReport[label], value, `"${label}" disagrees between the two`);
+    }
+    assert.ok('Goals' in inTheReport, 'the report dropped its own goals row');
 });
 
 test('a squad with nobody in it is an empty squad, not a squad of zeroes', async () => {

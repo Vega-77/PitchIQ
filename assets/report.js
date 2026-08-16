@@ -2303,6 +2303,81 @@ const clampPct = (value) => Math.max(0, Math.min(100, value));
  *
  * Reads `teams.team_a` only, which is always the coach's own side.
  */
+/**
+ * A tagged count, or an em dash when there is no log to have counted it.
+ *
+ * The scoreline is the loudest thing on both the match report and the half-time
+ * page, and `aggregateMatch` initialises every count to zero — so a match nobody
+ * ran the tablet for led with **0–0** in the largest type on the page. A match
+ * that was filmed and not tagged is the ordinary case, not a corner one, and
+ * nil-all is a result somebody could repeat out loud. Absent is not zero here
+ * for the same reason it is not in `whistleFrom`, and louder.
+ */
+export const taggedCount = (count, log) => ((log || []).length ? (count ?? 0) : '—');
+
+/**
+ * The figures somebody tapped, as rows — for the match report and for the
+ * half-time page, which used to build them separately and had drifted.
+ *
+ * The drift was not cosmetic. The coach's full post-match report carried nine
+ * one-sided cards and the three-minute half-time read carried five two-sided
+ * bars, so **the opponent's cards, the opponent's offsides and free kicks
+ * appeared on the touchline page and were missing from the full report
+ * altogether** — the fuller document said less than the triage one. Same shape
+ * as `teamStatRows`, and for the same reason: one `pick` reads both sides, so
+ * our column and theirs can never come off different fields.
+ *
+ * Throw-ins, goal kicks and out-of-bounds are tagged and deliberately left out
+ * of both. They are the noise of a match rather than a read on it, and the
+ * restart tags exist to tell the pipeline when the ball was dead.
+ *
+ * @param counts   `aggregateMatch(...).counts` — `{ us: {...}, them: {...} }`.
+ * @param subs     Our substitutions. Never a pair: nobody tags the opposition's.
+ * @param goals    Off at half-time, where the scoreline is already the biggest
+ *                 thing on the page and that page's whole rule is not to report
+ *                 what the coach watched happen.
+ * @param dropEmpty Drop a row neither side registered. On at half-time, where
+ *                 the reader is standing up; off in the report, where "we
+ *                 conceded no corners" is a fact worth being able to look up.
+ */
+export function taggedTeamRows(counts, { subs = null, goals = true, dropEmpty = false } = {}) {
+    const us = counts?.us || {};
+    const them = counts?.them || {};
+
+    const row = (label, pick, better) => {
+        const usN = pick(us);
+        const themN = pick(them);
+        return {
+            type: 'match', label, kind: COUNT, better,
+            usN, themN, value: usN, themValue: themN,
+        };
+    };
+    const of = (key) => (side) => side[key] ?? 0;
+
+    const rows = [
+        // Corners and free kicks are counted for whoever was awarded them;
+        // fouls, cards and offside against whoever gave them away. The labels
+        // have to carry that, because a pair of numbers cannot.
+        ...(goals ? [row('Goals', of('goal'), 'high')] : []),
+        row('Corners won', of('corner'), 'high'),
+        row('Free kicks won', of('free_kick'), 'high'),
+        row('Fouls committed', of('foul'), 'low'),
+        row('Offside', of('offside'), 'low'),
+        row('Cards', of('card'), 'low'),
+    ].filter((r) => !dropEmpty || r.usN || r.themN);
+
+    // Null, not zero, on their side: an untagged opposition substitution and no
+    // opposition substitution are not the same thing, and this is the one row
+    // here where the tablet was never asked the question.
+    if (subs != null) {
+        rows.push({
+            type: 'match', label: 'Substitutions', kind: COUNT, better: null,
+            usN: subs, themN: null, value: subs, themValue: null,
+        });
+    }
+    return rows;
+}
+
 export function teamStatRows(cv, confidence = {}) {
     const ours = cv?.teams?.team_a;
     if (!ours) return [];

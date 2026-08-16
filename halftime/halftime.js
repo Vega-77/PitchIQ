@@ -10,22 +10,23 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=82';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=83';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../assets/db.js?v=82';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=82';
+} from '../assets/db.js?v=83';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=83';
 import {
     possessionIsInPlay, cvReads, xgTrust, groupStats, clockFromMatch,
+    taggedTeamRows, taggedCount,
     SHARE, COUNT, RATE,
-} from '../assets/report.js?v=82';
-import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=82';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=82';
+} from '../assets/report.js?v=83';
+import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=83';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=83';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
     tally, groupHead,
-} from '../assets/ui.js?v=82';
+} from '../assets/ui.js?v=83';
 
 const VIEWS = ['view-error', 'view-report'];
 
@@ -223,23 +224,27 @@ function renderTallies() {
         + (cvLiveNote() || ''));
 }
 
-/** The counts somebody tapped, as typed rows for `groupStats`. */
+/**
+ * The counts somebody tapped, as typed rows for `groupStats`.
+ *
+ * These are `COUNT` rows, which `comparePair` draws as splits — and the comment
+ * that stood here said the opposite ("none is drawn as a split"), citing the
+ * function that contradicts it. Five corners to one and fifty to ten really are
+ * not the same half, and the answer is not to refuse the split: it is
+ * `tentative`, which draws a lead smaller than chance would hand out as a
+ * hollow bar. 5–1 comes out hollow, 50–10 solid.
+ *
+ * Two differences from the coach's full report, both deliberate and both about
+ * who is reading. **Goals are left out** — the scoreline is the biggest thing
+ * on this page already, and the rule here is not to report what the coach stood
+ * and watched. **A row neither side registered is dropped**, because this is
+ * read standing up in three minutes; in the report it stays, because "we
+ * conceded no corners" is worth being able to look up.
+ */
 function taggedTallies() {
-    const { us, them } = state.stats.counts;
-
-    // Every one of these is a count, so none is drawn as a split: five corners
-    // to one and fifty to ten are not the same half, and a split bar cannot
-    // tell them apart. See `comparePair` in report.js.
-    return [
-        ['match', 'Corners', us.corner, them.corner, 'high'],
-        ['match', 'Free kicks won', us.free_kick, them.free_kick, 'high'],
-        ['match', 'Fouls committed', us.foul, them.foul, 'low'],
-        ['match', 'Offside', us.offside, them.offside, 'low'],
-        ['match', 'Cards', us.card, them.card, 'low'],
-    ]
-        .filter(([, , ours, theirs]) => ours || theirs)
-        .map(([type, label, usN, themN, better]) =>
-            ({ type, label, usN, themN, better, kind: COUNT, value: usN }));
+    return taggedTeamRows(state.stats.counts, {
+        subs: null, goals: false, dropEmpty: true,
+    });
 }
 
 /** The rows that came from footage rather than from somebody's thumb. */
@@ -476,8 +481,11 @@ async function load() {
     setText('ht-period', PERIOD_HEADINGS[match.status] || 'So far');
     setText('ht-us', state.team.name || 'Us');
     setText('ht-them', match.opponentName || 'Them');
-    setText('ht-score-us', state.stats.counts.us.goal ?? 0);
-    setText('ht-score-them', state.stats.counts.them.goal ?? 0);
+    // The clock beneath already distinguishes "nothing tagged yet" from a
+    // match at 00:00; until now the scoreline above it did not. See
+    // `taggedCount`.
+    setText('ht-score-us', taggedCount(state.stats.counts.us.goal, log));
+    setText('ht-score-them', taggedCount(state.stats.counts.them.goal, log));
     setText('ht-clock', log.length
         ? `${clockText(state.stats.matchEndS)} played`
         : 'Nothing tagged yet');

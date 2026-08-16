@@ -723,6 +723,24 @@ Applies across every phase below — how we know each piece actually works, not 
    thought of the user interface as a thing that could be tested at all. See
    below — it was where two bugs in two days came from.
 
+**One suite is not reliable, and saying so is the point of writing it down.**
+`tests/flow.test.js`'s *"erasing a player › leaves nothing with their name in
+it"* has failed **2 of 4** emulator runs on 16 August and passed on the retry
+both times, with
+`{"code":499,"message":"call already cancelled...","status":"CANCELLED"}`. That
+is a gRPC call torn down mid-flight, not an assertion about the data — and
+`erasePlayer` runs one `writeBatch` per match in sequence, so a cancelled call
+part-way leaves whole matches cleared and whole matches not. Which is exactly
+what the code's own error path warns about.
+
+Unresolved on purpose rather than retried away: it is either the emulator
+dropping a connection under a long batch sequence, or a real race in the erase
+loop, and those want opposite fixes. What would settle it is running that test
+alone in a loop and reading the full failure, which needs the failure to
+reproduce. **Do not add a retry to this one.** It is the delete-a-child's-data
+path, and a retry would convert a visible flake into an invisible partial
+erase.
+
 ### 9. Load the pages — `tests/smoke.test.js` (2026-08-16)
 
 **The gap.** `tests/video.test.js` can only import modules that import nothing.
@@ -807,7 +825,7 @@ the same denominator as *"n of m checked"* above it, which stays the candidates
 alone and is right to: a tagged entry is a human's own record of the match and
 has no verdict to give.
 
-660 pure JS · **12 pages** · 145 emulator · 1008 Python.
+668 pure JS · **14 pages** · 145 emulator · 1008 Python.
 
 ---
 
@@ -3324,6 +3342,65 @@ than the workaround, which matters given the data class.
       the two had the same evidence behind them. Amber for filmed-but-too-thin,
       an empty track for not filmed at all: absent is not zero in a bar chart
       either.
+
+- [x] **The full match report said less than the three-minute one**
+      (2026-08-16). Found by rendering one match on both pages and diffing every
+      figure that appears on both — the first thing the new page suite was
+      pointed at rather than a roadmap line.
+
+      `taggedStatRows` in `coach.js` was nine hand-written one-sided cards.
+      `taggedTallies` in `halftime.js` was five hand-written two-sided bars. One
+      tag log, two lists, and they had drifted:
+
+      - **the opponent's cards and offsides never reached the full report.**
+        "Our cards" and "Offsides against us" and nothing about the other team,
+        while the touchline page showed 1–1 and 0–1.
+      - **free kicks were not on the coach's page at all.** A tagged event type
+        the post-match report silently dropped.
+      - and the same figures were drawn as two different kinds of thing — a
+        grid of boxes against a column of comparison bars.
+
+      A coach reading the half-time page knew the opposition had been booked and
+      caught offside; the same coach opening the same match afterwards could not
+      find out. That is the third time this shape has been fixed here — the
+      video rows got it, the season got `seasonGroups` — and the tagged rows
+      were the pile nobody had merged.
+
+      **`taggedTeamRows` in report.js is now the one place**, and it reads both
+      sides through one `pick` so our column and theirs can never come off
+      different fields. Two differences between the pages survive on purpose and
+      are arguments to the function rather than separate lists: the report keeps
+      goals and keeps rows neither side registered, and the touchline page drops
+      both, because one is looked up and the other is read standing up.
+
+      **And a match nobody tagged stopped reporting nine zeroes.**
+      `aggregateMatch` initialises every count to zero, so the most ordinary
+      demo there is — *film a match, nobody runs the tablet* — produced a full
+      report of a game in which nobody took a corner, gave away a foul or was
+      booked, under a scoreline reading **0–0** in the largest type on the page.
+      Same defect as a whistle at second zero, and this one is louder. Both
+      pages now show an em dash for a score nobody recorded, and the report says
+      in a sentence that nobody ran the tablet, keeping the video rows because
+      those are still real.
+
+      One stale comment went with it. `taggedTallies` said "every one of these
+      is a count, so none is drawn as a split" and cited `comparePair` — which
+      says the opposite two hundred lines up: *shares and counts are both
+      splits; only their honesty differs.* The code is right and the comment was
+      wrong. Five corners to one and fifty to ten are not the same half, and the
+      thing that separates them is `tentative` — a lead smaller than chance
+      would hand out is drawn hollow. Checked against the real stylesheet: at
+      2–1, 4–1, 3–1, 2–5, 0–2 and 1–0 every bar comes out hollow, which is the
+      correct reading of a half that small.
+
+      The shim gained something on the way. `el.style` now writes through to the
+      `style` attribute, because half the charts here are an `<i>` whose width
+      is set in JavaScript — and a style object living only in memory handed
+      back `outerHTML` with every bar collapsed to nothing. Taking real markup
+      out and rendering it against `app.css` is the one way a bar chart can be
+      looked at from a test process, and it silently did not work.
+
+      668 pure JS · 14 pages · 145 emulator · 1008 Python.
 
 - [x] **A bug class the suites cannot see, found by driving the page**
       (2026-08-16). `mountRail` builds once and keeps the callback it was given.

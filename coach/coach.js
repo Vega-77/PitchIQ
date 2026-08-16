@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=82';
+} from '../assets/auth.js?v=83';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,28 +10,28 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=82';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=82';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=82';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=82';
+} from '../assets/db.js?v=83';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=83';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=83';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=83';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=82';
+} from '../assets/sample-report.js?v=83';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=82';
-import { renderPassMap } from '../assets/pass-map.js?v=82';
+} from '../assets/passing.js?v=83';
+import { renderPassMap } from '../assets/pass-map.js?v=83';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=82';
-import { renderForms } from '../assets/form-chart.js?v=82';
+} from '../assets/season.js?v=83';
+import { renderForms } from '../assets/form-chart.js?v=83';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
     erasureNote,
-    groupStats, teamStatRows, trackedCoverage, metresPerMinute,
+    groupStats, teamStatRows, taggedTeamRows, taggedCount, trackedCoverage, metresPerMinute,
     TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, xgTally, sumXgTallies,
     xgCalibration, calibrationNote, headerCorrection, headerNote,
     correctedShotMarks, pressingTrend, pressingNote, pressingRead,
@@ -43,18 +43,18 @@ import {
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
-} from '../assets/report.js?v=82';
+} from '../assets/report.js?v=83';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=82';
-import { mountRail } from '../assets/rail.js?v=82';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=82';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=82';
+} from '../assets/events.js?v=83';
+import { mountRail } from '../assets/rail.js?v=83';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=83';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=83';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar, coverageStrip,
-} from '../assets/ui.js?v=82';
+} from '../assets/ui.js?v=83';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -1138,8 +1138,9 @@ async function openMatch(matchId) {
             estimated: Boolean(activeCv()),
         }));
 
-        setText('score-us', stats.counts.us.goal ?? 0);
-        setText('score-them', stats.counts.them.goal ?? 0);
+        // Em dashes, not zeroes, on a match nobody tagged. See `taggedCount`.
+        setText('score-us', taggedCount(stats.counts.us.goal, log));
+        setText('score-them', taggedCount(stats.counts.them.goal, log));
 
         byId('link-halftime').href =
             `../halftime/?team=${encodeURIComponent(state.team.id)}`
@@ -1209,8 +1210,9 @@ function renderTeamStats(stats) {
     const cv = activeCv();
     const quality = cv?.quality || {};
 
+    const tagged = taggedStatRows(stats, state.match?.log);
     const rows = [
-        ...taggedStatRows(stats),
+        ...tagged,
         ...teamStatRows(cv, {
             events: cvConfidence(quality, 'events'),
             possession: cvConfidence(quality, 'possession'),
@@ -1218,6 +1220,21 @@ function renderTeamStats(stats) {
     ];
 
     for (const group of groupStats(rows)) host.append(statGroup(group));
+
+    // Said once, here, rather than left as an absence a reader has to notice.
+    // A filmed match nobody tagged is not a corner case — it is the ordinary
+    // one — and the video rows are still real, so this cannot be the block's
+    // empty state. The second clause only when there is something above to
+    // point at; with no log and no footage there is nothing on this page at all
+    // and the sentence has to say so on its own.
+    setText('team-untagged', tagged.length
+        ? ''
+        : 'Nobody ran the tablet for this match, so there are no tapped counts '
+            + '— no corners, no fouls, no cards.'
+            + (host.children.length
+                ? ' Everything above was measured from the video.'
+                : ' Nothing was measured from video either.'));
+    byId('team-untagged')?.classList.toggle('hidden', Boolean(tagged.length));
 
     // The key only earns its place once there are bars to key. Half the rows
     // here are ours alone — goals we scored, fouls we conceded — and a legend
@@ -1232,31 +1249,23 @@ function renderTeamStats(stats) {
 }
 
 /**
- * The figures somebody tapped on a tablet.
+ * The figures somebody tapped on a tablet, or nothing at all.
  *
- * Corners and free kicks are counted for whoever was awarded them; fouls, cards
- * and offside are recorded against the offender, so "our fouls" means fouls we
- * committed. The labels say so, because a column of numbers cannot.
+ * Nothing at all when the log is empty, and that is the whole point of this
+ * function rather than a guard the caller could forget. `aggregateMatch`
+ * initialises every type to zero, so a match nobody ran the tablet for came out
+ * of here as nine boxes reading 0 — a full report of a match in which, it said,
+ * nobody took a corner, gave away a foul or was booked. That is the same defect
+ * as a whistle at second zero: absent read as measured, on the most ordinary
+ * demo there is. See `whistleFrom`.
+ *
+ * The rows themselves come from `taggedTeamRows`, which the half-time page also
+ * uses. They were two hand-written lists until 2026-08-16 and had already
+ * drifted apart — see that function.
  */
-function taggedStatRows(stats) {
-    const { us, them } = stats.counts;
-    return [
-        { type: 'match', label: 'Goals for', value: us.goal ?? 0, tone: 'is-good' },
-        { type: 'match', label: 'Goals against', value: them.goal ?? 0, tone: '' },
-        { type: 'match', label: 'Corners won', value: us.corner ?? 0, tone: '' },
-        { type: 'match', label: 'Corners conceded', value: them.corner ?? 0, tone: 'is-muted' },
-        { type: 'match', label: 'Fouls committed', value: us.foul ?? 0, tone: '' },
-        { type: 'match', label: 'Fouls won', value: them.foul ?? 0, tone: 'is-muted' },
-        {
-            type: 'match', label: 'Our cards', value: us.card ?? 0,
-            tone: us.card ? 'is-warn' : 'is-muted',
-        },
-        {
-            type: 'match', label: 'Offsides against us',
-            value: us.offside ?? 0, tone: 'is-muted',
-        },
-        { type: 'match', label: 'Substitutions', value: stats.subs ?? 0, tone: 'is-muted' },
-    ];
+function taggedStatRows(stats, log) {
+    if (!(log || []).length) return [];
+    return taggedTeamRows(stats.counts, { subs: stats.subs ?? 0 });
 }
 
 /**
@@ -3488,7 +3497,7 @@ function renderReviewFilters() {
     host.innerHTML = '';
 
     const counts = state.match?.cvEvents?.counts || {};
-    const taggedCount = reviewItems()
+    const handTagged = reviewItems()
         .filter((item) => item.source === FROM_TAGGED).length;
     const foundCount = (state.match.cvEvents.events || []).length;
     const options = [
@@ -3502,14 +3511,14 @@ function renderReviewFilters() {
         // Deliberately not the same denominator as "n of m checked" above,
         // which is the candidates alone and correctly so: a tagged entry is a
         // human's own record of the match and has no verdict to give.
-        ['all', `Everything (${foundCount + taggedCount})`],
+        ['all', `Everything (${foundCount + handTagged})`],
         ...REVIEW_TYPES
             .filter((type) => counts[type])
             .map((type) => [type, `${type} (${counts[type]})`]),
         // Last, and only when there is a log. These are not a kind of candidate
         // — they are the other record — so they sit apart from the type chips
         // rather than reading as one more thing the detector found.
-        ...(taggedCount ? [[FROM_TAGGED, `tagged by hand (${taggedCount})`]] : []),
+        ...(handTagged ? [[FROM_TAGGED, `tagged by hand (${handTagged})`]] : []),
     ];
 
     for (const [value, label] of options) {
