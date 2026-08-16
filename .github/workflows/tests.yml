@@ -1,4 +1,5 @@
-# Run the tests. There are three suites and none of them ran on push until now.
+# Run the tests. Four suites: pure JS, the pages, the Firestore rules, and
+# Python.
 #
 # The Python half installs requirements-test.txt rather than requirements.txt —
 # `cv/detector.py` imports ultralytics lazily, so nothing under test pulls in
@@ -57,12 +58,19 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          # 22.15 is the floor, not a preference: `tests/smoke.test.js` needs
+          # `registerHooks` from node:module to resolve the Firebase SDK's CDN
+          # imports, and that landed in 22.15.0.
+          node-version: "22.15"
 
       # The pure suite imports only dependency-free modules, so it needs no
       # install at all — which is the property that keeps it fast enough to run
       # on every save locally.
       - run: node --test tests/video.test.js
+
+      # And the page suite, which needs no install either — the DOM and the
+      # Firebase SDK it runs against are both in tests/, for the same reason.
+      - run: node --test tests/smoke.test.js
 
   rules:
     name: Firestore rules

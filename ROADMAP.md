@@ -31,7 +31,7 @@ jersey numbers robustly in month 1.
 **Built and verified:**
 - `cv/` — reusable detection package + `spike_detect` CLI (Phase 5 spike, done)
 - **Firebase backend** — Firestore + Google Auth, replacing the local FastAPI server.
-  `firestore.rules` is the entire security boundary; 149 emulator tests pass via
+  `firestore.rules` is the entire security boundary; 145 emulator tests pass via
   `npm test` (Phase 2 + 14, done for [Demo])
 - **`index.html` / `coach/` / `player/`** — landing, coach dashboard, player portal
   (Phase 15, done for [Demo])
@@ -47,6 +47,12 @@ entry point meant no button was ever wired up: the tablet showed a sign-in
 screen to a signed-in coach and could do nothing else. Eight days, on the tool
 every other number in this system is derived from, and it was found by opening
 the page. See Phase 3 for what that says about the test suites.
+
+**That gap is closed** (2026-08-16). `tests/smoke.test.js` loads all seven
+pages under `node --test` against an in-memory Firestore and a DOM shim in
+`tests/` — no new dependency, no headless browser. Both bugs that walked
+through the gap were reinstated to check it fails on them. See Testing
+Strategy §9 for what it covers and what it still cannot see.
 
 **Blocked on:** footage from the coach — specifically a raw/native-resolution export
 rather than a screen recording, ideally the uncropped wide feed rather than the
@@ -638,7 +644,7 @@ Architectural consequences:
 
 ## Testing, Validation & Debugging Strategy
 
-**CI runs all three suites on every push** (`.github/workflows/tests.yml`), which
+**CI runs all four suites on every push** (`.github/workflows/tests.yml`), which
 until 2026-08-03 nothing did — 834 tests existed and the only thing between a
 broken pipeline and a deployed site was whether somebody remembered. The Python
 job installs `requirements-test.txt` rather than the full pipeline: `cv/detector.py`
@@ -713,6 +719,76 @@ Applies across every phase below — how we know each piece actually works, not 
 8. **Staged/synthetic footage before full games.** Film simple clips with a known
    answer first — two people passing a ball a measured distance apart, one shot from a
    marked spot — before testing on messy 18-player game footage.
+9. **Load the pages.** Not on this list until 2026-08-16, because nothing here
+   thought of the user interface as a thing that could be tested at all. See
+   below — it was where two bugs in two days came from.
+
+### 9. Load the pages — `tests/smoke.test.js` (2026-08-16)
+
+**The gap.** `tests/video.test.js` can only import modules that import nothing.
+The emulator suites drive a Firestore client and never load a page. Between them
+sat every line of UI in the repo, and two entries above say so in two days:
+the live-tagging tool threw a `ReferenceError` on the second statement of
+`init()` and was **dead for eight days**, and three section rails closed over
+their first subject and showed one student's 708 minutes beside every student
+after. Both were found by opening the page, because that was the only thing that
+could find them.
+
+Both entries concluded the same way: closing it needs **a real parser or a
+headless browser, and neither is in the repo**. That framing was the actual
+blocker, and it was wrong twice over. A parser only ever answers *is this name
+defined* — it would have caught the first bug and been blind to the second, in
+which every name resolves and the numbers are simply somebody else's. And a DOM
+shim was filed as a dependency when it is a file in `tests/`.
+
+**Don't analyse the module. Run it.** Four files, no new dependency:
+
+| | |
+|---|---|
+| `tests/module-hooks.js` | 30 lines. `registerHooks` from `node:module` makes the three `https://www.gstatic.com/firebasejs/…` imports resolvable under Node — the single reason no page module in this repo could ever be imported by a test. The stub it serves exports exactly the names the repo imports, generated from a list rather than hand-written, so a newly-used Firestore function fails at link time instead of arriving as `undefined`. |
+| `tests/fake-firebase.js` | Firestore and Auth in memory. Documents keyed by path, `where`/`orderBy`/`limit`, batches, `onSnapshot` in both its three- and four-argument forms, and the `serverTimestamp`/`increment`/`arrayUnion` sentinels resolved the way a server would. |
+| `tests/dom-shim.js` | The DOM these pages use and no more: a tolerant HTML parser (because `innerHTML = '<span class="jersey">…'` is how almost every row in this codebase is built), a selector engine covering descendant combinators over tag/class/id/attribute, and a 2D canvas context that draws nothing and records everything. |
+| `tests/fixtures.js` | One squad. Deliberately awkward: a substitute who came on at 30′, a player on a yellow, a match with a log and a match without one, and two students whose seasons **must not** read alike. |
+
+**Eleven tests, and they were checked the only way a test can be.** Both historic
+bugs were reinstated in the working tree and the suite re-run: it fails with
+`ReferenceError: updateOnlineIndicator is not defined` and *"the rail still
+shows Alex's minutes"*. A suite that passes on fixed code has proved nothing
+until it has failed on the broken code.
+
+**Three decisions worth keeping, because each is a way the shim could have
+lied:**
+
+- **`getElementById` parses the real page HTML** rather than conjuring an
+  element for any id asked for. `byId('typo')` has to come back null here
+  exactly as it does in a browser, or the shim hides the class of bug it exists
+  to catch.
+- **`requestAnimationFrame` registers and never fires.** There is no compositor,
+  so the next frame genuinely never arrives. Firing it off a timer instead turns
+  the xG sandbox's render loop into an infinite loop inside the test process,
+  which then throws against whatever document is installed by the time it comes
+  round again — a failure in the wrong test, about the wrong page.
+- **`classList.toggle(name, force)` does not coerce `force` with a bare `if`.**
+  Half this codebase calls it as `toggle('hidden', !thing)` where `thing` can go
+  missing, and a shim treating an explicit `undefined` as "flip it" would
+  disagree with the browser precisely when a value was absent.
+
+**What passing here means, and what it does not.** It means every module
+imported, every top-level statement ran, `init()` wired its handlers, the auth
+callback fired, the data path rendered and something arrived on screen. It does
+**not** mean any of it is laid out, styled or legible: there is no CSS and no
+layout engine, so a bar of the wrong width and a column that collapses on a
+phone are still browser work. This suite is a floor under the browser pass, not
+a replacement for it.
+
+Also fixed on the way: `tests/fixtures.js` first wrote a `kickoff_first` period,
+which the timeline rendered as the literal words *"kickoff first"* among a
+column of proper sentences. The real value is `kickoff_1st` — so the fallback in
+`describeEvent` did its job and the fixture was the thing that was wrong. Worth
+naming because it is the failure mode of every fixture: a test that seeds data
+the app never writes tests something the app never does.
+
+660 pure JS · **11 pages** · 145 emulator · 1008 Python.
 
 ---
 
@@ -1251,11 +1327,17 @@ configure and no server to start.**
       having none. `esprima` is present transitively but is stuck at ES2017 and
       cannot parse `?.` or `??`, which this codebase uses throughout.
 
-      So the honest state is: **catching this class of bug in CI needs a real
+      So the honest state was: **catching this class of bug in CI needs a real
       parser (acorn/eslint as a devDependency) or a headless browser, and
       neither is in the repo.** Until one is, the rule is the one that actually
       worked — open the page. Every one of the seven was swept afterwards and
       the other six render fine.
+
+      **Closed on 2026-08-16, and by neither of those two things.** The third
+      option was not considered here: don't analyse the module, *run* it. See
+      Testing Strategy — `tests/smoke.test.js` loads all seven pages under
+      `node --test`, and reinstating this exact bug fails it with
+      `ReferenceError: updateOnlineIndicator is not defined`.
 
       The tool itself was then driven end to end at 768px against the emulator:
       match picker, eleven tapped into a lineup, kick-off, a goal with side and
@@ -3249,6 +3331,11 @@ than the workaround, which matters given the data class.
       This is the second entry in two days pointing at the same gap. Closing it
       needs either a headless browser or a DOM shim in the test suite, and both
       are dependencies this repo does not have — see Phase 3.
+
+      **Half of that sentence was wrong, and it was closed the next day.** A
+      headless browser is a dependency; a DOM shim is a file in `tests/`. See
+      Testing Strategy: reinstating this bug now fails `tests/smoke.test.js`
+      with *"the rail still shows Alex's minutes"*.
 
 - [x] **A coach and a player now read one season, not two shapes of it**
       (2026-08-15). Giving the player portal grouped sections and a rail left
