@@ -1074,6 +1074,48 @@ collector — runs *concurrently* with play, distinct from the Phase 11 tool tha
 **Built: `live-tagging/` (vanilla JS, no build step). Deployed at
 `/live-tagging/`; sign in with Google and pick the squad and match. Nothing to
 configure and no server to start.**
+- [x] **The tool that has to work with no signal was waiting for the server**
+      (2026-08-16). The comment at the top of `tagging.js` has said since the
+      Firestore migration that *"it has to work with no connectivity"*, and the
+      writes were built for exactly that — batches, which queue, rather than
+      transactions, which fail. Then every one of the six handlers `await`ed the
+      commit promise before touching the screen. **That promise is about the
+      server**, and on a touchline the server is routinely minutes away.
+
+      Measured, with the emulator stopped mid-match and the page left open:
+
+      | tap | what the tagger saw |
+      |---|---|
+      | corner | "Just recorded" still showed the previous tag; nothing in the undo stack |
+      | substitution | the sheet never closed, Confirm stayed live — **three presses queued three substitutions** |
+      | kick-off | nothing: no clock, no view change, on the tap the whole match hangs off |
+      | undo | dead for anything tagged since the signal went |
+
+      None of it was data loss — every write was queued and the sync chip
+      reported "1 waiting", "2 waiting", "4 waiting" correctly throughout, which
+      is the one part of this that was already right. It was worse than data
+      loss in one way: the screen said the tap had not registered, and the
+      remedy a person reaches for is to tap again.
+
+      The rule now, in `sendWrite` and applied in all six places: **the local
+      write is the fact, and the server acknowledgement is the sync chip's
+      job.** Firestore has the write in IndexedDB the moment it is issued. A
+      rejection — bad data, a rules failure — is a *correction* rather than a
+      delay, so it undoes the optimistic update and says so loudly.
+
+      Two smaller things fell out of it. `state.seq -= 1` on failure is gone:
+      offline, several taps are in flight at once, so a rejection arriving after
+      three more tags would hand the next tap a sequence number one of them had
+      already used, and the log is written with `setDoc`, which overwrites. And
+      the substitution now moves `state.roster` in memory rather than re-reading
+      it afterwards, which is what makes the second press of Confirm hit the
+      `if (!outEntry.isActive) throw` guard instead of writing the change again.
+
+      Re-measured after the fix, same conditions: sheet closes on the tap, the
+      strip names the substitution, the undo stack has it, two further presses
+      of Confirm do nothing, the roster shows one stint closed at 2730 and one
+      opened at 2730, and Undo reverses all of it while still offline.
+
 - [x] **Five player lists that were not buttons, and a squad that did not fit**
       (2026-08-15). Every picker in the tool a match day depends on — the
       starting eleven, the scorer, the assist, and both halves of a

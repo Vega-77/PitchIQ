@@ -1699,6 +1699,11 @@ export function seasonGroups(reports, totals, options = {}) {
         { value: t.assists ?? 0, label: 'Assists', tone: t.assists ? 'is-good' : 'is-muted' },
     ];
 
+    // Both discipline figures, and always both. A foul count that only appears
+    // when somebody has fouled would make an empty column read as a clean
+    // record on one screen and as a missing feature on the next.
+    tagged.push({ value: t.fouls ?? 0, label: 'Fouls', tone: 'is-muted' });
+
     const cards = (t.yellowCards || 0) + (t.redCards || 0);
     tagged.push({ value: cards, label: 'Cards', tone: cards ? 'is-warn' : 'is-muted' });
 

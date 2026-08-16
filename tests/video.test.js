@@ -1074,6 +1074,20 @@ describe('seasonGroups', () => {
         assert.ok(tagged.rows.every((row) => !row.confidence));
     });
 
+    test('every figure the tablet records survives the grouping', () => {
+        // Fouls went missing when the coach's flat pile of boxes and the
+        // player's were merged into one function — a figure that had been on
+        // the coach's screen for months, gone in a refactor that nothing in the
+        // suite would have noticed. This list is what the tagging tool writes,
+        // so it is what the season has to show back.
+        const labels = report.seasonGroups([], totals()).find((g) => g.id === 'tagged')
+            .rows.map((r) => r.label);
+        for (const wanted of ['Matches', 'Minutes played', 'Goals', 'Assists',
+            'Fouls', 'Cards']) {
+            assert.ok(labels.includes(wanted), `${wanted} is on the season`);
+        }
+    });
+
     test('a season with no clock kept shows a dash, never nought minutes', () => {
         const groups = report.seasonGroups([], totals({ minutes: 0, minutesUnknown: 8 }));
         const minutes = groups[0].rows.find((r) => r.label === 'Minutes played');

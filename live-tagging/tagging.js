@@ -13,18 +13,18 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=79';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=81';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=79';
+} from '../assets/db.js?v=81';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=79';
-import { syncState, safeToClose } from '../assets/report.js?v=79';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=79';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=79';
+} from '../assets/events.js?v=81';
+import { syncState, safeToClose } from '../assets/report.js?v=81';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=81';
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=81';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -198,6 +198,42 @@ window.addEventListener('online', updateSyncIndicator);
 window.addEventListener('offline', updateSyncIndicator);
 
 const nextSeq = () => ++state.seq;
+
+/**
+ * Send a write and stop waiting for the server.
+ *
+ * **This is the rule the whole tool turns on, and it was broken in five
+ * places.** Firestore's offline cache holds the write the moment it is issued
+ * and replays it whenever the connection returns; the promise is about the
+ * *server*, which on a touchline is routinely minutes away and sometimes a bus
+ * ride away. Every handler here used to `await` that promise before touching
+ * the screen, so in a dead spot:
+ *
+ *   * "Just recorded" kept showing the last tag made while online, and the tag
+ *     you had just made looked like it had not registered — so you tapped it
+ *     again;
+ *   * nothing reached `state.myEntries`, so **Undo could not reach anything
+ *     tagged offline** and would remove something from before the outage;
+ *   * the substitution sheet never closed and its Confirm button stayed live —
+ *     measured, three presses queued three substitutions;
+ *   * and kick-off did nothing at all: no clock, no view change, on the one tap
+ *     the whole match hangs off.
+ *
+ * The sync chip is the honest answer to "has the server got this", it is on
+ * screen at all times, and it was already telling the truth throughout — see
+ * `updateSyncIndicator`. Nothing else needs to wait.
+ *
+ * `undo` runs only when a write is genuinely **rejected** — malformed data or a
+ * rules failure — which is a correction rather than a delay, and worth
+ * shouting about, because until it runs there is something on the screen that
+ * is not in the record.
+ */
+function sendWrite(promise, { undo, message } = {}) {
+    promise.catch((err) => {
+        undo?.();
+        toast(`${message || 'That did not save'} — ${err?.message || 'the server refused it'}`, true);
+    });
+}
 
 function renderScore() {
     byId('score-us').textContent = state.score.us;
@@ -448,13 +484,17 @@ async function saveLineupAndContinue() {
     const starters = state.players.filter((p) => p._starter).map((p) => p.id);
     if (!starters.length) return toast('Pick your starters first', true);
 
-    try {
-        await setLineup(state.teamId, state.matchId, state.players, starters);
-        state.roster = await listMatchRoster(state.teamId, state.matchId);
-        showView('kickoff');
-    } catch (err) {
-        toast(err.message || 'Could not save the lineup.', true);
-    }
+    sendWrite(
+        setLineup(state.teamId, state.matchId, state.players, starters),
+        { message: 'The lineup was not saved' },
+    );
+
+    // The read is still awaited, and safely: a read resolves from the local
+    // cache whether or not there is a connection, and that cache already has
+    // the lineup this line just wrote. It is the *write* that waits for a
+    // server, which is why the tool sat on this screen in a dead spot.
+    state.roster = await listMatchRoster(state.teamId, state.matchId);
+    showView('kickoff');
 }
 
 async function resumeMatch() {
@@ -516,32 +556,37 @@ const labels = () => ({ usName: state.teamName, themName: state.opponentName });
 
 // ---------------------------------------------------------------- kickoff
 
-async function doKickoff() {
-    try {
-        const seq = nextSeq();
-        await writePeriod(state.user, state.teamId, state.matchId, {
-            deviceId: state.device, seq, period: 'kickoff_1st', matchClockS: 0,
-            prevStatus: state.match?.status || 'scheduled',
-        });
-        state.myEntries.push({
-            id: logId(state.device, seq), kind: 'period', type: 'kickoff_1st',
-            revert: { prevStatus: state.match?.status || 'scheduled' },
-        });
-        state.match.status = 'first_half';
+function doKickoff() {
+    const seq = nextSeq();
+    const before = state.match?.status || 'scheduled';
 
-        state.clockOffset = 0;
-        state.kickoffAt = Date.now();
-        state.running = true;
-        byId('period-label').textContent = '1st half';
-        updatePeriodButton();
-        renderClockChrome();
-        renderScore();
-        setLast('kick-off');
-        showView('live');
-        watchMatchSync();
-    } catch (err) {
-        toast(err.message || 'Could not start the match.', true);
-    }
+    // The clock starts on the tap. It has to: this is the moment the match
+    // begins and the moment a clap was made for the camera, and both of those
+    // happened whether or not a server heard about it.
+    sendWrite(
+        writePeriod(state.user, state.teamId, state.matchId, {
+            deviceId: state.device, seq, period: 'kickoff_1st', matchClockS: 0,
+            prevStatus: before,
+        }),
+        { message: 'Kick-off was not saved' },
+    );
+
+    state.myEntries.push({
+        id: logId(state.device, seq), kind: 'period', type: 'kickoff_1st',
+        revert: { prevStatus: before },
+    });
+    state.match.status = 'first_half';
+
+    state.clockOffset = 0;
+    state.kickoffAt = Date.now();
+    state.running = true;
+    byId('period-label').textContent = '1st half';
+    updatePeriodButton();
+    renderClockChrome();
+    renderScore();
+    setLast('kick-off');
+    showView('live');
+    watchMatchSync();
 }
 
 // ---------------------------------------------------------------- event sheet
@@ -684,15 +729,20 @@ function showAssistStep() {
     byId('step-assist').classList.remove('hidden');
 }
 
-async function commitDraft() {
+function commitDraft() {
     const draft = state.draft;
     state.draft = null;
     byId('overlay-event').classList.remove('open');
     if (!draft) return;
 
     const seq = nextSeq();
-    try {
-        await writeEvent(state.user, state.teamId, state.matchId, {
+    const entry = {
+        id: logId(state.device, seq), kind: 'event', type: draft.type, side: draft.side,
+    };
+    const side = draft.side === 'them' ? 'them' : 'us';
+
+    sendWrite(
+        writeEvent(state.user, state.teamId, state.matchId, {
             deviceId: state.device,
             seq,
             type: draft.type,
@@ -701,23 +751,41 @@ async function commitDraft() {
             playerId: draft.playerId,
             assistPlayerId: draft.assistPlayerId,
             cardColor: draft.cardColor,
-        });
+        }),
+        {
+            message: 'That tag was not saved',
+            undo: () => {
+                dropEntry(entry.id);
+                if (draft.type === 'goal') {
+                    state.score[side] = Math.max(0, state.score[side] - 1);
+                    renderScore();
+                }
+            },
+        },
+    );
 
-        state.myEntries.push({ id: logId(state.device, seq), kind: 'event', type: draft.type, side: draft.side });
+    // `state.seq` is never wound back on a rejection. It used to be, and that
+    // was a document-id collision waiting to happen: offline, several taps are
+    // in flight at once, so a rejection arriving after three more tags would
+    // hand the next tap a sequence number one of them had already used — and
+    // the log is written with `setDoc`, which overwrites.
+    state.myEntries.push(entry);
 
-        if (draft.type === 'goal') {
-            state.score[draft.side === 'them' ? 'them' : 'us'] += 1;
-            renderScore();
-        }
-
-        const player = state.roster.find((r) => r.id === draft.playerId);
-        setLast(describeEvent(
-            { kind: 'event', ...draft }, { ...labels(), playerName: player?.playerName }
-        ));
-    } catch (err) {
-        state.seq -= 1;
-        toast(err.message || 'Could not save that tag.', true);
+    if (draft.type === 'goal') {
+        state.score[side] += 1;
+        renderScore();
     }
+
+    const player = state.roster.find((r) => r.id === draft.playerId);
+    setLast(describeEvent(
+        { kind: 'event', ...draft }, { ...labels(), playerName: player?.playerName }
+    ));
+}
+
+/** Take one entry back out of the undo stack, wherever it has ended up. */
+function dropEntry(id) {
+    const at = state.myEntries.findIndex((e) => e.id === id);
+    if (at >= 0) state.myEntries.splice(at, 1);
 }
 
 function cancelEventSheet() {
@@ -727,32 +795,47 @@ function cancelEventSheet() {
 
 // ---------------------------------------------------------------- undo
 
-async function undoLast() {
+function undoLast() {
     const entry = state.myEntries[state.myEntries.length - 1];
     if (!entry) return toast('Nothing of yours to undo', true);
 
-    try {
-        await undoEntry(state.teamId, state.matchId, entry);
-        state.myEntries.pop();
+    // Same rule as everywhere else here: a mis-tap has to come off the screen
+    // now, not when a server three miles away agrees. Undo is the control a
+    // tagger reaches for immediately after a wrong tap, so waiting on the
+    // network is the one thing it cannot do.
+    sendWrite(
+        undoEntry(state.teamId, state.matchId, entry),
+        {
+            message: 'That undo was not saved',
+            undo: () => {
+                state.myEntries.push(entry);
+                if (entry.type === 'goal') {
+                    const key = entry.side === 'them' ? 'them' : 'us';
+                    state.score[key] += 1;
+                    renderScore();
+                }
+            },
+        },
+    );
 
-        if (entry.kind === 'sub') {
-            state.roster = await listMatchRoster(state.teamId, state.matchId);
-        }
-        if (entry.kind === 'period' && entry.revert?.prevStatus) {
-            state.match.status = entry.revert.prevStatus;
-            updatePeriodButton();
-        }
-        if (entry.type === 'goal') {
-            const key = entry.side === 'them' ? 'them' : 'us';
-            state.score[key] = Math.max(0, state.score[key] - 1);
-            renderScore();
-        }
+    state.myEntries.pop();
 
-        setLast('undone', false);
-        toast('Undone');
-    } catch (err) {
-        toast(err.message || 'Could not undo.', true);
+    if (entry.kind === 'sub' && entry.revert) {
+        putBack(entry.revert.out);
+        putBack(entry.revert.in);
     }
+    if (entry.kind === 'period' && entry.revert?.prevStatus) {
+        state.match.status = entry.revert.prevStatus;
+        updatePeriodButton();
+    }
+    if (entry.type === 'goal') {
+        const key = entry.side === 'them' ? 'them' : 'us';
+        state.score[key] = Math.max(0, state.score[key] - 1);
+        renderScore();
+    }
+
+    setLast('undone', false);
+    toast('Undone');
 }
 
 // ---------------------------------------------------------------- periods
@@ -773,7 +856,7 @@ function updatePeriodButton() {
     }
 }
 
-async function advancePeriod() {
+function advancePeriod() {
     const status = state.match?.status || 'first_half';
     const next =
         status === 'first_half' ? 'halftime'
@@ -782,43 +865,50 @@ async function advancePeriod() {
 
     const now = matchClock();
     const seq = nextSeq();
+    const entry = {
+        // `type` so undo knows a half-time tap from any other period tap: that
+        // one also wrote the clock reading the second half is anchored to, and
+        // undoing it has to take that with it.
+        id: logId(state.device, seq), kind: 'period', type: next,
+        revert: { prevStatus: status },
+    };
 
-    try {
-        await writePeriod(state.user, state.teamId, state.matchId, {
+    sendWrite(
+        writePeriod(state.user, state.teamId, state.matchId, {
             deviceId: state.device, seq, period: next, matchClockS: now, prevStatus: status,
-        });
-        state.myEntries.push({
-            // `type` so undo knows a half-time tap from any other period tap:
-            // that one also wrote the clock reading the second half is anchored
-            // to, and undoing it has to take that with it.
-            id: logId(state.device, seq), kind: 'period', type: next,
-            revert: { prevStatus: status },
-        });
-        state.match.status = PERIOD_STATUS[next];
-        if (next === 'halftime') state.match.halfTimeClockS = now;
+        }),
+        {
+            message: `${PERIOD_LABELS[next] || next} was not saved`,
+            undo: () => {
+                dropEntry(entry.id);
+                state.match.status = status;
+                updatePeriodButton();
+            },
+        },
+    );
 
-        if (next === 'halftime') {
-            // Freeze: the break must never be counted as match time.
-            state.clockOffset = now;
-            state.running = false;
-            byId('period-label').textContent = 'half-time';
-        } else if (next === 'kickoff_2nd') {
-            state.kickoffAt = Date.now();
-            state.running = true;
-            byId('period-label').textContent = '2nd half';
-        } else {
-            state.clockOffset = now;
-            state.running = false;
-            byId('period-label').textContent = 'full time';
-        }
+    state.myEntries.push(entry);
+    state.match.status = PERIOD_STATUS[next];
+    if (next === 'halftime') state.match.halfTimeClockS = now;
 
-        updatePeriodButton();
-        renderClockChrome();
-        setLast(PERIOD_LABELS[next] || next);
-    } catch (err) {
-        state.seq -= 1;
-        toast(err.message || 'Could not change period.', true);
+    if (next === 'halftime') {
+        // Freeze: the break must never be counted as match time.
+        state.clockOffset = now;
+        state.running = false;
+        byId('period-label').textContent = 'half-time';
+    } else if (next === 'kickoff_2nd') {
+        state.kickoffAt = Date.now();
+        state.running = true;
+        byId('period-label').textContent = '2nd half';
+    } else {
+        state.clockOffset = now;
+        state.running = false;
+        byId('period-label').textContent = 'full time';
     }
+
+    updatePeriodButton();
+    renderClockChrome();
+    setLast(PERIOD_LABELS[next] || next);
 }
 
 // ---------------------------------------------------------------- subs
@@ -885,33 +975,82 @@ function renderSubLists() {
     repaint();
 }
 
-async function confirmSub() {
+function confirmSub() {
     const outEntry = state.roster.find((r) => r.id === state.sub.outId);
     const inEntry = state.roster.find((r) => r.id === state.sub.inId);
     if (!outEntry || !inEntry) return;
 
+    const clock = matchClock();
     const seq = nextSeq();
-    try {
-        await writeSubstitution(state.user, state.teamId, state.matchId, {
-            deviceId: state.device, seq, outEntry, inEntry, matchClockS: matchClock(),
-        });
+    const before = {
+        out: {
+            id: outEntry.id, isActive: outEntry.isActive,
+            stints: outEntry.stints || [], version: outEntry.version ?? 0,
+        },
+        in: {
+            id: inEntry.id, isActive: inEntry.isActive,
+            stints: inEntry.stints || [], version: inEntry.version ?? 0,
+        },
+    };
+    const entry = { id: logId(state.device, seq), kind: 'sub', revert: before };
 
-        state.myEntries.push({
-            id: logId(state.device, seq),
-            kind: 'sub',
-            revert: {
-                out: { id: outEntry.id, isActive: outEntry.isActive, stints: outEntry.stints || [], version: outEntry.version ?? 0 },
-                in: { id: inEntry.id, isActive: inEntry.isActive, stints: inEntry.stints || [], version: inEntry.version ?? 0 },
+    sendWrite(
+        writeSubstitution(state.user, state.teamId, state.matchId, {
+            deviceId: state.device, seq, outEntry, inEntry, matchClockS: clock,
+        }),
+        {
+            message: 'That substitution was not saved',
+            undo: () => {
+                dropEntry(entry.id);
+                putBack(before.out);
+                putBack(before.in);
             },
-        });
+        },
+    );
 
-        state.roster = await listMatchRoster(state.teamId, state.matchId);
-        byId('overlay-sub').classList.remove('open');
-        setLast(`${inEntry.playerName} on for ${outEntry.playerName}`);
-    } catch (err) {
-        state.seq -= 1;
-        toast(err.message || 'Could not save the substitution.', true);
-    }
+    // Closed on the tap, and the roster moved in memory rather than re-read.
+    //
+    // Both of those are the fix for a measured bug: this used to close the
+    // sheet only after the server had acknowledged the write, so in a dead spot
+    // the sheet stayed open with Confirm still live. Three presses queued three
+    // substitutions — each one closing and reopening a stint, which is exactly
+    // the arithmetic the minutes column depends on.
+    byId('overlay-sub').classList.remove('open');
+    applySub(outEntry, inEntry, clock);
+    state.myEntries.push(entry);
+    state.sub = { outId: null, inId: null };
+    setLast(`${inEntry.playerName} on for ${outEntry.playerName}`);
+}
+
+/**
+ * Move one player off and another on, in `state.roster`.
+ *
+ * Mirrors exactly what `writeSubstitution` sends, because the point is that the
+ * next press of Confirm sees the roster the write produced — the guard there is
+ * `if (!outEntry.isActive) throw`, and it is what stops the same change being
+ * recorded twice.
+ */
+function applySub(outEntry, inEntry, clock) {
+    const outStints = (outEntry.stints || []).map((s) => ({ ...s }));
+    const open = outStints[outStints.length - 1];
+    if (open && open.outS === null) open.outS = clock;
+
+    outEntry.stints = outStints;
+    outEntry.isActive = false;
+    outEntry.version = (outEntry.version ?? 0) + 1;
+
+    inEntry.stints = [...(inEntry.stints || []), { inS: clock, outS: null }];
+    inEntry.isActive = true;
+    inEntry.version = (inEntry.version ?? 0) + 1;
+}
+
+/** Put one roster entry back the way it was, after a rejected write. */
+function putBack(snapshot) {
+    const entry = state.roster.find((r) => r.id === snapshot.id);
+    if (!entry) return;
+    entry.isActive = snapshot.isActive;
+    entry.stints = snapshot.stints;
+    entry.version = snapshot.version;
 }
 
 // ---------------------------------------------------------------- log

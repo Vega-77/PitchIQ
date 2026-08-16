@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=79';
+} from '../assets/auth.js?v=81';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,23 +10,23 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=79';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=79';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=79';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=79';
+} from '../assets/db.js?v=81';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=81';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=81';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=81';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=79';
+} from '../assets/sample-report.js?v=81';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=79';
-import { renderPassMap } from '../assets/pass-map.js?v=79';
+} from '../assets/passing.js?v=81';
+import { renderPassMap } from '../assets/pass-map.js?v=81';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=79';
-import { renderForms } from '../assets/form-chart.js?v=79';
+} from '../assets/season.js?v=81';
+import { renderForms } from '../assets/form-chart.js?v=81';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -43,18 +43,18 @@ import {
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
-} from '../assets/report.js?v=79';
+} from '../assets/report.js?v=81';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=79';
-import { mountRail } from '../assets/rail.js?v=79';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=79';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=79';
+} from '../assets/events.js?v=81';
+import { mountRail } from '../assets/rail.js?v=81';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=81';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=81';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar, coverageStrip,
-} from '../assets/ui.js?v=79';
+} from '../assets/ui.js?v=81';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -871,9 +871,14 @@ function renderPlayerRail() {
         rail: byId('pv-rail'),
         heading: 'This season',
         facts: () => {
-            const open = state.openPlayer;
-            if (!open) return [];
-            const { player, totals } = open;
+            const totals = state.openPlayer?.totals;
+            if (!totals) return [];
+
+            // Four facts, the same four the player's own rail carries. There
+            // was a fifth for an afternoon — whether this student has signed in
+            // — and it went: the pill beside their name says exactly that,
+            // three inches away, and the point of these two rails is that a
+            // coach and a player read one arrangement rather than two.
             return [
                 { label: 'Matches', value: totals.matches || null, tone: 'is-big' },
                 {
@@ -893,14 +898,6 @@ function renderPlayerRail() {
                     value: totals.cvMatches
                         ? `${totals.cvMatches} of ${totals.matches}`
                         : 'none yet',
-                },
-                // The one fact on this rail that is about the student rather
-                // than the season, and the one a coach most often opens this
-                // page to check before sending an invite.
-                {
-                    label: 'Portal',
-                    value: player?.linkedUid ? 'signed in' : 'not yet',
-                    tone: player?.linkedUid ? 'is-good' : '',
                 },
             ];
         },
