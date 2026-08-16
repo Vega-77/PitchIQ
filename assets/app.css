@@ -2444,6 +2444,70 @@ button.tl-row {
     margin-bottom: 8px;
 }
 
+/* ---------------------------------------------------------------- motion
+ *
+ * One rule decides what moves here: **a length draws itself, and nothing else
+ * does.** Every bar in this product is an argument about a quantity — 12 goals
+ * against 7, 74 tracked minutes out of 90 — and a bar that grows from nothing
+ * makes the eye follow the length rather than read the number at the end of it.
+ * That is the one thing worth 400ms of a coach's attention.
+ *
+ * Nothing else animates on arrival. A page of things sliding in from different
+ * directions is a page you have to wait for, and this one is read on a
+ * touchline and at half-time.
+ *
+ * `scaleX` rather than `width`: the widths are inline styles computed from the
+ * data, and animating from a keyframe would need a second copy of every number
+ * in the stylesheet. The transform costs no layout, and the transition on
+ * `width` that several of these already carry still handles the case that
+ * matters more — a bar whose value changes while you are looking at it.
+ *
+ * The reduced-motion block below turns all of it off. It was already here and
+ * already `!important`, which is why everything above can be added without a
+ * second thought for the people who have asked not to see it.
+ */
+
+@keyframes bar-grow {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+}
+
+.goal-bar,
+.coverage-bar,
+.press-bar > span,
+.sub-bar > span,
+td.bar-cell .cell-bar {
+    transform-origin: left center;
+    animation: bar-grow .42s cubic-bezier(.2, .7, .3, 1) both;
+}
+
+/* The two halves of a comparison grow outward from the line between them,
+   which is the thing being compared — not from the left edge of the screen. */
+.t-half.us > i { transform-origin: right center; }
+.t-half.them > i { transform-origin: left center; }
+.t-half > i { animation: bar-grow .42s cubic-bezier(.2, .7, .3, 1) both; }
+
+/* A section arriving in the middle of the page when the rail is used.
+ *
+ * The rail replaces what is on screen rather than scrolling to it, and an
+ * instant swap between two blocks of numbers reads as the page having been
+ * wrong a moment ago. Short and small — 10px and 200ms — because it is
+ * punctuation, not an entrance.
+ *
+ * Only fires when the section actually changes: `classList.toggle` on an
+ * element that already has the class is a no-op, so re-rendering the same
+ * section does not replay it. */
+@keyframes section-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+@media screen and (min-width: 1180px) {
+    .report-body.is-sectioned > .is-showing {
+        animation: section-in .2s ease-out both;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
 }

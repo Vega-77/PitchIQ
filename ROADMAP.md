@@ -1074,6 +1074,55 @@ collector — runs *concurrently* with play, distinct from the Phase 11 tool tha
 **Built: `live-tagging/` (vanilla JS, no build step). Deployed at
 `/live-tagging/`; sign in with Google and pick the squad and match. Nothing to
 configure and no server to start.**
+- [x] **Five player lists that were not buttons, and a squad that did not fit**
+      (2026-08-15). Every picker in the tool a match day depends on — the
+      starting eleven, the scorer, the assist, and both halves of a
+      substitution — was an `<li>` with a click handler on it. Not focusable,
+      not reachable from a keyboard, and read out by a screen reader as a line
+      of text rather than as something you can press. `assets/timeline.js`
+      states the opposite standard for its own marks — "real buttons rather than
+      styled spans, so the whole thing is reachable from a keyboard" — and the
+      one place that did not follow it was the tool every number in this system
+      comes from.
+
+      One `pickRow` builds all five now, with the padding and the border on the
+      button rather than on the `<li>`, so the tap target is the whole card and
+      not a word inside it. `toggle` is the distinction between the two kinds of
+      picker here: choosing a starter or the player going off is something you
+      change your mind about, so it carries `aria-pressed`; choosing the scorer
+      closes the step, so it is a plain button and a pressed state would
+      describe a control that is already gone.
+
+      Fixing that exposed a second bug the first was hiding. Both toggling
+      pickers rebuilt their whole list on every tap, which throws away the
+      button that was just pressed — invisible while these were unfocusable list
+      items, and the first thing anyone tabbing through them would hit. They
+      repaint in place now, so a keyboard reader keeps their position
+      mid-substitution, with the clock running.
+
+      **And the layout.** One name to a full-width row put a fourteen-player
+      squad four screens deep on a phone and left 700px of nothing beside every
+      name on a tablet — for a job done minutes before kick-off by someone who
+      is also being talked to. `auto-fill` at 250px is one column on a phone and
+      three across a landscape iPad: the whole squad and the save button on one
+      screen, and the eleven-name scorer picker with no scrolling at all. The
+      BENCH label went with it — fourteen repetitions of the default, taking the
+      width that was pushing half the names onto a second line, under a heading
+      that already says everyone you don't tap becomes a substitute.
+
+      Driven end to end at 1024×768 against the emulator: lineup, kick-off, a
+      goal with side, scorer and assist, and a substitution. Read back out of
+      Firestore the log is in clock order and the change closed one stint at
+      59.062s with the other opening at the same instant.
+
+      **Unexplained, and recorded rather than guessed at:** the very first
+      lineup save of that session came back `PERMISSION_DENIED` from the roster
+      rule. It did not recur across two further clean runs, and a probe from the
+      same page — a single write, then batches of 5, 9, 10, 11 and 14 against
+      the same rule and the same account — passed every time. So the rule
+      accepts this shape from this user, and what failed was that one commit
+      rather than the code path. Worth watching if it turns up on a real tablet.
+
 - [x] **[Demo]** Tablet-friendly UI: large touch targets (236×269px on tablet, 2-column grid on phones), minimal menu depth
 - [x] **[Demo]** Substitution entry: player X off / player Y on, per team, at the current live timestamp, starting from the pre-game roster/lineup. Already-used substitutes stay visible but dimmed so they don't look like fresh options.
 - [x] **[Demo]** One-tap event buttons: out of bounds, corner, throw-in, goal kick, free kick, foul, card, goal, offside — auto-timestamped on tap
@@ -3076,6 +3125,139 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The player's own season got the sidebar the coach's report already had**
+      (2026-08-15). The rail — a column that loads one section in rather than
+      scrolling to it — had lived on the coach's match report since the desktop
+      layout landed. The player portal, which is the only page most of this
+      system's users will ever open, did not have one. Same season, two shapes,
+      depending on who opened it.
+
+      `assets/rail.js` is that rail, lifted out of `coach/coach.js` and shared.
+      `railTarget` is the one decision in it that needs no DOM, so it lives in
+      `report.js` where `tests/video.test.js` can reach it — including the case
+      that made extracting it worth doing: `block.id` is `''` for a section
+      nobody named, and falling back to it would toggle every block on the page
+      at once.
+
+      Three things the rail gained on the way out.
+
+      **Facts.** 168px of a 1500px screen was a column of eight words. It now
+      stands the figures a reader wants without going to find them — the
+      scoreline, the minutes, how much of the season was filmed — and they stay
+      put while the middle of the page changes, so switching sections never
+      takes the frame away with the content. On the coach's side the facts do
+      real work immediately: on a match tagged for 59 seconds and never
+      finished, the rail reads **Tagged to 00:59, last tag not the whistle**,
+      which is the absent-is-not-zero rule surfacing where it is cheapest to
+      see.
+
+      **Arrow keys.** A rail is a list of alternatives, and every other list of
+      alternatives on a screen — a radio group, a tab strip — moves with the
+      arrows. Without it a keyboard reader tabbed through eight buttons to reach
+      the ninth, which is the reason tab strips stopped being made of tab stops.
+
+      **Groups.** One rail entry may now cover two blocks (`data-rail-group`). A
+      heatmap caps itself at 620px and a shot map at 380, so showing either
+      alone on a monitor left most of the row empty beside it while the other
+      sat hidden. They are one entry, "On the pitch", because they are one
+      thing to look at: two pictures of the same pitch.
+
+      And the player's season is **grouped by the question it answers** instead
+      of piled into one ribbon. Thirteen cards in a row is a wall you read left
+      to right to find the one thing you came for, and it flattened the
+      distinction this project cares most about — a goal somebody pressed a
+      button for and a distance a machine estimated were the same box with a
+      small dot in the corner. Now they are The season / On the ball / Running /
+      Defending, each saying which it is, with the four season traces split
+      across the groups they belong to: a metres-per-minute line beside the
+      kilometres it is made of, not in a panel of four unrelated instruments.
+
+      **New: how much was filmed.** `formNote` says "5 of 8 matches were filmed
+      and tracked long enough to place on a line", which is true and leaves a
+      player knowing neither which five nor how near the other three came. It is
+      a bar per match now, and the denominator is the match rather than their
+      own minutes — a substitute followed for all twenty of their twenty minutes
+      has been measured completely, and a full bar beside a starter's would say
+      the two had the same evidence behind them. Amber for filmed-but-too-thin,
+      an empty track for not filmed at all: absent is not zero in a bar chart
+      either.
+
+- [x] **The column beside the fixture list stopped being 500px of nothing**
+      (2026-08-15). The coach's squad page had a "New match" form in its right
+      column and dead space under it — the most visible piece of unused screen
+      in the product, on the page a coach opens most. It now answers the three
+      questions they open it with, in the order those matter.
+
+      **Still to do.** `seasonJobs` works out what is actually waiting on this
+      coach: matches played and tagged but never published, fixtures whose date
+      has passed and which nobody ever opened the tagging tool for, players who
+      have never signed in, players with no position. Every row is a button that
+      switches to the tab the work is on — a to-do list that names a job and
+      leaves you to find it is half a feature. The panel hides itself when there
+      is nothing, because a panel that is always on screen is a panel nobody
+      reads.
+
+      The test that mattered most while writing it is the one about the future.
+      A match created for Saturday is not outstanding work on Thursday, and a
+      panel that said so every week would be noise inside a fortnight — so
+      `today` is passed in rather than read off the clock, the comparison is
+      strictly `date < today`, and with no date to compare against nothing is
+      called late at all. It is the **local** date rather than UTC: a coach in
+      New Jersey opening this at eight in the evening should not be told
+      tomorrow's fixture is already overdue.
+
+      **Recent form and where the goals went.** The hero above says 4-2-2 and
+      +5, which is the season summed into two numbers; three wins and two
+      defeats reads very differently depending on which three, and a record
+      cannot say. Five pills, oldest on the left, each carrying its date and
+      scoreline. A fixture nobody played is not a gap in the run — it is simply
+      not in it, because five results with a hole in the middle would say a
+      match was played and produced nothing. The two goal bars are both scaled
+      against the larger of the pair, so the longer one is full and the shorter
+      reads as a fraction of it; scaling each to its own maximum would draw two
+      full bars and say nothing.
+
+      The column is sticky above 900×700, so the outstanding work and the run of
+      results stay on screen while the fixture list scrolls past. Below either
+      threshold it scrolls with the page, where a sticky panel would be a thing
+      that jitters rather than a help.
+
+- [x] **One rule about what moves: a length draws itself, and nothing else does**
+      (2026-08-15). Every bar in this product is an argument about a quantity —
+      12 goals against 7, 74 tracked minutes out of 90 — and a bar that grows
+      from nothing makes the eye follow the length instead of reading the number
+      at the end of it. That is the one thing worth 420ms of a coach's
+      attention, so it is the only thing that got it. Nothing else animates on
+      arrival: a page of things sliding in from different directions is a page
+      you have to wait for, and this one is read on a touchline and at
+      half-time.
+
+      `scaleX` rather than `width`, because the widths are inline styles
+      computed from the data and animating them from a keyframe would need a
+      second copy of every number in the stylesheet. The transform costs no
+      layout, and the `transition: width` several of these already carry still
+      handles the case that matters more — a bar whose value changes while you
+      are looking at it.
+
+      The two halves of a comparison grow **outward from the line between
+      them**, which is the thing being compared, rather than both from the left
+      edge of the screen. And the section the rail loads gets 10px and 200ms of
+      fade, because an instant swap between two blocks of numbers reads as the
+      page having been wrong a moment ago; it fires only when the section
+      actually changes, since `classList.toggle` on an element that already has
+      the class is a no-op.
+
+      All of it is off under `prefers-reduced-motion`, which the stylesheet
+      already handled globally with `!important` — so the whole layer could be
+      added without a second thought for the people who have asked not to see
+      it.
+
+      One thing the wide layout made visible while this was going in: a note
+      under a heading had no reading measure. `.lede` has capped itself at 62ch
+      since the design system was written and `p.muted` never did, which did not
+      matter while every block was a column in a 1120px shell and ran to about
+      **190 characters a line** once a section could show alone on a monitor.
+
 - [x] **The match report is a dashboard on a monitor, not a scroll**
       (2026-08-12). Fifteen blocks stacked one to a row came to **8,723px — 6.9
       screens** on a laptop, for a page that is read at a desk the evening after
