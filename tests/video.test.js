@@ -1074,6 +1074,91 @@ describe('the season at a glance', () => {
         });
     });
 
+    describe('nextFixture', () => {
+        const fixture = (id, date, extra = {}) => ({
+            id, date, opponentName: id, finalized: false, status: 'scheduled', ...extra,
+        });
+
+        test('the soonest one that has not been played', () => {
+            const next = report.nextFixture([
+                fixture('c', '2026-05-20'),
+                fixture('a', '2026-05-16'),
+                fixture('b', '2026-05-18'),
+            ], '2026-05-15');
+            assert.equal(next.match.id, 'a');
+            assert.equal(next.daysAway, 1);
+        });
+
+        test('today counts as next, not as past', () => {
+            const next = report.nextFixture([fixture('a', '2026-05-15')], '2026-05-15');
+            assert.equal(next.daysAway, 0);
+        });
+
+        test('a fixture nobody tagged is a job, not the next match', () => {
+            // Showing a game that has already been played under "next up" would
+            // put it at the top of the page every week until somebody dealt
+            // with it — which is what `seasonJobs` is for.
+            assert.equal(report.nextFixture([fixture('gone', '2026-05-02')], '2026-05-15'), null);
+        });
+
+        test('a finished match is never next', () => {
+            assert.equal(
+                report.nextFixture(
+                    [fixture('a', '2026-05-20', { finalized: true })], '2026-05-15',
+                ),
+                null,
+            );
+        });
+
+        test('a fixture with no date is skipped rather than sorted to an end', () => {
+            const next = report.nextFixture([
+                fixture('undated', null), fixture('a', '2026-05-20'),
+            ], '2026-05-15');
+            assert.equal(next.match.id, 'a');
+        });
+
+        test('nothing to compare against means no answer', () => {
+            assert.equal(report.nextFixture([fixture('a', '2026-05-20')], null), null);
+            assert.equal(report.nextFixture([], '2026-05-15'), null);
+        });
+    });
+
+    describe('daysBetween', () => {
+        test('counts calendar days, not elapsed hours', () => {
+            assert.equal(report.daysBetween('2026-05-15', '2026-05-16'), 1);
+            assert.equal(report.daysBetween('2026-05-16', '2026-05-15'), -1);
+            assert.equal(report.daysBetween('2026-05-15', '2026-05-15'), 0);
+        });
+
+        test('across a month and a year', () => {
+            assert.equal(report.daysBetween('2026-02-28', '2026-03-01'), 1);
+            assert.equal(report.daysBetween('2025-12-31', '2026-01-01'), 1);
+        });
+
+        test('anything that is not a date is no answer', () => {
+            assert.equal(report.daysBetween('2026-05-15', null), null);
+            assert.equal(report.daysBetween('', '2026-05-15'), null);
+            assert.equal(report.daysBetween('15/05/2026', '2026-05-15'), null);
+        });
+    });
+
+    describe('whenLabel', () => {
+        test('the near days get names', () => {
+            assert.equal(report.whenLabel(0), 'today');
+            assert.equal(report.whenLabel(1), 'tomorrow');
+            assert.equal(report.whenLabel(4), 'in 4 days');
+        });
+
+        test('further out loses the precision nobody needs', () => {
+            assert.equal(report.whenLabel(9), 'next week');
+            assert.equal(report.whenLabel(21), 'in 3 weeks');
+        });
+
+        test('nothing is not a day', () => {
+            assert.equal(report.whenLabel(null), null);
+        });
+    });
+
     describe('seasonJobs', () => {
         const ids = (jobs) => jobs.map((j) => j.id);
 

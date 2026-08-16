@@ -13,18 +13,18 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=73';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=75';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=73';
+} from '../assets/db.js?v=75';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=73';
-import { syncState, safeToClose } from '../assets/report.js?v=73';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=73';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=73';
+} from '../assets/events.js?v=75';
+import { syncState, safeToClose } from '../assets/report.js?v=75';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=75';
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=75';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -1068,6 +1068,19 @@ function init() {
 
             state.teams = access.teams;
             byId('signin-block').classList.add('hidden');
+
+            // A squad named in the link — the home page's "next up" card sends
+            // one, so a coach who has just read which team plays today does not
+            // have to answer the same question again on the next screen. Only
+            // honoured when it matches a squad this account actually coaches;
+            // `access.teams` is resolved from authoritative documents, so a
+            // hand-edited URL cannot smuggle in a team.
+            const wanted = new URLSearchParams(location.search).get('team');
+            const named = access.teams.find((t) => t.id === wanted);
+            if (named) {
+                await chooseTeam(named);
+                return;
+            }
 
             // Picking the first squad silently would be a quiet disaster for a
             // coach who runs varsity and JV: a full match tagged onto the wrong

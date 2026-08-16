@@ -3182,6 +3182,42 @@ than the workaround, which matters given the data class.
       an empty track for not filmed at all: absent is not zero in a bar chart
       either.
 
+- [x] **The home page tells a coach what today needs, not which teams exist**
+      (2026-08-15). The signed-in landing page was a greeting, a team card and
+      three links. Its one attempt at saying something useful was a line reading
+      "2 matches waiting to be tagged", counted from every fixture that was not
+      finalized — which meant **a match set up for Saturday was reported as
+      overdue work on the Tuesday before it.** A coach who is well organised got
+      told off for being organised.
+
+      **Next up, above everything.** `nextFixture` finds the soonest unplayed
+      match dated today or later, across every squad the account coaches, and
+      the card links straight into the tagging tool with `?team=` already set —
+      so a coach who has just read which team plays today does not answer the
+      same question again on the next screen. The tool honours that parameter
+      only when it names a squad `resolveAccess` actually returned, so a
+      hand-edited URL cannot smuggle in a team. Lit in the accent colour at one
+      day out or less; anything a week away is a diary entry and should not look
+      like a thing that is happening.
+
+      A fixture whose date has passed is deliberately **not** the next match. It
+      is a job, and `seasonJobs` already says so — showing it under "next up"
+      would park a game that has already been played at the top of the page
+      every week until somebody dealt with it.
+
+      **Still to do**, pooled across squads, from the same arithmetic as the
+      squad page's sidebar rather than a second copy of it — two panels that say
+      what is outstanding is exactly the pair that drifts into disagreeing. The
+      shared CSS moved to `app.css` for the same reason.
+
+      And the line under the greeting is chosen in a deliberate order: a match
+      today outranks everything, because nothing on the page matters as much as
+      the game that is happening; then the outstanding count; then the quiet
+      answer. `daysBetween` parses both dates at **UTC noon** rather than
+      midnight — midnight is exactly where a timezone offset flips a calendar
+      date to the day before, which would put "today" a day out for every coach
+      west of Greenwich, which is all of them.
+
 - [x] **The column beside the fixture list stopped being 500px of nothing**
       (2026-08-15). The coach's squad page had a "New match" form in its right
       column and dead space under it — the most visible piece of unused screen

@@ -630,6 +630,156 @@ section.block > p.muted { max-width: 74ch; }
     margin-bottom: 12px;
 }
 
+/* ------------------------------------------------------ outstanding work
+ *
+ * "Still to do" and the form guide, shared by the squad page's sidebar and the
+ * signed-in home page. They were coach-only until the home page needed to
+ * answer the same question — and two copies of a panel that says what is
+ * outstanding is exactly the pair that drifts into disagreeing about it.
+ */
+
+/* One outstanding job. A button, because pressing it takes you to the tab the
+   work is on — a to-do list that names a job and leaves you to find it is half
+   a feature. */
+.job-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: 100%;
+    background: none;
+    border: 0;
+    border-radius: 8px;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    padding: 10px;
+    margin: -10px -10px 0;
+    width: calc(100% + 20px);
+    cursor: pointer;
+    transition: background .12s ease;
+}
+.job-row:hover { background: var(--surface-hi); }
+.job-row + .job-row { border-top: 1px solid var(--line); margin-top: 4px; }
+
+.job-count {
+    flex-shrink: 0;
+    min-width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(77, 214, 193, .4);
+    color: var(--accent);
+    font-size: 0.8rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.job-title { display: block; font-size: 0.9rem; font-weight: 600; }
+.job-note {
+    display: block;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--text-faint);
+    margin-top: 2px;
+}
+.job-go { color: var(--text-faint); font-size: 18px; line-height: 1.2; }
+.job-row:hover .job-go { color: var(--accent); }
+
+/* The last five results, oldest on the left, the way every form guide is read.
+   The hero above says the record — three wins and two defeats summed into two
+   numbers — and this is the same season with the shape left in. */
+.form-guide { display: flex; gap: 6px; }
+
+.form-pill {
+    /* Grows to fill a 330px sidebar and stops there. On the home page the same
+       strip sits inside a 1100px card, where five pills stretched to 200px each
+       stop reading as results and start reading as buttons. */
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 58px;
+    display: grid;
+    place-items: center;
+    height: 34px;
+    border-radius: 7px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border: 1px solid var(--line-hi);
+    background: var(--surface-hi);
+    color: var(--text-dim);
+    cursor: default;
+}
+.form-pill.is-w {
+    background: rgba(74, 222, 128, .16);
+    border-color: rgba(74, 222, 128, .45);
+    color: var(--good);
+}
+.form-pill.is-l {
+    background: rgba(248, 113, 113, .14);
+    border-color: rgba(248, 113, 113, .42);
+    color: var(--danger);
+}
+
+/* ------------------------------------------------------------- the next game
+ *
+ * On the signed-in home page, above the team cards. This page is opened on the
+ * morning of a match more often than on any other day, and until it had this
+ * the most useful thing it could say was the name of the team.
+ *
+ * A link straight to the tagging tool with the squad already chosen, because
+ * that is the only thing anyone wants from this card. */
+.next-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 20px 24px;
+    background: linear-gradient(140deg, var(--surface-hi), var(--bg-raised) 70%);
+    border: 1px solid var(--line-hi);
+    border-radius: var(--radius-lg);
+    color: inherit;
+    transition: border-color .13s, transform .1s, background .13s;
+}
+.next-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    color: inherit;
+}
+
+/* Today or tomorrow. Anything a week out is a diary entry and should not be
+   lit like a thing that is happening. */
+.next-card.is-soon {
+    border-color: rgba(77, 214, 193, .45);
+    background: linear-gradient(140deg, rgba(77, 214, 193, .14), var(--surface) 62%);
+}
+
+.next-when {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-faint);
+}
+.next-card.is-soon .next-when { color: var(--accent); }
+
+.next-opp {
+    font-size: 1.45rem;
+    font-weight: 750;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+    margin-top: 3px;
+}
+.next-team { font-size: 0.85rem; color: var(--text-dim); margin-top: 3px; }
+
+.next-go {
+    font-size: 0.88rem;
+    font-weight: 650;
+    color: var(--accent);
+    white-space: nowrap;
+}
+
 /* ---------------------------------------------------------------- controls */
 
 .btn {

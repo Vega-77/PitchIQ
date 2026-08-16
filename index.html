@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/app.css?v=73">
-    <link rel="stylesheet" href="assets/landing.css?v=73">
+    <link rel="stylesheet" href="assets/app.css?v=75">
+    <link rel="stylesheet" href="assets/landing.css?v=75">
 </head>
 <body>
 
@@ -161,11 +161,27 @@
             </div>
         </header>
 
-        <!-- Teams first: the thing they came here for, with enough season
-             detail to be worth looking at rather than a bare name. -->
+        <!-- The next game, before anything else. This page is opened on the
+             morning of a match more often than on any other day, and until now
+             the most useful thing it could say was the name of the team. -->
+        <section class="block hidden" id="next-block">
+            <h3>Next up</h3>
+            <div id="next-fixture"></div>
+        </section>
+
+        <!-- Teams first after that: the thing they came here for, with enough
+             season detail to be worth looking at rather than a bare name. -->
         <section class="block" id="teams-block">
             <h3>Your teams</h3>
             <div class="team-cards" id="routes"></div>
+        </section>
+
+        <!-- The same panel as the squad page's, from the same arithmetic. A
+             coach who opens the home page and sees nothing outstanding should
+             be able to believe it. -->
+        <section class="block hidden" id="home-jobs-block">
+            <h3>Still to do</h3>
+            <div class="card" id="home-jobs"></div>
         </section>
 
         <section class="block">
@@ -179,7 +195,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="assets/landing.js?v=73"></script>
+<script type="module" src="assets/landing.js?v=75"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="./">Home</a>

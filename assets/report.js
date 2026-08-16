@@ -1693,6 +1693,67 @@ export function formGuide(matches, limit = 5) {
 }
 
 /**
+ * Days from one YYYY-MM-DD to another, or null if either is not one.
+ *
+ * Parsed as UTC noon rather than midnight local. Both ends of this comparison
+ * are calendar dates with no time on them, and midnight is exactly where a
+ * timezone offset flips one of them to the day before — which would put "today"
+ * a day out for every coach west of Greenwich, which is all of them.
+ */
+export function daysBetween(from, to) {
+    const parse = (value) => {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? ''));
+        if (!match) return null;
+        return Date.UTC(+match[1], +match[2] - 1, +match[3], 12);
+    };
+    const a = parse(from);
+    const b = parse(to);
+    if (a == null || b == null) return null;
+    return Math.round((b - a) / 86400000);
+}
+
+/**
+ * The next fixture that has not been played, or null.
+ *
+ * "Next" means today or later. A match whose date has passed and which nobody
+ * tagged is not the next fixture — it is a job, and `seasonJobs` above already
+ * says so. Showing it here under "next up" would put a game that has already
+ * been played at the top of the page every week until somebody dealt with it.
+ *
+ * Dateless fixtures are skipped rather than sorted to one end. A match with no
+ * date cannot be shown as "in three days", and a card that says "next up" over
+ * a blank is worse than no card.
+ */
+export function nextFixture(matches, today) {
+    if (!today) return null;
+
+    let best = null;
+    let bestAway = null;
+    for (const match of matches || []) {
+        if (!match || match.finalized) continue;
+        const away = daysBetween(today, match.date);
+        if (away == null || away < 0) continue;
+        if (bestAway == null || away < bestAway) {
+            best = match;
+            bestAway = away;
+        }
+    }
+
+    if (!best) return null;
+    return { match: best, daysAway: bestAway };
+}
+
+/** "today" / "tomorrow" / "in 4 days", from a day count. */
+export function whenLabel(daysAway) {
+    if (daysAway == null) return null;
+    if (daysAway <= 0) return 'today';
+    if (daysAway === 1) return 'tomorrow';
+    if (daysAway < 7) return `in ${daysAway} days`;
+    if (daysAway < 14) return 'next week';
+    return `in ${Math.round(daysAway / 7)} weeks`;
+}
+
+/**
  * What is still waiting on the coach, most pressing first.
  *
  * Every one of these is a job with an obvious next action, which is the test
