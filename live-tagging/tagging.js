@@ -13,18 +13,18 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=71';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=72';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=71';
+} from '../assets/db.js?v=72';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=71';
-import { syncState, safeToClose } from '../assets/report.js?v=71';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=71';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=71';
+} from '../assets/events.js?v=72';
+import { syncState, safeToClose } from '../assets/report.js?v=72';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=72';
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=72';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -344,30 +344,104 @@ function backToMatchPicker() {
     for (const p of state.players) delete p._starter;
 }
 
+/**
+ * One tappable player, in any of this tool's five pickers.
+ *
+ * A real `<button>` inside the `<li>`, not a click handler on the `<li>`. Every
+ * one of these lists was a styled list item with a listener on it: not
+ * focusable, not reachable from a keyboard, and announced by a screen reader as
+ * a line of text rather than as something you can press. `assets/timeline.js`
+ * states the opposite standard for its own marks — "real buttons rather than
+ * styled spans, so the whole thing is reachable from a keyboard" — and the tool
+ * every number in this system comes from was the one place that did not follow
+ * it.
+ *
+ * `toggle` is the difference between the two kinds of picker here. Choosing a
+ * starter or the player coming off is a state you can change your mind about,
+ * so it is `aria-pressed`; choosing the scorer closes the step, so it is a
+ * plain button and a pressed state would be a lie about a control that is
+ * already gone.
+ */
+function pickRow({ number, name, tag = '', toggle = false, onPick }) {
+    const li = document.createElement('li');
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'pick';
+    if (toggle) button.setAttribute('aria-pressed', 'false');
+
+    const num = document.createElement('span');
+    num.className = 'num';
+    num.textContent = number ?? '—';
+
+    const nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.textContent = name;
+
+    const badge = document.createElement('span');
+    badge.className = 'tag';
+    badge.textContent = tag;
+
+    button.append(num, nm, badge);
+    button.addEventListener('click', () => onPick?.());
+    li.append(button);
+
+    return { li, button, badge };
+}
+
+/** A list with nothing in it, said in the list rather than beside it. */
+function emptyRow(text) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = text;
+    return li;
+}
+
 function renderLineupPicker() {
     const list = byId('roster-list');
     list.innerHTML = '';
 
     if (!state.players.length) {
-        list.innerHTML = '<li><span class="tag">No players on the roster yet</span></li>';
+        list.append(emptyRow('No players on the roster yet'));
         return;
     }
 
     for (const player of state.players) {
-        const li = document.createElement('li');
-        li.className = player._starter ? 'starter' : '';
-        li.innerHTML = `<span class="num"></span><span class="nm"></span><span class="tag"></span>`;
-        li.querySelector('.num').textContent = player.jerseyNumber ?? '—';
-        li.querySelector('.nm').textContent = player.name;
-        li.querySelector('.tag').textContent = player._starter ? 'starting' : 'bench';
-        li.addEventListener('click', () => {
-            player._starter = !player._starter;
-            renderLineupPicker();
+        const { li, button, badge } = pickRow({
+            number: player.jerseyNumber,
+            name: player.name,
+            toggle: true,
         });
-        list.appendChild(li);
+
+        // Repainted in place rather than by rebuilding the list. Rebuilding
+        // threw away the button that was just pressed, which takes the keyboard
+        // focus with it — invisible while these were unfocusable list items,
+        // and the first thing anyone tabbing through them would have hit.
+        const paint = () => {
+            button.classList.toggle('is-on', Boolean(player._starter));
+            button.setAttribute('aria-pressed', player._starter ? 'true' : 'false');
+            // Only the chosen say so. Fourteen grey BENCH labels is fourteen
+            // repetitions of the default, and the heading above already says
+            // that everyone you don't tap becomes a substitute — while the
+            // width they took was pushing half the names onto a second line.
+            badge.textContent = player._starter ? 'starting' : '';
+        };
+        button.addEventListener('click', () => {
+            player._starter = !player._starter;
+            paint();
+            countStarters();
+        });
+
+        paint();
+        list.append(li);
     }
 
-    byId('starter-count').textContent = state.players.filter((p) => p._starter).length;
+    countStarters();
+}
+
+function countStarters() {
+    byId('starter-count').textContent =
+        state.players.filter((p) => p._starter).length;
 }
 
 async function saveLineupAndContinue() {
@@ -570,17 +644,17 @@ function showPlayerStep() {
     list.innerHTML = '';
 
     for (const entry of activeRoster()) {
-        const li = document.createElement('li');
-        li.innerHTML = `<span class="num"></span><span class="nm"></span>`;
-        li.querySelector('.num').textContent = entry.jerseyNumber ?? '—';
-        li.querySelector('.nm').textContent = entry.playerName;
-        li.addEventListener('click', () => {
-            state.draft.playerId = entry.id;
-            byId('step-player').classList.add('hidden');
-            if (spec.needsAssist) showAssistStep();
-            else commitDraft();
+        const { li } = pickRow({
+            number: entry.jerseyNumber,
+            name: entry.playerName,
+            onPick: () => {
+                state.draft.playerId = entry.id;
+                byId('step-player').classList.add('hidden');
+                if (spec.needsAssist) showAssistStep();
+                else commitDraft();
+            },
         });
-        list.appendChild(li);
+        list.append(li);
     }
 
     byId('step-player').classList.remove('hidden');
@@ -596,15 +670,15 @@ function showAssistStep() {
     if (!options.length) return commitDraft();
 
     for (const entry of options) {
-        const li = document.createElement('li');
-        li.innerHTML = `<span class="num"></span><span class="nm"></span>`;
-        li.querySelector('.num').textContent = entry.jerseyNumber ?? '—';
-        li.querySelector('.nm').textContent = entry.playerName;
-        li.addEventListener('click', () => {
-            state.draft.assistPlayerId = entry.id;
-            commitDraft();
+        const { li } = pickRow({
+            number: entry.jerseyNumber,
+            name: entry.playerName,
+            onPick: () => {
+                state.draft.assistPlayerId = entry.id;
+                commitDraft();
+            },
         });
-        list.appendChild(li);
+        list.append(li);
     }
 
     byId('step-assist').classList.remove('hidden');
@@ -762,16 +836,37 @@ function renderSubLists() {
     off.innerHTML = '';
     on.innerHTML = '';
 
-    const row = (entry, selectedId, onPick, dim = false) => {
-        const li = document.createElement('li');
-        li.className = [entry.id === selectedId ? 'selected' : '', dim ? 'used' : '']
-            .filter(Boolean).join(' ');
-        li.innerHTML = `<span class="num"></span><span class="nm"></span>`;
-        li.querySelector('.num').textContent = entry.jerseyNumber ?? '—';
-        li.querySelector('.nm').textContent = entry.playerName;
-        li.addEventListener('click', () => onPick(entry.id));
+    // Each side's buttons, kept so a pick can repaint the pair rather than
+    // rebuild both lists. Rebuilding destroys the button that was just pressed,
+    // and with real buttons in here that is a keyboard reader losing their
+    // place mid-substitution — while the clock is running.
+    const painters = [];
+
+    const row = (entry, side, dim = false) => {
+        const { li, button } = pickRow({
+            number: entry.jerseyNumber,
+            name: entry.playerName,
+            tag: dim ? 'been on' : '',
+            toggle: true,
+            onPick: () => {
+                state.sub[side] = entry.id;
+                repaint();
+            },
+        });
+        if (dim) button.classList.add('is-dim');
+
+        painters.push(() => {
+            const here = state.sub[side] === entry.id;
+            button.classList.toggle('is-on', here);
+            button.setAttribute('aria-pressed', here ? 'true' : 'false');
+        });
         return li;
     };
+
+    function repaint() {
+        for (const paint of painters) paint();
+        byId('btn-sub-confirm').disabled = !(state.sub.outId && state.sub.inId);
+    }
 
     const onField = state.roster.filter((r) => r.isActive);
     const fresh = state.roster.filter((r) => !r.isActive && !(r.stints || []).length);
@@ -779,23 +874,15 @@ function renderSubLists() {
     // eligible — just dimmed so they don't look identical to an unused sub.
     const used = state.roster.filter((r) => !r.isActive && (r.stints || []).length);
 
-    if (!onField.length) off.innerHTML = '<li class="empty">Nobody on the field.</li>';
-    for (const e of onField) {
-        off.appendChild(row(e, state.sub.outId, (id) => { state.sub.outId = id; renderSubLists(); }));
-    }
+    if (!onField.length) off.append(emptyRow('Nobody on the field.'));
+    for (const entry of onField) off.append(row(entry, 'outId'));
 
-    if (!fresh.length && !used.length) on.innerHTML = '<li class="empty">No substitutes.</li>';
+    if (!fresh.length && !used.length) on.append(emptyRow('No substitutes.'));
     for (const entry of [...fresh, ...used]) {
-        const alreadyPlayed = (entry.stints || []).length > 0;
-        on.appendChild(row(
-            entry,
-            state.sub.inId,
-            (id) => { state.sub.inId = id; renderSubLists(); },
-            alreadyPlayed,
-        ));
+        on.append(row(entry, 'inId', (entry.stints || []).length > 0));
     }
 
-    byId('btn-sub-confirm').disabled = !(state.sub.outId && state.sub.inId);
+    repaint();
 }
 
 async function confirmSub() {
