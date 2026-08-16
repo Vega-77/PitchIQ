@@ -9,36 +9,40 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=78';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=79';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=78';
-import { CARD_COLOURS } from '../assets/events.js?v=78';
-import { mountRail } from '../assets/rail.js?v=78';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=78';
-import { renderHeatmap } from '../assets/heatmap.js?v=78';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=78';
+} from '../assets/db.js?v=79';
+import { CARD_COLOURS } from '../assets/events.js?v=79';
+import { mountRail } from '../assets/rail.js?v=79';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=79';
+import { renderHeatmap } from '../assets/heatmap.js?v=79';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=79';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
     minutesNote, seasonGroups,
-} from '../assets/report.js?v=78';
+} from '../assets/report.js?v=79';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=78';
-import { renderForms } from '../assets/form-chart.js?v=78';
+} from '../assets/season.js?v=79';
+import { renderForms } from '../assets/form-chart.js?v=79';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=78';
-import { renderMatchVideo } from '../assets/match-video.js?v=78';
+} from '../assets/sample-report.js?v=79';
+import { renderMatchVideo } from '../assets/match-video.js?v=79';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally, coverageStrip,
-} from '../assets/ui.js?v=78';
+} from '../assets/ui.js?v=79';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
-// The match currently open, and its video handle, so a moment can seek it.
-const open = { report: null, video: null };
+// What the page is currently showing: the open match and its video handle so
+// a moment can seek it, and the season totals the rail stands beside them.
+// The rails read from here rather than from a captured argument — `mountRail`
+// keeps its callback, so a closure over a parameter would pin the rail to
+// whichever match was opened first.
+const open = { report: null, video: null, season: null };
 
 const involvements = (r) => (r.goals || 0) + (r.assists || 0);
 
@@ -265,7 +269,7 @@ function openMatch(report) {
     // A player who was reading the shot map of one match and opens another
     // should land where every match opens, so the rail forgets first.
     matchRail?.reset();
-    renderMatchRail(report);
+    renderMatchRail();
 
     showOnly('view-match', VIEWS);
     window.scrollTo(0, 0);
@@ -676,47 +680,64 @@ async function loadReports(user) {
 // how much of the match was tagged; a player's stands their own season.
 
 let seasonRail = null;
+// Read through `open.season` for the same reason the match rail reads
+// `open.report`: mountRail keeps the callback, so a closure over the
+// argument would freeze the first set of totals it ever saw.
 function renderSeasonRail(reports) {
-    const totals = seasonTotals(reports);
+    open.season = seasonTotals(reports);
     seasonRail ||= mountRail({
         body: byId('season-body'),
         rail: byId('season-rail'),
         heading: 'Your season',
-        facts: () => [
-            { label: 'Matches', value: totals.matches, tone: 'is-big' },
-            {
-                label: 'Minutes',
-                value: totals.minutes || null,
-                // Named rather than left to be inferred from a number that is
-                // quietly short. The alternative is a player dividing by a
-                // total that is missing two matches and never knowing.
-                note: totals.minutesUnknown
-                    ? `${totals.minutesUnknown} without a clock`
-                    : null,
-            },
-            {
-                label: 'Goals + assists',
-                value: totals.goals + totals.assists,
-                tone: totals.goals + totals.assists ? 'is-good' : '',
-            },
-            {
-                label: 'Filmed',
-                value: totals.cvMatches
-                    ? `${totals.cvMatches} of ${totals.matches}`
-                    : 'none yet',
-            },
-        ],
+        facts: () => {
+            const totals = open.season;
+            if (!totals) return [];
+            return [
+                { label: 'Matches', value: totals.matches, tone: 'is-big' },
+                {
+                    label: 'Minutes',
+                    value: totals.minutes || null,
+                    // Named rather than left to be inferred from a number that
+                    // is quietly short. The alternative is a player dividing by
+                    // a total that is missing two matches and never knowing.
+                    note: totals.minutesUnknown
+                        ? `${totals.minutesUnknown} without a clock`
+                        : null,
+                },
+                {
+                    label: 'Goals + assists',
+                    value: totals.goals + totals.assists,
+                    tone: totals.goals + totals.assists ? 'is-good' : '',
+                },
+                {
+                    label: 'Filmed',
+                    value: totals.cvMatches
+                        ? `${totals.cvMatches} of ${totals.matches}`
+                        : 'none yet',
+                },
+            ];
+        },
     });
     seasonRail.render();
 }
 
+/**
+ * The rail beside one match.
+ *
+ * The facts read `open.report` rather than a parameter, and that is not a
+ * detail: `mountRail` runs once and keeps the callback, so a closure over the
+ * argument would have pinned the rail to whichever match was opened first and
+ * shown its scoreline over every match after it.
+ */
 let matchRail = null;
-function renderMatchRail(report) {
+function renderMatchRail() {
     matchRail ||= mountRail({
         body: byId('md-body'),
         rail: byId('md-rail'),
         heading: 'This match',
         facts: () => {
+            const report = open.report;
+            if (!report) return [];
             const minutes = knownMinutes(report) ? (report.minutesPlayed ?? 0) : null;
             const facts = [];
             if (report.scoreUs != null) {

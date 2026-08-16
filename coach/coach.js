@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=78';
+} from '../assets/auth.js?v=79';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,23 +10,23 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=78';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=78';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=78';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=78';
+} from '../assets/db.js?v=79';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=79';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=79';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=79';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=78';
+} from '../assets/sample-report.js?v=79';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=78';
-import { renderPassMap } from '../assets/pass-map.js?v=78';
+} from '../assets/passing.js?v=79';
+import { renderPassMap } from '../assets/pass-map.js?v=79';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=78';
-import { renderForms } from '../assets/form-chart.js?v=78';
+} from '../assets/season.js?v=79';
+import { renderForms } from '../assets/form-chart.js?v=79';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -43,18 +43,18 @@ import {
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
-} from '../assets/report.js?v=78';
+} from '../assets/report.js?v=79';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=78';
-import { mountRail } from '../assets/rail.js?v=78';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=78';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=78';
+} from '../assets/events.js?v=79';
+import { mountRail } from '../assets/rail.js?v=79';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=79';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=79';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar, coverageStrip,
-} from '../assets/ui.js?v=78';
+} from '../assets/ui.js?v=79';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -72,6 +72,9 @@ const state = {
     // numbers. Never persisted and never sent anywhere; it resets every time a
     // match is opened, so nobody can arrive at a page that is quietly lying.
     cvPreview: false,
+    // Whose season the player view is showing. The rail beside it reads
+    // from here rather than from a captured argument — see renderPlayerRail.
+    openPlayer: null,
 };
 
 const show = (view) => showOnly(view, VIEWS);
@@ -826,8 +829,9 @@ async function openPlayer(player) {
         renderPlayerMatches(reports);
         // A coach who was reading one student's running and opens the next
         // should land where every player opens.
+        state.openPlayer = { player, totals };
         playerRail?.reset();
-        renderPlayerRail(player, totals);
+        renderPlayerRail();
         show('view-player');
         window.scrollTo(0, 0);
     } catch (err) {
@@ -852,42 +856,54 @@ function fillPlayerGroup(blockId, gridId, group, noteId) {
     if (noteId) setText(noteId, group.note);
 }
 
-/** The rail beside one player's season, and the figures that stand above it. */
+/**
+ * The rail beside one player's season, and the figures that stand above it.
+ *
+ * The facts read `state.openPlayer` rather than the arguments, and that is not
+ * a detail: `mountRail` runs once and keeps the callback, so a closure over the
+ * parameters would have pinned the rail to whichever student was opened first
+ * and shown their minutes over everyone after them.
+ */
 let playerRail = null;
-function renderPlayerRail(player, totals) {
+function renderPlayerRail() {
     playerRail ||= mountRail({
         body: byId('pv-body'),
         rail: byId('pv-rail'),
         heading: 'This season',
-        facts: () => [
-            { label: 'Matches', value: totals.matches || null, tone: 'is-big' },
-            {
-                label: 'Minutes',
-                value: totals.minutes || null,
-                note: totals.minutesUnknown
-                    ? `${totals.minutesUnknown} without a clock`
-                    : null,
-            },
-            {
-                label: 'Goals + assists',
-                value: totals.goals + totals.assists,
-                tone: totals.goals + totals.assists ? 'is-good' : '',
-            },
-            {
-                label: 'Filmed',
-                value: totals.cvMatches
-                    ? `${totals.cvMatches} of ${totals.matches}`
-                    : 'none yet',
-            },
-            // The one fact on this rail that is about the student rather than
-            // the season, and the one a coach most often opens this page to
-            // check before sending an invite.
-            {
-                label: 'Portal',
-                value: player?.linkedUid ? 'signed in' : 'not yet',
-                tone: player?.linkedUid ? 'is-good' : '',
-            },
-        ],
+        facts: () => {
+            const open = state.openPlayer;
+            if (!open) return [];
+            const { player, totals } = open;
+            return [
+                { label: 'Matches', value: totals.matches || null, tone: 'is-big' },
+                {
+                    label: 'Minutes',
+                    value: totals.minutes || null,
+                    note: totals.minutesUnknown
+                        ? `${totals.minutesUnknown} without a clock`
+                        : null,
+                },
+                {
+                    label: 'Goals + assists',
+                    value: totals.goals + totals.assists,
+                    tone: totals.goals + totals.assists ? 'is-good' : '',
+                },
+                {
+                    label: 'Filmed',
+                    value: totals.cvMatches
+                        ? `${totals.cvMatches} of ${totals.matches}`
+                        : 'none yet',
+                },
+                // The one fact on this rail that is about the student rather
+                // than the season, and the one a coach most often opens this
+                // page to check before sending an invite.
+                {
+                    label: 'Portal',
+                    value: player?.linkedUid ? 'signed in' : 'not yet',
+                    tone: player?.linkedUid ? 'is-good' : '',
+                },
+            ];
+        },
     });
     playerRail.render();
 }
