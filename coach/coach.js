@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=81';
+} from '../assets/auth.js?v=82';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,23 +10,23 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=81';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=81';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=81';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=81';
+} from '../assets/db.js?v=82';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=82';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=82';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=82';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=81';
+} from '../assets/sample-report.js?v=82';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=81';
-import { renderPassMap } from '../assets/pass-map.js?v=81';
+} from '../assets/passing.js?v=82';
+import { renderPassMap } from '../assets/pass-map.js?v=82';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=81';
-import { renderForms } from '../assets/form-chart.js?v=81';
+} from '../assets/season.js?v=82';
+import { renderForms } from '../assets/form-chart.js?v=82';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -43,18 +43,18 @@ import {
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
-} from '../assets/report.js?v=81';
+} from '../assets/report.js?v=82';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=81';
-import { mountRail } from '../assets/rail.js?v=81';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=81';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=81';
+} from '../assets/events.js?v=82';
+import { mountRail } from '../assets/rail.js?v=82';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=82';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=82';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar, coverageStrip,
-} from '../assets/ui.js?v=81';
+} from '../assets/ui.js?v=82';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -3490,8 +3490,19 @@ function renderReviewFilters() {
     const counts = state.match?.cvEvents?.counts || {};
     const taggedCount = reviewItems()
         .filter((item) => item.source === FROM_TAGGED).length;
+    const foundCount = (state.match.cvEvents.events || []).length;
     const options = [
-        ['all', `Everything (${(state.match.cvEvents.events || []).length})`],
+        // Every chip counts what selecting it shows, and `all` shows both
+        // records — so the tagged entries belong in this number. Counting only
+        // the candidates put two totals for one list six lines apart on the
+        // same screen: the chip read "Everything (433)" while the note under
+        // the rows read "Showing the first 200 of 439". The six were the tagged
+        // ones, sitting in the list, missing from the count above it.
+        //
+        // Deliberately not the same denominator as "n of m checked" above,
+        // which is the candidates alone and correctly so: a tagged entry is a
+        // human's own record of the match and has no verdict to give.
+        ['all', `Everything (${foundCount + taggedCount})`],
         ...REVIEW_TYPES
             .filter((type) => counts[type])
             .map((type) => [type, `${type} (${counts[type]})`]),

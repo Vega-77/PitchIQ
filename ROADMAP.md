@@ -788,7 +788,26 @@ column of proper sentences. The real value is `kickoff_1st` — so the fallback 
 naming because it is the failure mode of every fixture: a test that seeds data
 the app never writes tests something the app never does.
 
-660 pure JS · **11 pages** · 145 emulator · 1008 Python.
+**The first thing it found, on the first page it had never loaded.** The coach's
+match view is the largest surface in the repo and nothing had ever rendered it
+in a test. Opening a filmed match showed the review block reporting **two totals
+for one list, six lines apart**: the filter chip read *Everything (433)* and the
+note under the rows read *Showing the first 200 of 439*.
+
+The six are the tagged log. `visibleItems` returns the hand-tagged entries under
+the `all` filter — that is the whole point of the merged feed, and they are on
+screen, marked *tagged by hand*, sitting between the candidates at the minute
+they happened. The chip counted `cvEvents.events.length` and left them out. A
+reviewer working down four hundred rows has no way to tell which of the two
+numbers describes what they are looking at, or whether something has been
+silently dropped.
+
+Fixed by counting what selecting the chip actually shows. Deliberately **not**
+the same denominator as *"n of m checked"* above it, which stays the candidates
+alone and is right to: a tagged entry is a human's own record of the match and
+has no verdict to give.
+
+660 pure JS · **12 pages** · 145 emulator · 1008 Python.
 
 ---
 

@@ -25,7 +25,7 @@ import { readFileSync } from 'node:fs';
 
 import { installDom } from './dom-shim.js';
 import { reset, seed, signInAs } from './fake-firebase.js';
-import { fixture, COACH, STUDENT, TEAM_ID, MATCH_ID } from './fixtures.js';
+import { fixture, filmed, COACH, STUDENT, TEAM_ID, MATCH_ID } from './fixtures.js';
 
 const root = new URL('../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), 'utf8');
@@ -141,6 +141,49 @@ test('opening a second player replaces the first one, rail included', async () =
     assert.notEqual(rae, alex, 'the rail beside the second player is the first');
     assert.doesNotMatch(rae, /152/, "the rail still shows Alex's minutes");
     assert.match(rae, /without a clock/, 'a season with no measured minutes reads as measured');
+});
+
+test('the review tool counts one list once', async () => {
+    // Found by loading this page for the first time. The filter chips and the
+    // truncation note under the rows are two counts of the same list, six lines
+    // apart, and they disagreed by exactly the number of hand-tagged entries —
+    // which `all` shows and the chip did not count.
+    const documents = await filmed();
+    const candidates =
+        documents[`teams/${TEAM_ID}/matches/${MATCH_ID}/cvStats/events`].events.length;
+
+    await openPage({
+        html: 'coach/index.html',
+        entry: 'coach/coach.js',
+        url: `http://localhost:5000/coach/?team=${TEAM_ID}`,
+        variant: 'filmed',
+        documents,
+    });
+
+    live.document.querySelectorAll('.title')
+        .find((t) => t.textContent.includes('Northgate'))
+        ?.closest('div')
+        ?.click();
+    await settle();
+
+    assert.ok(shown('cv-review-block'), 'the review tool never opened');
+
+    const chip = live.document.querySelectorAll('#cv-review-filters .chip')
+        .find((c) => c.textContent.startsWith('Everything'));
+    const tagged = live.document.querySelectorAll('#cv-review-filters .chip')
+        .find((c) => c.textContent.startsWith('tagged by hand'));
+    assert.ok(chip && tagged, 'the filter chips are missing');
+
+    const number = (node) => Number(/\((\d+)\)/.exec(node.textContent)?.[1]);
+    const shownOf = Number(
+        /of (\d+)\./.exec(el('cv-review-list').textContent)?.[1] ?? NaN,
+    );
+
+    assert.ok(shownOf > 0, 'the list is short enough that nothing was truncated');
+    assert.equal(number(chip), shownOf,
+        'the Everything chip and the row count disagree about one list');
+    assert.equal(number(chip), number(tagged) + candidates,
+        'Everything is not the candidates plus the tagged log');
 });
 
 test('the player portal opens a season for the student it belongs to', async () => {

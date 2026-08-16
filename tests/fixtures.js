@@ -54,6 +54,41 @@ const report = (matchId, playerId, fields) => [
     },
 ];
 
+/**
+ * A filmed match: the summary the pipeline publishes, plus the candidate events
+ * the review tool works through.
+ *
+ * Built from `assets/sample-report.js` rather than invented again here, so the
+ * one place that describes what a run looks like stays the one place. The
+ * caller passes it in — most pages are opened against a match nobody filmed,
+ * because most matches are.
+ */
+export async function filmed() {
+    // No `?v=` on this one specifier, deliberately. Every import inside the app
+    // carries the cache-busting stamp and `python stamp_version.py` rewrites
+    // them all; a stamp in here would be a copy of that number nothing updates,
+    // and it would go stale silently rather than fail. sample-report.js imports
+    // nothing, so a second instance of it costs nothing either.
+    const { sampleCvSummary, samplePassEvents } =
+        await import('../assets/sample-report.js');
+    const cv = sampleCvSummary();
+    const base = `teams/${TEAM_ID}/matches/${MATCH_ID}`;
+
+    const events = samplePassEvents();
+    const counts = {};
+    for (const event of events) counts[event.type] = (counts[event.type] || 0) + 1;
+
+    return {
+        ...fixture(),
+        [`${base}/cvStats/summary`]: cv,
+        ...(cv.identity ? { [`${base}/cvStats/identity`]: cv.identity } : {}),
+        [`${base}/cvStats/events`]: {
+            schemaVersion: 3, events, counts, truncated: false,
+            droppedBelowConfidence: null,
+        },
+    };
+}
+
 export function fixture() {
     return Object.fromEntries([
         [`users/${COACH.uid}`, { teamIds: [TEAM_ID] }],
