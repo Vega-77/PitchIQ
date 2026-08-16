@@ -26,7 +26,7 @@ jersey numbers robustly in month 1.
 
 ---
 
-## Current Status (2026-08-15)
+## Current Status (2026-08-16)
 
 **Built and verified:**
 - `cv/` — reusable detection package + `spike_detect` CLI (Phase 5 spike, done)
@@ -3181,6 +3181,32 @@ than the workaround, which matters given the data class.
       the two had the same evidence behind them. Amber for filmed-but-too-thin,
       an empty track for not filmed at all: absent is not zero in a bar chart
       either.
+
+- [x] **A bug class the suites cannot see, found by driving the page**
+      (2026-08-16). `mountRail` builds once and keeps the callback it was given.
+      All three rails added on 15 August handed it a closure over a function
+      argument — the report, the player, the totals — so the callback held
+      whichever subject was opened first and went on showing it. Open one
+      student, go back, open another, and the rail beside the second student's
+      empty season still read **8 matches, 708 minutes, 7 goals and assists,
+      Portal: signed in.**
+
+      Nothing about that looks wrong. The numbers are well formed, plausible and
+      internally consistent; they are simply somebody else's. It is the same
+      shape of failure as the eight-day-dead tagging tool: **`tests/video.test.js`
+      cannot import a module that touches the DOM, and the emulator suites drive
+      Firestore without loading a page**, so a stale closure inside a UI
+      component is invisible to every test in the repo. It was found the only
+      way it could be — by opening two players in a row and reading the rail.
+
+      Fixed by reading from live state (`open.report`, `open.season`,
+      `state.openPlayer`) rather than from a captured parameter, and the reason
+      is now a comment on all three, because the next rail anyone adds will be
+      copied from one of them.
+
+      This is the second entry in two days pointing at the same gap. Closing it
+      needs either a headless browser or a DOM shim in the test suite, and both
+      are dependencies this repo does not have — see Phase 3.
 
 - [x] **A coach and a player now read one season, not two shapes of it**
       (2026-08-15). Giving the player portal grouped sections and a rail left
