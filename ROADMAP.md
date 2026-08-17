@@ -827,7 +827,7 @@ the same denominator as *"n of m checked"* above it, which stays the candidates
 alone and is right to: a tagged entry is a human's own record of the match and
 has no verdict to give.
 
-675 pure JS · **20 pages** · 145 emulator · 1008 Python.
+675 pure JS · **20 pages** · 145 emulator · 1011 Python.
 
 ---
 
@@ -3344,6 +3344,50 @@ than the workaround, which matters given the data class.
       the two had the same evidence behind them. Amber for filmed-but-too-thin,
       an empty track for not filmed at all: absent is not zero in a bar chart
       either.
+
+- [x] **The two halves of the calibration had never been checked against each
+      other** (2026-08-17). `calibrate/pitch-model.js` imports nothing — the one
+      property that makes a module testable here — and **no test in the repo
+      touched `fitHomography` or `landmarks`.** The solver that turns a coach's
+      clicks into the mapping every metre in this system comes from had no
+      coverage at all.
+
+      Two independent implementations sit either side of that export. A coach
+      clicks eight points in the browser, reads a reprojection error off the
+      page, and hands the correspondences to a pipeline that re-fits them with
+      OpenCV. If those disagree, **the error a coach was shown is not the error
+      the pipeline has** — and nothing announces it, because the numbers stay
+      plausible and are simply about a different pitch.
+
+      `tests/test_calibration_parity.py`, on the pattern of the xG parity test:
+
+      - **The landmark tables are the same pitch.** 27 names, identical
+        coordinates. This is the likelier drift of the two, because it is a
+        table somebody edits.
+      - **The solvers agree, and both are right.** Same clicks in, same metres
+        out, checked against the synthetic camera that generated the clicks —
+        which is the half that catches the two of them being wrong together.
+        **Measured: 0.2 millimetres apart**, and both recover the camera
+        exactly. Not a shared implementation agreeing with itself: the browser
+        solves the normal equations by hand, OpenCV uses
+        `getPerspectiveTransform` at four points and RANSAC above that.
+
+      Checked by moving the penalty spot one metre in the browser's table: both
+      tests fail, naming the pixel and the gap. **And the interesting part of
+      that check is the number** — a one-metre table error came out as a
+      **0.21m** disagreement in the fit, because eight points absorb most of it.
+      That is exactly why comparing the tables directly earns its place beside
+      comparing the fits; a solver check alone would have reported a fifth of
+      the error and called it small.
+
+      One assumption of mine was wrong and the code was right: I expected
+      `fitHomography` to return null below four points and it throws. The page
+      never reaches that — `drawPitchOverlay` counts first and `renderQuality`
+      wraps the call, because an exception in the canvas draw would take the
+      picker down between a coach's first and fourth click. The test now asserts
+      that guard rather than the return value.
+
+      1011 Python · 675 pure JS · 20 pages · 145 emulator.
 
 - [x] **Publishing did not say so on the page the coach was looking at**
       (2026-08-17). Found by driving the publish button — the write that reaches
