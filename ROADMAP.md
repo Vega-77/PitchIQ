@@ -768,11 +768,13 @@ shim was filed as a dependency when it is a file in `tests/`.
 | `tests/dom-shim.js` | The DOM these pages use and no more: a tolerant HTML parser (because `innerHTML = '<span class="jersey">…'` is how almost every row in this codebase is built), a selector engine covering descendant combinators over tag/class/id/attribute, and a 2D canvas context that draws nothing and records everything. |
 | `tests/fixtures.js` | One squad. Deliberately awkward: a substitute who came on at 30′, a player on a yellow, a match with a log and a match without one, and two students whose seasons **must not** read alike. |
 
-**Eleven tests, and they were checked the only way a test can be.** Both historic
-bugs were reinstated in the working tree and the suite re-run: it fails with
-`ReferenceError: updateOnlineIndicator is not defined` and *"the rail still
-shows Alex's minutes"*. A suite that passes on fixed code has proved nothing
-until it has failed on the broken code.
+**Every test here was checked the only way a test can be.** Each historic bug
+was reinstated in the working tree and the suite re-run: it fails with
+`ReferenceError: updateOnlineIndicator is not defined`, with *"the rail still
+shows Alex's minutes"*, and — once the fake Firestore could go offline — on the
+`await`-then-render that left the tablet dead at a field with no signal. A suite
+that passes on fixed code has proved nothing until it has failed on the broken
+code.
 
 **Three decisions worth keeping, because each is a way the shim could have
 lied:**
@@ -825,7 +827,7 @@ the same denominator as *"n of m checked"* above it, which stays the candidates
 alone and is right to: a tagged entry is a human's own record of the match and
 has no verdict to give.
 
-668 pure JS · **14 pages** · 145 emulator · 1008 Python.
+668 pure JS · **17 pages** · 145 emulator · 1008 Python.
 
 ---
 
@@ -3342,6 +3344,51 @@ than the workaround, which matters given the data class.
       the two had the same evidence behind them. Amber for filmed-but-too-thin,
       an empty track for not filmed at all: absent is not zero in a bar chart
       either.
+
+- [x] **The tablet is now driven tap by tap, including with the signal gone**
+      (2026-08-17). The tool every number in this system derives from had
+      exactly one assertion against it — that `init()` ran — which is one more
+      than it had during the eight days it was dead, and not enough for
+      anything else.
+
+      **The demo path, as a test.** Pick a match, set a lineup, kick off, tag
+      through the side sheet, substitute, undo, half-time, restart. It reads the
+      *database* back after each tap rather than the screen, because what the
+      screen said and what reached Firestore is precisely the pair that came
+      apart in August. Along the way it pins the things that are easy to get
+      quietly wrong: a starter's stint opens at zero when the lineup is saved
+      and an unused substitute gets **no stint at all** rather than one of zero
+      length; a substitution closes one stint and opens another and moves the
+      version; undo puts all three writes back; `halfTimeClockS` reaches the
+      match document, without which every second-half video moment lands late by
+      the length of the interval.
+
+      **And the resume path, which the setup screen promises in as many words**
+      — *"if you started one earlier and had to stop, choose it again, nothing
+      you already tapped is lost"*. A tablet dying mid-half is the likeliest
+      thing to happen on the day. Checked: the match in progress is offered and
+      marked `resume`, choosing it lands in the live view rather than asking for
+      a lineup again, the clock picks up at the last thing anybody tapped
+      (2100s, not zero), and a player already substituted off is offered back
+      marked **"been on"** rather than hidden or offered as if fresh. All
+      correct — a negative result, now nailed down.
+
+      **The fake Firestore learned to go offline, which is the point.** A fake
+      where every write resolves immediately can never catch the bug that
+      mattered most here: `persistentLocalCache` makes a write durable the
+      instant it is issued, and the promise resolves only on *server*
+      acknowledgement. `goOffline()` now keeps applying writes locally and
+      leaves their promises pending, exactly as Firestore does. The new test
+      goes offline mid-match and asserts the sheet closes, the tag reaches the
+      cache, the substitution moves the roster, **two further presses of Confirm
+      do nothing**, and reconnecting settles the queue with no duplicate and one
+      closed stint. Reinstating the old `await`-then-render in `confirmSub`
+      fails it.
+
+      That is the third bug class this suite can now see, and the only one of
+      the three that could not be found by reading code.
+
+      668 pure JS · 17 pages · 145 emulator · 1008 Python.
 
 - [x] **The full match report said less than the three-minute one**
       (2026-08-16). Found by rendering one match on both pages and diffing every

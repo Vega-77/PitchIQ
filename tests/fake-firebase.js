@@ -6,10 +6,12 @@
 // lets a page be loaded in `node --test` at all.
 //
 // This is not a Firestore. It has no rules, no ordering guarantees beyond
-// insertion, no transactions, and no network — so it can never tell you a write
-// would have been rejected. `tests/rules.test.js` and `tests/flow.test.js` run
-// against the real emulator and remain the only things that can. What this
-// gives is the other half: a page that renders, from documents that exist.
+// insertion and no transactions, and no rules at all — so it can never tell you
+// a write would have been rejected. `tests/rules.test.js` and
+// `tests/flow.test.js` run against the real emulator and remain the only things
+// that can. What this gives is the other half: a page that renders, from
+// documents that exist — and, through `goOffline`, a page that has to keep
+// working when the server stops answering.
 
 // ---------------------------------------------------------------- the store
 
@@ -17,10 +19,46 @@ const store = new Map();       // 'teams/t1/matches/m1' -> plain object
 const listeners = new Set();
 let autoId = 0;
 
+// ------------------------------------------------------------- the network
+//
+// The single most consequential bug this project has shipped lived here.
+// `persistentLocalCache` makes a write durable in IndexedDB the instant it is
+// issued, but the promise `setDoc` hands back resolves only on **server**
+// acknowledgement — so a handler that awaits it before touching the screen does
+// nothing at all at a field with no signal. The tagging tool did exactly that
+// in six places, and the tablet answered a tap by appearing to ignore it.
+//
+// A fake where every write resolves immediately can never catch that. So
+// `goOffline()` keeps applying writes locally and leaves their promises
+// pending, which is what Firestore does.
+
+let online = true;
+const unacknowledged = [];
+
+/** Writes still land; nothing they return settles until the signal is back. */
+export function goOffline() { online = false; }
+
+/** Acknowledge everything queued, the way a reconnection would. */
+export async function goOnline() {
+    online = true;
+    const waiting = unacknowledged.splice(0);
+    for (const resolve of waiting) resolve();
+    await new Promise((resolve) => setImmediate(resolve));
+}
+
+export const queuedWrites = () => unacknowledged.length;
+
+/** The server's answer to a write, or its silence. */
+const acknowledge = () => (online
+    ? Promise.resolve()
+    : new Promise((resolve) => unacknowledged.push(resolve)));
+
 /** Wipe every document and listener. Called between pages. */
 export function reset() {
     store.clear();
     listeners.clear();
+    online = true;
+    unacknowledged.length = 0;
     authState.user = null;
     authState.callbacks.clear();
     autoId = 0;
@@ -132,11 +170,11 @@ function docSnap(path) {
         exists: () => data !== undefined,
         data: () => (data === undefined ? undefined : structuredClone(data)),
         get: (field) => readField(data, field),
-        // Nothing here is ever queued: every write in this fake is applied the
-        // instant it is made. A page that renders differently while a write is
-        // in flight cannot be tested here — that is what driving the real
-        // emulator offline is for.
-        metadata: { hasPendingWrites: false, fromCache: false },
+        // Per document and approximate: this fake does not track which write
+        // touched which path, so offline it reports every document as pending.
+        // Enough for the sync indicator to be driven and read; not enough to
+        // test a mixed queue, which needs the emulator.
+        metadata: { hasPendingWrites: !online, fromCache: !online },
     };
 }
 
@@ -155,7 +193,7 @@ function querySnap(ref) {
         size: docs.length,
         empty: docs.length === 0,
         forEach: (fn) => docs.forEach(fn),
-        metadata: { fromCache: false, hasPendingWrites: false },
+        metadata: { fromCache: !online, hasPendingWrites: !online },
     };
 }
 
@@ -191,14 +229,16 @@ function writeDoc(ref, data, options = {}) {
     store.set(ref.path, options.merge ? { ...previous, ...settled } : settled);
 }
 
-export async function setDoc(ref, data, options) {
+export function setDoc(ref, data, options) {
     writeDoc(ref, data, options);
     notify();
+    return acknowledge();
 }
 
-export async function updateDoc(ref, patch) {
+export function updateDoc(ref, patch) {
     if (!store.has(ref.path)) {
-        throw new Error(`fake firestore: no document to update at ${ref.path}`);
+        return Promise.reject(
+            new Error(`fake firestore: no document to update at ${ref.path}`));
     }
     const previous = store.get(ref.path);
     const next = { ...previous };
@@ -208,11 +248,13 @@ export async function updateDoc(ref, patch) {
     }
     store.set(ref.path, next);
     notify();
+    return acknowledge();
 }
 
-export async function deleteDoc(ref) {
+export function deleteDoc(ref) {
     store.delete(ref.path);
     notify();
+    return acknowledge();
 }
 
 export async function getDoc(ref) { return docSnap(ref.path); }
@@ -227,9 +269,13 @@ export function writeBatch() {
         set(ref, data, options) { queued.push(() => writeDoc(ref, data, options)); return this; },
         update(ref, patch) { queued.push(() => updateDoc(ref, patch)); return this; },
         delete(ref) { queued.push(() => store.delete(ref.path)); return this; },
-        async commit() {
-            for (const apply of queued) await apply();
+        commit() {
+            // Applied locally in one go and acknowledged as one write, which is
+            // what a batch is: it queues offline rather than failing, and that
+            // is the reason the tagging tool uses batches and not transactions.
+            for (const apply of queued) apply();
             notify();
+            return acknowledge();
         },
     };
 }

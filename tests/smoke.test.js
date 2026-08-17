@@ -24,7 +24,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { installDom } from './dom-shim.js';
-import { reset, seed, signInAs } from './fake-firebase.js';
+import {
+    reset, seed, signInAs, snapshotOf, pathsUnder, goOffline, goOnline, queuedWrites,
+} from './fake-firebase.js';
 import { fixture, filmed, COACH, STUDENT, TEAM_ID, MATCH_ID } from './fixtures.js';
 
 const root = new URL('../', import.meta.url);
@@ -230,6 +232,255 @@ test('the live-tagging tool wires up its buttons for a signed-in coach', async (
     // was inert while the page looked completely normal.
     assert.ok(globalThis.window._tagger, 'the test seam was never installed');
     assert.ok(!shown('view-signin'), 'a signed-in coach was shown the sign-in screen');
+});
+
+// ------------------------------------------------------ the tablet, tap by tap
+//
+// Every number in this system is derived from what somebody tapped here, and
+// until now this tool had exactly one assertion against it — that `init()` ran.
+// The walkthrough below is the demo path: pick a match, set a lineup, kick off,
+// tag, substitute, undo, half-time, restart. It reads the database back after
+// each tap rather than the screen, because what the screen said and what
+// reached Firestore is precisely the pair that came apart in August.
+
+const entries = (matchId) => pathsUnder(`teams/${TEAM_ID}/matches/${matchId}/log/`)
+    .sort()
+    .map((path) => {
+        const e = snapshotOf(path);
+        return `${e.kind}/${e.type}@${Math.round(e.matchClockS)}`;
+    });
+
+const stints = (matchId) => Object.fromEntries(
+    pathsUnder(`teams/${TEAM_ID}/matches/${matchId}/roster/`).map((path) => {
+        const r = snapshotOf(path);
+        return [r.playerName, { on: r.isActive, v: r.version, stints: r.stints }];
+    }),
+);
+
+const activeView = () => live.document.querySelectorAll('.view')
+    .filter((v) => v.classList.contains('active')).map((v) => v.id).join(',');
+
+test('a match can be tagged from the first tap to the second half', async () => {
+    await openPage({
+        html: 'live-tagging/index.html',
+        entry: 'live-tagging/tagging.js',
+        url: `http://localhost:5000/live-tagging/?team=${TEAM_ID}&match=match-2`,
+        variant: 'walkthrough',
+    });
+
+    // ---- pick the match
+    const cards = live.document.querySelectorAll('#match-cards .match-card');
+    assert.ok(cards.length, 'no match to pick');
+    cards.find((c) => c.textContent.includes('Eastvale')).click();
+    await settle();
+
+    // ---- the lineup. Two start and one sits, because a squad with nobody on
+    // the bench cannot be substituted and would walk past the half of this
+    // that matters.
+    const picks = live.document.querySelectorAll('#roster-list .pick');
+    assert.equal(picks.length, 3, 'the squad did not reach the lineup picker');
+    picks.find((p) => p.textContent.includes('Rae')).click();
+    picks.find((p) => p.textContent.includes('Alex')).click();
+    await settle();
+    assert.equal(text('starter-count'), '2');
+
+    el('btn-save-lineup').click();
+    await settle();
+    assert.match(activeView(), /view-kickoff/, 'a saved lineup did not reach kick-off');
+
+    // A starter's stint opens at zero the moment the lineup is saved — hours
+    // before kick-off — which is the write that made `whistleFrom` necessary.
+    const lineup = stints('match-2');
+    assert.equal(Object.keys(lineup).length, 3, 'the whole squad was not written');
+    assert.deepEqual(lineup['Rae Nkemelu'].stints, [{ inS: 0, outS: null }]);
+    // And a substitute gets no stint at all rather than one of zero length —
+    // an unused substitute has not played, which is not the same as having
+    // played none of it.
+    assert.deepEqual(lineup['Sam Okonjo'].stints, []);
+    assert.equal(lineup['Sam Okonjo'].on, false);
+    assert.deepEqual(entries('match-2'), [], 'a lineup wrote a log entry');
+
+    // ---- kick off
+    el('btn-kickoff').click();
+    await settle();
+    assert.match(activeView(), /view-live/);
+    assert.deepEqual(entries('match-2'), ['period/kickoff_1st@0']);
+
+    // ---- one tagged event, through the side sheet
+    live.document.querySelectorAll('.ev')
+        .find((b) => /corner/i.test(b.textContent)).click();
+    await settle();
+    assert.ok(el('overlay-event').classList.contains('open'),
+        'the tag sheet never opened');
+    globalThis.window._tagger.onSideChosen('us');
+    await settle();
+    assert.equal(entries('match-2').length, 2, 'the corner never reached the log');
+
+    // ---- a substitution, which is the arithmetic the minutes column is made of
+    el('btn-sub').click();
+    await settle();
+    assert.ok(el('overlay-sub').classList.contains('open'), 'the sub sheet never opened');
+    assert.equal(el('btn-sub-confirm').disabled, true,
+        'confirm was live before anybody had been chosen');
+
+    live.document.querySelectorAll('#sub-off-list .pick')
+        .find((p) => p.textContent.includes('Rae')).click();
+    const bench = live.document.querySelectorAll('#sub-on-list .pick');
+    assert.equal(bench.length, 1, 'the bench is not who was left out of the lineup');
+    bench[0].click();
+    await settle();
+    assert.equal(el('btn-sub-confirm').disabled, false);
+
+    el('btn-sub-confirm').click();
+    await settle();
+    const after = stints('match-2');
+    assert.equal(after['Rae Nkemelu'].on, false, 'the player who came off is still on');
+    assert.equal(after['Rae Nkemelu'].stints[0].outS != null, true,
+        "the outgoing player's stint never closed");
+    assert.equal(after['Rae Nkemelu'].v, 1, 'the version did not move');
+
+    // ---- and undo puts all three writes back
+    el('btn-undo').click();
+    await settle();
+    const undone = stints('match-2');
+    assert.equal(undone['Rae Nkemelu'].on, true, 'undo left the player off');
+    assert.deepEqual(undone['Rae Nkemelu'].stints, [{ inS: 0, outS: null }],
+        'undo left a closed stint behind');
+    assert.equal(entries('match-2').length, 2, 'undo left the log entry');
+
+    // ---- half-time, and the restart
+    assert.equal(text('btn-period'), 'Half-time');
+    el('btn-period').click();
+    await settle();
+    const atBreak = snapshotOf(`teams/${TEAM_ID}/matches/match-2`);
+    assert.equal(atBreak.status, 'halftime');
+    // Without this the second half's video offset is a guess, and every
+    // second-half moment lands late by however long the break ran.
+    assert.ok(atBreak.halfTimeClockS != null, 'the break was not written to the match');
+    assert.equal(text('btn-period'), 'Start 2nd half');
+
+    el('btn-period').click();
+    await settle();
+    assert.equal(
+        snapshotOf(`teams/${TEAM_ID}/matches/match-2`).status, 'second_half',
+    );
+    assert.match(entries('match-2').join(' '), /period\/kickoff_2nd/);
+});
+
+test('a tagger who had to restart lands back in the match, not in the lineup', async () => {
+    // The setup screen promises this in as many words — "if you started one
+    // earlier and had to stop, choose it again, nothing you already tapped is
+    // lost" — and a tablet that dies mid-half is the likeliest thing to happen
+    // on the day.
+    const documents = fixture();
+    documents[`teams/${TEAM_ID}/matches/${MATCH_ID}`].status = 'first_half';
+    delete documents[`teams/${TEAM_ID}/matches/${MATCH_ID}/log/dev-a_000008`];
+
+    await openPage({
+        html: 'live-tagging/index.html',
+        entry: 'live-tagging/tagging.js',
+        url: `http://localhost:5000/live-tagging/?team=${TEAM_ID}&match=${MATCH_ID}`,
+        variant: 'resume',
+        documents,
+    });
+
+    const card = live.document.querySelectorAll('#match-cards .match-card')
+        .find((c) => c.textContent.includes('Northgate'));
+    assert.ok(card, 'the match in progress was not offered');
+    assert.match(card.textContent, /resume/, 'a match in progress was offered as new');
+
+    card.click();
+    await settle();
+
+    assert.match(activeView(), /view-live/, 'resuming asked for a lineup again');
+    // The clock picks up from the last thing anybody tapped, not from zero.
+    assert.equal(Math.round(globalThis.window._tagger.state.clockOffset), 2100);
+
+    // And a player who has already been off is offered back, marked as such,
+    // rather than being hidden or offered as though they were fresh.
+    el('btn-sub').click();
+    await settle();
+    const back = live.document.querySelectorAll('#sub-on-list .pick')
+        .find((p) => p.textContent.includes('Alex Vega'));
+    assert.ok(back, 'a substituted player cannot come back on');
+    assert.match(back.textContent, /been on/);
+});
+
+test('the tablet keeps working when the server stops answering', async () => {
+    // The most consequential bug this project has shipped, as an assertion.
+    // Firestore makes a write durable the instant it is issued and resolves its
+    // promise only on *server* acknowledgement — so six handlers that awaited
+    // that promise before touching the screen did nothing at all at a field
+    // with no signal. The sheet stayed open, the strip stayed stale, and the
+    // remedy a person reaches for is to tap again.
+    await openPage({
+        html: 'live-tagging/index.html',
+        entry: 'live-tagging/tagging.js',
+        url: `http://localhost:5000/live-tagging/?team=${TEAM_ID}&match=${MATCH_ID}`,
+        variant: 'offline',
+        documents: (() => {
+            const docs = fixture();
+            docs[`teams/${TEAM_ID}/matches/${MATCH_ID}`].status = 'first_half';
+            delete docs[`teams/${TEAM_ID}/matches/${MATCH_ID}/log/dev-a_000008`];
+            return docs;
+        })(),
+    });
+
+    live.document.querySelectorAll('#match-cards .match-card')
+        .find((c) => c.textContent.includes('Northgate')).click();
+    await settle();
+    const before = entries(MATCH_ID).length;
+
+    goOffline();
+
+    // ---- a tag, with the signal gone
+    live.document.querySelectorAll('.ev')
+        .find((b) => /corner/i.test(b.textContent)).click();
+    await settle();
+    globalThis.window._tagger.onSideChosen('them');
+    await settle();
+
+    assert.ok(!el('overlay-event').classList.contains('open'),
+        'the sheet stayed open with no signal — the tap looks ignored');
+    assert.equal(entries(MATCH_ID).length, before + 1,
+        'the tag never reached the local cache');
+    assert.ok(queuedWrites() > 0, 'nothing was left waiting for the server');
+
+    // ---- and a substitution, which is the one that corrupts minutes when a
+    // tagger presses Confirm again because nothing appeared to happen.
+    el('btn-sub').click();
+    await settle();
+    live.document.querySelectorAll('#sub-off-list .pick')
+        .find((p) => p.textContent.includes('Rae')).click();
+    live.document.querySelectorAll('#sub-on-list .pick')[0].click();
+    await settle();
+    el('btn-sub-confirm').click();
+    await settle();
+
+    assert.ok(!el('overlay-sub').classList.contains('open'),
+        'the substitution sheet never closed with no signal');
+    const off = stints(MATCH_ID)['Rae Nkemelu'];
+    assert.equal(off.on, false, 'the substitution did not reach the local cache');
+
+    // Pressing Confirm again must do nothing. It used to queue a second
+    // substitution, closing and reopening a stint each time — which is the
+    // arithmetic the minutes column is made of.
+    const logged = entries(MATCH_ID).length;
+    el('btn-sub-confirm').click();
+    el('btn-sub-confirm').click();
+    await settle();
+    assert.equal(entries(MATCH_ID).length, logged,
+        'pressing Confirm again queued another substitution');
+
+    // ---- the signal comes back and everything settles with no duplicates
+    await goOnline();
+    await settle();
+    assert.equal(queuedWrites(), 0);
+    assert.equal(entries(MATCH_ID).length, logged);
+    assert.deepEqual(
+        stints(MATCH_ID)['Rae Nkemelu'].stints.filter((s) => s.outS != null).length, 1,
+        'the stint was closed more than once',
+    );
 });
 
 test('the calibrate page comes up with its picker ready', async () => {

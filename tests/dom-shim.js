@@ -34,6 +34,11 @@ const ENTITIES = {
     middot: '\u00b7', times: '\u00d7', mdash: '\u2014', ndash: '\u2013',
     hellip: '\u2026', rsquo: '\u2019', lsquo: '\u2018', ldquo: '\u201c',
     rdquo: '\u201d', deg: '\u00b0', prime: '\u2032',
+    // The page markup uses these; an entity this table does not know comes
+    // through as the literal `&lsaquo;`, which reads as a rendering bug in the
+    // one place a test is trying to read a label.
+    lsaquo: '\u2039', rsaquo: '\u203a', bull: '\u2022', larr: '\u2190',
+    rarr: '\u2192', minus: '\u2212', frac12: '\u00bd',
 };
 
 function decodeEntities(text) {
@@ -842,17 +847,26 @@ export function installDom(html, { url = 'http://localhost:5000/' } = {}) {
     // exit while the live-tagging tool's match clock is still ticking, and a
     // timer that outlives its document fires against whatever page is loaded
     // next — which is a failure in the wrong test about the wrong page.
+    // Captured before anything is installed. Referring to `clearTimeout` by
+    // name inside these would find whatever ends up on globalThis — which is
+    // this object — and recurse until the stack goes.
+    const real = {
+        setTimeout: globalThis.setTimeout,
+        setInterval: globalThis.setInterval,
+        clearTimeout: globalThis.clearTimeout,
+        clearInterval: globalThis.clearInterval,
+    };
     const timers = new Set();
-    const track = (real, cancel) => (...args) => {
-        const id = real(...args);
+    const track = (start, cancel) => (...args) => {
+        const id = start(...args);
         timers.add([id, cancel]);
         return id;
     };
     const clocks = {
-        setTimeout: track(setTimeout, clearTimeout),
-        setInterval: track(setInterval, clearInterval),
-        clearTimeout: (id) => clearTimeout(id),
-        clearInterval: (id) => clearInterval(id),
+        setTimeout: track(real.setTimeout, real.clearTimeout),
+        setInterval: track(real.setInterval, real.clearInterval),
+        clearTimeout: (id) => real.clearTimeout(id),
+        clearInterval: (id) => real.clearInterval(id),
     };
     Object.assign(win, clocks);
 
