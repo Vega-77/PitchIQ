@@ -2953,6 +2953,21 @@ const CONFIRMED_STATUS = 'confirmed';
 const REJECTED_STATUS = 'rejected';
 const EDITED_STATUS = 'edited';
 
+/**
+ * Has anybody actually said whether this event happened?
+ *
+ * `byEvent` holds three separate answers under one key: whether the pipeline
+ * was right to call this a shot (`status`), what the shot did (`result`), and
+ * whether it was headed (`header`). Only the first is a verdict. An entry
+ * carrying just a result is a coach saying "that one was saved" — a statement
+ * about a shot they have not yet agreed was a shot.
+ *
+ * Every count of how much has been reviewed goes through here, because the
+ * alternative is what it replaced: four places each deciding for themselves
+ * what an entry means, and a scorecard disagreeing with the line above it.
+ */
+export const hasVerdict = (decision) => Boolean(decision?.status);
+
 function emptyScore() {
     return {
         truePositives: 0,   // claimed this type, and it was
@@ -2997,7 +3012,7 @@ export function reviewScore(events, review) {
         // shot *did*, and an entry carrying only that has said nothing about
         // whether the pipeline was right to call it a shot — counting it as a
         // confirmation would let the xG log quietly inflate this scorecard.
-        if (!decision?.status) {
+        if (!hasVerdict(decision)) {
             at(claimed).unreviewed += 1;
             continue;
         }

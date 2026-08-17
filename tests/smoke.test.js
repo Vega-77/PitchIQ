@@ -221,6 +221,84 @@ test('the review tool counts one list once', async () => {
         'Everything is not the candidates plus the tagged log');
 });
 
+test('a verdict taken back is a verdict taken back', async () => {
+    // Found by tapping the buttons. `decide` clears a verdict when the same one
+    // is tapped twice, keeping whatever the shot ledger had put beside it —
+    // but it kept that under `if (kept)`, and `kept` is an object either way.
+    // So the delete never ran and an undone verdict left `{}` behind: an entry
+    // with no verdict in it that three separate counts still read as a checked
+    // event.
+    //
+    // The costly one is the last: "Not checked yet" hid the row, so a mis-tap
+    // took an event out of the only list built for working through them, and
+    // the scorecard below went on correctly reporting nothing checked while the
+    // line above it said one.
+    const documents = await filmed();
+    const path = `teams/${TEAM_ID}/matches/${MATCH_ID}/cvStats/events`;
+    // Short enough that nothing is truncated, so a filtered list can be counted
+    // exactly rather than against the 200-row cap.
+    const events = documents[path].events.slice(0, 6);
+    documents[path] = { ...documents[path], events };
+
+    await openPage({
+        html: 'coach/index.html',
+        entry: 'coach/coach.js',
+        url: `http://localhost:5000/coach/?team=${TEAM_ID}`,
+        variant: 'undo',
+        documents,
+    });
+    live.document.querySelectorAll('.title')
+        .find((t) => t.textContent.includes('Northgate'))
+        ?.closest('div')
+        ?.click();
+    await settle();
+
+    const rows = () => live.document.querySelectorAll('.review-row');
+    const chip = (label) => live.document.querySelectorAll('#cv-review-filters .chip')
+        .find((c) => c.textContent.startsWith(label));
+    const clockOf = (row) => row.querySelector('.review-clock').textContent.trim();
+
+    const before = rows().length;
+    assert.ok(before >= 2, 'the review list came up empty');
+    const clock = clockOf(rows()[0]);
+
+    rows()[0].querySelector('[data-act="confirmed"]').click();
+    await settle();
+    assert.match(text('cv-review-progress'), /^1 of \d+ checked/,
+        'confirming a row did not count');
+
+    rows()[0].querySelector('[data-act="confirmed"]').click();
+    await settle();
+
+    assert.match(text('cv-review-progress'), /^0 of \d+ checked/,
+        'the progress line still counts a verdict that was taken back');
+    assert.ok(!text('cv-review-progress').includes('% of those were real'),
+        'nothing has been checked, so nothing can be a share of what was real');
+    assert.ok(!rows()[0].className.includes('is-'),
+        `the row kept a verdict class: ${rows()[0].className}`);
+
+    chip('Not checked yet').click();
+    await settle();
+    assert.equal(rows().length, before,
+        'un-confirming a row hid it from the list of rows still to check');
+    assert.ok(rows().map(clockOf).includes(clock),
+        `the row taken back at ${clock} is not in the unchecked list`);
+
+    // And nothing is left in the document either — an empty map per mis-tap
+    // would eat the 1500-entry budget `firestore.rules` allows.
+    //
+    // A real wait, not `settle`: the save is debounced on a 600 ms timer, and
+    // spinning microtasks does not move a timer. Asserting on the document
+    // before the debounce has fired would pass against any bug at all.
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await settle();
+    const stored = snapshotOf(
+        `teams/${TEAM_ID}/matches/${MATCH_ID}/cvReview/decisions`,
+    );
+    assert.deepEqual(stored?.byEvent ?? {}, {},
+        'an entry with no verdict in it was written to the match');
+});
+
 test('publishing says so on the page the coach is looking at', async () => {
     // The write that reaches children, and the one place the screen most
     // needed to agree with the database. `doPublish` refreshed the dashboard

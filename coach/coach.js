@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=85';
+} from '../assets/auth.js?v=86';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,26 +10,26 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=85';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=85';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=85';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=85';
+} from '../assets/db.js?v=86';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=86';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=86';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=86';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=85';
+} from '../assets/sample-report.js?v=86';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=85';
-import { renderPassMap } from '../assets/pass-map.js?v=85';
+} from '../assets/passing.js?v=86';
+import { renderPassMap } from '../assets/pass-map.js?v=86';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=85';
-import { renderForms } from '../assets/form-chart.js?v=85';
+} from '../assets/season.js?v=86';
+import { renderForms } from '../assets/form-chart.js?v=86';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
-    cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
+    cvQualityNotes, roughDuration, reviewScore, reviewLabels, hasVerdict, xgTrust,
     erasureNote,
     groupStats, teamStatRows, taggedTeamRows, taggedCount, trackedCoverage, metresPerMinute,
     TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, xgTally, sumXgTallies,
@@ -43,18 +43,18 @@ import {
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
-} from '../assets/report.js?v=85';
+} from '../assets/report.js?v=86';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=85';
-import { mountRail } from '../assets/rail.js?v=85';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=85';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=85';
+} from '../assets/events.js?v=86';
+import { mountRail } from '../assets/rail.js?v=86';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=86';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=86';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar, coverageStrip,
-} from '../assets/ui.js?v=85';
+} from '../assets/ui.js?v=86';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -1949,7 +1949,8 @@ function railCounts() {
     }
 
     const events = (state.match?.cvEvents?.events || []).length;
-    const checked = Object.keys(state.match?.cvReview?.byEvent || {}).length;
+    const checked = Object.values(state.match?.cvReview?.byEvent || {})
+        .filter(hasVerdict).length;
     if (events - checked > 0) {
         counts['cv-review-block'] = {
             n: events - checked,
@@ -3480,7 +3481,7 @@ function visibleItems() {
         if (reviewState.filter === FROM_TAGGED) return false;
         const event = item.event;
         if (reviewState.filter !== 'all' && event.type !== reviewState.filter) return false;
-        if (reviewState.unreviewedOnly && decided[event.id]) return false;
+        if (reviewState.unreviewedOnly && hasVerdict(decided[event.id])) return false;
         if (reviewState.inPlayOnly && event.inPlay === false) return false;
         return true;
     }), reviewState.order);
@@ -3702,7 +3703,7 @@ function reviewRow(item) {
 
     const row = document.createElement('div');
     row.className = 'list-item review-row';
-    if (decided) row.classList.add(`is-${decided.status}`);
+    if (hasVerdict(decided)) row.classList.add(`is-${decided.status}`);
     row.innerHTML = `
         <button type="button" class="review-seek">
             <span class="review-clock"></span>
@@ -3867,7 +3868,11 @@ function decide(eventId, verdict) {
     // Tapping the same verdict again clears it, so a mis-tap is one tap to fix
     // rather than a decision that cannot be taken back.
     if (before?.status === verdict.status && verdict.status !== EDITED) {
-        if (kept) next[eventId] = kept;
+        // `kept` is an object either way, so this has to ask what is in it. It
+        // did not, and an undone verdict left `{}` behind: an entry with no
+        // verdict in it that every count still read as a checked event, and
+        // that the "not checked yet" filter hid the row from for good.
+        if (Object.keys(kept).length) next[eventId] = kept;
         else delete next[eventId];
     } else {
         next[eventId] = { ...kept, ...verdict };
@@ -3883,7 +3888,8 @@ function decide(eventId, verdict) {
 
 function updateReviewProgress() {
     const total = (state.match?.cvEvents?.events || []).length;
-    const decided = Object.values(state.match?.cvReview?.byEvent || {});
+    const decided = Object.values(state.match?.cvReview?.byEvent || {})
+        .filter(hasVerdict);
     const missed = (state.match?.cvReview?.missed || []).length;
 
     const real = decided.filter((d) => d.status !== REJECTED).length;
