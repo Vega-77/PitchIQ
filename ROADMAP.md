@@ -827,7 +827,7 @@ the same denominator as *"n of m checked"* above it, which stays the candidates
 alone and is right to: a tagged entry is a human's own record of the match and
 has no verdict to give.
 
-675 pure JS · **18 pages** · 145 emulator · 1008 Python.
+675 pure JS · **20 pages** · 145 emulator · 1008 Python.
 
 ---
 
@@ -3344,6 +3344,35 @@ than the workaround, which matters given the data class.
       the two had the same evidence behind them. Amber for filmed-but-too-thin,
       an empty track for not filmed at all: absent is not zero in a bar chart
       either.
+
+- [x] **Publishing did not say so on the page the coach was looking at**
+      (2026-08-17). Found by driving the publish button — the write that reaches
+      children, and the last major path nothing had ever exercised through the
+      UI.
+
+      `doPublish` refreshed `state.matches`, the hero and the match list — the
+      dashboard *behind* the match view — and never touched `state.match`. So
+      the page a coach is actually looking at went on reading
+      `finalized: false`: the button still said **"Publish player reports"** and
+      the subtitle still omitted **"reports published"**. The only sign anything
+      had happened was a toast that clears itself in 2.6 seconds.
+
+      A coach who steps away and comes back cannot tell whether every student
+      has their report. The safe thing to do is press it again, which is at
+      least harmless now — re-publishing merges rather than overwrites, since
+      the day it wiped the video fields.
+
+      `renderMatchStatus()` is the two lines that answer the question, called
+      from `openMatch` and now from `doPublish`, with `state.match` updated to
+      match what `publishReports` wrote.
+
+      **What publishing actually produces, now pinned:** one report per squad
+      member, minutes that add up across the substitution — 30 for the player
+      who came off on thirty, 60 for the one who came on then, 90 for the one
+      who was on throughout — and a `linkedUid` only on the student who has
+      signed in, the rest claimed when they do.
+
+      675 pure JS · 20 pages · 145 emulator · 1008 Python.
 
 - [x] **"Lost. You played an unused substitute."** (2026-08-17). The lede on a
       student's own match report, found by opening the player portal in the page

@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=84';
+} from '../assets/auth.js?v=85';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,23 +10,23 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=84';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=84';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=84';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=84';
+} from '../assets/db.js?v=85';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=85';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=85';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=85';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=84';
+} from '../assets/sample-report.js?v=85';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=84';
-import { renderPassMap } from '../assets/pass-map.js?v=84';
+} from '../assets/passing.js?v=85';
+import { renderPassMap } from '../assets/pass-map.js?v=85';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=84';
-import { renderForms } from '../assets/form-chart.js?v=84';
+} from '../assets/season.js?v=85';
+import { renderForms } from '../assets/form-chart.js?v=85';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, xgTrust,
@@ -43,18 +43,18 @@ import {
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
-} from '../assets/report.js?v=84';
+} from '../assets/report.js?v=85';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=84';
-import { mountRail } from '../assets/rail.js?v=84';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=84';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=84';
+} from '../assets/events.js?v=85';
+import { mountRail } from '../assets/rail.js?v=85';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=85';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=85';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar, coverageStrip,
-} from '../assets/ui.js?v=84';
+} from '../assets/ui.js?v=85';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -1127,9 +1127,7 @@ async function openMatch(matchId) {
         mergeCvPlayers(stats.players, state.match, stats.matchEndS);
 
         setText('match-title', `vs ${match.opponentName || '—'}`);
-        setText('match-sub',
-            `${match.date || 'no date'} · ${(match.status || 'scheduled').replace(/_/g, ' ')}`
-            + (match.finalized ? ' · reports published' : ''));
+        renderMatchStatus();
 
         setText('match-print-stamp', printStamp({
             subject: state.team?.name || null,
@@ -1180,11 +1178,7 @@ async function openMatch(matchId) {
         updateVideoHint();
         renderClockMap();
 
-        const publish = byId('btn-publish');
-        publish.disabled = false;
-        publish.textContent = match.finalized
-            ? 'Re-publish player reports'
-            : 'Publish player reports';
+        byId('btn-publish').disabled = false;
 
         show('view-match');
         window.scrollTo(0, 0);
@@ -4366,6 +4360,33 @@ function download(filename, text) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/**
+ * The two things on this page that say whether the reports have gone out.
+ *
+ * Its own function because publishing has to redraw them and used to not.
+ * `doPublish` refreshed the dashboard *behind* the match view and left the view
+ * itself reading `finalized: false` — so after the most consequential thing a
+ * coach does, the button still said "Publish player reports" and the subtitle
+ * still omitted it. The only sign anything had happened was a toast that clears
+ * itself in under three seconds, and a coach who came back to the tab a minute
+ * later had no way to tell whether every student had their report.
+ */
+function renderMatchStatus() {
+    const match = state.match;
+    if (!match) return;
+
+    setText('match-sub',
+        `${match.date || 'no date'} · ${(match.status || 'scheduled').replace(/_/g, ' ')}`
+        + (match.finalized ? ' · reports published' : ''));
+
+    const publish = byId('btn-publish');
+    if (publish) {
+        publish.textContent = match.finalized
+            ? 'Re-publish player reports'
+            : 'Publish player reports';
+    }
+}
+
 async function doPublish() {
     const button = byId('btn-publish');
     button.disabled = true;
@@ -4412,6 +4433,15 @@ async function doPublish() {
             },
         );
         toast('Player reports published');
+        // The open match, not just the list behind it. `publishReports` sets
+        // `finalized` and the score on the match document; without mirroring
+        // that here the page a coach is actually looking at goes on saying the
+        // reports have not been sent.
+        state.match.finalized = true;
+        state.match.scoreUs = state.match.stats.counts.us.goal ?? 0;
+        state.match.scoreThem = state.match.stats.counts.them.goal ?? 0;
+        renderMatchStatus();
+
         state.matches = await listMatches(state.team.id);
         renderHero();
         renderMatches();

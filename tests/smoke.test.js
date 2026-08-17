@@ -221,6 +221,63 @@ test('the review tool counts one list once', async () => {
         'Everything is not the candidates plus the tagged log');
 });
 
+test('publishing says so on the page the coach is looking at', async () => {
+    // The write that reaches children, and the one place the screen most
+    // needed to agree with the database. `doPublish` refreshed the dashboard
+    // *behind* the match view and left the view itself reading
+    // `finalized: false` — so after the most consequential thing a coach does,
+    // the button still said "Publish player reports" and the subtitle still
+    // omitted it, with a toast that clears itself in under three seconds as
+    // the only sign anything had happened.
+    const documents = fixture();
+    const match = `teams/${TEAM_ID}/matches/${MATCH_ID}`;
+    documents[match].status = 'full_time';
+    documents[`${match}/log/dev-a_000009`] = {
+        kind: 'period', type: 'full_time', matchClockS: 5400, side: null,
+        playerId: null, assistPlayerId: null, cardColor: null, subOutId: null,
+        subInId: null, detail: null, source: 'live_tag', seq: 9,
+        deviceId: 'dev-a', revert: null, tappedAt: 0, createdBy: COACH.uid,
+    };
+
+    await openPage({
+        html: 'coach/index.html',
+        entry: 'coach/coach.js',
+        url: `http://localhost:5000/coach/?team=${TEAM_ID}`,
+        variant: 'publish',
+        documents,
+    });
+
+    live.document.querySelectorAll('.title')
+        .find((t) => t.textContent.includes('Northgate'))
+        ?.closest('div')
+        ?.click();
+    await settle();
+    assert.equal(text('btn-publish'), 'Publish player reports');
+
+    el('btn-publish').click();
+    await settle(40);
+
+    assert.equal(text('btn-publish'), 'Re-publish player reports');
+    assert.match(text('match-sub'), /reports published/);
+    assert.equal(snapshotOf(match).finalized, true);
+
+    // And the reports themselves: one per squad member, with the minutes the
+    // stints actually add up to across the substitution.
+    const written = Object.fromEntries(
+        pathsUnder(`${match}/playerReports/`)
+            .map((path) => { const r = snapshotOf(path); return [r.playerName, r]; }),
+    );
+    assert.deepEqual(Object.keys(written).sort(),
+        ['Alex Vega', 'Rae Nkemelu', 'Sam Okonjo']);
+    assert.equal(written['Alex Vega'].minutesPlayed, 30, 'came off on 30');
+    assert.equal(written['Sam Okonjo'].minutesPlayed, 60, 'came on on 30');
+    assert.equal(written['Rae Nkemelu'].minutesPlayed, 90, 'was on throughout');
+    // Only the student who has signed in gets a uid on their report; the rest
+    // are claimed when they do.
+    assert.equal(written['Rae Nkemelu'].linkedUid, STUDENT.uid);
+    assert.equal(written['Alex Vega'].linkedUid, null);
+});
+
 test('the player portal opens a season for the student it belongs to', async () => {
     await openPage({
         html: 'player/index.html',
