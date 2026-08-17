@@ -89,6 +89,39 @@ beforeEach(() => { failures.length = 0; });
 
 after(() => live?.restore());
 
+// ------------------------------------------------------------- the fixture
+//
+// A fixture that seeds values the app never writes tests a path the app never
+// takes, and does it while looking like coverage. That has happened twice here
+// already: a `kickoff_first` period, which the timeline printed as the literal
+// words "kickoff first" among a column of sentences, and a `midfield` position,
+// which `positionOf` correctly threw away — so every test touching a squad had
+// been quietly exercising the nobody-said-yet path instead.
+//
+// Both were caught by eye. This is the check that means the next one is not.
+
+test('the fixture only contains values the app recognises', async () => {
+    const { POSITIONS } = await import('../assets/report.js');
+    const { EVENT_TYPES, PERIOD_LABELS } = await import('../assets/events.js');
+
+    const ids = new Set(POSITIONS.map((p) => p.id));
+    const types = new Set(EVENT_TYPES);
+    const periods = new Set(Object.keys(PERIOD_LABELS));
+
+    for (const [path, doc] of Object.entries(fixture())) {
+        if (/\/players\/[^/]+$/.test(path)) {
+            assert.ok(doc.position === null || ids.has(doc.position),
+                `${path}: "${doc.position}" is not a position this app stores`);
+        }
+        if (/\/log\/[^/]+$/.test(path)) {
+            const known = doc.kind === 'period' ? periods
+                : (doc.kind === 'sub' ? new Set(['sub']) : types);
+            assert.ok(known.has(doc.type),
+                `${path}: "${doc.type}" is not a ${doc.kind} this app writes`);
+        }
+    }
+});
+
 // ------------------------------------------------------------------- pages
 
 test('the landing page greets a signed-in coach with their squads', async () => {

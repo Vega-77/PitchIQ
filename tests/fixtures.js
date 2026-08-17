@@ -108,11 +108,11 @@ export function fixture() {
 
         [`teams/${TEAM_ID}/players/p-rae`, {
             name: 'Rae Nkemelu', jerseyNumber: 7, emailLower: STUDENT.email,
-            position: 'midfield', linkedUid: STUDENT.uid, active: true,
+            position: 'mid', linkedUid: STUDENT.uid, active: true,
         }],
         [`teams/${TEAM_ID}/players/p-alex`, {
             name: 'Alex Vega', jerseyNumber: 9, emailLower: '',
-            position: 'forward', linkedUid: null, active: true,
+            position: 'fwd', linkedUid: null, active: true,
         }],
         [`teams/${TEAM_ID}/players/p-sam`, {
             name: 'Sam Okonjo', jerseyNumber: 14, emailLower: '',
