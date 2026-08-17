@@ -634,6 +634,38 @@ test('a squad with nobody in it is an empty squad, not a squad of zeroes', async
     assert.doesNotMatch(live.document.body.textContent, /NaN|undefined|Infinity/);
 });
 
+test('a student who did not get on is told so in a sentence', async () => {
+    // The lede on a student's own report, end to end. It read "Lost. You
+    // played an unused substitute." — on the page of the one reader most
+    // likely to go over it twice.
+    const documents = fixture();
+    documents[`teams/${TEAM_ID}/matches/match-00/playerReports/p-rae`] = {
+        published: true, linkedUid: STUDENT.uid, playerName: 'Rae Nkemelu',
+        jerseyNumber: 7, minutesPlayed: 0, minutesKnown: true, goals: 0,
+        assists: 0, cards: 0, yellowCards: 0, redCards: 0, fouls: 0, stints: [],
+        matchDate: '2026-07-31', opponentName: 'Southbank',
+        teamName: 'Riverside High', scoreUs: 0, scoreThem: 3, teamCounts: null,
+        timeline: [], matchId: 'match-00', videoUrl: null, videoOffsetS: 0,
+        secondHalfVideoS: null, halfTimeClockS: null, cvTouches: null,
+    };
+
+    await openPage({
+        html: 'player/index.html',
+        entry: 'player/player.js',
+        url: 'http://localhost:5000/player/',
+        user: STUDENT,
+        variant: 'bench',
+        documents,
+    });
+
+    live.document.querySelectorAll('#match-list .match-row')
+        .find((r) => r.textContent.includes('Southbank'))
+        .click();
+    await settle();
+
+    assert.equal(text('md-line'), 'Lost. You did not get on.');
+});
+
 test('a student whose season has not started is not shown somebody else\'s', async () => {
     await openPage({
         html: 'player/index.html',

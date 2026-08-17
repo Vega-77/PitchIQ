@@ -16,9 +16,9 @@
 // dropping it silently would lose the coach's footage rather than declining to
 // frame it.
 
-import { mount, videoKind } from './video.js?v=83';
-import { renderStrip, renderMomentList, timelineEnd } from './timeline.js?v=83';
-import { matchClockMap } from './report.js?v=83';
+import { mount, videoKind } from './video.js?v=84';
+import { renderStrip, renderMomentList, timelineEnd } from './timeline.js?v=84';
+import { matchClockMap } from './report.js?v=84';
 
 /**
  * What we can do with a link: 'embed', 'link' or 'none'.

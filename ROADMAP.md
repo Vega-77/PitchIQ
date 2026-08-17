@@ -827,7 +827,7 @@ the same denominator as *"n of m checked"* above it, which stays the candidates
 alone and is right to: a tagged entry is a human's own record of the match and
 has no verdict to give.
 
-668 pure JS · **17 pages** · 145 emulator · 1008 Python.
+675 pure JS · **18 pages** · 145 emulator · 1008 Python.
 
 ---
 
@@ -3344,6 +3344,38 @@ than the workaround, which matters given the data class.
       the two had the same evidence behind them. Amber for filmed-but-too-thin,
       an empty track for not filmed at all: absent is not zero in a bar chart
       either.
+
+- [x] **"Lost. You played an unused substitute."** (2026-08-17). The lede on a
+      student's own match report, found by opening the player portal in the page
+      suite and reading what it says rather than checking that it says
+      something.
+
+      Three faults in one sentence, and the same sentence the roadmap already
+      records as *"the single worst this app could produce"* — that fix swapped
+      the condition and never revisited the grammar.
+
+      1. **It is not a sentence.** The phrases were spliced in after a fixed
+         "You played", so the branch for a squad member who never came on read
+         *"You played an unused substitute."* On the page of the one reader most
+         likely to go over it twice.
+      2. **"1 minutes."** The count was interpolated with a hard-coded plural,
+         so a substitute who got a minute was told so ungrammatically.
+      3. **Zero minutes is two different afternoons, and only one of them means
+         they did not play.** `minutesFrom` rounds, so somebody who came on with
+         twenty-five seconds left comes back as **0 — with a stint against their
+         name**, and somebody who never left the bench comes back as 0 with
+         none. The number alone cannot tell them apart. Telling a student who
+         came on that they did not is exactly the failure this sentence was
+         rewritten for the first time.
+
+      `matchLine` moved to `report.js`, where it can be tested without a DOM —
+      the repo's own rule for anything this consequential, and this is the one
+      string in the product addressed to a sixteen-year-old about whether they
+      played. Every branch now carries its own verb, `stints` (or a goal, which
+      is its own evidence) separates the two zeroes, and one property is checked
+      across all nine shapes: it opens with a capital and ends with a full stop.
+
+      675 pure JS · 18 pages · 145 emulator · 1008 Python.
 
 - [x] **The tablet is now driven tap by tap, including with the signal gone**
       (2026-08-17). The tool every number in this system derives from had

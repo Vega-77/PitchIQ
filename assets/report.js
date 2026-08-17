@@ -2304,6 +2304,48 @@ const clampPct = (value) => Math.max(0, Math.min(100, value));
  * Reads `teams.team_a` only, which is always the coach's own side.
  */
 /**
+ * One sentence about a student's afternoon, for the top of their own report.
+ *
+ * Here rather than in `player.js` because it is the sentence most likely to be
+ * read twice by the person it is about, and every branch of it needs a test.
+ *
+ * Three things it has to get right, all of them learned the hard way:
+ *
+ * 1. **Every branch carries its own verb.** The phrases used to be spliced in
+ *    after a fixed "You played", which produced *"You played an unused
+ *    substitute."* — on the report of the one student most likely to reread it.
+ * 2. **Zero minutes is two different afternoons.** `minutesFrom` rounds, so a
+ *    substitute who came on with twenty-five seconds left comes back as 0 with
+ *    a stint against their name, and a player who never left the bench comes
+ *    back as 0 with none. Only `stints` separates them, and telling somebody
+ *    who came on that they did not is the same failure as the one this whole
+ *    sentence was rewritten for once already. See `whistleFrom`.
+ * 3. **"1 minutes"** — the count was interpolated with a hard-coded plural.
+ */
+export function matchLine(report) {
+    const bits = [];
+    if (report?.goals) bits.push(count(report.goals, 'goal'));
+    if (report?.assists) bits.push(count(report.assists, 'assist'));
+
+    const minutes = knownMinutes(report) ? (report?.minutesPlayed ?? 0) : null;
+    // Anything they did is evidence they were on, whatever the clock rounded to.
+    const wasOn = (report?.stints || []).length > 0 || bits.length > 0;
+
+    const played = minutes == null
+        ? 'You played, but nobody kept the clock'
+        : (minutes
+            ? `You played ${count(minutes, 'minute')}`
+            : (wasOn ? 'You were on for under a minute' : 'You did not get on'));
+
+    const got = bits.length ? ` and got ${bits.join(' and ')}` : '';
+    if (report?.scoreUs == null) return `${played}${got}.`;
+
+    const result = report.scoreUs > report.scoreThem ? 'Won'
+        : report.scoreUs < report.scoreThem ? 'Lost' : 'Drew';
+    return `${result}. ${played}${got}.`;
+}
+
+/**
  * A tagged count, or an em dash when there is no log to have counted it.
  *
  * The scoreline is the loudest thing on both the match report and the half-time

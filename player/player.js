@@ -9,31 +9,31 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=83';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=84';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=83';
-import { CARD_COLOURS } from '../assets/events.js?v=83';
-import { mountRail } from '../assets/rail.js?v=83';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=83';
-import { renderHeatmap } from '../assets/heatmap.js?v=83';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=83';
+} from '../assets/db.js?v=84';
+import { CARD_COLOURS } from '../assets/events.js?v=84';
+import { mountRail } from '../assets/rail.js?v=84';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=84';
+import { renderHeatmap } from '../assets/heatmap.js?v=84';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=84';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
-    minutesNote, seasonGroups,
-} from '../assets/report.js?v=83';
+    minutesNote, seasonGroups, matchLine,
+} from '../assets/report.js?v=84';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=83';
-import { renderForms } from '../assets/form-chart.js?v=83';
+} from '../assets/season.js?v=84';
+import { renderForms } from '../assets/form-chart.js?v=84';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=83';
-import { renderMatchVideo } from '../assets/match-video.js?v=83';
+} from '../assets/sample-report.js?v=84';
+import { renderMatchVideo } from '../assets/match-video.js?v=84';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally, coverageStrip,
-} from '../assets/ui.js?v=83';
+} from '../assets/ui.js?v=84';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -273,30 +273,6 @@ function openMatch(report) {
 
     showOnly('view-match', VIEWS);
     window.scrollTo(0, 0);
-}
-
-/** One sentence about their afternoon, so the page opens by saying something. */
-function matchLine(report) {
-    const bits = [];
-    if (report.goals) bits.push(plural(report.goals, 'goal'));
-    if (report.assists) bits.push(plural(report.assists, 'assist'));
-
-    // A player whose match nobody tagged has no minutes, and the old reading of
-    // that was the single worst sentence this app could produce: `0` fell
-    // through to "an unused substitute", so a student who started and played
-    // ninety minutes opened their own report and was told they had not been on.
-    const minutes = knownMinutes(report) ? (report.minutesPlayed ?? 0) : null;
-    const played = minutes == null
-        ? 'a match nobody kept the clock for'
-        : (minutes ? `${minutes} minutes` : 'an unused substitute');
-
-    if (report.scoreUs == null) return bits.length ? bits.join(' and ') : played;
-
-    const result = report.scoreUs > report.scoreThem ? 'Won'
-        : report.scoreUs < report.scoreThem ? 'Lost' : 'Drew';
-    return bits.length
-        ? `${result}. You played ${played} and got ${bits.join(' and ')}.`
-        : `${result}. You played ${played}.`;
 }
 
 function renderMatchStats(report) {

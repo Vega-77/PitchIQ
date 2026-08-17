@@ -3412,6 +3412,82 @@ describe('groupStats', () => {
     });
 });
 
+describe('matchLine', () => {
+    /** A published report of a win, ninety minutes, nothing else. */
+    const played = (fields) => ({
+        minutesPlayed: 90, minutesKnown: true, goals: 0, assists: 0,
+        stints: [{ inS: 0, outS: 5400 }], scoreUs: 1, scoreThem: 0, ...fields,
+    });
+
+    test('reads as a sentence in every branch', () => {
+        for (const fields of [
+            {}, { goals: 2 }, { assists: 1 }, { goals: 1, assists: 1 },
+            { minutesPlayed: 0, stints: [] },
+            { minutesPlayed: 0, stints: [{ inS: 5300, outS: 5400 }] },
+            { minutesKnown: false, minutesPlayed: 0 },
+            { scoreUs: null, scoreThem: null },
+            { minutesPlayed: 1, goals: 1, assists: 1 },
+        ]) {
+            const said = report.matchLine(played(fields));
+            assert.match(said, /^[A-Z]/, `does not open a sentence: ${said}`);
+            assert.match(said, /\.$/, `does not close one: ${said}`);
+            // The phrases used to be spliced in after a fixed "You played".
+            assert.doesNotMatch(said, /You played an unused/, said);
+            assert.doesNotMatch(said, /\b1 (minutes|goals|assists)\b/, said);
+        }
+    });
+
+    test('a player who never came on is told exactly that', () => {
+        assert.equal(
+            report.matchLine(played({ minutesPlayed: 0, stints: [] })),
+            'Won. You did not get on.',
+        );
+    });
+
+    test('a substitute the clock rounded to nothing still played', () => {
+        // `minutesFrom` rounds, so somebody who came on with twenty-five
+        // seconds left comes back as 0 — with a stint against their name. Zero
+        // alone cannot tell the two apart, and telling somebody who came on
+        // that they did not is the failure this sentence was rewritten for
+        // once already.
+        assert.equal(
+            report.matchLine(played({
+                minutesPlayed: 0, stints: [{ inS: 5375, outS: 5400 }],
+            })),
+            'Won. You were on for under a minute.',
+        );
+    });
+
+    test('anything they did is evidence they were on', () => {
+        // Even with no stints on the document, a goal means they played.
+        assert.equal(
+            report.matchLine(played({ minutesPlayed: 0, stints: [], goals: 1 })),
+            'Won. You were on for under a minute and got 1 goal.',
+        );
+    });
+
+    test('counts one of anything as one', () => {
+        assert.equal(
+            report.matchLine(played({ minutesPlayed: 1, goals: 1, assists: 1 })),
+            'Won. You played 1 minute and got 1 goal and 1 assist.',
+        );
+    });
+
+    test('a match nobody kept the clock for says so', () => {
+        assert.equal(
+            report.matchLine(played({ minutesKnown: false, minutesPlayed: 0 })),
+            'Won. You played, but nobody kept the clock.',
+        );
+    });
+
+    test('a report with no score is still a sentence', () => {
+        assert.equal(
+            report.matchLine(played({ scoreUs: null, goals: 2 })),
+            'You played 90 minutes and got 2 goals.',
+        );
+    });
+});
+
 describe('taggedTeamRows', () => {
     const counts = (us = {}, them = {}) => ({
         us: { goal: 0, corner: 0, free_kick: 0, foul: 0, offside: 0, card: 0, ...us },
