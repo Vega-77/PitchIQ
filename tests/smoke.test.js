@@ -101,17 +101,31 @@ after(() => live?.restore());
 // Both were caught by eye. This is the check that means the next one is not.
 
 test('the fixture only contains values the app recognises', async () => {
-    const { POSITIONS } = await import('../assets/report.js');
+    const { POSITIONS, cvReportFields } = await import('../assets/report.js');
     const { EVENT_TYPES, PERIOD_LABELS } = await import('../assets/events.js');
 
     const ids = new Set(POSITIONS.map((p) => p.id));
     const types = new Set(EVENT_TYPES);
     const periods = new Set(Object.keys(PERIOD_LABELS));
+    // Every `cv`-prefixed key a published report can carry, taken from the
+    // function that writes them rather than listed again here. A misspelt one
+    // is invisible: the page reads `undefined`, renders a dash, and looks
+    // exactly like a match nobody filmed. `cvPasses` sat in this fixture doing
+    // that until 2026-08-17 — the real names are cvPassesAttempted and
+    // cvPassesCompleted, and neither the fixture nor any test ever said so.
+    const cvKeys = new Set(Object.keys(cvReportFields(null)));
 
     for (const [path, doc] of Object.entries(fixture())) {
         if (/\/players\/[^/]+$/.test(path)) {
             assert.ok(doc.position === null || ids.has(doc.position),
                 `${path}: "${doc.position}" is not a position this app stores`);
+        }
+        if (/\/playerReports\/[^/]+$/.test(path)) {
+            for (const key of Object.keys(doc)) {
+                if (!key.startsWith('cv')) continue;
+                assert.ok(cvKeys.has(key),
+                    `${path}: "${key}" is not a field the pipeline writes`);
+            }
         }
         if (/\/log\/[^/]+$/.test(path)) {
             const known = doc.kind === 'period' ? periods

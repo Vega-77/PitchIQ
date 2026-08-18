@@ -261,7 +261,8 @@ export function fixture() {
             playerName: 'Alex Vega', jerseyNumber: 9, minutesPlayed: 90,
             goals: 2, assists: 1, fouls: 3, matchDate: '2026-08-07',
             opponentName: 'Westbrook', scoreUs: 2, scoreThem: 2,
-            cvTouches: 54, cvPasses: 31, cvDistanceM: 9200,
+            cvTouches: 54, cvPassesAttempted: 41, cvPassesCompleted: 31,
+            cvDistanceM: 9200,
         }),
         report('match-00', 'p-alex', {
             playerName: 'Alex Vega', jerseyNumber: 9, minutesPlayed: 62,
