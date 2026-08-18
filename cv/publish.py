@@ -390,7 +390,13 @@ def player_report_fields(
         f'{CV_FIELD_PREFIX}Touches': track_stats.get('touches'),
         f'{CV_FIELD_PREFIX}PassesAttempted': track_stats.get('passes_attempted'),
         f'{CV_FIELD_PREFIX}PassesCompleted': track_stats.get('passes_completed'),
-        f'{CV_FIELD_PREFIX}PassAccuracy': track_stats.get('pass_accuracy'),
+        # No `cvPassAccuracy`. It was written here until 2026-08-17 and read by
+        # nothing: every page divides the two fields above instead. That made it
+        # the one field this side writes and `cvReportFields` does not clear, so
+        # a coach who un-mapped a player and re-published left a pass accuracy
+        # standing beside the two nulls it was supposedly derived from — a trap
+        # for whoever reads it next, in exchange for a number already on the
+        # document twice over.
         f'{CV_FIELD_PREFIX}Carries': track_stats.get('carries'),
         f'{CV_FIELD_PREFIX}Tackles': track_stats.get('tackles'),
         f'{CV_FIELD_PREFIX}Interceptions': track_stats.get('interceptions'),

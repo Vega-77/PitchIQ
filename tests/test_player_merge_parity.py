@@ -36,7 +36,7 @@ from pathlib import Path
 
 import pytest
 
-from cv.publish import merge_tracks
+from cv.publish import merge_tracks, player_report_fields
 
 REPO = Path(__file__).resolve().parents[1]
 JS_REPORT = REPO / "assets" / "report.js"
@@ -150,6 +150,36 @@ def test_a_question_no_fragment_answered_is_unanswered_on_both():
     fragments = [dict(f, accelerations=None) for f in FRAGMENTS]
     assert merge_tracks(fragments)["accelerations"] is None
     assert from_browser(fragments, MAPPING).get("accelerations") is None
+
+
+def test_the_pipeline_writes_nothing_the_browser_cannot_clear():
+    """Every field this side writes must be one `cvReportFields` nulls.
+
+    The browser re-publishes a player's report with every video field
+    explicitly nulled when they have no mapped cluster — that is what un-naming
+    a tracked figure has to mean. A field the pipeline writes and that list
+    does not know about survives the un-naming and sits on the report as a
+    measurement of a player nobody claims was measured.
+
+    `cvPassAccuracy` was exactly that until 2026-08-17, and got away with it
+    because nothing read it. The next one might not be so harmless.
+
+    The other direction is fine and deliberate: the browser knows things the
+    pipeline cannot — how many of a player's own minutes were filmed, how many
+    clusters they were assembled from, whether a human has reviewed any of it.
+    """
+    written = set(player_report_fields({}))
+    cleared = set(json.loads(subprocess.run(
+        ["node", "--input-type=module", "-e",
+         f"import {{ cvReportFields }} from {json.dumps(JS_REPORT.as_uri())};"
+         "console.log(JSON.stringify(Object.keys(cvReportFields(null))));"],
+        capture_output=True, text=True, timeout=30, check=True,
+    ).stdout))
+
+    assert written <= cleared, (
+        "the pipeline writes fields the browser never clears, so un-naming a "
+        f"tracked figure leaves them standing: {sorted(written - cleared)}"
+    )
 
 
 def test_neither_side_averages_the_worst_fragment_away(both):

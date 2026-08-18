@@ -452,9 +452,17 @@ class TestOnePlayerSeveralFigures:
         assert fields[f'{CV_FIELD_PREFIX}PositionNoiseM'] == 1.9
 
     def test_accuracy_is_recomputed_rather_than_averaged(self):
-        """26 of 35, not the mean of 0.8 and 0.667."""
+        """26 of 35, not the mean of 0.8 and 0.667.
+
+        Checked on the merge rather than on the written fields, because the
+        report carries the two halves of the fraction and not the fraction —
+        see `player_report_fields`. Every page divides them itself.
+        """
+        merged = merge_tracks(self.two_fragments())
+        assert merged['pass_accuracy'] == pytest.approx(26 / 35)
         _, fields = self.published()
-        assert fields[f'{CV_FIELD_PREFIX}PassAccuracy'] == pytest.approx(26 / 35)
+        assert fields[f'{CV_FIELD_PREFIX}PassesAttempted'] == 35
+        assert fields[f'{CV_FIELD_PREFIX}PassesCompleted'] == 26
 
     def test_the_touches_come_back_as_a_timeline(self):
         """Fragments arrive in mapping order, and a touch strip in mapping order
