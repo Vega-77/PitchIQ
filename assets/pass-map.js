@@ -31,8 +31,8 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, PITCH_VIEWBOX, pitchMarkings,
-} from './pitch-backdrop.js?v=88';
-import { foldEdges } from './passing.js?v=88';
+} from './pitch-backdrop.js?v=89';
+import { foldEdges } from './passing.js?v=89';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -89,8 +89,17 @@ export function edgeWidth(count, busiest) {
  * are skipped here rather than filtered by the caller — they are real players
  * with real counts and they belong in the note underneath, which is where
  * `networkNote` puts them.
+ *
+ * There was an `onPick` here until 2026-08-18, built the way `assets/shot-map.js`
+ * built its own: a click listener on the `<g>`, plus `cursor: pointer`, on
+ * something with no tabindex and no role, under an `<svg role="img">` that hid
+ * the whole subtree from a screen reader anyway. No caller ever passed one, so
+ * it was a pointer-only control that had never been drawn. Deleted rather than
+ * repaired — the shot map's version is the one that had to work, and this is
+ * the shape it would have been copied from next. If picking a player off this
+ * map is ever wanted, build it the way the shot map now does.
  */
-export function passMapSvg(network, { nameOf = (id) => id, onPick = null } = {}) {
+export function passMapSvg(network, { nameOf = (id) => id } = {}) {
     const svg = el('svg', {
         viewBox: PITCH_VIEWBOX,
         class: 'pass-map-svg',
@@ -138,10 +147,6 @@ export function passMapSvg(network, { nameOf = (id) => id, onPick = null } = {})
             `${name} — ${node.passes} passes, ${node.completed} completed, `
             + `${node.received} received`;
 
-        if (onPick) {
-            group.classList.add('is-pickable');
-            group.addEventListener('click', () => onPick(node));
-        }
         svg.appendChild(group);
     }
 

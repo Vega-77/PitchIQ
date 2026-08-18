@@ -2739,6 +2739,29 @@ td.bar-cell .cell-bar {
 }
 .shot-mark.is-pickable { cursor: pointer; }
 .shot-mark.is-pickable:hover { fill-opacity: 1; }
+/* Focus, drawn on the shape instead of around it. The global `:focus-visible`
+   outline does land on an SVG element, but it is a rectangle around the
+   bounding box of a circle whose radius encodes xG — on the smallest marks
+   that is a few pixels of ring in a crowded goalmouth.
+
+   Not `var(--accent)`, which is what this rule said first and what the rest of
+   the app focuses with. `.shot-mark.is-on-target` is *filled* with `--accent`,
+   so a focused on-target shot was an accent ring on an accent disc: measured in
+   the browser it changed nothing but the mark's apparent radius, which reads as
+   a slightly bigger dot rather than as focus. `--good` fills the goals and sits
+   next to it. `--text` is the one token here that no mark can be, and against
+   the pitch backdrop it carries about 16:1.
+
+   `paint-order: stroke` keeps the ring wholly outside the disc. Without it half
+   the stroke width eats into a mark that is 27 px across at its smallest, and
+   the fill colour is the thing saying whether the shot went in. */
+.shot-mark.is-pickable:focus-visible {
+    outline: none;
+    fill-opacity: 1;
+    stroke: var(--text);
+    stroke-width: 0.55;
+    paint-order: stroke;
+}
 
 /* The passing network. A whole pitch, not the attacking half — the question is
    shape, and half of it lives in the defensive end. Wider than the shot maps
@@ -2771,8 +2794,6 @@ td.bar-cell .cell-bar {
     stroke: var(--surface);
     stroke-width: 0.5;
 }
-.pass-node.is-pickable { cursor: pointer; }
-.pass-node.is-pickable:hover .pass-dot { fill: var(--good); }
 
 /* A season, as a row of small traces.
    Small multiples rather than one chart with a picker: four measures side by

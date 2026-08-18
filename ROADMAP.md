@@ -1080,7 +1080,74 @@ server*, which is a stronger claim than the listener merely no longer calling
 them pending. Only reachable after some other failure, so it never made a green
 run red — it made a red run lie about where the red was.
 
-675 pure JS · **24 pages** · 145 emulator · 1044 Python.
+**The one control that was not one, 2026-08-18.** The entry further down this
+page fixed five `<li>` pickers in the tagging tool; this asks whether anything
+else in the repo makes the same claim. **98 click handlers**, of which **8**
+attach to a container rather than to a button. Six of those eight are sound, and
+`assets/ui.js:400` is the honest case: it builds a `<button>` when `onSeek` is
+passed and a `<div>` when it is not, with a comment saying so.
+
+The seventh was the shot map. `assets/shot-map.js` built a bare SVG `<circle>`
+with a click listener and `cursor: pointer` on it, under `<svg role="img">`,
+while its own docstring said it *"makes each shot a button"*. A `<button>`
+cannot live inside an `<svg>` — so the fix is the circle itself carrying
+`role="button"`, `tabindex="0"`, an `aria-label` of its own, and a keydown
+handler for Enter and Space: the four things a real button would have given for
+free, and the four things a click listener on a shape gives none of. `<title>`
+is a hover tooltip, not a name; a control needs one whether or not there is a
+pointer on the screen.
+
+**The role on the `<svg>` has to move with them.** `role="img"` collapses the
+whole subtree into one picture, so focusable children under it are reachable by
+tab and announced as nothing — which is worse than not being reachable, because
+focus lands somewhere silent. `group` when there is something to activate, `img`
+when there is not. And `preventDefault` on Space is not tidiness: on both pages
+that draw this map the video being seeked to sits *above* it, so the unprevented
+keystroke would jump the video and scroll it out of view in the same breath.
+
+The eighth was `assets/pass-map.js`, which had the identical shape — click
+listener on a `<g>`, `cursor: pointer`, no tabindex, no role, under
+`role="img"` — and **no caller anywhere**. A pointer-only control that had never
+been drawn once. Deleted rather than repaired, with the reason left in the
+docstring, because it is the shape the next copy would have been made from.
+
+*Honest severity.* On the coach page the shot ledger already gives every shot a
+real `<button>`, so the map dot was a redundant pointer shortcut. On the player
+page there is no shot list, and `TEAM_MARK_TYPES` is goals, cards and subs only
+— so a saved or blocked shot was reachable there as an unlabelled *Touch*, or
+not at all.
+
+*The focus ring was a second bug, and only a browser found it.* The rule written
+here first used `var(--accent)`, which is what the rest of the app focuses with.
+`.shot-mark.is-on-target` is *filled* with `--accent`. Measured live, focusing an
+on-target mark changed nothing but its apparent radius — an accent ring on an
+accent disc reads as a slightly bigger dot, not as focus — and `--good` fills the
+goals and sits right next to accent, so it was weak there too. `--text`
+(`#e6efe9`) is the one token here that no mark can be, roughly **16:1** against
+the pitch backdrop, and that is what the rule uses. `paint-order: stroke` keeps
+the ring wholly outside the disc: without it half the stroke width eats into a
+mark that is **27 px across at its smallest**, and the fill colour is the thing
+saying whether the shot went in. Confirmed by real Tab presses against the real
+stylesheet on all three mark types.
+
+*Neither map had a test of any kind* — no occurrence of `shotMapSvg`,
+`renderShotMap`, `passMapSvg` or `onPick` anywhere under `tests/` — which is how
+a docstring got to describe a button for as long as it did. `tests/smoke.test.js`
+is the only suite that can hold one: `video.test.js` covers pure functions and
+cannot import a module that calls `createElementNS`. What is pinned is the
+contract rather than the shapes — a mark you can activate has a role, a tab stop,
+a name and answers to the two keys a real button answers to; a mark you cannot
+has none of them and the map stays a picture. Proved to fail against the pre-fix
+code before it was kept.
+
+*Not a defect today, recorded so it stays that way.* Seven `<button>` elements
+omit `type="button"`: `coach/coach.js:1037` and `:2827`,
+`live-tagging/tagging.js:260, 313, 635, 664`, `calibrate/calibrate.js:300`. A
+missing type only submits something inside a `<form>`, and this app contains no
+`<form>` element — the one match in the tree is vendored under `.venv`. The day
+somebody adds a form, all seven become real.
+
+675 pure JS · **25 pages** · 145 emulator · 1044 Python.
 
 ---
 
@@ -1645,6 +1712,15 @@ configure and no server to start.**
       the opposite standard for its own marks — *"real buttons rather than
       styled spans, so the whole thing is reachable from a keyboard"*. Five
       lists, and a demo run on a tablet, so it is noted rather than fixed here.
+
+      **That held for seven hours.** Written at 16:31 on 2026-08-15; fixed at
+      23:24 the same evening in `c7bde72`, written up one entry above this one
+      as *"Five player lists that were not buttons"*. This page said otherwise
+      for two days, which is how a note meant to be honest about a limit turns
+      into a wrong claim about the code — the paragraph aged out and nothing
+      went back for it. Left standing rather than deleted, because the shape of
+      the mistake is worth keeping: *noted rather than fixed* is a promise, and
+      a promise with no date on it is the kind this document has to check.
 - [ ] Decide role split: one app covering both subs + events, or two simpler single-purpose roles/devices — worth testing both at the demo dry run
 - [ ] Basic weatherproofing for an outdoor tablet (case, screen usable with sun glare)
 - [x] **Live-tagged data feeds directly into the halftime report and

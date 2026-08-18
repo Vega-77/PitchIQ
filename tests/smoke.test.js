@@ -213,6 +213,85 @@ test('every button variant the markup asks for is one the stylesheet has', () =>
         `these buttons ask for a variant no stylesheet defines and no script queries:\n  ${dead.join('\n  ')}`);
 });
 
+/**
+ * The shot map's marks, as controls.
+ *
+ * There is no other suite this can live in. `tests/video.test.js` covers pure
+ * functions and cannot import a module that calls `createElementNS`; the
+ * emulator suites never build an element. So the one renderer in the repo that
+ * puts interactive controls inside an `<svg>` had no test of any kind until the
+ * day it turned out not to have controls at all — a click listener on a bare
+ * `<circle>` under `role="img"`, styled `cursor: pointer`, with a docstring
+ * calling it a button.
+ *
+ * What is pinned here is the contract, not the shapes: a mark you can activate
+ * has a role, a tab stop, a name, and answers to the two keys a real button
+ * answers to; a mark you cannot activate has none of them and the map stays a
+ * picture. Space is checked for `preventDefault` specifically, because on both
+ * pages that draw this map the video being seeked to sits above it, and the
+ * unprevented keystroke would jump the video and scroll it out of view at once.
+ */
+test('a shot mark you can activate is one a keyboard can reach', async () => {
+    live?.restore();
+    live = installDom('<main></main>', { url: 'http://localhost:5000/coach/' });
+
+    const { shotMapSvg, markLabel } = await import(
+        new URL('assets/shot-map.js', root).href
+    );
+
+    const marks = [
+        { x_m: 96, y_m: 34, xg: 0.42, outcome: 'goal', on_target: true, video_s: 120 },
+        { x_m: 78, y_m: 24, xg: 0.05, outcome: 'saved', on_target: true, video_s: 300 },
+    ];
+    const names = new Set(marks.map((m) => markLabel(m)));
+
+    const inert = shotMapSvg(marks);
+    assert.equal(inert.getAttribute('role'), 'img',
+        'a map with nothing to activate is a picture');
+    const still = inert.querySelectorAll('.shot-mark');
+    assert.equal(still.length, marks.length, 'the map drew the wrong number of marks');
+    for (const dot of still) {
+        assert.equal(dot.getAttribute('tabindex'), null,
+            'an inert mark is a tab stop that does nothing');
+        assert.equal(dot.getAttribute('role'), null);
+        assert.ok(!dot.classList.contains('is-pickable'));
+    }
+
+    const picked = [];
+    const map = shotMapSvg(marks, { onPick: (mark) => picked.push(mark) });
+    assert.equal(map.getAttribute('role'), 'group',
+        'role="img" would collapse the marks into the picture and announce them as nothing');
+
+    const dots = map.querySelectorAll('.shot-mark');
+    assert.equal(dots.length, marks.length);
+    for (const dot of dots) {
+        assert.equal(dot.getAttribute('role'), 'button');
+        assert.equal(dot.getAttribute('tabindex'), '0');
+        // `<title>` is a hover tooltip; a control needs a name of its own.
+        assert.ok(names.has(dot.getAttribute('aria-label')),
+            `a mark is named ${JSON.stringify(dot.getAttribute('aria-label'))}, which is not one of its shots`);
+    }
+
+    for (const key of ['Enter', ' ']) {
+        picked.length = 0;
+        const event = new KeyboardEvent('keydown', { key, bubbles: true });
+        dots[0].dispatchEvent(event);
+        assert.equal(picked.length, 1, `${JSON.stringify(key)} did not activate the mark`);
+        assert.equal(event.defaultPrevented, true,
+            `${JSON.stringify(key)} was left to the page — Space would scroll the video out of view`);
+    }
+
+    picked.length = 0;
+    const other = new KeyboardEvent('keydown', { key: 'a', bubbles: true });
+    dots[0].dispatchEvent(other);
+    assert.equal(picked.length, 0, 'every key seeked the video, not the two that should');
+    assert.equal(other.defaultPrevented, false);
+
+    picked.length = 0;
+    dots[0].dispatchEvent(new Event('click', { bubbles: true }));
+    assert.equal(picked.length, 1, 'the pointer path broke while the keyboard one was added');
+});
+
 // ------------------------------------------------------------------- pages
 
 test('the landing page greets a signed-in coach with their squads', async () => {

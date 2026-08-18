@@ -31,7 +31,7 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, pitchMarkings,
-} from './pitch-backdrop.js?v=88';
+} from './pitch-backdrop.js?v=89';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -145,16 +145,35 @@ export function shotSummary(marks, trust = 'shot') {
 /**
  * The attacking half with every shot on it.
  *
- * `onPick` makes each shot a button that seeks the video to it, which is the
- * thing that turns a picture into something a coach uses. Without one the marks
- * are inert circles and no cursor changes.
+ * `onPick` makes each shot something you can activate to seek the video to it,
+ * which is the thing that turns a picture into something a coach uses. Without
+ * one the marks are inert circles and no cursor changes.
+ *
+ * Not `<button>` elements — a button cannot live inside an `<svg>`. Each mark is
+ * the circle itself, carrying `role="button"`, `tabindex="0"`, a name of its
+ * own, and a keydown handler for Enter and Space: the four things a real button
+ * would have given for free, and the four things a click listener on a shape
+ * gives none of. This paragraph read *"makes each shot a button"* until
+ * 2026-08-18 while the code built a bare `<circle>` with a click listener on it
+ * — `cursor: pointer` and a hover state, nothing focusable, nothing announced.
+ * `assets/timeline.js` sets the standard for its own marks, *"real buttons
+ * rather than styled spans, so the whole thing is reachable from a keyboard"*,
+ * and these are the same moments plotted on a different axis.
+ *
+ * The role on the `<svg>` has to move with them. `role="img"` collapses the
+ * whole subtree into one picture, so focusable children under it are reachable
+ * by tab and announced as nothing — which is worse than not being reachable,
+ * because focus lands somewhere silent. `role="group"` keeps the `aria-label`
+ * `renderShotMap` puts on the map and lets the marks inside speak.
  */
 export function shotMapSvg(marks, { onPick = null, xgTrust = 'shot' } = {}) {
     const svg = el('svg', {
         viewBox: `${FROM_X - 2} -2 ${PITCH_LENGTH_M - FROM_X + 4} ${PITCH_WIDTH_M + 4}`,
         preserveAspectRatio: 'xMidYMid meet',
         class: 'shot-map-svg',
-        role: 'img',
+        // See the note above: a picture when the marks are inert, a container
+        // of controls when they are not.
+        role: onPick ? 'group' : 'img',
     });
 
     svg.appendChild(pitchMarkings({ width: 0.3 }));
@@ -187,11 +206,26 @@ export function shotMapSvg(marks, { onPick = null, xgTrust = 'shot' } = {}) {
             class: `shot-mark ${markClass(mark)}`,
         });
 
-        dot.appendChild(el('title', {})).textContent = markLabel(mark, xgTrust);
+        const label = markLabel(mark, xgTrust);
+        dot.appendChild(el('title', {})).textContent = label;
 
         if (onPick) {
             dot.classList.add('is-pickable');
+            dot.setAttribute('role', 'button');
+            dot.setAttribute('tabindex', '0');
+            // `<title>` is a hover tooltip. A control needs a name whether or
+            // not there is a pointer on the screen.
+            dot.setAttribute('aria-label', label);
             dot.addEventListener('click', () => onPick(mark));
+            // Space scrolls the page when nothing swallows it, and on both
+            // pages that draw this map the video being seeked to sits above
+            // it — so the one keystroke would jump the video and scroll it out
+            // of view at the same time.
+            dot.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                onPick(mark);
+            });
         }
         svg.appendChild(dot);
     }
