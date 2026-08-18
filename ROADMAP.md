@@ -56,9 +56,10 @@ Strategy §9 for what it covers and what it still cannot see.
 
 **What it has found since** (2026-08-17): a verdict taken back that still
 counted as one, three interactive surfaces the fixture had never been able to
-open, and — through the shot ledger those surfaces unlocked — a student's own
-report showing one fragment of a match the coach's screen showed whole. All
-three are in §9, with the last one also in Phase 15.
+open, a student's own report showing one fragment of a match the coach's screen
+showed whole, and two fields that existed only to go wrong — one written by the
+pipeline and readable by nobody, one misspelt in the fixture and therefore
+invisible. They are in §9 and Phase 15.
 
 **Blocked on:** footage from the coach — specifically a raw/native-resolution export
 rather than a screen recording, ideally the uncropped wide feed rather than the
@@ -896,7 +897,7 @@ if it is reordered.
 **Still unswept by this suite:** the print layout, and anything about how a page
 looks. There is no CSS here.
 
-675 pure JS · **23 pages** · 145 emulator · 1043 Python.
+675 pure JS · **23 pages** · 145 emulator · 1044 Python.
 
 ---
 
@@ -3414,6 +3415,29 @@ than the workaround, which matters given the data class.
       an empty track for not filmed at all: absent is not zero in a bar chart
       either.
 
+- [x] **Two fields that existed only to go wrong** (2026-08-17). Found while
+      diffing what `cv/publish.py` writes against what `cvReportFields` clears.
+
+      **`cvPassAccuracy`** was written by the pipeline and read by nothing —
+      every page divides the two fields beside it. It was also the only field
+      the pipeline wrote that the browser's null-out list did not know about,
+      so un-naming a tracked figure and re-publishing left an accuracy standing
+      next to the two nulls it came from. Harmless today only because nothing
+      read it, which is the worst reason for a number to be on a document.
+      `tests/test_player_merge_parity.py` now asserts the general form: every
+      field the pipeline writes must be one the browser can take back. The
+      other direction stays open deliberately — minutes filmed, fragment count
+      and whether a human reviewed anything are things the pipeline cannot know.
+
+      **`cvPasses: 31`** sat on a published report in `tests/fixtures.js`,
+      spelt as no field in the repo. This is the invisible kind of fixture
+      error: a misspelt `cv` field fails nowhere, the page reads `undefined`
+      and renders a dash, and the result is indistinguishable from a match
+      nobody filmed — so a test can pass while exercising the empty path and
+      calling it coverage. Same shape as the `kickoff_first` period and the
+      `midfield` position before it. The fixture check now takes its list of
+      allowed names from `cvReportFields(null)` rather than restating them.
+
 - [x] **A student tracked as two figures was shown the second one**
       (2026-08-17). The tracker loses people when they leave frame and
       `cv/identity.py` only rejoins fragments a couple of seconds apart, so
@@ -3445,7 +3469,7 @@ than the workaround, which matters given the data class.
       against a student's would see it. Checked by narrowing the Python side's
       maxed fields alone: three tests fail, across both files.
 
-      1043 Python · 675 pure JS · 23 pages · 145 emulator.
+      1044 Python · 675 pure JS · 23 pages · 145 emulator.
 
 - [x] **A verdict taken back still counted as a verdict** (2026-08-17). Found by
       tapping the review buttons. Tapping ✓ twice clears the verdict and keeps
