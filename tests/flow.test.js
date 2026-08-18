@@ -565,8 +565,19 @@ describe('knowing what has reached the server', () => {
         // Not awaited: offline, setDoc's promise does not settle until the
         // server acknowledges, which is the whole reason the tagging UI must
         // never block on it. The local write lands immediately regardless.
-        setDoc(logPath(db, 'devA_000101'), tap(101, 60));
-        setDoc(logPath(db, 'devA_000102'), tap(102, 120));
+        //
+        // Held rather than dropped, though. If anything below this line fails,
+        // the test ends with two writes still queued and the context torn down
+        // underneath them — and a dropped promise that rejects afterwards
+        // surfaces as an unhandled rejection blamed on whichever test happened
+        // to be running when it fired, which is a long way from the cause.
+        // `allSettled` subscribes to both synchronously, so they have a handler
+        // from birth; the outcomes are read at the end of this test, where a
+        // failure lands on the code that caused it.
+        const queued = Promise.allSettled([
+            setDoc(logPath(db, 'devA_000101'), tap(101, 60)),
+            setDoc(logPath(db, 'devA_000102'), tap(102, 120)),
+        ]);
 
         const offline = await until(db, (s) => pendingIn(s) === 2);
         assert.equal(offline.metadata.fromCache, true,
@@ -580,6 +591,13 @@ describe('knowing what has reached the server', () => {
         const ids = back.docs.map((d) => d.id);
         assert.ok(ids.includes('devA_000101'));
         assert.ok(ids.includes('devA_000102'));
+
+        // And the server acknowledged them, which is a stronger claim than the
+        // listener no longer calling them pending.
+        for (const r of await queued) {
+            assert.equal(r.status, 'fulfilled',
+                `a queued write rejected on reconnect: ${r.reason}`);
+        }
     });
 
     it('a write made while connected is not pending for long', async () => {

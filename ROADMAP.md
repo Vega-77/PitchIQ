@@ -1064,6 +1064,22 @@ Testing Strategy section. Separately and deterministically: `emulators:exec`
 exits 0 while leaking the java that holds port 8085, 6 times out of 6, which is
 the whole history of "kill the stray java first".
 
+**The other half of that flake, fixed 2026-08-18.** Chasing the 499 turned up
+why it was so hard to read: the offline-queue test made two `setDoc` calls it
+deliberately did not await — correctly, because offline a write's promise does
+not settle until the server acknowledges it, which is the whole reason the
+tagging UI must never block on one. But nothing held them either. If anything
+after that line failed, the test ended with two writes still queued and the
+context torn down underneath them, and the rejection landed later as an
+unhandled rejection attributed to whichever test happened to be running when it
+fired — which is how a failure in the offline suite got read as a failure in the
+erase suite for most of a week. They are now handed to `Promise.allSettled` at
+the moment they are created, so they have a handler from birth, and the results
+are asserted at the end of the test: *both writes were acknowledged by the
+server*, which is a stronger claim than the listener merely no longer calling
+them pending. Only reachable after some other failure, so it never made a green
+run red — it made a red run lie about where the red was.
+
 675 pure JS · **24 pages** · 145 emulator · 1044 Python.
 
 ---
