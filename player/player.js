@@ -9,31 +9,31 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=87';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=88';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=87';
-import { CARD_COLOURS } from '../assets/events.js?v=87';
-import { mountRail } from '../assets/rail.js?v=87';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=87';
-import { renderHeatmap } from '../assets/heatmap.js?v=87';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=87';
+} from '../assets/db.js?v=88';
+import { CARD_COLOURS } from '../assets/events.js?v=88';
+import { mountRail } from '../assets/rail.js?v=88';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=88';
+import { renderHeatmap } from '../assets/heatmap.js?v=88';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=88';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
     minutesNote, seasonGroups, matchLine,
-} from '../assets/report.js?v=87';
+} from '../assets/report.js?v=88';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=87';
-import { renderForms } from '../assets/form-chart.js?v=87';
+} from '../assets/season.js?v=88';
+import { renderForms } from '../assets/form-chart.js?v=88';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=87';
-import { renderMatchVideo } from '../assets/match-video.js?v=87';
+} from '../assets/sample-report.js?v=88';
+import { renderMatchVideo } from '../assets/match-video.js?v=88';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally, coverageStrip,
-} from '../assets/ui.js?v=87';
+} from '../assets/ui.js?v=88';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -409,8 +409,7 @@ function renderPlayerShots(report) {
         + (totals.xg != null
             ? ` — worth about ${totals.xg.toFixed(2)} expected goals.`
             : '.')
-        + (sized ? ' Bigger circles were better chances.' : '')
-        + ' Tap one to watch it.');
+        + (sized ? ' Bigger circles were better chances.' : ''));
 }
 
 /**

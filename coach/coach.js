@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=87';
+} from '../assets/auth.js?v=88';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,23 +10,23 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=87';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=87';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=87';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=87';
+} from '../assets/db.js?v=88';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=88';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=88';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=88';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=87';
+} from '../assets/sample-report.js?v=88';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=87';
-import { renderPassMap } from '../assets/pass-map.js?v=87';
+} from '../assets/passing.js?v=88';
+import { renderPassMap } from '../assets/pass-map.js?v=88';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=87';
-import { renderForms } from '../assets/form-chart.js?v=87';
+} from '../assets/season.js?v=88';
+import { renderForms } from '../assets/form-chart.js?v=88';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, hasVerdict, xgTrust,
@@ -43,18 +43,18 @@ import {
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
-} from '../assets/report.js?v=87';
+} from '../assets/report.js?v=88';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=87';
-import { mountRail } from '../assets/rail.js?v=87';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=87';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=87';
+} from '../assets/events.js?v=88';
+import { mountRail } from '../assets/rail.js?v=88';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=88';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=88';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar, coverageStrip,
-} from '../assets/ui.js?v=87';
+} from '../assets/ui.js?v=88';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -1319,15 +1319,16 @@ function renderShots() {
     if (!any) return;
 
     // The sentence about circle size only holds while the circles have one.
+    // "Click one to jump the video there" is markup, not text: it is false on
+    // paper, and setText writes textContent so it cannot carry its own class.
     const corrected = headerNote(headerCorrection(ledger));
     setText('cv-shots-note',
-        'Both halves are drawn attacking right, so the two maps can be compared. '
-        + (trust === 'shot'
-            ? 'Bigger circles were better chances. '
-            : 'Every shot is drawn the same size — the calibration is too loose to '
-                + 'rank them against each other. ')
-        + 'Click one to jump the video there.'
-        + (corrected ? ` ${corrected}` : ''));
+        ('Both halves are drawn attacking right, so the two maps can be compared. '
+            + (trust === 'shot'
+                ? 'Bigger circles were better chances. '
+                : 'Every shot is drawn the same size — the calibration is too loose '
+                    + 'to rank them against each other. ')
+            + (corrected || '')).trim());
 }
 
 // ------------------------------------------------------ how the ball moved
@@ -1631,11 +1632,12 @@ function renderShotLog() {
         + 'some frames, and grading the model against another guess measures '
         + 'nothing. '
         // The other half of the row, and the one that changes a published
-        // figure rather than adding to it.
-        + 'Tap Header on any that were headed: one fixed camera cannot see the '
-        + 'ball\'s height, so every shot above is scored as if it were struck '
-        + 'with the foot, and that overstates a headed chance by a third to '
-        + 'three times over.'
+        // figure rather than adding to it. The instruction to tap it is in the
+        // markup instead: it is false on paper, and setText writes textContent,
+        // so a sentence in here cannot carry its own class.
+        + 'One fixed camera cannot see the ball\'s height, so every shot '
+        + 'above is scored as if it were struck with the foot, and that '
+        + 'overstates a headed chance by a third to three times over.'
         + (dropped
             ? ` ${plural(dropped, 'candidate')} struck out below: you rejected `
               + 'them as something other than a shot, so they count for nothing '

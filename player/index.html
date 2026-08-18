@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=87">
-    <link rel="stylesheet" href="player.css?v=87">
+    <link rel="stylesheet" href="../assets/app.css?v=88">
+    <link rel="stylesheet" href="player.css?v=88">
 </head>
 <body>
 
@@ -188,7 +188,8 @@
 
         <section class="block" id="season-matches-block" data-rail="Every match">
             <h3>Every match</h3>
-            <p class="muted" style="margin:-4px 0 14px">Tap a match to see your part in it.</p>
+            <!-- Not true of paper: printed, the list is just a list. -->
+            <p class="muted no-print" style="margin:-4px 0 14px">Tap a match to see your part in it.</p>
             <div id="match-list" class="card-list"></div>
         </section>
 
@@ -254,7 +255,10 @@
 
         <section class="block hidden col-half" id="md-shots-block" data-rail-group="md-pitch">
             <h3>Your shots</h3>
-            <p class="muted" id="md-shots-note" style="margin:-4px 0 14px"></p>
+            <p class="muted" id="md-shots-note" style="margin:-4px 0 6px"></p>
+            <!-- "Tap one to watch it" is not true of paper, same as the video
+                 note below. Apart from the sentence so it can be dropped. -->
+            <p class="muted no-print" style="margin:0 0 14px">Tap a shot to watch it.</p>
             <div id="md-shots" class="shot-map"></div>
         </section>
 
@@ -280,7 +284,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="player.js?v=87"></script>
+<script type="module" src="player.js?v=88"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

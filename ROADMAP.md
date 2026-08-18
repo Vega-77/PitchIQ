@@ -976,9 +976,80 @@ decision. Removed, and guarded by a test scoped to `.btn` — the one class here
 with a real family of variants, and so the one place an invented variant is
 indistinguishable from a chosen one.
 
-**Still unswept:** the print layout as *paper* — the rules above were read and
-their selectors checked against the live DOM, but nothing here has been through
-a print preview at a real page size.
+**The print layout as paper, 2026-08-17.** The line that used to sit here said
+the print rules had been read and their selectors checked, but that nothing had
+been through a print preview at a real page size. Now it has — near enough. The
+browser tools expose no `printToPDF` and no print media emulation, so the page
+size was built by hand instead: find the `CSSMediaRule` whose `media.mediaText`
+matches `print`, set it to `all` in place, and size the viewport to Letter's
+printable box. **Do not lift the rules into a new `<style>` by copying
+`cssText`** — 16 rules go in and 14 come out, the casualty being the `:root`
+custom properties, so the palette never inverts and every measurement after that
+is taken against the dark screen theme. Mutate the live rule.
+
+The arithmetic, since it is the whole basis of the numbers below. US Letter is
+215.9 × 279.4 mm; `@page { margin: 14mm }` leaves 187.9 × 251.4 mm; at the CSS
+96 dpi that is **710.2 × 950.1 px**. A4 leaves **687.9 × 1016.5 px** — narrower
+and taller, so Letter sets the width and A4 sets nothing. New Jersey prints on
+Letter.
+
+*What only a page size could find.* Three columns of the players table were
+being cut off. `.table-wrap` carries `overflow-x: auto`, which is exactly right
+on a phone — the table is 898 px wide and a phone is 390 — but paper does not
+scroll, so on paper that rule is a guillotine at 710 px. `Passes` (645–729),
+`Tackles` (729–822) and `m/min` (822–899) all fell past the edge, under a group
+header that still read *Estimated from video* across four columns. One of the
+four survived. Three of the numbers the entire video pipeline exists to produce
+were missing from the printed report, with nothing on the page to say so.
+
+Fixed by measurement rather than guess. Min-content by cell padding, at the
+unchanged 0.85 rem: 8/10 px → 743.4, 7/9 → 721.4, 6/8 → 699.4, 5/7 → 677.4.
+Only the last clears both papers, and it is one bad surname from not clearing
+them. Adding `overflow-wrap: anywhere` to the text cells drops min-content to
+**598.9 px and makes it independent of the roster** — stress-tested with
+"Papastathopoulos", "Bartholomew Fetherstonhaugh" and a 34-character single
+word, all within half a pixel of each other. 111 px of headroom on Letter, 89 on
+A4, and the font size does not have to shrink. Numbers keep `nowrap`: a wrapped
+figure reads as two figures. `thead th` also goes `position: static`, because
+sticky has nothing to stick to on paper and a sticky header is *not* repeated at
+the top of each sheet the way a static one is.
+
+Measured on the sample report, which is the fullest state the app reaches with
+no footage: **74 elements past the right edge → 0**, players block 979 px → 748,
+document 9652 px → 9044. Verified from the real stylesheet after the fix, not
+from the trial injection: all eleven columns land inside 708 px of the 710.2
+available, and both group headers span what they claim to.
+
+*Instructions that are false on paper.* Scanning the printed DOM for
+tap/click/hover/drag/scroll text found six, of which the player page's video
+note was the only one already handled — and its comment, *"Tap any row to jump
+the video there" is not true of paper*, is the fix for the other five. The shot
+map's *Click one to jump the video there*, the shot ledger's *Tap Header on any
+that were headed*, the timeline's *Tap one to jump straight to it* on both the
+coach and half-time pages, and the season list's *Tap a match to see your part
+in it*. Each is now its own `.no-print` element rather than a clause welded into
+a sentence that carries real information — `setText` writes `textContent`, so a
+sentence cannot carry its own class and the split has to happen in the markup.
+The printed page now has zero elements telling the reader to touch it.
+
+*Confirmed sound.* Every figure on the page is SVG — two shot maps at 322 × 416
+and a pass map at 598 × 388, no `<canvas>` anywhere — so all of them take the
+print palette and come out dark-on-white. Blocks fill the full printable width.
+`coach.css` has no print block of its own, so `assets/app.css` is the single
+place any of this lives.
+
+*Where the folds land*, at Letter after the fix: team 1.33–5.31, players
+5.35–6.14, shots 6.19–6.77, passing 6.81–7.48, pressing 7.53–7.94, subs
+7.98–8.86, excluded 8.91–9.27, timeline 9.32–10.52. Three of those blocks carry
+`break-inside: avoid` while being taller than a sheet, so the UA has no choice
+but to ignore it and split them anyway. That is not a bug to fix — a rule that
+cannot be honoured is not a rule that is being violated — but it does mean the
+declaration buys nothing for `team-block` or `timeline-block`, and only the
+smaller blocks are actually being kept whole.
+
+**Still unswept:** every sheet after the first is anonymous. The claim below
+that read *Every sheet says what it is* has been corrected to *The first sheet
+says what it is*, with the arithmetic and the reason it was not fixed.
 
 **The half-year flake is settled, 2026-08-17.** `flow.test.js`'s erase test had
 failed about half of all emulator runs since 15 August with a gRPC 499. Eighty-
@@ -3356,7 +3427,7 @@ than the workaround, which matters given the data class.
          with `break-after: avoid`. Nothing readable is allowed to split across
          a fold either — a stat cut in half is not half a stat, it is a misprint.
 
-      **Every sheet says what it is.** `printStamp` puts the subject, the
+      **The first sheet says what it is.** `printStamp` puts the subject, the
       fixture, and the date it was *printed* along the top edge. A page that has
       left the app has left everything that made it readable — the navigation
       saying whose account it came from, the tab title saying which match — and
@@ -3365,6 +3436,24 @@ than the workaround, which matters given the data class.
       sheet re-printed after a coach corrected the review says something
       different from one printed on the night, and nothing else tells them
       apart.
+
+      **This read "every sheet" until 2026-08-17, and that was an overclaim.**
+      `.print-stamp` is one static `<p>` at the top of the document
+      (`coach/index.html:383`, `player/index.html:205`), so it prints once, on
+      sheet one. The sample coach report measures 9.52 Letter sheets, which
+      leaves **nine sheets carrying a teenager's name and some numbers with
+      nothing on them saying where either came from** — the exact artifact the
+      paragraph above says the stamp exists to prevent, for every page of it but
+      the first.
+
+      It is written down rather than fixed because the fix cannot be checked
+      here. Chrome supports no `@page` margin boxes, so the only recipe for a
+      running header is `position: fixed`, which does repeat on every sheet but
+      reserves no space for itself: content on sheets two and later would print
+      underneath it, and how much it swallows is visible only in a print
+      preview, which the browser tools here do not expose. A header that might
+      be printing over the numbers is a worse artifact than one labelled sheet
+      followed by eight unlabelled ones.
 
       The stamp also explains the confidence marks, which the second browser
       check turned up: on screen `···` carries its meaning in a title

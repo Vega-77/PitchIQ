@@ -3333,6 +3333,33 @@ input[type="file"]::file-selector-button:hover {
     .report-body > .block { margin-top: 42px; }
     .wide-report { width: auto; margin-inline: 0; }
 
+    /* Paper has no horizontal scroll, so `overflow-x: auto` is not a way out of
+       a table that is too wide — it is a guillotine. `.table-wrap` earns that
+       rule on screen, where the players table is 898px wide and a phone is 390.
+       On a Letter sheet the printable width is 710px (215.9mm less two 14mm
+       margins, at 96dpi), and measuring the real report on 2026-08-17 found
+       `Passes`, `Tackles` and `m/min` simply gone — cut off under a group
+       header that still promised four columns of video stats. Three of the four
+       numbers the video exists to produce, missing from the printed report,
+       with nothing on the page to say so.
+
+       Three changes bring it back: let the wrap overflow visibly, trade screen
+       padding for ink, and let names wrap. `overflow-wrap: anywhere` is what
+       makes the width independent of the roster — without it one long surname
+       pushes the table back over the edge. Min-content goes 898px -> 599px,
+       which clears Letter (710px) and A4 (688px) both. Figures keep `nowrap`:
+       a wrapped number reads as two numbers. */
+    .table-wrap { overflow: visible; }
+    th, td { padding: 5px 7px; white-space: normal; overflow-wrap: anywhere; }
+    th.num, td.num { white-space: nowrap; overflow-wrap: normal; }
+    .col-groups th { padding: 5px 7px 4px; }
+    .pos-head th { padding: 5px 7px; }
+
+    /* A sticky header has nothing to stick to on paper, and a sticky `thead` is
+       not repeated at the top of each sheet the way a static one is — which is
+       the only reason the column names survive the fold at all. */
+    thead th, .col-groups th { position: static; }
+
     /* Nothing readable is worth splitting across a fold. A stat cut in half is
        not half a stat, it is a misprint. */
     .block,

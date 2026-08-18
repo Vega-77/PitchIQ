@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=87">
-    <link rel="stylesheet" href="coach.css?v=87">
+    <link rel="stylesheet" href="../assets/app.css?v=88">
+    <link rel="stylesheet" href="coach.css?v=88">
 </head>
 <body>
 
@@ -500,7 +500,11 @@
              until there is a calibration to place them with. -->
         <section class="block hidden" id="cv-shots-block" data-rail="Shots">
             <h3>Shots</h3>
-            <p class="muted" id="cv-shots-note" style="margin:-4px 0 14px"></p>
+            <p class="muted" id="cv-shots-note" style="margin:-4px 0 6px"></p>
+            <!-- "Click one to jump the video there" is not true of paper, so it
+                 lives apart from the note rather than inside its sentence.
+                 Same split as md-video-note on the player page. -->
+            <p class="muted no-print" style="margin:0 0 14px">Click a shot to jump the video there.</p>
             <div class="shot-maps">
                 <figure>
                     <figcaption id="cv-shots-us-cap">Us</figcaption>
@@ -566,7 +570,9 @@
         <section class="block hidden col-half" id="cv-shotlog-block" data-rail="Shot log">
             <h3>What actually happened
                 <span id="cv-shotlog-state" class="save-state"></span></h3>
-            <p class="muted" id="cv-shotlog-note" style="margin:-4px 0 14px"></p>
+            <p class="muted" id="cv-shotlog-note" style="margin:-4px 0 6px"></p>
+            <!-- Not true of paper, so it is not part of the note above. -->
+            <p class="muted no-print" style="margin:0 0 14px">Tap Header on any that were headed.</p>
             <div id="cv-xg-check" class="xg-check hidden"></div>
             <div id="cv-shotlog" class="list shot-log"></div>
         </section>
@@ -585,7 +591,10 @@
         <!-- The match itself, with the goals, cards and subs marked on it. -->
         <section class="block hidden no-print" id="match-video-block" data-rail="The match">
             <h3>The match</h3>
-            <p class="muted" id="match-video-note" style="margin:-4px 0 14px"></p>
+            <!-- "Tap one to jump straight to it" is not true of paper, and
+                 neither is the sentence about what is and is not a button.
+                 Same as md-video-note on the player page. -->
+            <p class="muted no-print" id="match-video-note" style="margin:-4px 0 14px"></p>
             <div id="match-video" class="video-frame"></div>
             <div id="match-scrubber" class="scrubber"></div>
             <!-- Filled in as the video plays. Empty until it says something,
@@ -735,7 +744,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=87"></script>
+<script type="module" src="coach.js?v=88"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>
