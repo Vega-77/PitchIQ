@@ -730,23 +730,68 @@ Applies across every phase below — how we know each piece actually works, not 
    thought of the user interface as a thing that could be tested at all. See
    below — it was where two bugs in two days came from.
 
-**One suite is not reliable, and saying so is the point of writing it down.**
-`tests/flow.test.js`'s *"erasing a player › leaves nothing with their name in
-it"* has failed **2 of 4** emulator runs on 16 August and passed on the retry
-both times, with
-`{"code":499,"message":"call already cancelled...","status":"CANCELLED"}`. That
-is a gRPC call torn down mid-flight, not an assertion about the data — and
-`erasePlayer` runs one `writeBatch` per match in sequence, so a cancelled call
-part-way leaves whole matches cleared and whole matches not. Which is exactly
-what the code's own error path warns about.
+**The unreliable suite, settled 2026-08-17.** `tests/flow.test.js`'s *"erasing a
+player › leaves nothing with their name in it"* had failed roughly half of all
+emulator runs since 15 August with
+`{"code":499,"message":"call already cancelled...","status":"CANCELLED"}`. This
+section used to say the cause was one of two things — the emulator dropping a
+connection, or a real race in `erasePlayer`'s per-match `writeBatch` loop — and
+that those wanted opposite fixes. It is the first, and the erase loop is
+exonerated.
 
-Unresolved on purpose rather than retried away: it is either the emulator
-dropping a connection under a long batch sequence, or a real race in the erase
-loop, and those want opposite fixes. What would settle it is running that test
-alone in a loop and reading the full failure, which needs the failure to
-reproduce. **Do not add a retry to this one.** It is the delete-a-child's-data
-path, and a retry would convert a visible flake into an invisible partial
-erase.
+*What the loop showed.* Three things had to be true at once, which is why it
+looked random:
+
+| arm | conditions | failed |
+|---|---|---|
+| A | erase suite alone, warm emulator | **0 / 30** |
+| B | whole file, warm emulator | **0 / 15** |
+| D | whole file, **cold** emulator | **4 / 12** |
+| E | cold emulator, offline-queue suite skipped | **0 / 12** |
+
+Arm A is 210 `clearFirestore` calls and every assertion in the erase path,
+thirty times over, without one failure. In a failing run the 499 arrives at
+**~12 ms**, out of the `beforeEach` at `tests/flow.test.js:60`, before the test
+body executes a single line — and the six sibling tests in that same suite pass
+immediately afterwards. So the roadmap's fear, that a cancelled call part-way
+through leaves whole matches cleared and whole matches not, is not what was
+happening. Nothing was half-erased; nothing was erased at all yet.
+
+*The trigger* is the offline-queue suite above it — the only one in the file that
+opens long-lived `Listen` streams and then pulls the network out from under them
+with `disableNetwork`. `clearFirestore` is an HTTP DELETE whose handler tears
+down live streams, and on a **cold** emulator everything is slow enough for the
+next suite's clear to land inside that teardown. A warm emulator hid it across
+45 runs, which is exactly why every previous attempt to reproduce it failed.
+
+*Two fixes that did not work*, recorded because both looked obviously right.
+`terminate()` on the offline suite's clients throws `firestore._delete is not a
+function` — the instance `@firebase/rules-unit-testing` returns is a wrapper
+without it. `disableNetwork()` in an `after` hook ran clean syntactically and
+left the failure rate where it was (10/15 on a cold emulator). Neither could
+have worked: no client-side teardown closes a stream the *server* is still
+closing.
+
+*The fix* is a retry on `clearFirestore`, and only on a cancelled call — 15/15
+clean on cold emulators, against a contemporaneous unfixed rate of 10/15.
+
+**The old instruction here said "do not add a retry to this one", and it was
+right about the retry it meant.** Retrying *the test* would still be wrong. But
+its stated reason — that a retry would convert a visible flake into an invisible
+partial erase — rested on the erase loop being a suspect, and it no longer is.
+The retry added sits on the clear, which runs before the test touches anything,
+is idempotent, and cannot conceal a half-finished erase because no erase has
+happened yet. It catches a cancelled call and nothing else; a `PERMISSION_DENIED`
+or a refused connection still fails loudly. **Do not widen it, and do not move it
+onto the test.**
+
+**And the stray java is not bad luck.** `firebase emulators:exec` exits **0**
+while leaving its Firestore java child alive and still holding port 8085 —
+reproduced 6 times out of 6 with a payload that only prints. That is why the
+second `npm test` in a row dies with *"Could not start Firestore Emulator, port
+taken"*, and why this file has told people to kill a stray java before every
+run. It is a harness bug, not a test bug: reap java before running, not after
+being surprised.
 
 ### 9. Load the pages — `tests/smoke.test.js` (2026-08-16)
 
@@ -934,6 +979,19 @@ indistinguishable from a chosen one.
 **Still unswept:** the print layout as *paper* — the rules above were read and
 their selectors checked against the live DOM, but nothing here has been through
 a print preview at a real page size.
+
+**The half-year flake is settled, 2026-08-17.** `flow.test.js`'s erase test had
+failed about half of all emulator runs since 15 August with a gRPC 499. Eighty-
+odd runs across five arms say it is the emulator, not this repo: the erase suite
+alone is clean 30 times over, the 499 lands in a `beforeEach` at ~12 ms before
+any erase code runs, and it needs a **cold** emulator plus the offline-queue
+suite's live `Listen` streams to appear at all (4/12 with that suite, 0/12
+without). Fixed with a retry on the clear rather than on the test — 15/15 clean.
+Two obvious client-side fixes were tried first and both failed; all of it,
+including why the retry is safe here and would not be on the test, is in the
+Testing Strategy section. Separately and deterministically: `emulators:exec`
+exits 0 while leaking the java that holds port 8085, 6 times out of 6, which is
+the whole history of "kill the stray java first".
 
 675 pure JS · **24 pages** · 145 emulator · 1044 Python.
 
@@ -3089,6 +3147,16 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
 
       Three consecutive clean runs after clearing the timers, from a baseline of
       about one failure in two. 622 pure JS · 145 emulator · 1008 Python.
+
+      **This entry claimed more than it had earned, and the next day disproved
+      it.** Three clean runs against a coin-flip failure is p = 0.125 — not
+      evidence, a shrug. The 499 came back on 16 August and again on the 17th,
+      and the real cause turned out to be the offline-queue suite's *streams*
+      rather than its *timers*: cancelling the strays was a genuine fix for a
+      genuine bug and simply not this one. Settled in the Testing Strategy
+      section above, on 30 and 15 run arms rather than three. The lesson worth
+      keeping is about the arithmetic, not the bug: a fix for an intermittent
+      failure needs enough runs that a clean streak would be surprising.
 - [x] **Use the Phase 3 sub log to scope each player's stats to their actual
       minutes played** (2026-08-06). Every per-player card printed *Minutes 71*
       from the sub log directly beside *km covered 1.9* from the video, and

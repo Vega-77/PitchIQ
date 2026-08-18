@@ -56,8 +56,51 @@ before(async () => {
 
 after(async () => { await testEnv?.cleanup(); });
 
+/**
+ * `clearFirestore`, retried on exactly one error and no other.
+ *
+ * **Read the roadmap entry before touching this.** It says, correctly, not to
+ * retry `erasing a player` — that is the delete-a-child's-data path, and a
+ * retry there would turn a visible flake into an invisible partial erase. This
+ * is not that retry, and the difference is the whole justification.
+ *
+ * What was measured, 2026-08-17. The 499 never came from the erase. It comes
+ * out of this hook, before the test body has run a single line, and the six
+ * sibling tests in that suite pass in the same run. The erase suite on its own
+ * survived 30 consecutive runs — 210 clears — without one failure. What does
+ * reproduce it is a **cold** emulator plus the offline-queue suite above:
+ * 12 cold runs with that suite in failed 4 times, 12 with it skipped failed 0.
+ * A warm emulator hid it across 45 runs, which is why it read as random.
+ *
+ * It is the emulator, not this repo. `clearFirestore` is an HTTP DELETE whose
+ * handler tears down live streams, and the offline suite is the only one here
+ * that opens long-lived `Listen` streams and then pulls the network out from
+ * under them. Two client-side fixes were tried and neither moved the rate:
+ * `terminate()` throws `firestore._delete is not a function` on the wrapper
+ * this library returns, and `disableNetwork()` in an `after` hook left the
+ * failures where they were. Nothing the client does closes a stream the server
+ * is still closing.
+ *
+ * So the retry goes on the clear, where it is safe: it runs before the test
+ * touches anything, clearing an already-empty database is idempotent, and it
+ * cannot conceal a half-finished erase because no erase has happened yet. It
+ * retries on a cancelled call and nothing else — a PERMISSION_DENIED or a
+ * refused connection still fails loudly and immediately.
+ */
+async function clearFirestore() {
+    for (let attempt = 1; ; attempt += 1) {
+        try {
+            await testEnv.clearFirestore();
+            return;
+        } catch (err) {
+            const cancelled = /"code":\s*499|CANCELLED/.test(String(err?.message ?? err));
+            if (!cancelled || attempt >= 3) throw err;
+        }
+    }
+}
+
 beforeEach(async () => {
-    await testEnv.clearFirestore();
+    await clearFirestore();
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
         const db = ctx.firestore();
         await setDoc(doc(db, 'coachAllowlist', COACH.email), { note: 'head coach' });
