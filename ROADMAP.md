@@ -26,7 +26,7 @@ jersey numbers robustly in month 1.
 
 ---
 
-## Current Status (2026-08-16)
+## Current Status (2026-08-17)
 
 **Built and verified:**
 - `cv/` — reusable detection package + `spike_detect` CLI (Phase 5 spike, done)
@@ -53,6 +53,12 @@ pages under `node --test` against an in-memory Firestore and a DOM shim in
 `tests/` — no new dependency, no headless browser. Both bugs that walked
 through the gap were reinstated to check it fails on them. See Testing
 Strategy §9 for what it covers and what it still cannot see.
+
+**What it has found since** (2026-08-17): a verdict taken back that still
+counted as one, three interactive surfaces the fixture had never been able to
+open, and — through the shot ledger those surfaces unlocked — a student's own
+report showing one fragment of a match the coach's screen showed whole. All
+three are in §9, with the last one also in Phase 15.
 
 **Blocked on:** footage from the coach — specifically a raw/native-resolution export
 rather than a screen recording, ideally the uncropped wide feed rather than the
@@ -827,7 +833,70 @@ the same denominator as *"n of m checked"* above it, which stays the candidates
 alone and is right to: a tagged entry is a human's own record of the match and
 has no verdict to give.
 
-675 pure JS · **20 pages** · 145 emulator · 1011 Python.
+**What it found next, once it could reach the rest of the page** (2026-08-17).
+Three surfaces of the coach's match view had never been loaded by any test,
+because `filmed()` built its stored event list out of `samplePassEvents()` —
+which holds no shots, deliberately, being the preview a coach sees before there
+is any footage. A stored fixture is under no such constraint, and reusing the
+preview as one left the shot ledger, the xG calibration check and the cluster
+picker dark, along with the passing network that needs an identity document.
+The fixture now carries five shots and six tracked figures on `SAMPLE_SHAPE`'s
+track ids, two named and four not — the state a coach actually opens the page
+in.
+
+Behind them was one bug in two halves, both about what counts as *checked*:
+
+- **A verdict taken back still counted.** Tapping ✓ twice clears the verdict and
+  keeps whatever the shot ledger put beside it, under `if (kept)` — and `kept`
+  is `{}` when there is nothing to keep, so the delete never ran. Every undo
+  left an entry with no verdict in it. The progress line read *"1 of 433
+  checked · 100% of those were real"* with nothing checked; the rail badge
+  agreed; and **"Not checked yet" hid the row**, so a mis-tap took an event out
+  of the only list built for working through them.
+- **A marked shot counted too.** Tapping "Saved" writes `{result: 'saved'}`
+  beside no verdict at all — a statement about what a shot did, not agreement
+  that it was one. In one sitting the wrong count is merely late, because
+  `markShot` redraws the ledger and not the progress line; opening the match the
+  next day is what showed it.
+
+`reviewScore` was right throughout, and says why in a comment — *"counting it as
+a confirmation would let the xG log quietly inflate this scorecard"* — so the
+page reported one checked on the line directly above a card correctly reporting
+none. The rule now lives beside that comment as `hasVerdict`, and every count of
+how much has been reviewed goes through it.
+
+**And one number the student saw smaller than the coach did.** The tracker loses
+people when they leave frame, and `cv/identity.py` only rejoins fragments a
+couple of seconds apart, so anyone who went off and came back stays split — the
+cluster picker lets a coach map several figures to one player on purpose.
+`cvStatsByPlayer` sums them and says so. `cv/publish.py` wrote one document per
+*cluster*, so the second write replaced the first: measured on two fragments,
+the coach's screen said **54 touches, 7.3 km, 49 minutes** and the student's own
+report said **24, 3.1 km, 21** — for the same afternoon, with the student's the
+smaller — while reporting "2 player reports written" for one player.
+
+`merge_tracks` fixes it, and `tests/test_player_merge_parity.py` is the other
+half: the fix made two implementations of one piece of arithmetic where there
+had been one and a half, and the failure is quiet — both sides go on producing
+plausible numbers, and only a coach comparing their own screen against a
+student's would ever see it. Seventeen fields, plus the two the sides name
+differently (`pass_accuracy` against `passAccuracy`), which is exactly where a
+shared test earns its place.
+
+**The calibrate page's sentence, as opposed to its solver.** The fit is checked
+against the pipeline's to 0.2 mm; the line underneath it had never been run, and
+that line is the product — a coach reads one sentence telling them whether to
+save this or click again, and *click again* is the wrong answer for two of the
+four states. Driven through the page's own seam with the parity test's synthetic
+camera. The case worth having: four points clicked perfectly around one penalty
+area report **0.00 m average, 0.00 m worst, 13% of the frame**, and must not be
+called a good fit. That branch order was commented as load-bearing and now fails
+if it is reordered.
+
+**Still unswept by this suite:** the print layout, and anything about how a page
+looks. There is no CSS here.
+
+675 pure JS · **23 pages** · 145 emulator · 1043 Python.
 
 ---
 
@@ -3344,6 +3413,67 @@ than the workaround, which matters given the data class.
       the two had the same evidence behind them. Amber for filmed-but-too-thin,
       an empty track for not filmed at all: absent is not zero in a bar chart
       either.
+
+- [x] **A student tracked as two figures was shown the second one**
+      (2026-08-17). The tracker loses people when they leave frame and
+      `cv/identity.py` only rejoins fragments a couple of seconds apart, so
+      anyone who went off and came back stays split. The cluster picker lets a
+      coach map several figures to one player **on purpose** — a wrong automatic
+      merge would credit one student with another's work and could not be undone
+      — and `cvStatsByPlayer` sums them, saying so in its docstring.
+
+      `cv/publish.py` wrote one document per *cluster*. Two figures of one player
+      meant two `update()` calls on the same report, so the second replaced the
+      first. Measured on two fragments: the coach's screen said **54 touches,
+      7.3 km, 49 minutes**; the student's own page said **24, 3.1 km, 21** — the
+      same afternoon, told two ways, with the student's the smaller of the two.
+      It also reported "2 player reports written" for one player.
+
+      `merge_tracks` groups the mapping by player before anything is written,
+      with the rules named to match `assets/report.js`: touches add, top speed is
+      the fastest they ran rather than the last, the wobble is taken at the worst
+      fragment rather than averaged, accuracy is 26 of 35 rather than the mean of
+      two fractions, touch times are re-sorted into a timeline, heatmaps add cell
+      by cell. None stays none: a fragment too short to measure a burst
+      contributes nothing rather than pulling the count towards zero.
+
+      **The fix made two implementations where there had been one and a half**,
+      so `tests/test_player_merge_parity.py` is the other half of it. Seventeen
+      fields plus the two the sides name differently (`pass_accuracy` against
+      `passAccuracy`). The failure it guards is quiet — both sides go on
+      producing plausible numbers, and only a coach comparing their own screen
+      against a student's would see it. Checked by narrowing the Python side's
+      maxed fields alone: three tests fail, across both files.
+
+      1043 Python · 675 pure JS · 23 pages · 145 emulator.
+
+- [x] **A verdict taken back still counted as a verdict** (2026-08-17). Found by
+      tapping the review buttons. Tapping ✓ twice clears the verdict and keeps
+      whatever the shot ledger put beside it, under `if (kept)` — and `kept` is
+      `{}` when there is nothing to keep, so the delete never ran and every undo
+      wrote an entry with no verdict in it.
+
+      Three counts read that as a checked event and a fourth did not. The
+      progress line said *"1 of 433 checked · 100% of those were real"* with
+      nothing checked and nothing real; the rail badge agreed; **"Not checked
+      yet" hid the row**, so a mis-tap took an event out of the only list built
+      for working through them; and the scorecard directly below went on
+      correctly reporting none, because `reviewScore` asks for a status
+      specifically and says why in a comment.
+
+      The same shape arrives honestly from the shot ledger — marking a shot
+      "Saved" writes `{result: 'saved'}` beside no verdict at all, which is a
+      statement about what a shot did rather than agreement that it was one. So
+      the rule moved next to that comment as `hasVerdict` and every count goes
+      through it. Fixing the undo alone would have left the ledger case; fixing
+      the counts alone would have left an empty map per mis-tap eating the
+      1500-entry budget `firestore.rules` allows.
+
+      Reaching the second half meant widening `tests/fixtures.js`, which had
+      been reusing the **preview's** event list as a stored one — and the preview
+      holds no shots deliberately. Three interactive surfaces had therefore never
+      been loaded by any test: the shot ledger, the xG calibration check, and the
+      cluster picker. See Testing Strategy §9.
 
 - [x] **The two halves of the calibration had never been checked against each
       other** (2026-08-17). `calibrate/pitch-model.js` imports nothing — the one
