@@ -421,6 +421,8 @@ def analyse_match(
     tag_log=None,
     video_offset_s: float = 0.0,
     second_half_video_s: float | None = None,
+    detector=None,
+    tracker_factory=None,
 ) -> MatchReport:
     """Run the full pipeline over a video.
 
@@ -502,6 +504,16 @@ def analyse_match(
 
     (`track_imgsz` is gone. It set a separate image size for the tracking pass,
     and there is no longer a separate pass for it to size.)
+
+    `detector` and `tracker_factory` are handed straight to `TrackedFramePass`,
+    which has taken both since it was written so that its bookkeeping could be
+    checked without a GPU (see cv/frames.py). For a long time the seam stopped
+    one level short of here, and this — the function every published number
+    comes out of — was the one part of the pipeline nothing could test: the
+    detector was built inside, so calling this at all meant installing
+    ultralytics and torch, which `requirements-test.txt` deliberately leaves
+    out. Passing them through costs two arguments and makes the assembly of
+    twenty-odd subsystems something a test can run.
     """
     video_path = Path(video_path)
     started = time.perf_counter()
@@ -550,6 +562,7 @@ def analyse_match(
     with timings.stage('load the detector', scaling=FIXED):
         single_pass = TrackedFramePass(
             conf=conf, ball_conf=ball_conf, imgsz=imgsz, device=device, tracker=tracker,
+            detector=detector, tracker_factory=tracker_factory,
         )
     with timings.stage('detect, track and sample colour'):
         table, colour_samples, ball_candidates = single_pass.run(

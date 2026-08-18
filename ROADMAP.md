@@ -541,8 +541,20 @@ Ranked by how much trouble each is, after auditing everything built so far:
    improves with native-resolution footage.
 3. ~~Ball tracking~~ — was the second-worst problem at 1.6% coverage; fixed by
    giving the ball its own tracker (Phase 5), now 83%.
-4. **Untested rather than broken:** the xG model has never been fed CV-derived
-   features, and the pieces have never been run end to end as one pipeline.
+4. ~~Untested rather than broken~~ — was "the xG model has never been fed
+   CV-derived features, and the pieces have never been run end to end as one
+   pipeline." Neither half of that is true any more, and the first half had
+   been false for sixteen days before anyone reread the sentence. The bridge
+   was wired in on 2026-08-02: `cv/pipeline.py:73` imports `xg_for_shots`,
+   `:789` calls it on CV-derived shot positions and `:793` attaches the result,
+   and `tests/test_xg_pipeline.py` has run twelve tests from `derive_events`
+   through the real ONNX model onto team totals ever since. The second half
+   stayed true longer and for a structural reason: `analyse_match` built its
+   own detector, so calling it at all meant installing ultralytics and torch,
+   which `requirements-test.txt` deliberately leaves out — the one function
+   every published number comes out of was the one part of the pipeline
+   nothing could test. `tests/test_pipeline_end_to_end.py` closes that
+   (2026-08-18): 29 tests, 2.7 seconds, no GPU and no footage.
 
 Detection is solid (99% of frames contain players), the calibration maths is
 correct and cross-verified between Python and JS, and team-level metrics —
@@ -593,7 +605,16 @@ focused hours over a month, not the 300+ it'd take to build everything below at 
   "prove the halftime concept" from "hit the literal wall clock at the real game." A
   halftime report that lands a few minutes into the second half instead of at the
   exact whistle is still a very compelling demo. Save true real-time performance as an
-  **[MVP]** hardening step once the concept is proven.
+  **[MVP]** hardening step once the concept is proven. **This now has an
+  instrument rather than an opinion** — see Phase 6's throughput work, which
+  built `cv/timing.py` and `speed_report`, and which established that a clip
+  does not scale onto a half by multiplication: the same six seconds of
+  synthetic footage read **1.48x cold and 0.33x warm**, a 4.5x spread that
+  decides the verdict and none of it about the football. Read those figures as
+  a floor on a floor — YOLO detects nothing at all in that clip, so tracking,
+  identity, touches and events are all doing no work. What is settled is that
+  the question can be answered on the machine that will be at the field,
+  before the day rather than after it.
 - **Don't train or fine-tune anything from scratch in month 1.** Use off-the-shelf
   pretrained models (a pretrained person detector, an existing tracking library like
   ByteTrack) as-is. Fine-tuning needs labeled soccer-specific data you don't have yet
@@ -616,7 +637,13 @@ focused hours over a month, not the 300+ it'd take to build everything below at 
   calibration may degrade on inputs noisier than what it was trained on. Validate this
   explicitly (see Testing Strategy and Phase 12) rather than assuming it just works
   once features are wired up. If it doesn't, retraining `main.py` with realistic noise
-  added to the training features is a contained fix.
+  added to the training features is a contained fix. **Measured 2026-08-06** —
+  400 trials over five spots averaging 0.188 xG: 0.25 m of position noise
+  shifts a shot's xG by 0.019 on average, 0.50 m by 0.030, 1.00 m by 0.043,
+  2.00 m by 0.062, 4.00 m by 0.107. Half a metre is the error `calibrate/`
+  accepts as good, and it is worth about a sixth of a typical chance. The full
+  table, including the p95 and max columns that matter more than the means,
+  is in Phase 12.
 
 None of this is a reason to cut ambition — it's why **[Demo]** below is deliberately
 narrower than **[MVP]**, on purpose, not as a shortfall.
@@ -1147,7 +1174,83 @@ missing type only submits something inside a `<form>`, and this app contains no
 `<form>` element — the one match in the tree is vendored under `.venv`. The day
 somebody adds a form, all seven become real.
 
-675 pure JS · **25 pages** · 145 emulator · 1044 Python.
+**The one function every published number comes out of, 2026-08-18.** The
+Reality Check said "the pieces have never been run end to end as one pipeline",
+and unlike the other half of that sentence it was true. `analyse_match` is where
+twenty-odd subsystems get assembled — detect, track, colour-cluster, ball,
+camera, possession, identity, thumbnails, touches, events, xG, movement — and
+nothing could call it. It built its own detector, so calling it meant installing
+ultralytics and torch, which `requirements-test.txt` deliberately leaves out.
+Its only three callers are experiment scripts that all need real footage. Every
+number this project publishes comes out of that function and it had no test.
+
+*The seam already existed and stopped one level short.* `TrackedFramePass` has
+taken `detector=None, tracker_factory=None` since it was written, with a comment
+at `cv/frames.py:283-285` explaining why: everything it does with a frame is
+bookkeeping, and bookkeeping is exactly the part worth pinning. The fix is to
+pass the same two arguments through from `analyse_match` — two parameters and a
+docstring paragraph, no behaviour change on any real path — after which the
+whole assembly runs on a synthetic clip in **2.7 seconds** with no GPU, no
+ultralytics, no torch and no footage. `tests/test_pipeline_end_to_end.py`, **29
+tests**, Python **1044 -> 1073**.
+
+*What comes out, both paths.* Nine seconds of 1470x952 at 30fps: ten coloured
+rectangles wandering on their own orbits, a long pass at 3.0s, a strike at 7.0s.
+
+| | calibrated | uncalibrated |
+|---|---|---|
+| timing stages | 10 | 8 |
+| events | carry / pass / carry / **shot** | carry / pass / carry |
+| shot | goal, on target, 16.1 m, `in_box`, **xg 0.118** | none |
+| every `start_m` | in metres | `None` |
+| `pitch` / `movement` / `coverage` / `territory` | present | `None` |
+| keeper method | `colour+position` | `unavailable` |
+| warnings | 1 | 2 |
+| report JSON | 30 478 bytes | 22 979 bytes |
+
+Common to both: ten players split 5/5, nobody excluded, equal minutes, kit
+separation 129, 270 ball points with no gaps, camera checked with no shifts, and
+`json.dumps(..., allow_nan=False)` succeeds — which is the assertion that would
+have caught a `nan` reaching the browser as a parse error. The uncalibrated run
+is not a degraded copy of the calibrated one; it is the second product, and the
+test asserts the shape of what a calibration actually buys rather than assuming
+it is everything.
+
+*Two real bug classes this would have caught, both of which happened here.* The
+`ppda` field that was null on every match for a fortnight because nothing ever
+ran the chain that fills it, and `attach_xg` sitting fully tested with no caller
+at all. Both are invisible to unit tests by construction: every part worked.
+
+*What it does not prove, stated in the file's own docstring.* Detection and
+tracking are scripted — a fixed list of boxes per frame and a tracker that hands
+back slot indices. Nothing here says YOLO finds a ball, that tracks survive an
+occlusion, or that any number is *correct*. It says the chain executes, the
+values are the right kind of thing, and the two paths differ where they should.
+Treat it as a check that the chain runs, not as a measurement.
+
+*The fixture found something in the pipeline, and the fixture is what changed.*
+The scripted strike produced no shot: `speed_after_ph_s` read **4.40** against a
+`SHOT_SPEED_PH_S` threshold of 6.0, so the pipeline classified an unmistakable
+strike on goal as an ordinary carry, silently. The cause is in `cv/touches.py`
+and is real football, not synthetic weirdness. `segment_touches` keeps a
+candidate only if it is a local minimum of ball-to-player distance across a
++/-4-frame window — but a ball resting at a player's feet **ties** at every frame
+in that window, so every frame passes the gate and the earliest one with enough
+motion wins; `_suppress` then keeps it, because it only replaces an earlier
+candidate when a later one is *strictly* more confident and both are capped
+equal. The touch lands up to four frames early, and `_velocities` uses a
+one-sided forward window, so the reported speed averages the strike together
+with the still frames before it — about a third of the truth. Changing the
+fixture so the shooter nudges the ball a metre ahead and runs onto it made the
+strike the only local minimum: **13.51**, shot detected, goal, `xg 0.118`. Touch
+count also fell from 13 to 8, which is the same effect showing up as duplicates.
+The fixture changed rather than the code because a ball dwelling at feet is not
+the case this test exists to pin, and a threshold tuned against a synthetic clip
+is a threshold tuned against nothing. **Recorded here as a known property**: any
+touch that follows a period of close control is placed early and reads slow, and
+the first real footage is what should decide whether that costs a shot.
+
+675 pure JS · 25 pages · 145 emulator · **1073 Python**.
 
 ---
 
