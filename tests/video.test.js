@@ -2386,6 +2386,36 @@ describe('headerCorrection', () => {
     });
 });
 
+describe('the defensive line says what it averaged over', () => {
+    const notes = (options) => report.cvQualityNotes({}, options);
+    const found = (options) => notes(options)
+        .find((n) => n.includes('out of possession'));
+
+    test('it names the thing the figure is not', () => {
+        // "Defensive line height" conventionally means where the back line sat
+        // while defending. This is every instant of the run, including the
+        // spells this side spent camped in the other half with the ball, which
+        // pull it up.
+        assert.match(found({ lineHeight: 28.4 }), /whole run/);
+    });
+
+    test('and stays quiet on the runs that have no line height', () => {
+        // Which is most of them: the figure needs a calibration and somebody
+        // to have said which goal each side defends. A caveat about a row that
+        // is not on screen gets attached to whatever is.
+        assert.equal(found({}), undefined);
+        assert.equal(found({ lineHeight: null }), undefined);
+        assert.equal(found({ shots: 4 }), undefined);
+    });
+
+    test('a line on the goal line is still a line', () => {
+        // Absent is not zero, and 0.0m is a real reading — a side defending on
+        // its own goal line for the whole run. Gating on truthiness rather
+        // than on null would drop the caveat exactly where it matters most.
+        assert.ok(found({ lineHeight: 0 }));
+    });
+});
+
 describe('the foot-shot caveat knows when it has been answered', () => {
     const notes = (options) => report.cvQualityNotes({}, { shots: 4, ...options });
 
@@ -3153,6 +3183,34 @@ describe('cvReads', () => {
         })), []);
     });
 
+    test('a back line that dropped is described as deeper, not as smaller', () => {
+        // The wording is the point. "Line height down 6m" reads as a decline;
+        // the figure has no good direction, so the sentence says where on the
+        // pitch the line went and leaves the verdict to the coach.
+        const reads = report.cvReads(cv({
+            shape_drift: { change: { line_m: -6.2 } },
+        }));
+        assert.equal(reads.length, 1);
+        assert.match(reads[0].detail, /6m deeper/);
+        assert.doesNotMatch(reads[0].detail, /lower|down|worse/);
+    });
+
+    test('and as higher up the pitch when it pushed on', () => {
+        const reads = report.cvReads(cv({
+            shape_drift: { change: { line_m: 7.4 } },
+        }));
+        assert.match(reads[0].detail, /7m higher up the pitch/);
+    });
+
+    test('the line is left out of the sentence when it was never measured', () => {
+        // The common case: no `side_of_team`, so the other three drifted and
+        // this one has nothing to say. A missing key must not become "0m".
+        const reads = report.cvReads(cv({
+            shape_drift: { change: { width_m: 6.2, depth_m: 0.4, compactness_m: -4.1 } },
+        }));
+        assert.doesNotMatch(reads[0].detail, /pitch|deeper|0m/);
+    });
+
     test('giveaways in your own third are counted, not just totalled', () => {
         const reads = report.cvReads(cv({
             turnovers_by_third: { defensive: 9, middle: 3, attacking: 1 },
@@ -3633,7 +3691,46 @@ describe('teamStatRows', () => {
         // zeroes would say the team stood on top of each other.
         assert.deepEqual(report.shapeStatRows(null, 0.4), []);
         assert.deepEqual(report.shapeStatRows({ width_m: null }, 0.4), []);
-        assert.equal(report.shapeStatRows({ width_m: 41.2 }, 0.4).length, 3);
+        assert.equal(report.shapeStatRows({ width_m: 41.2 }, 0.4).length, 4);
+    });
+
+    // The three shape figures every calibrated run has, without the fourth.
+    const OURS = { width_m: 41.2, depth_m: 33.8, compactness_m: 14.6 };
+    const THEIRS = { width_m: 37.9, depth_m: 30.2, compactness_m: 13.1 };
+    const shapeLine = (rows) => rows.find((r) => r.label === 'Defensive line');
+
+    test('the defensive line is the one shape row that can go missing', () => {
+        // It asks for more than the other three: somebody has to have said
+        // which goal each side defends, and enough of the side has to be
+        // tracked at once for the deepest few to be a back line. Absent on
+        // both sides, `groupStats` drops the row rather than drawing a dash
+        // beside three real figures.
+        const rows = report.shapeStatRows(OURS, THEIRS, 0.4);
+        assert.equal(shapeLine(rows).value, null);
+        assert.equal(report.groupStats(rows)[0].rows.length, 3);
+    });
+
+    test('a measured line height draws in metres, against theirs', () => {
+        const rows = report.shapeStatRows(
+            { ...OURS, line_m: 28.4 },
+            { ...THEIRS, line_m: 35.6 },
+            0.4,
+        );
+        assert.equal(shapeLine(rows).value, '28m');
+        assert.equal(shapeLine(rows).themValue, '36m');
+        assert.equal(report.groupStats(rows)[0].rows.length, 4);
+    });
+
+    test('one side having a line height is enough to keep the row', () => {
+        // The asymmetric case is real: the two sides are measured from
+        // opposite goals off the same `side_of_team`, but a side the tracker
+        // saw less of loses the figure on its own, and dropping the row then
+        // would take the opposition's real figure down with it.
+        const rows = report.shapeStatRows(OURS, { ...THEIRS, line_m: 35.6 },
+            0.4);
+        assert.equal(shapeLine(rows).value, null);
+        assert.equal(shapeLine(rows).themValue, '36m');
+        assert.equal(report.groupStats(rows)[0].rows.length, 4);
     });
 
     test('expected goals is withheld, not zeroed, past the trust band', () => {

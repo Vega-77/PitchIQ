@@ -346,7 +346,15 @@ export function sampleCvSummary() {
                     { start_s: 900, end_s: 1800, allowed: 52, actions: 6, ppda: 8.67 },
                     { start_s: 1800, end_s: 2700, allowed: 45, actions: 3, ppda: null },
                 ],
-                shape: { width_m: 41.2, depth_m: 33.8, compactness_m: 14.6 },
+                // The line sits deep, which is the same story the two
+                // figures above and below it already tell: a side with 47% of
+                // its possession in its own third was not defending on
+                // halfway. `attacking_end` is 'right', so this is metres from
+                // the left goal.
+                shape: {
+                    width_m: 41.2, depth_m: 33.8, compactness_m: 14.6,
+                    line_m: 28.4,
+                },
                 // Fires the pinned-back read: more than PINNED_BACK_SHARE of
                 // possession spent in their own third.
                 territory: { defensive: 0.47, middle: 0.36, attacking: 0.17 },
@@ -369,7 +377,14 @@ export function sampleCvSummary() {
                     escaped_defence: 23,
                 },
                 shape_drift: {
-                    change: { width_m: 4.3, depth_m: -3.6, compactness_m: 1.1 },
+                    // Dropped six metres by the end, which is the same side of
+                    // the story as the pressing blocks above: a team that
+                    // stopped pressing sat back. Past SHAPE_MOVE_M, so the
+                    // preview shows the sentence rather than only the row.
+                    change: {
+                        width_m: 4.3, depth_m: -3.6, compactness_m: 1.1,
+                        line_m: -6.2,
+                    },
                 },
                 attacking_end: 'right',
                 shot_map: OUR_SHOTS,
@@ -407,7 +422,12 @@ export function sampleCvSummary() {
                     { start_s: 900, end_s: 1800, allowed: 46, actions: 5, ppda: 9.2 },
                     { start_s: 1800, end_s: 2700, allowed: 44, actions: 5, ppda: 8.8 },
                 ],
-                shape: { width_m: 37.9, depth_m: 30.2, compactness_m: 13.1 },
+                shape: {
+                    width_m: 37.9, depth_m: 30.2, compactness_m: 13.1,
+                    // Higher than ours, from the other goal. The side that
+                    // spent more of the match in our half.
+                    line_m: 35.6,
+                },
                 territory: { defensive: 0.31, middle: 0.38, attacking: 0.31 },
                 // Fewer possessions and a wider funnel — they do more with
                 // less, which is what makes the two columns worth showing side

@@ -8,13 +8,18 @@ constructs motion whose true answer is calculable by hand.
 
 from __future__ import annotations
 
+import itertools
+import statistics
+
 import numpy as np
 import pytest
 
 from cv.metrics import (
     MAX_PLAUSIBLE_SPEED_MS,
+    MIN_LINE_OUTFIELDERS,
     PositionSeries,
     heatmap,
+    line_players,
     movement_stats,
     smooth_positions,
     ShapeDrift,
@@ -22,6 +27,8 @@ from cv.metrics import (
     shape_drift,
     team_shape,
 )
+from cv.pitch import Pitch
+from cv.zones import defensive_line_m
 
 
 def series(points, fps: float = 25.0, track_id: int = 1) -> PositionSeries:
@@ -200,6 +207,162 @@ class TestTeamShape:
         assert team_shape({})["width_m"] == 0.0
 
 
+# A 4-4-2 defending the left goal, with its back line at 20m. Used by both
+# classes below: one asks whether the line is measured right when everybody is
+# tracked, the other asks what happens when they are not.
+BACK_FOUR = [(20.0, 12.0), (20.0, 28.0), (20.0, 40.0), (20.0, 56.0)]
+MIDFIELD = [(45.0, 10.0), (45.0, 26.0), (45.0, 42.0), (45.0, 58.0)]
+FRONT_TWO = [(70.0, 25.0), (70.0, 43.0)]
+FOUR_FOUR_TWO = BACK_FOUR + MIDFIELD + FRONT_TWO
+TRUE_LINE_M = 20.0
+
+
+def standing(positions, n=30):
+    """Each position held still for `n` instants, one track apiece."""
+    return {i: series([p] * n, track_id=i) for i, p in enumerate(positions)}
+
+
+class TestDefensiveLineHeight:
+    """The fourth figure in the shape family, and the one with real teeth.
+
+    Width and depth are descriptive; a coach who is told the wrong line height
+    changes how the team defends on the strength of it. So the tests below care
+    less about "is it roughly right on clean input" than about the three ways it
+    can be absent and the ways it can be confidently wrong.
+    """
+
+    def test_it_finds_a_known_back_line(self):
+        shape = team_shape(standing(FOUR_FOUR_TWO), 'left', Pitch())
+        assert shape['line_m'] == pytest.approx(TRUE_LINE_M, abs=0.5)
+
+    def test_it_measures_from_the_goal_being_defended(self):
+        """The mirrored eleven defending the mirrored goal is the same team, so
+        it reads the same height. Getting this backwards would invert every
+        line height after the sides change at half time, and read as a team
+        that suddenly started defending sixty metres higher."""
+        pitch = Pitch()
+        mirrored = [(pitch.length_m - x, y) for x, y in FOUR_FOUR_TWO]
+        shape = team_shape(standing(mirrored), 'right', pitch)
+        assert shape['line_m'] == pytest.approx(TRUE_LINE_M, abs=0.5)
+
+    def test_facing_the_wrong_way_is_not_a_small_error(self):
+        """Which is what makes the test above worth having: the same positions
+        read against the other goal are not slightly off, they are a different
+        team. Nothing downstream could spot this from the number alone."""
+        pitch = Pitch()
+        defending_left = team_shape(standing(FOUR_FOUR_TWO), 'left', pitch)
+        defending_right = team_shape(standing(FOUR_FOUR_TWO), 'right', pitch)
+        assert defending_right['line_m'] > defending_left['line_m'] + 25.0
+
+    def test_nobody_said_which_goal_so_there_is_no_answer(self):
+        """Absent, not zero. Without `side_of_team` nothing can know which end a
+        colour cluster defends, and a line height of 0.0m reads as a team
+        defending on its own goal line."""
+        shape = team_shape(standing(FOUR_FOUR_TWO))
+        assert 'line_m' not in shape
+        assert shape['width_m'] > 0
+
+    def test_too_few_tracked_to_call_it_a_line(self):
+        """Five visible players are not a back four plus cover, they are five
+        players. The class below measures what reporting them anyway costs."""
+        few = standing(FOUR_FOUR_TWO[:MIN_LINE_OUTFIELDERS - 1])
+        shape = team_shape(few, 'left', Pitch())
+        assert 'line_m' not in shape
+        assert shape['width_m'] > 0
+
+    def test_one_more_tracked_player_is_enough(self):
+        enough = standing(FOUR_FOUR_TWO[:MIN_LINE_OUTFIELDERS])
+        assert 'line_m' in team_shape(enough, 'left', Pitch())
+
+    def test_the_keeper_is_left_out_of_it(self):
+        """A keeper stands behind the defence at every instant, so he lands in
+        the deepest few every time and drags the mean back. `assign_teams`
+        usually drops him into UNKNOWN long before this runs — usually is why
+        the exclusion is explicit rather than assumed."""
+        with_keeper = standing(FOUR_FOUR_TWO + [(4.0, 34.0)])
+        keeper_track = len(FOUR_FOUR_TWO)
+
+        dropped = team_shape(with_keeper, 'left', Pitch(), {keeper_track})
+        kept = team_shape(with_keeper, 'left', Pitch())
+
+        assert dropped['line_m'] == pytest.approx(TRUE_LINE_M, abs=0.5)
+        assert kept['line_m'] < dropped['line_m'] - 1.0
+
+    def test_a_high_line_reads_higher_than_a_deep_one(self):
+        pitch = Pitch()
+        pushed_up = [(x + 25.0, y) for x, y in FOUR_FOUR_TWO]
+        high = team_shape(standing(pushed_up), 'left', pitch)
+        deep = team_shape(standing(FOUR_FOUR_TWO), 'left', pitch)
+        assert high['line_m'] > deep['line_m'] + 20.0
+
+
+class TestSparseTrackingBias:
+    """What a line height is worth when the tracker only saw some of them.
+
+    This is the measurement that chose the estimator, so it is pinned here
+    rather than only written down. `defensive_line_m` defaults to the deepest
+    four, which is exactly right on ten tracked players and increasingly wrong
+    below that: every missing defender is replaced among the deepest four by a
+    midfielder twenty-five metres up the pitch, so the error only points one
+    way.
+
+    Exhaustive over every subset rather than sampled, so these are facts about
+    the estimator and not about a seed.
+    """
+
+    def biases(self):
+        """Mean error of both estimators at each number of tracked players."""
+        pitch = Pitch()
+        out = {}
+        for k in range(4, len(FOUR_FOUR_TWO) + 1):
+            fixed, share = [], []
+            for combo in itertools.combinations(FOUR_FOUR_TWO, k):
+                points = list(combo)
+                fixed.append(defensive_line_m(points, 'left', pitch))
+                share.append(defensive_line_m(
+                    points, 'left', pitch, players=line_players(k)))
+            out[k] = (statistics.mean(fixed) - TRUE_LINE_M,
+                      statistics.mean(share) - TRUE_LINE_M)
+        return out
+
+    def test_the_naive_estimator_is_badly_biased_upward(self):
+        """The finding, pinned as literals so any change to it is visible. A
+        team with six of its ten outfielders tracked would be reported as
+        defending ten metres higher than it did — a whole pitch-third of
+        artefact, on a figure a coach would act on."""
+        bias = self.biases()
+        assert bias[4][0] == pytest.approx(20.0, abs=0.1)
+        assert bias[6][0] == pytest.approx(10.0, abs=0.1)
+        assert bias[9][0] == pytest.approx(2.5, abs=0.1)
+        assert bias[10][0] == pytest.approx(0.0, abs=0.1)
+
+    def test_the_bias_only_ever_points_one_way(self):
+        """Which is what makes it worth correcting at all. Random error averages
+        out across a half; a one-directional error accumulates into the mean,
+        and tracking density varies over a match rather than staying put."""
+        assert all(fixed >= -0.05 for fixed, _ in self.biases().values())
+
+    def test_taking_a_share_instead_of_a_count_removes_most_of_it(self):
+        bias = self.biases()
+        for k in range(MIN_LINE_OUTFIELDERS, len(FOUR_FOUR_TWO) + 1):
+            assert abs(bias[k][1]) < 2.0, (k, bias[k])
+            assert abs(bias[k][1]) <= abs(bias[k][0]) + 0.05, (k, bias[k])
+
+    def test_below_the_guard_no_share_saves_it(self):
+        """Which is why there is a minimum as well as a share."""
+        assert abs(self.biases()[4][1]) > 2.0
+
+    def test_a_full_team_still_gets_the_conventional_back_four(self):
+        """The share is chosen so that good tracking is untouched by any of
+        this: at ten outfielders it comes to four, which is what a coach means
+        by "the back line". Only sparse tracking degrades away from it."""
+        assert line_players(10) == 4
+        assert line_players(11) == 4
+
+    def test_it_never_asks_for_more_players_than_it_has(self):
+        assert all(1 <= line_players(k) <= k for k in range(1, 12))
+
+
 class TestShapeDrift:
     """Whether the shape held, which is a different question from what it was.
 
@@ -269,6 +432,80 @@ class TestShapeDrift:
         assert data['change']['width_m'] == pytest.approx(
             data['late']['width_m'] - data['early']['width_m'], abs=0.11,
         )
+
+    def dropped_off(self, n=200, start_m=30.0, end_m=15.0):
+        """A ten that starts on a high line and is pushed back onto its own box.
+
+        Only the back four move; everyone ahead of them stands still, so the
+        line is the one figure with anywhere to go. A version where the whole
+        team retreats would move all four figures at once and prove nothing
+        about which one is being measured.
+        """
+        by_track = {}
+        for track, (x, y) in enumerate(FOUR_FOUR_TWO):
+            if (x, y) in BACK_FOUR:
+                points = [
+                    (start_m + (end_m - start_m) * i / (n - 1), y)
+                    for i in range(n)
+                ]
+            else:
+                points = [(x, y)] * n
+            by_track[track] = series(points, track_id=track)
+        return by_track
+
+    def test_a_back_line_that_was_pushed_back_reads_as_deeper(self):
+        drift = shape_drift(self.dropped_off(), defending_end='left',
+                            pitch=Pitch())
+        assert drift is not None
+        assert drift.change('line_m') < -5.0
+        assert drift.late['line_m'] < drift.early['line_m']
+
+    def test_and_says_so_in_words(self):
+        drift = shape_drift(self.dropped_off(), defending_end='left',
+                            pitch=Pitch())
+        assert any('deeper' in note for note in drift_notes(drift))
+
+    def test_a_line_that_held_produces_no_note_about_it(self):
+        """The other three figures barely move here either. The point is that
+        a figure which did not move stays out of the sentence list rather than
+        appearing as a change of nought."""
+        drift = shape_drift(standing(FOUR_FOUR_TWO, n=200),
+                            defending_end='left', pitch=Pitch())
+        assert drift.change('line_m') == pytest.approx(0.0, abs=0.5)
+        assert drift_notes(drift) == []
+
+    def test_without_a_defended_goal_the_other_three_still_drift(self):
+        """Losing the line height must not cost the drift its other figures.
+        Absent, not zero, and absent for one key rather than for the report."""
+        drift = shape_drift(self.dropped_off())
+        assert drift is not None
+        assert drift.change('line_m') is None
+        assert 'line_m' not in drift.to_json()['change']
+        assert drift.change('depth_m') is not None
+
+    def half_a_side_walks_off(self, n=200):
+        """Seven tracked early, four tracked late.
+
+        Not a football event — it is what a tracker losing three players in the
+        second half looks like from in here, and the tracker does lose players.
+        """
+        by_track = {}
+        for track, (x, y) in enumerate(FOUR_FOUR_TWO[:7]):
+            length = n if track < 4 else n // 2
+            by_track[track] = series([(x, y)] * length, track_id=track)
+        return by_track
+
+    def test_the_line_is_dropped_on_its_own_when_the_tracking_thins_out(self):
+        """The bar is applied to `line_m` separately for exactly this case: a
+        window with plenty of width samples late and too few line samples. The
+        width drift is still worth reporting; the line drift is not, and taking
+        the whole drift away because of it would be the wrong trade."""
+        drift = shape_drift(self.half_a_side_walks_off(),
+                            defending_end='left', pitch=Pitch())
+        assert drift is not None
+        assert 'width_m' in drift.late
+        assert 'line_m' not in drift.late
+        assert 'line_m' not in drift.early
 
 
 class TestDriftNotes:

@@ -1345,6 +1345,99 @@ the check reports `publish` as an orphan again, which is the case it exists for.
 
 675 pure JS · 25 pages · 145 emulator · **1101 Python**.
 
+**How high the back line sat, 2026-08-18.** The fourth figure the shape family
+was always missing, and named in the [MVP] catalog above as "defensive line
+height and pressing intensity trend" — the trend shipped in task #79 and the
+height did not, because `defensive_line_m` (`cv/zones.py`) has existed and been
+tested since task #28 with no caller. The previous entry found it and recorded
+why. This is the why being answered.
+
+*It is not the same kind of figure as the three beside it.* Width, depth and
+compactness are descriptions; a coach reads them and nods. A line height is
+acted on — it is the number that decides whether the instruction on Tuesday is
+"push up" or "drop off". So the work here is almost entirely about the ways it
+can be **confidently wrong**, and only incidentally about computing it.
+
+*The finding, which is why this took a measurement rather than a wiring-up.*
+`defensive_line_m` averages the deepest four outfielders, which is exactly right
+when all ten are tracked and increasingly wrong below that: every defender the
+tracker loses is replaced in the deepest four by a midfielder twenty-five metres
+further up. Exhaustive over **every** subset of a synthetic 4-4-2 with its line
+at 20 m — not sampled, so these are facts about the estimator and not about a
+seed — the mean error of the naive count against the number of outfielders
+tracked:
+
+| tracked | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|
+| deepest four | **+20.0 m** | +13.9 | +10.0 | +7.5 | +5.0 | +2.5 | 0.0 |
+| share of 0.35 | +6.5 | +3.6 | **+1.5** | +0.4 | +1.1 | 0.0 | 0.0 |
+
+A side with six of its ten outfielders on screen would have been reported as
+defending **ten metres higher than it did** — a whole pitch-third of artefact on
+a figure somebody changes their defending on. Confirmed on two more shapes: a
+4-3-3 runs +23.4 m at four tracked and a deep 5-3-2 +16.3 m, both to 0.0 at ten.
+
+Three properties of that error make it worse than it looks. It is
+**one-directional** — always upward, so it accumulates into the mean instead of
+averaging out across a half the way random error does. It **moves with tracking
+density**, which varies within a match, so no constant offset absorbs it and a
+side that got harder to track would appear to have pushed up. And it is
+**invisible downstream**: 30 m is a perfectly plausible reading, so nothing after
+this point could ever flag it.
+
+*A minimum count does not fix it; a proportion does.* `LINE_SHARE = 0.35`,
+`players = min(k, max(2, round(0.35 * k)))`. Chosen because it holds the error
+under 1.5 m from six tracked upward across all three formations **and** because
+`round(0.35 × 10) = 4` — a fully tracked team gets exactly the conventional
+deepest four, so good tracking is untouched by any of this and only sparse
+tracking degrades away from it. Below six it is still +3.3 to +7.2 m, which no
+estimator fixes, so `MIN_LINE_OUTFIELDERS = 6` and the figure is simply absent.
+The floor of two lives **inside** the clamp: `max(2, min(...))` returns two out
+of one tracked player, which is how a "line" gets averaged from somebody who was
+never in it. That ordering was a real bug, caught by an invariant test rather
+than by any caller — the guard means nothing live reaches k < 6 — and fixed
+before it could become one.
+
+*Absent, not zero, in three separate ways.* No calibration, and there are no
+metres to measure in. No `side_of_team`, and nothing can say which goal a colour
+cluster was defending — without which the mirrored eleven reads **47.5 m instead
+of 20 m**, not slightly off but a different team, which is what half-time sides
+changing would do to every reading. Too few tracked, per the table. Each returns
+a missing key rather than 0.0, and 0.0 m is a real reading — a side defending on
+its own goal line — so it could not have been used as a sentinel even if the
+project allowed it. This is the first shape figure that can be absent while its
+three neighbours are present, and `groupStats` already handles it: shape rows
+carry a truthy `kind`, so a row null on both sides is dropped and an
+unassigned run draws three rows rather than a fourth reading a dash. No
+conditional construction anywhere.
+
+*Said plainly, because the name means something narrower than the figure.*
+"Defensive line height" conventionally means where the back line sat **out of
+possession**. This is averaged over every instant of the window, including the
+spells the side spent camped in the opposition half with the ball, which pull it
+up — and pull it up further for the side that had more of the ball, so the
+figure is biased in favour of exactly the team least likely to question it. The
+pipeline cannot split a window by possession yet. Until it can, the caveat sits
+in `cvQualityNotes` gated on the figure being present, following `options.shots`
+gating the header caveat: a caveat about a row that is not on screen gets
+attached by the reader to whatever is.
+
+*The drift sentence needed its own wording.* `shape_drift` reports the height at
+both ends of the window, and `SHAPE_WORDS` / `DRIFT_TEXT` say "6m deeper" and
+"6m higher up the pitch" rather than "line height down 6m". The figure has no
+good direction — a side that pushed up won the ball higher and left more grass
+behind it — and a number going down reads as a decline whatever the docstring
+says. The three keys beside it are held to `min_samples` together; this one is
+held **separately**, so a window where the tracking thinned out loses its line
+height alone rather than costing the report its other three.
+
+**19 Python tests** (`TestDefensiveLineHeight`, `TestSparseTrackingBias`, five
+more in `TestShapeDrift`) and **9 browser tests**. The bias table is pinned as
+literals rather than only written down here, so any future change to the
+estimator has to argue with it. `SCHEMA_VERSION` 12 → 13.
+
+684 pure JS · 25 pages · 145 emulator · **1120 Python**.
+
 ---
 
 ## Stats & Insights Catalog
@@ -1370,7 +1463,7 @@ shots, and xG are what's at risk.*
 - Everything from halftime, full-match and half-by-half comparison
 - Passing network: who combines with whom, completion rate by pair/zone
 - Phase-of-play breakdown: buildup vs. progression vs. final-third entry success
-- Defensive line height and pressing intensity trend
+- Defensive line height and pressing intensity trend — **the trend built 2026-08-14 (task #79), the height 2026-08-18;** the height carries a measured correction for sparse tracking and is absent rather than guessed below six tracked outfielders
 - Set-piece outcomes (corner delivery zones, aerial duels won)
 - Substitution impact: team stats in the window before vs. after each sub (exact sub timing comes straight from Phase 3's live log) — **built 2026-08-15, and shipped under a different name;** see the Phase 13 entry for why "impact" is a promise the arithmetic cannot keep
 - Individual positional discipline: heatmap vs. assigned role

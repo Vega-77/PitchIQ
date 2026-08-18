@@ -915,15 +915,27 @@ def analyse_match(
     # Measuring it over everyone on the pitch produces the bounding box of the
     # match — two banks of players plus the referee — which is not a formation
     # and cannot be compacted.
+    #
+    # The line height needs two things width and depth do not: the goal this
+    # team is defending, which only a human saying which cluster is which side
+    # can supply, and the keepers, who are dropped. `assign_teams` puts a keeper
+    # in UNKNOWN whenever his kit matches neither outfield kit, so on most
+    # footage he is not in `own` to begin with — but "most" is not "all", and a
+    # keeper in a strip close to his own outfield kit would otherwise sit among
+    # the deepest players at every instant and pull the line several metres back.
+    keeper_tracks = report.keepers.all_tracks()
     for team in (TEAM_A, TEAM_B):
         own = {
             track_id: series for track_id, series in series_by_track.items()
             if table.team_of(track_id) == team
         }
-        report.shape[team] = team_shape(own) if own else {}
+        end = defending_ends.get(team)
+        report.shape[team] = team_shape(own, end, pitch, keeper_tracks) if own else {}
         # How it differed late in the window against early. None on a short
         # clip, where there is nothing either side of the split to average.
-        drift = shape_drift(own) if own else None
+        drift = shape_drift(
+            own, defending_end=end, pitch=pitch, keeper_tracks=keeper_tracks
+        ) if own else None
         if drift is not None:
             report.shape_drift[team] = drift
 

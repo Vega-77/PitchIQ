@@ -1554,6 +1554,20 @@ export function cvQualityNotes(quality, options = {}) {
             + 'neither kit still counted — a referee, or your goalkeeper');
     }
 
+    // Only once there is a line height on screen to caveat, and it needs one
+    // badly. "Defensive line height" conventionally means where the back line
+    // sat *out of possession*; this is averaged over every instant of the run,
+    // including the spells this side spent camped in the opposition half with
+    // the ball. Those spells pull it up, so the figure reads higher than the
+    // thing a coach means by it, and by more for a side that had most of the
+    // ball. The pipeline cannot yet split the run by who was in possession —
+    // when it can, this figure changes and this line goes away.
+    if (options.lineHeight != null) {
+        notes.push('the defensive line is averaged across the whole run, not '
+            + 'just the spells out of possession — time spent camped in their '
+            + 'half pulls it higher than it sat when defending');
+    }
+
     // Only once there is an xG figure on screen to caveat. Both facts below are
     // biases with a known direction, which is worth more to a coach than a
     // vague warning: headers are scored generously, and a loose calibration
@@ -2656,6 +2670,15 @@ export function shapeStatRows(shape, theirShape, calibrationErrorM) {
         row('Average depth', 'depth_m'),
         // Mean distance from each player to their own team's centre.
         row('Compactness', 'compactness_m'),
+        // Metres from the goal this side was defending to the mean of its
+        // deepest few outfielders. The one row here that can be absent while
+        // the others are present: it needs somebody to have said which goal
+        // each colour defends, and it needs enough of the side tracked at once
+        // for the deepest few to be a back line rather than whoever was on
+        // screen. `groupStats` drops it when both sides are null, so an
+        // uncalibrated or unassigned run shows three rows rather than a fourth
+        // reading nothing.
+        row('Defensive line', 'line_m'),
     ];
 }
 
@@ -3776,6 +3799,11 @@ const SHAPE_WORDS = {
     width_m: ['wider', 'narrower'],
     depth_m: ['longer front to back', 'shorter front to back'],
     compactness_m: ['more spread out', 'more compact'],
+    // Higher means further from the goal this side was defending. Said as a
+    // direction on the pitch rather than as a figure rising, because "line
+    // height up 6m" reads as an improvement and this has no good direction: a
+    // side that pushed up won the ball higher and left more grass behind it.
+    line_m: ['higher up the pitch', 'deeper'],
 };
 
 /**

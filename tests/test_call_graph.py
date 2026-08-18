@@ -86,10 +86,6 @@ PENDING_BY_DESIGN = {
                       'needs the runner-up distance to know whether the '
                       'assignment was a coin flip; this returns the winner '
                       'alone, which is what a one-off question wants.',
-    'defensive_line_m': 'Height of a back line, as metres from its own goal '
-                        'line. `team_shape` reports width, depth and '
-                        'compactness; line height is the fourth figure in that '
-                        'family and nothing publishes it yet.',
     'pinned_back': 'Whether a team is camped in its own third. A phrase for a '
                    'summary nobody writes yet — the territory numbers are '
                    'shown raw, and turning them into words is a decision about '

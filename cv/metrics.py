@@ -19,6 +19,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .pitch import Pitch
+from .zones import defensive_line_m
+
 # Nobody outruns this. Anything above it is a tracking error — usually an
 # identity switch teleporting a track across the pitch — not a fast player.
 # Usain Bolt peaked around 12.4 m/s; a very quick footballer tops out near 10.
@@ -627,69 +630,165 @@ MIN_DRIFT_SAMPLES = 20
 # inside the noise a jittering detection box produces anyway.
 MIN_DRIFT_M = 3.0
 
+# The share of tracked outfielders that counts as the back line, and the fewest
+# an instant needs before a line height is worth reporting at all.
+#
+# Both are measured rather than chosen. `defensive_line_m` defaults to the mean
+# of the deepest four, which is right when all ten outfielders are tracked and
+# badly wrong when they are not: drop one defender and a midfielder twenty-five
+# metres up-pitch takes his place among the deepest four, so the figure comes
+# out too HIGH. Exhaustively over every subset of a synthetic 4-4-2 with its
+# line at 20m, the deepest-four mean overstates it by +20.0m at four tracked,
+# +10.0m at six, and +2.5m at nine. That is a systematic bias, always upward,
+# and it moves with tracking density — which varies across a match, so it is
+# not something a constant offset could absorb.
+#
+# Taking the same *share* instead of the same *count* removes most of it.
+# round(0.35 * k) holds the error under 1.5m from six tracked upward across a
+# 4-4-2, a 4-3-3 and a deep 5-3-2, and at a fully tracked ten it comes to four
+# players exactly — so good tracking still gets the conventional definition and
+# only sparse tracking degrades away from it. Below six no share helps, which is
+# what MIN_LINE_OUTFIELDERS is for: those instants report nothing rather than
+# something inflated.
+LINE_SHARE = 0.35
+MIN_LINE_OUTFIELDERS = 6
 
-def shape_samples(series_by_track: dict[int, PositionSeries]):
-    """Per-instant width, depth and spread, with the times they belong to.
+
+def line_players(tracked: int) -> int:
+    """How many of `tracked` outfielders make up the back line.
+
+    A share rather than a count, with a floor of two, because one player is a
+    position and not a line. The floor is clamped by what is actually there:
+    asking for two out of one is how a "line" gets averaged from a player who
+    was never in it.
+    """
+    return min(tracked, max(2, int(round(LINE_SHARE * tracked))))
+
+
+def _line_at(points, defending_end: str | None, pitch: Pitch | None) -> float | None:
+    """One instant's line height, or None when it cannot honestly be given.
+
+    Three separate ways of not knowing, all of which report absence rather than
+    a number: no calibration means no metres, no `side_of_team` means nobody has
+    said which goal this team defends, and too few tracked outfielders means the
+    deepest of them are not the back line, they are everyone who happened to be
+    on screen.
+    """
+    if defending_end is None or pitch is None:
+        return None
+    if len(points) < MIN_LINE_OUTFIELDERS:
+        return None
+    return defensive_line_m(points, defending_end, pitch, players=line_players(len(points)))
+
+
+def shape_samples(
+    series_by_track: dict[int, PositionSeries],
+    defending_end: str | None = None,
+    pitch: Pitch | None = None,
+    keeper_tracks: set[int] | None = None,
+):
+    """Per-instant width, depth, spread and line height, with their times.
 
     Split out of `team_shape` because averaging is only one of the questions
     worth asking of these. The other is whether they moved, which needs the
     samples rather than the mean, and recomputing them separately would let the
     two answers drift apart over time.
 
-    Returns `(times, widths, depths, spreads)`, all the same length, covering
-    only the instants where at least three players were on screen — two players
-    have a width but not a shape.
+    Returns `(times, widths, depths, spreads, lines)`, all the same length,
+    covering only the instants where at least three players were on screen — two
+    players have a width but not a shape.
+
+    `lines` is the odd one out and holds None wherever that instant could not
+    support a line height, because it asks more of the data than the other three
+    do: it needs a calibration, it needs somebody to have said which goal this
+    team defends, and it needs enough tracked outfielders that the deepest of
+    them really are the back line. The keepers are excluded by track id — a
+    keeper stands behind the defence at every instant, so he would land in the
+    deepest few every single time and pull the mean down by several metres.
     """
     if not series_by_track:
-        return [], [], [], []
+        return [], [], [], [], []
+
+    keepers = keeper_tracks or set()
 
     # Snap to a common time base so players are compared at the same instants.
     times = sorted({round(t, 1) for s in series_by_track.values() for t in s.timestamps_s})
 
-    kept, widths, depths, spreads = [], [], [], []
+    kept, widths, depths, spreads, lines = [], [], [], [], []
 
     for t in times:
-        points = []
-        for series in series_by_track.values():
+        points, outfield = [], []
+        for track_id, series in series_by_track.items():
             idx = np.searchsorted(series.timestamps_s, t)
             if 0 <= idx < len(series):
-                points.append(series.positions_m[idx])
+                point = series.positions_m[idx]
+                points.append(point)
+                if track_id not in keepers:
+                    outfield.append(point)
 
         if len(points) < 3:
             continue
 
         arr = np.array(points)
         kept.append(t)
+        lines.append(_line_at(outfield, defending_end, pitch))
         depths.append(float(np.ptp(arr[:, 0])))  # ndarray.ptp() went away in NumPy 2
         widths.append(float(np.ptp(arr[:, 1])))
         centroid = arr.mean(axis=0)
         spreads.append(float(np.mean(np.linalg.norm(arr - centroid, axis=1))))
 
-    return kept, widths, depths, spreads
+    return kept, widths, depths, spreads, lines
 
 
-def team_shape(series_by_track: dict[int, PositionSeries]) -> dict[str, float]:
-    """Width, depth and compactness averaged over time.
+def team_shape(
+    series_by_track: dict[int, PositionSeries],
+    defending_end: str | None = None,
+    pitch: Pitch | None = None,
+    keeper_tracks: set[int] | None = None,
+) -> dict[str, float]:
+    """Width, depth, compactness and line height averaged over time.
 
     Compactness is the mean distance from each player to the team's centroid.
     For whether it *changed* — the roadmap's "did the shape stretch in the last
     fifteen minutes" question, which is the sort of thing a coach genuinely
     cannot eyeball — see `shape_drift`.
+
+    `line_m` is how far the back line sat from its own goal line, and it is
+    absent rather than zero when the run could not support one. Two honest
+    limits on it, both of which belong next to the number wherever it is shown.
+    It averages over every instant of the window, where "defensive line height"
+    conventionally means out of possession — a team that spends the half camped
+    in the opposition box will read as a high line because it was, not because
+    it defended that way. And it is measured off tracked outfielders, so it
+    inherits whatever the tracker missed; see `LINE_SHARE` for the size of that
+    and what is done about it.
     """
-    _, widths, depths, spreads = shape_samples(series_by_track)
+    _, widths, depths, spreads, lines = shape_samples(
+        series_by_track, defending_end, pitch, keeper_tracks
+    )
     if not widths:
         return dict(EMPTY_SHAPE)
 
-    return {
+    shape = {
         "width_m": float(np.mean(widths)),
         "depth_m": float(np.mean(depths)),
         "compactness_m": float(np.mean(spreads)),
     }
 
+    measured = [v for v in lines if v is not None]
+    if measured:
+        shape["line_m"] = float(np.mean(measured))
+    return shape
+
 
 @dataclass
 class ShapeDrift:
-    """The same three figures, early in the window and late in it."""
+    """The same figures, early in the window and late in it.
+
+    Three of them always, and `line_m` when the window could support it at both
+    ends. `change` returns None rather than zero for a key that is missing on
+    either side, so a caller cannot mistake "not measured" for "did not move".
+    """
 
     early: dict[str, float]
     late: dict[str, float]
@@ -717,6 +816,9 @@ def shape_drift(
     series_by_track: dict[int, PositionSeries],
     split_s: float | None = None,
     min_samples: int = MIN_DRIFT_SAMPLES,
+    defending_end: str | None = None,
+    pitch: Pitch | None = None,
+    keeper_tracks: set[int] | None = None,
 ) -> ShapeDrift | None:
     """How the shape differed late in the window compared with early.
 
@@ -728,8 +830,15 @@ def shape_drift(
     never a zero drift, when either side has too few instants to average: a
     comparison drawn from three snapshots describes a moment, not a trend, and
     reporting it as "no change" would be a claim nobody measured.
+
+    `line_m` is held to the same bar separately, because it is missing at more
+    instants than the other three: a half whose second period lost a few tracks
+    can have plenty of width samples late and too few line samples, and in that
+    case the width drift is still worth reporting while the line drift is not.
     """
-    times, widths, depths, spreads = shape_samples(series_by_track)
+    times, widths, depths, spreads, lines = shape_samples(
+        series_by_track, defending_end, pitch, keeper_tracks
+    )
     if not times:
         return None
 
@@ -745,19 +854,22 @@ def shape_drift(
     def mean_of(values, indices):
         return float(np.mean([values[i] for i in indices]))
 
-    return ShapeDrift(
-        early={
-            'width_m': mean_of(widths, early_idx),
-            'depth_m': mean_of(depths, early_idx),
-            'compactness_m': mean_of(spreads, early_idx),
-        },
-        late={
-            'width_m': mean_of(widths, late_idx),
-            'depth_m': mean_of(depths, late_idx),
-            'compactness_m': mean_of(spreads, late_idx),
-        },
-        split_s=float(split_s),
-    )
+    def side(indices):
+        return {
+            'width_m': mean_of(widths, indices),
+            'depth_m': mean_of(depths, indices),
+            'compactness_m': mean_of(spreads, indices),
+        }
+
+    early, late = side(early_idx), side(late_idx)
+
+    early_lines = [i for i in early_idx if lines[i] is not None]
+    late_lines = [i for i in late_idx if lines[i] is not None]
+    if len(early_lines) >= min_samples and len(late_lines) >= min_samples:
+        early['line_m'] = mean_of(lines, early_lines)
+        late['line_m'] = mean_of(lines, late_lines)
+
+    return ShapeDrift(early=early, late=late, split_s=float(split_s))
 
 
 # What each figure growing actually means on a pitch, in a coach's words.
@@ -767,6 +879,13 @@ DRIFT_TEXT = {
                 'compressed {n:.0f}m front to back'),
     'compactness_m': ('drifted {n:.0f}m further apart',
                       'tightened up by {n:.0f}m'),
+    # Higher means further from the goal being defended, so a positive change
+    # is a line that pushed up. Said as what the defence did rather than as a
+    # number going up, because "line height rose 6m" reads as a good thing and
+    # this figure has no good direction: pushing up wins the ball higher and
+    # leaves more grass behind it.
+    'line_m': ('pushed the back line {n:.0f}m higher up the pitch',
+               'dropped the back line {n:.0f}m deeper'),
 }
 
 

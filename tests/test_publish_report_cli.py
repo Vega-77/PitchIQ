@@ -34,7 +34,7 @@ from cv.experiments.publish_report import (
 def a_report(**extra) -> dict:
     """Small, and the same shape `tests/test_publish.py` publishes."""
     return {**{
-        'schema_version': 12,
+        'schema_version': 13,
         'source': 'clip.mp4',
         'window': {'start_s': 0, 'end_s': 15},
         'duration_s': 15.0,

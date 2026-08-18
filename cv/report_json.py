@@ -95,7 +95,13 @@ from .teams import TEAM_A, TEAM_B
 #     transform: not whether it still holds, but how much of the pitch it ever
 #     covered. Same reading as version 11 — an older report is not one where the
 #     camera saw the whole pitch, it is one where nobody measured.
-SCHEMA_VERSION = 12
+# 13: `line_m` inside each team's `shape`, and inside `shape_drift`. Additive,
+#     and the first shape figure that can be absent while its neighbours are
+#     present: it needs a `side_of_team` to know which goal a colour defends,
+#     and at least MIN_LINE_OUTFIELDERS tracked at once for the deepest few to
+#     be a back line. A version 12 report is not a side that defended on its
+#     own goal line, it is a run where the height was never worked out.
+SCHEMA_VERSION = 13
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
