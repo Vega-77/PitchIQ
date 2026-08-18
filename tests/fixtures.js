@@ -63,6 +63,79 @@ const report = (matchId, playerId, fields) => [
  * caller passes it in — most pages are opened against a match nobody filmed,
  * because most matches are.
  */
+/**
+ * A handful of shots, and the tracked figures the coach has to name.
+ *
+ * Neither comes from `assets/sample-report.js`, and both would have if they
+ * could. That module's event list is the **preview** a coach sees before there
+ * is any footage, and its docstring says why it holds no shots: the review tool
+ * and the shot ledger write back to Firestore, and a verdict tapped against an
+ * invented id would put a decision about nothing into a real document. A stored
+ * fixture is under no such constraint — these ids belong to a match.
+ *
+ * The consequence of never having them was that three surfaces of the coach's
+ * match view had never been loaded by any test: the shot ledger, the xG
+ * calibration check underneath it, and the cluster picker where every tracked
+ * figure gets a name. A match with no shots in it does not open the first two,
+ * and a run with no identity document does not open the third.
+ *
+ * Track ids are `SAMPLE_SHAPE`'s, so the clusters, the passing network and the
+ * shots are all about the same eleven figures rather than three unrelated sets.
+ */
+const SHOT_TRACKS = [10, 9, 11, 10, 8];
+
+function shots(startS) {
+    // Spread across the half at a rate a real match produces, and deliberately
+    // uneven: two from the same figure, one from a player the fixture's roster
+    // has no name for. `xgHeader` is the second reading `cv/xg_bridge.py` sends
+    // for every shot, and the ledger picks between them when a coach says a
+    // shot was headed.
+    return SHOT_TRACKS.map((trackId, index) => ({
+        id: `fixture-shot-${index}`,
+        type: 'shot',
+        timestampS: startS + index * 331,
+        trackId,
+        team: 'team_a',
+        confidence: 0.55 + index * 0.06,
+        inPlay: true,
+        outcome: index === 1 ? 'goal' : 'saved',
+        xg: [0.07, 0.31, 0.04, 0.12, 0.09][index],
+        xgHeader: [0.03, 0.17, 0.02, 0.05, 0.04][index],
+        startM: [[88, 40], [96, 33], [79, 21], [84, 46], [72, 30]][index],
+    }));
+}
+
+function clusters() {
+    // One per figure in the sample shape, biggest first once the picker sorts
+    // them. Two are named below and the rest are not, which is the state a
+    // coach actually opens this page in — and the state the rail's "still
+    // unmatched" badge is counting.
+    return [
+        [1, 'team_a', 0, 2700, 2410],
+        [6, 'team_a', 0, 2700, 2380],
+        [8, 'team_a', 0, 1800, 1602],
+        [10, 'team_a', 0, 2700, 2290],
+        [9, 'team_a', 1800, 2700, 780],
+        [11, 'team_b', 120, 2660, 1994],
+    ].map(([trackId, team, firstS, lastS, sightings], index) => ({
+        cluster_id: index,
+        track_ids: [trackId],
+        team,
+        first_seen_s: firstS,
+        last_seen_s: lastS,
+        minutes_tracked: Number(((lastS - firstS) / 60).toFixed(2)),
+        sightings,
+        colour: team === 'team_a' ? [0.1, 0.3, 0.8] : [0.9, 0.2, 0.2],
+        heatmap: null,
+        // No pictures. `cv/thumbs.py` writes those to a separate document
+        // precisely so a coach can delete them, and a fixture that always has
+        // them would never load the picker's no-picture path — which is the one
+        // every run without `--thumbs` takes.
+        thumb: null,
+        thumb_height_px: null,
+    }));
+}
+
 export async function filmed() {
     // No `?v=` on this one specifier, deliberately. Every import inside the app
     // carries the cache-busting stamp and `python stamp_version.py` rewrites
@@ -78,12 +151,41 @@ export async function filmed() {
     const counts = {};
     for (const event of events) counts[event.type] = (counts[event.type] || 0) + 1;
 
+    const shotEvents = shots(events.length ? events[0].timestampS : 30);
+    for (const shot of shotEvents) counts[shot.type] = (counts[shot.type] || 0) + 1;
+
+    const figures = clusters();
+
     return {
         ...fixture(),
         [`${base}/cvStats/summary`]: cv,
-        ...(cv.identity ? { [`${base}/cvStats/identity`]: cv.identity } : {}),
+        [`${base}/cvStats/identity`]: {
+            clusters: figures,
+            // Enough of a track row for the picker and the per-player rollups;
+            // the pipeline writes far more per track, and nothing on this page
+            // reads a field that is not here.
+            tracks: figures.map((figure) => ({
+                cluster_id: figure.cluster_id,
+                team: figure.team,
+                track_ids: figure.track_ids,
+                minutes_tracked: figure.minutes_tracked,
+                heatmap: null,
+            })),
+            playerByCluster: {},
+        },
+        // Two of the six figures named, which is what makes the passing network
+        // and the per-player video stats draw at all. The other four are the
+        // work still in front of the coach.
+        [`${base}/cvMapping/players`]: {
+            byCluster: { 0: 'p-rae', 3: 'p-alex' },
+            updatedBy: COACH.uid,
+        },
         [`${base}/cvStats/events`]: {
-            schemaVersion: 3, events, counts, truncated: false,
+            schemaVersion: 3,
+            events: [...events, ...shotEvents]
+                .sort((a, b) => a.timestampS - b.timestampS),
+            counts,
+            truncated: false,
             droppedBelowConfidence: null,
         },
     };

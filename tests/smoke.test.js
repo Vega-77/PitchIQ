@@ -299,6 +299,106 @@ test('a verdict taken back is a verdict taken back', async () => {
         'an entry with no verdict in it was written to the match');
 });
 
+test('marking what a shot did is not a verdict on whether it was one', async () => {
+    // The other half of the entry above, and the one that arrives honestly:
+    // tapping "Saved" in the shot ledger writes `{result: 'saved'}` against an
+    // event nobody has yet agreed was a shot. `reviewScore` has always known
+    // the difference — "counting it as a confirmation would let the xG log
+    // quietly inflate this scorecard" — while the progress line, the rail badge
+    // and the "not checked yet" filter counted every key in the map.
+    //
+    // This is also the first test to open the shot ledger and the xG check at
+    // all. Both were unreachable until the fixture had a shot in it.
+    await openPage({
+        html: 'coach/index.html',
+        entry: 'coach/coach.js',
+        url: `http://localhost:5000/coach/?team=${TEAM_ID}`,
+        variant: 'ledger',
+        documents: await filmed(),
+    });
+    live.document.querySelectorAll('.title')
+        .find((t) => t.textContent.includes('Northgate'))
+        ?.closest('div')
+        ?.click();
+    await settle();
+
+    const shots = () => live.document.querySelectorAll('.shot-row');
+    const railFor = (label) => live.document
+        .querySelectorAll('#match-rail button, #match-rail a')
+        .find((n) => n.textContent.includes(label))?.textContent.trim();
+
+    assert.ok(shots().length, 'the shot ledger did not open');
+    assert.ok(el('cv-xg-check').classList.contains('hidden'),
+        'the xG check drew a comparison before anything was marked');
+    assert.match(text('cv-review-progress'), /^0 of \d+ checked/);
+    const reviewBefore = railFor('Review');
+    const progressBefore = text('cv-review-progress');
+
+    for (const row of shots()) {
+        row.querySelectorAll('.shot-results .btn')
+            .find((b) => b.textContent === 'Saved')
+            .click();
+        await settle(4);
+    }
+    await settle();
+
+    // Marked, and the check below now has something to check.
+    assert.match(text('cv-shotlog-note'), /^5 of 5 shots marked/);
+    assert.ok(!el('cv-xg-check').classList.contains('hidden'),
+        'five marked shots did not open the xG check');
+    assert.match(text('cv-xg-check'), /the model expected/);
+
+    // And nothing above it moved, because none of that was a verdict.
+    assert.equal(text('cv-review-progress'), progressBefore,
+        'marking a shot outcome counted as checking the event');
+    assert.equal(railFor('Review'), reviewBefore,
+        'the rail counted five marked shots as five events checked');
+    assert.ok(el('cv-scorecard').classList.contains('hidden'),
+        'the scorecard scored events nobody has given a verdict on');
+
+    // The marks themselves are kept — this is only about what they mean.
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await settle();
+    const stored = snapshotOf(
+        `teams/${TEAM_ID}/matches/${MATCH_ID}/cvReview/decisions`,
+    )?.byEvent ?? {};
+    assert.equal(Object.keys(stored).length, 5, 'the marks were not saved');
+    for (const [id, entry] of Object.entries(stored)) {
+        assert.equal(entry.result, 'saved', id);
+        assert.equal(entry.status, undefined,
+            `${id} was given a verdict nobody tapped`);
+    }
+
+    // Opened again the next day, which is where this actually bit: the progress
+    // line is written on load and on every verdict, and marking a shot outcome
+    // does not redraw it — so in one sitting the wrong count was merely late,
+    // and coming back to the match was what showed it.
+    await openPage({
+        html: 'coach/index.html',
+        entry: 'coach/coach.js',
+        url: `http://localhost:5000/coach/?team=${TEAM_ID}`,
+        variant: 'ledger-again',
+        documents: {
+            ...await filmed(),
+            [`teams/${TEAM_ID}/matches/${MATCH_ID}/cvReview/decisions`]: {
+                byEvent: stored, missed: [], updatedBy: COACH.uid,
+            },
+        },
+    });
+    live.document.querySelectorAll('.title')
+        .find((t) => t.textContent.includes('Northgate'))
+        ?.closest('div')
+        ?.click();
+    await settle();
+
+    assert.equal(text('cv-review-progress'), progressBefore,
+        'five shot outcomes came back as five checked events');
+    assert.equal(railFor('Review'), reviewBefore,
+        'the rail took five marked shots off the work still to do');
+    assert.ok(el('cv-scorecard').classList.contains('hidden'),
+        'the scorecard scored events nobody has given a verdict on');
+});
+
 test('publishing says so on the page the coach is looking at', async () => {
     // The write that reaches children, and the one place the screen most
     // needed to agree with the database. `doPublish` refreshed the dashboard
