@@ -21,7 +21,7 @@ import './module-hooks.js';
 
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 import { installDom } from './dom-shim.js';
 import {
@@ -134,6 +134,83 @@ test('the fixture only contains values the app recognises', async () => {
                 `${path}: "${doc.type}" is not a ${doc.kind} this app writes`);
         }
     }
+});
+
+/**
+ * `.btn` is the one class here with a family of variants — `primary`, `ghost`,
+ * `danger`, `block`, `small`, `tiny`, `on`, `active` — which makes it the one
+ * place where an invented variant reads as a deliberate choice and does
+ * nothing. `class="btn secondary"` sat on five controls until 2026-08-17: no
+ * rule in any stylesheet mentioned `.secondary`, and in a real browser those
+ * buttons computed byte-identical to a plain `.btn`. Nothing looked broken,
+ * which is exactly why it survived — the default already *is* the quiet
+ * variant, so the markup was asking for what it would have got anyway, in a
+ * word that looked like a decision. The cost was never the pixels; it was the
+ * next person copying the line believing it meant something.
+ *
+ * A token beside `btn` passes if a stylesheet defines it **or** if JS queries
+ * it: `.edit-save` and `.shot-header-btn` are handles for `querySelector`,
+ * never styling, and writing rules for them to satisfy a test would be worse
+ * than leaving them bare. A token that is neither is a variant that does not
+ * exist.
+ *
+ * Scoped to `.btn` on purpose. A blanket "every class must be styled" sweep
+ * over this repo turns up mostly structural wrappers and query handles, and a
+ * test whose body is a twelve-name allowlist is a snapshot, not a check.
+ */
+test('every button variant the markup asks for is one the stylesheet has', () => {
+    const skip = new Set([
+        'node_modules', 'PitchIQHelper', '.git', 'runs', 'scratch_frames',
+        'cv', 'baselines', 'tests',
+    ]);
+    const files = [];
+    (function walk(dir) {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            if (skip.has(entry.name)) continue;
+            const path = `${dir}/${entry.name}`;
+            if (entry.isDirectory()) walk(path);
+            else if (/\.(js|html|css)$/.test(entry.name)) files.push(path);
+        }
+    })(new URL('.', root).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+
+    const styled = new Set();
+    const queried = new Set();
+    const lists = [];
+
+    for (const path of files) {
+        const source = readFileSync(path, 'utf8');
+        if (path.endsWith('.css')) {
+            const css = source.replace(/\/\*[\s\S]*?\*\//g, '');
+            for (const m of css.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)) styled.add(m[1]);
+            continue;
+        }
+        for (const m of source.matchAll(/querySelector(?:All)?\(\s*(["'`])\.([\w-]+)/g)) {
+            queried.add(m[2]);
+        }
+        // Literal class lists only. One built by interpolation cannot be read
+        // statically, and guessing at the halves either side of a `${}` would
+        // invent variants nobody wrote.
+        const note = (value) => {
+            const tokens = value.split(/\s+/).filter(Boolean);
+            if (tokens.includes('btn')) lists.push({ tokens, path });
+        };
+        for (const m of source.matchAll(/class\s*=\s*"([^"$`]*)"/g)) note(m[1]);
+        for (const m of source.matchAll(/class\s*=\s*'([^'$`]*)'/g)) note(m[1]);
+        for (const m of source.matchAll(/className\s*=\s*(["'])([\w -]*)\1/g)) note(m[2]);
+    }
+
+    assert.ok(lists.length > 20, `only found ${lists.length} button class lists — the scan is broken, not the markup`);
+    assert.ok(styled.has('primary') && styled.has('ghost'), 'no stylesheet was read');
+
+    const dead = [];
+    for (const { tokens, path } of lists) {
+        for (const token of tokens) {
+            if (token === 'btn' || styled.has(token) || queried.has(token)) continue;
+            dead.push(`${path.split('/').slice(-2).join('/')}: .${token}`);
+        }
+    }
+    assert.deepEqual(dead, [],
+        `these buttons ask for a variant no stylesheet defines and no script queries:\n  ${dead.join('\n  ')}`);
 });
 
 // ------------------------------------------------------------------- pages

@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=86">
-    <link rel="stylesheet" href="coach.css?v=86">
+    <link rel="stylesheet" href="../assets/app.css?v=87">
+    <link rel="stylesheet" href="coach.css?v=87">
 </head>
 <body>
 
@@ -625,16 +625,16 @@
                      position in the footage, which are two different numbers
                      whenever kick-off is not the first frame. This does the
                      conversion, including across half-time. -->
-                <button id="btn-missed-here" class="btn secondary hidden"
+                <button id="btn-missed-here" class="btn hidden"
                         title="Fill the box in from wherever the video is now, converted to the match clock">Use the video's time</button>
                 <label class="field">
                     <span>and it was a</span>
                     <select id="input-missed-type"></select>
                 </label>
-                <button id="btn-cv-missed" class="btn secondary">Record a miss</button>
+                <button id="btn-cv-missed" class="btn">Record a miss</button>
                 <!-- Built in the browser from data already loaded, so no read
                      and no server. Same approach as the tag-log download. -->
-                <button id="btn-cv-labels" class="btn secondary">Download the labels</button>
+                <button id="btn-cv-labels" class="btn">Download the labels</button>
             </div>
             <p class="muted" id="cv-missed-help" style="margin:8px 0 0; font-size:0.8rem">
                 Recording what the video <em>failed</em> to see is the only way to
@@ -711,7 +711,7 @@
                     analyser when the ball was out of play — without it a throw-in
                     counts as possession for whoever was standing over the ball.
                 </p>
-                <button id="btn-download-log" class="btn secondary">Download tag log</button>
+                <button id="btn-download-log" class="btn">Download tag log</button>
             </div>
         </section>
 
@@ -735,7 +735,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=86"></script>
+<script type="module" src="coach.js?v=87"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

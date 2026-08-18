@@ -894,10 +894,48 @@ area report **0.00 m average, 0.00 m worst, 13% of the frame**, and must not be
 called a good fit. That branch order was commented as load-bearing and now fails
 if it is reordered.
 
-**Still unswept by this suite:** the print layout, and anything about how a page
-looks. There is no CSS here.
+**What a real browser then found, 2026-08-17.** The gap above is not closable by
+this suite, so the pages were driven in a real one instead — served on localhost
+against the Firestore and Auth emulators, seeded with a coach, a squad and an
+eight-match season. (`ident()` requires a verified Google identity, so the
+account is made through the auth emulator's `signInWithIdp` endpoint and the
+token written into the SDK's IndexedDB record; the sign-in popup cannot work in
+an embedded pane.)
 
-675 pure JS · **23 pages** · 145 emulator · 1044 Python.
+*Swept and clean.* Every rail section of the match report at 1345 px, and the
+whole page at 375 px: no element escapes its block, and the document never
+scrolls sideways — the player table's 875 px does what it is supposed to and
+scrolls inside its own container. Three things that looked wrong and were not:
+the shot map is drawn portrait because its viewBox is the attacking **half**
+(56.5 × 72) under `xMidYMid meet`, not a stretched full pitch; the section rail
+does print-hide, via `.no-print` rather than anything in the `@media print`
+block; and the one-section-at-a-time rule is `@media screen`-scoped on purpose,
+so paper still gets every block.
+
+*The calibration canvas, exercised for the first time.* `getBoundingClientRect()`
+returns 0 × 0 in the DOM shim, so the click → landmark → fit → overlay path had
+never run anywhere. Driven with ground truth: a pitch drawn through a known
+homography onto a 1280 × 720 canvas, then eight landmarks clicked at their exact
+projected pixels. The page reports **0.03 m average, 0.05 m worst, 53% of the
+frame**, and the yellow overlay lands on the painted white lines at every sampled
+point — three of five lines within ~1 px, the two worst 10 px near the horizon,
+where 0.03 m genuinely spans ten pixels. The coordinate transform back through
+the display scale is right.
+
+*The one defect.* `class="btn secondary"` on five controls. No stylesheet has
+ever mentioned `.secondary` — `git log -S` finds no rule that was deleted — and
+in the browser those buttons compute byte-identical to a plain `.btn`. Harmless
+to look at, which is why it lasted: the default already *is* the quiet variant,
+so the markup asked for what it would have got anyway, in a word that read as a
+decision. Removed, and guarded by a test scoped to `.btn` — the one class here
+with a real family of variants, and so the one place an invented variant is
+indistinguishable from a chosen one.
+
+**Still unswept:** the print layout as *paper* — the rules above were read and
+their selectors checked against the live DOM, but nothing here has been through
+a print preview at a real page size.
+
+675 pure JS · **24 pages** · 145 emulator · 1044 Python.
 
 ---
 
