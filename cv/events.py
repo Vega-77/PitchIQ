@@ -796,15 +796,6 @@ def _shot_outcome(
 # ---------------------------------------------------------------- rollups
 
 
-def pressure_by_team(touches: TouchSequence, table: FrameTable) -> dict[str, int]:
-    """How often each team's opponents were closed down on the ball."""
-    counts = {TEAM_A: 0, TEAM_B: 0}
-    for touch in touches:
-        if touch.team in counts and _pressure(table, touch) > 0:
-            counts[touch.team] += 1
-    return counts
-
-
 def turnovers_by_third(
     log: EventLog,
     pitch: Pitch,

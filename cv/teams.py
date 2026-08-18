@@ -213,20 +213,6 @@ def assign_teams(
     return result
 
 
-def collect_samples(frames_with_boxes) -> dict[int, list[np.ndarray]]:
-    """Gather shirt colours per track.
-
-    `frames_with_boxes` yields (frame, [(track_id, xyxy), ...]).
-    """
-    samples: dict[int, list[np.ndarray]] = {}
-    for frame, boxes in frames_with_boxes:
-        for track_id, xyxy in boxes:
-            colour = shirt_colour(frame, xyxy)
-            if colour is not None:
-                samples.setdefault(track_id, []).append(colour)
-    return samples
-
-
 def separation(assignment: TeamAssignment) -> float:
     """Chroma distance between the two kit colours.
 

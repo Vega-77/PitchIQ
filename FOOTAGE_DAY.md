@@ -223,6 +223,37 @@ tests pin what those guesses are rather than what they do, and a baseline is the
 only thing that notices when one of them starts doing something different. See
 `baselines/README.md`.
 
+**Fifth — put it on the coach's screen.**
+
+None of this exists to anyone until it is in Firestore, and every step above
+produces a file on a laptop. Look at what would be written before writing it:
+
+```bash
+python -m cv.experiments.publish_report \
+    baselines/2026-08-15-first-half.json \
+    --team TEAMID --match MATCHID \
+    --dry-run --verbose
+```
+
+That needs no credential and writes nothing. Drop `--dry-run` to publish for
+real, which does need `PITCHIQ_SA_KEY` pointing at a service-account key
+**outside this repository** — `cv/publish.py` refuses to run if the key is
+inside the working tree, because a key committed to a repo that publishes to
+GitHub Pages is every team's data gone.
+
+Team figures land immediately. Per-player figures do not, and that is the point:
+a tracked figure is a guess about which child it is until a coach agrees. So
+confirm the clusters on the coach's match page first, then publish again with
+`--mapping` pointing at the `cvMapping/current` document — the map is a few
+lines and can be copied out of the Firebase console.
+
+Re-publishing the same match is safe and is the normal way to work; it rewrites
+the same four documents. Two things worth knowing before running it twice: it
+restores thumbnails a coach deleted (deliberate — someone who re-runs the
+pipeline has asked for the pictures back), and a dry run cannot tell whether a
+player has a published report to attach stats to, so its player count is an
+upper bound rather than a promise.
+
 ## 6. What to expect to be disappointing
 
 Worth saying in advance so it reads as a known limit rather than a failure:

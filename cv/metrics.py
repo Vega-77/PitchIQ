@@ -19,9 +19,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .calibration import Calibration
-from .tracking import Track
-
 # Nobody outruns this. Anything above it is a tracking error — usually an
 # identity switch teleporting a track across the pitch — not a fast player.
 # Usain Bolt peaked around 12.4 m/s; a very quick footballer tops out near 10.
@@ -262,22 +259,6 @@ class MovementStats:
     @property
     def top_speed_kmh(self) -> float:
         return self.top_speed_ms * 3.6
-
-
-def to_pitch_series(track: Track, calib: Calibration) -> PositionSeries:
-    """Project a track's boxes onto the pitch.
-
-    Uses the bottom-centre of each box — the only point of a standing person
-    that lies on the ground plane the homography maps. The box centre is
-    floating in mid-air and projects metres away from the player's actual
-    position.
-    """
-    if not track.boxes:
-        return PositionSeries(track.track_id, np.empty(0), np.empty((0, 2)))
-
-    pixels = np.array([b.ground_point for b in track.boxes], dtype=np.float64)
-    times = np.array([b.timestamp_s for b in track.boxes], dtype=np.float64)
-    return PositionSeries(track.track_id, times, calib.to_pitch_many(pixels))
 
 
 def smoothing_window_s(noise_m: float | None) -> float:

@@ -1252,6 +1252,99 @@ the first real footage is what should decide whether that costs a shot.
 
 675 pure JS · 25 pages · 145 emulator · **1073 Python**.
 
+**The last mile had no way to be run, 2026-08-18.** Prompted by the entry above,
+which found `attach_xg` fully tested with no caller and called that shape
+invisible to unit tests by construction. It is, so the way to find the rest of
+it is to walk the call graph rather than the coverage.
+
+An AST pass over `cv/**/*.py`: **560 definitions, 549 reachable, 207 public
+top-level names, 21 of them reachable from nothing that runs.** Reachable means
+reachable from module-level code, from a `main()` in `cv/experiments/`, or from
+`analyse_match`. Tests are deliberately not roots — "called only by its own
+test" is the thing being looked for, and counting a test as a caller hides every
+finding.
+
+The 21 decomposed cleanly into three piles, and the first one is the finding:
+
+*Eight names, which is the entire public surface of `cv/publish.py`.* `publish`,
+`PublishError`, `summary_payload`, `identity_payload`, `events_payload`,
+`thumbs_payload`, `participant_notes`, `player_report_fields`. That module is
+the last mile of this whole project — every number the pipeline works out is
+worth nothing until it is in Firestore where the app can read it — and it has
+been written, guarded and tested since the day the pipeline started producing
+reports, with no way to be run. No `main`, no `__main__`, no caller outside
+`tests/`. Four documented refusals nobody could trigger. `FOOTAGE_DAY.md` walked
+the whole intake and stopped one step short, at "save that JSON as the first
+baseline", because there was nothing to tell anyone to type next.
+
+`cv/experiments/publish_report.py` is the missing step, and **21 tests**
+(`tests/test_publish_report_cli.py`) cover the wrapper only — what gets written
+and what gets refused is `tests/test_publish.py`'s job, and duplicating it would
+mean two files to change the day a rule does. `--dry-run` swaps in a client that
+records writes instead of performing them, so a payload can be looked at before
+a credential is anywhere near it. Checked from a real shell rather than from
+pytest: a dry run against a two-track report printed five writes with their
+sizes (summary 394 bytes, identity 404, events 101, thumbs 17,
+playerReports/playerA 423) and exit 0; the same command without `--dry-run` and
+with the key unset printed `refused: PITCHIQ_SA_KEY is not set...` and exit 1.
+`FOOTAGE_DAY.md` §5 gains the fifth step, including the reason the mapping comes
+second: a tracked figure is a guess about which child it is until a coach agrees.
+
+*One thing a dry run cannot know, said out loud rather than implied.* `publish`
+skips any player whose report a coach has not published yet, and finds that out
+by reading the document. A dry run reads nothing, so it assumes every mapped
+player has one and prints an **upper bound**. The output says so; without the
+caveat it would promise writes the real run correctly declines to make.
+
+*Three functions deleted, one of them wrong.* `pressure_by_team`
+(`cv/events.py`) promised "how often each team's **opponents** were closed down
+on the ball" and incremented `counts[touch.team]` — the team **on** the ball.
+Every figure attributed to the wrong side, in code no test could ever have
+reached. It is superseded by `count_pressing`, which is live in two places.
+`to_pitch_series` (`cv/metrics.py`) was superseded when task #27 collapsed the
+pipeline to one pass; its one piece of hard-won reasoning — project the
+bottom-centre of a box, because the box centre floats in mid-air and lands
+metres up-pitch — already survives in `cv/detector.py`, `cv/frames.py` and most
+fully in `cv/calibration.py`, which is why deleting it loses nothing.
+`collect_samples` (`cv/teams.py`) is the same story: `TrackedFramePass._sample_colours`
+samples inside the decode loop now. Same precedent as `assets/pass-map.js` —
+superseded code gets deleted rather than repaired, because it is the shape the
+next copy would have been made from.
+
+*Ten left, which are not mistakes.* This project builds the primitive before the
+caller more often than not, because the primitive is the part that can be tested
+without footage: `in_goal_area`, `channel`, `zone_grid`, `nearest_player`,
+`defensive_line_m`, `pinned_back`, `cluster_of_track`, `drift_notes`,
+`predict_xg`, `validate_against_noise`. Each is now recorded in
+`tests/test_call_graph.py` with **the reason it has no caller yet**, so the next
+audit does not derive any of it a second time.
+
+*The check that keeps it from recurring, and the honest limits on it.*
+`tests/test_call_graph.py`, **7 tests**, inside the existing Python CI job
+rather than a script nobody types. It fails in both directions: an unlisted
+orphan is a finding, and a listed name that has since been wired up or deleted
+is a stale entry to remove — otherwise the list rots into a graveyard nobody
+dares touch. What it cannot do is more interesting than what it can. Names
+propagate by bare match, so anything calling `run` marks every `run` reachable;
+resolving attributes back to types would need a type checker and would start
+being wrong in ways nobody could audit. It therefore over-approximates
+reachability and **under-reports dead code**: a failure is strong evidence, a
+pass is weak. It cannot see dispatch through `getattr` or a dict of callables,
+and it does not walk the browser modules at all, where an export is reached from
+`<script type="module">` and from handlers no Python AST will find.
+
+*The checker's own bug, recorded because this class of tool fails quietly.*
+First version keyed its graph on `id(node)`. The trees are dropped as the loop
+moves to the next file, CPython reuses the addresses of freed objects, and
+unrelated definitions silently merged — it reported 12 orphans including
+`analyse_match`, which is a **root**, and that impossibility is the only reason
+it got caught. A call-graph walk says "all clear" whether or not it works, so
+`TestTheGraphItself` now pins the three properties whose failure would produce
+a quiet pass. Negative control run for real: move `publish_report.py` aside and
+the check reports `publish` as an orphan again, which is the case it exists for.
+
+675 pure JS · 25 pages · 145 emulator · **1101 Python**.
+
 ---
 
 ## Stats & Insights Catalog
