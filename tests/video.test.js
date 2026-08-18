@@ -6445,3 +6445,419 @@ describe('a whistle nobody tagged', () => {
     });
   });
 });
+
+describe('what binning the pitch into cells costs', () => {
+  // The grid arrives 12 x 8 over a 105 x 68 m pitch, so a cell is 8.75 m along
+  // the pitch — twice the gap between a defender and a midfielder standing
+  // apart. Every figure in the shape block is read off that grid, so the size
+  // of the error it introduces is not a detail; it decides whether any of it
+  // can be reported in metres at all.
+  //
+  // These numbers are the ones written into `assets/heatmap.js`. They are here
+  // so that a change to the binning, the correction, or the grid's default
+  // shape fails a test rather than quietly widening the error under a docstring
+  // that still claims the old one.
+
+  const L = 105;
+
+  /**
+   * Occupancy laid down as a Gaussian along the pitch and then binned, next to
+   * the same distribution measured unbinned.
+   *
+   * Quadrature rather than sampled points, so the comparison isolates the one
+   * thing being measured — the binning — instead of mixing in the noise of a
+   * random draw. Truncated at the goal lines, because a real player's occupancy
+   * is, and the truncation is half of what the tails of this table are about.
+   */
+  const laid = (meanM, spreadM, cols = 12, rows = 8) => {
+    const values = new Array(cols * rows).fill(0);
+    const cellW = L / cols;
+    const steps = cols * 800;
+    let total = 0;
+    let sumX = 0;
+    let sumXX = 0;
+
+    for (let i = 0; i < steps; i += 1) {
+      const xM = ((i + 0.5) / steps) * L;
+      const share = Math.exp(-0.5 * ((xM - meanM) / spreadM) ** 2);
+      // One lane across the pitch: the y axis plays no part in either figure.
+      values[Math.min(cols - 1, Math.floor(xM / cellW)) * rows + 3] += share;
+      total += share;
+      sumX += share * xM;
+      sumXX += share * xM * xM;
+    }
+
+    const trueMeanM = sumX / total;
+    return {
+      grid: { cols, rows, values: values.map((v) => v / total) },
+      trueMeanM,
+      trueSpreadM: Math.sqrt(sumXX / total - trueMeanM ** 2),
+    };
+  };
+
+  const sweep = (spreads, from, to) => {
+    let worst = 0;
+    const all = [];
+    for (const spreadM of spreads) {
+      for (let meanM = from; meanM <= to; meanM += 0.25) {
+        const { grid, trueMeanM } = laid(meanM, spreadM);
+        const off = Math.abs(heatmap.gridCentroid(grid).xM - trueMeanM);
+        all.push(off);
+        worst = Math.max(worst, off);
+      }
+    }
+    all.sort((a, b) => a - b);
+    return { worst, median: all[all.length >> 1] };
+  };
+
+  test('out on the pitch the binned middle is the middle', () => {
+    // Spreads from a full-back who holds a line to a midfielder who covers
+    // half the pitch, everywhere between the two penalty areas.
+    const { worst, median } = sweep([4, 5, 6, 8, 10, 12, 16, 20], 8, 97);
+    assert.ok(worst < 0.25, `worst ${worst}`);
+    assert.ok(median < 0.02, `median ${median}`);
+  });
+
+  test('the error is worst on the one row no verdict is drawn from', () => {
+    // Against a goal line the pitch truncates the distribution and the cell it
+    // is truncated in stops being symmetric, which is where the whole error
+    // lives. Twice the outfield figure — and the only player who averages four
+    // metres off their own goal line is the keeper, who appears in the rows and
+    // never in a remark.
+    const { worst } = sweep([4, 5, 6, 8], 4, 7);
+    assert.ok(worst > 0.3 && worst < 0.5, `worst ${worst}`);
+  });
+
+  test('somebody who never moved is the case it cannot do', () => {
+    // 2.3 m out at a 1 m spread. A footballer does not have a 1 m spread; a
+    // corner flag does. Recorded because the failure is real and because it
+    // shrinks fast — by 3 m of spread it is back under a third of a metre.
+    const tightest = (spreadM) => {
+      let worst = 0;
+      for (let meanM = 20; meanM <= 85; meanM += 0.25) {
+        const { grid, trueMeanM } = laid(meanM, spreadM);
+        worst = Math.max(worst, Math.abs(heatmap.gridCentroid(grid).xM - trueMeanM));
+      }
+      return worst;
+    };
+    assert.ok(tightest(1) > 2.2 && tightest(1) < 2.4);
+    assert.ok(tightest(2) < 1.0);
+    assert.ok(tightest(3) < 0.3);
+  });
+
+  test('Sheppard\'s correction gives the band back', () => {
+    // Averaged over where the cell edges fall, which is what the correction is
+    // derived for. Without it every one of these reads high, and a tight player
+    // would be handed a wider uncertainty than they earned.
+    const across = (spreadM) => {
+      let sum = 0;
+      let n = 0;
+      for (let meanM = 48.125; meanM < 48.125 + 8.75; meanM += 0.125) {
+        sum += heatmap.gridSpread(laid(meanM, spreadM).grid);
+        n += 1;
+      }
+      return sum / n;
+    };
+    for (const spreadM of [4, 5, 6, 8, 12]) {
+      assert.ok(Math.abs(across(spreadM) - spreadM) < 0.01, `${spreadM} -> ${across(spreadM)}`);
+    }
+  });
+
+  test('one player at one phase does worse than the average of all of them', () => {
+    // The figure the docstring used to give was the phase-averaged one, and a
+    // single player is not an average over phases. A true 4 m reads anywhere in
+    // 3.85-4.14 depending on where the grid's lines happen to fall, and a true
+    // 3 m - a third of a cell - breaks down completely.
+    const at = (meanM, spreadM) => heatmap.gridSpread(laid(meanM, spreadM).grid);
+    assert.ok(Math.abs(at(48.125, 4) - 3.85) < 0.02);
+    assert.ok(Math.abs(at(52.5, 4) - 4.14) < 0.02);
+    assert.ok(at(48.125, 3) < 2.3);
+    assert.ok(at(52.5, 3) > 3.6);
+  });
+});
+
+describe('turning a grid into a place on the pitch', () => {
+  const grid = (cols, rows, at) => {
+    const values = new Array(cols * rows).fill(0);
+    values[at[0] * rows + at[1]] = 1;
+    return { cols, rows, values };
+  };
+
+  test('a player attacking right is measured from the left goal', () => {
+    // Column 1 of 12 is 8.75-17.5 m along, centred at 13.125.
+    const out = heatmap.orientedCentroid(grid(12, 8, [1, 1]), 'right');
+    assert.ok(Math.abs(out.forwardM - 13.125) < 0.001);
+    assert.ok(Math.abs(out.lateralM - 12.75) < 0.001);
+  });
+
+  test('attacking left mirrors both axes, not just the one', () => {
+    // Flip only x and a player who lived on the left wing in the second half
+    // comes out on the right — the same reason cv/report_json.py::shot_marks
+    // mirrors both.
+    const out = heatmap.orientedCentroid(grid(12, 8, [1, 1]), 'left');
+    assert.ok(Math.abs(out.forwardM - (105 - 13.125)) < 0.001);
+    assert.ok(Math.abs(out.lateralM - (68 - 12.75)) < 0.001);
+  });
+
+  test('without an attacking end there is no forward', () => {
+    // "They stayed high" and "they sat deep" are the same picture flipped, so
+    // there is no half-answer to give here.
+    for (const end of [null, undefined, '', 'up', 0]) {
+      assert.equal(heatmap.orientedCentroid(grid(12, 8, [1, 1]), end), null);
+    }
+    assert.equal(heatmap.orientedCentroid(null, 'right'), null);
+    assert.equal(heatmap.orientedCentroid({ cols: 2, rows: 2, values: [0, 0, 0, 0] }, 'right'), null);
+  });
+
+  test('the spread is the same figure whichever way they were kicking', () => {
+    const wide = { cols: 12, rows: 8, values: new Array(96).fill(1 / 96) };
+    const right = heatmap.orientedCentroid(wide, 'right');
+    const left = heatmap.orientedCentroid(wide, 'left');
+    assert.equal(right.spreadM, left.spreadM);
+    assert.ok(right.spreadM > 0);
+  });
+
+  test('an empty grid is nowhere, not the centre spot', () => {
+    // The centre spot is a real place a defensive midfielder averages, so it
+    // could never have been the sentinel even if this project allowed one.
+    assert.equal(heatmap.gridCentroid({ cols: 2, rows: 2, values: [0, 0, 0, 0] }), null);
+    assert.equal(heatmap.gridCentroid(null), null);
+    assert.equal(heatmap.gridSpread(null), null);
+  });
+});
+
+describe('how firmly an average position is pinned down', () => {
+  test('the band is the formula, in metres either way', () => {
+    // 2 sigma of the standard error of a mean over correlated samples, with a
+    // 60 s wander time: 2 * spread * sqrt(tau / (30 * minutes)).
+    const band = report.positionBand(6, 60);
+    assert.ok(Math.abs(band - 2 * 6 * Math.sqrt(60 / 1800)) < 1e-9);
+    // Halving the time tracked widens it by root two, not by two.
+    assert.ok(Math.abs(report.positionBand(6, 30) / band - Math.SQRT2) < 1e-9);
+  });
+
+  test('no band without both halves of it', () => {
+    // A position offered without a band reads as exact, which is the one thing
+    // it is not.
+    for (const [spread, minutes] of [[0, 60], [6, 0], [null, 60], [6, null], [-1, 60]]) {
+      assert.equal(report.positionBand(spread, minutes), null);
+    }
+  });
+
+  test('a roamer and a barely-tracked player fail the same gate', () => {
+    // Both land past MAX_BAND_M, from opposite directions, and both mean the
+    // same thing: this average is not worth comparing to anyone else's.
+    assert.ok(report.positionBand(25, 60) > report.MAX_BAND_M);
+    assert.ok(report.positionBand(6, 2) > report.MAX_BAND_M);
+    assert.ok(report.positionBand(6, 60) < report.MAX_BAND_M);
+    // And the gate is not far away from an ordinary player: a 20 m spread over
+    // a full hour lands at 7.3 m, inside it. This is a wide net by design —
+    // it removes the players nobody could describe, not the players who moved.
+    assert.ok(Math.abs(report.positionBand(20, 60) - 7.303) < 0.001);
+  });
+});
+
+describe('whether the camera saw enough to support a verdict', () => {
+  const thirds = (left, middle, right) => ({ thirds: { left, middle, right } });
+
+  test('an even camera is fine', () => {
+    const out = report.coverageVerdict(thirds(0.9, 0.95, 0.85));
+    assert.equal(out.ok, true);
+    assert.ok(Math.abs(out.spread - 0.1) < 1e-9);
+  });
+
+  test('a camera that favoured one end withholds the verdict', () => {
+    const out = report.coverageVerdict(thirds(0.95, 0.8, 0.5));
+    assert.equal(out.ok, false);
+    assert.equal(out.reason, 'uneven');
+  });
+
+  test('not knowing is a third answer, not the good one', () => {
+    // Every report published before the coverage figure existed looks like
+    // this, and treating it as an even camera would apply the verdict exactly
+    // where nobody can check it.
+    for (const bad of [null, undefined, {}, { thirds: null }, thirds(0.9, null, 0.9), thirds('a', 1, 1)]) {
+      assert.deepEqual(report.coverageVerdict(bad), { ok: false, reason: 'unknown' });
+    }
+  });
+});
+
+describe('where they played against the line they were picked in', () => {
+  /**
+   * The shape of this feature is that the rows are a measurement and the
+   * remarks are a verdict, and the two have to be able to come apart. Almost
+   * every test here is about a case where the measurement stands and the
+   * verdict is withheld, because that is the common case on real footage and
+   * the one a careless version gets wrong by reporting a finding anyway.
+   */
+
+  const EVEN = { thirds: { left: 0.92, middle: 0.95, right: 0.9 } };
+
+  // 5 m of spread over a full match: a band of 1.83 m, well inside MAX_BAND_M.
+  const at = (playerId, position, forwardM, extra = {}) => ({
+    playerId,
+    name: playerId,
+    position,
+    forwardM,
+    lateralM: 34,
+    spreadM: 5,
+    minutesTracked: 60,
+    ...extra,
+  });
+
+  const LINES = [
+    at('d1', 'def', 25), at('d2', 'def', 27),
+    at('m1', 'mid', 45), at('m2', 'mid', 48),
+    at('f1', 'fwd', 75),
+  ];
+
+  const play = (rows, coverage = EVEN) => report.positionalPlay(rows, { coverage });
+
+  test('a side that lined up where it was picked gets no remarks and no complaint', () => {
+    const out = play(LINES);
+    assert.equal(out.withheld, null);
+    assert.deepEqual(out.remarks, []);
+    assert.equal(out.note, null);
+    assert.equal(out.rows.length, 5);
+  });
+
+  test('the rows come back up the pitch, whatever order they went in', () => {
+    const out = play([...LINES].reverse());
+    assert.deepEqual(out.rows.map((r) => r.playerId), ['d1', 'd2', 'm1', 'm2', 'f1']);
+  });
+
+  test('a defender ahead of every midfielder is the remark', () => {
+    const out = play([at('d1', 'def', 25), at('d2', 'def', 60), ...LINES.slice(2)]);
+    assert.equal(out.remarks.length, 1);
+    const [only] = out.remarks;
+    assert.equal(only.playerId, 'd2');
+    assert.equal(only.direction, 'ahead');
+    assert.equal(only.line, 'mid');
+    assert.match(only.text, /ahead of every one of the midfielders/);
+    // The margin over the nearest of them, which is what "by how much" means.
+    assert.equal(only.gapM, 12);
+  });
+
+  test('ahead of most of a line is not ahead of the line', () => {
+    // 60 clears the midfielder at 45 by 15 m and the one at 58 by 2. A rule
+    // that took the line's average would fire here, and a coach told twice
+    // about nothing stops reading the third time.
+    const out = play([
+      at('d1', 'def', 25), at('d2', 'def', 60),
+      at('m1', 'mid', 45), at('m2', 'mid', 58), at('f1', 'fwd', 75),
+    ]);
+    assert.deepEqual(out.remarks, []);
+    assert.equal(out.withheld, null);
+  });
+
+  test('one player, one remark: the furthest line they cleared', () => {
+    const out = play([at('d1', 'def', 25), at('d2', 'def', 90), ...LINES.slice(2)]);
+    assert.equal(out.remarks.length, 1);
+    assert.equal(out.remarks[0].line, 'fwd');
+    assert.match(out.remarks[0].text, /ahead of every one of the forwards/);
+    assert.equal(out.remarks[0].gapM, 15);
+  });
+
+  test('a forward behind the whole defence reads the other way round', () => {
+    const out = play([...LINES.slice(0, 4), at('f1', 'fwd', 15)]);
+    assert.equal(out.remarks.length, 1);
+    assert.equal(out.remarks[0].playerId, 'f1');
+    assert.equal(out.remarks[0].direction, 'behind');
+    assert.match(out.remarks[0].text, /behind every one of the defenders/);
+  });
+
+  test('two lines that swapped over are one finding, not five', () => {
+    // The arithmetic is symmetric and would otherwise flag both sides: the lone
+    // striker who dropped in, and every defender he dropped behind. Said from
+    // the smaller side only, because it is the same sentence either way.
+    const lone = play([...LINES.slice(0, 4), at('f1', 'fwd', 15)]);
+    assert.deepEqual(lone.remarks.map((r) => r.playerId), ['f1']);
+
+    // The other way round, with one defender behind two forwards, the defender
+    // is the smaller side and the one spoken about.
+    const solo = play([at('d1', 'def', 25), at('f1', 'fwd', 15), at('f2', 'fwd', 17)]);
+    assert.deepEqual(solo.remarks.map((r) => r.playerId), ['d1']);
+    assert.equal(solo.remarks[0].direction, 'ahead');
+
+    // Two against two leaves nothing to choose between them, and the honest
+    // answer is to say it from both ends rather than pick one.
+    const even = play([
+      at('d1', 'def', 25), at('d2', 'def', 27),
+      at('f1', 'fwd', 15), at('f2', 'fwd', 17),
+    ]);
+    assert.deepEqual(
+      even.remarks.map((r) => r.playerId).sort(), ['d1', 'd2', 'f1', 'f2'],
+    );
+  });
+
+  test('one unjudgeable player takes their whole line out of the comparison', () => {
+    // "Ahead of the whole midfield" is a claim about the whole midfield and
+    // cannot be made from two of the three.
+    const roamer = at('m3', 'mid', 50, { spreadM: 20, minutesTracked: 30 });
+    const line = [at('d1', 'def', 25), at('d2', 'def', 60), ...LINES.slice(2)];
+
+    // Without the roamer, d2 at 60 is ahead of a midfield sitting at 45 and 48.
+    assert.deepEqual(play(line).remarks.map((r) => r.playerId), ['d2']);
+
+    // With them, there is no longer a whole midfield to be ahead of.
+    const out = play([...line, roamer]);
+    assert.deepEqual(out.remarks, []);
+    // And they are still on the screen with everyone else.
+    assert.equal(out.rows.length, 6);
+    assert.equal(out.rows.find((r) => r.playerId === 'm3').judgeable, false);
+  });
+
+  test('a keeper is measured and never judged', () => {
+    // A keeper covers a third the ground of a midfielder. Ranking them on this
+    // axis would put every keeper last and call it a finding.
+    const out = play([at('g1', 'gk', 8), ...LINES]);
+    assert.equal(out.rows[0].playerId, 'g1');
+    assert.deepEqual(out.remarks, []);
+    // Even one playing absurdly high, which is a real thing a keeper does.
+    const sweeper = play([at('g1', 'gk', 62), ...LINES]);
+    assert.deepEqual(sweeper.remarks.map((r) => r.playerId), []);
+  });
+
+  test('an uneven camera withholds the verdict and keeps the measurement', () => {
+    const out = play(LINES, { thirds: { left: 0.95, middle: 0.8, right: 0.5 } });
+    assert.equal(out.withheld, 'uneven');
+    assert.equal(out.rows.length, 5);
+    assert.deepEqual(out.remarks, []);
+    assert.match(out.note, /would mostly compare the camera/);
+  });
+
+  test('a run that never measured its framing is withheld too', () => {
+    const out = play(LINES, null);
+    assert.equal(out.withheld, 'unknown');
+    assert.match(out.note, /did not record how much of the pitch/);
+  });
+
+  test('a squad with no positions set is asked for them, not judged', () => {
+    const out = play(LINES.map((r) => ({ ...r, position: null })));
+    assert.equal(out.withheld, 'no-lines');
+    assert.equal(out.rows.length, 5);
+    assert.match(out.note, /Give these players a position/);
+  });
+
+  test('one comparable player is nobody to compare with', () => {
+    const out = play([
+      at('d1', 'def', 25),
+      at('m1', 'mid', 45, { spreadM: 20, minutesTracked: 30 }),
+    ]);
+    assert.equal(out.withheld, 'too-thin');
+    assert.equal(out.rows.length, 2);
+  });
+
+  test('a row with no position at all is not a row', () => {
+    const out = play([...LINES, at('x', 'mid', null), at('y', 'mid', NaN), null]);
+    assert.equal(out.rows.length, 5);
+  });
+
+  test('nothing to draw is not an error', () => {
+    for (const empty of [[], null, undefined]) {
+      const out = report.positionalPlay(empty, { coverage: EVEN });
+      assert.deepEqual(out.rows, []);
+      assert.deepEqual(out.remarks, []);
+    }
+  });
+});

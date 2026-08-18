@@ -32,7 +32,7 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, PITCH_VIEWBOX, pitchMarkings,
-} from './pitch-backdrop.js?v=90';
+} from './pitch-backdrop.js?v=91';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -114,6 +114,166 @@ export function busiestCell(grid) {
         }
     }
     return best && best.share > 0 ? best : null;
+}
+
+/**
+ * Where the middle of this grid sits, as `{ xM, yM }` in pitch metres.
+ *
+ * Cell centres weighted by occupancy. `x` runs along the pitch from the left
+ * goal line, `y` across it, in the same absolute frame the grid arrived in —
+ * so this still knows nothing about which way anybody was attacking, and a
+ * caller who has not applied `attackingEnd` has half a figure.
+ *
+ * Null for a grid this module cannot use, never `{ xM: 52.5, yM: 34 }`. The
+ * centre spot is a real place a defensive midfielder averages, so it could not
+ * have been a sentinel even if the project allowed one.
+ *
+ *     What the binning costs, measured.
+ *
+ * Twelve columns is 8.75 m a cell, which sounds fatal for a figure read in
+ * metres and is not. Swept in 0.25 m steps across every mean position on the
+ * pitch, for a player whose occupancy spreads 4 m to 20 m:
+ *
+ *     mean position          worst error   median error
+ *     8–97 m (outfield)          0.229 m        0.012 m
+ *     4–101 m (all of it)        0.475 m        0.013 m
+ *
+ * The whole difference between those two rows is the last four metres at each
+ * end, where the pitch cuts the distribution off and the binned mean is pulled
+ * back towards the middle by the half of it that fell off the end. A 0.48 m
+ * error belongs to somebody averaging four metres from their own goal line.
+ *
+ * The other place it bites is a player who barely moved, where the mean sits
+ * inside a single cell and the grid has nothing to interpolate between:
+ *
+ *     spread   worst error
+ *      1 m         2.29 m
+ *      2 m         0.97 m
+ *      3 m         0.29 m
+ *
+ * Both of those describe the same person — a keeper, standing near a goal line
+ * and moving less than anyone on the pitch — and `positionalPlay` measures
+ * keepers and never judges them. For everybody it does judge, the figure is
+ * good to about a fifth of a metre, which is far inside the band the comparison
+ * already carries.
+ *
+ * The error that does bite is not in here at all. See `positionalPlay`.
+ */
+export function gridCentroid(grid) {
+    if (!isGrid(grid)) return null;
+    const cellW = PITCH_LENGTH_M / grid.cols;
+    const cellH = PITCH_WIDTH_M / grid.rows;
+    let total = 0;
+    let sumX = 0;
+    let sumY = 0;
+
+    for (let x = 0; x < grid.cols; x += 1) {
+        for (let y = 0; y < grid.rows; y += 1) {
+            const share = cellAt(grid, x, y);
+            if (share <= 0) continue;
+            total += share;
+            sumX += share * (x + 0.5) * cellW;
+            sumY += share * (y + 0.5) * cellH;
+        }
+    }
+
+    if (total <= 0) return null;
+    return { xM: sumX / total, yM: sumY / total };
+}
+
+/**
+ * How far up and down the pitch this player's occupancy spreads, in metres.
+ *
+ * The standard deviation along the pitch, on the same axis `forwardM` measures
+ * — so it is the width of the band they lived in, and it is two things at once:
+ * a description a coach can read ("held a 9 m band", "ranged over 22 m"), and
+ * the input `positionalPlay` needs to know how firmly their average position is
+ * pinned down. A player who never left one zone has a mean position worth
+ * comparing. A player who covered half the pitch does not, however many minutes
+ * they were tracked for.
+ *
+ * Mirroring does not touch it, so unlike the centroid this needs no attacking
+ * end and is the same figure in either frame.
+ *
+ *     Sheppard's correction, and why it is here.
+ *
+ * Binning inflates a spread: every point in an 8.75 m cell is counted as sitting
+ * at its centre, which adds the variance of the cell itself. Subtracting
+ * `cellW² / 12` recovers the true figure to within 0.01 m at every spread
+ * measured — a true 4.0 m reads 4.73 m binned and 3.999 m corrected. Left in, a
+ * tight player would be reported 18% wider than they played, and would then be
+ * handed a wider uncertainty than they had earned.
+ *
+ * That 0.01 m is an average over where the player's mean falls inside its cell,
+ * and one player has one phase, not an average of them. Taken a phase at a time
+ * the correction is coarser, and it is worth being exact about how much:
+ *
+ *     true spread   mean at a cell centre   mean at a cell edge
+ *        4 m               3.85 m                 4.14 m
+ *        3 m               2.17 m                 3.65 m
+ *
+ * A third of a cell is about as far as this can be pushed before the grid
+ * stops being able to describe the shape at all. What keeps it harmless is
+ * where the figure is used: `positionalPlay` turns a spread into a band and
+ * then floors the comparison at `POSITION_FLOOR_M`, and the floor is what binds
+ * for a 3 m player past about 10 minutes tracked and for a 4 m player past
+ * about 18. Below those, the spread is not what makes the band wide — the
+ * minutes are.
+ *
+ * It reads *low* for a player near a touchline or a goal line, because the pitch
+ * truncates the distribution and no correction puts back what the grid never
+ * had. That direction is the safe one: it never inflates somebody's uncertainty
+ * into a finding.
+ */
+export function gridSpread(grid) {
+    const middle = gridCentroid(grid);
+    if (!middle) return null;
+    const cellW = PITCH_LENGTH_M / grid.cols;
+    let total = 0;
+    let sumSq = 0;
+
+    for (let x = 0; x < grid.cols; x += 1) {
+        const centre = (x + 0.5) * cellW;
+        for (let y = 0; y < grid.rows; y += 1) {
+            const share = cellAt(grid, x, y);
+            if (share <= 0) continue;
+            total += share;
+            sumSq += share * (centre - middle.xM) ** 2;
+        }
+    }
+
+    if (total <= 0) return null;
+    return Math.sqrt(Math.max(sumSq / total - (cellW * cellW) / 12, 0));
+}
+
+/**
+ * The same middle, turned so the player is attacking right.
+ *
+ * `{ forwardM, lateralM }` — metres up the pitch from the goal this player was
+ * defending, and metres across it from the right touchline as they faced it.
+ * Null without an attacking end, matching `cv/report_json.py::shot_marks`,
+ * which returns None for the same reason and mirrors through the centre on
+ * both axes for the same one: flip only `x` and a player who lived on the left
+ * wing in the second half appears on the right.
+ *
+ * Two figures of very different standing. `forwardM` is comparable between
+ * players and is what the whole comparison rests on. `lateralM` is reported
+ * and never judged: nothing in this system knows a left-back from a right-back
+ * — `POSITIONS` has four lines and no sides — so there is no assignment for it
+ * to disagree with.
+ *
+ * `spreadM` rides along because every caller that wants one wants the other:
+ * a mean position is not reportable without some idea of how wide the thing it
+ * averages was.
+ */
+export function orientedCentroid(grid, attackingEnd) {
+    if (attackingEnd !== 'left' && attackingEnd !== 'right') return null;
+    const middle = gridCentroid(grid);
+    if (!middle) return null;
+    const spreadM = gridSpread(grid);
+    return attackingEnd === 'left'
+        ? { forwardM: PITCH_LENGTH_M - middle.xM, lateralM: PITCH_WIDTH_M - middle.yM, spreadM }
+        : { forwardM: middle.xM, lateralM: middle.yM, spreadM };
 }
 
 /** The grid as an `<svg>` over pitch markings. */

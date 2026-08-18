@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=90">
-    <link rel="stylesheet" href="coach.css?v=90">
+    <link rel="stylesheet" href="../assets/app.css?v=91">
+    <link rel="stylesheet" href="coach.css?v=91">
 </head>
 <body>
 
@@ -517,6 +517,25 @@
             </div>
         </section>
 
+        <!-- Where each player actually played, against the line the coach put
+             them in. Two real records compared, not one record against a
+             template: the video says where somebody's average position was, the
+             team sheet says which line they were picked in, and the only thing
+             this block claims is where the two disagree by more than the
+             measurement could explain.
+
+             The bars are the block. A remark is the rare case; eleven bars on
+             one axis is what a coach reads every time, and a defender whose bar
+             ends past the midfielders' is visible before any sentence about
+             it. -->
+        <section class="block hidden col-half" id="cv-shape-block" data-rail="Where they played">
+            <h3>Where each player played</h3>
+            <p class="muted" id="cv-shape-lede" style="margin:-4px 0 14px"></p>
+            <div id="cv-shape-rows" class="shape-rows"></div>
+            <ul class="shape-remarks" id="cv-shape-remarks"></ul>
+            <p class="muted" id="cv-shape-note" style="margin:12px 0 0"></p>
+        </section>
+
         <!-- The first piece of the post-game tactical catalog. Every other
              video block on this page is a total; this one is a shape — which
              players the ball actually travelled between, and which pairs never
@@ -744,7 +763,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=90"></script>
+<script type="module" src="coach.js?v=91"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

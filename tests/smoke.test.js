@@ -1227,3 +1227,90 @@ test('a student whose season has not started is not shown somebody else\'s', asy
     assert.doesNotMatch(body, /Alex Vega/, "another player's season is on screen");
 });
 
+
+test('where each player played is drawn from the coach\'s own mapping', async () => {
+    // The whole path in one go: a track's occupancy grid, merged over that
+    // player's figures, oriented by the attacking end, turned into metres up
+    // the pitch and drawn as a bar. Every step of it existed as a tested pure
+    // function before this test and none of it had ever run against a page.
+    //
+    // Two rows, not six: four of the six figures are nobody yet, and a bar
+    // under no name is a bar a coach cannot act on.
+    await openPage({
+        html: 'coach/index.html',
+        entry: 'coach/coach.js',
+        url: `http://localhost:5000/coach/?team=${TEAM_ID}`,
+        variant: 'shape',
+        documents: await filmed(),
+    });
+    live.document.querySelectorAll('.title')
+        .find((t) => t.textContent.includes('Northgate'))
+        ?.closest('div')
+        ?.click();
+    await settle();
+
+    assert.ok(shown('cv-shape-block'), 'the shape block did not come up');
+    const rows = live.document.querySelectorAll('.shape-row');
+    assert.equal(rows.length, 2, 'a bar was drawn for a figure nobody has named');
+
+    const names = rows.map((r) => r.querySelector('.shape-name').textContent);
+    assert.deepEqual(names, ['Rae Nkemelu', 'Alex Vega'],
+        'the bars are not in order of how far up the pitch they averaged');
+
+    // The figure beside the bar, and the bar itself, have to be the same
+    // claim — a percentage width computed from one number and a caption from
+    // another is exactly how these two drift apart.
+    const metres = rows.map((r) => Number(r.querySelector('.shape-value').textContent.replace(' m', '')));
+    assert.ok(metres[0] > 0 && metres[1] > metres[0],
+        `the forward did not average further up than the midfielder: ${metres}`);
+    const widths = rows.map((r) => Number.parseFloat(r.querySelector('.shape-fill').style.width));
+    assert.ok(Math.abs(widths[0] - (metres[0] / 105) * 100) < 1.2,
+        `the bar and the number disagree: ${widths[0]}% vs ${metres[0]} m`);
+
+    for (const row of rows) {
+        assert.match(row.querySelector('.shape-sub').textContent, /min tracked/,
+            'a bar was drawn without saying how much of the match it covers');
+    }
+
+    // A fixture built so the two mapped figures sit in the lines they were
+    // picked in. No remark is the right answer here, and the block still has
+    // to say that out loud rather than leave an empty list looking broken.
+    assert.equal(live.document.querySelectorAll('.shape-remarks li').length, 0);
+    assert.match(text('cv-shape-note'), /which is the usual answer/);
+    assert.match(text('cv-shape-note'), /Sides are not checked/);
+});
+
+test('the sample preview shows a whole team of bars, not two', async () => {
+    // The other reader of this block: a coach with no footage at all, deciding
+    // whether any of this is worth filming a match for.
+    await openPage({
+        html: 'coach/index.html',
+        entry: 'coach/coach.js',
+        url: `http://localhost:5000/coach/?team=${TEAM_ID}`,
+        variant: 'shape-sample',
+    });
+    live.document.querySelectorAll('.title')
+        .find((t) => t.textContent.includes('Northgate'))
+        ?.closest('div')
+        ?.click();
+    await settle();
+
+    assert.ok(!shown('cv-shape-block'), 'a match with no video drew position bars');
+    el('btn-cv-sample').click();
+    await settle();
+
+    assert.ok(shown('cv-shape-block'), 'the preview did not bring the block up');
+    const rows = live.document.querySelectorAll('.shape-row');
+    assert.equal(rows.length, 11, 'the sample team is not eleven players');
+    assert.ok(el('cv-shape-rows').className.includes('is-sample-plot'),
+        'invented bars are not marked as invented');
+
+    // Grouped by line, and the keeper's group is one of them — a goalkeeper is
+    // never judged out of position and is still somebody a coach looks for.
+    const lines = live.document.querySelectorAll('.shape-line').map((h) => h.textContent);
+    assert.ok(lines.length >= 3, `the bars were not grouped by line: ${lines}`);
+
+    el('btn-cv-sample').click();
+    await settle();
+    assert.ok(!shown('cv-shape-block'), 'the bars stayed up after the sample was hidden');
+});

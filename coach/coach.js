@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=90';
+} from '../assets/auth.js?v=91';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,23 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=90';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=90';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=90';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=90';
+} from '../assets/db.js?v=91';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=91';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=91';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=91';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
-    samplePassEvents, samplePassMapping,
+    samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=90';
+} from '../assets/sample-report.js?v=91';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=90';
-import { renderPassMap } from '../assets/pass-map.js?v=90';
+} from '../assets/passing.js?v=91';
+import { renderPassMap } from '../assets/pass-map.js?v=91';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=91';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=90';
-import { renderForms } from '../assets/form-chart.js?v=90';
+} from '../assets/season.js?v=91';
+import { renderForms } from '../assets/form-chart.js?v=91';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, hasVerdict, xgTrust,
@@ -43,18 +44,19 @@ import {
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
-} from '../assets/report.js?v=90';
+    positionalPlay, MAX_BAND_M,
+} from '../assets/report.js?v=91';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=90';
-import { mountRail } from '../assets/rail.js?v=90';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=90';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=90';
+} from '../assets/events.js?v=91';
+import { mountRail } from '../assets/rail.js?v=91';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=91';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=91';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar, coverageStrip,
-} from '../assets/ui.js?v=90';
+} from '../assets/ui.js?v=91';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -1161,6 +1163,10 @@ async function openMatch(matchId) {
         // Same reasoning, and one more: this block is built from the roster's
         // stints and the tag log's clock, neither of which the review touches.
         renderSubs();
+        // Reads the mapping and the roster's positions. Neither is something a
+        // verdict in the review can move, so it lives on `redrawMappedViews`
+        // and is drawn once from here.
+        renderShape();
 
         renderPlayerTable(stats.players);
         renderMatchVideoBlock();
@@ -1329,6 +1335,239 @@ function renderShots() {
                 : 'Every shot is drawn the same size — the calibration is too loose '
                     + 'to rank them against each other. ')
             + (corrected || '')).trim());
+}
+
+// ------------------------------------------------ where each player played
+//
+// The second piece of the tactical catalog, and the only block on this page
+// that compares two records the coach already has instead of measuring a new
+// thing. The video says where somebody averaged. The team sheet says which
+// line they were picked in. Nothing here invents a template of where a
+// defender "should" stand — the claim is only ever that two records disagree
+// by more than the measurement could explain.
+//
+// The arithmetic lives in `positionalPlay` (assets/report.js) and the
+// orientation in `orientedCentroid` (assets/heatmap.js), which owns the pitch
+// dimensions. What is left here is layout, and the layout is the feature: one
+// shared axis, eleven bars, grouped by the line each player was picked in. A
+// defender whose bar ends past the whole midfield block is visible before any
+// sentence about it — and a coach who was going to disagree with the sentence
+// can see what it was made of.
+//
+// The rows are always drawn and the remarks often are not. That asymmetry is
+// deliberate: where somebody played is a measurement that stands on its own,
+// and "played out of position" is a verdict that needs the camera and the
+// tracking to have been good enough to carry it.
+
+/**
+ * Every mapped player's average position, oriented, ready for `positionalPlay`.
+ *
+ * Under the preview these are grids synthesised from the sample fixture, for
+ * the same reason the passing network gets invented events: this block writes
+ * nothing back, and it is the only way anybody sees the feature before there is
+ * footage.
+ *
+ * On the real path a player is often several tracked figures, so the grids are
+ * merged by minutes before a centroid is taken — an eight-second fragment at
+ * the edge of frame must not weigh the same as a half. `orientedCentroid`
+ * returns null without an attacking end, which is what silently empties this
+ * list on an uncalibrated run rather than drawing eleven bars in whichever
+ * direction the camera happened to face.
+ */
+function shapeSource() {
+    if (state.cvPreview) {
+        return sampleShapeGrids().map((row) => ({
+            playerId: row.playerId,
+            name: row.name,
+            position: row.position,
+            minutesTracked: row.minutesTracked,
+            ...orientedCentroid(row.grid, 'right'),
+        }));
+    }
+
+    const match = state.match;
+    if (!match) return [];
+
+    const stats = cvStatsByPlayer(match.cv?.identity?.tracks, match.cvMapping, {
+        clusters: match.cv?.identity?.clusters,
+    });
+    const attackingEnd = match.cv?.teams?.team_a?.attacking_end;
+    // The same join `renderPlayerTable` makes, and for the reason spelled out
+    // there: a position is a fact about the squad, not about this match. The
+    // match roster is a snapshot taken when the lineup was set, and it has
+    // never carried one — so reading `player.position` off it would leave this
+    // block saying "give these players a position" on a squad whose positions
+    // were all filled in months ago.
+    const squad = new Map((state.players || []).map((p) => [p.id, p.position]));
+
+    return (match.roster || []).map((player) => {
+        const middle = orientedCentroid(
+            mergeHeatmaps(stats[player.id]?.heatmaps), attackingEnd,
+        );
+        if (!middle) return null;
+        return {
+            playerId: player.id,
+            name: player.playerName,
+            position: squad.get(player.id) ?? null,
+            minutesTracked: stats[player.id]?.minutes_tracked,
+            ...middle,
+        };
+    }).filter(Boolean);
+}
+
+/** A distance up the pitch as a percentage of the axis. */
+function shapePct(metres) {
+    return `${Math.max(0, Math.min(100, (metres / PITCH_LENGTH_M) * 100))}%`;
+}
+
+/**
+ * One player's bar.
+ *
+ * Three things on one track, in the order they matter. The fill runs from the
+ * goal they were defending to where they averaged. The band over it is how far
+ * either way that average could honestly sit — drawn rather than written down,
+ * because two bars whose bands overlap are two bars that should not be compared
+ * and no caption makes that as obvious as the picture does. The pin is the
+ * average itself, kept visible so the band cannot swallow it.
+ *
+ * A row with no band is a row with no verdict attached, and says so under the
+ * bar rather than looking like a row whose band happened to be narrow.
+ */
+function shapeRow(row, remark) {
+    const el = document.createElement('div');
+    el.className = 'shape-row';
+    if (remark) el.classList.add('is-flagged');
+
+    const name = document.createElement('span');
+    name.className = 'shape-name';
+    name.textContent = row.name || 'a player';
+    el.append(name);
+
+    const track = document.createElement('span');
+    track.className = 'shape-track';
+
+    const fill = document.createElement('span');
+    fill.className = 'shape-fill';
+    fill.style.width = shapePct(row.forwardM);
+    track.append(fill);
+
+    if (row.bandM != null) {
+        const lo = Math.max(0, row.forwardM - row.bandM);
+        const hi = Math.min(PITCH_LENGTH_M, row.forwardM + row.bandM);
+        const band = document.createElement('span');
+        band.className = 'shape-band';
+        band.style.left = shapePct(lo);
+        band.style.width = shapePct(hi - lo);
+        track.append(band);
+    }
+
+    const pin = document.createElement('span');
+    pin.className = 'shape-pin';
+    pin.style.left = shapePct(row.forwardM);
+    track.append(pin);
+    el.append(track);
+
+    const value = document.createElement('span');
+    value.className = 'shape-value';
+    value.textContent = `${Math.round(row.forwardM)} m`;
+    el.append(value);
+
+    const sub = document.createElement('span');
+    sub.className = 'shape-sub';
+    sub.textContent = shapeSub(row);
+    el.append(sub);
+    return el;
+}
+
+/** What the bar cannot say by itself. */
+function shapeSub(row) {
+    const held = row.spreadM > 0
+        ? `ranged over ${Math.round(row.spreadM * 2)} m`
+        : null;
+    const tracked = row.minutesTracked > 0
+        ? `${Math.round(row.minutesTracked)} min tracked`
+        : 'barely tracked';
+    // Named for what it is rather than for the threshold it failed. A coach
+    // reading "too wide to compare" learns something about the player; one
+    // reading "band 9.2 m > 8 m" learns something about this file.
+    const wide = row.bandM == null || row.bandM > MAX_BAND_M
+        ? 'too loose to compare'
+        : `±${row.bandM.toFixed(1)} m`;
+    return [held, tracked, wide].filter(Boolean).join(' · ');
+}
+
+/** The scale the bars are read against, drawn once above them. */
+function shapeScale() {
+    const el = document.createElement('div');
+    el.className = 'shape-scale';
+    for (const [label, at] of [['Own goal', 0], ['Halfway', 52.5], ['Their goal', 105]]) {
+        const tick = document.createElement('span');
+        tick.style.left = shapePct(at);
+        tick.textContent = label;
+        el.append(tick);
+    }
+    return el;
+}
+
+function renderShape() {
+    const block = byId('cv-shape-block');
+    if (!block) return;
+
+    const play = positionalPlay(shapeSource(), {
+        coverage: activeCv()?.quality?.pitch_coverage,
+    });
+    block.classList.toggle('hidden', !play.rows.length);
+    if (!play.rows.length) return;
+
+    const byPlayer = new Map(play.remarks.map((r) => [r.playerId, r]));
+    const host = byId('cv-shape-rows');
+    host.innerHTML = '';
+    host.classList.toggle('is-sample-plot', state.cvPreview);
+    host.append(shapeScale());
+
+    // Sorted by how far up the pitch they averaged, inside each line. That is
+    // the same order `positionalPlay` returns, so a line whose players are out
+    // of order relative to the line ahead of it reads as one break in the
+    // sequence rather than as eleven unrelated bars.
+    for (const group of groupByPosition(play.rows)) {
+        if (group.title) {
+            const head = document.createElement('h4');
+            head.className = 'shape-line';
+            head.textContent = group.title;
+            host.append(head);
+        }
+        for (const row of group.players) host.append(shapeRow(row, byPlayer.get(row.playerId)));
+    }
+
+    const remarks = byId('cv-shape-remarks');
+    remarks.innerHTML = '';
+    for (const remark of play.remarks) {
+        const li = document.createElement('li');
+        li.textContent = `${remark.name} ${remark.text} — by `
+            + `${Math.round(remark.gapM)} m at the closest.`;
+        remarks.append(li);
+    }
+    remarks.classList.toggle('hidden', !play.remarks.length);
+
+    setText('cv-shape-lede',
+        'Each bar is where a player averaged over the minutes the video tracked '
+        + 'them, measured up the pitch from the goal they were defending. The '
+        + 'pale band is how firmly that average is pinned down — two bars '
+        + 'whose bands overlap are two players who played the same height.');
+
+    setText('cv-shape-note', [
+        play.note,
+        // Said every time, not only when a remark appears. The absence of a
+        // remark is the common case and reads as "nothing to see" unless the
+        // reader knows what was and was not being looked for.
+        !play.withheld && !play.remarks.length
+            ? 'Nobody played far enough out of their line for it to mean '
+                + 'anything, which is the usual answer and a real one.'
+            : null,
+        'Sides are not checked. A position here is a line, not a wing, so a '
+        + 'right-back who spent the match on the left is something to spot in '
+        + 'the bars rather than something this can flag.',
+    ].filter(Boolean).join(' '));
 }
 
 // ------------------------------------------------------ how the ball moved
@@ -2074,6 +2313,7 @@ function toggleSample() {
 
     renderShots();
     renderPassing();
+    renderShape();
     renderPressing();
     renderSubs();
     renderExcluded();
@@ -2871,8 +3111,32 @@ async function clearMatchThumbs(button) {
  */
 let mappingSaveTimer = null;
 function queueMappingSave() {
+    // The screen changes now; only the write waits. These three were redrawn
+    // inside `saveMappingNow` until this line existed, which meant they lagged
+    // the coach by 600 ms and did not redraw at all when the write failed —
+    // leaving the passing map drawing lines to a player who had just been
+    // unmapped, and the shape bars standing under a name nobody had claimed.
+    redrawMappedViews();
     clearTimeout(mappingSaveTimer);
     mappingSaveTimer = setTimeout(saveMappingNow, 600);
+}
+
+/**
+ * Everything drawn from the coach's cluster mapping, and nothing else.
+ *
+ * A smaller list than `redrawShotViews`, on purpose: these blocks do not read
+ * the review, so putting them on that redraw would say they went stale in
+ * places they cannot.
+ */
+function redrawMappedViews() {
+    if (state.match?.stats?.players) {
+        mergeCvPlayers(
+            state.match.stats.players, state.match, state.match.stats.matchEndS,
+        );
+        renderPlayerTable(state.match.stats.players);
+    }
+    renderPassing();
+    renderShape();
 }
 
 async function saveMappingNow() {
@@ -2883,11 +3147,6 @@ async function saveMappingNow() {
             state.user, state.team.id, state.match.id, state.match.cvMapping,
         );
         if (badge) badge.textContent = 'Saved';
-        // The per-player table reads the mapping, so it has to be rebuilt.
-        mergeCvPlayers(
-            state.match.stats.players, state.match, state.match.stats.matchEndS,
-        );
-        renderPlayerTable(state.match.stats.players);
     } catch (err) {
         if (badge) badge.textContent = '';
         toast(err.message || 'Could not save that match-up.', true);

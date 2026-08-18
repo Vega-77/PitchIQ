@@ -3420,3 +3420,136 @@ input[type="file"]::file-selector-button:hover {
 
 /* A pair of small buttons on one line — back out, or take it with you. */
 .row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Where each player actually played.
+
+   One axis, eleven bars, grouped by the line the coach picked them in — so the
+   comparison a coach came here to make is the one the layout makes for them,
+   and a defender whose bar ends past the midfield block is visible before any
+   sentence about it.
+
+   Every bar shares the same track, drawn full width from the goal they were
+   defending to the goal they were attacking. That is the whole reason the block
+   works: bars measured from the deepest player instead would put somebody at
+   zero on every team sheet ever written. */
+.shape-rows { display: grid; gap: 10px; max-width: 640px; }
+
+/* The scale, once, above the bars rather than repeated under each. The labels
+   sit at their own positions, so the first and last are pulled inside the track
+   instead of hanging off its ends. */
+.shape-scale {
+    position: relative;
+    height: 1.1rem;
+    /* Left of the track sits the name column, right of it the value column,
+       so a ruler that stops at the container instead of at the bar is a
+       ruler that lies: measured at 1280 it put 'Halfway' 28.8 px right of
+       the track's midpoint and 'Their goal' 57.6 px past the bar's end.
+       Both margins mirror the row's own grid. */
+    margin: 0 calc(2.8rem + 10px) 2px calc(5.6rem + 10px);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+}
+.shape-scale > span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.shape-scale > span:first-child { transform: none; }
+.shape-scale > span:last-child { transform: translateX(-100%); }
+
+.shape-line {
+    margin: 12px 0 2px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+.shape-rows > .shape-line:first-of-type { margin-top: 4px; }
+
+.shape-row {
+    display: grid;
+    grid-template-columns: 5.6rem minmax(0, 1fr) 2.8rem;
+    grid-template-areas: 'name track value' '. sub sub';
+    align-items: center;
+    gap: 3px 10px;
+}
+.shape-name {
+    grid-area: name;
+    font-size: 0.84rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.shape-track {
+    grid-area: track;
+    position: relative;
+    height: 14px;
+    border-radius: 7px;
+    background: var(--line);
+    min-width: 0;
+}
+.shape-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    border-radius: 7px;
+    background: var(--accent);
+}
+/* How firmly the average is pinned down, over the fill rather than beside it.
+   Two bands that overlap are two players who cannot be told apart, and that
+   only reads at a glance if both are on the same line. */
+.shape-band {
+    position: absolute;
+    top: -2px;
+    height: 18px;
+    border-radius: 4px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-dim);
+}
+/* The average itself, kept on top so a wide band cannot swallow the one figure
+   the row is actually reporting. */
+.shape-pin {
+    position: absolute;
+    top: -3px;
+    width: 2px;
+    height: 20px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--accent-hi);
+}
+.shape-value {
+    grid-area: value;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 0.88rem;
+}
+.shape-sub {
+    grid-area: sub;
+    font-size: 0.74rem;
+    color: var(--text-dim);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+/* A player the remarks below have something to say about. Warned rather than
+   accented: the row is not better or worse, it is the one being pointed at. */
+.shape-row.is-flagged .shape-fill { background: var(--warn); }
+.shape-row.is-flagged .shape-pin { background: var(--warn); }
+.shape-row.is-flagged .shape-name { font-weight: 700; }
+
+.shape-remarks {
+    margin: 14px 0 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 6px;
+    font-size: 0.86rem;
+}
+.shape-remarks li::marker { color: var(--warn); }
+
+/* The name column costs more than it is worth on a phone, where the bars are
+   already short. Stacked, the name gets the full width and the bar keeps it. */
+@media (max-width: 560px) {
+    .shape-scale { margin-left: 0; margin-right: 0; }
+    .shape-row {
+        grid-template-columns: minmax(0, 1fr) 2.8rem;
+        grid-template-areas: 'name value' 'track track' 'sub sub';
+        gap: 4px 10px;
+    }
+}

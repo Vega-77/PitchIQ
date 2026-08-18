@@ -142,7 +142,7 @@ export async function filmed() {
     // them all; a stamp in here would be a copy of that number nothing updates,
     // and it would go stale silently rather than fail. sample-report.js imports
     // nothing, so a second instance of it costs nothing either.
-    const { sampleCvSummary, samplePassEvents } =
+    const { sampleCvSummary, samplePassEvents, sampleShapeGrids } =
         await import('../assets/sample-report.js');
     const cv = sampleCvSummary();
     const base = `teams/${TEAM_ID}/matches/${MATCH_ID}`;
@@ -156,6 +156,20 @@ export async function filmed() {
 
     const figures = clusters();
 
+    // Where each figure spent the match. Real grids rather than the nulls the
+    // cluster rows above carry, because a track's heatmap has exactly one
+    // reader — the coach page's "where each player played" block — and with
+    // nulls here every step from the coach's mapping to a drawn bar went
+    // untested.
+    //
+    // Assigned so the two *mapped* figures agree with the roster they are
+    // mapped to: cluster 0 is p-rae, a midfielder, and cluster 3 is p-alex, a
+    // forward. A fixture that put the forward behind the midfielder would make
+    // the block's out-of-line remark fire on a fixture nobody designed to
+    // produce one, and every later test would then be written against it.
+    const gridOf = new Map(sampleShapeGrids().map((row) => [row.playerId, row.grid]));
+    const shapeOf = ['lcm', 'rb', 'lcb', 'st', 'rcm', 'dm'];
+
     return {
         ...fixture(),
         [`${base}/cvStats/summary`]: cv,
@@ -164,12 +178,12 @@ export async function filmed() {
             // Enough of a track row for the picker and the per-player rollups;
             // the pipeline writes far more per track, and nothing on this page
             // reads a field that is not here.
-            tracks: figures.map((figure) => ({
+            tracks: figures.map((figure, index) => ({
                 cluster_id: figure.cluster_id,
                 team: figure.team,
                 track_ids: figure.track_ids,
                 minutes_tracked: figure.minutes_tracked,
-                heatmap: null,
+                heatmap: gridOf.get(shapeOf[index]) || null,
             })),
             playerByCluster: {},
         },

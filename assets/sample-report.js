@@ -61,6 +61,13 @@ export function isSample(value) {
 
 const COLS = 12;
 const ROWS = 8;
+// A cell in metres. Written out rather than imported from `pitch-backdrop.js`
+// because this module has no imports and the tests that read it rely on that —
+// same reason COLS and ROWS are literals here rather than read from
+// `cv/metrics.py`. The pitch is the one `Pitch` defaults to; a fixture built on
+// a different pitch would place every player somewhere they never stood.
+const CELL_LENGTH_M = 105 / COLS;
+const CELL_WIDTH_M = 68 / ROWS;
 
 /**
  * A plausible occupancy grid for a player who lived in one part of the pitch.
@@ -587,6 +594,75 @@ export function samplePassEvents() {
     }
 
     return events;
+}
+
+// Which line each invented figure was put in, and how much ground they covered.
+//
+// `spread` is the standard deviation of their occupancy along the pitch, in
+// grid cells, and it is the figure the whole block turns on: a mean position is
+// only worth comparing if it is the mean of something narrow. The values are
+// ordered the way a team is — centre-backs hold a band, full-backs and wingers
+// run a channel — because a fixture where everybody covered the same ground
+// would draw eleven identical bars and teach nobody anything about the plot.
+//
+// None of them is wide enough to be withheld. That is deliberate: the withheld
+// cases each have a test, and the preview is the one place a coach sees what
+// the *working* version reads like.
+const SAMPLE_LINES = {
+    gk: ['gk', 0.7], rb: ['def', 1.5], rcb: ['def', 0.9], lcb: ['def', 0.9],
+    lb: ['def', 1.5], dm: ['mid', 1.0], rcm: ['mid', 1.3], lcm: ['mid', 1.3],
+    rw: ['fwd', 1.4], st: ['fwd', 1.2], lw: ['fwd', 1.4],
+};
+
+/**
+ * Each invented player's occupancy grid, ready to be turned into a position.
+ *
+ * Built from the same `SAMPLE_SHAPE` the passing network is drawn from, so the
+ * two plots in the preview describe one team rather than two — the rule the
+ * heatmap fixture above already set for itself.
+ *
+ *     Where the fixture is simpler than a real run, and says so.
+ *
+ * On real footage these two would not agree, and should not be expected to.
+ * `SAMPLE_SHAPE` holds mean **pass origins**; this block reads mean
+ * **occupancy**. A full-back who overlaps spends time high up the pitch and
+ * still passes from deep, so the video will place them further forward here
+ * than the network does. The fixture collapses that difference because it has
+ * only one set of positions to work from, and a preview that showed the same
+ * player in two places would read as a bug rather than as the two different
+ * questions it is.
+ *
+ * Metres in, cells out: the grid is 12x8 over 105x68, so a cell is 8.75m by
+ * 8.5m and the centre of cell `i` sits at `(i + 0.5)` cells. Nothing else in
+ * this file needs that conversion, which is why it is not a shared helper —
+ * `sampleHeatmap` takes cells because the blob it draws is drawn in cells.
+ */
+export function sampleShapeGrids() {
+    return SAMPLE_SHAPE.map(([, playerId, xM, yM]) => {
+        const [position, spread] = SAMPLE_LINES[playerId];
+        return {
+            playerId,
+            name: SAMPLE_NAMES[playerId],
+            position,
+            // Tracked for most of the half but not all of it, which is what the
+            // 83% ball coverage and 3.4 fragments per player above imply. A
+            // fixture claiming a full 45 would hide the term in the band that
+            // depends on it.
+            minutesTracked: 38.5,
+            grid: sampleHeatmap({
+                cx: xM / CELL_LENGTH_M - 0.5,
+                cy: yM / CELL_WIDTH_M - 0.5,
+                spread,
+                // One blob, not two. The default fixture is a station with a
+                // run off it because it belongs to one player taking shots; a
+                // whole team drawn that way would give every figure the same
+                // second home, which is a pattern and not a team.
+                weight2: 0,
+                cx2: 0,
+                cy2: 0,
+            }),
+        };
+    });
 }
 
 const SAMPLE_NAMES = {

@@ -1438,6 +1438,129 @@ estimator has to argue with it. `SCHEMA_VERSION` 12 → 13.
 
 684 pure JS · 25 pages · 145 emulator · **1120 Python**.
 
+**Where they played against the line they were picked in, 2026-08-18.** The
+last item in the [MVP] post-game tactical catalog above that needed no footage:
+"individual positional discipline: heatmap vs. assigned role". Two records
+already in the database and never once compared — the pipeline's occupancy grid,
+which is where a player actually was, and the position the coach typed into the
+squad list, which is where they were meant to be.
+
+*A reconciliation, so it names a disagreement and never a culprit.* Neither
+record is the truth. The grid can be wrong because the camera favoured one end;
+the assignment can be wrong because a coach filled it in months ago and the
+player has changed roles since. So the block says "your left-back averaged
+further forward than either centre-back" and stops. It never says out of
+position, and it never scores anybody.
+
+*The centroid is not the hard part; knowing when it is worth quoting is.* A mean
+position collapses ninety minutes into one dot, and two dots four metres apart
+mean nothing at all if either player ranged over twenty. Each row therefore
+carries a band, not just a point: `POSITION_SIGMAS * spread * sqrt(WANDER_TAU_S
+/ (30 * minutes))` — the standard error of the mean, with the sample count taken
+as independent looks at the player rather than frames, because consecutive
+frames of a footballer are not independent evidence about anything.
+`WANDER_TAU_S = 60` is the correlation time assumed: a player's position tells
+you roughly where they will be a minute later and roughly nothing about where
+they were twenty minutes ago. It is an assumption and is labelled as one; what
+makes it safe is that it is applied only to *withhold* comparisons, never to
+make one.
+
+Two players are only called apart when the distance between them clears
+`hypot(bandA, bandB) + COVERAGE_MARGIN_M`, floored at `POSITION_FLOOR_M = 5`.
+The margin **adds** rather than combining in quadrature with the bands, and that
+is deliberate: the bands are noise and compose the way noise does, but uneven
+camera coverage is a *bias* — it pulls every player on that side of the pitch
+the same way at once, and a bias does not shrink by being added in quadrature.
+Above `MAX_BAND_M = 8` a player is measured and never compared: that gate
+catches a roamer at one end and a player tracked for two minutes at the other,
+and both mean the same thing.
+
+*What binning the pitch into 8.75 m cells actually costs, measured.* The whole
+feature reads metres off a twelve-by-eight grid, so this had to be a number
+rather than a hope. Swept in 0.25 m steps across every mean position, for
+spreads of 4 m to 20 m:
+
+| mean position | worst error | median |
+|---|---|---|
+| 8–97 m (outfield) | 0.229 m | 0.012 m |
+| 4–101 m (all of it) | 0.475 m | 0.013 m |
+
+and against how tightly the player held their ground: **2.29 m** at a 1 m
+spread, 0.97 m at 2 m, 0.29 m at 3 m. Both worst cases describe the same person
+— a keeper, near a goal line, moving less than anybody — and keepers are
+measured here and never judged. Spread gets Sheppard's correction, `cellW² /
+12`, which recovers a true 4.0 m from 4.73 m binned to 3.999 m; but that 0.01 m
+is an average over where the mean falls inside its cell, and one player has one
+phase rather than an average of them. Per phase, a true 4 m reads 3.85 m to
+4.14 m and a true 3 m reads 2.17 m to 3.65 m. Harmless only because
+`POSITION_FLOOR_M` is what binds the comparison for a 3 m player past about ten
+minutes tracked and a 4 m player past about eighteen. All of it is pinned as
+literals in `tests/video.test.js` against a deterministic quadrature harness, so
+changing the grid shape or the correction argues with a test rather than with a
+stale docstring.
+
+Re-measuring rather than transcribing is how two figures already shipped in
+those docstrings were caught: the centroid sweep had been run over the outfield
+and quoted as though it covered the pitch, and the correction's phase-average
+had been quoted as a per-player guarantee. Neither was wrong by much. Both were
+wrong in the direction of sounding more certain than the arithmetic was.
+
+*The verdict is withheld far more often than it is given, on purpose.* Four
+separate ways: the camera saw the thirds unevenly (`COVERAGE_SPREAD_MAX = 0.2`),
+the coverage figure is missing entirely so nobody can check, nobody in the squad
+has a position recorded, or too few players survive the band gate. In every one
+of them the rows still render — the measurement is real and stands on its own,
+and only the comparison goes. A "line" claim is also all-or-nothing: being ahead
+of the whole midfield is a statement about the whole midfield and cannot be made
+from two of its three, so one untrackable midfielder removes the midfield from
+every comparison rather than quietly shrinking it.
+
+*Three defects the tests found, two of them in code that was already written.*
+The first was live: `shapeSource` read `player.position` off the match roster,
+where `setLineup` has never written one, so every real match resolved every
+position to null, `positionalPlay` returned `withheld: 'no-lines'`, and the
+comparison silently did nothing on every match that had ever been played. It was
+visible only because a fixture carrying real occupancy grids forced the
+production path through a test instead of the sample preview. The second:
+`Number(null)` is `0` and `0` is finite, so a third the run never measured
+arrived as a camera that saw nothing of that end — 'uneven' instead of
+'unknown', the wrong note under the bars, and the same trap this project had
+already caught once in the shot map. The third was arithmetic working exactly as
+specified and still being wrong to read: the comparison is symmetric, so a lone
+striker dropping in flagged himself **and** all four defenders he dropped behind
+— five remarks for one thing that happened, in the most ordinary shape there is.
+When two lines have swapped over entirely it is now said from the smaller side
+only. Not because the smaller side is at fault, which nothing here can know, but
+because both sentences are the same sentence.
+
+*A fourth defect, which no test could have caught.* The smoke suite is explicit
+that it does not say anything is laid out correctly, so the block was measured in
+a real engine instead: the rendered markup was dumped through that same harness
+and served, and every box read back at 375, 768 and 1280. Nothing overflowed and
+nothing clipped at any width — but the scale strip under the bars was reading
+from the wrong ruler. It stopped at the container's right edge rather than at the
+end of the track, because it carried a left margin for the name column and no
+matching right margin for the value column, so above 560 px "Halfway" sat
+**28.8 px** right of the track's midpoint and "Their goal" ended **57.6 px** past
+the end of the bar it labels. A ruler that disagrees with the thing it measures
+is worse than no ruler; both margins now mirror the row's own grid, and the scale
+box measures 128.2 → 591.4 against a track of 128.2 → 591.4, with the midpoint
+label centred at 359.8 against a track centre of 359.8. Mobile was already exact
+and stayed exact.
+
+*One thing worth stating before somebody reports it as a bug.* The passing
+network draws each player at their mean **pass origin**; this draws them at
+their mean **occupancy**. Those are different means over different samples and
+they will not agree — a striker who touches the ball twice in the final third
+and otherwise presses is in two visibly different places on the two pitches.
+Both are correct.
+
+**31 browser tests** — five describe blocks over `gridCentroid`, `gridSpread`,
+`orientedCentroid`, `positionBand`, `coverageVerdict` and `positionalPlay` — and
+**2 page tests**. No schema change: every input was already being published.
+
+715 pure JS · 27 pages · 145 emulator · 1120 Python.
+
 ---
 
 ## Stats & Insights Catalog
@@ -1462,11 +1585,11 @@ shots, and xG are what's at risk.*
 **Coach — Post-Game Tactical** *(reviewer-confirmed data, full match)*
 - Everything from halftime, full-match and half-by-half comparison
 - Passing network: who combines with whom, completion rate by pair/zone
-- Phase-of-play breakdown: buildup vs. progression vs. final-third entry success
+- Phase-of-play breakdown: buildup vs. progression vs. final-third entry success — **built 2026-08-16 and never marked here;** `phase_of_play` (`cv/sequences.py`) is wired at `cv/pipeline.py:818` and rendered at `assets/report.js:2493`
 - Defensive line height and pressing intensity trend — **the trend built 2026-08-14 (task #79), the height 2026-08-18;** the height carries a measured correction for sparse tracking and is absent rather than guessed below six tracked outfielders
 - Set-piece outcomes (corner delivery zones, aerial duels won)
 - Substitution impact: team stats in the window before vs. after each sub (exact sub timing comes straight from Phase 3's live log) — **built 2026-08-15, and shipped under a different name;** see the Phase 13 entry for why "impact" is a promise the arithmetic cannot keep
-- Individual positional discipline: heatmap vs. assigned role
+- Individual positional discipline: heatmap vs. assigned role — **built 2026-08-18;** a reconciliation of the occupancy grid against the coach's own position assignment, which withholds its verdict far more often than it gives one
 
 **Player — Individual Post-Game Report**
 - Distance covered, sprint count, top speed (with season-average context once history exists)
