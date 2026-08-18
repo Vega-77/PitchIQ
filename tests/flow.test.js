@@ -504,16 +504,20 @@ describe('knowing what has reached the server', () => {
     /**
      * Wait for a metadata-bearing snapshot that satisfies `ready`.
      *
-     * **The timeout is cleared when the promise settles, and that is the whole
-     * reason this suite used to poison the one after it.** The first version
+     * **The timeout is cleared when the promise settles.** The first version
      * left every 5s timer running: this test calls `until` four times, so four
      * strays fired five seconds later — into whatever test happened to be
      * running by then — each calling `stop()` on a listener already torn down.
-     * `erasing a player` starts inside that window, and the cancelled `Listen`
-     * stream raced its `beforeEach` `clearFirestore`, which came back as a 499
-     * "call already cancelled" on a test that touches none of this.
+     * Firing timers into unrelated tests is worth not doing on its own merits,
+     * so the clearing stays.
      *
-     * That failure looked random for weeks. It was a timer nobody cancelled.
+     * **It was not the cause of the 499**, which is what this comment claimed
+     * until 17 August. That fix landed on the 15th against three clean runs —
+     * p = 0.125 against a coin-flip failure — and the flake outlived it,
+     * reproducing 4 times in 12 on a cold emulator two days later. What
+     * actually produces it is the live `Listen` streams this suite opens
+     * meeting `clearFirestore`; the measured account is on the `clearFirestore`
+     * wrapper at the top of this file.
      */
     function until(db, ready) {
         return new Promise((resolve, reject) => {
