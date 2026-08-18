@@ -28,6 +28,7 @@ from cv.publish import (
     MAX_PARTICIPANT_NOTES,
     events_payload,
     identity_payload,
+    merge_tracks,
     thumbs_payload,
     participant_notes,
     player_report_fields,
@@ -378,6 +379,119 @@ class TestPerPlayerGate:
         written = publish(a_report(), 'team1', 'match1', {'99': 'playerA'}, client=client)
         assert written['playerReports'] == 0
         assert any('no stats' in note for note in written['skipped'])
+
+
+class TestOnePlayerSeveralFigures:
+    """A student tracked as two figures is one student.
+
+    The tracker loses people when they leave frame and `cv/identity.py` only
+    rejoins fragments a couple of seconds apart, so anyone who went off and came
+    back stays split. The cluster picker lets a coach map both figures to the
+    same player on purpose — `cvStatsByPlayer` in assets/report.js says so in
+    its docstring, and sums them.
+
+    This side wrote one document per cluster, so the second write replaced the
+    first and the student's own report showed whichever fragment came last in
+    the mapping. The coach's screen said 54 touches and 7.3 km; the student's
+    page said 24 and 3.1, for the same afternoon.
+    """
+
+    @staticmethod
+    def two_fragments():
+        return [
+            {'cluster_id': 0, 'team': 'team_a', 'touches': 30,
+             'passes_attempted': 20, 'passes_completed': 16, 'pass_accuracy': 0.8,
+             'carries': 5, 'tackles': 2, 'interceptions': 1, 'recoveries': 3,
+             'shots': 2, 'xg': 0.3, 'distance_m': 4200.0, 'top_speed_kmh': 27.0,
+             'sprint_count': 9, 'minutes_tracked': 28.0, 'position_noise_m': 0.4,
+             'touch_times_s': [90.0, 30.0], 'heatmap': [[1.0, 0.0], [0.0, 2.0]]},
+            {'cluster_id': 1, 'team': 'team_a', 'touches': 24,
+             'passes_attempted': 15, 'passes_completed': 10, 'pass_accuracy': 0.667,
+             'carries': 4, 'tackles': 1, 'interceptions': 0, 'recoveries': 2,
+             'shots': 1, 'xg': 0.1, 'distance_m': 3100.0, 'top_speed_kmh': 29.5,
+             'sprint_count': 7, 'minutes_tracked': 21.0, 'position_noise_m': 1.9,
+             'touch_times_s': [60.0], 'heatmap': [[0.0, 3.0], [1.0, 0.0]]},
+        ]
+
+    def published(self):
+        client = GuardedClient()
+        report = a_report(
+            tracks=self.two_fragments(),
+            clusters=[{'cluster_id': 0, 'track_ids': [1]},
+                      {'cluster_id': 1, 'track_ids': [2]}],
+        )
+        written = publish(
+            report, 'team1', 'match1',
+            {'0': 'playerA', '1': 'playerA'}, client=client,
+        )
+        return written, client.store[
+            'teams/team1/matches/match1/playerReports/playerA'
+        ]
+
+    def test_one_player_is_one_report(self):
+        written, _ = self.published()
+        assert written['playerReports'] == 1, (
+            'two figures of one player were counted as two published reports'
+        )
+
+    def test_what_they_did_adds_up(self):
+        _, fields = self.published()
+        assert fields[f'{CV_FIELD_PREFIX}Touches'] == 54
+        assert fields[f'{CV_FIELD_PREFIX}DistanceM'] == 7300.0
+        assert fields[f'{CV_FIELD_PREFIX}MinutesTracked'] == 49.0
+        assert fields[f'{CV_FIELD_PREFIX}Shots'] == 3
+
+    def test_top_speed_is_the_fastest_they_ran_not_the_last(self):
+        _, fields = self.published()
+        assert fields[f'{CV_FIELD_PREFIX}TopSpeedKmh'] == 29.5
+
+    def test_the_wobble_is_taken_at_the_worst_fragment(self):
+        """A player assembled from a clean track and a jittery one is only as
+        trustworthy as the jittery one, and an average would hide that."""
+        _, fields = self.published()
+        assert fields[f'{CV_FIELD_PREFIX}PositionNoiseM'] == 1.9
+
+    def test_accuracy_is_recomputed_rather_than_averaged(self):
+        """26 of 35, not the mean of 0.8 and 0.667."""
+        _, fields = self.published()
+        assert fields[f'{CV_FIELD_PREFIX}PassAccuracy'] == pytest.approx(26 / 35)
+
+    def test_the_touches_come_back_as_a_timeline(self):
+        """Fragments arrive in mapping order, and a touch strip in mapping order
+        is not a timeline — the player portal marks these on the video."""
+        _, fields = self.published()
+        assert fields[f'{CV_FIELD_PREFIX}TouchTimes'] == [30.0, 60.0, 90.0]
+
+    def test_the_heatmap_covers_both_halves_of_their_match(self):
+        _, fields = self.published()
+        assert fields[f'{CV_FIELD_PREFIX}Heatmap']['values'] == [1.0, 3.0, 1.0, 2.0]
+
+    def test_a_question_no_fragment_answered_stays_unanswered(self):
+        """None is not zero. A fragment too short to measure a burst contributes
+        nothing to the count rather than pulling it towards none."""
+        tracks = self.two_fragments()
+        for track in tracks:
+            track['accelerations'] = None
+        merged = merge_tracks(tracks)
+        assert merged['accelerations'] is None
+
+    def test_one_fragment_answering_is_enough(self):
+        tracks = self.two_fragments()
+        tracks[0]['accelerations'] = None
+        tracks[1]['accelerations'] = 4
+        assert merge_tracks(tracks)['accelerations'] == 4
+
+    def test_grids_of_different_shapes_are_no_grid(self):
+        """Every heatmap comes from the same `Pitch`, so a mismatch means two
+        runs got mixed. Half a heatmap is worse than none."""
+        tracks = self.two_fragments()
+        tracks[1]['heatmap'] = [[1.0, 2.0, 3.0]]
+        assert merge_tracks(tracks)['heatmap'] is None
+
+    def test_one_figure_is_passed_through_untouched(self):
+        """The overwhelmingly common case, and it must not go near the merge."""
+        one = self.two_fragments()[0]
+        assert merge_tracks([one]) is one
 
 
 class TestPayloads:

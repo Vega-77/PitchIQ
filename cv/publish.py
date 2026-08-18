@@ -453,6 +453,102 @@ def _flat_heatmap(grid) -> dict | None:
     }
 
 
+# How each figure's numbers combine when a coach names two of them as the same
+# person. Kept identical to `SUMMED` and `MAXED` in assets/report.js — the two
+# sides publish the same player's match to two different screens, and a stat
+# that adds on one and replaces on the other is one match told two ways.
+SUMMED_FIELDS = (
+    'touches', 'passes_attempted', 'passes_completed', 'carries',
+    'tackles', 'interceptions', 'recoveries', 'shots', 'goals', 'xg',
+    'distance_m', 'sprint_count', 'sprint_distance_m', 'minutes_tracked',
+    'accelerations',
+)
+# Taken at the worst fragment rather than averaged. A player assembled from a
+# clean track and a jittery one is only as trustworthy as the jittery one, and
+# an average would hide that behind the clean half.
+MAXED_FIELDS = ('top_speed_kmh', 'position_noise_m')
+
+
+def merge_tracks(tracks: list[dict]) -> dict:
+    """Several tracked fragments of one person, added up as one person.
+
+    A player is legitimately several clusters. The tracker loses people when
+    they leave frame and `cv/identity.py` only rejoins fragments seconds apart,
+    so anyone who went off and came back stays split — and the picker lets a
+    coach say so on purpose, because a wrong automatic merge would credit one
+    student with another's work and could not be undone.
+
+    Until 2026-08-17 this function did not exist and the loop below wrote one
+    document per *cluster*. Two fragments of the same player meant two writes to
+    the same report, so the second silently replaced the first and the student
+    was shown whichever fragment happened to come last in the mapping: 24
+    touches of 54, 3.1 km of 7.3. The browser has always summed them, and says
+    so in `cvStatsByPlayer`'s docstring — so the coach's screen and the
+    student's own report disagreed about the same afternoon, with the student's
+    the smaller of the two.
+
+    None is not zero anywhere here. A fragment too short to answer a question
+    contributes nothing to it rather than pulling the total towards none, and a
+    player whose fragments all declined to answer ends with no figure at all.
+    """
+    if len(tracks) == 1:
+        return tracks[0]
+
+    # Longest first, so the fields that cannot be combined — which team this
+    # figure was on — come from the fragment with the most evidence behind them.
+    ordered = sorted(tracks, key=lambda t: t.get('minutes_tracked') or 0, reverse=True)
+    merged = dict(ordered[0])
+
+    for field in SUMMED_FIELDS:
+        values = [t.get(field) for t in ordered if t.get(field) is not None]
+        merged[field] = sum(values) if values else None
+    for field in MAXED_FIELDS:
+        values = [t.get(field) for t in ordered if t.get(field) is not None]
+        merged[field] = max(values) if values else None
+
+    # Recomputed, never averaged: the accuracy of two fragments is the accuracy
+    # of everything they attempted between them.
+    attempted = merged.get('passes_attempted')
+    merged['pass_accuracy'] = (
+        (merged.get('passes_completed') or 0) / attempted if attempted else None
+    )
+
+    touches: list[float] = []
+    shots: list[dict] = []
+    for track in ordered:
+        touches.extend(track.get('touch_times_s') or [])
+        shots.extend(track.get('shot_map') or [])
+    # Sorted, because the fragments arrive in mapping order and a touch strip in
+    # mapping order is not a timeline.
+    merged['touch_times_s'] = sorted(touches)
+    merged['shot_map'] = sorted(shots, key=lambda s: s.get('video_s') or 0)
+
+    merged['heatmap'] = _merge_heatmaps([t.get('heatmap') for t in ordered])
+    merged['cluster_ids'] = sorted(t.get('cluster_id') for t in ordered)
+    return merged
+
+
+def _merge_heatmaps(grids) -> list[list[float]] | None:
+    """Occupancy grids added cell by cell, or None if nobody had one.
+
+    Cell-wise because a heatmap counts time spent, and where a player stood
+    before they left the frame is as much part of their match as where they
+    stood after. Grids of different shapes are a bug rather than a case to
+    handle: every one comes from the same `Pitch`, so a mismatch means two runs
+    got mixed and the honest answer is no heatmap at all.
+    """
+    present = [g for g in grids if g]
+    if not present:
+        return None
+    shape = (len(present[0]), len(present[0][0]) if present[0][0] else 0)
+    if any((len(g), len(g[0]) if g[0] else 0) != shape for g in present):
+        return None
+    return [
+        [sum(g[col][row] for g in present) for row in range(shape[1])]
+        for col in range(shape[0])
+    ]
+
+
 def publish(
     report_json: dict,
     team_id: str,
@@ -507,6 +603,10 @@ def publish(
         str(track['cluster_id']): track for track in report_json.get('tracks') or []
     }
 
+    # Grouped by player before anything is written, so a student named as two
+    # tracked figures gets one document holding both of them rather than two
+    # writes where the last one wins. See `merge_tracks`.
+    tracks_for: dict[str, list[dict]] = {}
     for cluster_id, player_id in mapping.items():
         # The coach's way of saying a tracked figure is nobody — a referee, or
         # somebody on the bench. It shares the map with real player ids because
@@ -520,6 +620,10 @@ def publish(
         if track is None:
             written['skipped'].append(f'cluster {cluster_id}: no stats for it')
             continue
+        tracks_for.setdefault(player_id, []).append(track)
+
+    for player_id, player_tracks in tracks_for.items():
+        track = merge_tracks(player_tracks)
 
         report_ref = match_ref.collection('playerReports').document(player_id)
         # Update, never create: a report exists because a coach published the
