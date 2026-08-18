@@ -760,6 +760,104 @@ test('the calibrate page comes up with its picker ready', async () => {
     });
 
     assert.ok(globalThis.window._calib, 'the calibration seam was never installed');
+    assert.equal(
+        live.document.querySelectorAll('#landmark-list button').length, 27,
+        'the landmark list is not the 27 places pitch-model.js knows',
+    );
+});
+
+test('the calibrate page says which of four things is wrong', async () => {
+    // The picker's solver is checked against the pipeline's in
+    // tests/test_calibration_parity.py, to 0.2mm. What was never checked is the
+    // sentence underneath it — and the sentence is the whole product here. A
+    // coach does not read a homography; they read one line telling them whether
+    // to save this or click again, and clicking again is the wrong answer for
+    // two of the four states below.
+    //
+    // Same synthetic sideline camera as the parity test, so a landmark clicked
+    // perfectly lands where that camera would have seen it and every error
+    // figure below is one this page produced rather than one the fixture built
+    // in.
+    await openPage({
+        html: 'calibrate/index.html',
+        entry: 'calibrate/calibrate.js',
+        url: 'http://localhost:5000/calibrate/',
+        user: null,
+        variant: 'verdicts',
+    });
+
+    const { landmarks } = await import(
+        new URL('calibrate/pitch-model.js', root).href
+    );
+    const CAMERA = [
+        [11.5, 2.1, 240.0],
+        [-1.4, -9.8, 700.0],
+        [0.0009, -0.0035, 1.0],
+    ];
+    const project = (x, y) => {
+        const w = CAMERA[2][0] * x + CAMERA[2][1] * y + CAMERA[2][2];
+        return [
+            (CAMERA[0][0] * x + CAMERA[0][1] * y + CAMERA[0][2]) / w,
+            (CAMERA[1][0] * x + CAMERA[1][1] * y + CAMERA[1][2]) / w,
+        ];
+    };
+
+    const marks = landmarks(105, 68);
+    const seam = globalThis.window._calib;
+    // The picker only reports a spread once it knows how big the picture is,
+    // which loading an image is what normally sets.
+    seam.state.imageSize = [1920, 1080];
+
+    const place = (names, moved = null) => {
+        seam.state.points.clear();
+        for (const name of names) {
+            seam.state.points.set(name, project(...marks[name]));
+        }
+        if (moved) {
+            const [name, dx] = moved;
+            seam.state.points.set(name, project(marks[name][0] + dx, marks[name][1]));
+        }
+        seam.renderAll();
+        return text('preview-note');
+    };
+
+    const ONE_END = [
+        'corner_top_left', 'corner_bottom_left',
+        'pen_left_top_corner', 'pen_left_bottom_corner',
+    ];
+    const SPREAD = [
+        ...ONE_END, 'halfway_top', 'halfway_bottom', 'pen_spot_left', 'centre_spot',
+    ];
+
+    // 1. Too few to fit at all — a count, not a verdict, and never an error.
+    assert.match(place(SPREAD.slice(0, 3)), /Place 1 more point/);
+
+    // 2. Bunched. Said *before* anything about how small the errors are,
+    //    because a tight cluster reports a beautiful error and is wrong
+    //    everywhere else — which is exactly what this case is: perfect clicks,
+    //    0.00m, and a fit nobody should trust.
+    const bunched = place(ONE_END);
+    assert.match(bunched, /0\.00m/);
+    assert.match(bunched, /only cover 13% of the picture/);
+    assert.ok(!bunched.includes('Good fit'),
+        'a fit that covers an eighth of the frame was called good');
+
+    // 3. Well spread and clicked perfectly.
+    const good = place(SPREAD);
+    assert.match(good, /Good fit/);
+    assert.match(good, /35%/);
+
+    // 4. One landmark six metres out. The page must not blame the clicking:
+    //    mild barrel distortion produces the same picture with every point
+    //    clicked perfectly, and a coach with an action camera would re-click
+    //    forever. See the comment in renderQuality.
+    const off = place(SPREAD, ['pen_spot_left', 6]);
+    assert.match(off, /Something is off/);
+    assert.match(off, /wide-angle lens/i);
+    assert.ok(!/^Good fit/.test(off));
+    const worst = Number(/([\d.]+)mWorst point/.exec(off)?.[1]);
+    assert.ok(worst > 1.5,
+        `six metres of error came back as ${worst}m at the worst point`);
 });
 
 test('the xG sandbox computes its features on load', async () => {
