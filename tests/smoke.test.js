@@ -212,6 +212,71 @@ test('every button variant the markup asks for is one the stylesheet has', () =>
     assert.deepEqual(dead, [],
         `these buttons ask for a variant no stylesheet defines and no script queries:\n  ${dead.join('\n  ')}`);
 });
+/**
+ * Every field the match view reads off a match document is one something writes.
+ *
+ * A read of a field nobody writes is the quietest bug this codebase has. It
+ * throws nothing, logs nothing and renders nothing — `undefined` falls through
+ * whatever `||` or `??` is beside it and the page shows the fallback, which
+ * looks exactly like a match that simply had no opponent named. Two of them sat
+ * on screen for weeks: a shot-map caption reading `match.opponent` when the
+ * field is `opponentName`, and a downloaded label file stamping
+ * `match.playedOn` when the field is `date`.
+ *
+ * So compare the two sides directly. A name is legitimate if it is either:
+ *   - a field `firestore.rules` lets somebody write to the match document, or
+ *   - a key this page merges on itself after loading it.
+ * Both sides are read out of the real files, so renaming a field in the rules
+ * or dropping one from the merge fails here rather than on the screen.
+ *
+ * Scoped to `state.match` on purpose. It is the object with two authors — a
+ * server document and a client merge — and that seam is where the mismatches
+ * were. The subcollections it carries have single authors and single readers.
+ */
+test('every match field the coach page reads is one something writes', () => {
+    const read = (name) => readFileSync(new URL(name, root), 'utf8');
+    const coach = read('coach/coach.js');
+    const rules = read('firestore.rules');
+    const db = read('assets/db.js');
+
+    // The rules are the writer of record for the document itself: a field not
+    // named in a create or an update list cannot reach Firestore at all.
+    const from = rules.indexOf('match /matches/{m}');
+    const to = rules.indexOf('match /roster/', from);
+    const block = rules.slice(from, to);
+    const writable = new Set();
+    for (const list of block.matchAll(/(?:hasOnly|changed)\(\s*\[([^\]]*)\]/g)) {
+        for (const field of list[1].matchAll(/'(\w+)'/g)) writable.add(field[1]);
+    }
+
+    // ...plus whatever the loader puts on top of the document's own data:
+    // `id`, which lives on the snapshot rather than inside it, and the
+    // subcollections the match view merges in so the page has one object.
+    for (const own of db.matchAll(/(\w+):\s*snap\.(?:id|ref)\b/g)) writable.add(own[1]);
+    const merge = coach.match(/state\.match\s*=\s*\{([^}]*)\}/);
+    assert.ok(merge, 'no `state.match = {...}` literal found — the scan is broken');
+    for (const key of merge[1].split(',')) {
+        const token = key.trim();
+        if (/^\w+$/.test(token)) writable.add(token);
+    }
+
+    const readFields = [...new Set(
+        [...coach.matchAll(/state\.match\??\.(\w+)/g)].map((m) => m[1]),
+    )].sort();
+
+    assert.ok(readFields.length > 12,
+        `only found ${readFields.length} reads of state.match — the scan is broken, not the page`);
+    assert.ok(writable.has('opponentName') && writable.has('xgCheck'),
+        'no rules file was read');
+    assert.ok(writable.has('id') && writable.has('roster'),
+        'the client-assembled keys were not picked up');
+
+    const dead = readFields.filter((name) => !writable.has(name));
+    assert.deepEqual(dead, [],
+        'the coach page reads these off a match, and nothing writes them:\n  '
+        + `${dead.join('\n  ')}`);
+});
+
 
 /**
  * The shot map's marks, as controls.
@@ -1178,7 +1243,7 @@ test('a student who did not get on is told so in a sentence', async () => {
     documents[`teams/${TEAM_ID}/matches/match-00/playerReports/p-rae`] = {
         published: true, linkedUid: STUDENT.uid, playerName: 'Rae Nkemelu',
         jerseyNumber: 7, minutesPlayed: 0, minutesKnown: true, goals: 0,
-        assists: 0, cards: 0, yellowCards: 0, redCards: 0, fouls: 0, stints: [],
+        assists: 0, yellowCards: 0, redCards: 0, fouls: 0, stints: [],
         matchDate: '2026-07-31', opponentName: 'Southbank',
         teamName: 'Riverside High', scoreUs: 0, scoreThem: 3, teamCounts: null,
         timeline: [], matchId: 'match-00', videoUrl: null, videoOffsetS: 0,

@@ -186,7 +186,10 @@ const totalXg = (shots) =>
 export function sampleCvSummary() {
     return {
         isSample: true,
-        schemaVersion: 5,
+        // Provenance only — nothing in the browser branches on it. Kept in
+        // step with cv/report_json.py::SCHEMA_VERSION so a sample summary
+        // never claims to be older than the pipeline that would write it.
+        schemaVersion: 13,
         // Which half, and what decided it. `log` is the good case on purpose:
         // the caveated version of this is a one-line change and the preview
         // already carries plenty of caveats, whereas nobody has yet seen what
@@ -700,7 +703,6 @@ export function samplePlayerReport() {
         cvTouches: 61,
         cvPassesAttempted: 38,
         cvPassesCompleted: 29,
-        cvPassAccuracy: 0.763,
         cvCarries: 17,
         cvTackles: 3,
         cvInterceptions: 4,

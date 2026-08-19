@@ -309,17 +309,17 @@ describe('publishing and the player portal', () => {
         const batch = writeBatch(coachDb);
         batch.set(doc(coachDb, 'teams', TEAM, 'matches', 'match1', 'playerReports', 'p1'), {
             linkedUid: PLAYER.uid, published: true, playerName: 'Alex Vega',
-            jerseyNumber: 9, minutesPlayed: 90, goals: 1, cards: 0, stints: [],
+            jerseyNumber: 9, minutesPlayed: 90, goals: 1, stints: [],
             matchDate: '2026-07-01', opponentName: 'Linden', teamName: 'South Brunswick',
         });
         batch.set(doc(coachDb, 'teams', TEAM, 'matches', 'match2', 'playerReports', 'p1'), {
             linkedUid: PLAYER.uid, published: true, playerName: 'Alex Vega',
-            jerseyNumber: 9, minutesPlayed: 45, goals: 0, cards: 1, stints: [],
+            jerseyNumber: 9, minutesPlayed: 45, goals: 0, stints: [],
             matchDate: '2026-07-08', opponentName: 'Edison', teamName: 'South Brunswick',
         });
         batch.set(doc(coachDb, 'teams', TEAM, 'matches', 'match1', 'playerReports', 'p2'), {
             linkedUid: 'someoneelse', published: true, playerName: 'Bench Guy',
-            jerseyNumber: 15, minutesPlayed: 20, goals: 0, cards: 0, stints: [],
+            jerseyNumber: 15, minutesPlayed: 20, goals: 0, stints: [],
             matchDate: '2026-07-01', opponentName: 'Linden', teamName: 'South Brunswick',
         });
         await assertSucceeds(batch.commit());
@@ -360,7 +360,7 @@ describe('publishing and the player portal', () => {
         const ref = doc(coachDb, 'teams', TEAM, 'matches', 'match1', 'playerReports', 'p1');
         const base = {
             linkedUid: PLAYER.uid, published: true, playerName: 'Alex Vega',
-            jerseyNumber: 9, minutesPlayed: 90, goals: 1, cards: 0, stints: [],
+            jerseyNumber: 9, minutesPlayed: 90, goals: 1, stints: [],
             matchDate: '2026-07-01', opponentName: 'Linden', teamName: 'South Brunswick',
         };
 
@@ -683,7 +683,7 @@ describe('erasing a player', () => {
                     doc(db, 'teams', TEAM, 'matches', MATCH, 'playerReports', id), {
                         linkedUid: id === 'p1' ? PLAYER.uid : null,
                         published: true, playerName: name, jerseyNumber: number,
-                        minutesPlayed: 90, goals: 1, assists: 0, cards: 0,
+                        minutesPlayed: 90, goals: 1, assists: 0,
                         yellowCards: 0, redCards: 0, fouls: 0,
                         stints: [{ inS: 0, outS: null }], matchDate: '2026-07-27',
                     },

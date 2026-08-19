@@ -7,14 +7,14 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=91';
-import { EVENT_TYPES } from './events.js?v=91';
+import { db } from './firebase-init.js?v=92';
+import { EVENT_TYPES } from './events.js?v=92';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
     mappingWithout, positionOf, whistleFrom, minutesFrom, knownMinutes,
-} from './report.js?v=91';
+} from './report.js?v=92';
 
 export {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
@@ -39,6 +39,15 @@ export async function createTeam(user, name) {
     await setDoc(ref, {
         name,
         coachUids: [user.uid],
+        // Neither of the next two is read by any page, and both are
+        // deliberate. `firestore.rules` requires a new team to carry them
+        // and to carry exactly these values, so leaving either out fails
+        // the create outright. `taggerUids` is a real access grant the
+        // rules honour wherever a coach is checked; nothing populates it
+        // yet because the tagger-versus-coach split is still an open
+        // question about people, not code (ROADMAP.md, "Decide role
+        // split"). `archived` is the seat a team-hiding switch will sit
+        // in; the rules already allow a coach to flip it.
         taggerUids: [],
         archived: false,
         createdAt: serverTimestamp(),
@@ -385,6 +394,26 @@ export function logId(deviceId, seq) {
     return `${deviceId}_${String(seq).padStart(6, '0')}`;
 }
 
+/**
+ * The fields every log entry carries, whatever kind it is.
+ *
+ * Three of them have no reader anywhere, and each stays for its own reason.
+ *
+ * `source` is required by `firestore.rules` — a missing one fails the create —
+ * and the rule admits two values this file never writes, `cv_candidate` and
+ * `reviewer_confirmed`. It is the field that will tell a tapped event from a
+ * proposed one on the day the pipeline is allowed to append to this log, and
+ * writing it now means the entries from before that day still answer the
+ * question.
+ *
+ * `detail` is the seat for structured extras the rules already size-limit; no
+ * caller passes one today, so it is null on every entry ever written.
+ *
+ * `tappedAt` is the only record of when the tap happened rather than when the
+ * write landed. `createdAt` is a server timestamp, so a write the SDK queued
+ * while the tablet was off the network is stamped minutes after the moment it
+ * describes, and nothing else on the entry could tell you that.
+ */
 function baseEntry(user, deviceId, seq) {
     return {
         playerId: null,
@@ -720,7 +749,11 @@ export async function publishReports(teamId, matchId, match, team, players, scor
                 minutesKnown: player.minutesPlayed != null,
                 goals: player.goals,
                 assists: player.assists ?? 0,
-                cards: (player.yellowCards ?? 0) + (player.redCards ?? 0),
+                // No summed `cards` field, deliberately. One was written here
+                // for a while and read by nothing, which was lucky: a yellow
+                // and a red mean completely different things, so a total of
+                // the two is a number with no meaning. See the rule this
+                // breaks at assets/ui.js::cardChips.
                 yellowCards: player.yellowCards ?? 0,
                 redCards: player.redCards ?? 0,
                 fouls: player.fouls ?? 0,

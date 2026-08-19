@@ -3335,6 +3335,21 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       a better calibration.
 
 ## 13. Player & Team Statistics / Profiles
+- [ ] **Put the goalkeeper's numbers on a screen.** `cv/keeper.py` computes a
+      full block per keeper and `cv/publish.py` writes it to
+      `cvStats/summary.keepers`: shots faced, shots on target faced, saves,
+      goals conceded, save percentage, claims, sweeper actions and the furthest
+      one from goal, distributions, and accuracy split by kick, punt and throw.
+      No page renders any of it. Found by the field sweep of 2026-08-18, which
+      is the only reason it is written down at all — Phase 6 ticks keeper
+      *detection* and nothing anywhere asked for keeper *display*. Whoever picks
+      this up should fix `assets/sample-report.js:461` in the same pass: it
+      mirrors the block with `track_id` where the real payload has `track_ids`
+      and a dozen stat fields, so the sample is not exercising the real shape.
+      Note also that these track ids are what every outfield shape figure was
+      computed *against* — `cv/metrics.py` excludes them from the back line,
+      the width and the compactness — so the same screen can finally say who
+      was left out of those.
 - [x] **The domain model is the documents, and the one thing it was missing was
       a position** (2026-08-12). These two lines asked for `Player` and `Team`
       classes. Checked before building them: `aggregateMatch`, `seasonTotals`,
@@ -4057,6 +4072,78 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **Every field the browser reads, against everything that writes one**
+      (2026-08-18). A sweep in both directions across `assets/db.js`,
+      `cv/publish.py`, `firestore.rules` and the three pages: every read with no
+      writer, every write with no reader, and every field whose two ends
+      disagree about shape. It found four broken things, one field that should
+      never have existed, and six that look dead and are not.
+
+      **Two reads of fields that do not exist.** The opposition shot map was
+      captioned from `state.match?.opponent`; the field is `opponentName`. The
+      downloaded label file stamped `match.playedOn`; the field is `date`. Both
+      failed the way this class of bug always fails — silently, into the `||`
+      beside them. The caption read **"Them"** for every opponent the app has
+      ever had, which is exactly what it reads for a match whose opponent was
+      genuinely left blank, so nothing on screen could tell the two apart. The
+      label file was worse: it is an export meant to be joined to other exports
+      later, and it carried `opponent: null` beside a `matchId` that knew the
+      name perfectly well. The tag-log download two hundred lines away had the
+      spelling right the whole time.
+
+      **A total of two things that mean different things.** `publishReports`
+      wrote `cards: yellow + red` onto every player report. Nothing read it —
+      `assets/ui.js::cardChips` renders the two separately and says in its own
+      docstring why a sum is meaningless — but four fixture files carried it, so
+      the tests agreed with the writer and neither agreed with the product. It
+      is gone from the writer and from all four.
+
+      **Two sample fields that had drifted.** `assets/sample-report.js` claimed
+      `schemaVersion: 5` against a pipeline on 13, and carried a `cvPassAccuracy`
+      that was deleted from the real writer in the sweep before this one. A
+      sample report is the only version of this product most people will ever
+      see; it should not be the least accurate document in the repo.
+
+      **Six write-only fields, each kept for a stated reason.** This is the half
+      of the sweep with no code change, and it is the half that stops the next
+      sweep re-deleting them. `taggerUids` and `archived` are *required by the
+      rules on create* — a team document without them fails outright — and each
+      is a seat something is going to sit in: `taggerUids` is a live access grant
+      waiting on the role-split decision, `archived` is the switch a
+      team-hiding control will flip. `source`, `detail` and `tappedAt` on every
+      log entry carry three different arguments, now written out on `baseEntry`:
+      `source` is what will tell a tapped event from a pipeline-proposed one the
+      day the pipeline may append here, and writing it now means the entries
+      from *before* that day still answer the question; `tappedAt` is the only
+      record of when the tap happened rather than when the write landed, which a
+      server timestamp cannot recover for a tablet that was offline.
+      `schemaVersion`, `playerByCluster` and `droppedBelowConfidence` in
+      `cv/publish.py` are provenance and diagnostics — none should be branched
+      on, and the comment on `playerByCluster` claiming it was a gate was simply
+      wrong and now says what it is: the naming as it stood when the run was
+      published, against a browser copy a coach can change afterwards.
+
+      **The regression test.** `tests/smoke.test.js` now reads every
+      `state.match?.X` out of `coach/coach.js` and checks each against the union
+      of the fields `firestore.rules` permits on a match document and the keys
+      the page merges on itself after loading it. Both sides come out of the
+      real files, so renaming a field in the rules, or dropping one from the
+      merge, fails here instead of on a screen. Confirmed by putting
+      `state.match?.playedOn` back and watching it fail. 19 reads today.
+
+      **What it surfaced and did not fix: nobody can see the goalkeeper
+      numbers.** `cvStats/summary.keepers` carries a complete stat block per
+      keeper — shots faced, saves, goals conceded, save percentage, claims,
+      sweeper actions and how far out they came, distribution accuracy split by
+      kick, punt and throw — computed by `cv/keeper.py`, published by
+      `cv/publish.py`, and rendered by no page at all. Goalkeeper *detection* is
+      ticked in Phase 6; goalkeeper *display* was never written down anywhere,
+      which is how a finished figure ends up with nowhere to go. It is a display
+      gap rather than a dead field, and the third distinct reason a write can
+      have no reader. `assets/sample-report.js:461` mirrors it with the wrong
+      key as well — `track_id` where the pipeline writes `track_ids` plus a
+      dozen stats — so the fixture is not exercising the real shape.
+
 - [x] **The player's own season got the sidebar the coach's report already had**
       (2026-08-15). The rail — a column that loads one section in rather than
       scrolling to it — had lived on the coach's match report since the desktop

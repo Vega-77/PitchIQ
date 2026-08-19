@@ -144,15 +144,15 @@ beforeEach(async () => {
     // One published report per player, so cross-player reads can be tested.
     await setDoc(doc(db, 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p1'), {
       linkedUid: PLAYER.uid, published: true, minutesPlayed: 80,
-      goals: 1, cards: 0, matchDate: '2026-07-27', opponentName: 'Linden',
+      goals: 1, matchDate: '2026-07-27', opponentName: 'Linden',
     });
     await setDoc(doc(db, 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p2'), {
       linkedUid: OTHER.uid, published: true, minutesPlayed: 90,
-      goals: 0, cards: 1, matchDate: '2026-07-27', opponentName: 'Linden',
+      goals: 0, matchDate: '2026-07-27', opponentName: 'Linden',
     });
     await setDoc(doc(db, 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p3'), {
       linkedUid: PLAYER.uid, published: false, minutesPlayed: 12,
-      goals: 0, cards: 0, matchDate: '2026-07-20', opponentName: 'Edison',
+      goals: 0, matchDate: '2026-07-20', opponentName: 'Edison',
     });
   });
 });

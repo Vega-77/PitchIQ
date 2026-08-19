@@ -45,7 +45,7 @@ const report = (matchId, playerId, fields) => [
     {
         published: true, linkedUid: null, jerseyNumber: null,
         minutesPlayed: 90, minutesKnown: true, goals: 0, assists: 0,
-        cards: 0, yellowCards: 0, redCards: 0, fouls: 0, stints: [{ inS: 0, outS: 5400 }],
+        yellowCards: 0, redCards: 0, fouls: 0, stints: [{ inS: 0, outS: 5400 }],
         matchDate: '', opponentName: '', teamName: 'Riverside High',
         scoreUs: 0, scoreThem: 0, teamCounts: null, timeline: [],
         matchId, videoUrl: null, videoOffsetS: 0, secondHalfVideoS: null,

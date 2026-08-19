@@ -184,6 +184,11 @@ def summary_payload(report_json: dict) -> dict:
     document every client reads.
     """
     return {
+        # No page branches on the version, and none should — a client that
+        # renders differently per version is two clients. It is here so a
+        # document found in the console can be dated against
+        # `cv/report_json.py::SCHEMA_VERSION`, which is the only way to know
+        # which pipeline wrote a number that looks wrong.
         'schemaVersion': report_json.get('schema_version'),
         'source': report_json.get('source'),
         'window': report_json.get('window') or {},
@@ -196,6 +201,13 @@ def summary_payload(report_json: dict) -> dict:
         'warnings': report_json.get('warnings') or [],
         'trustworthy': report_json.get('trustworthy', False),
         'teams': report_json.get('teams') or {},
+        # A full stat block per keeper — saves, goals conceded, save
+        # percentage, sweeper actions, distribution accuracy by type — and the
+        # one part of this payload no page renders yet. Not provenance and not
+        # dead: it is a computed figure waiting on a screen to put it on, which
+        # is a display gap rather than a field to delete. The track ids in it
+        # are also what the outfield shape figures were computed against, since
+        # `cv/metrics.py` excludes keepers from every one of them.
         'keepers': report_json.get('keepers') or [],
         'participants': participant_notes(report_json),
         'reconciliation': report_json.get('reconciliation'),
@@ -311,6 +323,13 @@ def events_payload(report_json: dict, limit: int = MAX_EVENTS) -> dict:
             for event in events
         ],
         'truncated': floor is not None,
+        # Nothing in the browser reads the floor, deliberately: every note
+        # that mentions the trim says it in words instead, and `confidence`
+        # is a model-internal scale no page explains, so a coach reading
+        # "dropped below 0.45" learns nothing they can act on. It travels
+        # for whoever is tuning the detector, who is the only reader it
+        # could help — and it is the difference between a list that was
+        # trimmed hard and one that barely was.
         'droppedBelowConfidence': floor,
         'counts': counts,
     }
@@ -343,8 +362,12 @@ def identity_payload(report_json: dict, mapping: dict[str, str] | None = None) -
     return {
         'clusters': clusters,
         'tracks': tracks,
-        # cluster_id -> playerId. Empty until a coach fills it in, which is the
-        # gate on anything per-player reaching a season.
+        # cluster_id -> playerId, as it stood when this run was published.
+        # Provenance, not authority, and read by nothing: the browser's copy
+        # at `cvMapping/players.byCluster` is what every page joins on, and
+        # a coach can change it long after this document is written. What
+        # this one answers is which naming produced the per-player figures
+        # sitting beside it. Empty when the run was published without one.
         'playerByCluster': mapping or {},
     }
 

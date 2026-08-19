@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=91';
+} from '../assets/auth.js?v=92';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, saveCvReview, pushVideoToReports,
-} from '../assets/db.js?v=91';
-import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=91';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=91';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=91';
+} from '../assets/db.js?v=92';
+import { renderStrip, timelineEnd, nowIndex } from '../assets/timeline.js?v=92';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=92';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=92';
 import {
     sampleCvSummary, SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=91';
+} from '../assets/sample-report.js?v=92';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=91';
-import { renderPassMap } from '../assets/pass-map.js?v=91';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=91';
+} from '../assets/passing.js?v=92';
+import { renderPassMap } from '../assets/pass-map.js?v=92';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=92';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=91';
-import { renderForms } from '../assets/form-chart.js?v=91';
+} from '../assets/season.js?v=92';
+import { renderForms } from '../assets/form-chart.js?v=92';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, reviewScore, reviewLabels, hasVerdict, xgTrust,
@@ -45,18 +45,18 @@ import {
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=91';
+} from '../assets/report.js?v=92';
 import {
     CARD_COLOURS, EVENTS, describeEvent, timelineTone,
-} from '../assets/events.js?v=91';
-import { mountRail } from '../assets/rail.js?v=91';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=91';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=91';
+} from '../assets/events.js?v=92';
+import { mountRail } from '../assets/rail.js?v=92';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=92';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=92';
 import {
     byId, setText, toast, showOnly, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     confidenceMark, stackBar, coverageStrip,
-} from '../assets/ui.js?v=91';
+} from '../assets/ui.js?v=92';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -1310,7 +1310,7 @@ function renderShots() {
         const totals = shotSummary(marks, trust);
         const who = label === 'us'
             ? (state.team?.name || 'Us')
-            : (state.match?.opponent || 'Them');
+            : (state.match?.opponentName || 'Them');
         setText(capId, drawn
             ? `${who} — ${totals.goals} from ${plural(totals.shots, 'shot')}`
                 + (totals.xg != null ? `, ${totals.xg.toFixed(2)} xG` : '')
@@ -4273,8 +4273,11 @@ function doDownloadLabels() {
         {
             teamId: state.team.id,
             matchId: state.match.id,
-            opponent: state.match.opponent || null,
-            playedOn: state.match.playedOn || null,
+            // The same two names the tag-log download uses. Both files come off
+            // this one screen and describe the same match; spelling the match
+            // two ways is how a pair of exports stops being joinable.
+            opponentName: state.match.opponentName ?? null,
+            matchDate: state.match.date ?? null,
             videoOffsetS: state.match.videoOffsetS ?? 0,
             secondHalfVideoS: state.match.secondHalfVideoS ?? null,
             halfTimeClockS: state.match.halfTimeClockS ?? null,

@@ -31,7 +31,7 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, pitchMarkings,
-} from './pitch-backdrop.js?v=91';
+} from './pitch-backdrop.js?v=92';
 
 const NS = 'http://www.w3.org/2000/svg';
 
