@@ -7,14 +7,14 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=94';
-import { EVENT_TYPES } from './events.js?v=94';
+import { db } from './firebase-init.js?v=95';
+import { EVENT_TYPES } from './events.js?v=95';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
     mappingWithout, positionOf, whistleFrom, minutesFrom, knownMinutes,
-} from './report.js?v=94';
+} from './report.js?v=95';
 
 export {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
@@ -356,21 +356,47 @@ export function updateMatch(teamId, matchId, patch) {
 
 // ---------------------------------------------------------------- match roster
 
-export async function setLineup(teamId, matchId, players, starterIds) {
+/**
+ * Write the starting eleven, or correct one already written.
+ *
+ * `existing` is the roster as it stands, and passing it is what makes the
+ * second call legal rather than rejected. `firestore.rules` guards these
+ * documents with an optimistic lock — an update must carry
+ * `version == resource.data.version + 1` — so the create-shaped write this
+ * used to send every time was accepted exactly once per match and refused
+ * silently on any correction. Nothing surfaced that, because until the picker
+ * could be reached a second time nobody ever sent a second one.
+ *
+ * Corrections go through `update` rather than `set` for the same reason: the
+ * update rule admits only `isStarter`, `isActive`, `stints` and `version` as
+ * changed keys, so rewriting the name and the shirt number alongside them
+ * would fail the moment either had been edited since the lineup was saved.
+ */
+export async function setLineup(teamId, matchId, players, starterIds, existing = []) {
+    const versions = new Map(existing.map((entry) => [entry.id, entry.version]));
     const batch = writeBatch(db);
     for (const player of players) {
         const isStarter = starterIds.includes(player.id);
-        batch.set(
-            doc(db, 'teams', teamId, 'matches', matchId, 'roster', player.id),
-            {
+        const ref = doc(
+            db, 'teams', teamId, 'matches', matchId, 'roster', player.id
+        );
+        const picked = {
+            isStarter,
+            isActive: isStarter,
+            stints: isStarter ? [{ inS: 0, outS: null }] : [],
+        };
+        const was = versions.get(player.id);
+
+        if (was === undefined) {
+            batch.set(ref, {
                 playerName: player.name,
                 jerseyNumber: player.jerseyNumber ?? null,
-                isStarter,
-                isActive: isStarter,
-                stints: isStarter ? [{ inS: 0, outS: null }] : [],
+                ...picked,
                 version: 0,
-            }
-        );
+            });
+        } else {
+            batch.update(ref, { ...picked, version: was + 1 });
+        }
     }
     await batch.commit();
 }

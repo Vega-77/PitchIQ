@@ -289,6 +289,59 @@ describe('substitutions', () => {
         assert.equal(restored.data().stints.length, 2, 'earlier stint must survive');
         assert.equal(restored.data().stints[1].outS, null);
     });
+
+    it('a corrected lineup is an update under the lock, not a second create', async () => {
+        const db = as(COACH);
+
+        // What `setLineup` used to send the second time a coach opened the
+        // picker — which, until the picker could be reached twice, was a write
+        // nobody was able to send. It fails, and the reason is here rather than
+        // in the client: the documents exist, so `allow create` no longer
+        // applies, and a create-shaped write carrying `version: 0` cannot
+        // satisfy `version == resource.data.version + 1`. Nothing surfaced
+        // that, because the promise a coach was waiting on was for a write the
+        // rules had already refused.
+        const wrong = writeBatch(db);
+        wrong.set(rosterPath(db, 'p2'), {
+            playerName: 'Bench Guy', jerseyNumber: 15, isStarter: true,
+            isActive: true, stints: [{ inS: 0, outS: null }], version: 0,
+        });
+        await assertFails(wrong.commit());
+
+        // The shape that is accepted: the four keys the lineup owns, and a
+        // version one higher than what is there. `playerName` and
+        // `jerseyNumber` are deliberately absent — `changed([...])` refuses
+        // them, so correcting who starts cannot quietly rewrite a name or a
+        // shirt number that has been edited on the roster since kick-off was
+        // first set up.
+        const fix = writeBatch(db);
+        fix.update(rosterPath(db, 'p1'), {
+            isStarter: false, isActive: false, stints: [], version: 1,
+        });
+        fix.update(rosterPath(db, 'p2'), {
+            isStarter: true, isActive: true,
+            stints: [{ inS: 0, outS: null }], version: 1,
+        });
+        await assertSucceeds(fix.commit());
+
+        const [dropped, promoted] = await Promise.all([
+            getDoc(rosterPath(db, 'p1')), getDoc(rosterPath(db, 'p2')),
+        ]);
+        assert.equal(dropped.data().isStarter, false);
+        assert.deepEqual(dropped.data().stints, [],
+            'a player dropped from the eleven kept a stint');
+        assert.equal(promoted.data().isStarter, true);
+        // The name survived a write that never mentioned it.
+        assert.equal(promoted.data().playerName, 'Bench Guy');
+
+        // And the lock still holds behind the correction. A second tablet whose
+        // picker never saw the first save sends version 1 again, and is
+        // refused rather than winning by arriving last.
+        await assertFails(updateDoc(rosterPath(db, 'p1'), {
+            isStarter: true, isActive: true,
+            stints: [{ inS: 0, outS: null }], version: 1,
+        }));
+    });
 });
 
 describe('publishing and the player portal', () => {

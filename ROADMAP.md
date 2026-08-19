@@ -4141,6 +4141,77 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The third way a write and a read fail to meet: a field nothing ever
+      asks for** (2026-08-19). The two guards below catch a page reading a field
+      nothing writes, and a pipeline figure no page draws. This one is the
+      quietest case — a field the tablet or the dashboard writes to Firestore on
+      every match, stored and replicated and consulted by nobody.
+      `firestore.rules` is the writer of record and the only honest one: a field
+      not named in a `hasOnly` or a `changed` list cannot reach Firestore at all,
+      whatever the client passes. That is **75 writable fields across 11 document
+      shapes**, none of them listed by hand, checked against every property
+      access, `where`/`orderBy` string and Python field name the site and the
+      pipeline contain. **Three had no reader.** The scan only works because a
+      type check is not counted as one: `request.resource.data.isStarter is bool`
+      constrains the write's shape and nobody ever looks at the boolean, so
+      counting shape constraints marks every field alive by construction — the
+      first version of the sweep did exactly that and found nothing at all. A
+      *comparison* still counts, because restricting a vocabulary is a decision
+      made on the value.
+- [x] **A saved lineup was safe in Firestore and unreachable on the tablet**
+      (2026-08-19). The first of the three dead fields, and the only one that was
+      a bug. `roster/{p}.isStarter` was written by `setLineup` on every match and
+      read by nothing, and it was covering a hole rather than sitting idle: the
+      picker painted from `player._starter`, an in-memory flag set by tapping. On
+      a reload `onMatchChosen` saw a non-empty roster, went straight to kick-off,
+      and never showed the lineup block again — on a screen that says in as many
+      words *"you can change this later"*. A coach who spotted a wrong name after
+      closing the tablet between the team sheet and the whistle had one move
+      left: kick off and substitute at clock zero, which is precisely what makes
+      `stints[0].inS === 0` useless as a starter test and precisely why this
+      field is not derivable from the stints. `restoreLineup` is the reader now,
+      guarded by `scheduled()` at every call site because after kick-off `stints`
+      is a record of who was on the pitch and re-saving would flatten it.
+- [x] **And the correction it enabled would have been refused** (2026-08-19).
+      Making the picker reachable twice exposed a second defect underneath the
+      first, which nobody could have hit while it was unreachable: `setLineup`
+      sent a create-shaped write with `version: 0` every time, and the roster's
+      `allow update` rule requires `version == resource.data.version + 1`. The
+      second save was rejected by the rules, silently, behind a promise the coach
+      was waiting on. `setLineup` now takes the roster as it stands and branches:
+      `set` for a player with no document, `update` for one that has it, carrying
+      only the four keys `changed(['isStarter','isActive','stints','version'])`
+      admits — so correcting who starts cannot quietly overwrite a name or a
+      shirt number edited since. Pinned at both layers: a page test that reloads
+      into a saved eleven, corrects it and checks the versions, and an emulator
+      test that watches the real rules refuse the old write and accept the new
+      one. **32 page tests, 146 emulator tests.**
+- [x] **A field whose name was a lie about what it held** (2026-08-19). The
+      second dead field. `staff/{s}.joinedAt` was written unconditionally by
+      `saveStaffProfile`, which runs on every sign-in to backfill the other three
+      keys — so it recorded the last time somebody opened the dashboard under a
+      name claiming it was a joining date. Nothing read it, which is the only
+      reason nobody had been misled by it yet; a field with a wrong value is
+      worse than a missing one the moment it reaches a screen. It is now
+      read-before-write, following the `saveHint` precedent five lines below, and
+      only the first save may set it. Worth saying plainly: this makes it *pass*
+      the scan while it still appears on no screen, because reading a value to
+      preserve it is a read. Whether it should be shown is the display guard's
+      question, not this one's.
+- [x] **The one that stays dead, and what the excuse costs** (2026-08-19).
+      `log/{entryId}.tappedAt` is genuinely read by nothing and is meant to be.
+      It is the only record of when a tap happened rather than when the write
+      landed — `createdAt` is a server timestamp, so an entry the SDK queued
+      while the tablet was off the network is stamped minutes after the moment it
+      describes, and nothing else on the entry could ever say so. Its excuse now
+      lives in the test as an entry that must name both the shape and the field,
+      and a second assertion fails if an excused field gains a reader or stops
+      being writable — an excuse may not outlive its reason. The limit is the one
+      the display guard already states: this cannot tell which object a `.key`
+      was read off, so short generic names are effectively unchecked, and `source`
+      and `detail` pass here despite `assets/db.js`'s own docstring calling them
+      dead, because the rules constrain both values. What survives that is the
+      failure worth catching — a field no line anywhere mentions.
 - [x] **All five payloads, not one — and the figure that was hiding in the other
       four** (2026-08-19). The display-gap guard below scanned `summary_payload`
       alone, because that was where `keepers` had been hiding. Covering one of

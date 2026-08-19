@@ -13,18 +13,18 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=94';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=95';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=94';
+} from '../assets/db.js?v=95';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=94';
-import { syncState, safeToClose } from '../assets/report.js?v=94';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=94';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=94';
+} from '../assets/events.js?v=95';
+import { syncState, safeToClose } from '../assets/report.js?v=95';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=95';
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=95';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -363,9 +363,45 @@ async function onMatchChosen(matchId) {
     state.roster = roster;
 
     if (roster.length) {
+        // A lineup already saved. Put it back in the picker before resuming,
+        // so that the screen behind kick-off is the eleven this match actually
+        // has rather than the match list. Until this line the picker painted
+        // from `player._starter` alone — an in-memory flag set by tapping —
+        // and a reload lost it: the XI was safe in Firestore and unreachable
+        // on the tablet, on a screen that promises "you can change this
+        // later". A coach who spotted a wrong name after a reload had no way
+        // back to it, and the only remaining move was to kick off and
+        // substitute at the first second of the match.
+        //
+        // This is the one reader `isStarter` has, and the reason it is not
+        // derivable from `stints`: that workaround writes a stint opening at
+        // zero for a player who never started, which is indistinguishable from
+        // a starter's.
+        if (scheduled()) restoreLineup(roster);
         await resumeMatch();
         return;
     }
+
+    byId('match-picker').classList.add('hidden');
+    byId('lineup-block').classList.remove('hidden');
+    renderLineupPicker();
+}
+
+/** Before the whistle, and only then, is the lineup still a lineup. */
+const scheduled = () => (state.match?.status || 'scheduled') === 'scheduled';
+
+/**
+ * Repaint the picker from the saved roster.
+ *
+ * Guarded by `scheduled()` at every call site, and it has to be: after
+ * kick-off `stints` is a record of who was on the pitch and when, and a
+ * re-save would flatten it back to one stint opening at zero. The picker is
+ * unreachable once the match is live, so this is a guard against a future
+ * caller rather than against a button that exists today.
+ */
+function restoreLineup(roster) {
+    const starters = new Set(roster.filter((r) => r.isStarter).map((r) => r.id));
+    for (const player of state.players) player._starter = starters.has(player.id);
 
     byId('match-picker').classList.add('hidden');
     byId('lineup-block').classList.remove('hidden');
@@ -485,7 +521,9 @@ async function saveLineupAndContinue() {
     if (!starters.length) return toast('Pick your starters first', true);
 
     sendWrite(
-        setLineup(state.teamId, state.matchId, state.players, starters),
+        setLineup(
+            state.teamId, state.matchId, state.players, starters, state.roster
+        ),
         { message: 'The lineup was not saved' },
     );
 

@@ -470,6 +470,166 @@ test('every figure the pipeline publishes is one some page reads', () => {
         + `${stale.join('\n  ')}`);
 });
 
+/**
+ * And every field a client is allowed to write is one something reads.
+ *
+ * The third and last of the three ways a write and a read can fail to meet.
+ * The first two tests above cover a match page reading a field nothing writes,
+ * and the pipeline publishing a figure no page draws. This one covers the
+ * client's own documents: a field the tablet or the dashboard writes to
+ * Firestore on every match, stored, replicated, paid for, and consulted by
+ * nothing.
+ *
+ * `firestore.rules` is the writer of record, and the only honest one. A field
+ * not named in a `hasOnly` or a `changed` list cannot reach Firestore at all,
+ * whatever the client passes, so the rules are the complete and exact set of
+ * what may be stored — 75 fields across eleven document shapes, none of them
+ * listed here by hand.
+ *
+ * A *reader* is one of four things: a property access in served JavaScript, a
+ * field named as a string inside `where(...)` or `orderBy(...)`, a name the
+ * Python pipeline uses, or a place the rules themselves consult the value.
+ *
+ * That last one needs a line, because it is where this scan earns its keep. A
+ * type check is not a read. `request.resource.data.isStarter is bool` says the
+ * write must be a boolean; nothing anywhere looks at the boolean. Counting
+ * shape constraints as readers marks every field alive by construction — the
+ * first version of this scan did, and found nothing at all, because a rules
+ * file that validates a field necessarily mentions it. Comparisons are
+ * different and do count: `request.resource.data.source in [...]` restricts a
+ * vocabulary, which is a decision made on the value.
+ *
+ * The three it found were three different things, and only one was a bug.
+ *
+ * `isStarter` was written by `setLineup` on every match and read by nobody,
+ * and it was covering a hole rather than sitting idle: the picker painted from
+ * an in-memory flag, so a reload lost the saved XI off the screen while
+ * leaving it in the database. The field was already the answer; nothing had
+ * ever asked it. `live-tagging/tagging.js::restoreLineup` asks it now.
+ *
+ * `joinedAt` was written unconditionally by a function that runs on every
+ * sign-in, so it held the last time somebody opened the dashboard under a name
+ * claiming it held a joining date. Nothing read it, which is the only reason
+ * nobody had been misled by it yet.
+ *
+ * `tappedAt` is genuinely dead and stays, and the escape hatch below costs a
+ * sentence on purpose — writing down why a field has no reader is the whole
+ * point, and two of the three turned out not to have an answer.
+ *
+ * The limit is the same one the test above states: this cannot tell which
+ * object a `.key` was read off. `source` and `detail` are called dead in
+ * `assets/db.js`'s own docstring and pass here, because the rules constrain
+ * both values. Short generic names are effectively unchecked. What survives
+ * that is the failure worth catching: a field no line anywhere mentions.
+ */
+test('every field the rules let a client write is one something reads', () => {
+    // Comments first: a field named in a comment is not a reader of it, and
+    // this file explains itself at length.
+    const rules = read('firestore.rules').replace(/\/\/[^\n]*/g, '');
+
+    const values = rules
+        .replace(/[\w.$/()]+\s+is\s+\w+/g, ' ')
+        .replace(/[\w.$/()]+\.(?:size|keys)\(\)/g, ' ');
+    const consulted = new Set(
+        [...values.matchAll(/\bdata\.(\w+)/g)].map((hit) => hit[1]),
+    );
+    assert.ok(consulted.has('coachUids') && consulted.has('version'),
+        'no rules file was read');
+    assert.ok(!consulted.has('isStarter'),
+        'a shape constraint is being counted as a read — the scan is broken');
+
+    // Every document shape the rules give a writable field list, keyed by the
+    // path as the rules write it.
+    const shapes = new Map();
+    const heads = [...rules.matchAll(/match \/(\S+)/g)];
+    for (let i = 0; i < heads.length; i += 1) {
+        const to = i + 1 < heads.length ? heads[i + 1].index : rules.length;
+        const block = rules.slice(heads[i].index, to);
+        const fields = new Set();
+        for (const list of block.matchAll(/(?:hasOnly|changed)\(\s*\[([^\]]*)\]/g)) {
+            for (const field of list[1].matchAll(/'(\w+)'/g)) fields.add(field[1]);
+        }
+        if (fields.size) shapes.set(heads[i][1], [...fields].sort());
+    }
+
+    const total = [...shapes.values()].reduce((sum, list) => sum + list.length, 0);
+    assert.ok(shapes.size >= 10 && total >= 70,
+        `only found ${total} writable fields across ${shapes.size} shapes`
+        + ' — the scan is broken, not the rules');
+
+    // Everything the site serves, plus everything the pipeline runs. The tests
+    // are skipped: a fixture naming a field is not a page reading it, and the
+    // emulator suite writes most of these by hand.
+    const skip = new Set([
+        'node_modules', 'PitchIQHelper', '.git', 'runs', 'scratch_frames',
+        'baselines', '.firebase', 'tests',
+    ]);
+    const seen = new Set();
+    (function walk(dir) {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            if (skip.has(entry.name)) continue;
+            const path = `${dir}/${entry.name}`;
+            if (entry.isDirectory()) { walk(path); continue; }
+            if (entry.name.endsWith('.js')) {
+                const source = readFileSync(path, 'utf8');
+                for (const hit of source.matchAll(/[\w)\]]\s*\??\.(\w+)\b/g)) {
+                    seen.add(hit[1]);
+                }
+                // A field named rather than reached: `where('emailLower', ...)`.
+                for (const hit of source.matchAll(
+                    /(?:where|orderBy)\(\s*['"](\w+)['"]/g)) seen.add(hit[1]);
+            } else if (entry.name.endsWith('.py')) {
+                const source = readFileSync(path, 'utf8');
+                for (const hit of source.matchAll(
+                    /\.get\(\s*'(\w+)'|\['(\w+)'\]|\.(\w+)\b/g)) {
+                    seen.add(hit[1] || hit[2] || hit[3]);
+                }
+            }
+        }
+    })(new URL('.', root).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+
+    assert.ok(seen.has('opponentName') && seen.has('halfTimeClockS'),
+        'the reader scan found no served source');
+
+    // One field is stored for nobody, and the reason is already written down
+    // twice — in `baseEntry`'s docstring in assets/db.js, and in the roadmap.
+    // This is where that claim stops being a comment nobody rechecks.
+    const unread = {
+        // The only record of when the tap happened rather than when the write
+        // landed. `createdAt` is a server timestamp, so an entry the SDK
+        // queued while the tablet was off the network is stamped minutes after
+        // the moment it describes, and nothing else on the entry could say so.
+        // Nothing reads it because nothing has yet had to reconstruct a match
+        // whose tablet was offline; the field exists so that day is possible.
+        'log/{entryId}.tappedAt': 'the tap time, kept against a queued write',
+    };
+
+    const dead = [];
+    for (const [shape, fields] of shapes) {
+        for (const field of fields) {
+            if (seen.has(field) || consulted.has(field)) continue;
+            if (`${shape}.${field}` in unread) continue;
+            dead.push(`${field} — writable on ${shape}, read nowhere`);
+        }
+    }
+    assert.deepEqual(dead, [],
+        'the rules let a client store these and nothing ever reads them:\n  '
+        + `${dead.join('\n  ')}`);
+
+    // And an excuse may not outlive its reason: a field that gains a reader,
+    // or stops being writable at all, loses its place here.
+    const stale = Object.keys(unread).filter((entry) => {
+        const cut = entry.lastIndexOf('.');
+        const [shape, field] = [entry.slice(0, cut), entry.slice(cut + 1)];
+        return !(shapes.get(shape) || []).includes(field)
+            || seen.has(field) || consulted.has(field);
+    });
+    assert.deepEqual(stale, [],
+        'these are excused from needing a reader and no longer need excusing:\n  '
+        + `${stale.join('\n  ')}`);
+});
+
+
 
 /**
  * And the preview carries the same shape the pipeline does.
@@ -1158,6 +1318,86 @@ test('a tagger who had to restart lands back in the match, not in the lineup', a
         .find((p) => p.textContent.includes('Alex Vega'));
     assert.ok(back, 'a substituted player cannot come back on');
     assert.match(back.textContent, /been on/);
+});
+
+test('a lineup saved before kick-off survives a reload of the tablet', async () => {
+    // Between the team sheet and the whistle is most of an hour on a Saturday,
+    // and a tablet that has been closed and reopened in it is the ordinary
+    // case rather than the unlucky one. The roster document survives that; the
+    // picker's memory of who was tapped does not, and until `isStarter` had a
+    // reader the saved eleven was safe in Firestore and off the screen — on a
+    // page that tells the coach "you can change this later".
+    const documents = fixture();
+    const roster = (id, playerName, jerseyNumber, isStarter) => {
+        documents[`teams/${TEAM_ID}/matches/match-2/roster/${id}`] = {
+            playerName, jerseyNumber, isStarter, isActive: isStarter,
+            stints: isStarter ? [{ inS: 0, outS: null }] : [],
+            version: 0,
+        };
+    };
+    roster('p-rae', 'Rae Nkemelu', 7, true);
+    roster('p-sam', 'Sam Okonjo', 14, true);
+    roster('p-alex', 'Alex Vega', 9, false);
+
+    await openPage({
+        html: 'live-tagging/index.html',
+        entry: 'live-tagging/tagging.js',
+        url: `http://localhost:5000/live-tagging/?team=${TEAM_ID}&match=match-2`,
+        variant: 'saved-lineup',
+        documents,
+    });
+
+    live.document.querySelectorAll('#match-cards .match-card')
+        .find((card) => card.textContent.includes('Eastvale')).click();
+    await settle();
+
+    // A coach who is ready to start still lands where they always did. The
+    // lineup is what is *behind* this screen, not in front of it.
+    assert.match(activeView(), /view-kickoff/, 'a saved lineup did not resume');
+
+    el('btn-back-setup').click();
+    await settle();
+    assert.match(activeView(), /view-setup/);
+    assert.ok(shown('lineup-block'), 'going back landed somewhere else');
+    assert.ok(!shown('match-picker'), 'the saved lineup was offered as a new one');
+    assert.equal(text('starter-count'), '2', 'the saved eleven came back wrong');
+
+    const pressed = live.document.querySelectorAll('#roster-list .pick')
+        .filter((pick) => pick.getAttribute('aria-pressed') === 'true')
+        .map((pick) => pick.textContent);
+    assert.equal(pressed.length, 2, `${pressed.length} shown as starting`);
+    assert.ok(pressed.some((name) => name.includes('Rae'))
+        && pressed.some((name) => name.includes('Sam')),
+        `the wrong players came back pressed: ${pressed.join(' / ')}`);
+
+    // And the correction that was impossible before now saves. Every one of
+    // these documents already exists at version 0, so this is an update under
+    // an optimistic lock rather than a create — the write `firestore.rules`
+    // accepts is the one that bumps the version, and the create-shaped write
+    // this used to send would be refused.
+    const pick = (name) => live.document.querySelectorAll('#roster-list .pick')
+        .find((row) => row.textContent.includes(name));
+    pick('Sam').click();
+    pick('Alex').click();
+    await settle();
+    assert.equal(text('starter-count'), '2');
+
+    el('btn-save-lineup').click();
+    await settle();
+    assert.match(activeView(), /view-kickoff/, 'the correction did not save');
+
+    const lineup = stints('match-2');
+    assert.deepEqual(lineup['Alex Vega'],
+        { on: true, v: 1, stints: [{ inS: 0, outS: null }] });
+    // Dropped, and dropped all the way: a player who no longer starts has no
+    // stint at all, not one of zero length.
+    assert.deepEqual(lineup['Sam Okonjo'], { on: false, v: 1, stints: [] });
+    assert.equal(lineup['Rae Nkemelu'].v, 1, 'an untouched starter was left behind');
+
+    const saved = (id) =>
+        snapshotOf(`teams/${TEAM_ID}/matches/match-2/roster/${id}`).isStarter;
+    assert.deepEqual([saved('p-rae'), saved('p-alex'), saved('p-sam')],
+        [true, true, false], 'the corrected lineup is not what was picked');
 });
 
 test('the tablet keeps working when the server stops answering', async () => {

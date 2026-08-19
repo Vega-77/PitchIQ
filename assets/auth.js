@@ -10,7 +10,7 @@ import {
     doc, getDoc, setDoc, updateDoc, collection, getDocs, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { auth, db, isConfigured } from './firebase-init.js?v=94';
+import { auth, db, isConfigured } from './firebase-init.js?v=95';
 
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: 'select_account' });
@@ -152,12 +152,23 @@ async function claimCoachSeat(user, teamId) {
  * repeatedly; the dashboard uses that to backfill teams created before the
  * directory existed.
  */
-export function saveStaffProfile(user, teamId, role = 'coach') {
-    return setDoc(doc(db, 'teams', teamId, 'staff', user.uid), {
+export async function saveStaffProfile(user, teamId, role = 'coach') {
+    const ref = doc(db, 'teams', teamId, 'staff', user.uid);
+
+    // `joinedAt` is the one field here that is not a fact about right now, and
+    // this whole function is called again on every sign-in to backfill the
+    // other three. Written unconditionally it recorded the last time somebody
+    // opened the dashboard and called it a joining date — a field whose name
+    // was a lie about what it held, which is worse than not having it. Read it
+    // back and keep it; only the first save may set it.
+    const existing = await getDoc(ref).catch(() => null);
+    const joinedAt = existing?.exists() ? existing.data().joinedAt : null;
+
+    await setDoc(ref, {
         displayName: user.displayName || emailOf(user),
         emailLower: emailOf(user),
         role,
-        joinedAt: serverTimestamp(),
+        joinedAt: joinedAt ?? serverTimestamp(),
     });
 }
 
