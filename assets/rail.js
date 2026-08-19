@@ -22,7 +22,7 @@
 // would be a page with most of itself missing. The same rule keeps every
 // section on the paper when the report is printed.
 
-import { railTarget } from './report.js?v=93';
+import { railTarget } from './report.js?v=94';
 
 /**
  * Wire a rail to a report body.

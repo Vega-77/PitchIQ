@@ -324,33 +324,74 @@ test('every match field the match pages read is one something writes', () => {
  * written down anywhere, which is how a finished figure ends up with nowhere
  * to go.
  *
- * Both sides come out of the real files. The keys are parsed from
- * `summary_payload`'s own return dict rather than listed here, so a figure
- * added to the payload fails this the day it is added, instead of the month
- * somebody notices the screen never changed.
+ * All five payloads, not just the summary. The first version of this test
+ * scanned `summary_payload` alone, which was where `keepers` had been hiding,
+ * and covering one of five is the kind of half-check that reads as a solved
+ * problem. Widening it found `cvPositionNoiseM` on the player report the same
+ * afternoon — published for every player, mirrored into the browser's own
+ * `cvReportFields`, listed in `CV_REPORT_KEYS` so that clearing a run clears
+ * it too, and rendered nowhere.
+ *
+ * Both sides come out of the real files. The keys are parsed from each
+ * builder's own body rather than listed here, so a figure added to any payload
+ * fails this the day it is added, instead of the month somebody notices the
+ * screen never changed.
  *
  * A published key with no reader is not automatically a bug, so there is an
  * escape hatch — and it deliberately costs a sentence. Writing down why a
- * figure has nowhere to go is the entire point of the test; the two below have
- * real answers and `keepers` no longer does.
+ * figure has nowhere to go is the entire point of the test; the five below
+ * have real answers and `keepers` no longer does.
  *
  * What it cannot tell you is *which* object a `.key` was read off. A page that
  * happens to use `participants` for something unrelated would satisfy this on
- * the summary's behalf. That is the price of a check that needs no runtime and
- * no fixture, and it is worth paying: the failure this catches is a key nobody
- * anywhere mentions, which no amount of aliasing produces by accident.
+ * the summary's behalf, and short generic names — `id`, `type`, `team` on an
+ * event — are effectively unchecked, since every one of them is a property of
+ * something else somewhere. That is the price of a check that needs no runtime
+ * and no fixture, and it is worth paying: the failure this catches is a key
+ * nobody anywhere mentions, which no amount of aliasing produces by accident.
  */
 test('every figure the pipeline publishes is one some page reads', () => {
     const payload = read('cv/publish.py');
-    const from = payload.indexOf('def summary_payload(');
-    assert.ok(from > 0, 'summary_payload has been renamed — the scan is broken');
-    const body = payload.slice(from, payload.indexOf('\ndef ', from + 1));
-    const published = [...new Set(
-        [...body.matchAll(/^\s{8}'(\w+)':/gm)].map((m) => m[1]),
-    )].sort();
 
-    assert.ok(published.includes('teams') && published.includes('quality'),
-        `only found ${published.length} published keys — the scan is broken`);
+    // Every builder in the file, with where what it returns ends up. A new
+    // payload added without a line here is the one gap this cannot see, so the
+    // table is checked against the file rather than trusted.
+    const builders = [
+        ['summary_payload', 'cvStats/summary'],
+        ['events_payload', 'cvStats/events'],
+        ['identity_payload', 'cvStats/identity'],
+        ['thumbs_payload', 'cvStats/thumbs'],
+        ['player_report_fields', 'each player report'],
+    ];
+    const defined = [...payload.matchAll(/^def (\w+_payload|player_report_fields)\(/gm)]
+        .map((match) => match[1]).sort();
+    assert.deepEqual(defined, builders.map(([name]) => name).sort(),
+        'cv/publish.py has gained or lost a payload builder — add it to the'
+        + ' table above, or this scan quietly stops covering it');
+
+    const published = new Map();
+    for (const [name] of builders) {
+        const from = payload.indexOf(`def ${name}(`);
+        const body = payload.slice(from, payload.indexOf('\ndef ', from + 1));
+        // A key of the returned dict, at the start of its own line. The
+        // literals inside `.get('events')` and `cluster['thumb']` are lookups
+        // rather than keys, and none of them is followed by a colon.
+        const keys = new Set([
+            ...[...body.matchAll(/^\s*(?:return\s*)?\{?\s*'(\w+)':/gm)].map((m) => m[1]),
+            // `player_report_fields` builds its names out of one prefix and
+            // twenty suffixes, so no finished field appears as a literal.
+            ...[...body.matchAll(/^\s*f'\{CV_FIELD_PREFIX\}(\w+)':/gm)]
+                .map((m) => `cv${m[1]}`),
+        ]);
+        assert.ok(keys.size >= 2,
+            `only found ${keys.size} keys in ${name} — the scan is broken`);
+        published.set(name, [...keys].sort());
+    }
+
+    assert.ok(published.get('summary_payload').includes('keepers')
+        && published.get('events_payload').includes('startM')
+        && published.get('player_report_fields').includes('cvTouches'),
+        'the keys parsed out are not the ones cv/publish.py publishes');
 
     // Whatever the site serves. The fixture is skipped on purpose: it writes
     // these keys rather than reading them, so counting it as a reader would
@@ -377,31 +418,53 @@ test('every figure the pipeline publishes is one some page reads', () => {
         for (const hit of source.matchAll(/[\w)\]]\s*\??\.(\w+)\b/g)) seen.add(hit[1]);
     }
 
-    // Two keys travel without a reader, and each is here because the reason is
-    // worth stating rather than because the test was inconvenient.
+    // Five keys travel without a reader, and each is here because the reason
+    // is worth stating rather than because the test was inconvenient. Three of
+    // them say so in `cv/publish.py` already; this is where that claim stops
+    // being a comment nobody rechecks.
     const unread = {
         // Provenance, and `summary_payload` says so itself: "No page branches
         // on the version, and none should — a client that renders differently
         // per version is two clients." It exists so a document found in the
         // console can be dated against cv/report_json.py::SCHEMA_VERSION.
-        schemaVersion: 'provenance — nothing may branch on it',
+        'summary_payload.schemaVersion': 'provenance — nothing may branch on it',
+        'events_payload.schemaVersion': 'provenance — nothing may branch on it',
         // Derived, and its input is already fully on the screen.
         // `trustworthy` is `not warnings` (cv/report_json.py), and
         // `cvWarnings` in coach/coach.js draws every warning in full. A page
         // rendering the boolean as well would be telling a coach this run
         // cannot be trusted directly above the list of what was wrong with it.
-        trustworthy: 'derived from `warnings`, which is drawn in full',
+        'summary_payload.trustworthy': 'derived from `warnings`, which is drawn in full',
+        // For whoever is tuning the detector, not for a coach: the confidence
+        // the event list was trimmed at. `events_payload` explains why no page
+        // should draw it — confidence is a model-internal scale nothing on
+        // screen explains, so a number a coach cannot act on is worse than the
+        // sentence the notes already give them.
+        'events_payload.droppedBelowConfidence': 'a tuning figure, deliberately not shown',
+        // The naming as it stood when the run was published. Every page joins
+        // on `cvMapping/players.byCluster` instead, which a coach can change
+        // afterwards; this one records which naming produced the figures in
+        // the document beside it.
+        'identity_payload.playerByCluster': 'provenance — the live mapping is elsewhere',
     };
 
-    const dead = published.filter((key) => !seen.has(key) && !(key in unread));
+    const dead = [];
+    for (const [name, destination] of builders) {
+        for (const key of published.get(name)) {
+            if (seen.has(key) || `${name}.${key}` in unread) continue;
+            dead.push(`${key} — published to ${destination} by ${name}`);
+        }
+    }
     assert.deepEqual(dead, [],
-        'cv/publish.py puts these in every summary and no page reads them:\n  '
+        'cv/publish.py publishes these and no page reads them:\n  '
         + `${dead.join('\n  ')}`);
 
     // And the allowlist itself has to stay honest: a key that gains a reader,
-    // or leaves the payload, should not keep its excuse.
-    const stale = Object.keys(unread)
-        .filter((key) => !published.includes(key) || seen.has(key));
+    // or leaves its payload, should not keep its excuse.
+    const stale = Object.keys(unread).filter((entry) => {
+        const [name, key] = entry.split('.');
+        return !(published.get(name) || []).includes(key) || seen.has(key);
+    });
     assert.deepEqual(stale, [],
         'these are excused from needing a reader and no longer need excusing:\n  '
         + `${stale.join('\n  ')}`);
@@ -865,6 +928,29 @@ test('the player portal opens a season for the student it belongs to', async () 
     });
 
     assert.ok(!shown('loading'));
+
+    // And then the match under it, because the season list is not where the
+    // figures are. Everything below this line is the other half of the
+    // published-field guard further up the file: that one proves
+    // `cvPositionNoiseM` is mentioned somewhere in the served JavaScript, which
+    // is as far as a scan of source text can go. This proves the mention puts
+    // it on a screen — the thing that was actually missing for as long as the
+    // field existed, and the thing a scan can never tell you.
+    const row = live.document.querySelectorAll('.match-row')
+        .find((button) => button.textContent.includes('Westbrook'));
+    assert.ok(row, 'the season list offers no match to open');
+    row.click();
+    await settle();
+    assert.ok(shown('view-match'), 'the match never opened');
+
+    const note = text('md-stats-note');
+    assert.match(note, /wobbled about 0\.42m/, 'the wobble on their own track is unsaid');
+    assert.match(note, /count of bursts is a count of that wobble/);
+    // Said about a card that is genuinely absent. A note explaining away a
+    // number sitting directly above it would be worse than no note, and the
+    // fixture is built to be exactly that case: 0.42m is past the ceiling in
+    // cv/metrics.py, so the pipeline withheld the count.
+    assert.doesNotMatch(text('md-stats'), /Bursts/);
 });
 
 test('the half-time page reads the half', async () => {

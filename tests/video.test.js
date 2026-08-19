@@ -605,6 +605,54 @@ describe('coverageNote', () => {
         assert.equal(report.coverageNote(null), null);
     });
 });
+describe('playerWobbleNote', () => {
+    const CEILING = report.ACCEL_NOISE_CEILING_M;
+
+    test('a wobble nobody measured is null, not a steady track', () => {
+        assert.equal(report.playerWobbleNote(null), null);
+        assert.equal(report.playerWobbleNote(undefined), null);
+        // A fragment too short to measure one reports nothing, and the JSON
+        // round trip can turn that into a zero. Zero metres of wobble is a
+        // claim about precision, and this has none to make.
+        assert.equal(report.playerWobbleNote(0), null);
+    });
+
+    test('a steady track explains the metres and stops there', () => {
+        const note = report.playerWobbleNote(0.12);
+        assert.match(note, /wobbled about 0.12m/);
+        assert.match(note, /as well as your running/);
+        assert.doesNotMatch(note, /burst/);
+    });
+
+    test('a noisy track says why the burst count is missing', () => {
+        const note = report.playerWobbleNote(0.42);
+        assert.match(note, /wobbled about 0.42m/);
+        assert.match(note, /count of bursts is a count of that wobble/);
+        assert.match(note, new RegExp(`Past ${CEILING}m`));
+    });
+
+    test('the ceiling matches the pipeline, boundary included', () => {
+        // `cv/metrics.py` withholds bursts on `noise_m > MAX_ACCEL_NOISE_M`,
+        // so a track sitting exactly on the ceiling still has a burst count.
+        // Saying it does not would caption a card that is on the page.
+        assert.doesNotMatch(report.playerWobbleNote(CEILING), /burst/);
+        assert.match(report.playerWobbleNote(CEILING + 0.001), /burst/);
+    });
+
+    test('it quotes no phantom-metres rate', () => {
+        // The smoothing window is fitted per track and published per run, so a
+        // rate worked out on this side would be a rate for a window this file
+        // cannot see. `cvQualityNotes` reads the published one; this says the
+        // metres carry some wobble and leaves the arithmetic alone.
+        for (const noise of [0.05, 0.12, CEILING, 0.42, 1.2]) {
+            assert.doesNotMatch(report.playerWobbleNote(noise), /a minute|per minute/);
+        }
+    });
+
+    test('it addresses the player, since the player page is its only caller', () => {
+        assert.match(report.playerWobbleNote(0.12), /put you/);
+    });
+});
 
 describe('metresPerMinute', () => {
     test('it is a rate over the time the video actually had them', () => {

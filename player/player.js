@@ -9,31 +9,32 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=93';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=94';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=93';
-import { CARD_COLOURS } from '../assets/events.js?v=93';
-import { mountRail } from '../assets/rail.js?v=93';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=93';
-import { renderHeatmap } from '../assets/heatmap.js?v=93';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=93';
+} from '../assets/db.js?v=94';
+import { CARD_COLOURS } from '../assets/events.js?v=94';
+import { mountRail } from '../assets/rail.js?v=94';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=94';
+import { renderHeatmap } from '../assets/heatmap.js?v=94';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=94';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
+    playerWobbleNote,
     minutesNote, seasonGroups, matchLine,
-} from '../assets/report.js?v=93';
+} from '../assets/report.js?v=94';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=93';
-import { renderForms } from '../assets/form-chart.js?v=93';
+} from '../assets/season.js?v=94';
+import { renderForms } from '../assets/form-chart.js?v=94';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=93';
-import { renderMatchVideo } from '../assets/match-video.js?v=93';
+} from '../assets/sample-report.js?v=94';
+import { renderMatchVideo } from '../assets/match-video.js?v=94';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally, coverageStrip,
-} from '../assets/ui.js?v=93';
+} from '../assets/ui.js?v=94';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -368,7 +369,15 @@ function renderCoverageNote(report) {
     // and because this is where every other "what this rests on" line already
     // lives on this page.
     const clock = knownMinutes(report) ? '' : minutesNote(null, { second: true });
-    const full = [clock, text, corrected].filter(Boolean).join(' ');
+
+    // How precisely, after how much. `coverageNote` says which minutes of
+    // the match were measured at all; this says how steady the measuring
+    // was while it ran, and it is the only thing on the page that explains
+    // a missing Bursts card. Read off this player's own track, not the
+    // run's average — the pipeline withholds bursts per track.
+    const wobble = playerWobbleNote(report.cvPositionNoiseM);
+
+    const full = [clock, text, wobble, corrected].filter(Boolean).join(' ');
 
     note.textContent = full;
     note.classList.toggle('hidden', !full);

@@ -290,6 +290,11 @@ export function fixture() {
             minutesPlayed: 0, minutesKnown: false, goals: 0, assists: 0,
             fouls: 0, matchDate: '2026-08-07', opponentName: 'Westbrook',
             scoreUs: 2, scoreThem: 2,
+            // Past MAX_ACCEL_NOISE_M in cv/metrics.py, which is why this
+            // report has no `cvAccelerations` beside it. The pair is the
+            // state the player page has to explain: a Bursts card that is
+            // missing, and the one sentence on the page saying why.
+            cvPositionNoiseM: 0.42,
         }),
 
         log('dev-a_000001', { kind: 'period', type: 'kickoff_1st', side: null, seq: 1 }),

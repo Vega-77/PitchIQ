@@ -1304,6 +1304,49 @@ export const ACCEL_NOISE_CEILING_M = 0.3;
 export const PHANTOM_M_PER_MINUTE = 353;
 
 /**
+ * What the wobble on one player's own track cost them, in a sentence.
+ *
+ * `cvQualityNotes` says a version of this to a coach, off the run's team-wide
+ * noise figure. That is the wrong number for a player's own page twice over.
+ * A team average is not this player's track — the tracker holds a centre-back
+ * standing in space far better than a winger crossing in front of the crowd —
+ * and, more importantly, the decision it explains is made per track:
+ * `cv/metrics.py` withholds the burst count when *that track's* noise passes
+ * MAX_ACCEL_NOISE_M, so a player whose Bursts card is missing while the team
+ * average sat under the ceiling would read the coach's note and conclude the
+ * card was missing for some other reason.
+ *
+ * Second person throughout, because the player page is its only caller and a
+ * third-person variant nobody renders is precisely the kind of unread figure
+ * this note was written to explain.
+ *
+ * Deliberately quotes no phantom-metres rate. The pipeline fits each track's
+ * smoothing window to its own wobble and publishes the resulting rate for the
+ * run as a whole, not per player, so a rate worked out here would be quoting a
+ * window this file has no way to know about — the same trap `cvQualityNotes`
+ * documents at its own noise note.
+ *
+ * Returns null when there is no measured wobble, which is not the same as a
+ * track that held perfectly still: a fragment too short to measure one is a
+ * question nobody answered, and answering it here with "0.00m" would claim a
+ * precision that was never established.
+ */
+export function playerWobbleNote(noiseM) {
+    if (noiseM == null || !(noiseM > 0)) return null;
+
+    const wobble = `Where the video put you wobbled about ${noiseM.toFixed(2)}m `
+        + 'from frame to frame — the tracker being unsure where you were, not '
+        + 'you moving';
+    if (noiseM <= ACCEL_NOISE_CEILING_M) {
+        return `${wobble}, so the metres here carry a little of it as well as `
+            + 'your running.';
+    }
+    return `${wobble}. Past ${ACCEL_NOISE_CEILING_M}m a count of bursts is a `
+        + 'count of that wobble, so there is none for you in this match, and '
+        + 'the metres here are the roughest figure on the page.';
+}
+
+/**
  * What the stretches with no ball in them were, as a bar's worth of segments.
  *
  * `no_ball_s` has always been one figure covering two things a coach would

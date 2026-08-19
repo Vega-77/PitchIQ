@@ -4141,6 +4141,86 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **All five payloads, not one — and the figure that was hiding in the other
+      four** (2026-08-19). The display-gap guard below scanned `summary_payload`
+      alone, because that was where `keepers` had been hiding. Covering one of
+      five payloads is the kind of half-check that reads as a solved problem, so
+      it now covers every builder in `cv/publish.py`: `summary_payload` (15
+      keys), `events_payload` (17), `identity_payload` (3), `thumbs_payload` (3)
+      and `player_report_fields` (20) — 58 published figures against 791 distinct
+      property names across the 28 JavaScript files the site serves. The builder
+      table is itself checked against the file, so a sixth payload added without a
+      line in it fails the test rather than quietly falling outside the scan.
+      `player_report_fields` needed its own parse: it builds every name out of one
+      prefix and twenty suffixes, so no finished field appears in the source as a
+      literal.
+
+      Widening it found `cvPositionNoiseM` the same afternoon, and it was a
+      display gap of exactly the `keepers` kind. Published onto every player
+      report, mirrored into the browser's own `cvReportFields`, listed in
+      `CV_REPORT_KEYS` so that clearing a run clears it too, sitting in the sample
+      report at 0.14 — and rendered nowhere. What hid it is a near-miss:
+      `cvQualityNotes` in `assets/report.js` does say a version of this to a
+      coach, off `quality.position_noise_m`, which is a different field on a
+      different object. The run's team-wide average, not this player's track.
+
+      That distinction is the whole reason the gap mattered rather than being
+      tidy-up. `cv/metrics.py` withholds the burst count when *that track's*
+      noise passes `MAX_ACCEL_NOISE_M`, measured per track from the track itself
+      — so a player whose Bursts card is missing while the team average sat under
+      the ceiling would read the coach's note and conclude the card was missing
+      for some other reason. `player/player.js` had already promised the
+      explanation: the comment on the Bursts card says absent-not-zero "when the
+      tracking was too jittery to tell one from the wobble — see
+      `position_noise_m` in cv/metrics.py, **and the note under this grid**", and
+      the note under the grid said nothing about wobble. `playerWobbleNote` in
+      `assets/report.js` now keeps that promise, joined into the same sentence as
+      the coverage and clock notes so the page has one place that says what these
+      figures rest on.
+
+      Three things it deliberately does not say. It quotes no phantom-metres
+      rate: the smoothing window is fitted per track and published per run, so a
+      rate worked out on the browser's side would be quoting a window it cannot
+      see — the same trap `cvQualityNotes` documents at its own noise note. It
+      returns nothing at all for a zero, because a fragment too short to measure
+      a wobble reports none, a JSON round trip turns that into `0`, and "0.00m of
+      wobble" claims a precision nobody established. And it stops at the ceiling
+      rather than crossing it: `metrics.py` withholds on `noise_m >
+      MAX_ACCEL_NOISE_M`, so a track sitting exactly on 0.30 still has a burst
+      count, and the boundary test pins that — a note explaining away a card that
+      is on the screen is worse than no note.
+
+      Six tests on the function, and the player portal's page test now opens a
+      match and reads the sentence off `#md-stats-note` rather than stopping at
+      "the page came up". That second half is the point: the scan can only prove
+      a key is *mentioned* somewhere in the served JavaScript, which is as far as
+      reading source text can go. Whether the mention reaches a screen is the
+      thing that was actually missing, and the thing a scan can never tell you.
+      The fixture is built to be the awkward case — 0.42m of wobble and no
+      `cvAccelerations` beside it — so the test fails if the note ever starts
+      apologising for a card that is present.
+
+      Five keys still travel without a reader, three more than before, and each
+      is excused in the test with the reason written out. Both `schemaVersion`s
+      are provenance and nothing may branch on them. `trustworthy` is derived
+      from `warnings`, which `coach/coach.js` draws in full.
+      `droppedBelowConfidence` is a tuning figure for whoever is fitting the
+      detector, and `events_payload` already argues no page should draw it —
+      confidence is a model-internal scale nothing on screen explains.
+      `identity_payload.playerByCluster` records the naming as it stood when the
+      run was published, while every page joins on the live
+      `cvMapping/players.byCluster` a coach can change afterwards. Two of those
+      five were claims sitting in Python comments that nobody rechecked; they are
+      now assertions.
+
+      The limit is unchanged and gets worse with more payloads, so it is worth
+      restating: the scan cannot say *which* object a `.key` was read off. Short
+      generic names are effectively unchecked — `id`, `type` and `team` on an
+      event are each a property of something else somewhere in this codebase — so
+      the events payload is the weakest covered of the five. It still catches the
+      failure it was built for, which is a key nobody anywhere mentions, and no
+      amount of aliasing produces that by accident. 731 pure JS · 30 pages · 145
+      emulator · 1125 Python.
 - [x] **Every figure the pipeline publishes, against every page that could draw
       one** (2026-08-19). The field sweep below named three distinct ways a write
       and a read can fail to meet, and automated a guard for one of them. This is
