@@ -213,7 +213,7 @@ test('every button variant the markup asks for is one the stylesheet has', () =>
         `these buttons ask for a variant no stylesheet defines and no script queries:\n  ${dead.join('\n  ')}`);
 });
 /**
- * Every field the match view reads off a match document is one something writes.
+ * Every field a match page reads off a match document is one something writes.
  *
  * A read of a field nobody writes is the quietest bug this codebase has. It
  * throws nothing, logs nothing and renders nothing — `undefined` falls through
@@ -225,17 +225,29 @@ test('every button variant the markup asks for is one the stylesheet has', () =>
  *
  * So compare the two sides directly. A name is legitimate if it is either:
  *   - a field `firestore.rules` lets somebody write to the match document, or
- *   - a key this page merges on itself after loading it.
+ *   - a key the page merges on itself after loading it.
  * Both sides are read out of the real files, so renaming a field in the rules
  * or dropping one from the merge fails here rather than on the screen.
+ *
+ * The two pages get different answers on purpose. The coach page assembles its
+ * match out of a document plus several subcollections, so its merge literal is
+ * part of the writer side. The half-time page assigns the snapshot straight
+ * through — `state.match = match` — so the document alone is the whole of what
+ * it may read, and a field the coach page merges in is not one it can borrow.
+ *
+ * `player/player.js` is deliberately absent. Its `report` is a published player
+ * report from another collection that happens to carry an opponent name and a
+ * video link too; checking it against the match rules would compare a document
+ * against somebody else's writer list and pass or fail for no reason.
  *
  * Scoped to `state.match` on purpose. It is the object with two authors — a
  * server document and a client merge — and that seam is where the mismatches
  * were. The subcollections it carries have single authors and single readers.
  */
-test('every match field the coach page reads is one something writes', () => {
+test('every match field the match pages read is one something writes', () => {
     const read = (name) => readFileSync(new URL(name, root), 'utf8');
     const coach = read('coach/coach.js');
+    const halftime = read('halftime/halftime.js');
     const rules = read('firestore.rules');
     const db = read('assets/db.js');
 
@@ -244,37 +256,190 @@ test('every match field the coach page reads is one something writes', () => {
     const from = rules.indexOf('match /matches/{m}');
     const to = rules.indexOf('match /roster/', from);
     const block = rules.slice(from, to);
-    const writable = new Set();
+    const stored = new Set();
     for (const list of block.matchAll(/(?:hasOnly|changed)\(\s*\[([^\]]*)\]/g)) {
-        for (const field of list[1].matchAll(/'(\w+)'/g)) writable.add(field[1]);
+        for (const field of list[1].matchAll(/'(\w+)'/g)) stored.add(field[1]);
     }
+    // ...plus `id`, which lives on the snapshot rather than inside it. That is
+    // the document as any page receives it.
+    for (const own of db.matchAll(/(\w+):\s*snap\.(?:id|ref)\b/g)) stored.add(own[1]);
 
-    // ...plus whatever the loader puts on top of the document's own data:
-    // `id`, which lives on the snapshot rather than inside it, and the
-    // subcollections the match view merges in so the page has one object.
-    for (const own of db.matchAll(/(\w+):\s*snap\.(?:id|ref)\b/g)) writable.add(own[1]);
+    // The coach page alone merges the subcollections in, so the page has one
+    // object rather than five.
+    const merged = new Set(stored);
     const merge = coach.match(/state\.match\s*=\s*\{([^}]*)\}/);
     assert.ok(merge, 'no `state.match = {...}` literal found — the scan is broken');
     for (const key of merge[1].split(',')) {
         const token = key.trim();
-        if (/^\w+$/.test(token)) writable.add(token);
+        if (/^\w+$/.test(token)) merged.add(token);
     }
 
-    const readFields = [...new Set(
-        [...coach.matchAll(/state\.match\??\.(\w+)/g)].map((m) => m[1]),
-    )].sort();
-
-    assert.ok(readFields.length > 12,
-        `only found ${readFields.length} reads of state.match — the scan is broken, not the page`);
-    assert.ok(writable.has('opponentName') && writable.has('xgCheck'),
+    assert.ok(stored.has('opponentName') && stored.has('xgCheck'),
         'no rules file was read');
-    assert.ok(writable.has('id') && writable.has('roster'),
+    assert.ok(merged.has('id') && merged.has('roster'),
         'the client-assembled keys were not picked up');
 
-    const dead = readFields.filter((name) => !writable.has(name));
+    // The minimum is per page and only there to catch a scan that has stopped
+    // finding anything: the coach page reads dozens, the half-time page a
+    // handful, and a rename that empties either one should fail loudly rather
+    // than pass with nothing to check.
+    for (const [name, source, writable, least] of [
+        ['coach/coach.js', coach, merged, 12],
+        ['halftime/halftime.js', halftime, stored, 3],
+    ]) {
+        const readFields = [...new Set(
+            [...source.matchAll(/state\.match\??\.(\w+)/g)].map((m) => m[1]),
+        )].sort();
+        assert.ok(readFields.length >= least,
+            `only found ${readFields.length} reads of state.match in ${name}`
+            + ' — the scan is broken, not the page');
+
+        const dead = readFields.filter((field) => !writable.has(field));
+        assert.deepEqual(dead, [],
+            `${name} reads these off a match, and nothing writes them:\n  `
+            + `${dead.join('\n  ')}`);
+    }
+});
+
+
+/**
+ * Every figure the pipeline publishes is one some page can put on a screen.
+ *
+ * The mirror of the test above, and the harder direction of the same seam.
+ * That one catches a read with no writer — a page asking a match document for
+ * a field nothing ever fills in. This one catches a write with no reader: a
+ * number computed in Python, serialised, carried through `cv/publish.py` into
+ * a Firestore document every client downloads, and then drawn by nothing at
+ * all.
+ *
+ * It is the quietest of the three ways a write and a read can fail to meet,
+ * because nothing anywhere is wrong. The pipeline is right, the document is
+ * right, and the pages are right about everything they do draw. The only
+ * symptom is a screen missing something, which is indistinguishable from a
+ * feature nobody has asked for yet. `keepers` sat exactly like that: a
+ * complete stat block per goalkeeper — saves, save percentage, claims, sweeper
+ * actions, distribution accuracy by kick, punt and throw — in every published
+ * summary, on no screen, for as long as the field existed. Goalkeeper
+ * *detection* was a ticked roadmap item; goalkeeper *display* was never
+ * written down anywhere, which is how a finished figure ends up with nowhere
+ * to go.
+ *
+ * Both sides come out of the real files. The keys are parsed from
+ * `summary_payload`'s own return dict rather than listed here, so a figure
+ * added to the payload fails this the day it is added, instead of the month
+ * somebody notices the screen never changed.
+ *
+ * A published key with no reader is not automatically a bug, so there is an
+ * escape hatch — and it deliberately costs a sentence. Writing down why a
+ * figure has nowhere to go is the entire point of the test; the two below have
+ * real answers and `keepers` no longer does.
+ *
+ * What it cannot tell you is *which* object a `.key` was read off. A page that
+ * happens to use `participants` for something unrelated would satisfy this on
+ * the summary's behalf. That is the price of a check that needs no runtime and
+ * no fixture, and it is worth paying: the failure this catches is a key nobody
+ * anywhere mentions, which no amount of aliasing produces by accident.
+ */
+test('every figure the pipeline publishes is one some page reads', () => {
+    const payload = read('cv/publish.py');
+    const from = payload.indexOf('def summary_payload(');
+    assert.ok(from > 0, 'summary_payload has been renamed — the scan is broken');
+    const body = payload.slice(from, payload.indexOf('\ndef ', from + 1));
+    const published = [...new Set(
+        [...body.matchAll(/^\s{8}'(\w+)':/gm)].map((m) => m[1]),
+    )].sort();
+
+    assert.ok(published.includes('teams') && published.includes('quality'),
+        `only found ${published.length} published keys — the scan is broken`);
+
+    // Whatever the site serves. The fixture is skipped on purpose: it writes
+    // these keys rather than reading them, so counting it as a reader would
+    // let the preview keep a figure alive that no page has ever drawn.
+    const skip = new Set([
+        'node_modules', 'PitchIQHelper', '.git', 'runs', 'scratch_frames',
+        'cv', 'baselines', 'tests', 'sample-report.js',
+    ]);
+    const sources = [];
+    (function walk(dir) {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            if (skip.has(entry.name)) continue;
+            const path = `${dir}/${entry.name}`;
+            if (entry.isDirectory()) walk(path);
+            else if (entry.name.endsWith('.js')) sources.push(readFileSync(path, 'utf8'));
+        }
+    })(new URL('.', root).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+
+    // A property access, not a bare word. `window`, `source` and `period` are
+    // all ordinary identifiers in this codebase and every one of them would
+    // match a naked name search on a page that never touches the summary.
+    const seen = new Set();
+    for (const source of sources) {
+        for (const hit of source.matchAll(/[\w)\]]\s*\??\.(\w+)\b/g)) seen.add(hit[1]);
+    }
+
+    // Two keys travel without a reader, and each is here because the reason is
+    // worth stating rather than because the test was inconvenient.
+    const unread = {
+        // Provenance, and `summary_payload` says so itself: "No page branches
+        // on the version, and none should — a client that renders differently
+        // per version is two clients." It exists so a document found in the
+        // console can be dated against cv/report_json.py::SCHEMA_VERSION.
+        schemaVersion: 'provenance — nothing may branch on it',
+        // Derived, and its input is already fully on the screen.
+        // `trustworthy` is `not warnings` (cv/report_json.py), and
+        // `cvWarnings` in coach/coach.js draws every warning in full. A page
+        // rendering the boolean as well would be telling a coach this run
+        // cannot be trusted directly above the list of what was wrong with it.
+        trustworthy: 'derived from `warnings`, which is drawn in full',
+    };
+
+    const dead = published.filter((key) => !seen.has(key) && !(key in unread));
     assert.deepEqual(dead, [],
-        'the coach page reads these off a match, and nothing writes them:\n  '
+        'cv/publish.py puts these in every summary and no page reads them:\n  '
         + `${dead.join('\n  ')}`);
+
+    // And the allowlist itself has to stay honest: a key that gains a reader,
+    // or leaves the payload, should not keep its excuse.
+    const stale = Object.keys(unread)
+        .filter((key) => !published.includes(key) || seen.has(key));
+    assert.deepEqual(stale, [],
+        'these are excused from needing a reader and no longer need excusing:\n  '
+        + `${stale.join('\n  ')}`);
+});
+
+
+/**
+ * And the preview carries the same shape the pipeline does.
+ *
+ * `sampleCvSummary` is what all three pages render when a coach presses the
+ * sample button, and it is the only version of a match report anybody has
+ * looked at, since no footage exists yet. So it is not a fixture in the usual
+ * sense — it is the demo, and a key it spells differently from the pipeline is
+ * a feature that works in the preview and fails on the first real match.
+ *
+ * That has already happened once: the sample's keeper block carried `track_id`
+ * where the pipeline writes `track_ids`, alongside a dozen stats it did not
+ * have at all, so the fixture was not exercising the real shape of the one
+ * field nothing rendered.
+ *
+ * `isSample` is the only key excused, and only in one direction: it is the
+ * fixture's own marker, the thing `isSample()` tests for so that a page can
+ * label an invented figure as invented, and it has no business in a document
+ * written from real footage.
+ */
+test('the sample summary carries the keys a published one does', async () => {
+    const { sampleCvSummary } = await import('../assets/sample-report.js');
+    const payload = read('cv/publish.py');
+    const from = payload.indexOf('def summary_payload(');
+    const body = payload.slice(from, payload.indexOf('\ndef ', from + 1));
+    const published = [...body.matchAll(/^\s{8}'(\w+)':/gm)].map((m) => m[1]).sort();
+
+    const sample = Object.keys(sampleCvSummary())
+        .filter((key) => key !== 'isSample')
+        .sort();
+
+    assert.deepEqual(sample, published,
+        'the preview and the pipeline disagree about what a summary holds');
 });
 
 

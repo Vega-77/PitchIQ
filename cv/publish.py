@@ -202,12 +202,14 @@ def summary_payload(report_json: dict) -> dict:
         'trustworthy': report_json.get('trustworthy', False),
         'teams': report_json.get('teams') or {},
         # A full stat block per keeper — saves, goals conceded, save
-        # percentage, sweeper actions, distribution accuracy by type — and the
-        # one part of this payload no page renders yet. Not provenance and not
-        # dead: it is a computed figure waiting on a screen to put it on, which
-        # is a display gap rather than a field to delete. The track ids in it
-        # are also what the outfield shape figures were computed against, since
-        # `cv/metrics.py` excludes keepers from every one of them.
+        # percentage, sweeper actions, distribution accuracy by type — drawn
+        # on the coach's match view since the keeper block shipped. It sat
+        # here rendered by nothing for as long as the field existed, which is
+        # the failure `tests/smoke.test.js` now watches this dict for: a figure
+        # that is computed, published and downloaded by every client, and put
+        # on no screen. The track ids in it are also what the outfield shape
+        # figures were computed against, since `cv/metrics.py` excludes keepers
+        # from every one of them.
         'keepers': report_json.get('keepers') or [],
         'participants': participant_notes(report_json),
         'reconciliation': report_json.get('reconciliation'),

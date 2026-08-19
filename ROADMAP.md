@@ -4141,6 +4141,76 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **Every figure the pipeline publishes, against every page that could draw
+      one** (2026-08-19). The field sweep below named three distinct ways a write
+      and a read can fail to meet, and automated a guard for one of them. This is
+      the second, and it is the one that has actually cost something: a *display
+      gap* — a number the pipeline computes, serialises and ships in every
+      published document, that no page puts on a screen. `keepers` sat exactly
+      like that for months, and nothing anywhere was wrong. The pipeline was
+      right, the document was right, and every page was right about everything it
+      did draw. The only symptom was a screen missing something, which looks
+      exactly like a feature nobody has asked for yet.
+
+      `tests/smoke.test.js` now parses the keys out of `summary_payload`'s own
+      return dict in `cv/publish.py` — 15 today — and looks for each as a
+      property access across every JavaScript file the site serves: 28 files,
+      789 distinct property names. Both sides come out of the real files, so a
+      figure added to the payload fails this the day it is added, instead of the
+      month somebody notices the screen never changed. `assets/sample-report.js`
+      is skipped on purpose: it writes these keys rather than reading them, and
+      counting it as a reader would let the preview keep a figure alive that no
+      page has ever drawn.
+
+      The reader scan matches `.key` after a name, a `)` or a `]`, not a bare
+      word. `window`, `source` and `period` are all ordinary identifiers in this
+      codebase, and every one of them would match a naked name search on a page
+      that never touches a summary. What it still cannot say is *which* object a
+      `.key` was read off — a page using `participants` for something unrelated
+      would satisfy this on the summary's behalf. That is the price of a check
+      that needs no runtime and no fixture, and it is worth paying, because the
+      failure it catches is a key nobody anywhere mentions, and no amount of
+      aliasing produces that by accident.
+
+      Two keys travel with no reader, and each is allowed to with the reason
+      written down rather than assumed. `schemaVersion` is provenance, and
+      nothing may branch on it — a client that renders differently per version is
+      two clients; it exists so a document found in the console can be dated
+      against `cv/report_json.py::SCHEMA_VERSION`. `trustworthy` is `not
+      warnings`, and `cvWarnings` in `coach/coach.js` already draws every warning
+      in full — a page rendering the boolean as well would tell a coach this run
+      cannot be trusted directly above the list of what was wrong with it. The
+      allowlist is checked in both directions, so a key that later gains a
+      reader, or leaves the payload, cannot keep its excuse.
+
+      A second test pins `assets/sample-report.js` to the same shape, key for
+      key. That fixture is not a fixture in the usual sense — it is the demo, and
+      the only version of a match report anybody has looked at, since no footage
+      exists yet. A key it spells differently from the pipeline is a feature that
+      works in the preview and fails on the first real match, which has already
+      happened once: its keeper block carried `track_id` where the pipeline
+      writes `track_ids`, alongside a dozen stats it did not have at all, so the
+      fixture was not exercising the real shape of the one field nothing
+      rendered. `isSample` is the only key excused, and only in one direction —
+      it is the marker `isSample()` tests for so a page can label an invented
+      figure as invented, and it has no business in a document written from real
+      footage.
+
+      **And the sweep below now covers both match pages.** The `state.match?.X`
+      union check read `coach/coach.js` only; `halftime/halftime.js` reads three
+      fields off the same document and was checked by nothing. The two pages get
+      different writer sets on purpose: the coach page assembles its match out of
+      a document plus several subcollections, so its merge literal is part of the
+      writer side, while the half-time page assigns the snapshot straight through
+      — `state.match = match` — so the document alone is the whole of what it may
+      read, and a field the coach page merges in is not one it can borrow.
+      `player/player.js` stays out, and the test says why: its `report` is a
+      published player report from a different collection that happens to carry
+      an opponent name and a video link too, so checking it against the match
+      rules would compare a document against somebody else's writer list and pass
+      or fail for no reason.
+
+      Page suite 28 → 30, all four suites green.
 - [x] **Every field the browser reads, against everything that writes one**
       (2026-08-18). A sweep in both directions across `assets/db.js`,
       `cv/publish.py`, `firestore.rules` and the three pages: every read with no
@@ -4211,7 +4281,10 @@ than the workaround, which matters given the data class.
       gap rather than a dead field, and the third distinct reason a write can
       have no reader. `assets/sample-report.js:461` mirrors it with the wrong
       key as well — `track_id` where the pipeline writes `track_ids` plus a
-      dozen stats — so the fixture is not exercising the real shape.
+      dozen stats — so the fixture is not exercising the real shape. Both halves
+      of that are closed now: the keeper block went on the coach's match view,
+      and the published-field sweep above turned "no page draws this" from
+      something a person had to notice into something a test fails on.
 
 - [x] **The player's own season got the sidebar the coach's report already had**
       (2026-08-15). The rail — a column that loads one section in rather than
