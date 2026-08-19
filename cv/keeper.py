@@ -110,6 +110,13 @@ class KeeperReport:
     sweeper_actions: int = 0
     sweeper_max_distance_m: float = 0.0
     distributions: list[KeeperDistribution] = field(default_factory=list)
+    # Whether anything was able to say which goal this keeper defends.
+    # Every figure but the shot counts is measured against that goal, so
+    # without it `_count_positional` and `_collect_distribution` never run and
+    # the four fields they fill stay at their defaults. Publishing those
+    # defaults would say a keeper claimed nothing and never left his line,
+    # when in truth nobody looked; `to_json` sends None for them instead.
+    end_known: bool = False
 
     @property
     def save_pct(self) -> float | None:
@@ -140,10 +147,16 @@ class KeeperReport:
             'saves': self.saves,
             'goals_conceded': self.goals_conceded,
             'save_pct': self.save_pct,
-            'claims': self.claims,
-            'sweeper_actions': self.sweeper_actions,
-            'sweeper_max_distance_m': round(self.sweeper_max_distance_m, 1),
-            'distributions': len(self.distributions),
+            # None, not zero, when nothing said which goal this keeper
+            # defends — see `end_known`. And the furthest sweep is None
+            # whenever there were no sweeper actions to take a maximum of,
+            # because a max over an empty set is not 0.0 metres.
+            'claims': self.claims if self.end_known else None,
+            'sweeper_actions': self.sweeper_actions if self.end_known else None,
+            'sweeper_max_distance_m': (
+                round(self.sweeper_max_distance_m, 1) if self.sweeper_actions else None
+            ),
+            'distributions': len(self.distributions) if self.end_known else None,
             'kick_accuracy': self.accuracy('kick'),
             'punt_accuracy': self.accuracy('punt'),
             'throw_accuracy': self.accuracy('throw'),
@@ -246,6 +259,7 @@ def keeper_reports(
 
         _count_shots(log, report, team, tracks)
         if end is not None:
+            report.end_known = True
             _count_positional(log, report, pitch, tracks, end)
             _collect_distribution(log, report, pitch, tracks, team, end)
 

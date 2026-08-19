@@ -2426,9 +2426,20 @@ export const STAT_TYPES = [
     { id: 'attacking', title: 'Attacking' },
     { id: 'defending', title: 'Defending' },
     {
+        id: 'keeping',
+        title: 'Goalkeeping',
+        note: 'The shots and the goals themselves are up in Attacking, from '
+            + 'the other side’s point of view; these are what the keeper did '
+            + 'about them. Save percentage is out of the shots that reached '
+            + 'the line, not out of every shot faced.',
+    },
+    {
         id: 'shape',
         title: 'Shape',
-        note: 'Averaged across the run, and only as good as the calibration.',
+        note: 'Averaged across the run, and only as good as the calibration. '
+            + 'The goalkeepers are left out of all four: a keeper stands '
+            + 'behind his defence at every moment, so counting him would pull '
+            + 'the back line several metres deeper than it was played.',
     },
 ];
 
@@ -2957,6 +2968,10 @@ export function teamStatRows(cv, confidence = {}) {
             (t) => t.turnovers_by_third?.defensive, { better: 'low' }),
 
         ...shapeStatRows(ours.shape, theirs?.shape, cv.calibrationErrorM),
+
+        ...keeperStatRows(cv.keepers, {
+            events, shape: shapeConfidence(cv.calibrationErrorM),
+        }),
     ];
 }
 
@@ -3007,6 +3022,95 @@ export function shapeStatRows(shape, theirShape, calibrationErrorM) {
         // uncalibrated or unassigned run shows three rows rather than a fourth
         // reading nothing.
         row('Defensive line', 'line_m'),
+    ];
+}
+
+/**
+ * The goalkeeper's half of the match, for both goalkeepers.
+ *
+ * `cv/keeper.py` has computed this block since the pipeline's second month and
+ * until today no page drew a single figure of it. It reached the browser the
+ * whole time — `readCvStats` spreads the summary document, so it has been
+ * sitting on `state.match.cv.keepers` unread.
+ *
+ * What is deliberately not here: shots faced and goals conceded. Both are the
+ * opposition's shots and the opposition's goals, and both are already on the
+ * screen in the attacking group with the columns the other way round. Printing
+ * them again under a different name would look like a second measurement and
+ * would be the same one.
+ *
+ * Almost nothing here is marked good or bad. A keeper with eight saves was
+ * either excellent or abandoned by the ten in front of him, and a count cannot
+ * tell those apart. Save percentage is the exception: it already has the
+ * workload divided out of it.
+ *
+ * One keeper per team, both optional and either one able to be the missing
+ * one. `identify_keepers` finds a keeper per team independently — a side whose
+ * keeper wore a colour close enough to his outfielders can be the only side
+ * without one — so the rows draw from whichever were found and leave the other
+ * column empty rather than against a zero. `groupStats` keeps a row on one
+ * side alone for exactly this reason.
+ */
+export function keeperStatRows(keepers, confidence = {}) {
+    const forTeam = (team) => (keepers || []).find((k) => k && k.team === team) || null;
+    const ours = forTeam('team_a');
+    const theirs = forTeam('team_b');
+    if (!ours && !theirs) return [];
+
+    const events = confidence.events || null;
+    // The metre figures rest on the homography, not on the event detector, so
+    // they carry the calibration's band instead of the event band.
+    const shape = confidence.shape || null;
+
+    const row = (label, kind, pick, options = {}) => {
+        const { format = (v) => v, better = null, confidence: mark = events,
+                explained = false } = options;
+        const usN = ours ? (pick(ours) ?? null) : null;
+        const themN = theirs ? (pick(theirs) ?? null) : null;
+        return {
+            type: 'keeping', label, kind, better, explained, confidence: mark,
+            value: usN == null ? null : format(usN),
+            themValue: themN == null ? null : format(themN),
+            usN, themN,
+        };
+    };
+
+    const asPct = (fraction) => (fraction == null ? null : fraction * 100);
+    const pctText = (value) => `${Math.round(value)}%`;
+    const metres = (value) => `${Math.round(value)}m`;
+
+    // A maximum over no sweeper actions is not zero metres. `to_json` sends
+    // null for it now; reports published before it did send 0.0, and this keeps
+    // those from drawing a keeper who never left his line as one who came out
+    // and got exactly nowhere.
+    const furthest = (k) => (k.sweeper_actions ? k.sweeper_max_distance_m : null);
+
+    return [
+        row('Saves', COUNT, (k) => k.saves),
+        // Saves out of the shots that actually reached the line — saves plus
+        // goals conceded, not shots faced. A keeper who was never tested has no
+        // percentage at all, which `groupStats` turns into a dash.
+        row('Save percentage', RATE, (k) => asPct(k.save_pct),
+            { format: pctText, better: 'high', explained: true }),
+        row('Claims', COUNT, (k) => k.claims),
+        row('Sweeper actions', COUNT, (k) => k.sweeper_actions),
+        row('Furthest from goal', LEVEL, furthest,
+            { format: metres, confidence: shape }),
+        row('Distributions', COUNT, (k) => k.distributions),
+        // Each accuracy is out of that kind of restart alone, so a keeper who
+        // never punted has no punt figure rather than a nought per cent. The
+        // kinds come from hold time and distance, never from ball height, so a
+        // ball the pipeline could not classify is in none of the three.
+        row('Kick accuracy', RATE, (k) => asPct(k.kick_accuracy),
+            { format: pctText, better: 'high', explained: true }),
+        row('Punt accuracy', RATE, (k) => asPct(k.punt_accuracy),
+            { format: pctText, better: 'high', explained: true }),
+        row('Throw accuracy', RATE, (k) => asPct(k.throw_accuracy),
+            { format: pctText, better: 'high', explained: true }),
+        row('Average kick', LEVEL, (k) => k.mean_kick_distance_m,
+            { format: metres, confidence: shape }),
+        row('Average punt', LEVEL, (k) => k.mean_punt_distance_m,
+            { format: metres, confidence: shape }),
     ];
 }
 

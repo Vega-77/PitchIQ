@@ -9,31 +9,31 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=92';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=93';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=92';
-import { CARD_COLOURS } from '../assets/events.js?v=92';
-import { mountRail } from '../assets/rail.js?v=92';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=92';
-import { renderHeatmap } from '../assets/heatmap.js?v=92';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=92';
+} from '../assets/db.js?v=93';
+import { CARD_COLOURS } from '../assets/events.js?v=93';
+import { mountRail } from '../assets/rail.js?v=93';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=93';
+import { renderHeatmap } from '../assets/heatmap.js?v=93';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=93';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
     minutesNote, seasonGroups, matchLine,
-} from '../assets/report.js?v=92';
+} from '../assets/report.js?v=93';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=92';
-import { renderForms } from '../assets/form-chart.js?v=92';
+} from '../assets/season.js?v=93';
+import { renderForms } from '../assets/form-chart.js?v=93';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=92';
-import { renderMatchVideo } from '../assets/match-video.js?v=92';
+} from '../assets/sample-report.js?v=93';
+import { renderMatchVideo } from '../assets/match-video.js?v=93';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally, coverageStrip,
-} from '../assets/ui.js?v=92';
+} from '../assets/ui.js?v=93';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 

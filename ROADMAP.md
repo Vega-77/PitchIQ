@@ -3335,21 +3335,90 @@ Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.
       a better calibration.
 
 ## 13. Player & Team Statistics / Profiles
-- [ ] **Put the goalkeeper's numbers on a screen.** `cv/keeper.py` computes a
-      full block per keeper and `cv/publish.py` writes it to
-      `cvStats/summary.keepers`: shots faced, shots on target faced, saves,
-      goals conceded, save percentage, claims, sweeper actions and the furthest
-      one from goal, distributions, and accuracy split by kick, punt and throw.
-      No page renders any of it. Found by the field sweep of 2026-08-18, which
-      is the only reason it is written down at all — Phase 6 ticks keeper
-      *detection* and nothing anywhere asked for keeper *display*. Whoever picks
-      this up should fix `assets/sample-report.js:461` in the same pass: it
-      mirrors the block with `track_id` where the real payload has `track_ids`
-      and a dozen stat fields, so the sample is not exercising the real shape.
-      Note also that these track ids are what every outfield shape figure was
-      computed *against* — `cv/metrics.py` excludes them from the back line,
-      the width and the compactness — so the same screen can finally say who
-      was left out of those.
+- [x] **Put the goalkeeper's numbers on a screen** (2026-08-18). `cv/keeper.py`
+      had computed a full block per keeper since the pipeline's second month and
+      `cv/publish.py` had been writing it to `cvStats/summary.keepers` the whole
+      time. `readCvStats` spreads the summary document, so it was sitting on
+      `state.match.cv.keepers` unread on every match ever published. Found by
+      the field sweep of the same day, which is the only reason it was written
+      down at all — Phase 6 ticks keeper *detection* and nothing anywhere asked
+      for keeper *display*.
+
+      New `keeperStatRows` in `assets/report.js`, and a `keeping` group in
+      `STAT_TYPES` between Defending and Shape. It goes out through
+      `teamStatRows`, so **not one line of `coach/coach.js` or
+      `coach/index.html` changed**: the block inherits bars, confidence marks,
+      the em dash for an absent figure and the desktop column layout from the
+      path every other stat group already takes. Eleven rows on the sample —
+      saves, save percentage, claims, sweeper actions, furthest from goal,
+      distributions, kick/punt/throw accuracy, average kick, average punt —
+      taking the coach's match report from 36 rows in six groups to 47 in seven.
+
+      **Shots faced, shots on target faced and goals conceded are deliberately
+      left out.** They are the opposition's shots and the opposition's goals,
+      already on the screen in Attacking with the columns the other way round.
+      Printing them again under a keeper's name would look like a second
+      measurement and would be the same one; the group's note says where they
+      are instead.
+
+      **Only the rate with the workload divided out of it is marked good or
+      bad.** A keeper with eight saves was either excellent or abandoned by the
+      ten in front of him, and a count cannot tell those apart — so saves,
+      claims and sweeper actions are drawn uncoloured, and `better: 'high'`
+      belongs to save percentage and the three distribution accuracies alone.
+      The metre rows carry `shapeConfidence(calibrationErrorM)` rather than the
+      event band, because 21 metres is a claim about the homography and not
+      about the event detector.
+
+      **Either keeper may be the missing one.** `identify_keepers` works per
+      team, so a side whose keeper wore a colour close to his outfielders can be
+      the only side without one. The rows draw from whichever were found and
+      leave the other column empty, which is what `groupStats` keeps a one-sided
+      row for: dropping the block would take the keeper who *was* found down
+      with the one who was not. Verified against a `team_b`-only array — eleven
+      rows, our column empty throughout.
+
+      **A defect fell out of writing the display, and it was in Python.**
+      `keeper_reports` only calls `_count_positional` and `_collect_distribution`
+      when something said which goal that keeper defends; without it, claims,
+      sweeper actions, the furthest sweep and distributions kept their `0`
+      defaults and were published as measurements. A keeper nobody looked at
+      read as a keeper who claimed nothing and never left his line. New
+      `end_known` flag on `KeeperReport`, and `to_json` sends null for all four
+      without it. The furthest sweep is null separately whenever there were no
+      sweeper actions, because a maximum over an empty set is not 0.0 metres —
+      and `keeperStatRows` reads the *count* rather than the distance for that
+      row, so a report published under the old schema cannot draw a keeper who
+      held his line as one who came out and got exactly nowhere.
+      **`SCHEMA_VERSION` 13 → 14**, and the first version bump here that is not
+      additive: the same four keys changed meaning.
+
+      **Not on the half-time page**, and that is a decision rather than an
+      omission. `cvTallies` builds its own eleven rows and has never carried the
+      Shape or Phase-of-play groups either; the page is read standing up in
+      three minutes and eleven keeper rows would nearly double it. The rule the
+      half-time page follows is that a row earns its place by changing what the
+      coach says in the next ninety seconds, and "our keeper's average kick was
+      39 metres" does not.
+
+      `assets/sample-report.js` fixed in the same pass, as the item asked: the
+      one-line stub had `track_id` where the payload has `track_ids` and was
+      missing a dozen fields, so the preview was never exercising the real
+      shape. Every figure in the replacement is read off the two shot maps
+      already in that file rather than invented — our keeper faced the four in
+      `THEIR_SHOTS`, theirs the six in `OUR_SHOTS` — and every fraction is
+      rational against its own count (7/14, 8/9 ours; 7/20, 2/5, 3/4 theirs).
+      Our keeper never punted, so the preview shows the case this feature most
+      needed to get right: a dash against their 40%, not a nought per cent.
+
+      The item's last sentence is honoured in the **Shape** group's note rather
+      than the keeping one, because that is where a reader is looking at the
+      numbers it affects: the four shape figures now say out loud that the
+      goalkeepers are excluded from all of them, and why — `cv/metrics.py` has
+      documented the reason in Python for months and no screen ever said it.
+
+      Ten new tests in `tests/video.test.js`, five in `tests/test_keeper.py`.
+      **725 pure JS · 28 pages · 145 emulator · 1125 Python**, all green.
 - [x] **The domain model is the documents, and the one thing it was missing was
       a position** (2026-08-12). These two lines asked for `Player` and `Team`
       classes. Checked before building them: `aggregateMatch`, `seasonTotals`,

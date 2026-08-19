@@ -101,7 +101,17 @@ from .teams import TEAM_A, TEAM_B
 #     and at least MIN_LINE_OUTFIELDERS tracked at once for the deepest few to
 #     be a back line. A version 12 report is not a side that defended on its
 #     own goal line, it is a run where the height was never worked out.
-SCHEMA_VERSION = 13
+# 14: the four positional keeper fields — `claims`, `sweeper_actions`,
+#     `sweeper_max_distance_m` and `distributions` — are now null rather than
+#     zero when nothing could be measured. Not additive: the same key changed
+#     meaning. Every one of them is measured against the goal that keeper
+#     defends, so without a `side_of_team` none of them was ever computed and a
+#     version 13 report published the dataclass defaults as if they were counts.
+#     A version 13 keeper who claimed nothing and never left his line is
+#     indistinguishable from one nobody looked at. The furthest sweep is null
+#     separately, whenever there were no sweeper actions, because a maximum
+#     over an empty set is not 0.0 metres.
+SCHEMA_VERSION = 14
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.

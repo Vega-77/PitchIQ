@@ -3745,6 +3745,135 @@ describe('teamStatRows', () => {
     });
 });
 
+// ---------------------------------------------------------- the goalkeepers
+//
+// `cv/keeper.py` computed this block for months and no page drew a figure of
+// it. What these cover is the two ways it could arrive wrong: a figure that is
+// missing being drawn as a nought, and one keeper's absence taking the other
+// keeper's numbers down with it.
+
+describe('keeperStatRows', () => {
+    const OURS = {
+        team: 'team_a', saves: 3, goals_conceded: 1, save_pct: 0.75,
+        claims: 4, sweeper_actions: 2, sweeper_max_distance_m: 21.4,
+        distributions: 26, kick_accuracy: 0.5, punt_accuracy: null,
+        throw_accuracy: 0.889, mean_kick_distance_m: 39.2,
+        mean_punt_distance_m: null,
+    };
+    const THEIRS = {
+        team: 'team_b', saves: 2, goals_conceded: 2, save_pct: 0.5,
+        claims: 1, sweeper_actions: 5, sweeper_max_distance_m: 28.6,
+        distributions: 31, kick_accuracy: 0.35, punt_accuracy: 0.4,
+        throw_accuracy: 0.75, mean_kick_distance_m: 44.8,
+        mean_punt_distance_m: 52.1,
+    };
+    const labelled = (rows) => Object.fromEntries(rows.map((r) => [r.label, r]));
+
+    test('says nothing when neither side had a keeper identified', () => {
+        assert.deepEqual(report.keeperStatRows(null), []);
+        assert.deepEqual(report.keeperStatRows([]), []);
+    });
+
+    test('both keepers draw side by side, in the unit the row prints', () => {
+        const rows = labelled(report.keeperStatRows([OURS, THEIRS]));
+        assert.equal(rows.Saves.value, 3);
+        assert.equal(rows['Save percentage'].value, '75%');
+        assert.equal(rows['Save percentage'].themValue, '50%');
+        // The bar's number and the printed number come from the same figure,
+        // so a percentage row carries 75, not 0.75.
+        assert.equal(rows['Save percentage'].usN, 75);
+        assert.equal(rows['Furthest from goal'].value, '21m');
+        assert.equal(rows['Average kick'].themValue, '45m');
+    });
+
+    test('one keeper alone keeps his own column and empties the other', () => {
+        // `identify_keepers` works per team, so a side whose keeper wore a
+        // colour close to his outfielders is the one that goes missing, and it
+        // can be either side. Dropping the block would take the keeper who was
+        // found down with the one who was not.
+        const rows = labelled(report.keeperStatRows([THEIRS]));
+        assert.equal(rows.Saves.value, null);
+        assert.equal(rows.Saves.themValue, 2);
+        assert.equal(report.groupStats(report.keeperStatRows([THEIRS]))[0].rows.length, 11);
+    });
+
+    test('a kind he never attempted is a dash, not nought per cent', () => {
+        // Our keeper never punted. A 0% would say every punt he took was
+        // wasted, which is a claim about punts that were never taken.
+        const rows = labelled(report.keeperStatRows([OURS, THEIRS]));
+        assert.equal(rows['Punt accuracy'].value, null);
+        assert.equal(rows['Punt accuracy'].themValue, '40%');
+        assert.equal(rows['Average punt'].value, null);
+    });
+
+    test('a keeper who never left his line has no furthest sweep', () => {
+        // Reports published under schema 13 sent 0.0 for the maximum over an
+        // empty set. Reading the count rather than the distance keeps one of
+        // those from drawing a keeper who held his line as one who came out
+        // and got exactly nowhere.
+        const held = { ...OURS, sweeper_actions: 0, sweeper_max_distance_m: 0.0 };
+        const rows = labelled(report.keeperStatRows([held, THEIRS]));
+        assert.equal(rows['Furthest from goal'].value, null);
+        assert.equal(rows['Sweeper actions'].value, 0);
+    });
+
+    test('the positional figures a run could not measure are dropped', () => {
+        // Schema 14 sends null for all four when nothing said which goal the
+        // keeper defends. Neither side has them here, so `groupStats` takes the
+        // rows out rather than drawing four dashes beside real save figures.
+        const blind = (k) => ({
+            ...k, claims: null, sweeper_actions: null,
+            sweeper_max_distance_m: null, distributions: null,
+        });
+        const groups = report.groupStats(
+            report.keeperStatRows([blind(OURS), blind(THEIRS)]),
+        );
+        assert.deepEqual(
+            groups[0].rows.map((r) => r.label),
+            ['Saves', 'Save percentage', 'Kick accuracy', 'Punt accuracy',
+             'Throw accuracy', 'Average kick', 'Average punt'],
+        );
+    });
+
+    test('the metre rows carry the calibration band, not the event one', () => {
+        // They rest on the homography. An event detector that did well says
+        // nothing about whether 21 metres was 21 metres.
+        const rows = labelled(report.keeperStatRows(
+            [OURS, THEIRS], { events: 'high', shape: 'low' },
+        ));
+        assert.equal(rows.Saves.confidence, 'high');
+        assert.equal(rows['Furthest from goal'].confidence, 'low');
+        assert.equal(rows['Average kick'].confidence, 'low');
+    });
+
+    test('only the rate with the workload divided out is marked good or bad', () => {
+        // Eight saves is either an excellent keeper or ten bad outfielders,
+        // and a count cannot tell those apart.
+        const rows = report.keeperStatRows([OURS, THEIRS]);
+        const better = rows.filter((r) => r.better).map((r) => r.label);
+        assert.deepEqual(better, ['Save percentage', 'Kick accuracy',
+                                  'Punt accuracy', 'Throw accuracy']);
+    });
+
+    test('the keeping group sits between defending and shape', () => {
+        // `groupStats` orders by `STAT_TYPES`, and a coach reading down the
+        // page meets what the back line did before what the man behind it did.
+        const ids = report.STAT_TYPES.map((t) => t.id);
+        assert.deepEqual(ids.slice(ids.indexOf('defending'), ids.indexOf('shape') + 1),
+                         ['defending', 'keeping', 'shape']);
+    });
+
+    test('teamStatRows carries the block through to the page', () => {
+        // The whole point of the task: nothing in coach.js changed, so the
+        // block has to arrive through the one function that page calls.
+        const rows = report.teamStatRows({
+            quality: {}, teams: { team_a: { possession_pct: 0.5 } },
+            keepers: [OURS, THEIRS],
+        });
+        assert.ok(rows.some((r) => r.type === 'keeping' && r.label === 'Saves'));
+    });
+});
+
 // ------------------------------------------------------------- the heatmap
 //
 // The grid was computed per track, never carried across to the cluster, and

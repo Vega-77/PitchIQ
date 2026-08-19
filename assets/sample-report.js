@@ -189,7 +189,7 @@ export function sampleCvSummary() {
         // Provenance only — nothing in the browser branches on it. Kept in
         // step with cv/report_json.py::SCHEMA_VERSION so a sample summary
         // never claims to be older than the pipeline that would write it.
-        schemaVersion: 13,
+        schemaVersion: 14,
         // Which half, and what decided it. `log` is the good case on purpose:
         // the caveated version of this is a one-line change and the preview
         // already carries plenty of caveats, whereas nobody has yet seen what
@@ -458,7 +458,39 @@ export function sampleCvSummary() {
             },
         },
 
-        keepers: [{ track_id: 2, team: 'team_a' }, { track_id: 18, team: 'team_b' }],
+        // Key for key with `KeeperReport.to_json()`. The shot figures are read
+        // straight off the two maps above rather than invented: our keeper
+        // faced the four in THEIR_SHOTS, two of which were on target — one
+        // saved, one the 0.390 goal — and theirs faced the six in OUR_SHOTS,
+        // four on target, two saved and two in. The distribution counts split
+        // the same way `_distribution_kind` splits them, which is why they do
+        // not add up to the three accuracies: 14 kicks and 9 throws out of 26
+        // leaves 3 balls that were long with no hold, and 'unknown' is the only
+        // honest answer for those from one camera.
+        //
+        // Our keeper never punted, so `punt_accuracy` is null and the row draws
+        // a dash against their 40% instead of a nought per cent. That is the
+        // case this preview exists to show.
+        keepers: [
+            {
+                team: 'team_a', track_ids: [2],
+                shots_faced: 4, shots_on_target_faced: 2,
+                saves: 1, goals_conceded: 1, save_pct: 0.5,
+                claims: 3, sweeper_actions: 2, sweeper_max_distance_m: 21.4,
+                distributions: 26,
+                kick_accuracy: 0.5, punt_accuracy: null, throw_accuracy: 0.889,
+                mean_kick_distance_m: 39.2, mean_punt_distance_m: null,
+            },
+            {
+                team: 'team_b', track_ids: [18],
+                shots_faced: 6, shots_on_target_faced: 4,
+                saves: 2, goals_conceded: 2, save_pct: 0.5,
+                claims: 1, sweeper_actions: 5, sweeper_max_distance_m: 28.6,
+                distributions: 31,
+                kick_accuracy: 0.35, punt_accuracy: 0.4, throw_accuracy: 0.75,
+                mean_kick_distance_m: 44.8, mean_punt_distance_m: 52.1,
+            },
+        ],
 
         // Two figures the classifier acted on, each with the sentence its own
         // guess produced. An exclusion a coach cannot question looks like the

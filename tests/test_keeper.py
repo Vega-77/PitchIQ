@@ -15,12 +15,15 @@ import numpy as np
 import pytest
 
 from cv.calibration import Calibration
+from cv.events import EventLog
 from cv.keeper import (
+    KeeperAssignment,
     KeeperDistribution,
     KeeperReport,
     _distribution_kind,
     goal_share,
     identify_keepers,
+    keeper_reports,
 )
 from cv.frames import FrameRecord, FrameTable
 from cv.pitch import Pitch
@@ -223,3 +226,56 @@ class TestReport:
         import json
         report = KeeperReport(team=TEAM_A, track_ids=[1, 2], saves=2, goals_conceded=1)
         assert json.loads(json.dumps(report.to_json()))['save_pct'] is not None
+
+    def test_the_furthest_sweep_is_absent_when_he_never_swept(self):
+        """A maximum over an empty set is not 0.0 metres.
+
+        The field starts at 0.0 because `max()` needs somewhere to start, and
+        publishing that start would draw a keeper who held his line as one who
+        came out and got exactly nowhere.
+        """
+        data = KeeperReport(team=TEAM_A, end_known=True).to_json()
+        assert data['sweeper_actions'] == 0
+        assert data['sweeper_max_distance_m'] is None
+
+    def test_positional_figures_are_absent_when_no_end_was_known(self):
+        """Nobody looked, which is not the same as nothing happened.
+
+        Every one of these four is measured against the goal this keeper
+        defends, so `keeper_reports` never computes them without one and they
+        stay at the defaults. Sending the defaults would say a keeper claimed
+        nothing and never left his line.
+        """
+        data = KeeperReport(team=TEAM_A, saves=2, goals_conceded=1).to_json()
+        assert data['claims'] is None
+        assert data['sweeper_actions'] is None
+        assert data['sweeper_max_distance_m'] is None
+        assert data['distributions'] is None
+        # The shot figures do not need an end and must survive.
+        assert data['saves'] == 2
+        assert data['save_pct'] == pytest.approx(2 / 3)
+
+
+class TestReportsForTheMatch:
+    """`keeper_reports` itself — one report per team that had a keeper."""
+
+    def assignment(self):
+        return KeeperAssignment(by_team={TEAM_A: {7}}, method='colour+position')
+
+    def test_an_end_it_knows_is_recorded_as_known(self):
+        reports = keeper_reports(
+            EventLog(), self.assignment(), PITCH, {TEAM_A: 'left'},
+        )
+        assert [r.end_known for r in reports] == [True]
+        assert reports[0].to_json()['claims'] == 0
+
+    def test_without_an_end_the_positional_figures_are_never_claimed(self):
+        reports = keeper_reports(EventLog(), self.assignment(), PITCH, {})
+        assert [r.end_known for r in reports] == [False]
+        assert reports[0].to_json()['claims'] is None
+
+    def test_a_team_with_no_keeper_gets_no_report(self):
+        """One team can be identified and the other not, and often is."""
+        assignment = KeeperAssignment(by_team={TEAM_A: {7}, TEAM_B: set()})
+        reports = keeper_reports(EventLog(), assignment, PITCH, {TEAM_A: 'left'})
+        assert [r.team for r in reports] == [TEAM_A]
