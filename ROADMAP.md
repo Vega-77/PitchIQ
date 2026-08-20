@@ -2687,6 +2687,92 @@ measure the actual pitch before the camera goes up.
       `SCHEMA_VERSION` unchanged. Version stamp 99. 739 pure JS · 36 smoke
       · 146 emulator · 1210 Python.
 
+- [x] **Leniency, for a pitch nobody painted to the Laws** (2026-08-20).
+      The coach's own words: *"not every pitch will be perfect or symettrical.
+      It should be more lenient."* Two separate rigidities, and the bar was the
+      smaller one.
+
+      *The bar.* `is_usable` was `mean <= 0.5 and max <= 1.5` — the single
+      worst point deciding the fate of the whole fit. `Calibration.fit` runs
+      RANSAC and usually throws one bad click out; the browser picker solves
+      normal equations and smears it across every point, so twelve landmarks
+      clicked on a wet afternoon reliably leave one worse than the rest. Both
+      sides now judge the **90th percentile** — `CalibrationError.p90_m` and
+      `tail_m` in Python, `fitErrors().tail` in the browser — which below
+      about eight points *is* the max, and only becomes lenient once there are
+      enough points for one of them to be an outlier. `LineFit.is_usable`
+      already graded itself on a percentile; the two rulers are now the same
+      one.
+
+      *The rigidity that mattered more.* Only `length_m` and `width_m` were
+      ever configurable. Every marking — box depth and width, six-yard box,
+      penalty spot, goal width, centre circle — was a module constant, so a
+      field painted with a tape and a guess produced residuals the page then
+      blamed on the coach's clicking. **Measured.** Eight perfect clicks on a
+      school pitch (15.0m box, 38.0m wide, 10.0m spot), read against its own
+      markings: 0.0000m. The same eight read under the Laws: **0.47m average,
+      which passes the half-metre bar, and 1.90m at the tail, which does not.**
+      That shape is the danger — a respectable-looking average hiding a
+      homography wrong at every position, including the many nobody clicked.
+      Re-clicking cannot touch it: a mismarked box displaces every landmark of
+      that family the same way, and the fit tilts to split the difference.
+
+      *So the page measures the paint as well as the size.* `measureMarkings`
+      fits the markings to the clicks the way `measureField` fits the size, and
+      as before the refusals are the load-bearing half. Three of them are
+      identifiability rather than taste: five points to fit anything at all,
+      **two landmarks bearing on a dimension** before it will speak about that
+      dimension, and **eight in total** before it will speak at all. The fourth
+      is about honesty — a dimension is offered only when re-measuring the
+      paint explains at least `MARK_EXPLAINED_MIN = 0.35` of the error. Swept
+      rather than picked, over 8 to 21 points and 4 to 6px of click jitter: a
+      regulation pitch invents a marking in 0 to 3 seeds of 60, a genuinely
+      mismarked one is caught in 39 to 60, and one box corner dragged 2m out of
+      place explains 0.276—0.301 — under the bar at every point count, which
+      is the case the bar exists for. Dropping to 0.25 lets that through and
+      triples the inventions. Below the bar the page says the markings look
+      standard and that re-measuring the paint does not explain the error,
+      because values that fit better *without* explaining it are fitting
+      whatever is actually wrong, and offering them would launder a bad
+      calibration into official-looking numbers.
+
+      **Asymmetry is deliberately exempt from that guard,** and it is never a
+      button. One end painted differently is precisely the case where a
+      *shared* set of markings explains almost nothing — measured at 15% on
+      the synthetic camera — so gating it on `explained` would have silenced
+      the one thing the coach named. It is also not detectable from the two
+      ends' residuals: least squares distributes the mismatch evenly, and one
+      box at 13.0m against the other's 16.5m moved the two mean residuals apart
+      by 0.02m. Each end is re-fitted on its own clicks instead, both have to
+      be independently confident, and the gap has to clear both intervals. The
+      page then names both ends, offers nothing to apply, and says to walk out
+      with a tape.
+
+      *Then the measurement has to survive the trip to Python,* which is four
+      places that could quietly put the Laws back. `exportedMarks()` writes all
+      seven inside `pitch`, in the spelling `Pitch` uses, and a parity test now
+      reads that function and checks the spellings — `Pitch.from_mapping`
+      ignores keys it does not know, so a typo there would drop a marking with
+      no error anywhere. `from_mapping` reads by dataclass field name rather
+      than a hand-kept list, so a marking added later cannot be dropped by a
+      reader that forgot to grow. `--length` in `cv/experiments/calibrate.py`
+      now `replace`s the size on the file's own pitch instead of building a
+      fresh one — a command meant to correct one number was silently
+      discarding eight others. **And the real bug, found by writing the test for
+      it:** `Calibration.to_json` wrote only the length and the width, so the
+      saved `.calib.json` — the file the pipeline actually loads — reverted
+      every marking to the Laws overnight, voiding the whole chain above it.
+
+      The CLI's *"three things do this and these numbers cannot separate them"*
+      became four, and the fourth carries what separates it: unlike a wide
+      lens, a mis-click or a guessed size, this cause **is** measurable — just
+      not from there.
+
+      `SCHEMA_VERSION` unchanged. The export gains `p90_error_m` and a
+      `markings` block under `quality`, both of which `from_picker_export`
+      ignores. Version stamp 100. 739 pure JS · 37 smoke · 146 emulator
+      · 1229 Python.
+
 ## 5. Object Detection (per frame)
 **Built: `cv/` — `PersonBallDetector` (YOLO filtered to person + sports ball) and
 `frame_sampler`. Rerun the feasibility test on any new footage with:**

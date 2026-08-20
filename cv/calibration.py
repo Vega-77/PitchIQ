@@ -14,7 +14,7 @@ carries its own error estimate for that reason.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import cv2
@@ -379,7 +379,12 @@ class Calibration:
     def to_json(self) -> dict:
         return {
             "homography": self.H.tolist(),
-            "pitch": {"length_m": self.pitch.length_m, "width_m": self.pitch.width_m},
+            # The whole pitch, markings included. Writing only the size here
+            # would undo everything upstream of it: the picker measures the
+            # paint, `from_picker_export` reads it, this file is what the
+            # pipeline actually loads — and a homography fitted against a 15m
+            # box would come back tomorrow believing in a 16.5m one.
+            "pitch": asdict(self.pitch),
             "image_size": list(self.image_size) if self.image_size else None,
             "correspondences": [c.to_json() for c in self.correspondences],
             "lens": self.lens.to_json() if self.lens else None,
@@ -391,7 +396,7 @@ class Calibration:
     @classmethod
     def load(cls, path: str | Path) -> "Calibration":
         data = json.loads(Path(path).read_text(encoding="utf-8"))
-        pitch = Pitch(**data["pitch"])
+        pitch = Pitch.from_mapping(data["pitch"])
         size = tuple(data["image_size"]) if data.get("image_size") else None
         return cls(
             np.array(data["homography"], dtype=np.float64),
@@ -408,15 +413,24 @@ class Calibration:
         pitch: Pitch | None = None,
         lens: DistortionModel | None = None,
     ) -> "Calibration":
-        """Load the JSON produced by the browser landmark picker."""
+        """Load the JSON produced by the browser landmark picker.
+
+        The `pitch` block carries the markings as well as the size, and both
+        halves matter for the same reason. A coach who measured a 15m box in
+        the picker, watched the yellow outline drop onto the paint and saved
+        the file has recorded a fact about their field; loading it back under
+        Laws-standard markings would silently throw that fact away and refit
+        the same clicks against a pitch that does not exist — producing a
+        homography wrong everywhere, from a file that looked fine.
+
+        Every marking is optional and falls back to the Laws, so files written
+        before the picker could measure paint still load unchanged.
+        """
         data = json.loads(Path(path).read_text(encoding="utf-8"))
 
         if pitch is None:
             dims = data.get("pitch") or {}
-            pitch = Pitch(
-                length_m=float(dims.get("length_m", 105.0)),
-                width_m=float(dims.get("width_m", 68.0)),
-            )
+            pitch = Pitch.from_mapping(dims)
 
         points = [
             Correspondence(p["landmark"], (float(p["x"]), float(p["y"])))

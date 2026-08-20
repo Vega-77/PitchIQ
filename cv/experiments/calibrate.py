@@ -25,6 +25,8 @@ default because a frame that cannot answer must not be made to guess.
 from __future__ import annotations
 
 import argparse
+import json
+from dataclasses import replace
 from pathlib import Path
 
 from cv.calibration import Calibration
@@ -70,9 +72,23 @@ def main(argv: list[str] | None = None) -> int:
 
     pitch = None
     if args.length or args.width:
+        # Overriding the size must not throw away the markings. A file whose
+        # picker measured a 15m box carries that measurement in the same block
+        # as the length, and building a fresh `Pitch` here would quietly put
+        # the Laws back — refitting the same clicks against a field that does
+        # not exist, from a command that only meant to correct the length.
         from cv.pitch import Pitch
 
-        pitch = Pitch(length_m=args.length or 105.0, width_m=args.width or 68.0)
+        try:
+            dims = (json.loads(args.points.read_text(encoding="utf-8"))
+                    .get("pitch") or {})
+        except (OSError, ValueError):
+            dims = {}
+        pitch = replace(
+            Pitch.from_mapping(dims),
+            length_m=args.length or float(dims.get("length_m", 105.0)),
+            width_m=args.width or float(dims.get("width_m", 68.0)),
+        )
 
     lens = _estimate_lens(args) if args.lens else None
 
@@ -83,6 +99,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(f"\npitch      {calib.pitch.length_m:.1f} x {calib.pitch.width_m:.1f} m")
+    if not calib.pitch.markings_are_standard:
+        # Said out loud because it changes what every number below means. These
+        # come from the picker, where the coach measured them from their own
+        # clicks and pressed the button accepting them; nothing here re-derives
+        # them, and nothing here should.
+        print("markings   not to the Laws, and fitted as measured:")
+        for label, note in _non_standard_marks(calib.pitch):
+            print(f"           {label:<20} {note}")
     print(f"points     {len(calib.correspondences)}")
     if calib.image_size:
         print(f"frame      {calib.image_size[0]}x{calib.image_size[1]}")
@@ -137,14 +161,18 @@ def main(argv: list[str] | None = None) -> int:
         # about 1.1m of error at k1 = -0.03 with every point clicked perfectly,
         # and re-clicking will never fix it.
         print(
-            "\nThree things do this and these numbers cannot separate them:\n"
+            "\nFour things do this and these numbers cannot separate them:\n"
             "  - a wide-angle or action camera; re-clicking will not help.\n"
             "    Re-run with --frame --lens: if the paint in that frame\n"
             "    bows, the lens is measurable and correctable from it, and\n"
             "    if it does not bow, the answer comes back honestly empty\n"
             "  - a misplaced or mislabelled landmark; start with the point\n"
             "    listed above and check the outline against the painted lines\n"
-            "  - a guessed pitch size; every metre is scaled by it"
+            "  - a guessed pitch size; every metre is scaled by it\n"
+            "  - markings that are not to the Laws. Unlike the other three\n"
+            "    this one is measurable, but not from here: re-open the file\n"
+            "    in calibrate/, which fits the markings to the clicks and\n"
+            "    offers what it measured. This tool fits what the file says."
         )
 
     out = args.out or Path("cv/calibrations") / f"{args.points.stem}.calib.json"
@@ -152,6 +180,26 @@ def main(argv: list[str] | None = None) -> int:
     calib.save(out)
     print(f"\nsaved -> {out}")
     return 0 if good else 2
+
+
+def _non_standard_marks(pitch):
+    """(label, "measured, Laws say x") for every marking that has moved."""
+    from cv import pitch as P
+
+    rows = []
+    for field_name, laws, label in (
+        ("penalty_area_length_m", P.PENALTY_AREA_LENGTH_M, "penalty area depth"),
+        ("penalty_area_width_m", P.PENALTY_AREA_WIDTH_M, "penalty area width"),
+        ("goal_area_length_m", P.GOAL_AREA_LENGTH_M, "six-yard box depth"),
+        ("goal_area_width_m", P.GOAL_AREA_WIDTH_M, "six-yard box width"),
+        ("penalty_spot_m", P.PENALTY_SPOT_M, "penalty spot"),
+        ("goal_width_m", P.GOAL_WIDTH_M, "goal width"),
+        ("centre_circle_radius_m", P.CENTRE_CIRCLE_RADIUS_M, "centre circle"),
+    ):
+        value = getattr(pitch, field_name)
+        if abs(value - laws) > 1e-9:
+            rows.append((label, f"{value:.2f}m, the Laws say {laws:.2f}m"))
+    return rows
 
 
 def _estimate_lens(args):

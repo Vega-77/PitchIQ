@@ -1849,6 +1849,153 @@ test('the calibrate page can measure the field, and say when the job is done', a
         'an empty picker still called itself ready to save');
 });
 
+test('the calibrate page measures the paint, not the coach', async () => {
+    // The screenshot behind this one showed 1.77m average error on a school
+    // field and a page telling the coach to click more carefully. They could
+    // not have. A pitch painted with a tape and a guess displaces every
+    // landmark of a family the same way, so the homography tilts to split the
+    // difference and every position pays — including positions nobody clicked.
+    // Re-clicking cannot fix a line that is in the wrong place.
+    //
+    // So the page now holds the markings as an opinion rather than a fact, and
+    // this guards the three states that opinion can be in: measurably wrong,
+    // measurably fine, and wrong in a way no single set of markings can fix.
+    await openPage({
+        html: 'calibrate/index.html',
+        entry: 'calibrate/calibrate.js',
+        url: 'http://localhost:5000/calibrate/',
+        user: null,
+        variant: 'markings',
+    });
+
+    const { landmarks, DEFAULT_MARKS } = await import(
+        new URL('calibrate/pitch-model.js', root).href
+    );
+    // The same synthetic sideline camera as the verdict test above, so every
+    // metre below is one this page produced rather than one the fixture built.
+    const CAMERA = [
+        [11.5, 2.1, 240.0],
+        [-1.4, -9.8, 700.0],
+        [0.0009, -0.0035, 1.0],
+    ];
+    const project = (x, y) => {
+        const w = CAMERA[2][0] * x + CAMERA[2][1] * y + CAMERA[2][2];
+        return [
+            (CAMERA[0][0] * x + CAMERA[0][1] * y + CAMERA[0][2]) / w,
+            (CAMERA[1][0] * x + CAMERA[1][1] * y + CAMERA[1][2]) / w,
+        ];
+    };
+
+    const seam = globalThis.window._calib;
+    seam.state.imageSize = [1920, 1080];
+
+    // A real school pitch: a 15m box instead of 16.50, 38m wide instead of
+    // 40.32, and the spot stepped out at ten paces. Full-size length and width,
+    // so nothing here can be blamed on the size boxes.
+    const SCHOOL = {
+        ...DEFAULT_MARKS,
+        penaltyAreaLengthM: 15.0, penaltyAreaWidthM: 38.0, penaltySpotM: 10.0,
+    };
+    const BOTH_ENDS = [
+        'corner_top_left', 'corner_bottom_left',
+        'corner_top_right', 'corner_bottom_right',
+        'pen_left_top_corner', 'pen_left_bottom_corner', 'pen_spot_left',
+        'pen_right_top_corner', 'pen_right_bottom_corner', 'pen_spot_right',
+        'halfway_top', 'halfway_bottom', 'centre_spot',
+    ];
+
+    // Every click perfect. The only thing wrong is what the page believes
+    // about paint it has never seen.
+    const place = (names, marks = null, rightMarks = undefined) => {
+        const left = landmarks(105, 68, marks);
+        const right = landmarks(105, 68,
+            rightMarks === undefined ? marks : rightMarks);
+        seam.state.points.clear();
+        for (const name of names) {
+            const src = name.includes('right') ? right : left;
+            seam.state.points.set(name, project(...src[name]));
+        }
+        seam.renderAll();
+    };
+
+    // 1. Too few to argue with. Five points fit a homography; they cannot
+    //    measure the paint, and the page must ask rather than guess.
+    place(BOTH_ENDS.slice(0, 6), SCHOOL);
+    assert.match(text('marks-measured'), /Place 2 more points/);
+
+    // 2. Enough of them, and the page names the three markings that are out
+    //    and what it measured them at.
+    place(BOTH_ENDS, SCHOOL);
+    const found = text('marks-measured');
+    assert.match(found, /not painted to the Laws/);
+    for (const [label, value] of [
+        ['penalty area depth', '15.0m'],
+        ['penalty area width', '38.0m'],
+        ['penalty spot', '10.0m'],
+    ]) {
+        assert.ok(found.includes(label), `${label} is not named: ${found}`);
+        assert.ok(found.includes(value), `${label} was not measured: ${found}`);
+    }
+    assert.ok(found.includes('16.5m'), 'never says what the Laws say');
+
+    // 3. And the verdict stops charging it to the clicking. This is the whole
+    //    point of the change: the sentence, not the arithmetic.
+    const blamed = text('preview-note');
+    assert.match(blamed, /looks like the pitch, not your clicking/);
+    assert.match(blamed, /Re-clicking cannot fix/);
+    assert.ok(!/wide-angle lens/i.test(blamed),
+        'still offering the four guesses after measuring the answer');
+    assert.match(text('readiness'), /do not match the Laws/);
+
+    // 4. Nothing is adopted without being pressed — the coach is standing on
+    //    the pitch and can see it, and the page is not.
+    assert.ok(Math.abs(seam.state.marks.penaltyAreaLengthM - 16.5) < 1e-6,
+        'the page moved the markings under the coach without being asked');
+
+    const apply = el('btn-apply-marks');
+    assert.ok(apply, 'measured the paint and offered no way to use it');
+    apply.click();
+
+    assert.ok(Math.abs(seam.state.marks.penaltyAreaLengthM - 15.0) < 0.05,
+        `box depth came back as ${seam.state.marks.penaltyAreaLengthM}`);
+    assert.ok(Math.abs(seam.state.marks.penaltySpotM - 10.0) < 0.05,
+        `spot came back as ${seam.state.marks.penaltySpotM}`);
+
+    // 5. The fit the coach was looking at is fixed by it, with not one point
+    //    moved. The clicking was never the problem.
+    const fixed = text('preview-note');
+    assert.match(fixed, /Good fit/, `the corrected markings still read: ${fixed}`);
+    assert.match(text('marks-measured'), /Applied/);
+    assert.match(text('readiness'), /Markings measured from your points/);
+
+    // 6. And it is reversible, because a coach who applied it on a hunch needs
+    //    a way back to the Laws.
+    el('btn-reset-marks').click();
+    assert.ok(Math.abs(seam.state.marks.penaltyAreaLengthM - 16.5) < 1e-6,
+        'there is no way back to standard markings');
+
+    // 7. A pitch that really is painted to the Laws must not be told it isn't.
+    //    A page that cries wolf about the paint is worse than one that never
+    //    looks, because the answer it offers is wrong and it looks official.
+    place(BOTH_ENDS, null);
+    assert.match(text('marks-measured'), /markings match the Laws/i);
+    assert.equal(el('btn-apply-marks'), null,
+        'offered to remeasure a pitch that was already right');
+
+    // 8. One end painted one way and the other end another. No single set of
+    //    markings describes this pitch, so the page must say which end is
+    //    which and offer nothing — a button here would be a lie in both
+    //    directions.
+    place(BOTH_ENDS, null, SCHOOL);
+    const lopsided = text('marks-measured');
+    assert.match(lopsided, /two ends are not painted the same/);
+    assert.match(lopsided, /at the left end/);
+    assert.match(lopsided, /at the right/);
+    assert.equal(el('btn-apply-marks'), null,
+        'offered one set of markings for two differently painted ends');
+    assert.match(text('readiness'), /two ends are painted differently/);
+});
+
 test('the xG sandbox computes its features on load', async () => {
     await openPage({
         html: 'xg-sandbox/index.html',

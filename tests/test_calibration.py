@@ -82,6 +82,25 @@ def clicks_for(pitch: Pitch, matrix: np.ndarray, names: list[str], jitter_px: fl
     return out
 
 
+def picker_export(pitch: Pitch, names: list[str] | None = None) -> dict:
+    """The JSON the browser picker writes for a set of perfect clicks.
+
+    The `pitch` block carries the markings as well as the size, because that is
+    what the picker now writes once a coach has accepted what it measured.
+    """
+    from dataclasses import asdict
+
+    matrix = synthetic_camera(pitch)
+    return {
+        "image_size": [1280, 720],
+        "pitch": asdict(pitch),
+        "points": [
+            {"landmark": c.landmark, "x": c.pixel[0], "y": c.pixel[1]}
+            for c in clicks_for(pitch, matrix, names or EIGHT_POINTS)
+        ],
+    }
+
+
 FOUR_CORNERS = [
     "corner_bottom_left",
     "corner_bottom_right",
@@ -366,3 +385,89 @@ class TestPersistence:
         calib = Calibration.from_picker_export(path)
         assert calib.error().is_usable
         assert calib.image_size == (1280, 720)
+
+    def test_saving_keeps_the_markings_it_was_fitted_against(self, camera, tmp_path):
+        """The saved file is what the pipeline loads, so it has to carry them.
+
+        Writing only the length and width here would undo every step upstream:
+        the picker measures the paint, the export carries it, the CLI reports
+        it — and then tomorrow's run quietly refits against the Laws.
+        """
+        school = Pitch(length_m=105.0, width_m=68.0, penalty_spot_m=10.0,
+                       goal_width_m=7.0)
+        calib = Calibration.fit(
+            clicks_for(school, camera, EIGHT_POINTS), school, image_size=(1280, 720)
+        )
+        path = tmp_path / "school.calib.json"
+        calib.save(path)
+
+        assert Calibration.load(path).pitch == school
+
+    def test_reads_the_markings_the_picker_measured(self, tmp_path):
+        """A school pitch clicked in the picker must load back as itself.
+
+        The picker can now measure the paint from the coach's own clicks and
+        write what it found. If this side quietly put the Laws back, the same
+        clicks would be refitted against a field that does not exist — and the
+        file would look fine while every metre out of it was wrong.
+        """
+        school = Pitch(
+            length_m=105.0, width_m=68.0,
+            penalty_area_length_m=15.0, penalty_area_width_m=38.0,
+            penalty_spot_m=10.0,
+        )
+        path = tmp_path / "school.json"
+        path.write_text(json.dumps(picker_export(school)), encoding="utf-8")
+
+        calib = Calibration.from_picker_export(path)
+        assert calib.pitch.penalty_area_length_m == 15.0
+        assert calib.pitch.penalty_area_width_m == 38.0
+        assert calib.pitch.penalty_spot_m == 10.0
+        assert not calib.pitch.markings_are_standard
+        # The clicks were perfect, so with the right field they fit
+        # perfectly. The tenth of a millimetre of slack is float32 inside
+        # `getPerspectiveTransform`, not anything about the pitch.
+        assert calib.error().max_m < 1e-4
+
+    def test_ignoring_those_markings_would_break_the_fit(self, tmp_path):
+        """What the test above is worth, measured.
+
+        The same eight perfect clicks read under Laws markings: 0.47m average,
+        which passes the half-metre bar, and 1.90m at the worst point, which
+        does not. That shape is the danger — an average that looks respectable
+        hiding a homography that is wrong everywhere, including at the many
+        positions nobody ever clicked.
+        """
+        school = Pitch(
+            length_m=105.0, width_m=68.0,
+            penalty_area_length_m=15.0, penalty_area_width_m=38.0,
+            penalty_spot_m=10.0,
+        )
+        export = picker_export(school)
+        export["pitch"] = {"length_m": 105.0, "width_m": 68.0}
+        path = tmp_path / "laws.json"
+        path.write_text(json.dumps(export), encoding="utf-8")
+
+        err = Calibration.from_picker_export(path).error()
+        assert err.mean_m == pytest.approx(0.474, abs=0.01)
+        assert err.max_m == pytest.approx(1.896, abs=0.01)
+        assert not err.is_usable
+
+    def test_a_file_without_markings_still_loads_at_the_laws(self, pitch, camera,
+                                                             tmp_path):
+        """Every export written before the picker could measure paint."""
+        export = {
+            "image_size": [1280, 720],
+            "pitch": {"length_m": 100.0, "width_m": 64.0},
+            "points": [
+                {"landmark": c.landmark, "x": c.pixel[0], "y": c.pixel[1]}
+                for c in clicks_for(pitch, camera, EIGHT_POINTS)
+            ],
+        }
+        path = tmp_path / "old.json"
+        path.write_text(json.dumps(export), encoding="utf-8")
+
+        calib = Calibration.from_picker_export(path)
+        assert calib.pitch.length_m == 100.0
+        assert calib.pitch.width_m == 64.0
+        assert calib.pitch.markings_are_standard

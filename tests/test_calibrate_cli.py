@@ -360,3 +360,78 @@ class TestLens:
         with pytest.raises(SystemExit) as err:
             main([str(tmp_path / "p.json"), "--lens"])
         assert err.value.code == 2
+
+
+class TestMarkings:
+    """A pitch painted with a tape and a guess, carried through the CLI.
+
+    The picker can now measure the markings from the coach's own clicks and
+    write what it found into the export. Everything below is about this tool
+    not quietly putting the Laws back: the same clicks refitted against a
+    field that does not exist produce a homography wrong everywhere, out of a
+    file and a command that both looked fine.
+    """
+
+    SCHOOL = dict(
+        penalty_area_length_m=15.0,
+        penalty_area_width_m=38.0,
+        penalty_spot_m=10.0,
+    )
+
+    def export(self, path, pitch):
+        from dataclasses import asdict
+
+        matrix = camera(pitch)
+        path.write_text(json.dumps({
+            "pitch": asdict(pitch),
+            "image_size": [FRAME_W, FRAME_H],
+            "points": [
+                {"landmark": c.landmark, "x": c.pixel[0], "y": c.pixel[1]}
+                for c in rough_clicks(pitch, matrix, 0.0, 0)
+            ],
+        }), encoding="utf-8")
+        return path
+
+    def test_it_says_the_pitch_is_not_to_the_laws(self, tmp_path, capsys):
+        pitch = Pitch(**self.SCHOOL)
+        points = self.export(tmp_path / "school.json", pitch)
+
+        assert main([str(points), "--out", str(tmp_path / "o.json")]) == 0
+        out = capsys.readouterr().out
+        # Said out loud, because it changes what every number under it means.
+        assert "not to the Laws" in out
+        assert "penalty area depth" in out
+        assert "15.00m" in out and "16.50m" in out
+        assert "penalty spot" in out
+
+    def test_a_regulation_pitch_says_nothing_about_markings(self, tmp_path, capsys):
+        pitch = Pitch()
+        points = self.export(tmp_path / "laws.json", pitch)
+
+        assert main([str(points), "--out", str(tmp_path / "o.json")]) == 0
+        # The boring case has to read like one — a tool that remarks on every
+        # regulation pitch teaches people to skip the line that matters.
+        assert "not to the Laws" not in capsys.readouterr().out
+
+    def test_correcting_the_length_keeps_the_markings(self, tmp_path):
+        """The bug this exists to stop.
+
+        `--length` is for the coach who paced the touchline afterwards and
+        found 100m, not 105. Rebuilding the pitch from that one number alone
+        would silently discard the box they measured in the picker — a command
+        that meant to fix one number quietly breaking eight others.
+        """
+        pitch = Pitch(**self.SCHOOL)
+        points = self.export(tmp_path / "school.json", pitch)
+        out = tmp_path / "calib.json"
+
+        # 2, not 0: a 100m length really is wrong for these clicks and the
+        # tool says so loudly. That is the size question. What matters here
+        # is that the markings survived being asked about the size at all.
+        assert main([str(points), "--length", "100", "--out", str(out)]) == 2
+
+        saved = Calibration.load(out)
+        assert saved.pitch.length_m == 100.0
+        assert saved.pitch.width_m == 68.0
+        assert saved.pitch.penalty_area_length_m == 15.0
+        assert saved.pitch.penalty_spot_m == 10.0

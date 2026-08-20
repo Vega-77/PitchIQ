@@ -23,6 +23,7 @@ Skipped automatically when Node isn't installed.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -172,6 +173,37 @@ def test_marking_names_cover_both_models():
     )
     for field in MARK_FIELDS.values():
         assert hasattr(Pitch(), field), f"Pitch has no {field}"
+
+
+def test_the_export_spells_every_marking_the_way_python_reads_it():
+    """The third side of the seam: the file the picker actually writes.
+
+    The two models can agree perfectly and the pipeline still be wrong, because
+    nothing above this looks at the JSON in between. `exportedMarks()` renames
+    every marking from camelCase to snake_case on the way out, and
+    `Pitch.from_mapping` silently ignores any key it does not recognise — so a
+    single typo there would drop a marking on the floor and refit the coach's
+    clicks against the Laws, with no error anywhere and every metre wrong.
+    """
+
+    source = (REPO / "calibrate" / "calibrate.js").read_text(encoding="utf-8")
+    body = source.split("function exportedMarks()", 1)
+    assert len(body) == 2, "calibrate.js no longer has an exportedMarks()"
+    body = body[1].split("}", 1)[0]
+
+    written = dict(re.findall(r"(\w+): state\.marks\.(\w+),", body))
+    assert written, "exportedMarks() writes nothing this test can read"
+
+    assert set(written) == set(MARK_FIELDS.values()), (
+        "the export and Pitch disagree about which markings exist: "
+        f"export-only={sorted(set(written) - set(MARK_FIELDS.values()))}, "
+        f"python-only={sorted(set(MARK_FIELDS.values()) - set(written))}"
+    )
+    for snake, camel in written.items():
+        assert MARK_FIELDS[camel] == snake, (
+            f"the export writes {camel} as {snake}, but Pitch calls it "
+            f"{MARK_FIELDS[camel]}"
+        )
 
 
 def test_default_markings_match():

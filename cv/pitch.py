@@ -18,7 +18,7 @@ goal line (0 -> width). Both goals sit at y = width / 2.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 # What the Laws of the Game specify regardless of overall pitch size — and
 # therefore only the *defaults*. Paint on a real field is measured by whoever
@@ -76,6 +76,23 @@ class Pitch:
     penalty_area_width_m: float = PENALTY_AREA_WIDTH_M
     penalty_spot_m: float = PENALTY_SPOT_M
     centre_circle_radius_m: float = CENTRE_CIRCLE_RADIUS_M
+
+    @classmethod
+    def from_mapping(cls, data) -> "Pitch":
+        """A pitch from a JSON-ish mapping, ignoring keys it does not know.
+
+        Every field is optional and falls back to the Laws, which is what makes
+        this safe to point at a file written before the field existed. Reading
+        by field name rather than by a hand-kept list is deliberate: a marking
+        added to this class would otherwise be silently dropped by every reader
+        that forgot to grow, and the failure would be a homography quietly
+        wrong rather than an error anybody sees.
+        """
+        known = {f.name for f in fields(cls)}
+        return cls(**{
+            name: float(value) for name, value in (data or {}).items()
+            if name in known and value is not None
+        })
 
     @property
     def markings_are_standard(self) -> bool:

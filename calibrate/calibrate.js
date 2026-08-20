@@ -1,8 +1,9 @@
 import {
     landmarks, LANDMARK_GROUPS, fitHomography, applyHomography, measureField,
-} from './pitch-model.js?v=99';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=99';
-import { byId, setText, toast, plural } from '../assets/ui.js?v=99';
+    measureMarkings, DEFAULT_MARKS,
+} from './pitch-model.js?v=100';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=100';
+import { byId, setText, toast, plural } from '../assets/ui.js?v=100';
 
 const state = {
     image: null,
@@ -10,6 +11,12 @@ const state = {
     points: new Map(),   // landmark -> [x, y] in image pixels
     selected: null,
     measured: null,      // last measureField() result, or null
+    markings: null,      // last measureMarkings() result, or null
+    // The markings every other part of this page draws and fits against. It
+    // starts at the Laws and only ever moves when the coach presses the button
+    // offering to move it — a page that silently remeasured the paint under
+    // them would be a page that cannot be checked against the paint.
+    marks: { ...DEFAULT_MARKS },
     eyeballed: false,    // the coach ticked "the outline sits on the paint"
     aim: null,           // [x, y] in image pixels the magnifier is showing
     aiming: false,       // a press is down and will place a point on release
@@ -112,8 +119,7 @@ function drawPitchOverlay(ctx, scale) {
         return;
     }
 
-    const { length_m: L, width_m: W } = pitchDims();
-    const marks = landmarks(L, W);
+    const marks = pitchModel();
     const p = (x, y) => applyHomography(H, x, y);
 
     ctx.save();
@@ -159,10 +165,22 @@ function drawPitchOverlay(ctx, scale) {
     ctx.restore();
 }
 
+/**
+ * The pitch this page is currently working against.
+ *
+ * One function rather than four calls to `landmarks`, because the four used to
+ * be four independent decisions and every one of them had to be updated in
+ * step for the overlay, the fit, the error figures and the verdict to be
+ * describing the same field. They now cannot disagree.
+ */
+function pitchModel() {
+    const { length_m, width_m } = pitchDims();
+    return landmarks(length_m, width_m, state.marks);
+}
+
 /** Pitch metres -> image pixels, the direction the overlay needs. */
 function pitchToPixelHomography() {
-    const { length_m, width_m } = pitchDims();
-    const marks = landmarks(length_m, width_m);
+    const marks = pitchModel();
     const pairs = [...state.points.entries()].map(([name, px]) => ({
         src: marks[name],
         dst: px,
@@ -405,11 +423,27 @@ function pointSpread() {
  * numbers and fitting twice per render invites the two halves of the page to
  * disagree with each other about whether the calibration is good.
  */
+/**
+ * The q-th percentile, interpolating the way `numpy.percentile` does.
+ *
+ * Written to match rather than merely to resemble: `cv/calibration.py` grades
+ * the same calibration with `np.percentile(errors, 90)`, and a browser that
+ * passed a file Python then failed would be worse than either bar on its own.
+ */
+function percentile(values, q) {
+    const sorted = [...values].sort((a, b) => a - b);
+    if (!sorted.length) return null;
+    const pos = (sorted.length - 1) * q;
+    const lo = Math.floor(pos);
+    const hi = Math.ceil(pos);
+    if (lo === hi) return sorted[lo];
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+
 function fitErrors() {
     if (state.points.size < 4) return null;
     try {
-        const { length_m, width_m } = pitchDims();
-        const marks = landmarks(length_m, width_m);
+        const marks = pitchModel();
         const H = fitHomography([...state.points.entries()].map(([name, px]) => ({
             src: px, dst: marks[name],
         })));
@@ -421,10 +455,30 @@ function fitErrors() {
         const mean = errors.reduce((a, b) => a + b, 0) / errors.length;
         const max = Math.max(...errors);
         if (!Number.isFinite(mean) || !Number.isFinite(max)) return null;
-        return { mean, max, ok: mean <= 0.5 && max <= 1.5 };
+
+        // The bar is the ninth-worst point in ten rather than the single worst
+        // one. A coach who clicks sixteen landmarks carefully and fumbles the
+        // seventeenth used to be told the whole calibration had failed, which
+        // is both discouraging and false — least squares spreads one bad point
+        // thinly and the other sixteen still pin the fit. `LineFit` in the CV
+        // pipeline already judged itself on p90 for exactly this reason, so
+        // this is the browser catching up with a bar the rest of the repo had
+        // already settled on rather than a new leniency invented here.
+        //
+        // With few points p90 and the maximum are nearly the same number, so
+        // this softens the case it should and leaves the thin sets alone.
+        const p90 = percentile(errors, 0.9);
+        const tail = p90 === null ? max : p90;
+        return { mean, max, p90, tail, ok: mean <= 0.5 && tail <= 1.5 };
     } catch {
         return null;
     }
+}
+
+/** "the goal width", "the goal width and the penalty spot", "a, b and c". */
+function listOf(items) {
+    if (items.length === 1) return items[0];
+    return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
 function renderQuality() {
@@ -439,8 +493,7 @@ function renderQuality() {
 
     let pixelToPitch;
     try {
-        const { length_m, width_m } = pitchDims();
-        const marks = landmarks(length_m, width_m);
+        const marks = pitchModel();
         pixelToPitch = fitHomography(
             [...state.points.entries()].map(([name, px]) => ({
                 src: px,
@@ -456,8 +509,15 @@ function renderQuality() {
 
         const mean = errors.reduce((a, b) => a + b, 0) / errors.length;
         const max = Math.max(...errors);
+        const p90 = percentile(errors, 0.9);
+        const tail = p90 === null ? max : p90;
         const exact = state.points.size === 4;
-        const ok = mean <= 0.5 && max <= 1.5;
+        const ok = mean <= 0.5 && tail <= 1.5;
+        // One point dragging a passing calibration's worst figure up. Worth
+        // saying out loud, because the tile above it shows that worst figure
+        // and a coach reading 2.4m under a green verdict deserves to know why
+        // the page is not worried about it.
+        const oneBad = ok && max > 1.5;
 
         const spread = pointSpread();
         const spreadTone = spread >= GOOD_SPREAD ? 'good'
@@ -467,7 +527,7 @@ function renderQuality() {
         note.innerHTML = `
             <div class="quality">
                 <div class="stat"><div class="value ${ok ? 'good' : 'bad'}">${mean.toFixed(2)}m</div><div class="label">Average error</div></div>
-                <div class="stat"><div class="value ${ok ? 'good' : 'bad'}">${max.toFixed(2)}m</div><div class="label">Worst point</div></div>
+                <div class="stat"><div class="value ${max <= 1.5 ? 'good' : ok ? '' : 'bad'}">${max.toFixed(2)}m</div><div class="label">Worst point</div></div>
                 <div class="stat"><div class="value ${spreadTone}">${percent(spread)}</div><div class="label">Frame covered</div></div>
                 <div class="stat"><div class="value">${state.points.size}</div><div class="label">Points placed</div></div>
             </div>
@@ -492,9 +552,13 @@ function renderQuality() {
                 + "don't tell you anything yet. Add a fifth to get a real check.";
         } else if (ok) {
             verdict.className = 'verdict good';
-            verdict.textContent =
-                'Good fit. Have a look at the yellow outline — if it sits on the '
-                + 'painted lines, you can save it.';
+            verdict.textContent = oneBad
+                ? `Good fit. One point is ${max.toFixed(2)}m out, which is not `
+                    + 'enough to spoil it — the rest hold the fit steady. Have a '
+                    + 'look at the yellow outline, and if it sits on the painted '
+                    + 'lines you can save it.'
+                : 'Good fit. Have a look at the yellow outline — if it sits on '
+                    + 'the painted lines, you can save it.';
         } else {
             // Three causes, and this page cannot tell them apart. It used to
             // say "one point is probably in the wrong place", which is a
@@ -510,19 +574,50 @@ function renderQuality() {
             // for the numbers. So the page lists the candidates and does not
             // pick, with the lens first because it is the only one where the
             // obvious next action is the wrong one.
+            //
+            // A fourth was added once the page could measure the markings.
+            // Unlike the other three it sometimes IS separable — a mismarked
+            // line displaces every landmark of its family the same way, and
+            // that coherence is measurable — so when the block above found it,
+            // this says so plainly instead of listing it as a possibility.
+            const marks = state.markings;
+            const named = marks && marks.offLaws.length
+                ? marks.offLaws.map((k) => marks.measured[k].label)
+                : null;
+            const lopsided = marks && marks.asymmetry && marks.asymmetry.length;
+
             verdict.className = 'verdict bad';
-            verdict.innerHTML =
-                'Something is off, and these numbers cannot say which of three '
-                + 'things it is:<br>'
-                + '<b>A wide-angle lens.</b> Action cameras and phone "wide" '
-                + 'modes bend straight lines, and no amount of re-clicking '
-                + 'fixes it — switch the camera to its narrow or linear '
-                + 'setting and grab a new frame.<br>'
-                + '<b>A misplaced or mis-named point.</b> Check the yellow '
-                + 'outline against the painted lines; where it sits wrong is '
-                + 'where to look.<br>'
-                + '<b>The pitch size above.</b> If it is a guess rather than a '
-                + 'measurement, every metre here is scaled by that guess.';
+            if (named || lopsided) {
+                verdict.innerHTML =
+                    '<b>This looks like the pitch, not your clicking.</b> '
+                    + (named
+                        ? `Your points say the ${listOf(named)} `
+                            + (named.length > 1 ? 'are' : 'is')
+                            + ' not painted to the Laws, and that alone would '
+                            + 'produce errors like these. See the markings box '
+                            + 'above — applying them should bring this down.'
+                        : 'The two ends of the field are painted differently, '
+                            + 'so no single set of markings can fit both. See '
+                            + 'the markings box above.')
+                    + '<br><span class="muted">Re-clicking cannot fix a line '
+                    + 'that is genuinely in the wrong place.</span>';
+            } else {
+                verdict.innerHTML =
+                    'Something is off, and these numbers cannot say which of '
+                    + 'four things it is:<br>'
+                    + '<b>A wide-angle lens.</b> Action cameras and phone "wide" '
+                    + 'modes bend straight lines, and no amount of re-clicking '
+                    + 'fixes it — switch the camera to its narrow or linear '
+                    + 'setting and grab a new frame.<br>'
+                    + '<b>A misplaced or mis-named point.</b> Check the yellow '
+                    + 'outline against the painted lines; where it sits wrong is '
+                    + 'where to look.<br>'
+                    + '<b>The pitch size above.</b> If it is a guess rather than '
+                    + 'a measurement, every metre here is scaled by that guess.'
+                    + '<br><b>Markings that are not to the Laws.</b> The page '
+                    + 'checks for this and did not find it, but it needs eight '
+                    + 'points at both ends to look properly.';
+            }
         }
     } catch (err) {
         note.className = 'empty';
@@ -625,10 +720,151 @@ function renderFieldSize() {
     }
 }
 
+// ---------------------------------------------------------------- markings
+
+/**
+ * What the clicks say about the paint, and what to do about it.
+ *
+ * The page used to hold one belief about a pitch it had never seen: that it
+ * was painted to the Laws of the Game. School fields are marked with a tape
+ * and a guess, and when the guess is wrong the error is *systematic* — every
+ * landmark of that family displaced the same way — so the homography tilts to
+ * split the difference and every position pays, including the ones nobody
+ * clicked. The page charged all of that to the coach and told them to click
+ * more carefully. They could not have.
+ *
+ * Nothing here is adopted without being pressed. The measurement is offered,
+ * the reasoning is shown, and the coach — who is standing on the pitch and can
+ * see it — decides.
+ */
+function renderMarkings() {
+    const box = byId('marks-measured');
+    if (!box) return;
+
+    const { length_m, width_m } = pitchDims();
+    const res = measureMarkings(state.points, length_m, width_m);
+    state.markings = res;
+
+    const custom = customMarks();
+    const revert = () => {
+        const btn = document.createElement('button');
+        btn.id = 'btn-reset-marks';
+        btn.className = 'btn small';
+        btn.style.marginTop = '8px';
+        btn.textContent = 'Back to standard markings';
+        btn.addEventListener('click', () => {
+            state.marks = { ...DEFAULT_MARKS };
+            renderAll();
+            toast('Markings back to the Laws');
+        });
+        box.appendChild(btn);
+    };
+
+    if (!res) {
+        // Eight, not five. Five points fit a homography; they cannot argue
+        // with the paint — see MIN_MARK_TOTAL in pitch-model.js for the seeds
+        // that settled the number.
+        const left = 8 - state.points.size;
+        box.className = 'measured';
+        box.innerHTML = left > 0
+            ? `Place ${plural(left, 'more point')} and the page will check `
+                + 'whether the markings match the Laws.'
+            : 'These points cannot say anything about the markings.';
+        if (custom) revert();
+        return;
+    }
+
+    const off = res.offLaws.map((k) => res.measured[k]);
+    const lopsided = res.asymmetry || [];
+
+    // Asymmetry first, and it is never a button. Two ends painted differently
+    // cannot both be right, and no single set of markings describes them; the
+    // only honest thing the page can do is say which end is which and let
+    // someone go and look.
+    if (lopsided.length) {
+        box.className = 'measured is-off';
+        box.innerHTML = '<div><b>The two ends are not painted the same.</b> '
+            + 'Your points measure:</div>'
+            + '<ul class="marks-list">'
+            + lopsided.map((a) => `<li>${a.label}: <b>${a.leftM.toFixed(1)}m</b> `
+                + `at the left end, <b>${a.rightM.toFixed(1)}m</b> at the right`
+                + '</li>').join('')
+            + '</ul>'
+            + '<div class="muted">One set of markings cannot fit both ends, so '
+            + 'nothing is offered to apply here. Worth walking out with a tape '
+            + '— some of the error above is the field, not your clicking.'
+            + '</div>';
+        if (custom) revert();
+        return;
+    }
+
+    if (!res.trusted) {
+        // The descent found values that fit better, and they are not shown as
+        // a suggestion, because remeasuring the paint did not account for the
+        // error — which means those values are fitting whatever is actually
+        // wrong. Offering them would be laundering a bad calibration into
+        // official-looking numbers.
+        box.className = 'measured';
+        box.innerHTML = 'The markings look standard. Whatever is wrong with '
+            + 'the fit, re-measuring the paint does not explain it.';
+        if (custom) revert();
+        return;
+    }
+
+    if (!off.length) {
+        box.className = 'measured is-ok';
+        box.innerHTML = custom
+            ? 'Your points agree with the markings you applied.'
+            : 'The markings match the Laws.';
+        if (custom) revert();
+        return;
+    }
+
+    box.className = 'measured is-off';
+    box.innerHTML = '<div><b>This pitch is not painted to the Laws.</b> '
+        + 'Your points measure:</div>'
+        + '<ul class="marks-list">'
+        + off.map((m) => `<li>${m.label}: <b>${m.valueM.toFixed(1)}m</b>, `
+            + `where the Laws say ${m.defaultM.toFixed(1)}m</li>`).join('')
+        + '</ul>';
+
+    if (marksDiffer(res.marks, state.marks)) {
+        const btn = document.createElement('button');
+        btn.id = 'btn-apply-marks';
+        btn.className = 'btn small primary';
+        btn.style.marginTop = '8px';
+        btn.textContent = off.length === 1
+            ? 'Use this measurement' : 'Use these measurements';
+        btn.addEventListener('click', () => {
+            state.marks = { ...res.marks };
+            renderAll();
+            toast('Markings updated — check the yellow outline again');
+        });
+        box.appendChild(btn);
+    } else {
+        const applied = document.createElement('div');
+        applied.className = 'muted';
+        applied.style.marginTop = '4px';
+        applied.textContent = 'Applied. The yellow outline is drawn with these.';
+        box.appendChild(applied);
+    }
+    if (custom) revert();
+}
+
+/** Whether the page is drawing anything other than the Laws. */
+function customMarks() {
+    return marksDiffer(state.marks, DEFAULT_MARKS);
+}
+
+function marksDiffer(a, b) {
+    return Object.keys(DEFAULT_MARKS).some(
+        (key) => Math.abs((a[key] || 0) - (b[key] || 0)) > 1e-6);
+}
+
 // --------------------------------------------------------------- readiness
 
 /**
- * The five checks, and whether this calibration has passed them.
+ * The six checks, and whether this calibration has passed them.
  *
  * The page could already tell you your average error was 1.77m; what it could
  * not tell you was whether you were finished. Every row is something that has
@@ -658,6 +894,55 @@ function readinessRows() {
             : ['good', 'Field size agrees with your points'];
     }
 
+    // The row that used to blame the coach unconditionally. A fit can miss the
+    // bar because of the clicking or because of the paint, and when the paint
+    // is measurably the culprit this says so rather than sending someone back
+    // to re-click landmarks that were never in the wrong place.
+    const marks = state.markings;
+    const named = marks && marks.offLaws.length
+        ? marks.offLaws.map((k) => marks.measured[k].label)
+        : null;
+    const lopsided = marks && marks.asymmetry && marks.asymmetry.length;
+    const blamePaint = !!(named || lopsided);
+
+    let accuracy;
+    if (!fit) {
+        accuracy = ['todo', 'Within half a metre'];
+    } else if (fit.ok) {
+        accuracy = ['good', `Within half a metre (${fit.mean.toFixed(2)}m `
+            + `average, ${fit.tail.toFixed(2)}m for all but the worst point)`];
+    } else if (blamePaint) {
+        // Warn, not bad. Something really is off, but the coach has an action
+        // that is not "click again", and a red cross next to a problem you
+        // cannot solve by trying harder is just discouragement.
+        accuracy = ['warn', named
+            ? `${fit.mean.toFixed(2)}m average — the ${listOf(named)} `
+                + (named.length > 1 ? 'do' : 'does') + ' not match the Laws'
+            : `${fit.mean.toFixed(2)}m average — the two ends are painted `
+                + 'differently'];
+    } else {
+        accuracy = ['bad', `Within half a metre (${fit.mean.toFixed(2)}m `
+            + `average, ${fit.tail.toFixed(2)}m for all but the worst point)`];
+    }
+
+    let markings;
+    if (!marks) {
+        markings = ['todo', 'Markings checked against your points'];
+    } else if (lopsided) {
+        markings = ['warn', 'The two ends are painted differently — see above'];
+    } else if (named) {
+        markings = [customMarks() ? 'good' : 'warn',
+            customMarks()
+                ? `Markings measured from your points (${listOf(named)})`
+                : `The ${listOf(named)} `
+                    + (named.length > 1 ? 'do' : 'does')
+                    + ' not match the Laws — see above'];
+    } else if (customMarks()) {
+        markings = ['good', 'Your points agree with the markings you applied'];
+    } else {
+        markings = ['good', 'Markings match the Laws'];
+    }
+
     const four = state.points.size === 4;
     return [
         [state.points.size >= 5 ? 'good' : four ? 'warn' : 'todo',
@@ -666,12 +951,9 @@ function readinessRows() {
                 : `Five points or more (${state.points.size} placed)`],
         [spread >= GOOD_SPREAD ? 'good' : spread >= POOR_SPREAD ? 'warn' : 'bad',
             `Points spread across the picture (${percent(spread)} covered)`],
-        [!fit ? 'todo' : fit.ok ? 'good' : 'bad',
-            fit
-                ? `Within half a metre (${fit.mean.toFixed(2)}m average, `
-                    + `${fit.max.toFixed(2)}m worst)`
-                : 'Within half a metre'],
+        accuracy,
         size,
+        markings,
         [state.eyeballed ? 'good' : 'todo',
             'You checked the yellow outline against the painted lines'],
     ];
@@ -788,9 +1070,12 @@ function renderAll() {
     renderLandmarkList();
     renderPlaced();
     // Field size first: it writes state.measured, which the readiness list
-    // reads. Quality between them, so the two error figures on screen come
-    // from the same fit as the row that grades them.
+    // reads. Markings next, because it writes state.markings, which both the
+    // verdict and the readiness list read to decide whether to blame the paint
+    // or the clicking. Quality between them, so the two error figures on
+    // screen come from the same fit as the row that grades them.
     renderFieldSize();
+    renderMarkings();
     renderQuality();
     renderReadiness();
     draw();
@@ -806,11 +1091,29 @@ function renderAll() {
 
 // ---------------------------------------------------------------- export
 
+/** The seven markings in the spelling `cv/pitch.py` expects. */
+function exportedMarks() {
+    return {
+        penalty_area_length_m: state.marks.penaltyAreaLengthM,
+        penalty_area_width_m: state.marks.penaltyAreaWidthM,
+        goal_area_length_m: state.marks.goalAreaLengthM,
+        goal_area_width_m: state.marks.goalAreaWidthM,
+        penalty_spot_m: state.marks.penaltySpotM,
+        goal_width_m: state.marks.goalWidthM,
+        centre_circle_radius_m: state.marks.centreCircleRadiusM,
+    };
+}
+
 function exportJson() {
     const fit = fitErrors();
     const payload = {
         image_size: state.imageSize,
-        pitch: pitchDims(),
+        // The markings ride along inside `pitch`, in the spelling `Pitch`
+        // uses, because they are part of the same answer to "what field is
+        // this" as the length and the width — and a calibration clicked
+        // against a 15m box and then fitted in Python against a 16.5m one
+        // would be wrong everywhere with nothing on screen to say so.
+        pitch: { ...pitchDims(), ...exportedMarks() },
         points: [...state.points.entries()].map(([landmark, [x, y]]) => ({
             landmark, x, y,
         })),
@@ -822,6 +1125,11 @@ function exportJson() {
         quality: {
             mean_error_m: fit ? fit.mean : null,
             worst_error_m: fit ? fit.max : null,
+            // The figure the bar is actually judged on, next to the worst one
+            // it used to be judged on. `CalibrationError` carries both for the
+            // same reason: the maximum is what a person notices, the p90 is
+            // what decides.
+            p90_error_m: fit ? fit.tail : null,
             frame_coverage: pointSpread(),
             measured: state.measured && {
                 length_m: state.measured.lengthConfident
@@ -830,6 +1138,15 @@ function exportJson() {
                     ? round1(state.measured.widthM) : null,
             },
             outline_checked: state.eyeballed,
+            // Null when the page never got to look, which is not the same as
+            // looking and finding nothing.
+            markings: state.markings && {
+                off_laws: state.markings.offLaws,
+                explained: state.markings.explained,
+                asymmetric: !!(state.markings.asymmetry
+                    && state.markings.asymmetry.length),
+                applied: customMarks(),
+            },
         },
     };
 
