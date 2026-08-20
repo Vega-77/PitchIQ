@@ -20,6 +20,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from .distortion import DistortionModel
 from .pitch import Pitch
 
 
@@ -85,7 +86,15 @@ class CalibrationError:
 
 
 class Calibration:
-    """A fitted pixel -> pitch-metre transform."""
+    """A fitted pixel -> pitch-metre transform.
+
+    A homography preserves straight lines, so on its own it can only describe a
+    lens that does too. When `lens` is present the pixels are straightened
+    before `H` sees them and bent again on the way back out, and that is the
+    only place a wide-angle camera's curvature is allowed to live. See
+    `cv.distortion` for how the coefficient is recovered from the painted lines
+    in the calibration frame, and for when it refuses to answer.
+    """
 
     def __init__(
         self,
@@ -93,6 +102,7 @@ class Calibration:
         pitch: Pitch,
         correspondences: list[Correspondence] | None = None,
         image_size: tuple[int, int] | None = None,
+        lens: DistortionModel | None = None,
     ) -> None:
         self.H = np.asarray(homography, dtype=np.float64)
         if self.H.shape != (3, 3):
@@ -100,6 +110,7 @@ class Calibration:
         self.pitch = pitch
         self.correspondences = correspondences or []
         self.image_size = image_size
+        self.lens = lens
         self._H_inv = np.linalg.inv(self.H)
 
     # ---------------------------------------------------------------- fitting
@@ -110,6 +121,7 @@ class Calibration:
         correspondences: list[Correspondence],
         pitch: Pitch,
         image_size: tuple[int, int] | None = None,
+        lens: DistortionModel | None = None,
     ) -> "Calibration":
         if len(correspondences) < 4:
             raise ValueError(
@@ -122,6 +134,14 @@ class Calibration:
             raise ValueError(f"landmark clicked more than once: {sorted(duplicates)}")
 
         src = np.array([c.pixel for c in correspondences], dtype=np.float64)
+        if lens is not None:
+            # Straighten the clicks before fitting. They record where the paint
+            # appeared, not where a rectilinear lens would have put it, and a
+            # homography handed the raw pixels will absorb as much of the
+            # curvature as it can into a transform that cannot represent it.
+            # The stored lens would then be correcting a matrix that had
+            # already half-corrected itself, and the two would fight.
+            src = lens.undistort(src)
         dst = np.array(
             [pitch.landmark(c.landmark) for c in correspondences], dtype=np.float64
         )
@@ -139,22 +159,26 @@ class Calibration:
                     "homography fit failed — points may be collinear or mislabelled"
                 )
 
-        return cls(H, pitch, correspondences, image_size)
+        return cls(H, pitch, correspondences, image_size, lens)
 
     # ---------------------------------------------------------------- transform
 
     def to_pitch(self, x_px: float, y_px: float) -> tuple[float, float]:
         """Image pixel -> pitch metres."""
-        out = self._apply(self.H, [(x_px, y_px)])
+        out = self.to_pitch_many([(x_px, y_px)])
         return (float(out[0][0]), float(out[0][1]))
 
     def to_pitch_many(self, points) -> np.ndarray:
         """Vectorised pixel -> metres for an (N, 2) array."""
+        if self.lens is not None:
+            points = self.lens.undistort(points)
         return self._apply(self.H, points)
 
     def to_pixels(self, x_m: float, y_m: float) -> tuple[float, float]:
         """Pitch metres -> image pixel. Useful for drawing overlays."""
         out = self._apply(self._H_inv, [(x_m, y_m)])
+        if self.lens is not None:
+            out = self.lens.distort(out)
         return (float(out[0][0]), float(out[0][1]))
 
     @staticmethod
@@ -206,7 +230,9 @@ class Calibration:
         for i, held_out in enumerate(self.correspondences):
             subset = self.correspondences[:i] + self.correspondences[i + 1:]
             try:
-                trial = Calibration.fit(subset, self.pitch)
+                trial = Calibration.fit(
+                    subset, self.pitch, self.image_size, self.lens
+                )
             except (ValueError, np.linalg.LinAlgError):
                 continue
             predicted = np.array(trial.to_pitch(*held_out.pixel))
@@ -294,6 +320,7 @@ class Calibration:
             "pitch": {"length_m": self.pitch.length_m, "width_m": self.pitch.width_m},
             "image_size": list(self.image_size) if self.image_size else None,
             "correspondences": [c.to_json() for c in self.correspondences],
+            "lens": self.lens.to_json() if self.lens else None,
         }
 
     def save(self, path: str | Path) -> None:
@@ -309,11 +336,15 @@ class Calibration:
             pitch,
             [Correspondence.from_json(c) for c in data.get("correspondences", [])],
             size,
+            DistortionModel.from_json(data.get("lens")),
         )
 
     @classmethod
     def from_picker_export(
-        cls, path: str | Path, pitch: Pitch | None = None
+        cls,
+        path: str | Path,
+        pitch: Pitch | None = None,
+        lens: DistortionModel | None = None,
     ) -> "Calibration":
         """Load the JSON produced by the browser landmark picker."""
         data = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -330,4 +361,4 @@ class Calibration:
             for p in data["points"]
         ]
         size = data.get("image_size")
-        return cls.fit(points, pitch, tuple(size) if size else None)
+        return cls.fit(points, pitch, tuple(size) if size else None, lens)

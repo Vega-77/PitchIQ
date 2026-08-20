@@ -8,6 +8,10 @@ the human did not supply, and these tests are about the wrapper around it: does
 it refuse a frame that does not belong to the calibration, does it save the
 homography it actually graded, and does it survive a frame with nothing in it.
 
+`--lens` reads the same frame for a different question and gets its own class
+at the bottom. What a distortion coefficient *means*, and when one frame is
+entitled to claim it found one, is `tests/test_distortion.py`'s job.
+
 What a line fit *means* is `tests/test_lines.py`'s job, and the synthetic camera
 is imported from there rather than built twice -- two renderers drifting apart
 would make one of these files quietly stop testing anything.
@@ -26,6 +30,7 @@ import pytest
 from cv.calibration import Calibration
 from cv.experiments.calibrate import main
 from cv.pitch import Pitch
+from test_distortion import grid_error_m, perfect_clicks, render_through
 from test_lines import (
     FRAME_H,
     FRAME_W,
@@ -220,3 +225,138 @@ class TestOverlay:
         assert drawn.shape == frame.shape
         assert not np.array_equal(drawn, frame), "nothing was drawn"
         assert "overlay    ->" in capsys.readouterr().out
+
+
+class TestLens:
+    """`--lens`: the one failure re-clicking cannot fix.
+
+    A homography maps straight lines to straight lines, so a wide-angle camera
+    breaks it in a way that looks exactly like sloppy clicking and is not. The
+    frames here are rendered through a real distortion model and clicked
+    *perfectly* -- every landmark exactly where the lens put it -- so anything
+    the tool reports is the lens and only the lens.
+    """
+
+    def test_a_bent_frame_is_unusable_until_the_lens_is_found(
+        self, scene, tmp_path, capsys
+    ):
+        """The headline, end to end through the actual CLI.
+
+        Same clicks, same frame, one flag apart: without it the tool says NEEDS
+        WORK and exits 2, with it the same eight perfect clicks come back inside
+        a few centimetres. The clicks were never the problem.
+        """
+        pitch, matrix, _ = scene
+        frame = render_through(pitch, matrix, -0.05)
+        image = tmp_path / "frame.png"
+        cv2.imwrite(str(image), frame)
+        points = write_points(
+            tmp_path / "p.json", perfect_clicks(pitch, matrix, -0.05), pitch
+        )
+
+        blind = main([str(points), "--out", str(tmp_path / "blind.json"),
+                      "--frame", str(image)])
+        assert blind == 2, "perfect clicks through a wide lens should not pass"
+        assert "NEEDS WORK" in capsys.readouterr().out
+
+        seeing = main([str(points), "--out", str(tmp_path / "seeing.json"),
+                       "--frame", str(image), "--lens"])
+        out = capsys.readouterr().out
+        assert seeing == 0
+        assert "OK" in out
+        assert "(confident)" in out
+        assert "Applied." in out
+
+        # Scored on `grid_error_m`, not `landmark_error`: the latter feeds a
+        # calibration the pixel an undistorted camera would have used, which is
+        # not a pixel this frame contains. Grid points are also the honest place
+        # to look -- the clicked landmarks are the eight the fit was handed.
+        before = Calibration.load(tmp_path / "blind.json")
+        after = Calibration.load(tmp_path / "seeing.json")
+        assert grid_error_m(before, pitch, matrix, -0.05)[1] > 1.0
+        assert grid_error_m(after, pitch, matrix, -0.05)[1] < 0.1
+
+    def test_the_lens_is_saved_with_the_calibration(self, scene, tmp_path):
+        """A coefficient that lives only in the terminal is a coefficient the
+        pipeline will silently run without. It has to survive the file."""
+        pitch, matrix, _ = scene
+        image = tmp_path / "frame.png"
+        cv2.imwrite(str(image), render_through(pitch, matrix, -0.08))
+        points = write_points(
+            tmp_path / "p.json", perfect_clicks(pitch, matrix, -0.08), pitch
+        )
+        out = tmp_path / "c.json"
+
+        main([str(points), "--frame", str(image), "--lens", "--out", str(out)])
+
+        assert json.loads(out.read_text())["lens"]["k1"] == pytest.approx(-0.08, abs=0.01)
+        reloaded = Calibration.load(out)
+        assert reloaded.lens is not None
+        assert grid_error_m(reloaded, pitch, matrix, -0.08)[1] < 0.15
+
+    def test_a_straight_frame_is_left_alone(self, scene, tmp_path, capsys):
+        """The half that matters more than the correction.
+
+        A rectilinear frame has no lens to find, and a tool that invents a
+        small coefficient anyway would move every landmark on every good
+        calibration in exchange for nothing. Refusing has to be the default
+        answer, not the error case.
+        """
+        pitch, matrix, frame = scene
+        image = tmp_path / "frame.png"
+        cv2.imwrite(str(image), frame)
+        points = write_points(
+            tmp_path / "p.json", rough_clicks(pitch, matrix, 1.0, 0), pitch
+        )
+
+        main([str(points), "--frame", str(image), "--lens",
+              "--out", str(tmp_path / "c.json")])
+        out = capsys.readouterr().out
+
+        assert "Not applied." in out
+        assert Calibration.load(tmp_path / "c.json").lens is None
+
+    def test_a_refusal_costs_the_calibration_nothing(self, scene, tmp_path):
+        """Passing `--lens` on a frame that cannot answer must produce exactly
+        the calibration you would have got without it -- not merely a similar
+        one. Otherwise nobody can afford to leave the flag on."""
+        pitch, matrix, frame = scene
+        image = tmp_path / "frame.png"
+        cv2.imwrite(str(image), frame)
+        clicks = rough_clicks(pitch, matrix, 1.0, 0)
+        write_points(tmp_path / "p.json", clicks, pitch)
+
+        main([str(tmp_path / "p.json"), "--frame", str(image),
+              "--out", str(tmp_path / "without.json")])
+        main([str(tmp_path / "p.json"), "--frame", str(image), "--lens",
+              "--out", str(tmp_path / "with.json")])
+
+        assert (json.loads((tmp_path / "without.json").read_text())["homography"]
+                == json.loads((tmp_path / "with.json").read_text())["homography"])
+
+    def test_refine_runs_through_the_lens(self, scene, tmp_path, capsys):
+        """`--refine` fits a second homography to sampled paint pixels. Those
+        are raw pixels off a bent frame, so if refinement forgets the lens it
+        re-absorbs the curvature into the matrix and drops the model on the way
+        out -- and the saved file is then wrong twice over, quietly."""
+        pitch, matrix, _ = scene
+        image = tmp_path / "frame.png"
+        cv2.imwrite(str(image), render_through(pitch, matrix, -0.06))
+        points = write_points(
+            tmp_path / "p.json", perfect_clicks(pitch, matrix, -0.06), pitch
+        )
+        out = tmp_path / "c.json"
+
+        code = main([str(points), "--frame", str(image), "--lens", "--refine",
+                     "--out", str(out)])
+
+        assert code == 0
+        saved = Calibration.load(out)
+        assert saved.lens is not None, "refinement dropped the lens"
+        assert grid_error_m(saved, pitch, matrix, -0.06)[1] < 0.5
+
+    def test_lens_needs_a_frame(self, tmp_path):
+        """`--lens` alone is a typo, not a request. Argparse exits 2."""
+        with pytest.raises(SystemExit) as err:
+            main([str(tmp_path / "p.json"), "--lens"])
+        assert err.value.code == 2

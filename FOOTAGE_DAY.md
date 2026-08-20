@@ -87,6 +87,16 @@ the penalty box corners, the six-yard box. Then open `calibrate/` in the browser
 click the landmarks, and check the reported error.
 
 - **Under 0.5 m mean is good.** Over 1.5 m and positions are not worth trusting.
+- **If the error will not come down, suspect the lens before the clicking.** A
+  wide-angle or action camera bends the painted lines, and a homography cannot
+  represent a bent line, so every landmark can be clicked perfectly and the fit
+  still fail. Re-clicking will not help; measuring the bow will. Export the
+  points from `calibrate/` and run
+  `python -m cv.experiments.calibrate points.json --frame frame.png --lens`.
+  If the frame can answer, the coefficient is saved with the calibration and
+  everything downstream corrects for it without being told. If it cannot — if
+  the paint all runs near the middle of the shot, where no lens bends it — it
+  says so and changes nothing, which is the right answer and not a failure.
 - **Measure the actual pitch and enter the real numbers.** This is not a cosmetic
   setting. `Pitch.to_statsbomb` normalises by the configured length, so a penalty
   spot reads as ~13.9 StatsBomb units on a 95 m pitch and ~12.0 on a 110 m one —

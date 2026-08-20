@@ -80,6 +80,14 @@ SAMPLE_STEP_PX = 8.0
 # a centimetre on a 9.15m radius, which is far below anything measured here.
 CIRCLE_SIDES = 48
 
+# Points per pitch segment in the overlay. Only matters when a lens is attached,
+# where it decides how closely a drawn line can follow bent paint. Measured on a
+# full-length touchline at k1 = -0.2, the worst gap between the polyline and the
+# true curve is 20.3px undivided, 1.4px at 4 steps, 0.09px at 16 and 0.02px at
+# 32. 16 is where it stops being visible on a 2px stroke; past that the cost is
+# `to_pixels` calls for something nobody can see.
+DRAW_STEPS = 16
+
 
 # ---------------------------------------------------------------------------
 # Segments
@@ -238,18 +246,35 @@ def draw_pitch_lines(
     project outside the frame are clipped by OpenCV rather than skipped, so a
     calibration that folds the pitch behind the camera still draws something
     visibly wrong instead of drawing nothing.
+
+    Every line is drawn as a polyline over `DRAW_STEPS` intermediate points
+    rather than as one straight stroke. Through a bare homography that changes
+    nothing -- straight stays straight -- but through a lens it is the whole
+    point: a wide-angle camera bends the paint, so a drawn line that stays
+    straight would miss paint that a correct calibration is tracking perfectly.
+    Subdividing lets the overlay curve the same way the touchline does, which
+    is what makes it evidence rather than decoration.
     """
     for seg in pitch_line_segments(calibration.pitch):
-        p1 = calibration.to_pixels(seg.x1, seg.y1)
-        p2 = calibration.to_pixels(seg.x2, seg.y2)
-        if not all(math.isfinite(v) for v in (*p1, *p2)):
+        points = []
+        for i in range(DRAW_STEPS + 1):
+            t = i / DRAW_STEPS
+            px = calibration.to_pixels(
+                seg.x1 + (seg.x2 - seg.x1) * t, seg.y1 + (seg.y2 - seg.y1) * t
+            )
+            if not all(math.isfinite(v) for v in px):
+                points = []
+                break
+            if max(abs(v) for v in px) > 1e6:
+                points = []
+                break
+            points.append((int(round(px[0])), int(round(px[1]))))
+        if not points:
             continue
-        if max(abs(v) for v in (*p1, *p2)) > 1e6:
-            continue
-        cv2.line(
+        cv2.polylines(
             image,
-            (int(round(p1[0])), int(round(p1[1]))),
-            (int(round(p2[0])), int(round(p2[1]))),
+            [np.array(points, dtype=np.int32)],
+            False,
             colour,
             thickness,
             cv2.LINE_AA,
@@ -583,12 +608,22 @@ def refine(
         if len(pairs) < 8:
             break
         src = np.array([p for p, _ in pairs], dtype=np.float64)
+        if current.lens is not None:
+            # The same rule `Calibration.fit` follows: a homography is only
+            # ever fitted to straightened pixels. Hand it the raw ones and it
+            # quietly absorbs the curvature the lens is there to hold, and the
+            # lens then gets applied a second time on every lookup.
+            src = current.lens.undistort(src)
         dst = np.array([t for _, t in pairs], dtype=np.float64)
         matrix, _ = cv2.findHomography(src, dst, cv2.RANSAC, ransacReprojThreshold=0.5)
         if matrix is None:
             break
         candidate = Calibration(
-            matrix, current.pitch, calibration.correspondences, calibration.image_size
+            matrix,
+            current.pitch,
+            calibration.correspondences,
+            calibration.image_size,
+            calibration.lens,
         )
         if candidate.sanity_check():
             break

@@ -3,6 +3,7 @@
     python -m cv.experiments.calibrate calibration-points.json
     python -m cv.experiments.calibrate points.json --out cv/calibrations/home.json
     python -m cv.experiments.calibrate points.json --frame frame.png --refine
+    python -m cv.experiments.calibrate points.json --frame frame.png --lens
 
 Reports both reprojection error (optimistic — it is measured on the very points
 that were fitted) and leave-one-out error (honest, and what actually catches a
@@ -12,6 +13,13 @@ Both of those are measured on the human's own clicks, and neither can see a
 mistake the human made consistently. `--frame` is the only argument here that
 brings in evidence nobody supplied: the painted lines in a frame of the actual
 pitch, found by `cv.lines` and compared against the model.
+
+`--lens` reads that same paint for a different question. A homography can
+only describe a lens that keeps straight lines straight, so on a wide-angle
+camera every landmark can be clicked perfectly and the fit still be
+unusable. Painted lines are straight by the Laws, which makes any bow in
+them the lens and not the clicking — see `cv.distortion`. It is off by
+default because a frame that cannot answer must not be made to guess.
 """
 
 from __future__ import annotations
@@ -43,10 +51,14 @@ def main(argv: list[str] | None = None) -> int:
         "--overlay", type=Path, default=None,
         help="write the frame with the pitch model drawn over it",
     )
+    parser.add_argument(
+        "--lens", action="store_true",
+        help="measure lens distortion from the paint and fit through it",
+    )
     args = parser.parse_args(argv)
 
-    if (args.refine or args.overlay) and args.frame is None:
-        parser.error("--refine and --overlay need a --frame to work from")
+    if (args.refine or args.overlay or args.lens) and args.frame is None:
+        parser.error("--refine, --overlay and --lens need a --frame to work from")
 
     if not args.points.exists():
         print(f"error: {args.points} not found")
@@ -62,8 +74,10 @@ def main(argv: list[str] | None = None) -> int:
 
         pitch = Pitch(length_m=args.length or 105.0, width_m=args.width or 68.0)
 
+    lens = _estimate_lens(args) if args.lens else None
+
     try:
-        calib = Calibration.from_picker_export(args.points, pitch)
+        calib = Calibration.from_picker_export(args.points, pitch, lens)
     except (ValueError, KeyError) as err:
         print(f"error: {err}")
         return 1
@@ -72,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"points     {len(calib.correspondences)}")
     if calib.image_size:
         print(f"frame      {calib.image_size[0]}x{calib.image_size[1]}")
+    if calib.lens is not None:
+        print(f"lens       k1 {calib.lens.k1:+.4f}")
 
     fit_err = calib.error()
     print(f"\nreprojection  {fit_err.summary()}")
@@ -122,8 +138,10 @@ def main(argv: list[str] | None = None) -> int:
         # and re-clicking will never fix it.
         print(
             "\nThree things do this and these numbers cannot separate them:\n"
-            "  - a wide-angle or action camera; re-clicking will not help, and\n"
-            "    the fix is a narrower lens setting and a fresh frame\n"
+            "  - a wide-angle or action camera; re-clicking will not help.\n"
+            "    Re-run with --frame --lens: if the paint in that frame\n"
+            "    bows, the lens is measurable and correctable from it, and\n"
+            "    if it does not bow, the answer comes back honestly empty\n"
             "  - a misplaced or mislabelled landmark; start with the point\n"
             "    listed above and check the outline against the painted lines\n"
             "  - a guessed pitch size; every metre is scaled by it"
@@ -134,6 +152,52 @@ def main(argv: list[str] | None = None) -> int:
     calib.save(out)
     print(f"\nsaved -> {out}")
     return 0 if good else 2
+
+
+def _estimate_lens(args):
+    """Measure the lens from the painted lines, or return None and say why.
+
+    This runs before the homography is fitted, and it has to. `Calibration.fit`
+    needs the clicks straightened before it sees them; a homography already
+    fitted to bent pixels has absorbed some of the bend, and there is no
+    separating the two afterwards.
+
+    Returning None on a frame that cannot answer is the point, not a fallback.
+    A line through the image centre stays straight under any coefficient, so a
+    frame whose paint all runs near the centre has genuinely nothing to say --
+    and fitting a number to it anyway would move every landmark for no reason.
+    """
+    try:
+        import cv2
+
+        from cv.distortion import lens_for_frame
+    except ImportError as err:
+        print(f"\nlens check unavailable: {err}")
+        return None
+
+    frame = cv2.imread(str(args.frame))
+    if frame is None:
+        # `_check_against_paint` reports this properly and stops the run a few
+        # lines later. Saying it twice helps nobody.
+        return None
+
+    model, fit = lens_for_frame(frame)
+    print(f"\nlens          {fit.summary()}")
+    if model is None:
+        print(
+            "              Not applied. The clicks are fitted as they were, which\n"
+            "              is the right answer when the frame cannot tell a lens\n"
+            "              from a straight one -- an unsupported coefficient moves\n"
+            "              every landmark and improves nothing."
+        )
+        return None
+
+    print(
+        "              Applied. Every number below is measured through it, and\n"
+        "              it is saved with the calibration, so anything that loads\n"
+        "              this file corrects for the lens without being told to."
+    )
+    return model
 
 
 def _check_against_paint(calib, args):
