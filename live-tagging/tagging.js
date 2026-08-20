@@ -13,18 +13,18 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=95';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=96';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=95';
+} from '../assets/db.js?v=96';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=95';
-import { syncState, safeToClose } from '../assets/report.js?v=95';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=95';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=95';
+} from '../assets/events.js?v=96';
+import { syncState, safeToClose } from '../assets/report.js?v=96';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=96';
+import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=96';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -833,9 +833,46 @@ function cancelEventSheet() {
 
 // ---------------------------------------------------------------- undo
 
+/**
+ * Everything undoing `entry` is about to change, as a function that puts it
+ * back.
+ *
+ * `sendWrite`'s compensator exists to make the screen match the record when a
+ * write is refused, and it can only do that for the changes it is told about.
+ * Undo changes four things - the entry list, the score, the roster and the
+ * period - and the compensator restored the two that are easy to see. The
+ * other two are the ones a tagger acts on next. `activeRoster()` is who the
+ * event sheet offers to attribute a tag to, so a substitution left reverted
+ * against a record that still holds it means the next goal is attributed to a
+ * player who is on the bench; `state.match.status` is what the clock, the
+ * period button and `inPlay()` all read.
+ */
+function undoRestorePoint(entry) {
+    const roster = entry.kind === 'sub' && entry.revert
+        ? ['out', 'in']
+            .map((side) => rosterSnapshot(entry.revert[side]?.id))
+            .filter(Boolean)
+        : [];
+    const status = state.match?.status;
+    const halfTimeClockS = state.match?.halfTimeClockS ?? null;
+
+    return () => {
+        for (const snapshot of roster) putBack(snapshot);
+        if (entry.kind === 'period' && entry.revert?.prevStatus) {
+            state.match.status = status;
+            state.match.halfTimeClockS = halfTimeClockS;
+            updatePeriodButton();
+        }
+    };
+}
+
 function undoLast() {
     const entry = state.myEntries[state.myEntries.length - 1];
     if (!entry) return toast('Nothing of yours to undo', true);
+
+    // Captured before anything moves, because by the time a refusal comes back
+    // the screen has moved on and this is the only record of where it was.
+    const restore = undoRestorePoint(entry);
 
     // Same rule as everywhere else here: a mis-tap has to come off the screen
     // now, not when a server three miles away agrees. Undo is the control a
@@ -847,6 +884,7 @@ function undoLast() {
             message: 'That undo was not saved',
             undo: () => {
                 state.myEntries.push(entry);
+                restore();
                 if (entry.type === 'goal') {
                     const key = entry.side === 'them' ? 'them' : 'us';
                     state.score[key] += 1;
@@ -859,11 +897,19 @@ function undoLast() {
     state.myEntries.pop();
 
     if (entry.kind === 'sub' && entry.revert) {
-        putBack(entry.revert.out);
-        putBack(entry.revert.in);
+        // Contents from before the substitution, version from after taking it
+        // back: `undoEntry` writes version + 2, and a tablet left two behind
+        // would have every later substitution of either player refused by the
+        // lock, with no way to catch up short of reopening the sheet.
+        putBack(entry.revert.out, (entry.revert.out.version ?? 0) + 2);
+        putBack(entry.revert.in, (entry.revert.in.version ?? 0) + 2);
     }
     if (entry.kind === 'period' && entry.revert?.prevStatus) {
         state.match.status = entry.revert.prevStatus;
+        // `undoEntry` nulls the clock reading alongside the status, for the
+        // reason spelled out there; leaving it here would let a later payload
+        // anchor the second half to a break the log no longer says happened.
+        if (entry.type === 'halftime') state.match.halfTimeClockS = null;
         updatePeriodButton();
     }
     if (entry.type === 'goal') {
@@ -911,6 +957,19 @@ function advancePeriod() {
         revert: { prevStatus: status },
     };
 
+    // The status is the smallest thing this tap changes. It also freezes or
+    // restarts the clock, and half-time writes the reading the second half is
+    // anchored to - so a compensator that restores only the button leaves a
+    // clock running against a record that says the half never ended, and every
+    // timestamp after it is wrong by the length of the break.
+    const before = {
+        clockOffset: state.clockOffset,
+        running: state.running,
+        kickoffAt: state.kickoffAt,
+        label: byId('period-label').textContent,
+        halfTimeClockS: state.match?.halfTimeClockS ?? null,
+    };
+
     sendWrite(
         writePeriod(state.user, state.teamId, state.matchId, {
             deviceId: state.device, seq, period: next, matchClockS: now, prevStatus: status,
@@ -920,7 +979,13 @@ function advancePeriod() {
             undo: () => {
                 dropEntry(entry.id);
                 state.match.status = status;
+                state.match.halfTimeClockS = before.halfTimeClockS;
+                state.clockOffset = before.clockOffset;
+                state.running = before.running;
+                state.kickoffAt = before.kickoffAt;
+                byId('period-label').textContent = before.label;
                 updatePeriodButton();
+                renderClockChrome();
             },
         },
     );
@@ -1082,13 +1147,30 @@ function applySub(outEntry, inEntry, clock) {
     inEntry.version = (inEntry.version ?? 0) + 1;
 }
 
-/** Put one roster entry back the way it was, after a rejected write. */
-function putBack(snapshot) {
+/**
+ * Put one roster entry back the way it was, after a rejected write.
+ *
+ * The version is separable from the contents because the two do not always
+ * travel together. A refused write left the record untouched, so the prior
+ * version is still the record's; an undo that *succeeded* moved the record on
+ * two — one for the substitution, one for taking it back — while restoring the
+ * contents to what they were before either.
+ */
+function putBack(snapshot, version = snapshot.version) {
     const entry = state.roster.find((r) => r.id === snapshot.id);
     if (!entry) return;
     entry.isActive = snapshot.isActive;
     entry.stints = snapshot.stints;
-    entry.version = snapshot.version;
+    entry.version = version;
+}
+
+/** What one roster entry looks like right now, in the shape `putBack` takes. */
+function rosterSnapshot(id) {
+    const entry = state.roster.find((r) => r.id === id);
+    return entry && {
+        id: entry.id, isActive: entry.isActive,
+        stints: entry.stints, version: entry.version,
+    };
 }
 
 // ---------------------------------------------------------------- log

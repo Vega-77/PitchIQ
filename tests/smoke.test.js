@@ -25,7 +25,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 import { installDom } from './dom-shim.js';
 import {
-    reset, seed, signInAs, snapshotOf, pathsUnder, goOffline, goOnline, queuedWrites,
+    reset, seed, signInAs, snapshotOf, pathsUnder,
+    goOffline, goOnline, queuedWrites, refuseWrites, acceptWrites,
 } from './fake-firebase.js';
 import { fixture, filmed, COACH, STUDENT, TEAM_ID, MATCH_ID } from './fixtures.js';
 
@@ -1475,6 +1476,137 @@ test('the tablet keeps working when the server stops answering', async () => {
         stints(MATCH_ID)['Rae Nkemelu'].stints.filter((s) => s.outS != null).length, 1,
         'the stint was closed more than once',
     );
+});
+
+test('a refused undo leaves the roster the way the record has it', async () => {
+    // `sendWrite`'s compensator exists for one case: the server said no, so
+    // whatever the screen did optimistically has to come back off it. Undo
+    // moves four things and the compensator used to restore two — the two that
+    // are easy to see. The roster is not one of them, and the roster is what
+    // the event sheet offers to attribute the next goal to.
+    //
+    // So: make a substitution that lands, then undo it against a server that
+    // refuses. The record still holds the substitution. If the screen keeps the
+    // undo, the next goal is offered to a player the record has on the bench.
+    await openPage({
+        html: 'live-tagging/index.html',
+        entry: 'live-tagging/tagging.js',
+        url: `http://localhost:5000/live-tagging/?team=${TEAM_ID}&match=${MATCH_ID}`,
+        variant: 'refused-undo',
+        documents: (() => {
+            const docs = fixture();
+            const match = docs[`teams/${TEAM_ID}/matches/${MATCH_ID}`];
+            match.status = 'first_half';
+            match.halfTimeClockS = null;
+            delete docs[`teams/${TEAM_ID}/matches/${MATCH_ID}/log/dev-a_000008`];
+            return docs;
+        })(),
+    });
+
+    live.document.querySelectorAll('#match-cards .match-card')
+        .find((c) => c.textContent.includes('Northgate')).click();
+    await settle();
+    const logged = entries(MATCH_ID).length;
+
+    // Rae off, Alex on — the only two the fixture allows, and it puts them on
+    // opposite sides of the sheet.
+    el('btn-sub').click();
+    await settle();
+    live.document.querySelectorAll('#sub-off-list .pick')
+        .find((p) => p.textContent.includes('Rae')).click();
+    live.document.querySelectorAll('#sub-on-list .pick')
+        .find((p) => p.textContent.includes('Alex')).click();
+    await settle();
+    el('btn-sub-confirm').click();
+    await settle();
+
+    assert.equal(entries(MATCH_ID).length, logged + 1, 'the substitution was not logged');
+    assert.equal(stints(MATCH_ID)['Rae Nkemelu'].on, false, 'Rae did not come off');
+    assert.equal(stints(MATCH_ID)['Alex Vega'].on, true, 'Alex did not come on');
+
+    refuseWrites('permission denied');
+    el('btn-undo').click();
+    await settle();
+    acceptWrites();
+
+    // Nothing of the undo landed, which is the premise of the rest of this.
+    assert.equal(entries(MATCH_ID).length, logged + 1,
+        'the refused undo deleted the entry anyway');
+    assert.equal(stints(MATCH_ID)['Rae Nkemelu'].on, false,
+        'the refused undo put Rae back in the record');
+    assert.equal(stints(MATCH_ID)['Alex Vega'].on, true,
+        'the refused undo took Alex out of the record');
+
+    // And the screen agrees with it. This is the assertion that failed before:
+    // the roster was left reverted, so the goal sheet offered Rae — who the
+    // record has on the bench — and not Alex, who is on the field.
+    live.document.querySelectorAll('.ev')
+        .find((b) => b.dataset.event === 'goal').click();
+    await settle();
+    globalThis.window._tagger.onSideChosen('us');
+    await settle();
+
+    const offered = live.document.querySelectorAll('#player-choices .pick')
+        .map((p) => p.textContent).join(' / ');
+    assert.ok(offered.includes('Alex'),
+        `a goal cannot be given to the player who is on: ${offered}`);
+    assert.ok(!offered.includes('Rae'),
+        `a goal can be given to a player the record has on the bench: ${offered}`);
+});
+
+test('a refused period tap leaves the clock and the button where they were', async () => {
+    // The other half of the same rule, on the control that is hardest to
+    // recover from by hand. Half-time freezes the clock, relabels the period
+    // and writes the reading the second half is anchored to; a compensator
+    // that restores only the status leaves a screen saying the half is over
+    // against a record that says it is still running.
+    await openPage({
+        html: 'live-tagging/index.html',
+        entry: 'live-tagging/tagging.js',
+        url: `http://localhost:5000/live-tagging/?team=${TEAM_ID}&match=${MATCH_ID}`,
+        variant: 'refused-period',
+        documents: (() => {
+            const docs = fixture();
+            const match = docs[`teams/${TEAM_ID}/matches/${MATCH_ID}`];
+            match.status = 'first_half';
+            match.halfTimeClockS = null;
+            delete docs[`teams/${TEAM_ID}/matches/${MATCH_ID}/log/dev-a_000008`];
+            return docs;
+        })(),
+    });
+
+    live.document.querySelectorAll('#match-cards .match-card')
+        .find((c) => c.textContent.includes('Northgate')).click();
+    await settle();
+    assert.equal(text('period-label'), '1st half');
+
+    // ---- the tap the server refuses
+    refuseWrites('permission denied');
+    el('btn-period').click();
+    await settle();
+    acceptWrites();
+
+    assert.equal(text('period-label'), '1st half',
+        'a refused half-time left the screen in the break');
+    assert.equal(text('btn-period'), 'Half-time',
+        'a refused half-time left the button offering the second half');
+    assert.equal(snapshotOf(`teams/${TEAM_ID}/matches/${MATCH_ID}`).status, 'first_half',
+        'a refused half-time reached the record');
+
+    // ---- and now the tap that lands, undone against a refusal
+    el('btn-period').click();
+    await settle();
+    assert.equal(text('btn-period'), 'Start 2nd half', 'half-time did not take');
+
+    refuseWrites('permission denied');
+    el('btn-undo').click();
+    await settle();
+    acceptWrites();
+
+    assert.equal(snapshotOf(`teams/${TEAM_ID}/matches/${MATCH_ID}`).status, 'halftime',
+        'the refused undo restarted the half in the record');
+    assert.equal(text('btn-period'), 'Start 2nd half',
+        'the screen came out of the break the record still says it is in');
 });
 
 test('the calibrate page comes up with its picker ready', async () => {

@@ -4141,6 +4141,49 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **A compensator that restores less than its forward path changed**
+      (2026-08-19). Every optimistic write in the tagging tool moves the screen
+      first and tells the server after, which is the only shape that works at a
+      field with no signal. The price is `sendWrite`'s `undo` — the function
+      that has to put the screen back when the server answers *no* rather than
+      *later*. Six call sites carry one. **Two of them restored less than their
+      forward path had changed**, and a third piece of bookkeeping disagreed
+      with the record it was meant to match.
+      **Undo restored two of the four things it moves.** `undoLast` changes the
+      entry list, the score, the roster and the period; its compensator put back
+      the first two. A refused undo of a substitution therefore left
+      `state.roster` reverted against a record that still held the sub — and
+      `activeRoster()` is exactly who the event sheet offers a goal to, so the
+      next goal was attributed to a player the record has on the bench. A
+      refused undo of a period tap left `state.match.status` reverted, which the
+      clock, the period button and `inPlay()` all read. Fixed by
+      `undoRestorePoint`, which captures the whole restore before anything moves,
+      because by the time a refusal comes back the screen has moved on.
+      **Half-time restored the button but not the clock.** The tap freezes the
+      clock, relabels the period and writes the reading the second half is
+      anchored to; the compensator restored the status alone, leaving a clock
+      running against a record saying the half never ended and every later
+      timestamp wrong by the length of the break.
+      **And undo's version arithmetic was two behind the record.** `undoEntry`
+      writes `version + 2` — one for the sub, one for taking it back — while
+      `putBack` restored the pre-sub version, so the tablet's copy was two
+      behind the optimistic lock at `firestore.rules:403`. Honestly:
+      `openSubSheet` re-reads the roster from Firestore every time it opens, so
+      this was masked in practice, and it has **no test** because it has no
+      screen-level observable. It is corrected as bookkeeping, not as a shipped
+      defect.
+      None of this had ever been reachable in a test, because
+      `tests/fake-firebase.js` could refuse nothing: `goOffline` models a write
+      nobody has answered yet, and there was no way to model one answered with
+      no. New `refuseWrites` / `acceptWrites` reject before anything lands, which
+      is what the real SDK does with a rules failure — it is still not a rules
+      engine, and `tests/rules.test.js` remains the only thing that can say
+      *which* writes the server would refuse. Two page tests use it, and both
+      were run against the pre-fix file first: the roster one reports the goal
+      sheet offering `7Rae Nkemelu / 14Sam Okonjo` where the record has Rae on
+      the bench, and the period one reports `half-time` on the label and
+      `Half-time` on the button where the record says the first half is still
+      running. **731 · 34 · 146 · 1125 green.**
 - [x] **The third way a write and a read fail to meet: a field nothing ever
       asks for** (2026-08-19). The two guards below catch a page reading a field
       nothing writes, and a pipeline figure no page draws. This one is the

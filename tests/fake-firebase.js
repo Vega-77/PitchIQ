@@ -48,6 +48,36 @@ export async function goOnline() {
 
 export const queuedWrites = () => unacknowledged.length;
 
+// ------------------------------------------------------------- refusal
+//
+// The other answer a server can give, and a different thing from silence.
+// `goOffline` models a write nobody has answered yet; this models one that has
+// been answered with no. They reach different code: every `sendWrite` in the
+// tagging tool carries an `undo` compensator whose only job is to put the
+// screen back when a write is refused, and with no way to refuse one, none of
+// those compensators had ever run in a test.
+//
+// A refused write does not land, here or in the cache. That is what the real
+// SDK does with a rules failure - the local mutation is rolled back when the
+// server says no - and it is why a compensator is needed at all: without one
+// the screen keeps showing something the record does not have.
+//
+// This is still not a rules engine. `tests/rules.test.js` and
+// `tests/flow.test.js` remain the only things that can say *which* writes the
+// real server would refuse; this says only what happens once it has.
+
+let refusing = null;
+
+/** Refuse every write until `acceptWrites()`. */
+export function refuseWrites(message = 'the server refused it') {
+    refusing = message;
+}
+
+export function acceptWrites() { refusing = null; }
+
+/** A rejection when the server is refusing, checked before anything lands. */
+const refusal = () => (refusing ? Promise.reject(new Error(refusing)) : null);
+
 /** The server's answer to a write, or its silence. */
 const acknowledge = () => (online
     ? Promise.resolve()
@@ -58,6 +88,7 @@ export function reset() {
     store.clear();
     listeners.clear();
     online = true;
+    refusing = null;
     unacknowledged.length = 0;
     authState.user = null;
     authState.callbacks.clear();
@@ -230,12 +261,16 @@ function writeDoc(ref, data, options = {}) {
 }
 
 export function setDoc(ref, data, options) {
+    const no = refusal();
+    if (no) return no;
     writeDoc(ref, data, options);
     notify();
     return acknowledge();
 }
 
 export function updateDoc(ref, patch) {
+    const no = refusal();
+    if (no) return no;
     if (!store.has(ref.path)) {
         return Promise.reject(
             new Error(`fake firestore: no document to update at ${ref.path}`));
@@ -252,6 +287,8 @@ export function updateDoc(ref, patch) {
 }
 
 export function deleteDoc(ref) {
+    const no = refusal();
+    if (no) return no;
     store.delete(ref.path);
     notify();
     return acknowledge();
@@ -273,6 +310,9 @@ export function writeBatch() {
             // Applied locally in one go and acknowledged as one write, which is
             // what a batch is: it queues offline rather than failing, and that
             // is the reason the tagging tool uses batches and not transactions.
+            // Refused, none of it lands - a batch is all or nothing both ways.
+            const no = refusal();
+            if (no) return no;
             for (const apply of queued) apply();
             notify();
             return acknowledge();
