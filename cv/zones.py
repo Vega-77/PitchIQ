@@ -28,14 +28,11 @@ from __future__ import annotations
 
 import math
 
-from .pitch import (
-    GOAL_AREA_LENGTH_M,
-    GOAL_AREA_WIDTH_M,
-    GOAL_WIDTH_M,
-    PENALTY_AREA_LENGTH_M,
-    PENALTY_AREA_WIDTH_M,
-    Pitch,
-)
+# The marking constants are deliberately not imported here. Every box question
+# below asks the `Pitch` it was handed instead, so a field whose penalty area
+# was measured at 15m gets its zones drawn on the paint that is actually there
+# rather than on the paint the Laws would have preferred.
+from .pitch import Pitch
 
 DEFENSIVE_THIRD = 'defensive'
 MIDDLE_THIRD = 'middle'
@@ -116,7 +113,9 @@ def _box(pitch: Pitch, end: str, length_m: float, width_m: float):
 
 def in_penalty_area(pitch: Pitch, x_m: float, y_m: float, end: str) -> bool:
     """Inside the 18-yard box at the given end. The lines are part of the box."""
-    x0, x1, y0, y1 = _box(pitch, end, PENALTY_AREA_LENGTH_M, PENALTY_AREA_WIDTH_M)
+    x0, x1, y0, y1 = _box(
+        pitch, end, pitch.penalty_area_length_m, pitch.penalty_area_width_m
+    )
     return x0 <= x_m <= x1 and y0 <= y_m <= y1
 
 
@@ -127,7 +126,7 @@ def goal_area(pitch: Pitch, end: str):
     membership test — `cv/coverage.py` samples it to ask whether the camera had
     the goalmouth in frame at all.
     """
-    return _box(pitch, end, GOAL_AREA_LENGTH_M, GOAL_AREA_WIDTH_M)
+    return _box(pitch, end, pitch.goal_area_length_m, pitch.goal_area_width_m)
 
 
 def in_goal_area(pitch: Pitch, x_m: float, y_m: float, end: str) -> bool:
@@ -138,7 +137,7 @@ def in_goal_area(pitch: Pitch, x_m: float, y_m: float, end: str) -> bool:
 
 def in_wide_channel(pitch: Pitch, y_m: float) -> bool:
     """Outside the width of the penalty area — where crosses come from."""
-    half = PENALTY_AREA_WIDTH_M / 2
+    half = pitch.penalty_area_width_m / 2
     centre_y = pitch.width_m / 2
     return y_m < centre_y - half or y_m > centre_y + half
 
@@ -239,7 +238,7 @@ def enters_goal_mouth(
         return False
 
     centre_y = pitch.width_m / 2
-    half = GOAL_WIDTH_M / 2
+    half = pitch.goal_width_m / 2
     return centre_y - half <= y <= centre_y + half
 
 

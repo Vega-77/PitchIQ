@@ -54,15 +54,9 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from .pitch import (
-    CENTRE_CIRCLE_RADIUS_M,
-    GOAL_AREA_LENGTH_M,
-    GOAL_AREA_WIDTH_M,
-    PENALTY_AREA_LENGTH_M,
-    PENALTY_AREA_WIDTH_M,
-    PENALTY_SPOT_M,
-    Pitch,
-)
+# No marking constants: `pitch_line_segments` reads them off the `Pitch` so the
+# model it builds is the paint on this field, not the paint on a regulation one.
+from .pitch import Pitch
 
 # How far a projected pixel may land from the nearest painted line and still be
 # counted as that line. Wide on purpose: this is the capture radius of the
@@ -162,14 +156,18 @@ class Segment:
 def pitch_line_segments(pitch: Pitch) -> list[Segment]:
     """Every painted line, in metres.
 
-    Derived from `Pitch` and the Laws constants rather than hardcoded, so a
-    measured pitch of unusual size gets its own model and the check stays
-    honest on it.
+    Derived from `Pitch` rather than hardcoded, so a pitch of unusual size —
+    or unusual markings — gets its own model and the check stays honest on
+    it. That second half matters more than it sounds: this model is what
+    measured paint is scored against, so a field with a 15m box checked against
+    a 16.5m model reports poor coverage and a poor median for a calibration
+    that is in fact correct, and the numbers then accuse the wrong thing.
     """
     length, width = pitch.length_m, pitch.width_m
     cy = width / 2
-    pa_half = PENALTY_AREA_WIDTH_M / 2
-    ga_half = GOAL_AREA_WIDTH_M / 2
+    pa_half = pitch.penalty_area_width_m / 2
+    ga_half = pitch.goal_area_width_m / 2
+    circle = pitch.centre_circle_radius_m
 
     segments = [
         # Touchlines and goal lines.
@@ -182,8 +180,8 @@ def pitch_line_segments(pitch: Pitch) -> list[Segment]:
     ]
 
     for goal_x, inward in ((0.0, 1.0), (length, -1.0)):
-        pa_x = goal_x + inward * PENALTY_AREA_LENGTH_M
-        ga_x = goal_x + inward * GOAL_AREA_LENGTH_M
+        pa_x = goal_x + inward * pitch.penalty_area_length_m
+        ga_x = goal_x + inward * pitch.goal_area_length_m
         segments += [
             Segment(goal_x, cy - pa_half, pa_x, cy - pa_half),
             Segment(pa_x, cy - pa_half, pa_x, cy + pa_half),
@@ -193,7 +191,7 @@ def pitch_line_segments(pitch: Pitch) -> list[Segment]:
             Segment(ga_x, cy + ga_half, goal_x, cy + ga_half),
         ]
 
-    segments += _arc(length / 2, cy, CENTRE_CIRCLE_RADIUS_M, 0.0, 2 * math.pi)
+    segments += _arc(length / 2, cy, circle, 0.0, 2 * math.pi)
 
     # The penalty arcs. Easy to leave out -- no landmark sits on one and no
     # calibration is fitted from one -- and leaving them out is not neutral:
@@ -201,13 +199,17 @@ def pitch_line_segments(pitch: Pitch) -> list[Segment]:
     # fails to explain, so every frame containing one reports coverage lower
     # than the calibration deserves. An unmodelled line is indistinguishable
     # from a wrong calibration.
+    # Clamped at both ends, not just the top. On Laws markings the ratio is
+    # +0.60 and the lower clamp is unreachable, but a measured pitch can put
+    # the spot far enough behind the box line to drive it past -1, and acos
+    # raises rather than degrading.
+    spot = pitch.penalty_spot_m
     half_angle = math.acos(
-        min(1.0, (PENALTY_AREA_LENGTH_M - PENALTY_SPOT_M) / CENTRE_CIRCLE_RADIUS_M)
+        max(-1.0, min(1.0, (pitch.penalty_area_length_m - spot) / circle))
     )
-    for spot_x, facing in ((PENALTY_SPOT_M, 0.0),
-                           (length - PENALTY_SPOT_M, math.pi)):
+    for spot_x, facing in ((spot, 0.0), (length - spot, math.pi)):
         segments += _arc(
-            spot_x, cy, CENTRE_CIRCLE_RADIUS_M,
+            spot_x, cy, circle,
             facing - half_angle, facing + half_angle,
         )
 

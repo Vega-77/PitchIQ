@@ -68,21 +68,89 @@ class CalibrationError:
     mean_m: float
     max_m: float
     per_landmark: dict[str, float] = field(default_factory=dict)
+    # None means "nobody computed one", and `tail_m` then falls back to the
+    # max. Kept optional rather than required so a hand-built error — in a
+    # test, or the empty one below — stays valid and stays strict.
+    p90_m: float | None = None
+
+    @classmethod
+    def from_per_landmark(cls, per: dict[str, float]) -> "CalibrationError":
+        values = sorted(per.values())
+        return cls(
+            mean_m=float(np.mean(values)),
+            max_m=float(values[-1]),
+            per_landmark=per,
+            p90_m=float(np.percentile(values, 90)),
+        )
+
+    @property
+    def tail_m(self) -> float:
+        """The bad end of the residuals: the 90th percentile, or the max.
+
+        The single worst point is a brittle thing to judge a calibration by.
+        `Calibration.fit` runs RANSAC at five points or more, so in Python one
+        bad click is usually rejected outright — but the browser picker
+        solves normal equations and spreads it across every point, and a coach
+        clicking twelve landmarks on a rain-soaked field will produce one that
+        is worse than the rest. Condemning the whole fit for it is not a
+        judgement about the calibration, it is a judgement about one click.
+
+        Below roughly eight points the 90th percentile is the max or very near
+        it, so this only becomes lenient once there are enough points for one
+        of them to be an outlier — which is exactly when it should.
+        """
+        return self.max_m if self.p90_m is None else self.p90_m
 
     @property
     def is_usable(self) -> bool:
         """Rough bar for player-position work.
 
         Half a metre mean is comfortably inside a player's own body width, so
-        speed and distance survive it. Beyond ~1.5m max the far side of the
-        pitch is unreliable and possession calls near the touchline start to
-        flip.
+        speed and distance survive it. Beyond ~1.5m at the tail the far side of
+        the pitch is unreliable and possession calls near the touchline start
+        to flip.
+
+        Mirrors `LineFit.is_usable` — half a metre typical, a metre and a
+        half at the tail — including the choice of a percentile over the
+        extreme, so that the two rulers really are the same one.
         """
-        return self.mean_m <= 0.5 and self.max_m <= 1.5
+        return self.mean_m <= 0.5 and self.tail_m <= 1.5
+
+    # A second, looser band. Not every number this pipeline produces needs the
+    # same accuracy, and grading everything against the strictest consumer
+    # throws away calibrations that would have answered most of the questions
+    # a coach actually asks. A metre is a third of the width of the centre
+    # circle: it cannot tell you where in the six-yard box a shot was struck,
+    # and it is nowhere near enough to call a ball in or out on the touchline,
+    # but it will not move a player out of the third they were standing in and
+    # it barely touches distance covered over ninety minutes.
+    COARSE_MEAN_M = 1.0
+    COARSE_TAIL_M = 3.0
+
+    @property
+    def good_for(self) -> tuple[str, ...]:
+        """What this calibration can honestly be used for, best band first.
+
+        Empty means nothing positional — not that the fit failed, but that
+        no number derived from it would survive being checked.
+        """
+        if self.mean_m != self.mean_m:  # NaN: nothing was measured
+            return ()
+        if self.is_usable:
+            return ("shot position", "distance and speed", "territory")
+        if self.mean_m <= self.COARSE_MEAN_M and self.tail_m <= self.COARSE_TAIL_M:
+            return ("distance and speed", "territory")
+        return ()
 
     def summary(self) -> str:
-        verdict = "usable" if self.is_usable else "TOO HIGH"
-        return f"mean {self.mean_m:.2f}m, max {self.max_m:.2f}m ({verdict})"
+        if self.is_usable:
+            verdict = "usable"
+        elif self.good_for:
+            verdict = "coarse: " + ", ".join(self.good_for)
+        else:
+            verdict = "TOO HIGH"
+        tail = "" if self.p90_m is None else f", 90th {self.p90_m:.2f}m"
+        return f"mean {self.mean_m:.2f}m{tail}, max {self.max_m:.2f}m ({verdict})"
 
 
 class Calibration:
@@ -209,10 +277,7 @@ class Calibration:
             truth = np.array(self.pitch.landmark(c.landmark))
             per[c.landmark] = float(np.linalg.norm(predicted - truth))
 
-        values = list(per.values())
-        return CalibrationError(
-            mean_m=float(np.mean(values)), max_m=float(np.max(values)), per_landmark=per
-        )
+        return CalibrationError.from_per_landmark(per)
 
     def holdout_error(self) -> CalibrationError | None:
         """Leave-one-out error — what the fit does on points it did not see.
@@ -242,10 +307,7 @@ class Calibration:
         if not per:
             return None
 
-        values = list(per.values())
-        return CalibrationError(
-            mean_m=float(np.mean(values)), max_m=float(np.max(values)), per_landmark=per
-        )
+        return CalibrationError.from_per_landmark(per)
 
     def worst_landmarks(self, limit: int = 3) -> list[tuple[str, float]]:
         """Most likely mis-clicks, worst first.

@@ -20,7 +20,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Fixed by the Laws of the Game regardless of overall pitch size.
+# What the Laws of the Game specify regardless of overall pitch size — and
+# therefore only the *defaults*. Paint on a real field is measured by whoever
+# had the tape that morning, and a school pitch shared with another sport is
+# routinely marked short, narrow, or off-centre. These are what `Pitch` starts
+# from, not what it insists on: every one of them is a field you can override.
 GOAL_WIDTH_M = 7.32
 GOAL_AREA_LENGTH_M = 5.5      # six-yard box depth
 GOAL_AREA_WIDTH_M = 18.32
@@ -41,10 +45,54 @@ class Pitch:
     Measure the real thing if you can — the roadmap's distance-covered and
     speed figures inherit any error here directly, and a 105m assumption on a
     100m pitch overstates every distance by 5%.
+
+    **The markings are fields, not constants.** Assuming Laws-standard paint on
+    a pitch that does not have it is not a small error and it is not a random
+    one: every landmark of the mismarked family is displaced the same way, so
+    the homography tilts to split the difference and *every* position on the
+    pitch pays for it — including the ones nobody clicked. Worse, the picker
+    reports the resulting residual as the coach's clicking, and no amount of
+    re-clicking can move it. Measuring the box and putting the real number here
+    is the fix; `calibrate/pitch-model.js::measureMarkings` measures it from the
+    clicks themselves.
+
+    One set of markings serves both ends. The two boxes on a real field are
+    marked by the same person with the same tape on the same morning, so they
+    are usually wrong together, and with the eight or ten clicks a coach will
+    actually place there is not enough evidence to fit them apart — splitting
+    them would produce two confident-looking numbers where the data supports
+    one. `measureMarkings` still checks the ends against each other and says so
+    when they disagree, which is the honest half of that: reporting the
+    asymmetry without pretending to have measured it twice.
     """
 
     length_m: float = 105.0
     width_m: float = 68.0
+
+    goal_width_m: float = GOAL_WIDTH_M
+    goal_area_length_m: float = GOAL_AREA_LENGTH_M
+    goal_area_width_m: float = GOAL_AREA_WIDTH_M
+    penalty_area_length_m: float = PENALTY_AREA_LENGTH_M
+    penalty_area_width_m: float = PENALTY_AREA_WIDTH_M
+    penalty_spot_m: float = PENALTY_SPOT_M
+    centre_circle_radius_m: float = CENTRE_CIRCLE_RADIUS_M
+
+    @property
+    def markings_are_standard(self) -> bool:
+        """True when every marking is the Laws value this class defaults to.
+
+        Used to decide whether a report needs to mention the pitch at all. A
+        regulation pitch is the boring case and should read like one.
+        """
+        return (
+            self.goal_width_m == GOAL_WIDTH_M
+            and self.goal_area_length_m == GOAL_AREA_LENGTH_M
+            and self.goal_area_width_m == GOAL_AREA_WIDTH_M
+            and self.penalty_area_length_m == PENALTY_AREA_LENGTH_M
+            and self.penalty_area_width_m == PENALTY_AREA_WIDTH_M
+            and self.penalty_spot_m == PENALTY_SPOT_M
+            and self.centre_circle_radius_m == CENTRE_CIRCLE_RADIUS_M
+        )
 
     # ---------------------------------------------------------------- goals
 
@@ -65,7 +113,8 @@ class Pitch:
 
     def goal_posts(self, end: str) -> tuple[tuple[float, float], tuple[float, float]]:
         x, cy = self.goal_centre(end)
-        return ((x, cy - GOAL_WIDTH_M / 2), (x, cy + GOAL_WIDTH_M / 2))
+        half = self.goal_width_m / 2
+        return ((x, cy - half), (x, cy + half))
 
     # ---------------------------------------------------------------- landmarks
 
@@ -76,8 +125,13 @@ class Pitch:
         """
         L, W = self.length_m, self.width_m
         cy = W / 2
-        pa_half = PENALTY_AREA_WIDTH_M / 2
-        ga_half = GOAL_AREA_WIDTH_M / 2
+        pa_half = self.penalty_area_width_m / 2
+        ga_half = self.goal_area_width_m / 2
+        pa_len = self.penalty_area_length_m
+        ga_len = self.goal_area_length_m
+        spot = self.penalty_spot_m
+        circle = self.centre_circle_radius_m
+        goal_half = self.goal_width_m / 2
 
         return {
             # Corners
@@ -90,34 +144,34 @@ class Pitch:
             "halfway_bottom": (L / 2, 0.0),
             "halfway_top": (L / 2, W),
             "centre_spot": (L / 2, cy),
-            "centre_circle_bottom": (L / 2, cy - CENTRE_CIRCLE_RADIUS_M),
-            "centre_circle_top": (L / 2, cy + CENTRE_CIRCLE_RADIUS_M),
+            "centre_circle_bottom": (L / 2, cy - circle),
+            "centre_circle_top": (L / 2, cy + circle),
 
             # Left penalty area
             "pen_left_bottom_goalline": (0.0, cy - pa_half),
             "pen_left_top_goalline": (0.0, cy + pa_half),
-            "pen_left_bottom_corner": (PENALTY_AREA_LENGTH_M, cy - pa_half),
-            "pen_left_top_corner": (PENALTY_AREA_LENGTH_M, cy + pa_half),
-            "pen_spot_left": (PENALTY_SPOT_M, cy),
+            "pen_left_bottom_corner": (pa_len, cy - pa_half),
+            "pen_left_top_corner": (pa_len, cy + pa_half),
+            "pen_spot_left": (spot, cy),
 
             # Right penalty area
             "pen_right_bottom_goalline": (L, cy - pa_half),
             "pen_right_top_goalline": (L, cy + pa_half),
-            "pen_right_bottom_corner": (L - PENALTY_AREA_LENGTH_M, cy - pa_half),
-            "pen_right_top_corner": (L - PENALTY_AREA_LENGTH_M, cy + pa_half),
-            "pen_spot_right": (L - PENALTY_SPOT_M, cy),
+            "pen_right_bottom_corner": (L - pa_len, cy - pa_half),
+            "pen_right_top_corner": (L - pa_len, cy + pa_half),
+            "pen_spot_right": (L - spot, cy),
 
             # Goal areas (six-yard boxes)
-            "goalarea_left_bottom_corner": (GOAL_AREA_LENGTH_M, cy - ga_half),
-            "goalarea_left_top_corner": (GOAL_AREA_LENGTH_M, cy + ga_half),
-            "goalarea_right_bottom_corner": (L - GOAL_AREA_LENGTH_M, cy - ga_half),
-            "goalarea_right_top_corner": (L - GOAL_AREA_LENGTH_M, cy + ga_half),
+            "goalarea_left_bottom_corner": (ga_len, cy - ga_half),
+            "goalarea_left_top_corner": (ga_len, cy + ga_half),
+            "goalarea_right_bottom_corner": (L - ga_len, cy - ga_half),
+            "goalarea_right_top_corner": (L - ga_len, cy + ga_half),
 
             # Goalposts
-            "goalpost_left_bottom": (0.0, cy - GOAL_WIDTH_M / 2),
-            "goalpost_left_top": (0.0, cy + GOAL_WIDTH_M / 2),
-            "goalpost_right_bottom": (L, cy - GOAL_WIDTH_M / 2),
-            "goalpost_right_top": (L, cy + GOAL_WIDTH_M / 2),
+            "goalpost_left_bottom": (0.0, cy - goal_half),
+            "goalpost_left_top": (0.0, cy + goal_half),
+            "goalpost_right_bottom": (L, cy - goal_half),
+            "goalpost_right_top": (L, cy + goal_half),
         }
 
     def landmark(self, name: str) -> tuple[float, float]:
