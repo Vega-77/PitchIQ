@@ -1559,7 +1559,89 @@ Both are correct.
 `orientedCentroid`, `positionBand`, `coverageVerdict` and `positionalPlay` — and
 **2 page tests**. No schema change: every input was already being published.
 
-715 pure JS · 27 pages · 145 emulator · 1120 Python.
+**The two boxes that vanished when the work started, 2026-08-20.** A coach
+sent a screenshot of the calibrate page: eight points placed, **1.77 m average,
+4.43 m worst, 11% of the frame**, and no idea which of the three causes the page
+lists was theirs. It was the third one — the pitch size — and the page had
+made it unfixable. `input-length` and `input-width` lived in the Start card
+inside `#intro`, and `loadImage` hides `#intro` the moment a picture loads.
+There was literally no way to change the field size while clicking, and the
+default it silently kept using was a full-size 105 × 68.
+
+*Measuring it instead of asking again.* `measureField` searches (length, width)
+for the pair whose homography reprojects the clicked points with the smallest
+error, coarse at 2.5 m then fine at 0.25 m. The mechanism is one sentence: a
+corner is wherever you say the corner is, so a set of corners fits **every** size
+equally well, while the penalty box, the goal and the penalty spot are fixed
+distances in the Laws and one of those pins the scale of everything else. Both
+halves are load-bearing, and the refusals are the half that keeps the page from
+inventing a pitch and scaling every distance the software ever reports by the
+invention.
+
+| clicked | reported | mean | interval |
+|---|---|---|---|
+| 12 perfect points, 105×68 / 100×50 / 110×60 | exact | 0.00 m | both |
+| the same, 0.5–2 px of click jitter | within 0.5 m | 0.03–0.11 m | both |
+| the same, 4 px | 99.3 × 49.8 | 0.21 m | L[98,101] W[49,50] |
+| four corners | **refused on the count** | — | — |
+| corners + halfway + centre spot | **refused × refused** | 0.00 m | L[80,130] W[44,90] |
+| + one penalty box corner | 100.0 × 50.0 | 0.00 m | exact |
+| the coach's own eight | **refused × 51.8** | 0.78 m | L[99,114] W[48,54] |
+
+The fifth row is the interesting refusal: seven points, all placed perfectly,
+and the page still cannot say. Every landmark there is defined as a fraction of
+the pitch, so rescaling the model rescales all of them together and the fit is
+exactly as good. Nothing is broken; there is genuinely no answer, and the page
+says which three markings would give it one.
+
+*Two decisions the study forced.* `sizeError` optimises **metres**, not pixels,
+because metres are what the page reports and what `is_usable` draws its bar in.
+On the coach's real frame the two objectives disagreed by roughly 10% —
+117 × 59 pixel-best against 106 × 51 metre-best — and only the metre
+answer put the page's own average and worst under the bar. And a dimension is
+refused when its profile interval touches a search bound or spans more than a
+quarter of the range, which is what catches the cases where the metre objective's
+scale bias would otherwise run away. The two dimensions are refused
+**independently**: the coach's clicks measure a width confidently and a length
+not at all, because one of the three fixed-size landmarks they placed was in the
+wrong spot. A version that averaged the two into one verdict would have lost
+both. Taking the offered size drops that frame from 1.70 m to **0.49 m average,
+0.92 m worst** — from failing the page's bar to passing it, without moving a
+single click.
+
+*And a definite way of being done,* which is the other thing they asked for.
+Five checks: five points or more, spread across the picture, within half a metre,
+a field size that agrees with the points, and one no software can make — the
+coach confirming the yellow outline sits on the paint. A todo check is grey, not
+red: five crosses on an empty picker would read as five things already gone
+wrong. The summary line says **"Done. This calibration is ready to save."** or
+counts what is left, and the save button says *Save calibration* or *Save
+anyway* — never disabled, because a coach who decides to save an imperfect
+calibration should not have to hunt for the button. Clearing the points revokes
+the tick, since it was a statement about points that no longer exist. The export
+now carries a `quality` block — the two errors, the coverage, the measured
+size, the tick — which `from_picker_export` ignores, so a file that turns out
+to be wrong later can still be asked whether the page said so at the time.
+
+*What a real browser found, that no test could.* Two layout defects, both in the
+markup the tests are explicit about not covering. The site had **never had a
+checkbox**: the global `input` rule is written for text boxes and gives every one
+of them `width: 100%`, `min-height: 50px` and 13 px of padding, so the first tick
+on the site rendered as a white slab the width of its own label, with the
+sentence squeezed into a column one word wide. Ticks and radios now opt out of
+that rule, next to it, so the next checkbox anywhere does not repeat it. And the
+mobile rule for the measured readout sized the **box** rather than the flex item
+it sits in, which left it at 137 px inside a 343 px column at 375 px wide. Both
+fixed and re-measured at 375, 768 and 1280: single column, one column, two
+columns, and the document never scrolls sideways at any of them.
+
+**8 browser tests** over `measureField` — recovery, jitter, and four separate
+shapes of refusal — and **1 page test** that drives the whole path through the
+picker's own seam, from a size that disagrees to a save button that says done.
+The page test opens by asserting that neither size input is inside `#intro`: the
+regression stated as a place in the tree rather than as a symptom.
+
+739 pure JS · 35 pages · 146 emulator · 1210 Python.
 
 ---
 
@@ -1777,9 +1859,11 @@ so the open count meant nothing. Fixed then; worth keeping true.
       lower rate actually damages.
 
       `SCHEMA_VERSION` 8 → 9. 477 pure JS · 120 emulator · 912 Python.
-- [ ] Lens distortion correction if using a wide-angle/action camera.
-      **Measured 2026-08-12, and the diagnostic half turned out to be
-      impossible — so the pages stopped pretending otherwise.**
+- [x] Lens distortion correction if using a wide-angle/action camera.
+      **Measured 2026-08-12, when the diagnostic half turned out to be
+      impossible from clicked points and the pages stopped pretending
+      otherwise. Reopened and built 2026-08-20 from a signal the
+      clicks never carried — the paint itself.**
 
       The motivation is real and bigger than expected. On a synthetic camera,
       barrel distortion as mild as `k1 = -0.03` gives about **1.1m of mean
@@ -1827,11 +1911,138 @@ so the open count meant nothing. Fixed then; worth keeping true.
       The Python side keeps its "most suspect points" list, which the same
       measurement **vindicates** — RANSAC really does isolate the culprit there.
 
-      What remains open is the correction itself, and it is not blocked on
-      cleverness: it needs a per-camera lens calibration (OpenCV chessboard,
-      once per camera), which nobody can produce before there is a camera.
-      Building the undistort path now would add a code path with no caller,
-      which this repo has already had to clean up twice.
+      What remained open then was the correction itself, and the blocker was
+      written down as a fact about the world: it needs a per-camera lens
+      calibration (OpenCV chessboard, once per camera), which nobody can produce
+      before there is a camera, and building the undistort path meanwhile would
+      add a code path with no caller — something this repo had already had to
+      clean up twice.
+
+      **Reopened and built 2026-08-20, because both halves of that stopped being
+      true.** `cv/lines.py` had since made the **plumb-line constraint**
+      available: painted lines are straight by the Laws, so a straight line is
+      straight in the image only if the lens is rectilinear. Every calibration
+      frame is therefore its own chessboard, already shot, by a camera the coach
+      already owns. And `calibrate.py --frame` was a caller sitting there
+      waiting.
+
+      That is also why this works where the three statistics above failed, and
+      the reason is not that they were badly chosen. All three read **clicked
+      points through the homography**, which absorbs much of the distortion
+      before any statistic gets to see it — those failures are that absorption,
+      measured. Curvature in a painted line does not go through the homography
+      at all. **Click jitter cannot bend a painted line; a lens can, and only a
+      lens does.**
+
+      `cv/distortion.py` traces connected chains of the paint `cv/lines.py`
+      already finds and searches for the one coefficient that makes them
+      straightest. The **division model** rather than Brown's polynomial,
+      because it inverts in closed form in both directions and the overlay needs
+      metres → pixels as often as the reverse; radii normalised by half the
+      image diagonal, so `k1` means the same thing at any resolution. Negative
+      is barrel.
+
+      **The refusal is the part worth defending, more than the correction is.**
+      `lens_for_frame` returns no model more readily than it returns one, and
+      that is not timidity: a line through the image centre stays straight under
+      *any* coefficient, so a frame whose paint all runs near the centre has
+      genuinely nothing to say, and fitting a number to it anyway would move
+      every landmark in exchange for nothing. It wants bow above the tracer's
+      own noise floor, a real straightening gain, and agreement across repeated
+      runs before it will answer.
+
+      The sweep, on synthetic cameras with **every landmark clicked perfectly**,
+      so nothing below is contaminated by click error. Errors are mean / worst
+      landmark, in metres:
+
+      | true `k1` | recovered | gain | verdict | no lens | with lens |
+      | --- | --- | --- | --- | --- | --- |
+      | +0.000 | +0.0001 | 1.0x | refused | 0.00 / 0.00 | 0.00 / 0.00 |
+      | −0.015 | −0.0111 | 1.2x | refused | 0.07 / 0.16 | 0.02 / 0.04 |
+      | −0.020 | −0.0187 | 1.5x | refused | 0.10 / 0.22 | 0.01 / 0.01 |
+      | −0.025 | −0.0263 | 2.1x | **applied** | 0.12 / 0.62 | 0.01 / 0.01 |
+      | −0.030 | −0.0335 | 2.1x | **applied** | 0.15 / 0.74 | 0.02 / 0.04 |
+      | −0.040 | −0.0392 | 2.6x | **applied** | 0.20 / 0.97 | 0.00 / 0.01 |
+      | −0.050 | −0.0507 | 3.2x | **applied** | 0.24 / 1.20 | 0.00 / 0.01 |
+      | −0.100 | −0.1027 | 4.8x | **applied** | 0.55 / 1.42 | 0.01 / 0.03 |
+      | −0.200 | −0.2004 | 7.5x | **applied** | 0.70 / 4.26 | 0.00 / 0.00 |
+      | +0.050 | +0.0489 | 3.5x | **applied** | 0.26 / 1.35 | 0.01 / 0.01 |
+      | +0.100 | +0.0990 | 8.0x | **applied** | 0.45 / 2.66 | 0.01 / 0.01 |
+
+      **The headline is where the boundary landed.** Every frame the gate
+      refuses would have cost at most **0.22m** at its worst landmark. Every
+      frame it accepts would have cost at least **0.62m**, and comes back at
+      0.04m or better once corrected. So the refuse/accept line sits on the same
+      **0.5m** bar `CalibrationError.is_usable` draws — and it was not tuned to
+      it. The thresholds came out of the tracer's own noise floor (0.31px of bow
+      on a rectilinear frame), fixed before that bar was looked at, which is the
+      only reason the coincidence is worth anything. It is pinned by
+      `test_the_gate_lands_on_the_usability_bar`, so a change that drifts the
+      gate off that bar fails instead of shipping.
+
+      **One invariant runs through the whole wiring: a homography is only ever
+      fitted to straightened pixels.** Hand it raw ones and it quietly absorbs
+      the curvature it cannot represent, and the stored lens then fights a
+      matrix that has already half-corrected itself — the same absorption that
+      killed the 2026-08-12 statistics, met again from the other side. Writing
+      that rule down immediately found two bugs in `cv/lines.py:refine`, which
+      had shipped the day before: it fitted its ICP correspondences to raw
+      pixels, and then dropped the lens entirely when it built the refined
+      `Calibration`. Either alone makes the saved file wrong, silently, and
+      `--refine` is the flag most likely to be reached for on exactly the
+      wide-angle footage that needs the lens most.
+
+      Overlays had to change too, for a reason that only shows up in a
+      screenshot. `draw_pitch_lines` drew each pitch line as one straight
+      stroke, which is right through a bare homography and wrong through a lens:
+      the camera bends the paint, so a straight drawn line misses paint that a
+      **correct** calibration is tracking perfectly, and the overlay indicts the
+      calibration for the lens's work. It now subdivides into `DRAW_STEPS = 16`
+      points and draws a polyline. Worst gap between polyline and true curve on
+      a full-length touchline at `k1 = -0.2`: **20.3px undivided, 1.4px at 4
+      steps, 0.09px at 16, 0.02px at 32.** 16 is where it stops being visible on
+      a 2px stroke; past that the cost is `to_pixels` calls for something nobody
+      can see.
+
+      End to end on the real CLI, one flag apart, same eight perfectly-placed
+      clicks on the same `k1 = -0.05` frame:
+
+      | | reprojection | leave-one-out | verdict |
+      | --- | --- | --- | --- |
+      | `--frame` | 0.36m / 1.40m | 0.68m / 1.40m (too high) | NEEDS WORK, exit 2 |
+      | `--frame --lens` | 0.00m / 0.01m | 0.01m / 0.02m | OK, exit 0 |
+
+      with the line above it reading `lens  k1 -0.0507, lines bow 4.4px and
+      straighten 1.26px -> 0.39px (3.2x) over 7 runs, +/-0.0001 across them
+      (confident)`. The clicks were never the problem — which is what the
+      picker's three-candidate verdict from 2026-08-12 could only suggest and
+      can now demonstrate. The advice block's first bullet moved with it: it
+      used to say the fix is a narrower lens setting and a fresh frame, and it
+      now says re-run with `--lens`, because if the paint in that frame bows the
+      lens is measurable from it, and if it does not bow the answer comes back
+      honestly empty.
+
+      The coefficient is saved with the calibration and restored by
+      `Calibration.load`, so `cv/pipeline.py` — which reaches every calibration
+      through that one door — corrects for a wide lens with nothing further to
+      wire and nothing to remember to switch on.
+
+      **What none of this has been shown to do.** Every figure above is a
+      synthetic camera. `cv.distortion` has never seen a real lens, and a real
+      one brings tangential distortion, a decentred optical axis and rolling
+      shutter, none of which one radial coefficient can express. What it can
+      honestly claim today: on a frame with visibly bowed paint it recovers the
+      coefficient to within 0.004 and turns an unusable calibration into a
+      usable one, and on a frame that cannot support that claim it declines and
+      costs the calibration nothing — pinned by
+      `test_a_refusal_costs_the_calibration_nothing`, which demands the two
+      saved homographies be byte-identical rather than merely close. That test
+      is what makes the flag safe to leave on, and leaving it on is what makes
+      it useful on a day nobody thought to check the lens.
+
+      `SCHEMA_VERSION` unchanged at 14, and nothing served changed, so the
+      version stamp stays at 96. 731 pure JS · 34 smoke · 146 emulator · 1210
+      Python (38 new).
 - [x] **[Demo]** Ingestion accepts any decodable video file — `cv/frame_sampler.py` handles this via OpenCV; the format was never the hard constraint, framing is
 - [ ] **[Stretch]** Support moving/auto-tracking camera footage (e.g. Hudl/Veo-style ball-following cameras) — requires continuous homography re-estimation (pitch-line detection or frame-to-frame motion tracking) instead of one-time calibration; sports-broadcast camera-calibration research exists to lean on rather than invent from scratch
 - [ ] **[Stretch]** Multi-camera stitching, drone or pan/tilt/zoom coverage
@@ -2391,6 +2602,37 @@ measure the actual pitch before the camera goes up.
       `SCHEMA_VERSION` unchanged at 14, and nothing served changed, so the
       version stamp stays at 96. 731 pure JS · 34 smoke · 146 emulator · 1172
       Python (47 new).
+- [x] **The pitch measured from the clicks, and a way to be done** (2026-08-20).
+      The size a coach types scales every distance the software will ever
+      report, and until now the two boxes for it sat in a card that `loadImage`
+      hides the moment a picture loads — so it could not be changed while
+      clicking, and a wrong one looked exactly like bad clicking. The boxes moved
+      into the workspace, and `measureField` now volunteers the answer: a coarse
+      then fine search over (length, width) for the pair whose homography
+      reprojects the clicked points with the least error in **metres**, which is
+      the unit the page grades itself in.
+
+      It refuses more often than it answers, on purpose. Under five points there
+      is nothing to measure — a homography maps four points to four points
+      exactly whatever size you assume. Corners, the halfway line and the centre
+      spot all scale with the pitch, so a set made only of those fits every size
+      equally well and both dimensions are refused; adding one penalty box
+      corner, penalty spot or goalpost — fixed distances in the Laws —
+      recovers the pitch exactly. Each dimension is refused independently, by
+      whether its profile interval touches a search bound or spans more than a
+      quarter of the range. The full study, including the coach's own frame
+      going from 1.70m to 0.49m average without a click moving, is in the log
+      above.
+
+      Alongside it, five readiness checks and a summary line that says *Done.
+      This calibration is ready to save.* or counts what is left. The fifth is
+      one no software can make — the coach confirming the yellow outline sits
+      on the paint — and clearing the points revokes it. The save button never
+      disables; it changes from *Save calibration* to *Save anyway*.
+
+      `SCHEMA_VERSION` unchanged; the export gains a `quality` block that
+      `from_picker_export` ignores. Version stamp 98. 739 pure JS · 35 smoke
+      · 146 emulator · 1210 Python.
 
 ## 5. Object Detection (per frame)
 **Built: `cv/` — `PersonBallDetector` (YOLO filtered to person + sports ball) and

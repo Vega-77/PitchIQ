@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=96">
-    <link rel="stylesheet" href="calibrate.css?v=96">
+    <link rel="stylesheet" href="../assets/app.css?v=98">
+    <link rel="stylesheet" href="calibrate.css?v=98">
 </head>
 <body>
 
@@ -79,24 +79,13 @@
         <section class="block">
             <h3>Start</h3>
             <div class="card">
-                <div class="row">
-                    <label class="field" style="margin:0;flex:2">
-                        <span>Picture of the pitch</span>
-                        <input id="input-image" type="file" accept="image/*">
-                    </label>
-                    <label class="field" style="margin:0;flex:0 0 150px">
-                        <span>Field length (m)</span>
-                        <input id="input-length" type="number" value="105" step="0.5" min="60" max="130">
-                    </label>
-                    <label class="field" style="margin:0;flex:0 0 150px">
-                        <span>Field width (m)</span>
-                        <input id="input-width" type="number" value="68" step="0.5" min="40" max="90">
-                    </label>
-                </div>
+                <label class="field" style="margin:0">
+                    <span>Picture of the pitch</span>
+                    <input id="input-image" type="file" accept="image/*">
+                </label>
                 <p class="muted" style="margin:14px 0 0">
-                    Measure your field if you can. Every distance and speed the
-                    software reports is scaled by these two numbers, so a guess
-                    that's 5m out makes every figure 5% wrong.
+                    You set the field size on the next screen, and the page will
+                    try to measure it for you from the points you click.
                 </p>
             </div>
         </section>
@@ -137,10 +126,48 @@
                 </div>
 
                 <section class="block" style="margin-top:24px">
+                    <h3>Field size</h3>
+                    <div class="card">
+                        <div class="row">
+                            <label class="field" style="margin:0;flex:0 0 150px">
+                                <span>Length (m)</span>
+                                <input id="input-length" type="number" value="105" step="0.5" min="60" max="130">
+                            </label>
+                            <label class="field" style="margin:0;flex:0 0 150px">
+                                <span>Width (m)</span>
+                                <input id="input-width" type="number" value="68" step="0.5" min="40" max="90">
+                            </label>
+                            <div class="field size-slot">
+                                <span>&nbsp;</span>
+                                <div id="size-measured" class="measured">
+                                    Place five points and the page will try to
+                                    measure the field for you.
+                                </div>
+                            </div>
+                        </div>
+                        <p class="muted" style="margin:14px 0 0">
+                            Every distance and speed the software reports is scaled
+                            by these two numbers, so a guess that's 5m out makes
+                            every figure 5% wrong.
+                        </p>
+                    </div>
+                </section>
+
+                <section class="block" style="margin-top:24px">
                     <h3>Accuracy</h3>
                     <div id="preview-note" class="empty">
                         Place four points to see how good the fit is.
                     </div>
+                </section>
+
+                <section class="block" style="margin-top:24px">
+                    <h3>Are you done?</h3>
+                    <ul id="readiness" class="readiness"></ul>
+                    <label class="eyeball">
+                        <input id="chk-eyeball" type="checkbox">
+                        <span>I have looked at the yellow outline, and it sits on
+                        the painted lines.</span>
+                    </label>
                 </section>
             </div>
 
@@ -161,7 +188,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="calibrate.js?v=96"></script>
+<script type="module" src="calibrate.js?v=98"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

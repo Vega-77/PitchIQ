@@ -833,6 +833,20 @@ input:hover, select:hover { border-color: var(--line-hi); }
 input:focus, select:focus { border-color: var(--accent); background: var(--surface); }
 input::placeholder { color: var(--text-faint); }
 
+/* The rule above is written for text boxes, and a checkbox inherits all of it:
+   full width, 50px tall, 13px of padding. The first checkbox on the site came
+   out as a white slab the width of its label. Ticks and radios opt out. */
+input[type="checkbox"], input[type="radio"] {
+    width: auto;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    accent-color: var(--accent);
+    inline-size: 1.05rem;
+    block-size: 1.05rem;
+}
+
 label.field { display: block; margin-bottom: 16px; }
 label.field > span {
     display: block;
@@ -3552,4 +3566,110 @@ input[type="file"]::file-selector-button:hover {
         grid-template-areas: 'name value' 'track track' 'sub sub';
         gap: 4px 10px;
     }
+}
+
+
+/* --------------------------------------------------- calibrate: field size
+
+   The size the coach types scales every distance the software will ever
+   report, and until now it lived in a card that vanished the moment a picture
+   loaded. It sits in the workspace now, next to the answer the page works out
+   for itself. */
+
+.measured {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+    padding: 10px 12px;
+    font-size: 0.84rem;
+    color: var(--text-dim);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.measured b { color: var(--text); font-weight: 700; }
+
+/* Agreeing is quiet and disagreeing is loud, because only one of the two asks
+   the coach to do anything. */
+.measured.is-ok { border-color: rgba(74, 222, 128, .35); }
+.measured.is-ok b { color: var(--good); }
+.measured.is-off { border-color: var(--warn); }
+.measured.is-off b { color: var(--warn); }
+
+/* ---------------------------------------------------- calibrate: readiness */
+
+.readiness {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+}
+
+.ready-row {
+    display: grid;
+    grid-template-columns: 1.4rem minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.ready-row .mark {
+    font-weight: 800;
+    text-align: center;
+    line-height: 1.45;
+    color: var(--text-faint);
+}
+
+.ready-row.is-good { color: var(--text); }
+.ready-row.is-good .mark { color: var(--good); }
+.ready-row.is-warn .mark { color: var(--warn); }
+.ready-row.is-bad { color: var(--text); background: rgba(248, 113, 113, .07); }
+.ready-row.is-bad .mark { color: var(--danger); }
+
+/* A check nobody has reached yet is not a failure, and must not be coloured
+   like one — five red crosses on an empty picker would read as five things
+   already gone wrong. */
+.ready-row.is-todo { color: var(--text-faint); }
+
+.ready-summary {
+    list-style: none;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--line);
+    font-size: 0.85rem;
+    font-weight: 650;
+    color: var(--text-dim);
+}
+.ready-summary.is-good { color: var(--good); }
+
+.eyeball {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    font-size: 0.84rem;
+    color: var(--text-dim);
+    cursor: pointer;
+    min-width: 0;
+}
+.eyeball input { margin-top: 3px; flex: 0 0 auto; cursor: pointer; }
+.eyeball:hover { border-color: var(--line-hi); color: var(--text); }
+
+/* The two size inputs and the measured box share a wrapping .row. The flex
+   item is this slot, not the box inside it — sizing the box got a 137px
+   column of two-word lines while the slot it sat in stayed narrow. */
+.size-slot { margin: 0; flex: 1 1 240px; min-width: 0; }
+
+@media (max-width: 560px) {
+    .size-slot { flex-basis: 100%; }
+    /* The blank label that keeps the box level with the two inputs is only
+       worth its height while they are on the same line. */
+    .size-slot > span { display: none; }
 }

@@ -38,6 +38,9 @@ import * as formMod from '../assets/form-chart.js';
 // onnxruntime at import time — the session is only built on the first predict.
 import * as xgModel from '../xg-sandbox/xg-model.js';
 import * as presets from '../xg-sandbox/presets.js';
+// The picker's geometry half. Zero imports for the same reason as the modules
+// above: it has to be loadable without a browser.
+import * as pitchModel from '../calibrate/pitch-model.js';
 
 // ---------------------------------------------------------------- video URLs
 
@@ -7036,5 +7039,145 @@ describe('where they played against the line they were picked in', () => {
       assert.deepEqual(out.rows, []);
       assert.deepEqual(out.remarks, []);
     }
+  });
+});
+
+// ------------------------------------------------- measuring the pitch size
+
+/**
+ * What the picker can and cannot work out about a pitch it was never told the
+ * size of.
+ *
+ * The mechanism under test is one sentence: a corner is wherever you say the
+ * corner is, so a set of corners fits every size equally well, while the
+ * penalty box, the goal and the penalty spot are fixed distances in the Laws
+ * and one of those pins the scale of everything else. Both halves matter. The
+ * recoveries below prove the measurement works; the refusals prove it knows
+ * when it does not, which is the half that keeps it from inventing a pitch
+ * and scaling every distance the software ever reports by the invention.
+ *
+ * Shot through a fixed synthetic camera — a real perspective matrix, not an
+ * affine one, so the landmarks foreshorten the way they do in a photograph.
+ */
+describe('measuring the pitch from the clicks', () => {
+  // Tilted and off-centre on purpose: a camera square to the pitch is the one
+  // case where several wrong sizes are hard to tell apart.
+  const CAM = [[11.5, 2.1, 240.0], [-1.4, -9.8, 700.0], [0.0009, -0.0035, 1.0]];
+  const proj = (x, y) => {
+    const w = CAM[2][0] * x + CAM[2][1] * y + CAM[2][2];
+    return [
+      (CAM[0][0] * x + CAM[0][1] * y + CAM[0][2]) / w,
+      (CAM[1][0] * x + CAM[1][1] * y + CAM[1][2]) / w,
+    ];
+  };
+
+  // Seeded rather than Math.random: a test that measures a tolerance has to
+  // fail for the same reason twice or it is not evidence of anything.
+  const jitter = (seed) => {
+    let s = seed;
+    return () => {
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      return s / 0x7fffffff - 0.5;
+    };
+  };
+
+  const shoot = (names, lengthM, widthM, px = 0, seed = 12345) => {
+    const marks = pitchModel.landmarks(lengthM, widthM);
+    const rnd = jitter(seed);
+    return new Map(names.map((n) => {
+      const [x, y] = proj(...marks[n]);
+      return [n, px ? [x + rnd() * px * 2, y + rnd() * px * 2] : [x, y]];
+    }));
+  };
+
+  const CORNERS = [
+    'corner_bottom_left', 'corner_top_left',
+    'corner_bottom_right', 'corner_top_right',
+  ];
+  const MIDLINE = ['halfway_top', 'halfway_bottom', 'centre_spot'];
+  const ALL = [...CORNERS, ...MIDLINE, 'pen_spot_left',
+    'pen_left_top_corner', 'pen_left_bottom_corner',
+    'pen_right_bottom_corner', 'goalpost_left_bottom'];
+
+  test('recovers a size it was never told', () => {
+    for (const [L, W] of [[105, 68], [100, 50], [110, 60]]) {
+      const got = pitchModel.measureField(shoot(ALL, L, W));
+      assert.ok(got.lengthConfident && got.widthConfident, `${L}x${W} refused`);
+      assert.ok(Math.abs(got.lengthM - L) < 0.3, `length ${got.lengthM} != ${L}`);
+      assert.ok(Math.abs(got.widthM - W) < 0.3, `width ${got.widthM} != ${W}`);
+    }
+  });
+
+  test('click jitter costs accuracy in proportion, not in kind', () => {
+    // A coach clicking a landmark on a phone is a couple of pixels out. The
+    // answer degrades smoothly across that range rather than falling apart,
+    // and the interval widens to say so.
+    for (const [px, tol] of [[0.5, 0.5], [1, 0.5], [2, 1.0], [4, 1.5]]) {
+      const got = pitchModel.measureField(shoot(ALL, 100, 50, px));
+      assert.ok(got.lengthConfident && got.widthConfident, `${px}px refused`);
+      assert.ok(Math.abs(got.lengthM - 100) < tol + 1.0, `${px}px length`);
+      assert.ok(Math.abs(got.widthM - 50) < tol, `${px}px width`);
+    }
+  });
+
+  test('four points measure nothing, and are not asked to', () => {
+    // A homography maps four points to four points exactly whatever size you
+    // assume, so every candidate scores a perfect zero. Refusing on the count
+    // alone is cheaper than discovering that from a flat error surface.
+    assert.equal(pitchModel.measureField(shoot(CORNERS, 100, 50)), null);
+  });
+
+  test('corners and the halfway line still measure nothing', () => {
+    // The interesting refusal: seven points, all placed perfectly, and the
+    // page still cannot say. Every landmark here is defined as a fraction of
+    // the pitch, so rescaling the model rescales all of them together and the
+    // fit is exactly as good. Nothing is broken; there is genuinely no answer.
+    const got = pitchModel.measureField(shoot([...CORNERS, ...MIDLINE], 100, 50));
+    assert.equal(got.lengthConfident, false);
+    assert.equal(got.widthConfident, false);
+    assert.ok(got.meanM < 0.01, 'the fit is perfect and still says nothing');
+  });
+
+  test('one penalty box corner is enough to pin the whole pitch', () => {
+    // Same seven points as above plus one marking with a fixed size in the
+    // Laws, and the size falls out exactly. This is the mechanism, isolated.
+    const got = pitchModel.measureField(
+      shoot([...CORNERS, ...MIDLINE, 'pen_left_top_corner'], 100, 50));
+    assert.ok(got.lengthConfident && got.widthConfident);
+    assert.ok(Math.abs(got.lengthM - 100) < 0.3);
+    assert.ok(Math.abs(got.widthM - 50) < 0.3);
+  });
+
+  test('the two dimensions are refused independently', () => {
+    // From a real failed calibration: eight clicks on a school pitch, average
+    // error 1.77m against the 105x68 default. The width is the thing actually
+    // wrong and comes back confidently at roughly 52m; the length is refused,
+    // because one of the three fixed-size landmarks present was misplaced.
+    // Reporting the width while declining the length is the honest answer,
+    // and a version that averaged them into one verdict would lose both.
+    const clicked = new Map([
+      ['centre_spot', [638, 343]], ['corner_bottom_left', [0, 400]],
+      ['corner_top_right', [894, 319]], ['pen_right_bottom_corner', [1009, 382]],
+      ['corner_bottom_right', [1276, 402]], ['corner_top_left', [376, 321]],
+      ['goalpost_left_bottom', [251, 346]], ['pen_spot_left', [337, 345]],
+    ]);
+    const got = pitchModel.measureField(clicked);
+    assert.equal(got.lengthConfident, false);
+    assert.equal(got.widthConfident, true);
+    assert.ok(got.widthM > 45 && got.widthM < 58, `width ${got.widthM}`);
+    // Whatever it says, it must not be the default nobody measured.
+    assert.ok(Math.abs(got.widthM - 68) > 10);
+  });
+
+  test('unknown landmark names are ignored, not fatal', () => {
+    const pts = shoot(ALL, 100, 50);
+    pts.set('not_a_landmark', [10, 10]);
+    const got = pitchModel.measureField(pts);
+    assert.equal(got.points, ALL.length);
+    assert.ok(Math.abs(got.widthM - 50) < 0.5);
+  });
+
+  test('nothing to measure is null, not a guess', () => {
+    assert.equal(pitchModel.measureField(new Map()), null);
   });
 });

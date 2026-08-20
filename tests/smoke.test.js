@@ -1718,6 +1718,137 @@ test('the calibrate page says which of four things is wrong', async () => {
         `six metres of error came back as ${worst}m at the worst point`);
 });
 
+test('the calibrate page can measure the field, and say when the job is done', async () => {
+    // Two failures, one screenshot. A coach calibrating a school pitch got
+    // 1.77m average error and no idea why; the pitch was about 100 x 50, the
+    // page had assumed 105 x 68, and the two boxes for saying otherwise lived
+    // in the Start card — which `loadImage` hides the moment a picture is
+    // loaded. There was literally no way to change the field size while
+    // clicking, and no way to find out that the size was what was wrong.
+    //
+    // So this test guards both halves: the inputs are reachable while working,
+    // and the page works the size out on its own and offers it.
+    await openPage({
+        html: 'calibrate/index.html',
+        entry: 'calibrate/calibrate.js',
+        url: 'http://localhost:5000/calibrate/',
+        user: null,
+        variant: 'sizing',
+    });
+
+    // The regression itself, stated as a place in the tree rather than as a
+    // symptom: anything inside #intro is unreachable once an image loads.
+    for (const id of ['input-length', 'input-width']) {
+        assert.equal(el(id).closest('#intro'), null,
+            `${id} is back inside the card that hides when a picture loads`);
+        assert.ok(el(id).closest('#workspace'),
+            `${id} is not in the workspace, where the clicking happens`);
+    }
+
+    const { landmarks } = await import(
+        new URL('calibrate/pitch-model.js', root).href
+    );
+    const CAMERA = [
+        [11.5, 2.1, 240.0],
+        [-1.4, -9.8, 700.0],
+        [0.0009, -0.0035, 1.0],
+    ];
+    const project = (x, y) => {
+        const w = CAMERA[2][0] * x + CAMERA[2][1] * y + CAMERA[2][2];
+        return [
+            (CAMERA[0][0] * x + CAMERA[0][1] * y + CAMERA[0][2]) / w,
+            (CAMERA[1][0] * x + CAMERA[1][1] * y + CAMERA[1][2]) / w,
+        ];
+    };
+
+    const seam = globalThis.window._calib;
+    seam.state.imageSize = [1920, 1080];
+
+    // Clicked perfectly on a 100 x 50 pitch, while the boxes still say the
+    // full-size 105 x 68 default. Every click is right and the answer is
+    // wrong, which is the case the old page could not distinguish.
+    const place = (names, lengthM = 100, widthM = 50) => {
+        const marks = landmarks(lengthM, widthM);
+        seam.state.points.clear();
+        for (const name of names) {
+            seam.state.points.set(name, project(...marks[name]));
+        }
+        seam.renderAll();
+    };
+
+    const CORNERS = [
+        'corner_top_left', 'corner_bottom_left',
+        'corner_top_right', 'corner_bottom_right',
+    ];
+    // Both far corners included: a set clustered in one half covers too little
+    // of the frame to pass the spread check, and this test is about the size
+    // rather than about the spread.
+    const SPREAD = [
+        ...CORNERS,
+        'pen_left_top_corner', 'pen_left_bottom_corner',
+        'halfway_top', 'halfway_bottom', 'pen_spot_left', 'centre_spot',
+    ];
+
+    // 1. Four corners fit every size exactly, so there is nothing to measure
+    //    and the page must not pretend there is.
+    place(CORNERS);
+    assert.match(text('size-measured'), /Place 1 more point/);
+
+    // 2. Seven perfect points and still nothing measurable, because all of
+    //    them scale with the pitch. The page has to say what would help.
+    place([...CORNERS, 'halfway_top', 'halfway_bottom', 'centre_spot']);
+    const stuck = text('size-measured');
+    assert.match(stuck, /cannot measure the field/);
+    assert.match(stuck, /penalty box corner/);
+    assert.match(text('readiness'), /Field size cannot be measured/);
+
+    // 3. Add markings with a fixed size in the Laws and the pitch falls out.
+    place(SPREAD);
+    const measured = text('size-measured');
+    assert.match(measured, /Your points measure/);
+    assert.match(measured, /50\.0m/, `the width was not measured: ${measured}`);
+    assert.match(text('readiness'), /Field size disagrees/);
+    assert.ok(el('btn-apply-size'), 'the measured size was reported with no way to take it');
+
+    // 4. Taking it writes the boxes the coach could not reach before.
+    el('btn-apply-size').click();
+    assert.ok(Math.abs(Number(el('input-width').value) - 50) < 0.5,
+        `width came back as ${el('input-width').value}`);
+    assert.ok(Math.abs(Number(el('input-length').value) - 100) < 0.5,
+        `length came back as ${el('input-length').value}`);
+    assert.match(text('size-measured'), /agrees with what you typed/);
+    assert.equal(el('btn-apply-size'), null, 'still offering a size already taken');
+
+    // 5. And the fit the coach was looking at is fixed by it. This is the
+    //    whole point: the clicking was never the problem.
+    const fixed = text('preview-note');
+    assert.match(fixed, /Good fit/, `the corrected size still reads: ${fixed}`);
+
+    // 6. One thing left, and it is the one no software can check.
+    assert.match(text('readiness'), /1 check left/);
+    assert.match(text('btn-export'), /Save anyway/);
+
+    el('chk-eyeball').checked = true;
+    el('chk-eyeball').dispatchEvent(new Event('change', { bubbles: true }));
+    assert.match(text('readiness'), /Done\. This calibration is ready to save/);
+    assert.match(text('btn-export'), /Save calibration/);
+
+    // 7. Clearing the points takes the tick with them — it was a statement
+    //    about points that no longer exist.
+    // The shim answers every confirm() with no, on purpose. This one path
+    // needs a yes, and only for the length of the click.
+    const answeredNo = globalThis.confirm;
+    globalThis.confirm = () => true;
+    try {
+        el('btn-clear').click();
+    } finally {
+        globalThis.confirm = answeredNo;
+    }
+    assert.equal(el('chk-eyeball').checked, false);
+    assert.ok(!text('readiness').includes('Done.'),
+        'an empty picker still called itself ready to save');
+});
+
 test('the xG sandbox computes its features on load', async () => {
     await openPage({
         html: 'xg-sandbox/index.html',

@@ -188,3 +188,162 @@ export function applyHomography(H, x, y) {
         (H[1][0] * x + H[1][1] * y + H[1][2]) / w,
     ];
 }
+
+
+// ------------------------------------------------------- measuring the pitch
+
+// Search bounds, deliberately wider than any pitch anyone will calibrate. The
+// interval test below has to be able to run past a plausible answer before it
+// can call that answer confident, so the range is not a guess at the pitch EM
+// it is the room the test needs.
+const MIN_LENGTH_M = 80.0;
+const MAX_LENGTH_M = 130.0;
+const MIN_WIDTH_M = 44.0;
+const MAX_WIDTH_M = 90.0;
+
+const COARSE_STEP_M = 2.5;
+const FINE_STEP_M = 0.25;
+const PROFILE_STEP_M = 0.5;
+
+// A size is only reported when moving away from it costs error. These two say
+// how much: the error has to rise by a fifth (or by a centimetre, whichever is
+// larger — the absolute floor keeps perfect clicks, where the best error is
+// 0.00, from dividing by nothing) before the interval is allowed to end, and
+// the resulting interval has to be narrower than a quarter of the search span.
+const INTERVAL_TOL = 1.20;
+const INTERVAL_FLOOR_M = 0.01;
+const MAX_INTERVAL_SHARE = 0.25;
+
+// Four points map to four points exactly whatever size you assume, so the error
+// is identically zero across the whole search and nothing can be measured from
+// them. Five is the first count that can disagree with itself.
+const MIN_MEASURABLE_POINTS = 5;
+
+/**
+ * Mean reprojection error in metres for one assumed pitch size.
+ *
+ * Metres, not pixels, and the choice matters. Pixels are where the click noise
+ * actually lives, so pixels are the better-conditioned objective — but metres
+ * are the units this page reports, the units `CalibrationError.is_usable`
+ * draws its bar in, and the units every distance downstream is scaled by.
+ * Measured on one real miscalibrated frame the two objectives disagreed by
+ * about 10% (117x59 against 106x51), and only the metre answer put the page's
+ * own mean/worst figures under the bar. Optimising anything other than the
+ * number on screen would be picking a size the page then calls bad.
+ */
+function sizeError(entries, lengthM, widthM) {
+    const marks = landmarks(lengthM, widthM);
+    let H;
+    try {
+        H = fitHomography(entries.map(([name, px]) => ({
+            src: px, dst: marks[name],
+        })));
+    } catch {
+        return Infinity;
+    }
+
+    let total = 0;
+    for (const [name, px] of entries) {
+        const [x, y] = applyHomography(H, px[0], px[1]);
+        const [tx, ty] = marks[name];
+        const d = Math.hypot(x - tx, y - ty);
+        if (!Number.isFinite(d)) return Infinity;
+        total += d;
+    }
+    return total / entries.length;
+}
+
+/**
+ * The contiguous run of sizes around `best` whose error stays under `limit`.
+ *
+ * Walked outward from the winner rather than filtered across the whole scan,
+ * because a far-off secondary minimum under the limit would otherwise widen the
+ * interval and make a well-determined dimension look uncertain.
+ */
+function profileInterval(at, best, limit, lo, hi) {
+    let low = best;
+    for (let v = best - PROFILE_STEP_M; v >= lo; v -= PROFILE_STEP_M) {
+        if (at(v) > limit) break;
+        low = v;
+    }
+    let high = best;
+    for (let v = best + PROFILE_STEP_M; v <= hi; v += PROFILE_STEP_M) {
+        if (at(v) > limit) break;
+        high = v;
+    }
+    // Touching a search bound means the scan ran out of room before the error
+    // rose, so the data never chose this end — the bound did.
+    const bounded = low <= lo + 1e-9 || high >= hi - 1e-9;
+    const confident = !bounded
+        && (high - low) <= MAX_INTERVAL_SHARE * (hi - lo);
+    return { low, high, confident };
+}
+
+/**
+ * Measure the pitch from the clicks themselves, or refuse to.
+ *
+ * The clicked landmarks carry their own scale, but only some of them do. A
+ * corner is wherever you say the corner is, so a set of corners fits any size
+ * exactly; the penalty box, the goal and the penalty spot are fixed distances
+ * in the Laws, so one of those in the set pins the size of everything else.
+ * That is the whole mechanism, and it is why a dimension can be refused while
+ * the other is reported — measured on synthetic cameras, four corners give
+ * nothing at all, and adding a single box corner recovers the true size exactly.
+ *
+ * Returns null when there are too few points, otherwise the best fit plus a
+ * `confident` flag per dimension. An unconfident dimension has a real number
+ * beside it and must not be shown as an answer: it is the bottom of a valley
+ * so flat that the clicks are not choosing it.
+ */
+export function measureField(points) {
+    const known = landmarks();
+    const entries = [...points].filter(([name]) => name in known);
+    if (entries.length < MIN_MEASURABLE_POINTS) return null;
+
+    let best = { lengthM: 105.0, widthM: 68.0, meanM: Infinity };
+    const sweep = (loL, hiL, loW, hiW, step) => {
+        for (let L = loL; L <= hiL + 1e-9; L += step) {
+            for (let W = loW; W <= hiW + 1e-9; W += step) {
+                const e = sizeError(entries, L, W);
+                if (e < best.meanM) best = { lengthM: L, widthM: W, meanM: e };
+            }
+        }
+    };
+
+    // Coarse then fine, rather than one pass at the fine step: the same answer
+    // for about a tenth of the fits, which is what keeps this cheap enough to
+    // re-run on every click instead of behind a button.
+    sweep(MIN_LENGTH_M, MAX_LENGTH_M, MIN_WIDTH_M, MAX_WIDTH_M, COARSE_STEP_M);
+    if (!Number.isFinite(best.meanM)) return null;
+
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    sweep(
+        clamp(best.lengthM - COARSE_STEP_M, MIN_LENGTH_M, MAX_LENGTH_M),
+        clamp(best.lengthM + COARSE_STEP_M, MIN_LENGTH_M, MAX_LENGTH_M),
+        clamp(best.widthM - COARSE_STEP_M, MIN_WIDTH_M, MAX_WIDTH_M),
+        clamp(best.widthM + COARSE_STEP_M, MIN_WIDTH_M, MAX_WIDTH_M),
+        FINE_STEP_M,
+    );
+
+    const limit = Math.max(best.meanM * INTERVAL_TOL,
+        best.meanM + INTERVAL_FLOOR_M);
+    const lengthRange = profileInterval(
+        (L) => sizeError(entries, L, best.widthM),
+        best.lengthM, limit, MIN_LENGTH_M, MAX_LENGTH_M,
+    );
+    const widthRange = profileInterval(
+        (W) => sizeError(entries, best.lengthM, W),
+        best.widthM, limit, MIN_WIDTH_M, MAX_WIDTH_M,
+    );
+
+    return {
+        lengthM: best.lengthM,
+        widthM: best.widthM,
+        meanM: best.meanM,
+        points: entries.length,
+        lengthConfident: lengthRange.confident,
+        widthConfident: widthRange.confident,
+        lengthRange: [lengthRange.low, lengthRange.high],
+        widthRange: [widthRange.low, widthRange.high],
+    };
+}
