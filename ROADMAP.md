@@ -2276,7 +2276,7 @@ measure the actual pitch before the camera goes up.
       against a roughly one-in-three failure rate before.
 
       `SCHEMA_VERSION` 10 → 11. 554 pure JS · 132 emulator · 979 Python.
-- [ ] **[Stretch]** Automatic pitch-line detection
+- [x] **[Stretch]** Automatic pitch-line detection
 - [x] **How much of the pitch the camera actually saw** (2026-08-12). The
       strategy this line asked for, and it starts with measuring the thing:
       nothing did.
@@ -2339,6 +2339,58 @@ measure the actual pitch before the camera goes up.
       Not measured yet on a real calibration, because there is no footage. What
       it will say about the school's camera is the point of measuring it before
       the first match rather than after.
+- [x] **Grading a calibration on evidence the human did not supply** (2026-08-19).
+      Every number this repo has printed about a calibration was measured on the
+      coach's own clicks. `Calibration.error` is fitted and graded on the same
+      eight points, so it is optimistic by construction; `holdout_error` is
+      honest and still only knows what the human typed in. The painted lines in
+      the frame are the first evidence in this loop that nobody supplied.
+
+      `cv/lines.py` finds them — an HSV green field mask, white paint inside it,
+      Canny, probabilistic Hough, then a merge that puts the merged segment on
+      the paint's *centre* rather than on one of its two Canny edges — and
+      scores them against a model of the pitch built from the Laws constants
+      already in `cv/pitch.py`. `refine` runs ICP against that model, and
+      `--frame` / `--refine` / `--overlay` put all of it behind
+      `python -m cv.experiments.calibrate`.
+
+      **What it buys.** Twenty independently jittered click sets at three pixels
+      of jitter — a coach concentrating on a phone screen — had a typical worst
+      landmark of 1.50m, sitting exactly on the bar `CalibrationError.is_usable`
+      sets, so half of them would have been rejected. Refinement improved all
+      twenty, made none worse, and brought that figure to 0.20m. At five pixels:
+      3.08m → 0.59m.
+
+      **What it cannot buy, which is the part worth keeping.** A painted line
+      constrains a fit only perpendicular to itself. A homography is free to
+      slide *along* the touchlines, and every sample point stays on its own line
+      while it does. Measured: one eight-pixel click set refines to a line-fit
+      median of 0.08m — a better score than the true calibration manages, since
+      rasterised paint has width and the truth has none — with its worst
+      landmark 17.10m from where it belongs. The median saw nothing at all. The
+      90th percentile objected, at 3.13m, and it was the only line-based number
+      that did, which is why `LineFit.is_usable` is coverage-and-median-and-tail
+      rather than the median-and-coverage it was first written as.
+
+      So a line-fit tick means *this calibration is on the pitch*, never *this
+      calibration is accurate*. Across sixty refinements every calibration the
+      line fit passed was within 2.93m at its worst landmark — about twice the
+      1.5m the click-based check promises, and now pinned by a test so that a
+      change which widens it fails instead of shipping.
+
+      Two things found by writing the tests rather than the code. Gaps are not
+      bridged: two fragments of one touchline with a player-sized hole between
+      them stay two segments, because a merged segment would be sampled across
+      the stretch nobody saw and those samples counted as paint that was seen —
+      the same rule `BallPoint.observed` already draws. And the penalty arcs
+      were missing from the model: metres of real paint the detector finds and
+      the model then fails to explain, depressing coverage on every frame
+      containing one. An unmodelled line is indistinguishable from a wrong
+      calibration.
+
+      `SCHEMA_VERSION` unchanged at 14, and nothing served changed, so the
+      version stamp stays at 96. 731 pure JS · 34 smoke · 146 emulator · 1172
+      Python (47 new).
 
 ## 5. Object Detection (per frame)
 **Built: `cv/` — `PersonBallDetector` (YOLO filtered to person + sports ball) and
