@@ -1868,6 +1868,98 @@ test('the xG sandbox computes its features on load', async () => {
     assert.ok(seam.measurements().distance_to_goal > 0, 'the sliders read nothing');
 });
 
+test('the calibrate picker magnifies, and moves a point a pixel at a time', async () => {
+    // A 1920px frame in this column is displayed at about a third of life size,
+    // so one screen pixel is three source pixels. The page grades its own
+    // clicking in metres and reports the result back to the coach, and on the
+    // frame studied on 2026-08-20 four pixels of click jitter was 0.21m of it.
+    // A coach cannot aim at something they cannot see, and on a phone the
+    // finger covers the pixel it is aiming for.
+    //
+    // The pointer path itself is not testable here and deliberately so: this
+    // DOM has no layout, `getBoundingClientRect` is all zeros on purpose, and a
+    // made-up rectangle would let this file claim an accuracy nothing measured.
+    // So the geometry lives in pure functions taking numbers, and those are
+    // what is checked.
+    await openPage({
+        html: 'calibrate/index.html',
+        entry: 'calibrate/calibrate.js',
+        url: 'http://localhost:5000/calibrate/',
+        user: null,
+        variant: 'zoom',
+    });
+
+    const loupe = el('loupe');
+    assert.ok(loupe, 'the magnifier is not in the page');
+    assert.ok(loupe.closest('#stage'), 'the magnifier is not over the picture');
+    assert.ok(loupe.classList.contains('hidden'),
+        'the magnifier is showing before anything has been aimed at');
+    assert.ok(el('stage').getAttribute('tabindex') !== null,
+        'the stage cannot take focus, so the arrow keys have nowhere to land');
+
+    const { loupeAnchor, loupeSize, nudge, state, renderAll } = globalThis.window._calib;
+
+    // The magnifier has to fit in the half of the stage the aim is not in, or
+    // the anchor below parks it straight on top of the paint. Measured in a
+    // real browser on 2026-08-20: the picture is 704px across on a desktop and
+    // 341px on a 375px phone, and only one of those fits a fixed 168.
+    assert.equal(loupeSize(704), 168);
+    assert.ok(loupeSize(341) + 12 <= 341 / 2,
+        'the magnifier covers the aim on a phone');
+    // A stage too narrow for even that: it stops shrinking rather than becoming
+    // a magnifier too small to read anything in.
+    assert.equal(loupeSize(120), 96);
+
+    // The corner furthest from the aim, in all four directions. A magnifier
+    // that sits on top of the thing it is magnifying is worse than none.
+    const S = loupeSize(700);
+    assert.equal(S, 168);
+    const stage = [700, 400, S];
+    assert.deepEqual(loupeAnchor(60, 40, ...stage), { left: 520, top: 220 });
+    assert.deepEqual(loupeAnchor(660, 40, ...stage), { left: 12, top: 220 });
+    assert.deepEqual(loupeAnchor(60, 360, ...stage), { left: 520, top: 12 });
+    assert.deepEqual(loupeAnchor(660, 360, ...stage), { left: 12, top: 12 });
+
+    // A phone narrower than the magnifier: it stays on the stage rather than
+    // hanging off the left edge at a negative offset.
+    const tight = loupeAnchor(30, 30, 140, 140, S);
+    assert.deepEqual(tight, { left: 0, top: 0 });
+
+    // Nudging. The first press rounds to a whole pixel, because the list on the
+    // right reports whole numbers and the stored value should be the one shown.
+    state.imageSize = [1920, 1080];
+    state.points.clear();
+    state.points.set('centre_spot', [960.4, 540.6]);
+    state.adjusting = 'centre_spot';
+    renderAll();
+
+    assert.equal(nudge(-1, 0), true);
+    assert.deepEqual(state.points.get('centre_spot'), [959, 541]);
+
+    // Arrow keys through the stage, which is where a coach's hands actually
+    // are. Shift moves ten, for the case where the point is properly adrift.
+    const press = (key, shiftKey = false) => el('stage').dispatchEvent(
+        new KeyboardEvent('keydown', { key, shiftKey, bubbles: true }),
+    );
+    press('ArrowDown');
+    assert.deepEqual(state.points.get('centre_spot'), [959, 542]);
+    press('ArrowRight', true);
+    assert.deepEqual(state.points.get('centre_spot'), [969, 542]);
+
+    // The edge of the picture is the edge. A point pushed past it would be a
+    // landmark the homography reads from pixels that were never photographed.
+    state.points.set('centre_spot', [1919, 0]);
+    press('ArrowRight');
+    press('ArrowUp');
+    assert.deepEqual(state.points.get('centre_spot'), [1919, 0]);
+
+    // Nothing to nudge is not an error and not a move.
+    state.adjusting = null;
+    assert.equal(nudge(1, 0), false);
+    press('ArrowLeft');
+    assert.deepEqual(state.points.get('centre_spot'), [1919, 0]);
+});
+
 // ------------------------------------------------------- the absent cases
 //
 // Every page above renders a squad that exists. The bugs this repo has actually

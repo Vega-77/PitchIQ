@@ -118,6 +118,34 @@
 
 #canvas { width: 100%; height: auto; display: block; cursor: crosshair; }
 
+/*
+ * Only while a landmark is selected, because that is the only time a drag on
+ * the picture means aiming rather than scrolling. A phone needs the whole
+ * frame to stay swipeable the rest of the time.
+ */
+#canvas.aiming { touch-action: none; }
+
+/*
+ * The magnifier. A 1920px frame in this column displays at about a third of
+ * life size, so one screen pixel is three source pixels and the coach cannot
+ * see what they are aiming at — which is most of the click error the page
+ * then reports back to them in metres.
+ *
+ * It is parked in whichever corner is furthest from the press, so it never
+ * covers the thing it is magnifying.
+ */
+.loupe {
+    position: absolute;
+    width: 168px;
+    height: 168px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .85);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .55);
+    background: #000;
+    pointer-events: none;
+    z-index: 2;
+}
+
 /* ---------------------------------------------------------------- landmarks */
 
 .landmark-list {

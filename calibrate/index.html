@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=98">
-    <link rel="stylesheet" href="calibrate.css?v=98">
+    <link rel="stylesheet" href="../assets/app.css?v=99">
+    <link rel="stylesheet" href="calibrate.css?v=99">
 </head>
 <body>
 
@@ -113,7 +113,8 @@
             <div>
                 <h2 style="margin:0 0 4px">Click the highlighted spot</h2>
                 <p class="muted" id="hint" style="margin:0">
-                    Pick a landmark from the list, then click it on the picture.
+                    Pick a landmark from the list, then press and hold it on the
+                    picture — a magnifier opens so you can see the exact pixel.
                 </p>
             </div>
             <button id="btn-new-image" class="btn small ghost">Use a different picture</button>
@@ -121,8 +122,15 @@
 
         <div class="calib-grid">
             <div>
-                <div id="stage" class="stage">
+                <!-- Focusable, because the arrow keys nudge the last placed
+                     point by one source pixel and the key press has to land
+                     somewhere. -->
+                <div id="stage" class="stage" tabindex="0">
                     <canvas id="canvas"></canvas>
+                    <!-- The magnifier. Never clickable: it is a readout of
+                         where the press already is, not a second target. -->
+                    <canvas id="loupe" class="loupe hidden" width="168" height="168"
+                            aria-hidden="true"></canvas>
                 </div>
 
                 <section class="block" style="margin-top:24px">
@@ -188,7 +196,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="calibrate.js?v=98"></script>
+<script type="module" src="calibrate.js?v=99"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

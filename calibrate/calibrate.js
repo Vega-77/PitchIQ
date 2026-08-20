@@ -1,8 +1,8 @@
 import {
     landmarks, LANDMARK_GROUPS, fitHomography, applyHomography, measureField,
-} from './pitch-model.js?v=98';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=98';
-import { byId, setText, toast, plural } from '../assets/ui.js?v=98';
+} from './pitch-model.js?v=99';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=99';
+import { byId, setText, toast, plural } from '../assets/ui.js?v=99';
 
 const state = {
     image: null,
@@ -11,6 +11,9 @@ const state = {
     selected: null,
     measured: null,      // last measureField() result, or null
     eyeballed: false,    // the coach ticked "the outline sits on the paint"
+    aim: null,           // [x, y] in image pixels the magnifier is showing
+    aiming: false,       // a press is down and will place a point on release
+    adjusting: null,     // landmark the arrow keys nudge, or null
 };
 
 const pitchDims = () => ({
@@ -60,15 +63,30 @@ function draw() {
 
     const scale = Math.max(1, canvas.width / 1000);
     drawPitchOverlay(ctx, scale);
+    drawPoints(ctx, scale);
+}
 
+/**
+ * The placed landmarks, in image pixels.
+ *
+ * `hollow` drops the filled disc and leaves the ring and the crosshair. The
+ * magnifier needs that: at four times life size a solid dot covers the very
+ * paint the coach is lining the crosshair up against, which is the only thing
+ * they opened the magnifier to see.
+ */
+function drawPoints(ctx, scale, hollow = false) {
     for (const [name, [x, y]] of state.points) {
-        const isSelected = name === state.selected;
+        const isLive = name === state.selected || name === state.adjusting;
+        const colour = isLive ? 'rgba(107,163,232,.85)' : 'rgba(63,185,107,.85)';
+
         ctx.beginPath();
         ctx.arc(x, y, 7 * scale, 0, Math.PI * 2);
-        ctx.fillStyle = isSelected ? 'rgba(107,163,232,.85)' : 'rgba(63,185,107,.85)';
-        ctx.fill();
+        if (!hollow) {
+            ctx.fillStyle = colour;
+            ctx.fill();
+        }
         ctx.lineWidth = 2 * scale;
-        ctx.strokeStyle = '#fff';
+        ctx.strokeStyle = hollow ? colour : '#fff';
         ctx.stroke();
 
         // Crosshair, so the exact clicked pixel stays visible under the dot.
@@ -150,6 +168,203 @@ function pitchToPixelHomography() {
         dst: px,
     }));
     return fitHomography(pairs);
+}
+
+// -------------------------------------------------------------- magnifier
+
+// How many source pixels the magnifier shows across its own width. 44 into a
+// 168px circle is a bit under four times life size on a 1080p frame: enough to
+// resolve the edge of a painted line, not so much that the line stops looking
+// like a line. On a narrow phone the circle shrinks with the picture and the
+// magnification drops with it, to around three and a half times.
+const LOUPE_SPAN = 44;
+
+// Breathing room between the magnifier and the edge of the stage.
+const LOUPE_GAP = 12;
+
+// The widest the magnifier is ever drawn, and the narrowest worth drawing.
+const LOUPE_MAX = 168;
+const LOUPE_MIN = 96;
+
+/**
+ * How wide to draw the magnifier on a stage `stageW` display pixels across.
+ *
+ * The anchor parks it in whichever half of the stage the aim is not in, so it
+ * only stays off the aim while it fits inside that half. On a 375px phone the
+ * picture is about 340px wide and the full-size magnifier does not fit — it
+ * would sit on the paint for every aim near the middle, on the one device
+ * where the finger is already covering it.
+ *
+ * Below `LOUPE_MIN` it stops shrinking and takes the overlap instead: a
+ * magnifier too small to read is not a better answer than one in the way.
+ */
+function loupeSize(stageW, gap = LOUPE_GAP) {
+    // Floored, not rounded: rounding a half up gives back the pixel of overlap
+    // this whole function exists to avoid.
+    return Math.max(LOUPE_MIN, Math.min(LOUPE_MAX, Math.floor(stageW / 2 - gap)));
+}
+
+/**
+ * Where to park the magnifier inside the stage, in display pixels.
+ *
+ * It goes to the corner furthest from the aim, so it never covers the spot it
+ * is magnifying, and it is clamped so it never hangs off the stage on a narrow
+ * phone. Pure, and takes numbers rather than elements, because it is the only
+ * part of the magnifier a test can check: the test DOM has no layout, so
+ * `getBoundingClientRect` there is all zeros by design.
+ */
+function loupeAnchor(aimX, aimY, stageW, stageH, size, gap = LOUPE_GAP) {
+    const clamp = (v, limit) => Math.max(0, Math.min(v, Math.max(0, limit)));
+    return {
+        left: clamp(aimX > stageW / 2 ? gap : stageW - size - gap, stageW - size),
+        top: clamp(aimY > stageH / 2 ? gap : stageH - size - gap, stageH - size),
+    };
+}
+
+/**
+ * A crosshair with a hole in the middle, so the pixel being aimed at is the
+ * one thing on screen not covered by the thing pointing at it.
+ *
+ * Drawn dark then light: white paint and grass in shadow are both on this
+ * picture, and no single colour stays visible over both.
+ */
+function drawLoupeCrosshair(ctx, size, zoom) {
+    const c = size / 2;
+    const hole = Math.max(5, zoom);
+
+    const arms = () => {
+        ctx.beginPath();
+        ctx.moveTo(0, c); ctx.lineTo(c - hole, c);
+        ctx.moveTo(c + hole, c); ctx.lineTo(size, c);
+        ctx.moveTo(c, 0); ctx.lineTo(c, c - hole);
+        ctx.moveTo(c, c + hole); ctx.lineTo(c, size);
+        ctx.stroke();
+    };
+
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,.5)';
+    arms();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,.95)';
+    arms();
+
+    // The single source pixel that will be stored, at its real size. Without
+    // it "the exact pixel" is a claim rather than something you can see.
+    ctx.strokeStyle = 'rgba(255,220,50,.95)';
+    ctx.strokeRect(c - zoom / 2, c - zoom / 2, zoom, zoom);
+    ctx.restore();
+}
+
+/** Redraw the magnifier over `state.aim`, or hide it when there is no aim. */
+function drawLoupe() {
+    const loupe = byId('loupe');
+    if (!loupe) return;
+
+    if (!state.aim || !state.image) {
+        loupe.classList.add('hidden');
+        return;
+    }
+
+    const canvas = byId('canvas');
+    const rect = canvas.getBoundingClientRect();
+
+    const [aimX, aimY] = state.aim;
+    // Measured from the stage on every redraw, so a phone turned sideways gets
+    // a magnifier that fits the picture it is now looking at rather than one
+    // sized for the old orientation.
+    const size = rect.width ? loupeSize(rect.width) : LOUPE_MAX;
+    if (loupe.width !== size) {
+        loupe.width = size;
+        loupe.height = size;
+    }
+    loupe.style.width = `${size}px`;
+    loupe.style.height = `${size}px`;
+    const zoom = size / LOUPE_SPAN;
+    const ctx = loupe.getContext('2d');
+
+    ctx.save();
+    ctx.clearRect(0, 0, size, size);
+    // Nearest neighbour. A smoothed magnifier invents pixels between the real
+    // ones, and the real ones are the entire point of opening it.
+    ctx.imageSmoothingEnabled = false;
+    ctx.translate(size / 2, size / 2);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-aimX, -aimY);
+    ctx.drawImage(state.image, 0, 0);
+    // Widths divided by the zoom, so the outline and the points come out the
+    // same thickness on screen here as they are on the picture behind. This is
+    // also the only place the yellow outline is legible enough to answer the
+    // fifth readiness check honestly.
+    drawPitchOverlay(ctx, 1 / zoom);
+    drawPoints(ctx, 1 / zoom, true);
+    ctx.restore();
+
+    drawLoupeCrosshair(ctx, size, zoom);
+
+    const at = loupeAnchor(
+        rect.width ? aimX * (rect.width / canvas.width) : 0,
+        rect.height ? aimY * (rect.height / canvas.height) : 0,
+        rect.width, rect.height, size,
+    );
+    loupe.style.left = `${at.left}px`;
+    loupe.style.top = `${at.top}px`;
+    loupe.classList.remove('hidden');
+}
+
+/**
+ * Pointer position to source image pixels, or null when the canvas has no
+ * measured size — which is every time in the test DOM, and would otherwise
+ * write NaN into a landmark.
+ */
+function toImagePixel(e) {
+    const canvas = byId('canvas');
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    return [
+        (e.clientX - rect.left) * (canvas.width / rect.width),
+        (e.clientY - rect.top) * (canvas.height / rect.height),
+    ];
+}
+
+/**
+ * Commit a landmark, and leave the arrow keys pointed at it. A coach who can
+ * now see the point is a pixel off should not have to press again to fix it.
+ */
+function placeAt(name, at) {
+    state.points.set(name, at);
+    state.selected = null;
+    state.adjusting = name;
+    state.aim = at;
+    byId('hint').textContent =
+        'Placed. Arrow keys nudge it a pixel, Shift+arrow ten. '
+        + 'Or pick the next landmark.';
+    renderAll();
+    byId('stage')?.focus({ preventScroll: true });
+}
+
+/**
+ * Move the last placed point by whole source pixels.
+ *
+ * The magnifier resolves single pixels, so the moment a coach can see the
+ * point is one pixel off they need a way to move it one pixel — which a
+ * pointer at a third of life size cannot do. The first nudge rounds to a whole
+ * pixel: a press lands on a fraction, the list on the right reports whole
+ * numbers, and this way the number on screen is the number that was stored.
+ */
+function nudge(dx, dy) {
+    const name = state.adjusting;
+    if (!name || !state.points.has(name)) return false;
+
+    const [x, y] = state.points.get(name);
+    const [w, h] = state.imageSize || [Infinity, Infinity];
+    const clamp = (v, limit) => Math.max(0, Math.min(v, limit - 1));
+    const moved = [clamp(Math.round(x) + dx, w), clamp(Math.round(y) + dy, h)];
+
+    state.points.set(name, moved);
+    state.aim = moved;
+    renderAll();
+    return true;
 }
 
 // ---------------------------------------------------------------- quality
@@ -529,8 +744,14 @@ function renderLandmarkList() {
             button.querySelector('.tick').textContent = state.points.has(key) ? '✓' : '';
             button.addEventListener('click', () => {
                 state.selected = key;
+                // Re-picking a placed landmark opens the magnifier on it and
+                // points the arrow keys at it, which is the whole of "that one
+                // is slightly off, let me fix it".
+                state.adjusting = state.points.has(key) ? key : null;
+                state.aim = state.points.get(key) ?? null;
                 renderAll();
-                byId('hint').textContent = `Now click "${label}" in the image.`;
+                byId('hint').textContent =
+                    `Now press and hold "${label}" on the picture.`;
             });
             list.appendChild(button);
         }
@@ -573,6 +794,10 @@ function renderAll() {
     renderQuality();
     renderReadiness();
     draw();
+    drawLoupe();
+    // Only with a landmark selected does a drag on the picture mean aiming;
+    // the rest of the time a swipe there has to keep scrolling the page.
+    byId('canvas').classList.toggle('aiming', !!state.selected);
     setText('progress', plural(state.points.size, 'point'));
     const count = byId('placed-count');
     if (count) count.textContent = state.points.size;
@@ -624,6 +849,12 @@ function exportJson() {
 
 // Clearing the points invalidates the one check software cannot make: the
 // tick said *those* points sat on the paint, and they are gone.
+function forgetAim() {
+    state.aim = null;
+    state.aiming = false;
+    state.adjusting = null;
+}
+
 function clearEyeball() {
     state.eyeballed = false;
     const box = byId('chk-eyeball');
@@ -638,25 +869,79 @@ function init() {
         if (file) loadImage(file);
     });
 
-    byId('canvas').addEventListener('click', (e) => {
+    // Press, look, slide, release — rather than a single click that commits
+    // wherever it landed. On a phone this is the difference between usable and
+    // not: the finger covers the exact pixel it is trying to hit, so a plain
+    // tap cannot be accurate there however steady the hand is.
+    const canvas = byId('canvas');
+
+    canvas.addEventListener('pointerdown', (e) => {
+        if (!state.image) return;
         if (!state.selected) return toast('Pick a landmark from the list first.', true);
 
-        const canvas = byId('canvas');
-        const rect = canvas.getBoundingClientRect();
-        // The canvas is displayed scaled down; convert back to source pixels.
-        const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-        const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+        const at = toImagePixel(e);
+        if (!at) return;
+        e.preventDefault();
+        // Optional: a pointer that left the canvas mid-drag should keep
+        // aiming, but not every environment running this has capture.
+        canvas.setPointerCapture?.(e.pointerId);
+        state.aiming = true;
+        state.aim = at;
+        drawLoupe();
+    });
 
-        state.points.set(state.selected, [x, y]);
-        state.selected = null;
-        byId('hint').textContent = 'Pick the next landmark.';
-        renderAll();
+    canvas.addEventListener('pointermove', (e) => {
+        if (!state.aiming) return;
+        const at = toImagePixel(e);
+        if (!at) return;
+        e.preventDefault();
+        state.aim = at;
+        drawLoupe();
+    });
+
+    canvas.addEventListener('pointerup', (e) => {
+        if (!state.aiming) return;
+        state.aiming = false;
+        try {
+            canvas.releasePointerCapture?.(e.pointerId);
+        } catch {
+            // Never captured it. Nothing to release, and nothing to say.
+        }
+        // Fall back to the last aim: a release just outside the canvas still
+        // means "place it where the magnifier was showing".
+        const at = toImagePixel(e) ?? state.aim;
+        if (state.selected && at) placeAt(state.selected, at);
+    });
+
+    canvas.addEventListener('pointercancel', () => { state.aiming = false; });
+
+    // Element-level, on the stage, so the arrows only move a point when the
+    // picture is what the coach is working in — and so preventDefault stops
+    // the page scrolling out from under them while they nudge.
+    const NUDGES = {
+        ArrowLeft: [-1, 0], ArrowRight: [1, 0],
+        ArrowUp: [0, -1], ArrowDown: [0, 1],
+    };
+
+    byId('stage').addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            state.aim = null;
+            state.selected = null;
+            state.adjusting = null;
+            renderAll();
+            return;
+        }
+        const step = NUDGES[e.key];
+        if (!step) return;
+        const by = e.shiftKey ? 10 : 1;
+        if (nudge(step[0] * by, step[1] * by)) e.preventDefault();
     });
 
     byId('btn-clear').addEventListener('click', () => {
         if (state.points.size && !confirm('Remove all placed points?')) return;
         state.points.clear();
         state.selected = null;
+        forgetAim();
         clearEyeball();
         renderAll();
     });
@@ -669,6 +954,7 @@ function init() {
         state.points.clear();
         state.selected = null;
         state.image = null;
+        forgetAim();
         clearEyeball();
         byId('input-image').value = '';
         byId('workspace').classList.add('hidden');
@@ -699,4 +985,6 @@ init();
 // Deliberate test seam, so the picker can be driven from a browser without a
 // human clicking landmarks. Local UI state only; nothing here touches the
 // database.
-window._calib = { state, renderAll, pitchToPixelHomography };
+window._calib = {
+    state, renderAll, pitchToPixelHomography, loupeAnchor, loupeSize, nudge,
+};

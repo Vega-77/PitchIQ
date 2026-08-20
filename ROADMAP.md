@@ -2633,6 +2633,59 @@ measure the actual pitch before the camera goes up.
       `SCHEMA_VERSION` unchanged; the export gains a `quality` block that
       `from_picker_export` ignores. Version stamp 98. 739 pure JS · 35 smoke
       · 146 emulator · 1210 Python.
+- [x] **A magnifier, so the coach can see the pixel they are aiming at**
+      (2026-08-20). The page grades its own clicking in metres and hands the
+      number back, but it never gave anyone the means to click better. Measured
+      in a browser: a 1920×1080 frame displays in the calibrate column at
+      704×396 — **0.367×**, so one screen pixel is nearly three source
+      pixels, and on a phone the finger covers the pixel it is aiming for. The
+      earlier study put four pixels of click jitter at 0.21m of reported error.
+
+      A loupe, not a pan-and-zoom canvas. The landmarks are scattered to the
+      four corners of the frame, so a zoomed view would mean panning between
+      every one of them; the job is *click this one, now the next one*. Press
+      and hold opens it, dragging moves it, and the point is stored on release
+      — so the finger can be nowhere near the target at the moment that
+      matters. It shows `LOUPE_SPAN = 44` source pixels across its width at
+      nearest neighbour, because a smoothed magnifier invents pixels between the
+      real ones and the real ones are the entire reason it was opened. On the
+      desktop column that is 3.82× life size against a 0.367× picture: about
+      ten times what the eye had before.
+
+      The overlay and the placed points are drawn inside it at one over the
+      zoom, so they come out the same thickness there as on the picture behind.
+      That makes the magnifier the only place on the page where the fifth
+      readiness check — the coach confirming the yellow outline sits on the
+      paint — can be answered honestly rather than guessed at. Points are
+      drawn hollow inside it: at four times life size a filled dot covers the
+      very paint it is being lined up against. And the crosshair has a hole in
+      the middle with a yellow box the size of one source pixel, so *the exact
+      pixel* is something visible rather than a claim.
+
+      Then arrow keys, one source pixel a press and ten with Shift, on a
+      focusable stage — the finish that a magnifier alone cannot give, since
+      the last pixel of a placement is below the resolution of any pointing
+      device a coach owns. Re-picking a landmark already placed re-opens the
+      magnifier on it and aims the keys at it, which is the whole of *that one
+      is slightly off*.
+
+      Two things a real browser found and no test could. `touch-action: none`
+      is applied only while a landmark is selected, or a swipe across the
+      picture would stop scrolling the page for the other 99% of the time. And
+      the magnifier is sized from the stage on every redraw rather than fixed:
+      the anchor parks it in whichever half of the stage the aim is not in, so
+      it only stays off the paint while it fits inside that half, and a fixed
+      168 does not fit the 341px picture a 375px phone gives it. Swept 121 aim
+      positions at 375, 768 and 1280 — zero covered the aim, zero hung off
+      the stage.
+
+      The geometry is pure functions taking numbers — `loupeAnchor`,
+      `loupeSize`, `nudge` — because `tests/dom-shim.js` returns all zeros
+      from `getBoundingClientRect` on purpose, and a made-up rectangle would let
+      a test claim an accuracy nothing measured.
+
+      `SCHEMA_VERSION` unchanged. Version stamp 99. 739 pure JS · 36 smoke
+      · 146 emulator · 1210 Python.
 
 ## 5. Object Detection (per frame)
 **Built: `cv/` — `PersonBallDetector` (YOLO filtered to person + sports ball) and
