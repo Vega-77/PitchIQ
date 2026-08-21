@@ -1082,6 +1082,91 @@ describe('write validation', () => {
       version: 1,
     }));
   });
+
+  // ---- the bookkeeping fields, which were named and never shaped ----
+  //
+  // `deviceId`, `revert` and `tappedAt` sat in the log's keys().hasOnly() list
+  // with nothing said about their type or size. An entry could pass every check
+  // above — real type, real clock, real side — and still carry whatever
+  // would fit in a document, which is a megabyte per tap.
+
+  it('rejects a revert blob that is not the prior state', async () => {
+    const db = as(COACH);
+    await assertFails(setDoc(
+      logRef(db, 'dev_000030'), entry({ seq: 30, revert: 'not a map' })
+    ));
+    await assertFails(setDoc(logRef(db, 'dev_000031'), entry({
+      seq: 31,
+      revert: { a: 1, b: 2, c: 3, d: 4, e: 5 },
+    })));
+  });
+
+  it('accepts the two revert shapes undo actually writes', async () => {
+    const db = as(COACH);
+    await assertSucceeds(setDoc(logRef(db, 'dev_000032'), entry({
+      seq: 32, kind: 'period', type: 'halftime', side: null,
+      revert: { prevStatus: 'first_half' },
+    })));
+    await assertSucceeds(setDoc(logRef(db, 'dev_000033'), entry({
+      seq: 33, kind: 'sub', type: 'sub', subOutId: 'p1', subInId: 'p2',
+      revert: {
+        out: { id: 'p1', isActive: true, stints: [], version: 0 },
+        in: { id: 'p2', isActive: false, stints: [], version: 0 },
+      },
+    })));
+  });
+
+  it('rejects an oversized device id and a non-numeric tap time', async () => {
+    const db = as(COACH);
+    await assertFails(setDoc(
+      logRef(db, 'dev_000034'), entry({ seq: 34, deviceId: 'x'.repeat(400) })
+    ));
+    await assertFails(setDoc(
+      logRef(db, 'dev_000035'), entry({ seq: 35, tappedAt: 'just now' })
+    ));
+  });
+
+  // ---- a bound that only held until the second write ----
+
+  it('holds the roster name and shirt bounds on update, not only on create', async () => {
+    // Both were checked at create and nowhere else, so the way past either of
+    // them was to write a valid document and then edit it.
+    const ref = doc(as(COACH), 'teams', TEAM, 'players', 'p1');
+    await assertFails(updateDoc(ref, { name: 'x'.repeat(200) }));
+    await assertFails(updateDoc(ref, { name: '' }));
+    await assertFails(updateDoc(ref, { jerseyNumber: 4000 }));
+    await assertFails(updateDoc(ref, { jerseyNumber: 'nine' }));
+    await assertSucceeds(updateDoc(ref, { name: 'Alexander Vega', jerseyNumber: 10 }));
+  });
+
+  it('bounds the match-day copy of a name the same way as the original', async () => {
+    const ref = doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'roster', 'p9');
+    const row = (over) => ({
+      playerName: 'Sam Ito', jerseyNumber: 7,
+      isStarter: false, isActive: false, stints: [], version: 0, ...over,
+    });
+    await assertFails(setDoc(ref, row({ playerName: 'x'.repeat(200) })));
+    await assertFails(setDoc(ref, row({ jerseyNumber: 400 })));
+    await assertSucceeds(setDoc(ref, row()));
+  });
+
+  it('refuses a player report pointed at something that is not a uid', async () => {
+    // linkedUid is the whole of the collection-group grant's condition. A map
+    // or a list there is not a user, and the rule that serves this document to
+    // a player should never have to reason about what it means.
+    const ref = doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p1');
+    await assertFails(updateDoc(ref, { linkedUid: { uid: PLAYER.uid } }));
+    await assertFails(updateDoc(ref, { linkedUid: [PLAYER.uid] }));
+    await assertSucceeds(updateDoc(ref, { linkedUid: null }));
+  });
+
+  it('bounds the free-text fields on a user profile', async () => {
+    const ref = doc(as(PLAYER), 'users', PLAYER.uid);
+    const base = { emailLower: PLAYER.email, teamIds: [] };
+    await assertFails(setDoc(ref, { ...base, displayName: 'x'.repeat(500) }));
+    await assertFails(setDoc(ref, { ...base, lastPlayerRef: 'x'.repeat(500) }));
+    await assertSucceeds(setDoc(ref, { ...base, displayName: 'Alex' }));
+  });
 });
 
 

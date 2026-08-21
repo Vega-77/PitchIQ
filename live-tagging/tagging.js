@@ -13,18 +13,19 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=100';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=102';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=100';
+} from '../assets/db.js?v=102';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=100';
-import { syncState, safeToClose } from '../assets/report.js?v=100';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=100';
-import { byId, toast, clockText, timelineRow } from '../assets/ui.js?v=100';
+} from '../assets/events.js?v=102';
+import { syncState, safeToClose } from '../assets/report.js?v=102';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=102';
+import { byId, toast, clockText, timelineRow, tally, groupHead }
+    from '../assets/ui.js?v=102';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -182,12 +183,124 @@ function updateSyncIndicator() {
     label.textContent = view.tone === 'ok' ? '' : view.label;
 }
 
+// ------------------------------------------------------------- tally rail
+
+/**
+ * What the rail shows, in the order it shows it.
+ *
+ * Goals are not here — they are the score, in 40px digits at the top of the
+ * same screen, and a second copy of a number that large would only ever be a
+ * chance for the two to disagree. `out_of_bounds` is not here either: it is the
+ * generic restart, and every specific one of them (corner, throw-in, goal kick)
+ * already has its own row.
+ *
+ * The second value is `better`, which decides which side — if either —
+ * gets coloured as ahead, and it is not a style choice. It comes straight out
+ * of what each type’s `sideMeans` in events.js says picking a team asserts:
+ *
+ *   foul     "Committed by"    — so fewer is better        -> low
+ *   card     "Shown to"        — so fewer is better        -> low
+ *   offside  "Called against"  — so fewer is better        -> low
+ *   corner   "Awarded to"      — a corner won is an attack -> high
+ *   free kick "Awarded to"     — likewise                  -> high
+ *
+ * The last two get `null`, meaning no verdict, and that is the honest answer
+ * rather than a gap. A throw-in awarded to us says only that somebody put the
+ * ball out, and at this level that is nearer a coin toss than a claim. A goal
+ * kick awarded to us is worse than neutral if anything — it means the ball
+ * went dead behind our own line — so calling it a lead for us would be
+ * plainly backwards, and calling it a lead for them reads as a judgement
+ * nobody measured. The counts are still shown. Only the colour is withheld.
+ */
+const TALLY_GROUPS = [
+    { title: 'Discipline', rows: [['foul', 'low'], ['card', 'low'], ['offside', 'low']] },
+    { title: 'Set pieces', rows: [['corner', 'high'], ['free_kick', 'high'],
+                                  ['throw_in', null], ['goal_kick', null]] },
+];
+
+/** type -> the row element currently on screen for it. */
+let tallyRows = null;
+/** type -> the counts that row was drawn from, as 'us:them'. */
+let tallyShown = {};
+
+const tallyTypes = () => TALLY_GROUPS.flatMap((g) => g.rows);
+
+/** Empty rows and headings, once, so later updates are a swap and not a rebuild. */
+function buildTallyRail() {
+    byId('tally-us').textContent = state.teamName || 'Us';
+    byId('tally-them').textContent = state.opponentName || 'Them';
+
+    const list = byId('tally-rows');
+    list.textContent = '';
+    tallyRows = new Map();
+    tallyShown = {};
+
+    for (const group of TALLY_GROUPS) {
+        list.append(groupHead(group.title));
+        for (const [type, better] of group.rows) {
+            const row = tally(EVENTS[type].label, 0, 0, better);
+            list.append(row);
+            tallyRows.set(type, row);
+            tallyShown[type] = '0:0';
+        }
+    }
+}
+
+/** Count the tracked types out of a log, per side. */
+function countTally(entries) {
+    const counts = {};
+    for (const [type] of tallyTypes()) counts[type] = { us: 0, them: 0 };
+    for (const entry of entries) {
+        if (entry.kind !== 'event') continue;
+        const row = counts[entry.type];
+        if (!row) continue;
+        row[entry.side === 'them' ? 'them' : 'us'] += 1;
+    }
+    return counts;
+}
+
+/**
+ * Redraw the rail from a log, and only the rows that moved.
+ *
+ * The "only" matters twice. A bar redrawing replays `bar-grow`, so leaving it
+ * to rebuild all seven would mean every tag animated every count on the
+ * screen, which says "seven things happened" when one did. Kept to the row
+ * that changed, the same animation becomes the feedback: the length you just
+ * altered is the length that draws itself.
+ *
+ * Second, `tally()` is the report’s component, not a copy of it. The bars a
+ * coach reads at half-time and the bars the tagger watches during the half are
+ * the same function over the same log, so there is no version of this where
+ * the touchline and the report disagree about how many fouls there were.
+ */
+function renderTally(entries) {
+    if (!tallyRows) buildTallyRail();
+    const counts = countTally(entries);
+
+    for (const [type, better] of tallyTypes()) {
+        const seen = `${counts[type].us}:${counts[type].them}`;
+        if (tallyShown[type] === seen) continue;
+        tallyShown[type] = seen;
+
+        const row = tally(EVENTS[type].label, counts[type].us, counts[type].them, better);
+        tallyRows.get(type).replaceWith(row);
+        tallyRows.set(type, row);
+    }
+}
+
 /** Follow one match's log until the page moves on. */
 function watchMatchSync() {
+    buildTallyRail();
     state.stopSync?.();
     state.stopSync = watchSync(state.teamId, state.matchId, (next) => {
         state.sync = next;
         updateSyncIndicator();
+
+        // Absent, not empty, when the listener has failed — see `watchSync`.
+        // A dead listener knows nothing about what was tagged, and redrawing
+        // the rail to zeroes would be the tool asserting the half never
+        // happened. Leave the last true counts on the screen.
+        if (next.entries) renderTally(next.entries);
     });
 }
 
@@ -1201,7 +1314,15 @@ async function openLog() {
             }));
         }
     } catch (err) {
-        list.innerHTML = `<div class="empty">${err.message}</div>`;
+        // textContent, not innerHTML. Every other message on this page is a
+        // string this file wrote; this one comes back from Firestore, and the
+        // one place in the app that interpolated a value it did not author into
+        // markup should not be the error path nobody looks at.
+        list.innerHTML = '';
+        const failed = document.createElement('div');
+        failed.className = 'empty';
+        failed.textContent = err.message;
+        list.append(failed);
     }
 }
 

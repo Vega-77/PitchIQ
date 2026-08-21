@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/app.css?v=100">
-    <link rel="stylesheet" href="assets/landing.css?v=100">
+    <link rel="stylesheet" href="assets/app.css?v=102">
+    <link rel="stylesheet" href="assets/landing.css?v=102">
 </head>
 <body>
 
@@ -99,32 +99,124 @@
 
         <section class="block">
             <h3>What's working today</h3>
+            <p class="status-lede">A row is a claim. Open one and it shows the
+            measurement it rests on.</p>
             <div class="status-list">
-                <div class="status-row">
-                    <span class="what">Live tagging, stats and player reports</span>
-                    <span class="pill done">Ready</span>
-                </div>
-                <div class="status-row">
-                    <span class="what">
-                        Player detection from match footage
-                        <div class="note">Found in 99% of frames on real video</div>
-                    </span>
-                    <span class="pill done">Ready</span>
-                </div>
-                <div class="status-row">
-                    <span class="what">
-                        Ball tracking
-                        <div class="note">83% of frames after dedicated tracking</div>
-                    </span>
-                    <span class="pill done">Ready</span>
-                </div>
-                <div class="status-row">
-                    <span class="what">
-                        Distance, speed and team shape
-                        <div class="note">Needs a fixed camera view to measure against the pitch</div>
-                    </span>
-                    <span class="pill warn">In progress</span>
-                </div>
+                <details class="status-row">
+                    <summary>
+                        <span class="what">Live tagging, stats and player reports</span>
+                        <span class="pill done">Ready</span>
+                        <span class="caret" aria-hidden="true"></span>
+                    </summary>
+                    <div class="status-why">
+                        <p>The half of this that needs no camera at all. One person taps
+                        what happens, on a phone or a tablet at the side of the pitch, and
+                        the team stats and every player’s own page come out of that log
+                        — footage or no footage.</p>
+                        <div class="ev-tags">
+                            <span>Goal</span><span>Card</span><span>Foul</span><span>Offside</span><span>Corner</span><span>Throw-in</span><span>Goal kick</span><span>Free kick</span><span>Out of bounds</span>
+                        </div>
+                        <p class="ev-src">Nine types, and each one states what picking a
+                        team asserts — <em>awarded to</em>, <em>committed by</em>,
+                        <em>shown to</em> — so a tag still means one thing a month
+                        later.</p>
+                    </div>
+                </details>
+                <details class="status-row">
+                    <summary>
+                        <span class="what">
+                            Player detection from match footage
+                            <span class="note">Found in 99% of frames on real video</span>
+                        </span>
+                        <span class="pill done">Ready</span>
+                        <span class="caret" aria-hidden="true"></span>
+                    </summary>
+                    <div class="status-why">
+                        <p>What decides this is where the camera stands, not which model
+                        runs. The same detector, with no tuning, was pointed at two real
+                        recordings of the same team:</p>
+                        <div class="ev">
+                            <div class="ev-row">
+                                <span class="ev-label">Tight, pitch-filling framing</span>
+                                <span class="ev-track"><i class="is-good" style="width:99%"></i></span>
+                                <b class="ev-n">99%</b>
+                            </div>
+                            <div class="ev-row">
+                                <span class="ev-label">Wide stadium panorama</span>
+                                <span class="ev-track"><i class="is-bad" style="width:0%"></i></span>
+                                <b class="ev-n">0%</b>
+                            </div>
+                        </div>
+                        <p class="ev-src">300 sampled frames from each clip. At the wide
+                        framing a player is four to eight pixels across and not one on the
+                        field was found — cropping and upscaling does not bring them
+                        back, because the pixels were never recorded.</p>
+                    </div>
+                </details>
+                <details class="status-row">
+                    <summary>
+                        <span class="what">
+                            Ball tracking
+                            <span class="note">83% of frames after dedicated tracking</span>
+                        </span>
+                        <span class="pill done">Ready</span>
+                        <span class="caret" aria-hidden="true"></span>
+                    </summary>
+                    <div class="status-why">
+                        <p>The ball is the hardest object on the pitch: small, fast, and
+                        often half a player. Feeding its detections through the same
+                        tracker the players use threw nearly all of them away.</p>
+                        <div class="ev">
+                            <div class="ev-row">
+                                <span class="ev-label">Raw detections</span>
+                                <span class="ev-track"><i style="width:60%"></i></span>
+                                <b class="ev-n">60%</b>
+                            </div>
+                            <div class="ev-row">
+                                <span class="ev-label">Through the players’ tracker</span>
+                                <span class="ev-track"><i class="is-bad" style="width:1.6%"></i></span>
+                                <b class="ev-n">1.6%</b>
+                            </div>
+                            <div class="ev-row">
+                                <span class="ev-label">One path through the whole clip</span>
+                                <span class="ev-track"><i class="is-good" style="width:83%"></i></span>
+                                <b class="ev-n">83%</b>
+                            </div>
+                        </div>
+                        <p class="ev-src">Measured on 30 seconds of real footage. That
+                        tracker only confirms a track when detections line up frame after
+                        frame, which a small fast object never does. Choosing the single
+                        best path through every candidate instead, then filling the gaps,
+                        recovers most of it — checked by eye against the actual ball.</p>
+                    </div>
+                </details>
+                <details class="status-row">
+                    <summary>
+                        <span class="what">
+                            Distance, speed and team shape
+                            <span class="note">Needs a fixed camera view to measure against the pitch</span>
+                        </span>
+                        <span class="pill warn">In progress</span>
+                        <span class="caret" aria-hidden="true"></span>
+                    </summary>
+                    <div class="status-why">
+                        <p>These are the only stats that need the pitch itself. A box on
+                        screen has to become a position in metres, and that mapping is one
+                        fit to the painted lines — which holds exactly as long as the
+                        camera holds still. The maths is built and agrees between the
+                        Python pipeline and the browser. What is missing is an afternoon
+                        of footage shot the right way.</p>
+                        <ul class="ev-needs">
+                            <li>A camera on a tripod, not a phone in a hand</li>
+                            <li>One clean frame with the pitch markings visible</li>
+                            <li>The pitch measured with a tape, not assumed</li>
+                        </ul>
+                        <p class="ev-src">The last one matters more than it looks: a school
+                        pitch is rarely painted to the Laws, and eight perfect clicks read
+                        against the wrong dimensions still came out 1.9 m adrift at the
+                        worst corner.</p>
+                    </div>
+                </details>
             </div>
         </section>
     </section>
@@ -195,7 +287,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="assets/landing.js?v=100"></script>
+<script type="module" src="assets/landing.js?v=102"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="./">Home</a>

@@ -7,14 +7,14 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=100';
-import { EVENT_TYPES } from './events.js?v=100';
+import { db } from './firebase-init.js?v=102';
+import { EVENT_TYPES } from './events.js?v=102';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
     mappingWithout, positionOf, whistleFrom, minutesFrom, knownMinutes,
-} from './report.js?v=100';
+} from './report.js?v=102';
 
 export {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
@@ -643,6 +643,19 @@ export async function listLog(teamId, matchId) {
  * Returns the unsubscribe function. One listener over a collection that holds
  * around two hundred entries by full time, and the page already read the whole
  * thing twice.
+ *
+ * `entries` is the log itself, and it costs nothing. Every document was already
+ * downloaded, parsed and handed to this callback — the counts above are
+ * computed from it and then it was dropped on the floor, so anything on screen
+ * that wanted to show what had been tagged had to either fetch the collection
+ * again or keep its own running total by hand. Both are worse. A second fetch
+ * is a network round trip on a touchline; a hand-kept total drifts, because it
+ * only ever sees this tablet’s own taps and cannot see a write the server
+ * later refused. Passing the documents through means the screen is a view of
+ * the record rather than a guess about it, and Firestore’s local cache
+ * carries a tap into the snapshot immediately, so it is still instant offline.
+ *
+ * Undo deletes the document, so an undone tag leaves here on its own.
  */
 export function watchSync(teamId, matchId, onChange) {
     return onSnapshot(
@@ -652,10 +665,15 @@ export function watchSync(teamId, matchId, onChange) {
             pending: snap.docs.filter((d) => d.metadata.hasPendingWrites).length,
             fromCache: snap.metadata.fromCache,
             total: snap.size,
+            entries: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
         }),
         // A listener that dies takes the indicator's meaning with it, and a
         // stuck "Saved" is worse than no indicator. Report it as disconnected,
         // which is the pessimistic answer and the safe one.
+        //
+        // `entries` is deliberately absent rather than empty: the listener
+        // failing says nothing about what was tagged, and an empty log would
+        // wipe a screen full of true counts. Callers keep what they had.
         () => onChange({ pending: 0, fromCache: true, total: 0 }),
     );
 }

@@ -5,7 +5,7 @@
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
-import { comparePair, verdict, COUNT, knownMinutes } from './report.js?v=100';
+import { comparePair, verdict, COUNT, knownMinutes } from './report.js?v=102';
 
 export const byId = (id) => document.getElementById(id);
 
@@ -341,13 +341,25 @@ export function stackBar(segments, options = {}) {
         seg.style.flexGrow = String(part.share);
         bar.append(seg);
 
+        // The one figure this piece is worth, used twice: once in the key
+        // below, and once on the piece itself. Computed here rather than in
+        // both places so the track and the key can never disagree.
+        const amount = part.text ?? (part.seconds == null ? '' : String(part.seconds));
+
+        // The piece names itself. Everywhere else on these pages a length has
+        // its figure printed beside it; here they are in a key underneath, so
+        // reading the track means carrying a colour in your head down to the
+        // list. The stylesheet dims the other pieces when this one is pointed
+        // at, and this is the half that says what the lit one is.
+        seg.title = amount ? `${part.label} — ${amount}` : part.label;
+
         const item = document.createElement('li');
         const swatch = document.createElement('i');
         swatch.className = `is-${part.key}`;
         const text = document.createElement('span');
         text.textContent = part.label;
         const value = document.createElement('b');
-        value.textContent = part.text ?? String(part.seconds ?? '');
+        value.textContent = amount;
         item.append(swatch, text, value);
         key.append(item);
     }

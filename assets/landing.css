@@ -179,17 +179,148 @@
 
 /* Status table for what is and is not built yet — honesty as a design element
    rather than a wall of prose. */
+.status-lede { color: var(--text-dim); font-size: 0.88rem; margin: -6px 0 14px; }
+
 .status-list { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+
+/* Each row is a `<details>` now, so the row itself is the block and the
+   `<summary>` is the line you see when it is shut. Native disclosure rather
+   than a click handler: it comes with the keyboard behaviour, the ARIA state
+   and the find-in-page expansion already correct, and this page has no other
+   reason to load script. */
 .status-row {
+    background: var(--surface);
+    font-size: 0.88rem;
+}
+.status-row > summary {
     display: flex;
     align-items: center;
     gap: 14px;
-    background: var(--surface);
     padding: 13px 18px;
-    font-size: 0.88rem;
+    cursor: pointer;
+    list-style: none;
+    transition: background .13s ease;
 }
+.status-row > summary::-webkit-details-marker { display: none; }
+/* The list clips at its rounded corners, so the global focus ring — drawn
+   2px outside the element — would lose its top and bottom edges on the first
+   and last rows. Inset instead. */
+.status-row > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 0; }
 .status-row .what { flex: 1; }
-.status-row .note { color: var(--text-faint); font-size: 0.82rem; }
+.status-row .note { display: block; color: var(--text-faint); font-size: 0.82rem; margin-top: 2px; }
+
+/* The affordance. A chevron rather than a plus, because what happens is that
+   the row unfolds downward, and it turns over rather than swapping glyph so
+   the open state is arrived at rather than announced. */
+.status-row .caret {
+    flex-shrink: 0;
+    width: 7px; height: 7px;
+    margin: -3px 2px 0 0;
+    border-right: 2px solid var(--text-faint);
+    border-bottom: 2px solid var(--text-faint);
+    transform: rotate(45deg);
+    transition: transform .18s cubic-bezier(.2, .7, .3, 1), border-color .18s ease;
+}
+.status-row[open] .caret { transform: rotate(225deg); margin-top: 3px; border-color: var(--accent); }
+.status-row[open] > summary { background: var(--bg-raised); }
+
+@media (hover: hover) {
+    .status-row > summary:hover { background: var(--surface-hi); }
+    .status-row > summary:hover .caret { border-color: var(--accent); }
+}
+
+.status-why {
+    padding: 2px 18px 18px;
+    background: var(--bg-raised);
+    border-top: 1px solid var(--line);
+}
+.status-why p { margin: 12px 0 0; font-size: 0.86rem; line-height: 1.62; color: var(--text-dim); max-width: 62ch; }
+.status-why em { font-style: normal; color: var(--text); }
+
+/* -- the evidence ------------------------------------------------------- */
+
+/* Three columns, and the middle one is the argument. The label and the figure
+   are both fixed enough to line up down the column, so the tracks start and
+   end at the same place and the lengths can be read against each other rather
+   than each against its own number. */
+.ev { margin-top: 14px; display: flex; flex-direction: column; gap: 7px; }
+.ev-row {
+    display: grid;
+    grid-template-columns: minmax(0, 15rem) minmax(60px, 1fr) 3.2rem;
+    align-items: center;
+    gap: 12px;
+}
+.ev-label { font-size: 0.8rem; color: var(--text-dim); min-width: 0; }
+.ev-track {
+    height: 9px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    overflow: hidden;
+}
+.ev-track i {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 4px;
+}
+.ev-track i.is-good { background: var(--good); }
+.ev-track i.is-bad { background: var(--danger); }
+/* Deliberately no minimum width. A 1.6% bar is a hairline and a 0% bar is
+   nothing at all, which is the whole finding — padding them up to something
+   visible would be drawing a result nobody measured. The figure beside it says
+   the number either way. */
+.ev-n {
+    font-size: 0.88rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    letter-spacing: -0.3px;
+}
+
+/* The one motion allowed on arrival is a length drawing itself, and a row that
+   was closed a moment ago is arriving. A shut `<details>` renders none of its
+   contents, so this restarts every time one is opened. */
+.status-row[open] .ev-track i {
+    transform-origin: left center;
+    animation: bar-grow .42s cubic-bezier(.2, .7, .3, 1) both;
+}
+
+.status-why p.ev-src { font-size: 0.8rem; color: var(--text-faint); margin-top: 12px; }
+
+.ev-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.ev-tags span {
+    font-size: 0.76rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border: 1px solid var(--line-hi);
+    border-radius: 999px;
+    color: var(--text-dim);
+}
+
+/* Empty boxes, because these are the things not done yet and a tick would be
+   a lie about three of them. */
+.ev-needs { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ev-needs li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.84rem;
+    color: var(--text-dim);
+}
+.ev-needs li::before {
+    content: '';
+    flex-shrink: 0;
+    width: 13px; height: 13px;
+    border: 1.5px solid var(--warn);
+    border-radius: 3px;
+    opacity: .7;
+}
+
+@media (max-width: 560px) {
+    .ev-row { grid-template-columns: minmax(0, 1fr) 3.2rem; }
+    .ev-track { grid-column: 1 / -1; }
+}
 
 #user-chip { font-size: 0.82rem; color: var(--text-dim); }
 
@@ -223,11 +354,16 @@
     color: inherit;
     transition: background .13s, border-color .13s, transform .1s;
 }
-.team-card:hover {
-    background: var(--surface-hi);
-    border-color: var(--accent);
-    transform: translateY(-2px);
-    color: inherit;
+/* Pointer feedback is guarded here and everywhere else: `:hover` latches on a
+   touchscreen and this app is used on one. The argument is in app.css, under
+   `response`. */
+@media (hover: hover) {
+    .team-card:hover {
+        background: var(--surface-hi);
+        border-color: var(--accent);
+        transform: translateY(-2px);
+        color: inherit;
+    }
 }
 
 .team-card-top {
@@ -266,7 +402,9 @@
     color: inherit;
     transition: background .13s, border-color .13s;
 }
-.quick-link:hover { background: var(--surface-hi); border-color: var(--line-hi); color: inherit; }
+@media (hover: hover) {
+    .quick-link:hover { background: var(--surface-hi); border-color: var(--line-hi); color: inherit; }
+}
 .quick-link .ql-icon {
     width: 34px; height: 34px;
     display: grid; place-items: center;
@@ -283,4 +421,51 @@
     .welcome { padding: 22px; }
     .team-card .figures { gap: 16px; }
     .hero { padding-top: 44px; }
+}
+
+/* ------------------------------------------------------- response, landing
+ *
+ * This page shares app.css’s tokens but almost none of its components, so the
+ * response layer over there reaches nothing here. Same rule applies: it only
+ * happens because a pointer arrived, it moves nothing anyone is reading, and
+ * the feedback says what the thing is. A step in the flow is prose and gets an
+ * acknowledgement; a sample figure is a sample and gets a lift; the cards that
+ * navigate already had the strongest response on the page and keep it.
+ */
+
+@media (hover: hover) {
+
+    /* Three panes butted together with a 1px rule between them. A lift would
+       break that rule and a border would double it, so the pane lightens and
+       its number comes up to full accent — the only two things that can move
+       here without the seam moving. */
+    .flow-step { transition: background .14s ease; }
+    .flow-step .step-n { transition: color .14s ease; }
+    .flow-step:hover { background: var(--surface-hi); }
+    .flow-step:hover .step-n { color: var(--accent-hi); }
+
+    /* The sample report is the one place on the page showing the actual
+       product, and until now it was a picture. Pointing at a figure lifts it,
+       which is the least a thing can do and still be alive; nothing here leads
+       anywhere, so nothing here gets a direction. */
+    .sample-stat { transition: border-color .14s ease, transform .14s ease, background .14s ease; }
+    .sample-stat:hover {
+        border-color: var(--line-hi);
+        background: var(--surface);
+        transform: translateY(-2px);
+    }
+
+    /* A moment in the list. The minute is the index into the match, so that is
+       what takes the colour. */
+    .sample-moments li { transition: color .13s ease; }
+    .sample-moments li span { transition: color .13s ease; }
+    .sample-moments li:hover { color: var(--text); }
+    .sample-moments li:hover span { color: var(--accent); }
+
+    /* The quick links go somewhere, so they get the direction the plain
+       background change was not giving them. */
+    .quick-link { transition: background .13s ease, border-color .13s ease, transform .14s ease; }
+    .quick-link:hover { transform: translateX(3px); }
+    .quick-link .ql-icon { transition: color .13s ease, border-color .13s ease; }
+    .quick-link:hover .ql-icon { color: var(--accent); border-color: rgba(77,214,193,.4); }
 }

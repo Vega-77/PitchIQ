@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=100">
-    <link rel="stylesheet" href="tagging.css?v=100">
+    <link rel="stylesheet" href="../assets/app.css?v=102">
+    <link rel="stylesheet" href="tagging.css?v=102">
 </head>
 <body>
 
@@ -133,20 +133,46 @@
         </div>
     </header>
 
-    <div class="event-grid">
-        <button class="ev ev-goal" data-event="goal">
-            <span class="ev-label">GOAL</span>
-        </button>
-        <button class="ev ev-card" data-event="card">
-            <span class="ev-label">Card</span>
-        </button>
-        <button class="ev" data-event="foul"><span class="ev-label">Foul</span></button>
-        <button class="ev" data-event="corner"><span class="ev-label">Corner</span></button>
-        <button class="ev" data-event="throw_in"><span class="ev-label">Throw-in</span></button>
-        <button class="ev" data-event="offside"><span class="ev-label">Offside</span></button>
-        <button class="ev" data-event="free_kick"><span class="ev-label">Free kick</span></button>
-        <button class="ev" data-event="goal_kick"><span class="ev-label">Goal kick</span></button>
-        <button class="ev" data-event="out_of_bounds"><span class="ev-label">Out of bounds</span></button>
+    <!-- The buttons and the running count of what they produced, side by
+         side. Until now this screen could show you exactly one thing you had
+         done — the last one — and everything before it was behind a Log
+         button that goes to the network. So the question a coach asks at the
+         touchline, "how many fouls have they given away", could not be
+         answered by the tool that recorded every one of them. -->
+    <div class="live-body">
+        <div class="event-grid">
+            <button class="ev ev-goal" data-event="goal">
+                <span class="ev-label">GOAL</span>
+            </button>
+            <button class="ev ev-card" data-event="card">
+                <span class="ev-label">Card</span>
+            </button>
+            <button class="ev" data-event="foul"><span class="ev-label">Foul</span></button>
+            <button class="ev" data-event="corner"><span class="ev-label">Corner</span></button>
+            <button class="ev" data-event="throw_in"><span class="ev-label">Throw-in</span></button>
+            <button class="ev" data-event="offside"><span class="ev-label">Offside</span></button>
+            <button class="ev" data-event="free_kick"><span class="ev-label">Free kick</span></button>
+            <button class="ev" data-event="goal_kick"><span class="ev-label">Goal kick</span></button>
+            <button class="ev" data-event="out_of_bounds"><span class="ev-label">Out of bounds</span></button>
+        </div>
+
+        <!-- Not `aria-live`. These counts change on every tap the tagger just
+             made themselves, and a screen reader announcing "fouls, three to
+             one" over the top of somebody working a touchline is noise about
+             an action they already know they took. It is a panel to be read,
+             so it is labelled and left alone. -->
+        <aside class="tally-rail" id="tally-rail" aria-label="What has been tagged so far">
+            <div class="tally-head">
+                <span class="tally-title">Tagged so far</span>
+                <span class="tally-key">
+                    <b id="tally-us">Us</b>
+                    <span class="tally-sep"></span>
+                    <b id="tally-them">Them</b>
+                </span>
+            </div>
+            <div class="tally-list" id="tally-rows"></div>
+            <p class="tally-note" id="tally-note">Goals are in the score above.</p>
+        </aside>
     </div>
 
     <div class="last-strip">
@@ -280,6 +306,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="tagging.js?v=100"></script>
+<script type="module" src="tagging.js?v=102"></script>
 </body>
 </html>

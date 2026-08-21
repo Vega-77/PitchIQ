@@ -193,6 +193,27 @@
 
 .m-cards { display: inline-flex; gap: 3px; }
 
+/* Reading aid, not a control. Eighteen rows of name-bar-number is a list your
+   eye slips a line in, and the two things that make it slip are here: the bar
+   is at .75 so a column of them reads as a shape rather than eighteen separate
+   claims, and a player who has come off is at .55 because their minutes have
+   stopped counting. Both are right for the column and wrong for the one row
+   somebody has stopped on.
+
+   So stopping on a row undoes exactly those two dimmings and nothing else. No
+   background, no lift, no border — this row is not a button and must not
+   claim to be one. It is the same move `.tally:hover .num` makes in app.css,
+   for the same reason, and it sits behind the same guard for the reason argued
+   there under `response`. */
+.minute-row .m-fill,
+.minute-row.off { transition: opacity .13s ease; }
+
+@media (hover: hover) {
+    .minute-row:hover .m-fill { opacity: 1; }
+    .minute-row.off:hover { opacity: .8; }
+}
+.minute-row:focus-within .m-fill { opacity: 1; }
+
 @media (max-width: 480px) {
     .ht-nums { font-size: 2.1rem; }
     .ht-team { font-size: 0.85rem; }

@@ -2065,6 +2065,52 @@ A FastAPI + SQLAlchemy + SQLite server (`backend/`) filled this role first and w
 kept as a fallback until a full match had been tagged against Firestore without
 it. That happened, so it was deleted — 735 lines describing a schema that no
 longer matched the one in use, which is worse than no reference at all.
+- [x] **Bounds that hold on the second write, and two hardenings that were tried
+      and rejected** (2026-08-21). A line-by-line adversarial read of the whole
+      backend, which is a short sentence because the whole backend is one file:
+      `firestore.rules`. No cloud functions, no storage rules. The only other
+      server-side surface is `cv/publish.py`, which writes through the Admin SDK
+      and so bypasses every rule below — a fact that turns out to decide one of
+      the two rejections.
+      **The real hole was in `players`, and it was invisible from the create
+      rule.** Name length, shirt-number range and the `active` flag were all
+      checked on create and none of them on update, so every bound on that
+      document could be stepped over by writing it once and then editing it. A
+      rule that holds until the second write is not a rule. Five more places were
+      tightened the same way: `users` bounds its self-written `displayName` and
+      `lastPlayerRef`; the match-day `roster` copy is bounded exactly as the
+      roster it was denormalized from, because a copy nobody checks is a way past
+      the check on the original; the tag `log` pins `deviceId`, `revert` and
+      `tappedAt`, three fields that were in the allowlist with nothing said about
+      their shape, which let an entry passing every football check carry an
+      arbitrary payload; and `playerReports` caps its key count and pins the one
+      field — `linkedUid` — that decides who is allowed to read it. Three
+      helpers (`personName`, `shirtNumber`, `shortToken`) hold each bound in one
+      place, since the roster and its match-day copy are the same fact written
+      twice and two different bounds on one fact is how they drift. **Eight new
+      cases in `tests/rules.test.js` pin all six.**
+      **Two further hardenings were tried, measured, and rejected — and the
+      reasons are written into the rules file so nobody proposes them again.** An
+      allowlist of permitted keys on `playerReports` looks obviously right and
+      breaks re-publishing: the document is written with `merge: true`, so
+      `request.resource.data` is the *merged result*, including the twenty
+      cv-prefixed fields the Admin SDK wrote and never had to declare anywhere.
+      The rejection would land only on matches the pipeline had already enriched
+      — weeks after the rule shipped, on the accounts using the feature most.
+      And validating `linkedUid` against the roster with a `get()` does not fit
+      the budget: `publishReports` writes one document per player in a single
+      batch, a batched write may make **twenty** document access calls in total,
+      and one `get()` per player exhausts that at a twenty-name squad. The
+      ordinary size. Both are the kind of change that passes review and fails in
+      the field.
+      **On the client, one XSS finding, fixed.** A Firestore-sourced
+      `err.message` reached `innerHTML` in `live-tagging/tagging.js`; it is
+      `textContent` now. The rest of the sweep found nothing: no `eval`, no
+      `new Function`, no `document.write`, no `insertAdjacentHTML`, and every
+      interpolated `href` already goes through `encodeURIComponent`.
+      Gate: **739 pure JS · 37 smoke · 153 emulator · 1229 Python**, all
+      passing. Needs `npm run deploy:rules` — the rules in production are still
+      the previous set.
 - [x] **[Demo]** Stand up a minimal backend early — done first as a local server, then replaced by Firestore
 - [x] **[Demo]** Run it locally, on a laptop sharing WiFi/hotspot with the tablet at the field — **superseded**: Firestore's offline cache queues taps on the tablet itself and replays them when signal returns, so there is no laptop to keep alive at the field
 - [x] Schema for teams, players, matches, roster entries, substitutions, events — with the `source` field (`live_tag` / `cv_candidate` / `reviewer_confirmed`) already in place, though only `live_tag` is written today. Tracking-frame tables deliberately deferred until Phase 6 exists.
@@ -4574,6 +4620,200 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **A page split where it actually came apart, and a bigger one left alone
+      on the evidence** (2026-08-21). `coach/coach.js` had reached **4831 lines**,
+      which is past the point where you can hold it in your head, and the usual
+      way that gets fixed — cut it into three roughly equal pieces — would
+      have produced three files that each need the other two. So the question was
+      where it genuinely comes apart, not where it is convenient to cut.
+      **It comes apart in one place: the review tool.** It owns one piece of
+      state, draws one block of the match view, and the rest of the page reaches
+      it through ten names. That is `coach/review.js`, **968 lines, lifted
+      whole** — line ranges, not retyped, so every comment moved with the code
+      it explains. Underneath both sits `coach/shell.js`, **98 lines that draw
+      nothing at all**: the page state, the view switch, `matchXgTally` and
+      `download`. It renders nothing deliberately, so importing it can never drag
+      a page’s worth of rendering along behind it. `coach.js` is **3835 lines**
+      and 18 imports lighter.
+      **The two calls back into the page are registered rather than imported**,
+      because `coach.js` imports `review.js` and a direct call the other way is a
+      cycle. They are *two* callbacks and not one, which was the only real design
+      decision in the split: the shot views are drawn from the ledger and move
+      when a verdict changes it, while the match rail carries how far the review
+      has got and moves on every tick of progress whether the ledger changed or
+      not. Merging them into a single `onChange` would have redrawn the shot map
+      on every progress tick — correct output, wasted work, and the kind of
+      thing nobody finds later.
+      **A Safari bug fell out of the move.** Two blocks of this page export JSON,
+      and each had its own copy of the blob-download dance. Only one copy carried
+      the deferred `revokeObjectURL`, so the label export was broken in Safari and
+      there was no way to see that by reading either copy — you had to notice
+      they were the same function. One copy now, in `shell.js`, with the deferred
+      revoke.
+      **And a passing test quietly stopped testing something.** The smoke suite
+      scans the coach page for every `state.match?.X` it reads and checks that
+      something writes it — but it scanned *the file*, and `xgCheck` had just
+      moved into `review.js`. Nothing failed. The scan now reads all three
+      modules, because a check that shrinks when a file is split is a check that
+      lies.
+      **`assets/report.js` is bigger — 4900 lines — and was measured and left
+      alone.** Its twenty sections are not layers, they are a mesh: section 11
+      alone reaches into seven others, and sections 1, 2 and 4 are mutually
+      dependent. Splitting it would trade one long file for six with import
+      cycles between them, and because most of its exports are `const` arrow
+      functions a cycle there does not fail loudly at build time — it throws on
+      first call, in whichever page happened to load the modules in the wrong
+      order. A file being long is a cost; that is a defect. The dead
+      `beneficiary` export in `assets/events.js` was removed in the same pass,
+      with the argument for why the codebase labels the row instead of flipping
+      the side left in its place — the two approaches cannot both run, and
+      deleting the loser without saying so invites it back.
+      Gate: **739 pure JS · 37 smoke · 153 emulator · 1229 Python**, all
+      passing; the smoke suite loads `coach/coach.js` as a real module entry at
+      eight sites, so the split is exercised end to end rather than merely
+      parsed. All eight stylesheets parse through the CSSOM with no dropped
+      rules and **75 `:hover` rules, every one behind `(hover: hover)`**; all 137
+      cross-file references across the seven surfaces resolve; the three public
+      pages load with zero console errors and no failed requests.
+- [x] **What the page does because you pointed at it — and what deliberately
+      does nothing** (2026-08-20). `app.css` already carried a rule about motion,
+      and it was a good one: *a length draws itself, and nothing else does.* No
+      entrances, because a page of things sliding in from different directions is
+      a page you have to wait for, and this one is read on a touchline and at
+      half-time. But that rule governs **arrival** — what the page does at you,
+      unasked — and it had never been asked the opposite question. **Response**
+      is what the page does *because* you pointed at it: it happens only when a
+      person moves a pointer or a focus ring onto something, it moves nothing a
+      reader is trying to read, and it is undone by moving away. That is why it
+      is allowed where an entrance is not, and a new `response` section says so
+      rather than leaving the next person to guess which half of the rule they
+      are under.
+      **One rule underneath all of it: the feedback says what the thing is.**
+      Something that navigates gets a directional mark — the 2px lean every
+      `.list-item` row already had, now also on the coach rail. Something inert
+      gets a lift and nothing else. Something that is one of several gets its
+      siblings out of the way: pointing at a segment of a stacked bar drops the
+      others to `.3` through `:has()` rather than a script-toggled class, so the
+      piece you are asking about is the piece you can see. A control that does
+      not respond, and a control that responds exactly like the furniture around
+      it, are both lying about what they do.
+      **`@media (hover: hover)` here is the device, not caution.** On a
+      touchscreen `:hover` latches after a tap and stays latched until you tap
+      somewhere else — so a tapped stat box would sit lit, reading as
+      *selected*, for the rest of the half, on the tablet this product is
+      actually used on. Thirty-eight groups across five stylesheets went behind
+      the guard, and all eight sheets now hold **zero unguarded top-level
+      `:hover`** (app 48, landing 12, tagging 10, sandbox 8, coach 3, calibrate
+      3, half-time 3, player 0). Every `:focus-visible` twin stays outside it,
+      because a keyboard user gets the same information either way, and so does
+      every `:active` rule — a press lasts exactly as long as the finger is
+      down, which is what a press is. The per-page sheets carry a one-line
+      pointer back to the argument instead of re-arguing it; a policy that holds
+      in one file and not the next is not a policy, it is a file somebody
+      remembered.
+      **A mechanical sweep cannot read a grouped selector, and four rules proved
+      it.** `.chart-bar.unknown` listed its hover twin beside two selectors that
+      have nothing to do with a pointer, so wrapping the rule whole would have
+      deleted, on touch, the only mark saying *nobody kept this clock* — the
+      bar would have come back full height in the accent colour and read as a
+      match somebody played all of. Two `:focus-visible` twins were dragged
+      behind the guard with their hover siblings. And the sandbox range slider
+      opts out of the text-field styling `app.css` puts on inputs: the hover half
+      of that opt-out belongs behind the guard, the focus half does not, because
+      tapping a slider is the only way it is ever focused on a touchscreen —
+      behind the guard the track would have turned back into a boxed input the
+      first time anybody dragged it. All four split by hand and each proved on a
+      real element.
+      **Two more lengths joined `bar-grow`, and two were kept out of it.**
+      `.m-fill` and `.shape-fill` are quantities measured from zero, so they draw
+      themselves like every other bar. `.shape-band` is how firmly an average is
+      pinned down — an interval, not a quantity — and growing it from nothing
+      would animate a player’s uncertainty shrinking into place, which is the
+      opposite of what the band says. `.shape-pin` is a position, and positions
+      have no length to draw.
+      **The half-time minute list got a reading aid and pointedly not a
+      control.** Eighteen rows of name-bar-number is a list your eye slips a line
+      in, and the two things that make it slip are deliberate: bars sit at `.75`
+      so a column reads as one shape rather than eighteen separate claims, and a
+      substituted player sits at `.55` because their minutes have stopped
+      counting. Both are right for the column and wrong for the row somebody has
+      stopped on, so stopping on a row undoes exactly those two dimmings and
+      nothing else — no background, no lift, no border, proved live at
+      `off_bg: rgba(0,0,0,0)` and `off_transform: none`. That page is read
+      standing up in three minutes; a row that claimed to be tappable would be
+      the tool lying about what it offers.
+      **And two things were given nothing, in writing.** `.card` is the most
+      repeated box on the site and the most tempting to lift, and it must not:
+      a card is a fence around a group of figures, and lifting it would put the
+      loudest response on the page on the one element that does nothing when you
+      press it. Same for a `.tl-row` that is not `.is-seek` — a timeline row you
+      cannot click into the video is a record of a minute that has already
+      happened, and the difference between the rows that seek and the rows that
+      do not *is* the information. Both are argued in the stylesheet where
+      somebody would go looking for the missing rule, rather than left as a
+      silent gap that reads like an oversight.
+      Gate: **739 pure JS · 37 smoke · 146 emulator · 1229 Python**, all passing;
+      `pyflakes cv/ tests/` clean; every sheet parses through the CSSOM with no
+      dropped rules; viewport sweep at 375 / 620 / 768 / 820 / 1024 / 1280 with
+      no horizontal overflow, measured from the DOM rather than read off a
+      screenshot.
+- [x] **A tally that survives the tablet dying, and the six names that had to
+      move to make room for it** (2026-08-20). The tagging screen could tell you
+      the score and the last few entries, and nothing else — everything else
+      tagged in the half was in the log and on no screen. The right place for it
+      is a rail down the side rather than more page to scroll, because the person
+      holding this tablet is watching a match and cannot go looking. So: a
+      per-type tally, grouped by kind, each row showing **us against them** and
+      which side of that is the good side, since four fouls means opposite things
+      depending on whose they were.
+      **It is drawn from the log, not from a counter this page kept**, which is
+      the entire reason it can survive a restart. Reload mid-half, or hand the
+      tablet to somebody else, and the counts come back because they were never
+      being held in a variable that a page load resets — pinned by a smoke test
+      that reopens the page against the fixture’s half and reads the rail back
+      per side. The goal is deliberately absent from it: goals belong to the
+      score above, and a number that appears in two places is a number that gets
+      to disagree with itself.
+      **And a dead listener is not a half where nothing happened.** When the
+      Firestore listener fails, `db.js` now leaves `entries` *absent* rather than
+      empty, because the failure says nothing about what was tagged. Redrawing
+      the rail to zeroes would have been the tool asserting the half never
+      happened, on the one occasion — no signal at a pitch — it is most likely
+      to be wrong.
+      **The rename was not cosmetic.** The new markup wanted `rail-head`, which
+      the coach page already owns for its section rail, and two different things
+      answering to one class name in a shared stylesheet is a bug waiting for
+      whoever edits second. Six names moved from `rail-*` to `tally-*` across
+      four files. The rail then measured **478px of content inside 435px** on the
+      tablet width that matters, fixed by tightening the gaps and letting the key
+      wrap its rows rather than by shrinking the type, because the reason this
+      screen sets 17px in the first place is that it is read at arm’s length in
+      daylight.
+- [x] **Rows that show their working, and a canvas that says where the press
+      will land** (2026-08-20). Three smaller pieces of the same pass.
+      **The landing page’s ’What’s working today’ list was four claims and four
+      pills**, which is the shape of a promise rather than of evidence. Each row
+      is now a `<details>` that opens onto the measurement it rests on: the
+      detection row shows the same detector, untuned, against two real recordings
+      of the same team — **99% on tight pitch-filling framing, 0% on the wide
+      stadium panorama** — as two bars, because that comparison is the whole
+      argument for why the camera position is the gating constraint and not the
+      model. Closed, the page reads exactly as it did. A row is a claim; opening
+      one is how you check it.
+      **The xG sandbox canvas now draws the catchment, not a decoration.** The
+      ring under the pointer sits at the radius a press actually grabs from, so
+      it says where a click will land rather than ornamenting the disc it is
+      near, and it is white rather than the accent — the accent means live data
+      everywhere in this app, and where a mouse is pointing is not data. Leaving
+      the canvas clears it, because the last position inside it is not the
+      pointer’s position, and a ring left lit on a pitch the pointer is nowhere
+      near is worse than no ring at all.
+      **The coverage strip names its own pieces.** Everywhere else on these pages
+      a length has its figure printed beside it; on the strip they were in a key
+      underneath, so reading the track meant carrying a colour in your head down
+      to a list. Now the piece carries its figure, computed once and used in both
+      places so the track and the key cannot disagree, and pointing at a piece
+      dims the others so the one you asked about is the one you can see.
 - [x] **A compensator that restores less than its forward path changed**
       (2026-08-19). Every optimistic write in the tagging tool moves the screen
       first and tells the server after, which is the only shape that works at a

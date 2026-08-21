@@ -53,7 +53,12 @@ html, body {
     color: inherit;
     transition: background .12s, border-color .12s, transform .1s;
 }
-.match-card:hover { background: var(--surface-hi); border-color: var(--line-hi); transform: translateY(-1px); }
+/* Behind a hover query, like every other pointer rule in this file. The
+   reasoning is at the top of the live section and applies from the first
+   screen: this is a tablet. */
+@media (hover: hover) {
+    .match-card:hover { background: var(--surface-hi); border-color: var(--line-hi); transform: translateY(-1px); }
+}
 .match-card:active { transform: translateY(0); }
 
 .match-card .vs {
@@ -131,7 +136,9 @@ html, body {
     min-height: 56px;
     transition: background .12s, border-color .12s, transform .08s;
 }
-.pick:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+@media (hover: hover) {
+    .pick:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+}
 /* Pressed, on a touch screen, where there is no hover to confirm the tap
    landed. Small enough not to shift the row beside it. */
 .pick:active { transform: scale(.985); }
@@ -202,7 +209,9 @@ html, body {
     box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 18px 50px rgba(47,125,79,.35);
     transition: transform .1s ease, box-shadow .2s ease;
 }
-.btn-kickoff:hover { box-shadow: 0 0 0 1px rgba(255,255,255,.2), 0 22px 60px rgba(47,125,79,.5); }
+@media (hover: hover) {
+    .btn-kickoff:hover { box-shadow: 0 0 0 1px rgba(255,255,255,.2), 0 22px 60px rgba(47,125,79,.5); }
+}
 .btn-kickoff:active { transform: scale(.97); }
 .k-main { font-size: 27px; font-weight: 750; letter-spacing: 1.5px; }
 .k-sub { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1.4px; opacity: .75; }
@@ -235,7 +244,9 @@ html, body {
     text-align: left;
     cursor: pointer;
 }
-.clock-block:hover { border-color: var(--line); background: var(--surface); }
+@media (hover: hover) {
+    .clock-block:hover { border-color: var(--line); background: var(--surface); }
+}
 
 /* A clock stopped while the half is running is the dangerous state: it looks
    like an ordinary clock that happens to read 34:12, and every tag from then on
@@ -345,8 +356,118 @@ html, body {
 
 /* Event grid fills the space; goal spans two columns because it is the one
    tap that must never be fumbled. */
+/* The buttons and the count of what they produced, in one row.
+
+   `min-height: 0` on the row and `min-width: 0` on the grid are both load
+   bearing: a flex child defaults to refusing to shrink below its content, and
+   the grid holds nine buttons that would happily push the rail off the side of
+   a tablet. */
+.live-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+}
+
+.tally-rail {
+    flex: 0 0 234px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 12px 14px 10px;
+    background: var(--bg-raised);
+    border-left: 1px solid var(--line);
+}
+
+/* `tally-`, not `rail-`, and that prefix is doing real work. app.css already
+   owns a `.rail-head` — the coach sidebar’s section label — and while this
+   block was called that, it silently inherited the coach’s uppercasing, 1.4px
+   letter-spacing and an 11px left margin. The visible cost was the team names:
+   set in caps and spread out, "Riverside High" needed 120px in an 84px column
+   and arrived on the touchline as "RIVERSID…". Nobody wrote that rule for
+   this panel; it just happened to be standing where the name landed. */
+.tally-head {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+}
+.tally-title {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.3px;
+    color: var(--text-faint);
+}
+
+/* The key, laid out on the same three columns as the rows beneath it, so the
+   team name sits directly over the column of numbers it belongs to. Without
+   this the rail is two columns of digits with nothing saying which is which,
+   and "3 · 1" is a different match depending on the answer. */
+.tally-key {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.74rem;
+}
+.tally-key b {
+    min-width: 0;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#tally-us { text-align: right; color: var(--accent); }
+#tally-them { text-align: left; color: var(--text-dim); }
+.tally-sep { width: 10px; height: 1px; background: var(--line-hi); }
+
+/* The scroll is a safety valve, not the design, and the spacing below is what
+   keeps it that way. Measured rather than guessed: at the report’s spacing the
+   seven rows and two headings came to 478px against the 435px a 1024×768 tablet
+   leaves here, so the rail arrived already scrolled — and a panel that has to
+   be scrolled to be read is not a panel a coach reads mid-half. Tightened, the
+   set comes to 414px, which leaves 21px over on that tablet and 53px on a
+   1280×800 laptop.
+
+   The valve stays for what is genuinely short: a half-height browser window, a
+   phone in landscape. Scrolling beats dropping rows nobody asked to lose. */
+.tally-rail .tally-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    gap: 9px;
+    padding: 10px 0 2px;
+}
+
+/* Compacted from the report’s sizes. Same component, a third of the
+   width: the number columns come down to what a two-digit count needs, because
+   nothing in a half reaches three figures and every rem they keep is a rem off
+   the bar, which is the part being compared. */
+.tally-rail .tally {
+    grid-template-columns: minmax(1.5rem, auto) minmax(0, 1fr) minmax(1.5rem, auto);
+    column-gap: 8px;
+    row-gap: 4px;
+}
+.tally-rail .tally .num { font-size: 1rem; }
+.tally-rail .t-label { font-size: 0.62rem; letter-spacing: 0.7px; }
+.tally-rail .group-head { margin-bottom: 0; }
+.tally-rail .group-head h4 { font-size: 0.66rem; letter-spacing: 1.2px; }
+
+.tally-note {
+    flex-shrink: 0;
+    margin: 0;
+    padding-top: 9px;
+    border-top: 1px solid var(--line);
+    font-size: 0.7rem;
+    line-height: 1.45;
+    color: var(--text-faint);
+}
+
 .event-grid {
     flex: 1;
+    min-width: 0;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-auto-rows: 1fr;
@@ -367,7 +488,23 @@ html, body {
     cursor: pointer;
     transition: background .1s ease, transform .07s ease, border-color .1s ease;
 }
-.ev:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+/* Pointer feedback needs a pointer, and this screen is the one place in the
+   app where assuming otherwise does real damage.
+
+   `:hover` on a touchscreen is not a hover. A tap sets it and it stays set
+   until another tap lands somewhere else @EM@ so the last event button pressed
+   sat lit, in the same lighter grey the app uses everywhere to mean "the thing
+   under your finger", for however long it took to award the next foul. On a
+   grid of nine identical buttons that reads as a selection: as though the tool
+   were holding a tag open, waiting. It is not. The tag was written the instant
+   it was pressed, and the strip below already says which one.
+
+   `:active` stays outside the query. It lasts as long as the finger is down,
+   which is exactly what a press is, and it is the only confirmation a touch
+   screen gets before `.flash` fires. */
+@media (hover: hover) {
+    .ev:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+}
 .ev:active { transform: scale(.97); }
 .ev-label { font-size: 17px; font-weight: 650; letter-spacing: -.2px; text-align: center; line-height: 1.25; }
 
@@ -376,11 +513,15 @@ html, body {
     background: rgba(47,125,79,.18);
     border-color: rgba(74,222,128,.4);
 }
-.ev-goal:hover { background: rgba(47,125,79,.3); }
+@media (hover: hover) {
+    .ev-goal:hover { background: rgba(47,125,79,.3); }
+}
 .ev-goal .ev-label { font-size: 26px; font-weight: 750; letter-spacing: 2px; color: var(--good); }
 
 .ev-card { background: rgba(251,191,36,.1); border-color: rgba(251,191,36,.32); }
-.ev-card:hover { background: rgba(251,191,36,.18); }
+@media (hover: hover) {
+    .ev-card:hover { background: rgba(251,191,36,.18); }
+}
 .ev-card .ev-label { color: var(--card-yellow); }
 
 .ev.flash { background: var(--accent); border-color: var(--accent); }
@@ -473,12 +614,19 @@ html, body {
     cursor: pointer;
     transition: background .12s, border-color .12s, transform .07s;
 }
-.choice:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+/* Worse here than anywhere. A choice left lit inside the event sheet reads as
+   the side already picked, on the one control where picking the wrong side
+   silently attributes a foul to the wrong team. */
+@media (hover: hover) {
+    .choice:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+}
 .choice:active { transform: scale(.97); }
 .choice .sub { font-size: 0.76rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-faint); }
 
 .choice.us { border-color: rgba(77,214,193,.4); }
-.choice.us:hover { background: var(--accent-dim); }
+@media (hover: hover) {
+    .choice.us:hover { background: var(--accent-dim); }
+}
 .choice.yellow { border-color: rgba(251,191,36,.45); color: var(--card-yellow); }
 .choice.red { border-color: rgba(239,68,68,.45); color: var(--card-red); }
 .choice.second_yellow { border-color: rgba(251,146,60,.45); color: #fb923c; }
@@ -504,6 +652,47 @@ html, body {
 .sub-columns .pick-list { grid-template-columns: minmax(0, 1fr); }
 
 .sub-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+/* Below a tablet the rail cannot be a rail — 234px is a third of a phone,
+   and it would take it from the buttons, which are the job. It goes under the
+   grid instead and scrolls sideways.
+
+   Deliberately not hidden. A phone tagger has exactly the same question a
+   tablet tagger does, and answering it only on the larger screen would make
+   the small one a worse tool rather than a smaller one. Deliberately not a
+   second, simpler renderer either: one set of bars, drawn by one function, so
+   the phone and the tablet cannot disagree about how many fouls there were.
+
+   The group headings go, and only they. Every bar already carries its own
+   label underneath, so in a row the headings are the one thing that says
+   nothing a reader cannot already see. */
+@media (max-width: 820px) {
+    .live-body { flex-direction: column; }
+    .tally-rail {
+        flex: 0 0 auto;
+        padding: 8px 14px 10px;
+        border-left: 0;
+        border-top: 1px solid var(--line);
+    }
+    .tally-head { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; }
+    /* Sized to the names, not to a number I picked. Sitting in a row the key
+       is a legend rather than a header — there is no column beneath it to line
+       up with — so the only thing its width has to do is fit the two teams,
+       and 150px did not: "Riverside High" wants 89px and had 62. `0 1 auto`
+       takes what the names need and gives it back when the row runs out. */
+    .tally-key { flex: 0 1 auto; }
+    .tally-note { display: none; }
+
+    .tally-rail .tally-list {
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        gap: 14px;
+        padding: 10px 0 2px;
+    }
+    .tally-rail .group-head { display: none; }
+    .tally-rail .tally { flex: 0 0 118px; }
+}
 
 @media (max-width: 620px) {
     .event-grid { grid-template-columns: repeat(2, 1fr); padding: 10px 14px; gap: 8px; }

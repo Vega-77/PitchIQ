@@ -74,7 +74,12 @@
     font-weight: 600;
     color: var(--text-dim);
 }
-.tech summary:hover { color: var(--text); }
+/* Pointer feedback is guarded here and everywhere else: `:hover` latches on a
+   touchscreen and this app is used on one. The argument is in app.css, under
+   `response`. */
+@media (hover: hover) {
+    .tech summary:hover { color: var(--text); }
+}
 .tech pre {
     background: var(--bg);
     border: 1px solid var(--line);
@@ -183,7 +188,9 @@
     min-height: 44px;
     transition: background .1s, border-color .1s, color .1s;
 }
-.landmark-btn:hover { background: var(--surface-hi); color: var(--text); }
+@media (hover: hover) {
+    .landmark-btn:hover { background: var(--surface-hi); color: var(--text); }
+}
 .landmark-btn.active {
     background: var(--accent-dim);
     border-color: var(--accent);

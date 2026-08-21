@@ -67,6 +67,14 @@
 
 /* ---------------------------------------------------------------- matches */
 
+/* Nothing in this file carries a pointer rule, and that is the answer rather
+   than an omission. The one thing on this page a finger goes to is the match
+   row, and `player.js` builds it as a `.list-item` — so it already gets the
+   accent edge and the nudge that every navigating row on the site gets, from
+   app.css under `response`. The previews above are examples of a report that
+   does not exist yet; a preview that lit up under the cursor would be offering
+   something there is nothing behind. */
+
 /* Per-match rows: the numbers sit right, aligned, so a season reads as a
    column rather than as a stack of sentences. */
 .match-row {

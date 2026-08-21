@@ -121,6 +121,29 @@ service cloud.firestore {
       return v == request.time;
     }
 
+    // A person’s name, typed by a coach into a box. Eighty characters is
+    // longer than any name anyone has, so past it the write is either a mistake
+    // or somebody finding out what this field will take. Bounded in one place
+    // because the roster and the match-day copy of it are the same fact written
+    // twice, and two different bounds on one fact is how they drift.
+    function personName(s) {
+      return s is string && s.size() > 0 && s.size() <= 80;
+    }
+
+    // A shirt number, or none. Null is ordinary — plenty of squads never fill
+    // this in — and the range is the range shirts actually come in.
+    function shirtNumber(n) {
+      return n == null || (n is int && n >= 0 && n <= 99);
+    }
+
+    // A string a browser generated rather than a person typed: a device id, a
+    // remembered document reference. Nothing reads these for meaning, so the
+    // only question worth asking is whether it is a short string and not a
+    // megabyte. Optional, because every one of them is.
+    function shortToken(s) {
+      return s == null || (s is string && s.size() <= 200);
+    }
+
     // A match video link, which the player portal turns into an embedded
     // player and seeks around. https only: the site is served over HTTPS, so
     // an http:// link is blocked as mixed content and would look like a broken
@@ -198,7 +221,11 @@ service cloud.firestore {
              ['displayName', 'emailLower', 'teamIds', 'lastPlayerRef', 'updatedAt'])
         && request.resource.data.emailLower == email()
         && request.resource.data.teamIds is list
-        && request.resource.data.teamIds.size() <= 10;
+        && request.resource.data.teamIds.size() <= 10
+        // Self-written and read by nobody else, so these are bounds against
+        // bloat rather than against forgery — there is nothing here to forge.
+        && shortToken(request.resource.data.get('displayName', null))
+        && shortToken(request.resource.data.get('lastPlayerRef', null));
     }
 
     // ------------------------------------------------------------------
@@ -308,13 +335,8 @@ service cloud.firestore {
           && optionalEmail(request.resource.data.emailLower)
           && validPosition(request.resource.data.get('position', null))
           && request.resource.data.active is bool
-          && request.resource.data.name is string
-          && request.resource.data.name.size() > 0
-          && request.resource.data.name.size() <= 80
-          && (request.resource.data.jerseyNumber == null
-              || (request.resource.data.jerseyNumber is int
-                  && request.resource.data.jerseyNumber >= 0
-                  && request.resource.data.jerseyNumber <= 99));
+          && personName(request.resource.data.name)
+          && shirtNumber(request.resource.data.jerseyNumber);
 
         // A coach may edit the roster and may unlink (a student changed email),
         // but may never point a roster slot at an arbitrary account. Linking is
@@ -325,7 +347,14 @@ service cloud.firestore {
           && (request.resource.data.linkedUid == null
               || request.resource.data.linkedUid == resource.data.linkedUid)
           && optionalEmail(request.resource.data.emailLower)
-          && validPosition(request.resource.data.get('position', null));
+          && validPosition(request.resource.data.get('position', null))
+          // The same three checks the create above makes. They were only on
+          // create, which meant every bound on this document could be stepped
+          // over by writing it once and then editing it — a rule that holds
+          // until the second write is not a rule.
+          && personName(request.resource.data.name)
+          && shirtNumber(request.resource.data.jerseyNumber)
+          && request.resource.data.active is bool;
 
         // The claim: the only write a player ever makes to team data. It is
         // self-verifying — it checks the roster document's own stored email
@@ -393,7 +422,13 @@ service cloud.firestore {
             && request.resource.data.version == 0
             && request.resource.data.stints is list
             && request.resource.data.isStarter is bool
-            && request.resource.data.isActive is bool;
+            && request.resource.data.isActive is bool
+            // Denormalized from teams/{t}/players, and bounded the same way it
+            // is there. A copy nobody checks is a way in past the check on the
+            // original.
+            && (request.resource.data.get('playerName', null) == null
+                || personName(request.resource.data.playerName))
+            && shirtNumber(request.resource.data.get('jerseyNumber', null));
 
           // Optimistic lock. writeBatch alone gives atomicity but not
           // compare-and-swap; this makes a conflicting concurrent write fail at
@@ -451,6 +486,24 @@ service cloud.firestore {
                     && request.resource.data.detail.size() <= 200))
             && request.resource.data.seq is int
             && request.resource.data.seq >= 0
+            // The three bookkeeping fields. Every one of them was in the
+            // allowlist above with nothing said about its shape, which let an
+            // entry that passed every football check above carry an arbitrary
+            // payload in `revert`. `createdAt` and `seq` were pinned; these
+            // three were the way round them.
+            //
+            // `revert` is the prior state, stored so undo is a field read
+            // rather than a second query: `{prevStatus}` for a period, or
+            // `{out, in}` for a substitution. Two keys, ever.
+            && shortToken(request.resource.data.get('deviceId', null))
+            && (request.resource.data.get('revert', null) == null
+                || (request.resource.data.revert is map
+                    && request.resource.data.revert.keys().size() <= 4))
+            // When the tap happened, as against when the write landed. A
+            // number the tablet wrote, never shown, only differenced.
+            && (request.resource.data.get('tappedAt', null) == null
+                || (request.resource.data.tappedAt is int
+                    && request.resource.data.tappedAt >= 0))
             && request.resource.data.createdBy == uid()
             && isTimestampNow(request.resource.data.createdAt);
 
@@ -562,12 +615,52 @@ service cloud.firestore {
           // becomes an iframe src on a page a sixteen-year-old opens. The match
           // document has been guarded since the field existed; this one was
           // reachable through the same coach account and was not.
+          //
+          // Two things this rule deliberately does not do, both of which look
+          // like omissions until you try them.
+          //
+          // **No `keys().hasOnly()`.** This document is written with
+          // `merge: true`, so `request.resource.data` is the *merged result*
+          // — including the twenty cv-prefixed fields `cv/publish.py` wrote
+          // through the Admin SDK, which bypasses these rules and so never had
+          // to be listed anywhere. An allowlist here would reject a coach
+          // re-publishing a match the pipeline had already enriched, and it
+          // would do it only on matches that had been processed: the failure
+          // would arrive weeks after the rule, on the accounts using the
+          // feature most. A cap on the key count bounds the same runaway write
+          // without pretending to know every field name in advance.
+          //
+          // **No roster `get()` on `linkedUid`.** Checking it against
+          // teams/{t}/players/{p} is the obvious hardening and it does not fit:
+          // `publishReports` writes one document per player in a single batch,
+          // and a batched write may make **twenty** document access calls in
+          // total. One roster `get()` per player exhausts that at a twenty-name
+          // squad — the ordinary size — and publishing fails for the whole
+          // match. The value is written from that same roster document by the
+          // client; a coach who forged it would be handing a stranger a report
+          // about their own team, which they could already do by forwarding the
+          // page. It is worth less than a feature that breaks on full squads.
           allow create, update: if isCoach(t)
             && request.resource.data.published is bool
             && request.resource.data.minutesPlayed is number
             && request.resource.data.minutesPlayed >= 0
             && request.resource.data.goals is int
             && request.resource.data.goals >= 0
+            // Roughly fifty keys are written today, half of them by the
+            // pipeline. Eighty leaves room to add fields for years and still
+            // stops a document from being grown a key at a time.
+            && request.resource.data.keys().size() <= 80
+            // The one field that decides who may read this document. A string
+            // or nothing — never a map, never a list.
+            && (request.resource.data.get('linkedUid', null) == null
+                || request.resource.data.linkedUid is string)
+            // Optional, unlike on the roster. This is a copy, the roster
+            // holds the original, and a report published before this
+            // field existed is still a report a player should be able to
+            // read.
+            && (request.resource.data.get('playerName', null) == null
+                || personName(request.resource.data.playerName))
+            && shirtNumber(request.resource.data.get('jerseyNumber', null))
             && validVideo()
             && validHalfTimeClock();
 

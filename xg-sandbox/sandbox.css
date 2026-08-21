@@ -35,7 +35,14 @@ body { display: flex; flex-direction: column; }
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
+    /* `hidden`, not `auto`. The column below already gives the scroll to
+       `.panel-body` alone, on purpose — the head, the buttons and the xG
+       readout are meant to stay put. Letting the panel scroll as well produced
+       two nested scrollbars and, worse, moved the readout: the whole panel
+       could be scrolled down until the number — the one thing this page
+       exists to show — sat below the bottom of the window. Portrait
+       overrides this back to `visible`, where the page genuinely does scroll. */
+    overflow: hidden;
     background: var(--bg-raised);
     border-left: 1px solid var(--line);
 }
@@ -148,6 +155,22 @@ body { display: flex; flex-direction: column; }
     white-space: nowrap;
 }
 
+/* Twelve rows of small grey numbers, read by running a finger down them to
+   find the one that just moved. The zebra stripe separates them; it does not
+   help you hold your place. Pointing at a row does. */
+.feature-row { transition: background .12s ease; }
+.feature-row .f-name, .feature-row .f-value { transition: color .12s ease; }
+@media (hover: hover) {
+    .feature-row:hover { background: var(--surface-hi); }
+    .feature-row:hover .f-name { color: var(--text-dim); }
+    .feature-row:hover .f-value { color: var(--accent); }
+
+    /* The name of a slider you are about to move. The figure beside it is
+       already accent, so the only thing left to brighten is the label. */
+    .slider-name { transition: color .12s ease; }
+    .slider-row:hover .slider-name { color: var(--text); }
+}
+
 /* ---------------------------------------------------------------- sliders */
 
 .slider-row { display: flex; flex-direction: column; gap: 6px; }
@@ -200,8 +223,15 @@ input[type="range"] {
     cursor: pointer;
 }
 /* app.css styles inputs as text fields, including on hover and focus — a range
-   has to opt out of all three or the track turns into a boxed input. */
-input[type="range"]:hover,
+   has to opt out of all three or the track turns into a boxed input.
+
+   The focus half stays outside the guard on purpose. Tapping a slider focuses
+   it, and on a touchscreen that is the only way it ever gets focused — so
+   behind the guard the track would go back to being a boxed text field the
+   first time anybody dragged it. */
+@media (hover: hover) {
+    input[type="range"]:hover { background: transparent; }
+}
 input[type="range"]:focus { background: transparent; }
 
 input[type="range"]::-webkit-slider-runnable-track {
@@ -227,9 +257,11 @@ input[type="range"]::-webkit-slider-thumb {
     cursor: pointer;
     transition: background .15s, transform .1s;
 }
-input[type="range"]::-webkit-slider-thumb:hover {
-    background: var(--accent-hi);
-    transform: scale(1.15);
+@media (hover: hover) {
+    input[type="range"]::-webkit-slider-thumb:hover {
+        background: var(--accent-hi);
+        transform: scale(1.15);
+    }
 }
 input[type="range"]::-moz-range-thumb {
     width: 14px;
@@ -264,10 +296,14 @@ input[type="range"]:disabled::-moz-range-thumb { background: var(--text-faint); 
     user-select: none;
     transition: background .15s, border-color .15s;
 }
-.toggle-row:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+@media (hover: hover) {
+    .toggle-row:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+}
 
 .toggle-row.disabled { cursor: default; opacity: .5; }
-.toggle-row.disabled:hover { background: var(--surface); border-color: var(--line); }
+@media (hover: hover) {
+    .toggle-row.disabled:hover { background: var(--surface); border-color: var(--line); }
+}
 
 .toggle-name { color: var(--text-dim); font-size: 0.76rem; line-height: 1.3; }
 
@@ -435,6 +471,29 @@ body.portrait .panel-actions { flex-direction: row; padding: 10px 16px; }
 body.portrait .xg-readout { padding: 12px 16px; }
 body.portrait #xg-value { font-size: 2.4rem; }
 
+/* The shared footer opens with a 56px gap and closes with 40px of padding,
+   which is right on a page you scrolled to the end of: the space is what says
+   the reading finished. Nothing scrolls here. The page is locked to the window
+   and every pixel the footer keeps is a pixel off the pitch — 96px of it, a
+   sixth of a laptop viewport, spent separating a nav strip from a canvas it is
+   already separated from by a rule. Keep the links, drop the ceremony. */
+.site-foot { margin-top: 0; padding: 10px 24px 12px; }
+
 @media (max-width: 900px) {
     .panel { width: 280px; }
+}
+
+/* A short landscape window — a laptop with a browser drawer open, or a
+   tablet turned sideways. The head, the two buttons and the readout are fixed
+   furniture totalling about 270px, so below roughly 640px of viewport they
+   leave the controls almost nothing to scroll in. Nothing is dropped: the
+   sentence that says you can drag the players is the only instruction on the
+   page, and the number is the page. They just take less room. */
+@media (max-height: 640px) and (orientation: landscape) {
+    .panel-head { padding: 12px 18px 10px; }
+    .panel-head h2 { font-size: 1rem; margin: 0 0 2px; }
+    .panel-head .muted { font-size: 0.78rem; line-height: 1.4; }
+    .panel-actions { flex-direction: row; padding: 10px 18px; }
+    .xg-readout { padding: 12px 18px; }
+    #xg-value { font-size: 2.4rem; letter-spacing: -1.4px; }
 }

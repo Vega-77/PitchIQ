@@ -6,9 +6,9 @@
 // xg-model.js, so the one part that has to stay in step with the trained model
 // is not tangled up with drawing code.
 
-import { Vector, Player } from './geometry.js?v=100';
-import { predictXg, buildFeatures, FEATURE_ORDER } from './xg-model.js?v=100';
-import { PRESETS, fromMetres } from './presets.js?v=100';
+import { Vector, Player } from './geometry.js?v=102';
+import { predictXg, buildFeatures, FEATURE_ORDER } from './xg-model.js?v=102';
+import { PRESETS, fromMetres } from './presets.js?v=102';
 
 const canvas = document.getElementById('display');
 const ctx = canvas.getContext('2d');
@@ -53,9 +53,19 @@ let keeper;
 let defenderA;
 let defenderB;
 
-const mouse = { x: 0, y: 0, down: false };
+const mouse = { x: 0, y: 0, down: false, over: false };
 let dragging = null;
 let pressHandled = false;
+
+/* The player the pointer is currently close enough to pick up, or null.
+
+   Only ever set behind a hover query. On a touchscreen there is no pointer to
+   be near something: the coordinates are wherever the last tap landed and they
+   stay there, so the ring would light under a finger that had already gone and
+   sit there for the rest of the session, reading as a selection nobody made.
+   Same rule the stylesheets follow — pointer feedback needs a pointer. */
+const CAN_HOVER = window.matchMedia('(hover: hover)').matches;
+let hovered = null;
 let showLineOfSight = false;
 
 let layout = 'landscape';
@@ -171,9 +181,45 @@ function bindCanvas() {
         const rect = canvas.getBoundingClientRect();
         mouse.x = e.clientX - rect.left;
         mouse.y = e.clientY - rect.top;
+        mouse.over = true;
     });
     canvas.addEventListener('mousedown', () => { mouse.down = true; });
     canvas.addEventListener('mouseup', () => { mouse.down = false; });
+
+    // Leaving the canvas has to say so. Without this the last position inside
+    // it stays the last position known, and a ring left lit on a pitch the
+    // pointer is nowhere near is worse than no ring at all.
+    canvas.addEventListener('mouseleave', () => { mouse.over = false; });
+}
+
+/**
+ * Which player the pointer could pick up right now, and say so.
+ *
+ * The page opens by telling you to drag the players, and until now that was the
+ * only place it was said: ten discs on a canvas look exactly as draggable as
+ * the grass between them, and the arrow never changed over either. The test is
+ * deliberately the same one `handleDragging` uses to decide what a press
+ * grabs — if the ring is on it, that is what you get.
+ */
+function updateHover() {
+    if (!CAN_HOVER) return;
+
+    if (dragging) {
+        hovered = dragging;
+        canvas.style.cursor = 'grabbing';
+        return;
+    }
+
+    hovered = null;
+    if (mouse.over) {
+        for (const player of allPlayers()) {
+            if (Vector.dist(toScreen(player.position), mouse) < GRAB_RADIUS) {
+                hovered = player;
+                break;
+            }
+        }
+    }
+    canvas.style.cursor = hovered ? 'grab' : 'default';
 }
 
 function bindButtons() {
@@ -201,6 +247,7 @@ function bindButtons() {
 function loop() {
     resizeIfNeeded();
     handleDragging();
+    updateHover();
     if (dragging) refreshReadouts();
     updateXg();
     draw();
@@ -696,6 +743,18 @@ function rayToY(origin, angle, targetY) {
 function drawPlayer(player) {
     const at = toScreen(player.position);
     const radius = PLAYER_RADIUS + (player.isDragging ? 4 : 0);
+
+    // The ring sits at the radius a press actually grabs from, so it is not a
+    // decoration around the disc — it is the catchment drawn. White rather
+    // than the accent: the accent means live data everywhere else in this app,
+    // and where a mouse is pointing is not data.
+    if (player === hovered) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(at.x, at.y, GRAB_RADIUS, 0, Math.PI * 2);
+        ctx.stroke();
+    }
 
     ctx.fillStyle = player.isDefending ? COLOURS.defence : COLOURS.attack;
     ctx.beginPath();

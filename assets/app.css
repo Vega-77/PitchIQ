@@ -67,7 +67,9 @@ body {
 }
 
 a { color: var(--accent); text-decoration: none; }
-a:hover { color: var(--accent-hi); }
+@media (hover: hover) {
+    a:hover { color: var(--accent-hi); }
+}
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
@@ -566,9 +568,29 @@ section.block > p.muted { max-width: 74ch; }
     text-align: left;
     padding: 7px 8px 7px 12px;
     cursor: pointer;
-    transition: color .12s ease, border-color .12s ease;
+    transition: color .12s ease, border-color .12s ease, transform .08s ease;
 }
-.rail-link:hover { color: var(--text-dim); border-left-color: var(--line-hi); }
+/* The label moves, the border does not, and the split is the whole point. This
+   button navigates — it scrolls the page to the block it names — so under the
+   rule in `response` it owes the reader a direction, the same 2px nudge every
+   other navigating row on the site gives. But the border on the left edge is
+   already spoken for: at `--accent` it means *you are here*, and a mark that
+   slides is a mark you have to read twice. So the text leans toward the
+   section and the edge stays pinned to the column. */
+.rail-label { transition: transform .14s cubic-bezier(.2, .7, .3, 1); }
+
+@media (hover: hover) {
+    .rail-link:hover { color: var(--text-dim); border-left-color: var(--line-hi); }
+    .rail-link:hover .rail-label { transform: translateX(2px); }
+}
+.rail-link:focus-visible .rail-label { transform: translateX(2px); }
+
+/* And a press, which it had none of. The rail is a column of thumb-sized
+   targets on a tablet held at the touchline, and the tap that scrolls the page
+   is indistinguishable — until the page moves — from a tap that missed. This
+   is the same omission `.chip` and `.tab` were fixed for, in the same words:
+   the visual confirmation is the only confirmation there is. */
+.rail-link:active { transform: scale(.985); }
 
 /* Where you are. More than one can be lit at once and that is correct — two
    blocks share a row on this layout, so "the current section" is genuinely two
@@ -658,7 +680,9 @@ section.block > p.muted { max-width: 74ch; }
     cursor: pointer;
     transition: background .12s ease;
 }
-.job-row:hover { background: var(--surface-hi); }
+@media (hover: hover) {
+    .job-row:hover { background: var(--surface-hi); }
+}
 .job-row + .job-row { border-top: 1px solid var(--line); margin-top: 4px; }
 
 .job-count {
@@ -685,7 +709,9 @@ section.block > p.muted { max-width: 74ch; }
     margin-top: 2px;
 }
 .job-go { color: var(--text-faint); font-size: 18px; line-height: 1.2; }
-.job-row:hover .job-go { color: var(--accent); }
+@media (hover: hover) {
+    .job-row:hover .job-go { color: var(--accent); }
+}
 
 /* The last five results, oldest on the left, the way every form guide is read.
    The hero above says the record — three wins and two defeats summed into two
@@ -742,10 +768,12 @@ section.block > p.muted { max-width: 74ch; }
     color: inherit;
     transition: border-color .13s, transform .1s, background .13s;
 }
-.next-card:hover {
-    border-color: var(--accent);
-    transform: translateY(-1px);
-    color: inherit;
+@media (hover: hover) {
+    .next-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-1px);
+        color: inherit;
+    }
 }
 
 /* Today or tomorrow. Anything a week out is a diary entry and should not be
@@ -799,7 +827,9 @@ section.block > p.muted { max-width: 74ch; }
     cursor: pointer;
     transition: background .13s ease, border-color .13s ease, transform .08s ease;
 }
-.btn:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+@media (hover: hover) {
+    .btn:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+}
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
 
@@ -808,12 +838,18 @@ section.block > p.muted { max-width: 74ch; }
     border-color: var(--accent);
     color: #04120f;
 }
-.btn.primary:hover { background: var(--accent-hi); border-color: var(--accent-hi); }
+@media (hover: hover) {
+    .btn.primary:hover { background: var(--accent-hi); border-color: var(--accent-hi); }
+}
 
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-dim); }
-.btn.ghost:hover { background: var(--surface); color: var(--text); }
+@media (hover: hover) {
+    .btn.ghost:hover { background: var(--surface); color: var(--text); }
+}
 .btn.danger { background: transparent; border-color: rgba(248,113,113,.35); color: var(--danger); }
-.btn.danger:hover { background: rgba(248,113,113,.1); border-color: var(--danger); }
+@media (hover: hover) {
+    .btn.danger:hover { background: rgba(248,113,113,.1); border-color: var(--danger); }
+}
 .btn.block { width: 100%; }
 .btn.small { min-height: 40px; padding: 6px 12px; font-size: 0.82rem; border-radius: 8px; }
 
@@ -829,7 +865,9 @@ input, select, textarea {
     width: 100%;
     transition: border-color .13s ease, background .13s ease;
 }
-input:hover, select:hover { border-color: var(--line-hi); }
+@media (hover: hover) {
+    input:hover, select:hover { border-color: var(--line-hi); }
+}
 input:focus, select:focus { border-color: var(--accent); background: var(--surface); }
 input::placeholder { color: var(--text-faint); }
 
@@ -889,9 +927,11 @@ label.field > span {
     transition: background .13s ease, border-color .13s ease;
 }
 button.list-item, a.list-item { cursor: pointer; }
-button.list-item:hover, a.list-item:hover {
-    background: var(--surface-hi);
-    border-color: var(--line-hi);
+@media (hover: hover) {
+    button.list-item:hover, a.list-item:hover {
+        background: var(--surface-hi);
+        border-color: var(--line-hi);
+    }
 }
 .list-item .title { font-weight: 600; }
 .list-item .sub { font-size: 0.82rem; color: var(--text-faint); }
@@ -1086,15 +1126,21 @@ button.list-item:hover, a.list-item:hover {
 .chart-bar { fill: var(--line-hi); transition: fill .15s ease; }
 /* Matches with a goal or an assist — the thing anyone scans this for. */
 .chart-bar.scored { fill: var(--accent); }
-.chart:hover .chart-bar { fill: var(--text-faint); }
-.chart:hover .chart-bar.scored { fill: var(--accent-hi); }
+@media (hover: hover) {
+    .chart:hover .chart-bar { fill: var(--text-faint); }
+    .chart:hover .chart-bar.scored { fill: var(--accent-hi); }
+}
 /* A match nobody kept the clock for. It has to be visibly not a short bar —
    a stub in the accent colour would read as a substitute appearance — so it is
    the floor height in the warning colour, which is what the rest of this app
    uses for a hole in the record rather than for a low number. */
 .chart-bar.unknown,
-.chart-bar.unknown.scored,
-.chart:hover .chart-bar.unknown { fill: var(--warn); }
+.chart-bar.unknown.scored { fill: var(--warn); }
+/* And it survives the hover, which otherwise repaints every bar in the chart.
+   A hole in the record is not a bar you get to light up. */
+@media (hover: hover) {
+    .chart:hover .chart-bar.unknown { fill: var(--warn); }
+}
 
 .chart-full-line { stroke: var(--line-hi); stroke-width: 1; stroke-dasharray: 3 3; }
 
@@ -1182,7 +1228,9 @@ thead th {
 
 tbody tr { border-bottom: 1px solid var(--line); }
 tbody tr:last-child { border-bottom: none; }
-tbody tr:hover { background: var(--surface-hi); }
+@media (hover: hover) {
+    tbody tr:hover { background: var(--surface-hi); }
+}
 
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 td.num { font-weight: 600; }
@@ -1238,7 +1286,9 @@ thead .col-groups + tr th { top: 30px; }
    and two lines 7px apart read as a mistake. */
 thead + tbody .pos-head:first-child th { border-top: none; }
 tbody .pos-head th { border-top: 1px solid var(--line); }
-tbody tr.pos-head:hover { background: var(--bg-raised); }
+@media (hover: hover) {
+    tbody tr.pos-head:hover { background: var(--bg-raised); }
+}
 
 /* The roster's position picker. Narrow on purpose: four words and a blank, next
    to a name and two buttons that both matter more. */
@@ -1264,7 +1314,9 @@ td.bar-cell .cell-bar {
     border-radius: 0 2px 2px 0;
     pointer-events: none;
 }
-tbody tr:hover td.bar-cell .cell-bar { background: var(--accent); }
+@media (hover: hover) {
+    tbody tr:hover td.bar-cell .cell-bar { background: var(--accent); }
+}
 /* Nobody's bar, rather than a 3px stub that reads as "barely played". */
 td.bar-cell.zero .cell-bar { display: none; }
 
@@ -1321,7 +1373,9 @@ td.num.cv-partial {
     cursor: pointer;
     text-align: left;
 }
-.same-as-toggle:hover { text-decoration: underline; }
+@media (hover: hover) {
+    .same-as-toggle:hover { text-decoration: underline; }
+}
 
 /* Wraps rather than scrolling sideways. A sideways strip reads well until the
    last card is half off the edge, and half a face is exactly the thing this
@@ -1346,7 +1400,9 @@ td.num.cv-partial {
     text-align: left;
     cursor: pointer;
 }
-.same-as-card:hover { border-color: var(--accent); }
+@media (hover: hover) {
+    .same-as-card:hover { border-color: var(--accent); }
+}
 /* The picture is the control here as much as it is in the row above, but at
    half the size: this is "is that the same kid?", asked of a face you have
    already looked at once. */
@@ -1368,7 +1424,9 @@ td.num.cv-partial {
    not offered deserves the reason on screen rather than an absence. Dimmed and
    last, with the objection written on the card. */
 .same-as-card.ruled-out { opacity: 0.55; cursor: not-allowed; }
-.same-as-card.ruled-out:hover { border-color: var(--line-hi); }
+@media (hover: hover) {
+    .same-as-card.ruled-out:hover { border-color: var(--line-hi); }
+}
 .same-as-card.ruled-out .same-as-verb { display: none; }
 
 .same-as-note {
@@ -1536,7 +1594,9 @@ button.tl-row {
     text-align: left;
     cursor: pointer;
 }
-.tl-row.is-seek:hover .tl-text,
+@media (hover: hover) {
+    .tl-row.is-seek:hover .tl-text { color: var(--accent); }
+}
 .tl-row.is-seek:focus-visible .tl-text { color: var(--accent); }
 .tl-row.is-now .tl-text { color: var(--accent); font-weight: 600; }
 .tl-row.is-now .tl-clock { color: var(--accent); }
@@ -1657,7 +1717,9 @@ button.tl-row {
     margin-bottom: -1px;
     transition: color .13s ease, border-color .13s ease;
 }
-.tab:hover { color: var(--text-dim); }
+@media (hover: hover) {
+    .tab:hover { color: var(--text-dim); }
+}
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
 /* ---------------------------------------------------------------- tallies */
@@ -1854,7 +1916,10 @@ button.tl-row {
     cursor: pointer;
     transition: transform .12s ease, background .12s ease;
 }
-.tick:hover, .tick:focus-visible { transform: translateY(-50%) scaleY(1.35); }
+@media (hover: hover) {
+    .tick:hover { transform: translateY(-50%) scaleY(1.35); }
+}
+.tick:focus-visible { transform: translateY(-50%) scaleY(1.35); }
 .tick.is-goal { background: var(--good); }
 .tick.is-card { background: var(--card-yellow); }
 .tick.is-sub { background: var(--accent); }
@@ -1924,7 +1989,9 @@ button.tl-row {
     cursor: pointer;
     transition: background .12s ease, border-color .12s ease;
 }
-.moment:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+@media (hover: hover) {
+    .moment:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+}
 .moment .m-clock {
     font-variant-numeric: tabular-nums;
     font-weight: 700;
@@ -2001,7 +2068,9 @@ button.tl-row {
     cursor: pointer;
     min-height: 34px;
 }
-.chip:hover { border-color: var(--line-hi); }
+@media (hover: hover) {
+    .chip:hover { border-color: var(--line-hi); }
+}
 .chip.on {
     background: var(--accent);
     border-color: var(--accent);
@@ -2640,10 +2709,19 @@ button.tl-row {
 .coverage-bar,
 .press-bar > span,
 .sub-bar > span,
+.m-fill,
+.shape-fill,
 td.bar-cell .cell-bar {
     transform-origin: left center;
     animation: bar-grow .42s cubic-bezier(.2, .7, .3, 1) both;
 }
+
+/* Two lengths on the same track are deliberately not in that list.
+   `.shape-band` is how firmly the average is pinned down — an interval, not a
+   quantity measured from zero — and growing it from nothing would animate a
+   player's uncertainty shrinking into place, which is the opposite of what the
+   band says. `.shape-pin` is a position, and positions do not have lengths to
+   draw. */
 
 /* The two halves of a comparison grow outward from the line between them,
    which is the thing being compared — not from the left edge of the screen. */
@@ -2674,6 +2752,181 @@ td.bar-cell .cell-bar {
 
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ---------------------------------------------------------------- response
+ *
+ * The section above governs **arrival** — what the page does on its own, at
+ * you, before you have asked for anything. Its answer is: almost nothing, and
+ * that argument stands.
+ *
+ * This section governs the opposite thing: **response** — what the page does
+ * because you pointed at it. None of it happens unless a person moves a
+ * pointer or a focus ring onto something, none of it moves anything a reader
+ * is trying to read, and all of it is reversible by moving away. That is why
+ * it is allowed where an entrance is not.
+ *
+ * The rule underneath every rule here: **the feedback says what the thing is.**
+ * Something that navigates gets a directional mark. Something inert gets a
+ * lift and nothing else. Something that is one of several gets its siblings
+ * out of the way. A control that does not respond and a control that responds
+ * the same way as everything else are both lying about what they do.
+ *
+ * This is the rule for the whole product, not for this section. Every
+ * top-level `:hover` in every stylesheet here — app, landing, coach,
+ * calibrate, sandbox, live tagging — sits inside the same guard, and the
+ * per-page sheets carry a one-line pointer back to this paragraph rather than
+ * re-arguing it. A policy that holds in one file and not the next is not a
+ * policy; it is a file somebody remembered.
+ *
+ * `@media (hover: hover)` is not decoration and not caution — it is the
+ * whole thing working on the device this product is actually used on. The
+ * primary surface is a tablet on a touchline. On touch, `:hover` latches after
+ * a tap and stays latched until you tap somewhere else, so a tapped stat box
+ * would sit there lit up reading as *selected* for the rest of the half. Every
+ * pointer rule below is inside the guard. Every `:focus-visible` twin is
+ * outside it, because a keyboard user gets the same information either way,
+ * and so is every `:active` rule — a press lasts exactly as long as the
+ * finger is down, which is what a press is.
+ */
+
+@media (hover: hover) {
+
+    /* -- a figure ------------------------------------------------------- */
+
+    /* The most repeated element on the site, and until now the most inert:
+       several dozen per page on the coach view, none of them acknowledging a
+       pointer at all. What moves is the broadcast spine, not the number — the
+       number is the thing being read, and a figure that shifts under the
+       cursor is a figure you have to re-find. The spine widens and comes up to
+       full strength; the box lifts a single pixel off the ground.
+
+       Only `width` and `opacity` on the spine, never `background`, so
+       `.is-good`, `.is-warn` and `.is-muted` keep their own colour and a
+       hovered warning does not turn cyan and stop being a warning. */
+    .stat:hover {
+        border-color: var(--line-hi);
+        transform: translateY(-1px);
+    }
+    .stat:hover::before { width: 3px; opacity: 1; }
+
+    /* -- something that goes somewhere ----------------------------------- */
+
+    /* A match, a player, a team. These are the site's navigation, and a plain
+       background change says "noticed" where the truthful thing to say is
+       "this leads somewhere". The accent edge wipes in from the left, which is
+       a direction; the row moves with it. */
+    button.list-item:hover, a.list-item:hover { transform: translateX(2px); }
+    button.list-item:hover::after, a.list-item:hover::after { transform: scaleY(1); }
+
+    /* -- a comparison ---------------------------------------------------- */
+
+    /* Both figures in a tally sit dimmed unless one side earned a colour, so a
+       column of them reads as bars first and numbers second — which is
+       correct for scanning and wrong the moment somebody stops on one row.
+       Hovering the row is that stopping, and it brings both numbers up to full
+       text without touching the colour a verdict already assigned. */
+    .tally:hover .num { color: var(--text); }
+    .tally.ours-good:hover .t-us,
+    .tally.ours-bad:hover .t-them { color: var(--good); }
+    .tally:hover .t-label { color: var(--text-dim); }
+
+    /* -- one piece of a whole -------------------------------------------- */
+
+    /* A stack bar is three or four unlabelled lengths with a key underneath,
+       and reading it means holding a colour in your head while you look down.
+       Pointing at a piece dims the others instead: the one under the cursor is
+       the only lit thing on the track, and it carries a `title` naming itself
+       and its figure (set in `stackBar`) so the key is not needed at all.
+
+       `:has()` rather than a class toggled in script — this is a hover state
+       and hover states belong in the stylesheet, not in a listener that has to
+       be attached by every one of the four pages that draws one of these. */
+    .s-bar:has(.s-seg:hover) .s-seg { opacity: .3; }
+    .s-bar .s-seg:hover { opacity: 1; }
+
+    /* -- and what deliberately gets nothing -------------------------------
+
+       `.card` is the most repeated box on the site and the most tempting thing
+       to make lift under a pointer, and it must not. A card is a fence around
+       a group of figures — it does not open, does not navigate, does not
+       select. Lifting it would put the loudest response on the page on the one
+       element that does nothing when you press it, and every real control here
+       would then be answering more quietly than the furniture.
+
+       Same for `.tl-row` that is not `.is-seek`: a timeline row you cannot
+       click into the video is a record of a minute that has already happened.
+       The rows that do seek already light their text, and the difference
+       between the two is the information. */
+
+    /* -- controls -------------------------------------------------------- */
+
+    /* The underline arrives from the middle rather than appearing whole, so a
+       tab that is merely under the cursor cannot be mistaken at a glance for
+       the tab that is selected — which is drawn in accent and does not
+       animate. */
+    .tab:not(.active):hover::after { transform: scaleX(1); }
+}
+
+/* Keyboard twins, outside the guard: the same information, arrived at by tab
+   rather than by pointer. `:focus-visible` alone, never `:focus`, so clicking
+   a button does not leave it wearing a keyboard affordance. */
+.stat:focus-visible::before { width: 3px; opacity: 1; }
+button.list-item:focus-visible::after, a.list-item:focus-visible::after { transform: scaleY(1); }
+.tally:focus-within .num { color: var(--text); }
+
+/* The transitions the states above ride on, and the pieces they need to exist
+   before they can move. All of it is switched off wholesale by the
+   reduced-motion block above, which is `!important` and does not care that it
+   comes first. */
+
+.stat { transition: border-color .14s ease, transform .14s ease; }
+.stat::before { transition: width .14s ease, opacity .14s ease; }
+
+/* Inset from the ends and rounded, rather than a full-height edge clipped by
+   `overflow: hidden` on the row. Clipping here would have been the expensive
+   kind: the rows carry focusable children, `:focus-visible` draws its outline
+   two pixels *outside* the element, and a hidden overflow would have shaved
+   that ring off every control sitting near a row's edge. A tick that never
+   reaches the corners needs no clipping at all. */
+.list-item { position: relative; transition: background .13s ease, border-color .13s ease, transform .14s ease; }
+button.list-item::after, a.list-item::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 10px; bottom: 10px;
+    width: 2px;
+    border-radius: 0 2px 2px 0;
+    background: var(--accent);
+    transform: scaleY(0);
+    transform-origin: center;
+    transition: transform .16s cubic-bezier(.2, .7, .3, 1);
+}
+
+.tally .num { transition: color .13s ease; }
+.tally .t-label { transition: color .13s ease; }
+
+.s-seg { transition: opacity .13s ease; }
+
+.tab { position: relative; }
+.tab::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 2px;
+    background: var(--line-hi);
+    transform: scaleX(0);
+    transition: transform .16s cubic-bezier(.2, .7, .3, 1);
+}
+
+/* Press. A pointer press is already covered by `.btn:active`; these are the
+   two controls that had no press at all, and both are tapped with a thumb on a
+   tablet where the visual confirmation is the only confirmation there is. */
+.chip { transition: border-color .13s ease, background .13s ease, transform .08s ease; }
+.chip:active { transform: scale(.96); }
+.tab:active { transform: translateY(1px); }
+
+@media (hover: hover) {
+    .chip:hover { background: var(--surface-hi); }
 }
 
 @media (max-width: 640px) {
@@ -2752,7 +3005,9 @@ td.bar-cell .cell-bar {
     stroke-width: 0.4;
 }
 .shot-mark.is-pickable { cursor: pointer; }
-.shot-mark.is-pickable:hover { fill-opacity: 1; }
+@media (hover: hover) {
+    .shot-mark.is-pickable:hover { fill-opacity: 1; }
+}
 /* Focus, drawn on the shape instead of around it. The global `:focus-visible`
    outline does land on an SVG element, but it is a rectangle around the
    bounding box of a circle whose radius encodes xG — on the smallest marks
@@ -3118,7 +3373,9 @@ td.bar-cell .cell-bar {
     min-height: 36px;
     color: var(--text-dim);
 }
-.site-foot a:hover { color: var(--accent); }
+@media (hover: hover) {
+    .site-foot a:hover { color: var(--accent); }
+}
 .site-foot .foot-note { margin-left: auto; }
 
 @media (max-width: 640px) {
@@ -3145,9 +3402,11 @@ input[type="file"]::file-selector-button {
     font-size: 0.86rem;
     cursor: pointer;
 }
-input[type="file"]::file-selector-button:hover {
-    border-color: var(--accent);
-    color: var(--accent);
+@media (hover: hover) {
+    input[type="file"]::file-selector-button:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+    }
 }
 
 /* The two timing fields, drawn to scale.
@@ -3667,7 +3926,9 @@ input[type="file"]::file-selector-button:hover {
     min-width: 0;
 }
 .eyeball input { margin-top: 3px; flex: 0 0 auto; cursor: pointer; }
-.eyeball:hover { border-color: var(--line-hi); color: var(--text); }
+@media (hover: hover) {
+    .eyeball:hover { border-color: var(--line-hi); color: var(--text); }
+}
 
 /* The two size inputs and the measured box share a wrapping .row. The flex
    item is this slot, not the box inside it — sizing the box got a 137px

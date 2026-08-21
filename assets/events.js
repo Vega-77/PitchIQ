@@ -119,17 +119,15 @@ export function timelineTone(entry) {
     return tone === 'good' || tone === 'warn' ? tone : '';
 }
 
-/** Which team benefits, for counting things like "corners won". */
-export function beneficiary(entry) {
-    const spec = EVENTS[entry.type];
-    if (!spec) return null;
-
-    // For fouls, cards and offside the tagged side is the offender, so the
-    // other team is the one that gains. Counting these naively is how a team
-    // ends up credited with the fouls it committed.
-    const inverted = ['foul', 'card', 'offside'];
-    if (inverted.includes(entry.type)) {
-        return entry.side === 'us' ? 'them' : 'us';
-    }
-    return entry.side;
-}
+// There is deliberately no `beneficiary(entry)` here — no function that
+// flips the side on a foul, a card or an offside so the other team is credited
+// with having won something. It existed, and `report.js` answers the same
+// question a better way: it *labels* the row instead. `taggedTeamRows` prints
+// "Corners won" against the side that took them and "Fouls committed" against
+// the side that gave them away (`report.js:2800-2802`), so the number under a
+// team is always the number that team did.
+//
+// The two approaches cannot both run. Inverting the side *and* labelling the
+// row would invert it twice, and a table saying "Fouls committed" over a
+// column of the opponent's fouls is wrong in the way nobody re-reads. If a
+// caller ever needs the flip, it needs it instead of the label, not as well.

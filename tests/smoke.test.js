@@ -247,7 +247,12 @@ test('every button variant the markup asks for is one the stylesheet has', () =>
  */
 test('every match field the match pages read is one something writes', () => {
     const read = (name) => readFileSync(new URL(name, root), 'utf8');
+    // The coach page is three modules, and the scan below has to see all of
+    // them or it quietly stops checking whatever moved. `xgCheck` is read only
+    // in review.js; when that block lived in coach.js this scan covered it, and
+    // a scan that shrinks when a file is split is a scan that lies.
     const coach = read('coach/coach.js');
+    const coachPage = coach + read('coach/review.js') + read('coach/shell.js');
     const halftime = read('halftime/halftime.js');
     const rules = read('firestore.rules');
     const db = read('assets/db.js');
@@ -285,7 +290,7 @@ test('every match field the match pages read is one something writes', () => {
     // handful, and a rename that empties either one should fail loudly rather
     // than pass with nothing to check.
     for (const [name, source, writable, least] of [
-        ['coach/coach.js', coach, merged, 12],
+        ['the coach page', coachPage, merged, 12],
         ['halftime/halftime.js', halftime, stored, 3],
     ]) {
         const readFields = [...new Set(
@@ -528,15 +533,21 @@ test('every field the rules let a client write is one something reads', () => {
     // this file explains itself at length.
     const rules = read('firestore.rules').replace(/\/\/[^\n]*/g, '');
 
+    // A field's *shape* is not a reader of it. `x is bool` says what may be
+    // stored, `x >= 0` says the same thing about a number, and neither is
+    // anybody consulting the value — so both come out before the scan runs.
+    // Comparisons between two fields (`version == version + 1`) stay in,
+    // because relating one field to another is exactly a read.
     const values = rules
         .replace(/[\w.$/()]+\s+is\s+\w+/g, ' ')
+        .replace(/[\w.$/()]+\s*[<>]=?\s*-?\d+/g, ' ')
         .replace(/[\w.$/()]+\.(?:size|keys)\(\)/g, ' ');
     const consulted = new Set(
         [...values.matchAll(/\bdata\.(\w+)/g)].map((hit) => hit[1]),
     );
     assert.ok(consulted.has('coachUids') && consulted.has('version'),
         'no rules file was read');
-    assert.ok(!consulted.has('isStarter'),
+    assert.ok(!consulted.has('isStarter') && !consulted.has('tappedAt'),
         'a shape constraint is being counted as a read — the scan is broken');
 
     // Every document shape the rules give a writable field list, keyed by the
@@ -1175,6 +1186,15 @@ const stints = (matchId) => Object.fromEntries(
 const activeView = () => live.document.querySelectorAll('.view')
     .filter((v) => v.classList.contains('active')).map((v) => v.id).join(',');
 
+/** The tally rail as `{label: 'us:them'}`, read off the screen. */
+const rail = () => Object.fromEntries(
+    live.document.querySelectorAll('#tally-rows .tally').map((row) => [
+        row.querySelector('.t-label').textContent.trim(),
+        [row.querySelector('.t-us').textContent.trim(),
+         row.querySelector('.t-them').textContent.trim()].join(':'),
+    ]),
+);
+
 test('a match can be tagged from the first tap to the second half', async () => {
     await openPage({
         html: 'live-tagging/index.html',
@@ -1310,6 +1330,21 @@ test('a tagger who had to restart lands back in the match, not in the lineup', a
     assert.match(activeView(), /view-live/, 'resuming asked for a lineup again');
     // The clock picks up from the last thing anybody tapped, not from zero.
     assert.equal(Math.round(globalThis.window._tagger.state.clockOffset), 2100);
+
+    // And so does the rail. Everything tagged before the tablet died is on the
+    // screen, per side, because the rail is drawn from the log rather than from
+    // a counter this page kept — which is the whole reason a tally that
+    // survives a restart is possible at all. The fixture’s half holds two
+    // corners (one each), one foul and one card, and the goal is deliberately
+    // absent: it belongs to the score above, not here.
+    assert.deepEqual(rail(), {
+        Foul: '1:0', Card: '1:0', Offside: '0:0',
+        Corner: '1:1', 'Free kick': '0:0', 'Throw-in': '0:0', 'Goal kick': '0:0',
+    });
+    // The key says whose column is whose. Two columns of digits over "Us" and
+    // "Them" would be a different match depending on which is which.
+    assert.equal(text('tally-us'), 'Riverside High');
+    assert.equal(text('tally-them'), 'Northgate');
 
     // And a player who has already been off is offered back, marked as such,
     // rather than being hidden or offered as though they were fresh.
