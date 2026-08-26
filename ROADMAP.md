@@ -4767,6 +4767,50 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The blind spot the Python orphan check names in its own docstring**
+      (2026-08-26). `tests/test_call_graph.py` hunts for code that is written,
+      tested in isolation and connected to nothing — the shape a test per
+      function cannot see, because the shape is the *absence* of an edge. It says
+      outright what it cannot see: *"the browser modules themselves, which are
+      not walked at all — an export there is reached from `<script
+      type="module">` and from event handlers that no Python AST is going to
+      find"*. `tests/test_browser_graph.py` is that walk.
+      **It asks about modules, not exports, and the difference is the whole
+      design.** A dead-export sweep is noise on this codebase: `assets/report.js`
+      has no imports by design so `tests/video.test.js` can cover it, and around
+      ninety internals across the frontend are exported purely so a
+      namespace-importing test can reach them. Those are a documented pattern,
+      not a finding — a sweep that reports them trains people to ignore it. A
+      dead *module* is a tight question with no false positives, because an ES
+      import names its source file explicitly: a module no page loads and nothing
+      imports is never executed by anybody.
+      **The answer today is clean.** Thirty-one modules across seven directories,
+      seven pages, seven entry points mapping one to one, and **every module
+      reachable**. `STRANDED_BY_DESIGN` is empty, which is the finding rather
+      than an oversight — and it carries the same both-directions contract as
+      the Python list it mirrors, so a name added there has to come out again the
+      day it gets wired up.
+      **The graph is also acyclic, and that is a decision worth pinning rather
+      than a coincidence.** `coach.js` imports `review.js` and the two calls back
+      the other way are registered as callbacks precisely because a direct call
+      would close the loop (the split below records why). ES modules survive
+      cycles, so nothing would have crashed — it would have handed back a
+      binding that is undefined at import time and defined a moment later, and
+      that symptom reads like a typo in a name that is spelled correctly.
+      **Two traps worth writing down, because both produced a wrong answer
+      first.** Import specifiers in this repo carry the cache-busting stamp, so
+      `../assets/db.js?v=102` never resolves unless the query is stripped —
+      that alone reported 328 phantom orphans. And a name used through the spread
+      operator, `...keeperStatRows(...)`, defeats a lookbehind that excludes
+      member access, because the third dot of `...` is indistinguishable from
+      one. Three of four "dead" exports were that.
+      **Five mutations, five catches**: a module nothing loads, a stale entry in
+      the record, an import cycle, a specifier pointing at a renamed file, and a
+      page whose entry point was deleted. The walk itself is pinned by a two-hop
+      path — `review.js` is reached *through* `coach.js` and by no page —
+      since a regex that found only a file’s first import would otherwise pass
+      every other assertion here.
+      Gate: **1304 Python tests**, pyflakes clean.
 - [x] **The tool that keeps the browser honest was the one thing nothing
       checked** (2026-08-26). `stamp_version.py` writes `?v=N` onto every local
       `href`/`src` in the seven pages and every relative import specifier inside
