@@ -4810,6 +4810,67 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The names too common to check, checked** (2026-08-26).
+      `tests/smoke.test.js` walks the keys of all five payload builders and
+      says, in its own docstring, where that goes thin: it cannot tell which
+      object a `.key` was read off, so short generic names — `id`, `type`,
+      `team` on an event — are effectively unchecked. The events document is
+      made almost entirely of those names. In the served JavaScript `id` is
+      read off something 232 times, `type` 104, `team` 88, and almost none of
+      those somethings is a published event, so the smoke gate ticks all twelve
+      row fields off against strangers — and would keep ticking them off after
+      the last real reader was deleted. This binds the field to the object.
+      **Fifteen of seventeen figures reach a page, and the audit found no
+      orphan.** Unlike the reconciliation block, which turned up three figures
+      rendered nowhere, this seam is clean: every one of the twelve row fields
+      is read off a published event. The two that are not — `schemaVersion` and
+      `droppedBelowConfidence` — were already excused, and both excuses survive
+      being asked again. The value here is not a fix; it is that the next
+      deletion cannot pass by accident.
+      **A fifth scanner shape, and the first that has to leave the function.**
+      The four block gates each had a distinctive block name sitting in the
+      same scope as the field read. This document has no such name: the list is
+      handed across boundaries as a bare positional argument, so by the time a
+      row field is read the only thing in scope is `events`, then `event`. The
+      scan is interprocedural — an argument seeds the callee’s parameter, and a
+      destructured bag (`const { events } = passingSource()`) seeds by key.
+      Without the bag rule the passing network is invisible, and it is the only
+      reader of `startM` and `receiverTrackId` in the repo.
+      **Follow the value, not the container.** Three shapes look like an alias
+      to a regex and are not: a call result (`shotLedger(events, review)`), a
+      bag holding it (`render({ events, quality })`), and something indexed *by*
+      it (`review?.byEvent[event.id]`). The first draft followed all three and
+      reported fifty figures the pipeline never made — `calibrationErrorM`,
+      `byEvent`, `cardColor`, each a real field of a real object with nothing to
+      do with an event. A scan that loose cannot say anything about a name as
+      common as `id`, which is the entire reason the file exists. Ghosts went
+      84, then 50, then 1, then none, and the last one fell to replacing a
+      sixty-character look-back with a real walk-back over the receiver.
+      **Twelve mutations, twelve catches**: the only reader of `confidence`
+      stops reading it, the only reader of `receiverTrackId` stops reading it, a
+      new row figure ships unread, a row key renamed under the page, a page
+      reading a field nobody publishes, an excused figure that started being
+      read, an excused figure deleted from the producer, an excuse that says
+      nothing, the producer parse blind to the row level, the handle matching
+      nothing, `publish` no longer writing the document, and the browser no
+      longer reading it.
+      **Seven of eight guards pinned, one deliberately not.** The alias
+      restriction, the call hop, the bag, the callback binding, the loop
+      binding, the per-function split, comment stripping and the builtin filter
+      were each measured by switching them off. Comment stripping fires in
+      *both* directions here, where it was inert on all four earlier gates:
+      prose between a receiver and its `.map(` breaks the walk-back, and a
+      comment holding example code hands back `const` as a figure. The alias
+      hop carries three readers and every one of those figures has another, so
+      it changes no verdict — it is documented as inert and given no test,
+      because a pin for a guard that cannot fire is the same mistake as a gate
+      that cannot fail, one level down. The measurement also corrected the file
+      twice: `cross` and `chunked` were each claimed to cost all twelve row
+      fields and cost eleven, because `coach/review.js::deadBallCount` is the
+      one four-line function that names the handle and reads a row field in the
+      same scope.
+      Gate: **1386 Python tests**, 755 JS unit tests, pyflakes clean. No page
+      changed, so no version stamp.
 - [x] **The last block forwarded whole, and half a comparison nobody could
       read** (2026-08-26). `cv/publish.py` hands four blocks to the browser as
       single keys, and `tests/smoke.test.js` walks top-level names — so it ticks

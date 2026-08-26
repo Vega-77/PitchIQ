@@ -355,6 +355,11 @@ test('every match field the match pages read is one something writes', () => {
  * something else somewhere. That is the price of a check that needs no runtime
  * and no fixture, and it is worth paying: the failure this catches is a key
  * nobody anywhere mentions, which no amount of aliasing produces by accident.
+ *
+ * The events document is almost entirely those generic names, so it gets a
+ * second check that does what this one cannot: `tests/test_events_seam.py`
+ * follows the published list from the one handle it lands under to wherever a
+ * field is read off it, and a `.team` there has to be a `.team` on an event.
  */
 test('every figure the pipeline publishes is one some page reads', () => {
     const payload = read('cv/publish.py');
