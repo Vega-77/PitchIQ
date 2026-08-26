@@ -2065,6 +2065,42 @@ A FastAPI + SQLAlchemy + SQLite server (`backend/`) filled this role first and w
 kept as a fallback until a full match had been tagged against Firestore without
 it. That happened, so it was deleted — 735 lines describing a schema that no
 longer matched the one in use, which is worse than no reference at all.
+- [x] **The last bound in the ruleset that only held on the way in**
+      (2026-08-26). A sweep of every remaining `match` block for the two
+      patterns the two fixes below turned up — a field validated on create and
+      not on update, and an action allowed to a wider role than it deserves.
+      Nine blocks came back clean and one did not.
+      **A team could be renamed to a number.** `teams/{t}` pinned `name` to a
+      non-empty string of at most eighty characters on create, and its update
+      rule listed `name` in `changed([...])` and then checked nothing about it.
+      Two places sort teams with `(a.name || '').localeCompare(...)` — the
+      coach’s team switcher and the landing page’s team list — so a number
+      there does not make one label wrong. `localeCompare` does not exist on it,
+      the sort throws, and the page does not draw at all. The bound now lives in
+      a `teamName()` helper used by both writes, deliberately separate from
+      `personName()` despite being identical today: they are different facts
+      that happen to agree, and one moving should not silently move the other.
+      **`archived` is pinned to a boolean, and nothing more.** It is a seat for
+      a team-hiding switch that nothing reads yet, and it is worth pinning now
+      precisely because the code that will read it has not been written to be
+      careful about what it finds. Read through `get('archived', false)` rather
+      than directly, so a team document written before the field existed is not
+      locked out of every future edit — the failure a blanket check would
+      cause, arriving long after the change that caused it.
+      **The rest of the ruleset was already right, and the reasons are worth
+      keeping.** `players` closes the same hole (below). The tag log is
+      create-only with `allow update: if false`, so there is no second write to
+      hold. `users`, `staff`, `cvMapping`, `cvReview`, `playerReports` and
+      `invites` all combine `create, update` in a single rule, which is the
+      shape that cannot drift — a bound written once applies to both by
+      construction.
+      **Six emulator cases**, including the one that matters most for a rule
+      like this: a write that touches one field still has to satisfy the bound
+      on every other, because `changed()` is a subset test and
+      `request.resource.data` on an update is the merged result. That is how a
+      name check breaks a write to the staff arrays without anyone touching a
+      name.
+      Gate: **739 pure JS · 37 smoke · 177 emulator**, all green.
 - [x] **Publishing is a coach’s word, not a tagger’s — and the score is
       finally a number** (2026-08-26). Three holes in the `matches` block, all of
       them found by reading the rule next to the code that writes through it.

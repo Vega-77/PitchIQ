@@ -380,6 +380,49 @@ describe('privilege escalation', () => {
   });
 });
 
+describe('what a team is called', () => {
+  const team = (who = COACH) => doc(as(who), 'teams', TEAM);
+
+  it('a coach can rename the squad', async () => {
+    await assertSucceeds(updateDoc(team(), { name: 'South Brunswick JV' }));
+  });
+
+  // The bound was on the create only, so every case here passed by writing the
+  // team once and then editing it.
+  it('rejects a squad renamed to something that is not a name', async () => {
+    await assertFails(updateDoc(team(), { name: '' }));
+    await assertFails(updateDoc(team(), { name: 42 }));
+    await assertFails(updateDoc(team(), { name: null }));
+    await assertFails(updateDoc(team(), { name: 'x'.repeat(200) }));
+  });
+
+  it('and refuses one on the way in as well', async () => {
+    await assertFails(setDoc(doc(as(COACH), 'teams', 'newteam2'), {
+      name: '', coachUids: [COACH.uid], taggerUids: [],
+      archived: false, createdAt: serverTimestamp(), createdBy: COACH.uid,
+    }));
+  });
+
+  it('a rename does not have to carry the rest of the document', async () => {
+    // `changed` is a subset test and `request.resource.data` on an update is
+    // the merged result, so a one-field write still has to satisfy the bound
+    // on every other field — which is the way this rule could have broken
+    // the staff arrays without anyone touching them.
+    await assertSucceeds(updateDoc(team(), { archived: false }));
+    await assertSucceeds(updateDoc(team(), { taggerUids: [TAGGER.uid] }));
+  });
+
+  it('archiving is allowed, and has to be a boolean', async () => {
+    await assertSucceeds(updateDoc(team(), { archived: true }));
+    await assertFails(updateDoc(team(), { archived: 'yes' }));
+    await assertFails(updateDoc(team(), { archived: 1 }));
+  });
+
+  it('a tagger cannot rename the team they tag for', async () => {
+    await assertFails(updateDoc(team(TAGGER), { name: 'Tagger FC' }));
+  });
+});
+
 // =====================================================================
 // P0 — player data isolation
 // =====================================================================

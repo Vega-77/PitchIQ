@@ -130,6 +130,18 @@ service cloud.firestore {
       return s is string && s.size() > 0 && s.size() <= 80;
     }
 
+    // What a squad is called. Same bound as a person’s name and deliberately
+    // a separate function: they are different facts that happen to agree today,
+    // and one of them changing should not silently move the other.
+    //
+    // Two places sort teams with `(a.name || '').localeCompare(...)` — the
+    // team switcher and the landing page’s team list. A number there does not
+    // make one label wrong; `localeCompare` does not exist on it, so the sort
+    // throws and the page does not draw at all.
+    function teamName(s) {
+      return s is string && s.size() > 0 && s.size() <= 80;
+    }
+
     // A shirt number, or none. Null is ordinary — plenty of squads never fill
     // this in — and the range is the range shirts actually come in.
     function shirtNumber(n) {
@@ -297,17 +309,26 @@ service cloud.firestore {
         && request.resource.data.createdBy == uid()
         && isTimestampNow(request.resource.data.createdAt)
         && request.resource.data.archived == false
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 80;
+        && teamName(request.resource.data.name);
 
       // isCoach(t) reads resource.data — the PRE-write value. Testing
       // request.resource.data here would let anyone add themselves as a coach.
       //
       // A school may run varsity and JV under one head coach with assistants,
       // so a team carries several coaches and a coach carries several teams.
+      //
+      // `teamName` is checked here as well as on the create, because it was on
+      // the create only: a squad could be renamed to a number by writing the
+      // document once and then editing it. `archived` is checked for type and
+      // nothing else — it is a seat for a team-hiding switch that nothing
+      // reads yet, and the point of pinning it now is that the code which will
+      // read it has not been written to be careful about what it finds. Read
+      // through `get` with a default so a team document written before the
+      // field existed is not locked out of every future edit.
       allow update: if isCoach(t)
         && changed(['name', 'coachUids', 'taggerUids', 'archived'])
+        && teamName(request.resource.data.name)
+        && request.resource.data.get('archived', false) is bool
         && uid() in request.resource.data.coachUids
         && request.resource.data.coachUids.size() >= 1
         && request.resource.data.coachUids.size() <= 6
