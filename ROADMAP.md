@@ -4767,6 +4767,46 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The tool that keeps the browser honest was the one thing nothing
+      checked** (2026-08-26). `stamp_version.py` writes `?v=N` onto every local
+      `href`/`src` in the seven pages and every relative import specifier inside
+      the thirty-one modules, because there is no build step and a browser will
+      otherwise serve yesterday’s JavaScript. Its docstring is unusually blunt
+      about why both halves are needed: a versioned entry point does not version
+      what it imports, so `coach.js?v=4` loads fresh and then pulls
+      `../assets/auth.js` straight from cache, and *"that failure looks exactly
+      like a missing export, and it has cost real debugging time more than
+      once"*. **No test anywhere touched it.** Nothing asserted the stamper had
+      run, run over everything, or run with one number.
+      **The number is the part that bites.** A missing stamp is a stale file; a
+      *disagreeing* stamp is a mixed module graph — a page on v=102 loading a
+      module still on v=97 — which is the exact failure the tool exists to
+      prevent, wearing a symptom that points at the wrong file.
+      `tests/test_version_stamp.py` reads the frontend the way the browser does
+      and asserts every local reference is stamped, every stamp agrees, and every
+      stamped path still exists on disk.
+      **It also checks the stamper’s reach, because the stamper cannot fail —
+      it can only skip.** `PAGES` and `MODULE_DIRS` are hardcoded lists; its
+      asset regex matches double-quoted attributes only and its import regex
+      single-quoted specifiers only; and it globs `*.js` without recursing. A new
+      page, a new module directory, a nested module, or a quote-style drift does
+      not raise anything. It silently drops a file out of stamping forever, and
+      the first sign is a coach looking at a screen that will not update. So the
+      test finds the browser directories by looking — any top-level directory
+      holding an `index.html` or a `.js` — and fails when that disagrees with
+      the lists. This is the standard `test_field_commands.py` already sets for
+      its document list: a renamed page should fail a test rather than quietly
+      drop out of one.
+      **Six mutations, six catches, each by the intended assertion**: a dropped
+      stamp, a stamp bumped to a different number, a specifier retyped with
+      double quotes, a reference to a renamed file, a new page directory nobody
+      added to `PAGES`, and a module hiding one level down. Plus the guard
+      against the test passing vacuously — a regex that matches nothing would
+      satisfy every assertion above, so `coach.js` · `auth.js`, the precise edge
+      the docstring is about, is pinned by name.
+      Gate: **1295 Python tests**, pyflakes clean. No version bump: nothing under
+      `assets/ coach/ player/ live-tagging/ halftime/ calibrate/ xg-sandbox/`
+      changed, and a Python-only commit never needs one.
 - [x] **A page split where it actually came apart, and a bigger one left alone
       on the evidence** (2026-08-21). `coach/coach.js` had reached **4831 lines**,
       which is past the point where you can hold it in your head, and the usual
