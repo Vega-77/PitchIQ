@@ -4810,6 +4810,71 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The last block forwarded whole, and half a comparison nobody could
+      read** (2026-08-26). `cv/publish.py` hands four blocks to the browser as
+      single keys, and `tests/smoke.test.js` walks top-level names — so it ticks
+      each of them off with one reader and never looks inside. This closes the
+      fourth of four. `reconciliation` carries fifteen figures: two agreement
+      rates, two count dicts of three, a checked flag, and six fields on every
+      row of disagreements.
+      **Twelve reach a page, three are excused, and three were reaching
+      nothing.** `exit_agreement`, `exits` and `exits_checked` were computed on
+      every calibrated run, published, downloaded by every client, and rendered
+      on no screen at all — the whole exit half of a comparison that shipped
+      with only its goal half visible.
+      **So it was rendered, with the caveat that has to travel with it.** A ball
+      exit is found by projecting the tracked ball through the calibration and
+      watching it cross a touchline or a byline, so the rate rests on the ball
+      detection and not on the tagging: a run that loses the ball for ten
+      seconds at a stretch misses exits the tagger caught, and every one of
+      those arrives looking like the two records disagreed. The note says so.
+      It says the count and not only the percentage, because 62% of eight
+      stoppages and 62% of two hundred are the same number and completely
+      different situations. And it separates the two absences: with no
+      calibration there is no touchline in the frame for a ball to cross, so the
+      tagged stoppages went *unchecked* rather than unmatched, and a missing
+      rate on its own would read as a check that ran and found nothing. Seven JS
+      tests pin both branches, the singular boundary, the camelCased spelling
+      and both silences.
+      **The three excused figures are one argument.** `kind`, `tag_type` and
+      `detail` are constants in what actually ships, because `to_json` sends
+      `disagreements(GOAL)` and nothing else: every row that travels is a goal
+      by construction, so `kind` is the same word on every line of a list
+      already headed as goals, `tag_type` is `status` said twice, and `detail`
+      is the boundary an exit crossed on rows that are never exits.
+      **`window` was measured and deliberately not gated.** The fourth forwarded
+      block is a hand-built two-key dict with no producer class behind it, and
+      both keys are read on two pages in both spellings. A gate there would
+      restate its own fixture, so the shape stops at three files and not four.
+      A gate that cannot fail is the thing this whole shape exists to avoid.
+      **A third scanner shape, and a handle the first two never needed.** The
+      keepers gate reached a figure in one step and the teams gate in two; this
+      block sits a level deeper, so the scan follows an alias of an alias
+      (`goals` off `rec`) and a loop binding (`entry` over the rows). And
+      `coach/review.js` aliases nothing at all — it reads the disagreements
+      straight off an optional chain — so the block’s own name is seeded as a
+      handle in every chunk. Without that, the one page that draws the
+      disagreement rows is invisible to the file checking that they get drawn.
+      **Eleven mutations, eleven catches**: a rendered rate unread, a new figure
+      with no reader, a rendered row field unread, a published count key renamed
+      under the page, a page reading a figure nothing produces, an excused field
+      that started being rendered, an excused field deleted from the producer,
+      an excuse that says nothing, the block regex matched against nothing, the
+      producer parse finding no producers, and `cv/publish.py` no longer
+      forwarding the block whole.
+      **Guards measured before pinning, and it corrected the file twice.** Four
+      of six fire: the second hop costs exactly the three count keys, the loop
+      binding exactly the three row fields, and the per-function split is
+      load-bearing *here* where it was inert in the keepers gate — without it
+      the `entry` bound in the conflict loop claims an `item.entry.playerId`
+      four hundred lines down, and the gate reports a figure the pipeline never
+      made. The first draft of the gate claimed the second hop carried eight of
+      nine figures; measured, it carries three of twelve. Comment stripping and
+      the method-call filter change nothing here today, guard the direction that
+      fails *silently*, and so are kept, documented as inert, and deliberately
+      not given tests.
+      Gate: **1368 Python tests**, 755 JS unit tests, pyflakes clean. Pages
+      changed, so `?v=105`.
 - [x] **The premise under eleven rows had no reader** (2026-08-26). Third of
       the four blocks `cv/publish.py` forwards whole, and the first one where the
       audit found something. `keepers` carries sixteen figures behind one key the

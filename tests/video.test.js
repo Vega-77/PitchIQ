@@ -1743,6 +1743,92 @@ describe('cvQualityNotes', () => {
         assert.match(gone, /xG is not shown/);
         assert.doesNotMatch(gone, /struck with the foot/);
     });
+
+    // ---- the tagged log against the video ----
+    //
+    // Two fallible records of the same match. The only honest thing to say
+    // about them is how often they agreed, and both halves of that get said:
+    // goals, where the two vocabularies genuinely overlap, and balls going out
+    // of play, where the video's half of the answer rests entirely on the ball
+    // detection.
+
+    const both = (over) => ({
+        goal_agreement: 0.75,
+        exit_agreement: 0.62,
+        goals: { agreed: 3, cv_only: 0, tag_only: 1 },
+        exits: { agreed: 21, cv_only: 7, tag_only: 6 },
+        exits_checked: true,
+        ...over,
+    });
+    const agreed = (over) => joined({}, { reconciliation: both(over) });
+
+    test('both halves of the comparison are counted, not just rated', () => {
+        // A rate alone is unactionable: 62% of eight stoppages and 62% of two
+        // hundred are the same number and completely different situations.
+        const text = agreed({});
+        assert.match(text, /agree on 3 of 4 goals/);
+        assert.match(text, /21 of 34 balls going out of play/);
+    });
+
+    test('the exit rate says which half of it is the weak half', () => {
+        // A missed exit usually means the ball detection lost the ball, not
+        // that the tagger was wrong — and without that sentence the number
+        // reads as a mark out of ten for the person with the tablet.
+        assert.match(agreed({}), /rests on the ball detection rather than on the tagging/);
+    });
+
+    test('one ball out of play is a ball', () => {
+        const text = agreed({ exits: { agreed: 1, cv_only: 0, tag_only: 0 } });
+        assert.match(text, /1 of 1 ball going out of play/);
+        assert.doesNotMatch(text, /1 balls/);
+    });
+
+    test('unchecked is not zero, and says why it was never checked', () => {
+        // With no calibration there is no touchline in the frame for a ball to
+        // cross, so the tagged stoppages went unchecked rather than unmatched.
+        // A missing rate on its own would read as a check that found nothing.
+        const text = agreed({
+            exit_agreement: null, exits: null, exits_checked: false,
+        });
+        assert.match(text, /nothing checked the tagged stoppages/);
+        assert.match(text, /needs a calibration first/);
+        // The goal half does not need a calibration and still gets said.
+        assert.match(text, /agree on 3 of 4 goals/);
+    });
+
+    test('a check that ran and found nothing to compare stays quiet', () => {
+        // Neither line is true here: nothing was left unchecked, and there is
+        // no agreement to report on a match where no ball ever went out.
+        const text = agreed({
+            exit_agreement: null,
+            exits: { agreed: 0, cv_only: 0, tag_only: 0 },
+        });
+        assert.doesNotMatch(text, /out of play/);
+        assert.doesNotMatch(text, /nothing checked/);
+    });
+
+    test('no comparison at all, no lines about one', () => {
+        // Every run without a tag log, which is most of them.
+        const text = joined({}, { shots: 3 });
+        assert.doesNotMatch(text, /out of play/);
+        assert.doesNotMatch(text, /nothing checked/);
+        assert.doesNotMatch(text, /agree on/);
+    });
+
+    test('the camelCased reconciliation reads the same', () => {
+        // Python writes the top-level keys snake_cased and the emulator
+        // fixtures write them camelCased. The counts inside stay snake_cased
+        // in both, which is why only the outer names are aliased.
+        const text = joined({}, { reconciliation: {
+            goalAgreement: 0.75,
+            exitAgreement: 0.62,
+            goals: { agreed: 3, cv_only: 0, tag_only: 1 },
+            exits: { agreed: 21, cv_only: 7, tag_only: 6 },
+            exitsChecked: true,
+        } });
+        assert.match(text, /agree on 3 of 4 goals/);
+        assert.match(text, /21 of 34 balls going out of play/);
+    });
 });
 
 // ------------------------------------------------------- the video on a page
@@ -4414,6 +4500,9 @@ describe('the sample match', () => {
         assert.match(notes, /into about 3 pieces/);
         assert.match(notes, /matching neither kit/);
         assert.match(notes, /agree on 3 of 4 goals/);
+        // Both halves of the comparison, so a preview of the note shows the
+        // ball-detection caveat that travels with the exit rate.
+        assert.match(notes, /21 of 34 balls going out of play/);
     });
 
     test('it produces plain-language reads for the half-time page', () => {

@@ -1561,6 +1561,37 @@ export function cvQualityNotes(quality, options = {}) {
             + `of ${compared} goal${compared === 1 ? '' : 's'}`);
     }
 
+    // The other half of the same comparison, and the half whose caveat has to
+    // travel with it. A ball exit is found by projecting the tracked ball
+    // through the calibration and watching it cross a touchline or a byline, so
+    // this rate rests on the ball detection and not on the tagging — a run
+    // that loses the ball for ten seconds at a time misses exits the tagger
+    // caught, and every one of those arrives here looking like the tagger and
+    // the video disagreed. Read it as a trend across matches. It is not a mark
+    // out of ten for either record.
+    //
+    // Counted, not just rated: a hundred stoppages and six are different
+    // sentences at the same percentage, and only one of them is worth acting
+    // on.
+    const exitRate = rec?.exit_agreement ?? rec?.exitAgreement;
+    const exits = rec?.exits || {};
+    const exitsSeen = (exits.agreed || 0)
+        + (exits.cv_only || 0) + (exits.tag_only || 0);
+    const exitsChecked = rec?.exits_checked ?? rec?.exitsChecked;
+    if (exitRate != null && exitsSeen) {
+        notes.push(`they agree on ${exits.agreed || 0} of ${exitsSeen} `
+            + `ball${exitsSeen === 1 ? '' : 's'} going out of play, which rests`
+            + ' on the ball detection rather than on the tagging');
+    } else if (rec && exitsChecked === false) {
+        // Absent is not zero here either, and these are two different absences.
+        // Nothing crossed a line nobody could locate: with no calibration there
+        // is no touchline in the frame to cross, so the tagged stoppages went
+        // unchecked rather than unmatched. A reader told only that the rate is
+        // missing would reasonably assume the check ran and found nothing.
+        notes.push('nothing checked the tagged stoppages against the video —'
+            + ' seeing a ball cross a line needs a calibration first');
+    }
+
     // How far the tracked position wobbled, and what that costs.
     //
     // Every figure in metres on these pages rests on this, and until now
