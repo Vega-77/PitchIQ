@@ -136,6 +136,7 @@ def load(path: Path):
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
+        prog='python -m cv.experiments.compare_reports',
         description='Diff a pipeline run against a baseline run.',
     )
     parser.add_argument('baseline', type=Path,

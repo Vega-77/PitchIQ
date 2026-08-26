@@ -35,9 +35,9 @@ def lab_to_bgr(lab) -> tuple[int, int, int]:
     return tuple(int(c) for c in bgr)
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog='possession_report',
+        prog='python -m cv.experiments.possession_report',
         description='Team split and possession from footage, no calibration needed.',
     )
     parser.add_argument('video', type=Path)
@@ -52,7 +52,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--name-b', default='Team B')
     parser.add_argument('--save-frames', action='store_true',
                         help='write annotated frames for eyeballing the team split')
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     if not args.video.exists():
         print(f'error: video not found: {args.video}')

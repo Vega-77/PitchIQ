@@ -6081,6 +6081,41 @@ than the workaround, which matters given the data class.
 - [x] An intake order with stop conditions — `FOOTAGE_DAY.md` §5. `spike_detect`
       first, because if ball coverage is near zero nothing downstream is worth
       running.
+- [x] **The guide's commands are checked against the code, not against memory**
+      (2026-08-26). Every step in `FOOTAGE_DAY.md` is a command copied out of a
+      fenced block, and nothing checked that those commands still matched the
+      modules they name. A renamed flag would sit in the guide indefinitely and
+      surface **exactly once — on the evening the first real footage lands**, in
+      the dark, with no time to fix it and no second clip for another week.
+      `tests/test_field_commands.py` now reads the Markdown the way a person
+      does: it pulls every `python -m cv.experiments.*` invocation out of
+      `FOOTAGE_DAY.md`, `ROADMAP.md` and `baselines/README.md`, tokenises it, and
+      hands the arguments to the parser of the module it names. **18 invocations,
+      15 of them carrying arguments**, all parsing today.
+      **This is available months before the footage because argument parsing
+      never opens the paths it is given** — no video, no model, no GPU, and
+      `clips/first-half.mp4` does not have to exist.
+      **Five of the ten commands could not be asked what flags they took.** They
+      built their `ArgumentParser` inside `main()`, so the only way to find out
+      was to run them against a video; `build_parser()` is now split out of all
+      ten. And every usage line is now the command you type: `usage: track_report`
+      names something that does not exist, and `usage: -c` is what argparse infers
+      when nothing sets `prog`, so all ten set
+      `prog='python -m cv.experiments.<name>'`. Somebody reading a usage line at
+      the side of a pitch types what it says.
+      **The extractor had to be tested before it could be trusted, because its
+      failure mode is silence.** The first version scanned for single-backtick
+      spans without stripping fenced blocks first — a fence is three backticks,
+      so its closing tick pairs with the next opening one and every span after
+      the first fence is off by one. It read 12 of 18 commands, found nothing
+      wrong, and reported a pass. Four regression tests now pin all four shapes a
+      command is written in (bare prose reference, fenced line, fenced line with a
+      `\` continuation, inline span wrapped across a line break) against a
+      synthetic document, and a per-file floor catches a whole document being read
+      as empty — which is what the total-count check missed.
+      No existence guard on the document list, deliberately: a renamed guide
+      should fail this test rather than quietly drop out of it.
+      Gate: **1280 Python tests**, pyflakes clean.
 - [ ] Lighting/weather robustness check (outdoor field, not a broadcast studio)
 - [ ] Identify and briefly train whoever will run the Phase 3 tablet during the actual demo game — the live data is only as good as the person entering it. The briefing is written (`FOOTAGE_DAY.md` §3); the person is not identified.
 - [ ] **[Demo]** Dry run on real footage from the old team well before the target test date — also the first real test of the ball-detection spike and the homography/attacking-direction logic

@@ -32,9 +32,9 @@ from pathlib import Path
 from cv.calibration import Calibration
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="calibrate",
+        prog="python -m cv.experiments.calibrate",
         description="Fit a pixel->pitch homography from exported landmark clicks.",
     )
     parser.add_argument("points", type=Path, help="JSON from the browser picker")
@@ -57,6 +57,13 @@ def main(argv: list[str] | None = None) -> int:
         "--lens", action="store_true",
         help="measure lens distortion from the paint and fit through it",
     )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    # The parser is kept, not discarded: the flag-combination check below
+    # reports through parser.error(), which prints the usage line.
+    parser = build_parser()
     args = parser.parse_args(argv)
 
     if (args.refine or args.overlay or args.lens) and args.frame is None:

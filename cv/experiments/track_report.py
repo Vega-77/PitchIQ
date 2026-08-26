@@ -61,9 +61,9 @@ def print_header() -> None:
     print("  " + "-" * 70)
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="track_report",
+        prog="python -m cv.experiments.track_report",
         description="Measure whether tracks stay attached to players.",
     )
     parser.add_argument("video", type=Path)
@@ -81,7 +81,11 @@ def main(argv: list[str] | None = None) -> int:
         "--compare-trackers", action="store_true",
         help="compare the tracking algorithms ultralytics ships",
     )
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     if not args.video.exists():
         print(f"error: video not found: {args.video}")

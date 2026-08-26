@@ -42,7 +42,10 @@ def clock(seconds: float) -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        prog='python -m cv.experiments.event_report',
+        description=__doc__.splitlines()[0],
+    )
     parser.add_argument('--video', required=True)
     parser.add_argument('--calibration', default=None,
                         help='without it, shots and anything positional are skipped')

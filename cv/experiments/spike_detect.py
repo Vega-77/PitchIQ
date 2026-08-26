@@ -44,7 +44,7 @@ def parse_crop(value: str) -> tuple[int, int, int, int]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="spike_detect",
+        prog="python -m cv.experiments.spike_detect",
         description="Report how reliably players and the ball are detectable in a video.",
     )
     parser.add_argument("video", type=Path, help="path to the video file")

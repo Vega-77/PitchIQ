@@ -119,9 +119,9 @@ def print_stages(timings, label: str) -> None:
     print(f"  {'everything else':<32} {gap:>7.1f}s {gap / total:>6.0%}")
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog='speed_report',
+        prog='python -m cv.experiments.speed_report',
         description='Whether this machine could produce a half-time report in time.',
     )
     parser.add_argument('video', type=Path)
@@ -141,7 +141,11 @@ def main(argv: list[str] | None = None) -> int:
         '--half-minutes', type=float, default=HALF_S / 60.0,
         help='the half this is projected onto. 45 for senior football.',
     )
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     half_s = args.half_minutes * 60.0
 

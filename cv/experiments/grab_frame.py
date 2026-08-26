@@ -14,14 +14,18 @@ import cv2
 from cv.frame_sampler import sample_frames, video_info
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="grab_frame", description="Save one frame from a video."
+        prog="python -m cv.experiments.grab_frame", description="Save one frame from a video."
     )
     parser.add_argument("video", type=Path)
     parser.add_argument("--at", type=float, default=60.0, help="timestamp in seconds")
     parser.add_argument("--out", type=Path, default=None)
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     if not args.video.exists():
         print(f"error: video not found: {args.video}")

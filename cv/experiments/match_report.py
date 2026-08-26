@@ -25,7 +25,10 @@ from cv.pipeline import analyse_match
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        prog='python -m cv.experiments.match_report',
+        description=__doc__.splitlines()[0],
+    )
     parser.add_argument('--video', required=True, help='path to the clip')
     parser.add_argument('--calibration', default=None,
                         help='calibration JSON; without it, metre-based stats are skipped')
