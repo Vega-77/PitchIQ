@@ -180,6 +180,40 @@ service cloud.firestore {
             && request.resource.data.halfTimeClockS <= 12000);
     }
 
+    // The facts a match document states about the fixture: who it was against,
+    // and when. Both were checked on create only, which meant either could be
+    // replaced with anything by writing the document once and then editing it
+    // — the same second-write hole the roster rule below closes.
+    //
+    // `date` is the dashboard's sort key, compared with `localeCompare` on the
+    // way to drawing the match list. Something that is not a string there does
+    // not corrupt a statistic; it throws while rendering, and the coach gets an
+    // empty page instead of a wrong one. It stays optional because that code
+    // already reads it as optional — what it may not be is a field named
+    // `date` holding something that is not one.
+    function validMatchFacts() {
+      return request.resource.data.opponentName is string
+        && request.resource.data.opponentName.size() > 0
+        && request.resource.data.opponentName.size() <= 80
+        && (request.resource.data.get('date', null) == null
+            || (request.resource.data.date is string
+                && request.resource.data.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')));
+    }
+
+    // The final score, as the season record reads it. `seasonSummary` adds
+    // these up across every finalized match and compares them to decide won,
+    // drawn and lost, without re-checking either — so a string here is not
+    // one wrong match, it is a wrong season. Nothing about a school fixture
+    // needs three digits.
+    function validScore() {
+      return request.resource.data.scoreUs is int
+        && request.resource.data.scoreUs >= 0
+        && request.resource.data.scoreUs <= 99
+        && request.resource.data.scoreThem is int
+        && request.resource.data.scoreThem >= 0
+        && request.resource.data.scoreThem <= 99;
+    }
+
     // The xG check tally on a match document. Null is the real, common answer:
     // it means nobody has marked a shot in this match, and every bound below is
     // an actual invariant of the arithmetic rather than a guessed cap.
@@ -378,8 +412,7 @@ service cloud.firestore {
                 'scoreUs', 'scoreThem', 'videoUrl', 'videoOffsetS',
                 'secondHalfVideoS', 'halfTimeClockS',
                 'createdAt', 'createdBy'])
-          && request.resource.data.opponentName is string
-          && request.resource.data.opponentName.size() <= 80
+          && validMatchFacts()
           && request.resource.data.status in
                ['scheduled', 'first_half', 'halftime', 'second_half', 'full_time']
           && request.resource.data.finalized == false
@@ -388,14 +421,42 @@ service cloud.firestore {
           && validHalfTimeClock()
           && isTimestampNow(request.resource.data.createdAt);
 
+        // What a tagger may set is what a tagger can see from the touchline:
+        // who, when, which half is running, and where in the footage it is.
+        // Not `finalized`, and not the score — those two say the reports have
+        // gone out to the players, which is a thing only publishing them can
+        // make true. The rule below is the one that writes them.
+        //
+        // `validMatchFacts` is here as well as on the create, because a bound
+        // that holds until the second write is not a bound.
         allow update: if isTagger(t)
-          && changed(['opponentName', 'date', 'status', 'finalized',
-                      'scoreUs', 'scoreThem', 'videoUrl', 'videoOffsetS',
-                      'secondHalfVideoS', 'halfTimeClockS'])
+          && changed(['opponentName', 'date', 'status', 'videoUrl',
+                      'videoOffsetS', 'secondHalfVideoS', 'halfTimeClockS'])
           && request.resource.data.status in
                ['scheduled', 'first_half', 'halftime', 'second_half', 'full_time']
+          && validMatchFacts()
           && validVideo()
           && validHalfTimeClock();
+
+        // Publishing. `finalized` is what the coach’s dashboard reads to say
+        // "reports published" and what the season record counts as a match
+        // played, and the only thing that writes it is `publishReports`, in a
+        // single update carrying exactly these three keys.
+        //
+        // One-way, deliberately. Setting it back to false would leave every
+        // player report sitting in their portal while the coach’s screen said
+        // nothing had been sent. Nothing in the app has ever wanted to do that,
+        // so the ability was only ever a way for the two records to disagree.
+        // Re-publishing writes true over true and is unaffected.
+        //
+        // What this cannot check is that a report was actually written: the
+        // reports go out in the same batch, and a batched write is evaluated
+        // against the state as it was before the batch, so `exists()` on one of
+        // them is false on a first publish no matter what the batch holds.
+        allow update: if isCoach(t)
+          && changed(['finalized', 'scoreUs', 'scoreThem'])
+          && request.resource.data.finalized == true
+          && validScore();
 
         // The xG check: four numbers summarising which of this match's shots a
         // coach has marked, and what the model predicted for them. Stored here

@@ -30,6 +30,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 const COACH = { uid: 'coach1', email: 'coach@school.org' };
 const ASSISTANT = { uid: 'assist1', email: 'assistant@school.org' };
+const TAGGER = { uid: 'tagger1', email: 'tagger@school.org' };
 const PLAYER = { uid: 'player1', email: 'alex@school.org' };
 const OTHER = { uid: 'player2', email: 'jordan@school.org' };
 const STRANGER = { uid: 'rando', email: 'rando@gmail.com' };
@@ -95,7 +96,7 @@ beforeEach(async () => {
     await setDoc(doc(db, 'teams', TEAM), {
       name: 'South Brunswick',
       coachUids: [COACH.uid],
-      taggerUids: [],
+      taggerUids: [TAGGER.uid],
       archived: false,
       createdBy: COACH.uid,
     });
@@ -532,6 +533,148 @@ describe('match video link', () => {
     await assertFails(updateDoc(
       doc(as(PLAYER), 'teams', TEAM, 'matches', MATCH),
       { videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
+    ));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the match document itself — what it says, and who may say it
+// ---------------------------------------------------------------------------
+
+const NEW_MATCH = 'match2';
+
+/** A fixture as `createMatch` writes one. */
+function fixture(who, extra = {}) {
+  return setDoc(doc(as(who), 'teams', TEAM, 'matches', NEW_MATCH), {
+    opponentName: 'Hillsborough',
+    date: '2026-09-01',
+    status: 'scheduled',
+    finalized: false,
+    scoreUs: 0,
+    scoreThem: 0,
+    createdAt: serverTimestamp(),
+    createdBy: who.uid,
+    ...extra,
+  });
+}
+
+describe('creating a match', () => {
+  it('a coach schedules a fixture', async () => {
+    await assertSucceeds(fixture(COACH));
+  });
+
+  it('a tagger schedules a fixture', async () => {
+    // Taggers run the tablet, and the tablet is often the first thing that
+    // knows a fixture exists.
+    await assertSucceeds(fixture(TAGGER));
+  });
+
+  it('rejects a fixture with nobody to play', async () => {
+    await assertFails(fixture(COACH, { opponentName: '' }));
+    await assertFails(fixture(COACH, { opponentName: 42 }));
+  });
+
+  it('rejects a date that is not a date', async () => {
+    // The dashboard sorts on this with localeCompare. Something that is not a
+    // string does not make one match wrong, it throws while drawing the list.
+    await assertFails(fixture(COACH, { date: 'next Tuesday' }));
+    await assertFails(fixture(COACH, { date: 20260901 }));
+    await assertFails(fixture(COACH, { date: '01/09/2026' }));
+  });
+
+  it('rejects a fixture that arrives already published', async () => {
+    await assertFails(fixture(COACH, { finalized: true }));
+  });
+});
+
+describe('the facts a match states about itself', () => {
+  const match = (who = COACH) => doc(as(who), 'teams', TEAM, 'matches', MATCH);
+
+  it('a coach can correct the opponent and the date', async () => {
+    await assertSucceeds(updateDoc(match(), {
+      opponentName: 'Hillsborough', date: '2026-09-02',
+    }));
+  });
+
+  it('clearing the date is allowed', async () => {
+    // The match list already reads it as optional, so the rule does too.
+    await assertSucceeds(updateDoc(match(), { date: null }));
+  });
+
+  // Every case below passed before these bounds were added to the update rule.
+  // They were on the create only, which meant all of them could be stepped
+  // over by writing the document once and then editing it.
+  it('rejects a nameless opponent on the second write', async () => {
+    await assertFails(updateDoc(match(), { opponentName: '' }));
+    await assertFails(updateDoc(match(), { opponentName: 42 }));
+  });
+
+  it('rejects an opponent name the length of a paragraph', async () => {
+    await assertFails(updateDoc(match(), { opponentName: 'x'.repeat(200) }));
+  });
+
+  it('rejects a date that is not a date on the second write', async () => {
+    await assertFails(updateDoc(match(), { date: 'next Tuesday' }));
+    await assertFails(updateDoc(match(), { date: 20260902 }));
+  });
+});
+
+// Publishing is the most consequential thing anyone does here: it is what puts
+// a report in front of a student, and what the season record counts.
+describe('publishing a match', () => {
+  const match = (who = COACH) => doc(as(who), 'teams', TEAM, 'matches', MATCH);
+
+  // Exactly the update `publishReports` makes, in one write.
+  const PUBLISH = { finalized: true, scoreUs: 2, scoreThem: 1 };
+
+  it('a coach publishes the reports, and the score with them', async () => {
+    await assertSucceeds(updateDoc(match(), PUBLISH));
+  });
+
+  it('a tagger cannot publish', async () => {
+    // A tagger writes what happened on the pitch. Whether the reports have
+    // gone out to twenty students is not something the touchline decides.
+    await assertFails(updateDoc(match(TAGGER), PUBLISH));
+    await assertFails(updateDoc(match(TAGGER), { finalized: true }));
+  });
+
+  it('a tagger can still do a tagger’s job', async () => {
+    await assertSucceeds(updateDoc(match(TAGGER), { status: 'full_time' }));
+    await assertSucceeds(updateDoc(match(TAGGER), { halfTimeClockS: 2760 }));
+  });
+
+  it('a published match cannot be unpublished, even by the coach', async () => {
+    // The reports would still be sitting in twenty portals while the coach’s
+    // own screen said nothing had been sent.
+    await assertSucceeds(updateDoc(match(), PUBLISH));
+    await assertFails(updateDoc(match(), { ...PUBLISH, finalized: false }));
+    await assertFails(updateDoc(match(), { finalized: false }));
+  });
+
+  it('a corrected score can be published over the first one', async () => {
+    await assertSucceeds(updateDoc(match(), PUBLISH));
+    await assertSucceeds(updateDoc(match(), { ...PUBLISH, scoreThem: 2 }));
+  });
+
+  it('rejects a score that is not a count of goals', async () => {
+    // `seasonSummary` adds these up across the season and compares them to
+    // decide won, drawn and lost, without re-checking either. A string here
+    // does not make one match wrong, it makes the record wrong.
+    await assertFails(updateDoc(match(), { ...PUBLISH, scoreUs: '2' }));
+    await assertFails(updateDoc(match(), { ...PUBLISH, scoreUs: 2.5 }));
+    await assertFails(updateDoc(match(), { ...PUBLISH, scoreUs: -1 }));
+    await assertFails(updateDoc(match(), { ...PUBLISH, scoreThem: 200 }));
+  });
+
+  it('refuses to publish a match that has no score at all', async () => {
+    // The seeded fixture carries no score, so this is a match being counted as
+    // played without a result — which is what the season record would show.
+    await assertFails(updateDoc(match(), { finalized: true }));
+  });
+
+  it('a player cannot publish', async () => {
+    await assertFails(updateDoc(
+      doc(as(PLAYER), 'teams', TEAM, 'matches', MATCH), PUBLISH,
     ));
   });
 });

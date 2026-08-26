@@ -2065,6 +2065,60 @@ A FastAPI + SQLAlchemy + SQLite server (`backend/`) filled this role first and w
 kept as a fallback until a full match had been tagged against Firestore without
 it. That happened, so it was deleted — 735 lines describing a schema that no
 longer matched the one in use, which is worse than no reference at all.
+- [x] **Publishing is a coach’s word, not a tagger’s — and the score is
+      finally a number** (2026-08-26). Three holes in the `matches` block, all of
+      them found by reading the rule next to the code that writes through it.
+      **A tagger could publish, and could un-publish.** `finalized` is the single
+      field the coach’s dashboard reads to say "reports published" and the
+      season record counts as a match played, and it sat in the same
+      `changed([...])` list as `status` and `videoUrl` — so anyone running the
+      tablet could make the dashboard claim twenty reports had gone out when none
+      had, or flip a published match back to `false` and leave twenty reports
+      sitting live in twenty portals while the coach’s screen said nothing had
+      been sent. Publishing now has its own rule, `isCoach` only. Coach is a
+      subset of tagger here, and Firestore ORs its `allow` rules, so the narrower
+      rule sits alongside the broader one exactly as the `xgCheck` rule below it
+      already does.
+      **One-way, deliberately.** The rule requires `finalized == true`, so nothing
+      can un-publish. Grepping every writer first is what made that safe rather
+      than a regression: `createMatch` is the only thing that has ever written
+      `false`, and `publishReports` the only thing that writes `true`. Nothing in
+      the app has ever wanted to reverse it, so the ability was only ever a way
+      for the two records to disagree. Re-publishing a corrected score writes true
+      over true and is unaffected.
+      **The score was never checked at all** — not on create, not on update, not
+      for type and not for range. `seasonSummary` adds `scoreUs` and `scoreThem`
+      up across every finalized match and compares them to decide won, drawn and
+      lost, without re-checking either, so `"2"` there is not one wrong match,
+      it is a wrong season record. `validScore()` now pins both to integers in
+      0–99, and it is checked on the publish rule specifically rather than
+      globally: the legacy match documents carry no score at all, and a blanket
+      check would have refused writes to every one of them for no security gain.
+      **And `opponentName` and `date` held until the second write** — the same
+      pattern the roster fix below closes, in a different collection: both were
+      validated on create only, so either could be replaced with anything by
+      writing the document once and then editing it. `date` matters less than it
+      looks and more than nothing: the dashboard sorts on it with `localeCompare`,
+      so a non-string there does not corrupt a statistic, it throws while drawing
+      the match list and the coach gets an empty page instead of a wrong one. It
+      stays optional, because the code reading it already treats it as optional
+      — what it may not be is a field named `date` holding something that is
+      not one.
+      **What the rule cannot check, and does not pretend to.** It cannot verify a
+      player report was actually written before letting `finalized` go true: the
+      reports and this flag go out in the same batch, and a batched write is
+      evaluated against the state as it was *before* the batch, so `exists()` on
+      one of them is false on a first publish no matter what the batch contains.
+      The rule says so in a comment rather than leaving the next reader to
+      rediscover it.
+      **Eighteen emulator cases pin all of it**, including the first tagger
+      identity the rules tests have ever had. Coach is a subset of tagger, so
+      proving a rule is coach-only needs somebody who is one and not the other
+      — and the same identity proves a tagger can still do a tagger’s job,
+      which is the half of a permission fix that is easy to break silently.
+      Gate: **739 pure JS · 37 smoke · 171 emulator**, all green.
+      Rides along with the `deploy:rules` still pending from the entry below —
+      neither is live until that runs.
 - [x] **Bounds that hold on the second write, and two hardenings that were tried
       and rejected** (2026-08-21). A line-by-line adversarial read of the whole
       backend, which is a short sentence because the whole backend is one file:
