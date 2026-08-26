@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=102';
+} from '../assets/auth.js?v=103';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../assets/db.js?v=102';
-import { nowIndex } from '../assets/timeline.js?v=102';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=102';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=102';
+} from '../assets/db.js?v=103';
+import { nowIndex } from '../assets/timeline.js?v=103';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=103';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=103';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=102';
+} from '../assets/sample-report.js?v=103';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=102';
-import { renderPassMap } from '../assets/pass-map.js?v=102';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=102';
+} from '../assets/passing.js?v=103';
+import { renderPassMap } from '../assets/pass-map.js?v=103';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=103';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=102';
-import { renderForms } from '../assets/form-chart.js?v=102';
+} from '../assets/season.js?v=103';
+import { renderForms } from '../assets/form-chart.js?v=103';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, hasVerdict, xgTrust, erasureNote,
@@ -43,24 +43,24 @@ import {
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=102';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=102';
-import { mountRail } from '../assets/rail.js?v=102';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=102';
-import { videoKind } from '../assets/video.js?v=102';
+} from '../assets/report.js?v=103';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=103';
+import { mountRail } from '../assets/rail.js?v=103';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=103';
+import { videoKind } from '../assets/video.js?v=103';
 import {
     byId, setText, toast, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     stackBar, coverageStrip,
-} from '../assets/ui.js?v=102';
+} from '../assets/ui.js?v=103';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=102';
+} from './shell.js?v=103';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=102';
+} from './review.js?v=103';
 
 // ---------------------------------------------------------------- team setup
 
@@ -2282,6 +2282,10 @@ function cvNote() {
         // a calibration and somebody to have said which goal each side defends.
         lineHeight: cv.teams?.team_a?.shape?.line_m,
         calibrationErrorM: cv.calibrationErrorM,
+        // So the keeper caveat appears only once there are keeping rows to
+        // caveat. One keeper found is enough: `keeperStatRows` keeps a row on
+        // one side alone, and the caveat covers whichever side got one.
+        keepers: (cv.keepers || []).length,
         reconciliation: cv.reconciliation,
         // Which half, and what decided it. Every pitch picture below this
         // banner is drawn from the answer, and a wrong one mirrors all of them

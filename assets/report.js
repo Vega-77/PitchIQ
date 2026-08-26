@@ -1608,6 +1608,21 @@ export function cvQualityNotes(quality, options = {}) {
             + 'neither kit still counted — a referee, or your goalkeeper');
     }
 
+    // Only once there are keeping figures on screen to caveat, and only when
+    // nobody confirmed who they belong to. `cv/keeper.py` is blunt about the
+    // stake — a wrong keeper poisons save percentage, distribution and every
+    // keeper feature in the xG model at once — and the rows look identical
+    // whether a person named the keeper or the pipeline worked them out from
+    // kit colour and where they stood. 'manual' is a human saying so and needs
+    // no caveat; 'unavailable' is the deliberate refusal to guess, and puts no
+    // rows on screen to caveat in the first place.
+    const keeperMethod = q.keeper_method ?? q.keeperMethod;
+    if (options.keepers && keeperMethod === 'colour+position') {
+        notes.push('nobody named the goalkeepers — they were picked out by kit '
+            + 'colour and where they stood, and every keeping figure rests on '
+            + 'that having been right');
+    }
+
     // Only once there is a line height on screen to caveat, and it needs one
     // badly. "Defensive line height" conventionally means where the back line
     // sat *out of possession*; this is averaged over every instant of the run,

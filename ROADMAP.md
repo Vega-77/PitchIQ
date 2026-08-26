@@ -4810,6 +4810,54 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **Twenty-nine figures hiding behind one gated name**
+      (2026-08-26). `tests/smoke.test.js` already pins that every figure the
+      pipeline publishes is one some page reads. It walks the top-level keys of
+      the five payload builders, and for one of those keys the walk is empty:
+      `cv/publish.py` forwards the entire quality block as a single key. One
+      name, one reader, gate satisfied — and twenty-nine figures inside it
+      that nothing had ever checked in either direction. `assets/report.js`
+      already carries a comment about how the coach and player pages drifted
+      apart and *four new quality fields ended up reaching neither*. That is this
+      exact failure, found the slow way.
+      **Clean in the direction that would have hurt.** Nothing reads a quality
+      key the pipeline never writes — no figure that would have come out
+      `undefined` on every real match. The other direction had eleven: produced,
+      rendered nowhere.
+      **Ten of the eleven had a reason, and now the reason is written down.**
+      Counts the pages recount from what they render (`tracks`, `clusters`,
+      `touches`); raw forms of a figure that reaches the screen in a better one
+      (`dead_ball_s` behind `live_share`, `unseen_spans` behind `no_ball_s`, the
+      tenth percentile behind the median touch confidence); one that already
+      arrives as a warning at the only value where it means anything
+      (`kit_separation`); a pair the reconciliation block carries instead
+      (`goal_agreement`, `exit_agreement`); and one deliberately kept apart from
+      its neighbour (`ball_filled_share`, so a run that barely saw the ball
+      cannot grade as well as one that watched it throughout).
+      **The eleventh was real.** `keeper_method` says whether a human named the
+      goalkeepers or the pipeline worked them out from kit colour and where they
+      stood, and `cv/keeper.py` is blunt about the stake: a wrong keeper poisons
+      save percentage, distribution and every keeper feature in the xG model at
+      once. The keeping rows looked identical either way. They now carry the
+      caveat when nobody confirmed them — and only when there are keeping
+      rows on screen to caveat, since a warning about figures the coach cannot
+      see is noise in the one line that carries the real ones.
+      **Both directions, because a one-way check rots.** A key nobody renders is
+      a finding; a listed key somebody has since started rendering is a stale
+      entry to delete, or the list turns into a graveyard nobody dares touch. The
+      escape hatch costs a sentence per entry — small enough to write, large
+      enough that writing a false one is uncomfortable.
+      **Eight mutations, eight catches**: a new figure nobody renders, a page
+      reading a figure nothing produces, an excused figure somebody started
+      rendering, an excused figure the pipeline stopped producing, an excuse that
+      says nothing, a scanner that stops following the
+      `const q = quality || {}` alias, a scanner that stops splitting on function
+      boundaries, and the anti-vacuum guard itself made unfalsifiable. That last
+      one carries the most weight, because the clean direction has never fired
+      and a check that has never fired is indistinguishable from one that cannot:
+      the test loosens its own alias rule until it *must* invent ghosts, and
+      fails if none appear.
+      Gate: **1331 Python tests**, **957 JS tests**, pyflakes clean, `?v=103`.
 - [x] **The blind spot the Python orphan check names in its own docstring**
       (2026-08-26). `tests/test_call_graph.py` hunts for code that is written,
       tested in isolation and connected to nothing — the shape a test per

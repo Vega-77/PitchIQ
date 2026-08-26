@@ -1672,6 +1672,43 @@ describe('cvQualityNotes', () => {
         assert.ok(Array.isArray(report.cvQualityNotes(undefined, {})));
     });
 
+    // ---- who the keeping figures belong to ----
+    //
+    // `cv/keeper.py` names the stake itself: a wrong keeper poisons save
+    // percentage, distribution and every keeper feature in the xG model at
+    // once. The rows on screen look the same either way, so the line that
+    // separates a confirmed keeper from a worked-out one has to be written.
+
+    test('an inferred keeper is named as inferred', () => {
+        const text = joined({ keeper_method: 'colour+position' }, { keepers: 2 });
+        assert.match(text, /nobody named the goalkeepers/);
+        assert.match(text, /kit colour and where they stood/);
+    });
+
+    test('a keeper somebody named needs no caveat', () => {
+        assert.doesNotMatch(
+            joined({ keeper_method: 'manual' }, { keepers: 2 }), /goalkeepers/);
+    });
+
+    test('no keeping rows, no keeper caveat', () => {
+        // 'unavailable' is the deliberate refusal to guess, and it puts no
+        // keeping rows on screen. A caveat about figures the coach cannot see
+        // is noise in the one line that carries the real warnings.
+        assert.doesNotMatch(
+            joined({ keeper_method: 'unavailable' }, { keepers: 0 }), /goalkeepers/);
+        assert.doesNotMatch(
+            joined({ keeper_method: 'colour+position' }, { keepers: 0 }),
+            /nobody named/);
+    });
+
+    test('the camelCased spelling reads the same', () => {
+        // The emulator fixtures write the quality block camelCased; Python
+        // writes it snake_cased. Both reach this function.
+        assert.match(
+            joined({ keeperMethod: 'colour+position' }, { keepers: 1 }),
+            /nobody named the goalkeepers/);
+    });
+
     // The xG caveat only exists because xG is now a real number rather than a
     // permanent null. It says the one thing about it that is a bias rather than
     // noise: a header is scored as a foot shot, every time, upward.
