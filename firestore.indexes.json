@@ -8,14 +8,6 @@
         { "fieldPath": "published", "order": "ASCENDING" },
         { "fieldPath": "matchDate", "order": "DESCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "matches",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "finalized", "order": "ASCENDING" },
-        { "fieldPath": "date", "order": "DESCENDING" }
-      ]
     }
   ],
   "fieldOverrides": [

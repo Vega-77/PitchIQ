@@ -2065,6 +2065,49 @@ A FastAPI + SQLAlchemy + SQLite server (`backend/`) filled this role first and w
 kept as a fallback until a full match had been tagged against Firestore without
 it. That happened, so it was deleted — 735 lines describing a schema that no
 longer matched the one in use, which is worse than no reference at all.
+- [x] **The one Firestore failure the emulator cannot show you**
+      (2026-08-26). A query that needs a composite index runs perfectly under
+      `firebase emulators:exec`, passes `rules.test.js`, passes `flow.test.js`,
+      and then refuses to run in production with `FAILED_PRECONDITION: The query
+      requires an index` the first time a real person opens the page. The
+      emulator does not enforce index requirements at all. Green everywhere
+      except where it matters — the same shape as the two orphan checks in
+      Phase 15, and a demo-day footgun, since the page it would break is the
+      player portal.
+      **The audit came back clean in the direction that would have hurt.** The
+      whole frontend makes exactly one compound query: `myReports`, the player
+      portal’s report list, a collection group over `playerReports` with two
+      equality filters and a descending `orderBy`. It has an index and the index
+      fits it. Nothing else constrains more than one field — `listMatches`
+      reads the subcollection whole and sorts in JavaScript, and every
+      `finalized` filter in the app is a client-side `.filter()`.
+      **Which is exactly why the other index was wrong.** `firestore.indexes.json`
+      also declared `matches` on `finalized` + `date`, written in the first
+      Firebase commit and used by nothing since. A composite index is not free:
+      every write to a match document maintained it, for a query nobody makes.
+      It is gone. `npm run deploy:rules` already covers `firestore:indexes`, so
+      it goes with the rules deploy that is still pending.
+      **The `fieldOverrides` are checked the other way round.** An override with
+      an empty `indexes` list switches indexing *off* for a field, which makes
+      any query touching it fail — in production only, again. `log.revert` is
+      a map and `roster.stints` is an array, both deliberately unindexed to save
+      the write cost, and the test pins that nothing queries either.
+      **Reach, as usual, is the part that could rot quietly.** The scanner walks
+      the same module directories `stamp_version.py` stamps, which is the whole
+      browser surface only because two neighbours hold: one gate pins that list
+      against what is on disk, another pins that no page hides an entry point in
+      an inline `<script type="module">` body. `cv/publish.py` is the only
+      other code that talks to Firestore, and rather than remembering that it
+      only writes, the test asserts it — a `.where(` appearing there fails
+      here, where somebody will read why.
+      **Six mutations, six catches**: a two-field query with no index, an index
+      no query uses, an index ordered the wrong way, a query against a field
+      whose indexing is switched off, the admin SDK growing a query, and the
+      pinned query quietly retyped. That last one is the anti-vacuum guard —
+      a paren matcher that truncated would leave every other assertion here
+      trivially true, so `myReports` is pinned by shape rather than by count.
+      Gate: **1320 Python tests**, pyflakes clean. No version bump: nothing
+      under the app directories changed.
 - [x] **The last bound in the ruleset that only held on the way in**
       (2026-08-26). A sweep of every remaining `match` block for the two
       patterns the two fixes below turned up — a field validated on create and
