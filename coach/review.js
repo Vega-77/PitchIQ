@@ -11,19 +11,19 @@
  * way directly would be a cycle. See `onReviewChange`.
  */
 
-import { saveCvReview, updateMatch } from '../assets/db.js?v=103';
-import { EVENTS, describeEvent } from '../assets/events.js?v=103';
+import { saveCvReview, updateMatch } from '../assets/db.js?v=104';
+import { EVENTS, describeEvent } from '../assets/events.js?v=104';
 import {
     BY_CLOCK, BY_DOUBT, FROM_TAGGED, FROM_VIDEO, HALF_TIME, NOT_A_PLAYER,
-    clockFromMatch, hasVerdict, orderCaveat, orderFeed, reviewFeed,
-    reviewLabels, reviewScore,
-} from '../assets/report.js?v=103';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=103';
+    clockFromMatch, hasVerdict, keeperOfTrack, orderCaveat, orderFeed,
+    reviewFeed, reviewLabels, reviewScore,
+} from '../assets/report.js?v=104';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=104';
 import {
     byId, clockText, confidenceMark, plural, setText, toast,
-} from '../assets/ui.js?v=103';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=103';
-import { download, matchXgTally, state, teamLabels } from './shell.js?v=103';
+} from '../assets/ui.js?v=104';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=104';
+import { download, matchXgTally, state, teamLabels } from './shell.js?v=104';
 
 // Two things outside this module have to be redrawn when a verdict lands, and
 // they are not the same thing. The shot views are drawn *from* the ledger, so
@@ -609,11 +609,26 @@ function gapWords(gapS) {
 function whoIs(trackId) {
     const clusters = state.match?.cv?.identity?.clusters || [];
     const cluster = clusters.find((c) => (c.track_ids || []).includes(trackId));
-    if (!cluster) return 'unknown figure';
+
+    // A figure nobody has named may still be one the pipeline judged to be a
+    // goalkeeper, and that judgement is what the whole keeping block rests on.
+    // Naming it here is not a guess in the way a player name would be: it is
+    // the pipeline’s own claim, said out loud where somebody can disagree
+    // with it. A named player still wins — a roster match is the better
+    // answer, and one of the two keepers is on the roster.
+    const side = keeperOfTrack(state.match?.cv?.keepers, trackId);
+    const labels = teamLabels();
+    const keeper = side
+        ? `${side === 'team_a' ? labels.usName : labels.themName} goalkeeper`
+        : null;
+
+    if (!cluster) return keeper || 'unknown figure';
 
     const playerId = state.match.cvMapping?.[String(cluster.cluster_id)];
     if (playerId === NOT_A_PLAYER) return 'ruled out as not a player';
-    if (!playerId) return `figure ${cluster.cluster_id + 1}, unmatched`;
+    if (!playerId) {
+        return keeper || `figure ${cluster.cluster_id + 1}, unmatched`;
+    }
 
     const player = state.match.roster.find((p) => p.id === playerId);
     return player ? player.playerName : `figure ${cluster.cluster_id + 1}`;

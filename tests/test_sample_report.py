@@ -24,6 +24,7 @@ from pathlib import Path
 
 import pytest
 
+from cv.keeper import KeeperReport
 from cv.publish import player_report_fields, summary_payload
 from cv.report_json import TeamStats
 
@@ -105,6 +106,22 @@ class TestTheTeamDocument:
         the same seam, and `tests/test_teams_seam.py` is where it is checked.
         """
         keys = TeamStats(team='team_a').to_json().keys()
+        assert not missing(keys, source)
+
+    def test_every_keeper_statistic_is_represented(self, source):
+        """The keeping block is the same shape of hole one group down.
+
+        `keeperStatRows` builds eleven rows off these fields and `groupStats`
+        drops the ones that are null on both sides, so a field the fixture
+        forgets does not error — its row just never appears, and the preview
+        looks complete while covering one row fewer than it claims. Exactly the
+        failure `test_every_quality_key_is_represented` was written for, in the
+        block next door.
+
+        That every one of these fields reaches a page at all is the other end of
+        the same seam, and `tests/test_keepers_seam.py` is where it is checked.
+        """
+        keys = KeeperReport(team='team_a').to_json().keys()
         assert not missing(keys, source)
 
 

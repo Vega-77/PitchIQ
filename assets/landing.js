@@ -1,13 +1,13 @@
 import {
     signIn, signOut, onUser, resolveAccess, pendingInvites, claimInvite,
     configWarning,
-} from './auth.js?v=103';
-import { mountPitchBackdrop } from './pitch-backdrop.js?v=103';
-import { listMatches, listPlayers, seasonSummary } from './db.js?v=103';
+} from './auth.js?v=104';
+import { mountPitchBackdrop } from './pitch-backdrop.js?v=104';
+import { listMatches, listPlayers, seasonSummary } from './db.js?v=104';
 import {
     formGuide, nextFixture, whenLabel, seasonJobs,
-} from './report.js?v=103';
-import { byId, setText, toast, showOnly, figure, signed, plural } from './ui.js?v=103';
+} from './report.js?v=104';
+import { byId, setText, toast, showOnly, figure, signed, plural } from './ui.js?v=104';
 
 const VIEWS = ['view-marketing', 'view-nowhere', 'view-routes'];
 

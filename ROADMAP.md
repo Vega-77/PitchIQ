@@ -4810,6 +4810,65 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The premise under eleven rows had no reader** (2026-08-26). Third of
+      the four blocks `cv/publish.py` forwards whole, and the first one where the
+      audit found something. `keepers` carries sixteen figures behind one key the
+      JavaScript gate ticks off as one name. Thirteen reach a page, three are
+      excused — and the fourth was `track_ids`, the list of tracked figures
+      `identify_keepers` decided *were* the goalkeepers. Every other figure in the
+      block is measured about whoever that picked, and no page said who it was.
+      A wrong pick does not look wrong. It looks like a keeper who never claimed
+      a cross.
+      **So it was rendered rather than excused.** New `keeperOfTrack` in
+      `assets/report.js`, called from `whoIs` in `coach/review.js`, which until
+      now answered ’unknown figure’ for exactly those tracks: an unnamed
+      figure the pipeline judged to be a keeper is now named as one. That is not
+      a guess the way a player name would be — it is the pipeline’s own
+      claim, said out loud where a coach can disagree with it. A roster match
+      still wins. Track ids arrive as numbers from Python and as strings from
+      anything that has been a document key, so both sides are compared as
+      numbers; five JS tests pin that, and the null case, because `Number(null)`
+      is 0 and would otherwise make track 0 everybody’s keeper.
+      **The three excused figures are one argument.** `shots_faced`,
+      `shots_on_target_faced` and `goals_conceded` are the opposition’s shots
+      and the opposition’s goals, already on the screen in the attacking group
+      with the columns the other way round. A second copy under a keeper’s
+      name would read as a second measurement of the same thing, and
+      `goals_conceded` is in any case the denominator of `save_pct`, which is
+      rendered.
+      **The teams gate’s scanner was measured and rejected.** This block is an
+      array, so nothing aliases a keeper: every rendered figure arrives as
+      `(k) => k.saves`, where `k` is bound inside the declaration that names
+      `keepers`. The teams gate answers that with a blanket scan of every arrow
+      parameter in the function — which here invents twenty-five reads,
+      because `teamStatRows` mentions `keepers` in passing and holds every
+      `(t) => t.ppda` team callback. Seeding only from the declaration covers
+      thirteen of sixteen with no ghosts at all, so one scan serves both
+      directions here where the teams gate needed two.
+      **Eight mutations, eight catches**: a new field nobody renders, a page
+      reading a field nothing produces, an excused field started being rendered,
+      an excused field renamed away in `cv/keeper.py`, an excuse that says
+      nothing, the only reader of `track_ids` unseeded from the block, a scanner
+      that stops following callback parameters, and the anti-vacuum guard itself
+      made unfalsifiable.
+      **Guards measured before pinning, again, and it changed the file.** Only
+      one of five fires here: drop the callback-parameter step and coverage
+      collapses from thirteen figures to exactly one — `found.team`, the sole
+      field in the block read off a plain alias. Comment stripping, the
+      method-call filter and the per-function split change nothing today; they
+      guard the direction that fails *silently*, so they are kept, documented as
+      inert, and deliberately not given tests. Hop-two alias resolution was
+      deleted instead: it guards the direction that fails *loudly* — a missed
+      reader shows up as a noisy orphan — and it resolved nothing. A first
+      draft of the gate pinned the per-function split on a measurement taken
+      against the scanner that still had hop-two in it; the twelve ghosts it was
+      pinned on turned out to be hop-two’s.
+      Also fixed: `tests/test_sample_report.py` checked that the preview fixture
+      carries every team statistic and never checked the keeper block one group
+      down, where `groupStats` drops rows that are null on both sides — so a
+      forgotten field does not error, it just silently renders one row fewer.
+      Gate: **1355 Python tests**, 748 JS unit tests, pyflakes clean. Pages
+      changed, so `?v=104`.
 - [x] **The same blind spot one block over, three times the size**
       (2026-08-26). `cv/publish.py` forwards four blocks whole, and the last
       entry closed one of them. `teams` is the next and the largest: thirty-one

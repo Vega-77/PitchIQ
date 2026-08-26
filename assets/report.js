@@ -3172,6 +3172,28 @@ export function keeperStatRows(keepers, confidence = {}) {
     ];
 }
 
+/**
+ * Which team’s goalkeeper a tracked figure was judged to be, or null.
+ *
+ * `identify_keepers` picks a track per team out of kit colour and time spent in
+ * front of a goal, and every figure in the block above is measured about
+ * whoever it picked. `track_ids` is how that judgement leaves Python, and until
+ * now it was the one field of the keeper block no page read — so the premise
+ * under eleven rows was the only thing on the match view a human could not
+ * check. A wrong pick does not look wrong. It looks like a keeper who never
+ * claimed a cross.
+ *
+ * Track ids arrive as numbers out of Python and as strings out of anything
+ * that has been through a document key, so both sides are compared as numbers.
+ */
+export function keeperOfTrack(keepers, trackId) {
+    const wanted = Number(trackId);
+    if (trackId == null || !Number.isFinite(wanted)) return null;
+    const found = (keepers || []).find((k) => k
+        && (k.track_ids || []).some((id) => Number(id) === wanted));
+    return found ? found.team : null;
+}
+
 const PERIOD_TEXT = {
     kickoff_1st: 'Kick-off',
     halftime: 'Half-time',

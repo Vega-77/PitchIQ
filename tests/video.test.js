@@ -3962,6 +3962,54 @@ describe('keeperStatRows', () => {
     });
 });
 
+describe('keeperOfTrack', () => {
+    const KEEPERS = [
+        { team: 'team_a', track_ids: [2, 7] },
+        { team: 'team_b', track_ids: [18] },
+    ];
+
+    test('a track the pipeline called a keeper names its side', () => {
+        assert.equal(report.keeperOfTrack(KEEPERS, 2), 'team_a');
+        assert.equal(report.keeperOfTrack(KEEPERS, 7), 'team_a');
+        assert.equal(report.keeperOfTrack(KEEPERS, 18), 'team_b');
+    });
+
+    test('every other figure on the pitch is nobody', () => {
+        // The answer has to be null rather than a side, because the caller
+        // prints it: a stray truthy value would put `goalkeeper` against an
+        // outfielder for the whole review.
+        assert.equal(report.keeperOfTrack(KEEPERS, 3), null);
+        assert.equal(report.keeperOfTrack(KEEPERS, 0), null);
+    });
+
+    test('a run with no keepers found answers, rather than throwing', () => {
+        // Both sides can be missing — `identify_keepers` finds each team’s
+        // independently — and this is called on every review row.
+        assert.equal(report.keeperOfTrack(null, 2), null);
+        assert.equal(report.keeperOfTrack([], 2), null);
+        assert.equal(report.keeperOfTrack([{ team: 'team_a' }], 2), null);
+    });
+
+    test('the two spellings of a track id are the same track', () => {
+        // Python writes numbers; anything that has been a document key comes
+        // back a string. Comparing those with === would silently find nothing.
+        assert.equal(report.keeperOfTrack(KEEPERS, '2'), 'team_a');
+        assert.equal(report.keeperOfTrack([{ team: 'team_b', track_ids: ['18'] }], 18),
+                     'team_b');
+    });
+
+    test('a missing track id is not a match for anything', () => {
+        // Every event carries a track id, but an event may carry none, and
+        // Number(null) is 0 — which would make track 0 the keeper.
+        assert.equal(report.keeperOfTrack([{ team: 'team_a', track_ids: [0] }], null),
+                     null);
+        assert.equal(report.keeperOfTrack([{ team: 'team_a', track_ids: [0] }], undefined),
+                     null);
+        assert.equal(report.keeperOfTrack([{ team: 'team_a', track_ids: [0] }], 0),
+                     'team_a');
+    });
+});
+
 // ------------------------------------------------------------- the heatmap
 //
 // The grid was computed per track, never carried across to the cluster, and
