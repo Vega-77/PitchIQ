@@ -5,6 +5,12 @@ new footage before assuming the camera setup is usable.
 
     python -m cv.experiments.spike_detect "path/to/match.mp4"
     python -m cv.experiments.spike_detect match.mp4 --crop 0,260,1280,430 --upscale 3
+
+It reports hit rates *and* why they are what they are. A hit rate on its own
+cannot tell a camera that was too far away from a frame we shrank before
+looking at it, and those need opposite responses: one is next week's fixture,
+the other is one flag on this command. The framing block at the end says which,
+and `--tiles` is the fix when the answer is us.
 """
 
 from __future__ import annotations
@@ -16,8 +22,9 @@ from pathlib import Path
 
 import cv2
 
-from cv.detector import PersonBallDetector
+from cv.detector import PersonBallDetector, TiledDetector, tile_windows
 from cv.frame_sampler import sample_frames, video_info
+from cv.framing import assess_framing
 
 OUTPUT_ROOT = Path("scratch_frames")
 
@@ -51,6 +58,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--upscale", type=float, default=None, help="scale factor applied after cropping")
     parser.add_argument("--device", default=None, help="torch device, e.g. 0 or cpu (default: auto)")
     parser.add_argument("--batch", type=int, default=16, help="frames per inference batch")
+    parser.add_argument(
+        "--tiles",
+        type=int,
+        default=1,
+        help="detect on this many crops along the long edge instead of one shrunken frame",
+    )
     parser.add_argument("--save-annotated", action="store_true", help="write annotated frames to scratch_frames/")
     parser.add_argument("--timeline", action="store_true", help="print a per-frame hit/miss timeline")
     return parser
@@ -130,11 +143,18 @@ def main(argv: list[str] | None = None) -> int:
     detector = PersonBallDetector(
         conf=args.conf, imgsz=args.imgsz, device=args.device
     )
+    if args.tiles > 1:
+        detector = TiledDetector(detector, tiles=args.tiles)
+        print(f"  tiling into {args.tiles} along the long edge")
 
     person_hits = ball_hits = total = 0
     person_confs: list[float] = []
     ball_confs: list[float] = []
     ball_timeline: list[tuple[float, bool]] = []
+    # Kept for the framing verdict. Boxes, not images: a couple of hundred
+    # dataclasses per frame, so the whole run costs less than one frame does.
+    per_frame: list[list] = []
+    seen_size: tuple[int, int] | None = None
 
     out_dir = OUTPUT_ROOT / args.video.stem
     if args.save_annotated:
@@ -144,11 +164,17 @@ def main(argv: list[str] | None = None) -> int:
     pending: list = []
 
     def flush(batch: list) -> None:
-        nonlocal person_hits, ball_hits, total
+        nonlocal person_hits, ball_hits, total, seen_size
         if not batch:
             return
         for frame, detections in zip(batch, detector.detect_batch([f.image for f in batch])):
             total += 1
+            per_frame.append(detections)
+            if seen_size is None:
+                # What the detector was handed, which is the cropped and
+                # upscaled frame rather than whatever the file says it is.
+                height, width = frame.image.shape[:2]
+                seen_size = (width, height)
             people = [d for d in detections if d.label == "person"]
             balls = [d for d in detections if d.label == "ball"]
 
@@ -188,6 +214,20 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n  sampled {total} frames every {args.interval}s at conf>={args.conf}, imgsz={args.imgsz}")
     print(summarize("person", person_hits, total, person_confs))
     print(summarize("ball", ball_hits, total, ball_confs))
+
+    if seen_size is not None:
+        width, height = seen_size
+        if args.tiles > 1:
+            # The model sees a tile, not the frame, so the letterbox that
+            # matters is the tile's. Boxes come back in frame coordinates
+            # either way, so only the denominator changes.
+            x1, y1, x2, y2 = tile_windows(width, height, args.tiles)[0]
+            width, height = x2 - x1, y2 - y1
+        print()
+        for line in assess_framing(
+            per_frame, width, height, imgsz=args.imgsz
+        ).lines():
+            print(f"  {line}")
 
     gap = longest_gap(ball_timeline)
     if gap and gap[1] - gap[0] > args.interval:

@@ -73,6 +73,43 @@ Cropping and upscaling do not bring it back — those pixels were never recorded
 The wide stadium rig is a once-a-season venue for this team. Design for the
 tighter position, which is what almost every game actually uses.
 
+### If it is the Hudl camera: two settings, and only one of them is a judgement call
+
+**Turn "follow the play" off.** This is the default and it is the one thing
+that cannot be fixed afterwards. An auto-tracking camera is a moving camera, so
+every metre-space number in the system — distance, speed, shape, shots, xG —
+rests on a homography that stops being true the moment it pans. There is no
+setting on this laptop that recovers it, and re-deriving the homography per
+frame is a different project. This is also the camera that lost the ball for 12
+seconds at a stretch. A fixed wide shot with players too small is a footage
+problem we can measure and argue about; a moving shot is not usable footage at
+all.
+
+**A pan is camera motion too.** A slow manual sweep across the pitch is the same
+problem as the auto-tracker, just politely. What is wanted is a **static** wide
+shot — camera locked off, whole pitch in frame, nobody touching it. If a pan is
+the only way to prove the camera can see the whole pitch, fine: pan once to show
+the framing, then stop and let it run still for a few minutes. The still part is
+the part we can use.
+
+**Wide framing is the judgement call, and it is genuinely open.** Everything in
+the table above was measured on a 720p screen recording. A native Hudl export of
+the same wide view could hold three to six times the pixels on each player, and
+that is the difference between a player the detector cannot describe and one it
+can. So a full-field export is worth sending even though the table says wide
+framing failed — the table describes a 720p wide clip, which is a stricter test
+than the one being run.
+
+What settles it is one number, and `spike_detect` now prints it (section 5):
+how tall a player is **in the file**, and how tall the model was **shown** them
+after downscaling. If the file itself is short of pixels, that is the camera and
+the answer is a tighter position next week. If the file is fine and only our
+downscale was not, that is a flag and the answer is a re-run this afternoon.
+
+If both a tight shot and a wide one are possible on the day, **take both**, even
+if the wide one is only a couple of minutes. Two clips answer the question; one
+clip and a guess do not.
+
 ## 2. The calibration frame
 
 One frame, once, per camera position. It is what turns pixels into metres, and
@@ -162,10 +199,40 @@ out a class of wasted time downstream.
 python -m cv.experiments.spike_detect clips/first-half.mp4 --conf 0.08 --imgsz 1280
 ```
 
-Look at the ball hit rate and the longest stretch with no ball. If ball coverage
-is near zero, the framing was wrong and **nothing downstream is worth running** —
-possession, touches, passes, shots and xG all rest on it. Fix the camera before
-the next game rather than tuning code against footage that cannot support it.
+Look at the ball hit rate, the longest stretch with no ball, and then the
+**framing block** at the end, which is the one that says what to do about it:
+
+```
+  framing: players are 62 px tall in the file, 21 px at imgsz=1280 (x0.33).
+    ball works out at about 2.6 px, and wants 8.
+    VERDICT: our settings, not the camera. The file holds 62 px and the
+    model was shown 21.
+    Re-run with --tiles 2 to detect at native scale (about 2x the work).
+```
+
+Near-zero ball coverage has two completely different causes and they look
+identical without that block. Either the pixels were never recorded — **fix the
+camera, cost: a week** — or they were recorded and we shrank them away before
+the model looked, because ultralytics scales every frame so its long edge
+becomes `imgsz`; on a 3840-wide export at `imgsz=1280` that is two thirds of the
+detail gone, and gone hardest from the smallest objects, which here are the
+entire subject. That one is **a flag, cost: one re-run**:
+
+```bash
+python -m cv.experiments.spike_detect clips/first-half.mp4 \
+    --conf 0.08 --imgsz 1280 --tiles 2
+```
+
+`--tiles N` detects on N crops along the long edge at native size instead of one
+shrunken frame, and costs about N times the compute. It does not invent detail:
+when the verdict says **the camera**, tiling is not offered, because the height
+is not in the file to recover. Only when it says **our settings** is there
+anything to re-run.
+
+Only if the verdict says the camera is the limit is it true that **nothing
+downstream is worth running** — possession, touches, passes, shots and xG all
+rest on the ball. Then fix the camera before the next game rather than tuning
+code against footage that cannot support it.
 
 **Second — how badly is identity fragmenting?**
 

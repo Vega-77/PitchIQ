@@ -2842,6 +2842,63 @@ camera losing the ball for 12s at a time.
       their own body heights; genuinely off-pitch figures excluded once a
       calibration exists. Every threshold is a guess never checked against a
       real touchline, so every exclusion carries its reason into the report.
+- [x] **Say why nothing was found, not just that nothing was found**
+      (2026-08-26). `spike_detect` could report `0 ball detections` and that
+      sentence has two causes needing opposite responses on opposite timescales.
+      Either **the pixels were never recorded** — nothing downstream recovers
+      them, the fix is the camera, the cost is the next fixture — or **we threw
+      them away**, because ultralytics letterboxes every frame so its long edge
+      becomes `imgsz`, and a 3840-wide export at `imgsz=1280` is scaled to a
+      third before the model looks at it. The fix there is a flag and the cost
+      is one re-run. The two are indistinguishable in the output we had.
+      **They are told apart by one number that was never printed**: player
+      height in pixels at inference scale, `native_px × imgsz / max(w, h)`.
+      Native is the ceiling — if a player is 14 px in the file, 14 px is all
+      there will ever be. Inference is what we chose. `cv/framing.py` measures
+      both from the boxes the run already produced (median, not mean: a
+      touchline camera sees a coach three metres away and a full-back sixty in
+      the same frame) and names the limit `framing` or `resolution`. The
+      thresholds are grounded rather than tuned — YOLOv8’s finest feature map
+      has stride 8, so an object under ~8 px at inference scale has no grid cell
+      that can describe it, and about three cells is where a box gets
+      comfortable. **The ball is the real gate, by a fixed ratio**: 0.22 m
+      against a 1.75 m player is 0.126 whatever the camera, which is why the
+      tight clip found players in 99% of frames and the ball in 43%, and why a
+      detectable ball needs a player near 63 px rather than 28.
+      **`--tiles N` is the fix for the recoverable half** (`TiledDetector`,
+      `cv/detector.py`): detect on N native-size crops along the long edge
+      instead of one shrunken frame, at about N× the compute. Merging them is
+      not plain NMS — a player straddling a boundary is seen whole by one tile
+      and clipped to their legs by the other, and those two boxes can share less
+      than half their union while describing one person, so IoU alone keeps both
+      and the frame gains a phantom player standing in their own shins.
+      `merge_detections` also suppresses on containment over the smaller box,
+      per label so a ball at a player’s feet survives the player. It is
+      composition rather than a flag on `PersonBallDetector` because
+      `detect_batch_raw` must return real ultralytics `Boxes` for the trackers;
+      **the tracking pass therefore keeps the untiled frame**, and making the
+      tracker tile-aware is real work rather than a flag when the footage turns
+      out to need it. Tiling never invents detail, so `tiles_needed()` returns
+      `None` rather than a number when the height is not in the file.
+      **Why now, before any footage: the wide-framing verdict is confounded and
+      may not hold.** Every measurement behind *"0 on-field players, 0 ball
+      across 300 frames"* was taken on a **720p screen recording**, and a native
+      Hudl full-field export of the same view could carry three to six times the
+      pixels on target. That is the difference between a player the detector
+      cannot describe and one it can, so the wide clip is worth taking rather
+      than written off — and one `spike_detect` run now settles it in one
+      sentence instead of a fortnight of guessing. `FOOTAGE_DAY.md` ·1 gains the
+      two Hudl settings (**turn "follow the play" off** — an auto-tracking
+      camera is a moving camera and breaks the one-time homography every
+      metre-space number rests on; **a pan is camera motion too**, so a static
+      wide shot beats a sweeping one) and ·5 gains the verdict block and the
+      re-run.
+      Both new pieces are pure arithmetic over boxes — no model, no video — so
+      **37 synthetic tests** cover them today, including the case that matters
+      most: that the advice names the camera when the file is short and names
+      the flag when it is not, since getting those the wrong way round costs
+      either a week of re-rigging or four re-runs against footage that never
+      held the pixels. Gate: **1266 Python tests**, pyflakes clean.
 - [ ] Tune confidence threshold against real footage — the spike used 0.08 to surface marginal detections for analysis, which is too permissive for production
 - [ ] **[MVP]** Fine-tune detectors on your own footage once you have labeled data — the Phase 11 review tool produces this as a side effect of normal use
 
