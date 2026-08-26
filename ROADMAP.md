@@ -4810,6 +4810,56 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The same blind spot one block over, three times the size**
+      (2026-08-26). `cv/publish.py` forwards four blocks whole, and the last
+      entry closed one of them. `teams` is the next and the largest: thirty-one
+      figures — possession, xG, PPDA, passing by length and by direction,
+      pressing, shape, territory, the shot map — behind a single key the
+      JavaScript gate ticks off as one name with one reader. Most of the
+      coach’s match view was checked in neither direction.
+      **Thirty of the thirty-one land, and nothing is read that is not written.**
+      No page reads a team field the pipeline never produces, so nothing was
+      going to come out `undefined` on a real match. The one field nobody
+      renders should not be rendered: `team` is the dict key repeated inside its
+      own value — `teams[team] = team_stats(...)` with `TeamStats(team=team)`
+      — so a page holding `cv.teams.team_a` already knows which side it holds.
+      A clean result is the good outcome here, and the gate is what keeps it
+      true.
+      **Reading this block means reading a callback.** Twelve fields, `ppda` and
+      `touches` and `phase_of_play` among them, are never touched through a
+      variable at all. They arrive as `(t) => t.touches` passed to `row(...)`,
+      where `t` is bound three hundred lines away by `pick(ours)`. Two more are
+      read straight off the chain with no alias, one of them through a computed
+      side: `cv?.teams?.[key]?.shot_map`. A scanner that followed declarations
+      alone called four real fields orphans.
+      **So the two directions use different scans.** Coverage takes the loose
+      one, callback guess included. Ghosts take the strict one — aliases and
+      chains only — because a false ghost accuses a page of a bug it does not
+      have. The guess is trusted for coverage only because it is measurably
+      clean: every key it adds over the strict scan is a real `TeamStats` field,
+      and a test says so. The day it starts picking up formatters and helpers is
+      the day it says so, rather than the day a contaminated read gets mistaken
+      for a rendered figure.
+      **Nine mutations, nine catches**: a new field nobody renders, a page
+      reading a field nothing produces, the excused field started being
+      rendered, the excused field renamed away, an excuse that says nothing, a
+      scanner that stops following inline chains, one that stops following
+      callback parameters, one that counts a `.toFixed(2)` as a figure, and the
+      anti-vacuum guard itself made unfalsifiable.
+      **Guards were measured before they were pinned.** The scanner carries
+      three, and only one of them fires on this repo today: drop the method-call
+      filter and it really does invent a read of `toFixed` off a team. Stripping
+      comments and refusing to cross newlines change nothing here, so they are
+      kept for the direction that would hurt — a field named only in prose
+      must never count as rendered — documented as currently inert, and *not*
+      given tests. A pin for a guard that cannot fire is the same mistake as a
+      gate that cannot fail, one level down.
+      Also fixed: `tests/test_sample_report.py` had been explaining itself in
+      terms of `cvTeamRows`, a function that exists nowhere in the repo. The
+      real names are `teamStatRows`, which builds the rows, and `groupStats`,
+      which drops the ones that are null on both sides.
+      Gate: **1344 Python tests**, pyflakes clean. Tests only, so `?v=103`
+      stands.
 - [x] **Twenty-nine figures hiding behind one gated name**
       (2026-08-26). `tests/smoke.test.js` already pins that every figure the
       pipeline publishes is one some page reads. It walks the top-level keys of

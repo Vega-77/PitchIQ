@@ -96,9 +96,13 @@ class TestTheTeamDocument:
     def test_every_team_statistic_is_represented(self, source):
         """The team rows are most of the coach's match view.
 
-        `cvTeamRows` filters nulls, so a statistic absent from the fixture does
-        not error — its row just never appears, and the preview looks complete
-        while covering one row fewer than it claims.
+        `teamStatRows` builds them and `groupStats` drops the ones that are null
+        on both sides, so a statistic absent from the fixture does not error —
+        its row just never appears, and the preview looks complete while
+        covering one row fewer than it claims.
+
+        That every one of these fields reaches a page at all is the other end of
+        the same seam, and `tests/test_teams_seam.py` is where it is checked.
         """
         keys = TeamStats(team='team_a').to_json().keys()
         assert not missing(keys, source)
