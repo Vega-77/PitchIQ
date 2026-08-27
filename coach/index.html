@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=107">
-    <link rel="stylesheet" href="coach.css?v=107">
+    <link rel="stylesheet" href="../assets/app.css?v=108">
+    <link rel="stylesheet" href="coach.css?v=108">
 </head>
 <body>
 
@@ -82,7 +82,7 @@
             <p class="muted" style="margin:0 0 14px">
                 Four things to do once. This disappears when you're set up.
             </p>
-            <ol class="steps" id="setup-steps">
+            <ol class="steps">
                 <li id="step-players">
                     <div class="step-body">
                         <div class="step-title">Add your players</div>
@@ -659,7 +659,8 @@
                     <span>and it was a</span>
                     <select id="input-missed-type"></select>
                 </label>
-                <button id="btn-cv-missed" class="btn">Record a miss</button>
+                <button id="btn-cv-missed" class="btn"
+                        aria-describedby="cv-missed-help">Record a miss</button>
                 <!-- Built in the browser from data already loaded, so no read
                      and no server. Same approach as the tag-log download. -->
                 <button id="btn-cv-labels" class="btn">Download the labels</button>
@@ -763,7 +764,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=107"></script>
+<script type="module" src="coach.js?v=108"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

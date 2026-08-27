@@ -13,19 +13,20 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=107';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=108';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=107';
+} from '../assets/db.js?v=108';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=107';
-import { syncState, safeToClose } from '../assets/report.js?v=107';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=107';
+} from '../assets/events.js?v=108';
+import { syncState, safeToClose } from '../assets/report.js?v=108';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=108';
 import { byId, toast, clockText, timelineRow, tally, groupHead }
-    from '../assets/ui.js?v=107';
+    from '../assets/ui.js?v=108';
+import { openSheet, closeSheet, mountSheets } from './sheet.js?v=108';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -146,7 +147,7 @@ function paintClock() {
 
 function openClockSheet() {
     renderClockChrome();
-    byId('overlay-clock').classList.add('open');
+    openSheet('overlay-clock');
 }
 
 setInterval(() => {
@@ -775,7 +776,7 @@ function openEventSheet(type, button) {
     byId('side-choices').classList.remove('hidden');
 
     renderSideChoices();
-    byId('overlay-event').classList.add('open');
+    openSheet('overlay-event');
 }
 
 function renderSideChoices() {
@@ -883,7 +884,7 @@ function showAssistStep() {
 function commitDraft() {
     const draft = state.draft;
     state.draft = null;
-    byId('overlay-event').classList.remove('open');
+    closeSheet('overlay-event');
     if (!draft) return;
 
     const seq = nextSeq();
@@ -941,7 +942,7 @@ function dropEntry(id) {
 
 function cancelEventSheet() {
     state.draft = null;
-    byId('overlay-event').classList.remove('open');
+    closeSheet('overlay-event');
 }
 
 // ---------------------------------------------------------------- undo
@@ -1132,7 +1133,7 @@ function advancePeriod() {
 async function openSubSheet() {
     state.sub = { outId: null, inId: null };
     state.roster = await listMatchRoster(state.teamId, state.matchId);
-    byId('overlay-sub').classList.add('open');
+    openSheet('overlay-sub');
     renderSubLists();
 }
 
@@ -1231,7 +1232,7 @@ function confirmSub() {
     // the sheet stayed open with Confirm still live. Three presses queued three
     // substitutions — each one closing and reopening a stint, which is exactly
     // the arithmetic the minutes column depends on.
-    byId('overlay-sub').classList.remove('open');
+    closeSheet('overlay-sub');
     applySub(outEntry, inEntry, clock);
     state.myEntries.push(entry);
     state.sub = { outId: null, inId: null };
@@ -1291,7 +1292,7 @@ function rosterSnapshot(id) {
 async function openLog() {
     const list = byId('log-list');
     list.innerHTML = '<div class="empty">Loading…</div>';
-    byId('overlay-log').classList.add('open');
+    openSheet('overlay-log');
 
     try {
         const log = await listLog(state.teamId, state.matchId);
@@ -1403,10 +1404,10 @@ function init() {
 
         byId('exit-note').classList.toggle('is-warn', !safe);
         byId('btn-exit-go').textContent = safe ? 'Leave' : 'Leave anyway';
-        byId('overlay-exit').classList.add('open');
+        openSheet('overlay-exit');
     });
     byId('btn-exit-stay').addEventListener('click', () =>
-        byId('overlay-exit').classList.remove('open'));
+        closeSheet('overlay-exit'));
     byId('btn-exit-go').addEventListener('click', () => {
         state.stopSync?.();
         location.href = '../';
@@ -1414,10 +1415,10 @@ function init() {
 
     byId('btn-clock').addEventListener('click', openClockSheet);
     byId('btn-clock-close').addEventListener('click', () =>
-        byId('overlay-clock').classList.remove('open'));
+        closeSheet('overlay-clock'));
     byId('btn-clock-toggle').addEventListener('click', () => {
         setClockRunning(!state.running);
-        if (state.running) byId('overlay-clock').classList.remove('open');
+        if (state.running) closeSheet('overlay-clock');
     });
     for (const button of document.querySelectorAll('.clock-adjust [data-delta]')) {
         button.addEventListener('click', () => adjustClock(Number(button.dataset.delta)));
@@ -1426,10 +1427,10 @@ function init() {
     byId('btn-undo').addEventListener('click', undoLast);
     byId('btn-period').addEventListener('click', advancePeriod);
     byId('btn-sub').addEventListener('click', () => openSubSheet());
-    byId('btn-sub-cancel').addEventListener('click', () => byId('overlay-sub').classList.remove('open'));
+    byId('btn-sub-cancel').addEventListener('click', () => closeSheet('overlay-sub'));
     byId('btn-sub-confirm').addEventListener('click', confirmSub);
     byId('btn-log').addEventListener('click', openLog);
-    byId('btn-log-close').addEventListener('click', () => byId('overlay-log').classList.remove('open'));
+    byId('btn-log-close').addEventListener('click', () => closeSheet('overlay-log'));
 
     onUser(async (user) => {
         if (!user) {
@@ -1477,6 +1478,7 @@ function init() {
     });
 }
 
+mountSheets();
 init();
 
 // Deliberate test seam: lets the tagging flow be driven from a browser without

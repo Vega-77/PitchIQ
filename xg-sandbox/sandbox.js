@@ -6,17 +6,21 @@
 // xg-model.js, so the one part that has to stay in step with the trained model
 // is not tangled up with drawing code.
 
-import { Vector, Player } from './geometry.js?v=107';
-import { predictXg, buildFeatures, FEATURE_ORDER } from './xg-model.js?v=107';
-import { PRESETS, fromMetres } from './presets.js?v=107';
+import { Vector, Player } from './geometry.js?v=108';
+import { predictXg, buildFeatures, FEATURE_ORDER } from './xg-model.js?v=108';
+import {
+    PRESETS, presetById, fromMetres, WIDTH_M, HALF_LENGTH_M,
+} from './presets.js?v=108';
 
 const canvas = document.getElementById('display');
 const ctx = canvas.getContext('2d');
 
 // Only the attacking half is drawn: a full pitch would put the shooter in a
-// corner of the canvas at half the scale for no extra information.
-const WIDTH_M = 68;
-const HALF_LENGTH_M = 52.5;
+// corner of the canvas at half the scale for no extra information. The two
+// numbers come from presets.js, which is where the presets are written in
+// metres -- this file converts back the other way, and two copies of the
+// conversion drifting apart would move every preset without breaking
+// anything visible.
 
 const GOAL_WIDTH_M = 7.32;
 const GOAL_CENTRE_M = WIDTH_M / 2;
@@ -72,6 +76,11 @@ let layout = 'landscape';
 let pitchRect = { x: 0, y: 0, w: 0, h: 0 };
 let lastCanvasSize = { w: 0, h: 0 };
 
+// A local copy of two helpers `assets/ui.js` already exports, and it stays
+// local on purpose. That module imports `assets/report.js` for its stat
+// cards, so pulling `byId` in from there would put five thousand lines of
+// report rendering on a page that renders no report and only draws a canvas.
+// Four lines duplicated is the cheaper of the two.
 const byId = (id) => document.getElementById(id);
 const setText = (id, value) => { const el = byId(id); if (el) el.textContent = value; };
 
@@ -111,7 +120,7 @@ function init() {
     // reasonable-looking arrangement while `toStatsBomb` was doubling every
     // distance and is a shot worth 0.011 now that it is not — a first screen
     // showing "about 1 in 90" teaches nobody anything about the model.
-    applyPreset(PRESETS.find((preset) => preset.id === 'edge-of-the-box'));
+    applyPreset(presetById('edge-of-the-box'));
     loop();
 }
 

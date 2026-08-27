@@ -4810,6 +4810,91 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **A sweep this roadmap called noise, measured, and it came to one
+      name** (2026-08-27). The entry below argues that a dead-export sweep is
+      noise on this codebase — `assets/report.js` has no imports by design so
+      `tests/video.test.js` can cover it, and around ninety internals are
+      exported purely so a namespace-importing test can reach them. That was
+      worth checking rather than believing, so the sweep was built and measured
+      before anything about it was pinned. **The noise is real, and it is
+      exactly two categories.** Three hundred and twenty-one exports; two
+      hundred and seventy-nine reached from another file; **nothing dead**;
+      forty-two used only inside the file that exports them, and forty reached
+      only from `tests/`. Both lists are written down by name with a reason
+      apiece — fourteen tuning constants in `report.js`, seven pitch
+      dimensions, five renderers whose mount sits beside them, and so on — so
+      the sweep reports a *change* to a documented pattern rather than the
+      pattern itself.
+      **After classifying, the residue was one name.** `onPitchAt` in
+      `assets/report.js` answers who was on the pitch at a given second, has
+      about ten cases in `tests/video.test.js`, and has no caller in the site:
+      every screen that wants the eleven at a moment goes through
+      `substitutionChanges` instead. It is pinned rather than deleted, with the
+      condition for revisiting written beside it — a scanner's word is not
+      enough to remove tested code, for the reason the next entry records.
+      The second finding was real and got fixed: `presetById` had one call site
+      in `xg-sandbox/sandbox.js` that open-coded its exact body.
+      **Six consumption sites, every one measured before it was pinned**: static
+      imports (87 names on their own), the single dynamic destructure in
+      `tests/smoke.test.js`, namespace imports (37 names through
+      `tests/video.test.js`), local use, comment stripping — without which the
+      word `and` from the comment inside the export list in `assets/db.js`
+      enters the export set as a phantom — and whether the test suite counts
+      as a reader at all. That last one is worth **forty verdicts**. Two guards
+      that were reasoned inert were removed rather than shipped, because both
+      sat in the direction that fails loudly. `tests/test_export_seam.py`, 18
+      tests, 13 deliberate breakages and 13 caught.
+
+- [x] **A scanner reported three live buttons dead, and was believed**
+      (2026-08-27). The id seam is the sharper half of the stylesheet question
+      below: an id looked up and declared nowhere means `byId` returns null, the
+      caller guards it, and a whole block of the match view quietly never
+      renders. `document.getElementById` appears **once** in this frontend, at
+      `assets/ui.js:10`; scanning for the raw call would have found one use and
+      condemned three hundred and eighty-nine ids. Five ways an id is really
+      consumed here, every site measured before it was pinned: a literal handed
+      to `byId`, `setText`, `showOnly`, `openSheet` or `closeSheet`; a **hole**
+      where the id never exists as a string at all; an id read back off the
+      DOM; a bare string threaded through a wrapper; and a lookup from the test
+      harness.
+      Three hundred and ninety-three declared, three hundred and sixty-six
+      referenced, **zero orphans and zero ghosts**, twenty-seven resting on weak
+      evidence and listed by name.
+      **The lesson cost three buttons.** The scan walked the seven frontend
+      directories and could not see `tests/smoke.test.js` reaching into the
+      markup by name. So it called `btn-apply-marks`, `btn-apply-size` and
+      `btn-reset-marks` dead — the three the calibrate page builds only once
+      it has a measurement worth offering — and their ids were deleted on its
+      word, until `npm run test:pages` disagreed. The repair is to widen the
+      scan, never to accept the deletion or weaken the test. **A scanner's
+      universe is part of its correctness, and a false `dead` costs more than no
+      scanner at all, because a scanner gets believed.**
+      `tests/test_id_seam.py`, 23 tests, 15 breakages and 15 caught.
+
+- [x] **Four elements wore names no stylesheet had ever heard of**
+      (2026-08-27). Roughly four thousand lines of CSS reach every visitor and
+      nothing checked either direction. A rule with no element is bytes nobody
+      sees; an element with no rule is the loud one, because on a dark theme the
+      browser's default is black text on a dark ground. **Five real defects.**
+      `.list` had no rule at all, on four containers in `coach/index.html`, so
+      every list of rows on the match view stacked flush and adjacent 1px
+      borders met as one 2px seam — twenty shots read as a single ruled
+      block, while its sibling `.card-list` had had `gap: 8px` all along.
+      `.cluster-swatch` was superseded when `clusterFace()` started building a
+      `.cluster-thumb`. `.wrap` survived in one print-sheet selector and nowhere
+      else. `.sub-row.is-bare` was written in `coach/coach.js` and styled
+      nowhere, so a substitution with nothing measurable either side of it was
+      meant to read differently and did not. And `.pass-node`, `.rail-links`,
+      `.shot-log` and `.welcome-main` were four names on real elements no
+      selector ever mentioned.
+      **Six scan sites, because a class name here is frequently not a string
+      anybody wrote**: template holes make the forty-one `is-*` rules alive, and
+      SVG has no writable `className`, so every chart class arrives through an
+      attribute bag — seventeen rules that a `className`-only scan calls
+      dead. Both directions now hold at zero, which is the only moment a check
+      like this is worth pinning; a gate written over a mess just records the
+      mess. `tests/test_css_seam.py`, 21 tests, 9 breakages and 9 caught.
+
 - [x] **The biggest document on the wire, and six figures on it nobody could
       see** (2026-08-26). `cvStats/identity` is the largest thing this project
       publishes and, until now, the least checked. `tests/smoke.test.js` sees

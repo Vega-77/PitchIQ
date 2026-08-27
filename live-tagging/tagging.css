@@ -581,6 +581,11 @@ html, body {
     box-shadow: var(--shadow);
 }
 
+/* The sheet itself takes focus when it opens, so a screen reader announces
+   the dialog and its heading instead of leaving the caret on the page
+   behind. Nobody put it there with Tab, so it gets no ring. */
+.sheet:focus { outline: none; }
+
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .sheet-head h2 { margin: 0; font-size: 20px; }
 

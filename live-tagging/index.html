@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=107">
-    <link rel="stylesheet" href="tagging.css?v=107">
+    <link rel="stylesheet" href="../assets/app.css?v=108">
+    <link rel="stylesheet" href="tagging.css?v=108">
 </head>
 <body>
 
@@ -120,7 +120,7 @@
             <span id="clock-state" class="clock-state hidden">paused &middot; tap to set</span>
         </button>
         <div class="header-right">
-            <div class="score" id="score">
+            <div class="score">
                 <span id="score-us">0</span>
                 <span class="dash">–</span>
                 <span id="score-them">0</span>
@@ -161,7 +161,7 @@
              one" over the top of somebody working a touchline is noise about
              an action they already know they took. It is a panel to be read,
              so it is labelled and left alone. -->
-        <aside class="tally-rail" id="tally-rail" aria-label="What has been tagged so far">
+        <aside class="tally-rail" aria-label="What has been tagged so far">
             <div class="tally-head">
                 <span class="tally-title">Tagged so far</span>
                 <span class="tally-key">
@@ -171,7 +171,7 @@
                 </span>
             </div>
             <div class="tally-list" id="tally-rows"></div>
-            <p class="tally-note" id="tally-note">Goals are in the score above.</p>
+            <p class="tally-note">Goals are in the score above.</p>
         </aside>
     </div>
 
@@ -193,7 +193,8 @@
 
 <!-- ===================== EVENT DETAIL SHEET ===================== -->
 <div id="overlay-event" class="overlay">
-    <div class="sheet">
+    <div class="sheet" role="dialog" aria-modal="true"
+         aria-labelledby="sheet-title" tabindex="-1">
         <div class="sheet-head">
             <h2 id="sheet-title">Event</h2>
             <button id="btn-event-cancel" class="btn small ghost">Cancel</button>
@@ -226,9 +227,11 @@
 
 <!-- ===================== CLOCK SHEET ===================== -->
 <div id="overlay-clock" class="overlay">
-    <div class="sheet" style="max-width:460px">
+    <div class="sheet" style="max-width:460px" role="dialog" aria-modal="true"
+         aria-labelledby="clock-title" aria-describedby="clock-explain"
+         tabindex="-1">
         <div class="sheet-head">
-            <h2>Match clock</h2>
+            <h2 id="clock-title">Match clock</h2>
             <button id="btn-clock-close" class="btn small ghost">Close</button>
         </div>
 
@@ -256,9 +259,10 @@
 
 <!-- ===================== SUB SHEET ===================== -->
 <div id="overlay-sub" class="overlay">
-    <div class="sheet">
+    <div class="sheet" role="dialog" aria-modal="true"
+         aria-labelledby="sub-title" tabindex="-1">
         <div class="sheet-head">
-            <h2>Substitution</h2>
+            <h2 id="sub-title">Substitution</h2>
             <button id="btn-sub-cancel" class="btn small ghost">Cancel</button>
         </div>
         <div class="sub-columns">
@@ -277,11 +281,13 @@
 
 <!-- ===================== EXIT CONFIRM ===================== -->
 <div id="overlay-exit" class="overlay">
-    <div class="sheet" style="max-width:440px">
+    <div class="sheet" style="max-width:440px" role="dialog" aria-modal="true"
+         aria-labelledby="exit-title" aria-describedby="exit-explain"
+         tabindex="-1">
         <div class="sheet-head">
-            <h2>Stop recording?</h2>
+            <h2 id="exit-title">Stop recording?</h2>
         </div>
-        <p class="hint" style="text-align:left;margin:0 0 6px">
+        <p class="hint" id="exit-explain" style="text-align:left;margin:0 0 6px">
             Everything tagged so far is already saved. You can come back to this
             match and pick up where you left off.
         </p>
@@ -295,9 +301,10 @@
 
 <!-- ===================== LOG SHEET ===================== -->
 <div id="overlay-log" class="overlay">
-    <div class="sheet">
+    <div class="sheet" role="dialog" aria-modal="true"
+         aria-labelledby="log-title" tabindex="-1">
         <div class="sheet-head">
-            <h2>Everything recorded</h2>
+            <h2 id="log-title">Everything recorded</h2>
             <button id="btn-log-close" class="btn small ghost">Close</button>
         </div>
         <div id="log-list" class="timeline"></div>
@@ -306,6 +313,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="tagging.js?v=107"></script>
+<script type="module" src="tagging.js?v=108"></script>
 </body>
 </html>
