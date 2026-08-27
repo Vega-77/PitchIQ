@@ -633,7 +633,13 @@ html, body {
     .choice.us:hover { background: var(--accent-dim); }
 }
 .choice.yellow { border-color: rgba(251,191,36,.45); color: var(--card-yellow); }
-.choice.red { border-color: rgba(239,68,68,.45); color: var(--card-red); }
+/* The border carries the card colour; the word carries the meaning, and the
+   word has to survive being read at arm's length in daylight. --card-red is
+   the literal red of a red card and is right on the chip, but as 17px text it
+   measures 4.45 on --surface and 4.07 once the row lights on hover, both under
+   the 4.5 this size needs. --danger is the same red one step brighter (6.06 /
+   5.53) and is already what every other warning on the site is written in. */
+.choice.red { border-color: rgba(239,68,68,.45); color: var(--danger); }
 .choice.second_yellow { border-color: rgba(251,146,60,.45); color: #fb923c; }
 
 /* Inside an overlay the list scrolls rather than pushing the confirm button

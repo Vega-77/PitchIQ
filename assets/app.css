@@ -21,13 +21,46 @@
 
     --text: #e6efe9;
     --text-dim: #9db0a5;
-    --text-faint: #62786c;
+    /* Measured, not chosen. This is the most-used ink on the site — every
+       rail label, every stat caption, every unit — and at #62786c it sat at
+       3.99 on --bg, 3.53 on --surface and 3.22 on --surface-hi, which is under
+       the 4.5 normal text needs on all three. The base font is 17px here
+       because the person reading it may be forty years past needing glasses;
+       serving that reader the commonest label at 3.2 undoes the reason for the
+       17px. #7b9185 clears 4.5 on the darkest ground it is ever drawn on
+       (4.54 / 4.97 / 5.62) and stays well clear of --text-dim at 6.70, so the
+       three steps of the hierarchy still read as three steps. */
+    --text-faint: #7b9185;
 
     --accent: #4dd6c1;          /* floodlight cyan — live data only */
     --accent-hi: #7fe8d8;
     --accent-dim: rgba(77, 214, 193, 0.12);
 
     --pitch: #2f7d4f;
+    /* A mark that carries data and is deliberately the quiet one: the
+       opponent's half of a possession bar, dead-ball time in a stacked bar, a
+       touch on the timeline, a match with no goal in it, the lines painted on
+       a pitch, the off position of a switch.
+
+       All seventeen of these used to be --line-hi, because a quiet mark and the
+       edge of a card look like the same request. They are not. A border has no
+       contrast requirement at all; a mark you are meant to read a length off is
+       a graphical object and WCAG puts its floor at 3.0 against its own
+       background. --line-hi measures 1.63 on --surface — under half of it.
+       The one that gave this away is `.t-half.them`: our share of the ball is
+       drawn in --accent and theirs in --line-hi, so on a bar whose entire job is
+       to be compared, one of the two quantities was very nearly not there.
+
+       #6f8377 is the value that clears 3.0 on every ground any of these are
+       drawn on — --bg 4.68, --bg-raised 4.46, --surface 4.14, --surface-hi
+       3.78, --line 3.41 — and on white it is 4.05, so paper needs no
+       override. It is 2.26 from --accent, which is not a violation: every bar
+       in this app has a gap between it and its neighbour, so a mark's adjacent
+       colour is the ground and never the accent bar next to it. Brighter than
+       this and the quiet mark starts arguing with the loud one; --text-faint
+       would put them 1.88 apart and the two halves of a possession bar would
+       read as one bar. */
+    --mark-quiet: #6f8377;
     --good: #4ade80;
     --warn: #fbbf24;
     --danger: #f87171;
@@ -1136,7 +1169,7 @@ button.list-item, a.list-item { cursor: pointer; }
 }
 .chart svg { width: 100%; height: 100%; display: block; }
 
-.chart-bar { fill: var(--line-hi); transition: fill .15s ease; }
+.chart-bar { fill: var(--mark-quiet); transition: fill .15s ease; }
 /* Matches with a goal or an assist — the thing anyone scans this for. */
 .chart-bar.scored { fill: var(--accent); }
 @media (hover: hover) {
@@ -1155,7 +1188,7 @@ button.list-item, a.list-item { cursor: pointer; }
     .chart:hover .chart-bar.unknown { fill: var(--warn); }
 }
 
-.chart-full-line { stroke: var(--line-hi); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-full-line { stroke: var(--mark-quiet); stroke-width: 1; stroke-dasharray: 3 3; }
 
 @media (min-width: 1100px) {
     /* Room to be read as a graph rather than glanced at as a sparkline. */
@@ -1323,7 +1356,7 @@ td.bar-cell .cell-bar {
     bottom: 4px;
     height: 3px;
     width: calc(var(--w, 0) * 100%);
-    background: var(--line-hi);
+    background: var(--mark-quiet);
     border-radius: 0 2px 2px 0;
     pointer-events: none;
 }
@@ -1781,7 +1814,7 @@ button.tl-row {
 }
 .t-half.us { justify-content: flex-end; }
 .t-half.us > i { background: var(--accent); }
-.t-half.them > i { background: var(--line-hi); }
+.t-half.them > i { background: var(--mark-quiet); }
 
 /* Split: each half is exactly as wide as its share and filled completely. */
 .t-bar.is-split .t-half { flex-basis: 0; min-width: 3px; }
@@ -1844,7 +1877,7 @@ button.tl-row {
    category that was measured at zero. */
 .s-seg { flex-basis: 0; min-width: 4px; border-radius: 2px; }
 
-.s-seg.is-dead, .s-key i.is-dead { background: var(--line-hi); }
+.s-seg.is-dead, .s-key i.is-dead { background: var(--mark-quiet); }
 .s-seg.is-accounted, .s-key i.is-accounted { background: var(--accent); }
 .s-seg.is-unexplained, .s-key i.is-unexplained { background: var(--warn); }
 
@@ -1925,7 +1958,7 @@ button.tl-row {
 .tick.is-card { background: var(--card-yellow); }
 .tick.is-sub { background: var(--accent); }
 /* Touches are the many; they sit thinner so a goal still reads at a glance. */
-.tick.is-touch { width: 3px; margin-left: -1.5px; height: 11px; background: var(--line-hi); }
+.tick.is-touch { width: 3px; margin-left: -1.5px; height: 11px; background: var(--mark-quiet); }
 
 /* Events found in the footage, on the coach's review strip. Three weights, not
    eight colours: a strip where every type is its own hue is a strip nobody can
@@ -1934,7 +1967,7 @@ button.tl-row {
    Passes and carries are the many and sit thin. Defensive actions are the ones
    a coach scans for. A shot is rare and is the loudest thing on the bar. */
 .tick.is-pass,
-.tick.is-carry { width: 3px; margin-left: -1.5px; height: 11px; background: var(--line-hi); }
+.tick.is-carry { width: 3px; margin-left: -1.5px; height: 11px; background: var(--mark-quiet); }
 
 .tick.is-tackle,
 .tick.is-interception,
@@ -1948,7 +1981,7 @@ button.tl-row {
     position: absolute;
     top: 6px; bottom: 6px;
     width: 1px;
-    background: var(--line-hi);
+    background: var(--mark-quiet);
     pointer-events: none;
 }
 
@@ -2532,7 +2565,7 @@ button.tl-row {
     width: 4px;
     height: 4px;
     border-radius: 50%;
-    background: var(--line-hi);
+    background: var(--mark-quiet);
 }
 .cv-mark i.on { background: var(--text-faint); }
 .cv-mark.is-high i.on { background: var(--good); }
@@ -2908,13 +2941,21 @@ button.list-item::after, a.list-item::after {
 
 .s-seg { transition: opacity .13s ease; }
 
+/* The hover underline, and it is `--mark-quiet` rather than `--line-hi` for a
+   reason worth writing down. It sits at `bottom: -1px`, directly on top of the
+   `.tabs` border — so the colour it is actually seen against is `--line`, not
+   the page. `--line-hi` on `--line` is 1.28:1, and against the lightest surface
+   only 1.49:1. That is a hover affordance that cannot be perceived, which is
+   the same as not having one. `--mark-quiet` was added for exactly this class
+   of thing: a mark meant to stay quiet that still clears the 3.0 floor WCAG
+   1.4.11 puts on a control's states. */
 .tab { position: relative; }
 .tab::after {
     content: '';
     position: absolute;
     left: 0; right: 0; bottom: -1px;
     height: 2px;
-    background: var(--line-hi);
+    background: var(--mark-quiet);
     transform: scaleX(0);
     transition: transform .16s cubic-bezier(.2, .7, .3, 1);
 }
@@ -2962,7 +3003,7 @@ button.list-item::after, a.list-item::after {
     border-radius: 10px;
     background: var(--surface);
     padding: 10px;
-    color: var(--line-hi);
+    color: var(--mark-quiet);
 }
 .heatmap-svg { width: 100%; height: 100%; display: block; }
 
@@ -2971,8 +3012,15 @@ button.list-item::after, a.list-item::after {
    occupancy share nobody should be reading to two figures. */
 .heatmap-cells rect { fill: var(--accent); }
 
-/* Which way they were playing. Dimmer than the markings — it is a label, and
-   the pitch is the subject. */
+/* Which way they were playing. Brighter than the markings, which is the other
+   way round from how this comment used to read and from what anyone would guess:
+   the arrow is a solid glyph and the markings are 0.4-wide hairlines, so equal
+   ink would leave the arrow shouting. It is a label and gets label legibility
+   (4.97); the pitch is the subject and gets structure legibility (4.14).
+   Those are only 1.20 apart, which is closer than it reads — the markings had
+   to come up to clear the graphical floor on --line as well as on --surface,
+   and that pushed them most of the way to the label. What still separates the
+   two is the weight, not the colour. */
 .heatmap-arrow { color: var(--text-faint); }
 
 /* --------------------------------------------------------------- shot map */
@@ -2989,7 +3037,7 @@ button.list-item::after, a.list-item::after {
     border-radius: 10px;
     background: var(--surface);
     padding: 10px;
-    color: var(--line-hi);
+    color: var(--mark-quiet);
 }
 .shot-map-svg { width: 100%; height: 100%; display: block; }
 .shot-map.is-empty { display: none; }
@@ -3046,7 +3094,7 @@ button.list-item::after, a.list-item::after {
     border-radius: 10px;
     background: var(--surface);
     padding: 10px;
-    color: var(--line-hi);
+    color: var(--mark-quiet);
 }
 .pass-map-svg { width: 100%; height: 100%; display: block; }
 .pass-map:empty { display: none; }
@@ -3184,7 +3232,7 @@ button.list-item::after, a.list-item::after {
 }
 
 .form-mean {
-    stroke: var(--line-hi);
+    stroke: var(--mark-quiet);
     stroke-width: 1;
     stroke-dasharray: 3 3;
 }
@@ -3193,7 +3241,7 @@ button.list-item::after, a.list-item::after {
 /* A match that happened and could not be measured. On the floor, faint, and
    never the same shape as a value — a gap that looked like a low reading would
    be the worst possible way to draw one. */
-.form-gap { fill: var(--line-hi); fill-opacity: 0.55; }
+.form-gap { fill: var(--mark-quiet); fill-opacity: 0.85; }
 .form-gap.is-thin { fill: var(--warn); fill-opacity: 0.7; }
 
 /* The press, quarter-hour by quarter-hour.
@@ -3456,10 +3504,18 @@ input[type="file"]::file-selector-button {
     border-radius: 6px;
     overflow: hidden;
     background: var(--line);
-    color: var(--text-faint);
+    /* --text-dim, not --text-faint, and the two tints below are lighter than
+       they were. A segment name is 0.7rem — 11.9px — so it needs 4.5, and
+       `section.block` paints no background of its own, which means these tints
+       composite over the page rather than over the --line above: faint on the
+       first-half tint measured 2.99 and on the break tint 3.10. Dropping both
+       tints to 24% and lifting the ink one step puts the worst of the four
+       grounds at 4.84. --cm-time keeps --text so the reading still outranks the
+       name it sits under. */
+    color: var(--text-dim);
 }
-.cm-part.is-first { background: color-mix(in srgb, var(--accent) 28%, transparent); }
-.cm-part.is-break { background: color-mix(in srgb, var(--warn) 26%, transparent); }
+.cm-part.is-first { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+.cm-part.is-break { background: color-mix(in srgb, var(--warn) 24%, transparent); }
 .cm-part.is-second {
     /* Fixed share, not a measurement: the footage's length is not known here. */
     flex: 0 0 22%;
@@ -3527,7 +3583,7 @@ input[type="file"]::file-selector-button {
     border-radius: 3px;
 }
 .tk-side.us > i { background: var(--accent); }
-.tk-side.them > i { background: var(--line-hi); }
+.tk-side.them > i { background: var(--mark-quiet); }
 .tk-side > b {
     font-weight: 650;
     overflow: hidden;
@@ -3584,10 +3640,19 @@ input[type="file"]::file-selector-button {
         --text-faint: #61706a;
 
         /* Darkened, because the screen accent is a floodlight and paper has no
-           backlight to carry it. Both of these end up as ink. */
-        --accent: #0f7a68;
+           backlight to carry it. Both of these end up as ink.
+
+           Darkened twice, in fact. The first pass scored the accent against
+           white and stopped there, which is the wrong ground: the accent is
+           most often set on a chip filled with its own 10%% tint — the job
+           counter, a staff initial, a step number. On paper that tint sits
+           over the lightest surface and lands at #ddebe7, and #0f7a68 on that
+           is 4.23, under the 4.5 that text of this size is owed. Scoring the
+           ink against the ground it is actually printed on rather than the
+           page behind it takes it to 5.33. One token, three rules fixed. */
+        --accent: #0d6858;
         --accent-hi: #0b5c4e;
-        --accent-dim: rgba(15, 122, 104, 0.10);
+        --accent-dim: rgba(13, 104, 88, 0.10);
 
         --good: #16794a;
         --warn: #8a5a06;
@@ -3595,6 +3660,22 @@ input[type="file"]::file-selector-button {
     }
 
     @page { margin: 14mm; }
+
+    /* A yellow card is yellow, on paper as on screen, so --card-yellow is one
+       of the few tokens the block above deliberately leaves alone: darkening it
+       to survive white paper would print brown, and brown is not a card. The
+       cost is that #fbbf24 on white is 1.67, which for an 11×15 chip whose
+       entire content is its fill means the printed disciplinary record quietly
+       drops every yellow while keeping every red (3.76). So the fill stays
+       literal and the shape gets an edge: the chip is legible because it is
+       outlined, not because it was recoloured. It also keeps a second yellow
+       distinguishable from a straight red, which is the whole reason the two
+       are drawn as a split square rather than a count. */
+    .card-chip {
+        border: 1px solid var(--text);
+        width: 12px;
+        height: 16px;
+    }
 
     body {
         background: #fff;
@@ -3623,6 +3704,13 @@ input[type="file"]::file-selector-button {
     #config-slot,
     .action-card,
     .save-state,
+    /* Four things to do once, on a sheet handed to somebody else. Its step
+       counters used to be the one printed thing under AA on white, which is
+       no longer true — the paper accent was darkened for two chips that
+       really do print and these came up with them. The reason to drop the
+       section was never the number anyway: setup instructions are not match
+       report, and they would not belong here at any contrast. */
+    #getting-started,
     input, select, textarea, label.field,
     .no-print { display: none !important; }
 

@@ -4810,6 +4810,65 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **Every colour the site paints, measured against the thing it is
+      painted on** (2026-08-27). WCAG contrast is arithmetic, so it can be a
+      gate rather than an opinion, and the interesting part turned out not to
+      be the arithmetic at all — it was deciding what counts as ink, what
+      counts as ground, and which of the two a given declaration is.
+      **A `background:` is ink when the element IS the mark.** The first
+      version scored every background as a ground, which made it blind to the
+      one family it most needed to see: a 3px tick, a bar half, a legend
+      swatch. Those are drawn as the background of a tiny element and read as a
+      mark against whatever the container paints; scoring them as grounds
+      scored them as the thing they sit on rather than the thing they are. The
+      rule is mechanical — a rule paints a mark when it takes a background
+      from the theme **and gives itself a size**, because a container lets its
+      contents decide how big it is and a mark says how big it is, since being
+      that size is the datum.
+      **Four exemptions, each of which had to be load-bearing or be deleted.**
+      A 1px background is a rule, not a datum, and 1.4.11 exempts decoration —
+      but of the three hairlines in the tree only two need the waiver, since
+      `.tick-half` is `--mark-quiet` and clears 3.0 unaided, so the gate pins
+      the universe and the load-bearing subset as separate facts rather than
+      quietly widening the waiver by one. A `stroke:` in a page-ground colour
+      is a separator ring, not a mark, and the 1.00 at `.pass-dot` and
+      `.form-dot` is the entire point of it. The three map surfaces set a
+      `color:` that is never text — it is collected as `currentColor` by the
+      heatmap and backdrop drawing code — so it is owed 3.0 rather than 4.5,
+      and at 4.14 that exemption is carrying real weight. And the print theme
+      names what it hides, so a rule that never reaches paper is not scored
+      against paper.
+      **That last one is a derivation, and deriving it wrongly is expensive in
+      both directions.** A hidden `#id` takes its whole subtree with it — but
+      so does a hidden `.class`, and reading only the ids scored three rules
+      living under the hidden topbar against paper they never touch: the
+      too-wide failure, inside the tool written to prevent it. Fixing that
+      still left `.brand` looking unhidden, because the derivation read all
+      seven pages when only two of them own a `window.print()` call. A paper
+      question asked of a page that cannot print is a question about a medium
+      that page never reaches, and the answer had been vetoing a correct
+      exemption for the two pages that do. The scope is now those two, with the
+      print-button count pinned so a third page forces the question again.
+      **One bug in the gate deserves its own line, because it is the failure
+      mode this whole file exists to make impossible.** The brace matcher
+      returned after one character, so the hide list came back empty, so the
+      exemption pattern compiled to an empty alternation — which matches the
+      empty string, which matches nearly every selector. An exemption list that
+      came back empty did not exempt nothing; it exempted **everything**, and
+      the paper scan went silent while every assertion still reported success.
+      It is an assertion now, not a comment.
+      **What it found: one defect wearing three faces.** Accent text on its own
+      translucent tint reads 4.23 on paper — under the 4.5 that 13.6px and
+      15.3px text is owed — at the job counter, at a staff initial, and at the
+      getting-started step numbers. On screen the tint over a dark surface keeps
+      the accent bright; on white the tint lightens toward the ground and the
+      ink loses. The binding constraint was never the accent against the page,
+      which is why scoring against white had missed it for as long as the theme
+      has existed. One darker paper accent fixes all three (5.33), rather than
+      three patched rules, and the solver's first answer was rejected on the
+      grounds that a 0.12 margin above a floor is not a margin.
+      **Thirteen mutations, no holes**, and the stale `(4.23)` the fix left
+      behind in the print theme's own comment is gone with it.
 - [x] **The nine buttons at the side of the pitch, held against the four
       places that spell them out** (2026-08-27). The seam after ids and exports
       is the data attribute: a value parked on an element by one piece of code

@@ -237,12 +237,12 @@ input[type="range"]:focus { background: transparent; }
 input[type="range"]::-webkit-slider-runnable-track {
     height: 3px;
     border-radius: 2px;
-    background: var(--line-hi);
+    background: var(--mark-quiet);
 }
 input[type="range"]::-moz-range-track {
     height: 3px;
     border-radius: 2px;
-    background: var(--line-hi);
+    background: var(--mark-quiet);
 }
 
 input[type="range"]::-webkit-slider-thumb {
@@ -318,7 +318,8 @@ input[type="range"]:disabled::-moz-range-thumb { background: var(--text-faint); 
 .toggle-track {
     position: absolute;
     inset: 0;
-    background: var(--line-hi);
+    /* The off position. It is a state, and a state has to be identifiable. */
+    background: var(--mark-quiet);
     border-radius: 9px;
     transition: background .2s;
 }
