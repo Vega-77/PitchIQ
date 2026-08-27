@@ -69,9 +69,13 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
-SHEETS = ['assets/app.css', 'coach/coach.css', 'player/player.css',
-          'live-tagging/tagging.css', 'halftime/halftime.css',
-          'calibrate/calibrate.css', 'xg-sandbox/sandbox.css']
+# Every sheet the site loads. `landing.css` was missing from this list while
+# both sibling gates carried it, so the front page -- the one page a stranger
+# is guaranteed to see -- was scored by no contrast test at all.
+SHEETS = ['assets/app.css', 'assets/landing.css', 'coach/coach.css',
+          'player/player.css', 'live-tagging/tagging.css',
+          'halftime/halftime.css', 'calibrate/calibrate.css',
+          'xg-sandbox/sandbox.css']
 # Only the coach and player views ever call window.print(). A page nobody
 # prints cannot have a paper defect, and scoring one is how a scanner invents
 # work for somebody.
@@ -94,6 +98,26 @@ PAGE = ['--bg', '--bg-raised', '--surface', '--surface-hi']
 # Grounds a sized element can paint without thereby becoming a mark: the page
 # colours plus `--line`, which is what a divider or a track is drawn in.
 GROUND_TOKENS = set(PAGE) | {'--line'}
+# Black is the one literal used as ground rather than as ink: it is what sits
+# behind the video frame and behind the calibration stage and loupe, and
+# nothing is being measured by it, so a sized element painting it is still a
+# container rather than a mark. White was in this set too for a while and had
+# to come out: the only sized element painting white is the toggle knob in the
+# sandbox, which is a mark, and exempting it silenced a real datum to no
+# purpose — it scores 15.31 and passes on its own. A waiver covering
+# something that never needed it is how one grows until something real falls
+# through. The universe is pinned next door, both the sites and which of them
+# the waiver actually changes an answer for.
+GROUND_LITERALS = {'#000', '#000000'}
+
+# A class the printable markup never contains because a script makes it, inside
+# an element the print theme hides. The ancestry derivation below reads markup,
+# which in a JS-rendered app is the static shell and very little else: 276 of
+# the classes scored against paper appear in no printable markup at all, and
+# `.job-count` and `.staff-initial` are two of them — both real defects. So
+# absence cannot be allowed to imply hidden. Only a named host can, and the
+# claim is checked against the markup below rather than believed.
+JS_HOSTS = {'chip': 'cv-review-filters'}
 
 TEXT_FLOOR = 4.5
 GRAPHIC_FLOOR = 3.0
@@ -106,7 +130,12 @@ BG = re.compile(r'(?<![-\w])background(?:-color)?\s*:\s*([^;}]+)')
 PAINT = re.compile(r'(?<![-\w])(fill|stroke)\s*:\s*([^;}]+)')
 VAR = re.compile(r'var\(\s*(--[a-z][a-z0-9-]*)')
 DECL = re.compile(r'(--[a-z][a-z0-9-]*)\s*:\s*([^;]+);')
-SIZED = re.compile(r'(?<![-\w])(width|height|inset|flex-basis|flex)\s*:')
+# `inset` is deliberately absent. It says "as big as the thing I am in",
+# which is the container's answer, not a mark's — a mark states its size
+# because being that size is the datum. Counting it scored a fullscreen scrim
+# as though its dimness were a measurement, at 1.06. None of the five uses in
+# the tree declare a size; they all position against an ancestor.
+SIZED = re.compile(r'(?<![-\w])(width|height|flex-basis|flex)\s*:')
 HAIRLINE = re.compile(r'(?<![-\w])(width|height)\s*:\s*1px\s*[;}]')
 CLASS_ATTR = re.compile(r'class="([^"]*)"')
 
@@ -194,17 +223,42 @@ def ratio(a, b):
 
 # --------------------------------------------------------------- print-hidden
 
+def extent(src, i):
+    """The index just past the block whose header starts at `i`.
+
+    The loop has to see a brace open before a depth of zero means the end,
+    or it returns after one character. It did, once, and the print hide list
+    came back as a single `@` — which is the bug the assertion in
+    `hidden_pattern` exists to catch on the way out.
+    """
+    depth, j, opened = 0, i, False
+    while j < len(src):
+        depth += (src[j] == '{') - (src[j] == '}')
+        opened = opened or depth > 0
+        if opened and depth == 0:
+            return j + 1
+        j += 1
+    raise AssertionError('the block never closes')
+
+
 def print_block():
     app = strip_comments(read('assets/app.css'))
     i = app.index('@media print {')
-    depth, j, opened = 0, i, False
-    while j < len(app):
-        depth += (app[j] == '{') - (app[j] == '}')
-        opened = opened or depth > 0
-        if opened and depth == 0:
-            return app[i:j + 1]
-        j += 1
-    raise AssertionError('the print block never closes')
+    return app[i:extent(app, i)]
+
+
+def without_print(src):
+    """`src` with the print theme cut out of it.
+
+    `blocks()` flattens at-rules, so a rule inside `@media print` comes back
+    indistinguishable from one outside it and gets scored twice: correctly
+    against paper, and again against a screen theme it never meets. That is
+    the exact mirror of scoring a screen-only rule against paper, and it
+    invented a 1.17 on a `background: #fff` that exists only on paper.
+    """
+    src = strip_comments(src)
+    i = src.find('@media print {')
+    return src if i < 0 else src[:i] + src[extent(src, i):]
 
 
 def hidden_selectors():
@@ -289,7 +343,8 @@ def hidden_names():
 
 
 def hidden_pattern():
-    parts = [re.escape(n) for n in sorted(hidden_names())]
+    names = hidden_names() | {'.' + c for c in js_hidden()}
+    parts = [re.escape(n) for n in sorted(names)]
     # An empty alternation matches the empty string, so a hide list that came
     # back empty would not exempt nothing -- it would exempt everything, and
     # the paper scan would go quiet while still reporting success. That is the
@@ -297,6 +352,73 @@ def hidden_pattern():
     # assertion rather than a comment.
     assert parts, 'the print hide list came back empty'
     return re.compile(r'(?<![\w.#-])(?:%s)(?![\w-])' % '|'.join(parts))
+
+
+# ------------------------------------------------------------------- colours
+
+def values(text):
+    """The colours a declaration names: theme tokens, or a bare literal.
+
+    Thirty-seven ink and ground declarations in this tree are written as
+    literal hex rather than as tokens, and a scanner reading only `var()`
+    cannot see any of them — including seven inks, one of which is the
+    near-black the accent chips are lettered in. A literal is carried
+    verbatim rather than by name because it is a colour the print theme
+    cannot reach: that is the whole difference between the two kinds.
+    """
+    out = list(VAR.findall(text))
+    v = text.strip().rstrip(';').strip()
+    if not out and parse(v) is not None:
+        out.append(v)
+    return out
+
+
+def colour(t, v):
+    """`v` resolved against theme `t`, whether it is a token or a literal."""
+    return parse(t.get(v)) if v.startswith('--') else parse(v)
+
+
+def ancestor_ground(rules, sel):
+    """The background a descendant selector inherits from its own prefix.
+
+    `.ev.flash .ev-label` sets an ink and no ground of its own; the ground is
+    on `.ev.flash`, one level up in the same sheet. Falling back to the page
+    colours there scored near-black lettering against the dark page instead of
+    against the bright accent it is really printed on, and reported 1.01 for
+    one of the highest-contrast pairs on the site.
+    """
+    parts = sel.split()
+    for k in range(len(parts) - 1, 0, -1):
+        body = rules.get(' '.join(parts[:k]))
+        if body is None:
+            continue
+        found = [g for m in BG.finditer(body) for g in values(m.group(1))]
+        if found:
+            return found[-1]
+    return None
+
+
+def js_hidden():
+    """The `JS_HOSTS` classes whose host really is hidden, as bare names.
+
+    A claim that does not check out exempts nothing. The host must exist in
+    printable markup and must itself carry a hidden name, so the exemption
+    rests on the same print hide list as every other one rather than on this
+    table being right.
+    """
+    hidden, out = hidden_names(), set()
+    for cls, host in JS_HOSTS.items():
+        for rel in PRINTS:
+            m = re.search(r'<\w+[^>]*\bid="%s"[^>]*>' % re.escape(host),
+                          read(rel))
+            if not m:
+                continue
+            names = {'#' + host}
+            for a in CLASS_ATTR.finditer(m.group(0)):
+                names.update('.' + c for c in a.group(1).split())
+            if names & hidden:
+                out.add(cls)
+    return out
 
 
 # ---------------------------------------------------------------- the scanner
@@ -308,34 +430,41 @@ def scored(sheets, *, printed, exempt=True):
     skip = hidden_pattern() if printed and exempt else None
     out = []
     for rel in sheets:
-        for sel, body in blocks(read(rel)):
-            where = '%s %s' % (rel, sel.splitlines()[-1].strip()[:44])
+        # On screen the print theme's rules do not exist, so they are cut out
+        # rather than scored against a theme they never meet.
+        src = read(rel) if printed else without_print(read(rel))
+        rules = {}
+        for sel, body in blocks(src):
+            rules.setdefault(sel.splitlines()[-1].strip(), body)
+        for sel, body in blocks(src):
+            head = sel.splitlines()[-1].strip()
+            where = '%s %s' % (rel, head[:44])
             if skip is not None and skip.search(sel):
                 continue
             grounds = [g for m in BG.finditer(body)
-                       for g in VAR.findall(m.group(1))]
-            ground = grounds[-1] if grounds else None
+                       for g in values(m.group(1))]
+            ground = grounds[-1] if grounds else ancestor_ground(rules, head)
             is_map = any(sel.strip().startswith(c) for c in CURRENT_COLOR)
 
             for m in COLOR.finditer(body):
-                for tok in VAR.findall(m.group(1)):
+                for v in values(m.group(1)):
                     floor = GRAPHIC_FLOOR if is_map else TEXT_FLOOR
-                    out.append(('text', floor, tok, ground, where))
+                    out.append(('text', floor, v, ground, where))
 
             for m in PAINT.finditer(body):
                 prop, value = m.group(1), m.group(2)
-                for tok in VAR.findall(value):
-                    if prop == 'stroke' and tok in PAGE:
+                for v in values(value):
+                    if prop == 'stroke' and v in PAGE:
                         continue          # halo: a ring in the ground colour
-                    out.append(('paint', GRAPHIC_FLOOR, tok, ground, where))
+                    out.append(('paint', GRAPHIC_FLOOR, v, ground, where))
 
             if not SIZED.search(body) or HAIRLINE.search(body):
                 continue                  # a container, or a 1px rule
             for m in BG.finditer(body):
-                for tok in VAR.findall(m.group(1)):
-                    if tok in GROUND_TOKENS:
+                for v in values(m.group(1)):
+                    if v in GROUND_TOKENS or v in GROUND_LITERALS:
                         continue          # a sized container is still a ground
-                    out.append(('mark', GRAPHIC_FLOOR, tok, None, where))
+                    out.append(('mark', GRAPHIC_FLOOR, v, None, where))
     return t, out
 
 
@@ -343,20 +472,19 @@ def failures(sheets, *, printed, exempt=True):
     """Anything scoring under its own floor."""
     t, rows = scored(sheets, printed=printed, exempt=exempt)
     bad = []
-    for kind, floor, tok, ground, where in rows:
-        fg = parse(t.get(tok))
+    for kind, floor, v, ground, where in rows:
+        fg = colour(t, v)
         if fg is None:
             continue
-        if ground is not None and parse(t.get(ground)) is not None:
-            bg = parse(t[ground])
-            if bg[3] < 1:
-                r = min(ratio(fg, over(bg, parse(t[p]))) for p in PAGE)
-            else:
-                r = ratio(fg, bg)
-        else:
+        bg = colour(t, ground) if ground is not None else None
+        if bg is None:
             r = min(ratio(fg, parse(t[p])) for p in PAGE)
+        elif bg[3] < 1:
+            r = min(ratio(fg, over(bg, parse(t[p]))) for p in PAGE)
+        else:
+            r = ratio(fg, bg)
         if r < floor:
-            bad.append((round(r, 2), floor, kind, tok, ground, where))
+            bad.append((round(r, 2), floor, kind, v, ground, where))
     return sorted(bad)
 
 
@@ -421,10 +549,14 @@ class TestAHairlineIsARuleNotADatum:
                             out[sel.strip()] = tok
         return out
 
-    def test_three_rules_are_one_pixel_thick(self):
+    def test_four_rules_are_one_pixel_thick(self):
+        # The fourth arrived with `landing.css`, which no contrast test had
+        # ever scored. It is a 22px dash before a section eyebrow — the same
+        # kind of thing as the other three, and the same answer.
         assert self.hairlines() == {'.record-sep': '--line-hi',
                                     '.tally-sep': '--line-hi',
-                                    '.tick-half': '--mark-quiet'}
+                                    '.tick-half': '--mark-quiet',
+                                    '.eyebrow::before': '--accent'}
 
     def test_only_two_of_them_need_the_exemption(self):
         # `.tick-half` is the half-time divider on the timeline, and it clears
@@ -496,27 +628,50 @@ class TestPaperOnlyScoresWhatReachesPaper:
         assert 0 < len(kept) < len(every)
         assert len(every) - len(kept) > 20, len(every) - len(kept)
 
-    def test_the_exemption_currently_changes_no_verdict(self):
-        # It used to. `.steps li::before` was --accent on its own --accent-dim
-        # over the lightest paper surface at 4.23, under the 4.5 its 0.8rem
-        # counters are owed, and this exemption was the only thing keeping
+    def test_the_paper_accent_is_still_the_one_that_passes(self):
+        # `.steps li::before` was --accent on its own --accent-dim over the
+        # lightest paper surface at 4.23, under the 4.5 its 0.8rem counters
+        # are owed, and the print-hide exemption was the only thing keeping
         # the paper scan green. Then the identical pair turned up at
-        # .job-count and .staff-initial, which do print -- so the fix was one
-        # darker paper accent rather than three patched rules, and the
-        # exempted rule came up to 5.33 along with the two that mattered.
-        #
-        # The exemption stays regardless. It is not here to make today's
-        # numbers pass; it is here because scoring a rule against a medium it
-        # never renders in is the failure this file exists to prevent, and
-        # this repo has paid for that once already. Asserting the difference
-        # is empty keeps it honest -- the day it stops being empty, something
-        # genuinely unprintable is failing and the waiver is load-bearing
-        # again, which is a thing to notice rather than to rely on quietly.
+        # .job-count and .staff-initial, which do print — so the fix was one
+        # darker paper accent rather than three patched rules.
         t = theme(True)
         r = ratio(parse(t['--accent']),
                   over(parse(t['--accent-dim']), parse(t['--surface-hi'])))
         assert round(r, 2) == 5.33, r
-        assert failures(PRINTABLE, printed=True, exempt=False) == []
+
+    def test_the_exemption_is_what_keeps_paper_green(self):
+        """Exactly what the waiver is carrying, named one row at a time.
+
+        For a while this asserted the difference was empty: the exemption was
+        kept for its reasoning rather than its effect, with a note that the
+        day it stopped being empty would be a thing to notice. This is that
+        day. It was not a regression — nothing about the site changed. The
+        scanner learned to read literal hex, and near-black lettering on the
+        accent is written that way in all three of these places.
+
+        So the difference is asserted row by row rather than by count, and
+        every exempting name is checked against the hide list here rather
+        than taken on the pattern's word. A waiver that grows quietly is how
+        something real eventually falls through one.
+        """
+        assert failures(PRINTABLE, printed=True) == []
+        rows = failures(PRINTABLE, printed=True, exempt=False)
+        assert [(r, ink, where.split()[-1]) for r, _, _, ink, _, where
+                in rows] == [
+            (1.24, '#ffd4d4', '.toast.error'),
+            (2.86, '#04120f', '.btn.primary'),
+            (2.86, '#04120f', '.btn.tiny.on'),
+            (2.86, '#04120f', '.chip.on'),
+        ], rows
+        # `.toast` and `.btn` are written into the print hide list. `.chip` is
+        # not, and cannot be: no printable markup contains one, because a
+        # script makes them inside a container the list does hide. That claim
+        # is the one JS_HOSTS entry, and it is checked, not asserted.
+        listed = hidden_names()
+        assert {'.toast', '.btn'} <= listed
+        assert '.chip' not in listed
+        assert js_hidden() == {'chip'}
 
     def test_nothing_is_hidden_on_screen(self):
         # The exemption is paper-only. A screen scan that honoured the print

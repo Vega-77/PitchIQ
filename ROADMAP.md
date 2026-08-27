@@ -4810,6 +4810,78 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **What the contrast gate is allowed to look at, pinned as its own
+      test** (2026-08-27). The floor test next door decides whether a colour
+      pair passes. This one decides which pairs it is ever asked about, and
+      that is where every wrong answer this repo has had out of a scanner came
+      from — not the arithmetic, which is four lines of WCAG and has never
+      been wrong once. A scanner reports on the world it can see, and it
+      reports with exactly the same confidence whether that world is the real
+      one or not.
+      **Start with the negative result, because it cost the most and shipped
+      nothing.** The idea was to exempt any class that appears in no printable
+      markup: if nothing on paper ever carries it, why score it against paper?
+      It is measurably wrong. Of the 599 classes the sheets style, **293
+      appear in no printable page at all** — that is not a small exemption,
+      it is half the site — and the two rules that turned out to be
+      genuine paper defects, the job counter and the staff initial, were
+      both in that set, because they are written into the DOM by a script.
+      Absence of a class from the markup is absence of evidence, and this repo
+      had already paid once for treating it as evidence of absence. The
+      exemption was measured, proved unsound and abandoned; what survives is
+      one narrow, named list of script-made hosts with a test that each name
+      is real. **A waiver you cannot enumerate is not a waiver, it is a hole.**
+      **The sheet nobody was scoring.** `assets/landing.css` is 16 KB, it is
+      linked by the front page, and it was in no contrast test's list. Not
+      excluded — never included, which is worse, because an exclusion leaves
+      a trace and an omission does not. Every delta the gate had ever reported
+      was a delta over seven of the eight sheets, and it never said so. The
+      universe now asserts in **both** directions: no linked sheet goes
+      unscored, and no scored sheet has stopped being linked. Adding it found
+      a fourth hairline nobody had classified.
+      **The same rule can be scored twice against two different worlds.**
+      `app.css` carries a print theme that overrides 15 of the 25 tokens, so
+      the screen scan has to cut it out or it scores paper colours against
+      screen grounds. Leaving it in adds three rows and **invents one failure**
+      — `body`, at 1.17, lettering the paper `var(--text)` onto a dark
+      screen surface, a defect in a combination no browser will ever paint.
+      The tell is not the selector, since `body` has a rule in both themes; it
+      is the ground.
+      **Three ways of writing a colour, one of which the scanner could not
+      read.** 36 declarations name a colour as a bare literal rather than a
+      token, and 7 of those are ink. A token-only scanner sees none of them,
+      which means the near-black lettering on every primary button was outside
+      the measurement entirely. Related: `inset: 0` is not a size, and a
+      scanner that thinks it is promotes five full-bleed containers into marks;
+      and `--card-yellow` read 1.54 on paper only because a scoping artifact
+      let a print value meet a screen ground.
+      **A declaration can be ink or ground depending on what it is doing, and
+      a waiver for the wrong one is how waivers grow.** White was sitting in
+      the ground-literal exemption list, where the only thing it exempted was
+      the sandbox toggle knob — a mark, which scores 15.31 and never needed
+      it. It came out. Black stayed, because the video frame and the
+      calibration loupe genuinely are grounds. Both facts are now pinned along
+      with which of them the waiver actually changes an answer for. And a
+      ground does not have to be on the rule that names the ink: the flashed
+      event label takes its accent background from the ancestor two selectors
+      up, which is the difference between reading **1.01 and 10.65**. 64 rules
+      resolve a ground that way.
+      **Two of the new tests passed on the first run because they could not
+      fail.** One was a literal tautology, `f(x) == f(x)`. The other compared
+      row values against a colour no row can hold. Both were replaced only
+      after measuring what the thing they were guarding is actually worth —
+      the three rows and the invented 1.17 above are that measurement. **A
+      test that has never been observed to fail has not been shown to work**,
+      and a green suite is the easiest place in a codebase to hide nothing at
+      all.
+      **Twenty-one mutations, no holes**, and the one that started as a hole
+      was better than a fix. Renaming the script-made host's class did not
+      unhide it, because two independent mechanisms do: the class is in the
+      print hide list by name, and the element sits inside a hidden section.
+      The gate was right and the mutation was unreachable, so the case became
+      a comment explaining why and the redundancy became an assertion. 62
+      tests across the pair, 1582 in the suite, and no web-facing file
+      changed, so the tree correctly stays at v=110.
 - [x] **Every colour the site paints, measured against the thing it is
       painted on** (2026-08-27). WCAG contrast is arithmetic, so it can be a
       gate rather than an opinion, and the interesting part turned out not to
