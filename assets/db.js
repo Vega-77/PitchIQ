@@ -7,14 +7,14 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=105';
-import { EVENT_TYPES } from './events.js?v=105';
+import { db } from './firebase-init.js?v=106';
+import { EVENT_TYPES } from './events.js?v=106';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
     mappingWithout, positionOf, whistleFrom, minutesFrom, knownMinutes,
-} from './report.js?v=105';
+} from './report.js?v=106';
 
 export {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
@@ -985,13 +985,18 @@ export function seasonTotals(reports) {
         // Matches where it could not be measured contribute nothing rather
         // than a zero, which is the same thing the per-match card does.
         cvAccelerations: acc.cvAccelerations + (r.cvAccelerations || 0),
+        // Maxed rather than summed, like the top speed above: a season's
+        // hardest burst is the hardest single one, not all of them added up.
+        cvTopAcceleration: Math.max(
+            acc.cvTopAcceleration, r.cvTopAcceleration || 0,
+        ),
     }), {
         matches: 0, minutes: 0, minutesUnknown: 0, goals: 0, assists: 0,
         yellowCards: 0, redCards: 0, fouls: 0,
         cvMatches: 0, cvTouches: 0, cvPassesAttempted: 0, cvPassesCompleted: 0,
         cvCarries: 0, cvTackles: 0, cvInterceptions: 0, cvRecoveries: 0,
         cvShots: 0, cvXg: 0, cvDistanceM: 0, cvTopSpeedKmh: 0, cvSprintCount: 0,
-        cvAccelerations: 0,
+        cvAccelerations: 0, cvTopAcceleration: 0,
     });
 }
 

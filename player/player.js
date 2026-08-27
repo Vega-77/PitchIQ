@@ -9,32 +9,32 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=105';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=106';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=105';
-import { CARD_COLOURS } from '../assets/events.js?v=105';
-import { mountRail } from '../assets/rail.js?v=105';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=105';
-import { renderHeatmap } from '../assets/heatmap.js?v=105';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=105';
+} from '../assets/db.js?v=106';
+import { CARD_COLOURS } from '../assets/events.js?v=106';
+import { mountRail } from '../assets/rail.js?v=106';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=106';
+import { renderHeatmap } from '../assets/heatmap.js?v=106';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=106';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
     playerWobbleNote,
     minutesNote, seasonGroups, matchLine,
-} from '../assets/report.js?v=105';
+} from '../assets/report.js?v=106';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=105';
-import { renderForms } from '../assets/form-chart.js?v=105';
+} from '../assets/season.js?v=106';
+import { renderForms } from '../assets/form-chart.js?v=106';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=105';
-import { renderMatchVideo } from '../assets/match-video.js?v=105';
+} from '../assets/sample-report.js?v=106';
+import { renderMatchVideo } from '../assets/match-video.js?v=106';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally, coverageStrip,
-} from '../assets/ui.js?v=105';
+} from '../assets/ui.js?v=106';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -322,6 +322,15 @@ function renderMatchStats(report) {
     // `position_noise_m` in cv/metrics.py, and the note under this grid.
     if (report.cvAccelerations != null) {
         grid.append(statCard(report.cvAccelerations, 'Bursts', 'is-muted', trust));
+    }
+    // The hardest one of them, in metres per second squared. Beside the count
+    // rather than instead of it: forty gentle changes of pace and four violent
+    // ones are different matches, and the count alone cannot tell them apart.
+    if (report.cvTopAcceleration != null) {
+        grid.append(statCard(
+            report.cvTopAcceleration.toFixed(1), 'Hardest burst m/s²',
+            'is-muted', trust,
+        ));
     }
     if (report.cvTackles != null) {
         grid.append(statCard(report.cvTackles, 'Tackles won', 'is-muted', trust));

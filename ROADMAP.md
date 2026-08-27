@@ -4810,6 +4810,56 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The biggest document on the wire, and six figures on it nobody could
+      see** (2026-08-26). `cvStats/identity` is the largest thing this project
+      publishes and, until now, the least checked. `tests/smoke.test.js` sees
+      three names in `identity_payload` — `clusters`, `tracks` and
+      `playerByCluster` — because those are the only string literals in the
+      function. The twenty-two figures on every track row and the seven on
+      every cluster row ride inside lists it forwards verbatim out of the
+      report JSON, and no gate has ever had an opinion about any of them.
+      **Six of them reached nothing, and one was armed.**
+      `PlayerCluster.heatmap` had been declared for two years, published on
+      every cluster of every run, and never once assigned — and
+      `identity_payload` flattens the *track* copy of a heatmap because
+      Firestore refuses nested arrays outright, and never flattened this one.
+      The first person to fill it in would have failed the whole publish, not
+      one column. Deleted at the source. `minutes_tracked` on the cluster row
+      and `team` and `track_ids` on the track row are the same value twice in
+      one document, seeded straight off the cluster and never touched again.
+      `pass_accuracy` is a quotient of two fields published beside it, and
+      recomputing it after merging two fragments is the only correct way to
+      get it — exactly the call already made for `cvPassAccuracy` on
+      2026-08-17. Those five are stripped at the seam and left in the report
+      JSON, and the difference matters: the report is a document a person
+      reads end to end, where a repeated figure is a convenience; this one is
+      read by a browser that already holds the other copy in the same payload
+      and pays for every byte on every page load.
+      **The sixth was wired up rather than deleted.** `top_acceleration_ms2`
+      is a real football figure whose companion count was already on both
+      screens, so it now runs through `MAXED`, the season maximum in
+      `assets/db.js`, the coach running-form group and the player stat grid,
+      as *Hardest burst* in m/s².
+      **Three new scanner shapes, and the first is why this was invisible.**
+      `assets/report.js` reads fifteen of these figures through `track[key]`
+      over a module-level array of names; no `.field` appears anywhere, and a
+      gate whose reader set is property accesses could never have seen them.
+      The other two: the rows arrive through a `Map` keyed by `cluster_id`,
+      and the clusters are read off `[...clusters].sort(...)` — a peel that
+      hands back the very elements it was given, which is the one exception to
+      *follow the value, not the container*.
+      **Fourteen mutations, fourteen catches**, and two of them found a hole
+      in the gate rather than a break in the repo: the check that the drop
+      lists are applied was satisfied by a docstring and a comment that merely
+      name them, so a seam that had stopped stripping anything still passed.
+      It looks for the filter now, not the name.
+      **Ten of eleven guards pinned.** Comment stripping changes no verdict
+      here and is kept without a test on purpose: it guards the direction that
+      fails silently. A scanner that misses a reader makes a live field look
+      dead and this gate shouts; a scanner that invents one makes a dead field
+      look live and this gate says nothing.
+      Gate: **1413 Python tests**, 755 JS unit tests, 37 smoke tests,
+      pyflakes clean. Four served files changed, so stamped `?v=106`.
 - [x] **The names too common to check, checked** (2026-08-26).
       `tests/smoke.test.js` walks the keys of all five payload builders and
       says, in its own docstring, where that goes thin: it cannot tell which

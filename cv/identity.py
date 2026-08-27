@@ -78,7 +78,13 @@ class PlayerCluster:
     last_seen_s: float = 0.0
     sightings: int = 0
     colour: tuple[float, float, float] | None = None
-    heatmap: list[list[float]] | None = None
+    # No `heatmap` here on purpose. One was declared for two years, published on
+    # every cluster of every run, and never once assigned — the grid is computed
+    # per track in the pipeline and merged onto `TrackStats.heatmap` instead,
+    # which is the copy every page reads. It was also a loaded gun: Firestore
+    # refuses nested arrays outright, and `identity_payload` flattens the track
+    # copy but never flattened this one, so the day anybody filled it in the
+    # whole publish would have failed. See `cv/report_json.py::track_stats`.
     # A `data:` URI cut from the footage by cv/thumbs.py, so a coach can match a
     # figure to a teenager by looking at it rather than by reading a time span.
     # None whenever the tracker never saw this person cleanly and whole, which
@@ -100,7 +106,6 @@ class PlayerCluster:
             'minutes_tracked': round(self.minutes_tracked, 2),
             'sightings': self.sightings,
             'colour': list(self.colour) if self.colour else None,
-            'heatmap': self.heatmap,
             'thumb': self.thumb,
             # How tall the crop was in the footage. Carried so the picker can
             # say "this is all there was" rather than silently drawing a 30px

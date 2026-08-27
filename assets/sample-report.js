@@ -747,6 +747,10 @@ export function samplePlayerReport() {
         // More bursts than sprints, which is the ordinary relationship: most
         // hard accelerations never reach 7 m/s.
         cvAccelerations: 48,
+        // The hardest of the forty-eight. Bursts are counted from 2 m/s² up
+        // (`MIN_ACCEL_MS2`), so a peak twice the threshold is an ordinary good
+        // one — not the number that would make the preview look superhuman.
+        cvTopAcceleration: 4.2,
         cvPositionNoiseM: 0.14,
         cvMinutesTracked: 71.5,
         // Played the whole 90, all of it filmed, and the tracker held them for

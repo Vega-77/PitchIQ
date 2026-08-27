@@ -54,7 +54,10 @@ const SUMMED = [
 // Taken at the worst fragment, not averaged: a player assembled from a clean
 // track and a jittery one is only as trustworthy as the jittery one, and an
 // average would hide it behind the clean one.
-const MAXED = ['top_speed_kmh', 'position_noise_m'];
+// The hardest burst joins them for the same reason the top speed does: the
+// peak of two fragments is the peak of the player, and a sum would credit
+// somebody who was substituted on twice with twice the acceleration.
+const MAXED = ['top_speed_kmh', 'position_noise_m', 'top_acceleration_ms2'];
 
 /**
  * Roll the video's tracked figures up into the players a coach named them as.
@@ -280,7 +283,8 @@ const CV_REPORT_KEYS = [
     'cvMinutesOnPitch', 'cvMinutesFilmed', 'cvTrackedShare', 'cvTouches',
     'cvPassesAttempted', 'cvPassesCompleted', 'cvCarries', 'cvTackles',
     'cvInterceptions', 'cvRecoveries', 'cvShots', 'cvXg', 'cvDistanceM',
-    'cvTopSpeedKmh', 'cvSprintCount', 'cvAccelerations', 'cvPositionNoiseM',
+    'cvTopSpeedKmh', 'cvSprintCount', 'cvAccelerations', 'cvTopAcceleration',
+    'cvPositionNoiseM',
     'cvMinutesTracked', 'cvTouchTimes',
     'cvClusterCount', 'cvShotMap', 'cvReviewed',
     // Written only by the pipeline, cleared only here.
@@ -348,6 +352,10 @@ export function cvReportFields(stats, coverage = null, shotRows = null) {
         cvTopSpeedKmh: num(stats.top_speed_kmh),
         cvSprintCount: num(stats.sprint_count),
         cvAccelerations: num(stats.accelerations),
+        // How hard the hardest one was. The count above says a player changed
+        // gear; this says whether the change was a jog into a stride or a
+        // standing start, which is the half of the pair a coach can act on.
+        cvTopAcceleration: num(stats.top_acceleration_ms2),
         cvPositionNoiseM: num(stats.position_noise_m),
         cvMinutesTracked: num(stats.minutes_tracked),
         cvTouchTimes: stats.touchTimes || [],
@@ -1887,6 +1895,9 @@ export function seasonGroups(reports, totals, options = {}) {
     }
     if (t.cvSprintCount) running.push(seen(t.cvSprintCount, 'Sprints'));
     if (t.cvAccelerations) running.push(seen(t.cvAccelerations, 'Bursts'));
+    if (t.cvTopAcceleration) {
+        running.push(seen(t.cvTopAcceleration.toFixed(1), 'Hardest burst m/s²'));
+    }
 
     const defending = [seen(t.cvTackles ?? 0, 'Tackles won')];
     if (t.cvInterceptions) defending.push(seen(t.cvInterceptions, 'Interceptions'));

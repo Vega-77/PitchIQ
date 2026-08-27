@@ -348,16 +348,24 @@ def identity_payload(report_json: dict, mapping: dict[str, str] | None = None) -
 
     The pictures come out here and go to `thumbs_payload` instead, so that
     deleting them cannot take a statistic with it. See `THUMBS_DOC`.
+
+    Four more figures come out here and go nowhere — see `DROPPED_TRACK_FIELDS`
+    and `DROPPED_CLUSTER_FIELDS`. They stay in the report JSON, which is a
+    document a person reads end to end and where a repeated figure is a
+    convenience. This one is read by a browser that already has the other copy
+    in the same payload, and every byte of it is paid for on every page load.
     """
     tracks = []
     for track in report_json.get('tracks') or []:
-        if track.get('heatmap') is None:
-            tracks.append(track)
-            continue
-        tracks.append(track | {'heatmap': _flat_heatmap(track['heatmap'])})
+        row = {k: v for k, v in track.items()
+               if k not in DROPPED_TRACK_FIELDS}
+        if row.get('heatmap') is not None:
+            row['heatmap'] = _flat_heatmap(row['heatmap'])
+        tracks.append(row)
 
     clusters = [
-        {k: v for k, v in cluster.items() if k not in THUMB_FIELDS}
+        {k: v for k, v in cluster.items()
+         if k not in THUMB_FIELDS and k not in DROPPED_CLUSTER_FIELDS}
         for cluster in (report_json.get('clusters') or [])
     ]
 
@@ -377,6 +385,27 @@ def identity_payload(report_json: dict, mapping: dict[str, str] | None = None) -
 # What `cv/identity.py` puts on a cluster to describe its picture. Named once so
 # that stripping them out and writing them back cannot drift apart.
 THUMB_FIELDS = ('thumb', 'thumb_height_px')
+
+# Track-row figures the report JSON carries and this document does not.
+#
+# `team` and `track_ids` are not merely similar to the cluster row's — they are
+# the same values. `report_json.track_stats` seeds every `TrackStats` straight
+# off its `PlayerCluster`, and neither is touched again, so publishing both put
+# each team name and each fragment list on the wire twice in one document. The
+# copies that are read live on the cluster row: `coach.js::clusterRow`,
+# `passing.js::playersByTrack`, `review.js::whoIs`.
+#
+# `pass_accuracy` is a quotient of two fields published beside it, and every
+# page that wants it divides for itself — `report.js::cvStatsByPlayer` computes
+# `passAccuracy` from the merged totals, which is the only correct way to get
+# it once two fragments are joined. Dropping it here is the same call, for the
+# same reason, as dropping `cvPassAccuracy` from `player_report_fields` below.
+DROPPED_TRACK_FIELDS = ('team', 'track_ids', 'pass_accuracy')
+
+# And the cluster row's `minutes_tracked`, for the same reason as `team`: it is
+# `TrackStats.minutes_tracked` under a second name, on the row next door, keyed
+# by the same `cluster_id`. The track copy is the one every page reads.
+DROPPED_CLUSTER_FIELDS = ('minutes_tracked',)
 
 
 def thumbs_payload(report_json: dict) -> dict:
@@ -436,6 +465,7 @@ def player_report_fields(
         # burst window, or a track too noisy to read one off, is a question that
         # went unanswered rather than a player who never accelerated.
         f'{CV_FIELD_PREFIX}Accelerations': track_stats.get('accelerations'),
+        f'{CV_FIELD_PREFIX}TopAcceleration': track_stats.get('top_acceleration_ms2'),
         f'{CV_FIELD_PREFIX}PositionNoiseM': track_stats.get('position_noise_m'),
         f'{CV_FIELD_PREFIX}MinutesTracked': track_stats.get('minutes_tracked'),
         # Every touch, in seconds, so the player portal can mark them on the
@@ -497,7 +527,7 @@ SUMMED_FIELDS = (
 # Taken at the worst fragment rather than averaged. A player assembled from a
 # clean track and a jittery one is only as trustworthy as the jittery one, and
 # an average would hide that behind the clean half.
-MAXED_FIELDS = ('top_speed_kmh', 'position_noise_m')
+MAXED_FIELDS = ('top_speed_kmh', 'position_noise_m', 'top_acceleration_ms2')
 
 
 def merge_tracks(tracks: list[dict]) -> dict:
