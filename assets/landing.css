@@ -334,6 +334,12 @@
     border-radius: 18px;
     overflow: hidden;
 }
+/* The panel is as wide as the shell; the sentence inside it should not be.
+   At the 1280px shell this line runs past 140 characters, about twice the
+   measure an eye can track without losing its place on the way back. Capping
+   the text column rather than the panel keeps the pitch backdrop full width,
+   which is the half of this block that wants the room. */
+.welcome-main { max-width: 62ch; }
 .welcome h1 { margin-bottom: 8px; }
 .welcome .lede { margin-bottom: 0; }
 

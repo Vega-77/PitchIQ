@@ -551,6 +551,11 @@ section.block > p.muted { max-width: 74ch; }
     margin: 0 0 10px 11px;
 }
 
+/* No gap, and that is the rule rather than an omission: each link draws its
+   own 2px left border, and stacked flush they add up to one continuous rail
+   line down the side of the page. Any gap here breaks that line into dashes. */
+.rail-links { display: grid; gap: 0; }
+
 .rail-link {
     display: flex;
     align-items: center;
@@ -910,6 +915,14 @@ label.field > span {
 }
 
 .card-list { display: flex; flex-direction: column; gap: 8px; }
+
+/* The same idea as .card-list, and it went years without a rule: every list on
+   the match view stacked its bordered rows flush, so adjacent 1px borders met
+   as one 2px seam and a list of twenty shots read as a single ruled block. The
+   gap is smaller than .card-list's because these rows are denser and there are
+   many more of them — eight pixels of nothing between each of twenty rows is
+   its own kind of noise. */
+.list { display: flex; flex-direction: column; gap: 6px; }
 
 .list-item {
     display: flex;
@@ -1333,18 +1346,22 @@ td.num.cv-partial {
 
 /* ------------------------------------------------------ tracked figures */
 
-/* Four things per row: a kit swatch, who the figure is, how much of it was
+/* Four things per row: a picture of the figure, who it is, how much of it was
    seen, and the picker. A grid rather than the flex .list-item default,
    because the picker is wide enough that on a phone it has to drop to its own
    line instead of crushing the name beside it. */
 .cluster-row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto auto;
-    grid-template-areas: "swatch info frames picker";
+    grid-template-areas: "face info frames picker";
     align-items: center;
     gap: 12px;
 }
-.cluster-row .cluster-swatch { grid-area: swatch; }
+/* Placed by name rather than left to auto-placement, like its three siblings
+   below. The thumbnail happens to be first in the DOM today, so auto-placement
+   lands it here anyway — which is exactly the kind of agreement that holds
+   until somebody reorders the template and cannot see why the row broke. */
+.cluster-row .cluster-thumb { grid-area: face; }
 /* min-width: 0 is load-bearing. Without it this cell refuses to shrink below
    its content, gets squeezed to zero width by the picker, and the name renders
    one letter per line — a 280px row instead of 76px. */
@@ -1435,22 +1452,6 @@ td.num.cv-partial {
     font-size: 11px;
     line-height: 1.4;
     color: var(--text-faint);
-}
-
-/* A swatch of the kit colour the clustering settled on. Approximate by
-   design — it exists so a coach can recognise which side a tracked figure was
-   on at a glance, not to reproduce the shirt. */
-.cluster-swatch {
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
-    border: 1px solid var(--line-hi);
-    flex: none;
-}
-.cluster-swatch.unknown {
-    background: repeating-linear-gradient(
-        45deg, var(--line), var(--line) 3px, var(--surface-hi) 3px, var(--surface-hi) 6px
-    );
 }
 
 /* The figure itself, cut out of the footage. This is the control that actually
@@ -3062,6 +3063,17 @@ button.list-item::after, a.list-item::after {
     fill-opacity: 0.9;
     stroke: var(--surface);
     stroke-width: 0.5;
+    transition: fill-opacity .12s ease, stroke .12s ease;
+}
+/* The group is the hover target, not the circle. The <title> that names the
+   player lives on the group, and the smallest dots on this map are under two
+   pitch-metres across — small enough that hunting for the tooltip with a mouse
+   is a game rather than a reading. */
+@media (hover: hover) {
+    .pass-node:hover .pass-dot {
+        fill-opacity: 1;
+        stroke: var(--accent-hi);
+    }
 }
 
 /* A season, as a row of small traces.
@@ -3267,6 +3279,13 @@ button.list-item::after, a.list-item::after {
     color: var(--text-dim);
 }
 .sub-who { font-size: 0.9rem; font-weight: 600; min-width: 0; }
+/* A change with nothing measurable either side of it — no shots, or not enough
+   match around it to compare. The row stays, because the substitution really
+   happened and a timeline with holes in it is worse than a quiet row. But it
+   should not compete with the rows that carry two bars: those are the ones with
+   an answer in them, and this is the one saying it does not know. */
+.sub-row.is-bare .sub-when,
+.sub-row.is-bare .sub-who { color: var(--text-faint); font-weight: 500; }
 .sub-legs { grid-column: 2; display: grid; gap: 6px; margin-top: 6px; }
 .sub-leg {
     display: grid;
@@ -3617,7 +3636,7 @@ input[type="file"]::file-selector-button {
         background: #fff;
     }
 
-    .shell, .wrap { max-width: none; padding: 0; }
+    .shell { max-width: none; padding: 0; }
 
     /* Paper is one column. The desktop grid is keyed off a screen width that
        no sheet reaches, so this is belt and braces rather than a fix — but the
