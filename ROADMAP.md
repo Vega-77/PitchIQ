@@ -4810,6 +4810,59 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The nine buttons at the side of the pitch, held against the four
+      places that spell them out** (2026-08-27). The seam after ids and exports
+      is the data attribute: a value parked on an element by one piece of code
+      and collected later by another, with the two halves routinely in
+      different files and, in the sharpest case, a different language on a
+      different machine. Ten attribute names across the frontend, and until now
+      nothing checked either direction. **Written and never read** costs a few
+      bytes and survives every rename around it — `data-mark-id` was written
+      onto every tick and every moment button `assets/timeline.js` builds, and
+      read by no file of any type, at any point in its history; the click
+      handler on the very next line already closes over the whole mark, which
+      is how every other dynamically built element here carries its behaviour.
+      Both writes are gone. **Read and never written** is the quiet one:
+      `el.dataset.thing` on an element nobody wrote `data-thing` onto is
+      `undefined`, and `undefined` in a comparison is simply false — the tab
+      never switches, the rail never highlights, nothing throws and nothing is
+      logged. That is also why a rename is dangerous, since `dataset.railGroup`
+      and `data-rail-group` are one name written two ways and only the DOM
+      knows it.
+      **Five sites, each measured by switching it off**: markup, the same
+      markup written from inside a JS template, `dataset.x =` assignment (which
+      is how `data-signature` and `data-target` exist without the string ever
+      appearing anywhere), plain reads, and selectors — that last one worth
+      two live attributes, because `data-cluster` and `data-same` are read only
+      through a template hole, and are found anyway since the attribute's
+      *name* sits to the left of the hole. Two more sites were measured, found
+      to scan **nothing at all**, and left out rather than shipped: eight
+      stylesheets contain zero attribute selectors, and the only data-attribute
+      mentions inside comments are backticked. The stylesheet measurement is
+      kept as an assertion, so the day a `[data-...]` rule appears the gate says
+      to add the site back instead of quietly calling a live attribute dead.
+      The test-harness site is inert today and stays anyway, for the reason the
+      id entry below records at some cost.
+      **And the copy the code itself calls unavoidable is now checked.**
+      `assets/events.js` says its nine type names appear once more in
+      `firestore.rules` because rules are a separate language and the server has
+      to validate independently — and no Python test in this repo had ever
+      read `firestore.rules` at all. Four copies now held against each other:
+      the nine `data-event` buttons, the `EVENTS` map, the fourteen-name
+      allowlist in the rules, and the second copy of the period names inside
+      `assets/report.js`, which imports nothing by design. Compared as **sets**,
+      never as sequences — the buttons are deliberately in a different order
+      from the map. Two asymmetries are real and are pinned with their reason
+      and their write site rather than reported: `sub`, the one client type with
+      no entry in any map, and `source`, where the rules already admit the two
+      values the pipeline will write on the day it is allowed to append. A
+      button whose type the rules reject writes nothing, and it fails at the
+      side of a pitch, in the second half, with nobody able to read a console.
+      `tests/test_data_seam.py`, 22 tests, 20 deliberate breakages and 20
+      caught — one of which found the pin for `sub` passing on a lookalike in
+      `assets/report.js`, where the same string labels a mark the report
+      *derives* rather than one anybody sends.
+
 - [x] **A sweep this roadmap called noise, measured, and it came to one
       name** (2026-08-27). The entry below argues that a dead-export sweep is
       noise on this codebase — `assets/report.js` has no imports by design so

@@ -86,7 +86,6 @@ export function renderStrip(host, { marks, endS, onSeek, halfS = 45 * 60, clockT
         button.style.left = `${Math.min(100, (mark.clockS / end) * 100)}%`;
         button.title = `${clockText(mark.clockS)} — ${mark.label}`;
         button.setAttribute('aria-label', button.title);
-        if (mark.id != null) button.dataset.markId = mark.id;
         button.addEventListener('click', () => onSeek?.(mark.clockS, mark));
         host.append(button);
         ticks.push(button);
@@ -159,7 +158,6 @@ export function renderMomentList(host, { marks, onSeek, emptyText, clockText }) 
         // textContent, not innerHTML: a label can carry a player's name, and
         // names come from a coach typing into a form.
         button.querySelector('.m-label').textContent = mark.label;
-        if (mark.id != null) button.dataset.markId = mark.id;
         button.addEventListener('click', () => onSeek?.(mark.clockS, mark));
         host.append(button);
         buttons.push(button);
