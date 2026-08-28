@@ -4810,6 +4810,68 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **Three unnamed rails on the coach page, and only one of them was a
+      defect** (2026-08-27).
+      `tests/test_landmarks.py`, twenty-two tests, twenty-eight mutations,
+      no holes.
+      **A landmark list is a property of a screen, not of a file — and a
+      screen can nest two deep.** Counting `<aside>` per file says coach has
+      three unnamed complementary landmarks all wanting names. Measuring
+      which of them are on screen at the same time says none of them is a
+      defect: they sit one apiece in `#tab-matches`, `#tab-roster` and
+      `#tab-staff`, which `coach/coach.js:3741` `showTab` swaps inside
+      `#view-main`, which `showOnly` swaps in turn. Naming all three would
+      have been work done against a wrong measurement. Counting per screen
+      instead found the one real case the file count had buried: the tab
+      strip `<nav>`, the only nav on the site carrying no name, sharing
+      `view-main` with the site nav. It now reads
+      `aria-label="Sections of your team"`, matching the phrasing of the
+      other seven.
+      **The full-bleed tool had no `<main>` at all.** `live-tagging` put its
+      three views straight under `<body>`, so every control a person operates
+      during a match sat outside every landmark — on the one page where
+      the operator has least time to hunt for anything. The other six pages
+      already wrapped their views in `<main class="shell">`; this one is
+      full-bleed rather than shelled, which is the whole of the difference,
+      and it is now `<main class="tag-main">`.
+      **That wrapper came with a trap worth writing down.** `.view` is
+      `height: 100%`, chained off `html, body { height: 100% }`, and a
+      percentage height resolves against the parent — so inserting any
+      element between `<body>` and `.view` collapses all three views to
+      nothing unless it carries a height of its own. Caught by grepping the
+      height chain before the edit rather than after; `tagging.css` now sets
+      `.tag-main { height: 100% }` immediately above the rule that depends on
+      it, with a comment in both files saying so, and a test that fails if
+      either half is dropped. Measured live afterwards: all three views
+      1280x720 in a 720-tall viewport.
+      **Counting tags gets banner and contentinfo wrong.** `<header>` is a
+      banner only when nothing sectioning is above it, and `<footer>` is
+      contentinfo under the same rule. Twenty-one `<header>`/`<footer>` tags
+      across the seven pages; twelve of them are landmarks. A scan counting
+      tags would have announced nine section headers as duplicate banners and
+      sent somebody off to name every one.
+      **What was measured and deliberately not changed.** `main`, `banner`
+      and `contentinfo` stay unnamed: one each per page, so a name has
+      nothing to tell them apart from and a screen reader would read it out
+      on every page for nothing. Calibrate’s and the sandbox’s single
+      asides likewise — unambiguous, so they are left alone. Skip links
+      are still absent on all seven pages; that is SC 2.4.1 and a separate
+      piece of work, noted here so the next person knows it was seen rather
+      than missed. The site has zero `<form>` elements and zero named
+      `<section>`s, so no form or region landmarks exist today; the scan
+      handles both anyway, proved by synthetic cases since nothing real
+      exercises them.
+      **One walk, not two.** The gate needed to know which element it was
+      looking at, which `test_heading_outline.spans` could not say — its
+      key saw the attributes only. Three lines widened it to take the tag
+      name too, so both gates run the same walk instead of two that can
+      drift apart, and the heading gate was re-run to prove nothing moved.
+      **The mutation run found a hole in its own gate.** The commented-out
+      landmark case decommented its fixture by hand, so it stayed green while
+      the real pages were fed in with their comments intact — a scan that
+      would have counted `live-tagging`’s own wrapper comment, which
+      quotes `<main class="shell">`, as markup. The twenty-eighth test checks
+      the path the pages actually take. Stamped v=112.
 - [x] **Two views had no title at all, and counting headings per file said
       all seven pages were fine** (2026-08-27).
       `tests/test_heading_outline.py`, twenty-one tests, twenty-seven

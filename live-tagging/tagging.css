@@ -16,6 +16,12 @@ html, body {
     overscroll-behavior: none;
 }
 
+/* Parent of the three views, and load-bearing: the percentage height on
+ * .view below resolves against this, so dropping the height here collapses
+ * every view to nothing. It exists so the tool is inside a landmark at all.
+ */
+.tag-main { height: 100%; }
+
 .view { display: none; height: 100%; flex-direction: column; }
 .view.active { display: flex; }
 

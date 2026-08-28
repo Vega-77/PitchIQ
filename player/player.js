@@ -9,32 +9,32 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=111';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=112';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=111';
-import { CARD_COLOURS } from '../assets/events.js?v=111';
-import { mountRail } from '../assets/rail.js?v=111';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=111';
-import { renderHeatmap } from '../assets/heatmap.js?v=111';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=111';
+} from '../assets/db.js?v=112';
+import { CARD_COLOURS } from '../assets/events.js?v=112';
+import { mountRail } from '../assets/rail.js?v=112';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=112';
+import { renderHeatmap } from '../assets/heatmap.js?v=112';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=112';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
     playerWobbleNote,
     minutesNote, seasonGroups, matchLine,
-} from '../assets/report.js?v=111';
+} from '../assets/report.js?v=112';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=111';
-import { renderForms } from '../assets/form-chart.js?v=111';
+} from '../assets/season.js?v=112';
+import { renderForms } from '../assets/form-chart.js?v=112';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=111';
-import { renderMatchVideo } from '../assets/match-video.js?v=111';
+} from '../assets/sample-report.js?v=112';
+import { renderMatchVideo } from '../assets/match-video.js?v=112';
 import {
     byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
     plural, minutesChart, tally, coverageStrip,
-} from '../assets/ui.js?v=111';
+} from '../assets/ui.js?v=112';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 

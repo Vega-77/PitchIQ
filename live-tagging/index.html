@@ -7,189 +7,202 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=111">
-    <link rel="stylesheet" href="tagging.css?v=111">
+    <link rel="stylesheet" href="../assets/app.css?v=112">
+    <link rel="stylesheet" href="tagging.css?v=112">
 </head>
 <body>
 
-<!-- The document heading. Hidden because this is a fullscreen tool whose every
-     pixel is a tap target and whose three views each have their own title —
-     but a page with no h1 at all is a page a screen reader cannot introduce. -->
-<h1 class="sr-only">PitchIQ live tagging</h1>
+<!-- Everything a person actually operates lives in here. Without this
+     wrapper the three views were direct children of <body>, so the entire
+     tool sat outside every landmark and the landmark list offered one
+     complementary rail and nothing else. The other six pages already wrap
+     their views in <main class="shell">; this one is full-bleed rather than
+     shelled, which is the whole of the difference.
 
-<!-- ===================== SETUP ===================== -->
-<section id="view-setup" class="view active">
-    <header class="tag-header has-backdrop" id="tag-header">
-        <div>
-            <div class="brand">PitchIQ <span>tagging</span></div>
-            <p class="muted" id="setup-sub">Sign in with your school Google account</p>
-        </div>
-        <a href="../" class="btn small ghost">Exit</a>
-    </header>
+     .view is height:100%, and a percentage height resolves against the
+     parent -- so this element has to carry a height of its own or all three
+     views collapse to nothing. tagging.css sets it immediately above the
+     .view rule that depends on it. -->
+<main class="tag-main">
+    <!-- The document heading. Hidden because this is a fullscreen tool whose every
+         pixel is a tap target and whose three views each have their own title —
+         but a page with no h1 at all is a page a screen reader cannot introduce. -->
+    <h1 class="sr-only">PitchIQ live tagging</h1>
 
-    <div class="setup-body">
-        <div id="config-slot"></div>
-
-        <div id="signin-block">
-            <p class="signin-lede">
-                Tag a match from the touchline. Sign in with the school account
-                your coach has on the roster.
-            </p>
-            <button id="btn-signin" class="btn primary block">Sign in with Google</button>
-        </div>
-
-        <!-- Only shown when this account coaches more than one squad. -->
-        <div id="team-block" class="hidden">
-            <h3>Which squad?</h3>
-            <div class="help">
-                <span>
-                    You coach more than one. Pick the squad that's about to play —
-                    everything you tap gets recorded against it.
-                </span>
+    <!-- ===================== SETUP ===================== -->
+    <section id="view-setup" class="view active">
+        <header class="tag-header has-backdrop" id="tag-header">
+            <div>
+                <div class="brand">PitchIQ <span>tagging</span></div>
+                <p class="muted" id="setup-sub">Sign in with your school Google account</p>
             </div>
-            <div id="team-cards" class="match-cards"></div>
-        </div>
+            <a href="../" class="btn small ghost">Exit</a>
+        </header>
 
-        <div id="match-block" class="hidden">
-            <button id="btn-change-team" class="btn small ghost hidden" style="margin-bottom:14px">
-                &lsaquo; Different squad
-            </button>
-            <div id="match-picker">
-                <h3>Choose a match</h3>
+        <div class="setup-body">
+            <div id="config-slot"></div>
+
+            <div id="signin-block">
+                <p class="signin-lede">
+                    Tag a match from the touchline. Sign in with the school account
+                    your coach has on the roster.
+                </p>
+                <button id="btn-signin" class="btn primary block">Sign in with Google</button>
+            </div>
+
+            <!-- Only shown when this account coaches more than one squad. -->
+            <div id="team-block" class="hidden">
+                <h3>Which squad?</h3>
                 <div class="help">
                     <span>
-                        Pick the game you're about to record. If you started one earlier
-                        and had to stop, choose it again — <strong>nothing you already
-                        tapped is lost</strong>.
+                        You coach more than one. Pick the squad that's about to play —
+                        everything you tap gets recorded against it.
                     </span>
                 </div>
-                <div id="match-cards" class="match-cards"></div>
+                <div id="team-cards" class="match-cards"></div>
             </div>
 
-            <div id="lineup-block" class="hidden">
-                <button id="btn-change-match" class="btn small ghost" style="margin-bottom:14px">
-                    &lsaquo; Different match
+            <div id="match-block" class="hidden">
+                <button id="btn-change-team" class="btn small ghost hidden" style="margin-bottom:14px">
+                    &lsaquo; Different squad
                 </button>
-                <div class="lineup-head">
-                    <div>
-                        <h3 style="margin-bottom:2px">Who's starting?</h3>
-                        <p class="muted" style="margin:0">
-                            Tap each player in the starting eleven. Everyone you don't
-                            tap becomes a substitute. You can change this later.
-                        </p>
+                <div id="match-picker">
+                    <h3>Choose a match</h3>
+                    <div class="help">
+                        <span>
+                            Pick the game you're about to record. If you started one earlier
+                            and had to stop, choose it again — <strong>nothing you already
+                            tapped is lost</strong>.
+                        </span>
                     </div>
-                    <div class="starter-badge">
-                        <span id="starter-count">0</span>
-                        <span class="starter-key">picked</span>
-                    </div>
+                    <div id="match-cards" class="match-cards"></div>
                 </div>
-                <ul id="roster-list" class="roster"></ul>
-                <button id="btn-save-lineup" class="btn primary block">Save lineup &amp; continue</button>
+
+                <div id="lineup-block" class="hidden">
+                    <button id="btn-change-match" class="btn small ghost" style="margin-bottom:14px">
+                        &lsaquo; Different match
+                    </button>
+                    <div class="lineup-head">
+                        <div>
+                            <h3 style="margin-bottom:2px">Who's starting?</h3>
+                            <p class="muted" style="margin:0">
+                                Tap each player in the starting eleven. Everyone you don't
+                                tap becomes a substitute. You can change this later.
+                            </p>
+                        </div>
+                        <div class="starter-badge">
+                            <span id="starter-count">0</span>
+                            <span class="starter-key">picked</span>
+                        </div>
+                    </div>
+                    <ul id="roster-list" class="roster"></ul>
+                    <button id="btn-save-lineup" class="btn primary block">Save lineup &amp; continue</button>
+                </div>
             </div>
         </div>
-    </div>
-</section>
+    </section>
 
-<!-- ===================== KICKOFF ===================== -->
-<section id="view-kickoff" class="view">
-    <div class="kickoff-body">
-        <h3 style="justify-content:center">Before you press it</h3>
-        <p class="hint center">
-            If a camera is recording, <strong>clap once where it can see you</strong>
-            at the same moment you press the button. That lets us line these
-            notes up with the video later. If there's no camera, just press it
-            at kick-off.
-        </p>
-        <button id="btn-kickoff" class="btn-kickoff">
-            <span class="k-main">KICK OFF</span>
-            <span class="k-sub">starts the match clock</span>
-        </button>
-        <button id="btn-back-setup" class="btn ghost">Back to setup</button>
-    </div>
-</section>
-
-<!-- ===================== LIVE ===================== -->
-<section id="view-live" class="view">
-    <header class="live-header">
-        <!-- Tappable: the clock has to be correctable mid-match. A reload
-             cannot recover real elapsed time, and a frozen clock stamps every
-             later event with the same second. -->
-        <button class="clock-block" id="btn-clock" title="Set or start the match clock">
-            <span id="clock">00:00</span>
-            <span id="period-label" class="period-chip">1st half</span>
-            <span id="clock-state" class="clock-state hidden">paused &middot; tap to set</span>
-        </button>
-        <div class="header-right">
-            <div class="score">
-                <span id="score-us">0</span>
-                <span class="dash">–</span>
-                <span id="score-them">0</span>
-            </div>
-            <!-- What has reached the server, from Firestore's own snapshot
-                 metadata rather than navigator.onLine, which reports a link
-                 and not a reachable one. -->
-            <span id="sync-dot" class="sync-chip is-stale" title="Waiting to hear from the server"><i></i><b></b></span>
-            <button id="btn-exit-live" class="btn small ghost" title="Leave tagging">Exit</button>
-        </div>
-    </header>
-
-    <!-- The buttons and the running count of what they produced, side by
-         side. Until now this screen could show you exactly one thing you had
-         done — the last one — and everything before it was behind a Log
-         button that goes to the network. So the question a coach asks at the
-         touchline, "how many fouls have they given away", could not be
-         answered by the tool that recorded every one of them. -->
-    <div class="live-body">
-        <div class="event-grid">
-            <button class="ev ev-goal" data-event="goal">
-                <span class="ev-label">GOAL</span>
+    <!-- ===================== KICKOFF ===================== -->
+    <section id="view-kickoff" class="view">
+        <div class="kickoff-body">
+            <h3 style="justify-content:center">Before you press it</h3>
+            <p class="hint center">
+                If a camera is recording, <strong>clap once where it can see you</strong>
+                at the same moment you press the button. That lets us line these
+                notes up with the video later. If there's no camera, just press it
+                at kick-off.
+            </p>
+            <button id="btn-kickoff" class="btn-kickoff">
+                <span class="k-main">KICK OFF</span>
+                <span class="k-sub">starts the match clock</span>
             </button>
-            <button class="ev ev-card" data-event="card">
-                <span class="ev-label">Card</span>
+            <button id="btn-back-setup" class="btn ghost">Back to setup</button>
+        </div>
+    </section>
+
+    <!-- ===================== LIVE ===================== -->
+    <section id="view-live" class="view">
+        <header class="live-header">
+            <!-- Tappable: the clock has to be correctable mid-match. A reload
+                 cannot recover real elapsed time, and a frozen clock stamps every
+                 later event with the same second. -->
+            <button class="clock-block" id="btn-clock" title="Set or start the match clock">
+                <span id="clock">00:00</span>
+                <span id="period-label" class="period-chip">1st half</span>
+                <span id="clock-state" class="clock-state hidden">paused &middot; tap to set</span>
             </button>
-            <button class="ev" data-event="foul"><span class="ev-label">Foul</span></button>
-            <button class="ev" data-event="corner"><span class="ev-label">Corner</span></button>
-            <button class="ev" data-event="throw_in"><span class="ev-label">Throw-in</span></button>
-            <button class="ev" data-event="offside"><span class="ev-label">Offside</span></button>
-            <button class="ev" data-event="free_kick"><span class="ev-label">Free kick</span></button>
-            <button class="ev" data-event="goal_kick"><span class="ev-label">Goal kick</span></button>
-            <button class="ev" data-event="out_of_bounds"><span class="ev-label">Out of bounds</span></button>
+            <div class="header-right">
+                <div class="score">
+                    <span id="score-us">0</span>
+                    <span class="dash">–</span>
+                    <span id="score-them">0</span>
+                </div>
+                <!-- What has reached the server, from Firestore's own snapshot
+                     metadata rather than navigator.onLine, which reports a link
+                     and not a reachable one. -->
+                <span id="sync-dot" class="sync-chip is-stale" title="Waiting to hear from the server"><i></i><b></b></span>
+                <button id="btn-exit-live" class="btn small ghost" title="Leave tagging">Exit</button>
+            </div>
+        </header>
+
+        <!-- The buttons and the running count of what they produced, side by
+             side. Until now this screen could show you exactly one thing you had
+             done — the last one — and everything before it was behind a Log
+             button that goes to the network. So the question a coach asks at the
+             touchline, "how many fouls have they given away", could not be
+             answered by the tool that recorded every one of them. -->
+        <div class="live-body">
+            <div class="event-grid">
+                <button class="ev ev-goal" data-event="goal">
+                    <span class="ev-label">GOAL</span>
+                </button>
+                <button class="ev ev-card" data-event="card">
+                    <span class="ev-label">Card</span>
+                </button>
+                <button class="ev" data-event="foul"><span class="ev-label">Foul</span></button>
+                <button class="ev" data-event="corner"><span class="ev-label">Corner</span></button>
+                <button class="ev" data-event="throw_in"><span class="ev-label">Throw-in</span></button>
+                <button class="ev" data-event="offside"><span class="ev-label">Offside</span></button>
+                <button class="ev" data-event="free_kick"><span class="ev-label">Free kick</span></button>
+                <button class="ev" data-event="goal_kick"><span class="ev-label">Goal kick</span></button>
+                <button class="ev" data-event="out_of_bounds"><span class="ev-label">Out of bounds</span></button>
+            </div>
+
+            <!-- Not `aria-live`. These counts change on every tap the tagger just
+                 made themselves, and a screen reader announcing "fouls, three to
+                 one" over the top of somebody working a touchline is noise about
+                 an action they already know they took. It is a panel to be read,
+                 so it is labelled and left alone. -->
+            <aside class="tally-rail" aria-label="What has been tagged so far">
+                <div class="tally-head">
+                    <span class="tally-title">Tagged so far</span>
+                    <span class="tally-key">
+                        <b id="tally-us">Us</b>
+                        <span class="tally-sep"></span>
+                        <b id="tally-them">Them</b>
+                    </span>
+                </div>
+                <div class="tally-list" id="tally-rows"></div>
+                <p class="tally-note">Goals are in the score above.</p>
+            </aside>
         </div>
 
-        <!-- Not `aria-live`. These counts change on every tap the tagger just
-             made themselves, and a screen reader announcing "fouls, three to
-             one" over the top of somebody working a touchline is noise about
-             an action they already know they took. It is a panel to be read,
-             so it is labelled and left alone. -->
-        <aside class="tally-rail" aria-label="What has been tagged so far">
-            <div class="tally-head">
-                <span class="tally-title">Tagged so far</span>
-                <span class="tally-key">
-                    <b id="tally-us">Us</b>
-                    <span class="tally-sep"></span>
-                    <b id="tally-them">Them</b>
-                </span>
-            </div>
-            <div class="tally-list" id="tally-rows"></div>
-            <p class="tally-note">Goals are in the score above.</p>
-        </aside>
-    </div>
+        <div class="last-strip">
+            <span class="last-label">Just recorded</span>
+            <span id="last-event" class="last-text">nothing yet</span>
+            <button id="btn-undo" class="btn small danger">Undo</button>
+        </div>
 
-    <div class="last-strip">
-        <span class="last-label">Just recorded</span>
-        <span id="last-event" class="last-text">nothing yet</span>
-        <button id="btn-undo" class="btn small danger">Undo</button>
-    </div>
-
-    <div class="live-footer">
-        <button id="btn-sub" class="btn">Make a sub</button>
-        <button id="btn-period" class="btn">Half-time</button>
-        <button id="btn-log" class="btn ghost">Log</button>
-        <!-- New tab, deliberately: whoever is tagging must not lose the tool
-             because someone wanted to read the report. -->
-        <a id="link-report" class="btn ghost" target="_blank" rel="noopener">Report</a>
-    </div>
-</section>
+        <div class="live-footer">
+            <button id="btn-sub" class="btn">Make a sub</button>
+            <button id="btn-period" class="btn">Half-time</button>
+            <button id="btn-log" class="btn ghost">Log</button>
+            <!-- New tab, deliberately: whoever is tagging must not lose the tool
+                 because someone wanted to read the report. -->
+            <a id="link-report" class="btn ghost" target="_blank" rel="noopener">Report</a>
+        </div>
+    </section>
+</main>
 
 <!-- ===================== EVENT DETAIL SHEET ===================== -->
 <div id="overlay-event" class="overlay">
@@ -313,6 +326,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="tagging.js?v=111"></script>
+<script type="module" src="tagging.js?v=112"></script>
 </body>
 </html>

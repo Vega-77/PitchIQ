@@ -102,10 +102,15 @@ def decomment(src):
 
 
 def spans(src, key):
-    """(key(attrs), start, end) for every element `key` accepts.
+    """(key(tag, attrs), start, end) for every element `key` accepts.
 
     A depth walk rather than a regex, because the question -- which container
     is this heading inside -- is the one thing a regex cannot answer.
+
+    The key is handed the tag name as well as the attributes because the
+    landmark gate next door asks a question of the same walk that this one
+    never had to -- *which* element is this -- and one walk that both gates
+    run beats two that can drift apart.
 
     It carries no list of void elements, which is worth saying because it
     started with one. Popping until a name matches, and discarding whatever
@@ -125,7 +130,7 @@ def spans(src, key):
             while stack:
                 name, start, opened = stack.pop()
                 if name == tag.lower():
-                    k = key(opened)
+                    k = key(name, opened)
                     if k is not None:
                         out.append((k, start, m.end()))
                     break
@@ -135,13 +140,13 @@ def spans(src, key):
 
 
 def attr(name):
-    def key(attrs):
+    def key(_tag, attrs):
         m = re.search(r'\b%s="([^"]*)"' % name, attrs)
         return m.group(1) if m else None
     return key
 
 
-def modal(attrs):
+def modal(_tag, attrs):
     """Dialogs are a context of their own, not part of the page outline.
 
     A screen reader in a modal is told it is in a modal and reads its label;
