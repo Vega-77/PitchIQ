@@ -223,6 +223,18 @@ class Element {
         return this.parentNode?.nodeType === 1 ? this.parentNode : null;
     }
 
+    /**
+     * Still in the tree, all the way up to the document. `sheet.js` asks this
+     * before handing focus back to whatever opened a sheet — a button that was
+     * re-rendered while the sheet was up is detached, and focusing a detached
+     * element in a real browser silently drops the keyboard onto <body>.
+     */
+    get isConnected() {
+        let node = this;
+        while (node.parentNode) node = node.parentNode;
+        return node.nodeType === 9;
+    }
+
     _siblings() { return this.parentNode ? this.parentNode.childNodes : []; }
 
     get nextSibling() {

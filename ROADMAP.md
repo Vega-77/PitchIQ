@@ -4810,6 +4810,48 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **Five dialogs whose markup promised something only the keyboard could
+      keep** (2026-08-28).
+      `tests/test_dialog_seam.py`, twenty-three tests, and
+      `tests/sheets.test.js`, thirteen; thirty-six mutations, no holes.
+      **`aria-modal="true"` is a promise, and half of it cannot be read off a
+      file.** It tells a screen reader it may ignore everything outside the
+      dialog, which is only honest if the keyboard cannot get out there
+      either. So the contract splits: markup — `role="dialog"`, `aria-modal`,
+      `aria-labelledby`, `tabindex="-1"`, and a name that points at a heading
+      that exists — is a property of a file and is checked statically;
+      behaviour — focus on open, focus restored on close, Escape, the Tab
+      trap — has to be run, so the JS gate boots the real page and the real
+      `live-tagging/sheet.js` and presses real keys. Neither half is worth
+      much alone. Correct behaviour on a `<div>` nobody is told is a dialog
+      is invisible to the software that needed telling; correct markup with
+      Tab walking out the back is a lie in ARIA.
+      **The seam between them is the third thing, and it is the one that
+      could actually rot.** `sheet.js` is the only code on the site allowed
+      to touch `.open`; thirteen call sites in `tagging.js` go through
+      `openSheet` / `closeSheet`, and `mountSheets()` is called once, at the
+      top level. One stray `classList.add('open')` somewhere else opens a
+      sheet with the keyboard left behind it, and every behavioural test
+      would still pass. All three are now pinned across every script the
+      site ships, along with the rule that every sheet is opened by
+      something and every id passed in is a sheet that exists.
+      **A test can name the right property and measure a consequence that
+      survives the bug.** `opening the same sheet twice does not lose the way
+      back` asserted the caret came back to the opener — and it did, with the
+      duplicate guard deleted, because `closeSheet` matches the *first* stack
+      entry. What the guard really prevents is a dead entry left on the stack
+      for good, and that is only visible through Escape: `closeTop` keeps
+      reporting a sheet it has already shut and swallows a key the page was
+      owed. The assertion moved from the caret to the key. This was the one
+      hole in thirty-six, and it was a defect in the test, not the driver.
+      **What the shim structurally cannot see is pinned on the other side.**
+      Closed sheets stay out of the tab order through `display: none`, which
+      `tabbable()` reads via `offsetParent`; `tests/dom-shim.js` is not a
+      renderer, so that filter passes everything under it and the CSS rule
+      the whole thing rests on is unfalsifiable in JS. It is pinned in the
+      Python gate instead. Faking `offsetParent` in the shim was the
+      alternative and was rejected — a shim that answers layout questions it
+      cannot answer is worse than one that says nothing.
 - [x] **Three unnamed rails on the coach page, and only one of them was a
       defect** (2026-08-27).
       `tests/test_landmarks.py`, twenty-two tests, twenty-eight mutations,
