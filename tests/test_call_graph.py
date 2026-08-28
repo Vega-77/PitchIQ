@@ -104,6 +104,18 @@ PENDING_BY_DESIGN = {
                    'these are the sentences a Python-side diagnostic would '
                    'print if one existed.',
 
+    # --- conversions whose whole job is to be the one written-down copy
+    'player_height_px': 'How tall a standing player is, from how wide. '
+                        'The pipeline never needs it -- every threshold in '
+                        '`cv/framing.py` is already a height. But the one '
+                        'empirical measurement behind those thresholds was '
+                        'recorded in widths, so this is the single step '
+                        'between the evidence and the numbers it justifies, '
+                        'and its callers are the checks that hold five '
+                        'prose copies of that step to it '
+                        '(`tests/test_framing_evidence.py`). Inlining it '
+                        'would put the arithmetic back where it was.',
+
     # --- xG, deliberately not on the pipeline path
     'predict_xg': 'The single-shot entry point. The pipeline calls '
                   '`xg_for_shots`, which batches; this is the one-shot version '

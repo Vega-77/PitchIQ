@@ -5,9 +5,12 @@ the expensive failure: told "the camera", somebody re-rigs a tripod for a week
 to fix a flag; told "the setting", somebody re-runs the pipeline four times
 against footage that never held the pixels.
 
-The wide-clip case is the one real measurement the repo has, reconstructed from
-`ROADMAP.md` — a player 4-8 px wide is roughly 18 px tall, and that clip
-detected nothing at all.
+The wide-clip case is the one real measurement the repo has, and it is taken
+from `WIDE_CLIP_WIDTHS_PX` rather than retyped: the spike recorded widths, every
+threshold in the module is a height, and `player_height_px` is the single step
+between them. This file used to write both ends of that step out by hand — a
+`18.0` in three places and a bare `/ 3.0` in the helper below — which meant the
+suite would keep passing unchanged if the aspect ratio were ever corrected.
 """
 
 import unittest
@@ -21,18 +24,28 @@ from cv.framing import (
     LIMIT_RESOLUTION,
     LIMIT_UNKNOWN,
     MARGINAL,
+    PLAYER_ASPECT,
     PLAYER_GOOD_PX,
     UNKNOWN,
     UNUSABLE,
+    WIDE_CLIP_WIDTHS_PX,
     assess_framing,
+    player_height_px,
 )
+
+#: The recorded band as heights, and its midpoint — what the spike's median
+#: player would have been. The spike ran 720p at imgsz=960.
+WIDE_LO = player_height_px(min(WIDE_CLIP_WIDTHS_PX))
+WIDE_HI = player_height_px(max(WIDE_CLIP_WIDTHS_PX))
+WIDE_MID = player_height_px(sum(WIDE_CLIP_WIDTHS_PX) / len(WIDE_CLIP_WIDTHS_PX))
+SPIKE = dict(width=1280, height=720, imgsz=960)
 
 
 def person(height_px, x=0.0, y=0.0):
     return Detection(
         label='person',
         confidence=0.6,
-        xyxy=(x, y, x + height_px / 3.0, y + height_px),
+        xyxy=(x, y, x + height_px / PLAYER_ASPECT, y + height_px),
     )
 
 
@@ -53,26 +66,51 @@ def frames(heights, count=10, with_ball=0):
 
 class TestTheCameraWasTheProblem(unittest.TestCase):
     def test_the_wide_clip_blames_the_camera(self):
-        # 18 px tall in a 720p file: the pixels were never recorded, so the
-        # verdict must not point at anything we could change here.
-        verdict = assess_framing(frames([18.0] * 6), 1280, 720, imgsz=960)
+        # The median player of the recorded band, in a 720p file: the pixels
+        # were never recorded, so the verdict must not point at anything we
+        # could change here.
+        verdict = assess_framing(frames([WIDE_MID] * 6), **SPIKE)
 
         self.assertEqual(verdict.status, UNUSABLE)
         self.assertEqual(verdict.limit, LIMIT_FRAMING)
-        self.assertAlmostEqual(verdict.player_px, 18.0)
-        self.assertAlmostEqual(verdict.inference_px, 13.5)
+        self.assertAlmostEqual(verdict.player_px, WIDE_MID)
+        self.assertAlmostEqual(verdict.inference_px, WIDE_MID * 960 / 1280)
 
     def test_no_tiling_rescues_a_camera_problem(self):
-        verdict = assess_framing(frames([18.0] * 6), 1280, 720, imgsz=960)
+        verdict = assess_framing(frames([WIDE_MID] * 6), **SPIKE)
         self.assertIsNone(verdict.tiles_needed())
 
     def test_the_advice_names_the_camera_and_not_a_flag(self):
-        verdict = assess_framing(frames([18.0] * 6), 1280, 720, imgsz=960)
+        verdict = assess_framing(frames([WIDE_MID] * 6), **SPIKE)
         text = ' '.join(verdict.lines())
 
         self.assertIn('camera', text)
         self.assertNotIn('--tiles', text)
         self.assertNotIn('--imgsz', text)
+
+    def test_the_whole_recorded_band_blames_the_camera_and_not_only_its_middle(self):
+        """The midpoint is a flattering place to test and it was the only one.
+
+        `WIDE_MID` lands at 13.5 px at inference, comfortably under
+        `PLAYER_FLOOR_PX`, so the three cases above would keep passing while the
+        module said something else about every other player on that clip. The
+        top of the band is 24 px in the file and 18 at inference, which clears
+        the floor and is reported as `MARGINAL` — the softer word, for the clip
+        we measured detecting nothing at all across 300 frames.
+
+        That gap between the stride argument and the one observation is real and
+        stays open until a second clip can settle it. What must not wobble is the
+        actionable half: `limit` says which lever moves this, and at every point
+        in the recorded band the answer is the camera.
+        """
+        for height in (WIDE_LO, WIDE_MID, WIDE_HI):
+            with self.subTest(player_px=height):
+                verdict = assess_framing(frames([height] * 6), **SPIKE)
+
+                self.assertEqual(verdict.limit, LIMIT_FRAMING)
+                self.assertNotEqual(verdict.status, GOOD)
+                self.assertIsNone(verdict.tiles_needed())
+                self.assertIn('camera', ' '.join(verdict.lines()))
 
 
 class TestWeThrewThePixelsAway(unittest.TestCase):

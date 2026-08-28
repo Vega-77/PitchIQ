@@ -4810,6 +4810,75 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The only measurement in the repo, converted by hand in five places and
+      by no code at all** (2026-08-28).
+      `tests/test_framing_evidence.py` — seven tests, twenty mutations, no holes
+      and no skips. The `PLAYER_ASPECT` finding left open by the entry below,
+      closed.
+      Every threshold in `cv/framing.py` rests on one observation: the wide
+      stadium panorama from the detection spike, where players were 4-8 pixels
+      **across** and the detector found nothing on the pitch across 300 frames.
+      It was recorded in widths. Every threshold in that module is a height. So
+      exactly one multiplication stands between the evidence and the numbers it
+      is supposed to justify — and it was being performed in prose: the module
+      docstring's table, the sentence under it (`12-24 px tall`, then `9-18 px
+      at inference`), `tests/test_framing.py`'s docstring, that file's `person()`
+      helper building every synthetic player in the suite with a bare `/ 3.0`,
+      and `FOOTAGE_DAY.md` telling somebody at the side of a field the same
+      thing a fifth time.
+      `PLAYER_ASPECT = 3.0` sat above all of them with a docstring saying it was
+      what did the reading, and **nothing read it.** Correct the aspect ratio to
+      2.5, as a standing player's box arguably wants, and not one of those five
+      numbers moves, the suite stays green, and `PLAYER_FLOOR_PX = 16.0` is left
+      resting on arithmetic nobody can re-run. Same shape as the
+      `DefensiveAction` docstring corrected in the entry below — a source
+      statement that was simply false — but worse, because what it was
+      disconnected from is the only evidence there is.
+      Fixed by making the statement true rather than deleting the constant:
+      deleting it would have stranded the docstring's calibration table, since
+      without an aspect ratio `4-8 px wide` cannot be compared to a floor
+      expressed in heights at all. `cv/framing.py` now carries
+      `WIDE_CLIP_WIDTHS_PX` (the datum, kept in widths because that is how it
+      was taken) and `player_height_px` (the conversion, once), and the gate
+      holds every prose copy to them in both directions — a figure that stops
+      matching is a stale record of the measurement, a constant changed without
+      the prose is a module whose own argument no longer follows. The worked
+      `9-18 px at inference` example is held to `FramingVerdict.scale` rather
+      than to a second written-out 960/1280, so the last step is checked by the
+      code that performs it. Four of the twenty mutations exist only to blind a
+      regex, because every check here compares two sets read out of text.
+      **A second finding fell out of it, and it is the sharper one: the suite
+      only ever probed the midpoint of the band.** 6 px wide is 18 px tall, 13.5
+      at inference, comfortably under `PLAYER_FLOOR_PX` — so all three existing
+      tests read `UNUSABLE` and none of them asked what the module says about
+      the rest of the clip. The top of the recorded band is 24 px in the file
+      and 18 at inference, which **clears** the floor and is reported
+      `MARGINAL` — the softer word, for the clip we measured detecting nothing
+      at all across 300 frames.
+      That gap between the stride argument and the one observation is real and
+      `PLAYER_FLOOR_PX` was deliberately **not** moved to paper over it: this
+      module says outright that two data points do not make a calibration curve,
+      and moving a threshold to fit one clip is how it would stop being true.
+      What is pinned instead is the half that is actionable and does hold across
+      the whole band — `limit` is `LIMIT_FRAMING`, `tiles_needed()` is `None`,
+      and the advice names the camera — because `lines()` tests `limit` before
+      `status`, so the sentence a person acts on stays right even where the
+      status word is generous. The gap itself is written into the new test's
+      docstring rather than left for the next reader to rediscover; the second
+      clip settles it.
+      One more thing, worth writing down because it is the check catching the
+      person who was honouring it: the full suite came back with a single
+      failure, and it was `test_call_graph.py` — `player_height_px` is a public
+      name under `cv/` that nothing in `cv/` calls. Correct. The pipeline never
+      converts a width to a height; every threshold is already a height. The
+      function exists so that the conversion has exactly one written-down copy
+      for the prose and the tests to be held to, which puts it in the same
+      category as `validate_against_noise`: its only sensible callers are the
+      checks, and the measurement is the deliverable. Recorded in
+      `PENDING_BY_DESIGN` with that reason rather than wired somewhere
+      artificial to quiet the gate, and the stale-entry direction of that same
+      gate is what will delete the note if the pipeline ever grows a real
+      caller.
 - [x] **One set of event types, written out three times, agreed on by nothing**
       (2026-08-28).
       `tests/test_event_types_seam.py` — seven tests, seventeen mutations, no

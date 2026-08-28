@@ -41,11 +41,18 @@ empirical check available (`ROADMAP.md`, the detection spike):
 | tight, pitch fills the frame | 99% of frames | 43% |
 | wide multi-sport panorama, players 4-8 px wide | **0 on-field** | **0 / 300** |
 
-Four to eight pixels wide is roughly 12-24 px tall, and at `imgsz=960` on a
-1280-wide frame that is 9-18 px at inference — inside the band below, and it
-detected nothing at all. Two data points do not make a calibration curve. These
-constants are named and gathered here precisely so the first real clip can
-correct them, and `PLAYER_FLOOR_PX` is the one to move.
+That measurement is `WIDE_CLIP_WIDTHS_PX`, and it is recorded in widths while
+every threshold here is a height. 4-8 px wide is 12-24 px tall, and at
+`imgsz=960` on a 1280-wide frame that is 9-18 px at inference — inside the band
+below, and it detected nothing at all. `player_height_px` is that conversion,
+and it is a function rather than a sentence because the numbers either side of
+it have to move together: correct the aspect ratio and the evidence under
+`PLAYER_FLOOR_PX` has to move with it, or the threshold is left resting on
+arithmetic nobody can re-run.
+
+Two data points do not make a calibration curve. These constants are named and
+gathered here precisely so the first real clip can correct them, and
+`PLAYER_FLOOR_PX` is the one to move.
 
     The ball is a much harder problem than the player, by a fixed ratio.
 
@@ -98,6 +105,12 @@ BALL_FLOOR_PX = 8.0
 #: read the one historical measurement, which was recorded in widths.
 PLAYER_ASPECT = 3.0
 
+#: That measurement: the wide stadium panorama from the detection spike, where
+#: players were this many pixels **across** and the detector found nothing on
+#: the pitch across 300 frames. Kept in widths because that is how it was taken,
+#: and a datum quietly converted is a datum you can no longer check.
+WIDE_CLIP_WIDTHS_PX = (4.0, 8.0)
+
 GOOD = 'good'
 MARGINAL = 'marginal'
 UNUSABLE = 'unusable'
@@ -109,6 +122,22 @@ LIMIT_NONE = 'none'
 LIMIT_FRAMING = 'framing'
 LIMIT_RESOLUTION = 'resolution'
 LIMIT_UNKNOWN = 'unknown'
+
+
+def player_height_px(width_px: float) -> float:
+    """A standing player's box height, from its width.
+
+    Exactly one conversion stands between the only empirical measurement this
+    repo has and the thresholds it is supposed to justify, and it used to be
+    performed in prose in four places and by no code at all — twice here, once
+    in `tests/test_framing.py`, once as a bare `/ 3.0` in the helper that builds
+    every synthetic player in that suite. `PLAYER_ASPECT` sat above them all
+    saying it was what did the reading, and nothing read it.
+
+    Here it is done once, so that a corrected aspect ratio moves the evidence
+    rather than stranding it.
+    """
+    return width_px * PLAYER_ASPECT
 
 
 @dataclass(frozen=True)
