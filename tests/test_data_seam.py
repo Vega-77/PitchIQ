@@ -106,6 +106,7 @@ validate independently. Unavoidable is not the same as unchecked. A button
 whose type the rules reject writes nothing, and it fails at the side of a
 pitch, in the second half, with nobody able to read a console.
 """
+import inspect
 import re
 import unittest
 from pathlib import Path
@@ -121,6 +122,10 @@ HTML = ['index.html', 'coach/index.html', 'player/index.html',
 JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime',
            'calibrate', 'xg-sandbox']
 
+# Every place `scan()` looks, and the whole vocabulary `drop` accepts. Kept in
+# step with the scan itself by `test_every_site_it_names_is_a_site_it_reads` --
+# a site added to `scan` and forgotten here is a site nobody ever switches off,
+# and a name left here after its site is gone is a `drop` that drops nothing.
 SITES = ('markup', 'template', 'assign', 'read', 'selector', 'harness')
 
 # `data-` is not anchored on a word boundary by itself: `metadata-bearing` in a
@@ -276,6 +281,27 @@ class TestSites(unittest.TestCase):
         dead = sorted(n for n in written if n not in got)
         ghost = sorted(n for n in got if n not in written)
         return dead, ghost
+
+    def test_every_site_it_names_is_a_site_it_reads(self):
+        """`SITES` and `scan()`, held to each other.
+
+        Every test below switches one site off by name, and a misspelt name is
+        the quiet kind of wrong: `drop=('markup',)` spelt `'markup '` switches
+        nothing off, the scan comes back identical, and a test asserting a
+        difference of nothing passes for the wrong reason. So the two lists
+        have to match both ways.
+
+        And each site has to actually find something. A site that has gone
+        blind -- a regex that stopped matching, a directory that moved --
+        contributes no evidence, which is indistinguishable from not being
+        there, and the whole point of the roster is that every name on it is
+        carrying weight.
+        """
+        consulted = set(re.findall(r"on\('(\w+)'\)", inspect.getsource(scan)))
+        self.assertEqual(consulted, set(SITES))
+
+        for site in SITES:
+            self.assertNotEqual(scan(drop=(site,)), (WRITTEN, GOT), site)
 
     def test_markup_site_is_load_bearing(self):
         dead, ghost = self.deltas('markup')

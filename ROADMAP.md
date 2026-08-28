@@ -4810,6 +4810,43 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **Two vocabularies that told the scans which questions to ask, and were
+      read by nothing** (2026-08-28).
+      `tests/test_data_seam.py`, `tests/test_export_seam.py` — one test each,
+      thirteen mutations, no holes and no skips.
+      Both scans take a `drop` argument, and every "this site is load-bearing"
+      test below them works by naming one site, switching it off, and asserting
+      the reading changes. `SITES` is the tuple that says which names are legal.
+      Neither file read it. So `drop=('statc',)` switched nothing off, the scan
+      came back identical to the one it was being compared against, and a test
+      whose whole purpose was to assert a difference would have passed by
+      finding no difference at all — the loudest possible green for the
+      quietest possible bug. The same hole the id seam had, in the two files
+      that were checked next because it had one.
+      **The roster and the scan are now held to each other in both
+      directions.** A site added to `scan()` and forgotten in `SITES` is a site
+      nobody can ever switch off; a name left in `SITES` after its site is gone
+      is a `drop` that drops nothing. Each name also has to still find
+      something: a site that has gone blind — a regex that stopped matching, a
+      directory that moved — contributes no evidence, which from the outside is
+      indistinguishable from not being there, and the point of the roster is
+      that every name on it is carrying weight.
+      **What the roster does not assert is what each site changes**, because
+      the direction is not uniform and pretending it was would have been the
+      second bug. Dropping a reader removes evidence. Dropping `comments` in
+      the export seam *adds* it, because an `export { ... }` list read as code
+      exports the English inside the comment in it — `assets/db.js` carries
+      four lines there, and the word `and` becomes a name. `local` is not a use
+      site at all; it is the classifier that separates dead from merely broad.
+      Each site's own test still says what it does; the roster only says that
+      it does something.
+      **One trap surfaced on the way in.** `Seam` is a plain class with no
+      `__eq__`, so the obvious loop body — compare this scan against the
+      baseline scan — would have compared object identity, been true every
+      time, and examined nothing. The check needed a projection into the
+      verdicts themselves before two runs could be compared at all, which is
+      the same lesson in a third costume: a test can name exactly the right
+      property and still measure something that survives the bug.
 - [x] **The link nobody sighted will ever see, on the six pages that make a
       keyboard walk the same topbar twice** (2026-08-28).
       `assets/app.css`, six pages, `tests/test_skip_link.py` — sixteen tests,

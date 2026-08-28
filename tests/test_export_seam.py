@@ -31,6 +31,7 @@ were deleted on its word. Here the same blindness is worth 40 verdicts: switch
 scanner's universe is part of its correctness, and a false `dead` costs more
 than no scanner at all, because a scanner gets believed.
 """
+import inspect
 import re
 
 from test_css_seam import ROOT, js_files, read
@@ -53,6 +54,10 @@ NAMESPACE = re.compile(r'\bimport\s*\*\s*as\s+(' + NAME + r')\s+from')
 LINE_COMMENT = re.compile(r'(?<![:\'"\\])//[^\n]*')
 BLOCK_COMMENT = re.compile(r'/\*.*?\*/', re.S)
 
+# Every knob `scan()` has, and the whole vocabulary `drop` accepts. Not all six
+# are use sites: `local` is a classifier and `comments` is a filter, and both
+# are dropped by name like the rest. Kept in step with the scan itself by
+# `test_every_site_it_names_is_a_site_it_reads`.
 SITES = ('static', 'dynamic', 'namespace', 'local', 'comments', 'harness')
 
 
@@ -356,6 +361,40 @@ def test_the_renderers_and_their_mounts_share_a_file():
 # ---------------------------------------------------------------------------
 # Every site earns its place
 # ---------------------------------------------------------------------------
+
+def reading(seam):
+    """Everything one scan concluded, in a shape two scans can be compared in.
+
+    `Seam` has no `__eq__`, so comparing the objects would compare identity and
+    every check below would pass without looking at anything.
+    """
+    return (sorted(seam.owners), seam.dead, seam.local_only, sorted(seam.local),
+            sorted((n, sorted(w)) for n, w in seam.used.items()))
+
+
+def test_every_site_it_names_is_a_site_it_reads():
+    """`SITES` and `scan()`, held to each other.
+
+    Every test in this section switches one site off by name. A misspelt name
+    is the quiet kind of wrong: `drop=('statc',)` switches nothing off, the
+    scan comes back identical, and a test asserting a difference of nothing
+    passes for the wrong reason. So the two lists have to match both ways.
+
+    And each name has to change something. A site that has gone blind -- a
+    regex that stopped matching, a directory that moved -- contributes no
+    evidence, which from here is indistinguishable from not being there. What
+    it changes is deliberately not asserted here; that is each site's own test
+    below, and the direction is not even the same for all six. Dropping a
+    reader removes evidence, while dropping `comments` adds it, because an
+    export list read as code exports the English inside it.
+    """
+    consulted = set(re.findall(r"on\('(\w+)'\)", inspect.getsource(scan)))
+    assert consulted == set(SITES)
+
+    base = reading(SEAM)
+    for site in SITES:
+        assert reading(scan(drop=(site,))) != base, site
+
 
 def test_static_imports_are_load_bearing():
     # By a distance the biggest site. Nothing subtle to assert here beyond the
