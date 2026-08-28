@@ -4810,6 +4810,63 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **One set of event types, written out three times, agreed on by nothing**
+      (2026-08-28).
+      `tests/test_event_types_seam.py` — seven tests, seventeen mutations, no
+      holes and no skips. The `CLEARANCE` finding left open by the entry below,
+      closed.
+      `cv/events.py` declared eight event types. `coach/review.js:57` offered a
+      reviewer eight words to retype an event into. The same eight words, typed
+      out twice in two languages with no build step between them and nothing
+      holding them to each other. A ninth type learned by the classifier would
+      reach a coach's screen with no legal thing to call it; a word added to the
+      reviewer's list that the pipeline never produces would get a precision
+      figure with an empty denominator under it. `tests/test_events_seam.py`
+      covers the *fields* on a published event, not the vocabulary of its type,
+      so this seam had never been looked at.
+      **What the pipeline actually emits is seven.** `clearance` was declared,
+      offered to a coach, claimed by `DefensiveAction`'s docstring as something
+      the classifier produces — and produced by nothing.
+      **That asymmetry is right. It had just never been written down.** A
+      clearance and an interception are the same contact seen from the same
+      camera: same defender, same ball, same attacker losing it. What separates
+      them is what the defender did next and whether they meant to keep the
+      ball, and nothing here measures either. A coach watching the clip can tell
+      in one viewing. So the type belongs on the reviewer's list *because* the
+      pipeline cannot produce it — it is exactly the correction the review tool
+      exists to collect, and the same shape as the "record a miss" half of
+      recall that `coach/review.js` already argues for at length. Until now the
+      only record of that reasoning was the type's absence from the classifier,
+      which reads precisely like an oversight, and the docstring said the
+      opposite outright.
+      `cv/events.py` now carries `EVENT_TYPES` and `HUMAN_ONLY_TYPES`, the
+      second naming its one member and its reason, and the gate holds all three
+      vocabularies to each other in both directions. A type emitted and
+      undeclared is an event a reviewer cannot judge; a type declared and never
+      emitted is either a deliberate human-only word or a dead one, and the
+      roster is what tells the next reader which. A name left on
+      `HUMAN_ONLY_TYPES` after the classifier learns to produce it would turn a
+      real detection into a permanent excuse, so that direction fails too.
+      **Two more copies of the same vocabulary sit downstream, and the
+      defensive four are the ones that go stale in silence.** The
+      `DefensiveAction` docstring is now held to the branch chain that feeds it,
+      first line only — the paragraph under it exists to say what the type is
+      *not*, and naming a word there has to stay legal. And the team counter
+      loop at `cv/report_json.py:373` is held to the same four: add a fifth
+      branch to `_defensive_action` and the events are derived, carried through
+      the log and published on the event list, while the team totals say the
+      team did it zero times. A number, and wrong, rather than an absence — the
+      one thing the absent-is-not-zero rule exists to prevent.
+      Three of the seventeen mutations exist only to blind a reader, because
+      every check here compares two sets read out of source text and two empty
+      sets are equal. Two tests are anti-vacuum guards and nothing else.
+      Also corrected: `assets/report.js:157` said `clearance` and `duel` were
+      both absent from `EVENT_COUNTERS` "because nothing publishes them". True
+      of `clearance` absolutely; of `duel` only per player — duels *are*
+      published per team. The code was right and the comment would have talked
+      the next reader into breaking it.
+      One finding from the same sweep is still open: `cv/framing.py:99
+      PLAYER_ASPECT`, whose own docstring states a purpose nothing implements.
 - [x] **A split published as the whole of a total, with nothing checking that it
       was** (2026-08-28).
       `tests/test_blind.py` — four tests, fifteen mutations, no holes and no

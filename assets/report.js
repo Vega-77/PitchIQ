@@ -154,8 +154,12 @@ export function cvStatsByPlayer(tracks, byCluster, options = {}) {
 // Which published counter each kind of event feeds. `shot` is deliberately
 // absent: a shot's fate is already decided by the ledger and carried by
 // `correctedShotMarks`, and a second subtraction here would take it off twice.
-// `clearance` and `duel` are absent because nothing publishes them — a retype
-// into one removes the original and adds nothing, which is the truth.
+// `duel` and `clearance` are absent for different reasons, and the difference
+// matters to anyone tempted to add them. Duels are published per team and not
+// per player, so there is no player figure here to move. Clearances are
+// published nowhere and the pipeline never produces one — see
+// `HUMAN_ONLY_TYPES` in `cv/events.py`. Either way a retype into one removes
+// the original and adds nothing, which is the truth.
 const EVENT_COUNTERS = {
     pass: 'passes_attempted',
     carry: 'carries',

@@ -62,6 +62,28 @@ RECOVERY = 'recovery'
 CLEARANCE = 'clearance'
 DUEL = 'duel'
 
+# Every type an event can carry, whoever put it there. `coach/review.js` offers
+# exactly this list to a reviewer as the set of things an event can be retyped
+# into, so the two have to stay the same list.
+EVENT_TYPES = (PASS, CARRY, SHOT, TACKLE, INTERCEPTION, RECOVERY, CLEARANCE,
+               DUEL)
+
+# The types on that list the pipeline itself never produces.
+#
+# A clearance and an interception look identical at the moment of contact: same
+# defender, same ball, same attacker losing it. What separates them is what the
+# defender did next and whether they meant to keep the ball, and nothing here
+# measures either -- so `_defensive_action` has no clearance branch and calls
+# all of them interceptions. A coach watching the clip can see the difference in
+# one viewing, which is why the type stays on the reviewer's list. It is a
+# correction the review tool exists to collect, not a hole in the classifier.
+#
+# A type that stops being human-only belongs off this roster the same day the
+# branch that emits it lands; a type that never reaches a reviewer's list
+# belongs off `EVENT_TYPES`. Both directions are held in
+# `tests/test_event_types_seam.py`.
+HUMAN_ONLY_TYPES = (CLEARANCE,)
+
 COMPLETED = 'completed'
 INCOMPLETE = 'incomplete'
 UNKNOWN_OUTCOME = 'unknown'
@@ -247,7 +269,11 @@ class Shot(EventBase):
 
 @dataclass(frozen=True)
 class DefensiveAction(EventBase):
-    """A tackle, interception, recovery, clearance or duel."""
+    """A tackle, interception, recovery or duel.
+
+    Not a clearance: the classifier has no branch for one and never will from a
+    single camera. See `HUMAN_ONLY_TYPES`.
+    """
 
     won: bool | None = None
     opponent_track_id: int | None = None
