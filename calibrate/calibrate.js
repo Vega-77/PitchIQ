@@ -1,9 +1,9 @@
 import {
     landmarks, LANDMARK_GROUPS, fitHomography, applyHomography, measureField,
     measureMarkings, DEFAULT_MARKS,
-} from './pitch-model.js?v=114';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=114';
-import { byId, setText, toast, plural } from '../assets/ui.js?v=114';
+} from './pitch-model.js?v=115';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=115';
+import { byId, setText, toast, plural } from '../assets/ui.js?v=115';
 
 const state = {
     image: null,
@@ -22,6 +22,11 @@ const state = {
     aiming: false,       // a press is down and will place a point on release
     adjusting: null,     // landmark the arrow keys nudge, or null
 };
+
+// How far behind the goal line the goal is sketched. Metres, and purely a
+// drawing decision: the Laws say nothing about net depth, and the number the
+// posts are actually checking is the fitted goal width.
+const GOAL_SKETCH_DEPTH_M = 1.5;
 
 const pitchDims = () => ({
     length_m: parseFloat(byId('input-length').value) || 105,
@@ -120,6 +125,12 @@ function drawPitchOverlay(ctx, scale) {
     }
 
     const marks = pitchModel();
+    // Every vertex below is a landmark, and the goal line is read back off one
+    // rather than out of the length box. The overlay is the only thing the
+    // coach checks the fit against by eye, so a dimension it drew from
+    // anywhere other than the model would be an outline agreeing with nothing
+    // the page actually fitted -- which is what the box depth used to be.
+    const goalLineRight = marks.corner_bottom_right[0];
     const p = (x, y) => applyHomography(H, x, y);
 
     ctx.save();
@@ -137,28 +148,79 @@ function drawPitchOverlay(ctx, scale) {
     };
 
     // Touchlines and goal lines
-    poly([[0, 0], [L, 0], [L, W], [0, W]]);
-    // Halfway line
-    poly([[L / 2, 0], [L / 2, W]], false);
-    // Penalty areas
     poly([
-        [0, marks.pen_left_bottom_goalline[1]],
-        [16.5, marks.pen_left_bottom_goalline[1]],
-        [16.5, marks.pen_left_top_goalline[1]],
-        [0, marks.pen_left_top_goalline[1]],
+        marks.corner_bottom_left,
+        marks.corner_bottom_right,
+        marks.corner_top_right,
+        marks.corner_top_left,
+    ]);
+    // Halfway line
+    poly([marks.halfway_bottom, marks.halfway_top], false);
+
+    // Penalty areas, each end drawn on its own. One end painted differently
+    // from the other is the case the page names and refuses to fix by itself,
+    // and two outlines that do not match is how a coach sees it.
+    poly([
+        marks.pen_left_bottom_goalline,
+        marks.pen_left_bottom_corner,
+        marks.pen_left_top_corner,
+        marks.pen_left_top_goalline,
     ], false);
     poly([
-        [L, marks.pen_right_bottom_goalline[1]],
-        [L - 16.5, marks.pen_right_bottom_goalline[1]],
-        [L - 16.5, marks.pen_right_top_goalline[1]],
-        [L, marks.pen_right_top_goalline[1]],
+        marks.pen_right_bottom_goalline,
+        marks.pen_right_bottom_corner,
+        marks.pen_right_top_corner,
+        marks.pen_right_top_goalline,
+    ], false);
+
+    // Six-yard boxes. The page can measure their depth and width off the
+    // clicks now, and a measurement the coach cannot see is one nobody can
+    // refuse.
+    poly([
+        [0, marks.goalarea_left_bottom_corner[1]],
+        marks.goalarea_left_bottom_corner,
+        marks.goalarea_left_top_corner,
+        [0, marks.goalarea_left_top_corner[1]],
+    ], false);
+    poly([
+        [goalLineRight, marks.goalarea_right_bottom_corner[1]],
+        marks.goalarea_right_bottom_corner,
+        marks.goalarea_right_top_corner,
+        [goalLineRight, marks.goalarea_right_top_corner[1]],
+    ], false);
+
+    // Penalty spots, as a one-metre cross. A spot is a single point and would
+    // vanish under a two-pixel line, but its distance from the goal line is a
+    // fitted dimension like the rest.
+    [marks.pen_spot_left, marks.pen_spot_right].forEach(([sx, sy]) => {
+        poly([[sx - 0.5, sy], [sx + 0.5, sy]], false);
+        poly([[sx, sy - 0.5], [sx, sy + 0.5]], false);
+    });
+
+    // Goals, boxed out behind the line so the posts read against it. The depth
+    // is a drawing choice and nothing else -- goal width is the fitted number
+    // here, and it is the one the posts are checking.
+    poly([
+        marks.goalpost_left_bottom,
+        [-GOAL_SKETCH_DEPTH_M, marks.goalpost_left_bottom[1]],
+        [-GOAL_SKETCH_DEPTH_M, marks.goalpost_left_top[1]],
+        marks.goalpost_left_top,
+    ], false);
+    poly([
+        marks.goalpost_right_bottom,
+        [goalLineRight + GOAL_SKETCH_DEPTH_M, marks.goalpost_right_bottom[1]],
+        [goalLineRight + GOAL_SKETCH_DEPTH_M, marks.goalpost_right_top[1]],
+        marks.goalpost_right_top,
     ], false);
 
     // Centre circle
+    const [centreX, centreY] = marks.centre_spot;
+    const circleR = marks.centre_circle_top[1] - centreY;
     ctx.beginPath();
     for (let i = 0; i <= 48; i++) {
         const a = (i / 48) * Math.PI * 2;
-        const [px, py] = p(L / 2 + 9.15 * Math.cos(a), W / 2 + 9.15 * Math.sin(a));
+        const [px, py] = p(
+            centreX + circleR * Math.cos(a), centreY + circleR * Math.sin(a));
         i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
     }
     ctx.stroke();

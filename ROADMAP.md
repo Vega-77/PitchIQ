@@ -4810,6 +4810,46 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **Two shipped ReferenceErrors, on two pages, that nothing in the repo
+      could see** (2026-08-28).
+      `tests/test_free_names.py` — fourteen tests, twenty-two mutations, no
+      holes and no skips. Both bugs are fixed; the gate is the point.
+      A browser module can read a name that nothing in the file binds and
+      nothing imports, and here that is caught by nothing at all. `node --check`
+      reads syntax, and a free identifier is perfectly good syntax. The Python
+      suite never evaluates browser JS. The JS suite does not import
+      `calibrate/` and never reaches `renderConflicts`. There is no build step,
+      no bundler and no linter. So the failure is a `ReferenceError` at runtime,
+      on whatever code path a person happens to reach by hand — which is to
+      say, it ships. It had shipped twice.
+      `d7d25f5` deleted `const { length_m: L, width_m: W } = pitchDims();` from
+      `calibrate/calibrate.js` and left eight references to `L` and `W` behind.
+      For eight days every redraw past the fourth placed landmark threw — and
+      because `draw()` calls the overlay before `drawPoints`, the throw also
+      erased every point the coach had already clicked. The page that exists to
+      let someone place points carefully was deleting them.
+      When the review block was lifted out of `coach.js` into `coach/review.js`,
+      `seekReview` became `reviewSeek` everywhere except `renderConflicts` —
+      the goal-disagreement list, which is the one place two independent records
+      of the same match visibly conflict. Clicking a conflicting goal threw
+      instead of seeking to it.
+      The scanner took three passes to stop lying: 189 findings, then 27, then
+      2. The difference is a tokenizer that knows a regex literal and a nested
+      template literal are not code — a flat regex sweep reports `centre_circle_`
+      and forty words of English prose as undefined variables. It is
+      scope-blind on purpose: every binding occurrence anywhere in a file goes
+      into one flat set, which over-approximates bindings and so can only ever
+      miss a free name, never invent one. A clean run is not proof the modules
+      are sound; a dirty run is proof they are not.
+      Twenty-two mutations, and the interesting half is the tokenizer: switch
+      off regex literals, nested templates, line comments, block comments,
+      string literals, the top-level-`=` declarator split, the exponent
+      lookbehind, import aliases, `catch` bindings or the property-access rule,
+      and each one produces a **false positive on the real modules**. None of it
+      is decoration. `GLOBALS` is deliberately not checked backwards — it
+      describes the browser, not this repo — but `PAGE_GLOBALS` is, in both
+      directions: `ort` must still be referenced by a module, and the
+      `onnxruntime-web` script tag must still be on the page that justifies it.
 - [x] **The only measurement in the repo, converted by hand in five places and
       by no code at all** (2026-08-28).
       `tests/test_framing_evidence.py` — seven tests, twenty mutations, no holes
