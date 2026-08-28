@@ -22,7 +22,7 @@
 // for the opposite reason — they were dropped from the training set, so there
 // is nothing to place.
 
-import { Vector } from './geometry.js?v=110';
+import { Vector } from './geometry.js?v=111';
 
 // The half the sandbox draws, and the 105x68 default in cv/pitch.py that
 // the sample match is measured on. sandbox.js imports both from here so

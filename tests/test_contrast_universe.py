@@ -158,7 +158,7 @@ class TestInsetIsNotASize:
             ('assets/app.css:311', '-40% -30%'),
             ('assets/app.css:1529', 'auto 0 0 0'),
             ('live-tagging/tagging.css:563', '0'),
-            ('xg-sandbox/sandbox.css:320', '0'),
+            ('xg-sandbox/sandbox.css:326', '0'),
         ], self.uses()
 
     def test_the_scanner_does_not_count_it(self):

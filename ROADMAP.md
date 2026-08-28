@@ -4810,6 +4810,142 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **One line of CSS beat the site's only focus ring, and the rule that
+      would have stopped it is not the one anybody writes down**
+      (2026-08-27). `tests/test_focus_visible.py`, fourteen tests, eighteen
+      mutations, no holes. WCAG 2.4.7 says a keyboard user can always see
+      where they are; this gate is the part that keeps being true after the
+      next appearance reset gets pasted in.
+      **Specificity was the mechanism, not carelessness.** The site has
+      exactly one focus ring, `app.css:107`, a bare `:focus-visible` at
+      specificity (0, 1, 0). That is deliberately the weakest selector that
+      could paint it, which is the correct way to write a default and also
+      precisely why one careless line anywhere else wins. The line was
+      `input[type="range"] { outline: none }` — (0, 1, 1), an attribute
+      *and* an element name against a lone pseudo-class. Write
+      `input { outline: none }` and nothing happens at all; the ring still
+      wins. So the lesson is not "never suppress an outline", which is the
+      advice everyone gives and which would not have caught this. The lesson
+      is that an element-plus-attribute selector outranks the ring, and
+      nobody pasting an appearance-reset recipe is thinking about that. The
+      gate asserts both halves — that `input` loses and
+      `input[type="range"]` wins — so the reason is pinned rather than the
+      symptom.
+      **Four of the five spellings appear nowhere in the repo, which is the
+      whole problem.** `outline: 0`, `outline-width: 0`,
+      `outline-style: none` and `outline-color: transparent` do the same
+      damage as `outline: none`, and a grep for the last one finds none of
+      them. A scanner whose universe is one string looks perfect right up
+      until somebody writes a synonym, and then it keeps looking perfect. The
+      universe tests exercise all five on synthetic CSS for exactly that
+      reason: a branch tested only by what the eight sheets happen to contain
+      today is a branch tested by nothing.
+      **A ring that is drawn and cannot be seen is not a ring.** Suppression
+      is the loud failure; a washed-out outline against the card it sits on
+      is the quiet one, and no amount of counting `outline: none` finds it.
+      So the gate also scores the ring's own colour against all four page
+      grounds under WCAG 1.4.11's 3:1 floor for non-text indicators. The
+      worst case is `--accent` on `--surface-hi` at **8.53:1**, pinned, with
+      the parser borrowed from `test_contrast_floor` rather than written a
+      second time.
+      **Both directions, again.** Two suppressions survive, both defensible,
+      both commented in place by whoever wrote them. Take the `outline: none`
+      out of one and the exemption entry goes stale and fails — otherwise
+      it survives as standing permission for the next person to put one back
+      without arguing for it. There is no exemption list at all on the
+      base-rule test, on purpose: every instance that shape has ever had here
+      was somebody resetting an element's appearance and taking the ring with
+      it as a side effect.
+      **And the mutation driver lied first.** Three of its eighteen cases
+      reported as skipped rather than run, because their anchors spanned two
+      lines and `sandbox.css` is CRLF while the anchor strings were written
+      with `\n`. Worth writing down for the shape of it: a mutation that fails
+      to apply looks like a mutation that found nothing, and had the driver
+      printed "ok" instead of "SKIP" for a replacement it never made, three
+      of the tests that matter most would have been recorded as proved while
+      never having been exercised at all.
+- [x] **Six sliders nobody could hear, and a scanner that lied in both
+      directions before it found them** (2026-08-27). Every interactive
+      control on the site now has an accessible name, and
+      `tests/test_control_names.py` keeps it that way. The fix is twelve
+      attributes. Everything worth writing down is about how nearly the wrong
+      twelve got written.
+      **What was actually broken.** The six range sliders in the xG sandbox
+      had no accessible name at all. Their labels — Distance, Angle,
+      Distance to shooter — sit in a sibling `<div>` alongside the live
+      value readout, which looks completely fine and connects nothing. A
+      screen reader announced each one as "slider, 20". Six controls, on the
+      one page whose entire purpose is moving sliders and watching a number
+      change.
+      **The first scan reported thirty defects and twenty-three of them were
+      imaginary.** It looked for `<label for=>`, which is the textbook answer
+      and is used by exactly zero controls here. This repo names inputs by
+      wrapping them — `<label class="field"><span>Team name</span><input>
+      </label>` — which is a name in the accessibility tree with no `for`
+      attribute anywhere. The tell was not the thirty. It was the zero: a
+      naming mechanism that a form-heavy site uses *never* is a mechanism the
+      scanner is looking for in the wrong place. Same shape as every wrong
+      answer the contrast work produced, in a new domain — the universe was
+      too narrow, and a too-narrow scanner does not return fewer findings, it
+      returns confident wrong ones.
+      **Then it lied the other way.** Of the seven left, one was
+      `#btn-more-timeline`, empty in the markup and a genuine defect by any
+      markup-only reading. It is not one: `halftime.js` sets its text and
+      unhides it in the same two lines, so it is never both visible and
+      nameless. Scoring markup alone had found a real absence and drawn the
+      wrong conclusion from it — absence of a name in the HTML is not
+      absence of a name. Thirty, then seven, then six, and only the six were
+      real.
+      **Point at the words already on screen.** Each slider now carries
+      `aria-labelledby` naming the `.slider-name` span rather than an
+      `aria-label` repeating it. WCAG 2.5.3 wants what is heard to contain
+      what is seen; pointing makes that true by construction, because there
+      is one string and it cannot drift. It also cost nothing to verify —
+      `test_id_seam.py` already checks that every such reference resolves,
+      and it caught the six new ids the moment they appeared, which is how
+      `ONLY_BY_ATTRIBUTE` went from seven entries to thirteen.
+      **The exemption list has to fail in both directions or it is a
+      graveyard.** `SCRIPT_NAMED` holds one entry, and three tests defend it:
+      nothing outside it may be nameless; everything in it must *still* be
+      nameless in markup, so writing a real name into that button makes the
+      entry stale and fails; and the script it names must really look the
+      element up and really set its text. An exemption that stops being
+      needed is a hole waiting for the next person to empty that element.
+      **Thirteen tests, eighteen mutations, no holes.** Every test passed on
+      the first run, which in this repo means nothing until proved otherwise.
+      Thirteen mutations break the site — drop a pointer, dangle one, empty
+      a wrapping label, strip a button's text, let the script stop naming
+      its button. Five break the gate itself, because a universe test that
+      is never exercised is decoration: delete the wrapping-label branch and
+      twenty-three controls must go silent; count an `aria-labelledby`
+      without following it and the dangling case must fail; empty
+      `SCRIPT_NAMED` and the exempt button must be reported. Measured across
+      the seven pages: **148 controls, named by their own text (115), a
+      wrapping label (23), `aria-labelledby` (6), text plus a title (3), and
+      one by a script at runtime.**
+      **And then the same six controls turned out to be invisible as well.** A
+      name is what a screen reader announces; the focus ring is what a
+      keyboard user reads. Naming the sliders raised the obvious next question
+      and `sandbox.css` answered it badly: `outline: none` sat on the base
+      `input[type="range"]` rule, carried in with the appearance-reset recipe
+      the block was copied from, where it quietly outranks the site-wide
+      `:focus-visible` ring in `app.css` — an element-plus-attribute
+      selector is more specific than a bare pseudo-class, so it wins even
+      while that ring is the only thing on screen saying which slider the
+      keyboard is on. Unreachable by ear and unreadable by eye was one
+      oversight wearing two hats. Removed, with a comment saying why it must
+      not come back.
+      **The other two suppressions are staying, and saying so is the point.**
+      A repo-wide grep found exactly three; an audit that cannot return "this
+      one is fine" is not an audit. `.sheet:focus` drops the ring on a dialog
+      that is focused programmatically the instant it opens, where a ring
+      around the whole container tells a keyboard user nothing they did not
+      already know. `.shot-mark.is-pickable:focus-visible` trades the outline
+      for a stroke on the mark itself — still a focus indicator, just not
+      that one. Both were already commented by whoever wrote them, which is
+      why they read as decisions rather than as leftovers. Stamped to
+      **v=111**: `sandbox.css` changed, so there is now something cached to
+      bust.
 - [x] **What the contrast gate is allowed to look at, pinned as its own
       test** (2026-08-27). The floor test next door decides whether a colour
       pair passes. This one decides which pairs it is ever asked about, and

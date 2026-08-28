@@ -219,9 +219,15 @@ input[type="range"] {
     padding: 0;
     border: none;
     background: transparent;
-    outline: none;
     cursor: pointer;
 }
+/* No `outline: none` here, deliberately. The appearance-reset recipe this
+   block came from ships one, and it quietly beats the global
+   `:focus-visible` ring in app.css — an element-plus-attribute selector
+   outranks a bare pseudo-class, so it wins even while the ring is the only
+   thing saying which slider the keyboard is on. These are the same six
+   controls that had no accessible name: unreachable by ear and unreadable
+   by eye was one oversight wearing two hats. */
 /* app.css styles inputs as text fields, including on hover and focus — a range
    has to opt out of all three or the track turns into a boxed input.
 

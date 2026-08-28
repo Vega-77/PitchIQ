@@ -385,7 +385,10 @@ WEAK = {
 ONLY_BY_HOLE = {'tab-matches', 'tab-roster', 'tab-staff',
                 'view-kickoff', 'view-setup'}
 ONLY_BY_ATTRIBUTE = {'clock-explain', 'clock-title', 'cv-missed-help',
-                     'exit-explain', 'exit-title', 'log-title', 'sub-title'}
+                     'exit-explain', 'exit-title', 'log-title',
+                     'name-angle', 'name-def-dist', 'name-def-goal',
+                     'name-distance', 'name-keeper-angle', 'name-keeper-dist',
+                     'sub-title'}
 ONLY_BY_RAIL = {'md-stats-block', 'md-team-block', 'pipeline-block',
                 'players-block', 'publish-block', 'pv-matches-block',
                 'season-matches-block', 'timeline-block', 'video-link-block'}
@@ -556,9 +559,14 @@ def test_the_weak_list_stays_small():
 # --- every site earns its place -------------------------------------------
 
 def test_attribute_site_is_load_bearing():
-    # `for=`, `aria-labelledby=`, `aria-describedby=`. Seven ids exist only to
-    # be named by another element -- six of them the dialog headings and
-    # explanations on the tagging sheets, which no script ever looks up.
+    # `for=`, `aria-labelledby=`, `aria-describedby=`. Thirteen ids exist only
+    # to be named by another element: six dialog headings and explanations on
+    # the tagging sheets, which no script ever looks up, and the six `name-*`
+    # spans the sandbox sliders point at. Those six were added the day a scan
+    # found the sliders had no accessible name at all -- their visible label
+    # sits in a sibling div, which names them for anyone who can see it and
+    # nobody else. Pointing at the span rather than repeating the words into
+    # an `aria-label` is what keeps the two from drifting apart.
     assert dead_without('attribute') == ONLY_BY_ATTRIBUTE
 
 
