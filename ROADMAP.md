@@ -4810,6 +4810,52 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **A split published as the whole of a total, with nothing checking that it
+      was** (2026-08-28).
+      `tests/test_blind.py` — four tests, fifteen mutations, no holes and no
+      skips. Found by sweeping the whole repo for the defect the two seam
+      rosters had just turned up.
+      `Blindness.to_json` publishes `total_s` beside `dead_s`, `accounted_s` and
+      `unexplained_s`, and a coach reads the three as the whole of the one:
+      *unseen 300 s, of which 40 dead, 60 accounted, 50 unexplained*. Nothing
+      held them to it. `total_s` is measured off the stretches themselves, so it
+      stays right no matter what the sorter does with them — which means a
+      stretch sorted into neither, a kind that stopped being emitted, or a
+      fourth bucket nobody published all leave seconds missing from a report
+      that still looks internally consistent. A hundred and fifty seconds of
+      football gone, and every figure on the screen still plausible.
+      **The test that should have caught it was named as though it had.**
+      `test_the_split_never_exceeds_the_total_it_is_a_split_of` asserted that
+      two of the three parts were each **no larger** than the total. That is
+      true of a split that loses half the run, true of a fifth kind swallowing a
+      third of it, and true of every version of the bug — the fourth time in
+      this audit that a test has named exactly the right property and then
+      measured a consequence that survives it. It now asserts the sum, over a
+      fixture that has to carry all three kinds for the sum to mean anything.
+      **The unread constant is what made the real check possible.**
+      `cv/blind.py:100` declared `KINDS` — the four sorts a stretch can end up
+      in — and nothing read it, the same shape as the two seam rosters and found
+      by the same sweep. It is now the roster the sorter is held to in both
+      directions: a kind added to `blindness()` and forgotten in `KINDS` is a
+      bucket no consumer knows to look in, and a name left on `KINDS` after its
+      branch is gone is a kind the roster promises and nothing produces. A
+      second test holds `to_json` to it too — the three fields it publishes have
+      to be exactly the roster minus `unchecked`, which is the same bug caught
+      from the other side and before a fixture has to happen to contain one.
+      **And `unchecked` is now proved to be un-shareable.** It is the one kind
+      that has no published field, because when no log reached the run all three
+      figures are withheld and `total_s` stands alone. A run carrying `unchecked`
+      *and* a sorted kind would publish three figures describing part of its
+      blindness with the rest nowhere, under a `checked: true` telling the coach
+      the whole of it had been looked at. Either every stretch is sorted or none
+      is, and that is now a test rather than a property of how the branches
+      happen to be written.
+      Two more unread constants surfaced in the same sweep and are still open:
+      `cv/events.py:62 CLEARANCE`, an event type the pipeline never emits though
+      `coach/review.js:59` offers it as a retype target, and
+      `cv/framing.py:99 PLAYER_ASPECT`, whose own docstring states a purpose
+      nothing implements. `tests/` came back with none — the seam rosters were
+      the last of them.
 - [x] **Two vocabularies that told the scans which questions to ask, and were
       read by nothing** (2026-08-28).
       `tests/test_data_seam.py`, `tests/test_export_seam.py` — one test each,

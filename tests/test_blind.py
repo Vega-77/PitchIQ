@@ -5,12 +5,17 @@ to say: it will not call a stoppage a failure, it will not call an unchecked run
 a clean one, and it will not decide a straddling gap by majority.
 """
 
+import inspect
+import re
+
 import pytest
 
+from cv import blind
 from cv.blind import (
     ACCOUNTED,
     DEAD,
     EXPLAIN_WINDOW_S,
+    KINDS,
     LONG_BLIND_S,
     UNCHECKED,
     UNEXPLAINED,
@@ -59,6 +64,24 @@ def table(*spans):
         DeadSpan(start_s=a, end_s=b, opened_by=by, closed_by='throw_in')
         for a, b, by in spans
     ])
+
+
+def split_run():
+    """A checked run carrying all three sorted kinds at once.
+
+    Two unseen stretches. The first straddles a dead span, so it comes out in
+    three pieces: a short head before the ball went out that nothing explains,
+    the dead span itself, and a tail the restart tag accounts for. The second
+    is explained by a foul.
+
+    Every kind in one run is the point -- a sum over the three parts proves
+    nothing about a run that only ever had one of them in it.
+    """
+    return blindness(
+        blind_from([(1, 3), (0, 25), (1, 3), (0, 15), (1, 3)]),
+        phases=table((5.0, 12.0, 'out_of_bounds')),
+        tag_log=[tag('throw_in', 12.0), tag('foul', 35.0)],
+    )
 
 
 class TestFindingTheStretches:
@@ -230,15 +253,103 @@ class TestWhatItRefusesToClaim:
         assert result.total_s == 0.0
         assert result.to_json()['worst'] == []
 
-    def test_the_split_never_exceeds_the_total_it_is_a_split_of(self):
-        frames = blind_from([(1, 3), (0, 25), (1, 3), (0, 15), (1, 3)])
-        result = blindness(
-            frames,
-            phases=table((5.0, 12.0, 'out_of_bounds')),
-            tag_log=[tag('throw_in', 12.0), tag('foul', 35.0)],
-        )
-        assert result.seconds(DEAD) <= result.total_s
-        assert result.seconds(ACCOUNTED) <= result.total_s
+    def test_the_split_is_the_whole_of_the_total_it_is_a_split_of(self):
+        """The three published figures have to add up to the published total.
+
+        `to_json` puts `dead_s`, `accounted_s` and `unexplained_s` beside
+        `total_s`, and a coach reads the three as the whole of the one. Nothing
+        held them to it. A stretch sorted into neither, a kind that stopped
+        being emitted, a fourth bucket nobody published -- each of those loses
+        seconds out of a report that still looks internally consistent, because
+        `total_s` is measured off the stretches themselves and stays right the
+        whole way through. "Unseen 300 s, of which 40 dead, 60 accounted, 50
+        unexplained" reads as a complete account of the run, and the hundred
+        and fifty seconds missing from it say nothing at all.
+
+        What stood here before asserted that two of the parts were each no
+        larger than the total, which is also true of a split that loses half
+        the match.
+        """
+        result = split_run()
+
+        # Three parts adding up to the total is not a check on a run with one
+        # kind in it. This fixture has to actually carry all three.
+        assert {s.kind for s in result.spells} == {DEAD, ACCOUNTED, UNEXPLAINED}
+
+        parts = sum(result.seconds(k) for k in (DEAD, ACCOUNTED, UNEXPLAINED))
+        assert parts == pytest.approx(result.total_s, abs=1e-6)
+
+        published = result.to_json()
+        assert (
+            published['dead_s'] + published['accounted_s']
+            + published['unexplained_s']
+        ) == pytest.approx(published['total_s'], abs=0.2)
+
+
+class TestTheVocabularyOfKinds:
+    """`KINDS` and the sorter, held to each other.
+
+    `KINDS` is the roster of every sort a stretch can end up in, and until now
+    nothing read it. It is what makes "the three published figures are the whole
+    of the total" a check rather than a coincidence: the sum only means
+    something if the four names on the roster really are all the sorter can
+    produce, and if the three `to_json` publishes really are all of them but
+    `unchecked`. A roster nothing reads goes stale in silence.
+    """
+
+    def emitted(self):
+        """Every kind `blindness()` can put on a spell, read off the sorter."""
+        source = inspect.getsource(blind.blindness)
+        return {
+            getattr(blind, name, name)
+            for name in re.findall(r'BlindSpell\(\w+, \w+, ([A-Z_]+)', source)
+        }
+
+    def test_every_kind_the_sorter_can_produce_is_on_the_roster(self):
+        """Both directions, because both go wrong quietly.
+
+        A kind added to `blindness()` and forgotten in `KINDS` is a bucket no
+        consumer knows to look in, and it steals seconds out of the published
+        split without anything saying so. A name left on `KINDS` after its
+        branch is gone is a kind the roster promises and nothing can produce.
+        """
+        assert self.emitted() == set(KINDS)
+
+    def test_the_published_split_covers_every_kind_but_the_unchecked_one(self):
+        """Three figures published, four names on the roster.
+
+        The fourth is `unchecked`, and it has no field of its own on purpose:
+        when nothing was checked, all three are withheld and `total_s` stands
+        alone. So the three that do get published have to be exactly the rest of
+        the roster. Add a kind, forget the field, and the split stops being the
+        whole of the total -- the same bug the sum test above catches, caught
+        here from the other side and before a fixture has to happen to contain
+        one.
+        """
+        source = inspect.getsource(Blindness.to_json)
+        published = {
+            getattr(blind, name, name)
+            for name in re.findall(r'self\.seconds\((\w+)\)', source)
+        }
+        assert published == set(KINDS) - {UNCHECKED}
+
+    def test_unchecked_is_the_one_kind_that_cannot_share_a_run(self):
+        """`checked` is a property of the run, not of a stretch.
+
+        Either a log reached the sorter and every stretch got sorted, or none
+        did and every stretch is `unchecked`. A run carrying both would publish
+        three figures describing some of its blindness with the rest nowhere,
+        under a `checked: true` telling the coach the whole of it was looked at.
+        """
+        checked = split_run()
+        assert checked.spells
+        assert checked.checked is True
+        assert UNCHECKED not in {s.kind for s in checked.spells}
+
+        unchecked = blindness(blind_from([(1, 3), (0, 25), (1, 3)]))
+        assert unchecked.spells
+        assert unchecked.checked is False
+        assert {s.kind for s in unchecked.spells} == {UNCHECKED}
 
 
 class TestWhichStretchesGetNamed:
