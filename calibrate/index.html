@@ -109,6 +109,15 @@
 
     <!-- ===================== WORKSPACE ===================== -->
     <div id="workspace" class="hidden">
+
+        <!-- The page’s only other h1 is in #intro, which calibrate.js hides
+             the instant this opens — so the entire working state of the page
+             had no title in the heading list. The h2 below is an instruction
+             that changes as you work, not a name for where you are, and h1’s
+             clamp(26px, 4vw, 36px) would not sit beside the hint and the
+             button in any case. -->
+        <h1 class="sr-only">Marking the pitch</h1>
+
         <div class="workspace-head">
             <div>
                 <h2 style="margin:0 0 4px">Click the highlighted spot</h2>

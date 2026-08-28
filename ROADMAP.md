@@ -4810,6 +4810,60 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **Two views had no title at all, and counting headings per file said
+      all seven pages were fine** (2026-08-27).
+      `tests/test_heading_outline.py`, twenty-one tests, twenty-seven
+      mutations, no holes.
+      **A heading list is a property of a view, not of a file.** Every page
+      here is a set of mutually exclusive views swapped by `showOnly`, so
+      `coach/index.html` holds four h1s and is right to — only one is ever
+      on screen. Count per document and nothing is wrong anywhere. Count per
+      view, across all eighteen of them, and two had no h1: `halftime`
+      `#view-report`, whose masthead is three divs carrying a period label, a
+      scoreline and a clock and no heading semantics at all; and `calibrate`
+      `#workspace`, because the file’s one h1 sits in `#intro`, which
+      `calibrate.js:43` hides the instant the workspace opens. Both are the
+      view a person actually spends the task in. The error view next door had
+      always had its h1.
+      **The fix was already precedent twice over.** `live-tagging` and
+      `xg-sandbox` both carry an `sr-only` h1 with a comment arguing for it
+      — "a page with no h1 at all is a page a screen reader cannot
+      introduce." Both new ones follow: half-time deliberately does not shout
+      the score back at somebody who just watched the half, and calibrate’s
+      h1 type scale would not fit beside the hint and the button. Neither view
+      had anywhere to put a visible title, which is how both ended up with no
+      title.
+      **Three ways a heading scan lies about this site, all measured before
+      anything was touched.** Multiple h1s per file are correct on three
+      pages. The h1 —> h3 jump is house style, not a defect: h3 is the
+      section eyebrow, `app.css` says so in as many words, there is no h2 tier
+      in the IA, and a no-skipped-levels scan would condemn thirteen of the
+      eighteen views with every finding noise. And an `sr-only` h1 is still an
+      h1 — there are four, all load-bearing, so a scan scoring visible text
+      reports the fix as the defect. The gate pins the two h2s that do exist
+      instead, so the convention stays a convention.
+      **View membership cannot be read off the markup, which is how the
+      defect survived being looked at.** `calibrate`’s `#intro` carries no
+      `hidden` class until script adds one, so the first probe’s class-name
+      heuristic missed the pair entirely. The list is named by hand and
+      cross-checked in both directions against four different switching
+      mechanisms: a `VIEWS` literal in four modules, the `class="view"`
+      convention on live-tagging, calibrate’s hand-rolled `byId(...)
+      .classList` toggle, and the *absence* of any switcher on xg-sandbox —
+      which is a claim, so it is checked like one. Dialogs are held apart:
+      live-tagging’s five modal sheets hold seven headings, and folding
+      them in would claim seven sections the page does not have.
+      **Two findings against the gate itself, from mutating it.** The test
+      covering unclosed elements passed with the guard removed — it proved
+      nothing — because the depth walk pops until a name matches and
+      discards what was left open in between, so it never needed the list of
+      void elements it was carrying. That list changed no result on any page
+      and is gone rather than kept as a comment claiming it did something.
+      What replaces it pins the behaviour that does the work, and needs a
+      *sibling* view to be visible at all: lose a view’s box and its
+      headings stop belonging to any view, which this scan reads as belonging
+      to every view, so the failure is a heading leaking sideways rather than
+      one going missing.
 - [x] **One line of CSS beat the site's only focus ring, and the rule that
       would have stopped it is not the one anybody writes down**
       (2026-08-27). `tests/test_focus_visible.py`, fourteen tests, eighteen

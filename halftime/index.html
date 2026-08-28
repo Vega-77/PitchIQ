@@ -31,6 +31,16 @@
 
     <section id="view-report" class="hidden">
 
+        <!-- The masthead below is this view’s visible title block, but it is
+             three divs — a period label, a scoreline and a clock — and none
+             of them is a heading. So a screen reader moving by heading landed
+             on "Before you talk to them" with nothing above it saying where it
+             had arrived. The error view next door has always had its h1; this
+             is the view a coach actually opens. Hidden rather than visible
+             because the design deliberately does not shout the score back at
+             someone who just watched the half. -->
+        <h1 class="sr-only">Half-time report</h1>
+
         <!-- The coach watched the half and knows the score, so the scoreline is
              a reference point, not the headline. -->
         <header class="ht-head">
