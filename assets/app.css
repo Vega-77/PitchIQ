@@ -1588,6 +1588,34 @@ td.num.cv-partial {
     border: 0;
 }
 
+/* The first thing in the tab order, and invisible until it is reached.
+   Six of the seven pages repeat the same topbar — brand, a link or two,
+   sign out — ahead of their content, so without this a keyboard walks
+   through all of it again on every navigation (SC 2.4.1, Bypass Blocks).
+   `live-tagging` deliberately has none: its <main> is the first thing in
+   <body>, with nothing before it to skip.
+
+   Not `.sr-only` with a reveal bolted on. This one has to be genuinely
+   visible once it has the caret, and loud about it, because the person it
+   is for is the person who cannot see where the caret went — so it borrows
+   the primary button's exact colours rather than inventing quieter ones.
+   The transform is undone wholesale by the reduced-motion rule below. */
+.skip-link {
+    position: fixed;
+    top: 8px; left: 8px;
+    z-index: 100;
+    padding: 11px 18px;
+    border-radius: var(--radius);
+    background: var(--accent);
+    color: #04120f;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transform: translateY(-250%);
+    transition: transform .16s ease;
+}
+.skip-link:focus { transform: translateY(0); }
+
 /* Quiet "Saving…"/"Saved" beside the heading. Saving happens on its own after
    a change, so it has to be visible without being an announcement. */
 .save-state {
@@ -3712,6 +3740,12 @@ input[type="file"]::file-selector-button {
        report, and they would not belong here at any contrast. */
     #getting-started,
     input, select, textarea, label.field,
+    /* A way of reaching content you are already holding. It is also the one
+       rule on the site whose colours fail on paper -- the primary button's
+       ink is 2.86 against the printed accent -- and the contrast scan reads
+       this list to know what it may stop scoring. Both facts have the same
+       cause, so they get the same line. */
+    .skip-link,
     .no-print { display: none !important; }
 
     /* Blocks keep their edges but lose the raised-card look, which on paper

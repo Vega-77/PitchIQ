@@ -284,5 +284,9 @@ class TestTheScanReportsSomething:
         used = {w for c in ALL for w in c[4]}
         assert used == {'text', 'title', 'label-wrap', 'labelledby'}, used
         counted = {w: len([c for c in ALL if w in c[4]]) for w in used}
-        assert counted == {'text': 118, 'title': 3, 'label-wrap': 23,
+        # Named by their own text: a hundred and eighteen for a long while,
+        # then a hundred and twenty-four, when six of the seven pages each
+        # gained a skip link. `live-tagging` is the seventh and wants none:
+        # its <main> is the first thing in its <body>.
+        assert counted == {'text': 124, 'title': 3, 'label-wrap': 23,
                            'labelledby': 6}, counted

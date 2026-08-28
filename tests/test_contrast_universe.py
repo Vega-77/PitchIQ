@@ -167,7 +167,7 @@ class TestInsetIsNotASize:
 
 
 class TestLiteralColoursAreVisible:
-    """Direction 3, in the form it took here. Thirty-six ink and ground
+    """Direction 3, in the form it took here. Thirty-seven ink and ground
     declarations in this tree are written as bare hex, and a scanner that
     reads only `var()` cannot see a single one of them."""
 
@@ -175,14 +175,16 @@ class TestLiteralColoursAreVisible:
         for kind, rel, head, v in literals():
             assert VAR.findall(v) == [], (rel, head, v)
 
-    def test_the_seven_literal_inks(self):
+    def test_the_eight_literal_inks(self):
         # Pinned by name because these are the ones a contrast floor is for.
-        # Four of them are the same near-black lettering on the accent, which
-        # is what the exemption in the floor gate is now carrying.
+        # Five of them are the same near-black lettering on the accent; the
+        # four of those that reach paper are what the exemption in the floor
+        # gate is carrying.
         inks = [(rel, head, v) for kind, rel, head, v in literals()
                 if kind == 'ink']
         assert inks == [
             ('assets/app.css', '.btn.primary', '#04120f'),
+            ('assets/app.css', '.skip-link', '#04120f'),
             ('assets/app.css', '.toast.error', '#ffd4d4'),
             ('assets/app.css', '.chip.on', '#04120f'),
             ('assets/app.css', '.btn.tiny.on', '#04120f'),

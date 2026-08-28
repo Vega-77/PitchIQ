@@ -4810,6 +4810,49 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The link nobody sighted will ever see, on the six pages that make a
+      keyboard walk the same topbar twice** (2026-08-28).
+      `assets/app.css`, six pages, `tests/test_skip_link.py` — sixteen tests,
+      twenty-seven mutations, no holes and no skips.
+      **A mouse skips a topbar by looking past it.** A keyboard walks through
+      every item of it again on every navigation: brand, calibrate, sandbox,
+      sign out, and only then the content. Six of the seven pages repeat that
+      block ahead of `<main>`, which is what WCAG 2.4.1 (Bypass Blocks) is
+      about, and the fix is one link at the very top that jumps straight to
+      the landmark.
+      **A skip link is unusually easy to ship broken and unusually hard to
+      notice broken**, because the only person who can tell is the one person
+      who cannot see it. Three failures are common enough to have names and
+      all three are silent: hidden with `display: none`, which takes it out of
+      the tab order so it can never be reached; a resting offset on one
+      property undone by a reveal on a different one, which leaves it
+      reachable and still off screen — worse than no link, since the caret is
+      now on a control nobody can find; and `href="#main"` with no `#main`
+      below it, which moves the caret nowhere and announces nothing. None of
+      the three changes a pixel for a sighted reader, so none would ever be
+      reported. They have to be read out of the file, and now they are.
+      **The six-not-seven split is measured, not listed.** `live-tagging` has
+      no skip link and should not have one — its `<main>` is the first thing
+      in its `<body>`, so a link in front of it would skip nothing and cost a
+      keypress. The gate does not take that on trust: it counts what is
+      focusable ahead of each page's `<main>` and requires the pages with
+      nothing there to be exactly the pages with no link. Give the tagging
+      page a topbar tomorrow and the gate fails, which is the point; a
+      hard-coded six would go on agreeing that it needs nothing.
+      It borrows the primary button's exact colours rather than inventing
+      quieter ones — the person it is for is the person who cannot see where
+      the caret went — and it is hidden on paper, which is the same line the
+      contrast gate reads to know what it may stop scoring.
+      **One finding fell out of it, in a place nobody was looking.** The id
+      seam had no concept of a fragment link, so the moment `id="main"` went
+      onto six landmarks it read them as orphans; the site had been deleted
+      months earlier for having no input, which was true on the day and a
+      prediction about the future everywhere else. It is back, with the rule
+      written down: a site goes for having nothing to read, never for looking
+      unlikely to. Checking it turned up a second one — `SITES`, the
+      vocabulary `drop` accepts, was read by nothing, so `drop=('atribute',)`
+      would have switched nothing off and any test asserting a difference of
+      nothing would have passed for the wrong reason.
 - [x] **Five dialogs whose markup promised something only the keyboard could
       keep** (2026-08-28).
       `tests/test_dialog_seam.py`, twenty-three tests, and

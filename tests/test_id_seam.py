@@ -72,17 +72,26 @@ is checked for staleness too: an entry that has since become provable, or whose
 element has gone, fails exactly as loudly as a new orphan.
 
 Every scan site was measured before anything here was pinned, by switching it off
-on its own and reading what appeared. Three candidate sites -- `href="#..."`
-fragments, `url(#...)` references, and a literal id array passed to `showOnly` --
-turned out to have **no input at all** in this repo, and were deleted rather than
-carried as machinery that cannot be shown to earn anything. A guard that cannot
-fire is the same mistake as a gate that cannot fail, one level down.
+on its own and reading what appeared. Two candidate sites -- `url(#...)`
+references, and a literal id array passed to `showOnly` -- turned out to have
+**no input at all** in this repo, and were deleted rather than carried as
+machinery that cannot be shown to earn anything. A guard that cannot fire is the
+same mistake as a gate that cannot fail, one level down.
+
+`href="#..."` fragments were a third, and are the reason that rule wants stating
+carefully. Deleting the site was right on the day and wrong months later, the
+hour six skip links went in and gave it something to read; the scan promptly
+called their target dead. So it is back, measured again, this time with an input.
+A site goes for having nothing to read, never for looking unlikely to -- the
+second is a prediction about a codebase, and predictions go stale without
+mentioning it.
 
 Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_id_seam.py -q
 """
 
 from __future__ import annotations
 
+import inspect
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -117,6 +126,17 @@ REF_ATTR = re.compile(
     r'aria-describedby|aria-owns|aria-activedescendant)\s*=\s*'
     r'["\']([^"\']+)["\']')
 
+# `href="#main"`. The one reference that is not a script, a stylesheet or
+# an attribute naming a partner element: a link whose entire job is to put
+# the caret on an id further down its own page. Until the skip links went
+# in there was nothing here to find, which is why this site is younger than
+# the rest of them.
+#
+# A bare `href="#"` -- `coach/index.html` has one, on a card whose click is
+# handled in script -- deliberately does not match. It names no id, and a
+# reference to nothing must not be allowed to vouch for anything.
+FRAGMENT = re.compile(r'\bhref\s*=\s*["\']#(' + ID + r')["\']')
+
 # Every helper whose first argument is an element id, plus the raw call they all
 # wrap. Adding one of these and forgetting to list it here is not a harmless
 # omission: when `openSheet` was split out of `tagging.js`, five ids went from
@@ -148,8 +168,12 @@ HARNESS = 'tests/smoke.test.js'
 HARNESS_REF = re.compile(
     r'\b(?:el|text|getElementById)\(\s*["\'`](' + ID + r')["\'`]')
 
-SITES = ('attribute', 'rail', 'stylesheet', 'byId', 'query', 'array',
-         'hole', 'harness')
+# Every scan site, and the vocabulary `drop` accepts. Read by the test that
+# keeps the two in step -- a site added to `scan` and forgotten here is a
+# site nobody ever switches off, and a name left here after its site is gone
+# is a `drop` that silently drops nothing.
+SITES = ('attribute', 'rail', 'fragment', 'stylesheet', 'byId', 'query',
+         'array', 'hole', 'harness')
 
 
 def read(rel):
@@ -243,6 +267,9 @@ def scan(*, drop=()):
                 tag = ID_ATTR.search(m.group(0))
                 if tag:
                     note(tag.group(1), rel + ' (rail)')
+        if on('fragment'):
+            for m in FRAGMENT.finditer(src):
+                note(m.group(1), rel + ' (fragment)')
 
     if on('stylesheet'):
         for rel in CSS:
@@ -392,6 +419,7 @@ ONLY_BY_ATTRIBUTE = {'clock-explain', 'clock-title', 'cv-missed-help',
 ONLY_BY_RAIL = {'md-stats-block', 'md-team-block', 'pipeline-block',
                 'players-block', 'publish-block', 'pv-matches-block',
                 'season-matches-block', 'timeline-block', 'video-link-block'}
+ONLY_BY_FRAGMENT = {'main'}
 PREFIXES = {'input-', 'tab-', 'view-'}
 
 
@@ -462,6 +490,26 @@ def test_no_id_is_looked_up_that_nothing_declares():
 
 def test_no_id_is_declared_that_nothing_references():
     assert SEAM.orphans == []
+
+
+def test_every_fragment_link_lands_on_its_own_page():
+    """`href="#main"` is a promise that `#main` is somewhere below it.
+
+    A dangling one fails in the quietest way this site has: the browser
+    moves the caret nowhere, announces nothing, and the person it happened
+    to -- who by definition cannot see where the caret is -- is left to
+    guess whether the key did anything. Nothing else on the page changes,
+    so no other check here would ever notice.
+    """
+    links = [(rel, m.group(1))
+             for rel in HTML for m in FRAGMENT.finditer(read(rel))]
+    # The vacuum guard. Six pages carry a skip link; `live-tagging` is the
+    # seventh and deliberately has none, because its <main> is the first
+    # thing in its <body> and there is nothing in front of it to skip.
+    assert len(links) == 6
+    dangling = [(rel, name) for rel, name in links
+                if name not in set(SEAM.per_page[rel])]
+    assert dangling == []
 
 
 def test_no_page_declares_the_same_id_twice():
@@ -574,6 +622,38 @@ def test_rail_site_is_load_bearing():
     # The largest markup site: nine section ids read off the DOM by
     # `assets/rail.js` and never written in a call.
     assert dead_without('rail') == ONLY_BY_RAIL
+
+
+def test_fragment_site_is_load_bearing():
+    # One id, and it is the whole reason the site exists: `main` is written
+    # on six landmarks and read by nothing but the six links in front of
+    # them. Without this site the scan calls the skip links' target dead --
+    # which is precisely what it did, the hour they went in.
+    assert dead_without('fragment') == ONLY_BY_FRAGMENT
+
+
+def test_every_site_it_names_is_a_site_it_reads():
+    """The vocabulary `drop` accepts, kept in step with the scan itself.
+
+    A misspelt site is the quiet kind of wrong. `drop=('atribute',)`
+    switches nothing off, the scan comes back identical, and any test
+    asserting a difference of nothing passes for the wrong reason. So the
+    names have to match both ways, and each one has to actually find
+    something -- a site that has gone blind reports a clean seam.
+
+    The three guards -- `comments`, `assigned`, `assigned-declares` -- are
+    dropped by name too and are deliberately not here. They switch off a
+    *filter* rather than a site, so switching one off adds evidence instead
+    of removing it, and this test's arithmetic would read backwards.
+    """
+    consulted = set(re.findall(r"on\('(" + ID + r")'\)",
+                               inspect.getsource(scan)))
+    assert consulted == set(SITES)
+
+    total = sum(len(v) for v in SEAM.used.values())
+    for site in SITES:
+        without = sum(len(v) for v in scan(drop=(site,)).used.values())
+        assert without < total, site
 
 
 def test_hole_site_is_load_bearing():

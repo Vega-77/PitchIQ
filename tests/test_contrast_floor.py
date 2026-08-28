@@ -648,7 +648,13 @@ class TestPaperOnlyScoresWhatReachesPaper:
         day it stopped being empty would be a thing to notice. This is that
         day. It was not a regression — nothing about the site changed. The
         scanner learned to read literal hex, and near-black lettering on the
-        accent is written that way in all three of these places.
+        accent is written that way in all four of these places.
+
+        The fourth arrived later and on purpose. A skip link is furniture
+        for getting around a page you are looking at, so it is hidden on
+        paper -- and being hidden on paper is exactly what buys it a place
+        here, since the print theme's hide list is the same list this
+        waiver reads.
 
         So the difference is asserted row by row rather than by count, and
         every exempting name is checked against the hide list here rather
@@ -663,13 +669,14 @@ class TestPaperOnlyScoresWhatReachesPaper:
             (2.86, '#04120f', '.btn.primary'),
             (2.86, '#04120f', '.btn.tiny.on'),
             (2.86, '#04120f', '.chip.on'),
+            (2.86, '#04120f', '.skip-link'),
         ], rows
         # `.toast` and `.btn` are written into the print hide list. `.chip` is
         # not, and cannot be: no printable markup contains one, because a
         # script makes them inside a container the list does hide. That claim
         # is the one JS_HOSTS entry, and it is checked, not asserted.
         listed = hidden_names()
-        assert {'.toast', '.btn'} <= listed
+        assert {'.toast', '.btn', '.skip-link'} <= listed
         assert '.chip' not in listed
         assert js_hidden() == {'chip'}
 
