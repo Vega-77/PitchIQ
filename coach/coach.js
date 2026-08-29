@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=118';
+} from '../assets/auth.js?v=119';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,27 +10,28 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../assets/db.js?v=118';
-import { nowIndex } from '../assets/timeline.js?v=118';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=118';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=118';
+} from '../assets/db.js?v=119';
+import { nowIndex } from '../assets/timeline.js?v=119';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=119';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=119';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=118';
+} from '../assets/sample-report.js?v=119';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=118';
-import { renderPassMap } from '../assets/pass-map.js?v=118';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=118';
+} from '../assets/passing.js?v=119';
+import { renderPassMap } from '../assets/pass-map.js?v=119';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=119';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=118';
-import { renderForms } from '../assets/form-chart.js?v=118';
+} from '../assets/season.js?v=119';
+import { renderForms } from '../assets/form-chart.js?v=119';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
-    cvQualityNotes, roughDuration, hasVerdict, xgTrust, erasureNote,
+    cvQualityNotes, roughDuration, hasVerdict, currentAnswers, xgTrust,
+    erasureNote,
     groupStats, teamStatRows, taggedTeamRows, taggedCount, trackedCoverage, metresPerMinute,
     TRACKED_SHARE_FLOOR, SHOT_RESULTS, shotLedger, sumXgTallies,
     xgCalibration, calibrationNote, headerCorrection, headerNote,
@@ -43,24 +44,24 @@ import {
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=118';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=118';
-import { mountRail } from '../assets/rail.js?v=118';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=118';
-import { videoKind } from '../assets/video.js?v=118';
+} from '../assets/report.js?v=119';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=119';
+import { mountRail } from '../assets/rail.js?v=119';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=119';
+import { videoKind } from '../assets/video.js?v=119';
 import {
     byId, setText, toast, clockText, signed, plural,
     statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
     stackBar, coverageStrip,
-} from '../assets/ui.js?v=118';
+} from '../assets/ui.js?v=119';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=118';
+} from './shell.js?v=119';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=118';
+} from './review.js?v=119';
 
 // ---------------------------------------------------------------- team setup
 
@@ -2121,8 +2122,9 @@ function railCounts() {
     // the video columns in the table mean anything, and it lives eight screens
     // down the page.
     const clusters = state.match?.cv?.identity?.clusters || [];
-    const answered = Object.entries(state.match?.cvMapping || {})
-        .filter(([, id]) => id).length;
+    const answered = currentAnswers(
+        clusters.map((cluster) => cluster.cluster_id), state.match?.cvMapping,
+    ).filter(Boolean).length;
     const unnamed = clusters.length - answered;
     if (unnamed > 0) {
         counts['cv-clusters-block'] = {
@@ -2131,13 +2133,15 @@ function railCounts() {
         };
     }
 
-    const events = (state.match?.cvEvents?.events || []).length;
-    const checked = Object.values(state.match?.cvReview?.byEvent || {})
-        .filter(hasVerdict).length;
-    if (events - checked > 0) {
+    const events = state.match?.cvEvents?.events || [];
+    const checked = currentAnswers(
+        events.map((event) => event.id), state.match?.cvReview?.byEvent,
+    ).filter(hasVerdict).length;
+    const unchecked = events.length - checked;
+    if (unchecked > 0) {
         counts['cv-review-block'] = {
-            n: events - checked,
-            title: `${plural(events - checked, 'event')} not checked yet`,
+            n: unchecked,
+            title: `${plural(unchecked, 'event')} not checked yet`,
         };
     }
 
@@ -2952,7 +2956,9 @@ function sameAsStrip(cluster, mapping) {
 
 function updateMappingNote() {
     const clusters = state.match?.cv?.identity?.clusters || [];
-    const answers = Object.values(state.match?.cvMapping || {});
+    const answers = currentAnswers(
+        clusters.map((cluster) => cluster.cluster_id), state.match?.cvMapping,
+    );
     // Ruled out is an answer, but it is not a player, and counting it as one
     // would tell a coach their stats are further along than they are.
     const matched = answers.filter((id) => id && id !== NOT_A_PLAYER).length;

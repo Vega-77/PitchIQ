@@ -3568,6 +3568,36 @@ export const EDITED_STATUS = 'edited';
  */
 export const hasVerdict = (decision) => Boolean(decision?.status);
 
+/**
+ * The answers that still have a question attached.
+ *
+ * A CV event id is `frame:track:kind` (`cv/events.py`) and a cluster id is the
+ * clusterer's own integer label. Both are handed out fresh on every pipeline
+ * run, and nothing clears `cvReview` or `cvMapping` when a new run lands — so
+ * after a re-publish an answer map holds keys naming events and figures that no
+ * longer exist, next to the ones that do.
+ *
+ * Counting the map is therefore not the same as counting the work done, and it
+ * is wrong in the direction that hurts: it reports more finished than there is,
+ * and it overstates hardest exactly when a re-run has created the most left to
+ * do. Two of the counters that did it that way subtracted from the current
+ * total and hid their rail badge behind a `> 0` guard, so a stale map did not
+ * just inflate the figure — it silenced the prompt to go and look.
+ *
+ * `reviewScore` has always been immune to this, because it walks the events and
+ * looks each one up rather than the other way round. This is that same move,
+ * pulled out to where the counters can share it.
+ *
+ * Keys compare as strings: `cvMapping` is keyed by a cluster id that became one
+ * on the way into Firestore.
+ */
+export function currentAnswers(ids, answers) {
+    const live = new Set((ids || []).map((id) => String(id)));
+    return Object.entries(answers || {})
+        .filter(([key]) => live.has(key))
+        .map(([, answer]) => answer);
+}
+
 function emptyScore() {
     return {
         truePositives: 0,   // claimed this type, and it was
@@ -3690,7 +3720,7 @@ export function reviewScore(events, review) {
 export function reviewLabels(events, review, meta = {}) {
     const byEvent = review?.byEvent || {};
 
-    return {
+    const labels = {
         format: 'pitchiq-review-labels',
         version: 1,
         exportedAt: new Date().toISOString(),
@@ -3744,12 +3774,20 @@ export function reviewLabels(events, review, meta = {}) {
             type: miss.type,
             playerId: miss.playerId ?? null,
         })),
-        counts: {
-            events: (events || []).length,
-            labelled: Object.keys(byEvent).length,
-            missed: (review?.missed || []).length,
-        },
     };
+
+    // Counted off the two arrays above rather than off `byEvent`. A re-run
+    // renumbers every event id and nothing clears the old decisions, so the map
+    // can hold keys this file has no row for — and a summary that disagrees
+    // with the records under it is worse than no summary at all, in a file
+    // whose whole purpose is to still be trustworthy in a month.
+    labels.counts = {
+        events: (events || []).length,
+        labelled: labels.labelled.length,
+        missed: labels.missed.length,
+    };
+
+    return labels;
 }
 
 // -------------------------------------------- marking the model's predictions

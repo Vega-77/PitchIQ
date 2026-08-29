@@ -11,20 +11,21 @@
  * way directly would be a cycle. See `onReviewChange`.
  */
 
-import { saveCvReview, updateMatch } from '../assets/db.js?v=118';
-import { EVENTS, describeEvent } from '../assets/events.js?v=118';
+import { saveCvReview, updateMatch } from '../assets/db.js?v=119';
+import { EVENTS, describeEvent } from '../assets/events.js?v=119';
 import {
     BY_CLOCK, BY_DOUBT, CONFIRMED_STATUS, EDITED_STATUS, FROM_TAGGED,
     FROM_VIDEO, HALF_TIME, NOT_A_PLAYER, REJECTED_STATUS, clockFromMatch,
+    currentAnswers,
     hasVerdict, keeperOfTrack, orderCaveat, orderFeed, reviewFeed,
     reviewLabels, reviewScore,
-} from '../assets/report.js?v=118';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=118';
+} from '../assets/report.js?v=119';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=119';
 import {
     byId, clockText, confidenceMark, plural, setText, toast,
-} from '../assets/ui.js?v=118';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=118';
-import { download, matchXgTally, state, teamLabels } from './shell.js?v=118';
+} from '../assets/ui.js?v=119';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=119';
+import { download, matchXgTally, state, teamLabels } from './shell.js?v=119';
 
 // Two things outside this module have to be redrawn when a verdict lands, and
 // they are not the same thing. The shot views are drawn *from* the ledger, so
@@ -724,9 +725,11 @@ function decide(eventId, verdict) {
 }
 
 function updateReviewProgress() {
-    const total = (state.match?.cvEvents?.events || []).length;
-    const decided = Object.values(state.match?.cvReview?.byEvent || {})
-        .filter(hasVerdict);
+    const events = state.match?.cvEvents?.events || [];
+    const total = events.length;
+    const decided = currentAnswers(
+        events.map((event) => event.id), state.match?.cvReview?.byEvent,
+    ).filter(hasVerdict);
     const missed = (state.match?.cvReview?.missed || []).length;
 
     const real = decided.filter((d) => d.status !== REJECTED_STATUS).length;

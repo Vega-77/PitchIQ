@@ -7355,3 +7355,64 @@ describe('measuring the pitch from the clicks', () => {
     assert.equal(pitchModel.measureField(new Map()), null);
   });
 });
+
+describe('an answer map after the pipeline has been re-run', () => {
+    // A CV event id is `frame:track:kind` and a cluster id is the clusterer's
+    // own integer label. Both are handed out fresh on every run, and nothing
+    // clears the answers when a new run lands — so this is the ordinary state
+    // of a match somebody re-processed, not a corrupted document.
+    const events = [
+        { id: '10:1:shot', type: 'shot' },
+        { id: '20:2:pass', type: 'pass' },
+    ];
+    const byEvent = {
+        '10:1:shot': { status: 'confirmed' },
+        '99:7:pass': { status: 'confirmed' },  // answered against the last run
+        '98:7:duel': { status: 'rejected' },   // answered against the last run
+    };
+
+    test('only the answers with a question still attached count', () => {
+        const live = report.currentAnswers(events.map((e) => e.id), byEvent);
+        assert.equal(live.length, 1);
+        assert.equal(live[0].status, 'confirmed');
+    });
+
+    test('counting the map instead claims more done than there is', () => {
+        // The bug this was written for, as arithmetic: three answers, two
+        // events, and a progress line that reads "3 of 2 checked".
+        assert.ok(Object.keys(byEvent).length > events.length);
+    });
+
+    test('cluster ids compare as strings, because cvMapping keys are', () => {
+        const clusters = [{ cluster_id: 3 }, { cluster_id: 4 }];
+        const mapping = { 3: 'p1', 11: 'p9' };
+        assert.deepEqual(
+            report.currentAnswers(clusters.map((c) => c.cluster_id), mapping),
+            ['p1'],
+        );
+    });
+
+    test('nothing asked and nothing answered are both empty, not a throw', () => {
+        assert.deepEqual(report.currentAnswers([], byEvent), []);
+        assert.deepEqual(report.currentAnswers(['10:1:shot'], null), []);
+        assert.deepEqual(report.currentAnswers(null, null), []);
+    });
+
+    test('the labels file counts the rows it actually contains', () => {
+        // A summary that disagrees with the records under it is worse than no
+        // summary at all, in a file whose whole purpose is to still be
+        // trustworthy a month after anyone remembers exporting it.
+        const out = report.reviewLabels(events, { byEvent, missed: [] });
+        assert.equal(out.labelled.length, 1);
+        assert.equal(out.counts.labelled, out.labelled.length);
+    });
+
+    test('the scorecard was never fooled by this, and still is not', () => {
+        // `reviewScore` walks the events and looks each one up, which is both
+        // why it was right all along and where the fix above came from.
+        const s = report.reviewScore(events, { byEvent, missed: [] });
+        assert.equal(s.byType.shot.truePositives, 1);
+        assert.equal(s.byType.pass.unreviewed, 1);
+        assert.equal(s.byType.duel, undefined);
+    });
+});
