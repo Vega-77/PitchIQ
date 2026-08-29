@@ -11,19 +11,20 @@
  * way directly would be a cycle. See `onReviewChange`.
  */
 
-import { saveCvReview, updateMatch } from '../assets/db.js?v=117';
-import { EVENTS, describeEvent } from '../assets/events.js?v=117';
+import { saveCvReview, updateMatch } from '../assets/db.js?v=118';
+import { EVENTS, describeEvent } from '../assets/events.js?v=118';
 import {
-    BY_CLOCK, BY_DOUBT, FROM_TAGGED, FROM_VIDEO, HALF_TIME, NOT_A_PLAYER,
-    clockFromMatch, hasVerdict, keeperOfTrack, orderCaveat, orderFeed,
-    reviewFeed, reviewLabels, reviewScore,
-} from '../assets/report.js?v=117';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=117';
+    BY_CLOCK, BY_DOUBT, CONFIRMED_STATUS, EDITED_STATUS, FROM_TAGGED,
+    FROM_VIDEO, HALF_TIME, NOT_A_PLAYER, REJECTED_STATUS, clockFromMatch,
+    hasVerdict, keeperOfTrack, orderCaveat, orderFeed, reviewFeed,
+    reviewLabels, reviewScore,
+} from '../assets/report.js?v=118';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=118';
 import {
     byId, clockText, confidenceMark, plural, setText, toast,
-} from '../assets/ui.js?v=117';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=117';
-import { download, matchXgTally, state, teamLabels } from './shell.js?v=117';
+} from '../assets/ui.js?v=118';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=118';
+import { download, matchXgTally, state, teamLabels } from './shell.js?v=118';
 
 // Two things outside this module have to be redrawn when a verdict lands, and
 // they are not the same thing. The shot views are drawn *from* the ledger, so
@@ -59,9 +60,8 @@ export const REVIEW_TYPES = [
     'clearance', 'duel',
 ];
 
-const CONFIRMED = 'confirmed';
-const REJECTED = 'rejected';
-const EDITED = 'edited';
+// The three verdicts are declared in `report.js` and imported above, so
+// the buttons below carry the same strings the scorecard reads back.
 
 const reviewState = {
     filter: 'all', unreviewedOnly: false, inPlayOnly: false, video: null,
@@ -536,9 +536,9 @@ function reviewRow(item) {
         </button>
         <div class="review-mark"></div>
         <div class="review-acts">
-            <button type="button" class="btn tiny" data-act="confirmed" title="Really happened">✓</button>
-            <button type="button" class="btn tiny" data-act="edited" title="Wrong player or type">✎</button>
-            <button type="button" class="btn tiny" data-act="rejected" title="Did not happen">✗</button>
+            <button type="button" class="btn tiny" data-act="${CONFIRMED_STATUS}" title="Really happened">✓</button>
+            <button type="button" class="btn tiny" data-act="${EDITED_STATUS}" title="Wrong player or type">✎</button>
+            <button type="button" class="btn tiny" data-act="${REJECTED_STATUS}" title="Did not happen">✗</button>
         </div>
         <div class="review-edit hidden"></div>`;
 
@@ -570,7 +570,7 @@ function reviewRow(item) {
     for (const button of row.querySelectorAll('[data-act]')) {
         button.classList.toggle('on', decided?.status === button.dataset.act);
         button.addEventListener('click', () => {
-            if (button.dataset.act === EDITED) {
+            if (button.dataset.act === EDITED_STATUS) {
                 toggleReviewEdit(row, event);
                 return;
             }
@@ -681,7 +681,7 @@ function toggleReviewEdit(row, event) {
 
     host.querySelector('.edit-save').addEventListener('click', () => {
         decide(event.id, {
-            status: EDITED,
+            status: EDITED_STATUS,
             type: typeSelect.value,
             playerId: whoSelect.value || null,
         });
@@ -704,7 +704,7 @@ function decide(eventId, verdict) {
 
     // Tapping the same verdict again clears it, so a mis-tap is one tap to fix
     // rather than a decision that cannot be taken back.
-    if (before?.status === verdict.status && verdict.status !== EDITED) {
+    if (before?.status === verdict.status && verdict.status !== EDITED_STATUS) {
         // `kept` is an object either way, so this has to ask what is in it. It
         // did not, and an undone verdict left `{}` behind: an entry with no
         // verdict in it that every count still read as a checked event, and
@@ -729,7 +729,7 @@ function updateReviewProgress() {
         .filter(hasVerdict);
     const missed = (state.match?.cvReview?.missed || []).length;
 
-    const real = decided.filter((d) => d.status !== REJECTED).length;
+    const real = decided.filter((d) => d.status !== REJECTED_STATUS).length;
     const parts = [`${decided.length} of ${total} checked`];
     if (decided.length) {
         parts.push(`${Math.round((real / decided.length) * 100)}% of those were real`);

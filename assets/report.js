@@ -3530,9 +3530,28 @@ function nearest(items, clockS, windowS) {
     return best;
 }
 
-const CONFIRMED_STATUS = 'confirmed';
-const REJECTED_STATUS = 'rejected';
-const EDITED_STATUS = 'edited';
+/**
+ * The three verdicts, exported because the only thing that writes one lives in
+ * another file.
+ *
+ * `coach/review.js` renders the three buttons and `decide` sends whatever the
+ * pressed one carries straight to Firestore, so that button's own attribute is
+ * the real definition of a verdict. It used to be three string literals in an
+ * HTML template, five hundred lines below three constants of the same meaning
+ * in the same file, and a third copy of all three down here. None of the three
+ * could see the others, and `firestore.rules` says in as many words that it
+ * does not validate the shapes inside `byEvent`.
+ *
+ * Worth more than a tidiness argument, because `hasVerdict` below asks only
+ * whether `status` is a non-empty string. An unrecognised verdict is therefore
+ * not ignored, it is counted: `reviewScore` finds it is neither `rejected` nor
+ * an `edited` retype and scores it a true positive. Rename the reject button's
+ * attribute and a clip whose candidates a coach threw half of away reports
+ * near-perfect precision, with nothing raised and nothing logged.
+ */
+export const CONFIRMED_STATUS = 'confirmed';
+export const REJECTED_STATUS = 'rejected';
+export const EDITED_STATUS = 'edited';
 
 /**
  * Has anybody actually said whether this event happened?

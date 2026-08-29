@@ -4810,6 +4810,53 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The three words a coach's verdict can be, and the copy of them that
+      reached Firestore** (2026-08-29).
+      `tests/test_review_verdicts.py` — nine tests, nineteen mutations, no holes
+      and no skips.
+      A verdict is what a coach says about one thing the pipeline claimed to
+      see: `confirmed`, `rejected` or `edited`. The vocabulary lived in five
+      places and no two of them could see each other. The one that writes is the
+      `data-act` attribute on the three buttons in `coach/review.js`, because
+      `decide` sends `button.dataset.act` to Firestore unexamined — and all
+      three were spelled out by hand in an HTML template. Five hundred lines
+      above them sat three constants of the same meaning in the same file, of
+      which `CONFIRMED` was declared and never read once. `assets/report.js` had
+      a third, independent set driving `reviewScore` and `reviewLabels`.
+      `assets/app.css` had a fourth, reachable only through
+      `` `is-${decided.status}` ``. `firestore.rules` is the fifth and is a
+      documented abstention: it says in as many words that the shapes inside
+      `byEvent` are not validated there.
+      Survivable if an unrecognised verdict were ignored. It is not.
+      `hasVerdict` asks only whether `status` is a non-empty string, so a
+      verdict under a name nothing knows still counts as *a coach checked this
+      one*, and `reviewScore` — finding it neither `rejected` nor an `edited`
+      retype — scores it a **true positive**. Rename the reject button's
+      attribute and a clip whose candidates a coach threw half of away comes
+      back reporting near-perfect precision, while `updateReviewProgress` says
+      100% of those were real. Two confidently wrong numbers, nothing raised and
+      nothing logged, and precision is the one number the review tool exists to
+      produce.
+      Three of the five now collapse into one. `report.js` exports the verdicts,
+      with a docblock saying why they are exported at all — the only thing that
+      writes one lives in another file — and `review.js` imports them, keeps
+      none of its own, and interpolates all three into the button template. The
+      dependency already ran that way, so nothing new was introduced.
+      The stylesheet cannot import anything, so it is pinned in both directions
+      instead: a state the tool can reach has to be styled, and a state that is
+      styled has to be one the tool can reach. The two row states that are not
+      verdicts — `is-tagged` for a row that came from the tag log, and
+      `is-missed-goal` for one a coach recorded by hand — are found by the shape
+      of the call that sets them rather than by a list kept in the test, so a
+      third needs no edit there.
+      `coach/coach.js` also uses `data-act`, for invite and remove and erase,
+      and is deliberately out of scope. Those values are read back by
+      `querySelector('[data-act="remove"]')` in the same file and dereferenced
+      without a guard, so a disagreement there is a TypeError on the spot. This
+      gate is about the disagreement that stays quiet. `hasVerdict` being a
+      truthiness test is itself pinned, because it is the premise the rest of
+      the file rests on: if it ever becomes a membership test, whoever makes
+      that change should be sent here to say so.
 - [x] **The preview that stands in for a real match, checked against 21 of the
       26 fields a real match carries** (2026-08-28).
       `tests/test_sample_report.py` — two new tests, fourteen mutations, no
