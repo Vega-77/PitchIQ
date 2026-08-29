@@ -8,9 +8,15 @@ reads it, and nobody finds out until the first real match.
 
 So this compares the two directly. It reads the JavaScript as text rather than
 executing it — there is no build step in this project and no JS runtime is a
-Python test dependency — and checks that every key `cv/publish.py` writes appears
-somewhere in the fixture. Crude, and right for the failure it is guarding:
-a field added on the Python side and forgotten on the JavaScript one.
+Python test dependency — and checks that every key a published report can carry
+is set somewhere in the fixture. Crude, and right for the failure it is
+guarding: a field added on one side and forgotten on the other.
+
+*Both* writers, which took a second pass to get right. `cv/publish.py` writes 21
+of the 26 `cv` fields; the coach's page adds the last five in `cvReportFields`
+on the way to Firestore, onto the same document, and for a long time this file
+compared against the Python half alone and read as though it covered the whole
+thing.
 
 The reverse direction is deliberately not checked. The fixture is allowed extra
 keys — `isSample` is one, and a field removed from the pipeline can sit in the
@@ -27,6 +33,7 @@ import pytest
 from cv.keeper import KeeperReport
 from cv.publish import player_report_fields, summary_payload
 from cv.report_json import TeamStats
+from test_free_names import blank
 
 SAMPLE_JS = Path(__file__).resolve().parents[1] / 'assets' / 'sample-report.js'
 
@@ -37,8 +44,42 @@ def source() -> str:
 
 
 def missing(keys, source: str) -> list[str]:
-    """Which of `keys` never appear in the fixture."""
-    return sorted(k for k in keys if f"'{k}'" not in source and f'{k}:' not in source)
+    """Which of `keys` the fixture never sets as a property.
+
+    Read off blanked source, so a name in a comment does not count as the
+    fixture carrying it. This file explains itself at length — `cvTrackedShare`
+    is discussed in three comments around the single line that sets it — and a
+    check that accepted those would go on passing after the line itself was
+    deleted, which is the one outcome it exists to prevent.
+
+    Only the `name:` shape counts. An earlier version also accepted a quoted
+    occurrence, which cannot survive blanking: `blank` empties string literals
+    down to spaces, quote characters included, so `'cvTouches'` would never
+    have matched anything here again. A property key is the one shape a fixture
+    key actually has.
+    """
+    code = blank(source)
+    return sorted(k for k in keys if f'{k}:' not in code)
+
+
+def _report_keys() -> list[str]:
+    """Every `cv` field a published report can carry, off the browser's list.
+
+    `CV_REPORT_KEYS` in `assets/report.js` is the union of what the pipeline
+    writes and what the coach's page adds on publish, and it is the list that
+    nulls a report when a cluster is un-mapped. Taking it as the union is not an
+    assumption made here: `tests/test_cv_field_seam.py` and
+    `tests/test_write_seam.py` each pin that list against the two functions that
+    fill it, in both directions.
+
+    Parsed as text for the same reason everything else in this file is — no
+    build step, and no JS runtime among the Python test dependencies.
+    """
+    text = (Path(__file__).resolve().parents[1] / 'assets' / 'report.js').read_text(
+        encoding='utf-8'
+    )
+    body = text.split('const CV_REPORT_KEYS = [')[1].split(']')[0]
+    return sorted(set(re.findall(r"'(cv[A-Za-z0-9]+)'", body)))
 
 
 def _quality_keys() -> list[str]:
@@ -130,6 +171,37 @@ class TestThePlayerDocument:
         keys = player_report_fields({}).keys()
         assert keys
         assert not missing(keys, source)
+
+    def test_every_field_a_published_report_carries_is_represented(self, source):
+        """The other writer, and the five fields nothing here used to check.
+
+        `player_report_fields` is 21 of the 26. The coach's page adds
+        `cvMinutesOnPitch`, `cvMinutesFilmed`, `cvTrackedShare`,
+        `cvClusterCount` and `cvReviewed` in `cvReportFields`, merged onto the
+        same document, and the test above cannot see any of them.
+
+        Four were present anyway, by luck rather than by anything checking.
+        `cvReviewed` was not, and that one was harmless — it is a boolean read
+        through truthiness, so absent and false render the same. The other four
+        are numbers, and `cvTrackedShare` is the one `coverageSummary` filters
+        on: a fixture without it does not preview a wrong coverage sentence, it
+        previews no coverage sentence at all. A paragraph that silently stops
+        appearing is precisely the failure this file was written for.
+        """
+        keys = _report_keys()
+        assert len(keys) >= 24, 'CV_REPORT_KEYS did not parse'
+        assert not missing(keys, source)
+
+    def test_the_scan_can_tell_a_set_field_from_a_mentioned_one(self, source):
+        """A guard that cannot fail is a guard that reads as coverage.
+
+        Three ways to be wrong, so all three are pinned: a key the fixture sets
+        has to be found, a key it does not have to be reported, and a key named
+        only in a comment has to count as absent.
+        """
+        assert missing(['cvTouches'], source) == []
+        assert missing(['cvNotAFieldAnyoneWrites'], source) == ['cvNotAFieldAnyoneWrites']
+        assert missing(['cvTouches'], '// cvTouches: 61,\n') == ['cvTouches']
 
     def test_the_calibration_error_reaches_the_fixture(self, source):
         """Specifically called out because it is the newest of them and the one

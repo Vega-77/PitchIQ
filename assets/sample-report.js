@@ -771,6 +771,12 @@ export function samplePlayerReport() {
         cvAttackingEnd: 'right',
         cvShotMap: mine,
         cvCalibrationErrorM: 0.42,
+        // Nobody has reviewed a match that never happened, and false is
+        // what a real report carries until a coach opens the review tool
+        // and changes something. Set rather than left out because the
+        // browser writes this field on every publish: a fixture missing it
+        // is a fixture one key short of the document it stands in for.
+        cvReviewed: false,
     };
 }
 

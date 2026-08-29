@@ -4810,6 +4810,52 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The preview that stands in for a real match, checked against 21 of the
+      26 fields a real match carries** (2026-08-28).
+      `tests/test_sample_report.py` — two new tests, fourteen mutations, no
+      holes and no skips.
+      `assets/sample-report.js` is the fixture behind every CV block on the
+      coach, player and half-time pages until there is footage, and
+      `tests/test_sample_report.py` exists to keep it the same shape as a
+      published run. Its docstring names the failure exactly: the moment a
+      field is published that the sample does not carry, the preview quietly
+      stops covering whatever reads it, and nobody finds out until the first
+      real match.
+      It compared the fixture against `player_report_fields` — the Python
+      writer, 21 fields. A published report carries 26. The coach's page merges
+      the last five on in `cvReportFields` on its way to Firestore
+      (`cvMinutesOnPitch`, `cvMinutesFilmed`, `cvTrackedShare`,
+      `cvClusterCount`, `cvReviewed`), onto the same document, and the word
+      "Python" in that docstring had been doing load-bearing work nobody
+      noticed. Four of the five were present anyway, by luck rather than by
+      anything checking. `cvReviewed` was not.
+      That one field is harmless — a boolean read through truthiness, so absent
+      and false render identically — and it is the shape of the miss that
+      matters rather than its cost. The other four are numbers, and
+      `cvTrackedShare` is the one `coverageSummary` filters on: a fixture
+      without it does not preview a wrong coverage sentence, it previews no
+      coverage sentence at all. Nothing raises, nothing logs, a paragraph
+      simply stops existing. The fixture now sets `cvReviewed: false`, which is
+      what a real report carries until a coach corrects something, and the
+      check reads `CV_REPORT_KEYS` — the union of both writers, which is not an
+      assumption made there: `tests/test_cv_field_seam.py` and
+      `tests/test_write_seam.py` each pin that list against the two functions
+      that fill it, in both directions.
+      The second finding was in the scan rather than the fixture. `missing`
+      searched raw source, so a key named in a *comment* counted as a key the
+      fixture sets — and this file is unusually heavy with commentary,
+      `cvTrackedShare` alone being discussed in three comments around the
+      single line that sets it. Delete the line, leave the prose, stay green.
+      It reads blanked source now. Measured before changing it: no key was
+      riding on a comment, so nothing had gone wrong yet, which is the moment
+      to pin it rather than the moment to record a mess. The same edit dropped
+      a second accepted form, a quoted occurrence, which could not have matched
+      anything once the source is blanked — `blank` empties string literals
+      down to their quote characters — the same vacuity the `cv` field seam
+      turned up in its own bracket check the day before.
+      The reverse direction stays deliberately unchecked, as it always was: a
+      fixture is allowed extra keys, and a field dropped from the pipeline can
+      sit in it harmlessly until someone tidies up.
 - [x] **Twenty-one field names Python never spells out, and the four places
       that have to agree about them** (2026-08-28).
       `tests/test_cv_field_seam.py` — twelve tests, sixteen mutations, no holes
