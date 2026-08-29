@@ -4810,6 +4810,51 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The backend is one file of allowlists and the code that writes through
+      them is checked by a hand-typed mimic, not by itself** (2026-08-28).
+      `tests/test_write_seam.py` — sixteen tests, twenty-five mutations, no
+      holes and no skips.
+      `firestore.rules` is the entire backend, and twenty closed field sets in
+      it name exactly what each document may carry: eleven `hasOnly` on create,
+      eight `changed` on update, and one inside `validXgCheck` for a map's
+      interior. `assets/db.js` and `assets/auth.js` write those documents in
+      twenty-nine places. Nothing compared the two. `tests/flow.test.js` looks
+      like it does and does not — it imports nothing from `assets/`, so what it
+      exercises against the emulator is a mimic of every document shape,
+      re-typed by hand. Add a field to `db.js` without the matching rule and
+      the whole suite stays green while the write is denied in front of a
+      coach; the failure mode is a silent one, because a rejected write leaves
+      no trace on the page that attempted it.
+      Forward, there is no live defect: every key set the client sends today
+      sits inside the allowlist that admits it. The finding is backward. The
+      rules grant twelve fields no code writes — `name`, `taggerUids` and
+      `archived` on a team update; `name`, `jerseyNumber` and `emailLower` on a
+      player; `opponentName` and `date` on a match; the four video fields at
+      match create. They are not dead weight and they are not oversights: they
+      are the rules for an editing UI that was never built. `firestore.rules`
+      even anticipates one of them in a comment ("a student changed email"),
+      and there is no screen for it. Twelve entries in an `UNWRITTEN` table,
+      each with the reason, and the reason has to survive a mutation in both
+      directions — wire one up and the entry fails as stale, delete the grant
+      and it fails as stale, exactly as the graph gate set out. `taggerUids`
+      stays empty for the reason `assets/db.js:44-50` gives: the tagger-versus-
+      coach split is still an open question about people.
+      Folded in, because it is the same seam: `CV_REPORT_KEYS` (26 names) and
+      the with-stats branch of `cvReportFields` (23 keys) are two copies of one
+      key list, and `publishReports` writes with `{merge: true}`. A key in the
+      literal that the list does not carry is a key that is never nulled, so
+      un-mapping a cluster leaves the player showing last week's numbers under
+      this week's match. `assets/db.js:836-845` records having been bitten by
+      exactly that once already, and nothing had checked it since.
+      The limits are in the docstring, because a clean run here is not proof.
+      It checks field *names* and says nothing about the type and range
+      predicates `tests/rules.test.js` covers. `playerReports` has no allowlist
+      by design — the pipeline merges its own `cv`-prefixed fields on top
+      through the Admin SDK, which bypasses rules entirely — so it is held to
+      the key-count cap instead, with twenty keys of headroom left for that
+      merge. And a fifth indirection shape fails as unresolved rather than
+      passing quietly, which is the only honest thing a resolver can do when it
+      meets a reference it cannot read.
 - [x] **Seven copies of the pitch dimensions, one of them checked, and the copy
       that calls itself decoration is the one the shot map plots into**
       (2026-08-28).
