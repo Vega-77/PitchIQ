@@ -4810,6 +4810,51 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **Seven copies of the pitch dimensions, one of them checked, and the copy
+      that calls itself decoration is the one the shot map plots into**
+      (2026-08-28).
+      `tests/test_pitch_dimensions.py` — sixteen tests, twenty-five mutations,
+      no holes and no skips.
+      `cv/pitch.py` is where the Laws dimensions live. Site code re-types them
+      in seven more places: `assets/pitch-backdrop.js`, `assets/passing.js`,
+      `assets/sample-report.js`, `coach/coach.js`, `calibrate/pitch-model.js`
+      (with `calibrate/calibrate.js` and `calibrate/index.html`),
+      `xg-sandbox/presets.js` and `xg-sandbox/sandbox.js`. One was checked.
+      `test_pitch_parity.py` could not have caught the others even in
+      principle: it proves the two languages agree *given* a pitch, handing
+      both the same length and width, so it is blind to every place the
+      browser writes 105 down itself.
+      `assets/pitch-backdrop.js` says in its own header that it is
+      "decoration, never information", and it is not. `assets/shot-map.js`,
+      `assets/heatmap.js` and `assets/pass-map.js` all import
+      `PITCH_LENGTH_M` and `PITCH_WIDTH_M` from it and use them as the
+      coordinate frame that real event positions in metres are plotted into —
+      `heatmap.js:164` sizes an occupancy cell as `PITCH_LENGTH_M / grid.cols`,
+      where the grid came out of `cv/metrics.py` on a `Pitch`. Drift there
+      draws every blob somewhere the player never stood, under a plot that
+      otherwise looks entirely correct.
+      `assets/passing.js` is the sharper one. Its `pitchLengthM = 105` and
+      `pitchWidthM = 68` are written as defaults, which reads as a fallback for
+      a caller that knows better. There is one caller — `coach/coach.js:1580` —
+      and it passes neither. Those two numbers are the pitch every published
+      pass map is drawn on.
+      `pitchMarkings` had already made the argument against itself: "Two copies
+      of this geometry would be two chances to draw a penalty box in the wrong
+      place, and only one of them would be noticed." There were seven, and
+      nothing counted them.
+      Both directions, as the graph gate set out. A literal that drifts fails;
+      a row whose pattern stops matching fails as a stale row to delete rather
+      than a test to loosen; and a sweep over `blank`ed source catches an
+      eighth copy planted anywhere in the seven JS directories, so the next one
+      is caught the day it is written instead of years later.
+      The limit is written into the docstring, because a clean run here is not
+      proof. The sweep can only chase numbers that are a pitch marking and
+      nothing else — 16.5, 40.32, 18.32, 9.15, 7.32, 52.5. It cannot chase 105,
+      68, 5.5 or 11, which are also pass counts, minutes, grid indices and
+      shirt numbers; a check that reported `track_id: 11` as a pitch dimension
+      would be switched off inside a week. Those four are held by the table and
+      only by the table, so a new copy of one has to be added by whoever writes
+      it.
 - [x] **Two shipped ReferenceErrors, on two pages, that nothing in the repo
       could see** (2026-08-28).
       `tests/test_free_names.py` — fourteen tests, twenty-two mutations, no

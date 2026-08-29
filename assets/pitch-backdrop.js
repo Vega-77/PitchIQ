@@ -3,7 +3,13 @@
 // Chosen over a gradient or a noise texture because it is the one ornament that
 // is actually about the subject: real markings at real proportions, drawn from
 // the same dimensions cv/pitch.py uses. It sits at low opacity and is
-// aria-hidden — decoration, never information.
+// aria-hidden, so nothing here is announced or read aloud.
+//
+// The drawing is decoration. The numbers are not: shot-map.js, heatmap.js
+// and pass-map.js import L and W below and use them as the coordinate frame
+// they plot real event positions in metres into, so a wrong L here would put
+// every shot in the wrong place under a diagram that still looked right.
+// tests/test_pitch_dimensions.py holds them to cv/pitch.py.
 
 const NS = 'http://www.w3.org/2000/svg';
 
