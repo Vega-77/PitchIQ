@@ -4810,6 +4810,48 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **Twenty-one field names Python never spells out, and the four places
+      that have to agree about them** (2026-08-28).
+      `tests/test_cv_field_seam.py` — twelve tests, sixteen mutations, no holes
+      and no skips.
+      `cv/publish.py` builds every field it publishes by interpolation —
+      `f'{CV_FIELD_PREFIX}TopSpeedKmh'` — so the string `cvTopSpeedKmh` does
+      not occur in that file, and grepping the repo for it finds only the
+      browser. That is the right way to guarantee the prefix a coach reads as
+      *this number came from the camera, not from a tap*, and it is also why a
+      rename on the Python side is invisible to every tool that works by
+      matching text. Four places have to agree and no two of them can see each
+      other: `player_report_fields` (21 fields), the with-stats branch of
+      `cvReportFields` (23), `CV_REPORT_KEYS` (26), and the pages that read
+      them back off a document (26). The document in the middle is the one
+      document in the app with no field allowlist, by design — the pipeline
+      merges its own fields onto it through the Admin SDK, which bypasses
+      `firestore.rules` entirely — so nothing rejects a misspelt name and
+      nothing logs one.
+      Only one edge of that square was checked. `test_player_merge_parity.py`
+      requires everything Python writes to be something the browser can null,
+      and its docstring declines the other direction on purpose. The readers
+      were checked by nothing, and that is the direction that hurts: every one
+      of these numbers reaches a screen through a null check, because
+      absent-is-not-zero is the rule everywhere here, so `report.cvTopSpeedKph`
+      on a report carrying `cvTopSpeedKmh` renders the same dash as a number no
+      camera could measure. A student's top speed would simply never appear,
+      forever, with the page behaving exactly as designed.
+      No live defect: the union of the two writers is exactly the clearing
+      list, exactly what the pages read, and all 21 Python fields are read
+      somewhere. Which is the moment to pin it — a gate written over a mess
+      only records the mess. Nine `cv`-prefixed properties are not report
+      fields at all (seven keys of the `extra` bag `publishReports` takes, one
+      UI boolean, one season accumulator the browser derives and never stores),
+      and each is listed with its reason and checked both ways, so wiring one
+      up fails and so does leaving a name behind that nothing reads.
+      One finding was in the gate itself, caught by mutation rather than by
+      reading. The scan works over `blank`ed source so a name in a comment is
+      not a read — and `blank` empties string literals *including their quotes*,
+      which meant the test looking for `report['cvTouches']` could not have
+      matched one if it existed. It now locates the bracket in blanked text and
+      reads the name out of raw, which is the only combination that is both
+      comment-proof and able to see the string it is looking for.
 - [x] **The backend is one file of allowlists and the code that writes through
       them is checked by a hand-typed mimic, not by itself** (2026-08-28).
       `tests/test_write_seam.py` — sixteen tests, twenty-five mutations, no
