@@ -4810,6 +4810,53 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **The name a module declares for itself and then never reads**
+      (2026-08-29).
+      `tests/test_unread_names.py` — thirteen tests, twenty-two mutations, no
+      holes and no skips.
+      Two gates already look for names that do not line up, and there is a gap
+      between them wide enough to have had something sitting in it.
+      `tests/test_free_names.py` finds a name *read* with no declaration
+      anywhere in reach. `tests/test_call_graph.py` finds a name *exported* and
+      imported by nobody. Neither can see the thing that never leaves one file:
+      declared at the top, referenced nowhere below.
+      `CONFIRMED` was exactly that, at the top of `coach/review.js`, for as long
+      as the review tool existed — holding the string `'confirmed'`, read by
+      nothing, while five hundred lines below it the button that actually writes
+      that word to Firestore spelled it out by hand. Never exported, so the call
+      graph had no opinion; declared, so the free-name scan was satisfied. The
+      constant was not the bug — the hand-typed copy was — but a constant
+      nothing reads is how a second copy gets to look harmless. Nobody deletes
+      it, because deleting things is how you break something; nobody updates it,
+      because nothing points there.
+      So the rule is the plainest one that means anything: a top-level name has
+      to occur somewhere other than its own declaration. Counted on blanked
+      source, so a name kept alive only by a comment about it is still unread,
+      and so a name read only from inside a template literal still counts —
+      which is not a detail, because after the fix `CONFIRMED_STATUS` is read
+      from exactly one place in that file and that place is a `${...}`. A gate
+      that got this wrong would report the fix as a fresh instance of the bug it
+      was written about.
+      Exported names are deliberately not checked here. Whether anything reads
+      an export is a question about the whole repo and `test_call_graph.py`
+      already answers it in both directions; two gates disagreeing about one
+      name is worse than either alone.
+      The scan found **998 top-level names across 32 modules and zero unread**,
+      which is the only reason it is worth pinning at all — a gate written over
+      a mess only records the mess. It is also the first one here with no
+      allowlist whatsoever, so there is nothing to rot: the anti-vacuum floors
+      (at least 30 modules, at least 900 names) and eight self-tests carry the
+      whole burden of proving it can still fail. One of those self-tests exists
+      because a mutation found it missing — drop the identifier boundaries from
+      the occurrence count and `tot` is read every time `totals` is, which turns
+      the gate into a rubber stamp while every test still passes.
+      What it cannot see is stated in the file rather than hidden: a shadowed
+      name reads as used, and `summary.total` reads as a use of a top-level
+      `total`. Both under-report. Neither can invent a finding, which is the
+      right direction for a check with no parser behind it. The version that
+      tried to do better — guessing writes from the shape of the line — called
+      ninety-nine live names dead, most of them by reading `const total = NS;`
+      as a declaration of `NS` rather than a read of it.
 - [x] **The three words a coach's verdict can be, and the copy of them that
       reached Firestore** (2026-08-29).
       `tests/test_review_verdicts.py` — nine tests, nineteen mutations, no holes
