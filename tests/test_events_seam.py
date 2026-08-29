@@ -544,15 +544,25 @@ class TestTheScannerCannotPassVacuously:
 
     def test_the_hop_across_a_call_is_load_bearing(self, made):
         # `shotLedger(state.match?.cvEvents?.events || [], ...)`. Without the
-        # arg-to-parameter step, eleven of the twelve row fields go orphaned
-        # at once. The twelfth is `inPlay`, and it is the exception that
-        # measures the rule: `coach/review.js::deadBallCount` is the only
-        # function in the repo that names the handle and reads a row field in
-        # the same four lines, so it is the only one a scan that cannot cross
-        # a call boundary can still see.
+        # arg-to-parameter step, ten of the twelve row fields go orphaned at
+        # once, and the two that do not are the exceptions that measure the
+        # rule: they are read by the only three functions in the repo that
+        # name the handle and read a row field in the same few lines --
+        # `review.js::deadBallCount` for `inPlay`, and `coach.js::railCounts`
+        # and `review.js::updateReviewProgress` for `id`.
+        #
+        # Stated as what is lost rather than what survives, because those are
+        # not the same pin. The survivor list moves whenever a coach page
+        # starts reading a row field beside the handle -- which is what the
+        # two `id` readers above are, both of them counters rewritten to count
+        # against the events rather than against the answers keyed off them.
+        # The lost list moves only when the scan's reach really changes.
         without = read(cross=False)
         rows = [k for k, level in made.items() if level == 'each event']
-        assert [k for k in rows if readers(k, without)] == ['inPlay']
+        assert [k for k in rows if not readers(k, without)] == [
+            'type', 'timestampS', 'trackId', 'team', 'confidence', 'outcome',
+            'xg', 'xgHeader', 'receiverTrackId', 'startM',
+        ]
 
     def test_the_bag_is_load_bearing(self, seen):
         # `const { events } = passingSource()`. The passing network is the
@@ -578,12 +588,24 @@ class TestTheScannerCannotPassVacuously:
 
     def test_the_per_function_split_is_load_bearing(self, made):
         # It is also what makes the cross-function step possible: without it
-        # there are no callees to seed, so the whole interprocedural half of
-        # the scan stops, and the row fields go with it -- down to the same
-        # lone `inPlay` that survives `cross=False`, and for the same reason.
+        # there are no callees to seed, so the interprocedural half of the
+        # scan stops at the file it started in. What it loses is precisely the
+        # five figures that only `assets/report.js` and `assets/passing.js`
+        # read -- neither file ever names the handle, and both are reached
+        # only by seeding from a call in `coach/coach.js`.
+        #
+        # The other seven survive for a reason worth being suspicious of: a
+        # whole file is one chunk, so every reader in it is credited to
+        # `::<file>` and the attribution this gate reports is gone even where
+        # the name is still found. Losing five of twelve understates the
+        # damage; it is the part that can be asserted.
         whole = read(chunked=False)
         rows = [k for k, level in made.items() if level == 'each event']
-        assert [k for k in rows if readers(k, whole)] == ['inPlay']
+        assert [k for k in rows if not readers(k, whole)] == [
+            'team', 'xg', 'xgHeader', 'receiverTrackId', 'startM',
+        ]
+        assert all(place.endswith('::<file>')
+                   for places in whole.values() for place in places)
 
     def test_comment_stripping_is_load_bearing(self, made, seen):
         # In both directions, which is unusual -- on the other four seam gates

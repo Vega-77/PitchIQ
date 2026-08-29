@@ -10,7 +10,7 @@ import {
     doc, getDoc, setDoc, updateDoc, collection, getDocs, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { auth, db, isConfigured } from './firebase-init.js?v=119';
+import { auth, db, isConfigured } from './firebase-init.js?v=120';
 
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: 'select_account' });
@@ -193,6 +193,9 @@ export async function rememberTeam(user, teamId) {
     const existing = await getDoc(ref).catch(() => null);
     const teamIds = new Set(existing?.exists() ? existing.data().teamIds || [] : []);
     teamIds.add(teamId);
+    // Mirrors `teamIds.size() <= 10` in firestore.rules. Dropped silently:
+    // this is a convenience list of teams to offer on the next sign-in, and an
+    // eleventh team is not worth refusing the write that carries it.
     await saveHint(user, { teamIds: [...teamIds].slice(0, 10) });
 }
 

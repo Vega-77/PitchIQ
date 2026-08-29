@@ -267,6 +267,7 @@ service cloud.firestore {
              ['displayName', 'emailLower', 'teamIds', 'lastPlayerRef', 'updatedAt'])
         && request.resource.data.emailLower == email()
         && request.resource.data.teamIds is list
+        // Client guard: assets/auth.js
         && request.resource.data.teamIds.size() <= 10
         // Self-written and read by nobody else, so these are bounds against
         // bloat rather than against forgery — there is nothing here to forge.
@@ -679,8 +680,13 @@ service cloud.firestore {
             && request.resource.data.keys().hasOnly(
                  ['byEvent', 'missed', 'updatedAt', 'updatedBy'])
             && request.resource.data.byEvent is map
+            // Unlike the other two, the far end here is not a browser. The
+            // publisher bypasses rules entirely; what it caps is the number
+            // of events this map answers, one decision each.
+            // Client guard: cv/publish.py
             && request.resource.data.byEvent.size() <= 1500
             && request.resource.data.missed is list
+            // Client guard: coach/review.js
             && request.resource.data.missed.size() <= 300
             && request.resource.data.updatedBy == uid()
             && isTimestampNow(request.resource.data.updatedAt);

@@ -72,6 +72,15 @@ THUMBS_DOC = 'thumbs'
 # these; a run that produces thousands has gone wrong, and the right response to
 # that is a truncated document plus a flag saying so, not a document that fails
 # to write at all because it crossed a megabyte.
+#
+# Fits under `byEvent.size() <= 1500` in firestore.rules. Nothing bounds this
+# document — the Admin SDK bypasses rules — but the coach's review of it is
+# written by a browser and capped, one decision per event. The two numbers were
+# reached by separate arguments about megabytes and happen to land equal, which
+# leaves the review no headroom at all: nothing clears `cvReview` when a run is
+# re-published, so a second run's decisions accumulate on top of the first's
+# until the whole document stops saving. Lowering this is safe; raising it is
+# not, and raising the rule is what the pair actually wants.
 MAX_EVENTS = 1500
 
 # Why the pipeline left figures out, written alongside the stats they were left

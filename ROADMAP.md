@@ -4810,6 +4810,63 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **A number counted off the answers, and a number written twice**
+      (2026-08-29).
+      Two problems with one cause, kept apart here because only one of them is
+      a bug today.
+      `cvReview.byEvent` and `cvMapping` are answer maps keyed by ids the
+      pipeline hands out fresh on every run — `cv/events.py:333` builds an
+      event id as `frame:track:kind`, and a cluster id is the clusterer's own
+      integer label. Nothing clears those maps when a run is re-published, so
+      after a second run the answers are keyed to questions that no longer
+      exist.
+      **The live half.** Five places counted "how many of these have been
+      checked" by measuring the answer map instead of the current list. All
+      five are wrong the moment a match is re-processed, and two of them
+      visibly so: `coach/review.js::updateReviewProgress` read "3 of 2
+      checked", and `coach/coach.js::railCounts` subtracted answers from
+      clusters, went negative, and then had its `> 0` guard hide the badge
+      altogether — the count nobody could see because it was wrong in the
+      direction that looks like nothing. `updateMappingNote` and
+      `assets/report.js::reviewLabels` rounded out the five. All now count
+      against the events, the way `reviewScore` always has; the shared
+      `currentAnswers` in `assets/report.js` is where that filter lives, so
+      there is one of it rather than five.
+      **The latent half.** `cv/publish.py`'s `MAX_EVENTS = 1500` and
+      `firestore.rules`' `byEvent.size() <= 1500` are the same number reached
+      by two separate arguments about megabytes, in two languages, in two
+      files that never mention each other. Equal means the review has no
+      headroom at all: a full run fills the map, a second run's decisions
+      stack on top, and the save starts failing with a permission error naming
+      no field. Raising the rule is the fix, and it is a rules change, so it
+      is the user's call and it is not made here.
+      `tests/test_cap_pairs.py` — sixteen tests, twenty mutations, no holes
+      and no skips. It does not fix the missing headroom; it stops either end
+      of any of the three cross-language cap pairs moving alone.
+      Each half now names its counterpart in prose, in its own comment syntax,
+      and the rules file names the client back. The pairs are **discovered**
+      from those markers rather than listed in the test, which is what gives
+      the gate a real backward direction: a marker added at one end and not
+      the other is a finding, and so is a marker left behind after its
+      counterpart moved. There is no allowlist to rot.
+      Two verbs, because there are two relations. `Mirrors` means equal — a
+      guard whose whole job is to refuse exactly what the rule refuses.
+      `Fits under` means at most, for `MAX_EVENTS`, which bounds a different
+      document written by a different actor. One verb for both would have made
+      the gate fail the very change the finding above recommends, and a gate
+      that punishes the fix is worse than no gate.
+      Deliberately not all twenty numeric caps in `firestore.rules`. Seventeen
+      of them bound something no client counts, and covering them would need a
+      seventeen-entry allowlist saying "this one is fine" — the graveyard
+      `tests/test_call_graph.py` warns about.
+      Two vacuum guards in `tests/test_events_seam.py` moved as a direct
+      result of the counter fix: `railCounts` and `updateReviewProgress` now
+      read an event's `id` in the same breath as the events handle, so they
+      survive a scan with the cross-call hop switched off. Both pins were
+      restated as the set of figures **lost** rather than the set that
+      survives — the survivor list moves whenever a coach page reads a row
+      field locally, which is ordinary, while the lost list moves only when
+      the scan's reach really changes.
 - [x] **The name a module declares for itself and then never reads**
       (2026-08-29).
       `tests/test_unread_names.py` — thirteen tests, twenty-two mutations, no
