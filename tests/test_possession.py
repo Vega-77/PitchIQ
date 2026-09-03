@@ -364,7 +364,7 @@ class TestFrameHolder:
     def test_radius_scales_with_zoom(self):
         """A fixed pixel gap must mean different things at different zooms.
 
-        At 1.6 player-heights the radius is 96px for a 60px player and 320px
+        At 1.0 player-heights the radius is 60px for a 60px player and 200px
         for a 200px one, so 150px sits either side of the line — which is the
         whole point of scaling by player height instead of using a constant.
         """
@@ -390,6 +390,74 @@ class TestFrameHolder:
     def test_median_height_ignores_junk(self):
         boxes = [(1, (0, 0, 10, 100)), (2, (0, 0, 10, 110)), (3, (0, 0, 10, 0))]
         assert median_player_height(boxes) == pytest.approx(105, abs=1)
+
+
+class TestClearHolderMargin:
+    """Nearest-by-a-hair is a coin toss, and coin tosses follow the headcount."""
+
+    KITS = {1: TEAM_A, 2: TEAM_B}
+
+    def test_two_opponents_equally_close_is_nobody_s_ball(self):
+        boxes = boxes_at({1: (100, 400), 2: (120, 400)})
+
+        holder, team, _ = frame_holder(
+            (110, 400), boxes, self.KITS.get, margin_player_heights=0.5,
+        )
+
+        assert holder is None
+        assert team == UNKNOWN
+
+    def test_a_player_plainly_closer_still_gets_the_credit(self):
+        boxes = boxes_at({1: (100, 400), 2: (250, 400)})
+
+        holder, team, _ = frame_holder(
+            (105, 400), boxes, self.KITS.get, margin_player_heights=0.5,
+        )
+
+        assert holder == 1
+        assert team == TEAM_A
+
+    def test_teammates_crowding_the_ball_are_not_competition(self):
+        """Two of ours over the ball says nothing about who has possession."""
+        boxes = boxes_at({1: (100, 400), 2: (115, 400)})
+
+        holder, team, _ = frame_holder(
+            (105, 400), boxes, lambda t: TEAM_A, margin_player_heights=1.0,
+        )
+
+        assert holder == 1
+        assert team == TEAM_A
+
+    def test_the_margin_is_on_by_default(self):
+        """The old behaviour is still reachable, and is no longer the default."""
+        boxes = boxes_at({1: (100, 400), 2: (120, 400)})
+
+        holder, team, _ = frame_holder((110, 400), boxes, self.KITS.get)
+        assert holder is None
+        assert team == UNKNOWN
+
+        holder, team, _ = frame_holder(
+            (110, 400), boxes, self.KITS.get, margin_player_heights=0.0,
+        )
+        assert holder == 1
+        assert team == TEAM_A
+
+
+class TestLocalScale:
+    def test_a_figure_near_the_camera_widens_the_radius_for_everyone(self):
+        """One large figure elsewhere in frame should not decide what counts as
+        close to a ball at the far end of the pitch."""
+        boxes = boxes_at({1: (100, 400), 2: (160, 400)}, height=60)
+        boxes += boxes_at({3: (2000, 900), 4: (2100, 900)}, height=600)
+        ball = (400, 400)
+
+        holder, _, _ = frame_holder(ball, boxes, lambda t: TEAM_A)
+        assert holder == 2, 'the frame median was set by the near-camera pair'
+
+        holder, _, _ = frame_holder(
+            ball, boxes, lambda t: TEAM_A, scale_players=3,
+        )
+        assert holder is None, '240px is far when the players there are 60px tall'
 
 
 class TestExcludingNonPlayers:

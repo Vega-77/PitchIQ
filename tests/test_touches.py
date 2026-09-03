@@ -411,7 +411,7 @@ class TestTurnSpeedFloor:
 
     def test_a_creeping_reversal_is_a_touch_when_no_floor_is_set(self):
         table = self._creeping_reversal()
-        assert len(segment_touches(table)) > 0
+        assert len(segment_touches(table, min_turn_speed_ph_s=0.0)) > 0
 
     def test_the_floor_rejects_it(self):
         table = self._creeping_reversal()
@@ -425,8 +425,8 @@ class TestTurnSpeedFloor:
         table = build(frames)
         assert segment_touches(table, min_turn_speed_ph_s=1.0).counts_by_track() == {7: 1}
 
-    def test_the_default_leaves_behaviour_unchanged(self):
+    def test_the_floor_is_on_by_default(self):
+        """The old behaviour is still reachable, and is no longer the default."""
         table = self._creeping_reversal()
-        assert len(segment_touches(table)) == len(
-            segment_touches(table, min_turn_speed_ph_s=0.0)
-        )
+        assert len(segment_touches(table)) == 0
+        assert len(segment_touches(table, min_turn_speed_ph_s=0.0)) > 0

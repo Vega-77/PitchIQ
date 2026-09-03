@@ -112,7 +112,16 @@ DUEL_DISTANCE_PH = 1.5
 # hand's breadth apart from being written up as a completed pass, and under a
 # noisy ball that is most of what gets written. Zero keeps the old behaviour of
 # accepting any pair.
-MIN_PASS_LENGTH_PH = 0.0
+#
+# One player height — call it a body's length of ground — takes the checked
+# minute from 65 passes to 40 with all four confirmed passes still inside 0.6s.
+#
+# Two was tried and rejected for the same reason four was rejected on the turn
+# floor: it reads as a clean cut to 29, but two of the four confirmed passes
+# lose their real match and keep only a neighbour one to three seconds away. A
+# ball moving three metres between touches is a pass in tight play, and cutting
+# at two heights throws those away.
+MIN_PASS_LENGTH_PH = 1.0
 
 # An opponent within this many player heights of the player on the ball counts
 # as pressure.
@@ -560,13 +569,6 @@ def _between(
     )
 
     length_ph = _pixel_distance_ph(current, following)
-    if length_ph < min_pass_length_ph:
-        # The ball did not go anywhere, so nobody passed it. Two touch
-        # detections a stride apart are one player being seen twice far more
-        # often than they are a real exchange, and the pair is dropped whole:
-        # without a pass there is nothing for the defensive action to be a
-        # response to either.
-        return events
 
     length_m = None
     if current.ball_m and following.ball_m:
@@ -580,6 +582,27 @@ def _between(
         outcome = INCOMPLETE
     else:
         outcome = UNKNOWN_OUTCOME
+
+    if length_ph < min_pass_length_ph:
+        # The ball did not go anywhere, so nobody passed it: two touch
+        # detections a stride apart are one player seen twice far more often
+        # than they are a real exchange.
+        #
+        # The change of hands can still be real. That noise mode needs one
+        # player to arrive as two tracks, which puts both detections on the same
+        # shirt, so a pair that crosses kits is a contest rather than an
+        # artefact — and a close-range contest is exactly what a tackle and a
+        # duel *are*. Dropping the pair whole, which is what this did while the
+        # floor was off by default and nothing exercised it, would now make both
+        # categories impossible to report at all: a tackle is defined by the
+        # ball staying put and a duel by it moving less than one and a half
+        # player heights, and the floor stands at one.
+        if outcome == INCOMPLETE:
+            return [_defensive_action(
+                current, following, touches, table, pitch, index, ordered,
+                confidence,
+            )]
+        return events
 
     events.append(Pass(
         event_id=_event_id(current, PASS),

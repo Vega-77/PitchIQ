@@ -34,8 +34,18 @@ from .teams import TEAM_A, TEAM_B, UNKNOWN
 DEAD = 'dead'
 
 # How close a player must be to count as having the ball, in multiples of the
-# median player height in that frame. Roughly a stride and a half.
-POSSESSION_RADIUS_PLAYER_HEIGHTS = 1.6
+# median player height in that frame. About a player's own height on the ground,
+# which is roughly the distance a player can actually reach the ball from.
+#
+# This was 1.6 — a stride and a half — chosen as a reasonable-sounding number
+# and never checked. On one minute of tactical footage checked frame by frame by
+# somebody who watched it, 1.6 credited the dark shirts 61% of possession where
+# the human counted 34%, and it stayed near 61% no matter what else was changed.
+# At 1.0 the split lands between 39% and 47% across every other setting tried.
+# The mechanism is simple enough: at a stride and a half a player who is merely
+# in the same part of the pitch as the ball can win the nearest-player test, and
+# the team with more bodies in shot wins more of those.
+POSSESSION_RADIUS_PLAYER_HEIGHTS = 1.0
 
 # A team must hold the ball this long before the change is believed. Below this
 # it is a deflection or a contested moment, not a turnover.
@@ -95,6 +105,39 @@ class PossessionSummary:
         )
 
 
+# How much nearer the closest player must be than the closest opponent before
+# the frame is credited to a team, in player heights. Zero credits whoever is
+# nearest by any margin at all, which is what this module used to do and what
+# made the possession split a headcount: the ball centroid wanders a couple of
+# pixels a frame, so inside a crowd the nearest player is close to a coin toss
+# among everyone standing there, and coin tosses resolve in proportion to how
+# many of each shirt happen to be in shot. Measured on one minute of tactical
+# footage, possession tracked each team's share of on-screen player-time to
+# within three points while the human watching it counted almost the reverse.
+# A margin says: unless one team is plainly closer to the ball than the other,
+# nobody gets the credit and the frame is contested.
+# Half a player height, measured on the same minute: it takes the turnover count
+# from 13 to 5 against a human count of 3, and costs live time rather than
+# accuracy — the frames it drops are the ones nobody could have called.
+HOLDER_MARGIN_PLAYER_HEIGHTS = 0.5
+
+# How many of the nearest players to measure the scale from. Zero uses the
+# frame median, which is the wrong ruler wherever the ball actually is: on a
+# wide shot a figure near the camera is several times the pixel height of one
+# at the far touchline, so a frame-median radius is far too generous at the top
+# of the picture and far too mean at the bottom. The players closest to the
+# ball stand at roughly the ball's own depth, so their height is the local
+# scale. cv/touches.py has measured its radii this way for a while; possession
+# never did.
+#
+# Left off, against expectation. Tried at 3 and 5 on the checked minute and it
+# made the split worse both times (dark 66-73% against a human 34%), because the
+# frame median here is dragged *down* by distant figures rather than up by near
+# ones, so measuring locally widens the radius instead of tightening it. Kept as
+# a switch because that balance is a property of this camera position, not a law.
+SCALE_PLAYERS = 0
+
+
 def median_player_height(boxes) -> float:
     """Typical player height in this frame — the pixel-space scale reference."""
     heights = [float(b[3]) - float(b[1]) for _, b in boxes]
@@ -108,6 +151,8 @@ def frame_holder(
     team_of,
     radius_player_heights: float = POSSESSION_RADIUS_PLAYER_HEIGHTS,
     is_player=None,
+    margin_player_heights: float = HOLDER_MARGIN_PLAYER_HEIGHTS,
+    scale_players: int = SCALE_PLAYERS,
 ) -> FrameState | tuple:
     """Nearest player to the ball in one frame, if anyone is close enough.
 
@@ -119,6 +164,12 @@ def frame_holder(
     nearest-player test outright; a row of substitutes on the touchline, small
     in a wide frame, drags the median player height down and quietly shrinks the
     possession radius for everyone.
+
+    `margin_player_heights` is how far clear of the nearest opponent the nearest
+    player has to be before the frame counts for anybody; `scale_players` is how
+    many of the nearest players to take the scale from. The margin defaults on,
+    at half a player height; the local scale defaults off. Passing 0.0 and 0
+    restores what this function did before either existed.
     """
     if ball_xy is None or not boxes:
         return None, UNKNOWN, None
@@ -128,30 +179,54 @@ def frame_holder(
         if not boxes:
             return None, UNKNOWN, None
 
-    scale = median_player_height(boxes)
+    def ground_distance(entry) -> float:
+        # Ground point: the ball is on the floor, so compare against the feet
+        # rather than the middle of the body.
+        _, (x1, _, x2, y2) = entry
+        return math.dist(ball_xy, ((float(x1) + float(x2)) / 2, float(y2)))
+
+    ordered = sorted(boxes, key=ground_distance)
+
+    if scale_players > 0 and len(ordered) > scale_players:
+        scale = median_player_height(ordered[:scale_players])
+    else:
+        scale = median_player_height(ordered)
     if scale <= 0:
         return None, UNKNOWN, None
 
     radius = scale * radius_player_heights
 
-    best_id, best_distance = None, float('inf')
-    for track_id, (x1, _, x2, y2) in boxes:
-        # Ground point: the ball is on the floor, so compare against the feet
-        # rather than the middle of the body.
-        ground = ((float(x1) + float(x2)) / 2, float(y2))
-        distance = math.dist(ball_xy, ground)
-        if distance < best_distance:
-            best_distance, best_id = distance, track_id
+    best_id = ordered[0][0]
+    best_distance = ground_distance(ordered[0])
 
-    if best_id is None or best_distance > radius:
-        return None, UNKNOWN, best_distance if best_id is not None else None
+    if best_distance > radius:
+        return None, UNKNOWN, best_distance
 
-    return best_id, team_of(best_id), best_distance
+    team = team_of(best_id)
+
+    if margin_player_heights > 0 and team != UNKNOWN:
+        # The nearest player wearing the other kit. Teammates crowding the ball
+        # say nothing about which team has it, so they are not competition here.
+        rival = next(
+            (
+                ground_distance(entry) for entry in ordered[1:]
+                if team_of(entry[0]) not in (team, UNKNOWN)
+            ),
+            None,
+        )
+        if rival is not None:
+            if rival - best_distance < scale * margin_player_heights:
+                return None, UNKNOWN, best_distance
+
+    return best_id, team, best_distance
 
 
 def build_states(
     frames, ball_by_frame, boxes_by_frame, team_of, timestamps, is_player=None,
     ball_m_by_frame=None,
+    radius_player_heights: float = POSSESSION_RADIUS_PLAYER_HEIGHTS,
+    margin_player_heights: float = HOLDER_MARGIN_PLAYER_HEIGHTS,
+    scale_players: int = SCALE_PLAYERS,
 ) -> list[FrameState]:
     """Per-frame holder for a run of frames.
 
@@ -166,7 +241,10 @@ def build_states(
             ball_by_frame.get(frame_index),
             boxes_by_frame.get(frame_index, []),
             team_of,
+            radius_player_heights=radius_player_heights,
             is_player=is_player,
+            margin_player_heights=margin_player_heights,
+            scale_players=scale_players,
         )
         states.append(FrameState(
             timestamp_s=timestamps.get(frame_index, 0.0),

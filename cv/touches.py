@@ -91,7 +91,39 @@ ACCEL_THRESHOLD_PH_S = 3.0
 # nearly still the apparent turn runs to 24 degrees at the median and 136 at
 # the ninetieth percentile, while a ball genuinely in flight turns 5 degrees.
 # Zero keeps the old behaviour of trusting every turn.
-MIN_TURN_SPEED_PH_S = 0.0
+#
+# One and a half player heights a second is about three pixels a frame on this
+# footage, which sits just above the median frame-to-frame wander of two and a
+# quarter. It takes the minute from 92 touches to 61 while every one of the four
+# passes a human confirmed still lands within 0.6s of an event. Four is also the
+# ceiling of what has been checked, so read that as 'nothing known was broken',
+# not as accuracy.
+#
+# Four was tried and rejected. It removes only three more touches and it loses
+# the pass at 6242 outright: the nearest surviving event slides from 0.1s away
+# to 1.8s, which is a different event scraping in under the tolerance. Counting
+# how many true passes survive a two-second window hides that; measuring how far
+# away the survivor is does not.
+MIN_TURN_SPEED_PH_S = 1.5
+
+# How fast the ball must be going on at least one side of the moment before a
+# change of *speed* is believed. The turn floor above only silences the angle,
+# and the two halves of the motion test share a noise source: a ball drifting at
+# a pixel a frame has an apparent speed that jitters by most of itself, so the
+# acceleration term reads a touch every time the centroid twitches. Taken as the
+# faster of the two sides rather than the slower, because a ball going from
+# still to struck is a real touch and the whole point of the acceleration term.
+# Zero keeps the old behaviour of trusting every change of speed.
+#
+# Left off, having been measured. The expectation was that most of what survives
+# the turn floor above fires on this term instead, and it does not: at 1.5 and 3
+# player heights a second the minute loses two or three touches out of ninety,
+# and the confirmed passes do not move at all. Five does cut twelve, but five
+# player heights a second is a struck ball, and a floor that high would throw
+# away every trap and every short exchange in tight play to buy a number that no
+# check here can confirm is the right one. The gate stays, at zero, because the
+# reasoning behind it is still sound and a different camera may need it.
+MIN_STRIKE_SPEED_PH_S = 0.0
 
 # Frames either side used to estimate the ball's velocity before and after.
 VELOCITY_WINDOW = 4
@@ -345,6 +377,7 @@ def _velocities(times, points, scales, window: int):
 def _motion_change(
     v_before, v_after, turn_threshold_deg: float, accel_threshold: float,
     min_turn_speed: float = 0.0,
+    min_strike_speed: float = 0.0,
 ):
     """How much the ball's motion changed, as (score in 0..1, turn in degrees)."""
     speed_before = float(np.hypot(*v_before))
@@ -366,6 +399,9 @@ def _motion_change(
         min(1.0, abs(speed_after - speed_before) / accel_threshold)
         if accel_threshold else 0.0
     )
+
+    if max(speed_before, speed_after) < min_strike_speed:
+        gain_score = 0.0                 # nothing here was going anywhere
     return max(turn_score, gain_score), turn_deg, speed_before, speed_after
 
 
@@ -378,6 +414,7 @@ def segment_touches(
     turn_threshold_deg: float = TURN_THRESHOLD_DEG,
     accel_threshold_ph_s: float = ACCEL_THRESHOLD_PH_S,
     min_turn_speed_ph_s: float = MIN_TURN_SPEED_PH_S,
+    min_strike_speed_ph_s: float = MIN_STRIKE_SPEED_PH_S,
     velocity_window: int = VELOCITY_WINDOW,
     min_separation_s: float = MIN_SEPARATION_S,
     max_gap_frames: int = MAX_GAP_FRAMES,
@@ -469,7 +506,7 @@ def segment_touches(
 
         motion, turn_deg, speed_before, speed_after = _motion_change(
             v_before[i], v_after[i], turn_threshold_deg, accel_threshold_ph_s,
-            min_turn_speed_ph_s,
+            min_turn_speed_ph_s, min_strike_speed_ph_s,
         )
 
         # The conjunction. Being close is not enough on its own, and neither is
@@ -493,6 +530,7 @@ def segment_touches(
         turn_threshold_deg=turn_threshold_deg,
         accel_threshold_ph_s=accel_threshold_ph_s,
         min_turn_speed_ph_s=min_turn_speed_ph_s,
+        min_strike_speed_ph_s=min_strike_speed_ph_s,
     ))
 
     sequence.touches = _suppress(candidates, min_separation_s)
@@ -519,6 +557,7 @@ def _gap_touches(
     records, observed, nearest_ph, holders, v_before, v_after, *,
     build_touch, max_gap_frames, touch_radius_ph, min_motion,
     turn_threshold_deg, accel_threshold_ph_s, min_turn_speed_ph_s=0.0,
+    min_strike_speed_ph_s=0.0,
 ):
     """At most one touch per interpolated span, and only if the ball changed.
 
@@ -550,6 +589,7 @@ def _gap_touches(
         motion, turn_deg, speed_before, speed_after = _motion_change(
             v_before[start - 1], v_after[end + 1],
             turn_threshold_deg, accel_threshold_ph_s, min_turn_speed_ph_s,
+            min_strike_speed_ph_s,
         )
         if motion < min_motion:
             continue                     # the ball carried on doing what it was doing

@@ -60,7 +60,15 @@ PX_PER_M = 20.0
 SCALE = 36.0
 
 
-def touch(t, track, team, xy_px=(0.0, 0.0), m=None, confidence=1.0, speed_after=0.0):
+def touch(t, track, team, xy_px=None, m=None, confidence=1.0, speed_after=0.0):
+    if xy_px is None:
+        # Touches with no stated position are laid out along the pitch at a
+        # steady 120px a second — three and a bit player heights, so a pair a
+        # second apart is a body-length pass. Parking every unpositioned touch
+        # on the same point instead would make each of these fixtures a sequence
+        # of balls that never moved, which cv/events.py is right to refuse to
+        # call passes.
+        xy_px = (100.0 + t * 120.0, MID_Y * PX_PER_M)
     return Touch(
         frame_index=int(t * FPS),
         timestamp_s=t,
@@ -712,18 +720,29 @@ class TestMinimumPassLength:
         assert len(log.passes()) == 1
         assert log.passes()[0].outcome == COMPLETED
 
-    def test_the_floor_takes_the_defensive_action_with_it(self):
-        """No pass means nothing for an interception to have intercepted."""
+    def test_the_floor_drops_the_pass_but_keeps_the_turnover(self):
+        """The ball went nowhere, but it did change shirts.
+
+        The floor exists to catch one player arriving as two tracks, and that
+        mistake lands both detections on the same shirt. A pair that crosses
+        kits at close range is a contest — which is what a tackle is.
+        """
         pair = [
             touch(0.0, 1, TEAM_A, xy_px=(0.0, 0.0)),
             touch(0.5, 9, TEAM_B, xy_px=(10.0, 0.0)),
         ]
         log = derive(pair, min_pass_length_ph=1.0)
         assert log.passes() == []
-        assert log.by_type(INTERCEPTION) == []
+        assert log.by_type(TACKLE, INTERCEPTION, RECOVERY, DUEL)
 
-    def test_the_default_keeps_the_short_pair(self):
-        assert len(derive(self._pair(10.0)).passes()) == 1
+    def test_a_short_pair_in_one_kit_is_dropped_whole(self):
+        """Same shirt, no distance: the pair is the noise the floor is for."""
+        log = derive(self._pair(10.0), min_pass_length_ph=1.0)
+        assert log.events == []
+
+    def test_the_floor_is_on_by_default(self):
+        assert derive(self._pair(10.0)).passes() == []
+        assert len(derive(self._pair(10.0), min_pass_length_ph=0.0).passes()) == 1
 
     def test_length_ph_is_still_reported(self):
         log = derive(self._pair(360.0), min_pass_length_ph=1.0)
