@@ -10,23 +10,23 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=120';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=121';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../assets/db.js?v=120';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=120';
+} from '../assets/db.js?v=121';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=121';
 import {
     possessionIsInPlay, cvReads, xgTrust, groupStats, clockFromMatch,
     taggedTeamRows, taggedCount,
     SHARE, COUNT, RATE,
-} from '../assets/report.js?v=120';
-import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=120';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=120';
+} from '../assets/report.js?v=121';
+import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=121';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=121';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
     tally, groupHead,
-} from '../assets/ui.js?v=120';
+} from '../assets/ui.js?v=121';
 
 const VIEWS = ['view-error', 'view-report'];
 
@@ -162,12 +162,19 @@ function decision(tone, title, detail, player) {
     return row;
 }
 
-/** When a player's card was shown, as a match minute. */
+/**
+ * When a player's card was shown, as a match minute.
+ *
+ * Floor plus one, the way a match clock is read aloud: the first sixty
+ * seconds are minute one. Flooring alone printed "Booked on 0" for a
+ * card shown in the opening minute, which reads as before kickoff. The
+ * timeline further down still shows that same card as mm:ss.
+ */
 function cardMinute(playerId) {
     const card = state.log.find(
         (e) => e.kind === 'event' && e.type === 'card' && e.playerId === playerId
     );
-    return card ? `${Math.floor(card.matchClockS / 60)}′` : null;
+    return card ? `${Math.floor(card.matchClockS / 60) + 1}′` : null;
 }
 
 // ---------------------------------------------------------------- tallies

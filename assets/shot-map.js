@@ -31,9 +31,8 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, pitchMarkings,
-} from './pitch-backdrop.js?v=120';
-
-const NS = 'http://www.w3.org/2000/svg';
+} from './pitch-backdrop.js?v=121';
+import { svgEl as el } from './svg.js?v=121';
 
 // Only the attacking half is drawn. A shot from inside your own half is worth
 // about 0.005 xG and happens twice a season; giving it half the picture costs
@@ -50,12 +49,6 @@ const MAX_R = 3.4;
 // happened, here" and nothing more, which is exactly what a loose calibration
 // supports. Sizing them anyway would draw differences finer than the error bar.
 const FLAT_R = 1.8;
-
-function el(name, attrs) {
-    const node = document.createElementNS(NS, name);
-    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
-    return node;
-}
 
 /**
  * Radius in metres for a chance worth `xg`.
@@ -207,7 +200,7 @@ export function shotMapSvg(marks, { onPick = null, xgTrust = 'shot' } = {}) {
         });
 
         const label = markLabel(mark, xgTrust);
-        dot.appendChild(el('title', {})).textContent = label;
+        dot.appendChild(el('title')).textContent = label;
 
         if (onPick) {
             dot.classList.add('is-pickable');

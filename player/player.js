@@ -9,32 +9,32 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=120';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=121';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=120';
-import { CARD_COLOURS } from '../assets/events.js?v=120';
-import { mountRail } from '../assets/rail.js?v=120';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=120';
-import { renderHeatmap } from '../assets/heatmap.js?v=120';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=120';
+} from '../assets/db.js?v=121';
+import { CARD_COLOURS } from '../assets/events.js?v=121';
+import { mountRail } from '../assets/rail.js?v=121';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=121';
+import { renderHeatmap } from '../assets/heatmap.js?v=121';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=121';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
     playerWobbleNote,
     minutesNote, seasonGroups, matchLine,
-} from '../assets/report.js?v=120';
+} from '../assets/report.js?v=121';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=120';
-import { renderForms } from '../assets/form-chart.js?v=120';
+} from '../assets/season.js?v=121';
+import { renderForms } from '../assets/form-chart.js?v=121';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=120';
-import { renderMatchVideo } from '../assets/match-video.js?v=120';
+} from '../assets/sample-report.js?v=121';
+import { renderMatchVideo } from '../assets/match-video.js?v=121';
 import {
-    byId, setText, toast, showOnly, clockText, statCard, figure, cardChips,
-    plural, minutesChart, tally, coverageStrip,
-} from '../assets/ui.js?v=120';
+    byId, setText, toast, showOnly, clockText, statCard, fillStatGroup,
+    figure, cardChips, plural, minutesChart, tally, coverageStrip,
+} from '../assets/ui.js?v=121';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -100,28 +100,12 @@ function renderSeason(reports) {
     const groups = new Map(
         seasonGroups(reports, totals, { second: true }).map((g) => [g.id, g]),
     );
-    fillGroup('season-totals-block', 'season-stats', groups.get('tagged'));
-    fillGroup('season-ball-block', 'ball-stats', groups.get('ball'), 'ball-note');
-    fillGroup('season-running-block', 'running-stats', groups.get('running'), 'running-note');
-    fillGroup('season-defending-block', 'defending-stats', groups.get('defending'), 'defending-note');
+    fillStatGroup('season-totals-block', 'season-stats', groups.get('tagged'));
+    fillStatGroup('season-ball-block', 'ball-stats', groups.get('ball'), 'ball-note');
+    fillStatGroup('season-running-block', 'running-stats', groups.get('running'), 'running-note');
+    fillStatGroup('season-defending-block', 'defending-stats', groups.get('defending'), 'defending-note');
 
     renderForm(reports);
-}
-
-/** One group into its block, and the block off when the group is not there. */
-function fillGroup(blockId, gridId, group, noteId = null) {
-    const block = byId(blockId);
-    const grid = byId(gridId);
-    if (!block || !grid) return;
-
-    grid.innerHTML = '';
-    block.classList.toggle('hidden', !group);
-    if (!group) return;
-
-    for (const row of group.rows) {
-        grid.append(statCard(row.value, row.label, row.tone || '', row.confidence));
-    }
-    if (noteId) setText(noteId, group.note);
 }
 
 // ---------------------------------------------------------------- the season

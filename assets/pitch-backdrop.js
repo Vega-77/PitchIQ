@@ -11,7 +11,7 @@
 // every shot in the wrong place under a diagram that still looked right.
 // tests/test_pitch_dimensions.py holds them to cv/pitch.py.
 
-const NS = 'http://www.w3.org/2000/svg';
+import { svgEl as el } from './svg.js?v=121';
 
 // Metres, matching the defaults in cv/pitch.py.
 const L = 105;
@@ -21,12 +21,6 @@ const PEN_W = 40.32;
 const SIX_LEN = 5.5;
 const SIX_W = 18.32;
 const CIRCLE_R = 9.15;
-
-function el(name, attrs) {
-    const node = document.createElementNS(NS, name);
-    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
-    return node;
-}
 
 // The pitch, in metres, so anything drawn on top can be positioned in the same
 // units cv/ measures in and nothing has to convert.

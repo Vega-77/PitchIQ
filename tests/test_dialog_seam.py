@@ -345,9 +345,11 @@ class TestTheScanCouldBeLying:
         assert not TOUCH.search("classList.add('opened')")
 
     def test_it_reads_every_script_the_site_ships(self):
-        # 32 today. The number is here so that a glob which quietly matches
+        # 33 today. The number is here so that a glob which quietly matches
         # nothing -- a renamed directory, a move to subfolders -- fails
         # loudly instead of proving the seam intact across no files at all.
+        # It moves when a file is genuinely added: assets/svg.js was the
+        # thirty-third, split out of six copies of one SVG element factory.
         seen = js()
-        assert len(seen) == 32
+        assert len(seen) == 33
         assert IMPL in seen and 'live-tagging/tagging.js' in seen

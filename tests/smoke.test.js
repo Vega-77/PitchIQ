@@ -1147,7 +1147,12 @@ test('the half-time page reads the half', async () => {
     // and who has run the whole half.
     const decisions = el('decisions').textContent;
     assert.match(decisions, /Rae Nkemelu is on a yellow/);
-    assert.match(decisions, /25′/, 'the card minute is missing');
+    // The fixture card sits at matchClockS 1500 -- 25:00 exactly, the first
+    // instant of the twenty-sixth minute. A match clock is read aloud
+    // one-indexed, which is the whole reason halftime.js::cardMinute floors
+    // and adds one: without it a card in the opening minute printed
+    // "Booked on 0′", which reads as before kickoff.
+    assert.match(decisions, /26′/, 'the card minute is missing');
     assert.match(el('minutes').textContent, /Sam Okonjo/);
 });
 

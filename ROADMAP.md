@@ -4810,6 +4810,58 @@ than the workaround, which matters given the data class.
       half is done and demonstrable (see above); what remains is asking
 
 ## 15. Frontend / Dashboard
+- [x] **Seven copies of two helpers, and the scan that hid them behind
+      sixty-seven others** (2026-09-02).
+      A four-line SVG element factory existed six times over — `svgEl` in
+      `assets/ui.js`, and a private `el` in form-chart.js, heatmap.js,
+      pass-map.js, pitch-backdrop.js and shot-map.js. A stat-group filler
+      existed twice, as `coach/coach.js::fillPlayerGroup` and
+      `player/player.js::fillGroup`. Byte-identical bodies, every one of
+      them.
+      Identical is not the harm; drift is. Three of the six factories took
+      `attrs` with no default, so `el('title')` threw on them and three call
+      sites had to pass `{}` to a helper whose entire job was to save them
+      that typing. The other half is already recorded in
+      `assets/form-chart.js`: the same copy-paste spread a broken
+      `node.append(el(...))` chain through every chart in the repo, and
+      exactly one copy kept the bug. Nothing was comparing them, so nothing
+      said so.
+      They are now `assets/svg.js::svgEl` (imported by all six drawing
+      modules) and `assets/ui.js::fillStatGroup` (the defaulted
+      `noteId = null` signature, since one of the two copies had it and the
+      other did not). `localDate` had been written twice as well, and is
+      now only in `assets/ui.js`.
+      **The scan that was lying.** The first duplicate scan reported a
+      thirty-nine-member group whose shared body was the literal `{}`, and
+      no real duplicates at all. It took the first `{` after the function
+      name as the body, which for `svgEl(name, attrs = {})` is the
+      *parameter list's* brace — and sixty-seven of the five hundred and
+      sixty-five top-level functions in the site JS declare a brace in
+      their parameter list. So it collapsed sixty-seven unrelated functions
+      onto one key and concealed the `fillPlayerGroup`/`fillGroup` pair
+      behind them. Paren-matching to the end of the parameter list first
+      found the real pair immediately. A count that looks like a finding is
+      not the same as a finding, and the broken version looked like a much
+      bigger one.
+      **The gate.** `tests/test_duplicate_bodies.py`, fifteen tests, no
+      allowlist — on the argument `tests/test_data_seam.py` makes: the moment
+      to pin a seam is when both directions are already at zero, and an
+      allowlist here would be a list of duplicates somebody had decided to
+      keep. Five of the fifteen hold the extractor itself honest, including
+      one that fails on exactly the naive version above, and three pin
+      where the shared copies now live (`createElementNS` once, every
+      `svgEl` user importing it, `getFullYear` once). Fourteen mutations,
+      zero holes, zero skips — three of them changes the gate must *permit*
+      (a new unique function; two functions differing only inside a string,
+      which is why the body is sliced out of the source and not out of
+      `blank()`'s output; two identical arrow consts, which are out of scope).
+      **One real bug fell out of reading the copies.**
+      `halftime/halftime.js::cardMinute` floored the match clock, so a card
+      in the opening minute printed "Booked on 0′" — which reads as
+      before kickoff. Floor plus one, the way a clock is read aloud. The
+      smoke test had pinned the old reading and now pins the new one, with
+      the fixture card sitting at 25:00 exactly, the first instant of the
+      twenty-sixth minute.
 - [x] **A number counted off the answers, and a number written twice**
       (2026-08-29).
       Two problems with one cause, kept apart here because only one of them is

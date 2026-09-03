@@ -1,13 +1,15 @@
 import {
     signIn, signOut, onUser, resolveAccess, pendingInvites, claimInvite,
     configWarning,
-} from './auth.js?v=120';
-import { mountPitchBackdrop } from './pitch-backdrop.js?v=120';
-import { listMatches, listPlayers, seasonSummary } from './db.js?v=120';
+} from './auth.js?v=121';
+import { mountPitchBackdrop } from './pitch-backdrop.js?v=121';
+import { listMatches, listPlayers, seasonSummary } from './db.js?v=121';
 import {
     formGuide, nextFixture, whenLabel, seasonJobs,
-} from './report.js?v=120';
-import { byId, setText, toast, showOnly, figure, signed, plural } from './ui.js?v=120';
+} from './report.js?v=121';
+import {
+    byId, setText, toast, showOnly, figure, signed, plural, localDate,
+} from './ui.js?v=121';
 
 const VIEWS = ['view-marketing', 'view-nowhere', 'view-routes'];
 
@@ -24,13 +26,6 @@ function attachSignIn(button) {
             toast(message, true);
         });
     });
-}
-
-/** Today where this browser is, as the YYYY-MM-DD a match document holds. */
-function localDate() {
-    const now = new Date();
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 /** A team, with enough of its season on it to be worth reading. */

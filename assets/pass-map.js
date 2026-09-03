@@ -31,10 +31,9 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, PITCH_VIEWBOX, pitchMarkings,
-} from './pitch-backdrop.js?v=120';
-import { foldEdges } from './passing.js?v=120';
-
-const NS = 'http://www.w3.org/2000/svg';
+} from './pitch-backdrop.js?v=121';
+import { foldEdges } from './passing.js?v=121';
+import { svgEl as el } from './svg.js?v=121';
 
 // A pair has to have exchanged this many passes before it is a line. See above.
 export const MIN_EDGE = 2;
@@ -43,12 +42,6 @@ const MIN_R = 1.6;
 const MAX_R = 4.2;
 const MIN_W = 0.35;
 const MAX_W = 2.2;
-
-function el(name, attrs) {
-    const node = document.createElementNS(NS, name);
-    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
-    return node;
-}
 
 /**
  * Node radius from passes played, scaled so **area** carries the count.
@@ -127,7 +120,7 @@ export function passMapSvg(network, { nameOf = (id) => id } = {}) {
         // Both directions, because "14 passes" between two players says nothing
         // about whether one of them was feeding the other or they were sharing
         // it, and that difference is most of what a coach reads this for.
-        line.appendChild(el('title', {})).textContent =
+        line.appendChild(el('title')).textContent =
             `${nameOf(edge.a)} and ${nameOf(edge.b)} — ${edge.count} passes, `
             + `${edge.aToB} one way and ${edge.bToA} back`;
         svg.appendChild(line);
@@ -143,7 +136,7 @@ export function passMapSvg(network, { nameOf = (id) => id } = {}) {
         group.appendChild(dot);
 
         const name = nameOf(node.playerId);
-        group.appendChild(el('title', {})).textContent =
+        group.appendChild(el('title')).textContent =
             `${name} — ${node.passes} passes, ${node.completed} completed, `
             + `${node.received} received`;
 

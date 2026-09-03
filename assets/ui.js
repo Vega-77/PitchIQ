@@ -5,7 +5,8 @@
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
-import { comparePair, verdict, COUNT, knownMinutes } from './report.js?v=120';
+import { comparePair, verdict, COUNT, knownMinutes } from './report.js?v=121';
+import { svgEl } from './svg.js?v=121';
 
 export const byId = (id) => document.getElementById(id);
 
@@ -58,6 +59,19 @@ export function clockText(seconds) {
     const mm = String(Math.floor(total / 60)).padStart(2, '0');
     const ss = String(total % 60).padStart(2, '0');
     return `${mm}:${ss}`;
+}
+
+/**
+ * Today where this browser is, as the YYYY-MM-DD a match document holds.
+ *
+ * Local rather than UTC, and both callers lean on that: a coach in New
+ * Jersey opening this at eight in the evening should not be told a match
+ * tomorrow is already late.
+ */
+export function localDate() {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 /** Goal difference and the like, where the sign is the point. */
@@ -175,6 +189,35 @@ export function statGroup({ title, note = '', rows = [] }) {
     }
 
     return section;
+}
+
+/**
+ * One prepared group into a block the page already ships, and the block
+ * off when the group is not there.
+ *
+ * The counterpart to `statGroup`, which builds a section out of nothing.
+ * This one fills markup that is already in the HTML, which is how the
+ * coach's view of a player and the player's own season page show the same
+ * four blocks without sharing a template.
+ *
+ * Both pages had written it identically, down to the `row.tone` fallback,
+ * and only one of them had given `noteId` a default — the same
+ * drift recorded in svg.js. tests/test_duplicate_bodies.py holds the
+ * count of repeated function bodies at zero.
+ */
+export function fillStatGroup(blockId, gridId, group, noteId = null) {
+    const block = byId(blockId);
+    const grid = byId(gridId);
+    if (!block || !grid) return;
+
+    grid.innerHTML = '';
+    block.classList.toggle('hidden', !group);
+    if (!group) return;
+
+    for (const row of group.rows) {
+        grid.append(statCard(row.value, row.label, row.tone || '', row.confidence));
+    }
+    if (noteId) setText(noteId, group.note);
 }
 
 /** Confidence levels, worst first, so a caller can compare them. */
@@ -441,14 +484,6 @@ export function cardChips(yellowCards = 0, redCards = 0, labels = {}) {
 }
 
 // ---------------------------------------------------------------- charts
-
-const SVG_NS = 'http://www.w3.org/2000/svg';
-
-function svgEl(name, attrs = {}) {
-    const node = document.createElementNS(SVG_NS, name);
-    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
-    return node;
-}
 
 /**
  * Minutes played per match, oldest on the left.

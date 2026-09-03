@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=120';
+} from '../assets/auth.js?v=121';
 import {
     createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../assets/db.js?v=120';
-import { nowIndex } from '../assets/timeline.js?v=120';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=120';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=120';
+} from '../assets/db.js?v=121';
+import { nowIndex } from '../assets/timeline.js?v=121';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=121';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=121';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=120';
+} from '../assets/sample-report.js?v=121';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=120';
-import { renderPassMap } from '../assets/pass-map.js?v=120';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=120';
+} from '../assets/passing.js?v=121';
+import { renderPassMap } from '../assets/pass-map.js?v=121';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=121';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=120';
-import { renderForms } from '../assets/form-chart.js?v=120';
+} from '../assets/season.js?v=121';
+import { renderForms } from '../assets/form-chart.js?v=121';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, hasVerdict, currentAnswers, xgTrust,
@@ -44,24 +44,24 @@ import {
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=120';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=120';
-import { mountRail } from '../assets/rail.js?v=120';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=120';
-import { videoKind } from '../assets/video.js?v=120';
+} from '../assets/report.js?v=121';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=121';
+import { mountRail } from '../assets/rail.js?v=121';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=121';
+import { videoKind } from '../assets/video.js?v=121';
 import {
-    byId, setText, toast, clockText, signed, plural,
-    statCard, statGroup, figure, cardChips, timelineRow, minutesChart,
-    stackBar, coverageStrip,
-} from '../assets/ui.js?v=120';
+    byId, setText, toast, clockText, signed, plural, localDate,
+    statCard, statGroup, fillStatGroup, figure, cardChips, timelineRow,
+    minutesChart, stackBar, coverageStrip,
+} from '../assets/ui.js?v=121';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=120';
+} from './shell.js?v=121';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=120';
+} from './review.js?v=121';
 
 // ---------------------------------------------------------------- team setup
 
@@ -234,8 +234,7 @@ function renderJobs() {
     const jobs = seasonJobs({
         matches: state.matches,
         players: state.players,
-        // The local date, not UTC: a coach in New Jersey opening this at eight
-        // in the evening should not be told a match tomorrow is already late.
+        // Local, not UTC — see localDate.
         today: localDate(),
     });
 
@@ -270,13 +269,6 @@ function renderJobs() {
         row.append(badge, body, go);
         list.append(row);
     }
-}
-
-/** Today where this browser is, as the YYYY-MM-DD a match document holds. */
-function localDate() {
-    const now = new Date();
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 /**
@@ -782,10 +774,10 @@ async function openPlayer(player) {
         const groups = new Map(
             seasonGroups(reports, totals).map((group) => [group.id, group]),
         );
-        fillPlayerGroup('pv-tagged-block', 'pv-stats', groups.get('tagged'), 'pv-tagged-note');
-        fillPlayerGroup('pv-ball-block', 'pv-ball-stats', groups.get('ball'), 'pv-ball-note');
-        fillPlayerGroup('pv-running-block', 'pv-running-stats', groups.get('running'), 'pv-running-note');
-        fillPlayerGroup('pv-defending-block', 'pv-defending-stats', groups.get('defending'), 'pv-defending-note');
+        fillStatGroup('pv-tagged-block', 'pv-stats', groups.get('tagged'), 'pv-tagged-note');
+        fillStatGroup('pv-ball-block', 'pv-ball-stats', groups.get('ball'), 'pv-ball-note');
+        fillStatGroup('pv-running-block', 'pv-running-stats', groups.get('running'), 'pv-running-note');
+        fillStatGroup('pv-defending-block', 'pv-defending-stats', groups.get('defending'), 'pv-defending-note');
 
         renderPlayerChart(reports);
         renderPlayerForm(reports);
@@ -801,22 +793,6 @@ async function openPlayer(player) {
         toast(err.message || 'Could not load that player.', true);
         show('view-main');
     }
-}
-
-/** One group into its block, and the block off when the group is not there. */
-function fillPlayerGroup(blockId, gridId, group, noteId) {
-    const block = byId(blockId);
-    const grid = byId(gridId);
-    if (!block || !grid) return;
-
-    grid.innerHTML = '';
-    block.classList.toggle('hidden', !group);
-    if (!group) return;
-
-    for (const row of group.rows) {
-        grid.append(statCard(row.value, row.label, row.tone || '', row.confidence));
-    }
-    if (noteId) setText(noteId, group.note);
 }
 
 /**

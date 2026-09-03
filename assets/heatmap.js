@@ -32,20 +32,13 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, PITCH_VIEWBOX, pitchMarkings,
-} from './pitch-backdrop.js?v=120';
-
-const NS = 'http://www.w3.org/2000/svg';
+} from './pitch-backdrop.js?v=121';
+import { svgEl as el } from './svg.js?v=121';
 
 // Anything below this share of the busiest cell is left blank rather than drawn
 // at 2% opacity. A wash of near-invisible colour over the whole pitch reads as
 // "they were everywhere", which is the opposite of what a heatmap is for.
 const FLOOR = 0.06;
-
-function el(name, attrs) {
-    const node = document.createElementNS(NS, name);
-    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
-    return node;
-}
 
 /** Whether a value is a grid this module can do anything with. */
 export function isGrid(grid) {

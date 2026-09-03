@@ -27,7 +27,7 @@
 // figure from twelve tracked minutes and one from seventy are not the same kind
 // of evidence, and nothing else on the chart says which is which.
 
-const NS = 'http://www.w3.org/2000/svg';
+import { svgEl as el } from './svg.js?v=121';
 
 const W = 100;
 const H = 32;
@@ -42,12 +42,6 @@ const MAX_R = 2.6;
 // value, or several identical ones, everything sits on the middle line — which
 // is the honest picture of a figure that did not move.
 const FLAT = 1e-9;
-
-function el(name, attrs = {}) {
-    const node = document.createElementNS(NS, name);
-    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
-    return node;
-}
 
 /**
  * Hang a hover label on a mark.
