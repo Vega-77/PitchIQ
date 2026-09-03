@@ -686,3 +686,45 @@ class TestTurnoversByThird(TestCalibrated):
         assert turnovers_by_third(derive([]), PITCH, TEAM_A, 'right') == {
             'defensive': 0, 'middle': 0, 'attacking': 0,
         }
+
+
+class TestMinimumPassLength:
+    """Two touches a hand's breadth apart are not an exchange.
+
+    Nothing in the geometry stops a pair of touch detections at almost the same
+    point from being written up as a completed pass, and on real footage that is
+    most of what gets written: one player seen twice, or two detections of one
+    scramble. The floor asks the ball to have actually gone somewhere first.
+    """
+
+    def _pair(self, end_px):
+        return [
+            touch(0.0, 1, TEAM_A, xy_px=(0.0, 0.0)),
+            touch(0.5, 2, TEAM_A, xy_px=(end_px, 0.0)),
+        ]
+
+    def test_a_pass_that_went_nowhere_is_dropped(self):
+        # Ten pixels against a 36-pixel player is under a third of a body.
+        assert derive(self._pair(10.0), min_pass_length_ph=1.0).passes() == []
+
+    def test_a_pass_that_travelled_survives(self):
+        log = derive(self._pair(400.0), min_pass_length_ph=1.0)
+        assert len(log.passes()) == 1
+        assert log.passes()[0].outcome == COMPLETED
+
+    def test_the_floor_takes_the_defensive_action_with_it(self):
+        """No pass means nothing for an interception to have intercepted."""
+        pair = [
+            touch(0.0, 1, TEAM_A, xy_px=(0.0, 0.0)),
+            touch(0.5, 9, TEAM_B, xy_px=(10.0, 0.0)),
+        ]
+        log = derive(pair, min_pass_length_ph=1.0)
+        assert log.passes() == []
+        assert log.by_type(INTERCEPTION) == []
+
+    def test_the_default_keeps_the_short_pair(self):
+        assert len(derive(self._pair(10.0)).passes()) == 1
+
+    def test_length_ph_is_still_reported(self):
+        log = derive(self._pair(360.0), min_pass_length_ph=1.0)
+        assert log.passes()[0].length_ph == pytest.approx(10.0)

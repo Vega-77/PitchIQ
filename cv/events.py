@@ -107,6 +107,13 @@ LOOSE_BALL_S = 1.5
 DUEL_WINDOW_S = 0.5
 DUEL_DISTANCE_PH = 1.5
 
+# How far the ball must travel between two touches, in player heights, before
+# the pair is read as a pass. Nothing in the geometry stops two detections a
+# hand's breadth apart from being written up as a completed pass, and under a
+# noisy ball that is most of what gets written. Zero keeps the old behaviour of
+# accepting any pair.
+MIN_PASS_LENGTH_PH = 0.0
+
 # An opponent within this many player heights of the player on the ball counts
 # as pressure.
 PRESSURE_PH = 2.5
@@ -462,6 +469,7 @@ def derive_events(
     side_of_team: dict[str, str] | None = None,
     keeper_tracks: set[int] | None = None,
     phases=None,
+    min_pass_length_ph: float = MIN_PASS_LENGTH_PH,
 ) -> EventLog:
     """Turn a touch sequence into events.
 
@@ -506,6 +514,7 @@ def derive_events(
         log.events.extend(_between(
             current, following, touches, table, pitch,
             attacking_end(current.team), index, ordered,
+            min_pass_length_ph,
         ))
 
     log.events.extend(_carries(ordered, table, pitch))
@@ -531,6 +540,7 @@ def _between(
     attacking_end: str | None,
     index: int,
     ordered: list[Touch],
+    min_pass_length_ph: float = 0.0,
 ) -> list[EventBase]:
     """Classify one adjacent pair of touches."""
     if current.track_id == following.track_id:
@@ -548,6 +558,15 @@ def _between(
         current.team == following.team
         and current.team != UNKNOWN
     )
+
+    length_ph = _pixel_distance_ph(current, following)
+    if length_ph < min_pass_length_ph:
+        # The ball did not go anywhere, so nobody passed it. Two touch
+        # detections a stride apart are one player being seen twice far more
+        # often than they are a real exchange, and the pair is dropped whole:
+        # without a pass there is nothing for the defensive action to be a
+        # response to either.
+        return events
 
     length_m = None
     if current.ball_m and following.ball_m:
@@ -578,7 +597,7 @@ def _between(
         receiver_track_id=following.track_id if outcome == COMPLETED else None,
         outcome=outcome,
         length_m=length_m,
-        length_ph=_pixel_distance_ph(current, following),
+        length_ph=length_ph,
         length_bucket=_bucket(length_m),
         direction=_direction(pitch, current.ball_m, following.ball_m, attacking_end),
         crossed_gap=crossed_gap,

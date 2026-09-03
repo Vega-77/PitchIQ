@@ -83,6 +83,16 @@ TURN_THRESHOLD_DEG = 30.0
 # why the magnitude is used unsigned.
 ACCEL_THRESHOLD_PH_S = 3.0
 
+# How fast the ball must be travelling, on both sides, before a direction
+# change is believed. The ball is a handful of pixels wide at tactical-camera
+# distance and its centroid wanders by a pixel or two a frame; when it is
+# barely moving that wander *is* the measured direction, so the turn angle is
+# noise wearing a number. Measured on one minute of this footage: with the ball
+# nearly still the apparent turn runs to 24 degrees at the median and 136 at
+# the ninetieth percentile, while a ball genuinely in flight turns 5 degrees.
+# Zero keeps the old behaviour of trusting every turn.
+MIN_TURN_SPEED_PH_S = 0.0
+
 # Frames either side used to estimate the ball's velocity before and after.
 VELOCITY_WINDOW = 4
 
@@ -332,7 +342,10 @@ def _velocities(times, points, scales, window: int):
     return before, after
 
 
-def _motion_change(v_before, v_after, turn_threshold_deg: float, accel_threshold: float):
+def _motion_change(
+    v_before, v_after, turn_threshold_deg: float, accel_threshold: float,
+    min_turn_speed: float = 0.0,
+):
     """How much the ball's motion changed, as (score in 0..1, turn in degrees)."""
     speed_before = float(np.hypot(*v_before))
     speed_after = float(np.hypot(*v_after))
@@ -342,6 +355,9 @@ def _motion_change(v_before, v_after, turn_threshold_deg: float, accel_threshold
     else:
         cosine = float(np.dot(v_before, v_after)) / (speed_before * speed_after)
         turn_deg = math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
+
+    if min(speed_before, speed_after) < min_turn_speed:
+        turn_deg = 0.0                   # too slow for the angle to mean anything
 
     turn_score = min(1.0, turn_deg / turn_threshold_deg) if turn_threshold_deg else 0.0
     # Unsigned: a trap that kills the ball is as much a touch as a strike that
@@ -361,6 +377,7 @@ def segment_touches(
     min_motion_loose: float = MIN_MOTION_LOOSE,
     turn_threshold_deg: float = TURN_THRESHOLD_DEG,
     accel_threshold_ph_s: float = ACCEL_THRESHOLD_PH_S,
+    min_turn_speed_ph_s: float = MIN_TURN_SPEED_PH_S,
     velocity_window: int = VELOCITY_WINDOW,
     min_separation_s: float = MIN_SEPARATION_S,
     max_gap_frames: int = MAX_GAP_FRAMES,
@@ -451,7 +468,8 @@ def segment_touches(
             continue
 
         motion, turn_deg, speed_before, speed_after = _motion_change(
-            v_before[i], v_after[i], turn_threshold_deg, accel_threshold_ph_s
+            v_before[i], v_after[i], turn_threshold_deg, accel_threshold_ph_s,
+            min_turn_speed_ph_s,
         )
 
         # The conjunction. Being close is not enough on its own, and neither is
@@ -474,6 +492,7 @@ def segment_touches(
         min_motion=min_motion_loose,
         turn_threshold_deg=turn_threshold_deg,
         accel_threshold_ph_s=accel_threshold_ph_s,
+        min_turn_speed_ph_s=min_turn_speed_ph_s,
     ))
 
     sequence.touches = _suppress(candidates, min_separation_s)
@@ -499,7 +518,7 @@ def _unobserved_runs(observed):
 def _gap_touches(
     records, observed, nearest_ph, holders, v_before, v_after, *,
     build_touch, max_gap_frames, touch_radius_ph, min_motion,
-    turn_threshold_deg, accel_threshold_ph_s,
+    turn_threshold_deg, accel_threshold_ph_s, min_turn_speed_ph_s=0.0,
 ):
     """At most one touch per interpolated span, and only if the ball changed.
 
@@ -530,7 +549,7 @@ def _gap_touches(
 
         motion, turn_deg, speed_before, speed_after = _motion_change(
             v_before[start - 1], v_after[end + 1],
-            turn_threshold_deg, accel_threshold_ph_s,
+            turn_threshold_deg, accel_threshold_ph_s, min_turn_speed_ph_s,
         )
         if motion < min_motion:
             continue                     # the ball carried on doing what it was doing

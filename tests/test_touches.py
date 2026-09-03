@@ -383,3 +383,50 @@ class TestSequence:
     def test_an_empty_table_is_not_an_error(self):
         table = FrameTable(fps=FPS, frame_width=1280, frame_height=720)
         assert len(segment_touches(table)) == 0
+
+
+class TestTurnSpeedFloor:
+    """A direction change is only believable if the ball was going somewhere.
+
+    At tactical-camera distance the ball is a handful of pixels and its centroid
+    wanders by one or two of them a frame. When the ball is nearly still that
+    wander is the whole of the measured velocity, so the turn angle describes
+    the noise rather than the play. Measured on a minute of real footage: a
+    nearly-still ball turns 24 degrees at the median and 136 at the ninetieth
+    percentile, while a ball actually in flight turns 5.
+    """
+
+    def _creeping_reversal(self):
+        """A ball inching forward and back past a stationary player.
+
+        Half a pixel a frame is 0.25 player heights per second at this fixture's
+        scale — far too slow to be a struck ball, and a full reversal all the
+        same.
+        """
+        frames = []
+        for i in range(40):
+            bx = 340.0 - 10.0 + (i * 0.5 if i <= 20 else (40 - i) * 0.5)
+            frames.append(((bx, 400.0), True, [player(7, 340.0, 400.0)]))
+        return build(frames)
+
+    def test_a_creeping_reversal_is_a_touch_when_no_floor_is_set(self):
+        table = self._creeping_reversal()
+        assert len(segment_touches(table)) > 0
+
+    def test_the_floor_rejects_it(self):
+        table = self._creeping_reversal()
+        assert len(segment_touches(table, min_turn_speed_ph_s=1.0)) == 0
+
+    def test_a_struck_ball_still_registers_through_the_floor(self):
+        frames = []
+        for i in range(40):
+            bx = 100.0 + (i * 12.0 if i <= 20 else (40 - i) * 12.0)
+            frames.append(((bx, 400.0), True, [player(7, 340.0, 400.0)]))
+        table = build(frames)
+        assert segment_touches(table, min_turn_speed_ph_s=1.0).counts_by_track() == {7: 1}
+
+    def test_the_default_leaves_behaviour_unchanged(self):
+        table = self._creeping_reversal()
+        assert len(segment_touches(table)) == len(
+            segment_touches(table, min_turn_speed_ph_s=0.0)
+        )
