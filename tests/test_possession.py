@@ -23,8 +23,10 @@ from cv.teams import (
     TEAM_B,
     UNKNOWN,
     assign_teams,
+    kit_sample,
     separation,
     shirt_colour,
+    surround_lightness,
     torso_patch,
 )
 
@@ -66,6 +68,11 @@ def player_frame(colours, box_h=120, box_w=44, gap=90, grass=(60, 110, 55)):
 RED = (40, 40, 200)
 YELLOW = (40, 210, 230)
 GREEN_KEEPER = (60, 200, 90)
+
+# The fixture that broke the chroma-only split: both kits are achromatic, so a
+# and b carry no information about which is which, and only lightness does.
+DARK_KIT = (35, 35, 35)
+WHITE_KIT = (235, 235, 235)
 
 
 class TestTorsoSampling:
@@ -152,6 +159,179 @@ class TestTeamAssignment:
 
         assignment = assign_teams(samples)
         assert assignment.team_of(0) == assignment.team_of(1)
+
+
+class TestSurroundLightness:
+    """The grass reference, which is what makes lightness usable at all."""
+
+    def test_reads_the_turf_and_not_the_shirt(self):
+        frame, boxes = player_frame([WHITE_KIT])
+        grass_l = surround_lightness(frame, boxes[0][1])
+
+        # Grass at (60, 110, 55) is L 106 in Lab; the shirt is 237. Landing on
+        # the grass is the entire point, so the tolerance is tight.
+        assert grass_l == pytest.approx(106, abs=6)
+
+    def test_a_neighbour_does_not_contaminate_it(self):
+        """The strips are a fraction of the box width for this reason: at the
+        default spacing they must stay on grass rather than reach the next
+        player, whose shirt would be read as the ground."""
+        frame, boxes = player_frame([WHITE_KIT, DARK_KIT, WHITE_KIT])
+        middle = surround_lightness(frame, boxes[1][1])
+
+        assert middle == pytest.approx(106, abs=8)
+
+    def test_none_when_there_is_no_turf_either_side(self):
+        frame, _ = player_frame([RED])
+        h, w = frame.shape[:2]
+        assert surround_lightness(frame, (0, 90, w, 210)) is None
+
+    def test_none_for_a_box_too_small_to_read(self):
+        frame, _ = player_frame([RED])
+        assert surround_lightness(frame, (10, 10, 12, 13)) is None
+
+
+class TestKitAxis:
+    """Which feature the split is made on, and why it is not a fixed choice."""
+
+    def build(self, colours, repeats=6, grass=(60, 110, 55), shade=1.0):
+        samples = {}
+        for _ in range(repeats):
+            frame, boxes = player_frame(colours, grass=grass)
+            if shade != 1.0:
+                frame = (frame.astype(np.float32) * shade).astype(np.uint8)
+            for track_id, xyxy in boxes:
+                sample = kit_sample(frame, xyxy)
+                if sample is not None:
+                    samples.setdefault(track_id, []).append(sample)
+        return samples
+
+    def test_chroma_still_wins_where_chroma_works(self):
+        """The regression that matters most. Red against yellow is what this
+        module was built for, and the new axis must not take that fixture."""
+        assignment = assign_teams(self.build([RED, RED, YELLOW, YELLOW]))
+
+        assert assignment.axis == 'chroma'
+        assert assignment.team_of(0) == assignment.team_of(1)
+        assert assignment.team_of(0) != assignment.team_of(2)
+
+    def test_three_number_samples_leave_the_axis_at_chroma(self):
+        """Callers that never collected a grass reference are unaffected."""
+        samples = {}
+        frame, boxes = player_frame([RED, RED, YELLOW, YELLOW])
+        for track_id, xyxy in boxes:
+            samples[track_id] = [shirt_colour(frame, xyxy)]
+
+        assert assign_teams(samples).axis == 'chroma'
+
+    def test_a_dark_kit_and_a_white_one_are_told_apart(self):
+        """Chroma cannot do this: both kits sit on neutral (128, 128), so the
+        a and b channels hold nothing at all to split on."""
+        assignment = assign_teams(
+            self.build([DARK_KIT, DARK_KIT, WHITE_KIT, WHITE_KIT]))
+
+        assert assignment.axis == 'grass-relative lightness'
+        assert assignment.team_of(0) == assignment.team_of(1)
+        assert assignment.team_of(2) == assignment.team_of(3)
+        assert assignment.team_of(0) != assignment.team_of(2)
+
+    def test_the_same_kit_survives_shade(self):
+        """The claim the grass reference exists to make. Two dark shirts in
+        shadow and two in sun are one team, because the turf beside each one
+        darkened with it — where raw lightness would split sun from shade."""
+        lit = self.build([DARK_KIT, WHITE_KIT])
+        shaded = self.build([DARK_KIT, WHITE_KIT], shade=0.45)
+        samples = {0: lit[0], 1: lit[1], 2: shaded[0], 3: shaded[1]}
+
+        assignment = assign_teams(samples)
+
+        assert assignment.team_of(0) == assignment.team_of(2), 'dark kit, two lights'
+        assert assignment.team_of(1) == assignment.team_of(3), 'white kit, two lights'
+        assert assignment.team_of(0) != assignment.team_of(1)
+
+    def test_the_axis_is_dropped_when_too_few_tracks_carry_it(self):
+        """A quarter of the pitch missing is too much: centres fitted on what
+        is left are not the pitch, so the axis is not offered at all."""
+        samples = self.build([RED, RED, YELLOW, YELLOW])
+        for sample in samples[0]:
+            sample[3] = np.nan
+
+        assert assign_teams(samples).axis == 'chroma'
+
+    def test_one_track_without_a_reading_does_not_veto_the_axis(self):
+        """The rule that cost the fix its first run on real footage. Across
+        hundreds of tracks some detection is always at the frame edge with no
+        turf beside it, so demanding every track carry the axis meant never
+        using it. That track goes UNKNOWN; the rest are still split."""
+        colours = [DARK_KIT] * 10 + [WHITE_KIT] * 10
+        samples = self.build(colours, repeats=2)
+        for sample in samples[0]:
+            sample[3] = np.nan
+
+        assignment = assign_teams(samples)
+
+        assert assignment.axis == 'grass-relative lightness'
+        assert assignment.team_of(0) == UNKNOWN
+        assert assignment.team_of(1) != UNKNOWN
+        assert assignment.team_of(1) != assignment.team_of(11)
+
+    def test_a_single_missing_reading_does_not_cost_the_track_its_axis(self):
+        """One detection at the frame edge is not the whole track."""
+        samples = self.build([DARK_KIT, DARK_KIT, WHITE_KIT, WHITE_KIT])
+        samples[0][0][3] = np.nan
+
+        assert assign_teams(samples).axis == 'grass-relative lightness'
+
+    def test_a_tight_clump_does_not_take_the_split_from_the_pitch(self):
+        """The failure that survived the first fix, in miniature.
+
+        On the real footage chroma scored 2.19 against grass-relative
+        lightness's 1.87 -- and won with 81 tracks against 608, a tight knot of
+        orange from the turf's line paint. The higher score was measuring how
+        neatly it had cut a corner off, not how well it had divided a pitch.
+        Two teams are two halves, so a candidate that leaves one side barely
+        populated does not get the split however tight that side is.
+        """
+        assignment = assign_teams(self.build(
+            [DARK_KIT] * 9 + [WHITE_KIT] * 9 + [YELLOW] * 2))
+
+        assert assignment.axis == 'grass-relative lightness'
+
+    def test_a_lopsided_split_still_wins_if_it_is_the_only_one(self):
+        """The gate ranks candidates; it does not veto the last one standing.
+        Ten in one kit and one keeper is a real thing to see on a pitch, and
+        answering UNKNOWN for all eleven would be worse than answering.
+        """
+        assignment = assign_teams(self.build([RED] * 10 + [GREEN_KEEPER]))
+
+        assert assignment.team_of(0) == assignment.team_of(9)
+        assert assignment.team_of(10) != assignment.team_of(0)
+
+    def test_score_separates_a_real_split_from_a_split_grey_cloud(self):
+        """The number `separation` alone could not give. Two kits that differ
+        only in noise must score low even though their centres are some
+        distance apart, because the clusters are as wide as the gap."""
+        real = assign_teams(self.build([RED, RED, YELLOW, YELLOW]))
+        near = assign_teams(self.build([(40, 40, 200), (40, 40, 200),
+                                        (55, 55, 195), (55, 55, 195)]))
+
+        assert real.score > near.score
+
+    def test_separation_reports_the_axis_it_split_on(self):
+        assignment = assign_teams(
+            self.build([DARK_KIT, DARK_KIT, WHITE_KIT, WHITE_KIT]))
+
+        # Chroma between two neutral kits is nothing; the axis that did the
+        # work is worth a hundred and more.
+        assert separation(assignment) > 100
+
+    def test_swap_does_not_disturb_the_axis(self):
+        assignment = assign_teams(
+            self.build([DARK_KIT, DARK_KIT, WHITE_KIT, WHITE_KIT]))
+        axis, score, gap = assignment.axis, assignment.score, assignment.gap
+        assignment.swap()
+
+        assert (assignment.axis, assignment.score, assignment.gap) == (axis, score, gap)
 
 
 # ---------------------------------------------------------------------------

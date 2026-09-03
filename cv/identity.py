@@ -42,6 +42,7 @@ are a few pixels tall and not legible.
 from __future__ import annotations
 
 import math
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -62,6 +63,19 @@ MAX_BRIDGE_PH = 6.0
 # this asks whether two sightings are the same player, and lighting changes
 # across a pitch more than kits differ.
 MAX_CHROMA_DISTANCE = 30.0
+
+# The same question asked of grass-relative lightness, when the samples carry
+# it. Chroma alone cannot referee a dark kit against a white one -- both are
+# achromatic, so every pair on the pitch sits inside the 30 above and the check
+# never objects to anything. Relative lightness separated those two kits by 115
+# on the footage this was measured against, with each kit about 30 wide, so a
+# pair more than 55 apart is two different shirts and not one shirt in changing
+# light.
+#
+# This can only ever reject. A fixture where both kits sit at the same relative
+# lightness -- red against blue, say -- simply never trips it, so adding it
+# cannot cost anything on the fixtures chroma already handles.
+MAX_RELATIVE_L = 55.0
 
 # Clusters holding fewer sightings than this are noise, not people.
 MIN_CLUSTER_SIGHTINGS = 20
@@ -169,7 +183,12 @@ def track_spans(table: FrameTable, colours: dict[int, list] | None = None) -> di
     for track_id, span in spans.items():
         samples = (colours or {}).get(track_id)
         if samples:
-            span.colour = np.median(np.array(samples), axis=0)
+            # nanmedian: a sample can be missing its grass reference while its
+            # Lab is fine, and one edge-of-frame sighting should not cost the
+            # whole track the axis that tells the two kits apart.
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', RuntimeWarning)
+                span.colour = np.nanmedian(np.array(samples), axis=0)
 
     return spans
 
@@ -186,6 +205,21 @@ def _chroma_distance(a, b) -> float:
     return float(math.dist(a[1:3], b[1:3]))
 
 
+def _relative_l_distance(a, b) -> float:
+    """How far apart two sightings are on the grass-relative lightness axis.
+
+    Zero whenever the answer is not known -- a three-number sample from before
+    `teams.kit_sample`, or a detection that had no readable turf beside it.
+    Zero is "no objection", which is the right default for a check that exists
+    only to reject.
+    """
+    if a is None or b is None or len(a) < 4 or len(b) < 4:
+        return 0.0
+    if not (math.isfinite(a[3]) and math.isfinite(b[3])):
+        return 0.0
+    return abs(float(a[3]) - float(b[3]))
+
+
 def _can_merge(a: TrackSpan, b: TrackSpan) -> bool:
     """Whether two tracks could be one player, in the order a-then-b."""
     if a.overlaps(b):
@@ -200,6 +234,9 @@ def _can_merge(a: TrackSpan, b: TrackSpan) -> bool:
         return False
     if math.dist(a.last_xy, b.first_xy) / scale > MAX_BRIDGE_PH:
         return False
+
+    if _relative_l_distance(a.colour, b.colour) > MAX_RELATIVE_L:
+        return False                  # one dark shirt and one white one
 
     return _chroma_distance(a.colour, b.colour) <= MAX_CHROMA_DISTANCE
 

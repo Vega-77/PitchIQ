@@ -67,7 +67,7 @@ from .ball import BallCandidate
 from .calibration import Calibration
 from .detector import CLASS_BALL, CLASS_PERSON, DEFAULT_WEIGHTS, PersonBallDetector
 from .possession import median_player_height
-from .teams import UNKNOWN, shirt_colour
+from .teams import UNKNOWN, kit_sample
 from .thumbs import Thumb, consider
 
 # Columns of FrameRecord.players.
@@ -419,7 +419,7 @@ class TrackedFramePass:
             held = samples.setdefault(track_id, [])
             if len(held) >= self.max_colour_samples:
                 continue
-            colour = shirt_colour(frame, (
+            colour = kit_sample(frame, (
                 float(row[COL_X1]), float(row[COL_Y1]),
                 float(row[COL_X2]), float(row[COL_Y2]),
             ))

@@ -3412,6 +3412,43 @@ should lead with them rather than with per-player figures.
 ## 7. Team & Player Identification
 Automatic tracking only needs to be *internally consistent* — resolving a track ID to a
 real roster player is a human job, cheaper now thanks to Phase 3.
+- [x] The kit axis is chosen by measurement, not fixed in advance — `cv/teams.py`.
+      First contact with real footage broke the clustering below: the fixture
+      is a dark kit against a white one, which differ almost entirely in
+      lightness and barely in chroma, so a clusterer built to discard lightness
+      was keeping exactly the two channels carrying no signal. It split neutral
+      grey down the middle at a = 128 and called the halves teams — possession
+      came out Team A 0% / Team B 100%, kit separation 34.
+      The answer is not "use lightness": the reason lightness was dropped is
+      real, and a half-shadowed pitch would split into sunny and shady rather
+      than into teams. What survives shadow is torso lightness *relative to the
+      grass beside that player*, because a cloud dims the shirt and the turf
+      together and a white kit does not. So `kit_sample` reads a strip of turf
+      either side at torso height, and the module offers both axes and takes
+      whichever separates better — chroma stays the incumbent unless another
+      axis clears `AXIS_MARGIN`, since chroma is what genuinely survives the
+      light changing. Raw lightness is deliberately never a candidate: it would
+      win both on this fixture and on the shadow fixture, and from inside the
+      module those two look identical.
+      Two rounds of being wrong are worth recording. Separability alone scored
+      a *perfect* split zero, because identical samples give zero spread and
+      the ratio divided by it; the floor is `MIN_CLUSTER_WIDTH`, one Lab unit,
+      which is where 8-bit pixels quantise. Then on the footage chroma still
+      won, and the reason was not coverage as first assumed (both axes covered
+      100% of tracks) but the score itself: chroma scored 2.19 by setting 81
+      tracks against 608 — a tight orange knot, the turf's line paint and skin
+      caught in torso boxes — against grass-relative lightness's 1.87 splitting
+      281 against 408 with centres 100 apart. The higher number was measuring
+      how neatly it had cut off a corner, not how well it had divided a pitch.
+      Hence `MIN_CLUSTER_SHARE`: two teams are two halves, and a candidate that
+      leaves one side barely populated does not get the split however tight
+      that side is. On the same 120-second window kit separation went 34 → 101,
+      the tracks went 50/406/21 unknown → 186/279/12, and possession went
+      0%/100% to 8%/92% with 5 turnovers where there had been none.
+      8/92 is still wrong — a scrimmage is not that one-sided — but it is now
+      wrong for the remaining reasons (477 fragments for 22 players, a holder
+      identifiable in only a quarter of frames) rather than because the teams
+      were never told apart.
 - [x] **[Demo]** Team discrimination via jersey colour clustering — `cv/teams.py`.
       Three decisions carry the accuracy: sample the torso rather than the box
       (a box is mostly grass, hair and socks), cluster in Lab rather than RGB
