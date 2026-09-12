@@ -34,6 +34,35 @@ MAX_BALL_SPEED_FRAC_PER_S = 1.2
 # path it never took.
 MAX_INTERPOLATION_GAP_S = 1.0
 
+# How close together, and for how long, detections have to sit before they are
+# read as scenery rather than as the ball.
+#
+# This exists because of how the scorer below is shaped. A link costs
+# `distance / (max_speed * dt)`, so a detection at the same pixel as the last
+# one costs nothing at all, and a white object bolted to the ground is
+# redetected in every single frame. Scenery therefore chains unbroken at very
+# nearly the full reward, while the real ball moves — paying motion cost — and
+# is seen intermittently. Left alone, the scorer prefers the marker disc to the
+# match.
+#
+# It is not a hypothetical. Over one checked minute of real footage a 24px cell
+# held candidates for 29 seconds, another for 18.7; the contact sheet showed
+# five unbroken seconds ringed on a stationary white speck on empty grass while
+# play was happening elsewhere in the frame. Those cells were 13% of the
+# candidates and most of the chosen path.
+#
+# The span is set well past any real dwell. A ball can sit still — waiting on a
+# goal kick, trapped under a foot — and the cost of dropping those frames is
+# small, because a ball that is not moving is not in play and no event is being
+# missed. The cost of keeping the scenery is the whole trajectory.
+#
+# Frame space, not world space, so a camera pan moves fixed objects and hides
+# them from this filter. That is the safe direction to fail in: a pan makes the
+# filter quieter, never more aggressive.
+STATIC_RADIUS_PX = 20.0
+STATIC_SPAN_S = 4.0
+STATIC_MIN_HITS = 25
+
 
 @dataclass(frozen=True)
 class BallCandidate:
@@ -104,11 +133,53 @@ def candidates_from_detections(
     return out
 
 
+def drop_static_candidates(
+    candidates: list[BallCandidate],
+    radius_px: float = STATIC_RADIUS_PX,
+    span_s: float = STATIC_SPAN_S,
+    min_hits: int = STATIC_MIN_HITS,
+) -> list[BallCandidate]:
+    """Remove detections that are part of something standing still.
+
+    A candidate is scenery if enough other candidates sit within `radius_px` of
+    it and the earliest and latest of them are more than `span_s` apart. Both
+    conditions matter: a handful of hits over a long window is a ball passing
+    through the same place twice, and a dense burst over half a second is a
+    ball being controlled.
+
+    Judged per candidate against its own neighbourhood rather than by binning
+    the frame, so an object sitting on a bin boundary is not split in two and
+    thereby saved.
+    """
+    if len(candidates) < min_hits or radius_px <= 0:
+        return list(candidates)
+
+    xy = np.array([c.xy for c in candidates], dtype=np.float64)
+    times = np.array([c.timestamp_s for c in candidates], dtype=np.float64)
+
+    keep = np.ones(len(candidates), dtype=bool)
+    radius_sq = radius_px * radius_px
+
+    for i in range(len(candidates)):
+        near = ((xy[:, 0] - xy[i, 0]) ** 2 + (xy[:, 1] - xy[i, 1]) ** 2) <= radius_sq
+        hits = int(near.sum())
+        if hits < min_hits:
+            continue
+        window = times[near]
+        if float(window.max() - window.min()) >= span_s:
+            keep[i] = False
+
+    return [c for c, k in zip(candidates, keep) if k]
+
+
 def build_trajectory(
     candidates_by_frame: dict[int, list[BallCandidate]],
     frame_width: int,
     max_gap_s: float = MAX_INTERPOLATION_GAP_S,
     max_speed_frac: float = MAX_BALL_SPEED_FRAC_PER_S,
+    static_radius_px: float = STATIC_RADIUS_PX,
+    static_span_s: float = STATIC_SPAN_S,
+    static_min_hits: int = STATIC_MIN_HITS,
 ) -> BallTrajectory:
     """Choose the most plausible path through the candidates, then fill gaps.
 
@@ -120,6 +191,13 @@ def build_trajectory(
     flat: list[BallCandidate] = []
     for frame_index in sorted(candidates_by_frame):
         flat.extend(candidates_by_frame[frame_index])
+
+    # Before scoring, not after: the scorer's preference for a motionless chain
+    # is strong enough that a single static source drags the whole path onto it,
+    # and there is nothing left downstream to undo that.
+    flat = drop_static_candidates(
+        flat, static_radius_px, static_span_s, static_min_hits,
+    )
 
     if not flat:
         return BallTrajectory()

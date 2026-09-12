@@ -15,6 +15,7 @@ import pytest
 from cv.ball import (
     BallCandidate,
     build_trajectory,
+    drop_static_candidates,
     nearest_player,
 )
 
@@ -171,3 +172,61 @@ class TestPossessionPrimitive:
         track_id, distance = nearest_player((100.0, 100.0), [])
         assert track_id is None
         assert math.isinf(distance)
+
+
+class TestSceneryFilter:
+    """A white object bolted to the ground outscores the ball, so it is dropped.
+
+    The scorer pays nothing for a link that does not move, and scenery is
+    redetected in every frame at the same pixel. Without this filter the best
+    path through a real minute of footage ran along a marker on the grass.
+    """
+
+    def _parked(self, n=200, x=600.0, y=400.0, conf=0.4):
+        """Something standing still, seen every frame, jittering a pixel or two."""
+        return [
+            cand(i, x + (i % 3) - 1, y + (i % 2), conf)
+            for i in range(n)
+        ]
+
+    def test_a_parked_object_is_dropped(self):
+        kept = drop_static_candidates(self._parked())
+        assert kept == []
+
+    def test_a_moving_ball_is_kept(self):
+        moving = straight_path(200)
+        assert drop_static_candidates(moving) == moving
+
+    def test_a_short_dwell_survives(self):
+        """A ball held under a foot for a second is still the ball."""
+        dwell = self._parked(n=30)
+        assert drop_static_candidates(dwell) == dwell
+
+    def test_two_visits_to_one_spot_survive(self):
+        """Sparse hits over a long span are a ball passing through twice."""
+        visits = [cand(i, 600.0, 400.0) for i in range(8)]
+        visits += [cand(i, 601.0, 400.0) for i in range(300, 308)]
+        assert drop_static_candidates(visits) == visits
+
+    def test_the_ball_beats_the_scenery_through_the_whole_builder(self):
+        """The end-to-end failure: a real path alongside a parked false positive."""
+        # Five seconds of each: long enough that the parked object has clearly
+        # outstayed any dwell a ball in play manages.
+        moving = straight_path(150, x0=100.0, dx=6.0, conf=0.5)
+        scenery = self._parked(n=150, x=1000.0, y=700.0, conf=0.5)
+
+        without = build_trajectory(by_frame(moving + scenery), FRAME_W,
+                                   static_radius_px=0.0)
+        with_filter = build_trajectory(by_frame(moving + scenery), FRAME_W)
+
+        # Unfiltered, the motionless chain wins and the path never moves.
+        xs = [p.xy[0] for p in without.points]
+        assert max(xs) - min(xs) < 10.0
+
+        xs = [p.xy[0] for p in with_filter.points]
+        assert max(xs) - min(xs) > 500.0
+
+    def test_the_filter_is_on_by_default(self):
+        parked = self._parked()
+        assert drop_static_candidates(parked) == []
+        assert drop_static_candidates(parked, radius_px=0.0) == parked
