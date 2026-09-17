@@ -123,6 +123,41 @@ DUEL_DISTANCE_PH = 1.5
 # at two heights throws those away.
 MIN_PASS_LENGTH_PH = 1.0
 
+# How fast the ball may appear to cross the ground between two touches, in
+# player heights per second, before the pair is disbelieved. Stated in heights
+# rather than metres for the same reason touches.py states its speeds that way:
+# it has to survive a change of zoom, and calibration is not always there to
+# give metres at all.
+#
+# This is a physical bound rather than a fitted one. Twelve heights a second is
+# around 22 m/s averaged over a whole flight, which no pass holds once the
+# grass and the air have had their say; the pairs it throws out run to
+# twenty-five, faster than the hardest shot on record. What is really being
+# caught is the ball detector jumping to some other small bright thing, and the
+# touches either side of the jump being written up as a pass between them.
+#
+# On the annotated minute this takes 28 claims to 22 and loses none of the
+# passes a human marked. Six would cut it to 18 — but six is the fastest pass
+# in that minute, and a bound set on the sample maximum throws away the first
+# quick ball it ever meets.
+MAX_PASS_SPEED_PH_S = 12.0
+
+# When two claims describe the same ball transfer: close in time, and starting
+# from near the same place. One contact reaches this layer as a burst, because
+# a player in a crowd is tracked as several people at once and each fragment
+# claims the ball — so one kick is written up three times, a tenth of a second
+# apart, from spots a stride from each other.
+#
+# Both legs are needed. Time alone cannot tell a real one-two from a chopped-up
+# dribble; place alone would swallow a player's genuine second touch seconds
+# later. The window stops short of the closest two passes a human marked in the
+# checked minute, nine tenths of a second apart, so it cannot collapse a real
+# exchange there. Widening it past that does buy precision, and costs a kit
+# label: at 0.85s the survivor of one burst is a claim with the wrong team on
+# it.
+SAME_TRANSFER_S = 0.7
+SAME_TRANSFER_PH = 5.0
+
 # An opponent within this many player heights of the player on the ball counts
 # as pressure.
 PRESSURE_PH = 2.5
@@ -479,6 +514,10 @@ def derive_events(
     keeper_tracks: set[int] | None = None,
     phases=None,
     min_pass_length_ph: float = MIN_PASS_LENGTH_PH,
+    identity: dict[int, int] | None = None,
+    max_pass_speed_ph_s: float = MAX_PASS_SPEED_PH_S,
+    same_transfer_s: float = SAME_TRANSFER_S,
+    same_transfer_ph: float = SAME_TRANSFER_PH,
 ) -> EventLog:
     """Turn a touch sequence into events.
 
@@ -491,6 +530,14 @@ def derive_events(
     `phases` is a `cv.phases.PhaseTable` on the same clock as the table, and
     only sets each event's `in_play` flag. Nothing is discarded for being a
     restart — see `EventBase.in_play` for why.
+
+    `identity` is `cv/identity.py`'s track-to-cluster index, and it decides who
+    counts as the same player — see `_same_person`. Without it every pair of
+    touches the tracker labelled differently reads as a ball changing hands.
+
+    The two speed and transfer arguments are the guards against a noisy ball
+    rather than a noisy tracker, and neither needs to know who anyone is — see
+    `MAX_PASS_SPEED_PH_S` and `_one_claim_per_transfer`. Zero turns either off.
     """
     pitch = pitch or (table.calibration.pitch if table.calibration else Pitch())
     orientation = orientation or MatchOrientation()
@@ -505,6 +552,7 @@ def derive_events(
         )
 
     ordered = sorted(touches, key=lambda t: t.timestamp_s)
+    transfers: list[tuple[Touch, list[EventBase]]] = []
 
     for index, current in enumerate(ordered):
         following = ordered[index + 1] if index + 1 < len(ordered) else None
@@ -520,13 +568,20 @@ def derive_events(
         if following is None:
             continue
 
-        log.events.extend(_between(
+        produced = _between(
             current, following, touches, table, pitch,
             attacking_end(current.team), index, ordered,
-            min_pass_length_ph,
-        ))
+            min_pass_length_ph, identity, max_pass_speed_ph_s,
+        )
+        if any(event.type == PASS for event in produced):
+            transfers.append((current, produced))
+        else:
+            log.events.extend(produced)
 
-    log.events.extend(_carries(ordered, table, pitch))
+    log.events.extend(_one_claim_per_transfer(
+        transfers, same_transfer_s, same_transfer_ph,
+    ))
+    log.events.extend(_carries(ordered, table, pitch, identity))
     log.events.sort(key=lambda e: e.timestamp_s)
 
     # Stamped in one pass at the end rather than threaded through eight
@@ -540,6 +595,80 @@ def derive_events(
     return log
 
 
+def _one_claim_per_transfer(
+    transfers: list[tuple[Touch, list[EventBase]]],
+    window_s: float,
+    radius_ph: float,
+) -> list[EventBase]:
+    """Keep one claim per ball transfer, and make it the surest one.
+
+    Each entry is the touch a claim started from and everything that pair
+    produced — the pass, and the tackle or interception that comes with a pass
+    between kits. They travel together because the objection is to the pair
+    itself: if this was not a separate transfer, it did not separately end in a
+    tackle either.
+
+    Surest rather than first, which is what `touches.py` does one layer down
+    when it thins repeated detections of a single touch. The reason is the same
+    both times: within a burst, the detection the ball was actually seen on is
+    the one that should survive, and confidence is what carries that.
+
+    This is deliberately blind to identity. The bursts it exists to collapse
+    are precisely the ones the identity index cannot help with — a player in
+    traffic arrives as fragments that the clusterer also splits, so the pieces
+    of one contact sit in different clusters and no amount of asking who they
+    are will join them. Time and place need no such answer.
+    """
+    if window_s <= 0 or radius_ph <= 0:
+        return [event for _, events in transfers for event in events]
+
+    kept: list[tuple[Touch, list[EventBase]]] = []
+
+    for touch, events in transfers:
+        same_as = None
+        for position, (earlier, _) in enumerate(kept):
+            if touch.timestamp_s - earlier.timestamp_s > window_s:
+                continue
+            scale = (touch.scale_px + earlier.scale_px) / 2
+            if scale > 0 and math.dist(touch.ball_xy, earlier.ball_xy) / scale <= radius_ph:
+                same_as = position
+        if same_as is None:
+            kept.append((touch, events))
+        elif _claim_confidence(events) > _claim_confidence(kept[same_as][1]):
+            kept[same_as] = (touch, events)
+
+    return [event for _, events in kept for event in events]
+
+
+def _claim_confidence(events: list[EventBase]) -> float:
+    return max(event.confidence for event in events if event.type == PASS)
+
+
+def _same_person(a: Touch, b: Touch, identity: dict[int, int] | None) -> bool:
+    """Whether two touches were by one player.
+
+    A track id is not a person. The tracker issues a fresh one every time it
+    loses somebody behind another player, and in a crowded minute that happens
+    hundreds of times — so `a.track_id == b.track_id` answers "did the tracker
+    keep hold of them?", which is a question about the tracker, not the match.
+    Asked of a pair of touches it is wrong in the expensive direction: a player
+    taking four touches on a dribble looks like four different people, and the
+    ball appears to change hands three times without going anywhere.
+
+    So when `cv/identity.py` has already grouped the fragments, ask that index
+    instead. Two fragments of one cluster are one player whatever the tracker
+    called them. Without the index this falls back to the id comparison, which
+    is the old behaviour and still correct as far as it goes — it just misses
+    every handover the tracker invented.
+    """
+    if a.track_id == b.track_id:
+        return True
+    if not identity:
+        return False
+    cluster = identity.get(a.track_id)
+    return cluster is not None and cluster == identity.get(b.track_id)
+
+
 def _between(
     current: Touch,
     following: Touch,
@@ -550,9 +679,11 @@ def _between(
     index: int,
     ordered: list[Touch],
     min_pass_length_ph: float = 0.0,
+    identity: dict[int, int] | None = None,
+    max_pass_speed_ph_s: float = 0.0,
 ) -> list[EventBase]:
     """Classify one adjacent pair of touches."""
-    if current.track_id == following.track_id:
+    if _same_person(current, following, identity):
         return []                                   # a carry; handled in bulk
 
     events: list[EventBase] = []
@@ -569,6 +700,14 @@ def _between(
     )
 
     length_ph = _pixel_distance_ph(current, following)
+
+    if 0 < max_pass_speed_ph_s < _speed_between(current, following):
+        # The ball cannot have covered that ground in that time, so these two
+        # touches are not the two ends of one kick: the detector lost the ball
+        # somewhere between them and picked up something else. Nothing here is
+        # worth reporting — not the pass, and not a tackle either, because the
+        # objection is that the two touches are not about the same ball.
+        return events
 
     length_m = None
     if current.ball_m and following.ball_m:
@@ -707,8 +846,18 @@ def _is_duel(current: Touch, following: Touch, table: FrameTable) -> bool:
     return _pixel_distance_ph(current, following) <= DUEL_DISTANCE_PH
 
 
-def _carries(ordered: list[Touch], table: FrameTable, pitch: Pitch) -> list[Carry]:
-    """Runs of consecutive touches by one player."""
+def _carries(
+    ordered: list[Touch],
+    table: FrameTable,
+    pitch: Pitch,
+    identity: dict[int, int] | None = None,
+) -> list[Carry]:
+    """Runs of consecutive touches by one player.
+
+    Shares `_same_person` with `_between` deliberately: the two split the same
+    sequence between them, so a disagreement about who is who would drop
+    touches out of both — counted as neither a pass nor a carry.
+    """
     carries: list[Carry] = []
     run: list[Touch] = []
 
@@ -737,7 +886,7 @@ def _carries(ordered: list[Touch], table: FrameTable, pitch: Pitch) -> list[Carr
         ))
 
     for touch in ordered:
-        if run and touch.track_id != run[-1].track_id:
+        if run and not _same_person(touch, run[-1], identity):
             flush()
             run = []
         run.append(touch)

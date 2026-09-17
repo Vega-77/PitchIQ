@@ -35,7 +35,7 @@ from .coverage import PitchCoverage, coverage_warnings, pitch_coverage
 from .events import EventLog, attach_xg, attacking_end_for, derive_events
 from .frames import FrameTable, TrackedFramePass, attach_trajectory
 from .frame_sampler import effective_fps, stride_for_fps, video_info
-from .identity import PlayerCluster, merge_tracks
+from .identity import PlayerCluster, cluster_of_track, merge_tracks
 from .keeper import KeeperAssignment, identify_keepers, keeper_reports
 from .touches import TouchSequence, segment_touches
 from .metrics import (
@@ -782,6 +782,10 @@ def analyse_match(
             side_of_team=side_of_team,
             keeper_tracks=report.keepers.all_tracks(),
             phases=report.phases,
+            # Who counts as the same player. Identity ran above, so the
+            # fragments are already grouped; handing the index over is what
+            # stops a dribble reading as a chain of passes between strangers.
+            identity=cluster_of_track(report.clusters),
         )
     if defending_ends and report.keepers.all_tracks():
         report.keeper_stats = keeper_reports(

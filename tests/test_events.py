@@ -203,11 +203,20 @@ class TestDefensiveActions:
         assert [e.type for e in log.by_type(TACKLE)] == [TACKLE]
 
     def test_reading_a_ball_in_flight_is_an_interception(self):
-        """Fast between two different players — a pass was cut out."""
+        """Fast between two different players — a pass was cut out.
+
+        Fast, but not impossible. Two hundred pixels is five and a half player
+        heights, so eight tenths of a second puts the ball at seven heights a
+        second: over the four that separate a ball in flight from one being
+        carried, under the twelve past which it stops being a ball at all. The
+        spacing also puts the two claims further apart in time than
+        `SAME_TRANSFER_S`, so the interception is judged on its own rather than
+        folded into the pass before it.
+        """
         log = derive([
             touch(0.0, 1, TEAM_A, xy_px=(100.0, 400.0)),
-            touch(0.2, 2, TEAM_A, xy_px=(400.0, 400.0)),
-            touch(0.4, 9, TEAM_B, xy_px=(900.0, 400.0)),
+            touch(0.8, 2, TEAM_A, xy_px=(300.0, 400.0)),
+            touch(1.6, 9, TEAM_B, xy_px=(500.0, 400.0)),
         ])
         assert log.by_type(INTERCEPTION)
 
@@ -267,7 +276,16 @@ class TestUncalibrated:
 
 class TestCalibrated:
     """Metres unlock the geography. Positions below are chosen in metres and
-    converted to the pixels the fixture calibration expects."""
+    converted to the pixels the fixture calibration expects.
+
+    Three seconds between the two touches rather than the one it used to be.
+    The distances are the point of these tests -- a switch has to be wide
+    enough to be a switch -- and a fifty-five metre ball arriving a second
+    after it left is a hundred and ninety-eight kilometres an hour, which
+    `MAX_PASS_SPEED_PH_S` exists to refuse. Stretching the clock leaves every
+    distance and every expected tag exactly as it was, and makes the ball a
+    ball.
+    """
 
     SCALE_PX_PER_M = PX_PER_M
 
@@ -290,32 +308,32 @@ class TestCalibrated:
     def test_a_forward_pass_is_forward(self):
         log = self.derive([
             self.at(0.0, 1, TEAM_A, 20.0, MID_Y),
-            self.at(1.0, 2, TEAM_A, 60.0, MID_Y),
+            self.at(3.0, 2, TEAM_A, 60.0, MID_Y),
         ])
         assert log.passes()[0].direction == 'forward'
 
     def test_a_backward_pass_is_backward(self):
         log = self.derive([
             self.at(0.0, 1, TEAM_A, 60.0, MID_Y),
-            self.at(1.0, 2, TEAM_A, 20.0, MID_Y),
+            self.at(3.0, 2, TEAM_A, 20.0, MID_Y),
         ])
         assert log.passes()[0].direction == 'backward'
 
     def test_a_square_ball_is_sideways(self):
         log = self.derive([
             self.at(0.0, 1, TEAM_A, 50.0, 10.0),
-            self.at(1.0, 2, TEAM_A, 52.0, 55.0),
+            self.at(3.0, 2, TEAM_A, 52.0, 55.0),
         ])
         assert log.passes()[0].direction == 'sideways'
 
     def test_length_buckets(self):
         short = self.derive([
             self.at(0.0, 1, TEAM_A, 50.0, MID_Y),
-            self.at(1.0, 2, TEAM_A, 58.0, MID_Y),
+            self.at(3.0, 2, TEAM_A, 58.0, MID_Y),
         ])
         long_ball = self.derive([
             self.at(0.0, 1, TEAM_A, 20.0, MID_Y),
-            self.at(1.0, 2, TEAM_A, 75.0, MID_Y),
+            self.at(3.0, 2, TEAM_A, 75.0, MID_Y),
         ])
         assert short.passes()[0].length_bucket == 'short'
         assert long_ball.passes()[0].length_bucket == 'long'
@@ -323,35 +341,35 @@ class TestCalibrated:
     def test_a_long_forward_ball_is_tagged_progressive(self):
         log = self.derive([
             self.at(0.0, 1, TEAM_A, 10.0, MID_Y),
-            self.at(1.0, 2, TEAM_A, 45.0, MID_Y),
+            self.at(3.0, 2, TEAM_A, 45.0, MID_Y),
         ])
         assert 'progressive' in log.passes()[0].tags
 
     def test_entering_the_final_third_is_tagged_once(self):
         log = self.derive([
             self.at(0.0, 1, TEAM_A, 60.0, MID_Y),
-            self.at(1.0, 2, TEAM_A, 80.0, MID_Y),
+            self.at(3.0, 2, TEAM_A, 80.0, MID_Y),
         ])
         assert 'final_third_entry' in log.passes()[0].tags
 
     def test_a_ball_already_in_the_final_third_is_not_an_entry(self):
         log = self.derive([
             self.at(0.0, 1, TEAM_A, 75.0, MID_Y),
-            self.at(1.0, 2, TEAM_A, 85.0, MID_Y),
+            self.at(3.0, 2, TEAM_A, 85.0, MID_Y),
         ])
         assert 'final_third_entry' not in log.passes()[0].tags
 
     def test_a_wide_ball_into_the_box_is_tagged_a_cross(self):
         log = self.derive([
             self.at(0.0, 1, TEAM_A, 95.0, 3.0),
-            self.at(1.0, 2, TEAM_A, 100.0, MID_Y),
+            self.at(3.0, 2, TEAM_A, 100.0, MID_Y),
         ])
         assert 'cross' in log.passes()[0].tags
 
     def test_a_wide_ball_is_tagged_a_switch(self):
         log = self.derive([
             self.at(0.0, 1, TEAM_A, 50.0, 5.0),
-            self.at(1.0, 2, TEAM_A, 55.0, 60.0),
+            self.at(3.0, 2, TEAM_A, 55.0, 60.0),
         ])
         assert 'switch' in log.passes()[0].tags
 
@@ -571,9 +589,17 @@ class TestInPlay:
         ])
 
     def test_events_during_a_stoppage_are_flagged_not_dropped(self):
+        # Positioned by hand rather than left to the default layout. Two
+        # hundred pixels a step is five and a half player heights, which puts
+        # the two touches of the first pair far enough apart for
+        # `_one_claim_per_transfer` to read them as separate transfers, and
+        # slow enough for the speed cap to believe them. The default layout,
+        # at 120px a second, clears the cap but not the transfer radius.
         touches = [
-            touch(0.0, 1, TEAM_A), touch(0.5, 2, TEAM_A),
-            touch(4.0, 3, TEAM_A), touch(4.5, 4, TEAM_A),
+            touch(0.0, 1, TEAM_A, xy_px=(100.0, 400.0)),
+            touch(0.5, 2, TEAM_A, xy_px=(300.0, 400.0)),
+            touch(4.0, 3, TEAM_A, xy_px=(700.0, 400.0)),
+            touch(4.5, 4, TEAM_A, xy_px=(900.0, 400.0)),
         ]
         log = derive(touches, phases=self.phases(3.5, 5.0))
 
@@ -660,7 +686,7 @@ class TestTurnoversByThird(TestCalibrated):
         a bad decision taken in a dangerous place."""
         touches = [
             self.at(0.0, 1, TEAM_A, 12.0, MID_Y),
-            self.at(1.0, 30, TEAM_B, 55.0, MID_Y),
+            self.at(1.4, 30, TEAM_B, 32.0, MID_Y),
         ]
         assert self.counts(touches)['defensive'] == 1
         assert self.counts(touches)['middle'] == 0
@@ -706,9 +732,17 @@ class TestMinimumPassLength:
     """
 
     def _pair(self, end_px):
+        """A pass of `end_px` pixels, given long enough to be possible.
+
+        The longest pair here is four hundred pixels, eleven player heights;
+        over the half second this used to allow that is a ball at eighty
+        metres a second, which `MAX_PASS_SPEED_PH_S` refuses and is right to
+        refuse. The length assertions below are about distance, so lengthening
+        the flight costs them nothing.
+        """
         return [
             touch(0.0, 1, TEAM_A, xy_px=(0.0, 0.0)),
-            touch(0.5, 2, TEAM_A, xy_px=(end_px, 0.0)),
+            touch(1.2, 2, TEAM_A, xy_px=(end_px, 0.0)),
         ]
 
     def test_a_pass_that_went_nowhere_is_dropped(self):
@@ -747,3 +781,177 @@ class TestMinimumPassLength:
     def test_length_ph_is_still_reported(self):
         log = derive(self._pair(360.0), min_pass_length_ph=1.0)
         assert log.passes()[0].length_ph == pytest.approx(10.0)
+
+
+class TestWhoCountsAsOnePlayer:
+    """The tracker's ids are not people, and passes are counted between people.
+
+    A player dribbling gets a fresh track id every time somebody crosses in
+    front of them. Read literally that is a ball changing hands, and on real
+    footage it is the single largest source of invented passes: one run down
+    the wing arrives as a chain of strangers exchanging the ball without it
+    going anywhere. `cv/identity.py` has already worked out which fragments are
+    one person by the time events are derived, so these tests pin the promise
+    that the answer is used.
+    """
+
+    def _dribble(self):
+        """One player, three touches, three track ids — the churn case."""
+        return [
+            touch(0.0, 1, TEAM_A),
+            touch(1.0, 2, TEAM_A),
+            touch(2.0, 3, TEAM_A),
+        ]
+
+    def test_churned_ids_read_as_passes_without_the_index(self):
+        """The old behaviour, written down so the fix has something to beat."""
+        assert len(derive(self._dribble()).passes()) == 2
+
+    def test_one_cluster_means_one_player_carrying(self):
+        log = derive(self._dribble(), identity={1: 7, 2: 7, 3: 7})
+        assert log.passes() == []
+        carries = log.by_type(CARRY)
+        assert len(carries) == 1
+        assert carries[0].touches == 3
+
+    def test_different_clusters_still_pass_to_each_other(self):
+        """The index must not swallow the passes that really happened."""
+        log = derive(self._dribble(), identity={1: 7, 2: 8, 3: 7})
+        assert len(log.passes()) == 2
+
+    def test_tracks_the_index_never_saw_are_not_merged(self):
+        """Two unknowns are two strangers, not one person.
+
+        `dict.get` answers None for both, and treating that as a match would
+        silently fuse every track identity dropped — which is the failure that
+        loses real passes rather than the one that invents them.
+        """
+        log = derive(self._dribble(), identity={2: 7})
+        assert len(log.passes()) == 2
+
+    def test_an_empty_index_is_the_old_behaviour(self):
+        """A run with no identity stage still derives events, unchanged."""
+        assert len(derive(self._dribble(), identity={}).passes()) == 2
+class TestABallThatCouldNotHaveTravelled:
+    """Two touches too far apart, too quickly, are not the ends of one kick.
+
+    The detector loses the ball and finds something else — a boot, a line
+    marking, a white shirt in the crowd — and the two ends of that mistake
+    arrive as consecutive touches most of the frame apart. Read literally that
+    is a pass at forty metres a second, faster than any ball ever struck. The
+    cap is in player heights a second rather than pixels, so it means the same
+    thing whether the camera is on the halfway line or behind the goal.
+    """
+
+    def _pair(self, end_px, dt):
+        return [
+            touch(0.0, 1, TEAM_A, xy_px=(0.0, 0.0)),
+            touch(dt, 2, TEAM_A, xy_px=(end_px, 0.0)),
+        ]
+
+    def test_a_pair_the_ball_could_have_made_survives(self):
+        # 300px in a second is eight and a third player heights a second, or
+        # about fifteen metres a second: a firm pass, and nothing more.
+        assert len(derive(self._pair(300.0, 1.0)).passes()) == 1
+
+    def test_an_impossible_pair_is_dropped(self):
+        # The same 300px, covered in a twentieth of the time.
+        assert derive(self._pair(300.0, 0.05)).passes() == []
+
+    def test_the_defensive_action_goes_with_the_pass(self):
+        """A pair across kits normally leaves an interception behind it.
+
+        Not here. The objection is not that the pass was a poor one, it is that
+        the two touches are not about the same ball — and if they are not, then
+        nobody intercepted anything either. Dropping the pass and keeping the
+        turnover would turn every detector slip into a phantom tackle, which is
+        the more expensive half of the mistake.
+        """
+        log = derive([
+            touch(0.0, 1, TEAM_A, xy_px=(0.0, 0.0)),
+            touch(0.05, 9, TEAM_B, xy_px=(300.0, 0.0)),
+        ])
+        assert log.events == []
+
+    def test_zero_turns_the_cap_off(self):
+        assert len(derive(self._pair(300.0, 0.05), max_pass_speed_ph_s=0.0).passes()) == 1
+
+
+class TestOneClaimPerTransfer:
+    """One kick, claimed once.
+
+    A single contact in traffic is detected several times over: the ball is
+    seen, then filled in, then seen again, and the nearest player differs each
+    time. Every one of those detections pairs with its neighbour and claims a
+    pass, so one transfer arrives as a little burst of them — on the footage
+    this was tuned against, bursts inside a fifth of a second moving the ball
+    less than two player heights.
+
+    Identity cannot help here, which is why this is a separate rule rather than
+    more work for `cv/identity.py`. The fragments of one contact are exactly
+    the ones the clusterer also splits, so they sit in different clusters and
+    asking who they are returns different answers. Time and place need no such
+    answer.
+    """
+
+    def _burst(self, first_conf=0.3):
+        """Three touches down one line, close enough to be one contact.
+
+        A hundred pixels a step is two and three quarter player heights: over
+        the length floor, under the transfer radius, and spread over three
+        tenths of a second, so each pair on its own is a believable little
+        pass. Only their nearness to each other says otherwise.
+        """
+        return [
+            touch(0.0, 1, TEAM_A, xy_px=(0.0, 0.0), confidence=first_conf),
+            touch(0.3, 2, TEAM_A, xy_px=(100.0, 0.0)),
+            touch(0.6, 3, TEAM_A, xy_px=(200.0, 0.0)),
+        ]
+
+    def test_a_burst_collapses_to_one_claim(self):
+        assert len(derive(self._burst()).passes()) == 1
+
+    def test_the_survivor_is_the_surest_claim_not_the_first(self):
+        """Same rule `cv/touches.py` uses a layer down, for the same reason.
+
+        Within a burst, the detection the ball was actually seen on is the one
+        worth keeping, and confidence is what carries that. Here the first
+        touch is the weak one, so the claim starting from the second survives.
+        """
+        kept = derive(self._burst()).passes()[0]
+        assert kept.timestamp_s == pytest.approx(0.3)
+
+    def test_claims_far_enough_apart_are_both_kept(self):
+        """The rule must not swallow a genuine exchange of passes."""
+        touches = [
+            touch(0.0, 1, TEAM_A, xy_px=(0.0, 0.0)),
+            touch(0.8, 2, TEAM_A, xy_px=(250.0, 0.0)),
+            touch(1.6, 3, TEAM_A, xy_px=(500.0, 0.0)),
+        ]
+        assert len(derive(touches).passes()) == 2
+
+    def test_zero_turns_the_collapse_off(self):
+        assert len(derive(self._burst(), same_transfer_s=0.0).passes()) == 2
+        assert len(derive(self._burst(), same_transfer_ph=0.0).passes()) == 2
+
+    def test_a_rapid_one_two_is_merged_and_that_is_a_known_cost(self):
+        """Two real passes, lost to the rule that removes the invented ones.
+
+        A wall pass played and returned inside three tenths of a second, over
+        ground a player could cover, is not distinguishable here from one
+        contact detected twice. At this spacing the band between "too close
+        together to be separate" and "too fast to be a ball at all" is only
+        about five player heights wide, and a genuine one-two fits inside it.
+
+        On the footage the two rules were tuned against the trade was worth
+        taking: the collapse removed five invented passes and cost none of the
+        eight a human marked up, the closest pair of which were nine tenths of
+        a second apart. This test is here so the cost stays visible if that
+        ever stops being true.
+        """
+        one_two = [
+            touch(0.0, 7, TEAM_A, xy_px=(0.0, 0.0)),
+            touch(0.3, 8, TEAM_A, xy_px=(100.0, 0.0)),
+            touch(0.6, 7, TEAM_A, xy_px=(10.0, 0.0)),
+        ]
+        assert len(derive(one_two).passes()) == 1

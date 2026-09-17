@@ -91,12 +91,6 @@ PENDING_BY_DESIGN = {
                    'shown raw, and turning them into words is a decision about '
                    'tone, not code.',
 
-    # --- identity
-    'cluster_of_track': 'Reverse lookup from track to cluster. Everything '
-                        'published walks clusters forward to their tracks; the '
-                        'reverse direction is what a per-track debug view '
-                        'would want.',
-
     # --- diagnostics that print rather than publish
     'drift_notes': 'English sentences for whichever shape figures actually '
                    'moved. The pipeline publishes `shape_drift` as numbers and '
