@@ -1,0 +1,11 @@
+# per-run outputs (rebuilt by run.sh); still4.npz is the trimmed constants file
+*.npz
+!still4.npz
+*.mp4
+*.jpg
+*.log
+*_part*
+__pycache__/
+# our own 240 KB ball classifier, not a pretrained download
+!cls_B.pt
+*_timing.json

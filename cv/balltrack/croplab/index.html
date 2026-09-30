@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crop Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@500;700;900&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#131920; --panel:#1b232d; --panel2:#222c38; --line:#2c3845;
+  --ink:#e8edf3; --dim:#8695a6; --faint:#5d6b7a;
+  --signal:#f59e2c; --ok:#49c58c; --air:#4fc3e0; --off:#6e8ab8; --hid:#a08bd0;
+  --warn:#e0645f;
+  --c-ball:var(--ok); --c-cleat:var(--signal); --c-head:var(--hid);
+  --c-otherball:var(--air); --c-other:#7d8a99; --c-notball:var(--off);
+  --c-unsure:#4a5563; --c-near:#c9d46a;
+  --disp:'Chivo',system-ui,sans-serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#131920; --panel:#1b232d; --panel2:#222c38; --line:#2c3845;
+  --ink:#e8edf3; --dim:#8695a6; --faint:#5d6b7a;
+}}
+:root[data-theme="dark"]{
+  --ground:#131920; --panel:#1b232d; --panel2:#222c38; --line:#2c3845;
+  --ink:#e8edf3; --dim:#8695a6; --faint:#5d6b7a;
+}
+/* light is the non-default: the crops are video, and video reads on dark */
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+}}
+:root[data-theme="light"]{
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--body); font-size:14px; line-height:1.45;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  padding-bottom:calc(var(--barH, 96px) + 16px);
+}
+button,select{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--signal); outline-offset:2px}
+kbd{font-family:var(--mono); font-size:10.5px; background:var(--panel2);
+  border:1px solid var(--line); border-bottom-width:2px; border-radius:4px;
+  padding:1px 5px; color:var(--ink); white-space:nowrap}
+
+/* ---------- head ---------- */
+.head{position:sticky; top:0; z-index:5; background:var(--panel);
+  border-bottom:1px solid var(--line); padding:10px 16px 10px}
+.headRow{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap}
+h1{font-family:var(--disp); font-weight:900; font-size:15px; letter-spacing:.06em;
+  text-transform:uppercase; margin:0}
+h1 span{color:var(--signal)}
+.prog{margin-left:auto; font-size:12px; color:var(--dim)}
+.prog b{font-family:var(--mono); font-weight:600; color:var(--ink);
+  font-variant-numeric:tabular-nums}
+.save{font-family:var(--mono); font-size:11px; color:var(--faint); margin-left:8px}
+.save.busy{color:var(--signal)}
+.bar{height:8px; border-radius:99px; background:var(--panel2); overflow:hidden;
+  display:flex; border:1px solid var(--line); margin-top:8px}
+.bar i{display:block; height:100%; transition:width .18s ease}
+
+/* ---------- legend ---------- */
+.wrap{padding:0 16px; max-width:1400px; margin:0 auto}
+.legend{display:flex; flex-wrap:wrap; gap:6px 8px; margin:12px 0 0}
+.lg{display:inline-flex; align-items:center; gap:6px; font-size:12px;
+  background:var(--panel); border:1px solid var(--line); border-radius:99px;
+  padding:3px 10px 3px 4px}
+.lg .sw{width:10px; height:10px; border-radius:3px; flex:none}
+.lg b{font-family:var(--mono); font-weight:600; font-size:11px; color:var(--dim);
+  font-variant-numeric:tabular-nums}
+.keys{display:flex; flex-wrap:wrap; gap:4px 14px; margin:8px 0 0; font-size:11.5px;
+  color:var(--dim)}
+.keys span{white-space:nowrap}
+
+.banner{background:rgba(224,100,95,.12); border:1px solid rgba(224,100,95,.5);
+  color:var(--ink); border-radius:var(--r); padding:9px 11px; font-size:12px;
+  margin:12px 0 0}
+.banner.hide{display:none}
+
+/* ---------- pager ---------- */
+.pager{display:flex; align-items:center; gap:8px; margin:14px 0 10px; flex-wrap:wrap}
+.btn{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r);
+  padding:7px 10px; font-family:var(--disp); font-weight:700; font-size:11.5px;
+  letter-spacing:.06em; text-transform:uppercase; transition:border-color .14s}
+.btn:hover:not(:disabled){border-color:var(--faint)}
+.btn:disabled{opacity:.38; cursor:not-allowed}
+.btn.on{border-color:var(--air); color:var(--air)}
+.btn.ghost{font-family:var(--body); font-weight:500; text-transform:none;
+  letter-spacing:0; font-size:12px}
+select.sel{background:var(--panel2); border:1px solid var(--line);
+  border-radius:var(--r); padding:6px 8px; font-size:12.5px; min-width:0;
+  max-width:100%; flex:1 1 180px}
+.tools{display:flex; gap:6px; flex-wrap:wrap; margin-left:auto}
+
+/* ---------- grid ---------- */
+.grid{--tw:192px; --th:192px; --cols:10; display:grid; gap:8px;
+  grid-template-columns:repeat(auto-fill, var(--tw)); justify-content:start}
+.tile{position:relative; width:var(--tw); height:var(--th); border-radius:var(--r);
+  border:2px solid var(--line); background:#000; overflow:hidden; cursor:pointer;
+  scroll-margin:120px 0 calc(var(--barH, 96px) + 24px); touch-action:manipulation}
+.crop{position:absolute; inset:0; background-image:var(--img); background-repeat:no-repeat;
+  background-size:calc(var(--cols) * var(--tw)) auto;
+  background-position:calc(var(--c) * var(--tw) * -1) calc(var(--r0) * var(--th) * -1)}
+.grid.strip .crop::after{display:none}
+.strip .tile .hint{top:auto; bottom:5px}
+.strip .tile .chip{left:auto; width:33.4%; right:0}
+.grid.pix .crop{image-rendering:pixelated}
+.grid.ring .crop::after{content:""; position:absolute; left:50%; top:50%;
+  width:34%; height:34%; transform:translate(-50%,-50%); border-radius:50%;
+  border:1.5px dashed rgba(245,158,44,.85); box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.tile.done .crop{opacity:.5}
+.tile.cur .crop{opacity:1}
+.tile.cur{border-color:var(--ink); box-shadow:0 0 0 3px var(--ground), 0 0 0 5px var(--ink)}
+.hint{position:absolute; top:5px; left:5px; font-family:var(--mono); font-size:10px;
+  padding:0 5px; border-radius:4px; background:rgba(10,14,19,.66); color:#c9d3de;
+  border:1px solid rgba(255,255,255,.14); pointer-events:none}
+.hint.h-ball{color:#8fe0b9; border-color:rgba(73,197,140,.45)}
+.chip{position:absolute; left:0; right:0; bottom:0; font-family:var(--disp);
+  font-weight:700; font-size:10.5px; letter-spacing:.07em; text-transform:uppercase;
+  color:#0e141b; padding:3px 6px; display:none; text-align:center}
+.tile.done .chip{display:block}
+.idx{position:absolute; top:5px; right:6px; font-family:var(--mono); font-size:10px;
+  color:rgba(232,237,243,.55); pointer-events:none}
+.l-ball{--lc:var(--c-ball)} .l-cleat{--lc:var(--c-cleat)} .l-head{--lc:var(--c-head)}
+.l-otherball{--lc:var(--c-otherball)} .l-other{--lc:var(--c-other)}
+.l-notball{--lc:var(--c-notball)} .l-unsure{--lc:var(--c-unsure)} .l-near{--lc:var(--c-near)}
+.tile.done{border-color:var(--lc)}
+.tile.done .chip{background:var(--lc)}
+.tile.cur.done{border-color:var(--lc)}
+.empty{grid-column:1/-1; color:var(--dim); font-size:13px; padding:24px 0}
+
+/* ---------- action bar ---------- */
+.act{position:fixed; left:0; right:0; bottom:0; z-index:6; background:var(--panel);
+  border-top:1px solid var(--line);
+  padding:8px 16px calc(8px + env(safe-area-inset-bottom))}
+.actIn{max-width:1400px; margin:0 auto}
+.actMeta{display:flex; gap:10px; align-items:baseline; font-size:12px; color:var(--dim);
+  margin-bottom:6px; min-height:18px; flex-wrap:wrap}
+.actMeta b{font-family:var(--mono); font-weight:600; color:var(--ink)}
+.actMeta .st{margin-left:auto; color:var(--dim)}
+.actBtns{display:grid; grid-template-columns:repeat(7,1fr) auto auto; gap:6px}
+.lb{display:flex; align-items:center; justify-content:center; gap:6px;
+  background:var(--panel2); border:1px solid var(--line); border-left:4px solid var(--lc);
+  border-radius:var(--r); padding:9px 6px; font-family:var(--disp); font-weight:700;
+  font-size:11.5px; letter-spacing:.05em; text-transform:uppercase; min-width:0}
+.lb kbd{font-size:10px}
+.lb.sel{background:var(--lc); color:#0e141b; border-color:var(--lc)}
+.lb.sel kbd{background:rgba(255,255,255,.55); color:#0e141b; border-color:transparent}
+.lb:disabled{opacity:.38; cursor:not-allowed}
+.lb .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+@media (max-width:720px){
+  .prog{margin-left:0; width:100%}
+  .keys{display:none}
+  .actBtns{grid-template-columns:repeat(6,1fr)}
+  .actBtns .lb{grid-column:span 2}
+  .actBtns .lb.hintBtn{grid-column:span 4}
+  .actBtns .lb.undoBtn{grid-column:span 2}
+  .lb kbd{display:none}
+  .tools{margin-left:0}
+}
+</style>
+</head>
+<body>
+
+<header class="head">
+  <div class="headRow">
+    <h1>Crop <span>Lab</span></h1>
+    <div class="prog" id="prog">loading&hellip;</div>
+  </div>
+  <div class="bar" id="bar"></div>
+</header>
+
+<div class="wrap">
+  <div class="banner hide" id="banner"></div>
+
+  <div class="legend" id="legend"></div>
+  <div class="keys">
+    <span><kbd>1</kbd>&ndash;<kbd>7</kbd> label</span>
+    <span>each strip: 0.2 s before &middot; <b>this frame</b> (bracketed) &middot; 0.2 s after</span>
+    <span><kbd>enter</kbd> accept hint</span>
+    <span><kbd>&larr;&uarr;&darr;&rarr;</kbd> / <kbd>j</kbd> <kbd>k</kbd> move</span>
+    <span><kbd>0</kbd> clear</span>
+    <span><kbd>u</kbd> undo</span>
+    <span><kbd>[</kbd> <kbd>]</kbd> sheet</span>
+    <span><kbd>f</kbd> hide labelled</span>
+    <span><kbd>z</kbd> zoom</span>
+    <span><kbd>r</kbd> ring</span>
+    <span><kbd>p</kbd> pixels</span>
+  </div>
+
+  <div class="pager">
+    <button class="btn" id="bPrev" aria-label="Previous sheet">&larr;</button>
+    <select class="sel" id="sheetSel" aria-label="Sheet"></select>
+    <button class="btn" id="bNext" aria-label="Next sheet">&rarr;</button>
+    <div class="tools">
+      <button class="btn ghost" id="bHide">Hide labelled</button>
+      <button class="btn ghost" id="bZoom">Zoom 2&times;</button>
+      <button class="btn ghost on" id="bRing">Ring</button>
+      <button class="btn ghost" id="bPix">Pixels</button>
+      <button class="btn ghost" id="bExport">Copy JSON</button>
+    </div>
+  </div>
+
+  <div class="grid ring" id="grid"></div>
+</div>
+
+<div class="act" id="act">
+  <div class="actIn">
+    <div class="actMeta">
+      <span id="curMeta">&mdash;</span>
+      <span class="st" id="status">Tap a crop, then a label.</span>
+    </div>
+    <div class="actBtns" id="actBtns"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+var LABELS = [
+  { key:'ball',      n:'1', name:'Ball' },
+  { key:'cleat',     n:'2', name:'Cleat / foot' },
+  { key:'head',      n:'3', name:'Head' },
+  { key:'otherball', n:'4', name:'Other ball' },
+  { key:'other',     n:'5', name:'Other' },
+  { key:'unsure',    n:'6', name:"Can't tell" },
+  { key:'near',      n:'7', name:'Beside the ball' }
+];
+/* accepting a "notball" hint stores its own label: not the ball, class unstated */
+var EXTRA = { key:'notball', name:'Not ball (hint)' };
+var NAME = {};
+LABELS.concat([EXTRA]).forEach(function(l){ NAME[l.key] = l.name; });
+var HINT_LABEL = { ball:'ball', notball:'notball', cleat:'cleat', head:'head',
+                   otherball:'otherball', other:'other' };
+var ZOOMS = [1, 1.5, 2, 3];
+var TW = 96, TH = 96, STRIP = false;
+
+var M = null, sheets = [], TILE = 96, total = 0;
+var byId = {};                 // id -> {s, k, it}
+var labels = {};               // id -> {tag,f,j,label,hint,ts}
+var undoStack = [];
+var db = null, canWrite = true, badPathWarned = false;
+var want = {}, inflight = {};
+var curSheet = 0, visible = [], cur = -1, hiddenAtRender = {};
+var prefs = { zoom: 1.5, ring: true, pix: false, hide: false, sheet: 0, strip: false };
+var sheetImgs = {};
+
+var $ = function(id){ return document.getElementById(id); };
+var grid = $('grid');
+
+/* ---------------------------------------------------------------- storage */
+
+function loadJSON(k){ try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch(e){ return null; } }
+function saveJSON(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+function saveLocal(){ saveJSON('croplab.v1', labels); }
+function savePrefs(){ saveJSON('croplab.prefs', prefs); }
+
+function warn(msg){
+  var b = $('banner');
+  b.textContent = msg;
+  b.classList.remove('hide');
+}
+
+var SEG = /^[A-Za-z0-9_\-.~:@+]{1,200}$/;
+function okId(id){ return SEG.test(id) && id !== '.' && id !== '..'; }
+
+function docRef(id){
+  if (!okId(id)) {
+    if (!badPathWarned){
+      badPathWarned = true;
+      warn('Crop id "' + id + '" cannot be a storage path; such labels stay in this browser only.');
+    }
+    return null;
+  }
+  try { return db.doc('crops/' + id); } catch(e){ return null; }
+}
+
+/* one write at a time per document, always the latest wish */
+function push(id){
+  if (!db || !canWrite) { paintSave(); return; }
+  if (inflight[id]) return;
+  inflight[id] = true; paintSave();
+  (async function(){
+    while (Object.prototype.hasOwnProperty.call(want, id)){
+      var r = want[id]; delete want[id];
+      var ref = docRef(id);
+      if (!ref) break;
+      for (var attempt = 0; attempt < 2; attempt++){
+        try {
+          if (r) await ref.set(r); else await ref.delete();
+          break;
+        } catch(e){
+          var code = e && e.code;
+          if (code === 'unavailable' && attempt === 0){
+            await new Promise(function(res){ setTimeout(res, 400 + Math.random() * 800); });
+            continue;
+          }
+          if (code === 'invalid_argument' || code === 'transform_error' ||
+              code === 'not_granted' || code === 'revoked' ||
+              code === 'capability_disabled' || code === 'capability_removed'){
+            canWrite = false;
+            warn('Labels cannot be saved to the shared store from this view (' + code +
+                 '). They are kept in this browser; use "Copy JSON" before leaving.');
+          } else if (code === 'quota_exceeded'){
+            warn('The label store is full (' + (e.message || 'quota') + '). New labels stay in this browser; use "Copy JSON".');
+          } else {
+            warn('Could not save ' + id + ' (' + (code || 'error') + '). It is still in this browser.');
+          }
+          break;
+        }
+      }
+      if (!canWrite) break;
+    }
+    delete inflight[id];
+    paintSave();
+  })();
+}
+
+function paintSave(){
+  var n = Object.keys(inflight).length;
+  var el = $('save');
+  if (!el) return;
+  if (!db) { el.textContent = 'browser only'; el.className = 'save'; return; }
+  if (!canWrite) { el.textContent = 'not saving'; el.className = 'save busy'; return; }
+  el.textContent = n ? 'saving ' + n + '…' : 'saved';
+  el.className = 'save' + (n ? ' busy' : '');
+}
+
+/* ------------------------------------------------------------------ label */
+
+function record(id, label){
+  var e = byId[id].it;
+  return { tag: e.tag == null ? null : e.tag, f: e.f == null ? null : e.f,
+           j: e.j == null ? null : e.j, label: label,
+           hint: e.hint == null ? null : e.hint, ts: Date.now() };
+}
+
+function setLabel(id, label, noUndo){
+  var prev = labels[id] || null;
+  if (!noUndo) undoStack.push({ id: id, prev: prev });
+  if (undoStack.length > 500) undoStack.shift();
+  var r = label ? record(id, label) : null;
+  if (r) labels[id] = r; else delete labels[id];
+  saveLocal();
+  want[id] = r;
+  push(id);
+}
+
+function labelCur(label){
+  if (cur < 0 || !visible.length) { say('Pick a crop first.'); return; }
+  var k = visible[cur], id = sheets[curSheet].items[k].id;
+  setLabel(id, label);
+  paintTile(k); paintProgress();
+  say((NAME[label] || label) + ' &middot; <b>' + esc(id) + '</b>');
+  advance();
+}
+
+function acceptHint(){
+  if (cur < 0) return;
+  var it = sheets[curSheet].items[visible[cur]];
+  var l = HINT_LABEL[it.hint];
+  if (!l) { say('No hint on this crop &mdash; pick 1&ndash;5.'); return; }
+  labelCur(l);
+}
+
+function clearCur(){
+  if (cur < 0) return;
+  var k = visible[cur], id = sheets[curSheet].items[k].id;
+  if (!labels[id]) return;
+  setLabel(id, null);
+  paintTile(k); paintProgress(); paintBar();
+  say('Cleared <b>' + esc(id) + '</b>.');
+}
+
+function undo(){
+  var u = undoStack.pop();
+  if (!u) { say('Nothing to undo.'); return; }
+  if (u.prev) { labels[u.id] = u.prev; } else { delete labels[u.id]; }
+  saveLocal();
+  want[u.id] = u.prev; push(u.id);
+  var loc = byId[u.id];
+  if (loc.s !== curSheet || visible.indexOf(loc.k) < 0) renderSheet(loc.s, loc.k, true);
+  else { paintTile(loc.k); moveTo(visible.indexOf(loc.k)); }
+  paintProgress();
+  say('Undone: <b>' + esc(u.id) + '</b> is ' + (u.prev ? NAME[u.prev.label] : 'unlabelled') + ' again.');
+}
+
+function isDone(it){ return !!labels[it.id]; }
+
+function advance(){
+  var items = sheets[curSheet].items;
+  for (var p = cur + 1; p < visible.length; p++){
+    if (!isDone(items[visible[p]])) { moveTo(p); return; }
+  }
+  for (p = 0; p < cur; p++){
+    if (!isDone(items[visible[p]])) { moveTo(p); return; }
+  }
+  /* sheet finished: on to the next sheet with work in it */
+  for (var d = 1; d <= sheets.length; d++){
+    var s = (curSheet + d) % sheets.length;
+    if (sheetDone(s) < sheets[s].items.length){
+      var from = curSheet;
+      renderSheet(s, -1);
+      say('Sheet ' + (from + 1) + ' done &mdash; now sheet ' + (s + 1) + '.');
+      return;
+    }
+  }
+  paintBar();
+  say('Every crop is labelled. Thank you.');
+}
+
+/* ------------------------------------------------------------------ sheet */
+
+function sheetDone(s){
+  var n = 0, items = sheets[s].items;
+  for (var i = 0; i < items.length; i++) if (labels[items[i].id]) n++;
+  return n;
+}
+
+function preload(s){
+  if (s < 0 || s >= sheets.length || sheetImgs[s]) return;
+  var im = new Image();
+  im.onerror = function(){ warn('Sheet ' + (s + 1) + ' (' + sheets[s].file + ') did not load.'); };
+  im.src = sheets[s].file;
+  sheetImgs[s] = im;
+}
+
+function renderSheet(s, focusK, keepHidden){
+  s = Math.max(0, Math.min(sheets.length - 1, s));
+  var changed = s !== curSheet;
+  curSheet = s; prefs.sheet = s; savePrefs();
+  var sh = sheets[s];
+  preload(s); preload(s + 1);
+
+  /* hide what was labelled before this view; fresh labels stay so mistakes can be seen */
+  if (!keepHidden || changed){
+    hiddenAtRender = {};
+    if (prefs.hide) sh.items.forEach(function(it){ if (labels[it.id]) hiddenAtRender[it.id] = 1; });
+  }
+  if (focusK >= 0) delete hiddenAtRender[sh.items[focusK].id];
+
+  visible = [];
+  sh.items.forEach(function(it, k){ if (!hiddenAtRender[it.id]) visible.push(k); });
+
+  grid.style.setProperty('--img', 'url("' + String(sh.file).replace(/"/g, '%22') + '")');
+  grid.style.setProperty('--cols', String(sh.cols));
+  var frag = document.createDocumentFragment();
+  visible.forEach(function(k, p){
+    var it = sh.items[k];
+    var t = document.createElement('div');
+    t.className = 'tile';
+    t.dataset.k = k;
+    t.title = it.id + (it.f != null ? ' · frame ' + it.f : '') + (it.j != null ? ' · cand ' + it.j : '');
+    var c = document.createElement('div');
+    c.className = 'crop';
+    c.style.setProperty('--c', String(k % sh.cols));
+    c.style.setProperty('--r0', String(Math.floor(k / sh.cols)));
+    t.appendChild(c);
+    if (it.hint){
+      var h = document.createElement('span');
+      h.className = 'hint h-' + (it.hint === 'ball' ? 'ball' : 'not');
+      h.textContent = it.hint === 'ball' ? 'hint: ball' : 'hint: ' + it.hint;
+      t.appendChild(h);
+    }
+    var ix = document.createElement('span');
+    ix.className = 'idx'; ix.textContent = String(k + 1);
+    t.appendChild(ix);
+    var ch = document.createElement('span');
+    ch.className = 'chip';
+    t.appendChild(ch);
+    t.addEventListener('click', function(){ moveTo(visible.indexOf(k)); });
+    frag.appendChild(t);
+  });
+  grid.innerHTML = '';
+  if (!visible.length){
+    var e = document.createElement('div');
+    e.className = 'empty';
+    e.textContent = 'Every crop on this sheet is labelled. Turn off "Hide labelled" to review, or go to the next sheet.';
+    grid.appendChild(e);
+  } else grid.appendChild(frag);
+
+  visible.forEach(paintTileAt);
+  var start = -1;
+  if (focusK >= 0) start = visible.indexOf(focusK);
+  if (start < 0) for (var p = 0; p < visible.length; p++){
+    if (!isDone(sh.items[visible[p]])) { start = p; break; }
+  }
+  if (start < 0 && visible.length) start = 0;
+  cur = -1;
+  fitTiles();
+  moveTo(start, !changed && focusK < 0 ? 'none' : 'auto');
+  if (changed && focusK < 0) window.scrollTo(0, 0);
+  paintPager();
+}
+
+function tileEl(k){ return grid.querySelector('.tile[data-k="' + k + '"]'); }
+
+function paintTileAt(k){ paintTile(k); }
+function paintTile(k){
+  var t = tileEl(k); if (!t) return;
+  var it = sheets[curSheet].items[k], r = labels[it.id];
+  var cls = 'tile';
+  if (r) cls += ' done l-' + r.label;
+  if (cur >= 0 && visible[cur] === k) cls += ' cur';
+  t.className = cls;
+  t.querySelector('.chip').textContent = r ? (NAME[r.label] || r.label) : '';
+}
+
+function moveTo(p, scroll){
+  if (!visible.length){ cur = -1; paintBar(); return; }
+  p = Math.max(0, Math.min(visible.length - 1, p));
+  var old = cur;
+  cur = p;
+  if (old >= 0 && old < visible.length) paintTile(visible[old]);
+  paintTile(visible[cur]);
+  if (scroll !== 'none'){
+    var t = tileEl(visible[cur]);
+    if (t) t.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+  }
+  paintBar();
+}
+
+function gridCols(){
+  var ts = parseFloat(getComputedStyle(grid).getPropertyValue('--tw')) || 192;
+  return Math.max(1, Math.floor((grid.clientWidth + 8) / (ts + 8)));
+}
+
+function fitTiles(){
+  var avail = grid.clientWidth || (window.innerWidth - 32);
+  var tw = Math.round(TW * prefs.zoom);
+  if (tw > avail) tw = avail;
+  if (!STRIP && Math.floor((avail + 8) / (tw + 8)) < 2 && prefs.zoom <= 2){
+    tw = Math.max(60, Math.floor((avail - 8) / 2));
+  }
+  grid.style.setProperty('--tw', tw + 'px');
+  grid.style.setProperty('--th', Math.round(tw * TH / TW) + 'px');
+  $('bZoom').innerHTML = 'Zoom ' + prefs.zoom + '&times;';
+}
+
+/* ------------------------------------------------------------------ paint */
+
+function counts(){
+  var c = { done: 0 };
+  LABELS.concat([EXTRA]).forEach(function(l){ c[l.key] = 0; });
+  for (var id in labels){
+    if (!byId[id]) continue;
+    c.done++;
+    var l = labels[id].label;
+    c[l] = (c[l] || 0) + 1;
+  }
+  return c;
+}
+
+function paintProgress(){
+  var c = counts();
+  $('prog').innerHTML = '<b>' + c.done + '</b> / ' + total + ' labelled' +
+    ' &middot; ' + Math.round(100 * c.done / Math.max(1, total)) + '%' +
+    '<span class="save" id="save"></span>';
+  paintSave();
+  var bar = $('bar'), keys = LABELS.concat([EXTRA]);
+  if (!bar.childNodes.length) keys.forEach(function(l){
+    var i = document.createElement('i'); i.className = 'l-' + l.key;
+    i.style.background = 'var(--lc)'; i.style.width = '0'; bar.appendChild(i);
+  });
+  keys.forEach(function(l, j){ bar.childNodes[j].style.width = (100 * c[l.key] / Math.max(1, total)) + '%'; });
+
+  var lg = $('legend');
+  var html = '';
+  LABELS.forEach(function(l){
+    html += '<span class="lg l-' + l.key + '"><kbd>' + l.n + '</kbd><i class="sw" style="background:var(--lc)"></i>' +
+      l.name + ' <b>' + c[l.key] + '</b></span>';
+  });
+  if (c.notball) html += '<span class="lg l-notball"><kbd>&#9166;</kbd><i class="sw" style="background:var(--lc)"></i>' +
+    EXTRA.name + ' <b>' + c.notball + '</b></span>';
+  lg.innerHTML = html;
+  paintPager();
+}
+
+function paintPager(){
+  if (!sheets.length) return;
+  var sel = $('sheetSel');
+  if (sel.options.length !== sheets.length){
+    sel.innerHTML = '';
+    sheets.forEach(function(_, s){ var o = document.createElement('option'); o.value = String(s); sel.appendChild(o); });
+  }
+  sheets.forEach(function(sh, s){
+    var d = sheetDone(s), n = sh.items.length;
+    sel.options[s].textContent = 'Sheet ' + (s + 1) + ' of ' + sheets.length + ' · ' + d + '/' + n + (d === n ? ' ✓' : '');
+  });
+  sel.value = String(curSheet);
+  $('bPrev').disabled = curSheet <= 0;
+  $('bNext').disabled = curSheet >= sheets.length - 1;
+  $('bHide').classList.toggle('on', prefs.hide);
+  $('bRing').classList.toggle('on', prefs.ring);
+  $('bPix').classList.toggle('on', prefs.pix);
+  grid.classList.toggle('ring', prefs.ring);
+  grid.classList.toggle('pix', prefs.pix);
+}
+
+function buildBar(){
+  var box = $('actBtns');
+  LABELS.forEach(function(l){
+    var b = document.createElement('button');
+    b.className = 'lb l-' + l.key; b.dataset.l = l.key;
+    b.innerHTML = '<kbd>' + l.n + '</kbd><span class="nm">' + l.name + '</span>';
+    b.addEventListener('click', function(){ labelCur(l.key); });
+    box.appendChild(b);
+  });
+  var h = document.createElement('button');
+  h.className = 'lb hintBtn'; h.id = 'bHint'; h.style.setProperty('--lc', 'var(--line)');
+  h.innerHTML = '<kbd>&#9166;</kbd><span class="nm">Accept hint</span>';
+  h.addEventListener('click', acceptHint);
+  box.appendChild(h);
+  var u = document.createElement('button');
+  u.className = 'lb undoBtn'; u.style.setProperty('--lc', 'var(--line)');
+  u.innerHTML = '<kbd>u</kbd><span class="nm">Undo</span>';
+  u.addEventListener('click', undo);
+  box.appendChild(u);
+  var ro = window.ResizeObserver ? new ResizeObserver(setBarH) : null;
+  if (ro) ro.observe($('act'));
+  setBarH();
+}
+function setBarH(){ document.documentElement.style.setProperty('--barH', $('act').offsetHeight + 'px'); }
+
+function paintBar(){
+  var it = (cur >= 0 && visible.length) ? sheets[curSheet].items[visible[cur]] : null;
+  var r = it ? labels[it.id] : null;
+  document.querySelectorAll('#actBtns .lb[data-l]').forEach(function(b){
+    b.classList.toggle('sel', !!(r && r.label === b.dataset.l));
+    b.disabled = !it;
+  });
+  var hb = $('bHint');
+  var hl = it && HINT_LABEL[it.hint];
+  hb.disabled = !hl;
+  hb.querySelector('.nm').textContent = hl ? 'Accept hint: ' + it.hint : 'No hint';
+  $('curMeta').innerHTML = it
+    ? '<b>' + esc(it.id) + '</b>' + (it.f != null ? ' &middot; frame ' + esc(it.f) : '') +
+      ' &middot; ' + (visible[cur] + 1) + '/' + sheets[curSheet].items.length +
+      (r ? ' &middot; ' + esc(NAME[r.label] || r.label) : '')
+    : '&mdash;';
+}
+
+function say(html){ $('status').innerHTML = html; }
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); }
+
+/* --------------------------------------------------------------- controls */
+
+$('bPrev').addEventListener('click', function(){ renderSheet(curSheet - 1, -1); });
+$('bNext').addEventListener('click', function(){ renderSheet(curSheet + 1, -1); });
+$('sheetSel').addEventListener('change', function(e){ renderSheet(Number(e.target.value), -1); e.target.blur(); });
+$('bHide').addEventListener('click', toggleHide);
+$('bZoom').addEventListener('click', cycleZoom);
+$('bRing').addEventListener('click', function(){ prefs.ring = !prefs.ring; savePrefs(); paintPager(); });
+$('bPix').addEventListener('click', function(){ prefs.pix = !prefs.pix; savePrefs(); paintPager(); });
+$('bExport').addEventListener('click', function(){
+  var out = JSON.stringify({ total: total, labels: labels });
+  var done = function(msg){ say(msg); };
+  try {
+    navigator.clipboard.writeText(out).then(function(){
+      done('Copied ' + Object.keys(labels).length + ' labels to the clipboard.');
+    }, function(){ done('Clipboard blocked by this view.'); });
+  } catch(e){ done('Clipboard unavailable in this view.'); }
+});
+
+function toggleHide(){
+  prefs.hide = !prefs.hide; savePrefs();
+  var k = cur >= 0 ? visible[cur] : -1;
+  renderSheet(curSheet, k);
+}
+function cycleZoom(){
+  var i = ZOOMS.indexOf(prefs.zoom);
+  prefs.zoom = ZOOMS[(i + 1) % ZOOMS.length]; savePrefs();
+  fitTiles(); moveTo(cur);
+}
+
+document.addEventListener('keydown', function(e){
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  var tg = e.target && e.target.tagName;
+  if (tg === 'SELECT' || tg === 'INPUT' || tg === 'TEXTAREA') return;
+  if (!sheets.length) return;
+  var used = true, k = e.key;
+  var n = /^[1-7]$/.test(k) ? Number(k) : 0;
+  if (n) { labelCur(LABELS[n - 1].key); e.preventDefault(); return; }
+  switch (k){
+    case 'Enter': acceptHint(); break;
+    case 'ArrowRight': case 'l': case 'j': moveTo(cur + 1); break;
+    case 'ArrowLeft': case 'h': case 'k': moveTo(cur - 1); break;
+    case 'ArrowDown': moveTo(cur + gridCols()); break;
+    case 'ArrowUp': moveTo(cur - gridCols()); break;
+    case '0': case 'Backspace': case 'Delete': clearCur(); break;
+    case 'u': case 'U': undo(); break;
+    case '[': case ',': renderSheet(curSheet - 1, -1); break;
+    case ']': case '.': renderSheet(curSheet + 1, -1); break;
+    case 'f': case 'F': toggleHide(); break;
+    case 'z': case 'Z': cycleZoom(); break;
+    case 'r': case 'R': prefs.ring = !prefs.ring; savePrefs(); paintPager(); break;
+    case 'p': case 'P': prefs.pix = !prefs.pix; savePrefs(); paintPager(); break;
+    default: used = false;
+  }
+  if (used) e.preventDefault();
+});
+
+var rt;
+window.addEventListener('resize', function(){
+  clearTimeout(rt);
+  rt = setTimeout(function(){ fitTiles(); setBarH(); }, 120);
+});
+
+/* ------------------------------------------------------------------- boot */
+
+function applySnapshot(snap){
+  var touched = false;
+  snap.docChanges().forEach(function(ch){
+    var id = ch.doc.id;
+    if (!byId[id]) return;
+    /* our own newer wish wins over an older echo */
+    if (Object.prototype.hasOwnProperty.call(want, id) || inflight[id]) return;
+    if (ch.type === 'removed') { if (labels[id]) { delete labels[id]; touched = true; } return; }
+    var v = ch.doc.data();
+    if (v && typeof v.label === 'string'){
+      var old = labels[id];
+      if (!old || old.label !== v.label || old.ts !== v.ts){
+        labels[id] = Object.assign({}, v); touched = true;
+      }
+    }
+  });
+  if (!touched) return;
+  saveLocal();
+  visible.forEach(paintTile);
+  paintProgress(); paintBar();
+}
+
+async function boot(){
+  buildBar();
+  var p = loadJSON('croplab.prefs');
+  if (p) for (var key in prefs) if (p[key] !== undefined) prefs[key] = p[key];
+  if (ZOOMS.indexOf(prefs.zoom) < 0) prefs.zoom = 2;
+
+  try {
+    var res = await fetch('manifest.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    M = await res.json();
+  } catch(e){
+    warn('manifest.json did not load (' + (e && e.message || 'error') + '). Nothing to label yet.');
+    $('prog').textContent = 'no manifest';
+    return;
+  }
+  TILE = Number(M.tile) || 96;
+  TW = Number(M.tw) || TILE; TH = Number(M.th) || TILE;
+  STRIP = TW !== TH;
+  grid.classList.toggle('strip', STRIP);
+  if (STRIP){
+    ZOOMS = [1, 1.5, 2, 2.5];
+    if (!prefs.strip){ prefs.zoom = 1.5; prefs.strip = true; savePrefs(); }
+  }
+  sheets = (M.sheets || []).filter(function(s){ return s && s.items && s.items.length; });
+  sheets.forEach(function(sh, s){
+    sh.cols = Number(sh.cols) || 10;
+    sh.items.forEach(function(it, k){ byId[it.id] = { s: s, k: k, it: it }; total++; });
+  });
+  if (!sheets.length){ warn('The manifest has no sheets.'); return; }
+
+  var local = loadJSON('croplab.v1');
+  if (local && typeof local === 'object') labels = local;
+
+  renderSheet(Math.min(prefs.sheet || 0, sheets.length - 1), -1);
+  paintProgress();
+
+  try { db = window.claude ? await window.claude.use('db') : null; }
+  catch(e){ db = null; }
+  if (!db){
+    warn('Shared storage is not available in this view. Labels are kept in this browser only ' +
+         '— finish on this device and use "Copy JSON".');
+    paintSave();
+    return;
+  }
+  paintSave();
+  var first = true;
+  try {
+    db.collection('crops').onSnapshot(function(snap){
+      applySnapshot(snap);
+      if (first){
+        first = false;
+        /* land on the first unlabelled crop once the shared labels are in */
+        if (cur >= 0 && labels[sheets[curSheet].items[visible[cur]].id]) {
+          if (sheetDone(curSheet) < sheets[curSheet].items.length) { advance(); return; }
+          for (var s = 0; s < sheets.length; s++){
+            if (sheetDone(s) < sheets[s].items.length){ renderSheet(s, -1); break; }
+          }
+        }
+      }
+    }, function(err){
+      warn('Live label sync stopped (' + (err && err.code || 'error') + '). Labels you add still save; reload to see others’.');
+    });
+  } catch(e){
+    warn('Could not read saved labels (' + (e && e.code || 'error') + '). Anything already in this browser is still here.');
+  }
+}
+
+boot();
+})();
+</script>
+</body>
+</html>
