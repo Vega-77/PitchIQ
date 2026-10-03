@@ -57,17 +57,28 @@ def build(tag):
             if not 1 <= L <= maxgap:
                 continue
             a, b = int(ab[i]), int(ab[j])
+            count = ver == 'hyb90'
+            # air first: tn_engine.py does not run TAPNext on these gaps at all
+            if air[i:j + 1].any():
+                st['gaps'] += count; st['air'] += count
+                if strict:
+                    x[i + 1:j] = np.nan; y[i + 1:j] = np.nan; s[i + 1:j] = 0
+                continue
             f = tr.get((a, b, 1)); g = tr.get((a, b, -1))
-            if f is None or g is None:
+            if f is None:
+                continue
+            if g is None:
+                # tn_engine.py skips the backward run once the forward track has
+                # missed the pick at b, since that alone fails the landing test
+                st['gaps'] += count; st['land'] += count
+                if strict:
+                    x[i + 1:j] = np.nan; y[i + 1:j] = np.nan; s[i + 1:j] = 0
                 continue
             g = g[::-1]                                  # backward track, re-ordered a..b
-            count = ver == 'hyb90'
             if count:
                 st['gaps'] += 1
             ok = True
-            if air[i:j + 1].any():
-                ok = False; st['air'] += count
-            elif np.hypot(*(f[-1] - (X[j], Y[j]))) > ANC or np.hypot(*(g[0] - (X[i], Y[i]))) > ANC:
+            if np.hypot(*(f[-1] - (X[j], Y[j]))) > ANC or np.hypot(*(g[0] - (X[i], Y[i]))) > ANC:
                 ok = False; st['land'] += count
             elif np.hypot(*(f[1:-1] - g[1:-1]).T).max() > AGR:
                 ok = False; st['agree'] += count

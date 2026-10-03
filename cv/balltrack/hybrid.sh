@@ -13,7 +13,7 @@
 #   7 mk3d.py          default 3D chain on the hybrid picks        -> h3d_hyb90/<tag>_ball3dd.npz
 #
 # The result: h3d_hyb90/<tag>_ball3dd.npz  (abs, x, y, z in StatsBomb 120x80 / CR, state ground|air)
-# Speed: step 5 costs ~4 min of GPU per match minute; run it during the half.
+# Speed: step 5 costs ~3 min of GPU per match minute (README); run it during the half.
 set -e
 PY="${PY:-C:/Users/alexv/Desktop/Repos/PitchIQ/PitchIQHelper/.venv/Scripts/python.exe}"
 cd "$(dirname "$0")"

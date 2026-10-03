@@ -25,9 +25,12 @@ HERE = os.path.dirname(os.path.abspath(__file__)); S2 = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(HERE, 'tapnet')); sys.path.insert(0, S2)
 sys.path.append('C:/Users/alexv/Desktop/Repos/PitchIQ/cv/balltrack')   # feat4 (video path) now lives in the repo
 from tapnet.tapnextpp.votsp2026.model import TAPNextPP   # noqa: E402
+sys.path.insert(0, os.path.join(S2, 'alltests'))
+from hybrid import ANC, air_mask   # noqa: E402
 
 AT = os.path.join(S2, 'alltests'); OUT = os.path.join(AT, 'tn')
-S = 512
+S = int(os.environ.get('TNS', 512))   # crop window, px; the checkpoint was tuned at 512
+MODEL_SIZE = 256                # TAPNextPP.MODEL_SIZE: query and track coordinates live on this grid
 MAXGAP = int(os.environ.get('MAXGAP', 90))
 B = int(os.environ.get('TNB', 1))
 SPAN = 600                      # frames one group may span (read once, sequentially)
@@ -62,14 +65,15 @@ class Group:
         for j, fr in enumerate(frames):
             im, off = crop(fr, self.c[j] + self.v[j]); crops.append(im); offs.append(off)
         offs = np.array(offs); x = to_t(crops)
+        k = S / MODEL_SIZE              # crop px per model unit; the model works on a 256 grid
         with torch.amp.autocast('cuda', dtype=torch.float16):
             if self.st is None:
                 q = np.zeros((self.n, 1, 3), np.float32)
-                q[:, 0, 1] = (self.seed[:, 1] - offs[:, 1]) / 2.0; q[:, 0, 2] = (self.seed[:, 0] - offs[:, 0]) / 2.0
+                q[:, 0, 1] = (self.seed[:, 1] - offs[:, 1]) / k; q[:, 0, 2] = (self.seed[:, 0] - offs[:, 0]) / k
                 tr, _, vl, self.st = self.net(video=x, query_points=torch.from_numpy(q).cuda())
             else:
                 tr, _, vl, self.st = self.net(video=x, state=self.st)
-        xy = tr[:, 0, 0].float().cpu().numpy()[:, ::-1] * 2.0 + offs
+        xy = tr[:, 0, 0].float().cpu().numpy()[:, ::-1] * k + offs
         vis = (vl[:, 0, 0, 0] > 0).cpu().numpy()
         if self.prev is not None:
             self.v = 0.6 * self.v + 0.4 * (xy - self.prev)
@@ -94,13 +98,18 @@ def bridges(net, tag):
     z = np.load(os.path.join(AT, 'p2d', 'cls_B', '%s.npz' % tag))
     ab, px, py, src = z['abs'], z['x'], z['y'], z['src']
     anc = np.flatnonzero(src == 1)
+    # hybrid.py rejects any gap touching a frame the shipped 3D chain calls air,
+    # whatever TAPNext says, so those are never run (9 of 74 gaps on fr00).
+    air = air_mask(tag, ab)
     jobs = []                       # (a, b, direction, order, seed)
+    goal = {}                       # (a, b) -> the pick at b a forward track must land on
     for i, j in zip(anc[:-1], anc[1:]):
         L = j - i - 1
-        if 1 <= L <= MAXGAP:
+        if 1 <= L <= MAXGAP and not air[i:j + 1].any():
             a, b = int(ab[i]), int(ab[j])
             jobs.append((a, b, +1, list(range(a, b + 1)), (px[i], py[i])))
             jobs.append((a, b, -1, list(range(b, a - 1, -1)), (px[j], py[j])))
+            goal[(a, b)] = (px[j], py[j])
     jobs.sort(key=lambda t: (min(t[3]), -len(t[3])))
     cap = cv2.VideoCapture(feat4.VIDEO)
     res = []; t0 = time.time(); k0 = 0; done = 0
@@ -111,18 +120,26 @@ def bridges(net, tag):
         k0 = k
         need = set(f for t in span for f in t[3]); hi = max(need)
         frames = read_range(cap, lo, hi, need)
-        for g0 in range(0, len(span), B):
-            g = span[g0:g0 + B]
-            G = Group(net, [t[4] for t in g]); L = max(len(t[3]) for t in g)
-            xy = np.full((len(g), L, 2), np.nan); vis = np.zeros((len(g), L), bool)
-            for s in range(L):
-                fs = [frames[t[3][min(s, len(t[3]) - 1)]] for t in g]
-                xy[:, s], vis[:, s] = G.step(fs)
-            for q, t in enumerate(g):
-                n = len(t[3]); res.append((t[0], t[1], t[2], xy[q, :n], vis[q, :n]))
-            done += len(g)
-            if done % 80 < len(g):
-                print('%s  %d/%d tracks  %.0f s' % (tag, done, len(jobs), time.time() - t0), flush=True)
+        # Forward first. A forward track that misses the pick at b by more than
+        # hybrid.py's ANC sinks the gap whatever the backward track does, so its
+        # backward run is skipped (17% of track-frames on fr00).
+        fwd = [t for t in span if t[2] > 0]; landed = set()
+        for backward in (False, True):
+            part = [t for t in span if t[2] < 0 and (t[0], t[1]) in landed] if backward else fwd
+            for g0 in range(0, len(part), B):
+                g = part[g0:g0 + B]
+                G = Group(net, [t[4] for t in g]); L = max(len(t[3]) for t in g)
+                xy = np.full((len(g), L, 2), np.nan); vis = np.zeros((len(g), L), bool)
+                for s in range(L):
+                    fs = [frames[t[3][min(s, len(t[3]) - 1)]] for t in g]
+                    xy[:, s], vis[:, s] = G.step(fs)
+                for q, t in enumerate(g):
+                    n = len(t[3]); res.append((t[0], t[1], t[2], xy[q, :n], vis[q, :n]))
+                    if t[2] > 0 and np.hypot(*(xy[q, n - 1] - goal[(t[0], t[1])])) <= ANC:
+                        landed.add((t[0], t[1]))
+                done += len(g)
+                if done % 80 < len(g):
+                    print('%s  %d/%d tracks  %.0f s' % (tag, done, len(jobs), time.time() - t0), flush=True)
         del frames
     os.makedirs(OUT, exist_ok=True)
     np.save(os.path.join(OUT, 'bridges_%s.npy' % tag), np.array(res, dtype=object), allow_pickle=True)

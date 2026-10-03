@@ -63,9 +63,17 @@ against every lab; the full table is in `alltests/report.html`, built by
 | cls_B (above) | 72 % | 4 | 34/47 | 14/16 | in report | in report |
 | TAPNext alone | 9 % | 70 | 9/47 | 0/16 | 0 flights | 0 flights |
 
-Speed: the bridges cost about 4 min of GPU per match minute, roughly 3 h per
-half. One TAPNext process is faster than two. Making this fit halftime is
-still open.
+Speed (RTX 4060, fr00): 174 s of GPU per match minute, about 2.2 h per half.
+TAPNext is compute-bound at 160 ms a step, so the savings come from running
+fewer steps. Neither of these changes the output:
+- gaps touching air are never tracked (hybrid.py would reject them anyway);
+- the backward run is skipped when the forward track already missed its
+  landing.
+Together they cut a quarter of the track-frames. Things that did not help:
+cudnn.benchmark, batching tracks (B=2 and B=4 are slower per track), and a
+second process. `TNS=384` (a 384 px window instead of 512) runs in 91 s per
+minute and changes 3% of fr00's frames; it is not the default until the labs
+say it is no worse.
 
 ### Layout
 
