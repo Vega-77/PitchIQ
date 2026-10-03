@@ -1,0 +1,21 @@
+{
+  "f0": 173700,
+  "f1": 173742,
+  "id": "p173700",
+  "kind": "missed",
+  "note": "the ball was lost for a bit while it was still.",
+  "pts": [
+    {
+      "f": 173700,
+      "px": 944,
+      "py": 491
+    },
+    {
+      "f": 173742,
+      "map": true,
+      "x": 43.1,
+      "y": 64.7
+    }
+  ],
+  "ts": 1790874896408
+}

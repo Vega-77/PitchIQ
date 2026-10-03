@@ -33,6 +33,61 @@ In the video:
 - orange: a gap-fill pick
 - grey: the best candidate the tracker declined
 
+## Hybrid 90: the accepted tracker (2026-10-03)
+
+```
+sh hybrid.sh <lo> <hi> <tag>              # runs run.sh first if <tag>cls.npz is missing
+RENDER=1 sh hybrid.sh 136170 137970 fr00  # + tapnext/hyb90_fr00_136170.mp4
+```
+
+The tracker above owns every confident pick, kick and flight. TAPNext++ (Google
+DeepMind) only crosses gaps of 90 frames or fewer between two confident picks.
+It is seeded on the pick before the gap and run forward, then seeded on the
+pick after and run backward. A bridge is accepted only when:
+- each direction lands within 20 px of our pick at the far end,
+- the two directions agree within 24 px on every frame,
+- the gap touches no frame the 3D chain calls air.
+
+Rejected gaps keep the shipped gap-fill. The default 3D chain then runs on the
+hybrid picks (vflchain2 flights + vsmooth ground). The output is
+`h3d_hyb90/<tag>_ball3dd.npz`, which holds StatsBomb 120x80 positions, height
+in CR, and the state (ground or air) for every frame.
+
+Accepted after a never-used minute (75:39-76:39). Every version was tested
+against every lab; the full table is in `alltests/report.html`, built by
+`score2d.py`, `score3d.py` and `build_report.py`.
+
+| | Ball Truth | wrong | Find the Ball | passes | Air Lab hit/false | Flight Lab 2 hit/false |
+|---|---|---|---|---|---|---|
+| Hybrid 90 + default | 78 % | 6 | 36/47 | 14/16 | 14/1 | 13/1 |
+| cls_B (above) | 72 % | 4 | 34/47 | 14/16 | in report | in report |
+| TAPNext alone | 9 % | 70 | 9/47 | 0/16 | 0 flights | 0 flights |
+
+Speed: the bridges cost about 4 min of GPU per match minute, roughly 3 h per
+half. One TAPNext process is faster than two. Making this fit halftime is
+still open.
+
+### Layout
+
+| dir | what |
+|---|---|
+| `homog/` | venue map (`vmap*`), pitch registration (`vreg.py` -> `<tag>_reg.npz`), 3D flight chain, Air/Flight/Fix lab labels and scorers |
+| `tapnext/` | `tn_engine.py` (bridges), `hyb_video.py` (the review video) |
+| `alltests/` | `mkpicks_one.py`, `hybrid.py`, `mk3d.py` (3D per 2D version in `h3d_<ver>/`), the 2D/3D test harness, Find the Ball / Fix Lab / pass labels, `results/` |
+
+Some files are not in git:
+- The TAPNext++ checkpoint `tapnext/tapnextpp_512.ckpt` (2.4 GB).
+- The tapnet code, cloned at `tapnext/tapnet` from google-deepmind/tapnet at
+  commit 730cda1.
+- `homog/vfeats.npz` (102 MB, over GitHub's limit; rebuild with
+  `python vfeats.py`).
+- The per-window detector outputs (`*.npz`).
+- The lab clip media.
+
+All of these exist in this checkout and in the full backup at
+`Desktop/Repos/PitchIQ-data/scratch-2026-10-03`. The layout keeps every
+script's `S2 = dirname(HERE)` pointing here, so no path was edited in the move.
+
 ## How good it is
 
 The held-out test set is 18 clips of 1200 frames. `truthdb/` holds 269 human

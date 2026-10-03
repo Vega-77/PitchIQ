@@ -1,0 +1,21 @@
+{
+  "f0": 171270,
+  "f1": 171312,
+  "id": "p171270",
+  "kind": "missed",
+  "note": "There was a shot a this point that the goalkeeper saved.",
+  "pts": [
+    {
+      "f": 171270,
+      "px": 1222,
+      "py": 486
+    },
+    {
+      "f": 171312,
+      "map": true,
+      "x": 118.8,
+      "y": 41.5
+    }
+  ],
+  "ts": 1790873715639
+}

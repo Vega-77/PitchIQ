@@ -9,3 +9,23 @@ __pycache__/
 # our own 240 KB ball classifier, not a pretrained download
 !cls_B.pt
 *_timing.json
+
+# Hybrid 90: run outputs and big local inputs (full backup: Desktop/Repos/PitchIQ-data/scratch-2026-10-03)
+*.npy
+*.webm
+*.png
+*.ckpt
+h3d_*/
+alltests/p2d/
+alltests/tn/
+tapnext/tapnet/
+homog/*_ballsb.csv
+homog/*_ball3d*.csv
+# ...except the small inputs the homography and the 3D labs need
+!homog/vmap.npz
+!homog/vmap_edges.npz
+!homog/vpitch.npz
+!homog/vtop.npz
+!homog/vid1_rollrms.npy
+!homog/airtruth.npz
+!homog/*_reg.npz

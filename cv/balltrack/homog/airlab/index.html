@@ -1,0 +1,559 @@
+<title>Air Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one working column: video, state timeline under it, change list; sticky header with clip progress. Dark-first (video reads on dark), sibling of Crop Lab. */
+:root{
+  --ground:#131920; --panel:#1b232d; --panel2:#222c38; --line:#2c3845;
+  --ink:#e8edf3; --dim:#8695a6; --faint:#5d6b7a;
+  --signal:#f59e2c; --air:#4fc3e0; --grass:#6fbf73; --hidden:#6b7785; --ok:#49c58c; --warn:#e0645f;
+  --disp:'Chivo',system-ui,sans-serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --r:6px; color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6; --air:#1a8fb0; --grass:#3f8f46; --hidden:#8a95a3;
+  --signal:#c7730f; --ok:#23915f; color-scheme:light;
+}}
+:root[data-theme="light"]{
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6; --air:#1a8fb0; --grass:#3f8f46; --hidden:#8a95a3;
+  --signal:#c7730f; --ok:#23915f; color-scheme:light;
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--ground); color:var(--ink); font-family:var(--body);
+  font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased; overflow-x:hidden}
+button,select{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--signal); outline-offset:2px}
+kbd{font-family:var(--mono); font-size:10.5px; background:var(--panel2); border:1px solid var(--line);
+  border-bottom-width:2px; border-radius:4px; padding:1px 5px; white-space:nowrap; color:var(--ink)}
+
+.head{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--panel);
+  border-bottom:1px solid var(--line); padding:10px 16px}
+.headRow{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; max-width:1060px; margin:0 auto}
+h1{font-family:var(--disp); font-weight:900; font-size:15px; letter-spacing:.06em; text-transform:uppercase; margin:0}
+h1 span{color:var(--air)}
+.prog{margin-left:auto; font-size:12px; color:var(--dim)}
+.prog b{font-family:var(--mono); font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums}
+.save{font-family:var(--mono); font-size:11px; color:var(--faint); margin-left:8px}
+.save.busy{color:var(--signal)}
+.dots{display:flex; gap:3px; max-width:1060px; margin:8px auto 0}
+.dots button{flex:1; height:8px; border-radius:2px; border:1px solid var(--line); background:var(--panel2); padding:0}
+.dots button.has{background:color-mix(in srgb, var(--air) 45%, var(--panel2))}
+.dots button.done{background:var(--ok); border-color:var(--ok)}
+.dots button.cur{outline:2px solid var(--ink); outline-offset:1px}
+
+.wrap{max-width:1060px; margin:0 auto; padding:14px 16px 40px; display:flex; flex-direction:column; gap:12px}
+.banner{background:color-mix(in srgb, var(--warn) 14%, transparent); border:1px solid color-mix(in srgb, var(--warn) 55%, transparent);
+  border-radius:var(--r); padding:9px 11px; font-size:12px}
+.how{font-size:13px; color:var(--dim); max-width:78ch; margin:0; display:flex; flex-direction:column; gap:6px}
+.how p{margin:0}
+.how b{color:var(--ink); font-weight:600}
+.how ul{margin:0; padding-left:18px; display:flex; flex-direction:column; gap:2px}
+
+.pager{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.btn{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:7px 10px;
+  font-family:var(--disp); font-weight:700; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase}
+.btn:hover:not(:disabled){border-color:var(--faint)}
+.btn:disabled{opacity:.38; cursor:not-allowed}
+.btn.on{border-color:var(--air); color:var(--air)}
+.btn.go{background:var(--ok); border-color:var(--ok); color:#0e141b}
+.btn.go.undone{background:var(--panel2); color:var(--ink); border-color:var(--line)}
+select.sel{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:6px 8px;
+  font-size:12.5px; flex:1 1 200px; min-width:0}
+.speed{display:flex; gap:4px; margin-left:auto}
+
+.stage{position:relative; background:#000; border-radius:var(--r); overflow:hidden; border:1px solid var(--line)}
+.stage video{display:block; width:100%; height:auto; aspect-ratio:1024/432}
+.flag{position:absolute; left:10px; top:10px; font-family:var(--disp); font-weight:900; font-size:12px;
+  letter-spacing:.08em; text-transform:uppercase; padding:4px 9px; border-radius:4px; pointer-events:none;
+  background:rgba(10,14,19,.72); color:#e8edf3; border:1px solid rgba(255,255,255,.18)}
+.flag.ground{background:#6fbf73; color:#0e141b; border-color:#6fbf73}
+.flag.air{background:#4fc3e0; color:#0e141b; border-color:#4fc3e0}
+.flag.hidden{background:#6b7785; color:#0e141b; border-color:#6b7785}
+.flag .sub{font-weight:700; opacity:.75; margin-left:6px}
+
+.tl{position:relative; height:46px; background:var(--panel); border:1px solid var(--line); border-radius:var(--r);
+  cursor:pointer; touch-action:none; overflow:hidden}
+.tl canvas{position:absolute; inset:0; width:100%; height:100%}
+.meta{display:flex; gap:14px; flex-wrap:wrap; align-items:baseline; font-size:12px; color:var(--dim)}
+.meta b{font-family:var(--mono); color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
+.meta .st{margin-left:auto; min-width:0}
+
+.ctrls{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px}
+.states{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:6px}
+.cb{display:flex; align-items:center; justify-content:center; gap:7px; background:var(--panel2);
+  border:1px solid var(--line); border-radius:var(--r); padding:10px 6px; font-family:var(--disp);
+  font-weight:700; font-size:11.5px; letter-spacing:.05em; text-transform:uppercase; min-width:0; text-align:center}
+.cb.s-ground{border-left:4px solid var(--grass)} .cb.s-air{border-left:4px solid var(--air)}
+.cb.s-touch{border-left:4px solid var(--air); border-right:4px solid var(--air)} .cb.s-hidden{border-left:4px solid var(--hidden)}
+.cb.now{background:color-mix(in srgb, var(--ink) 10%, var(--panel2))}
+.cb:disabled{opacity:.38; cursor:not-allowed}
+.aux{display:flex; gap:6px; flex-wrap:wrap}
+
+.list{background:var(--panel); border:1px solid var(--line); border-radius:var(--r)}
+.list h2{font-family:var(--disp); font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; margin:0;
+  padding:9px 12px; border-bottom:1px solid var(--line); color:var(--dim); font-weight:700}
+.row{display:grid; grid-template-columns:auto auto 1fr auto auto; gap:10px; align-items:center; padding:7px 12px;
+  border-bottom:1px solid var(--line); font-size:12.5px}
+.row:last-child{border-bottom:0}
+.row.here{background:color-mix(in srgb, var(--ink) 6%, transparent)}
+.row .fr{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.row .k{font-family:var(--disp); font-weight:700; font-size:10.5px; letter-spacing:.07em; text-transform:uppercase;
+  padding:2px 7px; border-radius:4px; color:#0e141b; justify-self:start}
+.k.ground{background:var(--grass)} .k.air,.k.touch{background:var(--air)} .k.hidden{background:var(--hidden)}
+.row .note{color:var(--dim); min-width:0}
+.row button{background:none; border:1px solid var(--line); border-radius:4px; padding:2px 8px; font-size:12px; color:var(--dim)}
+.row button:hover{color:var(--ink); border-color:var(--faint)}
+.none{padding:12px; color:var(--dim); font-size:12.5px}
+.keys{display:flex; flex-wrap:wrap; gap:4px 14px; font-size:11.5px; color:var(--dim)}
+@media (max-width:640px){ .keys{display:none} .prog{margin-left:0; width:100%} .speed{margin-left:0}
+  .states{grid-template-columns:repeat(2, minmax(0,1fr))} .cb kbd{display:none} .row{grid-template-columns:auto 1fr auto auto} .row .note{display:none} }
+</style>
+
+<header class="head">
+  <div class="headRow">
+    <h1>Air <span>Lab</span></h1>
+    <div class="prog" id="prog">loading&hellip;</div>
+  </div>
+  <div class="dots" id="dots" aria-label="Clips"></div>
+</header>
+
+<div class="wrap">
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="how">
+    <p>Mark what the ball is doing <b>each time it changes</b>. Stop on the frame where it changes and press the key for what it does <b>from that frame on</b>:</p>
+    <ul>
+      <li><kbd>G</kbd> <b>On the ground</b>: rolling, dribbled, at rest. A bounce is <kbd>G</kbd> on the touch frame, then <kbd>A</kbd> on the next.</li>
+      <li><kbd>A</kbd> <b>In the air</b>: kicked up, bounced up, thrown in, or held in a keeper's hands.</li>
+      <li><kbd>T</kbd> <b>Touched in the air</b>: a header, chest or deflection. The ball stays up, and a new flight starts on this frame.</li>
+      <li><kbd>V</kbd> <b>Not visible</b>: off screen or hidden. Don't guess what happened while it was out of sight; when it comes back, mark what it is doing then.</li>
+    </ul>
+    <p>Each clip starts where the previous one left off, so check the first frame. Press <b>Clip done</b> when finished, even if nothing changed. The green ring is the tracker's pick; the close-up follows it.</p>
+  </div>
+
+  <div class="pager">
+    <button class="btn" id="bPrev" aria-label="Previous clip">&larr;</button>
+    <select class="sel" id="clipSel" aria-label="Clip"></select>
+    <button class="btn" id="bNext" aria-label="Next clip">&rarr;</button>
+    <div class="speed" role="group" aria-label="Speed">
+      <button class="btn" data-rate="0.25">&frac14;&times;</button>
+      <button class="btn" data-rate="0.5">&frac12;&times;</button>
+      <button class="btn" data-rate="1">1&times;</button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <video id="vid" playsinline muted preload="auto"></video>
+    <div class="flag" id="flag">not marked</div>
+  </div>
+  <div class="tl" id="tl" aria-label="Clip timeline"><canvas id="tlc"></canvas></div>
+  <div class="meta">
+    <span>frame <b id="fAbs">&mdash;</b></span>
+    <span>match <b id="fClock">&mdash;</b></span>
+    <span class="st" id="status">Loading&hellip;</span>
+  </div>
+
+  <div class="states">
+    <button class="cb s-ground" data-s="ground">On the ground <kbd>G</kbd></button>
+    <button class="cb s-air" data-s="air">In the air <kbd>A</kbd></button>
+    <button class="cb s-touch" data-s="touch">Touched in air <kbd>T</kbd></button>
+    <button class="cb s-hidden" data-s="hidden">Not visible <kbd>V</kbd></button>
+  </div>
+  <div class="ctrls">
+    <button class="cb" id="bBack" aria-label="Step back">&#9664; <kbd>&larr;</kbd></button>
+    <button class="cb" id="bPlay">Play <kbd>space</kbd></button>
+    <button class="cb" id="bFwd" aria-label="Step forward"><kbd>&rarr;</kbd> &#9654;</button>
+  </div>
+  <div class="aux">
+    <button class="btn" id="bDel">Delete mark <kbd>X</kbd></button>
+    <button class="btn" id="bUndo">Undo <kbd>Z</kbd></button>
+    <button class="btn go undone" id="bDone">Clip done <kbd>D</kbd></button>
+  </div>
+  <div class="keys">
+    <span><kbd>space</kbd> play / pause</span>
+    <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> one frame (0.1 s)</span>
+    <span><kbd>shift</kbd>+<kbd>&larr;</kbd><kbd>&rarr;</kbd> one second</span>
+    <span><kbd>,</kbd><kbd>.</kbd> previous / next mark</span>
+    <span><kbd>X</kbd> delete the mark on this frame, or the one before it</span>
+    <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> speed</span>
+    <span><kbd>[</kbd><kbd>]</kbd> clip</span>
+  </div>
+
+  <section class="list">
+    <h2 id="listH">Changes in this clip</h2>
+    <div id="marks"></div>
+  </section>
+  <div class="pager"><button class="btn" id="bExport">Copy all labels as JSON</button></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var $ = function(id){ return document.getElementById(id); };
+var vid = $('vid'), tl = $('tl'), tlc = $('tlc');
+var clips = [], cur = 0, VF = 10, STEP = 3;
+var lab = {};            // clip id -> {id,start,end,marks:[{f,s}],done,ts}
+var undoStack = [];
+var db = null, canWrite = true, want = {}, inflight = {};
+var prefs = { rate: 0.5, clip: 0 };
+var NAME = { ground: 'On the ground', air: 'In the air', touch: 'Touched in the air', hidden: 'Not visible', none: 'Not marked' };
+var KEY = { ground: 'G', air: 'A', touch: 'T', hidden: 'V' };
+
+function loadJSON(k){ try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch(e){ return null; } }
+function saveJSON(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+function warn(m){ var b = $('banner'); b.textContent = m; b.hidden = false; }
+function say(h){ $('status').innerHTML = h; }
+function clip(){ return clips[cur]; }
+function rec(){ var c = clip(); return lab[c.id] || (lab[c.id] = { id: c.id, start: c.start, end: c.end, marks: [], done: false, ts: 0 }); }
+function marksOf(i){ var r = lab[clips[i].id]; return r && Array.isArray(r.marks) ? r.marks : []; }
+
+/* ---- frames: video frame k shows absolute frame start + k*STEP */
+function nFrames(){ var c = clip(); return Math.floor((c.end - c.start) / STEP) + 1; }
+function kNow(){ return Math.max(0, Math.min(nFrames() - 1, Math.floor(vid.currentTime * VF + 1e-3))); }
+function absOf(k){ return clip().start + k * STEP; }
+function kOf(abs){ return Math.round((abs - clip().start) / STEP); }
+function seekK(k){ k = Math.max(0, Math.min(nFrames() - 1, k)); vid.currentTime = (k + 0.5) / VF; }
+function clock(abs){ var s = abs / 30, m = Math.floor(s / 60); return m + ':' + ('0' + (s - m * 60).toFixed(1)).slice(-4); }
+
+/* ---- state: the last mark at or before a frame; before the first mark, the previous clip's final state */
+function carryIn(i){
+  for (var j = i - 1; j >= 0; j--){
+    var m = marksOf(j);
+    if (m.length){ var s = m[m.length - 1].s; return s === 'touch' ? 'air' : s; }
+    var r = lab[clips[j].id];
+    if (!(r && r.done)) return null;         // an unfinished clip in between: unknown
+  }
+  return null;
+}
+function stateAt(abs){
+  var m = marksOf(cur), s = null, at = null;
+  for (var i = 0; i < m.length; i++){ if (m[i].f <= abs){ s = m[i].s; at = m[i].f; } else break; }
+  if (s === null){ var c = carryIn(cur); return { s: c || 'none', carried: !!c, at: null }; }
+  return { s: s, carried: false, at: at };
+}
+function base(s){ return s === 'touch' ? 'air' : s; }
+
+/* ---- storage */
+function persist(){
+  var r = rec(); r.ts = Date.now();
+  saveJSON('airlab.v2', lab);
+  want[r.id] = JSON.parse(JSON.stringify(r)); push(r.id);
+  paintProg(); paintDots();
+}
+function push(id){
+  if (!db || !canWrite){ paintSave(); return; }
+  if (inflight[id]) return;
+  inflight[id] = true; paintSave();
+  (async function(){
+    while (Object.prototype.hasOwnProperty.call(want, id)){
+      var r = want[id]; delete want[id];
+      for (var t = 0; t < 2; t++){
+        try { await db.doc('clips/' + id).set(r); break; }
+        catch(e){
+          var code = e && e.code;
+          if (code === 'unavailable' && t === 0){ await new Promise(function(res){ setTimeout(res, 500 + Math.random() * 700); }); continue; }
+          if (['invalid_argument','not_granted','revoked','capability_disabled','capability_removed'].indexOf(code) >= 0){
+            canWrite = false;
+            warn('Labels cannot be saved to the shared store from this view (' + code + '). They stay in this browser; use "Copy all labels as JSON" before leaving.');
+          } else warn('Could not save clip ' + id + ' (' + (code || 'error') + '). It is still in this browser.');
+          break;
+        }
+      }
+      if (!canWrite) break;
+    }
+    delete inflight[id]; paintSave();
+  })();
+}
+function paintSave(){
+  var el = $('save'); if (!el) return;
+  var n = Object.keys(inflight).length;
+  if (!db){ el.textContent = 'browser only'; el.className = 'save'; return; }
+  if (!canWrite){ el.textContent = 'not saving'; el.className = 'save busy'; return; }
+  el.textContent = n ? 'saving…' : 'saved'; el.className = 'save' + (n ? ' busy' : '');
+}
+function snapshot(){ var r = rec(); undoStack.push({ id: r.id, marks: r.marks.map(function(m){ return { f: m.f, s: m.s }; }), done: r.done }); if (undoStack.length > 300) undoStack.shift(); }
+
+/* ---- marking */
+function setState(s){
+  var abs = absOf(kNow()), r = rec(), m = r.marks;
+  var i = m.findIndex(function(x){ return x.f === abs; });
+  var before = (function(){ var p = null; for (var j = 0; j < m.length; j++) if (m[j].f < abs) p = m[j].s; return p === null ? (carryIn(cur) || 'none') : p; })();
+  if (s === 'touch' && base(before) !== 'air'){
+    say('<b>T</b> is for a touch while the ball is already in the air. Here it is ' + NAME[before].toLowerCase() + '; use <b>A</b> if it is being kicked up.');
+    return;
+  }
+  if (i < 0 && s !== 'touch' && base(stateAt(abs).s) === s){ say('Already ' + NAME[s].toLowerCase() + ' here.'); return; }
+  snapshot();
+  if (i >= 0) m[i].s = s; else { m.push({ f: abs, s: s }); m.sort(function(a, b){ return a.f - b.f; }); }
+  /* a mark that repeats the state before it says nothing: drop it */
+  r.marks = m.filter(function(x, j){ if (x.s === 'touch') return true; var p = j ? base(m[j - 1].s) : (carryIn(cur) || 'none'); return x.s !== p || x.f === abs; });
+  persist(); paintAll();
+  say(NAME[s] + ' from frame <b>' + abs + '</b>.');
+}
+function delMark(){
+  var abs = absOf(kNow()), r = rec(), m = r.marks, i = -1;
+  for (var j = 0; j < m.length; j++) if (m[j].f <= abs) i = j;
+  if (i < 0){ say('No mark on or before this frame.'); return; }
+  snapshot();
+  var x = m.splice(i, 1)[0]; persist(); paintAll();
+  say('Deleted the ' + NAME[x.s].toLowerCase() + ' mark at frame ' + x.f + '.');
+}
+function undo(){
+  var u = undoStack.pop(); if (!u){ say('Nothing to undo.'); return; }
+  var i = clips.findIndex(function(c){ return c.id === u.id; });
+  if (i !== cur) loadClip(i);
+  var r = rec(); r.marks = u.marks; r.done = u.done; persist(); paintAll(); say('Undone.');
+}
+function toggleDone(){
+  var r = rec();
+  if (!r.done && stateAt(clip().start).s === 'none'){
+    seekK(0); say('Say what the ball is doing on the <b>first frame</b> first (G, A or V).'); return;
+  }
+  snapshot(); r.done = !r.done; persist(); paintAll();
+  if (r.done){
+    for (var d = 1; d <= clips.length; d++){
+      var j = (cur + d) % clips.length, q = lab[clips[j].id];
+      if (!q || !q.done){ loadClip(j); say('Clip ' + (cur === j ? '' : '') + 'saved as done. Clip ' + (j + 1) + ' starts ' + NAME[stateAtStart(j)].toLowerCase() + '; check the first frame.'); return; }
+    }
+    say('Every clip is done. Thank you.');
+  }
+}
+function stateAtStart(i){ var m = marksOf(i); if (m.length && m[0].f === clips[i].start) return base(m[0].s); return carryIn(i) || 'none'; }
+function jumpMark(d){
+  var abs = absOf(kNow()), m = marksOf(cur), t = null;
+  if (d > 0){ for (var i = 0; i < m.length; i++) if (m[i].f > abs){ t = m[i].f; break; } }
+  else { for (var j = m.length - 1; j >= 0; j--) if (m[j].f < abs){ t = m[j].f; break; } }
+  if (t === null){ say('No ' + (d > 0 ? 'later' : 'earlier') + ' mark in this clip.'); return; }
+  vid.pause(); seekK(kOf(t));
+}
+
+/* ---- paint */
+function paintProg(){
+  var done = 0, flights = 0;
+  clips.forEach(function(c, i){ var r = lab[c.id]; if (r && r.done) done++; marksOf(i).forEach(function(m){ if (m.s === 'air' || m.s === 'touch') flights++; }); });
+  $('prog').innerHTML = '<b>' + done + '</b> / ' + clips.length + ' clips done &middot; <b>' + flights + '</b> flights marked<span class="save" id="save"></span>';
+  paintSave();
+}
+function paintDots(){
+  var box = $('dots');
+  if (box.children.length !== clips.length){
+    box.innerHTML = '';
+    clips.forEach(function(c, i){
+      var b = document.createElement('button'); b.title = 'Clip ' + (i + 1) + ' · ' + clock(c.start);
+      b.setAttribute('aria-label', b.title);
+      b.addEventListener('click', function(){ loadClip(i); }); box.appendChild(b);
+    });
+  }
+  clips.forEach(function(c, i){
+    var r = lab[c.id], b = box.children[i];
+    b.className = (r && r.done ? 'done' : (marksOf(i).length ? 'has' : '')) + (i === cur ? ' cur' : '');
+  });
+  var sel = $('clipSel');
+  if (sel.options.length !== clips.length){
+    sel.innerHTML = ''; clips.forEach(function(_, i){ var o = document.createElement('option'); o.value = String(i); sel.appendChild(o); });
+  }
+  clips.forEach(function(c, i){
+    var r = lab[c.id], n = marksOf(i).length;
+    sel.options[i].textContent = 'Clip ' + (i + 1) + ' of ' + clips.length + ' · match ' + clock(c.start) + '–' + clock(c.end) +
+      (r && r.done ? ' · done ✓' : (n ? ' · ' + n + ' marks' : ''));
+  });
+  sel.value = String(cur);
+  $('bPrev').disabled = cur <= 0; $('bNext').disabled = cur >= clips.length - 1;
+}
+function css(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+var COLOR = { ground: '--grass', air: '--air', touch: '--air', hidden: '--hidden' };
+function paintTL(){
+  if (!clips.length) return;
+  var w = tl.clientWidth, h = tl.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (tlc.width !== Math.round(w * dpr)){ tlc.width = Math.round(w * dpr); tlc.height = Math.round(h * dpr); }
+  var g = tlc.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  var c = clip(), span = c.end - c.start + 1, x = function(abs){ return (abs - c.start) / span * w; };
+  /* segments */
+  var m = marksOf(cur), segs = [], s0 = carryIn(cur), f0 = c.start;
+  m.forEach(function(k){ segs.push({ a: f0, b: k.f, s: s0, carried: f0 === c.start && !!s0 && (!m.length || m[0].f !== c.start) }); f0 = k.f; s0 = k.s; });
+  segs.push({ a: f0, b: c.end + 1, s: s0 });
+  segs.forEach(function(sg){
+    if (!sg.s || sg.b <= sg.a) return;
+    g.fillStyle = css(COLOR[sg.s]); g.globalAlpha = sg.carried ? .45 : 1;
+    if (sg.s === 'hidden'){ g.globalAlpha = .55; }
+    g.fillRect(x(sg.a), 6, Math.max(1, x(sg.b) - x(sg.a)), h - 22); g.globalAlpha = 1;
+  });
+  /* flight boundaries: touches as bright ticks */
+  m.forEach(function(k){
+    g.fillStyle = k.s === 'touch' ? css('--signal') : css('--panel');
+    g.fillRect(Math.round(x(k.f)) - (k.s === 'touch' ? 1 : 0), 2, k.s === 'touch' ? 3 : 1, h - 14);
+  });
+  g.fillStyle = css('--line');
+  for (var sec = 0; sec <= 15; sec++){ var xx = Math.round(sec * 30 / span * w) + 0.5; g.fillRect(xx, h - (sec % 5 ? 6 : 12), 1, sec % 5 ? 6 : 12); }
+  g.fillStyle = css('--ink'); g.fillRect(Math.round(x(absOf(kNow()) + STEP / 2)) - 1, 0, 2, h);
+}
+function paintNow(){
+  if (!clips.length) return;
+  var abs = absOf(kNow()), st = stateAt(abs);
+  $('fAbs').textContent = abs; $('fClock').textContent = clock(abs);
+  var f = $('flag'), b = base(st.s);
+  f.className = 'flag' + (st.s !== 'none' ? ' ' + b : '');
+  f.innerHTML = (st.s === 'touch' && st.at === abs ? 'touched in the air' : NAME[b === 'none' ? 'none' : b].toLowerCase()) +
+    (st.carried ? '<span class="sub">from previous clip</span>' : '') + (st.at === abs ? '<span class="sub">&bull; marked here</span>' : '');
+  document.querySelectorAll('.states .cb').forEach(function(bt){
+    bt.classList.toggle('now', bt.dataset.s === b || (bt.dataset.s === 'touch' && st.s === 'touch' && st.at === abs));
+  });
+  $('bPlay').innerHTML = (vid.paused ? 'Play' : 'Pause') + ' <kbd>space</kbd>';
+  paintTL(); paintHere(abs);
+}
+function paintHere(abs){
+  document.querySelectorAll('#marks .row').forEach(function(r){ r.classList.toggle('here', Number(r.dataset.f) === abs); });
+}
+function paintMarks(){
+  var r = lab[clip().id], m = marksOf(cur), box = $('marks'), done = r && r.done;
+  $('bDone').className = 'btn go' + (done ? '' : ' undone');
+  $('bDone').innerHTML = (done ? 'Done ✓ (undo)' : 'Clip done') + ' <kbd>D</kbd>';
+  var cin = carryIn(cur);
+  $('listH').textContent = 'Changes in clip ' + (cur + 1) + ' · starts ' + (m.length && m[0].f === clip().start ? NAME[base(m[0].s)] : cin ? NAME[cin] + ' (from previous clip)' : 'not marked').toLowerCase() + (done ? ' · done' : '');
+  box.innerHTML = '';
+  if (!m.length){
+    var n = document.createElement('div'); n.className = 'none';
+    n.textContent = cin ? 'No changes marked. The whole clip is ' + NAME[cin].toLowerCase() + ' until you mark a change.'
+                        : 'Nothing marked yet. Say what the ball is doing on the first frame (G, A or V), then mark each change.';
+    box.appendChild(n); return;
+  }
+  var flight = 0;
+  m.forEach(function(k, i){
+    var prev = i ? base(m[i - 1].s) : (cin || 'none'), note = '';
+    if (k.s === 'air' || k.s === 'touch') flight++;
+    if (k.s === 'air') note = prev === 'hidden' ? 'seen in the air after being out of view' : 'leaves the ground';
+    else if (k.s === 'touch') note = 'touched in the air; a new flight starts';
+    else if (k.s === 'ground') note = prev === 'air' ? 'lands' : prev === 'hidden' ? 'seen on the ground again' : '';
+    else if (k.s === 'hidden') note = prev === 'air' ? 'lost in the air; landing unknown' : 'lost from view';
+    var row = document.createElement('div'); row.className = 'row'; row.dataset.f = k.f;
+    row.innerHTML = '<span class="fr">' + k.f + '</span><span class="k ' + k.s + '">' + NAME[k.s] + '</span><span class="note">' + note + '</span>';
+    var go = document.createElement('button'); go.textContent = 'Go';
+    go.addEventListener('click', function(){ vid.pause(); seekK(kOf(k.f)); });
+    var del = document.createElement('button'); del.textContent = 'Delete';
+    del.addEventListener('click', function(){ snapshot(); rec().marks.splice(i, 1); persist(); paintAll(); say('Deleted the mark at frame ' + k.f + '.'); });
+    row.appendChild(go); row.appendChild(del); box.appendChild(row);
+  });
+  paintHere(absOf(kNow()));
+}
+function paintRate(){
+  document.querySelectorAll('[data-rate]').forEach(function(b){ b.classList.toggle('on', Number(b.dataset.rate) === prefs.rate); });
+  vid.playbackRate = prefs.rate;
+}
+function paintAll(){ paintMarks(); paintNow(); paintDots(); }
+
+/* ---- clip loading (whole clip as a blob, so seeking works on any server) */
+var loadSeq = 0, blobUrl = null;
+function loadClip(i){
+  i = Math.max(0, Math.min(clips.length - 1, i));
+  cur = i; prefs.clip = i; saveJSON('airlab.prefs', prefs);
+  var my = ++loadSeq;
+  say('Loading clip ' + (i + 1) + '&hellip;');
+  fetch(clips[i].file).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+    .then(function(b){
+      if (my !== loadSeq) return;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      blobUrl = URL.createObjectURL(b);
+      vid.src = blobUrl; vid.load(); paintRate();
+      say('Clip ' + (i + 1) + ' ready. It starts <b>' + NAME[stateAtStart(i)].toLowerCase() + '</b>' + (marksOf(i).length && marksOf(i)[0].f === clips[i].start ? '' : stateAtStart(i) === 'none' ? '' : ' (from the previous clip)') + '. Press space to play.');
+    })
+    .catch(function(e){ if (my === loadSeq) warn('Clip ' + (i + 1) + ' did not load (' + (e && e.message || 'error') + ').'); });
+  paintAll(); paintProg();
+}
+
+/* ---- controls */
+function step(d){ vid.pause(); seekK(kNow() + d); }
+function toggle(){ if (vid.paused) vid.play().catch(function(){}); else vid.pause(); }
+$('bPrev').addEventListener('click', function(){ loadClip(cur - 1); });
+$('bNext').addEventListener('click', function(){ loadClip(cur + 1); });
+$('clipSel').addEventListener('change', function(e){ loadClip(Number(e.target.value)); e.target.blur(); });
+document.querySelectorAll('[data-rate]').forEach(function(b){ b.addEventListener('click', function(){ prefs.rate = Number(b.dataset.rate); saveJSON('airlab.prefs', prefs); paintRate(); }); });
+document.querySelectorAll('.states .cb').forEach(function(b){ b.addEventListener('click', function(){ vid.pause(); setState(b.dataset.s); }); });
+$('bBack').addEventListener('click', function(){ step(-1); });
+$('bFwd').addEventListener('click', function(){ step(1); });
+$('bPlay').addEventListener('click', toggle);
+$('bDel').addEventListener('click', delMark);
+$('bUndo').addEventListener('click', undo);
+$('bDone').addEventListener('click', toggleDone);
+$('bExport').addEventListener('click', function(){
+  var out = JSON.stringify({ fps: 30, step: STEP, clips: lab });
+  try { navigator.clipboard.writeText(out).then(function(){ say('Copied labels for ' + Object.keys(lab).length + ' clips.'); }, function(){ say('Clipboard blocked in this view.'); }); }
+  catch(e){ say('Clipboard unavailable in this view.'); }
+});
+vid.addEventListener('timeupdate', paintNow);
+vid.addEventListener('seeked', paintNow);
+vid.addEventListener('play', paintNow); vid.addEventListener('pause', paintNow);
+vid.addEventListener('error', function(){ if (vid.src) warn('Clip ' + (cur + 1) + ' could not be played in this browser.'); });
+(function loop(){ if (!vid.paused) paintNow(); requestAnimationFrame(loop); })();
+
+function tlSeek(e){ var r = tl.getBoundingClientRect(); var f = (e.clientX - r.left) / r.width; vid.pause(); seekK(Math.floor(f * nFrames())); }
+var dragging = false;
+tl.addEventListener('pointerdown', function(e){ dragging = true; tl.setPointerCapture(e.pointerId); tlSeek(e); });
+tl.addEventListener('pointermove', function(e){ if (dragging) tlSeek(e); });
+tl.addEventListener('pointerup', function(){ dragging = false; });
+window.addEventListener('resize', paintTL);
+
+document.addEventListener('keydown', function(e){
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  var tg = e.target && e.target.tagName;
+  if (tg === 'SELECT' || tg === 'INPUT' || tg === 'TEXTAREA') return;
+  if (!clips.length) return;
+  var used = true, k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  switch (k){
+    case ' ': toggle(); break;
+    case 'ArrowRight': step(e.shiftKey ? VF : 1); break;
+    case 'ArrowLeft': step(e.shiftKey ? -VF : -1); break;
+    case 'g': vid.pause(); setState('ground'); break;
+    case 'a': vid.pause(); setState('air'); break;
+    case 't': vid.pause(); setState('touch'); break;
+    case 'v': vid.pause(); setState('hidden'); break;
+    case 'x': case 'Delete': case 'Backspace': delMark(); break;
+    case 'z': undo(); break;
+    case 'd': toggleDone(); break;
+    case ',': jumpMark(-1); break;
+    case '.': jumpMark(1); break;
+    case '1': prefs.rate = 0.25; paintRate(); break;
+    case '2': prefs.rate = 0.5; paintRate(); break;
+    case '3': prefs.rate = 1; paintRate(); break;
+    case '[': loadClip(cur - 1); break;
+    case ']': loadClip(cur + 1); break;
+    default: used = false;
+  }
+  if (used){ e.preventDefault(); if (tg === 'BUTTON' && e.target.blur) e.target.blur(); }
+});
+
+/* ---- boot */
+async function boot(){
+  var p = loadJSON('airlab.prefs'); if (p){ if (p.rate) prefs.rate = p.rate; if (p.clip != null) prefs.clip = p.clip; }
+  var M;
+  try { var res = await fetch('manifest.json'); if (!res.ok) throw new Error('HTTP ' + res.status); M = await res.json(); }
+  catch(e){ warn('manifest.json did not load (' + (e && e.message || 'error') + '). Nothing to label yet.'); $('prog').textContent = 'no clips'; return; }
+  STEP = Number(M.step) || 3; VF = (Number(M.fps) || 30) / STEP;
+  clips = M.clips || [];
+  var local = loadJSON('airlab.v2'); if (local && typeof local === 'object') lab = local;
+  loadClip(Math.min(prefs.clip || 0, clips.length - 1));
+
+  try { db = await claude.use('db'); } catch(e){ db = null; }
+  if (!db){ warn('Shared storage is not available in this view. Labels stay in this browser only; finish on this device and use "Copy all labels as JSON".'); paintSave(); return; }
+  paintSave();
+  try {
+    db.collection('clips').onSnapshot(function(snap){
+      var touched = false;
+      snap.docChanges().forEach(function(ch){
+        var id = ch.doc.id;
+        if (Object.prototype.hasOwnProperty.call(want, id) || inflight[id]) return;
+        if (ch.type === 'removed'){ if (lab[id]){ delete lab[id]; touched = true; } return; }
+        var v = ch.doc.data();
+        if (v && Array.isArray(v.marks) && (!lab[id] || (v.ts || 0) >= (lab[id].ts || 0))){ lab[id] = v; touched = true; }
+      });
+      if (touched){ saveJSON('airlab.v2', lab); paintAll(); paintProg(); }
+    }, function(err){ warn('Live sync stopped (' + (err && err.code || 'error') + '). New labels still save; reload to see changes from elsewhere.'); });
+  } catch(e){ warn('Could not read saved labels (' + (e && e.code || 'error') + '). Anything in this browser is still here.'); }
+}
+boot();
+})();
+</script>

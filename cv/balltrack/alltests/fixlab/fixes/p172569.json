@@ -1,0 +1,20 @@
+{
+  "f0": 172569,
+  "f1": 172731,
+  "id": "p172569",
+  "kind": "missed",
+  "note": "Ball was placed for a goalkick and not picked up by the detector.",
+  "pts": [
+    {
+      "f": 172569,
+      "px": 448,
+      "py": 348
+    },
+    {
+      "f": 172731,
+      "px": 11,
+      "py": 295
+    }
+  ],
+  "ts": 1790874167486
+}

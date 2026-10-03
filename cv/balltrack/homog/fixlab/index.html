@@ -1,0 +1,881 @@
+<meta charset="utf-8">
+<title>Fix Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Sibling of Flight Lab 2: video with the model drawn on top, a 5-minute strip, pitch map + fix card, fix list. */
+:root{
+  --ground:#131920; --panel:#1b232d; --panel2:#222c38; --line:#2c3845;
+  --ink:#e8edf3; --dim:#8695a6; --faint:#5d6b7a;
+  --signal:#f59e2c; --air:#ff8c1a; --grass:#6fbf73; --fill:#e6c34a; --pitch:#1f3a2a; --pitchline:#cfe3d4;
+  --fix:#ef5b6b; --ok:#49c58c; --warn:#e0645f; --idle:#2a3440;
+  --disp:'Chivo',system-ui,sans-serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --r:6px; color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6; --grass:#3f8f46; --air:#d96b00; --fill:#b8920f; --pitch:#dbeadf; --pitchline:#4d7a5a;
+  --fix:#d23447; --signal:#c7730f; --ok:#23915f; --idle:#dde3ea; color-scheme:light;
+}}
+:root[data-theme="light"]{
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6; --grass:#3f8f46; --air:#d96b00; --fill:#b8920f; --pitch:#dbeadf; --pitchline:#4d7a5a;
+  --fix:#d23447; --signal:#c7730f; --ok:#23915f; --idle:#dde3ea; color-scheme:light;
+}
+:root[data-theme="dark"]{ color-scheme:dark; }
+*{box-sizing:border-box}
+body{margin:0; background:var(--ground); color:var(--ink); font-family:var(--body);
+  font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased; overflow-x:hidden}
+button,select,textarea{font:inherit; color:inherit}
+button,select{cursor:pointer}
+:focus-visible{outline:2px solid var(--signal); outline-offset:2px}
+kbd{font-family:var(--mono); font-size:10.5px; background:var(--panel2); border:1px solid var(--line);
+  border-bottom-width:2px; border-radius:4px; padding:1px 5px; white-space:nowrap; color:var(--ink)}
+
+.head{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--panel);
+  border-bottom:1px solid var(--line); padding:10px 16px}
+.headRow{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; max-width:1180px; margin:0 auto}
+h1{font-family:var(--disp); font-weight:900; font-size:15px; letter-spacing:.06em; text-transform:uppercase; margin:0}
+h1 span{color:var(--fix)}
+.prog{margin-left:auto; font-size:12px; color:var(--dim)}
+.prog b{font-family:var(--mono); font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums}
+.save{font-family:var(--mono); font-size:11px; color:var(--faint); margin-left:8px}
+.save.busy{color:var(--signal)}
+
+.wrap{max-width:1180px; margin:0 auto; padding:14px 16px 40px; display:flex; flex-direction:column; gap:12px}
+.banner{background:color-mix(in srgb, var(--warn) 14%, transparent); border:1px solid color-mix(in srgb, var(--warn) 55%, transparent);
+  border-radius:var(--r); padding:9px 11px; font-size:12px}
+.how{font-size:13px; color:var(--dim); max-width:86ch; margin:0; display:flex; flex-direction:column; gap:6px}
+.how p{margin:0}
+.how b{color:var(--ink); font-weight:600}
+
+.pager{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.btn{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:7px 10px;
+  font-family:var(--disp); font-weight:700; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase}
+.btn:hover:not(:disabled){border-color:var(--faint)}
+.btn:disabled{opacity:.38; cursor:not-allowed}
+.btn.on{border-color:var(--air); color:var(--air)}
+.btn.go{background:var(--ok); border-color:var(--ok); color:#0e141b}
+.btn.fixb{border-color:var(--fix); color:var(--fix)}
+select.sel{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:6px 8px;
+  font-size:12.5px; flex:1 1 180px; min-width:0}
+.speed{display:flex; gap:4px; margin-left:auto}
+.speed .btn.on{border-color:var(--air); color:var(--air)}
+
+.over{position:relative; height:34px; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); cursor:pointer; touch-action:none; overflow:hidden}
+.over canvas{position:absolute; inset:0; width:100%; height:100%}
+
+.stage{position:relative; background:#000; border-radius:var(--r); overflow:hidden; border:1px solid var(--line)}
+.stage video{display:block; width:100%; height:auto; aspect-ratio:1024/432}
+.stage canvas{position:absolute; inset:0; width:100%; height:100%; cursor:crosshair; touch-action:manipulation}
+.flag{position:absolute; left:10px; top:10px; font-family:var(--disp); font-weight:900; font-size:12px;
+  letter-spacing:.08em; text-transform:uppercase; padding:4px 9px; border-radius:4px; pointer-events:none;
+  background:rgba(10,14,19,.78); color:#e8edf3; border:1px solid rgba(255,255,255,.18)}
+.flag.air{background:#ff8c1a; color:#0e141b; border-color:#ff8c1a}
+.flag.gr{background:rgba(10,14,19,.78); color:#8fe08f; border-color:#6fbf73}
+.flag2{left:auto; right:calc(25% + 10px); top:10px}
+.flag2.fix{background:#ef5b6b; color:#0e141b; border-color:#ef5b6b}
+
+.tl{position:relative; height:40px; background:var(--panel); border:1px solid var(--line); border-radius:var(--r);
+  cursor:pointer; touch-action:none; overflow:hidden}
+.tl canvas{position:absolute; inset:0; width:100%; height:100%}
+.meta{display:flex; gap:14px; flex-wrap:wrap; align-items:baseline; font-size:12px; color:var(--dim)}
+.meta b{font-family:var(--mono); color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
+.meta .st{margin-left:auto; min-width:0}
+
+.ctrls{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px}
+.cb{display:flex; align-items:center; justify-content:center; gap:7px; background:var(--panel2);
+  border:1px solid var(--line); border-radius:var(--r); padding:10px 6px; font-family:var(--disp);
+  font-weight:700; font-size:11.5px; letter-spacing:.05em; text-transform:uppercase; min-width:0; text-align:center}
+
+.work{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:12px; align-items:start}
+.mapBox{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:10px; display:flex; flex-direction:column; gap:6px}
+.mapBox canvas{width:100%; height:auto; aspect-ratio:130/90; display:block; cursor:crosshair; touch-action:manipulation; border-radius:4px}
+.legend{display:flex; flex-wrap:wrap; gap:4px 14px; font-size:11.5px; color:var(--dim)}
+.legend i{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:-1px}
+
+.card{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); display:flex; flex-direction:column}
+.card h2{font-family:var(--disp); font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; margin:0;
+  padding:9px 12px; border-bottom:1px solid var(--line); color:var(--dim); font-weight:700; display:flex; gap:8px; align-items:center}
+.card h2 b{color:var(--ink)}
+.empty{padding:14px 12px; font-size:12.5px; color:var(--dim)}
+.fields{display:grid; grid-template-columns:auto minmax(0,1fr); gap:8px 10px; padding:10px 12px; align-items:center; font-size:12.5px}
+.fields label{color:var(--dim)}
+.fields select,.fields textarea{background:var(--panel2); border:1px solid var(--line); border-radius:4px; padding:5px 6px; min-width:0; width:100%}
+.fields textarea{resize:vertical; min-height:56px; font-size:12.5px}
+.fields .v{font-family:var(--mono); font-variant-numeric:tabular-nums; display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.v button{background:none; border:1px solid var(--line); border-radius:4px; padding:1px 7px; font-size:11.5px; color:var(--dim)}
+.v button:hover{color:var(--ink); border-color:var(--faint)}
+.cardAct{display:flex; gap:6px; flex-wrap:wrap; padding:0 12px 12px}
+
+.list{background:var(--panel); border:1px solid var(--line); border-radius:var(--r)}
+.list h2{font-family:var(--disp); font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; margin:0;
+  padding:9px 12px; border-bottom:1px solid var(--line); color:var(--dim); font-weight:700}
+.rows{max-height:340px; overflow:auto}
+.row{display:grid; grid-template-columns:2.4em 5.2em 3.4em minmax(0,1.1fr) minmax(0,1fr) auto; gap:10px; align-items:center; padding:6px 12px;
+  border-bottom:1px solid var(--line); font-size:12.5px; cursor:pointer}
+.row:last-child{border-bottom:0}
+.row.here{background:color-mix(in srgb, var(--fix) 12%, transparent)}
+.row .n,.row .fr{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.row .kind{color:var(--ink); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.row .note{color:var(--dim); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.row .pts{font-family:var(--mono); color:var(--dim); font-size:11.5px}
+.none{padding:12px; color:var(--dim); font-size:12.5px}
+.keys{display:flex; flex-wrap:wrap; gap:4px 14px; font-size:11.5px; color:var(--dim)}
+@media (max-width:820px){ .work{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:640px){ .keys{display:none} .prog{margin-left:0; width:100%} .speed{margin-left:0}
+  .cb kbd{display:none} .row{grid-template-columns:2.2em 4.6em minmax(0,1fr) auto} .row .note,.row .dur{display:none}
+  .flag2{right:10px; top:auto; bottom:10px} }
+</style>
+
+<header class="head">
+  <div class="headRow">
+    <h1>Fix <span>Lab</span></h1>
+    <div class="prog" id="prog">loading&hellip;</div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="how">
+    <p>A new stretch of the match (<b id="hWin">&hellip;</b>) with the ball tracker's <b>final output</b> drawn on top: <span style="color:var(--grass)">green ring</span> = ball on the ground, <span style="color:var(--air)">orange ring</span> with a line down = ball in the air (the dot is the grass under it), <span style="color:var(--fill)">yellow ring</span> = a short gap the tracker filled, grey dashed ring = the tracker saw something but the output left it out. No ring means the model says there is no ball.</p>
+    <p>Play through. When something is wrong, press <b>N</b> (or <b>Mark a problem here</b>) on the first bad frame, pick what is wrong, then step to the last bad frame and press <b>E</b>. If you can, click <b>where the ball really is</b> on a few frames (the video, the close-up, or the map). When a clip has nothing wrong, press <b>Clip looks right</b> so I know it was checked.</p>
+  </div>
+
+  <div class="over" id="over" aria-label="Whole window: model output and your marks"><canvas id="overc"></canvas></div>
+
+  <div class="pager">
+    <button class="btn" id="bPrevC" aria-label="Previous clip">&larr;</button>
+    <select class="sel" id="clipSel" aria-label="Clip"></select>
+    <button class="btn" id="bNextC" aria-label="Next clip">&rarr;</button>
+    <button class="btn" id="bRev">Clip looks right <kbd>R</kbd></button>
+    <button class="btn on" id="bOv">Model shown <kbd>O</kbd></button>
+    <div class="speed" role="group" aria-label="Speed">
+      <button class="btn" data-rate="0.25">&frac14;&times;</button>
+      <button class="btn" data-rate="0.5">&frac12;&times;</button>
+      <button class="btn" data-rate="1">1&times;</button>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <video id="vid" playsinline muted preload="auto"></video>
+    <canvas id="ov" aria-label="Click where the ball really is"></canvas>
+    <div class="flag" id="flag">&mdash;</div>
+    <div class="flag flag2" id="flag2" hidden></div>
+  </div>
+  <div class="tl" id="tl" aria-label="Clip timeline"><canvas id="tlc"></canvas></div>
+  <div class="meta">
+    <span>frame <b id="fAbs">&mdash;</b></span>
+    <span>match <b id="fClock">&mdash;</b></span>
+    <span>clip <b id="fClip">&mdash;</b></span>
+    <span>model <b id="fSays">&mdash;</b></span>
+    <span class="st" id="status">Loading&hellip;</span>
+  </div>
+  <div class="ctrls">
+    <button class="cb" id="bBack" aria-label="Step back">&#9664; <kbd>&larr;</kbd></button>
+    <button class="cb" id="bPlay">Play <kbd>space</kbd></button>
+    <button class="cb" id="bFwd" aria-label="Step forward"><kbd>&rarr;</kbd> &#9654;</button>
+  </div>
+
+  <div class="work">
+    <div class="mapBox">
+      <canvas id="map" width="780" height="540" aria-label="Pitch map, click where the ball really is"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--grass)"></i>model: on the ground</span>
+        <span><i style="background:var(--air)"></i>model: in the air</span>
+        <span><i style="background:var(--fix)"></i>where you say it really is</span>
+        <span><i style="background:transparent;border:1px dashed var(--dim)"></i>what the camera sees</span>
+      </div>
+    </div>
+    <section class="card" id="card">
+      <h2>Problem <b id="cNo">&mdash;</b><span id="cTime" style="margin-left:auto;font-family:var(--mono);letter-spacing:0;text-transform:none"></span></h2>
+      <div class="empty" id="cEmpty">No problem selected. Press <kbd>N</kbd> on the first wrong frame to mark one.</div>
+      <div class="fields" id="cFields" hidden>
+        <label for="kind">What is wrong</label>
+        <select id="kind">
+          <option value="wrong">ring is on something that is not the ball</option>
+          <option value="missed">ball is visible but has no ring</option>
+          <option value="dead">ball is dead / out of play, should be empty</option>
+          <option value="falseair">shown in the air, but it is on the ground</option>
+          <option value="missair">ball is in the air, not shown that way</option>
+          <option value="flight">flight is there but wrong (start, end, height, path)</option>
+          <option value="spot">spot on the map is in the wrong place</option>
+          <option value="other">something else (say in the note)</option>
+        </select>
+        <label>From</label>
+        <div class="v"><span id="vF0">&mdash;</span><button id="gF0">Go <kbd>,</kbd></button><button id="sF0">Here <kbd>S</kbd></button></div>
+        <label>To</label>
+        <div class="v"><span id="vF1">&mdash;</span><button id="gF1">Go <kbd>.</kbd></button><button id="sF1">Here <kbd>E</kbd></button></div>
+        <label>Real ball</label>
+        <div class="v"><span id="vPts">0 clicks</span></div>
+        <label for="note">Note</label>
+        <textarea id="note" maxlength="600" placeholder="optional: what you see"></textarea>
+      </div>
+      <div class="cardAct">
+        <button class="btn" id="bDelPt">Delete click here <kbd>X</kbd></button>
+        <button class="btn" id="bUndo">Undo <kbd>Z</kbd></button>
+        <button class="btn" id="bDelFx">Remove problem</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="pager">
+    <button class="btn fixb" id="bNew">Mark a problem here <kbd>N</kbd></button>
+  </div>
+
+  <div class="keys">
+    <span><kbd>space</kbd> play / pause</span>
+    <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> one frame (0.1 s)</span>
+    <span><kbd>shift</kbd>+<kbd>&larr;</kbd><kbd>&rarr;</kbd> one second</span>
+    <span><kbd>N</kbd> new problem from this frame</span>
+    <span><kbd>S</kbd> <kbd>E</kbd> problem starts / ends here</span>
+    <span><kbd>,</kbd><kbd>.</kbd> go to its start / end</span>
+    <span><kbd>[</kbd><kbd>]</kbd> previous / next problem</span>
+    <span><kbd>R</kbd> clip looks right</span>
+    <span><kbd>O</kbd> show / hide the model</span>
+    <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> speed</span>
+  </div>
+
+  <section class="list">
+    <h2 id="listH">Problems</h2>
+    <div class="rows" id="rows"></div>
+  </section>
+  <div class="pager"><button class="btn" id="bExport">Copy everything as JSON</button></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var $ = function(id){ return document.getElementById(id); };
+var vid = $('vid'), ov = $('ov'), mapc = $('map'), tl = $('tl'), tlc = $('tlc'), over = $('over'), overc = $('overc');
+var clips = [], cur = -1, VF = 10, STEP = 3, A0 = 0, A1 = 0, ZR = 72, INSET = 256;
+var HM = {}, HI = {};
+var MD = {};                 // abs -> model row
+var fx = {};                 // id -> problem record
+var rev = {};                // clip id -> { id, ok, ts }
+var order = [];
+var selId = null, undoStack = [];
+var db = null, canWrite = true, want = {}, inflight = {};
+var prefs = { rate: 0.5, sel: null, ovl: true, clip: 0 };
+var MW = 768, VW = 1024, VH = 432, SC = 0.4;
+var KINDS = { wrong: 'ring on the wrong thing', missed: 'ball not tracked', dead: 'should be empty', falseair: 'false flight',
+  missair: 'missed flight', flight: 'flight wrong', spot: 'map spot wrong', other: 'other' };
+
+function loadJSON(k){ try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch(e){ return null; } }
+function saveJSON(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+function warn(m){ var b = $('banner'); b.textContent = m; b.hidden = false; }
+function say(h){ $('status').innerHTML = h; }
+function css(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function clock(abs){ var s = abs / 30, m = Math.floor(s / 60); return m + ':' + ('0' + (s - m * 60).toFixed(1)).slice(-4); }
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+function savePrefs(){ saveJSON('fixlab.prefs', prefs); }
+
+/* ---- geometry */
+function toSB(abs, px, py){
+  var h = HM[abs]; if (!h) return null;
+  var w = h[6] * px + h[7] * py + h[8]; if (w <= 1e-9) return null;
+  return { x: (h[0] * px + h[1] * py + h[2]) / w, y: (h[3] * px + h[4] * py + h[5]) / w };
+}
+function inv3(m){
+  var a = m[0], b = m[1], c = m[2], d = m[3], e = m[4], f = m[5], g = m[6], h = m[7], i = m[8];
+  var A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g, det = a * A + b * B + c * C;
+  return [A / det, -(b * i - c * h) / det, (b * f - c * e) / det,
+          B / det, (a * i - c * g) / det, -(a * f - c * d) / det,
+          C / det, -(a * h - b * g) / det, (a * e - b * d) / det];
+}
+function toPx(abs, x, y){
+  var h = HM[abs]; if (!h) return null;
+  var q = HI[abs] || (HI[abs] = inv3(h));
+  var w = q[6] * x + q[7] * y + q[8]; if (w <= 1e-9) return null;
+  return { x: (q[0] * x + q[1] * y + q[2]) / w, y: (q[3] * x + q[4] * y + q[5]) / w };
+}
+
+/* ---- clip frames */
+function clip(){ return clips[cur]; }
+function nFrames(){ var c = clip(); return Math.floor((c.end - c.start) / STEP) + 1; }
+function kNow(){ return Math.max(0, Math.min(nFrames() - 1, Math.floor(vid.currentTime * VF + 1e-3))); }
+function absOf(k){ return clip().start + k * STEP; }
+function absNow(){ return cur < 0 ? null : absOf(kNow()); }
+function kOf(abs){ return Math.round((abs - clip().start) / STEP); }
+function seekK(k){ k = Math.max(0, Math.min(nFrames() - 1, k)); vid.currentTime = (k + 0.5) / VF; }
+function clipOf(abs){ for (var i = 0; i < clips.length; i++) if (abs >= clips[i].start && abs <= clips[i].end) return i; return abs < clips[0].start ? 0 : clips.length - 1; }
+function snap(abs){ var c = clips[clipOf(abs)]; return c.start + Math.max(0, Math.min(Math.floor((c.end - c.start) / STEP), Math.round((abs - c.start) / STEP))) * STEP; }
+function seekAbs(abs){
+  abs = snap(abs); var i = clipOf(abs);
+  if (i !== cur) loadClip(i, abs); else { vid.pause(); seekK(kOf(abs)); }
+}
+
+/* ---- problems */
+function sorted(){ order = Object.keys(fx).filter(function(id){ return !fx[id].deleted; }).sort(function(a, b){ return fx[a].f0 - fx[b].f0 || (a < b ? -1 : 1); }); }
+function sel(){ return selId && fx[selId] && !fx[selId].deleted ? fx[selId] : null; }
+function noOf(id){ return order.indexOf(id) + 1; }
+function fixAt(abs){
+  var s = sel(); if (s && abs >= s.f0 && abs <= s.f1) return s;
+  for (var i = 0; i < order.length; i++){ var f = fx[order[i]]; if (abs >= f.f0 && abs <= f.f1) return f; }
+  return null;
+}
+function select(id, go){
+  selId = id; prefs.sel = id; savePrefs();
+  var f = sel(); if (f && go) seekAbs(f.f0);
+  paintAll();
+}
+
+/* ---- storage: one doc per problem in "fixes", one per clip in "clips" */
+function persist(f){
+  f.ts = Date.now();
+  saveJSON('fixlab.v1', fx);
+  want['fixes/' + f.id] = clone(f); push('fixes/' + f.id);
+  sorted(); paintProg();
+}
+function persistRev(r){
+  r.ts = Date.now();
+  saveJSON('fixlab.rev', rev);
+  want['clips/' + r.id] = clone(r); push('clips/' + r.id);
+  paintProg();
+}
+function push(path){
+  if (!db || !canWrite){ paintSave(); return; }
+  if (inflight[path]) return;
+  inflight[path] = true; paintSave();
+  (async function(){
+    while (Object.prototype.hasOwnProperty.call(want, path)){
+      var r = want[path]; delete want[path];
+      for (var t = 0; t < 2; t++){
+        try { await db.doc(path).set(r); break; }
+        catch(e){
+          var code = e && e.code;
+          if (code === 'unavailable' && t === 0){ await new Promise(function(res){ setTimeout(res, 500 + Math.random() * 700); }); continue; }
+          if (['invalid_argument','not_granted','revoked','capability_disabled','capability_removed','permission_denied'].indexOf(code) >= 0){
+            canWrite = false;
+            warn('Marks cannot be saved to the shared store from this view (' + code + '). They stay in this browser; use "Copy everything as JSON" before leaving.');
+          } else warn('Could not save ' + path + ' (' + (code || 'error') + '). It is still in this browser.');
+          break;
+        }
+      }
+      if (!canWrite) break;
+    }
+    delete inflight[path]; paintSave();
+  })();
+}
+function paintSave(){
+  var el = $('save'); if (!el) return;
+  var n = Object.keys(inflight).length;
+  if (!db){ el.textContent = 'browser only'; el.className = 'save'; return; }
+  if (!canWrite){ el.textContent = 'not saving'; el.className = 'save busy'; return; }
+  el.textContent = n ? 'saving…' : 'saved'; el.className = 'save' + (n ? ' busy' : '');
+}
+function snapshot(f){ undoStack.push(clone(f)); if (undoStack.length > 300) undoStack.shift(); }
+function undo(){
+  var u = undoStack.pop(); if (!u){ say('Nothing to undo.'); return; }
+  fx[u.id] = u; persist(u); select(u.id, false); say('Undone.');
+}
+
+/* ---- editing */
+var EXT = 150;   // frames (5 s): a click this far past an end stretches the problem to it
+function place(pt){
+  var abs = absNow(), f = sel();
+  if (!f || abs < f.f0 - EXT || abs > f.f1 + EXT){
+    var at = fixAt(abs);
+    if (at){ select(at.id, false); f = at; }
+    else { say('Clicks mark where the ball really is inside a problem. Press <b>N</b> to start one on this frame.'); return; }
+  }
+  snapshot(f);
+  if (abs > f.f1) f.f1 = abs;
+  if (abs < f.f0) f.f0 = abs;
+  pt.f = abs;
+  f.pts = (f.pts || []).filter(function(q){ return q.f !== abs; });
+  f.pts.push(pt); f.pts.sort(function(a, b){ return a.f - b.f; });
+  persist(f); paintAll();
+  say('Real ball marked at frame ' + abs + (pt.map ? ' (on the map).' : '.') + ' Click again to move it, <b>X</b> to delete it.');
+}
+function setEdge(which){
+  var abs = absNow(), f = sel();
+  if (!f){ say('No problem selected. Press <b>N</b> to start one on this frame.'); return; }
+  if (which === 0 && abs > f.f1){ say('The start must not be after the end (frame ' + f.f1 + ').'); return; }
+  if (which === 1 && abs < f.f0){ say('The end must not be before the start (frame ' + f.f0 + ').'); return; }
+  snapshot(f);
+  if (which === 0) f.f0 = abs; else f.f1 = abs;
+  f.pts = (f.pts || []).filter(function(q){ return q.f >= f.f0 && q.f <= f.f1; });
+  persist(f); paintAll();
+  say('Problem ' + noOf(f.id) + ' now ' + (which ? 'ends' : 'starts') + ' at frame ' + abs + ' (' + clock(abs) + ').');
+}
+function guessKind(abs){
+  var m = MD[abs];
+  if (!m) return 'other';
+  if (m[1] === 2) return 'falseair';
+  if (m[1] === 1 || m[2] != null) return 'wrong';
+  return 'missed';
+}
+function newFix(){
+  var abs = absNow();
+  var id = 'p' + abs; if (fx[id] && !fx[id].deleted){ select(id, false); say('A problem already starts here.'); return; }
+  var f = { id: id, f0: abs, f1: Math.min(A1, abs + 30), kind: guessKind(abs), note: '', pts: [], ts: 0 };
+  fx[id] = f; persist(f); select(id, false);
+  say('Problem ' + noOf(id) + ' starts at ' + clock(abs) + '. Pick what is wrong, then go to its last bad frame and press <b>E</b>.');
+}
+function delPoint(){
+  var abs = absNow(), f = sel(); if (!f) return;
+  var n = (f.pts || []).length;
+  var keep = f.pts.filter(function(q){ return q.f !== abs; });
+  if (keep.length === n){ say('No click on this frame.'); return; }
+  snapshot(f); f.pts = keep; persist(f); paintAll(); say('Click at frame ' + abs + ' deleted.');
+}
+var armDel = 0;
+function delFix(){
+  var f = sel(); if (!f) return;
+  if (Date.now() - armDel > 3000){ armDel = Date.now(); $('bDelFx').textContent = 'Click again to remove'; say('Click <b>Remove problem</b> again within 3 s to remove problem ' + noOf(f.id) + '.'); return; }
+  armDel = 0; $('bDelFx').textContent = 'Remove problem';
+  snapshot(f); var i = order.indexOf(f.id);
+  f.deleted = true; persist(f);
+  select(order[Math.min(i, order.length - 1)] || null, false);
+  say('Problem removed. Undo with <b>Z</b>.');
+}
+function field(k, v){ var f = sel(); if (!f || f[k] === v) return; snapshot(f); f[k] = v; persist(f); paintList(); paintNow(); }
+var noteTimer = null, noteSnap = false;
+function toggleRev(){
+  if (cur < 0) return;
+  var c = clip(), r = rev[c.id] ? clone(rev[c.id]) : { id: c.id, ok: false, ts: 0 };
+  r.ok = !r.ok; rev[c.id] = r; persistRev(r); paintAll();
+  if (r.ok){
+    var nIn = order.filter(function(id){ var f = fx[id]; return f.f1 >= c.start && f.f0 <= c.end; }).length;
+    say('Clip ' + (cur + 1) + ' checked' + (nIn ? ' (with ' + nIn + ' problem' + (nIn > 1 ? 's' : '') + ' marked in it).' : ', nothing wrong.') + (cur < clips.length - 1 ? ' Next clip: <b>&rarr;</b> above.' : ''));
+  } else say('Clip ' + (cur + 1) + ' no longer marked as checked.');
+}
+
+/* ---- paint: header, list, card */
+function paintProg(){
+  var nRev = clips.filter(function(c){ return rev[c.id] && rev[c.id].ok; }).length;
+  $('prog').innerHTML = '<b>' + order.length + '</b> problem' + (order.length === 1 ? '' : 's') + ' &middot; <b>' + nRev + '</b> / ' + clips.length + ' clips checked<span class="save" id="save"></span>';
+  paintSave();
+}
+function paintList(){
+  var box = $('rows'); box.innerHTML = '';
+  $('listH').textContent = 'Problems (' + order.length + ')';
+  if (!order.length){ var e = document.createElement('div'); e.className = 'none'; e.textContent = 'None marked yet.'; box.appendChild(e); }
+  order.forEach(function(id, i){
+    var f = fx[id];
+    var r = document.createElement('div'); r.className = 'row' + (id === selId ? ' here' : '');
+    var cells = [['n', String(i + 1)], ['fr', clock(f.f0)], ['fr dur', ((f.f1 - f.f0) / 30).toFixed(1) + 's'], ['kind', KINDS[f.kind] || f.kind], ['note', f.note || ''], ['pts', (f.pts || []).length ? (f.pts.length + (f.pts.length === 1 ? ' click' : ' clicks')) : '']];
+    cells.forEach(function(c){ var s = document.createElement('span'); s.className = c[0]; s.textContent = c[1]; r.appendChild(s); });
+    r.addEventListener('click', function(){ select(id, true); });
+    box.appendChild(r);
+  });
+}
+function paintCard(){
+  var f = sel();
+  $('cEmpty').hidden = !!f; $('cFields').hidden = !f;
+  ['bDelPt', 'bDelFx'].forEach(function(b){ $(b).disabled = !f; });
+  if (!f){ $('cNo').textContent = '—'; $('cTime').textContent = ''; return; }
+  $('cNo').textContent = noOf(f.id) + ' of ' + order.length;
+  $('cTime').textContent = clock(f.f0) + ' · ' + ((f.f1 - f.f0) / 30).toFixed(1) + ' s';
+  $('vF0').textContent = clock(f.f0) + '  (' + f.f0 + ')'; $('vF1').textContent = clock(f.f1) + '  (' + f.f1 + ')';
+  $('kind').value = f.kind;
+  var n = (f.pts || []).length; $('vPts').textContent = n + (n === 1 ? ' click' : ' clicks');
+  if (document.activeElement !== $('note')) $('note').value = f.note || '';
+}
+
+/* ---- paint: video overlay */
+var KCOL = { wrong: '--fix' };
+function ring(g, x, y, r, col, dash, w){
+  g.setLineDash(dash || []); g.lineWidth = (w || 2) + 3; g.strokeStyle = 'rgba(0,0,0,.65)';
+  g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke();
+  g.lineWidth = w || 2; g.strokeStyle = col; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); g.setLineDash([]);
+}
+function cross(g, x, y, col){
+  g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.7)';
+  g.beginPath(); g.moveTo(x - 9, y); g.lineTo(x + 9, y); g.moveTo(x, y - 9); g.lineTo(x, y + 9); g.stroke();
+  g.lineWidth = 2; g.strokeStyle = col;
+  g.beginPath(); g.moveTo(x - 9, y); g.lineTo(x + 9, y); g.moveTo(x, y - 9); g.lineTo(x, y + 9); g.stroke();
+}
+function paintOv(){
+  var w = ov.clientWidth, h = ov.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (ov.width !== Math.round(w * dpr) || ov.height !== Math.round(h * dpr)){ ov.width = Math.round(w * dpr); ov.height = Math.round(h * dpr); }
+  var g = ov.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  if (cur < 0) return;
+  var abs = absNow(), k = w / VW, m = MD[abs];
+  // two views of the same frame: the main picture, and the close-up (full-res px around cx, cy)
+  var views = [{ f: function(x, y){ return { x: x * SC * k, y: y * SC * k }; }, clipR: [0, 0, MW * k, h], s: 1 }];
+  if (m && m[12] != null){
+    var cx = m[12], cy = m[13], zs = INSET / (2 * ZR) * k;
+    views.push({ f: function(x, y){ return { x: (MW + (x - cx + ZR) * INSET / (2 * ZR)) * k, y: (y - cy + ZR) * INSET / (2 * ZR) * k }; }, clipR: [MW * k, 0, INSET * k, INSET * k], s: zs / (SC * k) });
+  }
+  var f = sel(), mine = f && abs >= f.f0 && abs <= f.f1 ? (f.pts || []).filter(function(q){ return q.f === abs; }) : [];
+  views.forEach(function(V){
+    g.save(); g.beginPath(); g.rect(V.clipR[0], V.clipR[1], V.clipR[2], V.clipR[3]); g.clip();
+    var big = V.s > 1 ? 1.9 : 1;
+    if (prefs.ovl && m){
+      var st = m[1];
+      if (m[2] != null && st !== 2){
+        var t = V.f(m[2], m[3]);
+        if (st === 1) ring(g, t.x, t.y, 12 * big, css(m[4] === 2 ? '--fill' : '--grass'));
+        else ring(g, t.x, t.y, 12 * big, 'rgba(200,210,220,.85)', [4, 4], 1.5);
+      }
+      if (st === 1 && m[7] != null){
+        var q = V.f(m[7], m[8]);
+        g.fillStyle = css('--grass'); g.strokeStyle = '#0e141b'; g.lineWidth = 1.5;
+        g.beginPath(); g.arc(q.x, q.y, 2.6 * big, 0, 7); g.fill(); g.stroke();
+      }
+      if (st === 2 && m[5] != null){
+        var b = V.f(m[5], m[6]), gg = m[7] != null ? V.f(m[7], m[8]) : null;
+        if (gg){
+          g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 4; g.beginPath(); g.moveTo(b.x, b.y); g.lineTo(gg.x, gg.y); g.stroke();
+          g.strokeStyle = css('--air'); g.lineWidth = 2; g.beginPath(); g.moveTo(b.x, b.y); g.lineTo(gg.x, gg.y); g.stroke();
+          g.fillStyle = css('--air'); g.beginPath(); g.arc(gg.x, gg.y, 3 * big, 0, 7); g.fill();
+        }
+        ring(g, b.x, b.y, 13 * big, css('--air'), null, 2.5);
+      }
+    }
+    mine.forEach(function(q){
+      var p = q.map ? toPx(abs, q.x, q.y) : { x: q.px, y: q.py };
+      if (!p) return; var s = V.f(p.x, p.y); cross(g, s.x, s.y, css('--fix'));
+    });
+    g.restore();
+  });
+}
+
+/* ---- paint: pitch map (StatsBomb 120 x 80, far side on top) */
+var PAD = 5, MS = 6;
+function mx(x){ return (x + PAD) * MS; }
+function my(y){ return (80 - y + PAD) * MS; }
+function paintMap(){
+  var g = mapc.getContext('2d'), W = mapc.width, H = mapc.height;
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = css('--pitch'); g.fillRect(0, 0, W, H);
+  g.strokeStyle = css('--pitchline'); g.globalAlpha = .75; g.lineWidth = 2;
+  g.strokeRect(mx(0), my(80), 120 * MS, 80 * MS);
+  g.beginPath(); g.moveTo(mx(60), my(80)); g.lineTo(mx(60), my(0)); g.stroke();
+  g.beginPath(); g.arc(mx(60), my(40), 10 * MS, 0, 7); g.stroke();
+  [[0, 1], [120, -1]].forEach(function(e){
+    var x0 = e[0], d = e[1];
+    g.strokeRect(Math.min(mx(x0), mx(x0 + 18 * d)), my(62), 18 * MS, 44 * MS);
+    g.strokeRect(Math.min(mx(x0), mx(x0 + 6 * d)), my(50), 6 * MS, 20 * MS);
+    g.strokeRect(Math.min(mx(x0), mx(x0 - 2 * d)), my(44), 2 * MS, 8 * MS);
+    g.fillStyle = css('--pitchline'); g.beginPath(); g.arc(mx(x0 + 12 * d), my(40), 3, 0, 7); g.fill();
+  });
+  g.globalAlpha = 1;
+  g.fillStyle = css('--dim'); g.font = '600 13px ' + css('--mono');
+  g.fillText('far touchline', mx(2), my(80) - 8);
+  g.fillText('near touchline (camera side)', mx(2), my(0) + 20);
+  if (cur < 0) return;
+  var abs = absNow();
+  var B = [], N = 24, t;
+  for (t = 0; t <= N; t++) B.push([1920 * t / N, 1080]);
+  for (t = 0; t <= N; t++) B.push([1920, 1080 - 1080 * t / N]);
+  for (t = 0; t <= N; t++) B.push([1920 - 1920 * t / N, 0]);
+  for (t = 0; t <= N; t++) B.push([0, 1080 * t / N]);
+  g.strokeStyle = css('--ink'); g.globalAlpha = .55; g.setLineDash([6, 5]); g.lineWidth = 1.5; g.beginPath();
+  var on = false;
+  B.forEach(function(p){
+    var s = toSB(abs, p[0], p[1]);
+    if (!s || s.x < -40 || s.x > 160 || s.y < -40 || s.y > 120){ on = false; return; }
+    if (on) g.lineTo(mx(s.x), my(s.y)); else { g.moveTo(mx(s.x), my(s.y)); on = true; }
+  });
+  g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+  if (prefs.ovl){
+    // model trail, last 3 s
+    for (var a = abs - 90; a < abs; a += STEP){
+      var p = MD[a], q = MD[a + STEP];
+      if (!p || !q || p[9] == null || q[9] == null) continue;
+      var air = q[1] === 2;
+      g.strokeStyle = css(air ? '--air' : '--ink'); g.globalAlpha = .25 + .75 * (a - abs + 90) / 90; g.lineWidth = air ? 3.5 : 1.8;
+      g.beginPath(); g.moveTo(mx(p[9]), my(p[10])); g.lineTo(mx(q[9]), my(q[10])); g.stroke();
+    }
+    g.globalAlpha = 1;
+    var m = MD[abs];
+    if (m && m[9] != null){
+      g.fillStyle = css(m[1] === 2 ? '--air' : '--grass'); g.strokeStyle = css('--ground'); g.lineWidth = 2.5;
+      g.beginPath(); g.arc(mx(m[9]), my(m[10]), 8, 0, 7); g.fill(); g.stroke();
+      if (m[1] === 2 && m[11] != null){ g.fillStyle = css('--ink'); g.font = '600 13px ' + css('--mono'); g.fillText(m[11].toFixed(1) + ' CR up', mx(m[9]) + 12, my(m[10]) - 10); }
+    }
+  }
+  var f = sel();
+  if (f){
+    var P = (f.pts || []).map(function(q){ return q.map ? { f: q.f, x: q.x, y: q.y } : (function(){ var s = toSB(q.f, q.px, q.py); return s ? { f: q.f, x: s.x, y: s.y } : null; })(); }).filter(Boolean);
+    if (P.length > 1){
+      g.strokeStyle = css('--fix'); g.lineWidth = 1.5; g.setLineDash([4, 4]); g.beginPath();
+      P.forEach(function(q, i){ if (i) g.lineTo(mx(q.x), my(q.y)); else g.moveTo(mx(q.x), my(q.y)); }); g.stroke(); g.setLineDash([]);
+    }
+    P.forEach(function(q){
+      g.fillStyle = css('--fix'); g.strokeStyle = css('--ground'); g.lineWidth = 2;
+      g.beginPath(); g.arc(mx(q.x), my(q.y), q.f === abs ? 7 : 4.5, 0, 7); g.fill(); g.stroke();
+    });
+  }
+}
+
+/* ---- paint: timelines */
+function stateCol(s){ return s === 2 ? css('--air') : s === 1 ? css('--grass') : null; }
+function paintBand(g, x0, x1, y, hh, xOf){
+  // model output as a coloured band, one run per state
+  var runS = null, runA = x0;
+  for (var a = x0; a <= x1 + STEP; a += STEP){
+    var m = MD[a], s = a > x1 || !m ? -1 : m[1];
+    if (s !== runS){
+      if (runS !== null && runS > 0){ g.fillStyle = stateCol(runS); g.fillRect(xOf(runA), y, Math.max(1, xOf(a) - xOf(runA)), runS === 2 ? hh : hh * 0.55 + 0.5); }
+      runS = s; runA = a;
+    }
+  }
+}
+function paintTL(){
+  if (cur < 0) return;
+  var w = tl.clientWidth, h = tl.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (tlc.width !== Math.round(w * dpr)){ tlc.width = Math.round(w * dpr); tlc.height = Math.round(h * dpr); }
+  var g = tlc.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  var c = clip(), span = c.end - c.start + 1, x = function(abs){ return (abs - c.start) / span * w; };
+  g.fillStyle = css('--idle'); g.fillRect(0, 22, w, 10);
+  g.save(); g.translate(0, 22); paintBand(g, c.start, c.end, 0, 10, x); g.restore();
+  order.forEach(function(id){
+    var f = fx[id]; if (f.f1 < c.start || f.f0 > c.end) return;
+    g.fillStyle = css('--fix'); g.globalAlpha = id === selId ? 1 : .45;
+    g.fillRect(x(f.f0), 4, Math.max(3, x(f.f1 + STEP) - x(f.f0)), 14); g.globalAlpha = 1;
+  });
+  g.fillStyle = css('--line');
+  for (var sec = 0; sec <= 15; sec++){ var xx = Math.round(sec * 30 / span * w) + 0.5; g.fillRect(xx, h - (sec % 5 ? 5 : 8), 1, sec % 5 ? 5 : 8); }
+  g.fillStyle = css('--signal'); g.fillRect(Math.round(x(absNow() + STEP / 2)) - 1, 0, 2, h);
+}
+function paintOver(){
+  var w = over.clientWidth, h = over.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (!w) return;
+  if (overc.width !== Math.round(w * dpr)){ overc.width = Math.round(w * dpr); overc.height = Math.round(h * dpr); }
+  var g = overc.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  if (!clips.length) return;
+  var span = A1 - A0 + 1, x = function(abs){ return (abs - A0) / span * w; };
+  clips.forEach(function(c, i){
+    var ok = rev[c.id] && rev[c.id].ok;
+    g.fillStyle = i === cur ? css('--panel2') : 'transparent'; g.fillRect(x(c.start), 0, x(c.end + 1) - x(c.start), h);
+    if (ok){ g.fillStyle = css('--ok'); g.fillRect(x(c.start) + 1, h - 4, x(c.end + 1) - x(c.start) - 2, 3); }
+  });
+  g.fillStyle = css('--idle'); g.fillRect(0, 15, w, 9);
+  g.save(); g.translate(0, 15); paintBand(g, A0, A1, 0, 9, x); g.restore();
+  order.forEach(function(id){ var f = fx[id]; g.fillStyle = css('--fix'); g.fillRect(x(f.f0), 2, Math.max(3, x(f.f1 + STEP) - x(f.f0)), 10); });
+  g.fillStyle = css('--line');
+  clips.forEach(function(c){ g.fillRect(Math.round(x(c.start)), 0, 1, h); });
+  if (cur >= 0){ g.fillStyle = css('--signal'); g.fillRect(Math.round(x(absNow())) - 1, 0, 2, h); }
+}
+function says(m){
+  if (!m) return 'no data';
+  if (m[1] === 2) return 'in the air' + (m[11] != null ? ', ' + m[11].toFixed(1) + ' CR up' : '');
+  if (m[1] === 1) return 'on the ground (' + m[9].toFixed(0) + ', ' + m[10].toFixed(0) + ')';
+  return m[2] != null ? 'no ball (tracker unused)' : 'no ball';
+}
+function paintNow(){
+  if (cur < 0) return;
+  var abs = absNow(), m = MD[abs];
+  $('fAbs').textContent = abs; $('fClock').textContent = clock(abs); $('fClip').textContent = (cur + 1) + ' / ' + clips.length;
+  $('fSays').textContent = says(m);
+  var flag = $('flag');
+  if (!prefs.ovl){ flag.className = 'flag'; flag.textContent = 'model hidden'; }
+  else if (m && m[1] === 2){ flag.className = 'flag air'; flag.textContent = 'in the air'; }
+  else if (m && m[1] === 1){ flag.className = 'flag gr'; flag.textContent = 'on the ground'; }
+  else { flag.className = 'flag'; flag.textContent = 'no ball'; }
+  var s = sel(), fa = fixAt(abs);
+  if (fa && s !== fa && !(s && abs >= s.f0 && abs <= s.f1)){ selId = fa.id; paintList(); paintCard(); s = fa; }
+  var f2 = $('flag2');
+  if (fa){ f2.hidden = false; f2.className = 'flag flag2 fix'; f2.textContent = 'problem ' + noOf(fa.id) + ' · ' + (KINDS[fa.kind] || fa.kind); }
+  else f2.hidden = true;
+  $('bPlay').innerHTML = (vid.paused ? 'Play' : 'Pause') + ' <kbd>space</kbd>';
+  var r = rev[clip().id] && rev[clip().id].ok;
+  $('bRev').className = 'btn' + (r ? ' go' : ''); $('bRev').innerHTML = (r ? 'Clip checked ✓' : 'Clip looks right') + ' <kbd>R</kbd>';
+  $('bOv').className = 'btn' + (prefs.ovl ? ' on' : ''); $('bOv').innerHTML = (prefs.ovl ? 'Model shown' : 'Model hidden') + ' <kbd>O</kbd>';
+  $('bPrevC').disabled = cur <= 0; $('bNextC').disabled = cur >= clips.length - 1;
+  paintTL(); paintOv(); paintMap(); paintOver();
+}
+function paintRate(){
+  document.querySelectorAll('[data-rate]').forEach(function(b){ b.classList.toggle('on', Number(b.dataset.rate) === prefs.rate); });
+  vid.playbackRate = prefs.rate;
+}
+function paintAll(){ sorted(); paintList(); paintCard(); paintProg(); paintNow(); }
+
+/* ---- clip loading (whole clip as a blob, so seeking works on any server) */
+var loadSeq = 0, blobUrl = null, pendingAbs = null;
+function loadClip(i, abs){
+  i = Math.max(0, Math.min(clips.length - 1, i));
+  cur = i; pendingAbs = abs == null ? clips[i].start : abs;
+  prefs.clip = i; savePrefs();
+  var cs = $('clipSel'); if (cs) cs.value = String(i);
+  var my = ++loadSeq;
+  say('Loading clip ' + (i + 1) + '&hellip;');
+  fetch(clips[i].file).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+    .then(function(b){
+      if (my !== loadSeq) return;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      blobUrl = URL.createObjectURL(b);
+      vid.src = blobUrl; vid.load(); paintRate();
+    })
+    .catch(function(e){ if (my === loadSeq) warn('Clip ' + (i + 1) + ' did not load (' + (e && e.message || 'error') + ').'); });
+  paintNow();
+}
+vid.addEventListener('loadedmetadata', function(){
+  if (pendingAbs != null){ seekK(kOf(pendingAbs)); pendingAbs = null; }
+  say('Clip ' + (cur + 1) + ' of ' + clips.length + ' ready.');
+});
+
+/* ---- controls */
+function step(d){
+  vid.pause();
+  var k = kNow() + d;
+  if (k >= nFrames() && cur < clips.length - 1){ loadClip(cur + 1, clips[cur + 1].start + (k - nFrames()) * STEP); return; }
+  if (k < 0 && cur > 0){ var p = clips[cur - 1]; loadClip(cur - 1, snap(p.end + (k + 1) * STEP)); return; }
+  seekK(k);
+}
+function toggle(){ if (vid.paused) vid.play().catch(function(){}); else vid.pause(); }
+function goFix(d){
+  if (!order.length) return;
+  var i = order.indexOf(selId), j;
+  if (i >= 0) j = i + d;
+  else {
+    // nothing selected: the first problem after this frame, or the last one before it
+    var abs = absNow(), ids = order.map(function(id){ return fx[id].f0; });
+    if (d > 0){ j = ids.findIndex(function(f0){ return f0 > abs; }); if (j < 0) return; }
+    else { j = -1; ids.forEach(function(f0, k){ if (f0 < abs) j = k; }); }
+  }
+  if (j >= 0 && j < order.length) select(order[j], true);
+}
+function toggleOv(){ prefs.ovl = !prefs.ovl; savePrefs(); paintNow(); }
+$('bPrevC').addEventListener('click', function(){ if (cur > 0) loadClip(cur - 1); });
+$('bNextC').addEventListener('click', function(){ if (cur < clips.length - 1) loadClip(cur + 1); });
+$('bRev').addEventListener('click', function(e){ toggleRev(); e.currentTarget.blur(); });
+$('bOv').addEventListener('click', function(e){ toggleOv(); e.currentTarget.blur(); });
+document.querySelectorAll('[data-rate]').forEach(function(b){ b.addEventListener('click', function(){ prefs.rate = Number(b.dataset.rate); savePrefs(); paintRate(); }); });
+$('bBack').addEventListener('click', function(){ step(-1); });
+$('bFwd').addEventListener('click', function(){ step(1); });
+$('bPlay').addEventListener('click', toggle);
+$('bNew').addEventListener('click', function(e){ vid.pause(); newFix(); e.currentTarget.blur(); });
+$('gF0').addEventListener('click', function(){ var f = sel(); if (f) seekAbs(f.f0); });
+$('gF1').addEventListener('click', function(){ var f = sel(); if (f) seekAbs(f.f1); });
+$('sF0').addEventListener('click', function(e){ vid.pause(); setEdge(0); e.currentTarget.blur(); });
+$('sF1').addEventListener('click', function(e){ vid.pause(); setEdge(1); e.currentTarget.blur(); });
+$('kind').addEventListener('change', function(e){ field('kind', e.target.value); e.target.blur(); });
+$('note').addEventListener('focus', function(){ noteSnap = false; });
+$('note').addEventListener('input', function(e){
+  var f = sel(); if (!f) return;
+  if (!noteSnap){ snapshot(f); noteSnap = true; }
+  f.note = e.target.value;
+  clearTimeout(noteTimer); noteTimer = setTimeout(function(){ persist(f); paintList(); }, 600);
+});
+$('note').addEventListener('blur', function(){ var f = sel(); if (noteTimer){ clearTimeout(noteTimer); noteTimer = null; if (f){ persist(f); paintList(); } } });
+$('bDelPt').addEventListener('click', delPoint);
+$('bUndo').addEventListener('click', undo);
+$('bDelFx').addEventListener('click', delFix);
+$('bExport').addEventListener('click', function(){
+  var out = JSON.stringify({ fps: 30, step: STEP, window: [A0, A1], units: 'pts: image px (1920x1080) or StatsBomb 120x80 when map is true',
+    problems: order.map(function(id){ return fx[id]; }), clips: clips.map(function(c){ return { id: c.id, ok: !!(rev[c.id] && rev[c.id].ok) }; }) });
+  try { navigator.clipboard.writeText(out).then(function(){ say('Copied ' + order.length + ' problems.'); }, function(){ say('Clipboard blocked in this view.'); }); }
+  catch(e){ say('Clipboard unavailable in this view.'); }
+});
+vid.addEventListener('timeupdate', paintNow);
+vid.addEventListener('seeked', paintNow);
+vid.addEventListener('play', paintNow); vid.addEventListener('pause', paintNow);
+vid.addEventListener('ended', function(){ if (cur < clips.length - 1) { loadClip(cur + 1); vid.addEventListener('loadeddata', function once(){ vid.removeEventListener('loadeddata', once); vid.play().catch(function(){}); }); } });
+vid.addEventListener('error', function(){ if (vid.src) warn('Clip ' + (cur + 1) + ' could not be played in this browser.'); });
+(function loop(){ if (!vid.paused) paintNow(); requestAnimationFrame(loop); })();
+
+ov.addEventListener('click', function(e){
+  if (cur < 0) return;
+  vid.pause();
+  var r = ov.getBoundingClientRect(), vx = (e.clientX - r.left) / r.width * VW, vy = (e.clientY - r.top) / r.height * VH;
+  var abs = absNow(), m = MD[abs], px, py;
+  if (vx > MW){
+    if (vy > INSET || !m || m[12] == null){ say('Click the picture, the close-up, or the map.'); return; }
+    px = m[12] - ZR + (vx - MW) * 2 * ZR / INSET; py = m[13] - ZR + vy * 2 * ZR / INSET;
+  } else { px = vx / SC; py = vy / SC; }
+  place({ px: Math.round(px), py: Math.round(py) });
+});
+mapc.addEventListener('click', function(e){
+  if (cur < 0) return;
+  vid.pause();
+  var r = mapc.getBoundingClientRect();
+  var X = (e.clientX - r.left) / r.width * mapc.width, Y = (e.clientY - r.top) / r.height * mapc.height;
+  place({ map: true, x: Math.round((X / MS - PAD) * 10) / 10, y: Math.round((80 - (Y / MS - PAD)) * 10) / 10 });
+});
+function tlSeek(e){ var r = tl.getBoundingClientRect(); var f = (e.clientX - r.left) / r.width; vid.pause(); seekK(Math.floor(f * nFrames())); }
+var dragging = false;
+tl.addEventListener('pointerdown', function(e){ dragging = true; tl.setPointerCapture(e.pointerId); tlSeek(e); });
+tl.addEventListener('pointermove', function(e){ if (dragging) tlSeek(e); });
+tl.addEventListener('pointerup', function(){ dragging = false; });
+over.addEventListener('click', function(e){
+  if (!clips.length) return;
+  var r = over.getBoundingClientRect(), abs = A0 + (e.clientX - r.left) / r.width * (A1 - A0 + 1);
+  seekAbs(abs);
+});
+window.addEventListener('resize', function(){ paintNow(); });
+
+document.addEventListener('keydown', function(e){
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  var tg = e.target && e.target.tagName;
+  if (tg === 'SELECT' || tg === 'INPUT' || tg === 'TEXTAREA') return;
+  if (cur < 0) return;
+  var used = true, k = e.key.length === 1 ? e.key.toLowerCase() : e.key, f = sel();
+  switch (k){
+    case ' ': toggle(); break;
+    case 'ArrowRight': step(e.shiftKey ? VF : 1); break;
+    case 'ArrowLeft': step(e.shiftKey ? -VF : -1); break;
+    case 'n': vid.pause(); newFix(); break;
+    case 's': vid.pause(); setEdge(0); break;
+    case 'e': vid.pause(); setEdge(1); break;
+    case 'x': case 'Delete': case 'Backspace': delPoint(); break;
+    case 'z': undo(); break;
+    case 'r': toggleRev(); break;
+    case 'o': toggleOv(); break;
+    case ',': if (f) seekAbs(f.f0); break;
+    case '.': if (f) seekAbs(f.f1); break;
+    case '[': goFix(-1); break;
+    case ']': goFix(1); break;
+    case '1': prefs.rate = 0.25; savePrefs(); paintRate(); break;
+    case '2': prefs.rate = 0.5; savePrefs(); paintRate(); break;
+    case '3': prefs.rate = 1; savePrefs(); paintRate(); break;
+    default: used = false;
+  }
+  if (used){ e.preventDefault(); if (tg === 'BUTTON' && e.target.blur) e.target.blur(); }
+});
+
+/* ---- boot */
+async function getJSON(p){ var r = await fetch(p); if (!r.ok) throw new Error(p + ' HTTP ' + r.status); return r.json(); }
+function mergeFix(v){ var id = v && v.id; if (id && (!fx[id] || (v.ts || 0) >= (fx[id].ts || 0))){ fx[id] = clone(v); return true; } return false; }
+function mergeRev(v){ var id = v && v.id; if (id && (!rev[id] || (v.ts || 0) >= (rev[id].ts || 0))){ rev[id] = clone(v); return true; } return false; }
+async function boot(){
+  var p = loadJSON('fixlab.prefs'); if (p){ if (p.rate) prefs.rate = p.rate; prefs.sel = p.sel || null; prefs.ovl = p.ovl !== false; prefs.clip = p.clip || 0; }
+  var M, F, D;
+  try { var res = await Promise.all([getJSON('manifest.json'), getJSON('frames.json'), getJSON('model.json')]); M = res[0]; F = res[1]; D = res[2]; }
+  catch(e){ warn('The clip data did not load (' + (e && e.message || 'error') + ').'); $('prog').textContent = 'no data'; return; }
+  STEP = Number(M.step) || 3; VF = (Number(M.fps) || 30) / STEP; ZR = M.zr || ZR; INSET = M.inset || INSET;
+  clips = M.clips || []; HM = F.H || {};
+  (D.rows || []).forEach(function(r){ MD[r[0]] = r; });
+  A0 = clips[0].start; A1 = clips[clips.length - 1].end;
+  $('hWin').textContent = clock(A0).replace(/\.\d$/, '') + '–' + clock(A1 + 1).replace(/\.\d$/, '');
+  var cs = $('clipSel');
+  clips.forEach(function(c, i){ var o = document.createElement('option'); o.value = String(i); o.textContent = 'Clip ' + (i + 1) + ' of ' + clips.length + '  ·  ' + clock(c.start).replace(/\.\d$/, ''); cs.appendChild(o); });
+  cs.addEventListener('change', function(){ var i = Number(cs.value); loadClip(i, clips[i].start); cs.blur(); });
+  var local = loadJSON('fixlab.v1'); if (local && typeof local === 'object') Object.keys(local).forEach(function(id){ mergeFix(local[id]); });
+  var lr = loadJSON('fixlab.rev'); if (lr && typeof lr === 'object') Object.keys(lr).forEach(function(id){ mergeRev(lr[id]); });
+  sorted();
+  selId = prefs.sel && fx[prefs.sel] && !fx[prefs.sel].deleted ? prefs.sel : null;
+  loadClip(Math.min(prefs.clip || 0, clips.length - 1), null);
+  paintAll();
+
+  try { db = await claude.use('db'); } catch(e){ db = null; }
+  if (!db){ warn('Shared storage is not available in this view. Marks stay in this browser only; finish on this device and use "Copy everything as JSON".'); paintSave(); return; }
+  paintSave();
+  function listen(coll, merge, key, store){
+    try {
+      db.collection(coll).onSnapshot(function(snap){
+        var touched = false;
+        snap.docChanges().forEach(function(ch){
+          var path = coll + '/' + ch.doc.id;
+          if (Object.prototype.hasOwnProperty.call(want, path) || inflight[path]) return;
+          if (ch.type === 'removed') return;
+          if (merge(ch.doc.data())) touched = true;   // snapshots are frozen: merge keeps an editable copy
+        });
+        if (touched){ saveJSON(key, store()); paintAll(); }
+      }, function(err){ warn('Live sync stopped (' + (err && err.code || 'error') + '). New marks still save; reload to see changes from elsewhere.'); });
+    } catch(e){ warn('Could not read saved marks (' + (e && e.code || 'error') + '). Anything in this browser is still here.'); }
+  }
+  listen('fixes', mergeFix, 'fixlab.v1', function(){ return fx; });
+  listen('clips', mergeRev, 'fixlab.rev', function(){ return rev; });
+}
+boot();
+})();
+</script>

@@ -1,0 +1,2462 @@
+{
+ "cls_B": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 100,
+    "wrong": 4,
+    "none": 54,
+    "off": 55,
+    "offok": 54,
+    "acc": 0.7230046948356808
+   },
+   "H1": {
+    "ball": 80,
+    "right": 47,
+    "wrong": 4,
+    "none": 29,
+    "off": 46,
+    "offok": 46,
+    "acc": 0.7380952380952381
+   },
+   "H2": {
+    "ball": 78,
+    "right": 53,
+    "wrong": 0,
+    "none": 25,
+    "off": 9,
+    "offok": 8,
+    "acc": 0.7011494252873564
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 34,
+   "wrong": 2,
+   "none": 11,
+   "off": 3,
+   "offok": 3,
+   "acc": 0.74
+  },
+  "passes": {
+   "points": 14,
+   "carried": 6,
+   "carried7": 6,
+   "per": {
+    "p1": [
+     true,
+     true
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     true
+    ],
+    "p5": [
+     false,
+     true
+    ],
+    "p6": [
+     false,
+     true
+    ],
+    "p7": [
+     true,
+     true
+    ],
+    "p8": [
+     true,
+     true
+    ]
+   }
+  },
+  "fix": {
+   "points": 1,
+   "npoints": 8,
+   "cover": 0.06095734056213439,
+   "repeat": 1.0,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 1.0,
+    "p172290": 1.0,
+    "p172569": 0.1,
+    "p173058": 1.0,
+    "p173199": 0.0,
+    "p173418": 1.0,
+    "p173700": 0.0,
+    "p174243": 1.0,
+    "p174291": 1.0
+   }
+  },
+  "jitter": 1.194923606031423,
+  "cover": 0.6106184155705018,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "cls_B_nofill": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 86,
+    "wrong": 2,
+    "none": 70,
+    "off": 55,
+    "offok": 54,
+    "acc": 0.6572769953051644
+   },
+   "H1": {
+    "ball": 80,
+    "right": 38,
+    "wrong": 2,
+    "none": 40,
+    "off": 46,
+    "offok": 46,
+    "acc": 0.6666666666666666
+   },
+   "H2": {
+    "ball": 78,
+    "right": 48,
+    "wrong": 0,
+    "none": 30,
+    "off": 9,
+    "offok": 8,
+    "acc": 0.6436781609195402
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 26,
+   "wrong": 0,
+   "none": 21,
+   "off": 3,
+   "offok": 3,
+   "acc": 0.58
+  },
+  "passes": {
+   "points": 7,
+   "carried": 3,
+   "carried7": 3,
+   "per": {
+    "p1": [
+     false,
+     false
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     true
+    ],
+    "p5": [
+     false,
+     false
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     true,
+     false
+    ],
+    "p8": [
+     false,
+     false
+    ]
+   }
+  },
+  "fix": {
+   "points": 1,
+   "npoints": 8,
+   "cover": 0.05635611356826937,
+   "repeat": 0.6078976867074753,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 0.19,
+    "p172290": 0.31,
+    "p172569": 0.09,
+    "p173058": 0.92,
+    "p173199": 0.0,
+    "p173418": 0.83,
+    "p173700": 0.0,
+    "p174243": 0.83,
+    "p174291": 0.56
+   }
+  },
+  "jitter": 1.0,
+  "cover": 0.49768862964506083,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "blob_v7": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 60,
+    "wrong": 21,
+    "none": 77,
+    "off": 55,
+    "offok": 39,
+    "acc": 0.4647887323943662
+   },
+   "H1": {
+    "ball": 80,
+    "right": 29,
+    "wrong": 6,
+    "none": 45,
+    "off": 46,
+    "offok": 34,
+    "acc": 0.5
+   },
+   "H2": {
+    "ball": 78,
+    "right": 31,
+    "wrong": 15,
+    "none": 32,
+    "off": 9,
+    "offok": 5,
+    "acc": 0.41379310344827586
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 26,
+   "wrong": 2,
+   "none": 19,
+   "off": 3,
+   "offok": 1,
+   "acc": 0.54
+  },
+  "passes": {
+   "points": 6,
+   "carried": 2,
+   "carried7": 2,
+   "per": {
+    "p1": [
+     true,
+     false
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     false
+    ],
+    "p5": [
+     false,
+     false
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     false,
+     false
+    ],
+    "p8": [
+     false,
+     false
+    ]
+   }
+  },
+  "fix": {
+   "points": 2,
+   "npoints": 8,
+   "cover": 0.3081395348837209,
+   "repeat": 0.4507983176411059,
+   "per": {
+    "p171270": 0.23,
+    "p171372": 0.71,
+    "p172290": 0.0,
+    "p172569": 0.0,
+    "p173058": 0.31,
+    "p173199": 1.0,
+    "p173418": 0.84,
+    "p173700": 0.0,
+    "p174243": 0.58,
+    "p174291": 0.26
+   }
+  },
+  "jitter": 1.401216532088896,
+  "cover": 0.49707358688966924,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "blob_raw": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 57,
+    "wrong": 101,
+    "none": 0,
+    "off": 55,
+    "offok": 0,
+    "acc": 0.2676056338028169
+   },
+   "H1": {
+    "ball": 80,
+    "right": 30,
+    "wrong": 50,
+    "none": 0,
+    "off": 46,
+    "offok": 0,
+    "acc": 0.23809523809523808
+   },
+   "H2": {
+    "ball": 78,
+    "right": 27,
+    "wrong": 51,
+    "none": 0,
+    "off": 9,
+    "offok": 0,
+    "acc": 0.3103448275862069
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 23,
+   "wrong": 24,
+   "none": 0,
+   "off": 3,
+   "offok": 0,
+   "acc": 0.46
+  },
+  "passes": {
+   "points": 8,
+   "carried": 3,
+   "carried7": 3,
+   "per": {
+    "p1": [
+     true,
+     true
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     false
+    ],
+    "p5": [
+     false,
+     false
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     false,
+     false
+    ],
+    "p8": [
+     false,
+     true
+    ]
+   }
+  },
+  "fix": {
+   "points": 1,
+   "npoints": 8,
+   "cover": 1.0,
+   "repeat": 0.3153645181361162,
+   "per": {
+    "p171270": 1.0,
+    "p171372": 0.48,
+    "p172290": 0.0,
+    "p172569": 1.0,
+    "p173058": 0.15,
+    "p173199": 1.0,
+    "p173418": 0.69,
+    "p173700": 1.0,
+    "p174243": 0.42,
+    "p174291": 0.15
+   }
+  },
+  "jitter": 351.6075620445846,
+  "cover": 1.0,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "cls_A": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 98,
+    "wrong": 30,
+    "none": 30,
+    "off": 55,
+    "offok": 30,
+    "acc": 0.6009389671361502
+   },
+   "H1": {
+    "ball": 80,
+    "right": 46,
+    "wrong": 16,
+    "none": 18,
+    "off": 46,
+    "offok": 27,
+    "acc": 0.5793650793650794
+   },
+   "H2": {
+    "ball": 78,
+    "right": 52,
+    "wrong": 14,
+    "none": 12,
+    "off": 9,
+    "offok": 3,
+    "acc": 0.632183908045977
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 32,
+   "wrong": 6,
+   "none": 9,
+   "off": 3,
+   "offok": 1,
+   "acc": 0.66
+  },
+  "passes": {
+   "points": 11,
+   "carried": 5,
+   "carried7": 5,
+   "per": {
+    "p1": [
+     true,
+     true
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     true
+    ],
+    "p5": [
+     false,
+     true
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     false,
+     false
+    ],
+    "p8": [
+     true,
+     true
+    ]
+   }
+  },
+  "fix": {
+   "points": 1,
+   "npoints": 8,
+   "cover": 0.6069696105007847,
+   "repeat": 0.6973049352081611,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 0.68,
+    "p172290": 0.0,
+    "p172569": 0.29,
+    "p173058": 0.92,
+    "p173199": 1.0,
+    "p173418": 1.0,
+    "p173700": 1.0,
+    "p174243": 0.58,
+    "p174291": 1.0
+   }
+  },
+  "jitter": 1.3809798109229845,
+  "cover": 0.7305715929607365,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "cls_orig": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 85,
+    "wrong": 46,
+    "none": 27,
+    "off": 55,
+    "offok": 25,
+    "acc": 0.5164319248826291
+   },
+   "H1": {
+    "ball": 80,
+    "right": 42,
+    "wrong": 19,
+    "none": 19,
+    "off": 46,
+    "offok": 22,
+    "acc": 0.5079365079365079
+   },
+   "H2": {
+    "ball": 78,
+    "right": 43,
+    "wrong": 27,
+    "none": 8,
+    "off": 9,
+    "offok": 3,
+    "acc": 0.5287356321839081
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 30,
+   "wrong": 10,
+   "none": 7,
+   "off": 3,
+   "offok": 0,
+   "acc": 0.6
+  },
+  "passes": {
+   "points": 7,
+   "carried": 2,
+   "carried7": 2,
+   "per": {
+    "p1": [
+     false,
+     true
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     false
+    ],
+    "p5": [
+     false,
+     true
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     false,
+     false
+    ],
+    "p8": [
+     false,
+     false
+    ]
+   }
+  },
+  "fix": {
+   "points": 1,
+   "npoints": 8,
+   "cover": 0.7204665430161221,
+   "repeat": 0.6855527984560243,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 0.68,
+    "p172290": 0.0,
+    "p172569": 0.74,
+    "p173058": 0.77,
+    "p173199": 1.0,
+    "p173418": 1.0,
+    "p173700": 1.0,
+    "p174243": 0.67,
+    "p174291": 1.0
+   }
+  },
+  "jitter": 1.4142135623730951,
+  "cover": 0.7665416741067,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "cls_h160": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 88,
+    "wrong": 40,
+    "none": 30,
+    "off": 55,
+    "offok": 30,
+    "acc": 0.5539906103286385
+   },
+   "H1": {
+    "ball": 80,
+    "right": 43,
+    "wrong": 17,
+    "none": 20,
+    "off": 46,
+    "offok": 27,
+    "acc": 0.5555555555555556
+   },
+   "H2": {
+    "ball": 78,
+    "right": 45,
+    "wrong": 23,
+    "none": 10,
+    "off": 9,
+    "offok": 3,
+    "acc": 0.5517241379310345
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 30,
+   "wrong": 8,
+   "none": 9,
+   "off": 3,
+   "offok": 0,
+   "acc": 0.6
+  },
+  "passes": {
+   "points": 7,
+   "carried": 3,
+   "carried7": 3,
+   "per": {
+    "p1": [
+     true,
+     true
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     false
+    ],
+    "p5": [
+     false,
+     false
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     false,
+     false
+    ],
+    "p8": [
+     false,
+     false
+    ]
+   }
+  },
+  "fix": {
+   "points": 1,
+   "npoints": 8,
+   "cover": 0.7220002853474105,
+   "repeat": 0.523634469871029,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 0.68,
+    "p172290": 0.0,
+    "p172569": 0.75,
+    "p173058": 0.54,
+    "p173199": 1.0,
+    "p173418": 1.0,
+    "p173700": 1.0,
+    "p174243": 0.67,
+    "p174291": 0.26
+   }
+  },
+  "jitter": 1.450992541427341,
+  "cover": 0.770985854016626,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "cls_Aprev": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 88,
+    "wrong": 42,
+    "none": 28,
+    "off": 55,
+    "offok": 29,
+    "acc": 0.5492957746478874
+   },
+   "H1": {
+    "ball": 80,
+    "right": 45,
+    "wrong": 18,
+    "none": 17,
+    "off": 46,
+    "offok": 25,
+    "acc": 0.5555555555555556
+   },
+   "H2": {
+    "ball": 78,
+    "right": 43,
+    "wrong": 24,
+    "none": 11,
+    "off": 9,
+    "offok": 4,
+    "acc": 0.5402298850574713
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 32,
+   "wrong": 6,
+   "none": 9,
+   "off": 3,
+   "offok": 1,
+   "acc": 0.66
+  },
+  "passes": {
+   "points": 10,
+   "carried": 4,
+   "carried7": 4,
+   "per": {
+    "p1": [
+     true,
+     true
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     false
+    ],
+    "p5": [
+     false,
+     true
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     false,
+     false
+    ],
+    "p8": [
+     true,
+     true
+    ]
+   }
+  },
+  "fix": {
+   "points": 1,
+   "npoints": 8,
+   "cover": 0.7220002853474105,
+   "repeat": 0.7111938240970499,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 0.68,
+    "p172290": 0.0,
+    "p172569": 0.75,
+    "p173058": 0.92,
+    "p173199": 1.0,
+    "p173418": 1.0,
+    "p173700": 1.0,
+    "p174243": 0.67,
+    "p174291": 1.0
+   }
+  },
+  "jitter": 1.3997478699254036,
+  "cover": 0.7517409677995357,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "cls_Ar3": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 94,
+    "wrong": 34,
+    "none": 30,
+    "off": 55,
+    "offok": 40,
+    "acc": 0.6291079812206573
+   },
+   "H1": {
+    "ball": 80,
+    "right": 46,
+    "wrong": 16,
+    "none": 18,
+    "off": 46,
+    "offok": 36,
+    "acc": 0.6507936507936508
+   },
+   "H2": {
+    "ball": 78,
+    "right": 48,
+    "wrong": 18,
+    "none": 12,
+    "off": 9,
+    "offok": 4,
+    "acc": 0.5977011494252874
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 35,
+   "wrong": 5,
+   "none": 7,
+   "off": 3,
+   "offok": 0,
+   "acc": 0.7
+  },
+  "passes": {
+   "points": 11,
+   "carried": 5,
+   "carried7": 5,
+   "per": {
+    "p1": [
+     true,
+     true
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     true
+    ],
+    "p5": [
+     false,
+     true
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     false,
+     false
+    ],
+    "p8": [
+     true,
+     true
+    ]
+   }
+  },
+  "fix": {
+   "points": 1,
+   "npoints": 8,
+   "cover": 0.6759880154087602,
+   "repeat": 0.6844844223876482,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 0.68,
+    "p172290": 0.0,
+    "p172569": 0.56,
+    "p173058": 0.85,
+    "p173199": 1.0,
+    "p173418": 1.0,
+    "p173700": 1.0,
+    "p174243": 0.58,
+    "p174291": 1.0
+   }
+  },
+  "jitter": 1.379506724698367,
+  "cover": 0.7440033331349325,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "cls_Ar4": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 100,
+    "wrong": 27,
+    "none": 31,
+    "off": 55,
+    "offok": 27,
+    "acc": 0.596244131455399
+   },
+   "H1": {
+    "ball": 80,
+    "right": 47,
+    "wrong": 16,
+    "none": 17,
+    "off": 46,
+    "offok": 24,
+    "acc": 0.5634920634920635
+   },
+   "H2": {
+    "ball": 78,
+    "right": 53,
+    "wrong": 11,
+    "none": 14,
+    "off": 9,
+    "offok": 3,
+    "acc": 0.6436781609195402
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 35,
+   "wrong": 4,
+   "none": 8,
+   "off": 3,
+   "offok": 1,
+   "acc": 0.72
+  },
+  "passes": {
+   "points": 12,
+   "carried": 5,
+   "carried7": 5,
+   "per": {
+    "p1": [
+     true,
+     true
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     true
+    ],
+    "p5": [
+     false,
+     true
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     false,
+     true
+    ],
+    "p8": [
+     true,
+     true
+    ]
+   }
+  },
+  "fix": {
+   "points": 1,
+   "npoints": 8,
+   "cover": 0.5747610215437295,
+   "repeat": 0.5877370339735931,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 0.68,
+    "p172290": 0.0,
+    "p172569": 0.16,
+    "p173058": 0.92,
+    "p173199": 1.0,
+    "p173418": 1.0,
+    "p173700": 1.0,
+    "p174243": 0.67,
+    "p174291": 0.26
+   }
+  },
+  "jitter": 1.403545839918265,
+  "cover": 0.7456103803345039,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "cls_Bprev": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 90,
+    "wrong": 9,
+    "none": 59,
+    "off": 55,
+    "offok": 44,
+    "acc": 0.6291079812206573
+   },
+   "H1": {
+    "ball": 80,
+    "right": 42,
+    "wrong": 7,
+    "none": 31,
+    "off": 46,
+    "offok": 35,
+    "acc": 0.6111111111111112
+   },
+   "H2": {
+    "ball": 78,
+    "right": 48,
+    "wrong": 2,
+    "none": 28,
+    "off": 9,
+    "offok": 9,
+    "acc": 0.6551724137931034
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 26,
+   "wrong": 3,
+   "none": 18,
+   "off": 3,
+   "offok": 3,
+   "acc": 0.58
+  },
+  "passes": {
+   "points": 9,
+   "carried": 2,
+   "carried7": 2,
+   "per": {
+    "p1": [
+     true,
+     false
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     false
+    ],
+    "p5": [
+     false,
+     true
+    ],
+    "p6": [
+     false,
+     true
+    ],
+    "p7": [
+     false,
+     false
+    ],
+    "p8": [
+     true,
+     false
+    ]
+   }
+  },
+  "fix": {
+   "points": 1,
+   "npoints": 8,
+   "cover": 0.03488372093023256,
+   "repeat": 0.48704546150782707,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 0.1,
+    "p172290": 0.0,
+    "p172569": 0.0,
+    "p173058": 0.54,
+    "p173199": 0.0,
+    "p173418": 1.0,
+    "p173700": 0.0,
+    "p174243": 0.58,
+    "p174291": 0.7
+   }
+  },
+  "jitter": 1.1675289723121964,
+  "cover": 0.533480149991072,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "cls_Br3": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 95,
+    "wrong": 5,
+    "none": 58,
+    "off": 55,
+    "offok": 54,
+    "acc": 0.6995305164319249
+   },
+   "H1": {
+    "ball": 80,
+    "right": 44,
+    "wrong": 4,
+    "none": 32,
+    "off": 46,
+    "offok": 45,
+    "acc": 0.7063492063492064
+   },
+   "H2": {
+    "ball": 78,
+    "right": 51,
+    "wrong": 1,
+    "none": 26,
+    "off": 9,
+    "offok": 9,
+    "acc": 0.6896551724137931
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 29,
+   "wrong": 3,
+   "none": 15,
+   "off": 3,
+   "offok": 3,
+   "acc": 0.64
+  },
+  "passes": {
+   "points": 12,
+   "carried": 5,
+   "carried7": 5,
+   "per": {
+    "p1": [
+     true,
+     true
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     true
+    ],
+    "p5": [
+     false,
+     true
+    ],
+    "p6": [
+     false,
+     true
+    ],
+    "p7": [
+     false,
+     false
+    ],
+    "p8": [
+     true,
+     true
+    ]
+   }
+  },
+  "fix": {
+   "points": 1,
+   "npoints": 8,
+   "cover": 0.13892948448519857,
+   "repeat": 0.7653287075330085,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 0.9,
+    "p172290": 0.0,
+    "p172569": 0.23,
+    "p173058": 0.85,
+    "p173199": 0.19,
+    "p173418": 1.0,
+    "p173700": 0.0,
+    "p174243": 0.92,
+    "p174291": 0.93
+   }
+  },
+  "jitter": 1.2034927539949036,
+  "cover": 0.5731603277582683,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "cls_Br4": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 94,
+    "wrong": 7,
+    "none": 57,
+    "off": 55,
+    "offok": 53,
+    "acc": 0.6901408450704225
+   },
+   "H1": {
+    "ball": 80,
+    "right": 44,
+    "wrong": 5,
+    "none": 31,
+    "off": 46,
+    "offok": 44,
+    "acc": 0.6984126984126984
+   },
+   "H2": {
+    "ball": 78,
+    "right": 50,
+    "wrong": 2,
+    "none": 26,
+    "off": 9,
+    "offok": 9,
+    "acc": 0.6781609195402298
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 30,
+   "wrong": 3,
+   "none": 14,
+   "off": 3,
+   "offok": 3,
+   "acc": 0.66
+  },
+  "passes": {
+   "points": 13,
+   "carried": 5,
+   "carried7": 5,
+   "per": {
+    "p1": [
+     true,
+     true
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     true
+    ],
+    "p5": [
+     false,
+     true
+    ],
+    "p6": [
+     false,
+     true
+    ],
+    "p7": [
+     false,
+     true
+    ],
+    "p8": [
+     true,
+     true
+    ]
+   }
+  },
+  "fix": {
+   "points": 1,
+   "npoints": 8,
+   "cover": 0.09598469920912495,
+   "repeat": 0.5956292313819196,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 0.06,
+    "p172290": 0.0,
+    "p172569": 0.06,
+    "p173058": 1.0,
+    "p173199": 0.19,
+    "p173418": 1.0,
+    "p173700": 0.0,
+    "p174243": 0.58,
+    "p174291": 0.93
+   }
+  },
+  "jitter": 1.1793640688864415,
+  "cover": 0.5718905620697181,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "hyb32": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 108,
+    "wrong": 5,
+    "none": 45,
+    "off": 55,
+    "offok": 54,
+    "acc": 0.7605633802816901
+   },
+   "H1": {
+    "ball": 80,
+    "right": 50,
+    "wrong": 5,
+    "none": 25,
+    "off": 46,
+    "offok": 46,
+    "acc": 0.7619047619047619
+   },
+   "H2": {
+    "ball": 78,
+    "right": 58,
+    "wrong": 0,
+    "none": 20,
+    "off": 9,
+    "offok": 8,
+    "acc": 0.7586206896551724
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 36,
+   "wrong": 2,
+   "none": 9,
+   "off": 3,
+   "offok": 3,
+   "acc": 0.78
+  },
+  "passes": {
+   "points": 14,
+   "carried": 6,
+   "carried7": 6,
+   "per": {
+    "p1": [
+     true,
+     true
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     true
+    ],
+    "p5": [
+     false,
+     true
+    ],
+    "p6": [
+     false,
+     true
+    ],
+    "p7": [
+     true,
+     true
+    ],
+    "p8": [
+     true,
+     true
+    ]
+   }
+  },
+  "fix": {
+   "points": 1,
+   "npoints": 8,
+   "cover": 0.06249108289342274,
+   "repeat": 0.9666666666666667,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 1.0,
+    "p172290": 0.8,
+    "p172569": 0.11,
+    "p173058": 1.0,
+    "p173199": 0.0,
+    "p173418": 1.0,
+    "p173700": 0.0,
+    "p174243": 1.0,
+    "p174291": 1.0
+   }
+  },
+  "jitter": 1.100014372501301,
+  "cover": 0.627542011388211,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "hyb90": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 112,
+    "wrong": 6,
+    "none": 40,
+    "off": 55,
+    "offok": 54,
+    "acc": 0.7793427230046949
+   },
+   "H1": {
+    "ball": 80,
+    "right": 52,
+    "wrong": 5,
+    "none": 23,
+    "off": 46,
+    "offok": 46,
+    "acc": 0.7777777777777778
+   },
+   "H2": {
+    "ball": 78,
+    "right": 60,
+    "wrong": 1,
+    "none": 17,
+    "off": 9,
+    "offok": 8,
+    "acc": 0.7816091954022989
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 36,
+   "wrong": 2,
+   "none": 9,
+   "off": 3,
+   "offok": 3,
+   "acc": 0.78
+  },
+  "passes": {
+   "points": 14,
+   "carried": 6,
+   "carried7": 6,
+   "per": {
+    "p1": [
+     true,
+     true
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     true
+    ],
+    "p5": [
+     false,
+     true
+    ],
+    "p6": [
+     false,
+     true
+    ],
+    "p7": [
+     true,
+     true
+    ],
+    "p8": [
+     true,
+     true
+    ]
+   }
+  },
+  "fix": {
+   "points": 2,
+   "npoints": 8,
+   "cover": 0.3661720644885148,
+   "repeat": 0.9666666666666667,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 1.0,
+    "p172290": 0.8,
+    "p172569": 0.33,
+    "p173058": 1.0,
+    "p173199": 0.0,
+    "p173418": 1.0,
+    "p173700": 1.0,
+    "p174243": 1.0,
+    "p174291": 1.0
+   }
+  },
+  "jitter": 1.0772863802942751,
+  "cover": 0.6488899470269627,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "hyb90s": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 107,
+    "wrong": 5,
+    "none": 46,
+    "off": 55,
+    "offok": 54,
+    "acc": 0.755868544600939
+   },
+   "H1": {
+    "ball": 80,
+    "right": 49,
+    "wrong": 4,
+    "none": 27,
+    "off": 46,
+    "offok": 46,
+    "acc": 0.753968253968254
+   },
+   "H2": {
+    "ball": 78,
+    "right": 58,
+    "wrong": 1,
+    "none": 19,
+    "off": 9,
+    "offok": 8,
+    "acc": 0.7586206896551724
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 34,
+   "wrong": 0,
+   "none": 13,
+   "off": 3,
+   "offok": 3,
+   "acc": 0.74
+  },
+  "passes": {
+   "points": 10,
+   "carried": 4,
+   "carried7": 4,
+   "per": {
+    "p1": [
+     true,
+     false
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     true,
+     true
+    ],
+    "p4": [
+     true,
+     true
+    ],
+    "p5": [
+     false,
+     true
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     true,
+     true
+    ],
+    "p8": [
+     false,
+     false
+    ]
+   }
+  },
+  "fix": {
+   "points": 2,
+   "npoints": 8,
+   "cover": 0.3661720644885148,
+   "repeat": 0.7175856998437644,
+   "per": {
+    "p171270": 0.14,
+    "p171372": 0.19,
+    "p172290": 0.8,
+    "p172569": 0.33,
+    "p173058": 0.92,
+    "p173199": 0.0,
+    "p173418": 1.0,
+    "p173700": 1.0,
+    "p174243": 0.83,
+    "p174291": 0.56
+   }
+  },
+  "jitter": 1.0,
+  "cover": 0.5947463444636232,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "yolo_raw": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 25,
+    "wrong": 32,
+    "none": 101,
+    "off": 55,
+    "offok": 39,
+    "acc": 0.3004694835680751
+   },
+   "H1": {
+    "ball": 80,
+    "right": 12,
+    "wrong": 14,
+    "none": 54,
+    "off": 46,
+    "offok": 33,
+    "acc": 0.35714285714285715
+   },
+   "H2": {
+    "ball": 78,
+    "right": 13,
+    "wrong": 18,
+    "none": 47,
+    "off": 9,
+    "offok": 6,
+    "acc": 0.21839080459770116
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 6,
+   "wrong": 11,
+   "none": 30,
+   "off": 3,
+   "offok": 2,
+   "acc": 0.16
+  },
+  "passes": {
+   "points": 2,
+   "carried": 0,
+   "carried7": 0,
+   "per": {
+    "p1": [
+     false,
+     false
+    ],
+    "p2": [
+     true,
+     false
+    ],
+    "p3": [
+     false,
+     false
+    ],
+    "p4": [
+     false,
+     true
+    ],
+    "p5": [
+     false,
+     false
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     false,
+     false
+    ],
+    "p8": [
+     false,
+     false
+    ]
+   }
+  },
+  "fix": {
+   "points": 0,
+   "npoints": 8,
+   "cover": 0.44868373866804456,
+   "repeat": 0.052627257799671597,
+   "per": {
+    "p171270": 0.98,
+    "p171372": 0.0,
+    "p172290": 0.06,
+    "p172569": 0.53,
+    "p173058": 0.0,
+    "p173199": 0.08,
+    "p173418": 0.26,
+    "p173700": 0.21,
+    "p174243": 0.0,
+    "p174291": 0.0
+   }
+  },
+  "jitter": 1.5323259614367242,
+  "cover": 0.3819415510981489,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "yolo_trk": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 27,
+    "wrong": 33,
+    "none": 98,
+    "off": 55,
+    "offok": 51,
+    "acc": 0.36619718309859156
+   },
+   "H1": {
+    "ball": 80,
+    "right": 16,
+    "wrong": 15,
+    "none": 49,
+    "off": 46,
+    "offok": 45,
+    "acc": 0.48412698412698413
+   },
+   "H2": {
+    "ball": 78,
+    "right": 11,
+    "wrong": 18,
+    "none": 49,
+    "off": 9,
+    "offok": 6,
+    "acc": 0.19540229885057472
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 8,
+   "wrong": 12,
+   "none": 27,
+   "off": 3,
+   "offok": 1,
+   "acc": 0.18
+  },
+  "passes": {
+   "points": 2,
+   "carried": 1,
+   "carried7": 1,
+   "per": {
+    "p1": [
+     false,
+     false
+    ],
+    "p2": [
+     true,
+     true
+    ],
+    "p3": [
+     false,
+     false
+    ],
+    "p4": [
+     false,
+     false
+    ],
+    "p5": [
+     false,
+     false
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     false,
+     false
+    ],
+    "p8": [
+     false,
+     false
+    ]
+   }
+  },
+  "fix": {
+   "points": 0,
+   "npoints": 8,
+   "cover": 0.74079754601227,
+   "repeat": 0.15517241379310345,
+   "per": {
+    "p171270": 1.0,
+    "p171372": 0.0,
+    "p172290": 0.0,
+    "p172569": 0.96,
+    "p173058": 0.0,
+    "p173199": 0.0,
+    "p173418": 0.93,
+    "p173700": 1.0,
+    "p174243": 0.0,
+    "p174291": 0.0
+   }
+  },
+  "jitter": 2.5421149729252077e-13,
+  "cover": 0.41475705811162034,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "tn_alone": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 1,
+    "wrong": 70,
+    "none": 87,
+    "off": 55,
+    "offok": 18,
+    "acc": 0.0892018779342723
+   },
+   "H1": {
+    "ball": 80,
+    "right": 1,
+    "wrong": 42,
+    "none": 37,
+    "off": 46,
+    "offok": 10,
+    "acc": 0.0873015873015873
+   },
+   "H2": {
+    "ball": 78,
+    "right": 0,
+    "wrong": 28,
+    "none": 50,
+    "off": 9,
+    "offok": 8,
+    "acc": 0.09195402298850575
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 9,
+   "wrong": 22,
+   "none": 16,
+   "off": 3,
+   "offok": 1,
+   "acc": 0.2
+  },
+  "passes": {
+   "points": 0,
+   "carried": 0,
+   "carried7": 0,
+   "per": {
+    "p1": [
+     false,
+     false
+    ],
+    "p2": [
+     false,
+     false
+    ],
+    "p3": [
+     false,
+     false
+    ],
+    "p4": [
+     false,
+     false
+    ],
+    "p5": [
+     false,
+     false
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     false,
+     false
+    ],
+    "p8": [
+     false,
+     false
+    ]
+   }
+  },
+  "fix": {
+   "points": 0,
+   "npoints": 8,
+   "cover": 0.0,
+   "repeat": 0.0,
+   "per": {
+    "p171270": 0.0,
+    "p171372": 0.0,
+    "p172290": 0.0,
+    "p172569": 0.0,
+    "p173058": 0.0,
+    "p173199": 0.0,
+    "p173418": 0.0,
+    "p173700": 0.0,
+    "p174243": 0.0,
+    "p174291": 0.0
+   }
+  },
+  "jitter": 1.943153271217147,
+  "cover": 0.2874233676566871,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ },
+ "tn_alone_raw": {
+  "truth": {
+   "all": {
+    "ball": 158,
+    "right": 5,
+    "wrong": 153,
+    "none": 0,
+    "off": 55,
+    "offok": 0,
+    "acc": 0.023474178403755867
+   },
+   "H1": {
+    "ball": 80,
+    "right": 4,
+    "wrong": 76,
+    "none": 0,
+    "off": 46,
+    "offok": 0,
+    "acc": 0.031746031746031744
+   },
+   "H2": {
+    "ball": 78,
+    "right": 1,
+    "wrong": 77,
+    "none": 0,
+    "off": 9,
+    "offok": 0,
+    "acc": 0.011494252873563218
+   }
+  },
+  "find": {
+   "ball": 47,
+   "right": 11,
+   "wrong": 36,
+   "none": 0,
+   "off": 3,
+   "offok": 0,
+   "acc": 0.22
+  },
+  "passes": {
+   "points": 0,
+   "carried": 0,
+   "carried7": 0,
+   "per": {
+    "p1": [
+     false,
+     false
+    ],
+    "p2": [
+     false,
+     false
+    ],
+    "p3": [
+     false,
+     false
+    ],
+    "p4": [
+     false,
+     false
+    ],
+    "p5": [
+     false,
+     false
+    ],
+    "p6": [
+     false,
+     false
+    ],
+    "p7": [
+     false,
+     false
+    ],
+    "p8": [
+     false,
+     false
+    ]
+   }
+  },
+  "fix": {
+   "points": 0,
+   "npoints": 8,
+   "cover": 1.0,
+   "repeat": 0.0,
+   "per": {
+    "p171270": 1.0,
+    "p171372": 0.0,
+    "p172290": 0.0,
+    "p172569": 1.0,
+    "p173058": 0.0,
+    "p173199": 1.0,
+    "p173418": 0.0,
+    "p173700": 1.0,
+    "p174243": 0.0,
+    "p174291": 0.0
+   }
+  },
+  "jitter": 4.895414537255785,
+  "cover": 0.9921234847132115,
+  "tags": [
+   "pm",
+   "vid1",
+   "vid2",
+   "vid3",
+   "wm00",
+   "wm01",
+   "wm02",
+   "wm03",
+   "wm04",
+   "wm05",
+   "wm06",
+   "wm07",
+   "wm08",
+   "wm09",
+   "wm10",
+   "wm11",
+   "wm12",
+   "wm13",
+   "wm14",
+   "wm15",
+   "wm16",
+   "wm17"
+  ]
+ }
+}

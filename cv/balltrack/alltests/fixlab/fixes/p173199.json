@@ -1,0 +1,20 @@
+{
+  "f0": 173199,
+  "f1": 173235,
+  "id": "p173199",
+  "kind": "missair",
+  "note": "It was kicked to the air and left the screen on the top, completely unmarked",
+  "pts": [
+    {
+      "f": 173199,
+      "px": 1039,
+      "py": 419
+    },
+    {
+      "f": 173235,
+      "px": 1633,
+      "py": 13
+    }
+  ],
+  "ts": 1790874560664
+}

@@ -1,0 +1,20 @@
+{
+  "f0": 171315,
+  "f1": 171408,
+  "id": "p171315",
+  "kind": "other",
+  "note": "Goalkeeper has the ball in their hand until this point.",
+  "pts": [
+    {
+      "f": 171315,
+      "px": 1279,
+      "py": 427
+    },
+    {
+      "f": 171408,
+      "px": 918,
+      "py": 481
+    }
+  ],
+  "ts": 1790873830795
+}

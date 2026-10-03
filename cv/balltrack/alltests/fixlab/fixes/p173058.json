@@ -1,0 +1,20 @@
+{
+  "f0": 173058,
+  "f1": 173070,
+  "id": "p173058",
+  "kind": "wrong",
+  "note": "The ball was briefly lost and considered to be someone else's cleat before finding it again.",
+  "pts": [
+    {
+      "f": 173058,
+      "px": 422,
+      "py": 585
+    },
+    {
+      "f": 173070,
+      "px": 437,
+      "py": 568
+    }
+  ],
+  "ts": 1790874242865
+}

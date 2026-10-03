@@ -1,0 +1,20 @@
+{
+  "f0": 173418,
+  "f1": 173475,
+  "id": "p173418",
+  "kind": "spot",
+  "note": "The ball takes an incorrect path from the starting point to the ending point",
+  "pts": [
+    {
+      "f": 173418,
+      "px": 401,
+      "py": 424
+    },
+    {
+      "f": 173475,
+      "px": 918,
+      "py": 455
+    }
+  ],
+  "ts": 1790874732762
+}

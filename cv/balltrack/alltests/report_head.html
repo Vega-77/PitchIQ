@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ball Tracker Shootout</title>
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--ink:#1c1d1f;--mute:#6a6d73;--line:#e2e2de;--acc:#0b6e4f;--accbg:#e3f3ec;--ship:#f1f0ea;--bad:#a8321e;--best:#0b6e4f;--grp:#eceae3}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141517;--card:#1c1d20;--ink:#e8e8e6;--mute:#9a9da3;--line:#2e3034;--acc:#5fd3a6;--accbg:#163329;--ship:#232428;--bad:#ff8a73;--best:#5fd3a6;--grp:#26272b}}
+:root[data-theme="dark"]{--bg:#141517;--card:#1c1d20;--ink:#e8e8e6;--mute:#9a9da3;--line:#2e3034;--acc:#5fd3a6;--accbg:#163329;--ship:#232428;--bad:#ff8a73;--best:#5fd3a6;--grp:#26272b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1180px;margin:0 auto;padding:28px 16px 64px}
+h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em}
+h2{font-size:18px;margin:36px 0 8px}
+.sub{color:var(--mute);margin:0 0 20px}
+.verdict{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:10px;padding:16px 18px}
+.verdict p{margin:.4em 0}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+.kpi .n{font-size:22px;font-weight:650}
+.kpi .n small{font-size:13px;color:var(--mute);font-weight:500}
+.kpi .l{color:var(--mute);font-size:13px}
+.tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;margin:12px 0}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+caption{text-align:left;font-weight:600;padding:10px 12px 6px;font-size:14px}
+th,td{padding:6px 8px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
+th{font-weight:600;color:var(--mute);font-size:12px;cursor:help}
+td.v,th.v{text-align:left;position:sticky;left:0;background:var(--card);min-width:190px;white-space:normal;z-index:1}
+td.v span{display:block;color:var(--mute);font-size:11.5px;line-height:1.3}
+tr.grp td{background:var(--grp);color:var(--mute);font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;text-align:left;position:sticky;left:0}
+tr.hl td{background:var(--accbg)}
+tr.ship td{background:var(--ship)}
+td.best{color:var(--best);font-weight:700}
+td.na{color:var(--mute)}
+ul{padding-left:20px}
+li{margin:.3em 0}
+.note{color:var(--mute);font-size:13px}
+.warn{color:var(--bad)}
+</style>
+</head>
+<body>
+<main>
+<h1>Ball tracker shootout</h1>
+<p class="sub">Every version tested on every lab you labelled: TruthDB, Find the Ball, the 8 passes, Fix Lab, Air Lab, Flight Lab (dev and hold-out) and Flight Lab 2. Labels were only used for scoring, never for training or tuning.</p>
+
+<div class="verdict">
+<p><b>Winner: Hybrid 90.</b> Our tracker still decides every confident pick, kick and flight. TAPNext++ only fills the gaps between two confident picks, and only when its forward and backward runs both land on our picks and agree within 24 px on every frame. It never fills a gap that touches a flight. These thresholds were set before scoring.</p>
+<p>It beats the shipped tracker on 2D accuracy, Find the Ball, Fix Lab coverage and smoothness. It catches more flights on Air Lab, the Flight Lab hold-out and Flight Lab 2 without adding false flights. It ties on the passes.</p>
+<p class="warn">Costs: 2 wrong rings that the shipped tracker didn't have (wm06 at 85760 and wm16 at 191447, both 265–338 px off), so 6 wrong rings in total vs 4. Flight Lab dev still catches only 5 of 20 flights, the same as now. TAPNext also adds about 0.15 s of GPU time per bridged frame.</p>
+</div>
+
+<div class="kpis">
+<div class="kpi"><div class="n">78% <small>vs 72%</small></div><div class="l">TruthDB accuracy (112 vs 100 right)</div></div>
+<div class="kpi"><div class="n">36 <small>vs 34 / 47</small></div><div class="l">Find the Ball right</div></div>
+<div class="kpi"><div class="n">0.37 <small>vs 0.06</small></div><div class="l">Fix Lab missed spans now covered</div></div>
+<div class="kpi"><div class="n">13 <small>vs 10 / 28</small></div><div class="l">Flight Lab 2 flights, 1 false each</div></div>
+<div class="kpi"><div class="n">14 <small>vs 13 / 39</small></div><div class="l">Air Lab flights, 1 false each</div></div>
+<div class="kpi"><div class="n">9% <small>1 right, 70 wrong</small></div><div class="l">TAPNext++ alone, TruthDB</div></div>
+</div>
+
+<h2>2D: where the ring goes</h2>
+<p class="note">Green marks the best value in each column. Hover a header to see what it measures. Rows: the hybrids, our tracker, every earlier classifier, blobs, YOLO, and Google's TAPNext++ on its own.</p>
+{{T2A}}
+{{T2B}}
+
+<h2>3D: flights and the path on the pitch</h2>
+<p class="note">Each 2D version went through its own copy of the full 3D chain (registration, flight scan, chain, smoother). For example, "Air false" counts flights invented where there was none. You said a wrong flight is worse than a missed one, so the false columns matter most. Positions are StatsBomb units.</p>
+{{T3}}
+<p class="note">"Dev pos" and "Hold pos" are medians over the flights that version caught. Each version caught a different set (shipped 10 of 25, hybrid 9 of 25), so the dev 8.6 vs 11.6 gap is not a like-for-like regression.</p>
+{{T3V}}
+<p class="note">The flight model is a separate choice from the 2D tracker. Strict (x1) is the closest to your "wrong flight is worse" rule. On it, the hybrid catches 18 Air Lab flights vs 16 with 1 false each, 9 Flight Lab dev flights vs 8, and has 1 false flight on Flight Lab 2 vs 2. Chain3k catches the most flights but invents 2–6 per lab.</p>
+
+<h2>Google TAPNext++ on its own</h2>
+<ul>
+<li>Seeded once on the ball, it holds a ball on the ground well (smooth, about 1 px), then loses it on the first long kick and does not find it again.</li>
+<li>Find the Ball: 9 of 47 right and 22 wrong. Passes: 0 of 16 points. Fix Lab: 0 of 8. Ignoring its own "visible" call makes it worse (11 right, 36 wrong).</li>
+<li>Share of frames where it calls the ball visible: vid2 2%, vid3 2%, vid1 18%, wm01 43%, pm 61%, wm00 65%, wm02 74%.</li>
+<li>3D: no real flights found in any lab (Air Lab, both Flight Labs and Flight Lab 2 all 0), and its pitch-path error is the worst of any version.</li>
+<li>It is useful only as a short bridge between our own picks. That is what the hybrid does.</li>
+<li>TruthDB, all 18 windows: 9% (1 of 158 ball marks right, 70 wrong, 87 empty), against 78% for Hybrid 90. The low score isn't a bug: at the seed it sits within 1–3 px of our confident picks. It then loses the ball within 5–20 seconds and spends the rest of the minute confidently following something else.</li>
+</ul>
+
+<h2>Detectors we can no longer run</h2>
+{{HIST}}
+<p class="note">Same 16 pass points. The YOLO rows above were rerun today with stock weights.</p>
+
+<h2>How each test works</h2>
+<ul class="note">
+<li><b>TruthDB</b>: 213 hand marks in 18 one-minute windows. A ring within 60 px is right; a ring elsewhere is wrong. Off-screen marks are right when there is no ring.</li>
+<li><b>Find the Ball</b>: the 47 test-pool ball marks (pool held out of training).</li>
+<li><b>Passes</b>: 8 hand-marked passes, start and end; a hit is a ring within 60 px at ±2 frames.</li>
+<li><b>Fix Lab</b> (vid3): 8 points the shipped tracker missed, how much of the missed spans gets a ring, and how often the shipped wrong ring is repeated.</li>
+<li><b>Air Lab</b> (vid1, 39 flights), <b>Flight Lab</b> (dev 20, hold-out 15) and <b>Flight Lab 2</b> (vid2, 28 flights): found, invented and position error, each scored by its lab's own scorer.</li>
+</ul>
+</main>
+</body>
+</html>

@@ -1,0 +1,147 @@
+{
+ "fps": 30,
+ "step": 3,
+ "clip": 450,
+ "clips": [
+  {
+   "id": "86475",
+   "start": 86475,
+   "end": 86924,
+   "file": "clips/86475.webm",
+   "bytes": 7256693
+  },
+  {
+   "id": "86925",
+   "start": 86925,
+   "end": 87374,
+   "file": "clips/86925.webm",
+   "bytes": 8167689
+  },
+  {
+   "id": "87375",
+   "start": 87375,
+   "end": 87824,
+   "file": "clips/87375.webm",
+   "bytes": 7504332
+  },
+  {
+   "id": "87825",
+   "start": 87825,
+   "end": 88274,
+   "file": "clips/87825.webm",
+   "bytes": 8770271
+  },
+  {
+   "id": "88275",
+   "start": 88275,
+   "end": 88724,
+   "file": "clips/88275.webm",
+   "bytes": 8915795
+  },
+  {
+   "id": "88725",
+   "start": 88725,
+   "end": 89174,
+   "file": "clips/88725.webm",
+   "bytes": 7700119
+  },
+  {
+   "id": "89175",
+   "start": 89175,
+   "end": 89624,
+   "file": "clips/89175.webm",
+   "bytes": 7531783
+  },
+  {
+   "id": "89625",
+   "start": 89625,
+   "end": 90074,
+   "file": "clips/89625.webm",
+   "bytes": 7385854
+  },
+  {
+   "id": "90075",
+   "start": 90075,
+   "end": 90524,
+   "file": "clips/90075.webm",
+   "bytes": 8054502
+  },
+  {
+   "id": "90525",
+   "start": 90525,
+   "end": 90974,
+   "file": "clips/90525.webm",
+   "bytes": 8456251
+  },
+  {
+   "id": "90975",
+   "start": 90975,
+   "end": 91424,
+   "file": "clips/90975.webm",
+   "bytes": 9160190
+  },
+  {
+   "id": "91425",
+   "start": 91425,
+   "end": 91874,
+   "file": "clips/91425.webm",
+   "bytes": 8535863
+  },
+  {
+   "id": "91875",
+   "start": 91875,
+   "end": 92324,
+   "file": "clips/91875.webm",
+   "bytes": 7933882
+  },
+  {
+   "id": "92325",
+   "start": 92325,
+   "end": 92774,
+   "file": "clips/92325.webm",
+   "bytes": 10132407
+  },
+  {
+   "id": "92775",
+   "start": 92775,
+   "end": 93224,
+   "file": "clips/92775.webm",
+   "bytes": 9254995
+  },
+  {
+   "id": "93225",
+   "start": 93225,
+   "end": 93674,
+   "file": "clips/93225.webm",
+   "bytes": 9168866
+  },
+  {
+   "id": "93675",
+   "start": 93675,
+   "end": 94124,
+   "file": "clips/93675.webm",
+   "bytes": 9278963
+  },
+  {
+   "id": "94125",
+   "start": 94125,
+   "end": 94574,
+   "file": "clips/94125.webm",
+   "bytes": 10129186
+  },
+  {
+   "id": "94575",
+   "start": 94575,
+   "end": 95024,
+   "file": "clips/94575.webm",
+   "bytes": 9762500
+  },
+  {
+   "id": "95025",
+   "start": 95025,
+   "end": 95474,
+   "file": "clips/95025.webm",
+   "bytes": 10432060
+  }
+ ]
+}

@@ -1,0 +1,833 @@
+<meta charset="utf-8">
+<title>Flight Lab 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: video with a click overlay on top, pitch map + flight card side by side under it, flight list last. Dark-first sibling of Air Lab. */
+:root{
+  --ground:#131920; --panel:#1b232d; --panel2:#222c38; --line:#2c3845;
+  --ink:#e8edf3; --dim:#8695a6; --faint:#5d6b7a;
+  --signal:#f59e2c; --air:#4fc3e0; --grass:#6fbf73; --pitch:#1f3a2a; --pitchline:#cfe3d4; --model:#e879c6; --ok:#49c58c; --warn:#e0645f;
+  --disp:'Chivo',system-ui,sans-serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --r:6px; color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6; --air:#1a8fb0; --grass:#3f8f46; --pitch:#dbeadf; --pitchline:#4d7a5a; --model:#b8338f;
+  --signal:#c7730f; --ok:#23915f; color-scheme:light;
+}}
+:root[data-theme="light"]{
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6; --air:#1a8fb0; --grass:#3f8f46; --pitch:#dbeadf; --pitchline:#4d7a5a; --model:#b8338f;
+  --signal:#c7730f; --ok:#23915f; color-scheme:light;
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--ground); color:var(--ink); font-family:var(--body);
+  font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased; overflow-x:hidden}
+button,select{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--signal); outline-offset:2px}
+kbd{font-family:var(--mono); font-size:10.5px; background:var(--panel2); border:1px solid var(--line);
+  border-bottom-width:2px; border-radius:4px; padding:1px 5px; white-space:nowrap; color:var(--ink)}
+
+.head{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--panel);
+  border-bottom:1px solid var(--line); padding:10px 16px}
+.headRow{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; max-width:1180px; margin:0 auto}
+h1{font-family:var(--disp); font-weight:900; font-size:15px; letter-spacing:.06em; text-transform:uppercase; margin:0}
+h1 span{color:var(--air)}
+.prog{margin-left:auto; font-size:12px; color:var(--dim)}
+.prog b{font-family:var(--mono); font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums}
+.save{font-family:var(--mono); font-size:11px; color:var(--faint); margin-left:8px}
+.save.busy{color:var(--signal)}
+
+.wrap{max-width:1180px; margin:0 auto; padding:14px 16px 40px; display:flex; flex-direction:column; gap:12px}
+.banner{background:color-mix(in srgb, var(--warn) 14%, transparent); border:1px solid color-mix(in srgb, var(--warn) 55%, transparent);
+  border-radius:var(--r); padding:9px 11px; font-size:12px}
+.how{font-size:13px; color:var(--dim); max-width:84ch; margin:0; display:flex; flex-direction:column; gap:6px}
+.how p{margin:0}
+.how b{color:var(--ink); font-weight:600}
+.how ul{margin:0; padding-left:18px; display:flex; flex-direction:column; gap:2px}
+
+.pager{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.btn{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:7px 10px;
+  font-family:var(--disp); font-weight:700; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase}
+.btn:hover:not(:disabled){border-color:var(--faint)}
+.btn:disabled{opacity:.38; cursor:not-allowed}
+.btn.on{border-color:var(--model); color:var(--model)}
+.btn.go{background:var(--ok); border-color:var(--ok); color:#0e141b}
+.btn.go.undone{background:var(--panel2); color:var(--ink); border-color:var(--line)}
+select.sel{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:6px 8px;
+  font-size:12.5px; flex:1 1 220px; min-width:0}
+.speed{display:flex; gap:4px; margin-left:auto}
+.speed .btn.on{border-color:var(--air); color:var(--air)}
+
+.stage{position:relative; background:#000; border-radius:var(--r); overflow:hidden; border:1px solid var(--line)}
+.stage video{display:block; width:100%; height:auto; aspect-ratio:1024/432}
+.stage canvas{position:absolute; inset:0; width:100%; height:100%; cursor:crosshair; touch-action:manipulation}
+.flag{position:absolute; left:10px; top:10px; font-family:var(--disp); font-weight:900; font-size:12px;
+  letter-spacing:.08em; text-transform:uppercase; padding:4px 9px; border-radius:4px; pointer-events:none;
+  background:rgba(10,14,19,.78); color:#e8edf3; border:1px solid rgba(255,255,255,.18)}
+.flag.in{background:#4fc3e0; color:#0e141b; border-color:#4fc3e0}
+.flag.edge{background:#f59e2c; color:#0e141b; border-color:#f59e2c}
+
+.tl{position:relative; height:40px; background:var(--panel); border:1px solid var(--line); border-radius:var(--r);
+  cursor:pointer; touch-action:none; overflow:hidden}
+.tl canvas{position:absolute; inset:0; width:100%; height:100%}
+.meta{display:flex; gap:14px; flex-wrap:wrap; align-items:baseline; font-size:12px; color:var(--dim)}
+.meta b{font-family:var(--mono); color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
+.meta .st{margin-left:auto; min-width:0}
+
+.ctrls{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px}
+.cb{display:flex; align-items:center; justify-content:center; gap:7px; background:var(--panel2);
+  border:1px solid var(--line); border-radius:var(--r); padding:10px 6px; font-family:var(--disp);
+  font-weight:700; font-size:11.5px; letter-spacing:.05em; text-transform:uppercase; min-width:0; text-align:center}
+.cb:disabled{opacity:.38; cursor:not-allowed}
+
+.work{display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:12px; align-items:start}
+.mapBox{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:10px; display:flex; flex-direction:column; gap:6px}
+.mapBox canvas{width:100%; height:auto; aspect-ratio:130/90; display:block; cursor:crosshair; touch-action:manipulation; border-radius:4px}
+.legend{display:flex; flex-wrap:wrap; gap:4px 14px; font-size:11.5px; color:var(--dim)}
+.legend i{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:-1px}
+
+.card{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); display:flex; flex-direction:column}
+.card h2{font-family:var(--disp); font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; margin:0;
+  padding:9px 12px; border-bottom:1px solid var(--line); color:var(--dim); font-weight:700; display:flex; gap:8px; align-items:center}
+.card h2 b{color:var(--ink)}
+.fields{display:grid; grid-template-columns:auto minmax(0,1fr); gap:8px 10px; padding:10px 12px; align-items:center; font-size:12.5px}
+.fields label{color:var(--dim)}
+.fields select{background:var(--panel2); border:1px solid var(--line); border-radius:4px; padding:5px 6px; min-width:0; width:100%}
+.fields .v{font-family:var(--mono); font-variant-numeric:tabular-nums; display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.chip{font-family:var(--disp); font-weight:700; font-size:10px; letter-spacing:.07em; text-transform:uppercase;
+  padding:2px 7px; border-radius:4px; background:var(--panel2); color:var(--dim); border:1px solid var(--line)}
+.chip.y{background:var(--ok); color:#0e141b; border-color:var(--ok)}
+.v button{background:none; border:1px solid var(--line); border-radius:4px; padding:1px 7px; font-size:11.5px; color:var(--dim)}
+.v button:hover{color:var(--ink); border-color:var(--faint)}
+.cardAct{display:flex; gap:6px; flex-wrap:wrap; padding:0 12px 12px}
+
+.list{background:var(--panel); border:1px solid var(--line); border-radius:var(--r)}
+.list h2{font-family:var(--disp); font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; margin:0;
+  padding:9px 12px; border-bottom:1px solid var(--line); color:var(--dim); font-weight:700}
+.rows{max-height:340px; overflow:auto}
+.row{display:grid; grid-template-columns:2.6em 5.2em 3.4em minmax(0,1fr) auto auto; gap:10px; align-items:center; padding:6px 12px;
+  border-bottom:1px solid var(--line); font-size:12.5px; cursor:pointer}
+.row:last-child{border-bottom:0}
+.row.here{background:color-mix(in srgb, var(--air) 12%, transparent)}
+.row .n,.row .fr{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.row .note{color:var(--dim); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.dotline{display:flex; gap:3px}
+.dotline span{width:9px; height:9px; border-radius:50%; background:var(--panel2); border:1px solid var(--line)}
+.dotline span.y{background:var(--air); border-color:var(--air)}
+.row .ok{font-family:var(--disp); font-weight:700; font-size:10px; letter-spacing:.07em; text-transform:uppercase; color:var(--ok)}
+.keys{display:flex; flex-wrap:wrap; gap:4px 14px; font-size:11.5px; color:var(--dim)}
+@media (max-width:820px){ .work{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:640px){ .keys{display:none} .prog{margin-left:0; width:100%} .speed{margin-left:0}
+  .cb kbd{display:none} .row{grid-template-columns:2.4em 4.6em minmax(0,1fr) auto} .row .note,.row .dur{display:none} }
+</style>
+
+<header class="head">
+  <div class="headRow">
+    <h1>Flight <span>Lab 2</span></h1>
+    <div class="prog" id="prog">loading&hellip;</div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="how">
+    <p>A new stretch of the match (80:00&ndash;85:00) with <b>no flights loaded</b>: the model is hidden so your marks stay a fair test. Play through (pick a clip below to jump), and whenever the ball leaves the grass, step to the take-off frame and press <b>N</b>. Then show <b>where on the field</b> it went by clicking <b>the grass</b>:</p>
+    <ul>
+      <li>On the <b>take-off frame</b>, click where it left the ground (or where it was touched).</li>
+      <li>On the <b>landing frame</b>, click where it came down.</li>
+      <li>On frames <b>in between</b>, click the grass <b>directly under the ball</b> (its shadow helps). A few points are enough; more where it curves.</li>
+    </ul>
+    <p>Click the video or the pitch map. Video clicks are converted to field positions using the camera for that frame, so they stay put as the camera pans. When the spot is off screen, click the map. To make a flight longer or shorter, go to the right frame and press <kbd>S</kbd> / <kbd>E</kbd> (or the <b>Here</b> buttons), or just click the grass up to 5 s past its end. Add a missing flight with <kbd>N</kbd>.</p>
+  </div>
+
+  <div class="pager">
+    <button class="btn" id="bPrev" aria-label="Previous flight">&larr;</button>
+    <select class="sel" id="flSel" aria-label="Flight"></select>
+    <button class="btn" id="bNext" aria-label="Next flight">&rarr;</button>
+    <div class="speed" role="group" aria-label="Speed">
+      <button class="btn" data-rate="0.25">&frac14;&times;</button>
+      <button class="btn" data-rate="0.5">&frac12;&times;</button>
+      <button class="btn" data-rate="1">1&times;</button>
+    </div>
+    <select class="sel" id="clipSel" aria-label="Clip"></select>
+  </div>
+
+  <div class="stage" id="stage">
+    <video id="vid" playsinline muted preload="auto"></video>
+    <canvas id="ov" aria-label="Click the grass to place a point"></canvas>
+    <div class="flag" id="flag">&mdash;</div>
+  </div>
+  <div class="tl" id="tl" aria-label="Clip timeline"><canvas id="tlc"></canvas></div>
+  <div class="meta">
+    <span>frame <b id="fAbs">&mdash;</b></span>
+    <span>match <b id="fClock">&mdash;</b></span>
+    <span>clip <b id="fClip">&mdash;</b></span>
+    <span class="st" id="status">Loading&hellip;</span>
+  </div>
+  <div class="ctrls">
+    <button class="cb" id="bBack" aria-label="Step back">&#9664; <kbd>&larr;</kbd></button>
+    <button class="cb" id="bPlay">Play <kbd>space</kbd></button>
+    <button class="cb" id="bFwd" aria-label="Step forward"><kbd>&rarr;</kbd> &#9654;</button>
+  </div>
+
+  <div class="work">
+    <div class="mapBox">
+      <canvas id="map" width="780" height="540" aria-label="Pitch map, click to place a point"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--grass)"></i>take-off</span>
+        <span><i style="background:var(--signal)"></i>landing</span>
+        <span><i style="background:var(--air)"></i>under the ball</span>
+        <span><i style="background:transparent;border:1px dashed var(--dim)"></i>what the camera sees now</span>
+        <span id="lgModel" hidden><i style="background:var(--model)"></i>model</span>
+      </div>
+    </div>
+    <section class="card" id="card">
+      <h2>Flight <b id="cNo">&mdash;</b><span id="cTime" style="margin-left:auto;font-family:var(--mono);letter-spacing:0;text-transform:none"></span></h2>
+      <div class="fields">
+        <label>Take-off</label>
+        <div class="v"><span id="vF0">&mdash;</span><span class="chip" id="cP0">no spot</span><button id="gF0">Go <kbd>,</kbd></button><button id="sF0">Here <kbd>S</kbd></button></div>
+        <label for="k0">Starts by</label>
+        <select id="k0">
+          <option value="kick">kicked / hit off the ground</option>
+          <option value="touch">touched in the air (header, chest, deflection)</option>
+          <option value="appears">already in the air when seen</option>
+          <option value="throw">throw-in or keeper's hands</option>
+          <option value="unknown">not sure</option>
+        </select>
+        <label>Landing</label>
+        <div class="v"><span id="vF1">&mdash;</span><span class="chip" id="cP1">no spot</span><button id="gF1">Go <kbd>.</kbd></button><button id="sF1">Here <kbd>E</kbd></button></div>
+        <label for="k1">Ends by</label>
+        <select id="k1">
+          <option value="lands">landing on the ground</option>
+          <option value="touch">touched in the air (header, chest, catch)</option>
+          <option value="lost">going out of view</option>
+          <option value="unknown">not sure</option>
+        </select>
+        <label for="hMax">Highest point</label>
+        <select id="hMax">
+          <option value="">not set</option>
+          <option value="skim">skims the grass</option>
+          <option value="knee">knee</option>
+          <option value="waist">waist</option>
+          <option value="head">head</option>
+          <option value="over">over the heads</option>
+          <option value="high">high ball</option>
+        </select>
+        <label>Under the ball</label>
+        <div class="v"><span id="vPts">0 points</span></div>
+      </div>
+      <div class="cardAct">
+        <button class="btn" id="bDelPt">Delete point here <kbd>X</kbd></button>
+        <button class="btn" id="bUndo">Undo <kbd>Z</kbd></button>
+        <button class="btn go undone" id="bDone">Flight checked <kbd>D</kbd></button>
+        <button class="btn" id="bModel" hidden>Show model <kbd>M</kbd></button>
+        <button class="btn" id="bDelFl">Remove flight</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="keys">
+    <span><kbd>space</kbd> play / pause</span>
+    <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> one frame (0.1 s)</span>
+    <span><kbd>shift</kbd>+<kbd>&larr;</kbd><kbd>&rarr;</kbd> one second</span>
+    <span><kbd>S</kbd> take-off is this frame</span>
+    <span><kbd>E</kbd> landing is this frame</span>
+    <span><kbd>N</kbd> new flight from this frame</span>
+    <span><kbd>,</kbd><kbd>.</kbd> go to take-off / landing</span>
+    <span><kbd>[</kbd><kbd>]</kbd> previous / next flight</span>
+    <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> speed</span>
+  </div>
+
+  <section class="list">
+    <h2 id="listH">Flights</h2>
+    <div class="rows" id="rows"></div>
+  </section>
+  <div class="pager"><button class="btn" id="bExport">Copy all flights as JSON</button></div>
+</div>
+
+<script>
+/* MOCK of claude.use('db') for local testing only: frozen snapshots, own writes echoed
+   immediately (pending) and again when confirmed, like the real store. Not published. */
+(function(){
+  var docs = JSON.parse(sessionStorage.getItem('mockstore') || '{}'), subs = [];
+  function deepFreeze(o){ Object.freeze(o); Object.keys(o).forEach(function(k){ if (o[k] && typeof o[k] === 'object') deepFreeze(o[k]); }); return o; }
+  function snap(ch){ return { docChanges: function(){ return ch; }, docs: [], size: 0, empty: true, metadata: { fromCache: false, hasPendingWrites: false } }; }
+  function deliver(id, pending){
+    var body = deepFreeze(JSON.parse(JSON.stringify(docs[id])));
+    var ch = [{ type: 'modified', oldIndex: 0, newIndex: 0, doc: { id: id, exists: true, data: function(){ return body; }, metadata: { fromCache: false, hasPendingWrites: pending } } }];
+    subs.forEach(function(f){ f(snap(ch)); });
+  }
+  var db = {
+    collection: function(c){ return { onSnapshot: function(next){ subs.push(next);
+      setTimeout(function(){ next(snap(Object.keys(docs).map(function(id){ var b = deepFreeze(JSON.parse(JSON.stringify(docs[id]))); return { type: 'added', doc: { id: id, exists: true, data: function(){ return b; }, metadata: {} } }; }))); }, 50);
+      return function(){}; } }; },
+    doc: function(path){ var id = path.split('/')[1]; return { set: function(r){ docs[id] = JSON.parse(JSON.stringify(r)); sessionStorage.setItem('mockstore', JSON.stringify(docs)); deliver(id, true);
+      window.__writes = (window.__writes || 0) + 1;
+      return new Promise(function(res){ setTimeout(function(){ res(); setTimeout(function(){ deliver(id, false); }, 30); }, 120); }); } }; }
+  };
+  window.__mockdocs = docs;
+  window.claude = { use: function(n){ return Promise.resolve(n === 'db' ? db : null); } };
+})();
+</script>
+<script>
+(function(){
+"use strict";
+var $ = function(id){ return document.getElementById(id); };
+var vid = $('vid'), ov = $('ov'), mapc = $('map'), tl = $('tl'), tlc = $('tlc');
+var clips = [], cur = -1, VF = 10, STEP = 3;
+var HM = {};                 // abs frame -> 3x3 pixel -> SB (row-major)
+var HI = {};                 // cache of inverses
+var seed = [], model = [];
+var fl = {};                 // id -> flight record
+var order = [];              // ids sorted by f0
+var selId = null;
+var undoStack = [];
+var db = null, canWrite = true, want = {}, inflight = {};
+var prefs = { rate: 0.5, sel: null, model: false };
+var MW = 768, VW = 1024, VH = 432, SC = 0.4;
+
+function loadJSON(k){ try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch(e){ return null; } }
+function saveJSON(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+function warn(m){ var b = $('banner'); b.textContent = m; b.hidden = false; }
+function say(h){ $('status').innerHTML = h; }
+function css(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function clock(abs){ var s = abs / 30, m = Math.floor(s / 60); return m + ':' + ('0' + (s - m * 60).toFixed(1)).slice(-4); }
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+
+/* ---- geometry */
+function hmat(abs){ return HM[abs] || null; }
+function toSB(abs, px, py){
+  var h = hmat(abs); if (!h) return null;
+  var w = h[6] * px + h[7] * py + h[8]; if (w <= 1e-9) return null;
+  return { x: (h[0] * px + h[1] * py + h[2]) / w, y: (h[3] * px + h[4] * py + h[5]) / w };
+}
+function inv3(m){
+  var a = m[0], b = m[1], c = m[2], d = m[3], e = m[4], f = m[5], g = m[6], h = m[7], i = m[8];
+  var A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g, det = a * A + b * B + c * C;
+  return [A / det, -(b * i - c * h) / det, (b * f - c * e) / det,
+          B / det, (a * i - c * g) / det, -(a * f - c * d) / det,
+          C / det, -(a * h - b * g) / det, (a * e - b * d) / det];
+}
+function toPx(abs, x, y){
+  var h = hmat(abs); if (!h) return null;
+  var q = HI[abs] || (HI[abs] = inv3(h));
+  var w = q[6] * x + q[7] * y + q[8]; if (w <= 1e-9) return null;
+  return { x: (q[0] * x + q[1] * y + q[2]) / w, y: (q[3] * x + q[4] * y + q[5]) / w };
+}
+
+/* ---- clip frames */
+function clip(){ return clips[cur]; }
+function nFrames(){ var c = clip(); return Math.floor((c.end - c.start) / STEP) + 1; }
+function kNow(){ return Math.max(0, Math.min(nFrames() - 1, Math.floor(vid.currentTime * VF + 1e-3))); }
+function absOf(k){ return clip().start + k * STEP; }
+function absNow(){ return cur < 0 ? null : absOf(kNow()); }
+function kOf(abs){ return Math.round((abs - clip().start) / STEP); }
+function seekK(k){ k = Math.max(0, Math.min(nFrames() - 1, k)); vid.currentTime = (k + 0.5) / VF; }
+function clipOf(abs){ for (var i = 0; i < clips.length; i++) if (abs >= clips[i].start && abs <= clips[i].end) return i; return abs < clips[0].start ? 0 : clips.length - 1; }
+function snap(abs){ var c = clips[clipOf(abs)]; return c.start + Math.max(0, Math.min(Math.floor((c.end - c.start) / STEP), Math.round((abs - c.start) / STEP))) * STEP; }
+function seekAbs(abs){
+  abs = snap(abs); var i = clipOf(abs);
+  if (i !== cur) loadClip(i, abs); else { vid.pause(); seekK(kOf(abs)); }
+}
+
+/* ---- flights */
+function sorted(){ order = Object.keys(fl).filter(function(id){ return !fl[id].deleted; }).sort(function(a, b){ return fl[a].f0 - fl[b].f0; }); }
+function sel(){ return selId && fl[selId] && !fl[selId].deleted ? fl[selId] : null; }
+function noOf(id){ return order.indexOf(id) + 1; }
+function blank(s){ return { id: s.id, f0: s.f0, f1: s.f1, k0: s.k0 || 'unknown', k1: s.k1 || 'unknown', p0: null, p1: null, pts: [], h: '', done: false, seed: true, ts: 0 }; }
+function flightAt(abs){
+  var s = sel(); if (s && abs >= s.f0 && abs <= s.f1) return s;
+  for (var i = 0; i < order.length; i++){ var f = fl[order[i]]; if (abs >= f.f0 && abs <= f.f1) return f; }
+  return null;
+}
+function select(id, go){
+  selId = id; prefs.sel = id; saveJSON('flightlab2test.prefs', prefs);
+  var f = sel(); if (f && go) seekAbs(f.f0);
+  paintAll();
+}
+
+/* ---- storage */
+function persist(f){
+  f.ts = Date.now();
+  saveJSON('flightlab2test.v1', fl);
+  want[f.id] = clone(f); push(f.id);
+  sorted(); paintProg();
+}
+function push(id){
+  if (!db || !canWrite){ paintSave(); return; }
+  if (inflight[id]) return;
+  inflight[id] = true; paintSave();
+  (async function(){
+    while (Object.prototype.hasOwnProperty.call(want, id)){
+      var r = want[id]; delete want[id];
+      for (var t = 0; t < 2; t++){
+        try { await db.doc('flights/' + id).set(r); break; }
+        catch(e){
+          var code = e && e.code;
+          if (code === 'unavailable' && t === 0){ await new Promise(function(res){ setTimeout(res, 500 + Math.random() * 700); }); continue; }
+          if (['invalid_argument','not_granted','revoked','capability_disabled','capability_removed'].indexOf(code) >= 0){
+            canWrite = false;
+            warn('Flights cannot be saved to the shared store from this view (' + code + '). They stay in this browser; use "Copy all flights as JSON" before leaving.');
+          } else warn('Could not save flight ' + id + ' (' + (code || 'error') + '). It is still in this browser.');
+          break;
+        }
+      }
+      if (!canWrite) break;
+    }
+    delete inflight[id]; paintSave();
+  })();
+}
+function paintSave(){
+  var el = $('save'); if (!el) return;
+  var n = Object.keys(inflight).length;
+  if (!db){ el.textContent = 'browser only'; el.className = 'save'; return; }
+  if (!canWrite){ el.textContent = 'not saving'; el.className = 'save busy'; return; }
+  el.textContent = n ? 'saving…' : 'saved'; el.className = 'save' + (n ? ' busy' : '');
+}
+function snapshot(f){ undoStack.push(clone(f)); if (undoStack.length > 300) undoStack.shift(); }
+function undo(){
+  var u = undoStack.pop(); if (!u){ say('Nothing to undo.'); return; }
+  fl[u.id] = u; persist(u); select(u.id, false); say('Undone.');
+}
+
+/* ---- editing */
+function place(p){
+  var abs = absNow(), f = sel();
+  if (!f){ say('No flight selected. Press <b>N</b> to start one on this frame.'); return; }
+  var took = false;
+  if (abs < f.f0 || abs > f.f1){
+    // a click just past either end stretches the flight to this frame
+    if (abs > f.f1 && abs - f.f1 <= EXT){ snapshot(f); took = true; setEdge(1, true); }
+    else if (abs < f.f0 && f.f0 - abs <= EXT){ snapshot(f); took = true; setEdge(0, true); }
+  }
+  if (abs < f.f0 || abs > f.f1){
+    say('Frame ' + abs + ' is outside flight ' + noOf(f.id) + ' (' + f.f0 + '–' + f.f1 + '). Press <b>S</b> or <b>E</b> to move its take-off or landing here.'); return;
+  }
+  var pt = { x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 };
+  if (!took) snapshot(f);
+  if (abs === f.f0){ f.p0 = pt; say('Take-off spot set at (' + pt.x.toFixed(0) + ', ' + pt.y.toFixed(0) + ').'); }
+  else if (abs === f.f1){ f.p1 = pt; say('Landing spot set at (' + pt.x.toFixed(0) + ', ' + pt.y.toFixed(0) + ').'); }
+  else {
+    f.pts = f.pts.filter(function(q){ return q.f !== abs; });
+    f.pts.push({ f: abs, x: pt.x, y: pt.y }); f.pts.sort(function(a, b){ return a.f - b.f; });
+    say('Point under the ball at frame ' + abs + '.');
+  }
+  persist(f); paintAll();
+}
+var EXT = 150;   // frames (5 s): how far past an end a click still stretches the flight
+function setEdge(which, quiet){
+  var abs = absNow(), f = sel();
+  if (!f){ say('No flight selected. Press <b>N</b> to start one on this frame.'); return; }
+  if (which === 0 && abs >= f.f1){ say('Take-off must come before the landing (frame ' + f.f1 + ').'); return; }
+  if (which === 1 && abs <= f.f0){ say('Landing must come after the take-off (frame ' + f.f0 + ').'); return; }
+  if (!quiet) snapshot(f);
+  if (which === 0){ f.f0 = abs; } else { f.f1 = abs; }
+  f.pts = f.pts.filter(function(q){ return q.f > f.f0 && q.f < f.f1; });
+  if (quiet) return;
+  persist(f); paintAll();
+  say((which ? 'Landing' : 'Take-off') + ' moved to frame ' + abs + '. Click the grass to set its spot' + ((which ? f.p1 : f.p0) ? ' again if it changed.' : '.'));
+}
+function newFlight(){
+  var abs = absNow();
+  var id = 'u' + abs; if (fl[id] && !fl[id].deleted){ select(id, false); say('A flight already starts here.'); return; }
+  var f = { id: id, f0: abs, f1: snap(abs + 30), k0: 'kick', k1: 'lands', p0: null, p1: null, pts: [], h: '', done: false, seed: false, ts: 0 };
+  fl[id] = f; persist(f); select(id, false);
+  say('New flight from frame ' + abs + '. Click its take-off spot, then find the landing and press <b>E</b>.');
+}
+function delPoint(){
+  var abs = absNow(), f = sel(); if (!f) return;
+  snapshot(f);
+  if (abs === f.f0 && f.p0){ f.p0 = null; say('Take-off spot cleared.'); }
+  else if (abs === f.f1 && f.p1){ f.p1 = null; say('Landing spot cleared.'); }
+  else {
+    var n = f.pts.length; f.pts = f.pts.filter(function(q){ return q.f !== abs; });
+    if (n === f.pts.length){ undoStack.pop(); say('No point on this frame.'); return; }
+    say('Point at frame ' + abs + ' deleted.');
+  }
+  persist(f); paintAll();
+}
+var armDel = 0;
+function delFlight(){
+  var f = sel(); if (!f) return;
+  if (Date.now() - armDel > 3000){ armDel = Date.now(); $('bDelFl').textContent = 'Click again to remove'; say('Click <b>Remove flight</b> again within 3 s to remove flight ' + noOf(f.id) + '.'); return; }
+  armDel = 0; $('bDelFl').textContent = 'Remove flight';
+  snapshot(f); var i = order.indexOf(f.id);
+  f.deleted = true; persist(f);
+  select(order[Math.min(i, order.length - 1)] || null, false);
+  say('Flight removed. Undo with <b>Z</b>.');
+}
+function toggleDone(){
+  var f = sel(); if (!f) return;
+  if (!f.done && (!f.p0 || !f.p1) && f.k0 !== 'appears' && f.k1 !== 'lost'){
+    say('Set the take-off and landing spots first (or mark an end as out of view).'); return;
+  }
+  snapshot(f); f.done = !f.done; persist(f); paintAll();
+  if (f.done){
+    var i = order.indexOf(f.id);
+    for (var d = 1; d <= order.length; d++){ var j = order[(i + d) % order.length]; if (!fl[j].done){ select(j, true); say('Saved. Next unchecked flight: ' + noOf(j) + '.'); return; } }
+    say('Every flight is checked. Thank you.');
+  }
+}
+function field(k, v){ var f = sel(); if (!f) return; snapshot(f); f[k] = v; persist(f); paintAll(); }
+
+/* ---- paint: header, list, card */
+function paintProg(){
+  var n = order.length, done = 0, located = 0;
+  order.forEach(function(id){ var f = fl[id]; if (f.done) done++; if (f.p0 && f.p1) located++; });
+  $('prog').innerHTML = '<b>' + done + '</b> / ' + n + ' flights checked &middot; <b>' + located + '</b> with both spots<span class="save" id="save"></span>';
+  paintSave();
+}
+function paintList(){
+  var box = $('rows'); box.innerHTML = '';
+  $('listH').textContent = 'Flights (' + order.length + ')';
+  var sl = $('flSel'); sl.innerHTML = '';
+  order.forEach(function(id, i){
+    var f = fl[id];
+    var o = document.createElement('option'); o.value = id;
+    o.textContent = 'Flight ' + (i + 1) + ' of ' + order.length + ' · ' + clock(f.f0) + ' · ' + ((f.f1 - f.f0) / 30).toFixed(1) + ' s' + (f.done ? ' · checked ✓' : '');
+    sl.appendChild(o);
+    var r = document.createElement('div'); r.className = 'row' + (id === selId ? ' here' : '');
+    var note = { kick: 'kicked', touch: 'touched', appears: 'seen in air', throw: 'thrown', unknown: '?' }[f.k0] + ' → ' + { lands: 'lands', touch: 'touched', lost: 'out of view', unknown: '?' }[f.k1] + (f.seed ? '' : ' · added');
+    r.innerHTML = '<span class="n">' + (i + 1) + '</span><span class="fr">' + clock(f.f0) + '</span><span class="fr dur">' + ((f.f1 - f.f0) / 30).toFixed(1) + 's</span>' +
+      '<span class="note">' + note + '</span><span class="dotline" title="take-off spot, points under the ball, landing spot"><span class="' + (f.p0 ? 'y' : '') + '"></span><span class="' + (f.pts.length ? 'y' : '') + '"></span><span class="' + (f.p1 ? 'y' : '') + '"></span></span>' +
+      '<span class="ok">' + (f.done ? 'checked' : '') + '</span>';
+    r.addEventListener('click', function(){ select(id, true); });
+    box.appendChild(r);
+  });
+  if (selId) sl.value = selId;
+  var i = order.indexOf(selId);
+  $('bPrev').disabled = i <= 0; $('bNext').disabled = i < 0 || i >= order.length - 1;
+}
+function paintCard(){
+  var f = sel();
+  document.querySelectorAll('#card select, #card button').forEach(function(b){ b.disabled = !f; });
+  if (!f){ $('cNo').textContent = '—'; return; }
+  $('cNo').textContent = noOf(f.id) + ' of ' + order.length;
+  $('cTime').textContent = clock(f.f0) + ' · ' + ((f.f1 - f.f0) / 30).toFixed(1) + ' s';
+  $('vF0').textContent = 'frame ' + f.f0; $('vF1').textContent = 'frame ' + f.f1;
+  var c0 = $('cP0'), c1 = $('cP1');
+  c0.textContent = f.p0 ? '(' + f.p0.x.toFixed(0) + ', ' + f.p0.y.toFixed(0) + ')' : 'no spot'; c0.className = 'chip' + (f.p0 ? ' y' : '');
+  c1.textContent = f.p1 ? '(' + f.p1.x.toFixed(0) + ', ' + f.p1.y.toFixed(0) + ')' : 'no spot'; c1.className = 'chip' + (f.p1 ? ' y' : '');
+  $('k0').value = f.k0; $('k1').value = f.k1; $('hMax').value = f.h || '';
+  $('vPts').textContent = f.pts.length + (f.pts.length === 1 ? ' point' : ' points');
+  $('bDone').className = 'btn go' + (f.done ? '' : ' undone');
+  $('bDone').innerHTML = (f.done ? 'Checked ✓ (undo)' : 'Flight checked') + ' <kbd>D</kbd>';
+  $('bModel').className = 'btn' + (prefs.model ? ' on' : '');
+  $('lgModel').hidden = !prefs.model;
+}
+
+/* ---- paint: path helpers */
+function pathOf(f){
+  var P = [];
+  if (f.p0) P.push({ f: f.f0, x: f.p0.x, y: f.p0.y, kind: 0 });
+  f.pts.forEach(function(q){ P.push({ f: q.f, x: q.x, y: q.y, kind: 1 }); });
+  if (f.p1) P.push({ f: f.f1, x: f.p1.x, y: f.p1.y, kind: 2 });
+  return P;
+}
+function modelNear(f){ return model.filter(function(m){ return m[0] >= f.f0 - 45 && m[0] <= f.f1 + 45; }); }
+var KCOL = ['--grass', '--air', '--signal'];
+
+/* ---- paint: video overlay */
+function paintOv(){
+  var w = ov.clientWidth, h = ov.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (ov.width !== Math.round(w * dpr) || ov.height !== Math.round(h * dpr)){ ov.width = Math.round(w * dpr); ov.height = Math.round(h * dpr); }
+  var g = ov.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  if (cur < 0) return;
+  var abs = absNow(), k = w / VW;
+  var sx = function(p){ return { x: p.x * SC * k, y: p.y * SC * k }; };
+  var inMain = function(p){ return p && p.x >= 0 && p.x <= 1920 && p.y >= -200 && p.y <= 1300; };
+  g.save(); g.beginPath(); g.rect(0, 0, MW * k, h); g.clip();
+  function groundLine(A, B, col, dash){
+    g.strokeStyle = col; g.lineWidth = 2; g.setLineDash(dash || []); g.beginPath(); var on = false;
+    for (var t = 0; t <= 24; t++){
+      var p = toPx(abs, A.x + (B.x - A.x) * t / 24, A.y + (B.y - A.y) * t / 24);
+      if (!inMain(p)){ on = false; continue; }
+      var s = sx(p); if (on) g.lineTo(s.x, s.y); else { g.moveTo(s.x, s.y); on = true; }
+    }
+    g.stroke(); g.setLineDash([]);
+  }
+  var f = sel();
+  if (f && prefs.model){
+    var M = modelNear(f);
+    for (var i = 1; i < M.length; i++) if (M[i][0] - M[i - 1][0] <= 3) groundLine({ x: M[i - 1][1], y: M[i - 1][2] }, { x: M[i][1], y: M[i][2] }, css('--model'), [5, 4]);
+    M.forEach(function(m){ if (m[0] === abs){ var p = toPx(abs, m[1], m[2]); if (inMain(p)){ var s = sx(p); g.fillStyle = css('--model'); g.beginPath(); g.arc(s.x, s.y, 5, 0, 7); g.fill(); } } });
+  }
+  if (f){
+    var P = pathOf(f);
+    for (var j = 1; j < P.length; j++) groundLine(P[j - 1], P[j], 'rgba(255,255,255,.85)');
+    P.forEach(function(q){
+      var p = toPx(abs, q.x, q.y); if (!inMain(p)) return;
+      var s = sx(p), here = q.f === abs;
+      g.fillStyle = css(KCOL[q.kind]); g.strokeStyle = '#0e141b'; g.lineWidth = 2;
+      g.beginPath(); g.arc(s.x, s.y, here ? 7 : 5, 0, 7); g.fill(); g.stroke();
+      if (here){ g.strokeStyle = '#fff'; g.beginPath(); g.arc(s.x, s.y, 11, 0, 7); g.stroke(); }
+    });
+  }
+  g.restore();
+}
+
+/* ---- paint: pitch map (StatsBomb 120 x 80, far side on top) */
+var PAD = 5, MS = 6;       // 130 x 90 units incl. pad, 6 px per unit at the 780 px backing size
+function mx(x){ return (x + PAD) * MS; }
+function my(y){ return (80 - y + PAD) * MS; }
+function paintMap(){
+  var g = mapc.getContext('2d'), W = mapc.width, H = mapc.height;
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = css('--pitch'); g.fillRect(0, 0, W, H);
+  g.strokeStyle = css('--pitchline'); g.globalAlpha = .75; g.lineWidth = 2;
+  g.strokeRect(mx(0), my(80), 120 * MS, 80 * MS);
+  g.beginPath(); g.moveTo(mx(60), my(80)); g.lineTo(mx(60), my(0)); g.stroke();
+  g.beginPath(); g.arc(mx(60), my(40), 10 * MS, 0, 7); g.stroke();
+  [[0, 1], [120, -1]].forEach(function(e){
+    var x0 = e[0], d = e[1];
+    g.strokeRect(Math.min(mx(x0), mx(x0 + 18 * d)), my(62), 18 * MS, 44 * MS);
+    g.strokeRect(Math.min(mx(x0), mx(x0 + 6 * d)), my(50), 6 * MS, 20 * MS);
+    g.strokeRect(Math.min(mx(x0), mx(x0 - 2 * d)), my(44), 2 * MS, 8 * MS);
+    g.fillStyle = css('--pitchline'); g.beginPath(); g.arc(mx(x0 + 12 * d), my(40), 3, 0, 7); g.fill();
+  });
+  g.globalAlpha = 1;
+  g.fillStyle = css('--dim'); g.font = '600 13px ' + css('--mono');
+  g.fillText('far touchline', mx(2), my(80) - 8);
+  g.fillText('near touchline (camera side)', mx(2), my(0) + 20);
+  if (cur < 0) return;
+  var abs = absNow();
+  /* camera footprint: image border mapped to the ground */
+  var B = [], N = 24, t;
+  for (t = 0; t <= N; t++) B.push([1920 * t / N, 1080]);
+  for (t = 0; t <= N; t++) B.push([1920, 1080 - 1080 * t / N]);
+  for (t = 0; t <= N; t++) B.push([1920 - 1920 * t / N, 0]);
+  for (t = 0; t <= N; t++) B.push([0, 1080 * t / N]);
+  g.strokeStyle = css('--ink'); g.globalAlpha = .55; g.setLineDash([6, 5]); g.lineWidth = 1.5; g.beginPath();
+  var on = false;
+  B.forEach(function(p){
+    var s = toSB(abs, p[0], p[1]);
+    if (!s || s.x < -40 || s.x > 160 || s.y < -40 || s.y > 120){ on = false; return; }
+    if (on) g.lineTo(mx(s.x), my(s.y)); else { g.moveTo(mx(s.x), my(s.y)); on = true; }
+  });
+  g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+  var f = sel(); if (!f) return;
+  /* other flights nearby, faint */
+  order.forEach(function(id){
+    var o = fl[id]; if (o === f || Math.abs(o.f0 - f.f0) > 300) return;
+    var P = pathOf(o); if (P.length < 2) return;
+    g.strokeStyle = css('--faint'); g.lineWidth = 1.5; g.beginPath();
+    P.forEach(function(q, i){ if (i) g.lineTo(mx(q.x), my(q.y)); else g.moveTo(mx(q.x), my(q.y)); }); g.stroke();
+  });
+  if (prefs.model){
+    var M = modelNear(f);
+    g.fillStyle = css('--model');
+    M.forEach(function(m){ g.globalAlpha = m[0] === abs ? 1 : .6; g.beginPath(); g.arc(mx(m[1]), my(m[2]), m[0] === abs ? 6 : 2.6, 0, 7); g.fill(); });
+    g.globalAlpha = 1;
+  }
+  var P = pathOf(f);
+  if (P.length > 1){
+    g.strokeStyle = css('--ink'); g.lineWidth = 2.5; g.beginPath();
+    P.forEach(function(q, i){ if (i) g.lineTo(mx(q.x), my(q.y)); else g.moveTo(mx(q.x), my(q.y)); }); g.stroke();
+  }
+  P.forEach(function(q){
+    g.fillStyle = css(KCOL[q.kind]); g.strokeStyle = css('--ground'); g.lineWidth = 2;
+    g.beginPath(); g.arc(mx(q.x), my(q.y), q.f === abs ? 8 : 6, 0, 7); g.fill(); g.stroke();
+  });
+}
+
+/* ---- paint: timeline (the loaded clip, flights as bars) */
+function paintTL(){
+  if (cur < 0) return;
+  var w = tl.clientWidth, h = tl.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (tlc.width !== Math.round(w * dpr)){ tlc.width = Math.round(w * dpr); tlc.height = Math.round(h * dpr); }
+  var g = tlc.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  var c = clip(), span = c.end - c.start + 1, x = function(abs){ return (abs - c.start) / span * w; };
+  order.forEach(function(id){
+    var f = fl[id]; if (f.f1 < c.start || f.f0 > c.end) return;
+    g.fillStyle = css('--air'); g.globalAlpha = id === selId ? 1 : .38;
+    g.fillRect(x(f.f0), 6, Math.max(2, x(f.f1) - x(f.f0)), h - 18); g.globalAlpha = 1;
+    if (id === selId){
+      g.fillStyle = css('--ink');
+      pathOf(f).forEach(function(q){ g.fillRect(Math.round(x(q.f + STEP / 2)) - 1, 2, 3, 4); });
+    }
+  });
+  g.fillStyle = css('--line');
+  for (var sec = 0; sec <= 15; sec++){ var xx = Math.round(sec * 30 / span * w) + 0.5; g.fillRect(xx, h - (sec % 5 ? 5 : 10), 1, sec % 5 ? 5 : 10); }
+  g.fillStyle = css('--signal'); g.fillRect(Math.round(x(absNow() + STEP / 2)) - 1, 0, 2, h);
+}
+function paintNow(){
+  if (cur < 0) return;
+  var abs = absNow();
+  $('fAbs').textContent = abs; $('fClock').textContent = clock(abs); $('fClip').textContent = (cur + 1) + ' / ' + clips.length;
+  var s = sel(), fa = flightAt(abs);
+  if (fa && s !== fa && !(s && abs >= s.f0 && abs <= s.f1)){ selId = fa.id; paintList(); paintCard(); s = fa; }
+  var flag = $('flag');
+  if (s && abs === s.f0){ flag.className = 'flag edge'; flag.textContent = 'take-off · click where it left the ground'; }
+  else if (s && abs === s.f1){ flag.className = 'flag edge'; flag.textContent = 'landing · click where it came down'; }
+  else if (s && abs > s.f0 && abs < s.f1){ flag.className = 'flag in'; flag.textContent = 'flight ' + noOf(s.id) + ' · click the grass under the ball'; }
+  else { flag.className = 'flag'; flag.textContent = 'not in a flight'; }
+  $('bPlay').innerHTML = (vid.paused ? 'Play' : 'Pause') + ' <kbd>space</kbd>';
+  paintTL(); paintOv(); paintMap();
+}
+function paintRate(){
+  document.querySelectorAll('[data-rate]').forEach(function(b){ b.classList.toggle('on', Number(b.dataset.rate) === prefs.rate); });
+  vid.playbackRate = prefs.rate;
+}
+function paintAll(){ sorted(); paintList(); paintCard(); paintProg(); paintNow(); }
+
+/* ---- clip loading (whole clip as a blob, so seeking works on any server) */
+var loadSeq = 0, blobUrl = null, pendingAbs = null;
+function loadClip(i, abs){
+  i = Math.max(0, Math.min(clips.length - 1, i));
+  cur = i; pendingAbs = abs == null ? clips[i].start : abs;
+  var cs = $('clipSel'); if (cs) cs.value = String(i);
+  var my = ++loadSeq;
+  say('Loading clip ' + (i + 1) + '&hellip;');
+  fetch(clips[i].file).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+    .then(function(b){
+      if (my !== loadSeq) return;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      blobUrl = URL.createObjectURL(b);
+      vid.src = blobUrl; vid.load(); paintRate();
+    })
+    .catch(function(e){ if (my === loadSeq) warn('Clip ' + (i + 1) + ' did not load (' + (e && e.message || 'error') + ').'); });
+}
+vid.addEventListener('loadedmetadata', function(){
+  if (pendingAbs != null){ seekK(kOf(pendingAbs)); pendingAbs = null; }
+  var f = sel(); say(f ? 'Flight ' + noOf(f.id) + ' of ' + order.length + '. Step to the take-off and click the grass.' : 'Ready.');
+});
+
+/* ---- controls */
+function step(d){
+  vid.pause();
+  var k = kNow() + d;
+  if (k >= nFrames() && cur < clips.length - 1){ loadClip(cur + 1, clips[cur + 1].start + (k - nFrames()) * STEP); return; }
+  if (k < 0 && cur > 0){ var p = clips[cur - 1]; loadClip(cur - 1, snap(p.end + (k + 1) * STEP)); return; }
+  seekK(k);
+}
+function toggle(){ if (vid.paused) vid.play().catch(function(){}); else vid.pause(); }
+function goFlight(d){ var i = order.indexOf(selId) + d; if (i >= 0 && i < order.length) select(order[i], true); }
+$('bPrev').addEventListener('click', function(){ goFlight(-1); });
+$('bNext').addEventListener('click', function(){ goFlight(1); });
+$('flSel').addEventListener('change', function(e){ select(e.target.value, true); e.target.blur(); });
+document.querySelectorAll('[data-rate]').forEach(function(b){ b.addEventListener('click', function(){ prefs.rate = Number(b.dataset.rate); saveJSON('flightlab2test.prefs', prefs); paintRate(); }); });
+$('bBack').addEventListener('click', function(){ step(-1); });
+$('bFwd').addEventListener('click', function(){ step(1); });
+$('bPlay').addEventListener('click', toggle);
+$('gF0').addEventListener('click', function(){ var f = sel(); if (f) seekAbs(f.f0); });
+$('gF1').addEventListener('click', function(){ var f = sel(); if (f) seekAbs(f.f1); });
+$('sF0').addEventListener('click', function(e){ vid.pause(); setEdge(0); e.currentTarget.blur(); });
+$('sF1').addEventListener('click', function(e){ vid.pause(); setEdge(1); e.currentTarget.blur(); });
+$('k0').addEventListener('change', function(e){ field('k0', e.target.value); e.target.blur(); });
+$('k1').addEventListener('change', function(e){ field('k1', e.target.value); e.target.blur(); });
+$('hMax').addEventListener('change', function(e){ field('h', e.target.value); e.target.blur(); });
+$('bDelPt').addEventListener('click', delPoint);
+$('bUndo').addEventListener('click', undo);
+$('bDone').addEventListener('click', toggleDone);
+$('bDelFl').addEventListener('click', delFlight);
+$('bModel').addEventListener('click', function(){ prefs.model = !prefs.model; saveJSON('flightlab2test.prefs', prefs); paintCard(); paintNow(); });
+$('bExport').addEventListener('click', function(){
+  var out = JSON.stringify({ fps: 30, step: STEP, units: 'StatsBomb 120x80', flights: order.map(function(id){ return fl[id]; }) });
+  try { navigator.clipboard.writeText(out).then(function(){ say('Copied ' + order.length + ' flights.'); }, function(){ say('Clipboard blocked in this view.'); }); }
+  catch(e){ say('Clipboard unavailable in this view.'); }
+});
+vid.addEventListener('timeupdate', paintNow);
+vid.addEventListener('seeked', paintNow);
+vid.addEventListener('play', paintNow); vid.addEventListener('pause', paintNow);
+vid.addEventListener('ended', function(){ if (cur < clips.length - 1) { loadClip(cur + 1); } });
+vid.addEventListener('error', function(){ if (vid.src) warn('Clip ' + (cur + 1) + ' could not be played in this browser.'); });
+(function loop(){ if (!vid.paused) paintNow(); requestAnimationFrame(loop); })();
+
+ov.addEventListener('click', function(e){
+  if (cur < 0) return;
+  vid.pause();
+  var r = ov.getBoundingClientRect(), vx = (e.clientX - r.left) / r.width * VW, vy = (e.clientY - r.top) / r.height * VH;
+  if (vx > MW){ say('That is the close-up. Click the main picture or the pitch map.'); return; }
+  var p = toSB(absNow(), vx / SC, vy / SC);
+  if (!p || p.x < -30 || p.x > 150 || p.y < -30 || p.y > 110){ say('That spot is not on the ground (above the horizon or far off the field). Click the grass.'); return; }
+  place(p);
+});
+mapc.addEventListener('click', function(e){
+  if (cur < 0) return;
+  vid.pause();
+  var r = mapc.getBoundingClientRect();
+  var X = (e.clientX - r.left) / r.width * mapc.width, Y = (e.clientY - r.top) / r.height * mapc.height;
+  place({ x: X / MS - PAD, y: 80 - (Y / MS - PAD) });
+});
+function tlSeek(e){ var r = tl.getBoundingClientRect(); var f = (e.clientX - r.left) / r.width; vid.pause(); seekK(Math.floor(f * nFrames())); }
+var dragging = false;
+tl.addEventListener('pointerdown', function(e){ dragging = true; tl.setPointerCapture(e.pointerId); tlSeek(e); });
+tl.addEventListener('pointermove', function(e){ if (dragging) tlSeek(e); });
+tl.addEventListener('pointerup', function(){ dragging = false; });
+window.addEventListener('resize', function(){ paintNow(); });
+
+document.addEventListener('keydown', function(e){
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  var tg = e.target && e.target.tagName;
+  if (tg === 'SELECT' || tg === 'INPUT' || tg === 'TEXTAREA') return;
+  if (cur < 0) return;
+  var used = true, k = e.key.length === 1 ? e.key.toLowerCase() : e.key, f = sel();
+  switch (k){
+    case ' ': toggle(); break;
+    case 'ArrowRight': step(e.shiftKey ? VF : 1); break;
+    case 'ArrowLeft': step(e.shiftKey ? -VF : -1); break;
+    case 's': vid.pause(); setEdge(0); break;
+    case 'e': vid.pause(); setEdge(1); break;
+    case 'n': vid.pause(); newFlight(); break;
+    case 'x': case 'Delete': case 'Backspace': delPoint(); break;
+    case 'z': undo(); break;
+    case 'd': toggleDone(); break;
+    case 'm': prefs.model = !prefs.model; saveJSON('flightlab2test.prefs', prefs); paintCard(); paintNow(); break;
+    case ',': if (f) seekAbs(f.f0); break;
+    case '.': if (f) seekAbs(f.f1); break;
+    case '[': goFlight(-1); break;
+    case ']': goFlight(1); break;
+    case '1': prefs.rate = 0.25; paintRate(); break;
+    case '2': prefs.rate = 0.5; paintRate(); break;
+    case '3': prefs.rate = 1; paintRate(); break;
+    default: used = false;
+  }
+  if (used){ e.preventDefault(); if (tg === 'BUTTON' && e.target.blur) e.target.blur(); }
+});
+
+/* ---- boot */
+async function getJSON(p){ var r = await fetch(p); if (!r.ok) throw new Error(p + ' HTTP ' + r.status); return r.json(); }
+async function boot(){
+  var p = loadJSON('flightlab2test.prefs'); if (p){ if (p.rate) prefs.rate = p.rate; prefs.sel = p.sel || null; prefs.model = !!p.model; }
+  var M, F, S, D;
+  try { var res = await Promise.all([getJSON('manifest.json'), getJSON('frames.json'), getJSON('seed.json'), getJSON('model.json')]); M = res[0]; F = res[1]; S = res[2]; D = res[3]; }
+  catch(e){ warn('The clip data did not load (' + (e && e.message || 'error') + ').'); $('prog').textContent = 'no data'; return; }
+  STEP = Number(M.step) || 3; VF = (Number(M.fps) || 30) / STEP;
+  clips = M.clips || []; HM = F.H || {}; seed = S.flights || []; model = D.air || [];
+  var cs = $('clipSel');
+  clips.forEach(function(c, i){ var o = document.createElement('option'); o.value = String(i); o.textContent = 'Clip ' + (i + 1) + '  ' + clock(c.start).replace(/\.\d$/, ''); cs.appendChild(o); });
+  cs.addEventListener('change', function(){ var i = Number(cs.value); loadClip(i, clips[i].start); cs.blur(); });
+  seed.forEach(function(s){ fl[s.id] = blank(s); });
+  var local = loadJSON('flightlab2test.v1');
+  if (local && typeof local === 'object') Object.keys(local).forEach(function(id){ var v = local[id]; if (v && v.id && (!fl[id] || (v.ts || 0) >= (fl[id].ts || 0))) fl[id] = v; });
+  sorted();
+  selId = prefs.sel && fl[prefs.sel] && !fl[prefs.sel].deleted ? prefs.sel : order[0];
+  var f0 = sel(); loadClip(clipOf(f0 ? f0.f0 : clips[0].start), f0 ? f0.f0 : null);
+  paintAll();
+
+  try { db = await claude.use('db'); } catch(e){ db = null; }
+  if (!db){ warn('Shared storage is not available in this view. Flights stay in this browser only; finish on this device and use "Copy all flights as JSON".'); paintSave(); return; }
+  paintSave();
+  try {
+    db.collection('flights').onSnapshot(function(snap){
+      var touched = false;
+      snap.docChanges().forEach(function(ch){
+        var id = ch.doc.id;
+        if (Object.prototype.hasOwnProperty.call(want, id) || inflight[id]) return;
+        if (ch.type === 'removed') return;
+        var v = ch.doc.data();
+        if (v && v.id && (!fl[id] || (v.ts || 0) >= (fl[id].ts || 0))){ fl[id] = clone(v); touched = true; }   // snapshots are frozen: keep an editable copy
+      });
+      if (touched){ saveJSON('flightlab2test.v1', fl); paintAll(); }
+    }, function(err){ warn('Live sync stopped (' + (err && err.code || 'error') + '). New points still save; reload to see changes from elsewhere.'); });
+  } catch(e){ warn('Could not read saved flights (' + (e && e.code || 'error') + '). Anything in this browser is still here.'); }
+}
+boot();
+})();
+</script>

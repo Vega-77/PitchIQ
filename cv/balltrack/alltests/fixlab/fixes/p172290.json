@@ -1,0 +1,20 @@
+{
+  "f0": 172290,
+  "f1": 172332,
+  "id": "p172290",
+  "kind": "missed",
+  "note": "A foot of a coach on the sideline is being considered as a ball.",
+  "pts": [
+    {
+      "f": 172290,
+      "px": 96,
+      "py": 985
+    },
+    {
+      "f": 172332,
+      "px": 231,
+      "py": 1033
+    }
+  ],
+  "ts": 1790874102449
+}
