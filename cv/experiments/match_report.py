@@ -13,6 +13,10 @@ they mean very little: tracks fragment as the view moves, the possession radius
 is derived from apparent player height so it drifts with zoom, and nothing can
 be expressed in metres without a calibration the moving camera cannot support.
 Treat this as a check that the chain executes, not as a measurement.
+
+Unless --panned is given: then every frame is registered to the venue map by
+the ball tracker (cv/balltrack/hybrid.sh), the boxes are held in one view, and
+the ball is the tracker's. See cv/panned.py.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from cv.panned import PannedCamera
 from cv.pipeline import analyse_match
 
 
@@ -32,6 +37,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--video', required=True, help='path to the clip')
     parser.add_argument('--calibration', default=None,
                         help='calibration JSON; without it, metre-based stats are skipped')
+    parser.add_argument('--panned', default=None, metavar='TAG',
+                        help='footage from a camera that follows the play: use the '
+                             'ball tracker run tagged TAG (cv/balltrack/hybrid.sh) '
+                             'for registration and the ball, instead of --calibration')
     parser.add_argument('--start', type=float, default=0.0, help='seconds into the video')
     parser.add_argument('--end', type=float, default=None, help='seconds into the video')
     parser.add_argument('--conf', type=float, default=0.25, help='player confidence')
@@ -79,6 +88,7 @@ def main(argv: list[str] | None = None) -> int:
     report = analyse_match(
         video,
         calibration_path=args.calibration,
+        panned=PannedCamera.from_tracker(args.panned) if args.panned else None,
         start_s=args.start,
         end_s=args.end,
         conf=args.conf,

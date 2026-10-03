@@ -33,6 +33,7 @@ from cv.participants import (
 )
 from cv.pipeline import MatchReport, PlayerReport
 from cv.possession import PossessionSummary
+from cv.pitch import Pitch
 from cv.report_json import SCHEMA_VERSION, shot_marks, team_stats
 from cv.timing import FIXED, Timings
 from cv.teams import TEAM_A, TEAM_B
@@ -691,6 +692,23 @@ class TestShotMarks:
     def test_it_is_json_safe(self):
         marks = shot_marks([self.shot(95.0, 20.0)], 'right')
         assert json.loads(json.dumps(marks))[0]['x_m'] == 95.0
+
+    # A measured venue: the Hudl footage's pitch, 112.7 x 70.8.
+    VENUE = Pitch(length_m=112.7, width_m=70.8)
+
+    def test_a_measured_pitch_is_drawn_in_proportion(self):
+        """The penalty spot on a 112.7m pitch is the penalty spot on the drawing."""
+        spot = self.VENUE.length_m - 11.0
+        mark = shot_marks([self.shot(spot, self.VENUE.width_m / 2)], 'right', self.VENUE)[0]
+        assert mark['x_m'] == pytest.approx((spot / 112.7) * 105.0, abs=0.05)
+        assert mark['y_m'] == 34.0
+
+    def test_the_mirror_goes_through_the_measured_centre(self):
+        """Mirrored through the default 105m centre, this shot from 10m out at
+        the left end would land 17.7m from the right goal instead of 10."""
+        left = shot_marks([self.shot(10.0, 35.4)], 'left', self.VENUE)[0]
+        right = shot_marks([self.shot(102.7, 35.4)], 'right', self.VENUE)[0]
+        assert (left['x_m'], left['y_m']) == (right['x_m'], right['y_m'])
 
 
 class TestTiming:

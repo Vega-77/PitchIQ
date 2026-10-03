@@ -423,6 +423,7 @@ def analyse_match(
     second_half_video_s: float | None = None,
     detector=None,
     tracker_factory=None,
+    panned=None,
 ) -> MatchReport:
     """Run the full pipeline over a video.
 
@@ -514,11 +515,21 @@ def analyse_match(
     ultralytics and torch, which `requirements-test.txt` deliberately leaves
     out. Passing them through costs two arguments and makes the assembly of
     twenty-odd subsystems something a test can run.
+
+    `panned` is a `cv.panned.PannedCamera`, for footage from a camera that
+    follows the play. It replaces `calibration_path`: every box is moved into
+    one reference view before anything is measured, and the ball comes from
+    the tracker in `cv/balltrack` instead of this pass's own detections.
     """
     video_path = Path(video_path)
     started = time.perf_counter()
 
-    calibration = Calibration.load(calibration_path) if calibration_path else None
+    if panned is not None and calibration_path:
+        raise ValueError('a panned camera brings its own calibration; pass one or the other')
+    calibration = (
+        panned.calibration if panned is not None
+        else Calibration.load(calibration_path) if calibration_path else None
+    )
     pitch = calibration.pitch if calibration else Pitch()
     orientation = orientation or MatchOrientation()
 
@@ -580,9 +591,24 @@ def analyse_match(
     table.calibration = calibration
     report.duration_s = len(table.records) * stride / fps
 
+    # ---- a panning camera, held still ----
+    #
+    # Before the ball and before the camera check, because both read pixel
+    # positions, and after this every pixel is in the one reference view.
+    if panned is not None:
+        unregistered = panned.stabilise(table)
+        if unregistered:
+            report.warnings.append(
+                f'{unregistered} frames had players but no pitch registration, '
+                'and their players were left out'
+            )
+
     # ---- ball ----
     with timings.stage('ball'):
-        report.ball = build_trajectory(ball_candidates, info.width)
+        report.ball = (
+            panned.trajectory(table) if panned is not None
+            else build_trajectory(ball_candidates, info.width)
+        )
         attach_trajectory(table, report.ball)
 
     # ---- did the camera hold still? ----

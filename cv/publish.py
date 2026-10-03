@@ -40,6 +40,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from .pitch import Pitch
+from .report_json import drawn
+
 # Everything this module is allowed to write, as a path shape. Anything else is
 # a bug, and `_check_path` turns it into an exception rather than a silent
 # write to somewhere it should not reach.
@@ -293,6 +296,11 @@ def events_payload(report_json: dict, limit: int = MAX_EVENTS) -> dict:
     """
     events = report_json.get('events') or []
     floor = None
+    # Positions go out on the standard drawing the pages plot into; see
+    # `report_json.drawn`. A report with no `pitch` was measured on the
+    # default one, where the two frames are the same.
+    measured = report_json.get('pitch')
+    pitch = Pitch(measured['length_m'], measured['width_m']) if measured else None
 
     if len(events) > limit:
         # Keep the most confident, but hand them back in clock order: a
@@ -329,7 +337,9 @@ def events_payload(report_json: dict, limit: int = MAX_EVENTS) -> dict:
                 # Where the ball was, in pitch metres, at the moment of the
                 # event. Null on an uncalibrated run, which is the whole reason
                 # every consumer of it has to handle absent rather than zero.
-                'startM': _round_pair(event.get('start_m')),
+                'startM': _round_pair(
+                    drawn(event['start_m'], pitch) if event.get('start_m') else None
+                ),
             }
             for event in events
         ],

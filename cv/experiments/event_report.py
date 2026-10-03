@@ -33,6 +33,7 @@ import sys
 from pathlib import Path
 
 from cv.events import CARRY, PASS, SHOT
+from cv.panned import PannedCamera
 from cv.pipeline import analyse_match
 from cv.teams import TEAM_A, TEAM_B
 
@@ -49,6 +50,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--video', required=True)
     parser.add_argument('--calibration', default=None,
                         help='without it, shots and anything positional are skipped')
+    parser.add_argument('--panned', default=None, metavar='TAG',
+                        help='footage from a camera that follows the play: use the '
+                             'ball tracker run tagged TAG (cv/balltrack/hybrid.sh) '
+                             'for registration and the ball, instead of --calibration')
     parser.add_argument('--start', type=float, default=0.0)
     parser.add_argument('--end', type=float, default=None)
     parser.add_argument('--conf', type=float, default=0.25)
@@ -163,6 +168,7 @@ def main(argv: list[str] | None = None) -> int:
     report = analyse_match(
         video,
         calibration_path=args.calibration,
+        panned=PannedCamera.from_tracker(args.panned) if args.panned else None,
         start_s=args.start,
         end_s=args.end,
         conf=args.conf,

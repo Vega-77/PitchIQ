@@ -111,7 +111,15 @@ from .teams import TEAM_A, TEAM_B
 #     indistinguishable from one nobody looked at. The furthest sweep is null
 #     separately, whenever there were no sweeper actions, because a maximum
 #     over an empty set is not 0.0 metres.
-SCHEMA_VERSION = 14
+# 15: `pitch` at the top level, and shot-map positions expressed on the
+#     standard 105x68 drawing every page plots into. Additive for every
+#     report before it: until now there was only ever the default pitch, so
+#     the drawing and the measurement were the same frame. They stop being the
+#     same the first time a venue is measured — the Hudl footage is a 112.7m
+#     pitch — and a shot from the spot then plotted 7m outside the box, and a
+#     second-half shot mirrored through the wrong centre. The mirror now uses
+#     the real pitch, and the drawing frame is applied after it.
+SCHEMA_VERSION = 15
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -402,7 +410,7 @@ def team_stats(
         stats.goals = sum(1 for s in shots if s.outcome == GOAL)
         scored = [s.xg for s in shots if s.xg is not None]
         stats.xg = sum(scored) if scored else None
-        stats.shot_map = shot_marks(shots, attacking_end)
+        stats.shot_map = shot_marks(shots, attacking_end, pitch)
 
         if pitch is not None:
             stats.ppda = ppda(log, pitch, team, opponent_attacking_end)
@@ -422,7 +430,7 @@ def team_stats(
     return stats
 
 
-def shot_marks(shots, attacking_end: str | None) -> list[dict] | None:
+def shot_marks(shots, attacking_end: str | None, pitch=None) -> list[dict] | None:
     """Shots as points on a pitch, always attacking to the right.
 
     A shot map is only readable if every shot on it faces the same way, so the
@@ -439,9 +447,14 @@ def shot_marks(shots, attacking_end: str | None) -> list[dict] | None:
 
     None without an attacking end, since the flip cannot be decided. An empty
     list means a calibrated run in which nobody shot, which is a real answer.
+
+    `pitch` is the pitch the shots were measured on. The mirror goes through
+    its centre, and the result is then scaled onto the standard drawing (see
+    `drawn`), because that is the only pitch the pages draw.
     """
     if attacking_end is None:
         return None
+    length_m, width_m = _dims(pitch)
 
     marks = []
     for shot in shots:
@@ -452,7 +465,8 @@ def shot_marks(shots, attacking_end: str | None) -> list[dict] | None:
             # Mirror through the centre, both axes, so left and right stay
             # consistent with each other and a shot from the right wing does
             # not migrate to the left one.
-            x, y = PITCH_LENGTH_M - x, PITCH_WIDTH_M - y
+            x, y = length_m - x, width_m - y
+        x, y = drawn((x, y), pitch)
 
         marks.append({
             # The join key. Without it a browser holding a coach's per-shot
@@ -473,6 +487,28 @@ def shot_marks(shots, attacking_end: str | None) -> list[dict] | None:
             'track_id': shot.track_id,
         })
     return marks
+
+
+def _dims(pitch) -> tuple[float, float]:
+    if pitch is None:
+        return PITCH_LENGTH_M, PITCH_WIDTH_M
+    return float(pitch.length_m), float(pitch.width_m)
+
+
+def drawn(point, pitch=None) -> tuple[float, float]:
+    """A position on `pitch`, placed proportionally on the standard drawing.
+
+    Every page plots into one 105x68 diagram (`assets/pitch-backdrop.js`),
+    and a real venue is rarely that size. Proportional keeps a shot from the
+    spot on the spot and a touchline on the touchline; what it does not keep is
+    a distance measured off the diagram, which is why every figure in metres is
+    computed here, on the real pitch, and only positions are moved.
+    """
+    length_m, width_m = _dims(pitch)
+    return (
+        float(point[0]) * PITCH_LENGTH_M / length_m,
+        float(point[1]) * PITCH_WIDTH_M / width_m,
+    )
 
 
 def _merge_heatmaps(pairs) -> list[list[float]] | None:
@@ -512,6 +548,7 @@ def track_stats(
     players_by_track: dict | None = None,
     calibrated: bool = False,
     attacking_ends: dict[str, str | None] | None = None,
+    pitch=None,
 ) -> list[TrackStats]:
     """Per-cluster rollups, merging movement in from the per-track reports."""
     out: list[TrackStats] = []
@@ -555,7 +592,7 @@ def track_stats(
             stats.goals = sum(1 for s in shots if s.outcome == GOAL)
             scored = [s.xg for s in shots if s.xg is not None]
             stats.xg = sum(scored) if scored else None
-            stats.shot_map = shot_marks(shots, attacking_ends.get(cluster.team))
+            stats.shot_map = shot_marks(shots, attacking_ends.get(cluster.team), pitch)
 
             # Movement is per track; a cluster covers the ground all its
             # fragments did.
@@ -692,7 +729,7 @@ def build_report_json(
 
     tracks = track_stats(
         report.clusters, log, players_by_track, calibrated=calibrated,
-        attacking_ends=ends,
+        attacking_ends=ends, pitch=pitch,
     )
 
     warnings = list(report.warnings)
@@ -709,6 +746,12 @@ def build_report_json(
     data = {
         'schema_version': SCHEMA_VERSION,
         'source': report.source,
+        # The pitch every metre below was measured on. Null when nothing was
+        # measured, which is not the same as the default pitch.
+        'pitch': (
+            {'length_m': _round(pitch.length_m, 1), 'width_m': _round(pitch.width_m, 1)}
+            if pitch is not None else None
+        ),
         'window': window or {},
         'duration_s': _round(report.duration_s, 1),
         'processing_s': _round(report.processing_s, 1),

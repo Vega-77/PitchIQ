@@ -273,6 +273,19 @@ class TestEvents:
         event['in_play'] = False
         assert events_payload({'events': [event]})['events'][0]['inPlay'] is False
 
+    def test_positions_go_out_on_the_standard_drawing(self):
+        """A measured pitch is placed onto the 105x68 diagram every page draws;
+        the halfway line stays the halfway line."""
+        event = an_event()
+        event['start_m'] = [56.35, 35.4]
+        doc = events_payload({'events': [event], 'pitch': {'length_m': 112.7, 'width_m': 70.8}})
+        assert doc['events'][0]['startM'] == [52.5, 34.0]
+
+    def test_without_a_measured_pitch_positions_are_unchanged(self):
+        event = an_event()
+        event['start_m'] = [56.35, 35.4]
+        assert events_payload({'events': [event]})['events'][0]['startM'] == [56.4, 35.4]
+
 
 class TestEventCap:
     def test_a_runaway_run_is_capped_rather_than_failing_to_write(self):
