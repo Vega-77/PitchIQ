@@ -720,7 +720,12 @@ def shape_samples(
         points, outfield = [], []
         for track_id, series in series_by_track.items():
             idx = np.searchsorted(series.timestamps_s, t)
-            if 0 <= idx < len(series):
+            # A track that has not started yet is not on the pitch. searchsorted
+            # puts any earlier instant at index 0, which used to stand every
+            # future fragment at its first position: on real panned footage,
+            # 66 "players" a team at once and a team 86 m wide on a 71 m pitch.
+            # The 0.05 s is the rounding of `times` to a tenth.
+            if 0 <= idx < len(series) and series.timestamps_s[0] <= t + 0.05:
                 point = series.positions_m[idx]
                 points.append(point)
                 if track_id not in keepers:

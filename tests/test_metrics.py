@@ -25,6 +25,7 @@ from cv.metrics import (
     ShapeDrift,
     drift_notes,
     shape_drift,
+    shape_samples,
     team_shape,
 )
 from cv.pitch import Pitch
@@ -205,6 +206,17 @@ class TestTeamShape:
 
     def test_handles_no_players(self):
         assert team_shape({})["width_m"] == 0.0
+
+    def test_a_track_that_has_not_started_is_not_on_the_pitch(self):
+        # A back three for two seconds, and a fourth player the tracker only
+        # picks up after one, out on the far touchline. He must not stand
+        # there during the first second too.
+        early = {i: series([(20.0, 20.0 + i * 10.0)] * 50, track_id=i) for i in range(3)}
+        late = PositionSeries(9, 1.0 + np.arange(25) / 25.0, np.tile([20.0, 68.0], (25, 1)))
+        samples = shape_samples({**early, 9: late})
+        widths = dict(zip(samples[0], samples[1]))
+        assert widths[0.0] == pytest.approx(20.0)
+        assert widths[1.2] == pytest.approx(48.0)
 
 
 # A 4-4-2 defending the left goal, with its back line at 20m. Used by both
