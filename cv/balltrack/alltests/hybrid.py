@@ -41,7 +41,7 @@ def air_mask(tag, ab):
 
 def build(tag):
     z = np.load(os.path.join(HERE, 'p2d', 'cls_B', '%s.npz' % tag))
-    ab, X, Y, SRC = z['abs'], z['x'], z['y'], z['src']; lo = int(ab[0])
+    ab, X, Y, SRC = z['abs'], z['x'], z['y'], z['src']
     R = np.load(os.path.join(HERE, 'tn', 'bridges_%s.npy' % tag), allow_pickle=True)
     tr = {}
     for a, b, d, xy, vis in R:

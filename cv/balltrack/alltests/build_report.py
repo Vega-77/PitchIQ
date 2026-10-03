@@ -106,15 +106,6 @@ def flpos(which):
     return get
 
 
-def fln(which):
-    def get(r):
-        t = r.get('fl_txt') or []
-        i = 0 if which == 'dev' else 1
-        m = re.search(r'on\s+(\d+)/', t[i]) if len(t) > i else None
-        return int(m.group(1)) if m else None
-    return get
-
-
 # ---------- 2D ----------
 rows2 = [(k, l, gr, n, R2[k]) for (k, l, gr, n) in VERS if k in R2]
 C2a = [

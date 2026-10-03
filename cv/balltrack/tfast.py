@@ -29,7 +29,6 @@ Two implementation notes, because both change results if done carelessly:
 
 Drop-in: tfast.temporal_rows(tiles, pts) for dense.temporal_rows(tiles, pts).
 """
-import math
 
 import numpy as np
 

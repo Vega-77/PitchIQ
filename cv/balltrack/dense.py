@@ -51,8 +51,6 @@ the surviving top KEEP leave the loop.
     python dense.py --n 40           # a short run, for timing
     python dense.py                  # -> dense.npz
 """
-import io
-import json
 import math
 import os
 import sys

@@ -211,7 +211,6 @@ def main():
     # 1: single-flight rise test before chaining
     keep = []
     for f in fl:
-        th = f['th']
         f['roll'] = R.droll(tr, f['a'], f['b'])[0]
         if is_air(f['err'], f['roll']):
             keep.append(f)
@@ -262,8 +261,6 @@ def main():
     xyz[:, :2] = np.where(np.isfinite(g), g, np.nan); xyz[tr.has, 2] = 0
     for c in out:
         nodes, ts, ks = Ch.unpack(c['x'], c['m'])
-        t_a = min([ts[0]] + [e[1] for e in c['ends'] if e[0] == 'take-off'])
-        t_b = max([ts[-1]] + [e[1] for e in c['ends'] if e[0] == 'landing'])
         for j in range(c['m']):
             if not c['seg_air'][j]:
                 continue

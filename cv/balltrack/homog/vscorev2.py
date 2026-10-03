@@ -60,7 +60,7 @@ def score(p):
     gpos = np.where(np.isfinite(xy[:, :1]) & ~air[:, None], xy, flat)
     gok = np.isfinite(gpos[:, 0])
     pos = np.where(okair[:, None], xy, gpos); pok = okair | gok
-    tp = (air & near_t).sum(); fp = (air & ~near_t).sum()
+    tp = (air & near_t).sum()
     P = tp / max(1, air.sum()); R = (air & truth).sum() / truth.sum()
     hit = sum(air[f['f0'] - A0:f['f1'] - A0 + 1].mean() >= 0.5 for f in L)
     anyh = sum(air[f['f0'] - A0:f['f1'] - A0 + 1].any() for f in L)

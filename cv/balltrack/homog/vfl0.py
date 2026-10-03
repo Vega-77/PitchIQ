@@ -1,4 +1,4 @@
-import os, sys, numpy as np
+import sys, numpy as np
 TAG = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
 sys.path.insert(0, '..'); import render_vid as RV
 z = np.load(TAG + '_ballsb.npz'); a = z['abs']; H = z['H']

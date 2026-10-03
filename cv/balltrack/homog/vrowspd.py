@@ -1,6 +1,6 @@
 """Cache: for every scan2 row, the ground speed (SB/s) a slowing roll would need
 to explain its pixels, and that roll's trimmed px error.  python vrowspd.py [tag] -> <tag>_rowspd.npy"""
-import os, sys, numpy as np, vflight as V, vroll as R
+import sys, numpy as np, vflight as V, vroll as R
 tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
 tr = V.Track(tag); V.ground_all(tr)
 Z = np.load('%s_scan2.npz' % tag); S, C = Z['S'], {c: i for i, c in enumerate(Z['cols'].tolist())}

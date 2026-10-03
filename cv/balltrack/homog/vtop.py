@@ -1,7 +1,7 @@
 """Top-down venue map.  G_k = B . K^-1 . H_k maps keyframe k's pixels to the
 ground plane (units: camera heights), B = rows (e1 along field, e2 across, -n).
     python vtop.py [every] [px_per_unit]   -> vtop.jpg, vtop.npz (B, K, T)"""
-import os, sys
+import sys
 import cv2, numpy as np
 sys.path.insert(0, 'C:/Users/alexv/Desktop/Repos/PitchIQ')
 from cv import lines as L

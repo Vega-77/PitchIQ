@@ -1,4 +1,4 @@
-import cv2, numpy as np, vfeats, sys
+import cv2, vfeats, sys
 ab = int(sys.argv[1]); x0, y0, x1, y1 = map(int, sys.argv[2:6])
 cap = cv2.VideoCapture(vfeats.VIDEO); cap.set(cv2.CAP_PROP_POS_FRAMES, ab); ok, im = cap.read()
 c = im[y0:y1, x0:x1].copy()

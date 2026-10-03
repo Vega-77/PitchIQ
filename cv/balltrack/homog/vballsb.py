@@ -22,7 +22,7 @@ def proj(H, p):
 def per_frame(tag):
     r = np.load(os.path.join(HERE, '%s_reg.npz' % tag)); p = np.load(os.path.join(S2, '%span.npz' % tag))
     lo, cum = int(p['lo']), p['cum']
-    ab, Hs, ok = r['abs'][r['ok']], r['Hsb'][r['ok']], None
+    ab, Hs = r['abs'][r['ok']], r['Hsb'][r['ok']]
     out = {}
     for f in range(lo, int(p['hi']) + 1):
         j = np.searchsorted(ab, f)

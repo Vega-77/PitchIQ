@@ -108,7 +108,7 @@ def rts(z, R, use=None, dt=1 / 30.):
             if not use[i]:
                 continue
             x = np.r_[z[i], 0, 0]; Pc = np.diag([R[i][0, 0], R[i][1, 1], VK, VK]); Pc[:2, :2] = R[i]
-            xp[i], Pp[i] = x, Pc; xs[i], Ps[i] = x, Pc; flag[i] = 1; last = i; seg_start = i
+            xp[i], Pp[i] = x, Pc; xs[i], Ps[i] = x, Pc; flag[i] = 1; last = i
             continue
         x = F.dot(x); Pc = F.dot(Pc).dot(F.T) + Qm
         xp[i], Pp[i] = x, Pc

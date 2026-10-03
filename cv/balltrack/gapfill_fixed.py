@@ -4,7 +4,6 @@ fill added and those viterbi7 already made.
 
     python gapfill_fixed.py
 """
-import numpy as np
 
 import dtrack6 as D6
 import gapfill as G

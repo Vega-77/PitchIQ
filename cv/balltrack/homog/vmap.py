@@ -16,7 +16,6 @@ plane (extended beyond the reference frame's edges).
 """
 import collections
 import os
-import sys
 import time
 
 import cv2

@@ -104,7 +104,7 @@ def main():
     assert vw.isOpened(), 'no H.264 writer'
     title = 'WHAT WE HAVE' if WHO == 'ours' else 'TAPNext++'
     cap = cv2.VideoCapture(feat4.VIDEO); cap.set(cv2.CAP_PROP_POS_FRAMES, LO)
-    S = np.diag([SC, SC, 1.0]); last = None; t0 = time.time()
+    last = None; t0 = time.time()
     for k in range(HI - LO):
         ok, fr = cap.read()
         if not ok:

@@ -41,7 +41,7 @@ def radial(th):
 
 def fit_mode(tr, a, b, m0, m1):
     idx = np.arange(a, b + 1); idx = idx[tr.has[idx]]
-    t = (idx - a) / V.FPS; T = (b - a) / V.FPS
+    t = (idx - a) / V.FPS
     obs = tr.px[idx]
     i0, i1 = idx[0], idx[-1]
     t0, t1 = (i0 - a) / V.FPS, (i1 - a) / V.FPS

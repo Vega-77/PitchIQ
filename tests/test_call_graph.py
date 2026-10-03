@@ -123,9 +123,18 @@ PENDING_BY_DESIGN = {
 }
 
 
+def _local_only(p: Path) -> bool:
+    """Gitignored trees a checkout may hold that are not this project's code:
+    the TAPNext clone (google-deepmind/tapnet) and the per-version copies of
+    the 3D chain that `cv/balltrack/alltests/mk3d.py` writes as `h3d_<ver>/`.
+    """
+    return any(part == 'tapnet' or part.startswith('h3d_') for part in p.parts)
+
+
 def _module_files() -> list[Path]:
     return sorted(
-        p for p in CV.rglob('*.py') if '__pycache__' not in p.parts
+        p for p in CV.rglob('*.py')
+        if '__pycache__' not in p.parts and not _local_only(p.relative_to(CV))
     )
 
 

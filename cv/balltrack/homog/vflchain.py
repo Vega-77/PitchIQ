@@ -80,14 +80,6 @@ def ray_point(tr, i, z):
     return r[:2] / r[2] * (1 - z)
 
 
-def nearest_has(tr, f, lo, hi):
-    for d in range(0, hi - lo + 1):
-        for g in (f - d, f + d):
-            if lo <= g <= hi and tr.has[g]:
-                return g
-    return f
-
-
 def fit_chain(tr, lo_f, hi_f, t_init, t_lo, t_hi, inits):
     """inits: list of (nodes (m+1, 3), ks (m,)) starting points."""
     m = len(t_init) - 1
