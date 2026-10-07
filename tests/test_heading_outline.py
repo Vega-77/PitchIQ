@@ -4,14 +4,9 @@ A heading list is the table of contents a screen reader navigates by, and on
 this site it is not a property of a *file*. Every page here is a set of
 mutually exclusive views swapped by `showOnly`, so `coach/index.html` holds
 four h1s and is right to; only one of them is ever on screen. Count h1s per
-document and all seven pages pass. Count them per view and two of the eighteen
-had none at all:
-
-  * `calibrate/index.html` `#workspace` -- the file's one h1 lived in
-    `#intro`, which `calibrate.js:43` hides the instant the workspace opens.
-    The whole working state of the page, which is where a person spends every
-    second of the task, began at an h2 that reads "Click the highlighted
-    spot": an instruction, not a name for where you are.
+document and every page passes. Count them per view and two of the eighteen
+views the site had then had none at all. One was the calibrate page's
+workspace, which left the site with the xG sandbox on 2026-10-07. The other:
 
   * `halftime/index.html` `#view-report` -- only `#view-error` had one. The
     report is the entire purpose of the page and the thing a coach opens on a
@@ -36,13 +31,13 @@ Three ways a heading scan lies about this site, all of them measured:
     pinning is the two places an h2 *does* appear, so the convention stays a
     convention.
 
-3.  **An `sr-only` h1 is still an h1.** Four of them are load-bearing. A scan
-    scoring visible text finds four defects that are the fix.
+3.  **An `sr-only` h1 is still an h1.** Two of them are load-bearing. A scan
+    scoring visible text finds two defects that are the fix.
 
 And one that is structural rather than statistical: **view membership cannot
-be read off the markup.** `calibrate`'s `#intro` carries no `hidden` class
-until script adds one, so a heuristic over class names misses it -- which is
-how the defect survived being looked at. The list below is named by hand and
+be read off the markup.** The calibrate page's `#intro` carried no `hidden`
+class until script added one, so a heuristic over class names missed it --
+which is how its defect survived being looked at. The list below is named by hand and
 cross-checked against the code that actually does the switching, in both
 directions, the same way `SCRIPT_NAMED` is in `test_control_names.py`.
 """
@@ -62,9 +57,6 @@ VIEWS = {
     'player/index.html': ['view-empty', 'view-reports', 'view-match'],
     'live-tagging/index.html': ['view-setup', 'view-kickoff', 'view-live'],
     'halftime/index.html': ['view-error', 'view-report'],
-    # The one pair no scan could have found: the class is added at runtime.
-    'calibrate/index.html': ['intro', 'workspace'],
-    'xg-sandbox/index.html': [],
 }
 
 # Pages whose view set is a literal array in one module, and where it lives.
@@ -75,15 +67,11 @@ ARRAYS = {
     'halftime/index.html': 'halftime/halftime.js',
 }
 
-# The only two h2s on the site outside a dialog, and why each is not the
-# start of an h2 tier that does not exist. Both directions: grow a third and
-# this fails, delete one and this fails.
-LOOSE_H2 = {
-    'Click the highlighted spot':
-        'calibrate: an instruction above the stage, under the view h1',
-    'Model a shot':
-        'xg-sandbox: the panel head, the only section on a one-section page',
-}
+# Every h2 on the site outside a dialog, and why each is not the start of an
+# h2 tier that does not exist. Empty since the calibrate page and the xG
+# sandbox, which had the only two, left the site on 2026-10-07. An h2 added
+# outside a dialog has to be argued for here.
+LOOSE_H2 = {}
 
 HEADING = re.compile(r'<h([1-6])\b([^>]*)>(.*?)</h\1>', re.S | re.I)
 TAG = re.compile(r'<[^>]+>')
@@ -221,32 +209,28 @@ class TestEveryViewIntroducesItself:
                if o and o[0][0] != 1]
         assert bad == [], bad
 
-    def test_the_two_that_had_none_are_pinned(self):
-        """The actual defects, named, so a revert is a failing test.
+    def test_the_view_that_had_none_is_pinned(self):
+        """The actual defect, named, so a revert is a failing test.
 
-        Both are `sr-only`: the halftime masthead is a deliberate design
-        decision not to shout the score back at somebody who just watched the
-        half, and calibrate's h1 type scale would not fit beside the hint and
-        the button. Neither view has anywhere to put a visible title, which is
-        how both of them ended up with no title at all.
+        It is `sr-only`: the halftime masthead is a deliberate design decision
+        not to shout the score back at somebody who just watched the half, so
+        the view has nowhere to put a visible title, which is how it ended up
+        with no title at all.
         """
         found = {(rel, view): [h for h in o if h[0] == 1][0]
                  for rel, view, o in every_view()
-                 if (rel, view) in (('halftime/index.html', 'view-report'),
-                                    ('calibrate/index.html', 'workspace'))}
+                 if (rel, view) == ('halftime/index.html', 'view-report')}
         assert found == {
             ('halftime/index.html', 'view-report'):
                 (1, True, 'Half-time report'),
-            ('calibrate/index.html', 'workspace'):
-                (1, True, 'Marking the pitch'),
         }, found
 
     def test_a_heading_outside_every_view_belongs_to_all_of_them(self):
-        """Two pages title themselves once instead of once per view.
+        """Live tagging titles itself once instead of once per view.
 
-        Both are fullscreen tools whose views are steps in one task rather
-        than separate places, and both were commented in place by whoever
-        wrote them. They are the reason `outline` has to carry headings that
+        It is a fullscreen tool whose views are steps in one task rather than
+        separate places, and was commented in place by whoever wrote it. It is
+        the reason `outline` has to carry headings that
         sit outside the view boxes rather than only those inside.
         """
         loose = {}
@@ -261,9 +245,6 @@ class TestEveryViewIntroducesItself:
                     loose[rel] = text(m.group(3))
         assert loose == {
             'live-tagging/index.html': 'PitchIQ live tagging',
-            'xg-sandbox/index.html':
-                'xG sandbox %s model a shot and see its chance of scoring'
-                % chr(8212),
         }, loose
 
 
@@ -291,22 +272,6 @@ class TestTheListIsTheOneTheCodeUses:
         got = re.findall(r'<section id="([^"]+)" class="view\b', src)
         assert got == VIEWS['live-tagging/index.html'], got
 
-    def test_the_hand_toggled_pair_agrees(self):
-        """calibrate has no array and no `view` class -- it adds and removes
-        `hidden` by id. This is the pair a markup heuristic cannot see, and
-        the reason the whole list is named rather than derived."""
-        src = read('calibrate/calibrate.js')
-        got = set(re.findall(
-            r"byId\('([^']+)'\)\.classList\.(?:add|remove)\('hidden'\)", src))
-        assert got == set(VIEWS['calibrate/index.html']), got
-
-    def test_the_single_view_page_really_has_no_switcher(self):
-        """The empty list is a claim, so it gets checked like one."""
-        src = read('xg-sandbox/sandbox.js')
-        assert 'showOnly' not in src
-        assert 'VIEWS' not in src
-        assert 'class="view' not in read('xg-sandbox/index.html')
-
     def test_the_pages_are_the_pages_the_site_ships(self):
         on_disk = sorted(p.relative_to(ROOT).as_posix()
                          for p in list(ROOT.glob('*.html'))
@@ -331,19 +296,17 @@ class TestTheHouseStyleIsDeliberate:
         css = ' '.join(read('assets/app.css').split())
         assert 'This is the heading on every section in the app' in css
         # Both directions, by naming the exceptions rather than counting
-        # the rule: thirteen views go h1 -> h3, and the five that do not are
-        # the three with no sections at all and the two h2s below.
+        # the rule: twelve views go h1 -> h3, and the three that do not are
+        # the three with no sections at all.
         kept = sorted((rel, view) for rel, view, o in every_view()
                       if [h[0] for h in o][:2] != [1, 3])
         assert kept == [
-            ('calibrate/index.html', 'workspace'),
             ('coach/index.html', 'view-noteam'),
             ('halftime/index.html', 'view-error'),
             ('live-tagging/index.html', 'view-live'),
-            ('xg-sandbox/index.html', None),
         ], kept
 
-    def test_every_h2_outside_a_dialog_is_one_of_two(self):
+    def test_every_h2_outside_a_dialog_is_accounted_for(self):
         got = {}
         for rel, _, o in every_view():
             for level, _, words in o:
@@ -373,16 +336,15 @@ class TestTheHouseStyleIsDeliberate:
             assert ids[target][0] == 2, (target, ids[target])
 
     def test_an_sr_only_h1_is_still_an_h1(self):
-        """Four of them, and all four are load-bearing.
+        """Two of them, and both are load-bearing.
 
-        A scan reading visible text reports these as four missing titles,
+        A scan reading visible text reports these as two missing titles,
         which is the fix reported as the defect.
         """
         hidden = sorted({(rel, words) for rel, _, o in every_view()
                          for level, sr, words in o if level == 1 and sr})
         assert [rel for rel, _ in hidden] == [
-            'calibrate/index.html', 'halftime/index.html',
-            'live-tagging/index.html', 'xg-sandbox/index.html'], hidden
+            'halftime/index.html', 'live-tagging/index.html'], hidden
         assert '.sr-only' in read('assets/app.css')
 
 
@@ -446,7 +408,7 @@ class TestTheScanCouldBeLying:
         a scan that returns nothing satisfies all of them."""
         total = sum(len(o) for _, _, o in every_view())
         assert total >= 80, total
-        assert len(list(every_view())) == 18
+        assert len(list(every_view())) == 15
         for rel in HTML:
             assert any(o for r, _, o in every_view() if r == rel), rel
 

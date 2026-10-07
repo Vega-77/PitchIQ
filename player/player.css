@@ -8,16 +8,14 @@
 
 /* ---------------------------------------------------------------- hero */
 
+/* The squad's shirt (`.on-kit` in app.css), with the player's number on a
+   shirt of the trim colour beside their name. */
 .player-hero {
     display: flex;
     align-items: center;
-    gap: 22px;
+    gap: 26px;
     margin: 30px 0 8px;
-    padding: 26px 28px;
-    background: linear-gradient(150deg, var(--surface), var(--bg-raised) 70%);
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    overflow: hidden;
+    padding: 34px 34px 32px;
 }
 
 .player-hero h1 { margin: 2px 0 8px; }
@@ -38,13 +36,15 @@
     padding: 20px;
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: var(--radius-lg);
+    border-top: 4px solid var(--kit);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
 }
 .preview-n {
     display: block;
-    font-size: 1.7rem;
-    font-weight: 750;
-    letter-spacing: -1px;
+    font-family: var(--numeral);
+    font-size: 2rem;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
     color: var(--accent);
     line-height: 1;
@@ -52,10 +52,11 @@
 .preview-k {
     display: block;
     margin-top: 8px;
-    font-size: 0.74rem;
+    font-family: var(--display);
+    font-size: 0.86rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.1px;
+    letter-spacing: .08em;
     color: var(--text-faint);
 }
 .preview p {
@@ -90,7 +91,7 @@
 @media (max-width: 640px) {
     .player-hero {
         gap: 16px;
-        padding: 20px;
+        padding: 24px 22px;
         margin-top: 22px;
     }
     .preview { padding: 16px; }

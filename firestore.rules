@@ -142,6 +142,20 @@ service cloud.firestore {
       return s is string && s.size() > 0 && s.size() <= 80;
     }
 
+    // A team's colours: two lowercase hex codes, or none. assets/kit.js
+    // paints them into every page the team owns, through style properties,
+    // so they are held to the one shape it reads — a string that was not a
+    // colour would be a string in a style attribute.
+    function hexColour(s) {
+      return s is string && s.matches('^#[0-9a-f]{6}$');
+    }
+    function teamKit(k) {
+      return k == null || (k is map
+        && k.keys().hasOnly(['primary', 'secondary'])
+        && hexColour(k.get('primary', null))
+        && hexColour(k.get('secondary', null)));
+    }
+
     // A shirt number, or none. Null is ordinary — plenty of squads never fill
     // this in — and the range is the range shirts actually come in.
     function shirtNumber(n) {
@@ -304,7 +318,8 @@ service cloud.firestore {
       allow create: if ident()
         && exists(/databases/$(db)/documents/coachAllowlist/$(email()))
         && request.resource.data.keys().hasOnly(
-             ['name', 'coachUids', 'taggerUids', 'archived', 'createdAt', 'createdBy'])
+             ['name', 'coachUids', 'taggerUids', 'archived', 'createdAt', 'createdBy', 'kit'])
+        && teamKit(request.resource.data.get('kit', null))
         && request.resource.data.coachUids == [uid()]
         && request.resource.data.taggerUids == []
         && request.resource.data.createdBy == uid()
@@ -327,8 +342,9 @@ service cloud.firestore {
       // through `get` with a default so a team document written before the
       // field existed is not locked out of every future edit.
       allow update: if isCoach(t)
-        && changed(['name', 'coachUids', 'taggerUids', 'archived'])
+        && changed(['name', 'coachUids', 'taggerUids', 'archived', 'kit'])
         && teamName(request.resource.data.name)
+        && teamKit(request.resource.data.get('kit', null))
         && request.resource.data.get('archived', false) is bool
         && uid() in request.resource.data.coachUids
         && request.resource.data.coachUids.size() >= 1
@@ -749,6 +765,8 @@ service cloud.firestore {
             && (request.resource.data.get('playerName', null) == null
                 || personName(request.resource.data.playerName))
             && shirtNumber(request.resource.data.get('jerseyNumber', null))
+            // The squad's colours, copied so a player's page wears them.
+            && teamKit(request.resource.data.get('teamKit', null))
             && validVideo()
             && validHalfTimeClock();
 

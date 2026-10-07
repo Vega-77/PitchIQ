@@ -3,12 +3,14 @@ import {
     configWarning,
 } from './auth.js?v=121';
 import { mountPitchBackdrop } from './pitch-backdrop.js?v=121';
+import { HOUSE_KIT, applyKit, clearKit, kitTokens } from './kit.js?v=121';
+import { startMotion } from './motion.js?v=121';
 import { listMatches, listPlayers, seasonSummary } from './db.js?v=121';
 import {
     formGuide, nextFixture, whenLabel, seasonJobs,
 } from './report.js?v=121';
 import {
-    byId, setText, toast, showOnly, figure, signed, plural, localDate,
+    byId, setText, toast, showOnly, figure, signed, plural, localDate, kitPicker,
 } from './ui.js?v=121';
 
 const VIEWS = ['view-marketing', 'view-nowhere', 'view-routes'];
@@ -41,6 +43,10 @@ function teamCard(team, summary, matches = []) {
         <div class="team-card-body"></div>`;
 
     card.querySelector('.team-card-name').textContent = team.name;
+    // Each card in its own squad's colours, whatever the page is wearing.
+    for (const [name, value] of Object.entries(kitTokens(team.kit))) {
+        card.style.setProperty(name, value);
+    }
     const body = card.querySelector('.team-card-body');
 
     if (!summary || summary.played === 0) {
@@ -260,6 +266,10 @@ function renderInvites(user, invites) {
 }
 
 async function renderCoachWelcome(user, teams) {
+    // One squad: the home page is theirs and wears it. Several: the house
+    // kit, and each card carries its own.
+    if (teams.length === 1) applyKit(teams[0].kit ?? HOUSE_KIT);
+    else applyKit(HOUSE_KIT, { remember: false });
     mountPitchBackdrop(byId('welcome-hero'), { opacity: 0.16 });
 
     const firstName = (user.displayName || '').split(' ')[0];
@@ -325,10 +335,6 @@ async function renderCoachWelcome(user, teams) {
     quick.append(
         quickLink('●', 'Tag a match live', 'Record events from the touchline',
             'live-tagging/', true),
-        quickLink('▦', 'Calibrate a camera', 'Map footage onto the pitch',
-            'calibrate/'),
-        quickLink('△', 'xG sandbox', 'Try the shot-quality model',
-            'xg-sandbox/'),
     );
 
     showOnly('view-routes', VIEWS);
@@ -358,6 +364,95 @@ async function onSignedIn(user) {
     showOnly('view-nowhere', VIEWS);
 }
 
+// ---------------------------------------------------------------- the sample
+
+/**
+ * The sample report in the hero, with four keys under it that tag into it.
+ * Each tap moves the clock on a few minutes and does what the real pad's tap
+ * would: a goal adds to the score and the scorer's line, an assist to the
+ * assister's, and the moment lands in the list. Nothing is saved anywhere.
+ */
+const SAMPLE_START = { us: 2, them: 1, goals: 1, assists: 1, cards: 0, minute: 64 };
+const SAMPLE_MOMENTS = 3;
+let sample = { ...SAMPLE_START };
+let sampleMoments = '';
+
+function bump(id, value) {
+    const el = byId(id);
+    if (!el) return;
+    el.textContent = String(value);
+    el.classList.remove('bumped');
+    // Read a layout property so the class coming back restarts the animation.
+    void el.offsetWidth;
+    el.classList.add('bumped');
+}
+
+/** Full time: back to the hour mark, as the page loaded. */
+function resetSample() {
+    sample = { ...SAMPLE_START };
+    setText('sample-us', String(sample.us));
+    setText('sample-them', String(sample.them));
+    setText('sample-goals', String(sample.goals));
+    setText('sample-assists', String(sample.assists));
+    setText('sample-cards', String(sample.cards));
+    setText('sample-min', `${sample.minute}′`);
+    byId('sample-moments').innerHTML = sampleMoments;
+}
+
+function tagSample(kind) {
+    if (sample.minute >= 90) resetSample();
+    sample.minute = Math.min(90, sample.minute + 2 + Math.floor(Math.random() * 4));
+    // The player is still on, so their minutes are the clock.
+    bump('sample-min', `${sample.minute}′`);
+
+    let line;
+    if (kind === 'goal') {
+        sample.us += 1;
+        sample.goals += 1;
+        bump('sample-us', sample.us);
+        bump('sample-goals', sample.goals);
+        line = 'Scored';
+    } else if (kind === 'assist') {
+        sample.us += 1;
+        sample.assists += 1;
+        bump('sample-us', sample.us);
+        bump('sample-assists', sample.assists);
+        line = 'Assisted Sam Okafor';
+    } else if (kind === 'against') {
+        sample.them += 1;
+        bump('sample-them', sample.them);
+        line = 'Linden scored';
+    } else {
+        sample.cards += 1;
+        bump('sample-cards', sample.cards);
+        line = 'Yellow card';
+    }
+
+    const list = byId('sample-moments');
+    const item = document.createElement('li');
+    item.className = 'is-new';
+    const minute = document.createElement('span');
+    minute.textContent = `${sample.minute}′`;
+    item.append(minute, ` ${line}`);
+    list.append(item);
+    while (list.children.length > SAMPLE_MOMENTS) list.firstElementChild.remove();
+}
+
+function initSample() {
+    sampleMoments = byId('sample-moments').innerHTML;
+    for (const key of document.querySelectorAll('.pad-key')) {
+        key.addEventListener('click', () => tagSample(key.dataset.tag));
+    }
+
+    // The page tries the colours on as they are picked, and forgets them: a
+    // visitor's choice here is not anybody's team.
+    const slot = byId('landing-kit-slot');
+    slot.append(kitPicker({
+        kit: HOUSE_KIT,
+        onChange: (kit) => applyKit(kit, { remember: false }),
+    }));
+}
+
 function onSignedOut() {
     byId('btn-signin').classList.remove('hidden');
     byId('btn-signout').classList.add('hidden');
@@ -373,7 +468,8 @@ function init() {
 
     attachSignIn(byId('btn-signin'));
     attachSignIn(byId('btn-hero-signin'));
-    byId('btn-signout').addEventListener('click', () => signOut());
+    byId('btn-signout').addEventListener('click', () => { clearKit(); signOut(); });
+    initSample();
 
     onUser((user) => {
         if (!user) { onSignedOut(); return; }
@@ -385,3 +481,4 @@ function init() {
 }
 
 init();
+startMotion();

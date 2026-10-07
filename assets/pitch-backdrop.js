@@ -90,7 +90,18 @@ export function mountPitchBackdrop(container, options = {}) {
     const wrap = document.createElement('div');
     wrap.className = 'pitch-backdrop';
     wrap.setAttribute('aria-hidden', 'true');
-    wrap.appendChild(pitchSvg(options));
+    const svg = pitchSvg(options);
+    // Every stroke measured as one unit long, so a single dash pattern in
+    // app.css can draw all of them in from nothing at the same pace. Only
+    // here: the same markings under a shot map are a reference, not a show.
+    for (const group of svg.children) {
+        for (const line of group.children) {
+            if (line.getAttribute('stroke') === 'currentColor') {
+                line.setAttribute('pathLength', '1');
+            }
+        }
+    }
+    wrap.appendChild(svg);
 
     container.prepend(wrap);
     return wrap;

@@ -24,6 +24,7 @@ import {
 } from '../assets/events.js?v=121';
 import { syncState, safeToClose } from '../assets/report.js?v=121';
 import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=121';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=121';
 import { byId, toast, clockText, timelineRow, tally, groupHead }
     from '../assets/ui.js?v=121';
 import { openSheet, closeSheet, mountSheets } from './sheet.js?v=121';
@@ -389,6 +390,7 @@ function renderTeamPicker() {
 }
 
 async function chooseTeam(team) {
+    applyKit(team.kit ?? HOUSE_KIT);
     state.teamId = team.id;
     state.teamName = team.name || 'Us';
     byId('setup-sub').textContent = state.teamName;

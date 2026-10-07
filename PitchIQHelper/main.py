@@ -238,10 +238,9 @@ def load_data(offline=False):
 # ---------------------------------------------------------------------------
 #
 # Order matters. The model takes a bare 12-wide float array with no names
-# attached, so this list is mirrored by hand in two other places — FEATURE_ORDER
-# in cv/xg_bridge.py and in xg-sandbox/xg-model.js — and a reordering here is
-# silent everywhere else. tests/test_xg_parity.py checks the other two against
-# each other; nothing can check them against this one but a person.
+# attached, so this list is mirrored by hand in one other place — FEATURE_ORDER
+# in cv/xg_bridge.py — and a reordering here is silent there. Nothing can check
+# the two against each other but a person.
 FEATURES = [
     "distance_to_goal", "angle_to_goal",
     "is_foot", "is_header",

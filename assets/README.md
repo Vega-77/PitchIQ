@@ -66,8 +66,6 @@ coach/             dashboard: season, roster, matches, staff, player reports
 player/            portal: a player's own reports only
 live-tagging/      match-day tablet tool
 halftime/          the three-minute read for the touchline
-calibrate/         camera calibration
-xg-sandbox/        the manual xG model, with the ONNX file it loads
 ```
 
 Three rules worth keeping:

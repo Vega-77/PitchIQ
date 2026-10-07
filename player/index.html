@@ -6,8 +6,9 @@
     <title>PitchIQ — My reports</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Saira+Condensed:wght@600;700;800&family=Saira:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/app.css?v=121">
+    <script src="../assets/kit-boot.js?v=121"></script>
     <link rel="stylesheet" href="player.css?v=121">
 </head>
 <body>
@@ -28,7 +29,7 @@
     <!-- Most players land here first, before their coach has published
          anything, so it explains what is coming rather than just saying no. -->
     <section id="view-empty" class="hidden">
-        <header class="player-hero has-backdrop empty-hero" id="empty-hero">
+        <header class="player-hero has-backdrop on-kit empty-hero" id="empty-hero">
             <div class="grow">
                 <div class="eyebrow-mini">Your season</div>
                 <h1>Nothing published yet</h1>
@@ -96,7 +97,7 @@
     </section>
 
     <section id="view-reports" class="hidden wide-report">
-        <header class="player-hero has-backdrop" id="player-hero">
+        <header class="player-hero has-backdrop on-kit" id="player-hero">
             <div class="player-badge" id="player-number">—</div>
             <div class="grow">
                 <div class="eyebrow-mini" id="player-sub"></div>
@@ -291,8 +292,6 @@
         <a href="../">Home</a>
         <a href="../coach/">Coach</a>
         <a href="../player/">Player</a>
-        <a href="../calibrate/">Calibrate</a>
-        <a href="../xg-sandbox/">xG sandbox</a>
     </nav>
     <span class="foot-note">PitchIQ &middot; beta, built for one high school season</span>
 </footer>

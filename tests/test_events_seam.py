@@ -74,8 +74,7 @@ HANDLE = 'cvEvents'
 
 # The served JavaScript. `sample-report.js` is a fixture of hand-written
 # numbers for the demo page, not a reader of anything published.
-SERVED = ['assets', 'coach', 'player', 'halftime', 'live-tagging',
-          'calibrate', 'xg-sandbox']
+SERVED = ['assets', 'coach', 'player', 'halftime', 'live-tagging']
 SKIP = {'sample-report.js'}
 
 # Array methods, so `events.length` does not arrive as a figure the pipeline

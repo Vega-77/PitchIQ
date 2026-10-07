@@ -66,7 +66,7 @@ jobs:
       # The pure suite imports only dependency-free modules, so it needs no
       # install at all — which is the property that keeps it fast enough to run
       # on every save locally.
-      - run: node --test tests/video.test.js
+      - run: node --test tests/video.test.js tests/kit.test.js
 
       # And the page suite, which needs no install either — the DOM and the
       # Firebase SDK it runs against are both in tests/, for the same reason.

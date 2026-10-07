@@ -87,8 +87,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 Q3 = chr(34) * 3
 
-SERVED = ['assets', 'coach', 'player', 'halftime', 'live-tagging',
-          'calibrate', 'xg-sandbox']
+SERVED = ['assets', 'coach', 'player', 'halftime', 'live-tagging']
 SKIP = {'sample-report.js'}
 
 BUILTIN = {

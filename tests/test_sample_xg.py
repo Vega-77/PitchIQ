@@ -8,7 +8,7 @@ the figures — which is the opposite of what it is for.
 So each shot in the sample now has a **freeze frame** behind it: where the
 keeper was standing, and who was between the ball and the goal. Those frames are
 below, and they are the record of how each figure was produced. This test rebuilds
-them, runs the real `xg-sandbox/xg_model8.onnx`, and asserts the fixture carries
+them, runs the real `cv/xg_model8.onnx`, and asserts the fixture carries
 what came back.
 
 Which makes it two guards at once:

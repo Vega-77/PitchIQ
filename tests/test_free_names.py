@@ -3,13 +3,14 @@
 There is no build step here, no bundler and no linter, so a name a module
 references but never binds is caught by nothing. `node --check` reads syntax
 and a free identifier is perfectly good syntax. The Python suite never
-evaluates browser JS. The JS suite does not import `calibrate/` at all. The
+evaluates browser JS. The JS suite does not import every module either. The
 failure is a `ReferenceError` at runtime, on whatever code path a person
 happens to reach by hand -- which is to say, it ships.
 
 It has shipped twice.
 
-`calibrate/calibrate.js` drew the pitch overlay from `L` and `W`, and d7d25f5
+The calibrate page (gone since 2026-10-07) drew the pitch overlay from `L`
+and `W`, and d7d25f5
 deleted `const { length_m: L, width_m: W } = pitchDims();` while leaving eight
 references to them behind. For eight days every redraw past the fourth placed
 landmark threw, and because `draw()` calls the overlay before `drawPoints`,
@@ -75,9 +76,9 @@ scrollY scrollX
 # Globals a *page* puts there with a script tag, which is a fact about this
 # repo and is therefore checked in both directions: the name must still be
 # referenced by some module, and the tag must still be on the page named here.
-PAGE_GLOBALS = {
-    'ort': ('xg-sandbox/index.html', 'onnxruntime-web'),
-}
+# Empty since the xG sandbox, whose page loaded onnxruntime-web as `ort`, left
+# the site on 2026-10-07. Shape: {'ort': ('page/index.html', 'onnxruntime-web')}.
+PAGE_GLOBALS = {}
 
 # `name(` after one of these opens a condition, not a parameter list.
 BLOCK_HEADS = {'if', 'while', 'for', 'switch', 'catch', 'return', 'typeof',

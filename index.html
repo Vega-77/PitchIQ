@@ -6,8 +6,9 @@
     <title>PitchIQ — match stats from the sideline</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Saira+Condensed:wght@600;700;800&family=Saira:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/app.css?v=121">
+    <script src="assets/kit-boot.js?v=121"></script>
     <link rel="stylesheet" href="assets/landing.css?v=121">
 </head>
 <body>
@@ -16,8 +17,6 @@
 <header class="topbar">
     <a class="brand" href="./">PitchIQ <span>beta</span></a>
     <div class="topbar-user">
-        <a href="calibrate/">Calibrate</a>
-        <a href="xg-sandbox/">xG sandbox</a>
         <span id="user-chip" class="hidden"></span>
         <button id="btn-signin" class="btn small primary">Sign in</button>
         <button id="btn-signout" class="btn small ghost hidden">Sign out</button>
@@ -29,68 +28,87 @@
 
     <!-- signed out -->
     <section id="view-marketing">
-        <div class="hero has-backdrop" id="landing-hero">
+        <div class="hero has-backdrop on-kit" id="landing-hero">
             <div class="hero-copy">
-                <div class="eyebrow">High school football analytics</div>
-                <h1>Every corner, card and goal — <em>recorded properly</em>.</h1>
+                <h1>Your team's match stats, tagged from the sideline</h1>
                 <p class="lede">
-                    Tag a match from the sideline on a tablet. PitchIQ turns those taps
-                    into minutes played, goals and assists, cards and team totals, then
-                    gives every player a private report of their own game.
+                    Tap what happens on a phone or tablet during the game. PitchIQ
+                    works out minutes played, goals, assists and cards from those
+                    taps, and gives every player a private page with their own
+                    numbers.
                 </p>
                 <div class="hero-actions">
                     <button id="btn-hero-signin" class="btn primary">Sign in with Google</button>
-                    <a class="btn" href="xg-sandbox/">Try the xG sandbox</a>
+                    <a class="btn" href="#try-colours">See it in your colours</a>
                 </div>
-                <p class="muted">
+                <p class="muted hero-note">
                     Coaches need an invite to create a team. Players sign in with the
                     address their coach put on the roster.
                 </p>
             </div>
-
-            <!-- What the player actually receives, rather than a description of
-                 it. Static and clearly a sample — it is the product, and the
-                 right half of the hero was empty without it. -->
-            <aside class="hero-sample" aria-label="Example of a player's match report">
+            <!-- What a player receives, rather than a description of it. Plainly
+                 labelled a sample, and the buttons under it tag into it the way
+                 the real pad does, so the one thing on this page that shows the
+                 product also shows how the numbers get there. -->
+            <aside class="hero-sample" aria-label="Sample of a player's match report">
                 <div class="sample-head">
-                    <span class="sample-tag">A player's report</span>
-                    <span class="sample-score">2 <span>&ndash;</span> 1</span>
+                    <span class="sample-tag">Sample report</span>
+                    <span class="sample-score"><b id="sample-us">2</b><i>&ndash;</i><b id="sample-them">1</b></span>
                 </div>
-                <div class="sample-opp">vs Linden &middot; 12 Sept</div>
+                <div class="sample-opp">Jordan Reyes &middot; vs Linden</div>
                 <div class="sample-grid">
-                    <div class="sample-stat"><b>78&prime;</b><span>Minutes</span></div>
-                    <div class="sample-stat"><b>1</b><span>Goal</span></div>
-                    <div class="sample-stat"><b>1</b><span>Assist</span></div>
-                    <div class="sample-stat"><b>41</b><span>Touches</span></div>
+                    <div class="sample-stat"><b id="sample-min">64&prime;</b><span>Minutes</span></div>
+                    <div class="sample-stat"><b id="sample-goals">1</b><span>Goals</span></div>
+                    <div class="sample-stat"><b id="sample-assists">1</b><span>Assists</span></div>
+                    <div class="sample-stat"><b id="sample-cards">0</b><span>Cards</span></div>
                 </div>
-                <ul class="sample-moments">
-                    <li><span>23&prime;</span> You assisted Jordan Cho</li>
-                    <li><span>61&prime;</span> You scored</li>
-                    <li><span>74&prime;</span> Came off</li>
+                <ul class="sample-moments" id="sample-moments">
+                    <li><span>23&prime;</span> Assisted Sam Okafor</li>
+                    <li><span>61&prime;</span> Scored</li>
                 </ul>
-                <p class="sample-foot">Only they and their coaches can see it.</p>
+                <fieldset class="sample-pad">
+                    <legend class="sample-pad-label">Tag into this sample</legend>
+                    <div class="sample-pad-keys">
+                        <button type="button" class="pad-key" data-tag="goal">Jordan scores</button>
+                        <button type="button" class="pad-key" data-tag="assist">Jordan assists</button>
+                        <button type="button" class="pad-key" data-tag="against">They score</button>
+                        <button type="button" class="pad-key is-card" data-tag="card">Yellow card</button>
+                    </div>
+                </fieldset>
             </aside>
         </div>
+
+        <section class="block" id="try-colours">
+            <h3>In your school's colours</h3>
+            <div class="card try-kit">
+                <p class="try-kit-copy">
+                    Each team picks two colours when it is set up, and every page for
+                    that team uses them, down to each player's report. Pick a pair to
+                    see this page in it.
+                </p>
+                <div id="landing-kit-slot"></div>
+            </div>
+        </section>
 
         <section class="block">
             <h3>How a match works</h3>
             <div class="flow">
                 <article class="flow-step">
-                    <span class="step-n">STEP 01</span>
+                    <span class="step-n" aria-hidden="true">1</span>
                     <h4>Tag from the touchline</h4>
                     <p>One tap per event. The app asks who a corner was awarded to,
                     which card was shown and who assisted — so the record still makes
                     sense a month later. Works with no signal; taps sync when it returns.</p>
                 </article>
                 <article class="flow-step">
-                    <span class="step-n">STEP 02</span>
+                    <span class="step-n" aria-hidden="true">2</span>
                     <h4>Check the numbers</h4>
                     <p>Team totals, a full timeline, and minutes played per player —
                     correct across substitutions and re-entry, which is where hand-kept
                     stats usually go wrong.</p>
                 </article>
                 <article class="flow-step">
-                    <span class="step-n">STEP 03</span>
+                    <span class="step-n" aria-hidden="true">3</span>
                     <h4>Publish reports</h4>
                     <p>Each player gets their own private page. They see their goals,
                     assists, cards and minutes — and never a teammate's.</p>
@@ -204,9 +222,8 @@
                         <p>These are the only stats that need the pitch itself. A box on
                         screen has to become a position in metres, and that mapping is one
                         fit to the painted lines — which holds exactly as long as the
-                        camera holds still. The maths is built and agrees between the
-                        Python pipeline and the browser. What is missing is an afternoon
-                        of footage shot the right way.</p>
+                        camera holds still. The maths is built into the video pipeline.
+                        What is missing is an afternoon of footage shot the right way.</p>
                         <ul class="ev-needs">
                             <li>A camera on a tripod, not a phone in a hand</li>
                             <li>One clean frame with the pitch markings visible</li>
@@ -244,7 +261,7 @@
 
     <!-- signed in with somewhere to go -->
     <section id="view-routes" class="hidden">
-        <header class="welcome has-backdrop" id="welcome-hero">
+        <header class="welcome has-backdrop on-kit" id="welcome-hero">
             <div class="welcome-main">
                 <div class="eyebrow-mini" id="welcome-date"></div>
                 <h1 id="welcome">Welcome back</h1>
@@ -294,8 +311,6 @@
         <a href="./">Home</a>
         <a href="./coach/">Coach</a>
         <a href="./player/">Player</a>
-        <a href="./calibrate/">Calibrate</a>
-        <a href="./xg-sandbox/">xG sandbox</a>
     </nav>
     <span class="foot-note">PitchIQ &middot; beta, built for one high school season</span>
 </footer>

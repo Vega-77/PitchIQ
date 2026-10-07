@@ -88,13 +88,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 CSS = ['assets/app.css', 'assets/landing.css', 'coach/coach.css',
-       'player/player.css', 'live-tagging/tagging.css', 'halftime/halftime.css',
-       'calibrate/calibrate.css', 'xg-sandbox/sandbox.css']
+       'player/player.css', 'live-tagging/tagging.css', 'halftime/halftime.css']
 HTML = ['index.html', 'coach/index.html', 'player/index.html',
-        'live-tagging/index.html', 'halftime/index.html',
-        'calibrate/index.html', 'xg-sandbox/index.html']
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime',
-           'calibrate', 'xg-sandbox']
+        'live-tagging/index.html', 'halftime/index.html']
+JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime']
 
 SITES = frozenset({'css-decl', 'css-use', 'js-setprop', 'js-use', 'comments'})
 

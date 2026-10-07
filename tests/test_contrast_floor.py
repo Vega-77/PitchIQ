@@ -74,23 +74,20 @@ ROOT = Path(__file__).resolve().parents[1]
 # is guaranteed to see -- was scored by no contrast test at all.
 SHEETS = ['assets/app.css', 'assets/landing.css', 'coach/coach.css',
           'player/player.css', 'live-tagging/tagging.css',
-          'halftime/halftime.css', 'calibrate/calibrate.css',
-          'xg-sandbox/sandbox.css']
+          'halftime/halftime.css']
 # Only the coach and player views ever call window.print(). A page nobody
 # prints cannot have a paper defect, and scoring one is how a scanner invents
 # work for somebody.
 PRINTABLE = ['assets/app.css', 'coach/coach.css', 'player/player.css']
 HTML = ['index.html', 'coach/index.html', 'player/index.html',
-        'live-tagging/index.html', 'halftime/index.html',
-        'calibrate/index.html', 'xg-sandbox/index.html']
+        'live-tagging/index.html', 'halftime/index.html']
 # The only two pages that call window.print(). A paper question asked of
 # any other page is a question about a medium that page never reaches --
 # and asking it wrongly is not harmless: `.brand` sits inside the hidden
 # topbar on both of these and outside it on the tagging page, so widening
 # the universe by five files turned a hidden class into a false defect.
 PRINTS = ['coach/index.html', 'player/index.html']
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime',
-           'calibrate', 'xg-sandbox']
+JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime']
 
 # The four colours a block can land on. Anything that sets no background of its
 # own inherits one of these, and is scored against the worst.
@@ -98,17 +95,14 @@ PAGE = ['--bg', '--bg-raised', '--surface', '--surface-hi']
 # Grounds a sized element can paint without thereby becoming a mark: the page
 # colours plus `--line`, which is what a divider or a track is drawn in.
 GROUND_TOKENS = set(PAGE) | {'--line'}
-# Black is the one literal used as ground rather than as ink: it is what sits
-# behind the video frame and behind the calibration stage and loupe, and
-# nothing is being measured by it, so a sized element painting it is still a
-# container rather than a mark. White was in this set too for a while and had
-# to come out: the only sized element painting white is the toggle knob in the
-# sandbox, which is a mark, and exempting it silenced a real datum to no
-# purpose — it scores 15.31 and passes on its own. A waiver covering
-# something that never needed it is how one grows until something real falls
-# through. The universe is pinned next door, both the sites and which of them
-# the waiver actually changes an answer for.
-GROUND_LITERALS = {'#000', '#000000'}
+# Literal colours a sized element may paint as ground rather than as a mark.
+# Empty, and kept as the place a new one would have to be argued for. Black
+# was here for the calibration stage and its loupe, and white was here before
+# that for the xG sandbox's toggle knob; both pages left the site on
+# 2026-10-07, and no sized element paints a bare colour any more. A waiver
+# covering something that never needed it is how one grows until something
+# real falls through. The universe is pinned next door.
+GROUND_LITERALS = frozenset()
 
 # A class the printable markup never contains because a script makes it, inside
 # an element the print theme hides. The ancestry derivation below reads markup,
@@ -386,6 +380,11 @@ def ancestor_ground(rules, sel):
     colours there scored near-black lettering against the dark page instead of
     against the bright accent it is really printed on, and reported 1.01 for
     one of the highest-contrast pairs on the site.
+
+    The prefix may be declared in `app.css` rather than the sheet at hand:
+    `.on-kit` and `.topbar` are painted in the team's shirt colour there, and
+    `coach/coach.css` letters things inside them. `rules` is the sheet's own
+    rules laid over app.css's, so a sheet can still repaint a shared prefix.
     """
     parts = sel.split()
     for k in range(len(parts) - 1, 0, -1):
@@ -429,13 +428,20 @@ def scored(sheets, *, printed, exempt=True):
     t = theme(printed)
     skip = hidden_pattern() if printed and exempt else None
     out = []
-    for rel in sheets:
+
+    def own_rules(rel):
         # On screen the print theme's rules do not exist, so they are cut out
         # rather than scored against a theme they never meet.
         src = read(rel) if printed else without_print(read(rel))
-        rules = {}
+        found = {}
         for sel, body in blocks(src):
-            rules.setdefault(sel.splitlines()[-1].strip(), body)
+            found.setdefault(sel.splitlines()[-1].strip(), body)
+        return src, found
+
+    _, shared = own_rules('assets/app.css')
+    for rel in sheets:
+        src, mine = own_rules(rel)
+        rules = {**shared, **mine}
         for sel, body in blocks(src):
             head = sel.splitlines()[-1].strip()
             where = '%s %s' % (rel, head[:44])
@@ -460,11 +466,15 @@ def scored(sheets, *, printed, exempt=True):
 
             if not SIZED.search(body) or HAIRLINE.search(body):
                 continue                  # a container, or a 1px rule
+            # A mark is read against what it is drawn on: the page, unless an
+            # ancestor in its own selector paints a ground (the crest on the
+            # kit-coloured bar).
+            under = ancestor_ground(rules, head)
             for m in BG.finditer(body):
                 for v in values(m.group(1)):
                     if v in GROUND_TOKENS or v in GROUND_LITERALS:
                         continue          # a sized container is still a ground
-                    out.append(('mark', GRAPHIC_FLOOR, v, None, where))
+                    out.append(('mark', GRAPHIC_FLOOR, v, under, where))
     return t, out
 
 
@@ -549,14 +559,13 @@ class TestAHairlineIsARuleNotADatum:
                             out[sel.strip()] = tok
         return out
 
-    def test_four_rules_are_one_pixel_thick(self):
-        # The fourth arrived with `landing.css`, which no contrast test had
-        # ever scored. It is a 22px dash before a section eyebrow — the same
-        # kind of thing as the other three, and the same answer.
+    def test_three_rules_are_one_pixel_thick(self):
+        # There were four while the landing page had an eyebrow over its
+        # headline with a 22px dash in front of it. The eyebrow went with the
+        # School Colours redesign (2026-10-07).
         assert self.hairlines() == {'.record-sep': '--line-hi',
                                     '.tally-sep': '--line-hi',
-                                    '.tick-half': '--mark-quiet',
-                                    '.eyebrow::before': '--accent'}
+                                    '.tick-half': '--mark-quiet'}
 
     def test_only_two_of_them_need_the_exemption(self):
         # `.tick-half` is the half-time divider on the timeline, and it clears
@@ -570,13 +579,13 @@ class TestAHairlineIsARuleNotADatum:
         assert needed == {'.record-sep', '.tally-sep'}, needed
 
     def test_the_exemption_changes_a_verdict(self):
-        # Both are `--line-hi`, which is 1.49 against the lightest surface. A
+        # Both are `--line-hi`, which is 1.41 against the lightest surface. A
         # divider that cleared 3.0 would be competing with the numbers it
         # separates, which is the opposite of a divider's job.
         t = theme(False)
         r = min(ratio(parse(t['--line-hi']), parse(t[p])) for p in PAGE)
         assert r < GRAPHIC_FLOOR
-        assert round(r, 2) == 1.49
+        assert round(r, 2) == 1.41
 
 
 class TestPaperOnlyScoresWhatReachesPaper:
@@ -628,17 +637,18 @@ class TestPaperOnlyScoresWhatReachesPaper:
         assert 0 < len(kept) < len(every)
         assert len(every) - len(kept) > 20, len(every) - len(kept)
 
-    def test_the_paper_accent_is_still_the_one_that_passes(self):
+    def test_the_paper_accent_is_the_screen_accent(self):
         # `.steps li::before` was --accent on its own --accent-dim over the
         # lightest paper surface at 4.23, under the 4.5 its 0.8rem counters
-        # are owed, and the print-hide exemption was the only thing keeping
-        # the paper scan green. Then the identical pair turned up at
-        # .job-count and .staff-initial, which do print — so the fix was one
-        # darker paper accent rather than three patched rules.
-        t = theme(True)
-        r = ratio(parse(t['--accent']),
-                  over(parse(t['--accent-dim']), parse(t['--surface-hi'])))
-        assert round(r, 2) == 5.33, r
+        # are owed, and for a while paper carried its own darker accent to
+        # fix it and the identical pair at .job-count and .staff-initial.
+        # Since the light redesign the screen accent is already ink on a
+        # light ground, so paper keeps it, and the pair is far clear.
+        screen, paper = theme(False), theme(True)
+        assert paper['--accent'] == screen['--accent']
+        r = ratio(parse(paper['--accent']),
+                  over(parse(paper['--accent-dim']), parse(paper['--surface-hi'])))
+        assert round(r, 2) == 11.27, r
 
     def test_the_exemption_is_what_keeps_paper_green(self):
         """Exactly what the waiver is carrying, named one row at a time.
@@ -660,17 +670,17 @@ class TestPaperOnlyScoresWhatReachesPaper:
         every exempting name is checked against the hide list here rather
         than taken on the pattern's word. A waiver that grows quietly is how
         something real eventually falls through one.
+
+        Empty again since the School Colours redesign (2026-10-07). All five
+        rows were near-black or pale-pink lettering on the bright accent of
+        the dark theme. The accent is navy now, lettered in white, and it is
+        legible on paper without help, so the waiver carries nothing today.
+        It stays because the next button nobody prints might need it.
         """
         assert failures(PRINTABLE, printed=True) == []
         rows = failures(PRINTABLE, printed=True, exempt=False)
         assert [(r, ink, where.split()[-1]) for r, _, _, ink, _, where
-                in rows] == [
-            (1.24, '#ffd4d4', '.toast.error'),
-            (2.86, '#04120f', '.btn.primary'),
-            (2.86, '#04120f', '.btn.tiny.on'),
-            (2.86, '#04120f', '.chip.on'),
-            (2.86, '#04120f', '.skip-link'),
-        ], rows
+                in rows] == [], rows
         # `.toast` and `.btn` are written into the print hide list. `.chip` is
         # not, and cannot be: no printable markup contains one, because a
         # script makes them inside a container the list does hide. That claim
@@ -718,13 +728,13 @@ class TestTheMapsPaintWithCurrentColor:
                                  'assets/pitch-backdrop.js'], users
 
     def test_the_exemption_changes_a_verdict(self):
-        # 4.14 passes 3.0 and fails 4.5. Which floor applies is the whole
+        # 4.10 passes 3.0 and fails 4.5. Which floor applies is the whole
         # question, and it is the only exemption here that turns on a judgement
         # about what a declaration means rather than what it says.
         t = theme(False)
         r = ratio(parse(t['--mark-quiet']), parse(t['--surface']))
         assert GRAPHIC_FLOOR <= r < TEXT_FLOOR
-        assert round(r, 2) == 4.14
+        assert round(r, 2) == 4.10
 
 
 class TestTheScannerCanSeeTheRepo:
@@ -734,13 +744,17 @@ class TestTheScannerCanSeeTheRepo:
 
     def test_the_theme_resolves_on_both_media(self):
         screen, paper = theme(False), theme(True)
-        # Twenty-five, not the theme's twenty-seven: `--report` is declared
-        # inside a min-width query rather than `:root`, and `--w` is written
-        # from JavaScript. Neither is a colour, so neither belongs here.
-        assert len(screen) == 25, sorted(screen)
-        assert screen['--surface'] == '#14201c'
+        # Thirty-nine: the dark theme's twenty-five plus fourteen from the
+        # School Colours redesign -- the kit (six tokens), --on-accent, a chip
+        # tint for each state colour, two type faces, a lifted shadow and an
+        # easing curve. `--report` and `--w` are still left out: one is
+        # declared inside a min-width query, the other written from
+        # JavaScript, and neither is a colour. Paper differs from the screen in five: it turns
+        # every tinted ground white and darkens the two hairline colours.
+        assert len(screen) == 39, sorted(screen)
+        assert screen['--surface'] == '#ffffff'
         assert paper['--surface'] == '#ffffff'
-        assert sum(1 for k in screen if screen[k] != paper.get(k)) == 15
+        assert sum(1 for k in screen if screen[k] != paper.get(k)) == 5
 
     def test_the_maths_agrees_with_the_published_examples(self):
         # WCAG's own worked pair, and the two ends of the scale.

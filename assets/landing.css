@@ -1,187 +1,278 @@
 /* Landing page only. Shared tokens live in app.css. */
 
-/* Two columns from tablet up. The copy was capped at 46rem for line length,
-   which is right — but it left the other half of a 1400px screen empty, and a
-   hero that uses 55% of the fold reads as a page that has not finished
-   loading. The sample report fills it with the actual product. */
+/* The hero is the shirt (`.on-kit` in app.css): the pitch markings chalked on
+   it, the sleeve stripes in the far corner, and on it the one thing on the
+   page that shows the product — a sample report you can tag into. Two
+   columns from tablet up, so the report sits beside the sentence that
+   explains it rather than a scroll away. */
 .hero {
     position: relative;
-    padding: 68px 0 20px;
+    margin: 34px 0 0;
+    padding: 56px 48px 52px;
     display: grid;
     grid-template-columns: 1fr;
-    gap: 32px;
+    gap: 36px;
     align-items: center;
 }
-.hero-copy { max-width: 46rem; min-width: 0; }
+.hero-copy { max-width: 40rem; min-width: 0; }
 
 @media (min-width: 900px) {
     .hero {
-        grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+        grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
         gap: 56px;
-        padding-bottom: 40px;
     }
 }
 
-/* A sample player report. Deliberately labelled as one — it is not live data,
-   and a mocked-up screenshot presented as real is the kind of thing this
-   project spends a lot of effort not doing elsewhere. */
+.hero h1 {
+    font-size: clamp(36px, 5.6vw, 62px);
+    line-height: .98;
+    letter-spacing: -0.01em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+}
+.hero .lede { font-size: 1.12rem; }
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 30px 0 18px; }
+.hero-note { font-size: 0.88rem; max-width: 46ch; margin: 0; }
+
+/* A sample player report, labelled as one. It is a white card laid on the
+   shirt, turned a degree or two as a printout would be, and it squares up
+   when you reach for it. */
 .hero-sample {
-    background: linear-gradient(160deg, var(--surface), var(--bg-raised));
-    border: 1px solid var(--line);
+    position: relative;
+    background: var(--surface);
+    color: var(--text);
     border-radius: var(--radius-lg);
-    padding: 20px 22px 18px;
-    box-shadow: var(--shadow);
+    padding: 22px 22px 18px;
+    box-shadow: 0 30px 60px -20px rgba(0, 0, 0, .55), 0 0 0 1px rgba(0, 0, 0, .06);
+    transform: rotate(1.6deg);
+    transition: transform .5s var(--ease-out);
+}
+.hero-sample::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 6px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: var(--kit);
+}
+@media (hover: hover) {
+    .hero-sample:hover { transform: rotate(0) translateY(-4px); }
 }
 .sample-head {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
 }
 .sample-tag {
-    font-size: 0.72rem;
+    font-family: var(--display);
+    font-size: 0.86rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.2px;
+    letter-spacing: .12em;
     color: var(--accent);
 }
 .sample-score {
-    font-size: 1.5rem;
-    font-weight: 750;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    font-family: var(--numeral);
+    font-size: 1.9rem;
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.5px;
 }
-.sample-score span { color: var(--text-faint); font-weight: 400; }
-.sample-opp { font-size: 0.82rem; color: var(--text-faint); margin-top: 2px; }
+.sample-score b { font-weight: 400; display: inline-block; }
+.sample-score i { font-style: normal; color: var(--text-faint); font-size: 1.2rem; }
+.sample-opp {
+    font-family: var(--display);
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-dim);
+    margin-top: 2px;
+}
 
 .sample-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 8px;
-    margin: 16px 0 14px;
+    margin: 16px 0 12px;
 }
 .sample-stat {
     background: var(--bg-raised);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 10px 8px;
+    padding: 10px 6px 8px;
     text-align: center;
     min-width: 0;
 }
 .sample-stat b {
     display: block;
-    font-size: 1.15rem;
-    font-weight: 750;
+    font-family: var(--numeral);
+    font-size: 1.45rem;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.5px;
 }
 .sample-stat span {
     display: block;
-    font-size: 0.7rem;
-    font-weight: 650;
+    font-family: var(--display);
+    font-size: 0.78rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .7px;
+    letter-spacing: .08em;
     color: var(--text-faint);
     margin-top: 2px;
 }
 
-.sample-moments { list-style: none; margin: 0; padding: 0; }
+/* A figure that just changed jumps once, so the eye goes to it. */
+.bumped { animation: bump .5s var(--ease-out); }
+@keyframes bump {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.35); color: var(--accent); }
+    100% { transform: scale(1); }
+}
+
+/* Always three rows tall, newest at the bottom, so the keys underneath stay
+   exactly where the thumb left them however many moments have been tagged. */
+.sample-moments {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    height: calc(3 * 2.3em);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    overflow: hidden;
+    font-size: 0.9rem;
+}
 .sample-moments li {
+    flex: none;
+    height: 2.3em;
+    box-sizing: border-box;
     display: flex;
     gap: 12px;
     align-items: baseline;
     padding: 7px 0;
     border-top: 1px solid var(--line);
-    font-size: 0.86rem;
     color: var(--text-dim);
 }
 .sample-moments li span {
+    font-family: var(--numeral);
     font-variant-numeric: tabular-nums;
-    font-weight: 700;
-    color: var(--text-faint);
+    color: var(--accent);
     min-width: 34px;
 }
-.sample-foot {
-    margin: 12px 0 0;
-    font-size: 0.78rem;
-    color: var(--text-faint);
+.sample-moments li.is-new { animation: moment-in .4s var(--ease-out); }
+@keyframes moment-in {
+    from { opacity: 0; transform: translateX(-12px); background: var(--warn-dim); }
+    to { opacity: 1; transform: none; background: transparent; }
 }
 
-.hero h1 {
-    font-size: clamp(32px, 6.5vw, 54px);
-    line-height: 1.04;
-    letter-spacing: -1.8px;
-    margin-bottom: 18px;
+/* The four keys. Shaped like the real pad's — square-cornered, lettered in
+   capitals, the card key in card yellow — at a size that fits the card. */
+/* A fieldset, so the keys are announced as one group under their legend. The
+   legend floats so it sits under the dashed rule rather than cutting it. */
+.sample-pad {
+    min-width: 0;
+    margin: 14px 0 0;
+    padding: 14px 0 0;
+    border: 0;
+    border-top: 2px dashed var(--line-hi);
 }
-
-/* The one line of colour on the page, on the words that carry the promise. */
-.hero h1 em {
-    font-style: normal;
-    color: var(--accent);
-}
-
-.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 28px 0 16px; }
-
-.eyebrow {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.78rem;
+.sample-pad-label {
+    float: left;
+    width: 100%;
+    padding: 0;
+    font-family: var(--display);
+    font-size: 0.82rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.4px;
+    letter-spacing: .1em;
     color: var(--text-faint);
-    margin-bottom: 18px;
+    margin-bottom: 8px;
 }
-.eyebrow::before {
-    content: '';
-    width: 22px;
-    height: 1px;
-    background: var(--accent);
+.sample-pad-keys { clear: both; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.pad-key {
+    min-height: 44px;
+    padding: 8px 10px;
+    font-family: var(--display);
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--kit-on);
+    background: var(--kit);
+    border: 0;
+    border-radius: 6px;
+    box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .25);
+    cursor: pointer;
+    transition: transform .08s ease, filter .15s ease;
+}
+.pad-key:active { transform: translateY(2px); box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .25); }
+.pad-key.is-card { background: var(--card-yellow); color: var(--text); }
+@media (hover: hover) {
+    .pad-key:hover { filter: brightness(1.12); }
 }
 
+/* -- your colours --------------------------------------------------------- */
+
+.try-kit {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    align-items: center;
+}
+@media (min-width: 760px) {
+    .try-kit { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 36px; }
+}
+.try-kit-copy { margin: 0; color: var(--text-dim); max-width: 46ch; }
+.try-kit .kit-picker { margin: 0; }
+
 /* Numbered steps, because the order genuinely matters here — you cannot
-   publish reports for a match you have not tagged. */
+   publish reports for a match you have not tagged. Each is a card with its
+   number set large in the numeral face, like a squad number on a back. */
 .flow {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 1px;
-    background: var(--line);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
+    gap: 14px;
 }
 
 .flow-step {
+    position: relative;
     background: var(--surface);
-    padding: 24px 22px;
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--kit);
+    border-radius: var(--radius);
+    padding: 22px 22px 24px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
 }
 
 .flow-step .step-n {
     display: block;
-    font-family: var(--mono);
-    font-size: 0.74rem;
-    font-weight: 700;
-    letter-spacing: 1px;
+    font-family: var(--numeral);
+    font-size: 3.2rem;
+    line-height: 1;
     color: var(--accent);
-    margin-bottom: 14px;
+    margin-bottom: 12px;
 }
 
 .flow-step h4 {
-    font-size: 15.5px;
-    font-weight: 650;
-    letter-spacing: -.2px;
-    margin: 0 0 7px;
+    font-size: 1.25rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    margin: 0 0 8px;
     color: var(--text);
 }
 
-.flow-step p { margin: 0; font-size: 0.88rem; color: var(--text-dim); line-height: 1.6; }
+.flow-step p { margin: 0; font-size: 0.92rem; color: var(--text-dim); line-height: 1.6; }
 
 /* Status table for what is and is not built yet — honesty as a design element
    rather than a wall of prose. */
 .status-lede { color: var(--text-dim); font-size: 0.88rem; margin: -6px 0 14px; }
 
-.status-list { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.status-list { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
 
 /* Each row is a `<details>` now, so the row itself is the block and the
    `<summary>` is the line you see when it is shut. Native disclosure rather
@@ -206,7 +297,7 @@
    2px outside the element — would lose its top and bottom edges on the first
    and last rows. Inset instead. */
 .status-row > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 0; }
-.status-row .what { flex: 1; }
+.status-row .what { flex: 1; font-weight: 600; }
 .status-row .note { display: block; color: var(--text-faint); font-size: 0.82rem; margin-top: 2px; }
 
 /* The affordance. A chevron rather than a plus, because what happens is that
@@ -271,8 +362,9 @@
    visible would be drawing a result nobody measured. The figure beside it says
    the number either way. */
 .ev-n {
-    font-size: 0.88rem;
-    font-weight: 750;
+    font-family: var(--numeral);
+    font-size: 0.95rem;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
     text-align: right;
     letter-spacing: -0.3px;
@@ -322,17 +414,14 @@
     .ev-track { grid-column: 1 / -1; }
 }
 
-#user-chip { font-size: 0.82rem; color: var(--text-dim); }
+#user-chip { font-size: 0.86rem; }
 
 /* ---------------------------------------------------------------- welcome */
 
+/* The squad's shirt again (`.on-kit`), with the date over the greeting. */
 .welcome {
     margin: 34px 0 10px;
-    padding: 30px 32px;
-    background: linear-gradient(150deg, var(--surface), var(--bg-raised) 70%);
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    overflow: hidden;
+    padding: 36px 36px 34px;
 }
 /* The panel is as wide as the shell; the sentence inside it should not be.
    At the 1280px shell this line runs past 140 characters, about twice the
@@ -351,25 +440,42 @@
     gap: 12px;
 }
 
+/* Each card carries its own squad's colours (landing.js sets the kit tokens
+   on the card itself): a band of the shirt across the top with the trim
+   under it. */
 .team-card {
     display: block;
+    position: relative;
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: var(--radius-lg);
-    padding: 22px 24px;
+    border-radius: var(--radius);
+    padding: 30px 24px 22px;
     color: inherit;
-    transition: background .13s, border-color .13s, transform .1s;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    transition: border-color .15s, transform .2s var(--ease-out), box-shadow .2s;
+}
+.team-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 7px;
+    background: var(--kit);
+    border-bottom: 3px solid var(--kit-2);
 }
 /* Pointer feedback is guarded here and everywhere else: `:hover` latches on a
    touchscreen and this app is used on one. The argument is in app.css, under
    `response`. */
 @media (hover: hover) {
     .team-card:hover {
-        background: var(--surface-hi);
         border-color: var(--accent);
-        transform: translateY(-2px);
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-lift);
         color: inherit;
     }
+    .team-card:hover .team-card-go { transform: translateX(4px); color: var(--accent); }
 }
 
 .team-card-top {
@@ -379,13 +485,24 @@
     gap: 14px;
     margin-bottom: 16px;
 }
-.team-card-name { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.4px; }
-.team-card-go { color: var(--text-faint); font-size: 1.3rem; line-height: 1; }
+.team-card-name {
+    font-family: var(--display);
+    font-size: 1.5rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .01em;
+}
+.team-card-go {
+    color: var(--text-faint);
+    font-size: 1.6rem;
+    line-height: 1;
+    transition: transform .2s var(--ease-out), color .2s;
+}
 
 /* Season figures on a team card sit larger than the shared .figure default,
    since on this page they are the content rather than a trailing detail. */
 .team-card .figures { gap: 22px; text-align: left; }
-.team-card .figure .n { font-size: 1.5rem; font-weight: 750; letter-spacing: -0.8px; }
+.team-card .figure .n { font-size: 1.6rem; }
 
 .team-card-empty { color: var(--text-faint); font-size: 0.88rem; }
 
@@ -406,10 +523,11 @@
     border: 1px solid var(--line);
     border-radius: var(--radius);
     color: inherit;
+    box-shadow: var(--shadow);
     transition: background .13s, border-color .13s;
 }
 @media (hover: hover) {
-    .quick-link:hover { background: var(--surface-hi); border-color: var(--line-hi); color: inherit; }
+    .quick-link:hover { border-color: var(--accent); color: inherit; }
 }
 .quick-link .ql-icon {
     width: 34px; height: 34px;
@@ -419,14 +537,21 @@
     color: var(--text-faint);
     flex-shrink: 0;
 }
-.quick-link.accent .ql-icon { color: var(--accent); border-color: rgba(77,214,193,.4); }
-.quick-link .ql-title { font-weight: 600; font-size: 0.95rem; }
+.quick-link.accent .ql-icon { color: var(--kit-2-on); background: var(--kit-2); border-color: var(--kit-2); }
+.quick-link .ql-title {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+}
 .quick-link .ql-sub { font-size: 0.8rem; color: var(--text-faint); margin-top: 1px; }
 
 @media (max-width: 640px) {
-    .welcome { padding: 22px; }
+    .welcome { padding: 24px 22px; }
     .team-card .figures { gap: 16px; }
-    .hero { padding-top: 44px; }
+    .hero { padding: 34px 22px 30px; margin-top: 18px; }
+    .hero-sample { transform: none; }
 }
 
 /* ------------------------------------------------------- response, landing
@@ -441,14 +566,13 @@
 
 @media (hover: hover) {
 
-    /* Three panes butted together with a 1px rule between them. A lift would
-       break that rule and a border would double it, so the pane lightens and
-       its number comes up to full accent — the only two things that can move
-       here without the seam moving. */
-    .flow-step { transition: background .14s ease; }
-    .flow-step .step-n { transition: color .14s ease; }
-    .flow-step:hover { background: var(--surface-hi); }
-    .flow-step:hover .step-n { color: var(--accent-hi); }
+    /* A step is prose, so it acknowledges the pointer without going
+       anywhere: it rises, and its number turns a few degrees as if pinned at
+       one corner. */
+    .flow-step { transition: transform .2s var(--ease-out), box-shadow .2s ease; }
+    .flow-step .step-n { transition: transform .3s var(--ease-out); transform-origin: left bottom; }
+    .flow-step:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
+    .flow-step:hover .step-n { transform: rotate(-6deg); }
 
     /* The sample report is the one place on the page showing the actual
        product, and until now it was a picture. Pointing at a figure lifts it,
@@ -456,7 +580,7 @@
        anywhere, so nothing here gets a direction. */
     .sample-stat { transition: border-color .14s ease, transform .14s ease, background .14s ease; }
     .sample-stat:hover {
-        border-color: var(--line-hi);
+        border-color: var(--accent);
         background: var(--surface);
         transform: translateY(-2px);
     }
@@ -473,5 +597,5 @@
     .quick-link { transition: background .13s ease, border-color .13s ease, transform .14s ease; }
     .quick-link:hover { transform: translateX(3px); }
     .quick-link .ql-icon { transition: color .13s ease, border-color .13s ease; }
-    .quick-link:hover .ql-icon { color: var(--accent); border-color: rgba(77,214,193,.4); }
+    .quick-link:hover .ql-icon { color: var(--accent); border-color: var(--accent); }
 }

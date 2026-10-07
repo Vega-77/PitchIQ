@@ -34,10 +34,13 @@ export const PERIOD_STATUS = {
 
 // ---------------------------------------------------------------- teams
 
-export async function createTeam(user, name) {
+export async function createTeam(user, name, kit = null) {
     const ref = doc(collection(db, 'teams'));
     await setDoc(ref, {
         name,
+        // Two hex codes, or null: every page the team owns is painted in
+        // them (assets/kit.js), and a team without them wears the house kit.
+        kit: kit ? { primary: kit.primary, secondary: kit.secondary } : null,
         coachUids: [user.uid],
         // Neither of the next two is read by any page, and both are
         // deliberate. `firestore.rules` requires a new team to carry them
@@ -54,6 +57,13 @@ export async function createTeam(user, name) {
         createdBy: user.uid,
     });
     return ref.id;
+}
+
+/** Change a squad's colours. `kit` is `{ primary, secondary }`, both `#rrggbb`. */
+export async function updateTeamKit(teamId, kit) {
+    await updateDoc(doc(db, 'teams', teamId), {
+        kit: { primary: kit.primary, secondary: kit.secondary },
+    });
 }
 
 export async function getTeam(teamId) {
@@ -805,6 +815,8 @@ export async function publishReports(teamId, matchId, match, team, players, scor
                 matchDate: match.date || '',
                 opponentName: match.opponentName || '',
                 teamName: team.name || '',
+                // So the player's own page wears the squad's colours.
+                teamKit: team.kit ?? null,
 
                 // Denormalized so a player can see the match they played in.
                 // Their entire read surface is this one document — there is no

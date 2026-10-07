@@ -2,7 +2,7 @@ import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
 } from '../assets/auth.js?v=121';
 import {
-    createTeam, getTeam, listPlayers, addPlayer, invitePlayer,
+    createTeam, updateTeamKit, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
     listMatches, getMatch, createMatch, updateMatch, listMatchRoster, listLog,
     aggregateMatch, publishReports, seasonSummary, playerSeason, seasonTotals,
@@ -47,12 +47,14 @@ import {
 } from '../assets/report.js?v=121';
 import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=121';
 import { mountRail } from '../assets/rail.js?v=121';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=121';
+import { startMotion } from '../assets/motion.js?v=121';
 import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=121';
 import { videoKind } from '../assets/video.js?v=121';
 import {
     byId, setText, toast, clockText, signed, plural, localDate,
     statCard, statGroup, fillStatGroup, figure, cardChips, timelineRow,
-    minutesChart, stackBar, coverageStrip,
+    minutesChart, stackBar, coverageStrip, kitPicker,
 } from '../assets/ui.js?v=121';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
@@ -77,7 +79,27 @@ function showCreateTeam() {
 
     byId('btn-cancel-team').classList.toggle('hidden', !hasTeams);
     byId('input-team-name').value = '';
+
+    // The page wears the colours while they are being picked, which is the
+    // quickest way to see whether a pair works.
+    const slot = byId('kit-new-slot');
+    slot.innerHTML = '';
+    newKit = kitPicker({
+        kit: HOUSE_KIT,
+        onChange: (kit) => applyKit(kit, { remember: false }),
+    });
+    slot.append(newKit);
+    applyKit(HOUSE_KIT, { remember: false });
     show('view-noteam');
+}
+
+/** The picker on the create form, while it is open. */
+let newKit = null;
+
+/** Back from the create form without creating: the current squad's colours. */
+function cancelCreateTeam() {
+    applyKit(state.team?.kit ?? HOUSE_KIT);
+    show('view-main');
 }
 
 async function doCreateTeam() {
@@ -87,7 +109,7 @@ async function doCreateTeam() {
     const button = byId('btn-create-team');
     button.disabled = true;
     try {
-        const teamId = await createTeam(state.user, name);
+        const teamId = await createTeam(state.user, name, newKit?.value() ?? null);
         await rememberTeam(state.user, teamId);
         await saveStaffProfile(state.user, teamId).catch(() => {});
 
@@ -126,6 +148,7 @@ async function loadTeamData() {
     renderRoster();
     renderMatches();
     renderStaff();
+    renderKit();
 
     // Teams created before the staff directory existed have no entry for their
     // own coach, which would show them to a new assistant as an unnamed uid.
@@ -184,6 +207,7 @@ async function switchTeam(teamId) {
 }
 
 function renderHero() {
+    applyKit(state.team.kit ?? HOUSE_KIT);
     mountPitchBackdrop(byId('team-hero'), { opacity: 0.16 });
 
     const summary = seasonSummary(state.matches);
@@ -657,6 +681,47 @@ async function doAddPlayer() {
 }
 
 // ---------------------------------------------------------------- staff
+
+/**
+ * The squad's colours, on the staff tab. The page tries a pair on as it is
+ * picked; leaving the tab without saving puts the saved pair back.
+ */
+function renderKit() {
+    const saved = state.team.kit ?? HOUSE_KIT;
+    const button = byId('btn-save-kit');
+    const slot = byId('kit-team-slot');
+    slot.innerHTML = '';
+    teamKit = kitPicker({
+        kit: saved,
+        onChange: (kit) => {
+            applyKit(kit, { remember: false });
+            button.disabled = kit.primary === saved.primary && kit.secondary === saved.secondary;
+        },
+    });
+    slot.append(teamKit);
+    button.disabled = true;
+}
+
+/** The picker on the staff tab. */
+let teamKit = null;
+
+async function doSaveKit() {
+    const kit = teamKit?.value();
+    if (!kit) return;
+    const button = byId('btn-save-kit');
+    button.disabled = true;
+    try {
+        await updateTeamKit(state.team.id, kit);
+        state.team = { ...state.team, kit };
+        state.teams = state.teams.map((t) => (t.id === state.team.id ? state.team : t));
+        applyKit(kit);
+        renderKit();
+        toast('Colours saved');
+    } catch (err) {
+        button.disabled = false;
+        toast(err.message || 'Could not save the colours.', true);
+    }
+}
 
 function renderStaff() {
     const list = byId('staff-list');
@@ -3722,6 +3787,11 @@ const TABS = ['matches', 'roster', 'staff'];
  */
 function showTab(wanted) {
     if (!TABS.includes(wanted)) return;
+    // Colours tried on and not saved come off when the coach looks elsewhere.
+    if (wanted !== 'staff' && state.team && !byId('btn-save-kit').disabled) {
+        applyKit(state.team.kit ?? HOUSE_KIT);
+        renderKit();
+    }
     for (const tab of document.querySelectorAll('.tab')) {
         tab.classList.toggle('active', tab.dataset.tab === wanted);
     }
@@ -3770,7 +3840,8 @@ function init() {
         signOut().then(() => { location.href = '../'; }));
     byId('btn-create-team').addEventListener('click', doCreateTeam);
     byId('btn-new-team').addEventListener('click', showCreateTeam);
-    byId('btn-cancel-team').addEventListener('click', () => show('view-main'));
+    byId('btn-cancel-team').addEventListener('click', cancelCreateTeam);
+    byId('btn-save-kit').addEventListener('click', doSaveKit);
     byId('team-switch').addEventListener('change', (e) => switchTeam(e.target.value));
     byId('btn-invite-coach').addEventListener('click', doInviteCoach);
     byId('btn-add-player').addEventListener('click', doAddPlayer);
@@ -3818,3 +3889,4 @@ function init() {
 }
 
 init();
+startMotion();

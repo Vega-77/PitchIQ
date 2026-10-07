@@ -45,8 +45,8 @@ from test_free_names import blank
 #:
 #: Anchored at column zero, which is the whole definition of "top-level" here
 #: and is why `export` ones fall out for free. `let toastTimer;` carries no
-#: initialiser and still counts — `assets/ui.js` and `xg-sandbox/sandbox.js`
-#: have five between them.
+#: initialiser and still counts — `assets/ui.js` has one, and the xG sandbox
+#: had four more before it left.
 DECLARED = re.compile(
     r'^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*[=;]'
     r'|^(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)\s*\('
@@ -159,12 +159,13 @@ class TestNothingUnread:
         than exact counts, so the repo is allowed to grow.
         """
         files = js_files()
-        assert len(files) >= 30, f'only {len(files)} site modules found'
+        assert len(files) >= 25, f'only {len(files)} site modules found'
         total = 0
         for path in files:
             code = blank(path.read_text(encoding='utf-8'))
             total += len(declared_names(code)) + len(imported_names(code))
-        assert total >= 900, f'only {total} top-level names found'
+        # 900 before the calibrate page and the xG sandbox left (2026-10-07).
+        assert total >= 750, f'only {total} top-level names found'
 
 
 class TestTheScanWorks:

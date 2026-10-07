@@ -15,7 +15,7 @@ than by reasoning:
     <input></label>` -- which names the control with no `for` anywhere. The
     tell was the count: a naming mechanism used by exactly zero controls in
     a form-heavy site is a mechanism the scanner is looking for in the wrong
-    place. Twenty-three controls depend on it.
+    place. Fourteen controls depend on it.
 
 2.  **Absence is not namelessness.** One button is empty in the markup and
     stays hidden until a script writes its text. Scoring markup alone calls
@@ -28,8 +28,10 @@ than by reasoning:
     scanner and as silence to a screen reader.
 
 What it found, the day it first ran: the six xG sandbox sliders had no
-accessible name at all. Their labels sit in a sibling div, so the whole
+accessible name at all. Their labels sat in a sibling div, so the whole
 "Distance / Angle / Distance to shooter" column was visible and unspoken.
+The sandbox left the site on 2026-10-07, and with it every real use of
+`aria-labelledby`; the branch is now exercised on synthetic markup below.
 """
 
 import re
@@ -38,8 +40,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 PAGES = ('index.html', 'coach/index.html', 'player/index.html',
-         'live-tagging/index.html', 'halftime/index.html',
-         'calibrate/index.html', 'xg-sandbox/index.html')
+         'live-tagging/index.html', 'halftime/index.html')
 
 CONTROL = re.compile(r'<(button|a|input|select|textarea)\b([^>]*)>', re.I)
 LABEL = re.compile(r'<label\b([^>]*)>', re.I)
@@ -170,13 +171,13 @@ class TestEveryControlIsAnnouncedAsSomething:
 
 class TestAWrappingLabelIsAName:
 
-    def test_a_for_only_scanner_would_invent_two_dozen_defects(self):
+    def test_a_for_only_scanner_would_invent_a_dozen_defects(self):
         # What the first version of this file did. Nothing on this site uses
         # `for=`, so dropping the wrapping case does not lose a mechanism --
         # it loses the only one that form controls here actually have.
         assert not [c for c in ALL if 'label-for' in c[4]]
         wrapped = [c for c in ALL if 'label-wrap' in c[4]]
-        assert len(wrapped) == 23, len(wrapped)
+        assert len(wrapped) == 14, len(wrapped)
         assert not [c for c in wrapped if set(c[4]) - {'label-wrap'}]
 
     def test_no_label_on_the_site_is_empty(self):
@@ -214,52 +215,25 @@ class TestAPointerIsOnlyANameIfItLands:
                     assert token in ids, (rel, token)
 
     def test_a_dangling_pointer_does_not_count_as_a_name(self):
-        """Break the real page in memory and watch the name disappear.
+        """Break a pointer and watch the name disappear.
 
-        Asserting that today's pointers resolve says nothing about what the
-        scan would do if one stopped resolving -- it could be counting the
-        attribute rather than reading it, and every test above would still
-        pass. So take the page that has six of these, delete the id one of
-        them points at, and require that the control goes quiet.
+        Asserting that pointers resolve says nothing about what the scan would
+        do if one stopped resolving -- it could be counting the attribute
+        rather than reading it. No page uses `aria-labelledby` any more, so
+        this builds the case: two sliders named by visible spans, one of
+        which loses its id.
         """
-        src = read('xg-sandbox/index.html')
+        src = ('<span id="name-a">Distance</span>'
+               '<input type="range" id="a" aria-labelledby="name-a">'
+               '<span id="name-b">Angle</span>'
+               '<input type="range" id="b" aria-labelledby="name-b">')
         named = [c for c in controls_in('x', src) if 'labelledby' in c[4]]
-        assert len(named) == 6, len(named)
+        assert len(named) == 2, named
 
-        broken = src.replace('<span class="slider-name" id="name-distance">',
-                             '<span class="slider-name">', 1)
-        assert broken != src
+        broken = src.replace('<span id="name-a">', '<span>', 1)
         after = [c for c in controls_in('x', broken) if 'labelledby' in c[4]]
-        assert len(after) == 5, len(after)
+        assert len(after) == 1, after
         assert len([c for c in controls_in('x', broken) if not c[4]]) == 1
-
-
-class TestTheSlidersSayWhatIsOnTheScreen:
-
-    def sliders(self):
-        src = read('xg-sandbox/index.html')
-        return re.findall(r'<input type="range" id="(\w+)"'
-                          r' aria-labelledby="([\w-]+)"', src)
-
-    def test_all_six_are_named(self):
-        assert len(self.sliders()) == 6, self.sliders()
-
-    def test_each_points_at_the_words_already_on_screen(self):
-        """WCAG 2.5.3: what is heard has to contain what is seen.
-
-        Pointing at the visible span rather than repeating it into an
-        `aria-label` is what makes that true by construction -- there is one
-        string, so the two cannot drift. The two sliders whose label carries
-        a `measured` badge announce it too, which is right: it is part of
-        what the label says.
-        """
-        src = read('xg-sandbox/index.html')
-        for _, span_id in self.sliders():
-            m = re.search(r'<span class="slider-name" id="%s">(.*?)</span>\s*'
-                          r'<span class="slider-value"' % span_id, src,
-                          re.S)
-            assert m, span_id
-            assert text_of(m.group(1)), span_id
 
 
 # --- the scan is looking at something --------------------------------------
@@ -276,17 +250,21 @@ class TestTheScanReportsSomething:
             assert controls(rel), rel
 
     def test_it_finds_controls_at_all(self):
-        assert len(ALL) >= 140, len(ALL)
+        assert len(ALL) >= 100, len(ALL)
         assert len(nameless()) <= len(SCRIPT_NAMED)
 
     def test_every_mechanism_it_knows_about_is_in_use(self):
         # A branch nothing exercises is a branch nobody would notice breaking.
+        # `labelledby` left with the xG sandbox; the synthetic dangling-pointer
+        # test above is what keeps that branch exercised.
         used = {w for c in ALL for w in c[4]}
-        assert used == {'text', 'title', 'label-wrap', 'labelledby'}, used
+        assert used == {'text', 'title', 'label-wrap'}, used
         counted = {w: len([c for c in ALL if w in c[4]]) for w in used}
-        # Named by their own text: a hundred and eighteen for a long while,
-        # then a hundred and twenty-four, when six of the seven pages each
-        # gained a skip link. `live-tagging` is the seventh and wants none:
-        # its <main> is the first thing in its <body>.
-        assert counted == {'text': 124, 'title': 3, 'label-wrap': 23,
-                           'labelledby': 6}, counted
+        # Named by their own text: a hundred and twenty-four once every page
+        # but `live-tagging` had a skip link, and ninety-one after the
+        # calibrate page and the xG sandbox left (2026-10-07). Ninety-seven
+        # the same day: the landing page's sample report has four keys to tag
+        # into it and a link down to the colour picker, and the coach page a
+        # "Save colours" button. `live-tagging`
+        # wants no skip link: its <main> is the first thing in its <body>.
+        assert counted == {'text': 97, 'title': 3, 'label-wrap': 14}, counted

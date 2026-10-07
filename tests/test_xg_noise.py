@@ -6,7 +6,7 @@ had ever run it. The model was trained on hand-verified StatsBomb positions.
 Ours come out of a detector and a homography, and are wrong by tens of
 centimetres at best.
 
-    Re-measured 2026-08-06 on xg-sandbox/xg_model8.onnx, 400 trials, seed 0,
+    Re-measured 2026-08-06 on xg_model8.onnx, 400 trials, seed 0,
     across five spots with a mean clean xG of 0.188:
 
         noise    mean shift   p95     max      as a share of the 0.188 baseline
@@ -140,7 +140,7 @@ class TestSensitivity:
     def test_a_good_calibration_is_still_only_good_enough_for_the_total(self, session):
         """Where the two display bands part company.
 
-        At the fit `calibrate/` calls good, a single shot's tail is already half
+        At the fit `shapeConfidence` calls good, a single shot's tail is already half
         the quantity. That is the whole argument for showing a team total on
         runs where no individual figure is worth printing — pinned here so a
         model swap that changes it cannot pass quietly.

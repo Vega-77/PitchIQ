@@ -36,7 +36,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from test_contrast_floor import (  # noqa: E402
-    BG, CLASS_ATTR, COLOR, GRAPHIC_FLOOR, GROUND_LITERALS, HAIRLINE, HTML,
+    BG, CLASS_ATTR, COLOR, GROUND_LITERALS, HAIRLINE, HTML,
     JS_DIRS, JS_HOSTS, PAGE, PRINTABLE, PRINTS, SHEETS, SIZED, TEXT_FLOOR,
     VAR, ancestor_ground, blocks, failures, hidden_names, js_hidden,
     hidden_selectors, parse, ratio, read, roots, scored, strip_comments,
@@ -91,8 +91,8 @@ class TestEverySheetIsScored:
         stale = set(SHEETS) - linked()
         assert stale == set(), stale
 
-    def test_there_are_eight_of_them(self):
-        assert len(SHEETS) == 8, SHEETS
+    def test_there_are_six_of_them(self):
+        assert len(SHEETS) == 6, SHEETS
 
 
 class TestPrintRulesAreNotScoredTwice:
@@ -112,7 +112,7 @@ class TestPrintRulesAreNotScoredTwice:
         assert 'background: #fff' not in without_print(read('assets/app.css'))
 
     def test_a_sheet_with_no_print_block_is_untouched(self):
-        # Seven of the eight have no print theme, and the cut must be a
+        # Five of the six have no print theme, and the cut must be a
         # no-op on them rather than merely harmless.
         n = 0
         for rel in SHEETS:
@@ -120,7 +120,7 @@ class TestPrintRulesAreNotScoredTwice:
             if '@media print {' not in src:
                 assert without_print(src) == strip_comments(src), rel
                 n += 1
-        assert n == 7, n
+        assert n == 5, n
 
     def test_a_print_only_selector_produces_no_screen_row(self):
         # `.print-stamp` is the line naming the match at the top of a printed
@@ -152,13 +152,12 @@ class TestInsetIsNotASize:
                     out.append(('%s:%d' % (rel, i), m.group(1).strip()))
         return out
 
-    def test_all_five_uses_position_rather_than_size(self):
+    def test_all_four_uses_position_rather_than_size(self):
         assert self.uses() == [
-            ('assets/app.css:294', '0'),
-            ('assets/app.css:311', '-40% -30%'),
-            ('assets/app.css:1529', 'auto 0 0 0'),
-            ('live-tagging/tagging.css:569', '0'),
-            ('xg-sandbox/sandbox.css:326', '0'),
+            ('assets/app.css:387', '0'),
+            ('assets/app.css:414', '-40% -30%'),
+            ('assets/app.css:1821', 'auto 0 0 0'),
+            ('live-tagging/tagging.css:615', '0'),
         ], self.uses()
 
     def test_the_scanner_does_not_count_it(self):
@@ -175,37 +174,44 @@ class TestLiteralColoursAreVisible:
         for kind, rel, head, v in literals():
             assert VAR.findall(v) == [], (rel, head, v)
 
-    def test_the_eight_literal_inks(self):
+    def test_the_one_literal_ink(self):
         # Pinned by name because these are the ones a contrast floor is for.
-        # Five of them are the same near-black lettering on the accent; the
-        # four of those that reach paper are what the exemption in the floor
-        # gate is carrying.
+        # There were eight in the dark theme, five of them the same
+        # near-black lettering on the bright accent. The School Colours
+        # redesign (2026-10-07) letters everything on the kit in a kit token,
+        # because the kit is chosen per team and a literal cannot follow it.
+        # White on the error toast is the one left: --danger does not change
+        # with the team.
         inks = [(rel, head, v) for kind, rel, head, v in literals()
                 if kind == 'ink']
         assert inks == [
-            ('assets/app.css', '.btn.primary', '#04120f'),
-            ('assets/app.css', '.skip-link', '#04120f'),
-            ('assets/app.css', '.toast.error', '#ffd4d4'),
-            ('assets/app.css', '.chip.on', '#04120f'),
-            ('assets/app.css', '.btn.tiny.on', '#04120f'),
-            ('live-tagging/tagging.css', '.btn-kickoff', '#fff'),
-            ('live-tagging/tagging.css', '.ev.flash .ev-label', '#04120f'),
-            ('live-tagging/tagging.css', '.choice.second_yellow', '#fb923c'),
+            ('assets/app.css', '.toast.error', '#ffffff'),
         ], inks
-
-    def test_there_are_plenty_of_literal_grounds_too(self):
-        grounds = [x for x in literals() if x[0] == 'ground']
-        assert len(grounds) >= 25, len(grounds)
-
-    def test_the_orange_second_yellow_clears_its_floor(self):
-        # The one literal ink that is not near-black or near-white, and the
-        # one worth re-checking: it is a third card colour sitting between
-        # --card-yellow (10.04) and --danger (6.06), and it was written as a
-        # literal rather than promoted to a token.
         t = theme(False)
-        r = ratio(parse('#fb923c'), parse(t['--surface']))
-        assert r >= TEXT_FLOOR
-        assert round(r, 2) == 7.40, r
+        assert ratio(parse('#ffffff'), parse(t['--danger'])) >= TEXT_FLOOR
+
+    def test_the_literal_grounds(self):
+        # Twenty-odd in the dark theme. Four now: the video letterbox, the
+        # page and list rows in plain white, and the scrim behind a sheet on
+        # the touchline pad.
+        grounds = sorted((rel, head, v) for kind, rel, head, v in literals()
+                         if kind == 'ground')
+        assert grounds == [
+            ('assets/app.css', '.list-item', '#fff'),
+            ('assets/app.css', '.video-frame', '#000'),
+            ('assets/app.css', 'body', '#fff'),
+            ('live-tagging/tagging.css', '.overlay', 'rgba(11, 13, 18, .72)'),
+        ], grounds
+
+    def test_a_second_yellow_is_the_two_card_colours(self):
+        # It was an orange literal, a third card colour between yellow and
+        # red. On the pad it is now drawn as what it is -- a yellow edge and
+        # a red edge on one key -- so it needs no colour of its own.
+        css = read('live-tagging/tagging.css')
+        assert '#fb923c' not in css
+        rule = [b for s, b in blocks(css)
+                if s.splitlines()[-1].strip() == '.choice.second_yellow'][0]
+        assert 'var(--card-yellow)' in rule and 'var(--card-red)' in rule
 
 
 class TestBlackIsGroundAndWhiteIsNot:
@@ -224,32 +230,15 @@ class TestBlackIsGroundAndWhiteIsNot:
                             out[sel.splitlines()[-1].strip()] = v
         return out
 
-    def test_only_two_sized_elements_paint_a_bare_colour(self):
-        assert self.sized_literal_grounds() == {
-            '.loupe': '#000',
-            '.toggle-thumb': '#fff',
-        }, self.sized_literal_grounds()
+    def test_no_sized_element_paints_a_bare_colour(self):
+        # The calibrate loupe (#000) and the sandbox toggle knob (#fff) were
+        # the two, and both pages left the site on 2026-10-07.
+        assert self.sized_literal_grounds() == {}, self.sized_literal_grounds()
 
-    def test_the_waiver_covers_the_one_that_needs_it(self):
-        # The loupe is the magnifier window over the calibration frame. Its
-        # black is what sits behind the video, not a datum drawn on top of
-        # one, and at 1.11 it would be reported as a defect every run.
-        t = theme(False)
-        r = min(ratio(parse('#000'), parse(t[p])) for p in PAGE)
-        assert round(r, 2) == 1.11, r
-        assert '#000' in GROUND_LITERALS
-
-    def test_the_waiver_does_not_cover_the_one_that_does_not(self):
-        # The sandbox toggle knob is a mark: it is the thing being read. It
-        # was exempted for a while because white was in the set alongside
-        # black, and it never needed to be -- 15.31 clears every floor here.
-        # An exemption carrying nothing is how one grows until something real
-        # falls through it.
-        t = theme(False)
-        r = min(ratio(parse('#fff'), parse(t[p])) for p in PAGE)
-        assert round(r, 2) == 15.31, r
-        assert r >= GRAPHIC_FLOOR
-        assert '#fff' not in GROUND_LITERALS
+    def test_the_waiver_is_empty_because_nothing_needs_it(self):
+        # It existed for the loupe. With nothing sized painting a literal,
+        # any entry here would be an exemption carrying nothing.
+        assert not GROUND_LITERALS
 
 
 class TestAGroundCanComeFromAnAncestor:
@@ -258,20 +247,33 @@ class TestAGroundCanComeFromAnAncestor:
     there is not a near miss -- it scores the mark against something it is
     never drawn on."""
 
-    def test_the_flashed_event_label_is_read_on_the_accent(self):
+    def test_the_flashed_event_label_is_read_on_the_trim(self):
         rules = {}
         for sel, body in blocks(without_print(read('live-tagging/tagging.css'))):
             rules.setdefault(sel.splitlines()[-1].strip(), body)
-        assert ancestor_ground(rules, '.ev.flash .ev-label') == '--accent'
+        assert ancestor_ground(rules, '.ev.flash .ev-label') == '--kit-2'
 
-    def test_and_that_is_the_difference_between_1_01_and_10_65(self):
-        # `.ev.flash .ev-label` is `#04120f` on `.ev.flash`'s `--accent`. It
-        # is one of the highest-contrast pairs on the site, and the page-
-        # colour fallback reported it as the worst.
+    def test_the_ancestor_can_live_in_app_css(self):
+        # `.on-kit` is painted in the shirt colour in app.css, and
+        # coach/coach.css letters the goal difference inside it in the trim.
+        # Read against its own sheet alone, the prefix has no ground at all.
+        def rules_of(rel):
+            out = {}
+            for sel, body in blocks(without_print(read(rel))):
+                out.setdefault(sel.splitlines()[-1].strip(), body)
+            return out
+        coach = rules_of('coach/coach.css')
+        assert ancestor_ground(coach, '.on-kit .record-gd.pos') is None
+        both = {**rules_of('assets/app.css'), **coach}
+        assert ancestor_ground(both, '.on-kit .record-gd.pos') == '--kit'
+
+    def test_and_that_is_the_difference_between_1_54_and_7_96(self):
+        # Gold lettering on navy is one of the strongest pairs on the site,
+        # and the page-colour fallback reported it as failing.
         t = theme(False)
-        assert round(ratio(parse('#04120f'), parse(t['--accent'])), 2) == 10.65
-        assert round(min(ratio(parse('#04120f'), parse(t[p]))
-                         for p in PAGE), 2) == 1.01
+        ink = parse(t['--kit-2-ink'])
+        assert round(ratio(ink, parse(t['--kit'])), 2) == 7.96
+        assert round(min(ratio(ink, parse(t[p])) for p in PAGE), 2) == 1.54
 
     def test_this_is_not_a_one_off(self):
         # Every rule that sets an ink, sets no ground, and inherits one from
@@ -381,7 +383,7 @@ class TestBothScansStillReportSomething:
 
     def test_the_screen_scan_covers_most_of_the_site(self):
         _, rows = scored(SHEETS, printed=False)
-        assert len(rows) >= 350, len(rows)
+        assert len(rows) >= 300, len(rows)
         assert {r[0] for r in rows} == {'text', 'paint', 'mark'}
 
     def test_the_paper_scan_is_smaller_but_not_empty(self):

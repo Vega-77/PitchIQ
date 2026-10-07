@@ -11,6 +11,7 @@
 // who is about to talk to fifteen teenagers.
 
 import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=121';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=121';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
@@ -626,6 +627,7 @@ function init() {
             if (!state.team) {
                 return fail('This account does not coach that squad.');
             }
+            applyKit(state.team.kit ?? HOUSE_KIT);
             await load();
         } catch (err) {
             fail(err.message || 'Could not read that match.');

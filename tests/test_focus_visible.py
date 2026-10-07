@@ -226,7 +226,7 @@ class TestTheRingCanBeSeen:
             got.append((ratio(over(fg, bg), bg), token))
             assert got[-1][0] >= GRAPHIC_FLOOR, got[-1]
         worst = min(got)
-        assert (worst[1], round(worst[0], 2)) == ('--surface-hi', 8.53), worst
+        assert (worst[1], round(worst[0], 2)) == ('--surface-hi', 12.25), worst
 
 
 # --- the ways this scan could be lying --------------------------------------

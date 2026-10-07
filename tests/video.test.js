@@ -34,13 +34,6 @@ import * as passMod from '../assets/pass-map.js';
 import * as season from '../assets/season.js';
 // Same split again: the scale and the radius are pure, the rest builds nodes.
 import * as formMod from '../assets/form-chart.js';
-// The sandbox's model half and its preset table. Neither touches the DOM or
-// onnxruntime at import time — the session is only built on the first predict.
-import * as xgModel from '../xg-sandbox/xg-model.js';
-import * as presets from '../xg-sandbox/presets.js';
-// The picker's geometry half. Zero imports for the same reason as the modules
-// above: it has to be loadable without a browser.
-import * as pitchModel from '../calibrate/pitch-model.js';
 
 // ---------------------------------------------------------------- video URLs
 
@@ -1440,8 +1433,9 @@ describe('railTarget', () => {
 });
 
 describe('shapeConfidence', () => {
-    test('the bands are the calibrate page own', () => {
-        // renderQuality in calibrate.js calls a fit good at 0.5m mean error.
+    test('the bands are the old calibrate page own', () => {
+        // renderQuality on the calibrate page (gone since 2026-10-07) called a
+        // fit good at 0.5m mean error, and the report kept that standard.
         // Two standards for one number would let a coach be told the fit is
         // good on one page and be quietly doubted on another.
         assert.equal(report.shapeConfidence(0.4), 'high');
@@ -3434,157 +3428,6 @@ describe('cvReads', () => {
     });
 });
 
-// ----------------------------------------------------------- the sandbox
-//
-// The gap these close is a specific one. tests/test_xg_parity.py builds a
-// scenario in StatsBomb space and converts it into each side's convention, so
-// it proves Python and JavaScript agree about a point — and cannot notice that
-// the point is not where the sandbox says it is. It did not notice for months:
-// `toStatsBomb` mapped the sandbox's half pitch onto a full StatsBomb one, so
-// every shot reached the model at twice its distance, and the parity test's own
-// inverse carried the same mistake and agreed with it perfectly.
-//
-// So these start from metres — the units on the sliders, which is the only
-// place a person can tell whether the answer is right.
-
-describe('the sandbox speaks the same units as the pipeline', () => {
-    // The sandbox's 0-1 space: x across 68m, y out from the goal line over the
-    // 52.5m half it draws.
-    const at = (acrossM, fromGoalM) => ({ x: acrossM / 68, y: fromGoalM / 52.5 });
-
-    // StatsBomb is 120 long and 80 wide over a 105x68 pitch, so a unit is 0.875m
-    // along it and 0.85m across it. **The space is not isotropic in metres**,
-    // and neither is cv/pitch.py's `to_statsbomb`, which does the same thing:
-    // an angle in model space is about 3% wider than the one a protractor would
-    // measure on the grass. That is inherited from how the model was trained
-    // and is not something to correct here — but it does mean a diagonal cannot
-    // be converted with one factor, which is what the first draft of these
-    // tests tried and why two of them failed against correct code.
-    const UNITS_PER_M = 120 / 105;
-    const ACROSS_PER_M = 80 / 68;
-
-    const featuresFor = (shooter, keeper = at(34, 2), defenders = []) =>
-        xgModel.buildFeatures({
-            shooter,
-            keeper,
-            defenders,
-            shot: {
-                isFoot: true, isHeader: false, underPressure: false,
-                isOpenPlay: true, height: 0.6,
-            },
-        });
-
-    test('a shot the sliders call 20m is 20m to the model', () => {
-        // The regression itself. This read 45.71 units — 40m — while the
-        // Distance slider above it said 20.
-        const { distance_to_goal: distance } = featuresFor(at(34, 20));
-        assert.ok(
-            Math.abs(distance / UNITS_PER_M - 20) < 0.05,
-            `${distance} units is ${(distance / UNITS_PER_M).toFixed(1)}m`,
-        );
-    });
-
-    test('distance is measured to the goal from anywhere on the half', () => {
-        for (const [across, out] of [[34, 5], [34, 30], [34, 52.5], [45, 11], [20, 25]]) {
-            // Each axis scaled by its own factor, because they differ.
-            const expected = Math.hypot(
-                out * UNITS_PER_M, (across - 34) * ACROSS_PER_M,
-            );
-            const units = featuresFor(at(across, out)).distance_to_goal;
-            assert.ok(Math.abs(units - expected) < 0.05,
-                `(${across}, ${out}) -> ${units.toFixed(2)}, wanted ${expected.toFixed(2)}`);
-        }
-    });
-
-    test('the goalmouth subtends the angle trigonometry says it does', () => {
-        // The goal is 8 units of an 80-unit width, which on a 68m pitch is
-        // 6.8m and not the regulation 7.32 — another thing baked into the
-        // training data. So the check is done in units, where it is exact.
-        //
-        // The old mapping halved this to 10 degrees, and how much of the goal a
-        // shooter can see is most of why a shot scores what it does.
-        const degrees = featuresFor(at(34, 20)).angle_to_goal * (180 / Math.PI);
-        const expected =
-            2 * Math.atan(4 / (20 * UNITS_PER_M)) * (180 / Math.PI);
-        assert.ok(Math.abs(degrees - expected) < 0.05,
-            `${degrees.toFixed(2)} deg, trigonometry says ${expected.toFixed(2)}`);
-    });
-
-    test('the halfway line is halfway, not the far goal', () => {
-        // y = 1 is the top of what the sandbox draws. Under the old mapping it
-        // came out at the opposite goal line, 0 units from the wrong goal.
-        const { distance_to_goal: far } = featuresFor(at(34, 52.5));
-        assert.ok(Math.abs(far - 60) < 0.5, `${far} units`);
-    });
-
-    test('a keeper on his line is not counted as having come out', () => {
-        // keeper_off_line is a hard threshold at 3 units, so doubling the scale
-        // flipped it for any keeper more than 1.3m off his line.
-        assert.equal(featuresFor(at(34, 12), at(34, 1)).keeper_off_line, 0);
-        assert.equal(featuresFor(at(34, 12), at(34, 6)).keeper_off_line, 1);
-    });
-});
-
-describe('the sandbox presets', () => {
-    test('every preset places all ten players inside the half', () => {
-        for (const preset of presets.PRESETS) {
-            const spots = [
-                preset.shooter, preset.keeper,
-                ...preset.defenders, ...preset.attackers,
-            ];
-            assert.equal(spots.length, 10, preset.id);
-            for (const spot of spots) {
-                const position = presets.fromMetres(spot);
-                assert.ok(position.x >= 0 && position.x <= 1, `${preset.id} ${spot}`);
-                assert.ok(position.y >= 0 && position.y <= 1, `${preset.id} ${spot}`);
-            }
-        }
-    });
-
-    test('the arrays are the length the sandbox has slots for', () => {
-        // applyPreset writes into players.defence[1..4] and players.attack[1..4].
-        // A fifth entry would be dropped in silence and the scenario would be
-        // subtly not the one described.
-        for (const preset of presets.PRESETS) {
-            assert.equal(preset.defenders.length, 4, preset.id);
-            assert.equal(preset.attackers.length, 4, preset.id);
-        }
-    });
-
-    test('every preset says what it is, under a name of its own', () => {
-        const ids = presets.PRESETS.map((p) => p.id);
-        assert.equal(new Set(ids).size, ids.length);
-        for (const preset of presets.PRESETS) {
-            assert.ok(preset.name && preset.detail, preset.id);
-            assert.ok(preset.shot.isOpenPlay !== undefined, preset.id);
-        }
-    });
-
-    test('the penalty is the one thing the model can be told about a penalty', () => {
-        // There is no penalty feature. Twelve yards and is_open_play = 0 is the
-        // whole of it, so a preset that left open play on would be a preset of
-        // an ordinary shot from the spot.
-        const penalty = presets.presetById('penalty');
-        assert.equal(penalty.shot.isOpenPlay, false);
-        assert.ok(Math.abs(penalty.shooter[1] - 11) < 0.5);
-    });
-
-    test('the sample-match presets sit where the fixture publishes the shots', () => {
-        // What makes the number on the coach's preview reproducible here. The
-        // fixture is metres on a 105x68 pitch attacking right, so a shot at x_m
-        // is 105 - x_m out from the goal line.
-        const shots = sample.sampleCvSummary().teams.team_a.shot_map;
-        for (const [id, videoS] of [
-            ['sample-opener', 412.4], ['sample-miss', 908.7],
-        ]) {
-            const shot = shots.find((s) => s.video_s === videoS);
-            const [across, out] = presets.presetById(id).shooter;
-            assert.ok(Math.abs(across - shot.y_m) < 0.05, id);
-            assert.ok(Math.abs(out - (105 - shot.x_m)) < 0.05, id);
-        }
-    });
-});
-
 // ------------------------------------------------------- stats, by kind
 //
 // The grouping is presentation, so most of what could be tested here would just
@@ -4341,7 +4184,7 @@ describe('xgTrust', () => {
     // model. They are not taste, and changing one means re-running that.
 
     test('on a good calibration, a single shot is worth showing', () => {
-        // 0.5m is where calibrate/ calls a fit good, and it is now also where
+        // 0.5m is where shapeConfidence calls a fit good, and it is now also where
         // per-shot xG stops. The band was 1.0m against the 12-feature model;
         // dropping shot_height made the model lean harder on position, so the
         // p95 shift at 1m went from 40% of the number to 89% of it.
@@ -7213,146 +7056,6 @@ describe('where they played against the line they were picked in', () => {
       assert.deepEqual(out.rows, []);
       assert.deepEqual(out.remarks, []);
     }
-  });
-});
-
-// ------------------------------------------------- measuring the pitch size
-
-/**
- * What the picker can and cannot work out about a pitch it was never told the
- * size of.
- *
- * The mechanism under test is one sentence: a corner is wherever you say the
- * corner is, so a set of corners fits every size equally well, while the
- * penalty box, the goal and the penalty spot are fixed distances in the Laws
- * and one of those pins the scale of everything else. Both halves matter. The
- * recoveries below prove the measurement works; the refusals prove it knows
- * when it does not, which is the half that keeps it from inventing a pitch
- * and scaling every distance the software ever reports by the invention.
- *
- * Shot through a fixed synthetic camera — a real perspective matrix, not an
- * affine one, so the landmarks foreshorten the way they do in a photograph.
- */
-describe('measuring the pitch from the clicks', () => {
-  // Tilted and off-centre on purpose: a camera square to the pitch is the one
-  // case where several wrong sizes are hard to tell apart.
-  const CAM = [[11.5, 2.1, 240.0], [-1.4, -9.8, 700.0], [0.0009, -0.0035, 1.0]];
-  const proj = (x, y) => {
-    const w = CAM[2][0] * x + CAM[2][1] * y + CAM[2][2];
-    return [
-      (CAM[0][0] * x + CAM[0][1] * y + CAM[0][2]) / w,
-      (CAM[1][0] * x + CAM[1][1] * y + CAM[1][2]) / w,
-    ];
-  };
-
-  // Seeded rather than Math.random: a test that measures a tolerance has to
-  // fail for the same reason twice or it is not evidence of anything.
-  const jitter = (seed) => {
-    let s = seed;
-    return () => {
-      s = (s * 1103515245 + 12345) & 0x7fffffff;
-      return s / 0x7fffffff - 0.5;
-    };
-  };
-
-  const shoot = (names, lengthM, widthM, px = 0, seed = 12345) => {
-    const marks = pitchModel.landmarks(lengthM, widthM);
-    const rnd = jitter(seed);
-    return new Map(names.map((n) => {
-      const [x, y] = proj(...marks[n]);
-      return [n, px ? [x + rnd() * px * 2, y + rnd() * px * 2] : [x, y]];
-    }));
-  };
-
-  const CORNERS = [
-    'corner_bottom_left', 'corner_top_left',
-    'corner_bottom_right', 'corner_top_right',
-  ];
-  const MIDLINE = ['halfway_top', 'halfway_bottom', 'centre_spot'];
-  const ALL = [...CORNERS, ...MIDLINE, 'pen_spot_left',
-    'pen_left_top_corner', 'pen_left_bottom_corner',
-    'pen_right_bottom_corner', 'goalpost_left_bottom'];
-
-  test('recovers a size it was never told', () => {
-    for (const [L, W] of [[105, 68], [100, 50], [110, 60]]) {
-      const got = pitchModel.measureField(shoot(ALL, L, W));
-      assert.ok(got.lengthConfident && got.widthConfident, `${L}x${W} refused`);
-      assert.ok(Math.abs(got.lengthM - L) < 0.3, `length ${got.lengthM} != ${L}`);
-      assert.ok(Math.abs(got.widthM - W) < 0.3, `width ${got.widthM} != ${W}`);
-    }
-  });
-
-  test('click jitter costs accuracy in proportion, not in kind', () => {
-    // A coach clicking a landmark on a phone is a couple of pixels out. The
-    // answer degrades smoothly across that range rather than falling apart,
-    // and the interval widens to say so.
-    for (const [px, tol] of [[0.5, 0.5], [1, 0.5], [2, 1.0], [4, 1.5]]) {
-      const got = pitchModel.measureField(shoot(ALL, 100, 50, px));
-      assert.ok(got.lengthConfident && got.widthConfident, `${px}px refused`);
-      assert.ok(Math.abs(got.lengthM - 100) < tol + 1.0, `${px}px length`);
-      assert.ok(Math.abs(got.widthM - 50) < tol, `${px}px width`);
-    }
-  });
-
-  test('four points measure nothing, and are not asked to', () => {
-    // A homography maps four points to four points exactly whatever size you
-    // assume, so every candidate scores a perfect zero. Refusing on the count
-    // alone is cheaper than discovering that from a flat error surface.
-    assert.equal(pitchModel.measureField(shoot(CORNERS, 100, 50)), null);
-  });
-
-  test('corners and the halfway line still measure nothing', () => {
-    // The interesting refusal: seven points, all placed perfectly, and the
-    // page still cannot say. Every landmark here is defined as a fraction of
-    // the pitch, so rescaling the model rescales all of them together and the
-    // fit is exactly as good. Nothing is broken; there is genuinely no answer.
-    const got = pitchModel.measureField(shoot([...CORNERS, ...MIDLINE], 100, 50));
-    assert.equal(got.lengthConfident, false);
-    assert.equal(got.widthConfident, false);
-    assert.ok(got.meanM < 0.01, 'the fit is perfect and still says nothing');
-  });
-
-  test('one penalty box corner is enough to pin the whole pitch', () => {
-    // Same seven points as above plus one marking with a fixed size in the
-    // Laws, and the size falls out exactly. This is the mechanism, isolated.
-    const got = pitchModel.measureField(
-      shoot([...CORNERS, ...MIDLINE, 'pen_left_top_corner'], 100, 50));
-    assert.ok(got.lengthConfident && got.widthConfident);
-    assert.ok(Math.abs(got.lengthM - 100) < 0.3);
-    assert.ok(Math.abs(got.widthM - 50) < 0.3);
-  });
-
-  test('the two dimensions are refused independently', () => {
-    // From a real failed calibration: eight clicks on a school pitch, average
-    // error 1.77m against the 105x68 default. The width is the thing actually
-    // wrong and comes back confidently at roughly 52m; the length is refused,
-    // because one of the three fixed-size landmarks present was misplaced.
-    // Reporting the width while declining the length is the honest answer,
-    // and a version that averaged them into one verdict would lose both.
-    const clicked = new Map([
-      ['centre_spot', [638, 343]], ['corner_bottom_left', [0, 400]],
-      ['corner_top_right', [894, 319]], ['pen_right_bottom_corner', [1009, 382]],
-      ['corner_bottom_right', [1276, 402]], ['corner_top_left', [376, 321]],
-      ['goalpost_left_bottom', [251, 346]], ['pen_spot_left', [337, 345]],
-    ]);
-    const got = pitchModel.measureField(clicked);
-    assert.equal(got.lengthConfident, false);
-    assert.equal(got.widthConfident, true);
-    assert.ok(got.widthM > 45 && got.widthM < 58, `width ${got.widthM}`);
-    // Whatever it says, it must not be the default nobody measured.
-    assert.ok(Math.abs(got.widthM - 68) > 10);
-  });
-
-  test('unknown landmark names are ignored, not fatal', () => {
-    const pts = shoot(ALL, 100, 50);
-    pts.set('not_a_landmark', [10, 10]);
-    const got = pitchModel.measureField(pts);
-    assert.equal(got.points, ALL.length);
-    assert.ok(Math.abs(got.widthM - 50) < 0.5);
-  });
-
-  test('nothing to measure is null, not a guess', () => {
-    assert.equal(pitchModel.measureField(new Map()), null);
   });
 });
 

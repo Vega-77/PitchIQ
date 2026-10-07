@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 
 from cv.calibration import Calibration
-from cv.pitch import STATSBOMB_LENGTH, MatchOrientation, Pitch
+from cv.pitch import STATSBOMB_LENGTH, STATSBOMB_WIDTH, MatchOrientation, Pitch
 from cv.xg_bridge import (
     FEATURE_ORDER,
     ShotContext,
@@ -339,3 +339,59 @@ class TestKeeperGuess:
         context = self.context(pitch, [(7, 'a', 95.0, 34.0), (9, 'a', 90.0, 30.0)])
         assert context.keeper_m is None
         assert context.defenders_m == []
+
+
+class TestTheRealModel:
+    """The prediction path, run against the model file itself.
+
+    These two lived in tests/test_xg_parity.py, beside checks that the browser's
+    copy of the feature code agreed with this one. That copy went with the xG
+    sandbox; these never depended on it.
+    """
+
+    @staticmethod
+    def metres(sx: float, sy: float) -> tuple[float, float]:
+        pitch = Pitch()
+        return (sx / STATSBOMB_LENGTH * pitch.length_m,
+                sy / STATSBOMB_WIDTH * pitch.width_m)
+
+    def test_the_model_file_is_where_the_bridge_looks(self):
+        from cv.xg_bridge import MODEL_PATH
+        assert MODEL_PATH.exists(), f'missing model: {MODEL_PATH}'
+
+    def test_the_bridge_can_actually_run_the_model(self, pitch):
+        """The vector the bridge builds is one the real model accepts, and what
+        comes back is a probability rather than a class label."""
+        pytest.importorskip('onnxruntime')
+        from cv.xg_bridge import _predict, load_session
+
+        session = load_session()
+        context = ShotContext(shooter_m=self.metres(108.0, 40.0))
+        probability = _predict(session, feature_vector(context, pitch))
+
+        assert 0.0 <= probability <= 1.0, f'not a probability: {probability}'
+
+    def test_closer_shots_score_higher_through_the_real_model(self, pitch):
+        """A sanity check on the whole chain, not on the model's accuracy.
+
+        If distance came through the vector in the wrong column, or the goal
+        ended up at the wrong end, this ordering is what would break -- and it
+        would break while every individual number still looked plausible.
+        """
+        pytest.importorskip('onnxruntime')
+        from cv.xg_bridge import _predict, load_session
+
+        session = load_session()
+
+        def xg_from(sx: float, sy: float) -> float:
+            context = ShotContext(shooter_m=self.metres(sx, sy),
+                                  keeper_m=self.metres(118.0, 40.0))
+            return _predict(session, feature_vector(context, pitch))
+
+        six_yards = xg_from(114.0, 40.0)
+        penalty_spot = xg_from(108.0, 40.0)
+        long_range = xg_from(85.0, 30.0)
+
+        assert six_yards > penalty_spot > long_range, (
+            f'6yd={six_yards:.3f} spot={penalty_spot:.3f} long={long_range:.3f}'
+        )

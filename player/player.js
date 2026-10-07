@@ -16,6 +16,8 @@ import {
 import { CARD_COLOURS } from '../assets/events.js?v=121';
 import { mountRail } from '../assets/rail.js?v=121';
 import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=121';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=121';
+import { startMotion } from '../assets/motion.js?v=121';
 import { renderHeatmap } from '../assets/heatmap.js?v=121';
 import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=121';
 import {
@@ -634,6 +636,9 @@ async function loadReports(user) {
     if (!reports.length) return showEmpty();
 
     const latest = reports[0];
+    // The squad's colours travel on the report: a player cannot read the
+    // team document, and does not need to.
+    applyKit(latest.teamKit ?? HOUSE_KIT);
     mountPitchBackdrop(byId('player-hero'), { opacity: 0.16 });
     setText('player-name', latest.playerName || 'My season');
     setText('player-number', latest.jerseyNumber ?? '—');
@@ -778,3 +783,4 @@ function init() {
 }
 
 init();
+startMotion();

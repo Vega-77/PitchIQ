@@ -60,6 +60,12 @@ SPEC = re.compile(
     r"""(?:from|import)\s*\(?\s*(['"])(\.{1,2}/[^'"]+\.js)(?:\?v=\d+)?\1""")
 ENTRY = re.compile(
     r"""<script[^>]*\btype=(['"])module\1[^>]*\bsrc=(['"])([^'"]+)\2""", re.I)
+# A classic script in the head: `assets/kit-boot.js`, which paints the team's
+# colours before the first frame so a page does not flash navy and then turn
+# maroon. It is not an entry point (it imports nothing and is imported by
+# nothing), but it is loaded, so it is not stranded either.
+CLASSIC = re.compile(
+    r"""<script(?![^>]*\btype=)[^>]*\bsrc=(['"])([^'"]+)\1""", re.I)
 
 
 def _read(path: Path) -> str:
@@ -98,9 +104,20 @@ def entry_points() -> dict[Path, list[str]]:
     return found
 
 
+def classic_scripts() -> set[Path]:
+    found = set()
+    for page in PAGES:
+        path = REPO / page
+        for _q, src in CLASSIC.findall(_read(path)):
+            src = src.split('?')[0]
+            if not src.startswith(('http:', 'https:', '//')):
+                found.add((path.parent / src).resolve())
+    return found
+
+
 def reachable() -> set[Path]:
     source = modules()
-    seen = set(entry_points())
+    seen = set(entry_points()) | classic_scripts()
     stack = list(seen)
     while stack:
         current = stack.pop()

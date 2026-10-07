@@ -114,13 +114,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 CSS = ['assets/app.css', 'assets/landing.css', 'coach/coach.css',
-       'player/player.css', 'live-tagging/tagging.css', 'halftime/halftime.css',
-       'calibrate/calibrate.css', 'xg-sandbox/sandbox.css']
+       'player/player.css', 'live-tagging/tagging.css', 'halftime/halftime.css']
 HTML = ['index.html', 'coach/index.html', 'player/index.html',
-        'live-tagging/index.html', 'halftime/index.html',
-        'calibrate/index.html', 'xg-sandbox/index.html']
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime',
-           'calibrate', 'xg-sandbox']
+        'live-tagging/index.html', 'halftime/index.html']
+JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime']
 
 # Every place `scan()` looks, and the whole vocabulary `drop` accepts. Kept in
 # step with the scan itself by `test_every_site_it_names_is_a_site_it_reads` --
@@ -305,7 +302,7 @@ class TestSites(unittest.TestCase):
 
     def test_markup_site_is_load_bearing(self):
         dead, ghost = self.deltas('markup')
-        self.assertEqual(ghost, ['event', 'tab'], ghost)
+        self.assertEqual(ghost, ['event', 'tab', 'tag'], ghost)
         self.assertEqual(dead, [])
 
     def test_template_site_is_load_bearing(self):
@@ -321,7 +318,7 @@ class TestSites(unittest.TestCase):
 
     def test_read_site_is_load_bearing(self):
         dead, ghost = self.deltas('read')
-        self.assertEqual(dead, ['signature', 'tab', 'target'], dead)
+        self.assertEqual(dead, ['signature', 'tab', 'tag', 'target'], dead)
 
     def test_selector_site_is_load_bearing(self):
         """And specifically: it is what keeps the two template-hole selectors

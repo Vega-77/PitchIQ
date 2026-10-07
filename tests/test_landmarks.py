@@ -68,8 +68,7 @@ UNIQUE = ('main', 'banner', 'contentinfo')
 # What the scan finds today, so that a scan which quietly stops finding things
 # fails instead of passing everything.
 TOTALS = {'index.html': 5, 'coach/index.html': 10, 'player/index.html': 6,
-          'live-tagging/index.html': 2, 'halftime/index.html': 4,
-          'calibrate/index.html': 5, 'xg-sandbox/index.html': 5}
+          'live-tagging/index.html': 2, 'halftime/index.html': 4}
 
 
 def whole(tag, attrs):

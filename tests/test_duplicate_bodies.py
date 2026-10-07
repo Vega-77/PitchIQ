@@ -49,9 +49,11 @@ DECL = re.compile(r'^(?:export )?(?:async )?function (\w+)\s*\(', re.M)
 # Measured on the tree this file was written against: 565 functions across 31
 # files, every directory contributing at least fifteen. The floors sit under
 # those so an ordinary deletion does not trip them, and far enough under a
-# collapsed scan that one could not pass quietly.
-MIN_FUNCTIONS = 500
-MIN_FILES = 28
+# collapsed scan that one could not pass quietly. The calibrate page and the xG
+# sandbox took two directories and about ninety functions with them on
+# 2026-10-07, leaving 474 across 26 files.
+MIN_FUNCTIONS = 420
+MIN_FILES = 24
 MIN_PER_DIR = 10
 
 # 67 of the 565 declare a `{` inside the parameter list -- a destructured or

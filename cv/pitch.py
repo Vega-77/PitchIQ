@@ -7,7 +7,7 @@ Two systems are needed and they are not interchangeable:
     dimensions are configurable rather than assumed.
 
   * **StatsBomb 120x80** — the space `PitchIQHelper/main.py` trained the xG model
-    in, and what `xg-sandbox/xg-model.js` feeds it at inference time. Any shot feature
+    in, and what `cv/xg_bridge.py` feeds it at inference time. Any shot feature
     handed to that model has to be expressed here or the numbers are silently
     wrong.
 
@@ -53,8 +53,8 @@ class Pitch:
     pitch pays for it — including the ones nobody clicked. Worse, the picker
     reports the resulting residual as the coach's clicking, and no amount of
     re-clicking can move it. Measuring the box and putting the real number here
-    is the fix; `calibrate/pitch-model.js::measureMarkings` measures it from the
-    clicks themselves.
+    is the fix; the calibrate page that once sat in the site measured it from
+    the clicks themselves.
 
     One set of markings serves both ends. The two boxes on a real field are
     marked by the same person with the same tape on the same morning, so they

@@ -1200,10 +1200,10 @@ export function roughDuration(seconds) {
  * homography, so it stands or falls on the calibration and grading it on ball
  * coverage would answer a question nobody asked about it.
  *
- * The bands are the calibrate page's own, not new ones — `renderQuality` there
- * calls a fit good at 0.5m mean error, and a second standard for the same
- * number would mean a coach could be told the fit is good on one page and
- * doubted on another.
+ * The bands are the old calibrate page's own, kept when it left the site on
+ * 2026-10-07 — its `renderQuality` called a fit good at 0.5m mean error, and
+ * a second standard for the same number would mean a coach could be told the
+ * fit is good in one place and doubted in another.
  */
 export function shapeConfidence(calibrationErrorM) {
     if (calibrationErrorM == null) return 'low';
@@ -1236,7 +1236,7 @@ const XG_TOTAL_LIMIT_M = 4.0;
  * Both bands are measured rather than chosen, and they are measured on
  * different things, because they are claims about different numbers:
  *
- *   - `'shot'` — up to **0.5m**, which is also the fit `calibrate/` calls good.
+ *   - `'shot'` — up to **0.5m**, which is also the fit `shapeConfidence` calls good.
  *     Good enough for "that was a decent chance". Not good enough to rank two
  *     shots 0.1 apart, which is why the caveat stays.
  *   - `'total'` — up to **4m**. Per-shot errors are independent and mostly

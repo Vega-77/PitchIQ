@@ -1,80 +1,97 @@
-/* PitchIQ design system.
+/* PitchIQ design system: School Colours.
  *
- * The visual language borrows from televised football rather than from generic
- * dashboards: numbers are the loudest thing on screen, set in heavy tabular
- * figures the way a scoreboard sets them, and labels are small, uppercase and
- * letter-spaced the way broadcast lower-thirds are. The ground is a near-black
- * pushed slightly green so it reads as turf-adjacent rather than as default
- * dark mode, and the single accent is a floodlit cyan-blue that only ever
- * marks live data.
+ * Every squad wears its own kit. A coach picks two colours for a team, and
+ * every page for that team takes them on: the top bar and the page header
+ * are painted in the first, the sleeve stripes and the highlights in the
+ * second, and squad numbers are set in block varsity numerals the way they
+ * are on a shirt. Pages nobody's team owns yet (the front page, sign-in) wear
+ * the house kit, navy and gold.
+ *
+ * The rest of the page is deliberately plain: a cool light grey ground, white
+ * cards, near-black ink. The kit is loud, so everything around it is quiet,
+ * and a light ground is the one that survives a phone in the sun.
+ *
+ * The values in `:root` are the house kit. `assets/kit.js` overwrites the
+ * eight `--kit*` / `--accent*` tokens at runtime for a real team, and it does
+ * the contrast arithmetic itself, because the scan in tests/ can only see the
+ * colours written here.
  */
 
 :root {
-    /* Neutrals, biased a few degrees toward green so the dark reads as pitch
-       at night rather than as an unconsidered #111. */
-    --bg: #0b1210;
-    --bg-raised: #101815;
-    --surface: #14201c;
-    --surface-hi: #1a2823;
-    --line: #223029;
-    --line-hi: #31453a;
+    /* The kit. --kit is the shirt, --kit-2 the trim. Each carries the ink
+       that is legible on it: white on navy is 14.5, navy on gold 7.96.
+       --kit-2-ink is the trim used as lettering on the shirt colour (the
+       highlighted words in a header), which a real team's colours may not
+       be able to do; kit.js swaps it for --kit-on when they cannot. */
+    --kit: #13294b;
+    --kit-hi: #1d3e71;
+    --kit-on: #ffffff;
+    --kit-2: #f2b632;
+    --kit-2-on: #13294b;
+    --kit-2-ink: #f2b632;
 
-    --text: #e6efe9;
-    --text-dim: #9db0a5;
-    /* Measured, not chosen. This is the most-used ink on the site — every
-       rail label, every stat caption, every unit — and at #62786c it sat at
-       3.99 on --bg, 3.53 on --surface and 3.22 on --surface-hi, which is under
-       the 4.5 normal text needs on all three. The base font is 17px here
-       because the person reading it may be forty years past needing glasses;
-       serving that reader the commonest label at 3.2 undoes the reason for the
-       17px. #7b9185 clears 4.5 on the darkest ground it is ever drawn on
-       (4.54 / 4.97 / 5.62) and stays well clear of --text-dim at 6.70, so the
-       three steps of the hierarchy still read as three steps. */
-    --text-faint: #7b9185;
+    /* Neutrals, a few degrees cool so white cards lift off them. */
+    --bg: #f2f3f5;
+    --bg-raised: #f8f9fa;
+    --surface: #ffffff;
+    --surface-hi: #e9ecf0;
+    --line: #dfe3e8;
+    --line-hi: #c3c9d2;
 
-    --accent: #4dd6c1;          /* floodlight cyan — live data only */
-    --accent-hi: #7fe8d8;
-    --accent-dim: rgba(77, 214, 193, 0.12);
+    /* Three steps of ink, each scored against the darkest ground above
+       (--surface-hi): 15.0, 7.41 and 5.25. --text-faint is the most-used ink
+       on the site, every caption and unit, so it keeps a full point of
+       headroom over the 4.5 that normal text is owed. */
+    --text: #141820;
+    --text-dim: #434b5a;
+    --text-faint: #596172;
+
+    /* The team's colour as ink and as a mark on the light ground: links,
+       live figures, the bars that matter. For the house kit it is the shirt
+       itself (12.25 on --surface-hi). A team whose shirt is pale gets a
+       darkened copy from kit.js, so a yellow squad still has legible links. */
+    --accent: #13294b;
+    --accent-hi: #344764;
+    --accent-dim: rgba(19, 41, 75, 0.08);
+    --on-accent: #ffffff;
 
     --pitch: #2f7d4f;
     /* A mark that carries data and is deliberately the quiet one: the
        opponent's half of a possession bar, dead-ball time in a stacked bar, a
-       touch on the timeline, a match with no goal in it, the lines painted on
-       a pitch, the off position of a switch.
+       touch on the timeline, the lines painted on a pitch. WCAG puts a
+       graphical object's floor at 3.0 against its own background, and this
+       clears it on every ground (3.46 on --surface-hi, 4.10 on white) while
+       staying well short of --accent, so the loud half of a comparison is
+       still the loud one. */
+    --mark-quiet: #767e8b;
 
-       All seventeen of these used to be --line-hi, because a quiet mark and the
-       edge of a card look like the same request. They are not. A border has no
-       contrast requirement at all; a mark you are meant to read a length off is
-       a graphical object and WCAG puts its floor at 3.0 against its own
-       background. --line-hi measures 1.63 on --surface — under half of it.
-       The one that gave this away is `.t-half.them`: our share of the ball is
-       drawn in --accent and theirs in --line-hi, so on a bar whose entire job is
-       to be compared, one of the two quantities was very nearly not there.
-
-       #6f8377 is the value that clears 3.0 on every ground any of these are
-       drawn on — --bg 4.68, --bg-raised 4.46, --surface 4.14, --surface-hi
-       3.78, --line 3.41 — and on white it is 4.05, so paper needs no
-       override. It is 2.26 from --accent, which is not a violation: every bar
-       in this app has a gap between it and its neighbour, so a mark's adjacent
-       colour is the ground and never the accent bar next to it. Brighter than
-       this and the quiet mark starts arguing with the loud one; --text-faint
-       would put them 1.88 apart and the two halves of a possession bar would
-       read as one bar. */
-    --mark-quiet: #6f8377;
-    --good: #4ade80;
-    --warn: #fbbf24;
-    --danger: #f87171;
+    /* State colours, darkened for a light ground, each with the tint it is
+       set on in a chip. Every ink clears 4.5 on its own tint composited over
+       the darkest page ground. */
+    --good: #14653a;
+    --good-dim: rgba(20, 101, 58, 0.10);
+    --warn: #8a4f00;
+    --warn-dim: rgba(242, 182, 50, 0.20);
+    --danger: #b3261e;
+    --danger-dim: rgba(179, 38, 30, 0.08);
     --card-yellow: #fbbf24;
-    --card-red: #ef4444;
+    --card-red: #dc2626;
 
-    --radius: 10px;
-    --radius-lg: 14px;
+    --radius: 8px;
+    --radius-lg: 12px;
     --shell: 1120px;
 
-    --font: 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif;
+    /* Saira for reading, its condensed cut for headings and labels (a lot of
+       words in a narrow column, the way a scoreboard sets them), and Graduate,
+       a block varsity face, for squad numbers and the big figures. */
+    --font: 'Saira', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Saira Condensed', 'Arial Narrow', 'Segoe UI', sans-serif;
+    --numeral: 'Graduate', 'Saira Condensed', Georgia, serif;
     --mono: ui-monospace, 'SF Mono', Consolas, 'Cascadia Mono', monospace;
 
-    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .22);
+    --shadow: 0 1px 2px rgba(20, 24, 32, .06), 0 8px 24px rgba(20, 24, 32, .07);
+    --shadow-lift: 0 2px 6px rgba(20, 24, 32, .08), 0 18px 40px rgba(20, 24, 32, .13);
+    --ease-out: cubic-bezier(.2, .7, .3, 1);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -89,8 +106,19 @@ html, body { margin: 0; padding: 0; min-height: 100%; }
    browser's own text-size setting is honoured. */
 html { font-size: 17px; }
 
+/* The ground is a mown pitch seen from the stand: broad bands a shade apart,
+   too faint to read as a pattern until you look for it, under a wash of the
+   team's colour that falls in from the top corner. Neither is fixed to the
+   viewport, which looks lovely on a laptop and stutters on a phone. */
 body {
-    background: var(--bg);
+    background:
+        radial-gradient(1100px 520px at 88% -120px,
+            color-mix(in srgb, var(--kit) 11%, transparent), transparent 72%),
+        radial-gradient(900px 420px at -10% 0,
+            color-mix(in srgb, var(--kit-2) 10%, transparent), transparent 70%),
+        repeating-linear-gradient(90deg,
+            rgba(20, 24, 32, .016) 0 84px, transparent 84px 168px),
+        var(--bg);
     color: var(--text);
     font-family: var(--font);
     font-size: 1rem;
@@ -104,7 +132,9 @@ a { color: var(--accent); text-decoration: none; }
     a:hover { color: var(--accent-hi); }
 }
 
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+::selection { background: var(--kit-2); color: var(--kit-2-on); }
+
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
 .hidden { display: none !important; }
 /* Secondary text stays at 0.88rem (~15px) rather than the 12-13px that is
@@ -153,7 +183,7 @@ a { color: var(--accent); text-decoration: none; }
     place-items: center;
     border-radius: 50%;
     background: var(--accent-dim);
-    border: 1px solid rgba(77, 214, 193, .4);
+    border: 1px solid color-mix(in srgb, var(--accent) 48%, transparent);
     color: var(--accent);
     font-size: 0.8rem;
     font-weight: 700;
@@ -161,8 +191,8 @@ a { color: var(--accent); text-decoration: none; }
 }
 .steps li.done::before {
     content: '✓';
-    background: rgba(74, 222, 128, .12);
-    border-color: rgba(74, 222, 128, .4);
+    background: var(--good-dim);
+    border-color: color-mix(in srgb, var(--good) 48%, transparent);
     color: var(--good);
 }
 .steps .step-body { flex: 1; }
@@ -171,72 +201,129 @@ a { color: var(--accent); text-decoration: none; }
 
 /* ---------------------------------------------------------------- chrome */
 
+/* The top bar is the shirt: the team's colour edge to edge, a band of the
+   trim along the bottom, and two sleeve stripes at the far end. The contents
+   still line up with the column beneath — the padding is whatever puts them
+   there — so the colour runs the width of the window and the brand does not.
+   `--bar` is that column's width; the match report widens it.
+
+   The stripes are their own background layer, only as wide as the margin
+   outside the column, so they can never run under a button: on a window too
+   narrow to have a margin the layer is zero wide and they are simply not
+   there. */
 .topbar {
+    --bar: var(--shell);
     position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 15px 24px;
+    padding: 12px max(24px, calc((100% - var(--bar)) / 2 + 24px));
     /* Pinned rather than left to the contents. Most pages put a .btn.small in
-       here, whose 40px min-height was silently setting the bar's height; the xG
-       sandbox has only text links and came out 11px shorter, so the brand
+       here, whose 40px min-height was silently setting the bar's height; a
+       page with only text links up there came out shorter, so the brand
        jumped when you navigated to it. */
     min-height: 70px;
-    max-width: var(--shell);
-    margin: 0 auto;
     flex-wrap: wrap;
+    color: var(--kit-on);
+    border-bottom: 4px solid var(--kit-2);
+    background:
+        linear-gradient(105deg,
+            transparent calc(100% - 92px),
+            var(--kit-2) calc(100% - 92px) calc(100% - 72px),
+            transparent calc(100% - 72px) calc(100% - 56px),
+            var(--kit-2) calc(100% - 56px) calc(100% - 36px),
+            transparent calc(100% - 36px))
+            right / max(0px, calc((100% - var(--bar)) / 2 + 8px)) 100% no-repeat,
+        var(--kit);
+    transition: background-color .4s ease;
 }
 
-/* Hairline that fades at the edges — softer than a hard 1px rule. */
-.topbar::after {
+/* The crest: a shield in the trim colour, the shape every school badge
+   starts from. Drawn, not an image, so it takes the team's colours. */
+.topbar .brand::before {
     content: '';
-    position: absolute;
-    left: 24px; right: 24px; bottom: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--line) 12%, var(--line) 88%, transparent);
+    width: 22px;
+    height: 26px;
+    align-self: center;
+    background: var(--kit-2);
+    clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%);
+    transition: transform .35s var(--ease-out);
+}
+@media (hover: hover) {
+    .topbar a.brand:hover::before { transform: rotate(-8deg) scale(1.08); }
 }
 
 .brand {
     display: inline-flex;
     align-items: baseline;
-    gap: 9px;
-    font-weight: 700;
-    font-size: 1.05rem;
-    letter-spacing: -0.4px;
+    gap: 10px;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 1.45rem;
+    line-height: 1;
+    letter-spacing: .01em;
+    text-transform: uppercase;
     color: var(--text);
 }
+.topbar .brand,
+.topbar a.brand:hover { color: var(--kit-on); }
 .brand span {
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 1.4px;
+    font-family: var(--display);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: .14em;
     text-transform: uppercase;
-    color: var(--accent);
-    padding: 2px 6px;
-    border: 1px solid var(--accent-dim);
-    background: var(--accent-dim);
-    border-radius: 4px;
+    color: var(--kit-2-on);
+    background: var(--kit-2);
+    padding: 3px 7px 2px;
+    border-radius: 3px;
+    align-self: center;
 }
 
 .topbar-user {
     display: flex;
     align-items: center;
-    gap: 14px;
-    font-size: 0.82rem;
-    color: var(--text-dim);
+    gap: 12px;
+    font-size: 0.86rem;
 }
 
 /* Bare text links in the top bar were 22px tall — a fine mouse target and a
    poor thumb one, on a bar that is mostly used from a phone or a tablet on a
-   touchline. Padded to the same 40px the buttons beside them already use, which
-   also removes the reason the bar's height needed pinning above: every child is
-   now the same height whether it is a link or a button. */
+   touchline. Padded to the same 40px the buttons beside them already use. */
 .topbar-user > a:not(.btn) {
     display: inline-flex;
     align-items: center;
     min-height: 40px;
     padding: 0 4px;
 }
+
+/* Buttons on the shirt. The plain one becomes an outline in the shirt's own
+   ink, the primary one takes the trim, and a ghost is just lettering. */
+.topbar .btn {
+    background: transparent;
+    border-color: color-mix(in srgb, var(--kit-on) 45%, transparent);
+    color: var(--kit-on);
+}
+.topbar .btn.primary {
+    background: var(--kit-2);
+    border-color: var(--kit-2);
+    color: var(--kit-2-on);
+}
+.topbar .btn.ghost { border-color: transparent; color: var(--kit-on); }
+@media (hover: hover) {
+    .topbar .btn:hover {
+        background: color-mix(in srgb, var(--kit-on) 14%, var(--kit));
+        border-color: var(--kit-on);
+        color: var(--kit-on);
+    }
+    .topbar .btn.primary:hover {
+        background: var(--kit-2);
+        border-color: var(--kit-on);
+        color: var(--kit-2-on);
+    }
+}
+.topbar .muted { color: var(--kit-on); opacity: .88; }
 
 .shell { max-width: var(--shell); margin: 0 auto; padding: 0 24px 72px; }
 
@@ -287,35 +374,51 @@ a { color: var(--accent); text-decoration: none; }
 
 /* ---------------------------------------------------------------- backdrop */
 
-/* Faint pitch markings behind a header. Masked so it dissolves rather than
-   ending on a hard edge, and pinned behind content. */
+/* Pitch markings behind a header, drawn in the header's own ink so they sit
+   on the shirt colour as chalk does on grass. Masked so they dissolve rather
+   than ending on a hard edge, and pinned behind content.
+
+   The lines draw themselves once when the page arrives, and then the whole
+   drawing leans a few pixels toward the pointer (`--px`/`--py`, written by
+   assets/motion.js). Both are ornament on ornament, so the reduced-motion
+   rule switches them off and leaves the finished drawing. */
 .pitch-backdrop {
     position: absolute;
     inset: 0;
     overflow: hidden;
     pointer-events: none;
-    color: var(--accent);
+    color: inherit;
     z-index: 0;
-    -webkit-mask-image: radial-gradient(120% 100% at 20% 0%, #000 0%, transparent 72%);
-    mask-image: radial-gradient(120% 100% at 20% 0%, #000 0%, transparent 72%);
+    -webkit-mask-image: radial-gradient(130% 120% at 78% 10%, #000 0%, transparent 74%);
+    mask-image: radial-gradient(130% 120% at 78% 10%, #000 0%, transparent 74%);
 }
-.pitch-backdrop svg { width: 100%; height: 100%; display: block; }
+.pitch-backdrop svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    transform: translate3d(calc(var(--px, 0) * 14px), calc(var(--py, 0) * 10px), 0) scale(1.06);
+    transition: transform .6s var(--ease-out);
+}
+.pitch-backdrop [pathLength] {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: chalk 2.2s var(--ease-out) .15s forwards;
+}
+@keyframes chalk { to { stroke-dashoffset: 0; } }
 
-/* A floodlight drifting slowly across the markings. It is the only motion in
-   the app, it takes half a minute to cross, and the reduced-motion rule at the
-   bottom of this file switches it off entirely — it should read as depth
-   rather than as something moving. */
+/* Light falling across the markings, slowly, the way a cloud's shadow
+   crosses a pitch. */
 .pitch-backdrop::after {
     content: '';
     position: absolute;
     inset: -40% -30%;
     background: radial-gradient(
         closest-side,
-        rgba(77, 214, 193, .13),
-        rgba(77, 214, 193, .04) 55%,
+        rgba(255, 255, 255, .14),
+        rgba(255, 255, 255, .04) 55%,
         transparent 75%
     );
-    animation: floodlight 34s ease-in-out infinite;
+    animation: floodlight 30s ease-in-out infinite;
     pointer-events: none;
 }
 
@@ -328,40 +431,103 @@ a { color: var(--accent); text-decoration: none; }
 .has-backdrop { position: relative; }
 .has-backdrop > *:not(.pitch-backdrop) { position: relative; z-index: 1; }
 
+/* ---------------------------------------------------------------- the shirt
+ *
+ * A header painted in the team's colour: the landing hero, the welcome, a
+ * squad's season header and a player's. White lettering on the shirt, the
+ * trim for the words that matter, and the sleeve stripes in the far corner.
+ * Every one of them is a `.has-backdrop`, so the chalk lines come with it.
+ */
+.on-kit {
+    background:
+        linear-gradient(110deg,
+            transparent calc(100% - 168px),
+            var(--kit-2) calc(100% - 168px) calc(100% - 140px),
+            transparent calc(100% - 140px) calc(100% - 118px),
+            var(--kit-2) calc(100% - 118px) calc(100% - 90px),
+            transparent calc(100% - 90px)),
+        radial-gradient(120% 140% at 100% 0%, var(--kit-hi), transparent 60%),
+        var(--kit);
+    color: var(--kit-on);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lift);
+    overflow: hidden;
+}
+.on-kit .lede,
+.on-kit .muted,
+.on-kit .record-key { color: var(--kit-on); opacity: .86; }
+.on-kit em { font-style: normal; color: var(--kit-2-ink); }
+.on-kit .eyebrow-mini { color: var(--kit-2-ink); }
+.on-kit .btn.primary {
+    background: var(--kit-2);
+    border-color: var(--kit-2);
+    color: var(--kit-2-on);
+}
+.on-kit .btn:not(.primary) {
+    background: transparent;
+    border-color: color-mix(in srgb, var(--kit-on) 55%, transparent);
+    color: var(--kit-on);
+}
+@media (hover: hover) {
+    .on-kit .btn.primary:hover {
+        background: var(--kit-2);
+        border-color: var(--kit-on);
+        color: var(--kit-2-on);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--kit-2) 40%, transparent);
+    }
+    .on-kit .btn:not(.primary):hover {
+        background: color-mix(in srgb, var(--kit-on) 14%, var(--kit));
+        border-color: var(--kit-on);
+        color: var(--kit-on);
+    }
+}
+
 /* ---------------------------------------------------------------- type */
 
 h1 {
-    font-size: clamp(26px, 4vw, 36px);
-    font-weight: 700;
-    letter-spacing: -0.9px;
-    line-height: 1.1;
+    font-family: var(--display);
+    font-size: clamp(30px, 4.4vw, 44px);
+    font-weight: 800;
+    letter-spacing: -0.005em;
+    line-height: 1.02;
     margin: 0 0 10px;
     text-wrap: balance;
 }
 
 h2 {
-    font-size: 1.05rem;
-    font-weight: 650;
-    letter-spacing: -0.2px;
+    font-family: var(--display);
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 0.005em;
+    line-height: 1.15;
     margin: 0 0 14px;
 }
 
-/* Section eyebrow: small, spaced, with a short accent rule.
-   0.82rem (~14px) rather than the 0.72 it started at. This is the heading on
-   every section in the app, and uppercase letter-spaced text is *harder* to
-   read than sentence case at the same size, not easier — so a label of this
-   importance deserves more size than body text, not less. The file header
-   argues exactly this and the eyebrows were not obeying it. */
+/* Section heading. This is the heading on every section in the app: there is
+   no h2 tier, so pages go h1 to h3 by design. Condensed capitals behind a
+   slanted tab of the team's colour, the way a kit's number panel is set. Larger than body text on
+   purpose: uppercase letter-spaced text is harder to read than sentence case
+   at the same size, so a label this important gets more size, not less. */
 h3 {
     display: flex;
     align-items: center;
-    gap: 9px;
-    font-size: 0.82rem;
+    gap: 10px;
+    font-family: var(--display);
+    font-size: 1rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.1px;
-    color: var(--text-faint);
-    margin: 0 0 12px;
+    letter-spacing: .1em;
+    color: var(--text-dim);
+    margin: 0 0 14px;
+}
+h3::before {
+    content: '';
+    flex: none;
+    width: 7px;
+    height: 18px;
+    background: var(--accent);
+    transform: skewX(-16deg);
+    border-radius: 1px;
 }
 h3::after {
     content: '';
@@ -370,15 +536,17 @@ h3::after {
     background: var(--line);
 }
 
+h4 { font-family: var(--display); }
+
 .lede {
-    font-size: 1.05rem;
+    font-size: 1.08rem;
     line-height: 1.6;
     color: var(--text-dim);
     max-width: 62ch;
     margin: 0 0 26px;
 }
 
-section.block { margin-top: 42px; }
+section.block { margin-top: 46px; }
 
 /* Prose inside a block keeps a reading measure.
  *
@@ -467,7 +635,7 @@ section.block > p.muted { max-width: 74ch; }
        bar still lines up with a 1120px column, because that is what is under
        it there. */
     body:has(.wide-report:not(.hidden)) .topbar {
-        max-width: min(100vw - 64px, 1500px);
+        --bar: min(100vw - 64px, 1500px);
     }
 
     .report-layout {
@@ -731,7 +899,7 @@ section.block > p.muted { max-width: 74ch; }
     place-items: center;
     border-radius: 999px;
     background: var(--accent-dim);
-    border: 1px solid rgba(77, 214, 193, .4);
+    border: 1px solid color-mix(in srgb, var(--accent) 48%, transparent);
     color: var(--accent);
     font-size: 0.8rem;
     font-weight: 700;
@@ -776,13 +944,13 @@ section.block > p.muted { max-width: 74ch; }
     cursor: default;
 }
 .form-pill.is-w {
-    background: rgba(74, 222, 128, .16);
-    border-color: rgba(74, 222, 128, .45);
+    background: var(--good-dim);
+    border-color: color-mix(in srgb, var(--good) 53%, transparent);
     color: var(--good);
 }
 .form-pill.is-l {
-    background: rgba(248, 113, 113, .14);
-    border-color: rgba(248, 113, 113, .42);
+    background: var(--danger-dim);
+    border-color: color-mix(in srgb, var(--danger) 50%, transparent);
     color: var(--danger);
 }
 
@@ -817,8 +985,8 @@ section.block > p.muted { max-width: 74ch; }
 /* Today or tomorrow. Anything a week out is a diary entry and should not be
    lit like a thing that is happening. */
 .next-card.is-soon {
-    border-color: rgba(77, 214, 193, .45);
-    background: linear-gradient(140deg, rgba(77, 214, 193, .14), var(--surface) 62%);
+    border-color: color-mix(in srgb, var(--accent) 53%, transparent);
+    background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 22%, transparent), var(--surface) 62%);
 }
 
 .next-when {
@@ -848,65 +1016,87 @@ section.block > p.muted { max-width: 74ch; }
 
 /* ---------------------------------------------------------------- controls */
 
+/* Condensed capitals, like the lettering on a bench jacket. Every button
+   lifts a little under a pointer and settles when pressed, so a tap on a
+   tablet has something to feel like even without a click. */
 .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    font-family: inherit;
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-family: var(--display);
+    font-size: 0.98rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    line-height: 1.1;
     color: var(--text);
     background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 11px 18px;
+    border: 1.5px solid var(--line-hi);
+    border-radius: 6px;
+    padding: 11px 20px;
     min-height: 50px;
     cursor: pointer;
-    transition: background .13s ease, border-color .13s ease, transform .08s ease;
+    transition: background .15s ease, border-color .15s ease, color .15s ease,
+                transform .15s var(--ease-out), box-shadow .2s ease;
 }
 @media (hover: hover) {
-    .btn:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+    .btn:hover {
+        background: var(--surface);
+        border-color: var(--accent);
+        color: var(--accent);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow);
+    }
 }
-.btn:active { transform: translateY(1px); }
+.btn:active { transform: translateY(1px) scale(.98); box-shadow: none; }
 .btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
 
 .btn.primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: #04120f;
+    color: var(--on-accent);
 }
 @media (hover: hover) {
-    .btn.primary:hover { background: var(--accent-hi); border-color: var(--accent-hi); }
+    .btn.primary:hover {
+        background: var(--accent-hi);
+        border-color: var(--accent-hi);
+        color: var(--on-accent);
+        box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 30%, transparent);
+    }
 }
 
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-dim); }
 @media (hover: hover) {
-    .btn.ghost:hover { background: var(--surface); color: var(--text); }
+    .btn.ghost:hover { background: var(--accent-dim); color: var(--accent); box-shadow: none; }
 }
-.btn.danger { background: transparent; border-color: rgba(248,113,113,.35); color: var(--danger); }
+.btn.danger { background: transparent; border-color: color-mix(in srgb, var(--danger) 43%, transparent); color: var(--danger); }
 @media (hover: hover) {
-    .btn.danger:hover { background: rgba(248,113,113,.1); border-color: var(--danger); }
+    .btn.danger:hover { background: var(--danger-dim); border-color: var(--danger); }
 }
 .btn.block { width: 100%; }
-.btn.small { min-height: 40px; padding: 6px 12px; font-size: 0.82rem; border-radius: 8px; }
+.btn.small { min-height: 40px; padding: 6px 14px; font-size: 0.88rem; border-radius: 5px; }
 
 input, select, textarea {
     font-family: inherit;
     font-size: 0.95rem;
     color: var(--text);
-    background: var(--bg-raised);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1.5px solid var(--line-hi);
+    border-radius: 6px;
     padding: 11px 13px;
     min-height: 50px;
     width: 100%;
-    transition: border-color .13s ease, background .13s ease;
+    transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
 }
 @media (hover: hover) {
     input:hover, select:hover { border-color: var(--line-hi); }
 }
-input:focus, select:focus { border-color: var(--accent); background: var(--surface); }
+input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    background: var(--surface);
+    box-shadow: 0 0 0 4px var(--accent-dim);
+}
 input::placeholder { color: var(--text-faint); }
 
 /* The rule above is written for text boxes, and a checkbox inherits all of it:
@@ -926,10 +1116,11 @@ input[type="checkbox"], input[type="radio"] {
 label.field { display: block; margin-bottom: 16px; }
 label.field > span {
     display: block;
-    font-size: 0.82rem;
+    font-family: var(--display);
+    font-size: 0.92rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: .08em;
     color: var(--text-faint);
     margin-bottom: 7px;
 }
@@ -940,11 +1131,15 @@ label.field > span {
 
 /* ---------------------------------------------------------------- surfaces */
 
+/* A card wears the team's colour along its top edge, like the collar of a
+   shirt laid flat. */
 .card {
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: var(--radius-lg);
+    border-top: 4px solid var(--kit);
+    border-radius: var(--radius);
     padding: 22px;
+    box-shadow: var(--shadow);
 }
 
 .card-list { display: flex; flex-direction: column; gap: 8px; }
@@ -970,23 +1165,28 @@ label.field > span {
     font-family: inherit;
     font-size: 0.95rem;
     width: 100%;
-    transition: background .13s ease, border-color .13s ease;
+    box-shadow: 0 1px 2px rgba(20, 24, 32, .04);
+    transition: background .15s ease, border-color .15s ease,
+                transform .18s var(--ease-out), box-shadow .18s ease;
 }
 button.list-item, a.list-item { cursor: pointer; }
 @media (hover: hover) {
     button.list-item:hover, a.list-item:hover {
-        background: var(--surface-hi);
-        border-color: var(--line-hi);
+        background: var(--surface);
+        border-color: var(--accent);
+        transform: translateX(3px);
+        box-shadow: -3px 0 0 var(--accent), var(--shadow);
     }
 }
 .list-item .title { font-weight: 600; }
 .list-item .sub { font-size: 0.82rem; color: var(--text-faint); }
 
-/* Jersey numbers, set like a shirt: heavy, tabular, tight. */
+/* Jersey numbers, set in the varsity block face the shirt itself uses. */
 .jersey {
+    font-family: var(--numeral);
     font-variant-numeric: tabular-nums;
-    font-weight: 750;
-    font-size: 0.95rem;
+    font-weight: 400;
+    font-size: 1.05rem;
     color: var(--accent);
     min-width: 32px;
     text-align: center;
@@ -1008,10 +1208,10 @@ button.list-item, a.list-item { cursor: pointer; }
     margin-bottom: 10px;
 }
 .group-head h4 {
-    font-size: 0.72rem;
+    font-size: 0.9rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.4px;
+    letter-spacing: .1em;
     color: var(--text-dim);
     margin: 0;
 }
@@ -1043,40 +1243,55 @@ button.list-item, a.list-item { cursor: pointer; }
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 16px 18px;
+    padding: 18px 18px 14px;
     overflow: hidden;
+    box-shadow: 0 1px 2px rgba(20, 24, 32, .05);
+    transition: transform .2s var(--ease-out), box-shadow .2s ease;
 }
-/* Accent spine, the way a broadcast stat bug is keyed. */
+/* The collar again, on every figure: a band of the team's colour across the
+   top of the box. */
 .stat::before {
     content: '';
     position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 2px;
+    left: 0; right: 0; top: 0;
+    height: 4px;
     background: var(--accent);
-    opacity: .55;
 }
-.stat.is-muted::before { background: var(--text-faint); opacity: .3; }
+.stat.is-muted::before { background: var(--mark-quiet); }
 .stat.is-good::before { background: var(--good); }
 .stat.is-warn::before { background: var(--warn); }
 
 .stat .value {
-    font-size: 1.9rem;
-    font-weight: 750;
+    font-family: var(--numeral);
+    font-size: 1.95rem;
+    font-weight: 400;
     line-height: 1.05;
-    letter-spacing: -1px;
+    letter-spacing: 0;
     font-variant-numeric: tabular-nums;
     color: var(--text);
 }
-.stat .value.good { color: var(--good); }
-.stat .value.bad { color: var(--danger); }
 .stat .label {
-    font-size: 0.7rem;
-    font-weight: 650;
+    font-family: var(--display);
+    font-size: 0.86rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.1px;
+    letter-spacing: .08em;
     color: var(--text-faint);
     margin-top: 6px;
 }
+
+/* Figures printed on the shirt itself rather than on a card laid over it:
+   the box is a slightly lighter panel of the kit, lettered in the kit's ink,
+   and the collar band turns to the trim. */
+.on-kit .stat {
+    background: color-mix(in srgb, var(--kit-on) 9%, var(--kit));
+    border-color: color-mix(in srgb, var(--kit-on) 20%, transparent);
+    box-shadow: none;
+}
+.on-kit .stat::before { background: var(--kit-2); }
+.on-kit .stat .value,
+.on-kit .stat .label { color: var(--kit-on); }
+.on-kit .stat .label { opacity: .86; }
 
 /* A compact figure that lives inside a row rather than in its own box: the
    per-match numbers on a player's season, the record on a team card. Three
@@ -1086,8 +1301,9 @@ button.list-item, a.list-item { cursor: pointer; }
 
 .figure { min-width: 46px; }
 .figure .n {
-    font-size: 1.05rem;
-    font-weight: 700;
+    font-family: var(--numeral);
+    font-size: 1.1rem;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
     line-height: 1.1;
 }
@@ -1097,10 +1313,11 @@ button.list-item, a.list-item { cursor: pointer; }
 .figure .n.neg { color: var(--danger); }
 .figure .n.dim { color: var(--text-faint); }
 .figure .k {
-    font-size: 0.7rem;
-    font-weight: 650;
+    font-family: var(--display);
+    font-size: 0.8rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .9px;
+    letter-spacing: .08em;
     color: var(--text-faint);
     margin-top: 2px;
 }
@@ -1113,30 +1330,103 @@ button.list-item, a.list-item { cursor: pointer; }
     gap: 20px;
 }
 
+/* The badge is the shirt itself: cut to a jersey's outline, in the team's
+   colour, with the number in the trim. On a header that is already the
+   shirt colour it swaps, so it does not vanish into what it sits on. */
 .player-badge {
     display: grid;
     place-items: center;
-    width: 72px;
-    height: 72px;
+    width: 82px;
+    height: 78px;
     flex-shrink: 0;
-    border-radius: 14px;
-    background: var(--surface);
-    border: 1px solid var(--line-hi);
-    font-size: 2rem;
-    font-weight: 750;
+    padding-top: 14px;
+    background: var(--kit);
+    clip-path: polygon(30% 0, 70% 0, 100% 17%, 91% 42%, 81% 36%, 81% 100%,
+                       19% 100%, 19% 36%, 9% 42%, 0 17%);
+    font-family: var(--numeral);
+    font-size: 1.9rem;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
-    letter-spacing: -1.4px;
-    color: var(--accent);
+    color: var(--kit-2-ink);
 }
+.on-kit .player-badge { background: var(--kit-2); color: var(--kit-2-on); }
+
+/* ---------------------------------------------------------------- kit picker
+ *
+ * A squad's two colours (ui.js, `kitPicker`). Each common pairing is a disc
+ * split on the diagonal, the way a scarf is; the chosen one gets a ring. Under
+ * them, a shirt in the pair as picked, and a colour well for each half.
+ */
+.kit-field { margin-bottom: 18px; }
+.kit-field-label {
+    display: block;
+    font-family: var(--display);
+    font-size: 0.92rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-faint);
+    margin-bottom: 9px;
+}
+.kit-picker { margin-bottom: 14px; }
+.kit-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.kit-swatch {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 3px solid var(--surface);
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--sw-a) 50%, var(--sw-b) 50%);
+    box-shadow: 0 0 0 1.5px var(--line-hi);
+    cursor: pointer;
+    transition: transform .18s var(--ease-out), box-shadow .18s ease;
+}
+.kit-swatch[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--text); }
+@media (hover: hover) {
+    .kit-swatch:hover { transform: scale(1.1) rotate(-12deg); }
+}
+.kit-wells { display: flex; align-items: center; gap: 16px; }
+.kit-shirt {
+    width: 62px;
+    height: 58px;
+    padding-top: 10px;
+    font-size: 1.35rem;
+    transition: background-color .3s ease, color .3s ease;
+}
+.kit-well {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--display);
+    font-size: 0.86rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+.kit-well input[type="color"] {
+    width: 52px;
+    height: 40px;
+    padding: 3px;
+    border: 1.5px solid var(--line-hi);
+    border-radius: 6px;
+    background: var(--surface);
+    cursor: pointer;
+}
+.kit-warning { margin: 10px 0 0; font-size: 0.86rem; color: var(--warn); }
+.kit-warning:empty { display: none; }
 
 /* Small accent label above a heading, e.g. "Season". Was 0.62rem, which is
    10.5px — comfortably into the range this project's own type scale exists to
    avoid. */
 .eyebrow-mini {
-    font-size: 0.72rem;
+    font-family: var(--display);
+    font-size: 0.9rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.4px;
+    letter-spacing: .14em;
     color: var(--accent);
     margin-bottom: 8px;
 }
@@ -1146,10 +1436,11 @@ button.list-item, a.list-item { cursor: pointer; }
     display: inline-flex;
     align-items: baseline;
     gap: 12px;
+    font-family: var(--numeral);
     font-variant-numeric: tabular-nums;
-    font-weight: 750;
-    font-size: 2.3rem;
-    letter-spacing: -1.5px;
+    font-weight: 400;
+    font-size: 2.4rem;
+    letter-spacing: 0;
 }
 .scoreline .dash { color: var(--text-faint); font-weight: 400; font-size: 1.55rem; }
 
@@ -1204,24 +1495,25 @@ button.list-item, a.list-item { cursor: pointer; }
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 0.78rem;
+    font-family: var(--display);
+    font-size: 0.84rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .9px;
-    padding: 4px 9px;
-    border-radius: 999px;
+    letter-spacing: .08em;
+    padding: 3px 9px 2px;
+    border-radius: 4px;
     background: var(--surface-hi);
     color: var(--text-dim);
     border: 1px solid var(--line);
     white-space: nowrap;
 }
-.pill.done { background: rgba(74,222,128,.1); border-color: rgba(74,222,128,.35); color: var(--good); }
-.pill.warn { background: rgba(251,191,36,.1); border-color: rgba(251,191,36,.35); color: var(--warn); }
+.pill.done { background: var(--good-dim); border-color: color-mix(in srgb, var(--good) 43%, transparent); color: var(--good); }
+.pill.warn { background: var(--warn-dim); border-color: color-mix(in srgb, var(--warn) 43%, transparent); color: var(--warn); }
 
 /* Live: a quiet pulse, because it means something is happening now. */
 .pill.live {
-    background: rgba(248,113,113,.1);
-    border-color: rgba(248,113,113,.4);
+    background: var(--danger-dim);
+    border-color: color-mix(in srgb, var(--danger) 48%, transparent);
     color: var(--danger);
 }
 .pill.live::before {
@@ -1607,7 +1899,7 @@ td.num.cv-partial {
     padding: 11px 18px;
     border-radius: var(--radius);
     background: var(--accent);
-    color: #04120f;
+    color: var(--on-accent);
     font-weight: 700;
     font-size: 0.95rem;
     text-decoration: none;
@@ -1693,9 +1985,9 @@ button.tl-row {
     border: 2px solid var(--bg);
     box-shadow: 0 0 0 1px var(--line);
 }
-.tl-dot.good { background: var(--good); box-shadow: 0 0 0 1px rgba(74,222,128,.5); }
-.tl-dot.warn { background: var(--warn); box-shadow: 0 0 0 1px rgba(251,191,36,.5); }
-.tl-dot.period { background: var(--accent); box-shadow: 0 0 0 1px rgba(77,214,193,.5); }
+.tl-dot.good { background: var(--good); box-shadow: 0 0 0 1px color-mix(in srgb, var(--good) 58%, transparent); }
+.tl-dot.warn { background: var(--warn); box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 58%, transparent); }
+.tl-dot.period { background: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 58%, transparent); }
 
 .tl-text { font-size: 0.85rem; }
 .tl-text .who { color: var(--text-dim); }
@@ -1745,12 +2037,15 @@ button.tl-row {
     left: 50%;
     bottom: 28px;
     transform: translateX(-50%) translateY(14px);
-    background: var(--surface-hi);
-    border: 1px solid var(--line-hi);
+    background: var(--kit);
+    color: var(--kit-on);
+    border: 1px solid var(--kit);
+    border-bottom: 3px solid var(--kit-2);
     padding: 13px 22px;
     border-radius: var(--radius);
-    font-size: 0.85rem;
-    font-weight: 500;
+    box-shadow: var(--shadow-lift);
+    font-size: 0.9rem;
+    font-weight: 600;
     opacity: 0;
     pointer-events: none;
     transition: opacity .2s ease, transform .2s ease;
@@ -1760,27 +2055,52 @@ button.tl-row {
     box-shadow: var(--shadow);
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-.toast.error { border-color: rgba(248,113,113,.5); color: #ffd4d4; }
+.toast.error { background: var(--danger); border-color: var(--danger); color: #ffffff; }
 
 /* ---------------------------------------------------------------- tabs */
 
-.tabs { display: flex; gap: 4px; margin: 26px 0 6px; border-bottom: 1px solid var(--line); }
+/* The active tab's underline slides to whichever tab was chosen rather than
+   blinking from one to the next: assets/motion.js measures the tab and
+   writes `--tab-x` / `--tab-w`. Until it has, the underline sits under the
+   tab itself, so the page is right without the script. */
+.tabs {
+    position: relative;
+    display: flex;
+    gap: 4px;
+    margin: 28px 0 6px;
+    border-bottom: 1px solid var(--line);
+}
+.tabs.has-glider .tab.active { border-bottom-color: transparent; }
+.tabs.has-glider::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    width: var(--tab-w, 0);
+    height: 3px;
+    background: var(--accent);
+    border-radius: 3px 3px 0 0;
+    transform: translateX(var(--tab-x, 0));
+    transition: transform .32s var(--ease-out), width .32s var(--ease-out);
+}
 
 .tab {
-    font-family: inherit;
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-family: var(--display);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
     color: var(--text-faint);
     background: none;
     border: none;
-    border-bottom: 2px solid transparent;
+    border-bottom: 3px solid transparent;
     padding: 10px 14px;
     cursor: pointer;
     margin-bottom: -1px;
-    transition: color .13s ease, border-color .13s ease;
+    transition: color .15s ease, border-color .15s ease;
 }
 @media (hover: hover) {
-    .tab:hover { color: var(--text-dim); }
+    .tab:hover { color: var(--text); }
 }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
@@ -2024,14 +2344,14 @@ button.tl-row {
     margin-left: -1px;
     border-radius: 2px;
     background: var(--accent);
-    box-shadow: 0 0 0 3px rgba(77, 214, 193, .18);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent);
     pointer-events: none;
     transition: left .25s linear;
 }
 /* The mark the video is inside. */
 .tick.is-now {
     transform: translateY(-50%) scaleY(1.45);
-    box-shadow: 0 0 0 2px rgba(77, 214, 193, .55);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .moment-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
@@ -2136,7 +2456,7 @@ button.tl-row {
 .chip.on {
     background: var(--accent);
     border-color: var(--accent);
-    color: #04120f;
+    color: var(--on-accent);
     font-weight: 600;
 }
 
@@ -2147,7 +2467,7 @@ button.tl-row {
     font-size: 0.85rem;
     border-radius: 8px;
 }
-.btn.tiny.on { background: var(--accent); border-color: var(--accent); color: #04120f; }
+.btn.tiny.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
 .review-list { max-height: 620px; overflow-y: auto; }
 
@@ -2542,7 +2862,7 @@ button.tl-row {
     color: var(--text-faint);
 }
 .excluded-row.is-official .excluded-badge {
-    background: rgba(251, 191, 36, 0.14);
+    background: var(--warn-dim);
     color: var(--warn);
 }
 
@@ -2695,14 +3015,14 @@ button.tl-row {
 }
 .sample-toggle.is-on {
     border-color: var(--warn);
-    background: rgba(251, 191, 36, 0.06);
+    background: var(--warn-dim);
 }
 .sample-toggle.is-on strong { color: var(--warn); }
 
 .cv-note.is-sample {
     border-style: dashed;
     border-left: 3px solid var(--warn);
-    background: rgba(251, 191, 36, 0.05);
+    background: var(--warn-dim);
 }
 .cv-note.is-sample strong { color: var(--warn); }
 
@@ -2741,15 +3061,20 @@ button.tl-row {
 
 /* ---------------------------------------------------------------- motion
  *
- * One rule decides what moves here: **a length draws itself, and nothing else
- * does.** Every bar in this product is an argument about a quantity — 12 goals
- * against 7, 74 tracked minutes out of 90 — and a bar that grows from nothing
- * makes the eye follow the length rather than read the number at the end of it.
- * That is the one thing worth 400ms of a coach's attention.
+ * Two rules decide what moves here.
  *
- * Nothing else animates on arrival. A page of things sliding in from different
- * directions is a page you have to wait for, and this one is read on a
- * touchline and at half-time.
+ * **A length draws itself.** Every bar in this product is an argument about a
+ * quantity — 12 goals against 7, 74 tracked minutes out of 90 — and a bar that
+ * grows from nothing makes the eye follow the length rather than read the
+ * number at the end of it.
+ *
+ * **Things arrive in reading order, once, and fast.** On the pages read at a
+ * desk — the home page, the squad, a player's season — cards rise a few
+ * pixels into place as they scroll into view and figures count up to their
+ * value (assets/motion.js does both). Every movement is upward, under half a
+ * second, and finished before anyone could want to click on it. The pages
+ * used on the touchline and at half-time do not load motion.js at all: a
+ * tagger mid-match is waiting for nothing.
  *
  * `scaleX` rather than `width`: the widths are inline styles computed from the
  * data, and animating from a keyframe would need a second copy of every number
@@ -2812,8 +3137,44 @@ td.bar-cell .cell-bar {
     }
 }
 
+/* Rising into view. `.reveal` is only ever added by assets/motion.js, after
+   it has set up the observer that adds `.is-in`, so without the script
+   nothing here is hidden. Siblings are staggered by `--reveal-i`. */
+.reveal {
+    opacity: 0;
+    transform: translateY(14px);
+}
+.reveal.is-in {
+    opacity: 1;
+    transform: none;
+    transition:
+        opacity .45s ease calc(var(--reveal-i, 0) * 55ms),
+        transform .55s var(--ease-out) calc(var(--reveal-i, 0) * 55ms);
+}
+
+/* Light under the pointer on anything that is a box you can read or press.
+   `--mx` / `--my` come from motion.js; until they do, the light sits off the
+   box entirely. On the shirt the light is the shirt's own ink. */
+:root { --spot: color-mix(in srgb, var(--accent) 7%, transparent); }
+.on-kit { --spot: color-mix(in srgb, var(--kit-on) 9%, transparent); }
+@media (hover: hover) and (pointer: fine) {
+    .card:hover,
+    .team-card:hover,
+    .stat:hover,
+    .quick-link:hover,
+    .list-item:hover,
+    .flow-step:hover {
+        background-image: radial-gradient(
+            260px circle at var(--mx, -999px) var(--my, -999px),
+            var(--spot),
+            transparent 70%
+        );
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
+    .reveal { opacity: 1; transform: none; }
 }
 
 /* ---------------------------------------------------------------- response
@@ -2836,7 +3197,7 @@ td.bar-cell .cell-bar {
  *
  * This is the rule for the whole product, not for this section. Every
  * top-level `:hover` in every stylesheet here — app, landing, coach,
- * calibrate, sandbox, live tagging — sits inside the same guard, and the
+ * player, half-time, live tagging — sits inside the same guard, and the
  * per-page sheets carry a one-line pointer back to this paragraph rather than
  * re-arguing it. A policy that holds in one file and not the next is not a
  * policy; it is a file somebody remembered.
@@ -3001,8 +3362,7 @@ button.list-item::after, a.list-item::after {
 
 @media (max-width: 640px) {
     .shell { padding: 0 16px 56px; }
-    .topbar { padding: 13px 16px; }
-    .topbar::after { left: 16px; right: 16px; }
+    .topbar { padding: 10px 16px; }
     .stat .value { font-size: 1.55rem; }
     .tl-row { grid-template-columns: 48px 20px 1fr; }
     .tl-side { display: none; }
@@ -3655,36 +4015,20 @@ input[type="file"]::file-selector-button {
  *    never hidden, and it is glued to whatever follows it.
  */
 @media print {
+    /* The screen is already ink on light grounds, so paper only loses the
+       tints: every ground goes white and the hairlines darken a step so a
+       table still has its rules without a backlight. The inks, the kit and
+       its accent are the screen's own. The accent is already scored at 4.5
+       on the darkest ground it is set on, and a team's colours applied by
+       kit.js sit on the root element, where they would outrank this block
+       anyway. */
     :root {
         --bg: #ffffff;
         --bg-raised: #ffffff;
         --surface: #ffffff;
-        --surface-hi: #f4f6f5;
-        --line: #c9d2cd;
-        --line-hi: #9aa8a1;
-
-        --text: #101815;
-        --text-dim: #3d4b44;
-        --text-faint: #61706a;
-
-        /* Darkened, because the screen accent is a floodlight and paper has no
-           backlight to carry it. Both of these end up as ink.
-
-           Darkened twice, in fact. The first pass scored the accent against
-           white and stopped there, which is the wrong ground: the accent is
-           most often set on a chip filled with its own 10%% tint — the job
-           counter, a staff initial, a step number. On paper that tint sits
-           over the lightest surface and lands at #ddebe7, and #0f7a68 on that
-           is 4.23, under the 4.5 that text of this size is owed. Scoring the
-           ink against the ground it is actually printed on rather than the
-           page behind it takes it to 5.33. One token, three rules fixed. */
-        --accent: #0d6858;
-        --accent-hi: #0b5c4e;
-        --accent-dim: rgba(13, 104, 88, 0.10);
-
-        --good: #16794a;
-        --warn: #8a5a06;
-        --danger: #a32b2b;
+        --surface-hi: #f2f3f5;
+        --line: #c3c9d2;
+        --line-hi: #9aa2ae;
     }
 
     @page { margin: 14mm; }
@@ -3966,119 +4310,4 @@ input[type="file"]::file-selector-button {
         grid-template-areas: 'name value' 'track track' 'sub sub';
         gap: 4px 10px;
     }
-}
-
-
-/* --------------------------------------------------- calibrate: field size
-
-   The size the coach types scales every distance the software will ever
-   report, and until now it lived in a card that vanished the moment a picture
-   loaded. It sits in the workspace now, next to the answer the page works out
-   for itself. */
-
-.measured {
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--bg-raised);
-    padding: 10px 12px;
-    font-size: 0.84rem;
-    color: var(--text-dim);
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
-.measured b { color: var(--text); font-weight: 700; }
-
-/* Agreeing is quiet and disagreeing is loud, because only one of the two asks
-   the coach to do anything. */
-.measured.is-ok { border-color: rgba(74, 222, 128, .35); }
-.measured.is-ok b { color: var(--good); }
-.measured.is-off { border-color: var(--warn); }
-.marks-list {
-    margin: 6px 0 0;
-    padding-left: 18px;
-    display: grid;
-    gap: 2px;
-}
-.marks-list li { min-width: 0; }
-.measured.is-off b { color: var(--warn); }
-
-/* ---------------------------------------------------- calibrate: readiness */
-
-.readiness {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 2px;
-}
-
-.ready-row {
-    display: grid;
-    grid-template-columns: 1.4rem minmax(0, 1fr);
-    gap: 8px;
-    align-items: start;
-    padding: 8px 10px;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    color: var(--text-dim);
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
-.ready-row .mark {
-    font-weight: 800;
-    text-align: center;
-    line-height: 1.45;
-    color: var(--text-faint);
-}
-
-.ready-row.is-good { color: var(--text); }
-.ready-row.is-good .mark { color: var(--good); }
-.ready-row.is-warn .mark { color: var(--warn); }
-.ready-row.is-bad { color: var(--text); background: rgba(248, 113, 113, .07); }
-.ready-row.is-bad .mark { color: var(--danger); }
-
-/* A check nobody has reached yet is not a failure, and must not be coloured
-   like one — five red crosses on an empty picker would read as five things
-   already gone wrong. */
-.ready-row.is-todo { color: var(--text-faint); }
-
-.ready-summary {
-    list-style: none;
-    margin-top: 10px;
-    padding: 10px 12px;
-    border-top: 1px solid var(--line);
-    font-size: 0.85rem;
-    font-weight: 650;
-    color: var(--text-dim);
-}
-.ready-summary.is-good { color: var(--good); }
-
-.eyeball {
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-    margin-top: 12px;
-    padding: 10px 12px;
-    border: 1px dashed var(--line);
-    border-radius: var(--radius);
-    font-size: 0.84rem;
-    color: var(--text-dim);
-    cursor: pointer;
-    min-width: 0;
-}
-.eyeball input { margin-top: 3px; flex: 0 0 auto; cursor: pointer; }
-@media (hover: hover) {
-    .eyeball:hover { border-color: var(--line-hi); color: var(--text); }
-}
-
-/* The two size inputs and the measured box share a wrapping .row. The flex
-   item is this slot, not the box inside it — sizing the box got a 137px
-   column of two-word lines while the slot it sat in stayed narrow. */
-.size-slot { margin: 0; flex: 1 1 240px; min-width: 0; }
-
-@media (max-width: 560px) {
-    .size-slot { flex-basis: 100%; }
-    /* The blank label that keeps the box level with the two inputs is only
-       worth its height while they are on the same line. */
-    .size-slot > span { display: none; }
 }

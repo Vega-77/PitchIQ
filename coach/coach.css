@@ -2,6 +2,7 @@
 
 /* ---------------------------------------------------------------- season hero */
 
+/* The squad's shirt: `.on-kit` in app.css paints it. */
 .team-hero {
     display: flex;
     align-items: flex-end;
@@ -9,11 +10,7 @@
     gap: 32px;
     flex-wrap: wrap;
     margin: 30px 0 24px;
-    padding: 28px 30px;
-    background: linear-gradient(160deg, var(--surface), var(--bg-raised));
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    overflow: hidden;
+    padding: 34px 34px 30px;
 }
 
 .team-hero-main { min-width: 240px; }
@@ -23,26 +20,42 @@
 .record-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 
 .record {
-    font-size: 1.47rem;
-    font-weight: 750;
+    font-family: var(--numeral);
+    font-size: 1.6rem;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
-    letter-spacing: -.8px;
 }
-.record-gd { font-size: 1.12rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.record-gd {
+    font-family: var(--numeral);
+    font-size: 1.2rem;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+}
 .record-gd.pos { color: var(--good); }
 .record-gd.neg { color: var(--danger); }
+/* On the shirt, red and green would both drown in navy. The sign already
+   says which way it went, so the trim colour marks a positive and the
+   shirt's own ink the rest. */
+.on-kit .record-gd.pos { color: var(--kit-2-ink); }
+.on-kit .record-gd.neg { color: var(--kit-on); }
 
 .record-key {
-    font-size: 0.74rem;
-    font-weight: 650;
+    font-family: var(--display);
+    font-size: 0.86rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: .08em;
     color: var(--text-faint);
 }
 .record-sep { width: 1px; height: 18px; background: var(--line-hi); margin: 0 4px; }
+.on-kit .record-sep { background: var(--kit-2); }
 
-.team-hero-stats { flex: 1; min-width: 260px; max-width: 480px; }
-.team-hero-stats .stat { background: rgba(0,0,0,.22); }
+.team-hero-stats {
+    flex: 1;
+    min-width: 260px;
+    max-width: 520px;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+}
 
 /* ---------------------------------------------------------------- actions */
 
@@ -62,25 +75,42 @@
     padding: 17px 20px;
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius);
     color: inherit;
-    transition: background .13s, border-color .13s, transform .1s;
+    box-shadow: var(--shadow);
+    transition: background .15s, border-color .15s, transform .2s var(--ease-out), box-shadow .2s;
 }
 /* Pointer feedback is guarded here and everywhere else: `:hover` latches on a
    touchscreen and this app is used on one. The argument is in app.css, under
    `response`. */
 @media (hover: hover) {
-    .action-card:hover { background: var(--surface-hi); border-color: var(--line-hi); transform: translateY(-1px); }
+    .action-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow-lift); color: inherit; }
 }
 
+/* Match day's button is the trim colour: the one gold thing on the page, so
+   it is found from across a room. */
 .action-card.primary-action {
-    border-color: rgba(77,214,193,.38);
-    background: linear-gradient(135deg, rgba(77,214,193,.12), var(--surface) 60%);
+    border-color: var(--kit-2);
+    background:
+        repeating-linear-gradient(115deg, transparent 0 22px,
+            rgba(255, 255, 255, .16) 22px 30px),
+        var(--kit-2);
+    color: var(--kit-2-on);
 }
 @media (hover: hover) {
-    .action-card.primary-action:hover { border-color: var(--accent); }
+    .action-card.primary-action:hover { border-color: var(--kit-2-on); color: var(--kit-2-on); }
 }
-.action-card.primary-action .action-icon { color: var(--accent); }
+.action-card.primary-action .action-icon {
+    color: var(--kit-2-on);
+    border-color: var(--kit-2-on);
+    animation: beacon 2.4s ease-in-out infinite;
+}
+.action-card.primary-action .action-sub,
+.action-card.primary-action .action-go { color: var(--kit-2-on); }
+@keyframes beacon {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--kit-2-on) 35%, transparent); }
+    50% { box-shadow: 0 0 0 7px transparent; }
+}
 
 .action-icon {
     font-size: 17px;
@@ -94,9 +124,18 @@
     flex-shrink: 0;
 }
 
-.action-title { font-weight: 650; font-size: 15px; }
-.action-sub { font-size: 12.5px; color: var(--text-faint); margin-top: 1px; }
-.action-go { color: var(--text-faint); font-size: 20px; }
+.action-title {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 1.2rem;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+}
+.action-sub { font-size: 0.86rem; color: var(--text-faint); margin-top: 1px; }
+.action-go { color: var(--text-faint); font-size: 26px; transition: transform .2s var(--ease-out); }
+@media (hover: hover) {
+    .action-card:hover .action-go { transform: translateX(4px); }
+}
 
 /* ---------------------------------------------------------------- layout */
 
@@ -112,17 +151,17 @@
 
 .tab-count {
     display: inline-block;
-    font-size: 0.76rem;
+    font-size: 0.78rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--text-faint);
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 1px 7px;
+    background: var(--surface-hi);
+    border-radius: 4px;
+    padding: 0 6px;
     margin-left: 5px;
+    transition: background .2s, color .2s;
 }
-.tab.active .tab-count { color: var(--accent); border-color: rgba(77,214,193,.35); }
+.tab.active .tab-count { color: var(--on-accent); background: var(--accent); }
 
 .legend-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .legend-row:last-child { margin-bottom: 0; }
@@ -133,19 +172,27 @@
    topbar so it is answerable from every screen without scrolling. */
 .team-switch { display: flex; align-items: center; gap: 8px; margin: 0; }
 .team-switch > span {
-    font-size: 0.72rem;
+    font-family: var(--display);
+    font-size: 0.8rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: .08em;
     color: var(--text-faint);
 }
 .team-switch select {
     width: auto;
     min-height: 40px;
     padding: 6px 10px;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 600;
-    border-radius: 8px;
+    border-radius: 6px;
+}
+/* In the shirt-coloured bar the picker is lettered like the bar. */
+.topbar .team-switch > span { color: var(--kit-on); }
+.topbar .team-switch select {
+    background: var(--kit);
+    color: var(--kit-on);
+    border-color: color-mix(in srgb, var(--kit-on) 45%, transparent);
 }
 
 /* Initial in place of an avatar — enough to tell two coaches apart in a list
@@ -157,28 +204,29 @@
     height: 34px;
     flex-shrink: 0;
     border-radius: 50%;
-    background: var(--accent-dim);
-    border: 1px solid rgba(77, 214, 193, .35);
-    color: var(--accent);
-    font-weight: 700;
-    font-size: 0.9rem;
+    background: var(--kit);
+    color: var(--kit-2-ink);
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 1rem;
 }
 
 /* ---------------------------------------------------------------- matches */
 
 /* Result chip on a played match: colour carries win/draw/loss at a glance. */
 .match-score {
+    font-family: var(--numeral);
     font-variant-numeric: tabular-nums;
-    font-weight: 750;
+    font-weight: 400;
     font-size: 16px;
     padding: 4px 11px;
-    border-radius: 8px;
+    border-radius: 6px;
     background: var(--surface-hi);
     border: 1px solid var(--line);
     white-space: nowrap;
 }
-.match-score.win { color: var(--good); border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.08); }
-.match-score.loss { color: var(--danger); border-color: rgba(248,113,113,.3); background: rgba(248,113,113,.07); }
+.match-score.win { color: var(--good); border-color: var(--good); background: var(--good-dim); }
+.match-score.loss { color: var(--danger); border-color: var(--danger); background: var(--danger-dim); }
 .match-score.draw { color: var(--text-dim); }
 
 /* ---------------------------------------------------------------- player view */

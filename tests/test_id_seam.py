@@ -53,10 +53,13 @@ a plain literal in a call:
    than being pretended away in either direction;
 5. a lookup from outside the frontend altogether. `tests/smoke.test.js` builds
    each real page in a DOM shim and reaches into it by name -- `el(id)` and
-   `text(id)` -- to check what rendered. Three ids exist for nothing else: the
-   calibrate page builds `btn-apply-marks`, `btn-apply-size` and
-   `btn-reset-marks` in JavaScript once it has a measurement worth offering,
-   and the harness has to be able to press them.
+   `text(id)` -- to check what rendered. Three ids once existed for nothing
+   else: the calibrate page built `btn-apply-marks`, `btn-apply-size` and
+   `btn-reset-marks` in JavaScript once it had a measurement worth offering,
+   and the harness had to be able to press them. The page left the site on
+   2026-10-07 and no id is harness-only today, but the site stays: the
+   harness is a reader, and the next harness-only id would otherwise be
+   called dead.
 
    That site was missing at first, and the omission cost something. The scan
    walked the seven frontend directories and stopped there, so it saw three
@@ -108,8 +111,6 @@ PAGE_OF_DIR = {
     'player': 'player/index.html',
     'live-tagging': 'live-tagging/index.html',
     'halftime': 'halftime/index.html',
-    'calibrate': 'calibrate/index.html',
-    'xg-sandbox': 'xg-sandbox/index.html',
 }
 
 # No dot and no colon: `#canvas.aiming` is an id *and* a class, and reading it as
@@ -412,15 +413,12 @@ WEAK = {
 ONLY_BY_HOLE = {'tab-matches', 'tab-roster', 'tab-staff',
                 'view-kickoff', 'view-setup'}
 ONLY_BY_ATTRIBUTE = {'clock-explain', 'clock-title', 'cv-missed-help',
-                     'exit-explain', 'exit-title', 'log-title',
-                     'name-angle', 'name-def-dist', 'name-def-goal',
-                     'name-distance', 'name-keeper-angle', 'name-keeper-dist',
-                     'sub-title'}
+                     'exit-explain', 'exit-title', 'log-title', 'sub-title'}
 ONLY_BY_RAIL = {'md-stats-block', 'md-team-block', 'pipeline-block',
                 'players-block', 'publish-block', 'pv-matches-block',
                 'season-matches-block', 'timeline-block', 'video-link-block'}
-ONLY_BY_FRAGMENT = {'main'}
-PREFIXES = {'input-', 'tab-', 'view-'}
+ONLY_BY_FRAGMENT = {'main', 'try-colours'}
+PREFIXES = {'tab-', 'view-'}
 
 
 def dead_without(site):
@@ -438,14 +436,15 @@ def weak_without(site):
 def test_every_file_it_claims_to_read_exists():
     for rel in list(HTML) + list(CSS) + js_files():
         assert (ROOT / rel).is_file(), rel
-    assert len(HTML) >= 7 and len(CSS) >= 6 and len(js_files()) >= 25
+    assert len(HTML) >= 5 and len(CSS) >= 6 and len(js_files()) >= 25
 
 
 def test_it_finds_ids_at_all():
     # The vacuum guard. A scan that quietly stops matching reports a clean seam,
     # which is indistinguishable from a clean seam until somebody looks.
-    assert len(SEAM.declared) >= 350
-    assert len(SEAM.used) >= 330
+    # 350 / 330 before the calibrate page and the xG sandbox left (2026-10-07).
+    assert len(SEAM.declared) >= 320
+    assert len(SEAM.used) >= 300
     assert len(SEAM.bare) >= 250
 
 
@@ -472,12 +471,11 @@ def test_every_raw_dom_lookup_is_one_this_scan_can_see_past():
     assert names == {'byId'}
     for name in names:
         assert re.fullmatch(HELPERS, name), name
-    # One wrapper, written twice: once in `assets/ui.js` for everybody, and once
-    # in `xg-sandbox/sandbox.js`, which says in a comment why it keeps its own
-    # copy rather than dragging the report renderer onto a canvas page.
-    assert wrapped == 2
-    # The one remaining raw call takes a literal: `getElementById('display')`.
-    assert calls - wrapped == 1
+    # One wrapper, written once, in `assets/ui.js` for everybody. The xG
+    # sandbox kept a second copy, and the one raw call on a literal, until it
+    # left the site on 2026-10-07.
+    assert wrapped == 1
+    assert calls - wrapped == 0
 
 
 # --- the two findings -----------------------------------------------------
@@ -503,10 +501,12 @@ def test_every_fragment_link_lands_on_its_own_page():
     """
     links = [(rel, m.group(1))
              for rel in HTML for m in FRAGMENT.finditer(read(rel))]
-    # The vacuum guard. Six pages carry a skip link; `live-tagging` is the
-    # seventh and deliberately has none, because its <main> is the first
-    # thing in its <body> and there is nothing in front of it to skip.
-    assert len(links) == 6
+    # The vacuum guard. Four pages carry a skip link; `live-tagging` is the
+    # fifth and deliberately has none, because its <main> is the first
+    # thing in its <body> and there is nothing in front of it to skip. The
+    # fifth link is the landing hero's "See it in your colours", which jumps
+    # to the colour picker further down the same page.
+    assert len(links) == 5
     dangling = [(rel, name) for rel, name in links
                 if name not in set(SEAM.per_page[rel])]
     assert dangling == []
@@ -523,23 +523,22 @@ def test_every_lookup_resolves_on_its_own_page():
     assert SEAM.locality == []
 
 
-MADE_IN_JS = {
-    'btn-apply-marks': 'calibrate/calibrate.js',
-    'btn-apply-size': 'calibrate/calibrate.js',
-    'btn-reset-marks': 'calibrate/calibrate.js',
-}
+# Ids a script builds with `.id =` and the harness reaches for by name. The
+# calibrate page made three -- `btn-apply-marks`, `btn-apply-size`,
+# `btn-reset-marks` -- once it had a measurement worth offering, and
+# `tests/smoke.test.js` pressed them. It left the site on 2026-10-07, and
+# nothing else here needs a name after it is made.
+MADE_IN_JS = {}
 
 
-def test_the_ids_built_in_javascript_are_the_three_we_know_about():
+def test_no_id_is_built_in_javascript():
     """Almost everything this frontend builds carries its behaviour by closure,
-    and so needs no name. These three are the exception, and they earn it: the
-    calibrate page only creates them once it has a measurement worth offering,
-    and `tests/smoke.test.js` has to be able to press them to check that the
-    offer arrived. The id is the handle, and it is a real one.
+    and so needs no name.
 
-    A fourth entry is not automatically wrong, but it is worth a look. An
-    element that has to be findable by name after it is made is usually one
-    that would be simpler written as markup that starts out hidden.
+    A new entry is not automatically wrong, but it is worth a look. An element
+    that has to be findable by name after it is made is usually one that would
+    be simpler written as markup that starts out hidden. If one is earned, it
+    goes in `MADE_IN_JS` and the two tests below start meaning something again.
     """
     made = {m.group(1): rel
             for rel in js_files() for m in SET_ID.finditer(read(rel))}
@@ -547,36 +546,36 @@ def test_the_ids_built_in_javascript_are_the_three_we_know_about():
 
 
 def test_every_id_built_in_javascript_is_pressed_by_the_harness():
-    # The reason they are allowed to exist at all. If one stops being reached
-    # from the harness it is either dead, or the test that used to press it has
-    # quietly stopped checking. Both deserve a failure.
+    # The reason one would be allowed to exist at all. If it stops being
+    # reached from the harness it is either dead, or the test that used to
+    # press it has quietly stopped checking. Both deserve a failure.
     for name in MADE_IN_JS:
         where = SEAM.used.get(name) or []
         assert any('(harness)' in w for w in where), name
 
 
-def test_harness_site_is_load_bearing():
-    # These three are declared in JavaScript and read only from the test suite.
-    # Without this site the scan sees a declaration nothing wants and says so --
-    # which is exactly what happened, and the three buttons were deleted on its
-    # word before `npm run test:pages` disagreed.
+def test_harness_site_matches_what_javascript_builds():
+    # When the calibrate buttons existed they were declared in JavaScript and
+    # read only from the test suite. Without this site the scan saw a
+    # declaration nothing wanted and said so -- and the three buttons were
+    # deleted on its word before `npm run test:pages` disagreed. Today no id
+    # depends on it alone; this pins that, so the next one is noticed.
     assert dead_without('harness') == set(MADE_IN_JS)
 
 
-def test_javascript_declarations_are_load_bearing():
-    # And the other half of the same pair: stop reading `.id =` as a
-    # declaration and the harness is left reaching for three names that,
-    # as far as the markup knows, do not exist.
+def test_javascript_declarations_match_what_javascript_builds():
+    # The other half of the same pair: stop reading `.id =` as a declaration
+    # and the harness would be left reaching for names that, as far as the
+    # markup knows, do not exist.
     assert set(scan(drop=('assigned-declares',)).ghosts) == set(MADE_IN_JS)
 
 
-# The guard that stops `btn.id = 'btn-apply-marks'` counting as evidence that
-# something *reads* `btn-apply-marks` is currently inert -- with it switched
-# off, no name changes category, because all three have a real reader in the
-# harness. It stays anyway, untested, and deliberately so: it covers the quiet
-# direction. Being wrong here does not add a false alarm, it removes a true
-# one, and an id that vouches for itself is an id that can never be reported
-# dead no matter how dead it gets.
+# The guard that stops `btn.id = 'x'` counting as evidence that something
+# *reads* `x` is inert while nothing is built in JavaScript. It stays anyway,
+# untested, and deliberately so: it covers the quiet direction. Being wrong
+# here does not add a false alarm, it removes a true one, and an id that
+# vouches for itself is an id that can never be reported dead no matter how
+# dead it gets.
 
 
 # --- the weak list, checked for staleness in both directions --------------
@@ -607,14 +606,11 @@ def test_the_weak_list_stays_small():
 # --- every site earns its place -------------------------------------------
 
 def test_attribute_site_is_load_bearing():
-    # `for=`, `aria-labelledby=`, `aria-describedby=`. Thirteen ids exist only
-    # to be named by another element: six dialog headings and explanations on
-    # the tagging sheets, which no script ever looks up, and the six `name-*`
-    # spans the sandbox sliders point at. Those six were added the day a scan
-    # found the sliders had no accessible name at all -- their visible label
-    # sits in a sibling div, which names them for anyone who can see it and
-    # nobody else. Pointing at the span rather than repeating the words into
-    # an `aria-label` is what keeps the two from drifting apart.
+    # `for=`, `aria-labelledby=`, `aria-describedby=`. Seven ids exist only to
+    # be named by another element: the dialog headings and explanations on
+    # the tagging sheets, which no script ever looks up, and the missed-shot
+    # help text. Thirteen until 2026-10-07, when the six `name-*` spans the
+    # xG sandbox sliders pointed at left with the sandbox.
     assert dead_without('attribute') == ONLY_BY_ATTRIBUTE
 
 
@@ -626,7 +622,7 @@ def test_rail_site_is_load_bearing():
 
 def test_fragment_site_is_load_bearing():
     # One id, and it is the whole reason the site exists: `main` is written
-    # on six landmarks and read by nothing but the six links in front of
+    # on four landmarks and read by nothing but the four links in front of
     # them. Without this site the scan calls the skip links' target dead --
     # which is precisely what it did, the hour they went in.
     assert dead_without('fragment') == ONLY_BY_FRAGMENT
@@ -677,7 +673,9 @@ def test_helper_site_carries_almost_all_the_evidence():
 
 
 def test_array_site_carries_evidence():
-    assert len(weak_without('array')) >= 10
+    # Ten or more until the calibrate page left (2026-10-07); these two are
+    # what is left, the review and shot-log status lines.
+    assert weak_without('array') == {'cv-review-state', 'cv-shotlog-state'}
 
 
 def test_stylesheet_site_has_something_to_read():
@@ -687,9 +685,10 @@ def test_stylesheet_site_has_something_to_read():
     seen = {m.group(1)
             for rel in CSS for sel in selectors(read(rel))
             for m in IN_SELECTOR.finditer(sel)}
-    # Measured at fourteen. Pinned under that, so a rule or two moving out of a
+    # Measured at fourteen, then eleven once the calibrate page left
+    # (2026-10-07). Pinned under that, so a rule or two moving out of a
     # stylesheet is not a failure but the site going blind is.
-    assert len(seen) >= 12
+    assert len(seen) >= 9
     assert seen <= set(SEAM.declared)
 
 

@@ -191,7 +191,8 @@ def test_it_finds_exports_at_all():
     # seam, and a clean seam and a broken scan look identical from here.
     assert len(SEAM.owners) >= 280
     assert len(SEAM.used) >= 240
-    assert len(SEAM.local) >= 150
+    # 150 until the calibrate page and the xG sandbox left (2026-10-07).
+    assert len(SEAM.local) >= 130
 
 
 def test_no_two_files_export_the_same_name():
@@ -288,24 +289,12 @@ LOCAL_ONLY = {
     },
     # The wording behind the confidence chips, used by the chip builder itself.
     'ui.js wording': {'CONFIDENCE_LEVELS'},
-    # Pitch geometry. All seven feed `DEFAULT_MARKS` in the same file and
-    # nothing else -- but they are the numbers `tests/test_pitch_parity.py`
-    # holds against `cv/pitch.py`, so they are named on purpose.
-    'pitch-model.js geometry': {
-        'CENTRE_CIRCLE_RADIUS_M', 'GOAL_AREA_LENGTH_M', 'GOAL_AREA_WIDTH_M',
-        'GOAL_WIDTH_M', 'PENALTY_AREA_LENGTH_M', 'PENALTY_AREA_WIDTH_M',
-        'PENALTY_SPOT_M',
-    },
     # Read and write halves of the same two internal conveniences.
     'auth.js internals': {'emailOf', 'saveHint'},
     'db.js internals': {'cancelInvite'},
     # The initialised app and the config it was built from. Everything else
     # imports the services, not these.
     'firebase-init.js handles': {'app', 'firebaseConfig'},
-    # Steps of the xG feature pipeline, each called by the step after it.
-    'xg-model.js pipeline steps': {
-        'featureVector', 'inShotCone', 'shotAngle', 'toStatsBomb',
-    },
     # Each of these draws a chart and is called only by the mount function
     # directly below it, which finds the element and puts the markup in.
     'renderers with a sibling mount': {
@@ -325,7 +314,7 @@ def test_the_local_only_groups_do_not_overlap():
     # Otherwise the union above hides a name written down twice and the count
     # stops meaning anything.
     total = sum(len(group) for group in LOCAL_ONLY.values())
-    assert total == len(LOCAL_ONLY_NAMES) == 42
+    assert total == len(LOCAL_ONLY_NAMES) == 31
 
 
 def test_each_local_only_name_really_does_live_where_its_group_says():
@@ -334,11 +323,9 @@ def test_each_local_only_name_really_does_live_where_its_group_says():
         'report.js private helpers': 'assets/report.js',
         'season.js measure table': 'assets/season.js',
         'ui.js wording': 'assets/ui.js',
-        'pitch-model.js geometry': 'calibrate/pitch-model.js',
         'auth.js internals': 'assets/auth.js',
         'db.js internals': 'assets/db.js',
         'firebase-init.js handles': 'assets/firebase-init.js',
-        'xg-model.js pipeline steps': 'xg-sandbox/xg-model.js',
         'shell.js view list': 'coach/shell.js',
     }
     for label, names in LOCAL_ONLY.items():

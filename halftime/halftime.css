@@ -3,7 +3,13 @@
  * Read standing up, on a phone, in about three minutes, by someone who is
  * about to talk to a team. So: one column, no tabs, nothing to tap to reveal,
  * and type a size up from the rest of the app.
+ *
+ * Like live tagging it is read outdoors, so it is white paper with heavy
+ * rules rather than the tinted grounds of the desk pages. The team's colours
+ * are the trim on the scoreboard at the top.
  */
+
+body { background: var(--surface); }
 
 /* This page gets read on three quite different things: a phone at the touchline,
    a tablet on the bench, and a monitor afterwards. One column is right on the
@@ -50,22 +56,31 @@
 
 /* ---------------------------------------------------------------- header */
 
+/* A scoreboard: the shirt colour along the top with the trim under it, a
+   heavy frame, and the score in the numeral face. */
 .ht-head {
     margin: 26px 0 8px;
-    padding: 22px 24px;
-    background: linear-gradient(155deg, var(--surface), var(--bg-raised));
-    border: 1px solid var(--line);
-    border-radius: 18px;
+    padding: 22px 24px 20px;
+    background: var(--surface);
+    border: 3px solid var(--text);
+    border-top: 0;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    box-shadow: 0 -10px 0 var(--kit), 0 -14px 0 var(--kit-2);
     text-align: center;
 }
 
 .ht-period {
-    font-size: 0.74rem;
+    display: inline-block;
+    font-family: var(--display);
+    font-size: 0.95rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: var(--accent);
-    margin-bottom: 12px;
+    letter-spacing: .12em;
+    color: var(--kit-on);
+    background: var(--kit);
+    padding: 3px 12px;
+    border-radius: 4px;
+    margin-bottom: 14px;
 }
 
 .ht-score {
@@ -76,9 +91,12 @@
 }
 
 .ht-team {
-    font-size: 0.95rem;
-    font-weight: 650;
-    line-height: 1.25;
+    font-family: var(--display);
+    font-size: 1.2rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    line-height: 1.15;
     text-align: right;
 }
 .ht-team.them { text-align: left; color: var(--text-dim); }
@@ -86,21 +104,22 @@
 .ht-nums {
     display: inline-flex;
     align-items: baseline;
-    gap: 10px;
-    font-size: 2.6rem;
-    font-weight: 750;
-    letter-spacing: -1.8px;
+    gap: 12px;
+    font-family: var(--numeral);
+    font-size: 3.4rem;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
 }
-.ht-nums .dash { color: var(--text-faint); font-weight: 400; font-size: 1.7rem; }
+.ht-nums .dash { color: var(--text-faint); font-size: 2rem; }
 
 .ht-clock {
     margin-top: 12px;
-    font-size: 0.78rem;
-    font-weight: 600;
+    font-family: var(--display);
+    font-size: 0.95rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.1px;
-    color: var(--text-faint);
+    letter-spacing: .08em;
+    color: var(--text-dim);
 }
 
 /* ---------------------------------------------------------------- decisions */
@@ -115,18 +134,18 @@
     gap: 14px;
     padding: 15px 18px;
     background: var(--surface);
-    border: 1px solid var(--line);
-    border-left: 3px solid var(--line-hi);
+    border: 2px solid var(--text);
+    border-left: 8px solid var(--line-hi);
     border-radius: var(--radius);
 }
 
 .decision.warn {
     border-left-color: var(--warn);
-    background: rgba(251, 191, 36, .07);
+    background: var(--warn-dim);
 }
 .decision.bad {
     border-left-color: var(--danger);
-    background: rgba(248, 113, 113, .07);
+    background: var(--danger-dim);
 }
 .decision.info { border-left-color: var(--accent); }
 
@@ -141,12 +160,12 @@
 }
 .decision.est .d-title { color: var(--text-dim); font-weight: 600; }
 
-.decision .d-title { font-size: 1rem; font-weight: 650; line-height: 1.3; }
+.decision .d-title { font-size: 1.08rem; font-weight: 700; line-height: 1.3; }
 .decision.warn .d-title { color: var(--warn); }
 .decision.bad .d-title { color: var(--danger); }
 
 .decision .d-detail {
-    font-size: 0.85rem;
+    font-size: 0.92rem;
     color: var(--text-dim);
     margin-top: 2px;
     line-height: 1.45;
@@ -186,9 +205,10 @@
 
 .minute-row .m-value {
     text-align: right;
-    font-weight: 700;
+    font-family: var(--numeral);
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
-    font-size: 0.95rem;
+    font-size: 1rem;
 }
 
 .m-cards { display: inline-flex; gap: 3px; }
@@ -215,8 +235,8 @@
 .minute-row:focus-within .m-fill { opacity: 1; }
 
 @media (max-width: 480px) {
-    .ht-nums { font-size: 2.1rem; }
-    .ht-team { font-size: 0.85rem; }
+    .ht-nums { font-size: 2.5rem; }
+    .ht-team { font-size: 0.95rem; }
     .minute-row { grid-template-columns: 1.8rem 1fr 3rem 2.4rem auto; gap: 8px; }
     .decision { padding: 13px 15px; gap: 11px; }
 }

@@ -6,8 +6,9 @@
     <title>PitchIQ — Coach</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Saira+Condensed:wght@600;700;800&family=Saira:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/app.css?v=121">
+    <script src="../assets/kit-boot.js?v=121"></script>
     <link rel="stylesheet" href="coach.css?v=121">
 </head>
 <body>
@@ -47,6 +48,10 @@
                 <span>Team name</span>
                 <input id="input-team-name" type="text" placeholder="South Brunswick Varsity">
             </label>
+            <div class="kit-field">
+                <span class="kit-field-label">Team colours</span>
+                <div id="kit-new-slot"></div>
+            </div>
             <button id="btn-create-team" class="btn primary block">Create team</button>
             <p class="muted" style="margin:14px 0 0">
                 Keep varsity and JV as separate squads. They get their own roster,
@@ -60,7 +65,7 @@
     <section id="view-main" class="hidden">
 
         <!-- Season header: what the team has actually done so far. -->
-        <header class="team-hero has-backdrop" id="team-hero">
+        <header class="team-hero has-backdrop on-kit" id="team-hero">
             <div class="team-hero-main">
                 <div class="eyebrow-mini">Season</div>
                 <h1 id="hero-team">Team</h1>
@@ -119,14 +124,6 @@
                 <div class="grow">
                     <div class="action-title">Tag a match live</div>
                     <div class="action-sub" id="action-tag-sub">Record events from the touchline</div>
-                </div>
-                <span class="action-go">&rsaquo;</span>
-            </a>
-            <a class="action-card" href="../calibrate/">
-                <div class="action-icon">&#9636;</div>
-                <div class="grow">
-                    <div class="action-title">Calibrate a camera</div>
-                    <div class="action-sub">Map footage onto the pitch</div>
                 </div>
                 <span class="action-go">&rsaquo;</span>
             </a>
@@ -278,6 +275,16 @@
                             They sign in with Google using that exact address and accept
                             the invitation. Nothing happens until they do.
                         </p>
+                    </div>
+
+                    <div class="card" style="margin-top:12px">
+                        <h3 style="margin-bottom:10px">Team colours</h3>
+                        <p class="muted" style="margin:0 0 14px">
+                            Every page for this squad uses them, including each
+                            player's report from the next match you publish.
+                        </p>
+                        <div id="kit-team-slot"></div>
+                        <button id="btn-save-kit" class="btn primary block" disabled>Save colours</button>
                     </div>
 
                     <div class="card" style="margin-top:12px">
@@ -771,8 +778,6 @@
         <a href="../">Home</a>
         <a href="../coach/">Coach</a>
         <a href="../player/">Player</a>
-        <a href="../calibrate/">Calibrate</a>
-        <a href="../xg-sandbox/">xG sandbox</a>
     </nav>
     <span class="foot-note">PitchIQ &middot; beta, built for one high school season</span>
 </footer>

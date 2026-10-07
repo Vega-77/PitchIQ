@@ -103,13 +103,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 CSS = ['assets/app.css', 'assets/landing.css', 'coach/coach.css',
-       'player/player.css', 'live-tagging/tagging.css', 'halftime/halftime.css',
-       'calibrate/calibrate.css', 'xg-sandbox/sandbox.css']
+       'player/player.css', 'live-tagging/tagging.css', 'halftime/halftime.css']
 HTML = ['index.html', 'coach/index.html', 'player/index.html',
-        'live-tagging/index.html', 'halftime/index.html',
-        'calibrate/index.html', 'xg-sandbox/index.html']
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime',
-           'calibrate', 'xg-sandbox']
+        'live-tagging/index.html', 'halftime/index.html']
+JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime']
 
 HOLE = '\x00'                             # one `${...}` stands here
 NAME = r'-?[A-Za-z_][A-Za-z0-9_-]*'
@@ -128,11 +125,17 @@ SITES = frozenset(
 # and should go, and an entry that becomes provably reachable is a stale excuse
 # and should also go.
 WEAK = {
+    # Both had a proven home on the calibrate page's figures until it left on
+    # 2026-10-07; what is left is the bare-string kind.
+    'bad': "decision('bad', ...) in halftime.js -- a tone passed as an "
+           "argument, like est and info",
     'cm-label': "labelled('cm-label', label) in coach.js -- the class is a "
                 "positional argument to a helper that builds the element",
     'cm-time': "labelled('cm-time', clockText(s)), same helper",
     'dim': "figure(..., 'dim') in landing.js -- a tone passed as an argument",
     'est': "decision('est', ...) in halftime.js -- likewise",
+    'good': "an event tone in events.js, applied to the timeline dot after "
+            "travelling through timelineTone, the same shape as period",
     'info': "decision('info', ...) in halftime.js",
     'ours-bad': "report.js returns the string and a caller in another module "
                 "applies it; the docstring names both halves",

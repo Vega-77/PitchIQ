@@ -20,7 +20,7 @@ the real conversion rate closely in every distance band. Any figure, note or
 screenshot from before 2026-08-06 is on a different scale.
 
 This is where the computer vision work meets the model already trained in
-`PitchIQHelper/main.py` and already running in `xg-sandbox/xg-model.js`. The feature
+`PitchIQHelper/main.py` and saved beside this file as `xg_model8.onnx`. The feature
 order below must match `FEATURES` in main.py exactly; a mismatch does not raise,
 it silently produces a plausible-looking wrong number.
 
@@ -151,7 +151,7 @@ POST_R = np.array([STATSBOMB_LENGTH, 44.0])
 # xg_model7 fixed the calibration and still took `shot_height`, which nothing
 # here can measure, so a constant went in and the totals came out about half
 # again too high. xg_model8 drops the feature; see the module docstring.
-MODEL_PATH = Path(__file__).resolve().parents[1] / 'xg-sandbox' / 'xg_model8.onnx'
+MODEL_PATH = Path(__file__).resolve().parent / 'xg_model8.onnx'
 
 
 def load_session(model_path: str | Path | None = None):

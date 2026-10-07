@@ -1,12 +1,13 @@
 // Small DOM helpers shared by every page.
 //
 // Each of these existed as a near-identical private copy in landing.js,
-// coach.js, player.js, calibrate.js and live-tagging — five toast functions,
+// coach.js, player.js, the old calibrate page and live-tagging — five toast functions,
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
 import { comparePair, verdict, COUNT, knownMinutes } from './report.js?v=121';
 import { svgEl } from './svg.js?v=121';
+import { HOUSE_KIT, KIT_PRESETS, kitWarnings, normaliseHex } from './kit.js?v=121';
 
 export const byId = (id) => document.getElementById(id);
 
@@ -608,5 +609,90 @@ export function coverageStrip(reports, { thinBelow = 10, fullMatchMinutes = 90 }
         host.append(row);
     }
 
+    return host;
+}
+
+// ---------------------------------------------------------------- team colours
+
+/**
+ * Two colours for a squad: a row of common pairings to pick from, and a
+ * colour well for each of the shirt and the trim for anything else. Every
+ * change calls `onChange` with the new pair, so the page can wear it while
+ * the coach is still choosing. A small shirt shows the pair as it will
+ * appear, and a line under it says when the two are too close to tell apart.
+ */
+export function kitPicker({ kit = HOUSE_KIT, onChange = () => {} } = {}) {
+    let current = { primary: kit.primary, secondary: kit.secondary };
+
+    const host = document.createElement('div');
+    host.className = 'kit-picker';
+
+    const presets = document.createElement('div');
+    presets.className = 'kit-presets';
+    presets.setAttribute('role', 'group');
+    presets.setAttribute('aria-label', 'Common school colours');
+
+    const swatches = KIT_PRESETS.map((preset) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'kit-swatch';
+        button.title = preset.name;
+        button.setAttribute('aria-label', preset.name);
+        button.style.setProperty('--sw-a', preset.primary);
+        button.style.setProperty('--sw-b', preset.secondary);
+        button.addEventListener('click', () => set(preset));
+        presets.append(button);
+        return { button, preset };
+    });
+
+    const wells = document.createElement('div');
+    wells.className = 'kit-wells';
+    const well = (label, key) => {
+        const wrap = document.createElement('label');
+        wrap.className = 'kit-well';
+        const input = document.createElement('input');
+        input.type = 'color';
+        input.addEventListener('input', () => set({ ...current, [key]: input.value }));
+        const span = document.createElement('span');
+        span.textContent = label;
+        wrap.append(input, span);
+        wells.append(wrap);
+        return input;
+    };
+    const shirt = well('Shirt', 'primary');
+    const trim = well('Trim', 'secondary');
+
+    const preview = document.createElement('div');
+    preview.className = 'player-badge kit-shirt';
+    preview.setAttribute('aria-hidden', 'true');
+    preview.textContent = '10';
+    wells.prepend(preview);
+
+    const warning = document.createElement('p');
+    warning.className = 'kit-warning';
+    warning.setAttribute('role', 'status');
+
+    function set(next) {
+        const primary = normaliseHex(next.primary);
+        const secondary = normaliseHex(next.secondary);
+        if (!primary || !secondary) return;
+        current = { primary, secondary };
+        shirt.value = primary;
+        trim.value = secondary;
+        for (const { button, preset } of swatches) {
+            button.setAttribute('aria-pressed',
+                String(preset.primary === primary && preset.secondary === secondary));
+        }
+        warning.textContent = kitWarnings(current).join(' ');
+        onChange(current);
+    }
+
+    host.append(presets, wells, warning);
+    host.value = () => ({ ...current });
+    // The first paint is the team's own kit, not a change.
+    const quiet = onChange;
+    onChange = () => {};
+    set(current);
+    onChange = quiet;
     return host;
 }

@@ -31,13 +31,10 @@ PAGES = [
     'player/index.html',
     'live-tagging/index.html',
     'halftime/index.html',
-    'calibrate/index.html',
-    'xg-sandbox/index.html',
 ]
 
 MODULE_DIRS = [
-    'assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate',
-    'xg-sandbox',
+    'assets', 'coach', 'player', 'live-tagging', 'halftime',
 ]
 
 # href="assets/app.css?v=3" / src="coach.js?v=3" — local files only, so a CDN

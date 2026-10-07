@@ -55,8 +55,7 @@ from test_free_names import blank
 
 ROOT = Path(__file__).resolve().parent.parent
 RULES = ROOT / 'firestore.rules'
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate',
-           'xg-sandbox']
+JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime']
 
 # setDoc/batch.set may land on a document that already exists, but every one of
 # those paths grants `create, update` together, so the distinction costs

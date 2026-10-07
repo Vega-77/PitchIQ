@@ -1,21 +1,14 @@
 """Every Laws-of-the-Game dimension typed into the browser, against cv/pitch.py.
 
-`tests/test_pitch_parity.py` proves that `calibrate/pitch-model.js` and
-`cv/pitch.py` agree *given* a pitch: hand both the same length, width and
-markings and the landmarks land in the same place. What it never asks is where
-the browser's numbers came from in the first place. It passes 105 x 68 in
-explicitly, so it is blind to every place the site writes 105 down itself.
-
-The site writes it down in seven files.
+The site writes the pitch down in four files.
 
     assets/pitch-backdrop.js     L, W, PEN_LEN, PEN_W, SIX_LEN, SIX_W, CIRCLE_R
     assets/passing.js            pitchLengthM, pitchWidthM (default arguments)
     assets/sample-report.js      105 / COLS, 68 / ROWS
     coach/coach.js               the 'Halfway' and 'Their goal' axis ticks
-    calibrate/pitch-model.js     the marking constants, and three x/y defaults
-    calibrate/index.html         the pre-filled length and width inputs
-    xg-sandbox/presets.js        WIDTH_M, HALF_LENGTH_M
-    xg-sandbox/sandbox.js        the seven it draws its own half-pitch from
+
+There were eight until the calibrate page and the xG sandbox left the site
+(2026-10-07); those two carried the rest.
 
 Only one of those is a diagram. `pitch-backdrop.js` calls itself decoration in
 its own header comment, and it is not: `assets/shot-map.js`, `assets/heatmap.js`
@@ -36,13 +29,13 @@ The irony is that `pitchMarkings` already argues this case against itself:
     Two copies of this geometry would be two chances to draw a penalty box in
     the wrong place, and only one of them would be noticed.
 
-There are seven copies, and until this file nothing counted them.
+There were eight copies, and until this file nothing counted them.
 
 **Both directions, as always.** A literal that drifts from `cv/pitch.py` is a
 finding. A pattern here that no longer matches its file is a stale entry to
 delete, not a test to loosen -- so every pattern must match exactly once. And
-`test_no_unlisted_laws_literal` closes the loop the other way: an *eighth* copy,
-added tomorrow, fails this file rather than sitting unnoticed like the seven did.
+`test_no_unlisted_laws_literal` closes the loop the other way: a new copy,
+added tomorrow, fails this file rather than sitting unnoticed like the old ones did.
 
 **The one honest limit.** That last scan can only sweep numbers that are Laws
 dimensions and nothing else -- 16.5, 40.32, 18.32, 9.15, 7.32, 52.5. It cannot
@@ -65,8 +58,7 @@ from test_free_names import blank
 
 ROOT = Path(__file__).resolve().parents[1]
 
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate',
-           'xg-sandbox']
+JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime']
 
 PITCH = Pitch()
 
@@ -128,75 +120,6 @@ SITES = [
     ('coach/coach.js', "the 'Their goal' tick", r"'Their goal', " + NUMBER,
      lambda p: p.length_m),
 
-    # --- calibrate/pitch-model.js ----------------------------------------
-    # The seven marking constants are also proved live by test_pitch_parity's
-    # test_default_markings_match, which runs them through node. Listed here
-    # anyway: this file's claim is about the literal on the page, and an
-    # exemption list is one more thing that would quietly rot.
-    ('calibrate/pitch-model.js', 'GOAL_WIDTH_M',
-     r'GOAL_WIDTH_M = ' + NUMBER, lambda p: p.goal_width_m),
-    ('calibrate/pitch-model.js', 'GOAL_AREA_LENGTH_M',
-     r'GOAL_AREA_LENGTH_M = ' + NUMBER, lambda p: p.goal_area_length_m),
-    ('calibrate/pitch-model.js', 'GOAL_AREA_WIDTH_M',
-     r'GOAL_AREA_WIDTH_M = ' + NUMBER, lambda p: p.goal_area_width_m),
-    ('calibrate/pitch-model.js', 'PENALTY_AREA_LENGTH_M',
-     r'PENALTY_AREA_LENGTH_M = ' + NUMBER, lambda p: p.penalty_area_length_m),
-    ('calibrate/pitch-model.js', 'PENALTY_AREA_WIDTH_M',
-     r'PENALTY_AREA_WIDTH_M = ' + NUMBER, lambda p: p.penalty_area_width_m),
-    ('calibrate/pitch-model.js', 'PENALTY_SPOT_M',
-     r'PENALTY_SPOT_M = ' + NUMBER, lambda p: p.penalty_spot_m),
-    ('calibrate/pitch-model.js', 'CENTRE_CIRCLE_RADIUS_M',
-     r'CENTRE_CIRCLE_RADIUS_M = ' + NUMBER, lambda p: p.centre_circle_radius_m),
-    # The x/y defaults, which test_pitch_parity never sees because it always
-    # passes a length and a width in.
-    ('calibrate/pitch-model.js', "landmarks()'s defaults",
-     r'function landmarks\(lengthM = ' + NUMBER + r', widthM = ' + NUMBER,
-     lambda p: (p.length_m, p.width_m)),
-    ('calibrate/pitch-model.js', "measureMarkings()'s defaults",
-     r'function measureMarkings\(points, lengthM = ' + NUMBER
-     + r', widthM = ' + NUMBER, lambda p: (p.length_m, p.width_m)),
-    ('calibrate/pitch-model.js', "the fit's starting guess",
-     r'best = \{ lengthM: ' + NUMBER + r', widthM: ' + NUMBER,
-     lambda p: (p.length_m, p.width_m)),
-
-    # --- calibrate/calibrate.js: what an empty box falls back to ----------
-    ('calibrate/calibrate.js', "length_m's fallback",
-     r"length_m: parseFloat\(byId\('input-length'\)\.value\) \|\| " + NUMBER,
-     lambda p: p.length_m),
-    ('calibrate/calibrate.js', "width_m's fallback",
-     r"width_m: parseFloat\(byId\('input-width'\)\.value\) \|\| " + NUMBER,
-     lambda p: p.width_m),
-
-    # --- calibrate/index.html: what the coach sees pre-filled -------------
-    ('calibrate/index.html', 'the length input',
-     r'id="input-length"[^>]*value="' + NUMBER + r'"', lambda p: p.length_m),
-    ('calibrate/index.html', 'the width input',
-     r'id="input-width"[^>]*value="' + NUMBER + r'"', lambda p: p.width_m),
-
-    # --- xg-sandbox/presets.js: the half-pitch the presets are written in -
-    ('xg-sandbox/presets.js', 'WIDTH_M', r'WIDTH_M = ' + NUMBER,
-     lambda p: p.width_m),
-    ('xg-sandbox/presets.js', 'HALF_LENGTH_M', r'HALF_LENGTH_M = ' + NUMBER,
-     lambda p: p.length_m / 2),
-
-    # --- xg-sandbox/sandbox.js: feeds the browser's xG features -----------
-    ('xg-sandbox/sandbox.js', 'GOAL_WIDTH_M',
-     r'\bconst GOAL_WIDTH_M = ' + NUMBER, lambda p: p.goal_width_m),
-    ('xg-sandbox/sandbox.js', 'PENALTY_AREA_WIDTH_M',
-     r'\bconst PENALTY_AREA_WIDTH_M = ' + NUMBER,
-     lambda p: p.penalty_area_width_m),
-    ('xg-sandbox/sandbox.js', 'PENALTY_AREA_DEPTH_M',
-     r'\bconst PENALTY_AREA_DEPTH_M = ' + NUMBER,
-     lambda p: p.penalty_area_length_m),
-    ('xg-sandbox/sandbox.js', 'GOAL_AREA_WIDTH_M',
-     r'\bconst GOAL_AREA_WIDTH_M = ' + NUMBER, lambda p: p.goal_area_width_m),
-    ('xg-sandbox/sandbox.js', 'GOAL_AREA_DEPTH_M',
-     r'\bconst GOAL_AREA_DEPTH_M = ' + NUMBER, lambda p: p.goal_area_length_m),
-    ('xg-sandbox/sandbox.js', 'PENALTY_SPOT_M',
-     r'\bconst PENALTY_SPOT_M = ' + NUMBER, lambda p: p.penalty_spot_m),
-    ('xg-sandbox/sandbox.js', 'CENTRE_CIRCLE_RADIUS_M',
-     r'\bconst CENTRE_CIRCLE_RADIUS_M = ' + NUMBER,
-     lambda p: p.centre_circle_radius_m),
 ]
 
 
@@ -275,7 +198,7 @@ def test_every_site_is_still_there(sources):
 
 
 def test_no_unlisted_laws_literal():
-    """An eighth copy of the geometry, wherever someone puts it.
+    """A new copy of the geometry, wherever someone puts it.
 
     Only the six numbers that cannot be anything else. See the docstring for
     why 105, 68, 5.5 and 11 are out of reach of this particular sweep.
@@ -305,13 +228,22 @@ def test_no_unlisted_laws_literal():
         + '\n  '.join(stray))
 
 
-def test_every_pitch_field_is_mirrored_somewhere():
-    """Nine fields on `Pitch`, nine covered here.
+# Fields of `Pitch` the browser has no copy of, and why.
+NOT_IN_THE_BROWSER = {
+    # Only the calibrate picker and the xG sandbox drew the goal mouth, and
+    # both left the site on 2026-10-07. The backdrop draws the boxes and the
+    # circle, not the goal.
+    'goal_width_m': 'only the removed calibrate page and xG sandbox drew it',
+}
 
-    Not a formality: `Pitch` is where a new marking would be added, and the
-    browser draws all of them. A tenth field arriving with no row here is a
-    decision to make -- give it a copy, or say in a comment why the browser
-    never needs one -- not something to discover from a wrong-looking diagram.
+
+def test_every_pitch_field_is_mirrored_somewhere():
+    """Every field on `Pitch` is covered here, or named in NOT_IN_THE_BROWSER.
+
+    Not a formality: `Pitch` is where a new marking would be added. A new
+    field arriving with no row here is a decision to make -- give it a copy,
+    or say why the browser never needs one -- not something to discover from
+    a wrong-looking diagram.
     """
 
     seen = set()
@@ -321,7 +253,10 @@ def test_every_pitch_field_is_mirrored_somewhere():
             value = getattr(PITCH, field.name)
             if any(v == pytest.approx(value, abs=1e-9) for v in want):
                 seen.add(field.name)
-    missing = {f.name for f in fields(Pitch)} - seen
+    missing = {f.name for f in fields(Pitch)} - seen - set(NOT_IN_THE_BROWSER)
+    assert not seen & set(NOT_IN_THE_BROWSER), (
+        'NOT_IN_THE_BROWSER is stale: %s now has a copy'
+        % ', '.join(sorted(seen & set(NOT_IN_THE_BROWSER))))
     assert not missing, (
         'no browser copy of %s is checked here' % ', '.join(sorted(missing)))
 
@@ -339,8 +274,8 @@ def modules():
 def test_the_scan_actually_scanned_something(sources):
     """A gate that reads no files passes every one of the tests above."""
 
-    assert len(SITES) >= 30
-    assert len({rel for rel, *_ in SITES}) >= 7
+    assert len(SITES) >= 14
+    assert len({rel for rel, *_ in SITES}) >= 4
     assert len(modules()) >= 25
     assert all(len(text) > 200 for text in sources.values())
     total = sum(len(matches(sources[rel], pattern))
