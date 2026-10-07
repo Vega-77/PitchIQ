@@ -80,7 +80,11 @@ def build(tag):
             if count:
                 st['gaps'] += 1
             ok = True
-            if np.hypot(*(f[-1] - (X[j], Y[j]))) > ANC or np.hypot(*(g[0] - (X[i], Y[i]))) > ANC:
+            if not np.isfinite(g).all():
+                # tn_engine.py stops a backward track once it strays past AGR from the
+                # forward one, leaving the rest NaN: a disagreement, whatever it would have landed on
+                ok = False; st['agree'] += count
+            elif np.hypot(*(f[-1] - (X[j], Y[j]))) > ANC or np.hypot(*(g[0] - (X[i], Y[i]))) > ANC:
                 ok = False; st['land'] += count
             elif np.hypot(*(f[1:-1] - g[1:-1]).T).max() > AGR:
                 ok = False; st['agree'] += count

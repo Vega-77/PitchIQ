@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.join(HERE, 'tapnet')); sys.path.insert(0, S2)
 sys.path.append('C:/Users/alexv/Desktop/Repos/PitchIQ/cv/balltrack')   # feat4 (video path) now lives in the repo
 from tapnet.tapnextpp.votsp2026.model import TAPNextPP   # noqa: E402
 sys.path.insert(0, os.path.join(S2, 'alltests'))
-from hybrid import ANC, air_mask   # noqa: E402
+from hybrid import AGR, ANC, air_mask   # noqa: E402
 
 AT = os.path.join(S2, 'alltests'); OUT = os.path.join(AT, os.environ.get('TN_DIR', 'tn'))   # TN_DIR: a trial's own bridges
 S = int(os.environ.get('TNS', 512))   # crop window, px; the checkpoint was tuned at 512
@@ -104,6 +104,7 @@ def bridges(net, tag):
     air = air_mask(tag, ab)
     jobs = []                       # (a, b, direction, order, seed)
     goal = {}                       # (a, b) -> the pick at b a forward track must land on
+    fwd_xy = {}                     # (a, b) -> the forward track, which a backward one must stay near
     for i, j in zip(anc[:-1], anc[1:]):
         L = j - i - 1
         if 1 <= L <= MAXGAP and not air[i:j + 1].any():
@@ -141,11 +142,24 @@ def bridges(net, tag):
                 g = part[g0:g0 + B]
                 G = Group(net, [t[4] for t in g]); L = max(len(t[3]) for t in g)
                 xy = np.full((len(g), L, 2), np.nan); vis = np.zeros((len(g), L), bool)
+                cut = np.zeros(len(g), bool)
                 for s in range(L):
                     fs = [frames[t[3][min(s, len(t[3]) - 1)]] for t in g]
                     xy[:, s], vis[:, s] = G.step(fs)
+                    # A backward track that strays more than hybrid.py's AGR from the
+                    # forward one inside the gap sinks it, so the rest is never run (24%
+                    # of track-frames on the labs).  The unrun frames stay NaN.
+                    if backward:
+                        for q, t in enumerate(g):
+                            f = t[3][s] - t[0]
+                            if 0 < f < len(t[3]) - 1 and np.hypot(*(xy[q, s] - fwd_xy[(t[0], t[1])][f])) > AGR:
+                                cut[q] = True
+                        if cut.all():
+                            break
                 for q, t in enumerate(g):
                     n = len(t[3]); res.append((t[0], t[1], t[2], xy[q, :n], vis[q, :n]))
+                    if t[2] > 0:
+                        fwd_xy[(t[0], t[1])] = xy[q, :n]
                     if t[2] > 0 and np.hypot(*(xy[q, n - 1] - goal[(t[0], t[1])])) <= ANC:
                         landed.add((t[0], t[1]))
                 done += len(g)
