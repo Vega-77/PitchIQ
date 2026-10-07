@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=122';
+} from '../assets/auth.js?v=123';
 import {
     createTeam, updateTeamKit, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../assets/db.js?v=122';
-import { nowIndex } from '../assets/timeline.js?v=122';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=122';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=122';
+} from '../assets/db.js?v=123';
+import { nowIndex } from '../assets/timeline.js?v=123';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=123';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=123';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=122';
+} from '../assets/sample-report.js?v=123';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=122';
-import { renderPassMap } from '../assets/pass-map.js?v=122';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=122';
+} from '../assets/passing.js?v=123';
+import { renderPassMap } from '../assets/pass-map.js?v=123';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=123';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=122';
-import { renderForms } from '../assets/form-chart.js?v=122';
+} from '../assets/season.js?v=123';
+import { renderForms } from '../assets/form-chart.js?v=123';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, hasVerdict, currentAnswers, xgTrust,
@@ -44,26 +44,26 @@ import {
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=122';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=122';
-import { mountRail } from '../assets/rail.js?v=122';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=122';
-import { startMotion } from '../assets/motion.js?v=122';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=122';
-import { videoKind } from '../assets/video.js?v=122';
+} from '../assets/report.js?v=123';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=123';
+import { mountRail } from '../assets/rail.js?v=123';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=123';
+import { startMotion } from '../assets/motion.js?v=123';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=123';
+import { videoKind } from '../assets/video.js?v=123';
 import {
     byId, setText, toast, clockText, signed, plural, localDate,
     statCard, statGroup, fillStatGroup, figure, cardChips, timelineRow,
     minutesChart, stackBar, coverageStrip, kitPicker,
-} from '../assets/ui.js?v=122';
+} from '../assets/ui.js?v=123';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=122';
+} from './shell.js?v=123';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=122';
+} from './review.js?v=123';
 
 // ---------------------------------------------------------------- team setup
 
@@ -148,7 +148,7 @@ async function loadTeamData() {
     renderRoster();
     renderMatches();
     renderStaff();
-    renderKit();
+    closeKit();
 
     // Teams created before the staff directory existed have no entry for their
     // own coach, which would show them to a new assistant as an unnamed uid.
@@ -705,6 +705,25 @@ function renderKit() {
 /** The picker on the staff tab. */
 let teamKit = null;
 
+function openKit() {
+    byId('kit-panel').classList.remove('hidden');
+    byId('btn-kit-open').setAttribute('aria-expanded', 'true');
+    byId('kit-panel').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+/** Put the panel away. Colours tried on and not saved come off with it. */
+function closeKit() {
+    if (state.team) applyKit(state.team.kit ?? HOUSE_KIT);
+    renderKit();
+    byId('kit-panel').classList.add('hidden');
+    byId('btn-kit-open').setAttribute('aria-expanded', 'false');
+}
+
+function toggleKit() {
+    if (byId('kit-panel').classList.contains('hidden')) openKit();
+    else closeKit();
+}
+
 async function doSaveKit() {
     const kit = teamKit?.value();
     if (!kit) return;
@@ -715,7 +734,7 @@ async function doSaveKit() {
         state.team = { ...state.team, kit };
         state.teams = state.teams.map((t) => (t.id === state.team.id ? state.team : t));
         applyKit(kit);
-        renderKit();
+        closeKit();
         toast('Colours saved');
     } catch (err) {
         button.disabled = false;
@@ -3787,11 +3806,6 @@ const TABS = ['matches', 'roster', 'staff'];
  */
 function showTab(wanted) {
     if (!TABS.includes(wanted)) return;
-    // Colours tried on and not saved come off when the coach looks elsewhere.
-    if (wanted !== 'staff' && state.team && !byId('btn-save-kit').disabled) {
-        applyKit(state.team.kit ?? HOUSE_KIT);
-        renderKit();
-    }
     for (const tab of document.querySelectorAll('.tab')) {
         tab.classList.toggle('active', tab.dataset.tab === wanted);
     }
@@ -3842,6 +3856,8 @@ function init() {
     byId('btn-new-team').addEventListener('click', showCreateTeam);
     byId('btn-cancel-team').addEventListener('click', cancelCreateTeam);
     byId('btn-save-kit').addEventListener('click', doSaveKit);
+    byId('btn-kit-open').addEventListener('click', toggleKit);
+    byId('btn-kit-cancel').addEventListener('click', closeKit);
     byId('team-switch').addEventListener('change', (e) => switchTeam(e.target.value));
     byId('btn-invite-coach').addEventListener('click', doInviteCoach);
     byId('btn-add-player').addEventListener('click', doAddPlayer);

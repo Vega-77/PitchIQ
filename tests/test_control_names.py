@@ -265,6 +265,9 @@ class TestTheScanReportsSomething:
         # calibrate page and the xG sandbox left (2026-10-07). Ninety-seven
         # the same day: the landing page's sample report has four keys to tag
         # into it and a link down to the colour picker, and the coach page a
-        # "Save colours" button. `live-tagging`
+        # "Save colours" button. A hundred when the coach's colours moved into
+        # a panel opened from the team header, with a button to open it and
+        # one to cancel, and the front page got a way back to the dashboard
+        # for a coach who is signed in and looking at it. `live-tagging`
         # wants no skip link: its <main> is the first thing in its <body>.
-        assert counted == {'text': 97, 'title': 3, 'label-wrap': 14}, counted
+        assert counted == {'text': 100, 'title': 3, 'label-wrap': 14}, counted

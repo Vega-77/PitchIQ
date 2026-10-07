@@ -1,17 +1,17 @@
 import {
     signIn, signOut, onUser, resolveAccess, pendingInvites, claimInvite,
     configWarning,
-} from './auth.js?v=122';
-import { mountPitchBackdrop } from './pitch-backdrop.js?v=122';
-import { HOUSE_KIT, applyKit, clearKit, kitTokens } from './kit.js?v=122';
-import { startMotion } from './motion.js?v=122';
-import { listMatches, listPlayers, seasonSummary } from './db.js?v=122';
+} from './auth.js?v=123';
+import { mountPitchBackdrop } from './pitch-backdrop.js?v=123';
+import { HOUSE_KIT, applyKit, clearKit, kitTokens } from './kit.js?v=123';
+import { startMotion } from './motion.js?v=123';
+import { listMatches, listPlayers, seasonSummary } from './db.js?v=123';
 import {
     formGuide, nextFixture, whenLabel, seasonJobs,
-} from './report.js?v=122';
+} from './report.js?v=123';
 import {
     byId, setText, toast, showOnly, figure, signed, plural, localDate, kitPicker,
-} from './ui.js?v=122';
+} from './ui.js?v=123';
 
 const VIEWS = ['view-marketing', 'view-nowhere', 'view-routes'];
 
@@ -335,6 +335,8 @@ async function renderCoachWelcome(user, teams) {
     quick.append(
         quickLink('●', 'Tag a match live', 'Record events from the touchline',
             'live-tagging/', true),
+        quickLink('◧', 'Front page', 'What a new coach or player sees first',
+            '?front'),
     );
 
     showOnly('view-routes', VIEWS);
@@ -348,6 +350,15 @@ async function onSignedIn(user) {
     const chip = byId('user-chip');
     chip.textContent = user.email;
     chip.classList.remove('hidden');
+
+    // `?front` is the front page as a visitor sees it, for someone who is
+    // signed in and would otherwise only ever get their own dashboard here.
+    if (new URLSearchParams(location.search).has('front')) {
+        byId('btn-hero-signin').classList.add('hidden');
+        byId('btn-hero-home').classList.remove('hidden');
+        showOnly('view-marketing', VIEWS);
+        return;
+    }
 
     const access = await resolveAccess(user);
 
