@@ -7,9 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Saira+Condensed:wght@600;700;800&family=Saira:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=122">
-    <script src="../assets/kit-boot.js?v=122"></script>
-    <link rel="stylesheet" href="coach.css?v=122">
+    <link rel="stylesheet" href="../assets/app.css?v=123">
+    <script src="../assets/kit-boot.js?v=123"></script>
+    <link rel="stylesheet" href="coach.css?v=123">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to the main content</a>
@@ -76,9 +76,27 @@
                     <span id="hero-gd" class="record-gd">0</span>
                     <span class="record-key">goal difference</span>
                 </div>
+                <button id="btn-kit-open" class="btn small kit-open" type="button" aria-expanded="false">
+                    <span class="kit-dot" aria-hidden="true"></span>Team colours
+                </button>
             </div>
             <div class="team-hero-stats stat-grid" id="hero-stats"></div>
         </header>
+
+        <!-- Opened from the button in the header above, so the colours are
+             chosen while looking at the thing they paint. -->
+        <section class="card kit-panel hidden" id="kit-panel">
+            <h3>Team colours</h3>
+            <p class="muted kit-panel-note">
+                Every page for this squad uses them, including each player's
+                report from the next match you publish.
+            </p>
+            <div id="kit-team-slot"></div>
+            <div class="kit-panel-actions">
+                <button id="btn-save-kit" class="btn primary" disabled>Save colours</button>
+                <button id="btn-kit-cancel" class="btn ghost" type="button">Cancel</button>
+            </div>
+        </section>
 
         <!-- First-run guidance. A coach opening this for the first time has no
              way to know the order things must happen in, and getting it wrong
@@ -275,16 +293,6 @@
                             They sign in with Google using that exact address and accept
                             the invitation. Nothing happens until they do.
                         </p>
-                    </div>
-
-                    <div class="card" style="margin-top:12px">
-                        <h3 style="margin-bottom:10px">Team colours</h3>
-                        <p class="muted" style="margin:0 0 14px">
-                            Every page for this squad uses them, including each
-                            player's report from the next match you publish.
-                        </p>
-                        <div id="kit-team-slot"></div>
-                        <button id="btn-save-kit" class="btn primary block" disabled>Save colours</button>
                     </div>
 
                     <div class="card" style="margin-top:12px">
@@ -772,7 +780,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=122"></script>
+<script type="module" src="coach.js?v=123"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>
