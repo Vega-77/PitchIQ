@@ -119,12 +119,13 @@ def paint_mask(image: np.ndarray, scale: float = 0.5, gold: float = 0.45, logo: 
     b, g, r = d[..., 0], d[..., 1], d[..., 2]
     if (colour or LINES) == 'white':
         warm = (np.minimum(np.minimum(r, g), b) > 12) & (b < r + 15) & (b < g + 15)   # white, not blue
-        # White lines have white look-alikes off the pitch (a fence rail, a bleacher
-        # edge), and a rail along the far touchline pulls that line onto the fence.
-        warm &= cv2.resize(playing_surface(image).astype(np.uint8), warm.shape[::-1], interpolation=cv2.INTER_NEAREST) > 0
         logo = 0
     else:
         warm = (r > 12) & (r > b + 8) & (g > gold * r)  # gold, not the red track or orange lacrosse
+    # Lines have look-alikes off the pitch (a white fence rail, a bleacher edge, warm
+    # blobs in the stands and sky at dusk), and with no far touchline painted (East
+    # Brunswick) or a rail along it (North Brunswick) they pull that line off the grass.
+    warm &= cv2.resize(playing_surface(image).astype(np.uint8), warm.shape[::-1], interpolation=cv2.INTER_NEAREST) > 0
     m = ((top > 12) & warm).astype(np.uint8) * 255
     m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
     blob = cv2.erode(m, np.ones((9, 9), np.uint8))
