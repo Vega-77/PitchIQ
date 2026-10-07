@@ -241,16 +241,20 @@ def merge(tag, lo, hi, res):
     for r in sorted(res, key=lambda r: (r['lo'], r['wid'])):
         parts.extend(r['parts'])
     F, X, Y, S, FR, NCn, HW, HS = [], [], [], [], [], [], [], []
+    # Parts are kept to lo..hi, so a window cut from finished chunks (half.py's
+    # pieces) is exactly what drun over that window would have written.
     for name in parts:
         z = np.load(os.path.join(S2, name))
-        F.append(z['f'])
-        X.append(z['x'])
-        Y.append(z['y'])
-        S.append(z['s'])
-        FR.append(z['frames'])
-        NCn.append(z['ncand'])
-        HW.append(z['how'])
-        HS.append(z['hstep'])
+        m = (z['f'] >= lo) & (z['f'] <= hi)
+        k = (z['frames'] >= lo) & (z['frames'] <= hi)
+        F.append(z['f'][m])
+        X.append(z['x'][m])
+        Y.append(z['y'][m])
+        S.append(z['s'][m])
+        FR.append(z['frames'][k])
+        NCn.append(z['ncand'][k])
+        HW.append(z['how'][k])
+        HS.append(z['hstep'][k])
     fr = np.concatenate(FR)
     o = np.argsort(fr, kind='stable')
     fr = fr[o]
