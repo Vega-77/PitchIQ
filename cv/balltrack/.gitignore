@@ -29,3 +29,6 @@ homog/*_ball3d*.csv
 !homog/vid1_rollrms.npy
 !homog/airtruth.npz
 !homog/*_reg.npz
+
+# half.py: per-piece stage markers, logs and seams
+half/
