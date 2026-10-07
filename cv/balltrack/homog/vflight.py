@@ -58,7 +58,7 @@ class Track:
 
     def project(self, idx, P):
         """Pixels of 3D points P (n, 3: u, v, z) seen in frames idx."""
-        q = np.c_[P[:, 0], P[:, 1], 1 - P[:, 2]]
+        q = np.column_stack((P[:, 0], P[:, 1], 1 - P[:, 2]))   # not np.c_: 4x slower, and called ~1M times a scan
         x = np.einsum('fij,fj->fi', self.Mi[idx], q)
         return x[:, :2] / x[:, 2:3]
 
@@ -74,7 +74,7 @@ def ballistic(th, t):
     s = t - tau
     vz = G * Tf / 2
     z = np.where((s >= 0) & (s <= Tf), vz * s - 0.5 * G * s * s, 0.0)
-    return np.c_[u0 + vu * s, v0 + vv * s, z]
+    return np.column_stack((u0 + vu * s, v0 + vv * s, z))
 
 
 def ground_all(tr):

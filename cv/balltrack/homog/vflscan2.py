@@ -108,7 +108,8 @@ def main():
     starts = [a for a in range(0, len(tr.abs), STEP) if tr.has[a]]
     if lim:
         starts = starts[:lim]
-    chunks = [(tag, starts[i::procs * 4]) for i in range(procs * 4)]
+    # 32 pieces whatever the process count, so the rows come out in the same order
+    chunks = [(tag, starts[i::32]) for i in range(32)]
     t0 = time.time()
     with Pool(procs) as p:
         S = np.array(sum(p.map(work, chunks), []))

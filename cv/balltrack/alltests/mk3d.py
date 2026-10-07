@@ -5,7 +5,7 @@ homog so the shipped outputs are never touched.
 
   copy   S2/h3d_<ver>/  (scripts, labels, registrations; every `import render_vid as RV`
          rewritten to `import rv_shim as RV`, which serves alltests/p2d/<ver>/<tag>.npz)
-  chain  vballsb -> vfl0 -> vflscan2 8 -> vrowspd -> vdefault (chain2 + vsmooth) -> <tag>_ball3dd.npz
+  chain  vballsb -> vfl0 -> vflscan2 16 -> vrowspd -> vdefault (chain2 + vsmooth) -> <tag>_ball3dd.npz
   --variants  also vflscan 8 (v1), vflchain3 (3, 3k), vstrict (x1), vsmooth on x1 -> sx
 TAPNext bridge frames (src 3) go in as 'fill' unless BRIDGE_TRACK=1.
 """
@@ -90,7 +90,7 @@ def chain(ver, tag, variants):
         if not os.path.exists(os.path.join(d, '%s_ball3dd.npz' % tag)):
             run(d, log, 'vballsb.py', tag)
             run(d, log, 'vfl0.py', tag)
-            run(d, log, 'vflscan2.py', tag, '8')
+            run(d, log, 'vflscan2.py', tag, '16')
             run(d, log, 'vrowspd.py', tag)
             run(d, log, 'vflchain2.py', tag)
             run(d, log, 'vsmooth.py', tag, env=dict(VS_B3='%s_ball3d2.npz' % tag))

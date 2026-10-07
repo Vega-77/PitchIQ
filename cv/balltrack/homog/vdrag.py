@@ -16,7 +16,7 @@ def drag(th, t):
     z = np.where((s >= 0) & (s <= Tf), (vz + V.G / k) * E(sc) - V.G * sc / k, 0.0)
     # outside the flight the ball rolls on with the speed it had at the ends
     h = E(sc) + np.where(s > Tf, (s - Tf) * np.exp(-k * Tf), 0) + np.where(s < 0, s, 0)
-    return np.c_[u0 + vu * h, v0 + vv * h, z]
+    return np.column_stack((u0 + vu * h, v0 + vv * h, z))
 
 
 def fit(tr, a, b, kmax=1.5):
