@@ -193,6 +193,8 @@ def main():
     Hs = np.load(os.path.join(HG, '%s_smooth2.npz' % tag))['H']
     res, col, kits = players(tag)
     td, (kx, ky) = pitch_map(tag, res, Hs, a0, lo, hi)
+    from cv import checks
+    print('checks:', checks.map_report(td, 120 / kx, 80 / ky), flush=True)
     t0 = time.time()
 
     base = np.zeros((HT, WD, 3), np.uint8); base[:] = (24, 20, 16)

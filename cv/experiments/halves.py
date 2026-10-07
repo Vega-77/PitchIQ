@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -152,17 +153,21 @@ def strip(tag: str, m0: float, m1: float, every: float) -> Path:
     return out
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(prog='python -m cv.experiments.halves', description=__doc__.split('\n\n')[0])
     ap.add_argument('tag')
-    ap.add_argument('--step', type=float, default=5.0)
+    ap.add_argument('--step', type=float, default=5.0, help='seconds between samples')
     ap.add_argument('--strip', type=float, nargs=2, metavar=('MIN0', 'MIN1'),
                     help='write a thumbnail sheet of these video minutes instead')
     ap.add_argument('--every', type=float, default=10.0, help='seconds between strip thumbnails')
-    a = ap.parse_args()
+    return ap
+
+
+def main(argv: list[str] | None = None) -> int:
+    a = build_parser().parse_args(argv)
     if a.strip:
         print('strip:', strip(a.tag, a.strip[0], a.strip[1], a.every))
-        return
+        return 0
     path = PLAB / 'out' / f'{a.tag}_halves.npz'
     if not path.exists():
         sample(a.tag, a.step)
@@ -173,8 +178,9 @@ def main() -> None:
     for k, (s, e) in enumerate(halves, 1):
         print(f'H{k}: {s / 60:.0f}:00 - {e / 60:.0f}:00  (frames {int(s * 30)}-{int(e * 30)} at 30 fps)')
     print('plot:', plot(a.tag, z, halves))
+    return 0
 
 
 if __name__ == '__main__':
     os.environ.setdefault('OMP_NUM_THREADS', '4')
-    main()
+    sys.exit(main())

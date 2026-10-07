@@ -9,13 +9,19 @@ their metre sizes on the pitch size in <tag>_venue.npz, if there is one,
 whose L and W are in centre-circle radii). Writes
 plab/out/<tag>_overlay.jpg. For checking the far touchline by eye: paint that
 sits off the drawn line is calibration error, not tracking error.
+
+It also prints `checks.feet_on_pitch` for the people on those frames: well
+under 0.8 means the calibration throws players off the pitch. A pitch drawn
+too big passes that check, so look at the sheet as well.
 """
 from __future__ import annotations
 
 import argparse
+import sys
 
 import numpy as np
 
+from cv.checks import feet_on_pitch
 from cv.experiments.autocal_run import M_PER_R
 from cv.experiments.player_lab import PLAB, VIDEO
 
@@ -51,14 +57,21 @@ def overlay(tag: str, n: int):
     lines = _lines(*(M_PER_R * float(np.load(v)[k]) for k in ('L', 'W'))) if v.exists() else _lines()
     idx = np.flatnonzero(z['ok'])
     idx = idx[np.linspace(0, len(idx) - 1, n).round().astype(int)]
+    from ultralytics import YOLO
+
+    from cv.detector import CLASS_PERSON, DEFAULT_WEIGHTS
+    model = YOLO(str(DEFAULT_WEIGHTS))
     cap = cv2.VideoCapture(VIDEO)
-    tiles = []
+    tiles, Hs, feet = [], [], []
     for i in idx:
         cap.set(cv2.CAP_PROP_POS_FRAMES, int(z['abs'][i]))
         ok, img = cap.read()
         if not ok:
             continue
         H = z['Hsb'][i]
+        b = model.predict(img, classes=[CLASS_PERSON], conf=0.4, imgsz=1280, verbose=False)[0].boxes.xyxy.cpu().numpy()
+        b = b[b[:, 3] - b[:, 1] < 0.25 * img.shape[0]]    # the people on the pitch, not the camera's neighbours
+        Hs.append(H); feet.append(np.c_[(b[:, 0] + b[:, 2]) / 2, b[:, 3]])
         Hi = np.linalg.inv(H)
         c = H @ [img.shape[1] / 2, img.shape[0] / 2, 1.0]  # the frame centre's pitch point must map back in front
         if (Hi @ (c / c[2]))[2] < 0:
@@ -78,16 +91,23 @@ def overlay(tag: str, n: int):
     sheet = np.vstack([np.hstack(tiles[k:k + 2]) for k in range(0, len(tiles), 2)])
     out = PLAB / 'out' / f'{tag}_overlay.jpg'
     cv2.imwrite(str(out), sheet, [cv2.IMWRITE_JPEG_QUALITY, 85])
-    return out
+    return out, feet_on_pitch(np.array(Hs), feet)
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
-    ap.add_argument('tag')
-    ap.add_argument('--n', type=int, default=6)
-    a = ap.parse_args()
-    print('overlay:', overlay(a.tag, a.n))
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog='python -m cv.experiments.cal_overlay', description=__doc__.split('\n\n')[0])
+    p.add_argument('tag')
+    p.add_argument('--n', type=int, default=6, help='frames to draw')
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    a = build_parser().parse_args(argv)
+    out, feet = overlay(a.tag, a.n)
+    print('overlay:', out)
+    print('feet on the pitch: %.2f of %d' % (feet['on_pitch'], feet['feet']))
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
