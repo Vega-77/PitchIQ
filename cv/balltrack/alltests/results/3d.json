@@ -2196,5 +2196,97 @@
     "air_runs": 7
    }
   }
+ },
+ "hyb90_384": {
+  "dd": {
+   "air": {
+    "P": 0.88,
+    "R": 0.39,
+    "F": 0.55,
+    "hit": 16.0,
+    "false": 1.0
+   },
+   "air_txt": "vid1_ball3dd.npz             air frames P 0.88 R 0.39 F 0.55 | true flights hit 16/39 | detected runs 13, false 1",
+   "fl_dev": {
+    "F": 0.45,
+    "hit": 5.0,
+    "false": 1.0,
+    "pos": 11.8,
+    "airpos": 3.2
+   },
+   "fl_hold": {
+    "F": 0.7,
+    "hit": 10.0,
+    "false": 1.0,
+    "pos": 7.1,
+    "airpos": 7.0
+   },
+   "fl_txt": [
+    "vid1_ball3dd.npz           dev   air P 0.83 R 0.31 F 0.45 hit  5/20 false  1 | pos med  11.8  air-only  3.2 on  9/25",
+    "vid1_ball3dd.npz           HOLD  air P 0.92 R 0.57 F 0.70 hit 10/15 false  1 | pos med   7.1  air-only  7.0 on 11/18"
+   ],
+   "fl2": {
+    "P": 0.96,
+    "R": 0.41,
+    "F": 0.57,
+    "hit": 13.0,
+    "false": 1.0,
+    "spots": 2.2,
+    "track": 5.3
+   },
+   "fl2_txt": "d                    air P 0.96 R 0.41 F 0.57 | hit 13/28 (touched 14) false  1 ( 18 fr) | spots med  2.2 mean  4.6 n33 | track  5.3  air-only  3.7 on 14",
+   "fix": {
+    "map_p171270": NaN,
+    "missair": 0.0,
+    "map_p173700": 1.653756793315528,
+    "wrong_air_runs": 0,
+    "air_runs": 16
+   }
+  },
+  "c2": {
+   "air": {
+    "P": 0.88,
+    "R": 0.39,
+    "F": 0.55,
+    "hit": 16.0,
+    "false": 1.0
+   },
+   "air_txt": "vid1_ball3d2.npz             air frames P 0.88 R 0.39 F 0.55 | true flights hit 16/39 | detected runs 13, false 1",
+   "fl_dev": {
+    "F": 0.45,
+    "hit": 5.0,
+    "false": 1.0,
+    "pos": 11.8,
+    "airpos": 3.2
+   },
+   "fl_hold": {
+    "F": 0.7,
+    "hit": 10.0,
+    "false": 1.0,
+    "pos": 7.1,
+    "airpos": 7.0
+   },
+   "fl_txt": [
+    "vid1_ball3d2.npz           dev   air P 0.83 R 0.31 F 0.45 hit  5/20 false  1 | pos med  11.8  air-only  3.2 on  9/25",
+    "vid1_ball3d2.npz           HOLD  air P 0.92 R 0.57 F 0.70 hit 10/15 false  1 | pos med   7.1  air-only  7.0 on 11/18"
+   ],
+   "fl2": {
+    "P": 0.96,
+    "R": 0.41,
+    "F": 0.57,
+    "hit": 13.0,
+    "false": 1.0,
+    "spots": 2.4,
+    "track": 6.3
+   },
+   "fl2_txt": "2                    air P 0.96 R 0.41 F 0.57 | hit 13/28 (touched 14) false  1 ( 18 fr) | spots med  2.4 mean  4.6 n33 | track  6.3  air-only  3.7 on 14",
+   "fix": {
+    "map_p171270": NaN,
+    "missair": 0.0,
+    "map_p173700": 1.4545838985533872,
+    "wrong_air_runs": 0,
+    "air_runs": 16
+   }
+  }
  }
 }
