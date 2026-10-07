@@ -34,6 +34,7 @@ MODEL_SIZE = 256                # TAPNextPP.MODEL_SIZE: query and track coordina
 MAXGAP = int(os.environ.get('MAXGAP', 90))
 B = int(os.environ.get('TNB', 1))
 SPAN = 600                      # frames one group may span (read once, sequentially)
+CKPT_S = float(os.environ.get('TN_CKPT_S', 300))   # seconds of work between checkpoints: a crash loses at most this
 
 
 def model():
@@ -113,6 +114,16 @@ def bridges(net, tag):
     jobs.sort(key=lambda t: (min(t[3]), -len(t[3])))
     cap = cv2.VideoCapture(feat4.VIDEO)
     res = []; t0 = time.time(); k0 = 0; done = 0
+    # Resume: groups are fixed by the jobs and run independently, so a checkpoint of
+    # the finished groups plus where the next one starts continues bit for bit.
+    ckpt = os.path.join(OUT, 'bridges_%s.ckpt.npy' % tag)
+    sig = [(t[0], t[1], t[2]) for t in jobs]
+    if os.path.exists(ckpt):
+        c = np.load(ckpt, allow_pickle=True).item()
+        if c['sig'] == sig:
+            res, k0, done = c['res'], c['k0'], c['done']
+            print('%s  resuming at %d/%d tracks' % (tag, done, len(jobs)), flush=True)
+    saved = time.time()
     while k0 < len(jobs):
         span = [jobs[k0]]; lo = min(jobs[k0][3]); k = k0 + 1
         while k < len(jobs) and max(jobs[k][3]) - lo <= SPAN:
@@ -141,8 +152,14 @@ def bridges(net, tag):
                 if done % 80 < len(g):
                     print('%s  %d/%d tracks  %.0f s' % (tag, done, len(jobs), time.time() - t0), flush=True)
         del frames
+        if time.time() - saved > CKPT_S and k0 < len(jobs):
+            os.makedirs(OUT, exist_ok=True)
+            np.save(ckpt + '.part.npy', dict(sig=sig, res=res, k0=k0, done=done), allow_pickle=True)
+            os.replace(ckpt + '.part.npy', ckpt); saved = time.time()
     os.makedirs(OUT, exist_ok=True)
     np.save(os.path.join(OUT, 'bridges_%s.npy' % tag), np.array(res, dtype=object), allow_pickle=True)
+    if os.path.exists(ckpt):
+        os.remove(ckpt)
     print('%s  %d tracks  %d frames  %.0f s' % (tag, len(res), sum(len(r[3]) for r in res), time.time() - t0), flush=True)
 
 

@@ -29,6 +29,11 @@ Everything else - the blob pass, the feature rows, the two boosters, the
 top-KEEP write - is dense's, and bfast2/rfast2 were checked bit-identical
 against it before any of this.
 
+The window is also cut into 5-minute chunks (CHUNK frames, on absolute
+boundaries).  When a chunk's last worker returns, <tag>_k<chunk>.json records
+its part files; a rerun of the same command skips every chunk with a complete
+manifest, so a crash or a reboot costs at most the chunks in flight.
+
     python drun.py <lo> <hi> [procs] [tag]
 """
 import io
@@ -40,11 +45,12 @@ import time
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 FLUSH = 250              # anchors between part files
+CHUNK = int(os.environ.get("DRUN_CHUNK", 9000))   # 5 min of video: a finished chunk is never redone
 PROCS = 16               # dpar8's confirmed point: 29.07 fps, 6607 MiB peak
 
 
 def worker(args):
-    wid, alo, ahi, tag = args
+    wid, alo, ahi, tag = args       # tag here is '<tag>_k<chunk>', so part names never collide
     for v in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
         os.environ[v] = '1'
     import cv2
@@ -162,7 +168,7 @@ def worker(args):
     say('worker %d done: %d anchors, %.1fs, %.2f fps, %d cached / %d batched'
         % (wid, done, el, done / el if el else 0.0, reg.hits, reg.batched))
     log.close()
-    return dict(wid=wid, lo=alo, hi=ahi, done=done, secs=el, parts=parts,
+    return dict(wid=wid, tag=tag, lo=alo, hi=ahi, done=done, secs=el, parts=parts,
                 cached=reg.hits, batched=reg.batched, misses=reg.misses)
 
 
@@ -176,10 +182,46 @@ def reg_detect(cv2, g):
     return orb.detectAndCompute(g, None)
 
 
+def chunk_edges(lo, hi):
+    """[lo, hi] cut into CHUNK-frame pieces, aligned to absolute multiples of
+    CHUNK so the same frames make the same chunk whatever window asks."""
+    out, a = [], lo
+    while a <= hi:
+        b = min(hi, (a // CHUNK + 1) * CHUNK - 1)
+        out.append((a, b))
+        a = b + 1
+    return out
+
+
+def _manifest(ctag):
+    return os.path.join(S2, '%s.json' % ctag)
+
+
+def save_chunk(ctag, res):
+    path = _manifest(ctag)
+    io.open(path + '.part', 'w', encoding='utf-8').write(json.dumps(res))
+    os.replace(path + '.part', path)
+
+
+def load_chunk(tag, c, clo, chi):
+    """A finished chunk's worker results, or None.  Only a manifest that covers
+    exactly this chunk, with every part file present, counts as finished."""
+    path = _manifest('%s_k%03d' % (tag, c))
+    if not os.path.exists(path):
+        return None
+    res = json.loads(io.open(path, encoding='utf-8').read())
+    lo = min(r['lo'] for r in res)
+    hi = max(r['hi'] for r in res)
+    if (lo, hi) != (clo, chi) or not all(
+            os.path.exists(os.path.join(S2, p)) for r in res for p in r['parts']):
+        return None
+    return res
+
+
 def merge(tag, lo, hi, res):
     import numpy as np
     parts = []
-    for r in sorted(res, key=lambda r: r['wid']):
+    for r in sorted(res, key=lambda r: (r['lo'], r['wid'])):
         parts.extend(r['parts'])
     F, X, Y, S, FR, NCn, HW, HS = [], [], [], [], [], [], [], []
     for name in parts:
@@ -238,27 +280,53 @@ def main():
     tag = sys.argv[4] if len(sys.argv) > 4 else 'drun'
 
     n = hi - lo + 1
-    edges = [lo + (n * i) // procs for i in range(procs)] + [hi + 1]
-    jobs = [(i, edges[i], edges[i + 1] - 1, tag) for i in range(procs)]
+    chunks = chunk_edges(lo, hi)
+    todo, res = [], []
+    for clo, chi in chunks:
+        c = clo // CHUNK            # the absolute 5-minute slot: same frames, same name
+        done = load_chunk(tag, c, clo, chi)
+        if done is not None:
+            res.extend(done)
+            continue
+        m = chi - clo + 1
+        edges = [clo + (m * i) // procs for i in range(procs)] + [chi + 1]
+        todo += [(i, edges[i], edges[i + 1] - 1, '%s_k%03d' % (tag, c))
+                 for i in range(procs) if edges[i + 1] > edges[i]]
     print('DETECTOR over abs %d..%d  (%d frames, %.1f s of video)'
           % (lo, hi, n, n / 30.0))
     print('  %d processes x 1 thread, bfast2 blobs + rfast2/gmatch2 registrar'
           % procs)
-    print('  chunks of %d-%d anchors, part file every %d'
-          % (min(j[2] - j[1] + 1 for j in jobs),
-             max(j[2] - j[1] + 1 for j in jobs), FLUSH))
+    print('  %d chunks of <= %d frames, %d already done; part file every %d'
+          % (len(chunks), CHUNK, len(chunks) - len({j[3] for j in todo}),
+             FLUSH))
     sys.stdout.flush()
 
+    # One pool for every chunk; a chunk's manifest is written the moment its
+    # last worker returns, so a crash or reboot loses at most the chunks in
+    # flight.  Workers split anchors with their own lookahead frames, so the
+    # output does not depend on where the chunk or worker edges fall.
     t0 = time.time()
-    with mp.Pool(procs) as pool:
-        res = []
-        for r in pool.imap_unordered(worker, jobs):
-            res.append(r)
-            print('  worker %2d  %d anchors  %6.1fs  %5.2f fps   [%d/%d done]'
-                  % (r['wid'], r['done'], r['secs'],
-                     r['done'] / r['secs'] if r['secs'] else 0.0,
-                     len(res), procs), flush=True)
-    wall = time.time() - t0
+    pending = {}
+    for j in todo:
+        pending.setdefault(j[3], []).append(j)
+    left = {k: len(v) for k, v in pending.items()}
+    got_c = {k: [] for k in pending}
+    if todo:
+        with mp.Pool(procs) as pool:
+            for r in pool.imap_unordered(worker, todo):
+                ct = r['tag']
+                got_c[ct].append(r)
+                left[ct] -= 1
+                print('  %s worker %2d  %d anchors  %6.1fs  %5.2f fps'
+                      % (ct, r['wid'], r['done'], r['secs'],
+                         r['done'] / r['secs'] if r['secs'] else 0.0),
+                      flush=True)
+                if not left[ct]:
+                    save_chunk(ct, got_c[ct])
+                    res.extend(got_c[ct])
+                    print('  chunk %s done  [%.0f s]' % (ct, time.time() - t0),
+                          flush=True)
+    wall = max(time.time() - t0, 1e-9)
 
     got = sum(r['done'] for r in res)
     dense, fr, nc, step, nfail = merge(tag, lo, hi, res)
