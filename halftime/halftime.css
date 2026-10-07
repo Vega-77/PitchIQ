@@ -60,12 +60,11 @@ body { background: var(--surface); }
    heavy frame, and the score in the numeral face. */
 .ht-head {
     margin: 26px 0 8px;
-    padding: 22px 24px 20px;
-    background: var(--surface);
+    padding: 26px 24px 20px;
+    background: linear-gradient(var(--kit-2) 0 5px, var(--surface) 5px);
     border: 3px solid var(--text);
-    border-top: 0;
-    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-    box-shadow: 0 -10px 0 var(--kit), 0 -14px 0 var(--kit-2);
+    border-top: 12px solid var(--kit);
+    border-radius: var(--radius-lg);
     text-align: center;
 }
 
@@ -154,8 +153,8 @@ body { background: var(--surface); }
    sits in the same visual register as a card somebody was actually shown. The
    same distinction the dotted tally rows make further down the page. */
 .decision.est {
-    border-left-style: dashed;
-    border-left-color: var(--line-hi);
+    border: 2px dashed var(--line-hi);
+    padding-left: 24px;
     background: transparent;
 }
 .decision.est .d-title { color: var(--text-dim); font-weight: 600; }

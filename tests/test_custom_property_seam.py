@@ -177,6 +177,11 @@ def ghost(**kw):
 
 # ------------------------------------------------------------------ the seam
 
+# Written from script with `style.setProperty`, never declared in a sheet.
+JS_WRITTEN = {'--w', '--tab-x', '--tab-w', '--reveal-i', '--px', '--py',
+              '--mx', '--my', '--sw-a', '--sw-b'}
+
+
 class TestTheSeamHoldsInBothDirections:
     """The two halves, and neither is allowed to be the excuse for the other."""
 
@@ -189,11 +194,19 @@ class TestTheSeamHoldsInBothDirections:
     def test_the_count_is_what_the_theme_says_it_is(self):
         # Not a magic number for its own sake: it is the assertion that the
         # scanner reached the theme block rather than some subset of it.
-        assert len(declared()) == 27, sorted(declared())
+        # Fifty-one since the School Colours redesign (2026-10-07): the kit
+        # and the tokens that came with it, and the ten written from script.
+        assert len(declared()) == 51, sorted(declared())
 
-    def test_the_one_token_declared_outside_css_is_still_w(self):
+    def test_the_tokens_declared_outside_css(self):
+        # `--w` is a bar's width. The other nine are motion and the colour
+        # picker, each measured or chosen at run time: where the active tab
+        # sits (`--tab-x`, `--tab-w`), a block's place in the order it rises
+        # in (`--reveal-i`), the pointer over a header (`--px`, `--py`) and
+        # over a card (`--mx`, `--my`), and a preset swatch's two colours
+        # (`--sw-a`, `--sw-b`).
         css = {t for t, w in declared().items() if all(x in CSS for x in w)}
-        assert set(declared()) - css == {'--w'}
+        assert set(declared()) - css == JS_WRITTEN
 
 
 class TestAGhostWithAFallbackIsTheSilentOne:
@@ -227,16 +240,16 @@ class TestEachScanSiteIsLoadBearing:
     """
 
     def test_css_decl_is_where_the_theme_lives(self):
-        assert ghost(off={'css-decl'}) - ghost() == set(declared()) - {'--w'}
-        assert len(ghost(off={'css-decl'})) == 26
+        assert ghost(off={'css-decl'}) - ghost() == set(declared()) - JS_WRITTEN
+        assert len(ghost(off={'css-decl'})) == 41
 
     def test_css_use_is_where_the_reading_happens(self):
         # Everything but --line, which coach.js also reads.
-        assert len(dead(off={'css-use'})) == 26
+        assert len(dead(off={'css-use'})) == 50
         assert '--line' not in dead(off={'css-use'})
 
     def test_js_setprop_is_the_only_writer_outside_css(self):
-        assert ghost(off={'js-setprop'}) - ghost() == {'--w'}
+        assert ghost(off={'js-setprop'}) - ghost() == JS_WRITTEN
 
     def test_js_use_finds_a_use_no_other_site_can_see(self):
         # Inert by delta -- --line has a hundred and eighteen uses in CSS -- and
@@ -334,7 +347,7 @@ class TestTheScannerCanSeeTheRepo:
     def test_the_stylesheets_are_actually_full_of_var(self):
         u = used()
         assert sum(len(w) for w in u.values()) > 600
-        assert len(u) == 27, sorted(u)
+        assert len(u) == 51, sorted(u)
 
     def test_the_busiest_tokens_are_still_the_busiest(self):
         # Ordering, not exact counts: the counts move whenever a rule is added

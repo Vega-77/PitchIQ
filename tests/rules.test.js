@@ -423,6 +423,50 @@ describe('what a team is called', () => {
   });
 });
 
+// Two hex codes every page the team owns is painted in. Read back into
+// `style.setProperty` on every page load, so the shape is the whole defence:
+// anything that is not exactly `#rrggbb` would be a string some page writes
+// into a stylesheet.
+describe('a team’s colours', () => {
+  const team = (who = COACH) => doc(as(who), 'teams', TEAM);
+  const KIT = { primary: '#7a1f2b', secondary: '#ffffff' };
+
+  it('a coach sets the colours, and can clear them back to the house kit', async () => {
+    await assertSucceeds(updateDoc(team(), { kit: KIT }));
+    await assertSucceeds(updateDoc(team(), { kit: null }));
+  });
+
+  it('a team can be created in its colours, or without any', async () => {
+    const fresh = (id, kit) => setDoc(doc(as(COACH), 'teams', id), {
+      name: 'Kit FC', kit, coachUids: [COACH.uid], taggerUids: [],
+      archived: false, createdAt: serverTimestamp(), createdBy: COACH.uid,
+    });
+    await assertSucceeds(fresh('kitteam1', KIT));
+    await assertSucceeds(fresh('kitteam2', null));
+    await assertFails(fresh('kitteam3', { primary: 'red', secondary: '#ffffff' }));
+  });
+
+  it('refuses anything that is not two lower-case hex codes', async () => {
+    await assertFails(updateDoc(team(), { kit: { primary: '#7A1F2B', secondary: '#ffffff' } }));
+    await assertFails(updateDoc(team(), { kit: { primary: '#fff', secondary: '#000000' } }));
+    await assertFails(updateDoc(team(), { kit: { primary: 'url(x)', secondary: '#000000' } }));
+    await assertFails(updateDoc(team(), { kit: { primary: '#7a1f2b' } }));
+    await assertFails(updateDoc(team(), { kit: { ...KIT, tertiary: '#000000' } }));
+    await assertFails(updateDoc(team(), { kit: '#7a1f2b' }));
+  });
+
+  it('a tagger cannot recolour the team', async () => {
+    await assertFails(updateDoc(team(TAGGER), { kit: KIT }));
+  });
+
+  it('a published report carries a copy, held to the same shape', async () => {
+    const ref = doc(as(COACH), 'teams', TEAM, 'matches', MATCH, 'playerReports', 'p1');
+    await assertSucceeds(updateDoc(ref, { teamKit: KIT }));
+    await assertSucceeds(updateDoc(ref, { teamKit: null }));
+    await assertFails(updateDoc(ref, { teamKit: { primary: 'javascript:', secondary: '#ffffff' } }));
+  });
+});
+
 // =====================================================================
 // P0 — player data isolation
 // =====================================================================

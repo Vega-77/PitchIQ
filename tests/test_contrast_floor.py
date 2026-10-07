@@ -744,14 +744,14 @@ class TestTheScannerCanSeeTheRepo:
 
     def test_the_theme_resolves_on_both_media(self):
         screen, paper = theme(False), theme(True)
-        # Thirty-nine: the dark theme's twenty-five plus fourteen from the
-        # School Colours redesign -- the kit (six tokens), --on-accent, a chip
-        # tint for each state colour, two type faces, a lifted shadow and an
-        # easing curve. `--report` and `--w` are still left out: one is
+        # Thirty-eight: the dark theme's twenty-five, less --pitch which
+        # nothing read any more, plus fourteen from the School Colours
+        # redesign -- the kit (six tokens), --on-accent, a chip tint for each
+        # state colour, two type faces, a lifted shadow and an easing curve. `--report` and `--w` are still left out: one is
         # declared inside a min-width query, the other written from
         # JavaScript, and neither is a colour. Paper differs from the screen in five: it turns
         # every tinted ground white and darkens the two hairline colours.
-        assert len(screen) == 39, sorted(screen)
+        assert len(screen) == 38, sorted(screen)
         assert screen['--surface'] == '#ffffff'
         assert paper['--surface'] == '#ffffff'
         assert sum(1 for k in screen if screen[k] != paper.get(k)) == 5

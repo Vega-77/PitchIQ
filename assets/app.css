@@ -55,7 +55,6 @@
     --accent-dim: rgba(19, 41, 75, 0.08);
     --on-accent: #ffffff;
 
-    --pitch: #2f7d4f;
     /* A mark that carries data and is deliberately the quiet one: the
        opponent's half of a possession bar, dead-ball time in a stacked bar, a
        touch on the timeline, the lines painted on a pitch. WCAG puts a
@@ -452,6 +451,16 @@ a { color: var(--accent); text-decoration: none; }
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lift);
     overflow: hidden;
+}
+/* On a phone the panel is narrower than the stripes are wide, and they would
+   run through the headline. The trim becomes the hem instead. */
+@media (max-width: 720px) {
+    .on-kit {
+        background:
+            radial-gradient(120% 140% at 100% 0%, var(--kit-hi), transparent 60%),
+            var(--kit);
+        box-shadow: inset 0 -7px 0 var(--kit-2), var(--shadow-lift);
+    }
 }
 .on-kit .lede,
 .on-kit .muted,

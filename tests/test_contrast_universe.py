@@ -154,9 +154,9 @@ class TestInsetIsNotASize:
 
     def test_all_four_uses_position_rather_than_size(self):
         assert self.uses() == [
-            ('assets/app.css:387', '0'),
-            ('assets/app.css:414', '-40% -30%'),
-            ('assets/app.css:1821', 'auto 0 0 0'),
+            ('assets/app.css:386', '0'),
+            ('assets/app.css:413', '-40% -30%'),
+            ('assets/app.css:1830', 'auto 0 0 0'),
             ('live-tagging/tagging.css:615', '0'),
         ], self.uses()
 
