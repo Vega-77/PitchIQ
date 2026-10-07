@@ -10,7 +10,7 @@ bridges  every gap between two confident picks of the shipped tracker (cls_B), u
 alone    TAPNext on its own: seeded once on the window's first confident pick, then left to
          run to the end of the window (several windows run side by side in one batch).
 
-Tracking is the 'lead' policy that held flights best: a native 512 px window centred on
+Tracking is the 'lead' policy that held flights best: a native 384 px window (TNS) centred on
 the last estimate plus its own velocity, so the 12 px ball is never shrunk.
 """
 import os
@@ -29,7 +29,9 @@ sys.path.insert(0, os.path.join(S2, 'alltests'))
 from hybrid import AGR, ANC, air_mask   # noqa: E402
 
 AT = os.path.join(S2, 'alltests'); OUT = os.path.join(AT, os.environ.get('TN_DIR', 'tn'))   # TN_DIR: a trial's own bridges
-S = int(os.environ.get('TNS', 512))   # crop window, px; the checkpoint was tuned at 512
+S = int(os.environ.get('TNS', 384))   # crop window, px; the checkpoint was tuned at 512, but 384 halves the time
+                                      # for the same wrong picks on the 22 ball labs (2 fewer right of 158, flights
+                                      # slightly better): chosen by the user 2026-10-07
 MODEL_SIZE = 256                # TAPNextPP.MODEL_SIZE: query and track coordinates live on this grid
 MAXGAP = int(os.environ.get('MAXGAP', 90))
 B = int(os.environ.get('TNB', 1))
