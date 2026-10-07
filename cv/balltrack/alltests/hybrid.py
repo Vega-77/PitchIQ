@@ -24,6 +24,8 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__)); S2 = os.path.dirname(HERE)
+TN = os.path.join(HERE, os.environ.get('TN_DIR', 'tn'))     # a trial's bridges (tn_engine.py TN_DIR) ...
+SUFFIX = os.environ.get('HYB_SUFFIX', '')                   # ... written as p2d/hyb90<SUFFIX>, never over the accepted ones
 ANC = 20.0
 AGR = 24.0
 STATS = {}
@@ -42,7 +44,7 @@ def air_mask(tag, ab):
 def build(tag):
     z = np.load(os.path.join(HERE, 'p2d', 'cls_B', '%s.npz' % tag))
     ab, X, Y, SRC = z['abs'], z['x'], z['y'], z['src']
-    R = np.load(os.path.join(HERE, 'tn', 'bridges_%s.npy' % tag), allow_pickle=True)
+    R = np.load(os.path.join(TN, 'bridges_%s.npy' % tag), allow_pickle=True)
     tr = {}
     for a, b, d, xy, vis in R:
         tr[(int(a), int(b), int(d))] = np.asarray(xy, float)
@@ -91,7 +93,7 @@ def build(tag):
                 x[i + 1:j] = np.nan; y[i + 1:j] = np.nan; s[i + 1:j] = 0
         outs[ver] = (x, y, s)
     for ver, (x, y, s) in outs.items():
-        d = os.path.join(HERE, 'p2d', ver); os.makedirs(d, exist_ok=True)
+        d = os.path.join(HERE, 'p2d', ver + SUFFIX); os.makedirs(d, exist_ok=True)
         np.savez(os.path.join(d, '%s.npz' % tag), abs=ab, x=x, y=y, src=s)
     STATS[tag] = st
     print('%-5s gaps<=90 %4d  accepted %4d (%.0f%%)  rejected: air %d  landing %d  disagree %d   share bridged hyb90 %.3f' % (
@@ -118,6 +120,7 @@ def alone(tag):
 
 if __name__ == '__main__':
     for t in sys.argv[1:]:
-        if os.path.exists(os.path.join(HERE, 'tn', 'bridges_%s.npy' % t)):
+        if os.path.exists(os.path.join(TN, 'bridges_%s.npy' % t)):
             build(t)
-        alone(t)
+        if not SUFFIX:
+            alone(t)

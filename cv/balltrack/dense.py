@@ -155,11 +155,19 @@ def transforms(kds, bf, c):
     return mats, how
 
 
-def tiles_for(bgrs, mats):
-    """The 21 stabilised grey tiles, through the same JPEG the model saw."""
+def tiles_for(bgrs, mats, fids=None, cache=None):
+    """The 21 stabilised grey tiles, through the same JPEG the model saw.
+
+    `cache` (frame id -> its resized frame, with `fids` naming bgrs) saves
+    resizing each frame 21 times, once per anchor it serves; the warp and the
+    JPEG are per anchor and are not cached. The caller evicts old frames."""
     out = np.empty((len(bgrs), TH, TW), np.float32)
     for k in range(len(bgrs)):
-        small = cv2.resize(bgrs[k], (TW, TH), interpolation=cv2.INTER_AREA)
+        small = None if cache is None else cache.get(fids[k])
+        if small is None:
+            small = cv2.resize(bgrs[k], (TW, TH), interpolation=cv2.INTER_AREA)
+            if cache is not None:
+                cache[fids[k]] = small
         if mats[k] is not None:
             small = cv2.warpAffine(
                 small, F_scaled(mats[k][:2], 1.0 / SCALE), (TW, TH),

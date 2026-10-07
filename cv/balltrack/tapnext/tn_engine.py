@@ -28,7 +28,7 @@ from tapnet.tapnextpp.votsp2026.model import TAPNextPP   # noqa: E402
 sys.path.insert(0, os.path.join(S2, 'alltests'))
 from hybrid import ANC, air_mask   # noqa: E402
 
-AT = os.path.join(S2, 'alltests'); OUT = os.path.join(AT, 'tn')
+AT = os.path.join(S2, 'alltests'); OUT = os.path.join(AT, os.environ.get('TN_DIR', 'tn'))   # TN_DIR: a trial's own bridges
 S = int(os.environ.get('TNS', 512))   # crop window, px; the checkpoint was tuned at 512
 MODEL_SIZE = 256                # TAPNextPP.MODEL_SIZE: query and track coordinates live on this grid
 MAXGAP = int(os.environ.get('MAXGAP', 90))

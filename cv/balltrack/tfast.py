@@ -30,6 +30,7 @@ Two implementation notes, because both change results if done carelessly:
 Drop-in: tfast.temporal_rows(tiles, pts) for dense.temporal_rows(tiles, pts).
 """
 
+import cv2
 import numpy as np
 
 import feat_t4 as TT
@@ -52,6 +53,26 @@ def _gather(padded, iy, ix, r):
     return np.moveaxis(out, 0, 1).reshape(len(iy), padded.shape[0], -1)
 
 
+def _plate(tiles, pts, scale, H, W):
+    """The background plate: the per-pixel median of the 21 tiles, but only
+    where some candidate's RW window can read it (about a fifth of the tile).
+    Elsewhere it is 0 and nothing ever gathers it. A median of 21 values is
+    the 11th by size, so the partition returns exactly np.median's answer;
+    the rows come back bit for bit (checked on fm01 anchors, 37 -> 5 ms)."""
+    iy = np.clip(np.rint(pts[:, 1] / scale).astype(np.int64), 0, H - 1)
+    ix = np.clip(np.rint(pts[:, 0] / scale).astype(np.int64), 0, W - 1)
+    m = np.zeros((H, W), np.uint8)
+    m[iy, ix] = 1
+    # centres clipped onto the tile only widen the window, never miss a pixel
+    m = cv2.dilate(m, np.ones((2 * RW + 1, 2 * RW + 1), np.uint8)).astype(bool)
+    bg = np.zeros((H, W), tiles.dtype)
+    if len(tiles) % 2:
+        bg[m] = np.partition(tiles[:, m], len(tiles) // 2, axis=0)[len(tiles) // 2]
+    else:
+        bg[m] = np.median(tiles[:, m], axis=0)
+    return bg
+
+
 def temporal_rows(tiles, pts):
     """Vectorised twin of dense.temporal_rows.  Same inputs, same 30 columns."""
     import dense as D                      # late, to avoid a circular import
@@ -65,7 +86,7 @@ def temporal_rows(tiles, pts):
     if nc == 0:
         return T
 
-    bg = np.median(tiles, axis=0)
+    bg = _plate(tiles, pts, SCALE, H, W)
     fgs = np.clip(tiles - bg, 0, None)
     cur = tiles[CZERO]
 

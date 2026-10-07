@@ -118,15 +118,23 @@ def worker(args):
     FI, CX, CY, SC = [], [], [], []
     NC, HOW, HST = {}, {}, {}
     bgrs, kds, fids = [], [], []
+    small = {}                    # frame id -> its tile-size resize, shared by its 21 anchors
     done = 0
     t0 = time.time()
+    # seconds spent in each step, summed over the worker's anchors
+    PT = dict.fromkeys(('read', 'orb', 'blobs', 'still', 'register', 'tiles',
+                        'temporal', 'rank'), 0.0)
+    clock = time.perf_counter
     for ab in range(first, last + 1):
+        t = clock()
         ok, img = cap.read()
         if not ok:
             say('  read failed at %d - stopping' % ab)
             break
+        t1 = clock(); PT['read'] += t1 - t
         g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         kds.append(reg_detect(cv2, g))
+        PT['orb'] += clock() - t1
         bgrs.append(img)
         fids.append(ab)
         if len(bgrs) > D.NOFF:
@@ -137,23 +145,31 @@ def worker(args):
             continue
 
         anchor = ab + D.OFFS[0]
+        t = clock()
         bs, _ = bfast2.blobs(bgrs[D.CZERO], cmaj)
+        t1 = clock(); PT['blobs'] += t1 - t
         NC[anchor] = len(bs)
         if bs:
             Xs, pts = D.still_rows(bs, cmaj, cara)
+            t = clock(); PT['still'] += t - t1
             mats, how = reg.transforms(kds, fids, D.CZERO)
+            t1 = clock(); PT['register'] += t1 - t
             HOW[anchor] = how
             if mats[D.CZERO + 1] is not None:
                 HST[anchor] = mats[D.CZERO + 1]
-            tiles = D.tiles_for(bgrs, mats)
+            tiles = D.tiles_for(bgrs, mats, fids, small)
+            t = clock(); PT['tiles'] += t - t1
             Tt = tfast.temporal_rows(tiles, pts)
+            t1 = clock(); PT['temporal'] += t1 - t
             s2 = bst.predict(xgb.DMatrix(np.hstack([Xs, Tt])))
+            PT['rank'] += clock() - t1
             for j in np.argsort(-s2)[:D.KEEP]:
                 FI.append(anchor)
                 CX.append(float(pts[j][0]))
                 CY.append(float(pts[j][1]))
                 SC.append(float(s2[j]))
         reg.evict(fids[0])
+        small.pop(fids[0], None)
         done += 1
         if done % FLUSH == 0:
             flush(FI, CX, CY, SC, NC, HOW, HST)
@@ -167,8 +183,9 @@ def worker(args):
     el = time.time() - t0
     say('worker %d done: %d anchors, %.1fs, %.2f fps, %d cached / %d batched'
         % (wid, done, el, done / el if el else 0.0, reg.hits, reg.batched))
+    say('  seconds by step: ' + '  '.join('%s %.1f' % kv for kv in PT.items()))
     log.close()
-    return dict(wid=wid, tag=tag, lo=alo, hi=ahi, done=done, secs=el, parts=parts,
+    return dict(wid=wid, tag=tag, lo=alo, hi=ahi, done=done, secs=el, parts=parts, prof=PT,
                 cached=reg.hits, batched=reg.batched, misses=reg.misses)
 
 
@@ -342,6 +359,14 @@ def main():
     print('  candidates/frame  mean %.0f  min %d  max %d'
           % (nc.mean(), nc.min(), nc.max()))
     print('  frames with no candidate at all  %d' % int((nc == 0).sum()))
+    prof = {}
+    for r in res:
+        for k, v in r.get('prof', {}).items():
+            prof[k] = prof.get(k, 0.0) + v
+    if prof and got:
+        print('WORKER TIME by step, ms per anchor (one process):')
+        print('  ' + '  '.join('%s %.0f' % (k, 1000.0 * v / got) for k, v in prof.items())
+              + '  | total %.0f' % (1000.0 * sum(prof.values()) / got))
     s = step[np.isfinite(step)]
     print('CAMERA between consecutive frames, source px at the centre')
     print('  median %.1f  p90 %.1f  p99 %.1f  max %.1f   (%d steps not fit)'
