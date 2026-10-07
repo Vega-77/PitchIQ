@@ -264,10 +264,10 @@ def load_detections(tag: str, dedupe: bool = True, with_features: bool = True):
     z = np.load(_paths(tag)['dets'])
     from cv.teams import TEAM_A, TEAM_B, assign_teams
 
-    kit = z['kit']
+    kit, conf = z['kit'], z['conf']    # each z[...] decompresses the whole array: read once, not per row
     # A kit guess per detection, used only as a soft hint while tracking;
     # teams proper are decided per tracklet by the linker.
-    samples = {i: [kit[i]] for i in range(len(kit)) if np.isfinite(kit[i]).any() and z['conf'][i] >= 0.25}
+    samples = {i: [kit[i]] for i in range(len(kit)) if np.isfinite(kit[i]).any() and conf[i] >= 0.25}
     a = assign_teams(samples)
     team = np.array([{TEAM_A: 0, TEAM_B: 1}.get(a.team_of(i), -1) for i in range(len(kit))])
     det = Detections(frame=z['frame'], box=z['box'], conf=z['conf'], team=team, desc=z['desc'], kit=kit)
