@@ -160,11 +160,21 @@ class PannedCamera:
         if not (np.array_equal(ball['abs'], frames) and np.array_equal(picks['abs'], frames)):
             raise ValueError(f'{tag}: tracker outputs cover different frames')
 
-        venue = np.load(homog / 'vpitch.npz')
-        top = np.load(homog / 'vtop.npz')
-        # The venue map's reference keyframe -> StatsBomb; `homog/vovl.py`'s
-        # frame_to_sb for the keyframe whose own map homography is identity.
-        reference_to_sb = venue['P'] @ top['T'] @ top['B'] @ np.linalg.inv(top['K'])
+        own = homog / f'{tag}_venue.npz'
+        error = MAP_FIT_ERROR
+        if own.exists():
+            # A camera calibrated in-match by `cv/autocal.py`: its own reference
+            # view (the first registered sample) and its own fit to the paint.
+            venue = np.load(own)
+            reference_to_sb = venue['ref']
+            error = CalibrationError(mean_m=float(venue['err_mean']), max_m=float(venue['err_max']),
+                                     p90_m=float(venue['err_p90']))
+        else:
+            venue = np.load(homog / 'vpitch.npz')
+            top = np.load(homog / 'vtop.npz')
+            # The venue map's reference keyframe -> StatsBomb; `homog/vovl.py`'s
+            # frame_to_sb for the keyframe whose own map homography is identity.
+            reference_to_sb = venue['P'] @ top['T'] @ top['B'] @ np.linalg.inv(top['K'])
         pitch = Pitch(
             length_m=round(float(venue['L']) * CENTRE_CIRCLE_RADIUS_M, 1),
             width_m=round(float(venue['W']) * CENTRE_CIRCLE_RADIUS_M, 1),
@@ -172,7 +182,7 @@ class PannedCamera:
         observed = np.isin(picks['src'], OBSERVED_SOURCES)
         return cls.from_arrays(
             frames, smooth['H'], reference_to_sb, pitch,
-            ball['x'], ball['y'], observed,
+            ball['x'], ball['y'], observed, error,
         )
 
     @property

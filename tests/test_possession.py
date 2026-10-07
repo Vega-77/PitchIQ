@@ -8,6 +8,9 @@ can say what the true possession split was to the second.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -249,6 +252,44 @@ class TestKitAxis:
         assert assignment.team_of(1) == assignment.team_of(3), 'white kit, two lights'
         assert assignment.team_of(0) != assignment.team_of(1)
 
+    def test_a_sunlit_tail_does_not_hand_the_shaded_white_shirts_to_black(self):
+        """A sunny minute: the white kit is a few long tracks in shade and many
+        short ones in sun. Unweighted, the sunlit scraps pull the white centre so
+        far that the shaded whites fall on the black side; told how long each
+        track is, the split sees it is lopsided and refits on the frames."""
+        def sample(rel, lightness):
+            return [np.array([lightness, 128.0, 128.0, rel])]
+
+        samples, frames = {}, {}
+        dark = range(0, 10)
+        shaded = range(10, 16)
+        sunlit = range(16, 40)
+        for t, rel in zip(dark, np.linspace(-75, -45, 10)):
+            samples[t], frames[t] = sample(rel, 40), 300
+        for t, rel in zip(shaded, np.linspace(-20, 5, 6)):
+            samples[t], frames[t] = sample(rel, 150), 300
+        for t, rel in zip(sunlit, np.linspace(0, 90, 24)):
+            samples[t], frames[t] = sample(rel, 240), 20
+
+        before = assign_teams(samples)
+        assert before.team_of(15) == before.team_of(0), 'the fixture should fail unweighted'
+
+        after = assign_teams(samples, weights=frames)
+        black = after.team_of(0)
+        assert all(after.team_of(t) == black for t in dark)
+        assert all(after.team_of(t) not in (black, UNKNOWN) for t in shaded)
+        assert after.team_of(16) == after.team_of(15)
+
+    def test_a_balanced_split_ignores_the_weights(self):
+        """The dev window splits 45/55 by frames; weights must not touch it."""
+        samples = self.build([DARK_KIT] * 5 + [WHITE_KIT] * 5)
+        frames = {t: 100.0 + 10 * t for t in samples}
+
+        plain = assign_teams(samples)
+        weighted = assign_teams(samples, weights=frames)
+
+        assert all(plain.team_of(t) == weighted.team_of(t) for t in samples)
+
     def test_the_axis_is_dropped_when_too_few_tracks_carry_it(self):
         """A quarter of the pitch missing is too much: centres fitted on what
         is left are not the pitch, so the axis is not offered at all."""
@@ -332,6 +373,85 @@ class TestKitAxis:
         assignment.swap()
 
         assert (assignment.axis, assignment.score, assignment.gap) == (axis, score, gap)
+
+
+class TestTrainingBibs:
+    """A team in navy bibs over white shirts, against a black kit.
+
+    On lightness alone a bib sits between the kits and mostly lands with black:
+    on the dev clips bib tracks read -62..-33 against the grass, the black kit
+    -97..-39. Its tint says otherwise -- the black kit reads b* about +7 under a
+    grass cast, white shirts and navy bibs about -2 -- and the refit reads both.
+
+    The fixture is the real thing: every track's median kit sample from the two
+    labelled clips, with its length in frames and what the labels say it is,
+    unlabelled tracks (a coach, the bench, the crowd's edge) included.
+    """
+
+    DATA = json.loads((Path(__file__).parent / 'data' / 'training_bibs.json').read_text())
+
+    @staticmethod
+    def shares(rows, assignment):
+        """Frame-weighted share of each kind on its own team's side."""
+        black = max((TEAM_A, TEAM_B), key=lambda t: sum(
+            r[4] for i, r in enumerate(rows) if r[5] == 'a' and assignment.team_of(i) == t))
+        white = TEAM_B if black == TEAM_A else TEAM_A
+        out = {}
+        for kind, want in (('a', black), ('w', white), ('bib', white)):
+            total = sum(r[4] for r in rows if r[5] == kind)
+            out[kind] = sum(r[4] for i, r in enumerate(rows)
+                            if r[5] == kind and assignment.team_of(i) == want) / total
+        return out
+
+    def split(self, tag):
+        rows = self.DATA[tag]
+        samples = {i: [np.array([np.nan if v is None else v for v in r[:4]])] for i, r in enumerate(rows)}
+        return rows, assign_teams(samples, weights={i: r[4] for i, r in enumerate(rows)})
+
+    @pytest.mark.parametrize('tag', ['fm01', 'fr00'])
+    def test_lightness_alone_hands_most_bibs_to_black(self, tag, monkeypatch):
+        """The fixture fails without the tint, or the next test proves nothing."""
+        from cv import teams
+        monkeypatch.setattr(teams, '_discriminant_refit', lambda *a: None)
+        rows, assignment = self.split(tag)
+        assert self.shares(rows, assignment)['bib'] < 0.5
+
+    @pytest.mark.parametrize('tag, bibs', [('fm01', 0.7), ('fr00', 0.75)])
+    def test_bibs_go_with_their_team_and_nobody_else_moves(self, tag, bibs, monkeypatch):
+        rows, assignment = self.split(tag)
+        after = self.shares(rows, assignment)
+        from cv import teams
+        monkeypatch.setattr(teams, '_discriminant_refit', lambda *a: None)
+        before = self.shares(*self.split(tag))
+
+        assert assignment.projection is not None
+        assert after['bib'] >= bibs
+        assert after['a'] >= before['a'] - 0.01
+        assert after['w'] >= before['w'] - 0.01
+
+    def test_lean_agrees_with_the_split(self):
+        rows, assignment = self.split('fr00')
+        for i, r in enumerate(rows):
+            team = assignment.team_of(i)
+            if r[5] == 'bib' and team != UNKNOWN:
+                lean = assignment.lean(np.array([[np.nan if v is None else v for v in r[:4]]]))[0]
+                assert (lean > 0) == (team == TEAM_B)
+
+    def test_without_a_tint_difference_the_split_is_lightness(self):
+        """Two plain kits whose tints differ by a unit of noise: the refit has
+        nothing to add, and lightness keeps the split."""
+        samples, frames = {}, {}
+        for t, rel in enumerate(list(np.linspace(-97, -50, 8)) + list(np.linspace(10, 110, 8))):
+            samples[t] = [np.array([100.0 + rel, 128.0, 128.0 + (t % 3) - 1, rel])]
+            frames[t] = 300.0
+        assignment = assign_teams(samples, weights=frames)
+
+        assert assignment.axis == 'grass-relative lightness'
+        assert len({assignment.team_of(t) for t in range(8)}) == 1
+        assert len({assignment.team_of(t) for t in range(8, 16)} - {UNKNOWN}) == 1
+        assert assignment.team_of(0) != assignment.team_of(8)
+        if assignment.projection is not None:
+            assert abs(assignment.projection[2]) < 1.0      # tint never outweighs lightness
 
 
 # ---------------------------------------------------------------------------

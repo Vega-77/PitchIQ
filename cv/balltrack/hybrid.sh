@@ -49,6 +49,7 @@ cd "$B/alltests"
 "$PY" -W ignore hybrid.py "$T"
 mkdir -p "$B/h3d_hyb90"
 cp "$B/homog/${T}_reg.npz" "$B/h3d_hyb90/"
+[ ! -f "$B/homog/${T}_venue.npz" ] || cp "$B/homog/${T}_venue.npz" "$B/h3d_hyb90/"
 
 echo "=== hybrid 3D $(date +%T)"
 "$PY" -W ignore mk3d.py hyb90 "$T"

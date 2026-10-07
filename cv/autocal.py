@@ -1,0 +1,1200 @@
+"""Calibrate a panning camera from the match itself.
+
+The Hudl camera stands in one place for the whole match and only turns and
+zooms. So the whole calibration is one camera position, shared by every frame,
+plus a pan, tilt, roll and focal length per frame. Two things pin those down:
+
+* **The paint.** Wherever enough yellow lines are in view (halfway line,
+  centre circle, touchlines, boxes) the camera is fitted so that the pitch
+  model lands on them: a chamfer fit, model -> paint and paint -> model.
+
+* **The picture moving.** Between two nearby frames of a camera that only
+  turns, every pixel -- grass, bleachers, trees -- moves by one homography,
+  K2 R2 R1^T K1^-1. SIFT measures it well, so a frame with little paint in
+  view inherits its pose from its neighbours.
+
+Lengths are in centre-circle radii (R), the one length the laws fix, as in the
+venue map (`balltrack/homog/vpitch.py`); outputs are StatsBomb 120 x 80.
+u runs along the pitch (0 .. L), v across it from the near touchline (0 .. W),
+z up. The camera stands behind the near touchline, so its v is negative.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import os
+
+import cv2
+import numpy as np
+
+# penalty box, goal area and penalty arc in R (circle radius 10 yd)
+BOX_D, BOX_HW = 1.8, 2.2
+GOAL_AREA_D, GOAL_AREA_HW = 0.6, 1.0
+SPOT_D = 1.2
+
+# ---- the pitch ------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PitchModel:
+    L: float = 12.31        # length in R (the scrimmage venue's fit)
+    W: float = 7.74         # width in R
+
+    def lines(self, step: float = 0.05) -> list[np.ndarray]:
+        """The painted lines as polylines of ground points (n, 2), every `step` R."""
+        L, W, c = self.L, self.W, self.W / 2
+
+        def seg(a, b):
+            a, b = np.asarray(a, float), np.asarray(b, float)
+            n = max(2, int(np.ceil(np.hypot(*(b - a)) / step)) + 1)
+            return a + np.linspace(0, 1, n)[:, None] * (b - a)
+
+        def arc(cx, cy, r, a0, a1):
+            n = max(2, int(np.ceil(r * abs(a1 - a0) / step)) + 1)
+            a = np.linspace(a0, a1, n)
+            return np.c_[cx + r * np.cos(a), cy + r * np.sin(a)]
+
+        out = [seg((0, 0), (L, 0)), seg((0, W), (L, W)),         # touchlines
+               seg((0, 0), (0, W)), seg((L, 0), (L, W)),         # goal lines
+               seg((L / 2, 0), (L / 2, W)),                      # halfway
+               arc(L / 2, c, 1.0, 0, 2 * np.pi)]                 # centre circle
+        for g, s in ((0.0, 1.0), (L, -1.0)):
+            for d, hw in ((BOX_D, BOX_HW), (GOAL_AREA_D, GOAL_AREA_HW)):
+                out += [seg((g, c - hw), (g + s * d, c - hw)), seg((g + s * d, c - hw), (g + s * d, c + hw)),
+                        seg((g + s * d, c + hw), (g, c + hw))]
+            # the arc outside the box: |u - spot| > 0.6 of a radius of 1
+            a = np.arccos((BOX_D - SPOT_D) / 1.0)
+            out.append(arc(g + s * SPOT_D, c, 1.0, -a, a) if s > 0 else arc(g + s * SPOT_D, c, 1.0, np.pi - a, np.pi + a))
+        return out
+
+    def to_sb(self) -> np.ndarray:
+        """Pitch (R units) -> StatsBomb 120 x 80."""
+        return np.diag([120.0 / self.L, 80.0 / self.W, 1.0])
+
+
+# ---- the paint ------------------------------------------------------------------
+
+
+LINES = os.environ.get('PIQ_LINES', 'gold')   # the soccer lines' paint: 'gold' (the home field) or 'white'
+
+
+def playing_surface(image: np.ndarray, size=(240, 135), diff: float = 4.0, grow: int = 1) -> np.ndarray:
+    """The ground the camera sees, as a (h, w) bool mask at `size`: colour grown
+    from the bottom of the frame, a small step at a time so haze and vignetting
+    do not stop it, then every column filled from its highest reach down (lines
+    and players punch holes in it) and `grow` cells more above. Stops at the
+    fence and the trees, so a fence's top rail, a white line above the grass,
+    is not paint."""
+    w, h = size
+    lab = cv2.cvtColor(cv2.medianBlur(cv2.resize(image, size, interpolation=cv2.INTER_AREA), 5), cv2.COLOR_BGR2LAB)
+    mask = np.zeros((h + 2, w + 2), np.uint8)
+    for x in range(w // 12, w - w // 12, w // 12):
+        cv2.floodFill(lab, mask, (x, h - 5), 0, (diff,) * 3, (diff,) * 3, 4 | cv2.FLOODFILL_MASK_ONLY | (255 << 8))
+    m = mask[1:-1, 1:-1] > 0
+    top = np.where(m.any(0), m.argmax(0), h)
+    return np.arange(h)[:, None] >= (top - grow)[None, :]
+
+
+def paint_mask(image: np.ndarray, scale: float = 0.5, gold: float = 0.45, logo: int = 41,
+               colour: str = None) -> np.ndarray:
+    """Thin gold paint at `scale` of the frame's size. Both venues paint the
+    soccer lines gold; the orange and red of other sports' lines and the
+    running track are refused (`gold`: least green rise per unit of red rise).
+    `colour` 'white' (default: LINES) takes even rises in all three channels
+    instead and refuses the blue of other sports' lines.
+
+    A line is a thin ridge brighter than the grass beside it (a white top-hat
+    on brightness, which drops sunlit turf) whose colour, once the grass is
+    taken away, leans red-yellow rather than green, blue or white. A far line
+    is a pixel wide and half grass, so its own hue is no help; the difference
+    from the grass is. Thick blobs (club logos, a goal's shadow) are removed:
+    a painted line is never wider than a few pixels at this size.
+    """
+    im = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+    f = im.astype(np.float32)
+    v = f.max(2)
+    top = cv2.morphologyEx(v, cv2.MORPH_TOPHAT, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11)))
+    bg = cv2.medianBlur(im, 15).astype(np.float32)
+    d = f - bg
+    b, g, r = d[..., 0], d[..., 1], d[..., 2]
+    if (colour or LINES) == 'white':
+        warm = (np.minimum(np.minimum(r, g), b) > 12) & (b < r + 15) & (b < g + 15)   # white, not blue
+        # White lines have white look-alikes off the pitch (a fence rail, a bleacher
+        # edge), and a rail along the far touchline pulls that line onto the fence.
+        warm &= cv2.resize(playing_surface(image).astype(np.uint8), warm.shape[::-1], interpolation=cv2.INTER_NEAREST) > 0
+        logo = 0
+    else:
+        warm = (r > 12) & (r > b + 8) & (g > gold * r)  # gold, not the red track or orange lacrosse
+    m = ((top > 12) & warm).astype(np.uint8) * 255
+    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
+    blob = cv2.erode(m, np.ones((9, 9), np.uint8))
+    blob = cv2.dilate(blob, np.ones((11, 11), np.uint8))
+    if logo:
+        # a painted club logo: a solid saturated-yellow fill whose stripes and edges
+        # look like lines. Lines are never solid this wide, so drop all paint near one.
+        hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
+        fill = cv2.inRange(hsv, (12, 90, 90), (28, 255, 255))
+        fill = cv2.morphologyEx(fill, cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))   # cut lines off the logo
+        n, lab, st, _ = cv2.connectedComponentsWithStats(fill, connectivity=8)
+        keep = np.zeros(n, bool)
+        for i in range(1, n):
+            if st[i, cv2.CC_STAT_AREA] < 120:
+                continue
+            ys, xs = np.nonzero(lab[st[i, 1]:st[i, 1] + st[i, 3], st[i, 0]:st[i, 0] + st[i, 2]] == i)
+            (_, _), (w, h), _ = cv2.minAreaRect(np.c_[xs, ys].astype(np.float32))
+            keep[i] = max(w, h) < 8 * max(min(w, h), 1)      # compact, not a line
+        blob |= cv2.dilate(keep[lab].astype(np.uint8) * 255, np.ones((logo, logo), np.uint8))
+    return m & ~blob
+
+
+# ---- the camera -----------------------------------------------------------------
+
+
+def rotation(pan, tilt, roll):
+    """World -> camera rotation(s). pan 0 looks across the pitch (+v), positive
+    pan turns towards +u; tilt is down from level; roll turns the picture.
+    Broadcasts over arrays of angles: returns (..., 3, 3)."""
+    pan, tilt, roll = np.broadcast_arrays(*(np.asarray(a, float) for a in (pan, tilt, roll)))
+    cp, sp, ct, st = np.cos(pan), np.sin(pan), np.cos(tilt), np.sin(tilt)
+    d = np.stack([sp * ct, cp * ct, -st], -1)                  # forward
+    r = np.stack([cp, -sp, np.zeros_like(cp)], -1)             # right, level
+    dn = np.cross(d, r)                                        # down
+    cr, sr = np.cos(roll)[..., None], np.sin(roll)[..., None]
+    r, dn = cr * r + sr * dn, -sr * r + cr * dn
+    return np.stack([r, dn, d], -2)
+
+
+def ground_to_image(C, pan, tilt, roll, f, size=(1920, 1080)):
+    """Homography(s) from ground (u, v, 1) to pixels, for a camera at C = (u, v, h)."""
+    R = rotation(pan, tilt, roll)
+    f = np.asarray(f, float)
+    K = np.zeros(f.shape + (3, 3)); K[..., 0, 0] = f; K[..., 1, 1] = f
+    K[..., 0, 2] = size[0] / 2; K[..., 1, 2] = size[1] / 2; K[..., 2, 2] = 1
+    M = np.array([[1.0, 0, -C[0]], [0, 1.0, -C[1]], [0, 0, -C[2]]])
+    return K @ R @ M
+
+
+class Paint:
+    """One frame's paint, ready to score camera guesses against."""
+
+    def __init__(self, image: np.ndarray, scale: float = 0.5):
+        self.scale = scale
+        self.mask = paint_mask(image, scale)
+        self.h, self.w = self.mask.shape
+        self.dt = cv2.distanceTransform(255 - self.mask, cv2.DIST_L2, 3)
+        self.amount = int((self.mask > 0).sum())
+
+
+class Model:
+    """The pitch's painted lines as points, with each point's neighbour for spacing."""
+
+    def __init__(self, pitch: PitchModel, step: float = 0.1):
+        lines = pitch.lines(step)
+        self.pitch = pitch
+        self.pts = np.concatenate(lines)
+        nxt = []
+        i = 0
+        for ln in lines:
+            n = len(ln)
+            nxt += list(range(i + 1, i + n)) + [-1]
+            i += n
+        self.next = np.array(nxt)
+        self.has_next = self.next >= 0
+        self.h = np.c_[self.pts, np.ones(len(self.pts))]
+
+
+def score(G: np.ndarray, model: Model, paint: Paint, sigma: float = 2.0, miss: float = 0.3):
+    """How well guesses G (..., 3, 3) put the model on the paint.
+
+    Model line length (in paint-image pixels) that lands on paint, less `miss`
+    times the length in view that lands on bare grass. Lines out of view, or
+    behind the camera, count for nothing either way.
+    """
+    s = paint.scale
+    q = np.einsum('...ij,nj->...ni', G, model.h)
+    z = q[..., 2]
+    xy = q[..., :2] / np.where(np.abs(z) < 1e-9, 1e-9, z)[..., None] * s
+    nb = xy[..., np.where(model.has_next, model.next, 0), :]
+    seg = np.linalg.norm(nb - xy, axis=-1) * model.has_next
+    ok = (z > 0) & (xy[..., 0] >= 0) & (xy[..., 0] < paint.w - 1) & (xy[..., 1] >= 0) & (xy[..., 1] < paint.h - 1)
+    ok &= seg < 40                                               # a jump: line leaving through the horizon
+    xi = np.clip(xy[..., 0], 0, paint.w - 1).astype(int); yi = np.clip(xy[..., 1], 0, paint.h - 1).astype(int)
+    d = paint.dt[yi, xi]
+    hit = np.exp(-0.5 * (d / sigma) ** 2)
+    return ((hit - miss * (1 - hit)) * seg * ok).sum(-1)
+
+
+# ---- the picture moving ---------------------------------------------------------
+
+CENTRE = np.array([960.0, 540.0])
+
+
+def frame_features(image: np.ndarray, sift=None, scale: float = 0.5):
+    """SIFT over the whole picture (grass, stands and trees all move together
+    when the camera turns), in full-frame pixel coordinates."""
+    sift = sift or cv2.SIFT_create(nfeatures=3000)
+    g = cv2.cvtColor(cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2GRAY)
+    kp, d = sift.detectAndCompute(g, None)
+    xy = np.float32([p.pt for p in kp]).reshape(-1, 2) / scale
+    return xy, (np.zeros((0, 128), np.float32) if d is None else d)
+
+
+def link(a, b, max_pairs: int = 80, rng=None):
+    """Matched points between two frames' features that agree on one homography
+    (players running are the outliers). Returns (xa, xb) or None."""
+    (xa, da), (xb, db) = a, b
+    if len(da) < 20 or len(db) < 20:
+        return None
+    m = cv2.BFMatcher().knnMatch(da, db, k=2)
+    good = [p[0] for p in m if len(p) == 2 and p[0].distance < 0.75 * p[1].distance]
+    if len(good) < 30:
+        return None
+    pa = xa[[g.queryIdx for g in good]]; pb = xb[[g.trainIdx for g in good]]
+    H, inl = cv2.findHomography(pa, pb, cv2.RANSAC, 3.0)
+    if H is None or inl.sum() < 30:
+        return None
+    k = np.flatnonzero(inl.ravel())
+    rng = rng or np.random.default_rng(0)
+    if len(k) > max_pairs:
+        k = rng.choice(k, max_pairs, replace=False)
+    return pa[k].astype(float), pb[k].astype(float)
+
+
+def rodrigues(w):
+    """Rotation matrices from rotation vectors (n, 3)."""
+    w = np.atleast_2d(w)
+    th = np.linalg.norm(w, axis=1)[:, None, None]
+    k = w / np.maximum(th[:, 0], 1e-12)
+    Kx = np.zeros((len(w), 3, 3))
+    Kx[:, 0, 1], Kx[:, 0, 2], Kx[:, 1, 2] = -k[:, 2], k[:, 1], -k[:, 0]
+    Kx -= Kx.transpose(0, 2, 1)
+    return np.eye(3) + np.sin(th) * Kx + (1 - np.cos(th)) * Kx @ Kx
+
+
+def rays(xy, f):
+    return np.c_[(xy - CENTRE) / f, np.ones(len(xy))]
+
+
+def to_px(v, f):
+    return v[:, :2] / v[:, 2:3] * f + CENTRE
+
+
+# ---- distance to the paint, on the ground -----------------------------------------
+
+
+class Primitives:
+    """The model's lines as segments and arcs, for exact nearest-point queries."""
+
+    def __init__(self, pitch: PitchModel):
+        L, W, c = pitch.L, pitch.W, pitch.W / 2
+        segs = [((0, 0), (L, 0)), ((0, W), (L, W)), ((0, 0), (0, W)), ((L, 0), (L, W)), ((L / 2, 0), (L / 2, W))]
+        for g, s in ((0.0, 1.0), (L, -1.0)):
+            for d, hw in ((BOX_D, BOX_HW), (GOAL_AREA_D, GOAL_AREA_HW)):
+                segs += [((g, c - hw), (g + s * d, c - hw)), ((g + s * d, c - hw), (g + s * d, c + hw)),
+                         ((g + s * d, c + hw), (g, c + hw))]
+        self.a = np.array([s[0] for s in segs], float)
+        self.b = np.array([s[1] for s in segs], float)
+        a = np.arccos((BOX_D - SPOT_D) / 1.0)
+        # (centre u, centre v, radius, angle lo, angle hi)
+        self.arcs = np.array([(L / 2, c, 1.0, -np.pi, np.pi),
+                              (SPOT_D, c, 1.0, -a, a),
+                              (L - SPOT_D, c, 1.0, np.pi - a, np.pi + a)])
+        self.centre = np.array([L / 2, c])
+
+    def nearest(self, p: np.ndarray) -> np.ndarray:
+        """The nearest point on any line to each ground point p (n, 2)."""
+        ab = self.b - self.a
+        t = np.clip(((p[:, None, :] - self.a) * ab).sum(-1) / (ab ** 2).sum(-1), 0, 1)
+        q = self.a + t[..., None] * ab                                   # (n, segs, 2)
+        cands = [q]
+        for cu, cv, r, lo, hi in self.arcs:
+            ang = np.arctan2(p[:, 1] - cv, p[:, 0] - cu)
+            mid = (lo + hi) / 2
+            ang = mid + (ang - mid + np.pi) % (2 * np.pi) - np.pi      # unwrap about the arc's middle
+            ang = np.clip(ang, lo, hi)
+            cands.append(np.stack([cu + r * np.cos(ang), cv + r * np.sin(ang)], -1)[:, None, :])
+        q = np.concatenate(cands, 1)
+        k = np.argmin(((q - p[:, None, :]) ** 2).sum(-1), 1)
+        return q[np.arange(len(p)), k]
+
+
+def paint_points(paint: Paint, n: int = 400, rng=None) -> np.ndarray:
+    """Up to n paint pixels, in full-frame coordinates."""
+    ys, xs = np.nonzero(paint.mask)
+    if len(xs) > n:
+        k = (rng or np.random.default_rng(0)).choice(len(xs), n, replace=False)
+        xs, ys = xs[k], ys[k]
+    return (np.c_[xs, ys] + 0.5) / paint.scale
+
+
+# ---- the camera of a whole stretch -------------------------------------------------
+
+from scipy.optimize import least_squares          # noqa: E402
+from scipy.sparse import lil_matrix               # noqa: E402
+
+
+@dataclass
+class Rig:
+    """One camera position and every sample's rotation (world -> camera) and focal length."""
+    C: np.ndarray            # (3,) u, v, height in R
+    R: np.ndarray            # (n, 3, 3)
+    f: np.ndarray            # (n,)
+
+    def ground_to_image(self, k: int) -> np.ndarray:
+        K = np.array([[self.f[k], 0, CENTRE[0]], [0, self.f[k], CENTRE[1]], [0, 0, 1]])
+        M = np.array([[1.0, 0, -self.C[0]], [0, 1.0, -self.C[1]], [0, 0, -self.C[2]]])
+        return K @ self.R[k] @ M
+
+    def to_sb(self, k: int, pitch: PitchModel) -> np.ndarray:
+        """Frame k pixels -> StatsBomb."""
+        H = pitch.to_sb() @ np.linalg.inv(self.ground_to_image(k))
+        return H / H[2, 2]
+
+
+def _unpack(x, rig0: Rig):
+    n = len(rig0.f)
+    C = x[:3]
+    d = x[3:3 + 3 * n].reshape(n, 3)
+    f = np.exp(x[3 + 3 * n:3 + 4 * n])
+    return C, rodrigues(d) @ rig0.R, f
+
+
+def fit_rig(rig0: Rig, links, paint, prim: Primitives, fix_C: bool = False,
+            sig_link: float = 1.0, sig_paint: float = 2.0, logo_r: float = 0.9, verbose: int = 0):
+    """Refine a rig on SIFT links [(i, j, xi, xj)] and paint points {k: (m, 2) px}.
+
+    Links tie neighbouring samples' rotations together (pure rotation, so the
+    camera position drops out); paint ties each sample to the pitch, as the
+    pixel distance from each paint pixel to the line it is nearest on the
+    ground. Paint inside the centre circle (a club logo) and above the horizon
+    is ignored; paint far from any line (fences, banners) is what the Cauchy
+    loss is for.
+    """
+    n = len(rig0.f)
+    x0 = np.r_[rig0.C, np.zeros(3 * n), np.log(rig0.f)]
+    ks = sorted(paint)
+    rows = []                                            # (n residuals, [param indices])
+    for i, j, xi, xj in links:
+        cols = [3 + 3 * i + c for c in range(3)] + [3 + 3 * j + c for c in range(3)] + [3 + 3 * n + i, 3 + 3 * n + j]
+        rows.append((2 * len(xi), cols))
+    for k in ks:
+        cols = [0, 1, 2] + [3 + 3 * k + c for c in range(3)] + [3 + 3 * n + k]
+        rows.append((2 * len(paint[k]), cols))
+    m = sum(r[0] for r in rows)
+    S = lil_matrix((m, len(x0)), dtype=int)
+    r0 = 0
+    for cnt, cols in rows:
+        for c in cols:
+            S[r0:r0 + cnt, c] = 1
+        r0 += cnt
+    if fix_C:
+        S[:, :3] = 0
+
+    def res(x):
+        C, R, f = _unpack(x, rig0)
+        if fix_C:
+            C = rig0.C
+        out = []
+        for i, j, xi, xj in links:
+            v = rays(xi, f[i]) @ R[i] @ R[j].T            # R_j R_i^T ray, row-wise
+            out.append(((to_px(v, f[j]) - xj) / sig_link).ravel())
+        for k in ks:
+            P = paint[k]
+            d = rays(P, f[k]) @ R[k]                      # world directions: R_k^T ray
+            ok = d[:, 2] < -1e-6
+            t = np.where(ok, -C[2] / np.where(ok, d[:, 2], -1), 0)
+            X = C[:2] + t[:, None] * d[:, :2]
+            q = prim.nearest(X)
+            ok &= np.hypot(*(X - prim.centre).T) > logo_r
+            v = (np.c_[q, np.zeros(len(q))] - C) @ R[k].T
+            ok &= v[:, 2] > 0
+            e = (to_px(np.where(ok[:, None], v, 1.0), f[k]) - P) / sig_paint
+            out.append(np.where(ok[:, None], e, 0.0).ravel())
+        return np.concatenate(out)
+
+    sol = least_squares(res, x0, jac_sparsity=S, loss='cauchy', f_scale=1.5, x_scale='jac',
+                        max_nfev=200, verbose=verbose)
+    C, R, f = _unpack(sol.x, rig0)
+    if fix_C:
+        C = rig0.C
+    return Rig(C, R, f), sol
+
+
+def camera_from_homography(G: np.ndarray, C: np.ndarray):
+    """Rotation and focal length of a camera at C whose ground -> image homography is G."""
+    from scipy.linalg import rq
+    M = np.array([[1.0, 0, -C[0]], [0, 1.0, -C[1]], [0, 0, -C[2]]])
+    A = G @ np.linalg.inv(M)
+    T = np.array([[1, 0, -CENTRE[0]], [0, 1, -CENTRE[1]], [0, 0, 1.0]])
+    K, R = rq(T @ A)
+    D = np.diag(np.sign(np.diag(K)))                 # make K's diagonal positive
+    K, R = K @ D, D @ R
+    if np.linalg.det(R) < 0:
+        R = -R
+    return R, float((K[0, 0] + K[1, 1]) / (2 * K[2, 2]))
+
+
+def relative_rotation(xi, xj, fi: float):
+    """Rotation and focal length taking frame i (focal fi) to frame j."""
+    def res(p):
+        R = rodrigues(p[:3])[0]
+        return (to_px(rays(xi, fi) @ R.T, np.exp(p[3])) - xj).ravel()
+    sol = least_squares(res, np.r_[0, 0, 0, np.log(fi)], loss='cauchy', f_scale=2.0)
+    return rodrigues(sol.x[:3])[0], float(np.exp(sol.x[3]))
+
+
+def chain_rotations(links, n: int, f0: float):
+    """A starting guess: walk forward along the shortest links."""
+    best = {}
+    for i, j, xi, xj in links:
+        if j not in best or i > best[j][0]:
+            best[j] = (i, xi, xj)
+    R = np.tile(np.eye(3), (n, 1, 1)); f = np.full(n, float(f0))
+    for j in range(1, n):
+        if j in best:
+            i, xi, xj = best[j]
+            Rr, f[j] = relative_rotation(xi, xj, f[i])
+            R[j] = Rr @ R[i]
+        else:
+            R[j], f[j] = R[j - 1], f[j - 1]
+    return R, f
+
+
+def solve_rotations(links, n: int, f0: float, sig: float = 1.0):
+    """Every sample's rotation relative to sample 0, and its focal length, from
+    the SIFT links alone, with sample 0's focal length held at f0.
+
+    Small pans barely fix a focal length by themselves (the picture just
+    slides), so the overall zoom is left to the pitch: callers try several f0.
+    Sample 0's rotation (how the camera is aimed at the pitch) is identity."""
+    m = n - 1
+    R_init, f_init = chain_rotations(links, n, f0)
+    w_init = np.array([cv2.Rodrigues(R)[0].ravel() for R in R_init[1:]])
+    x0 = np.r_[w_init.ravel(), np.log(f_init[1:])]
+    rows = []
+    for i, j, xi, xj in links:
+        cols = [3 * (k - 1) + c for k in (i, j) if k > 0 for c in range(3)]
+        cols += [3 * m + k - 1 for k in (i, j) if k > 0]
+        rows.append((2 * len(xi), cols))
+    S = lil_matrix((sum(r[0] for r in rows), len(x0)), dtype=int)
+    r0 = 0
+    for cnt, cols in rows:
+        for c in cols:
+            S[r0:r0 + cnt, c] = 1
+        r0 += cnt
+
+    def unpack(x):
+        R = rodrigues(np.r_[np.zeros(3), x[:3 * m]].reshape(n, 3))
+        return R, np.exp(np.r_[np.log(f0), np.clip(x[3 * m:], 5.0, 10.0)])
+
+    def res(x):
+        R, f = unpack(x)
+        return np.concatenate([((to_px(rays(xi, f[i]) @ R[i] @ R[j].T, f[j]) - xj) / sig).ravel()
+                               for i, j, xi, xj in links])
+
+    sol = least_squares(res, x0, jac_sparsity=S, loss='cauchy', f_scale=2.0, x_scale='jac', max_nfev=100)
+    R, f = unpack(sol.x)
+    return R, f, sol
+
+
+def best_focal(links, n: int, lo: float = 600.0, hi: float = 9000.0):
+    """Sample 0's focal length: the one under which all the links agree best.
+
+    With the wrong focal length the rotations chained along short links do not
+    explain the longer ones (0.5 vs 2 s apart); the residual has one clear
+    minimum (scrimmage: 2110 found vs 2053 from the accepted registration)."""
+    def cost(lf):
+        R, f = chain_rotations(links, n, np.exp(lf))
+        e = np.concatenate([np.hypot(*(to_px(rays(xi, f[i]) @ R[i] @ R[j].T, f[j]) - xj).T)
+                            for i, j, xi, xj in links])
+        return float(np.minimum(e, 10).mean())
+    grid = np.linspace(np.log(lo), np.log(hi), 15)
+    c = [cost(g) for g in grid]
+    k = int(np.argmin(c))
+    a, b = grid[max(k - 1, 0)], grid[min(k + 1, len(grid) - 1)]
+    for _ in range(12):                                   # golden section
+        m1, m2 = b - 0.618 * (b - a), a + 0.618 * (b - a)
+        if cost(m1) < cost(m2):
+            b = m2
+        else:
+            a = m1
+    return float(np.exp((a + b) / 2))
+
+
+LINE_WIDTH = 0.12 / 9.15          # painted line width in R (12 cm)
+
+
+class PoseScorer:
+    """Scores many (camera position, sample-0 rotation) guesses at once on the GPU.
+
+    Each guess is scored on every sample in `paints`: painted-line length that
+    lands on paint, less `miss` times the length that lands on grass where a
+    line that wide would have shown (a far line a pixel wide is not expected to)."""
+
+    def __init__(self, R_rel, f, paints: dict, pitch: PitchModel, device='cuda', sigma=4.0, miss=0.5, step=0.1,
+                 margin=1.0, off_cost=1000.0):
+        import torch
+        self.torch = torch
+        dev = self.dev = torch.device(device if torch.cuda.is_available() else 'cpu')
+        lines = pitch.lines(step)
+        pts = np.concatenate(lines); nxt = []; nrm = []; i = 0
+        for ln in lines:
+            nxt += list(range(i + 1, i + len(ln))) + [-1]; i += len(ln)
+            t = np.gradient(ln, axis=0); t /= np.linalg.norm(t, axis=1, keepdims=True)
+            nrm.append(np.c_[-t[:, 1], t[:, 0]])
+        nxt = np.array(nxt); nrm = np.concatenate(nrm)
+        self.ks = ks = sorted(paints)
+        T = self.T = lambda a: torch.as_tensor(np.asarray(a), dtype=torch.float32, device=dev)
+        self.dt = T(np.stack([paints[k].dt for k in ks]))                 # (F, h, w)
+        self.s = paints[ks[0]].scale
+        K = np.zeros((len(ks), 3, 3)); K[:, 0, 0] = K[:, 1, 1] = f[ks]
+        K[:, 0, 2], K[:, 1, 2], K[:, 2, 2] = CENTRE[0], CENTRE[1], 1
+        self.KR = T(K @ R_rel[ks])                                        # (F, 3, 3)
+        self.P = T(np.c_[pts, np.ones(len(pts))]); self.Nn = T(nrm)
+        self.has = T(nxt >= 0); self.nx = torch.as_tensor(np.where(nxt >= 0, nxt, 0), device=dev)
+        self.sigma, self.miss = sigma, miss
+        self.fwd = T(R_rel[:, 2])                                         # every sample's view axis, in sample 0's frame
+        self.box = (-margin, pitch.L + margin, -margin, pitch.W + margin)
+        self.off_cost = off_cost
+
+    def terms(self, C, R0):
+        """Per-point (hit, vis, seg*ok, resolvable) for guesses R0 (B, 3, 3) at C: each (B, F, N)."""
+        torch = self.torch
+        M = self.T([[1.0, 0, -C[0]], [0, 1.0, -C[1]], [0, 0, -C[2]]])
+        G = torch.einsum('fij,bjk,kl->bfil', self.KR, self.T(R0), M)       # (B, F, 3, 3)
+        q = torch.einsum('bfij,nj->bfni', G, self.P)
+        w = q[..., 2]
+        ws = torch.where(w.abs() < 1e-9, torch.full_like(w, 1e-9), w)
+        xy = q[..., :2] / ws[..., None]
+        # projected width of the line, from the Jacobian along the line's normal
+        Jn = (torch.einsum('bfij,nj->bfni', G[..., :2, :2], self.Nn)
+              - xy * torch.einsum('bfj,nj->bfn', G[..., 2, :2], self.Nn)[..., None]) / ws[..., None]
+        width = LINE_WIDTH * Jn.norm(dim=-1)
+        hh, ww = self.dt.shape[1:]
+        xy = xy * self.s
+        seg = (xy[:, :, self.nx] - xy).norm(dim=-1).clamp(max=20) * self.has
+        ok = (w > 0) & (w[:, :, self.nx] > 0) & (xy[..., 0] >= 0) & (xy[..., 0] < ww - 1)             & (xy[..., 1] >= 0) & (xy[..., 1] < hh - 1)
+        xi = xy[..., 0].clamp(0, ww - 1).long(); yi = xy[..., 1].clamp(0, hh - 1).long()
+        fidx = torch.arange(len(self.ks), device=self.dev)[None, :, None].expand_as(xi)
+        d = self.dt[fidx, yi, xi]
+        hit = torch.exp(-0.5 * (d / self.sigma) ** 2)
+        gone = ((d - 2 * self.sigma) / (2 * self.sigma)).clamp(0, 1)         # clearly no paint here
+        vis = ((width - 1.5) / 3).clamp(0, 1) * gone
+        return hit, vis, seg * ok, (width / 2).clamp(0, 1)
+
+    def off_pitch(self, C, R0):
+        """How many samples (of all, not just the scored ones) look somewhere other
+        than the pitch: a match camera's view axis always lands on it."""
+        d = self.torch.einsum('fj,bjk->bfk', self.fwd, self.T(R0))            # (B, F, 3) world directions
+        dz = d[..., 2]
+        t = -C[2] / dz.clamp(max=-1e-6)
+        u = C[0] + t * d[..., 0]; v = C[1] + t * d[..., 1]
+        u0, u1, v0, v1 = self.box
+        inside = (dz < -1e-6) & (u > u0) & (u < u1) & (v > v0) & (v < v1)
+        return (~inside).float().sum(-1)
+
+    def scores(self, C, R0):
+        # a hit only counts as far as the line is wide enough to be seen: a pitch
+        # squeezed onto the horizon would otherwise lay all its lines on the fence
+        hit, vis, seg, res = self.terms(C, R0)
+        return ((res * hit - self.miss * vis) * seg).sum((-1, -2)) - self.off_cost * self.off_pitch(C, R0)
+
+
+def search_rig(R_rel, f, paints: dict, pitch: PitchModel, C_grid=None, pan_step=2.0, tilt_step=1.0,
+               roll=0.0, top: int = 20, device='cuda', sigma=4.0, miss=0.5, step=0.1):
+    """Brute-force the camera position and sample 0's aim, given every sample's
+    rotation relative to sample 0 and focal length. paints: {k: Paint}.
+
+    Returns the `top` guesses as (score, C, pan, tilt). Each guess is scored on
+    every sample in `paints`: painted-line length that lands on paint, less
+    `miss` times the length that lands on grass where a line that wide would
+    have shown (a far line a pixel wide is not expected to)."""
+    sc_ = PoseScorer(R_rel, f, paints, pitch, device=device, sigma=sigma, miss=miss, step=step)
+    if C_grid is None:
+        L = pitch.L
+        C_grid = [(u, v, h) for u in L / 2 + np.arange(-5, 5.01, 1.0)
+                  for v in (-0.2, -0.4, -0.7, -1.0, -1.5, -2.0, -3.0, -4.5, -6.0)
+                  for h in (0.15, 0.22, 0.3, 0.4, 0.55, 0.75, 1.0, 1.4, 2.0)]
+    C_grid = np.asarray(C_grid, float)
+    pans = np.radians(np.arange(-80, 80.01, pan_step)); tilts = np.radians(np.arange(1, 45.01, tilt_step))
+    R0 = rotation(pans[:, None], tilts[None, :], roll).reshape(-1, 3, 3)
+    ang = np.array([(p, t) for p in pans for t in tilts])
+    out = []
+    for C in C_grid:
+        best = []
+        for b0 in range(0, len(R0), 1200):
+            sc = sc_.scores(C, R0[b0:b0 + 1200])
+            v, k = sc.topk(min(top, len(sc)))
+            best += [(float(a), b0 + int(c)) for a, c in zip(v.cpu(), k.cpu())]
+        best.sort(reverse=True)
+        out += [(s_, C, ang[k][0], ang[k][1]) for s_, k in best[:top]]
+    out.sort(key=lambda o: -o[0])
+    return out[:top]
+
+
+def refine_rig(R_rel, f, C, R0, paint: dict, prim: Primitives, logo_r: float = 0.9, sig: float = 2.0,
+               f_scale: bool = True):
+    """Polish a searched rig: the camera position, sample 0's rotation and one
+    scale on every focal length, fitted to paint pixels {k: (m, 2) px} as the
+    pixel distance to the nearest line. The rotations relative to sample 0 stay
+    as the links gave them. Returns (Rig, least_squares result)."""
+    ks = sorted(paint)
+
+    def unpack(x):
+        R = R_rel @ (rodrigues(x[None, 3:6])[0] @ R0)
+        return x[:3], R, f * np.exp(x[6] if f_scale else 0.0)
+
+    def res(x):
+        C_, R, ff = unpack(x)
+        out = []
+        for k in ks:
+            P = paint[k]
+            d = rays(P, ff[k]) @ R[k]
+            ok = d[:, 2] < -1e-6
+            t = np.where(ok, -C_[2] / np.where(ok, d[:, 2], -1), 0)
+            X = C_[:2] + t[:, None] * d[:, :2]
+            q = prim.nearest(X)
+            ok &= np.hypot(*(X - prim.centre).T) > logo_r
+            v = (np.c_[q, np.zeros(len(q))] - C_) @ R[k].T
+            ok &= v[:, 2] > 0
+            e = (to_px(np.where(ok[:, None], v, 1.0), ff[k]) - P) / sig
+            out.append(np.where(ok[:, None], e, 0.0).ravel())
+        return np.concatenate(out)
+
+    x0 = np.r_[C, np.zeros(4)]
+    sol = least_squares(res, x0, loss='cauchy', f_scale=1.5, x_scale=np.r_[0.1, 0.1, 0.02, 0.003, 0.003, 0.003, 0.01],
+                        max_nfev=100)
+    C_, R, ff = unpack(sol.x)
+    return Rig(C_, R, ff), sol
+
+
+# ---- the camera's whole view, stitched ----------------------------------------------
+
+
+@dataclass
+class Panorama:
+    """Paint seen from a fixed camera, stitched over many samples into one image
+    in sample 0's camera frame: x = F*azimuth + cx, y = F*elevation + cy.
+
+    Paint that stays put through the stretch is the pitch; players walk off it."""
+    paint: np.ndarray        # (h, w) float, fraction of the samples that saw paint here
+    cover: np.ndarray        # (h, w) int, how many samples saw this direction
+    F: float
+    cx: float
+    cy: float
+
+    def to_px(self, v):
+        """Camera-0 directions (..., 3) -> panorama pixels (..., 2)."""
+        az = np.arctan2(v[..., 0], v[..., 2]); el = np.arctan2(v[..., 1], np.hypot(v[..., 0], v[..., 2]))
+        return np.stack([self.F * az + self.cx, self.F * el + self.cy], -1)
+
+    def directions(self):
+        h, w = self.paint.shape
+        az = (np.arange(w) - self.cx) / self.F; el = (np.arange(h) - self.cy) / self.F
+        az, el = np.meshgrid(az, el)
+        return np.stack([np.sin(az) * np.cos(el), np.sin(el), np.cos(az) * np.cos(el)], -1)
+
+
+def build_panorama(masks: dict, R_rel, f, scale: float = 0.5, F: float = None) -> Panorama:
+    """masks: {k: paint mask at `scale`}; R_rel: (n, 3, 3) rotations from sample 0's
+    camera to sample k's; f: (n,) focal lengths (full-res px)."""
+    ks = sorted(masks)
+    F = F or float(np.median(f[ks])) * scale
+    corners = np.array([[0, 0], [1920, 0], [0, 1080], [1920, 1080], [960, 0], [960, 1080], [0, 540], [1920, 540]], float)
+    dirs = []
+    for k in ks:
+        d = np.c_[(corners - CENTRE) / f[k], np.ones(len(corners))] @ R_rel[k]      # R_k^T x, row-wise
+        dirs.append(d)
+    d = np.concatenate(dirs)
+    az = np.arctan2(d[:, 0], d[:, 2]); el = np.arctan2(d[:, 1], np.hypot(d[:, 0], d[:, 2]))
+    x0, x1, y0, y1 = az.min() * F - 4, az.max() * F + 4, el.min() * F - 4, el.max() * F + 4
+    w, h = int(x1 - x0), int(y1 - y0)
+    pano = Panorama(np.zeros((h, w), np.float32), np.zeros((h, w), np.int32), F, -x0, -y0)
+    D = pano.directions().reshape(-1, 3)
+    hits = np.zeros(h * w, np.float32)
+    for k in ks:
+        v = D @ R_rel[k].T
+        ok = v[:, 2] > 1e-3
+        px = np.where(ok[:, None], v[:, :2] / np.where(ok, v[:, 2], 1)[:, None], 0) * f[k] + CENTRE
+        px *= scale
+        m = masks[k]
+        xi = np.round(px[:, 0]).astype(int); yi = np.round(px[:, 1]).astype(int)
+        ok &= (xi >= 0) & (xi < m.shape[1]) & (yi >= 0) & (yi < m.shape[0])
+        pano.cover.reshape(-1)[ok] += 1
+        hits[ok] += m[yi[ok], xi[ok]] > 0
+    pano.paint[:] = (hits / np.maximum(pano.cover.reshape(-1), 1)).reshape(h, w)
+    return pano
+
+
+class PanoScorer:
+    """Scores (camera position, sample-0 rotation) guesses against a panorama on the GPU.
+
+    Same terms as PoseScorer: model length that lands on stitched paint (as far
+    as the line is wide enough to see), less `miss` times the length that lands
+    where the camera looked, the line would have shown, and there is no paint;
+    less `off_cost` for every sample whose view axis misses the pitch."""
+
+    def __init__(self, pano: Panorama, R_rel, pitch: PitchModel, device='cuda', sigma=3.0, miss=0.5, step=0.1,
+                 thresh=0.25, margin=1.0, off_cost=1000.0, dep0=2.0):
+        import torch
+        self.torch = torch
+        dev = self.dev = torch.device(device if torch.cuda.is_available() else 'cpu')
+        T = self.T = lambda a: torch.as_tensor(np.asarray(a), dtype=torch.float32, device=dev)
+        lines = pitch.lines(step)
+        pts = np.concatenate(lines); nxt = []; nrm = []; i = 0
+        for ln in lines:
+            nxt += list(range(i + 1, i + len(ln))) + [-1]; i += len(ln)
+            t = np.gradient(ln, axis=0); t /= np.linalg.norm(t, axis=1, keepdims=True)
+            nrm.append(np.c_[-t[:, 1], t[:, 0]])
+        nxt = np.array(nxt); nrm = np.concatenate(nrm)
+        X = np.c_[pts, np.zeros(len(pts))]
+        Nn = np.c_[nrm, np.zeros(len(nrm))] * LINE_WIDTH / 2
+        self.X = T(X); self.Xa = T(X + Nn); self.Xb = T(X - Nn)
+        self.has = T(nxt >= 0); self.nx = torch.as_tensor(np.where(nxt >= 0, nxt, 0), device=dev)
+        m = (pano.paint >= thresh).astype(np.uint8) * 255
+        self.dt = T(cv2.distanceTransform(255 - m, cv2.DIST_L2, 3))
+        self.cover = T(pano.cover > 0)
+        self.F, self.cx, self.cy = pano.F, pano.cx, pano.cy
+        self.sigma, self.miss = sigma, miss
+        self.fwd = T(R_rel[:, 2])
+        self.box = (-margin, pitch.L + margin, -margin, pitch.W + margin)
+        self.off_cost = off_cost
+        self.dep0 = np.radians(dep0)
+
+    def _px(self, v):
+        torch = self.torch
+        az = torch.atan2(v[..., 0], v[..., 2]); el = torch.atan2(v[..., 1], torch.hypot(v[..., 0], v[..., 2]))
+        return torch.stack([self.F * az + self.cx, self.F * el + self.cy], -1)
+
+    def terms(self, C, R0):
+        """C: (B, 3) or (3,); R0: (B, 3, 3). Per point (hit, vis, seg, res), each (B, N)."""
+        torch = self.torch
+        C = self.T(C); R0 = self.T(R0)
+        if C.dim() == 1:
+            C = C[None].expand(len(R0), 3)
+        def cam(X):
+            return torch.einsum('bij,bnj->bni', R0, X[None] - C[:, None])
+        v = cam(self.X)
+        xy = self._px(v)
+        width = (self._px(cam(self.Xa)) - self._px(cam(self.Xb))).norm(dim=-1)
+        hh, ww = self.dt.shape
+        seg = (xy[:, self.nx] - xy).norm(dim=-1).clamp(max=20) * self.has
+        ok = (xy[..., 0] >= 0) & (xy[..., 0] < ww - 1) & (xy[..., 1] >= 0) & (xy[..., 1] < hh - 1) & (v[..., 2] > 0)
+        xi = xy[..., 0].clamp(0, ww - 1).long(); yi = xy[..., 1].clamp(0, hh - 1).long()
+        ok &= self.cover[yi, xi] > 0
+        ok &= ok[:, self.nx]
+        d = self.dt[yi, xi]
+        hit = torch.exp(-0.5 * (d / self.sigma) ** 2)
+        gone = ((d - 2 * self.sigma) / (2 * self.sigma)).clamp(0, 1)
+        vis = ((width - 0.75) / 1.5).clamp(0, 1) * gone
+        # a line within a few degrees of the horizon says little about the camera, and
+        # that band is all fence, track and stands: hits there count for less
+        dep = torch.asin((C[:, 2:3] / (self.X[None] - C[:, None]).norm(dim=-1)).clamp(max=1))
+        far = ((dep - self.dep0) / self.dep0).clamp(0, 1)
+        return hit, vis, seg * ok, (width / 1.0).clamp(0, 1) * far
+
+    def off_pitch(self, C, R0):
+        torch = self.torch
+        C = self.T(C); R0 = self.T(R0)
+        if C.dim() == 1:
+            C = C[None].expand(len(R0), 3)
+        d = torch.einsum('fj,bjk->bfk', self.fwd, R0)
+        dz = d[..., 2]
+        t = -C[:, 2:3] / dz.clamp(max=-1e-6)
+        u = C[:, 0:1] + t * d[..., 0]; v = C[:, 1:2] + t * d[..., 1]
+        u0, u1, v0, v1 = self.box
+        inside = (dz < -1e-6) & (u > u0) & (u < u1) & (v > v0) & (v < v1)
+        return (~inside).float().sum(-1)
+
+    def scores(self, C, R0):
+        hit, vis, seg, res = self.terms(C, R0)
+        return ((res * hit - self.miss * vis) * seg).sum(-1) - self.off_cost * self.off_pitch(C, R0)
+
+
+def search_pano(sc: PanoScorer, pitch: PitchModel, C_grid=None, pan_step=1.0, tilt_step=1.0, top=40, chunk=4000,
+                rolls=(0.0,)):
+    """Brute force over camera positions and sample-0 pan/tilt/roll. Returns
+    the best `top` as (score, C, pan, tilt, roll)."""
+    if C_grid is None:
+        L = pitch.L
+        C_grid = [(u, v, h) for u in L / 2 + np.arange(-5, 5.01, 0.5)
+                  for v in (-0.2, -0.4, -0.7, -1.0, -1.5, -2.0, -3.0, -4.5, -6.0)
+                  for h in (0.3, 0.4, 0.55, 0.75, 1.0, 1.4, 2.0)]
+    C_grid = np.asarray(C_grid, float)
+    pans = np.radians(np.arange(-80, 80.01, pan_step)); tilts = np.radians(np.arange(1, 45.01, tilt_step))
+    rolls = np.radians(np.asarray(rolls, float))
+    R0 = rotation(pans[:, None, None], tilts[None, :, None], rolls[None, None, :]).reshape(-1, 3, 3)
+    ang = np.array([(p, t, r) for p in pans for t in tilts for r in rolls])
+    out = []
+    for C in C_grid:
+        for b0 in range(0, len(R0), chunk):
+            s = sc.scores(C, R0[b0:b0 + chunk])
+            v, k = s.topk(min(5, len(s)))
+            out += [(float(a), C) + tuple(ang[b0 + int(c)]) for a, c in zip(v.cpu(), k.cpu())]
+    out.sort(key=lambda o: -o[0])
+    return out[:top]
+
+
+def polish(sc, C, R0, iters: int = 40, batch: int = 3000, c_step: float = 0.3, r_step: float = 0.02,
+           decay: float = 0.9, rng=None, h_min: float = 0.3):
+    """Random local search around (C, R0) on a scorer: returns (score, C, R0)."""
+    rng = rng or np.random.default_rng(0)
+    C = np.asarray(C, float); R0 = np.asarray(R0, float)
+    best = float(sc.scores(C[None], R0[None])[0])
+    for it in range(iters):
+        dC = rng.normal(0, c_step, (batch, 3)); dC[0] = 0
+        Cs = C + dC; Cs[:, 2] = np.maximum(Cs[:, 2], max(h_min, 0.05))
+        Rs = rodrigues(rng.normal(0, r_step, (batch, 3))) @ R0
+        s = sc.scores(Cs, Rs).cpu().numpy()
+        k = int(np.argmax(s))
+        if s[k] > best:
+            best, C, R0 = float(s[k]), Cs[k], Rs[k]
+        c_step *= decay; r_step *= decay
+    return best, C, R0
+
+
+def explained_paint(pano: Panorama, C, R0, pitch: PitchModel, tol: float = 4.0, thresh: float = 0.25,
+                    step: float = 0.02, dep0: float = 2.0):
+    """How much of the stitched paint (in pixels, below 2*dep0 degrees under the
+    horizon) lies within `tol` panorama pixels of the pitch's lines under this pose."""
+    paint = pano.paint >= thresh
+    D = pano.directions()
+    Rw = D @ R0                                                     # world directions of panorama pixels
+    below = -Rw[..., 2] > np.sin(np.radians(2 * dep0))
+    canvas = np.zeros(paint.shape, np.uint8)
+    for ln in pitch.lines(step):
+        v = (np.c_[ln, np.zeros(len(ln))] - C) @ R0.T
+        ok = v[:, 2] > 0
+        xy = pano.to_px(v)
+        for seg in np.split(np.arange(len(xy)), np.nonzero(~ok)[0]):
+            seg = seg[ok[seg]]
+            if len(seg) > 1:
+                cv2.polylines(canvas, [np.round(xy[seg]).astype(np.int32)], False, 255, int(2 * tol))
+    return int((paint & below & (canvas > 0)).sum()), int((paint & below).sum())
+
+
+def refine_pano(pano: Panorama, C, R0, pitch: PitchModel, n: int = 4000, thresh: float = 0.25, f_scale: float = 3.0,
+                dep0: float = 4.0, free_W: bool = True, free_L: bool = False, logo_r: float = 0.9, rng=None,
+                fix_h: float = None, fix_C: bool = False):
+    """Least-squares polish in the panorama: every stitched paint pixel well below
+    the horizon is pulled to the nearest model line (Cauchy loss, so the other
+    sports' lines and the club logo give up rather than drag). Free: the camera
+    position, sample 0's rotation and, optionally, the pitch's width and length
+    in circle radii. `fix_C` holds the camera where it is (rotation, and W if free,
+    only). Returns (C, R0, pitch, least_squares result)."""
+    rng = rng or np.random.default_rng(0)
+    ys, xs = np.nonzero(pano.paint >= thresh)
+    if len(xs) > n:
+        k = rng.choice(len(xs), n, replace=False); xs, ys = xs[k], ys[k]
+    xy = np.c_[xs, ys].astype(float)
+    az = (xy[:, 0] - pano.cx) / pano.F; el = (xy[:, 1] - pano.cy) / pano.F
+    D = np.c_[np.sin(az) * np.cos(el), np.sin(el), np.cos(az) * np.cos(el)]
+    sin0 = np.sin(np.radians(dep0))
+
+    def unpack(x):
+        R = rodrigues(x[None, 3:6])[0] @ R0
+        L = pitch.L * np.exp(x[7]) if free_L else pitch.L
+        W = pitch.W * np.exp(x[6]) if free_W else pitch.W
+        C_ = np.asarray(C, float) if fix_C else x[:3] if fix_h is None else np.r_[x[:2], fix_h]
+        return C_, R, PitchModel(L=L, W=W)
+
+    def res(x):
+        C_, R, pm = unpack(x)
+        prim = Primitives(pm)
+        d = D @ R                                              # world directions
+        ok = -d[:, 2] > sin0
+        t = np.where(ok, -C_[2] / np.where(ok, d[:, 2], -1), 0)
+        X = C_[:2] + t[:, None] * d[:, :2]
+        ok &= np.hypot(*(X - prim.centre).T) > logo_r
+        q = prim.nearest(X)
+        v = (np.c_[q, np.zeros(len(q))] - C_) @ R.T
+        e = pano.to_px(v) - xy
+        e[~ok] = 0
+        return e.ravel()
+
+    x0 = np.zeros(8); x0[:3] = C
+    sol = least_squares(res, x0, loss='cauchy', f_scale=f_scale,
+                        x_scale=np.r_[0.05, 0.05, 0.02, 0.002, 0.002, 0.002, 0.01, 0.01], max_nfev=200)
+    C_, R, pm = unpack(sol.x)
+    return C_, R, pm, sol
+
+
+def line_paint(paint: np.ndarray, min_len: float = 25.0, sigma: float = 4.0, coh: float = 0.6) -> np.ndarray:
+    """The line-like part of a boolean paint mask: pixels whose neighbourhood has
+    one clear direction (structure-tensor coherence >= `coh`), in pieces at least
+    `min_len` px across. Foliage, shirts and crowd speckle go; lines, arcs and
+    letter strokes stay."""
+    f = cv2.GaussianBlur(paint.astype(np.float32), (0, 0), 1.0)
+    gx = cv2.Sobel(f, cv2.CV_32F, 1, 0, ksize=3); gy = cv2.Sobel(f, cv2.CV_32F, 0, 1, ksize=3)
+    xx, yy, xy = (cv2.GaussianBlur(a, (0, 0), sigma) for a in (gx * gx, gy * gy, gx * gy))
+    c = np.sqrt((xx - yy) ** 2 + 4 * xy ** 2) / np.maximum(xx + yy, 1e-6)
+    n, lab, st, _ = cv2.connectedComponentsWithStats((paint & (c >= coh)).astype(np.uint8), connectivity=8)
+    ok = np.hypot(st[:, 2], st[:, 3]) >= min_len; ok[0] = False
+    return ok[lab]
+
+
+def clean_pano(pano: Panorama, thresh: float = 0.25, noisy: float = 2.0) -> Panorama:
+    """`pano` with only line-like paint, when most of its paint is not (white-line
+    fields under trees: 5x); left alone when the paint is mostly lines already
+    (gold lines: 1.2-1.5x), as the filter also nicks real line ends."""
+    m = pano.paint >= thresh
+    keep = line_paint(m)
+    if m.sum() <= noisy * max(keep.sum(), 1):
+        return pano
+    return Panorama(np.where(keep, pano.paint, 0).astype(np.float32), pano.cover, pano.F, pano.cx, pano.cy)
+
+
+# ---- a starting pose with no clicks: the halfway line and the centre circle ---------------
+
+
+def halfway_candidates(paint: np.ndarray, top: int = 6, max_tilt: float = 35.0):
+    """Long straight paint runs within `max_tilt` degrees of vertical in a panorama
+    mask, longest first, one per line, as (x0, y0, x1, y1) with y0 < y1. Seen from
+    the side, the halfway line is the one that stands up."""
+    segs = cv2.HoughLinesP(paint.astype(np.uint8) * 255, 1, np.pi / 360, 60, minLineLength=80, maxLineGap=25)
+    found = []
+    for x0, y0, x1, y1 in ([] if segs is None else segs.reshape(-1, 4).tolist()):
+        if y0 > y1:
+            x0, y0, x1, y1 = x1, y1, x0, y0
+        if abs(np.degrees(np.arctan2(x1 - x0, y1 - y0))) < max_tilt:
+            found.append((np.hypot(x1 - x0, y1 - y0), (x0, y0, x1, y1)))
+    found.sort(key=lambda t: -t[0])
+    lines = []
+    for _, (x0, y0, x1, y1) in found:
+        d = np.array([x1 - x0, y1 - y0], float) / np.hypot(x1 - x0, y1 - y0)
+        off = lambda p: abs(d[0] * (p[1] - y0) - d[1] * (p[0] - x0))
+        if any(off(q[:2]) < 12 and off(q[2:]) < 12 for q in lines):
+            continue                                    # another piece of a line already kept
+        lines.append((x0, y0, x1, y1))
+        if len(lines) >= top:
+            break
+    return lines
+
+
+def circles_on_line(paint: np.ndarray, line, n_pts: int = 160, tol: float = 4.0, top: int = 3,
+                    ring: float = 10.0):
+    """Ellipses centred on `line` whose outlines lie on paint (the line's own pixels
+    excluded), best first, as [(score, (cx, cy, a, aspect, tilt))], no two alike.
+    Score: the semi-major times the worst quarter's share on paint -- a long
+    outline wins over a small one hugging the club logo's stripes, and a far
+    touchline (one flat side only) does not pass. Players stand on the circle
+    for much of a stretch, so a quarter is often a third bare: hence several.
+    The halfway line runs on toward the camera past the circle, so the visible
+    line must reach at least a circle's height below the centre (the near
+    touchline's two arcs meeting at the line's foot look like a circle too).
+    Each quarter's share counts only above the emptier of two rings `ring` px
+    inside and outside: a painted line is thin, trees and crowds are paint all
+    over (white-line fields light the tree line up almost solid)."""
+    h, w = paint.shape
+    x0, y0, x1, y1 = line
+    d = np.array([x1 - x0, y1 - y0], float); n = np.linalg.norm(d); d /= n
+    cen = np.array([x0, y0], float) + np.arange(-0.3 * n, 1.3 * n, 3.0)[:, None] * d
+    cen = cen[(cen[:, 0] > 0) & (cen[:, 0] < w) & (cen[:, 1] > 0) & (cen[:, 1] < h)]
+    below = y1 - cen[:, 1]                              # visible line below each centre, px
+    own = np.zeros((h, w), np.uint8)
+    cv2.line(own, (int(x0 - 0.5 * n * d[0]), int(y0 - 0.5 * n * d[1])),
+             (int(x1 + 0.5 * n * d[0]), int(y1 + 0.5 * n * d[1])), 1, 9)
+    dt = cv2.distanceTransform(((paint > 0) & (own == 0)).astype(np.uint8) ^ 1, cv2.DIST_L2, 3)
+    th = np.linspace(0, 2 * np.pi, n_pts, endpoint=False)
+    quarter = (np.cos(th) < 0) * 2 + (np.sin(th) < 0)
+    found = []
+    for a in np.arange(40, 700, 6.0):
+        for asp in np.arange(0.06, 0.62, 0.02):
+            for tilt in np.radians(np.arange(-12, 12.1, 3)):
+                share = []
+                for off in (0.0, -ring, ring):
+                    ex, ey = (a + off) * np.cos(th), max(asp * a + off, 1.0) * np.sin(th)
+                    X = np.round(cen[:, :1] + ex * np.cos(tilt) - ey * np.sin(tilt)).astype(int)
+                    Y = np.round(cen[:, 1:] + ex * np.sin(tilt) + ey * np.cos(tilt)).astype(int)
+                    inb = (X >= 0) & (X < w) & (Y >= 0) & (Y < h)
+                    hit = np.zeros(X.shape, bool)
+                    hit[inb] = dt[Y[inb], X[inb]] < tol
+                    share.append(np.array([hit[:, quarter == q].mean(1) for q in range(4)]))
+                lift = share[0] - np.minimum(share[1], share[2])          # on the line, not just in the noise
+                sc = a * np.min(lift, 0) * (below > 2 * asp * a)
+                k = int(sc.argmax())
+                if sc[k] > 0:
+                    found.append((float(sc[k]), (cen[k, 0], cen[k, 1], a, asp, tilt)))
+    found.sort(key=lambda c: -c[0])
+    keep = []
+    for sc, e in found:
+        if all(np.hypot(e[0] - f[0], e[1] - f[1]) > 0.2 * max(e[2], f[2]) or abs(np.log(e[2] / f[2])) > 0.25
+               or abs(np.log(e[3] / f[3])) > 0.35 for _, f in keep):
+            keep.append((sc, e))
+            if len(keep) >= top:
+                break
+    return keep
+
+
+def _kabsch(world, cam):
+    U, _, Vt = np.linalg.svd(cam.T @ world)
+    return U @ np.diag([1, 1, np.sign(np.linalg.det(U @ Vt))]) @ Vt
+
+
+def calibrate_pano(pano: Panorama, L: float = 12.31, W0: float = 7.5, thresh: float = 0.25, circles: int = 6,
+                   log=None):
+    """The whole pose from the stitched paint, no clicks: find the halfway line and
+    the centre circle; the circle's size gives the camera's distance and its
+    squash (minor / major = sine of the depression) its height; aim along the
+    line; refine from a few starts; keep the pitch-sized answer that explains the
+    most paint. The best few circles are each tried. Returns (C, R0, pitch, info)
+    or None."""
+    pano = clean_pano(pano, thresh)
+    paint = pano.paint >= thresh
+    found = sorted(((sc, el, ln) for ln in halfway_candidates(paint) for sc, el in circles_on_line(paint, ln)),
+                   key=lambda c: -c[0])[:circles]
+    best = None
+    for score, el, line in found:
+        if log:
+            log('circle at (%.0f, %.0f) a %.0f px aspect %.3f, score %.1f' % (el[:4] + (score,)))
+        got = _pose_from_circle(pano, el, line, L, W0, log)
+        if got and (best is None or got[3]['explained'] > best[3]['explained']):
+            best = got
+    return best
+
+
+def _pose_from_circle(pano, el, line, L, W0, log):
+    cx, cy, a, asp, _ = el
+
+    def pdir(x, y):
+        az, up = (x - pano.cx) / pano.F, (y - pano.cy) / pano.F
+        return np.array([np.sin(az) * np.cos(up), np.sin(up), np.cos(az) * np.cos(up)])
+    dist = pano.F / a                                  # radius 1 R spans a px
+    dep = np.arcsin(np.clip(asp, 0.02, 0.95))
+    h, back = dist * np.sin(dep), dist * np.cos(dep)
+    x0, y0, x1, y1 = line
+    a_c = pdir(cx, cy)
+    b_c = pdir(*(np.array([cx, cy]) + 80 * np.array([x1 - x0, y1 - y0]) / np.hypot(x1 - x0, y1 - y0)))
+    pm = PitchModel(L=L, W=W0)
+    best = None
+    n_c = np.cross(b_c, a_c)                           # image x (right) <-> world u, camera behind the near touchline
+    for du in (0.0, -1.5, 1.5):
+        C = np.array([L / 2 + du, W0 / 2 - np.sqrt(max(back ** 2 - du ** 2, 0.25)), h])
+        aim = np.array([L / 2, W0 / 2, 0]) - C
+        R0 = _kabsch(np.array([aim / np.linalg.norm(aim), [1, 0, 0]]), np.array([a_c, n_c / np.linalg.norm(n_c)]))
+        R0 = best_roll(pano, C, R0, pm)
+        C2, R2, pm2, _ = refine_pano(pano, C, R0, pm, f_scale=25.0)
+        C2, R2, pm2, sol = refine_pano(pano, C2, R2, pm2, f_scale=3.0)
+        e, tot = explained_paint(pano, C2, R2, pm2)
+        plausible = 5.0 <= pm2.W <= 10.0 and 1.3 <= pm2.L / pm2.W <= 1.9 and C2[1] < 0 < C2[2]
+        if log:
+            log('start %s -> C %s W %.2f cost %.0f explained %d/%d%s'
+                % (np.round(C, 2), np.round(C2, 3), pm2.W, sol.cost, e, tot, '' if plausible else ' (refused)'))
+        if plausible and (best is None or e > best[3]['explained']):
+            best = (C2, R2, pm2, dict(explained=e, paint=tot, cost=float(sol.cost), circle=(cx, cy, a, asp),
+                                      line=line))
+    return best
+
+
+def aim_from_circle(pano: Panorama, el, line, C, pitch: PitchModel):
+    """Sample 0's rotation from a known camera position: the circle's centre is the
+    pitch's centre, the halfway line runs across the pitch."""
+    cx, cy = el[:2]
+
+    def pdir(x, y):
+        az, up = (x - pano.cx) / pano.F, (y - pano.cy) / pano.F
+        return np.array([np.sin(az) * np.cos(up), np.sin(up), np.cos(az) * np.cos(up)])
+    x0, y0, x1, y1 = line
+    a_c = pdir(cx, cy)
+    b_c = pdir(*(np.array([cx, cy]) + 80 * np.array([x1 - x0, y1 - y0]) / np.hypot(x1 - x0, y1 - y0)))
+    n_c = np.cross(b_c, a_c)
+    aim = np.array([pitch.L / 2, pitch.W / 2, 0]) - C
+    return _kabsch(np.array([aim / np.linalg.norm(aim), [1, 0, 0]]), np.array([a_c, n_c / np.linalg.norm(n_c)]))
+
+
+def best_roll(pano: Panorama, C, R0, pitch: PitchModel, span: float = 24.0, step: float = 2.0):
+    """Turn about the line of sight to the centre spot: the halfway line's direction
+    near the circle is a few degrees out, and a start that far off settles in the
+    wrong place. Keeps the turn that explains the most paint."""
+    aim = np.array([pitch.L / 2, pitch.W / 2, 0]) - C
+    aim /= np.linalg.norm(aim)
+    turns = [R0 @ rodrigues((np.radians(r) * aim)[None])[0] for r in np.arange(-span, span + step / 2, step)]
+    return max(turns, key=lambda R: explained_paint(pano, C, R, pitch)[0])
+
+
+def calibrate_rotation(pano: Panorama, C, pitch: PitchModel, thresh: float = 0.25, circles: int = 6, log=None):
+    """The camera and the pitch already known (another stretch of the same match):
+    only where it points. Each of the best few circles gives a start; the rotation
+    alone is refined; the one explaining the most paint wins. Returns (C, R0,
+    pitch, info) or None."""
+    C = np.asarray(C, float)
+    pano = clean_pano(pano, thresh)
+    paint = pano.paint >= thresh
+    found = sorted(((sc, el, ln) for ln in halfway_candidates(paint) for sc, el in circles_on_line(paint, ln)),
+                   key=lambda c: -c[0])[:circles]
+    best = None
+    for score, el, line in found:
+        R0 = best_roll(pano, C, aim_from_circle(pano, el, line, C, pitch), pitch)
+        _, R2, _, _ = refine_pano(pano, C, R0, pitch, f_scale=25.0, fix_C=True, free_W=False)
+        _, R2, _, sol = refine_pano(pano, C, R2, pitch, f_scale=3.0, fix_C=True, free_W=False)
+        e, tot = explained_paint(pano, C, R2, pitch)
+        if log:
+            log('circle at (%.0f, %.0f) a %.0f px aspect %.3f, score %.1f -> cost %.0f explained %d/%d'
+                % (el[:4] + (score, sol.cost, e, tot)))
+        if best is None or e > best[3]['explained']:
+            best = (C, R2, pitch, dict(explained=e, paint=tot, cost=float(sol.cost), circle=tuple(el[:4]), line=line))
+    return best
+
+
+# ---- camera height from the players: the paint hardly constrains it ---------------------
+
+FAR_NEAR = 0.988   # far-quartile / near-quartile median player height at the true camera height (fm01 0.564, fr00 0.578)
+
+
+def far_near_ratio(R_chain, f, C, R0, pitch: PitchModel, boxes: dict):
+    """Median standing height of detected people in the farthest quarter of the
+    pitch over that of the nearest quarter, and the overall median in R. Guess the
+    camera too low and far people come out too tall; too high, too short. `boxes`: sample index ->
+    (n, 4) full-resolution x0 y0 x1 y1, whole people only (not cut by the frame)."""
+    out = []
+    for k, b in boxes.items():
+        if not len(b):
+            continue
+        Rk = R_chain[k] @ R0
+        cx = (b[:, 0] + b[:, 2]) / 2
+        df = rays(np.c_[cx, b[:, 3]], f[k]) @ Rk
+        dh = rays(np.c_[cx, b[:, 1]], f[k]) @ Rk
+        ok = df[:, 2] < 0
+        G = C[:2] + (-C[2] / np.where(ok, df[:, 2], -1))[:, None] * df[:, :2]
+        ok &= (G[:, 0] > 0) & (G[:, 0] < pitch.L) & (G[:, 1] > 0) & (G[:, 1] < pitch.W)
+        D = np.hypot(*(G - C[:2]).T)
+        out.append(np.c_[C[2] + D / np.hypot(dh[:, 0], dh[:, 1]) * dh[:, 2], D][ok])
+    o = np.concatenate(out)
+    q1, q3 = np.percentile(o[:, 1], [25, 75])
+    return np.median(o[o[:, 1] >= q3, 0]) / np.median(o[o[:, 1] <= q1, 0]), float(np.median(o[:, 0]))
+
+
+def height_from_people(pano: Panorama, R_chain, f, C, R0, pitch: PitchModel, boxes: dict, target: float = FAR_NEAR,
+                       step: float = 0.03, n: int = 9, log=None):
+    """Re-fit the pose at a ladder of fixed camera heights around the current one
+    (each from the last good answer), and keep the height where the players' far /
+    near size ratio crosses `target`, interpolated. Returns (C, R0, pitch, rows),
+    the pose re-fitted at that height, or the input pose if the ratio never crosses."""
+    pano = clean_pano(pano)
+    C = np.asarray(C, float)
+    rows = []
+    h0 = round(C[2] / step) * step
+    for direction in (-1, 1):
+        Cw, Rw, Ww = C, R0, pitch.W
+        for i in range(0 if direction < 0 else 1, n):
+            h = h0 + direction * step * i
+            if h <= 0.1:
+                break
+            C2, R2, pm, sol = refine_pano(pano, np.r_[Cw[:2], h], Rw, PitchModel(L=pitch.L, W=Ww), fix_h=h)
+            ok = 5.0 <= pm.W <= 10.0 and C2[1] < 0
+            ratio, med = far_near_ratio(R_chain, f, C2, R2, pm, boxes)
+            if log:
+                log('h %.2f  C %s W %.2f cost %.0f  far/near %.3f median %.2f R%s'
+                    % (h, np.round(C2, 2), pm.W, sol.cost, ratio, med, '' if ok else '  (refused)'))
+            if not ok:
+                break
+            Cw, Rw, Ww = C2, R2, pm.W
+            rows.append((h, ratio, C2, R2, pm))
+    rows.sort(key=lambda r: r[0])
+    for a, b in zip(rows, rows[1:]):
+        if (a[1] - target) * (b[1] - target) <= 0 and a[1] != b[1]:
+            h = a[0] + (a[1] - target) / (a[1] - b[1]) * (b[0] - a[0])
+            near = a if abs(h - a[0]) < abs(h - b[0]) else b
+            C2, R2, pm, _ = refine_pano(pano, np.r_[near[2][:2], h], near[3], near[4], fix_h=h)
+            return C2, R2, pm, [r[:2] for r in rows]
+    return C, R0, pitch, [r[:2] for r in rows]

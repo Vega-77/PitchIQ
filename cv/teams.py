@@ -50,6 +50,9 @@ SURROUND_WIDTH = 0.75
 # fixture and two shades of blue.
 OUTLIER_RATIO = 0.55
 
+# which columns of a kit sample each candidate axis reads
+AXIS_COLUMNS = {'chroma': slice(1, 3), 'grass-relative lightness': slice(3, 4)}
+
 # The narrowest a cluster is allowed to be counted as, in Lab units. Every
 # number here comes from 8-bit pixels through a median, so a cluster measured
 # tighter than one unit is not tighter -- it is at the quantisation floor, and
@@ -98,6 +101,39 @@ MIN_AXIS_COVERAGE = 0.8
 # that no clump of outliers clears it.
 MIN_CLUSTER_SHARE = 0.25
 
+# The same eleven-and-eleven, counted in frames rather than tracks, when the
+# caller says how long each track is. Means put the line halfway between the
+# centres, and a white kit half in sun and half in shade has a long sunlit tail:
+# on a sunny minute it dragged the white centre so far that the line ran through
+# the shaded white shirts, leaving white with 28% of the frames. Below this
+# share the split is refitted with frame-weighted medians, which a tail of
+# short sunlit tracks cannot drag. A balanced split (45% on the dev window) is left alone.
+BALANCED_SHARE = 0.35
+
+# Once grass-relative lightness has split the pitch, the split is refitted with
+# the shirt's tint alongside its lightness: a two-class discriminant with one
+# shared covariance, started from the lightness split. The case is a team in
+# training bibs. A navy bib over a white shirt is neither kit's lightness -- on
+# the dev clips bib tracks sat at -62..-33 against a black kit's -97..-39 -- so
+# no line on lightness alone puts them with their team. Their tint does: the
+# black kit read b* +7 under a grass cast, white shirts and navy bibs about -2.
+# Which channels separate is a fact about one fixture's kits and light, so the
+# weights are fitted per fixture rather than chosen here; where tint says
+# nothing, the fit leaves lightness carrying the split.
+#
+# Huber weights keep the covariance from being set by what is not a player:
+# a coach in yellow and a bench in orange bibs sit far off both kits on b*, and
+# a plain fit tilted the line toward them. Medians, not means, for the centres.
+DISCRIMINANT_HUBER = 1.5
+DISCRIMINANT_ITERATIONS = 15
+# The least spread the fit believes in, per channel, in Lab units: the 8-bit
+# quantisation floor, as MIN_CLUSTER_WIDTH. Two plain kits whose tints differ
+# by a unit of noise get a tint weight of 0.15 against lightness's 1. A floor of
+# two halved that and also cost a fifth of the bibs on fm01 (78% -> 60%).
+DISCRIMINANT_FLOOR = 1.0
+# kit-sample columns the discriminant reads: lightness against the grass, a, b
+DISCRIMINANT_COLUMNS = (3, 1, 2)
+
 TEAM_A = "team_a"
 TEAM_B = "team_b"
 UNKNOWN = "unknown"
@@ -121,9 +157,39 @@ class TeamAssignment:
     # The raw gap along that axis, kept because `separation` cannot recompute
     # it from `centres` once the axis is no longer necessarily chroma.
     gap: float | None = None
+    # the two centres on that axis, team_a first
+    axis_centres: np.ndarray | None = None
+    # When the discriminant refit took the split: weights over the four kit
+    # columns, lightness weighted 1, so the axis is still lightness-like (the
+    # lighter kit has the larger value) with the tint folded in.
+    projection: np.ndarray | None = None
 
     def team_of(self, track_id: int) -> str:
         return self.by_track.get(track_id, UNKNOWN)
+
+    def axis_values(self, samples: np.ndarray) -> np.ndarray:
+        """Each sample's position on the axis the split was made on, one column
+        per axis dimension; NaN rows where the sample has no value there."""
+        samples = np.atleast_2d(np.asarray(samples, dtype=np.float64))
+        if self.projection is not None:
+            if samples.shape[1] < len(self.projection):
+                return np.full((len(samples), 1), np.nan)
+            return samples[:, :len(self.projection)] @ self.projection[:, None]
+        cols = AXIS_COLUMNS.get(self.axis)
+        if cols is None or samples.shape[1] <= cols.start:
+            return np.full((len(samples), 1), np.nan)
+        return samples[:, cols]
+
+    def lean(self, samples: np.ndarray) -> np.ndarray:
+        """Per sample, which kit it reads as: -1 at team_a's centre, +1 at
+        team_b's, 0 halfway; NaN where the sample has no value on the axis."""
+        samples = np.atleast_2d(np.asarray(samples, dtype=np.float64))
+        if self.axis_centres is None or not self.gap or self.axis not in AXIS_COLUMNS:
+            return np.full(len(samples), np.nan)
+        x = self.axis_values(samples)
+        da = np.linalg.norm(x - self.axis_centres[0], axis=1)
+        db = np.linalg.norm(x - self.axis_centres[1], axis=1)
+        return (da - db) / self.gap
 
     @property
     def counts(self) -> dict[str, int]:
@@ -141,6 +207,8 @@ class TeamAssignment:
             self.centres[TEAM_A], self.centres[TEAM_B] = (
                 self.centres[TEAM_B], self.centres[TEAM_A]
             )
+        if self.axis_centres is not None:
+            self.axis_centres = self.axis_centres[::-1].copy()
 
 
 def _nanmedian(rows: np.ndarray) -> np.ndarray:
@@ -296,6 +364,87 @@ def _kmeans_two(samples: np.ndarray, iterations: int = 25) -> tuple[np.ndarray, 
     return centres, np.argmin(d, axis=1)
 
 
+def _kmedians_two(samples: np.ndarray, centres: np.ndarray, weights: np.ndarray,
+                  iterations: int = 25) -> tuple[np.ndarray, np.ndarray]:
+    """Two-cluster k-medians from given centres, each median weighted by frames.
+
+    A sunlit tail of many short tracks can drag a mean, and can drag a plain
+    median too when it outnumbers the long shaded tracks of the same kit; a
+    frame-weighted median goes where most of the kit's frames are.
+    """
+    centres = centres.astype(np.float64).copy()
+    for _ in range(iterations):
+        labels = np.argmin(np.linalg.norm(samples[:, None, :] - centres[None], axis=2), axis=1)
+        new = centres.copy()
+        for k in (0, 1):
+            members, w = samples[labels == k], weights[labels == k]
+            if len(members) and w.sum() > 0:
+                new[k] = [_weighted_median(members[:, d], w) for d in range(samples.shape[1])]
+        if np.allclose(new, centres):
+            break
+        centres = new
+    return centres, np.argmin(np.linalg.norm(samples[:, None, :] - centres[None], axis=2), axis=1)
+
+
+def _weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
+    order = np.argsort(values)
+    cumulative = np.cumsum(weights[order])
+    return float(values[order][np.searchsorted(cumulative, cumulative[-1] / 2)])
+
+
+def _weighted_balance(labels: np.ndarray, weights: np.ndarray) -> float:
+    """The lesser cluster's share of the weight, 0 to 0.5."""
+    total = float(weights.sum())
+    if total <= 0:
+        return 0.0
+    return min(float(weights[labels == 0].sum()), float(weights[labels == 1].sum())) / total
+
+
+def _discriminant_refit(rows: np.ndarray, weights: np.ndarray, labels: np.ndarray):
+    """Refit a lightness split on lightness and tint together; see DISCRIMINANT_HUBER.
+
+    `rows` are per-track median kit samples (all finite), `labels` the
+    lightness split. Returns (projection over the four kit columns, labels), or
+    None when the fit does not settle into two teams that are still ordered by
+    lightness -- in which case the lightness split stands.
+    """
+    cols = list(DISCRIMINANT_COLUMNS)
+    x = rows[:, cols]
+    dims = x.shape[1]
+    labels = labels.copy()
+    for _ in range(DISCRIMINANT_ITERATIONS):
+        if _weighted_balance(labels, weights) <= 0:
+            return None
+        centres = np.array([[_weighted_median(x[labels == k, j], weights[labels == k])
+                             for j in range(dims)] for k in (0, 1)])
+        resid = x - centres[labels]
+        scale = np.array([max(1.4826 * _weighted_median(np.abs(resid[:, j]), weights), DISCRIMINANT_FLOOR)
+                          for j in range(dims)])
+        cov = np.diag(scale ** 2)
+        for _ in range(5):
+            dist = np.sqrt(np.einsum('ij,jk,ik->i', resid, np.linalg.inv(cov), resid))
+            w = weights * np.minimum(1.0, DISCRIMINANT_HUBER / np.maximum(dist, 1e-9)) ** 2
+            cov = (resid * w[:, None]).T @ resid / w.sum() + np.eye(dims) * DISCRIMINANT_FLOOR ** 2
+        direction = np.linalg.solve(cov, centres[1] - centres[0])
+        if direction[0] == 0:
+            return None
+        direction = direction / direction[0]
+        z = x @ direction
+        ends = centres @ direction
+        new = (np.abs(z - ends[1]) < np.abs(z - ends[0])).astype(int)
+        if (new == labels).all():
+            break
+        labels = new
+    else:
+        return None
+    # still a lightness axis: the side that was lighter is still the lighter one
+    if (ends[1] - ends[0]) * (centres[1, 0] - centres[0, 0]) <= 0:
+        return None
+    projection = np.zeros(4)
+    projection[cols] = direction
+    return projection, labels
+
+
 def _separability(feature: np.ndarray, centres: np.ndarray, labels: np.ndarray) -> float:
     """How convincingly a split separates: centre gap over cluster width.
 
@@ -366,6 +515,7 @@ def _candidate_axes(full: np.ndarray) -> list[tuple[str, np.ndarray]]:
 def assign_teams(
     samples_by_track: dict[int, list[np.ndarray]],
     outlier_ratio: float = OUTLIER_RATIO,
+    weights: dict[int, float] | None = None,
 ) -> TeamAssignment:
     """Split tracks into two teams from their shirt-colour samples.
 
@@ -386,6 +536,9 @@ def assign_teams(
 
     Each track is labelled by where its own median colour falls, which is what
     makes the result robust to any single blurred or occluded frame.
+
+    `weights` (per track, its length in frames) turn on the BALANCED_SHARE
+    check; without them the split is exactly as before.
     """
     result = TeamAssignment()
 
@@ -430,6 +583,31 @@ def assign_teams(
         return result
 
     score, _even, axis, feature, known, centres, labels = best
+    if weights is not None:
+        w = np.array([float(weights.get(t, 1.0)) for t in track_ids])[known]
+        if _weighted_balance(labels, w) < BALANCED_SHARE:
+            m_centres, m_labels = _kmedians_two(feature[known], centres, w)
+            if _weighted_balance(m_labels, w) > _weighted_balance(labels, w):
+                centres, labels = m_centres, m_labels
+                score = _separability(feature[known], centres, labels)
+        if axis == 'grass-relative lightness' and full.shape[1] >= 4:
+            tinted = known & np.all(np.isfinite(full[:, :4]), axis=1)
+            sub = tinted[known]
+            fit = _discriminant_refit(full[tinted], w[sub], labels[sub]) if sub.sum() >= 4 else None
+            if fit is not None:
+                projection, fit_labels = fit
+                new_labels = labels.copy()
+                new_labels[sub] = fit_labels
+                if _weighted_balance(new_labels, w) >= min(BALANCED_SHARE, _weighted_balance(labels, w)):
+                    result.projection = projection
+                    feature = np.full((len(full), 1), np.nan)
+                    feature[tinted, 0] = full[tinted, :4] @ projection
+                    known = tinted
+                    labels = fit_labels
+                    fw = w[sub]
+                    centres = np.array([[_weighted_median(feature[known][labels == k, 0], fw[labels == k])]
+                                        for k in (0, 1)])
+                    score = _separability(feature[known], centres, labels)
     result.axis = axis
     result.score = score
 
@@ -447,6 +625,7 @@ def assign_teams(
 
     gap = float(np.linalg.norm(centres[0] - centres[1]))
     result.gap = gap
+    result.axis_centres = centres.copy()
     cutoff = gap * outlier_ratio
 
     names = [TEAM_A, TEAM_B]

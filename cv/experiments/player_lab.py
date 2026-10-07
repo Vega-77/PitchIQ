@@ -1,0 +1,451 @@
+"""Player tracking on the lab window: extract, baseline, track, score.
+
+The player lab (`cv/balltrack/plab/`) has forty hand-labelled keyframes over
+twenty seconds of fr00. This runs every tracker over the same frames and
+scores them on those labels the same way, so a change is judged on the people
+the user named rather than on how the boxes look.
+
+    python -m cv.experiments.player_lab extract      # GPU, ~1 min: detections + colours
+    python -m cv.experiments.player_lab features     # GPU: detector features per box
+    python -m cv.experiments.player_lab redesc       # CPU: colours again, same boxes
+    python -m cv.experiments.player_lab baseline     # GPU: the shipped pipeline's chain
+    python -m cv.experiments.player_lab track        # CPU: variants + label-free checks
+    python -m cv.experiments.player_lab score --labels DIR
+
+`--labels` is a folder of keyframe docs as the lab stores them (`kf/k00.json`
+...), fetched from the artifact's database. Scoring reruns the CPU tracking
+from the saved detections, so it is one command once labels exist.
+
+The dev window is fr00 136170..136769. A second window is for testing only:
+nothing in this file reads labels except `score`, and nothing is tuned on
+`score` output from the test window.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+
+from cv import player_eval
+from cv.linking import LinkSettings, Linker
+from cv.pitchtrack import (
+    Detections,
+    PitchProjector,
+    PitchTracker,
+    TrackerSettings,
+    body_descriptor,
+    drop_clipped,
+    drop_contained,
+    grass_hue,
+)
+
+PLAB = Path(__file__).resolve().parents[1] / 'balltrack' / 'plab'
+VIDEO = os.environ.get(
+    'PIQ_VIDEO', 'C:/Users/alexv/Downloads/8-26-26 Scrimmage v Gov Livingston - Tactical.mp4')
+LO, N = 136170, 600
+
+
+def _paths(tag: str) -> dict[str, Path]:
+    out = PLAB / 'out'
+    return {
+        'dets': out / f'{tag}_dets.npz',
+        'feat': out / f'{tag}_feat.npz',
+        'baseline': out / f'{tag}_baseline.json',
+        'sheets': PLAB / 'sheets.json' if tag == 'fr00' else out / f'{tag}_sheets.json',
+    }
+
+
+# ---- extract ----------------------------------------------------------------------
+
+
+def extract(tag: str, lo: int, n: int, imgsz: int, conf: float) -> None:
+    import cv2
+    from ultralytics import YOLO
+
+    from cv.detector import CLASS_PERSON, DEFAULT_WEIGHTS
+    from cv.teams import kit_sample
+
+    model = YOLO(str(DEFAULT_WEIGHTS))
+    cap = cv2.VideoCapture(VIDEO)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, lo)
+    landed = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+    if landed != lo:
+        raise SystemExit(f'seek landed on {landed}, not {lo}')
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    rows = {'frame': [], 'box': [], 'conf': [], 'kit': [], 'desc': []}
+    t0 = time.time()
+    batch, idx = [], []
+    for f in range(lo, lo + n):
+        ok, frame = cap.read()
+        if not ok:
+            break
+        batch.append(frame)
+        idx.append(f)
+        if len(batch) == 8 or f == lo + n - 1:
+            results = model.predict(batch, classes=[CLASS_PERSON], conf=conf, imgsz=imgsz, verbose=False)
+            for fi, img, res in zip(idx, batch, results):
+                b = res.boxes
+                grass = grass_hue(img)
+                for xyxy, c in zip(b.xyxy.cpu().numpy(), b.conf.cpu().numpy()):
+                    rows['frame'].append(fi)
+                    rows['box'].append(xyxy)
+                    rows['conf'].append(float(c))
+                    k = kit_sample(img, xyxy)
+                    rows['kit'].append(np.full(4, np.nan) if k is None else np.asarray(k, dtype=np.float64))
+                    rows['desc'].append(body_descriptor(img, xyxy, grass))
+            batch, idx = [], []
+        if (f - lo) % 100 == 0:
+            print(f, len(rows['frame']), '%.0fs' % (time.time() - t0), flush=True)
+    h, w = frame.shape[:2]
+    out = _paths(tag)['dets']
+    out.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        out, frame=np.array(rows['frame']), box=np.array(rows['box']), conf=np.array(rows['conf']),
+        kit=np.array(rows['kit']), desc=np.array(rows['desc']),
+        fps=fps, w=w, h=h, lo=lo, n=n, imgsz=imgsz, min_conf=conf)
+    print('wrote', out, len(rows['frame']), 'detections', '%.0fs' % (time.time() - t0))
+
+
+def redescribe(tag: str) -> None:
+    """Recompute the body descriptors of saved detections, without the detector."""
+    import cv2
+
+    path = _paths(tag)['dets']
+    z = dict(np.load(path))
+    lo, n = int(z['lo']), int(z['n'])
+    cap = cv2.VideoCapture(VIDEO)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, lo)
+    if int(cap.get(cv2.CAP_PROP_POS_FRAMES)) != lo:
+        raise SystemExit(f'seek did not land on {lo}')
+    desc = np.full_like(z['desc'], np.nan)
+    for f in range(lo, lo + n):
+        ok, img = cap.read()
+        if not ok:
+            break
+        grass = grass_hue(img)
+        for i in np.flatnonzero(z['frame'] == f):
+            desc[i] = body_descriptor(img, z['box'][i], grass)
+    changed = ~np.isclose(desc, z['desc'], equal_nan=True).all(axis=1)
+    z['desc'] = desc
+    np.savez_compressed(path, **z)
+    print('rewrote', path, f'{int(changed.sum())} of {len(desc)} descriptors changed')
+
+
+FEATURE_LAYER = 6                       # YOLOv8n backbone, stride 16, 512 channels
+
+
+def features(tag: str) -> None:
+    """Detector features per saved detection, for the linker's appearance cost.
+
+    The detector's own backbone (layer 6) pooled over each box on a 4 x 2
+    grid, unit length. Same person vs a teammate, end of one tracklet vs
+    start of the next: AUC 0.75 / 0.74 on fm01 / fr00, against 0.64 / 0.66
+    for the shirt-and-shorts colours. Rows follow `load_detections(tag)`.
+    """
+    import cv2
+    import torch
+    from torchvision.ops import roi_align
+    from ultralytics import YOLO
+
+    from cv.detector import DEFAULT_WEIGHTS
+
+    net = YOLO(str(DEFAULT_WEIGHTS)).model.eval().cuda()
+    grab = {}
+    net.model[FEATURE_LAYER].register_forward_hook(lambda m, i, o: grab.__setitem__('fm', o))
+    z = np.load(_paths(tag)['dets'])
+    # the same rows as load_detections, without its team pass (minutes on a long clip)
+    det = drop_contained(drop_clipped(Detections(
+        frame=z['frame'], box=z['box'], conf=z['conf'], team=np.full(len(z['frame']), -1), desc=z['desc']),
+        int(z['h'])))
+    rows_by = det.rows_by_frame()
+    out = None
+    cap = cv2.VideoCapture(VIDEO)
+    lo, hi = int(det.frame.min()), int(det.frame.max())
+    cap.set(cv2.CAP_PROP_POS_FRAMES, lo)
+    if int(cap.get(cv2.CAP_PROP_POS_FRAMES)) != lo:
+        raise SystemExit(f'seek did not land on {lo}')
+    t0 = time.time()
+    for f in range(lo, hi + 1):
+        ok, img = cap.read()
+        if not ok:
+            raise SystemExit(f'video ended at {f}')
+        rows = rows_by.get(f)
+        if rows is None or not len(rows):
+            continue
+        x = torch.from_numpy(cv2.resize(img, (1280, 736))[:, :, ::-1].copy()).permute(2, 0, 1)[None]
+        sx, sy = 1280 / img.shape[1], 736 / img.shape[0]
+        b = det.box[rows]
+        boxes = torch.tensor(np.c_[np.zeros(len(b)), b[:, 0] * sx, b[:, 1] * sy, b[:, 2] * sx, b[:, 3] * sy],
+                             dtype=torch.float32).cuda()
+        with torch.no_grad():
+            net(x.float().cuda() / 255)
+            fm = grab['fm'].float()
+            r = roi_align(fm, boxes, output_size=(4, 2), spatial_scale=fm.shape[-1] / 1280, aligned=True)
+            r = torch.nn.functional.normalize(r.flatten(1), dim=1).half().cpu().numpy()
+        if out is None:
+            out = np.zeros((len(det), r.shape[1]), np.float16)
+        out[rows] = r
+        if (f - lo) % 1000 == 0:
+            print(f, '%.0fs' % (time.time() - t0), flush=True)
+    path = _paths(tag)['feat']
+    np.savez_compressed(path, feat=out, layer=FEATURE_LAYER)
+    print('wrote', path, out.shape, '%.0fs' % (time.time() - t0))
+
+
+def load_detections(tag: str, dedupe: bool = True, with_features: bool = True):
+    z = np.load(_paths(tag)['dets'])
+    from cv.teams import TEAM_A, TEAM_B, assign_teams
+
+    kit = z['kit']
+    # A kit guess per detection, used only as a soft hint while tracking;
+    # teams proper are decided per tracklet by the linker.
+    samples = {i: [kit[i]] for i in range(len(kit)) if np.isfinite(kit[i]).any() and z['conf'][i] >= 0.25}
+    a = assign_teams(samples)
+    team = np.array([{TEAM_A: 0, TEAM_B: 1}.get(a.team_of(i), -1) for i in range(len(kit))])
+    det = Detections(frame=z['frame'], box=z['box'], conf=z['conf'], team=team, desc=z['desc'], kit=kit)
+    meta = {k: z[k].item() for k in ('fps', 'w', 'h', 'lo', 'n')}
+    if dedupe:
+        det = drop_contained(drop_clipped(det, meta['h']))
+    path = _paths(tag)['feat']
+    if with_features and dedupe and path.exists():
+        feat = np.load(path)['feat']
+        if len(feat) != len(det):
+            raise SystemExit(f'{path} has {len(feat)} rows for {len(det)} detections: run `features` again')
+        det.feat = feat.astype(np.float32)
+    return det, meta
+
+
+def projector(tag: str, w: int, h: int) -> tuple[PitchProjector, object]:
+    from cv.panned import PannedCamera
+
+    cam = PannedCamera.from_tracker(tag)
+    return PitchProjector.from_panned(cam, w, h), cam.pitch
+
+
+# ---- baseline: what the website pipeline does today -------------------------------
+
+
+def baseline(tag: str, lo: int, n: int, imgsz: int) -> None:
+    from cv.frames import TrackedFramePass
+    from cv.identity import cluster_of_track, merge_tracks
+    from cv.panned import PannedCamera
+    from cv.participants import classify_participants
+    from cv.pipeline import _stream_batches
+    from cv.teams import assign_teams
+
+    import cv2
+    cap = cv2.VideoCapture(VIDEO)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    cap.release()
+    t0 = time.time()
+    single = TrackedFramePass(imgsz=imgsz)
+    table, colours, _ = single.run(
+        VIDEO, fps=fps, frame_width=w, frame_height=h,
+        batches=_stream_batches(Path(VIDEO), fps, lo / fps, (lo + n) / fps), stride=1)
+    px = {r.frame_index: r.players.copy() for r in table.records if lo <= r.frame_index < lo + n}
+    cam = PannedCamera.from_tracker(tag)
+    table.calibration = cam.calibration
+    cam.stabilise(table)
+    assignment = assign_teams(colours)
+    table.team_by_track = assignment.by_track
+    parts = classify_participants(table)
+    clusters = merge_tracks(table, colours, is_player=parts.is_player)
+    c_of = cluster_of_track(clusters)
+    officials = parts.officials
+
+    def role(tid):
+        if tid in officials:
+            return 'referee'
+        return 'player' if parts.is_player(tid) else 'off'
+
+    out = {'botsort': {}, 'clusters': {}}
+    for f, arr in px.items():
+        for name in out:
+            out[name][f] = []
+        for tid, x1, y1, x2, y2, _c in arr.tolist():
+            tid = int(tid)
+            rec = [x1, y1, x2, y2, assignment.team_of(tid), role(tid)]
+            out['botsort'][f].append([tid] + rec)
+            out['clusters'][f].append([('c%d' % c_of[tid]) if tid in c_of else 't%d' % tid] + rec)
+    path = _paths(tag)['baseline']
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({'fps': fps, 'lo': lo, 'n': n, 'imgsz': imgsz, 'tracks': len(colours),
+                                'clusters': len(clusters), 'preds': out}))
+    print('wrote', path, len(colours), 'tracks ->', len(clusters), 'clusters', '%.0fs' % (time.time() - t0))
+
+
+def baseline_predictors(tag: str) -> dict:
+    path = _paths(tag)['baseline']
+    if not path.exists():
+        return {}
+    preds = json.loads(path.read_text())['preds']
+    out = {}
+    for name, by_frame in preds.items():
+        table = {int(f): [player_eval.Pred(r[0], np.array(r[1:5]), r[5], r[6]) for r in rows]
+                 for f, rows in by_frame.items()}
+        out['pipeline ' + name] = (lambda t: (lambda f: t.get(f, [])))(table)
+    return out
+
+
+# ---- the model --------------------------------------------------------------------
+
+VARIANTS = {
+    # name: (tracker settings, link settings); None = no linking at all
+    'A tracklets': ({}, None),
+    'A no view': ({'max_miss_out_of_view': 15}, None),
+    'A+B+C': ({}, {}),
+    'A+B+C no features': ({}, {'feature_weight': 0.0}),
+    'A+B+C no cut': ({'cut_ambiguous': False}, {}),
+    'A+B+C no view': ({'max_miss_out_of_view': 15}, {'unseen_penalty_per_s': 0.0}),
+    'A+B+C no margin': ({}, {'ambiguity_margin': 0.0, 'feature_margin': 0.0}),
+    'A+B+C no fill': ({}, {'fill_gap_s': 0.0}),
+}
+
+
+def run_variant(name: str, det, meta, proj, pitch):
+    tset, lset = VARIANTS[name]
+    tracker = PitchTracker(proj, TrackerSettings(fps=meta['fps'], **tset))
+    tracklets = tracker.run(det)
+    link = LinkSettings(fps=meta['fps'], **(lset or {}))
+    if lset is None:
+        link.stage_windows_s = ()
+        link.cap_window_s = -1.0
+        link.fill_gap_s = 0.0
+    result = Linker(proj, pitch.length_m, pitch.width_m, link).link(tracklets, det)
+    return tracklets, result
+
+
+def predictor(result):
+    cache = {}
+
+    def predict(f):
+        if f not in cache:
+            cache[f] = [player_eval.Pred(i.pid, b, result.team_at(i, f), i.role) for i, b in result.at(f)]
+        return cache[f]
+    return predict
+
+
+def self_check(name, tracklets, result, meta) -> dict:
+    """Label-free sanity: does the output obey the match's own rules?"""
+    lo, n = meta['lo'], meta['n']
+    per_frame = {'team_a': [], 'team_b': []}
+    boxes = []
+    for f in range(lo, lo + n):
+        here = result.at(f)
+        boxes.append(len(here))
+        for t in per_frame:
+            per_frame[t].append(sum(1 for i, _ in here if i.team == t and i.role == 'player'))
+    over = sum(1 for t in per_frame for c in per_frame[t] if c > 11)
+    roles: dict = {}
+    for i in result.identities:
+        key = i.role if i.role != 'player' else i.team
+        roles[key] = roles.get(key, 0) + 1
+    long = sorted((len(i.frames) / meta['fps'] for i in result.identities), reverse=True)
+    return {
+        'name': name,
+        'tracklets': len(tracklets),
+        'ids': len(result.identities),
+        'ids by role': ' '.join('%s:%d' % kv for kv in sorted(roles.items())),
+        'joins': len(result.joins),
+        'refused': len(result.refused),
+        'boxes/frame': round(float(np.mean(boxes)), 1),
+        'frames >11': over,
+        'top22 median s': round(float(np.median(long[:22])), 1) if long else 0,
+        'defends x=0': result.defends_left,
+    }
+
+
+def track(tag: str) -> dict:
+    det, meta = load_detections(tag)
+    proj, pitch = projector(tag, meta['w'], meta['h'])
+    missing = sum(1 for f in range(meta['lo'], meta['lo'] + meta['n']) if not proj.has(f))
+    print(f'{len(det)} detections; {missing} of {meta["n"]} frames without pitch registration')
+    rows, results = [], {}
+    for name in VARIANTS:
+        t0 = time.time()
+        tracklets, result = run_variant(name, det, meta, proj, pitch)
+        results[name] = result
+        row = self_check(name, tracklets, result, meta)
+        row['cpu s'] = round(time.time() - t0, 1)
+        rows.append(row)
+    print(player_eval.format_table(rows))
+    return {'det': det, 'meta': meta, 'proj': proj, 'results': results}
+
+
+def score(tag: str, labels: Path, partial: bool) -> None:
+    sheets = json.loads(_paths(tag)['sheets'].read_text())
+    docs = player_eval.load_docs(labels)
+    truth = player_eval.build_truth(sheets, docs, include_partial=partial)
+    print(f'{len(docs)} label docs: {len(truth.confirmed)} confirmed, {len(truth.partial)} partial '
+          f'keyframes scored; {len(truth.named)} named people')
+    if not truth.frames:
+        raise SystemExit('nothing to score yet')
+    run = track(tag)
+    proj = run['proj']
+
+    sheet_preds = {}
+    for s in sheets['sheets']:
+        sheet_preds[int(s['f'])] = [
+            player_eval.Pred(b['tid'], np.array(b['xyxy']), b.get('team') or 'unknown', 'player')
+            for b in s['boxes']]
+    predictors = {'lab BoT-SORT ids': lambda f: sheet_preds.get(f, [])}
+    predictors.update(baseline_predictors(tag))
+    for name, result in run['results'].items():
+        predictors[name] = predictor(result)
+
+    rows = [player_eval.score(name, truth, p, proj).row() for name, p in predictors.items()]
+    print()
+    print(player_eval.format_table(rows))
+
+    # Two people one behind the other: a lab click lands on either box, so
+    # who is who there is the labeller's guess as much as the model's.
+    named = [e for f in truth.frames for e in truth.entries[f] if player_eval._is_player_label(e.label)]
+    crowded = sum(e.crowded for e in named)
+    print(f'\nidentity on clear views only ({crowded} of {len(named)} player labels crowded, left out):')
+    keys = ('name', 'IDF1', 'wrong_person', 'merged_ids', 'ids_per_player', 'switches')
+    clear = [player_eval.score(name, truth, p, proj, clear_only=True).row() for name, p in predictors.items()]
+    print(player_eval.format_table([{k: r[k] for k in keys} for r in clear]))
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog='python -m cv.experiments.player_lab',
+                                description=__doc__.split('\n\n')[0])
+    p.add_argument('cmd', choices=['extract', 'features', 'redesc', 'baseline', 'track', 'score'])
+    p.add_argument('--tag', default='fr00')
+    p.add_argument('--lo', type=int, default=LO)
+    p.add_argument('--n', type=int, default=N)
+    p.add_argument('--imgsz', type=int, default=1280)
+    p.add_argument('--conf', type=float, default=0.05)
+    p.add_argument('--labels', type=Path)
+    p.add_argument('--confirmed-only', action='store_true')
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    if args.cmd == 'extract':
+        extract(args.tag, args.lo, args.n, args.imgsz, args.conf)
+    elif args.cmd == 'features':
+        features(args.tag)
+    elif args.cmd == 'redesc':
+        redescribe(args.tag)
+    elif args.cmd == 'baseline':
+        baseline(args.tag, args.lo, args.n, args.imgsz)
+    elif args.cmd == 'track':
+        track(args.tag)
+    else:
+        if args.labels is None:
+            raise SystemExit('--labels DIR is required')
+        score(args.tag, args.labels, partial=not args.confirmed_only)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

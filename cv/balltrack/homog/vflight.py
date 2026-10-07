@@ -33,9 +33,13 @@ class Track:
     def __init__(self, tag):
         z = np.load(os.path.join(HERE, '%s_ballsb.npz' % tag))
         im = np.load(os.path.join(HERE, '%s_img.npz' % tag))
-        t = np.load(os.path.join(HERE, 'vtop.npz'))
-        p = np.load(os.path.join(HERE, 'vpitch.npz'))
-        self.A = p['P'].dot(t['T'])                  # CH ground -> SB
+        own = os.path.join(HERE, '%s_venue.npz' % tag)
+        if os.path.exists(own):                      # a camera calibrated in-match (cv/autocal.py)
+            self.A = np.load(own)['A']               # CH ground -> SB
+        else:
+            t = np.load(os.path.join(HERE, 'vtop.npz'))
+            p = np.load(os.path.join(HERE, 'vpitch.npz'))
+            self.A = p['P'].dot(t['T'])              # CH ground -> SB
         self.Ai = np.linalg.inv(self.A)
         self.abs = z['abs']
         self.M = np.einsum('ij,fjk->fik', self.Ai, z['H'])   # pixel -> CH ray
