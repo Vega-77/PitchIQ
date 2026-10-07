@@ -89,43 +89,57 @@ def _save_atomic(path: Path, **arrays) -> None:
     os.replace(tmp, path)
 
 
-def extract(tag: str, lo: int, n: int, imgsz: int, conf: float) -> None:
-    """Detections and colours over lo..lo+n-1, in 5-minute pieces that a rerun skips."""
-    import cv2
-    from ultralytics import YOLO
+class Extractor:
+    """The detector and its feature hook, run one 5-minute piece at a time.
 
-    from cv.detector import CLASS_PERSON, DEFAULT_WEIGHTS
-    from cv.teams import kit_sample
+    `extract` and `features` drive it over a window; cv/balltrack/half.py feeds
+    it pieces as the ball pass finishes them. Each piece is written atomically
+    to plab/out/parts and a rerun skips the finished ones.
+    """
 
-    model = None
-    cap = cv2.VideoCapture(VIDEO)
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    t0 = time.time()
-    parts = []
-    for a, b in _chunks(lo, lo + n - 1):
-        path = _part(tag, 'dets', a, b)
-        parts.append(path)
-        if path.exists():
-            with np.load(path) as z:
-                if int(z['imgsz']) == imgsz and float(z['min_conf']) == conf and str(z['video']) == VIDEO:
-                    continue
-        if model is None:
-            model = YOLO(str(DEFAULT_WEIGHTS))
-        cap.set(cv2.CAP_PROP_POS_FRAMES, a)
-        landed = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+    def __init__(self, imgsz: int = 1280, conf: float = 0.05):
+        import cv2
+
+        self.imgsz, self.conf = imgsz, conf
+        self.cap = cv2.VideoCapture(VIDEO)
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        self.w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.model = self.net = None
+
+    def _seek(self, a: int) -> None:
+        import cv2
+
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, a)
+        landed = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))
         if landed != a:
             raise SystemExit(f'seek landed on {landed}, not {a}')
+
+    def dets_part(self, tag: str, a: int, b: int) -> Path:
+        """Detections and colours for frames a..b."""
+        path = _part(tag, 'dets', a, b)
+        if path.exists():
+            with np.load(path) as z:
+                if int(z['imgsz']) == self.imgsz and float(z['min_conf']) == self.conf and str(z['video']) == VIDEO:
+                    return path
+        from cv.detector import CLASS_PERSON, DEFAULT_WEIGHTS
+        from cv.teams import kit_sample
+
+        if self.model is None:
+            from ultralytics import YOLO
+            self.model = YOLO(str(DEFAULT_WEIGHTS))
+        self._seek(a)
         rows = {'frame': [], 'box': [], 'conf': [], 'kit': [], 'desc': []}
         batch, idx = [], []
         for f in range(a, b + 1):
-            ok, frame = cap.read()
+            ok, frame = self.cap.read()
             if not ok:
-                break
+                raise SystemExit(f'video ended at {f}')
             batch.append(frame)
             idx.append(f)
             if len(batch) == 8 or f == b:
-                results = model.predict(batch, classes=[CLASS_PERSON], conf=conf, imgsz=imgsz, verbose=False)
+                results = self.model.predict(batch, classes=[CLASS_PERSON], conf=self.conf, imgsz=self.imgsz,
+                                             verbose=False)
                 for fi, img, res in zip(idx, batch, results):
                     bx = res.boxes
                     grass = grass_hue(img)
@@ -137,11 +151,87 @@ def extract(tag: str, lo: int, n: int, imgsz: int, conf: float) -> None:
                         rows['kit'].append(np.full(4, np.nan) if k is None else np.asarray(k, dtype=np.float64))
                         rows['desc'].append(body_descriptor(img, xyxy, grass))
                 batch, idx = [], []
-            if (f - lo) % 1000 == 0:
-                print(f, '%.0fs' % (time.time() - t0), flush=True)
         _save_atomic(path, frame=np.array(rows['frame'], dtype=np.int64), box=np.array(rows['box']).reshape(-1, 4),
                      conf=np.array(rows['conf']), kit=np.array(rows['kit']).reshape(-1, 4),
-                     desc=np.array(rows['desc']), imgsz=imgsz, min_conf=conf, video=VIDEO)
+                     desc=np.array(rows['desc']), imgsz=self.imgsz, min_conf=self.conf, video=VIDEO)
+        return path
+
+    def _features_for(self, det: Detections, a: int, b: int) -> np.ndarray:
+        """Detector features of det's rows (all inside frames a..b), in row order."""
+        import cv2
+        import torch
+        from torchvision.ops import roi_align
+
+        if self.net is None:
+            from ultralytics import YOLO
+
+            from cv.detector import DEFAULT_WEIGHTS
+            self.net = YOLO(str(DEFAULT_WEIGHTS)).model.eval().cuda()
+            self.grab = {}
+            self.net.model[FEATURE_LAYER].register_forward_hook(lambda m, i, o: self.grab.__setitem__('fm', o))
+        net, grab = self.net, self.grab
+        rows_by = det.rows_by_frame()
+        out = np.zeros((len(det), 128 * 8), np.float16)    # layer 6 has 128 channels, pooled 4 x 2
+
+        def run(batch):
+            x = torch.from_numpy(np.stack([cv2.resize(im, (1280, 736))[:, :, ::-1] for _, im in batch]))
+            x = x.permute(0, 3, 1, 2)
+            sx, sy = 1280 / batch[0][1].shape[1], 736 / batch[0][1].shape[0]
+            rows = np.concatenate([rows_by[f] for f, _ in batch])
+            bx = det.box[rows]
+            which = np.concatenate([np.full(len(rows_by[f]), q) for q, (f, _) in enumerate(batch)])
+            boxes = torch.tensor(np.c_[which, bx[:, 0] * sx, bx[:, 1] * sy, bx[:, 2] * sx, bx[:, 3] * sy],
+                                 dtype=torch.float32).cuda()
+            with torch.no_grad():
+                net(x.float().cuda() / 255)
+                fm = grab['fm'].float()
+                r = roi_align(fm, boxes, output_size=(4, 2), spatial_scale=fm.shape[-1] / 1280, aligned=True)
+                out[rows] = torch.nn.functional.normalize(r.flatten(1), dim=1).half().cpu().numpy()
+
+        if len(det):
+            self._seek(a)
+            batch = []
+            for f in range(a, b + 1):
+                ok, img = self.cap.read()
+                if not ok:
+                    raise SystemExit(f'video ended at {f}')
+                if f in rows_by and len(rows_by[f]):
+                    batch.append((f, img))
+                if len(batch) == FEATURE_BATCH or (f == b and batch):
+                    run(batch)
+                    batch = []
+        return out
+
+    def feat_part(self, tag: str, a: int, b: int, rows: np.ndarray, det: Detections) -> Path:
+        """Features of the deduplicated detections in frames a..b; `rows` are
+        their row numbers in the whole window's `load_detections`."""
+        path = _part(tag, 'feat', a, b)
+        if path.exists():
+            with np.load(path) as z:
+                if np.array_equal(z['rows'], rows):
+                    return path
+        _save_atomic(path, rows=rows, feat=self._features_for(det, a, b))
+        return path
+
+    def feat_part_from_dets(self, tag: str, a: int, b: int, first_row: int) -> tuple[Path, int]:
+        """feat_part for a piece whose dets_part is done, numbering its rows from
+        first_row: the pieces before it in the window hold the rows before."""
+        with np.load(_part(tag, 'dets', a, b)) as z:
+            det = drop_contained(drop_clipped(Detections(
+                frame=z['frame'], box=z['box'], conf=z['conf'], team=np.full(len(z['frame']), -1),
+                desc=z['desc']), self.h))
+        rows = first_row + np.arange(len(det))
+        return self.feat_part(tag, a, b, rows, det), len(det)
+
+
+def extract(tag: str, lo: int, n: int, imgsz: int, conf: float) -> None:
+    """Detections and colours over lo..lo+n-1, in 5-minute pieces that a rerun skips."""
+    ex = Extractor(imgsz, conf)
+    t0 = time.time()
+    parts = []
+    for a, b in _chunks(lo, lo + n - 1):
+        parts.append(ex.dets_part(tag, a, b))
+        print(f'{a}..{b}', '%.0fs' % (time.time() - t0), flush=True)
     merged = {k: [] for k in ('frame', 'box', 'conf', 'kit', 'desc')}
     for path in parts:
         with np.load(path) as z:
@@ -150,7 +240,7 @@ def extract(tag: str, lo: int, n: int, imgsz: int, conf: float) -> None:
                     merged[k].append(z[k])
     out = _paths(tag)['dets']
     _save_atomic(out, **{k: np.concatenate(v) for k, v in merged.items()},
-                 fps=fps, w=w, h=h, lo=lo, n=n, imgsz=imgsz, min_conf=conf)
+                 fps=ex.fps, w=ex.w, h=ex.h, lo=lo, n=n, imgsz=imgsz, min_conf=conf)
     for path in parts:
         os.remove(path)
     print('wrote', out, sum(len(v) for v in merged['frame']), 'detections', '%.0fs' % (time.time() - t0))
@@ -193,66 +283,23 @@ def features(tag: str) -> None:
     start of the next: AUC 0.75 / 0.74 on fm01 / fr00, against 0.64 / 0.66
     for the shirt-and-shorts colours. Rows follow `load_detections(tag)`.
     """
-    import cv2
-    import torch
-    from torchvision.ops import roi_align
-    from ultralytics import YOLO
-
-    from cv.detector import DEFAULT_WEIGHTS
-
-    net = YOLO(str(DEFAULT_WEIGHTS)).model.eval().cuda()
-    grab = {}
-    net.model[FEATURE_LAYER].register_forward_hook(lambda m, i, o: grab.__setitem__('fm', o))
     z = np.load(_paths(tag)['dets'])
-    # the same rows as load_detections, without its team pass (minutes on a long clip)
+    # the same rows as load_detections, without its team pass
     det = drop_contained(drop_clipped(Detections(
         frame=z['frame'], box=z['box'], conf=z['conf'], team=np.full(len(z['frame']), -1), desc=z['desc']),
         int(z['h'])))
-    rows_by = det.rows_by_frame()
-    out = np.zeros((len(det), 128 * 8), np.float16)    # layer 6 has 128 channels, pooled 4 x 2
-    cap = cv2.VideoCapture(VIDEO)
+    ex = Extractor()
+    out = np.zeros((len(det), 128 * 8), np.float16)
     t0 = time.time()
-
-    def run(batch):
-        x = torch.from_numpy(np.stack([cv2.resize(im, (1280, 736))[:, :, ::-1] for _, im in batch])).permute(0, 3, 1, 2)
-        sx, sy = 1280 / batch[0][1].shape[1], 736 / batch[0][1].shape[0]
-        rows = np.concatenate([rows_by[f] for f, _ in batch])
-        b = det.box[rows]
-        which = np.concatenate([np.full(len(rows_by[f]), q) for q, (f, _) in enumerate(batch)])
-        boxes = torch.tensor(np.c_[which, b[:, 0] * sx, b[:, 1] * sy, b[:, 2] * sx, b[:, 3] * sy],
-                             dtype=torch.float32).cuda()
-        with torch.no_grad():
-            net(x.float().cuda() / 255)
-            fm = grab['fm'].float()
-            r = roi_align(fm, boxes, output_size=(4, 2), spatial_scale=fm.shape[-1] / 1280, aligned=True)
-            out[rows] = torch.nn.functional.normalize(r.flatten(1), dim=1).half().cpu().numpy()
-
     parts = []
     for a, b in _chunks(int(det.frame.min()), int(det.frame.max())):
-        path = _part(tag, 'feat', a, b)
-        parts.append(path)
         rows = np.flatnonzero((det.frame >= a) & (det.frame <= b))
-        if path.exists():
-            with np.load(path) as z:
-                if np.array_equal(z['rows'], rows):
-                    out[rows] = z['feat']
-                    continue
-        cap.set(cv2.CAP_PROP_POS_FRAMES, a)
-        if int(cap.get(cv2.CAP_PROP_POS_FRAMES)) != a:
-            raise SystemExit(f'seek did not land on {a}')
-        batch = []
-        for f in range(a, b + 1):
-            ok, img = cap.read()
-            if not ok:
-                raise SystemExit(f'video ended at {f}')
-            if f in rows_by and len(rows_by[f]):
-                batch.append((f, img))
-            if len(batch) == FEATURE_BATCH or (f == b and batch):
-                run(batch)
-                batch = []
-            if (f - a) % 1000 == 0:
-                print(f, '%.0fs' % (time.time() - t0), flush=True)
-        _save_atomic(path, rows=rows, feat=out[rows])
+        sub = Detections(frame=det.frame[rows], box=det.box[rows], conf=det.conf[rows], team=det.team[rows],
+                         desc=det.desc[rows])
+        parts.append(ex.feat_part(tag, a, b, rows, sub))
+        with np.load(parts[-1]) as p:
+            out[rows] = p['feat']
+        print(f'{a}..{b}', '%.0fs' % (time.time() - t0), flush=True)
     path = _paths(tag)['feat']
     _save_atomic(path, feat=out, layer=FEATURE_LAYER)
     for p in parts:
