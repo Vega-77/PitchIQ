@@ -64,52 +64,96 @@ def _paths(tag: str) -> dict[str, Path]:
 # ---- extract ----------------------------------------------------------------------
 
 
+CHUNK = int(os.environ.get('PLAB_CHUNK', 9000))   # 5 minutes: a crash loses at most one
+
+
+def _chunks(lo: int, hi: int) -> list[tuple[int, int]]:
+    """lo..hi (inclusive) cut on absolute multiples of CHUNK, so a rerun over a
+    longer or shorter window reuses the same finished pieces."""
+    out, a = [], lo
+    while a <= hi:
+        b = min(hi, (a // CHUNK + 1) * CHUNK - 1)
+        out.append((a, b))
+        a = b + 1
+    return out
+
+
+def _part(tag: str, kind: str, a: int, b: int) -> Path:
+    return PLAB / 'out' / 'parts' / f'{tag}_{kind}_{a}_{b}.npz'
+
+
+def _save_atomic(path: Path, **arrays) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + '.part.npz')
+    np.savez_compressed(tmp, **arrays)
+    os.replace(tmp, path)
+
+
 def extract(tag: str, lo: int, n: int, imgsz: int, conf: float) -> None:
+    """Detections and colours over lo..lo+n-1, in 5-minute pieces that a rerun skips."""
     import cv2
     from ultralytics import YOLO
 
     from cv.detector import CLASS_PERSON, DEFAULT_WEIGHTS
     from cv.teams import kit_sample
 
-    model = YOLO(str(DEFAULT_WEIGHTS))
+    model = None
     cap = cv2.VideoCapture(VIDEO)
-    cap.set(cv2.CAP_PROP_POS_FRAMES, lo)
-    landed = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
-    if landed != lo:
-        raise SystemExit(f'seek landed on {landed}, not {lo}')
     fps = cap.get(cv2.CAP_PROP_FPS)
-    rows = {'frame': [], 'box': [], 'conf': [], 'kit': [], 'desc': []}
+    w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     t0 = time.time()
-    batch, idx = [], []
-    for f in range(lo, lo + n):
-        ok, frame = cap.read()
-        if not ok:
-            break
-        batch.append(frame)
-        idx.append(f)
-        if len(batch) == 8 or f == lo + n - 1:
-            results = model.predict(batch, classes=[CLASS_PERSON], conf=conf, imgsz=imgsz, verbose=False)
-            for fi, img, res in zip(idx, batch, results):
-                b = res.boxes
-                grass = grass_hue(img)
-                for xyxy, c in zip(b.xyxy.cpu().numpy(), b.conf.cpu().numpy()):
-                    rows['frame'].append(fi)
-                    rows['box'].append(xyxy)
-                    rows['conf'].append(float(c))
-                    k = kit_sample(img, xyxy)
-                    rows['kit'].append(np.full(4, np.nan) if k is None else np.asarray(k, dtype=np.float64))
-                    rows['desc'].append(body_descriptor(img, xyxy, grass))
-            batch, idx = [], []
-        if (f - lo) % 100 == 0:
-            print(f, len(rows['frame']), '%.0fs' % (time.time() - t0), flush=True)
-    h, w = frame.shape[:2]
+    parts = []
+    for a, b in _chunks(lo, lo + n - 1):
+        path = _part(tag, 'dets', a, b)
+        parts.append(path)
+        if path.exists():
+            with np.load(path) as z:
+                if int(z['imgsz']) == imgsz and float(z['min_conf']) == conf and str(z['video']) == VIDEO:
+                    continue
+        if model is None:
+            model = YOLO(str(DEFAULT_WEIGHTS))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, a)
+        landed = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+        if landed != a:
+            raise SystemExit(f'seek landed on {landed}, not {a}')
+        rows = {'frame': [], 'box': [], 'conf': [], 'kit': [], 'desc': []}
+        batch, idx = [], []
+        for f in range(a, b + 1):
+            ok, frame = cap.read()
+            if not ok:
+                break
+            batch.append(frame)
+            idx.append(f)
+            if len(batch) == 8 or f == b:
+                results = model.predict(batch, classes=[CLASS_PERSON], conf=conf, imgsz=imgsz, verbose=False)
+                for fi, img, res in zip(idx, batch, results):
+                    bx = res.boxes
+                    grass = grass_hue(img)
+                    for xyxy, c in zip(bx.xyxy.cpu().numpy(), bx.conf.cpu().numpy()):
+                        rows['frame'].append(fi)
+                        rows['box'].append(xyxy)
+                        rows['conf'].append(float(c))
+                        k = kit_sample(img, xyxy)
+                        rows['kit'].append(np.full(4, np.nan) if k is None else np.asarray(k, dtype=np.float64))
+                        rows['desc'].append(body_descriptor(img, xyxy, grass))
+                batch, idx = [], []
+            if (f - lo) % 1000 == 0:
+                print(f, '%.0fs' % (time.time() - t0), flush=True)
+        _save_atomic(path, frame=np.array(rows['frame'], dtype=np.int64), box=np.array(rows['box']).reshape(-1, 4),
+                     conf=np.array(rows['conf']), kit=np.array(rows['kit']).reshape(-1, 4),
+                     desc=np.array(rows['desc']), imgsz=imgsz, min_conf=conf, video=VIDEO)
+    merged = {k: [] for k in ('frame', 'box', 'conf', 'kit', 'desc')}
+    for path in parts:
+        with np.load(path) as z:
+            for k in merged:
+                if len(z['frame']):
+                    merged[k].append(z[k])
     out = _paths(tag)['dets']
-    out.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(
-        out, frame=np.array(rows['frame']), box=np.array(rows['box']), conf=np.array(rows['conf']),
-        kit=np.array(rows['kit']), desc=np.array(rows['desc']),
-        fps=fps, w=w, h=h, lo=lo, n=n, imgsz=imgsz, min_conf=conf)
-    print('wrote', out, len(rows['frame']), 'detections', '%.0fs' % (time.time() - t0))
+    _save_atomic(out, **{k: np.concatenate(v) for k, v in merged.items()},
+                 fps=fps, w=w, h=h, lo=lo, n=n, imgsz=imgsz, min_conf=conf)
+    for path in parts:
+        os.remove(path)
+    print('wrote', out, sum(len(v) for v in merged['frame']), 'detections', '%.0fs' % (time.time() - t0))
 
 
 def redescribe(tag: str) -> None:
@@ -137,7 +181,8 @@ def redescribe(tag: str) -> None:
     print('rewrote', path, f'{int(changed.sum())} of {len(desc)} descriptors changed')
 
 
-FEATURE_LAYER = 6                       # YOLOv8n backbone, stride 16, 512 channels
+FEATURE_LAYER = 6                       # YOLOv8n backbone, stride 16, 128 channels
+FEATURE_BATCH = int(os.environ.get('PLAB_FEATURE_BATCH', 8))   # frames per forward pass
 
 
 def features(tag: str) -> None:
@@ -164,37 +209,54 @@ def features(tag: str) -> None:
         frame=z['frame'], box=z['box'], conf=z['conf'], team=np.full(len(z['frame']), -1), desc=z['desc']),
         int(z['h'])))
     rows_by = det.rows_by_frame()
-    out = None
+    out = np.zeros((len(det), 128 * 8), np.float16)    # layer 6 has 128 channels, pooled 4 x 2
     cap = cv2.VideoCapture(VIDEO)
-    lo, hi = int(det.frame.min()), int(det.frame.max())
-    cap.set(cv2.CAP_PROP_POS_FRAMES, lo)
-    if int(cap.get(cv2.CAP_PROP_POS_FRAMES)) != lo:
-        raise SystemExit(f'seek did not land on {lo}')
     t0 = time.time()
-    for f in range(lo, hi + 1):
-        ok, img = cap.read()
-        if not ok:
-            raise SystemExit(f'video ended at {f}')
-        rows = rows_by.get(f)
-        if rows is None or not len(rows):
-            continue
-        x = torch.from_numpy(cv2.resize(img, (1280, 736))[:, :, ::-1].copy()).permute(2, 0, 1)[None]
-        sx, sy = 1280 / img.shape[1], 736 / img.shape[0]
+
+    def run(batch):
+        x = torch.from_numpy(np.stack([cv2.resize(im, (1280, 736))[:, :, ::-1] for _, im in batch])).permute(0, 3, 1, 2)
+        sx, sy = 1280 / batch[0][1].shape[1], 736 / batch[0][1].shape[0]
+        rows = np.concatenate([rows_by[f] for f, _ in batch])
         b = det.box[rows]
-        boxes = torch.tensor(np.c_[np.zeros(len(b)), b[:, 0] * sx, b[:, 1] * sy, b[:, 2] * sx, b[:, 3] * sy],
+        which = np.concatenate([np.full(len(rows_by[f]), q) for q, (f, _) in enumerate(batch)])
+        boxes = torch.tensor(np.c_[which, b[:, 0] * sx, b[:, 1] * sy, b[:, 2] * sx, b[:, 3] * sy],
                              dtype=torch.float32).cuda()
         with torch.no_grad():
             net(x.float().cuda() / 255)
             fm = grab['fm'].float()
             r = roi_align(fm, boxes, output_size=(4, 2), spatial_scale=fm.shape[-1] / 1280, aligned=True)
-            r = torch.nn.functional.normalize(r.flatten(1), dim=1).half().cpu().numpy()
-        if out is None:
-            out = np.zeros((len(det), r.shape[1]), np.float16)
-        out[rows] = r
-        if (f - lo) % 1000 == 0:
-            print(f, '%.0fs' % (time.time() - t0), flush=True)
+            out[rows] = torch.nn.functional.normalize(r.flatten(1), dim=1).half().cpu().numpy()
+
+    parts = []
+    for a, b in _chunks(int(det.frame.min()), int(det.frame.max())):
+        path = _part(tag, 'feat', a, b)
+        parts.append(path)
+        rows = np.flatnonzero((det.frame >= a) & (det.frame <= b))
+        if path.exists():
+            with np.load(path) as z:
+                if np.array_equal(z['rows'], rows):
+                    out[rows] = z['feat']
+                    continue
+        cap.set(cv2.CAP_PROP_POS_FRAMES, a)
+        if int(cap.get(cv2.CAP_PROP_POS_FRAMES)) != a:
+            raise SystemExit(f'seek did not land on {a}')
+        batch = []
+        for f in range(a, b + 1):
+            ok, img = cap.read()
+            if not ok:
+                raise SystemExit(f'video ended at {f}')
+            if f in rows_by and len(rows_by[f]):
+                batch.append((f, img))
+            if len(batch) == FEATURE_BATCH or (f == b and batch):
+                run(batch)
+                batch = []
+            if (f - a) % 1000 == 0:
+                print(f, '%.0fs' % (time.time() - t0), flush=True)
+        _save_atomic(path, rows=rows, feat=out[rows])
     path = _paths(tag)['feat']
-    np.savez_compressed(path, feat=out, layer=FEATURE_LAYER)
+    _save_atomic(path, feat=out, layer=FEATURE_LAYER)
+    for p in parts:
+        os.remove(p)
     print('wrote', path, out.shape, '%.0fs' % (time.time() - t0))
 
 
