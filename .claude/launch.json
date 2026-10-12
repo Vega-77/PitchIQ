@@ -118,6 +118,18 @@
       ],
       "port": 8081,
       "url": "http://localhost:8081"
+    },
+    {
+      "name": "spotlab",
+      "runtimeExecutable": "PitchIQHelper/.venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8098",
+        "--directory",
+        "C:/Users/alexv/AppData/Local/Temp/claude/C--Users-alexv-Desktop-Repos-PitchIQ/6eed431d-6ac6-4b26-b8c4-41e81d79b451/scratchpad/spotsite"
+      ],
+      "port": 8098
     }
   ]
 }
