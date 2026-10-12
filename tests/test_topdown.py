@@ -182,3 +182,18 @@ def test_team_velocity_is_the_mean_of_seen_teammates():
     # the referee goes with everyone
     assert ('', TD.REFEREE) in v
 
+
+
+def test_a_slot_hands_over_without_drawing_two_guesses():
+    T = 200
+    old = TD.handover_share(0, 59, T, None, 120)       # seen 0-59, the slot's next segment starts at 120
+    new = TD.handover_share(120, 199, T, 59, None)
+    assert (old[:60] == 1).all() and (new[120:] == 1).all()
+    both = (old > 0.02) & (new > 0.02)
+    assert not both.any()                               # never two dots for one slot
+    assert old[60] > 0.9 and new[119] > 0.9             # each guess starts strong where it was last seen
+    assert (np.diff(old[59:]) <= 0).all() and (np.diff(new[:121]) >= 0).all()
+
+
+def test_a_slot_with_one_segment_guesses_to_both_edges():
+    assert (TD.handover_share(50, 80, 120, None, None) == 1).all()

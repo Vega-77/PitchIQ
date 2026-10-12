@@ -441,27 +441,17 @@ def build(res: LinkResult, projector: PitchProjector, lo: int, hi: int, length_m
     N = len(tracks)
     owner = np.full((N, T), -1)
     share = np.zeros((N, T))                    # how much of the slot's guess this track carries
-    t_all = np.arange(T)
     for n, (slot, g, run) in enumerate(segs):
         for j, v in enumerate(run):
             end = v.last
             if j + 1 < len(run) and run[j + 1].first - v.last <= s.blink_s * s.fps:
                 end = run[j + 1].first - 1          # a blink between two visits of one person
             owner[n, v.first - lo:end - lo + 1] = v.pid
-        a, b = run[0].first - lo, run[-1].last - lo
-        share[n, a:b + 1] = 1.0
         prev = [m for m in range(n) if segs[m][0] == slot]
         nxt = [m for m in range(n + 1, len(segs)) if segs[m][0] == slot]
-        if prev:
-            p_end = segs[prev[-1]][2][-1].last - lo
-            share[n, :a] = np.clip((t_all[:a] - p_end) / max(a - p_end, 1), 0, 1)
-        else:
-            share[n, :a] = 1.0
-        if nxt:
-            n_start = segs[nxt[0]][2][0].first - lo
-            share[n, b + 1:] = np.clip((n_start - t_all[b + 1:]) / max(n_start - b, 1), 0, 1)
-        else:
-            share[n, b + 1:] = 1.0
+        share[n] = handover_share(run[0].first - lo, run[-1].last - lo, T,
+                                  segs[prev[-1]][2][-1].last - lo if prev else None,
+                                  segs[nxt[0]][2][0].first - lo if nxt else None)
     for m, v in enumerate(extras):
         owner[len(segs) + m, v.first - lo:v.last - lo + 1] = v.pid
     group = [g for _, g, _ in segs] + [v.group or (ident[v.pid].team, ident[v.pid].role) for v in extras]
@@ -508,6 +498,31 @@ def _team_velocity(xs, mask, groups, s: MapSettings) -> dict:
             out[(key, PLAYER)] = s.team_drift * m
         else:
             out[('', REFEREE)] = s.team_drift * m
+    return out
+
+
+def handover_share(a: int, b: int, T: int, p_end: int | None, n_start: int | None) -> np.ndarray:
+    """How much of its slot's guess a segment seen from frame a to b carries,
+    when the slot's previous segment ended at p_end and its next starts at
+    n_start (None: there is none, so the guess holds to the window's edge).
+
+    The two segments are not one person's run (that would have made them one
+    segment), so neither guess glides into the other: the old one fades out
+    over the first half of the gap and the new one in over the second, and
+    the slot is never drawn twice."""
+    t = np.arange(T, dtype=float)
+    out = np.zeros(T)
+    out[a:b + 1] = 1.0
+    if p_end is None:
+        out[:a] = 1.0
+    else:
+        m = (p_end + a) / 2
+        out[:a] = np.clip((t[:a] - m) / max(a - m, 1), 0, 1)
+    if n_start is None:
+        out[b + 1:] = 1.0
+    else:
+        m = (b + n_start) / 2
+        out[b + 1:] = np.clip((m - t[b + 1:]) / max(m - b, 1), 0, 1)
     return out
 
 
