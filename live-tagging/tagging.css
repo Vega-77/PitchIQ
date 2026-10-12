@@ -524,8 +524,9 @@ html, body {
    forty throw-ins, twenty-odd fouls and as many free kicks, fifteen goal kicks,
    ten corners, a handful of offsides, two or three cards and goals. So the
    throw-in is the largest key on the screen; fouls, free kicks and goal kicks
-   share the next size; corners the one after; offside, card and the generic
-   out-of-bounds are the smallest.
+   share the next size; corners the one after; offside and card are the
+   smallest. There is no out-of-bounds key: the ball only ever comes back as
+   one of the three restarts, and each has its own.
 
    The goal is the one exception. It is as rare as a card, but a missed goal is
    a wrong score on every page the match touches, so it is sized with the
@@ -544,7 +545,7 @@ html, body {
         "throw throw throw  foul   foul foul"
         "throw throw throw  fk     fk   fk"
         "gk    gk    corner corner goal goal"
-        "gk    gk    off    off    card oob";
+        "gk    gk    off    off    card card";
     gap: 10px;
     padding: 12px 20px;
     min-height: 0;
@@ -582,7 +583,6 @@ html, body {
 .ev[data-event="goal"]          { grid-area: goal;   background: var(--text);         color: var(--ev-on); }
 .ev[data-event="offside"]       { grid-area: off;    background: var(--ev-offside);   color: var(--ev-on); }
 .ev[data-event="card"]          { grid-area: card;   background: var(--card-yellow);  color: var(--text); }
-.ev[data-event="out_of_bounds"] { grid-area: oob;    background: var(--ev-out);       color: var(--text); }
 
 /* The same colour wherever else the event shows: its row in the tally rail,
    the "just recorded" strip, and the top of the sheet that asks about it. */
@@ -611,7 +611,6 @@ html, body {
 #overlay-event[data-event="goal"] .sheet { border-top-color: var(--text); }
 #overlay-event[data-event="offside"] .sheet { border-top-color: var(--ev-offside); }
 #overlay-event[data-event="card"] .sheet { border-top-color: var(--card-yellow); }
-#overlay-event[data-event="out_of_bounds"] .sheet { border-top-color: var(--ev-out); }
 /* Pointer feedback needs a pointer, and this screen is the one place in the
    app where assuming otherwise does real damage.
 
@@ -642,8 +641,7 @@ html, body {
 /* The label grows and shrinks with the key, so size still reads as size. */
 .ev[data-event="throw_in"] .ev-label { font-size: 40px; }
 .ev[data-event="offside"] .ev-label,
-.ev[data-event="card"] .ev-label,
-.ev[data-event="out_of_bounds"] .ev-label { font-size: 18px; }
+.ev[data-event="card"] .ev-label { font-size: 20px; }
 
 /* The goal keeps the team in it: a band of the trim along its top, the one
    key that carries the kit. */
@@ -862,16 +860,15 @@ html, body {
             "throw throw foul   foul"
             "throw throw fk     fk"
             "gk    gk    corner goal"
-            "off   card  oob    goal";
+            "off   off   card   goal";
         padding: 10px 14px;
         gap: 8px;
     }
     .ev-label { font-size: 19px; }
     .ev[data-event="throw_in"] .ev-label { font-size: 28px; }
     .ev[data-event="corner"] .ev-label { font-size: 16px; }
-    .ev[data-event="offside"] .ev-label,
-    .ev[data-event="card"] .ev-label,
-    .ev[data-event="out_of_bounds"] .ev-label { font-size: 14px; letter-spacing: .02em; }
+    .ev[data-event="offside"] .ev-label { font-size: 16px; }
+    .ev[data-event="card"] .ev-label { font-size: 15px; letter-spacing: .02em; }
     .ev-goal .ev-label { font-size: 20px; }
     #clock { font-size: 32px; }
     .sub-columns { grid-template-columns: 1fr; }

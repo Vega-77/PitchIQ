@@ -268,6 +268,7 @@ class TestTheScanReportsSomething:
         # "Save colours" button. A hundred when the coach's colours moved into
         # a panel opened from the team header, with a button to open it and
         # one to cancel, and the front page got a way back to the dashboard
-        # for a coach who is signed in and looking at it. `live-tagging`
+        # for a coach who is signed in and looking at it. Ninety-nine when
+        # the tagging pad lost its out-of-bounds key (2026-10-12). `live-tagging`
         # wants no skip link: its <main> is the first thing in its <body>.
-        assert counted == {'text': 100, 'title': 3, 'label-wrap': 14}, counted
+        assert counted == {'text': 99, 'title': 3, 'label-wrap': 14}, counted

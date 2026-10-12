@@ -13,21 +13,21 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=124';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=125';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=124';
+} from '../assets/db.js?v=125';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=124';
-import { syncState, safeToClose } from '../assets/report.js?v=124';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=124';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=124';
+} from '../assets/events.js?v=125';
+import { syncState, safeToClose } from '../assets/report.js?v=125';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=125';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=125';
 import { byId, toast, clockText, timelineRow, tally, groupHead }
-    from '../assets/ui.js?v=124';
-import { openSheet, closeSheet, mountSheets } from './sheet.js?v=124';
+    from '../assets/ui.js?v=125';
+import { openSheet, closeSheet, mountSheets } from './sheet.js?v=125';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -192,8 +192,8 @@ function updateSyncIndicator() {
  *
  * Goals are not here — they are the score, in 40px digits at the top of the
  * same screen, and a second copy of a number that large would only ever be a
- * chance for the two to disagree. `out_of_bounds` is not here either: it is the
- * generic restart, and every specific one of them (corner, throw-in, goal kick)
+ * chance for the two to disagree. `out_of_bounds` is not here either: it has
+ * no button any more, and every specific restart (corner, throw-in, goal kick)
  * already has its own row.
  *
  * The second value is `better`, which decides which side — if either —

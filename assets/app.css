@@ -79,8 +79,9 @@
     /* The live-tagging keys, one colour per event, so a tagger finds a key by
        its colour without reading it. Hues as far apart as seven allow and the
        lightness spread too, so no two neighbours differ in hue alone. --ev-on
-       is the lettering on the six dark ones, each 5.18 or better; the pale
-       out-of-bounds key is lettered in --text. The goal is --text itself and
+       is the lettering on the six dark ones, each 5.18 or better. --ev-out
+       has no key: out of bounds lost its button, and this marks the tags
+       already recorded where the page names one. The goal is --text itself and
        the card is --card-yellow, so neither needs a token of its own. These
        do not follow the team: the kit is chosen per squad and could land on
        any of them. */
