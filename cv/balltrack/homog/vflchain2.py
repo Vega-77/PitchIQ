@@ -27,7 +27,7 @@ tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
 HERE = V.HERE
 SIG = V.SIG                    # tracker noise, px
 RISE_MIN = 3 * SIG             # px: visible height an arc must show
-GATE = dict(err=3.0, apex=0.08, roll_ratio=2.5, roll_min=4.0)
+GATE = dict(err=3.0, apex=0.08, roll_ratio=2.5, roll_min=4.0)   # apex in scrimmage CH (0.41 m), rescaled per camera
 BOUNCE_KEEP = (0.5, 1.1)       # outgoing / incoming horizontal speed at a bounce
 BOUNCE_TURN = np.radians(30)
 EXT = 1.5
@@ -48,7 +48,7 @@ def sb_per_ch(tr):
 
 def select_flights(S, C, onpitch):
     e = S[:, C['d_trim']]
-    ok = ((e <= GATE['err']) & (S[:, C['d_apex']] >= GATE['apex'])
+    ok = ((e <= GATE['err']) & (S[:, C['d_apex']] >= GATE['apex'] * V.R_CH0 / V.R_CH)
           & (S[:, C['r_trim']] >= np.maximum(GATE['roll_ratio'] * e, GATE['roll_min'])) & onpitch)
     idx = np.where(ok)[0]
     a = S[idx, C['a']]; b = S[idx, C['b']]

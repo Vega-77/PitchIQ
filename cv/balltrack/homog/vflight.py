@@ -24,8 +24,17 @@ from scipy.optimize import least_squares
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FPS = 30.0
-R_CH = 71.2 / 40.0                  # centre-circle radius in camera heights
+R_CH = 71.2 / 40.0                  # centre-circle radius in camera heights (the scrimmage camera)
 G = 9.81 * R_CH / 9.15              # gravity, camera heights / s^2
+R_CH0 = R_CH
+
+
+def set_camera(r_ch):
+    """Units for one camera: a camera calibrated in-match stands h centre-circle
+    radii up, so its circle is 1/h camera heights and gravity scales with it."""
+    global R_CH, G
+    R_CH = float(r_ch)
+    G = 9.81 * R_CH / 9.15
 SIG = 2.0                           # pixel noise of the tracker's ball
 
 
@@ -35,8 +44,11 @@ class Track:
         im = np.load(os.path.join(HERE, '%s_img.npz' % tag))
         own = os.path.join(HERE, '%s_venue.npz' % tag)
         if os.path.exists(own):                      # a camera calibrated in-match (cv/autocal.py)
-            self.A = np.load(own)['A']               # CH ground -> SB
+            v = np.load(own)
+            self.A = v['A']                          # CH ground -> SB
+            set_camera(1.0 / float(v['C'][2]) if 'C' in v.files else R_CH0)
         else:
+            set_camera(R_CH0)
             t = np.load(os.path.join(HERE, 'vtop.npz'))
             p = np.load(os.path.join(HERE, 'vpitch.npz'))
             self.A = p['P'].dot(t['T'])              # CH ground -> SB
