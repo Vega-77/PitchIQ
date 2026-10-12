@@ -128,7 +128,6 @@ def footprint(H):
     return [sb(0, 1079), sb(1919, 1079), sb(1919, top(1919)), sb(0, top(0))]
 
 
-CH_M = 9.15 / V.R_CH                          # metres in one camera height
 
 
 def pitch_map(tag, res, Hs, a0, lo, hi, settings=None):
@@ -141,6 +140,7 @@ def pitch_map(tag, res, Hs, a0, lo, hi, settings=None):
     D = np.diag([pitch.length_m / 120, pitch.width_m / 80, 1.0])
     proj = PitchProjector({f: D @ Hs[f - a0] for f in range(lo, hi)}, 1920, 1080)
     Ai = np.linalg.inv(V.Track(tag).A)
+    ch_m = 9.15 / V.R_CH                    # metres in one camera height (Track set this camera's)
 
     def person_px(fs, boxes):
         """Pixel height of a 1.75 m person standing at each box's feet (the camera's 3D model)."""
@@ -148,7 +148,7 @@ def pitch_map(tag, res, Hs, a0, lo, hi, settings=None):
         for n, (f, b) in enumerate(zip(fs, boxes)):
             M = Ai @ Hs[f - a0]
             g = M @ [(b[0] + b[2]) / 2, b[3], 1.0]
-            q = np.linalg.inv(M) @ [g[0] / g[2], g[1] / g[2], 1 - 1.75 / CH_M]
+            q = np.linalg.inv(M) @ [g[0] / g[2], g[1] / g[2], 1 - 1.75 / ch_m]
             out[n] = abs(b[3] - q[1] / q[2])
         return out
     td = topdown.build(res, proj, lo, hi, pitch.length_m, pitch.width_m, settings, person_px=person_px)
