@@ -751,7 +751,9 @@ class TestTheScannerCanSeeTheRepo:
         # declared inside a min-width query, the other written from
         # JavaScript, and neither is a colour. Paper differs from the screen in five: it turns
         # every tinted ground white and darkens the two hairline colours.
-        assert len(screen) == 38, sorted(screen)
+        # Forty-six on 2026-10-12: a colour for each live-tagging key that
+        # has none of its own (seven) and the white they are lettered in.
+        assert len(screen) == 46, sorted(screen)
         assert screen['--surface'] == '#ffffff'
         assert paper['--surface'] == '#ffffff'
         assert sum(1 for k in screen if screen[k] != paper.get(k)) == 5

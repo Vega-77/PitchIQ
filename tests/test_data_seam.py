@@ -61,16 +61,23 @@ has to guess what the hole contains. `data-cluster` and `data-same` are read
 here and nowhere else, so without this site two live attributes are reported
 dead.
 
-Two sites were measured and are not here
-----------------------------------------
+Stylesheets are a site
+----------------------
+
+They were measured once at zero attribute selectors and left out, with a test
+standing guard for the day one appeared. It appeared on 2026-10-12: the live
+tagging keys are coloured by `[data-event="..."]`, along with the tally row,
+the "just recorded" strip and the event sheet that carry the same colour. So
+the stylesheets are read like any other site. `data-event` is read by script
+as well, which is why switching this site off moves no verdict today; it is
+here so that the next attribute only a stylesheet reads is not called dead.
+
+One site was measured and is not here
+-------------------------------------
 
 Not overlooked -- measured, found to scan nothing at all, and left out, since
 a site with no input is machinery rather than safety:
 
-  * Stylesheets. Eight of them, roughly six thousand lines, and **zero**
-    attribute selectors. `test_no_stylesheet_reads_a_data_attribute` below
-    holds that measurement, so the day one appears the gate says to put the
-    site back rather than quietly calling a live attribute dead.
   * Comment stripping. The only mentions of a data attribute inside a comment
     are in `assets/rail.js`, in backticks, which no site here matches.
 
@@ -123,7 +130,7 @@ JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime']
 # step with the scan itself by `test_every_site_it_names_is_a_site_it_reads` --
 # a site added to `scan` and forgotten here is a site nobody ever switches off,
 # and a name left here after its site is gone is a `drop` that drops nothing.
-SITES = ('markup', 'template', 'assign', 'read', 'selector', 'harness')
+SITES = ('markup', 'template', 'assign', 'read', 'selector', 'harness', 'css')
 
 # `data-` is not anchored on a word boundary by itself: `metadata-bearing` in a
 # comment in `tests/flow.test.js` is one lookbehind away from entering the
@@ -221,6 +228,11 @@ def scan(drop=()):
         for rel in harness_files():
             reads_of(rel, read(rel), 'harness')
 
+    if on('css'):
+        for rel in CSS:
+            for m in SELECTOR.finditer(read(rel)):
+                note(got, m.group(1), '%s (css)' % rel)
+
     return written, got
 
 
@@ -301,8 +313,10 @@ class TestSites(unittest.TestCase):
             self.assertNotEqual(scan(drop=(site,)), (WRITTEN, GOT), site)
 
     def test_markup_site_is_load_bearing(self):
+        # `event` left this list on 2026-10-12: tagging.js now writes it too,
+        # onto the tally rows and the strips that wear an event's colour.
         dead, ghost = self.deltas('markup')
-        self.assertEqual(ghost, ['event', 'tab', 'tag'], ghost)
+        self.assertEqual(ghost, ['tab', 'tag'], ghost)
         self.assertEqual(dead, [])
 
     def test_template_site_is_load_bearing(self):
@@ -349,17 +363,15 @@ class TestSites(unittest.TestCase):
         for name in found:
             self.assertIn(name, WRITTEN, name)
 
-    def test_no_stylesheet_reads_a_data_attribute(self):
-        """The measurement that justifies leaving the CSS site out. When this
-        fails it is not a defect in the sheet -- it means the site has input
-        now and belongs in `scan()`, before the next attribute is called dead
-        on a scanner that cannot see it."""
-        for rel in CSS:
-            hits = sorted({m.group(1) for m in SELECTOR.finditer(read(rel))})
-            self.assertEqual(hits, [], (
-                '%s selects on %s. Add a `css` site to scan() -- otherwise '
-                'an attribute read only by the stylesheet reads as dead.'
-                % (rel, ', '.join(hits))))
+    def test_the_css_site_reads_what_the_stylesheets_select_on(self):
+        """Inert by verdict today -- script reads `data-event` as well -- so
+        it is pinned by what it finds instead, like the harness site. Only
+        the tagging sheet selects on an attribute, and only on that one."""
+        hits = {rel: sorted({m.group(1) for m in SELECTOR.finditer(read(rel))})
+                for rel in CSS}
+        self.assertEqual({r: h for r, h in hits.items() if h},
+                         {'live-tagging/tagging.css': ['event']})
+        self.assertEqual(self.deltas('css'), ([], []))
 
 
 # -------------------------------------------------------- the vocabulary
