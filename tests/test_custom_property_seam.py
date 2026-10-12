@@ -196,7 +196,8 @@ class TestTheSeamHoldsInBothDirections:
         # scanner reached the theme block rather than some subset of it.
         # Fifty-one since the School Colours redesign (2026-10-07): the kit
         # and the tokens that came with it, and the ten written from script.
-        assert len(declared()) == 51, sorted(declared())
+        # Fifty-nine with the eight live-tagging key colours (2026-10-12).
+        assert len(declared()) == 59, sorted(declared())
 
     def test_the_tokens_declared_outside_css(self):
         # `--w` is a bar's width. The other nine are motion and the colour
@@ -241,11 +242,11 @@ class TestEachScanSiteIsLoadBearing:
 
     def test_css_decl_is_where_the_theme_lives(self):
         assert ghost(off={'css-decl'}) - ghost() == set(declared()) - JS_WRITTEN
-        assert len(ghost(off={'css-decl'})) == 41
+        assert len(ghost(off={'css-decl'})) == 49
 
     def test_css_use_is_where_the_reading_happens(self):
         # Everything but --line, which coach.js also reads.
-        assert len(dead(off={'css-use'})) == 50
+        assert len(dead(off={'css-use'})) == 58
         assert '--line' not in dead(off={'css-use'})
 
     def test_js_setprop_is_the_only_writer_outside_css(self):
@@ -347,7 +348,7 @@ class TestTheScannerCanSeeTheRepo:
     def test_the_stylesheets_are_actually_full_of_var(self):
         u = used()
         assert sum(len(w) for w in u.values()) > 600
-        assert len(u) == 51, sorted(u)
+        assert len(u) == 59, sorted(u)
 
     def test_the_busiest_tokens_are_still_the_busiest(self):
         # Ordering, not exact counts: the counts move whenever a rule is added

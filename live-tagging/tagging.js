@@ -13,21 +13,21 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=123';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=124';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=123';
+} from '../assets/db.js?v=124';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=123';
-import { syncState, safeToClose } from '../assets/report.js?v=123';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=123';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=123';
+} from '../assets/events.js?v=124';
+import { syncState, safeToClose } from '../assets/report.js?v=124';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=124';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=124';
 import { byId, toast, clockText, timelineRow, tally, groupHead }
-    from '../assets/ui.js?v=123';
-import { openSheet, closeSheet, mountSheets } from './sheet.js?v=123';
+    from '../assets/ui.js?v=124';
+import { openSheet, closeSheet, mountSheets } from './sheet.js?v=124';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -241,6 +241,7 @@ function buildTallyRail() {
         list.append(groupHead(group.title));
         for (const [type, better] of group.rows) {
             const row = tally(EVENTS[type].label, 0, 0, better);
+            row.dataset.event = type;
             list.append(row);
             tallyRows.set(type, row);
             tallyShown[type] = '0:0';
@@ -285,6 +286,7 @@ function renderTally(entries) {
         tallyShown[type] = seen;
 
         const row = tally(EVENTS[type].label, counts[type].us, counts[type].them, better);
+        row.dataset.event = type;
         tallyRows.get(type).replaceWith(row);
         tallyRows.set(type, row);
     }
@@ -355,10 +357,13 @@ function renderScore() {
     byId('score-them').textContent = state.score.them;
 }
 
-function setLast(text, fresh = true) {
+/** `type` is the event just tagged, if it was one: the strip wears its colour. */
+function setLast(text, fresh = true, type = null) {
     const el = byId('last-event');
     el.textContent = text;
     el.classList.toggle('fresh', fresh);
+    if (type) el.dataset.event = type;
+    else delete el.dataset.event;
 }
 
 // ---------------------------------------------------------------- setup
@@ -678,7 +683,9 @@ async function resumeMatch() {
 
     updatePeriodButton();
     renderScore();
-    setLast(log.length ? describeEvent(log[log.length - 1], labels()) : 'nothing yet', false);
+    const lastEntry = log[log.length - 1];
+    setLast(lastEntry ? describeEvent(lastEntry, labels()) : 'nothing yet', false,
+        lastEntry?.kind === 'event' ? lastEntry.type : null);
 
     if (status === 'scheduled') {
         showView('kickoff');
@@ -770,6 +777,7 @@ function openEventSheet(type, button) {
 
     byId('sheet-title').textContent = spec.label;
     byId('sheet-question').textContent = spec.sideMeans;
+    byId('overlay-event').dataset.event = type;
 
     for (const id of ['step-card', 'step-player', 'step-assist']) {
         byId(id).classList.add('hidden');
@@ -933,7 +941,7 @@ function commitDraft() {
     const player = state.roster.find((r) => r.id === draft.playerId);
     setLast(describeEvent(
         { kind: 'event', ...draft }, { ...labels(), playerName: player?.playerName }
-    ));
+    ), true, draft.type);
 }
 
 /** Take one entry back out of the undo stack, wherever it has ended up. */

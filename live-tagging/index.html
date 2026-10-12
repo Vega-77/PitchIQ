@@ -7,9 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Saira+Condensed:wght@600;700;800&family=Saira:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=123">
-    <script src="../assets/kit-boot.js?v=123"></script>
-    <link rel="stylesheet" href="tagging.css?v=123">
+    <link rel="stylesheet" href="../assets/app.css?v=124">
+    <script src="../assets/kit-boot.js?v=124"></script>
+    <link rel="stylesheet" href="tagging.css?v=124">
 </head>
 <body>
 
@@ -153,19 +153,21 @@
              touchline, "how many fouls have they given away", could not be
              answered by the tool that recorded every one of them. -->
         <div class="live-body">
+            <!-- Most used first, which is also the order they read on screen:
+                 tagging.css sizes each key by how often a match needs it. -->
             <div class="event-grid">
+                <button class="ev" data-event="throw_in"><span class="ev-label">Throw-in</span></button>
+                <button class="ev" data-event="foul"><span class="ev-label">Foul</span></button>
+                <button class="ev" data-event="free_kick"><span class="ev-label">Free kick</span></button>
+                <button class="ev" data-event="goal_kick"><span class="ev-label">Goal kick</span></button>
+                <button class="ev" data-event="corner"><span class="ev-label">Corner</span></button>
                 <button class="ev ev-goal" data-event="goal">
                     <span class="ev-label">GOAL</span>
                 </button>
-                <button class="ev ev-card" data-event="card">
+                <button class="ev" data-event="offside"><span class="ev-label">Offside</span></button>
+                <button class="ev" data-event="card">
                     <span class="ev-label">Card</span>
                 </button>
-                <button class="ev" data-event="foul"><span class="ev-label">Foul</span></button>
-                <button class="ev" data-event="corner"><span class="ev-label">Corner</span></button>
-                <button class="ev" data-event="throw_in"><span class="ev-label">Throw-in</span></button>
-                <button class="ev" data-event="offside"><span class="ev-label">Offside</span></button>
-                <button class="ev" data-event="free_kick"><span class="ev-label">Free kick</span></button>
-                <button class="ev" data-event="goal_kick"><span class="ev-label">Goal kick</span></button>
                 <button class="ev" data-event="out_of_bounds"><span class="ev-label">Out of bounds</span></button>
             </div>
 
@@ -327,6 +329,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="tagging.js?v=123"></script>
+<script type="module" src="tagging.js?v=124"></script>
 </body>
 </html>

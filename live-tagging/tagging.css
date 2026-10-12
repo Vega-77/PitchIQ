@@ -9,8 +9,13 @@
  * It is the one page that does not wear the team's colours all over. In
  * sunlight a tinted ground is a grey ground, so this is white paper with
  * near-black ink and borders thick enough to find without looking. The kit
- * is the trim: a band along the top of the screen, the goal key, the kick-off
- * button and the flash that says a tap landed.
+ * is the trim: a band along the top of the screen, the kick-off button and
+ * the flash that says a tap landed.
+ *
+ * The event keys are the exception, and on purpose. Each one is its own solid
+ * colour, so a tagger looking back from the pitch finds "throw-in" as the big
+ * blue key rather than by reading nine labels. Solid fills, not tints: a
+ * saturated block survives glare where a pale wash does not.
  */
 
 html, body {
@@ -395,8 +400,6 @@ html, body {
 .sync-chip.is-stale i { background: var(--text-faint); }
 .sync-chip.is-stale b { color: var(--text-faint); }
 
-/* Event grid fills the space; goal spans two columns because it is the one
-   tap that must never be fumbled. */
 /* The buttons and the count of what they produced, in one row.
 
    `min-height: 0` on the row and `min-width: 0` on the grid are both load
@@ -495,6 +498,17 @@ html, body {
 .tally-rail .t-label { font-size: 0.62rem; letter-spacing: 0.7px; }
 .tally-rail .group-head { margin-bottom: 0; }
 .tally-rail .group-head h4 { font-size: 0.66rem; letter-spacing: 1.2px; }
+/* Each row keyed to its button by the button's colour. */
+.tally-rail .tally[data-event] .t-label::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 5px;
+    vertical-align: 0;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px rgba(20, 24, 32, .35);
+}
 
 .tally-note {
     flex-shrink: 0;
@@ -506,12 +520,31 @@ html, body {
     color: var(--text-faint);
 }
 
+/* Sized by how often a match needs each key. A high-school game runs to about
+   forty throw-ins, twenty-odd fouls and as many free kicks, fifteen goal kicks,
+   ten corners, a handful of offsides, two or three cards and goals. So the
+   throw-in is the largest key on the screen; fouls, free kicks and goal kicks
+   share the next size; corners the one after; offside, card and the generic
+   out-of-bounds are the smallest.
+
+   The goal is the one exception. It is as rare as a card, but a missed goal is
+   a wrong score on every page the match touches, so it is sized with the
+   corner rather than with the keys it is as rare as.
+
+   Areas, not spans, so the layout is the table below and nothing else: the
+   tablet reads it across six columns, a phone across four. The row heights
+   carry the rest of the proportion, the bottom row shortest. */
 .event-grid {
     flex: 1;
     min-width: 0;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-auto-rows: 1fr;
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-rows: 1.2fr 1.2fr 1fr .8fr;
+    grid-template-areas:
+        "throw throw throw  foul   foul foul"
+        "throw throw throw  fk     fk   fk"
+        "gk    gk    corner corner goal goal"
+        "gk    gk    off    off    card oob";
     gap: 10px;
     padding: 12px 20px;
     min-height: 0;
@@ -523,6 +556,9 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
+    min-width: 0;
+    min-height: 0;
+    padding: 4px 6px;
     font-family: var(--display);
     background: var(--surface);
     border: 2px solid var(--text);
@@ -530,8 +566,52 @@ html, body {
     border-radius: var(--radius);
     color: var(--text);
     cursor: pointer;
-    transition: background .1s ease, transform .07s ease, border-color .1s ease;
+    transition: filter .1s ease, transform .07s ease;
 }
+
+/* Each key: where it sits, and its colour from the theme (app.css says why
+   these colours). The goal is black, the one fill no team colour or event hue
+   can sit next to and resemble, because it is the key that must never be
+   mistaken for another. The card is card yellow. Written out per key, fill
+   and lettering together, so the contrast gate reads each pair as a pair. */
+.ev[data-event="throw_in"]      { grid-area: throw;  background: var(--ev-throw);     color: var(--ev-on); }
+.ev[data-event="foul"]          { grid-area: foul;   background: var(--ev-foul);      color: var(--ev-on); }
+.ev[data-event="free_kick"]     { grid-area: fk;     background: var(--ev-free);      color: var(--ev-on); }
+.ev[data-event="goal_kick"]     { grid-area: gk;     background: var(--ev-goal-kick); color: var(--ev-on); }
+.ev[data-event="corner"]        { grid-area: corner; background: var(--ev-corner);    color: var(--ev-on); }
+.ev[data-event="goal"]          { grid-area: goal;   background: var(--text);         color: var(--ev-on); }
+.ev[data-event="offside"]       { grid-area: off;    background: var(--ev-offside);   color: var(--ev-on); }
+.ev[data-event="card"]          { grid-area: card;   background: var(--card-yellow);  color: var(--text); }
+.ev[data-event="out_of_bounds"] { grid-area: oob;    background: var(--ev-out);       color: var(--text); }
+
+/* The same colour wherever else the event shows: its row in the tally rail,
+   the "just recorded" strip, and the top of the sheet that asks about it. */
+.tally[data-event="throw_in"] .t-label::before,
+.last-text[data-event="throw_in"]::before { background: var(--ev-throw); }
+.tally[data-event="foul"] .t-label::before,
+.last-text[data-event="foul"]::before { background: var(--ev-foul); }
+.tally[data-event="free_kick"] .t-label::before,
+.last-text[data-event="free_kick"]::before { background: var(--ev-free); }
+.tally[data-event="goal_kick"] .t-label::before,
+.last-text[data-event="goal_kick"]::before { background: var(--ev-goal-kick); }
+.tally[data-event="corner"] .t-label::before,
+.last-text[data-event="corner"]::before { background: var(--ev-corner); }
+.last-text[data-event="goal"]::before { background: var(--text); }
+.tally[data-event="offside"] .t-label::before,
+.last-text[data-event="offside"]::before { background: var(--ev-offside); }
+.tally[data-event="card"] .t-label::before,
+.last-text[data-event="card"]::before { background: var(--card-yellow); }
+.last-text[data-event="out_of_bounds"]::before { background: var(--ev-out); }
+
+#overlay-event[data-event="throw_in"] .sheet { border-top-color: var(--ev-throw); }
+#overlay-event[data-event="foul"] .sheet { border-top-color: var(--ev-foul); }
+#overlay-event[data-event="free_kick"] .sheet { border-top-color: var(--ev-free); }
+#overlay-event[data-event="goal_kick"] .sheet { border-top-color: var(--ev-goal-kick); }
+#overlay-event[data-event="corner"] .sheet { border-top-color: var(--ev-corner); }
+#overlay-event[data-event="goal"] .sheet { border-top-color: var(--text); }
+#overlay-event[data-event="offside"] .sheet { border-top-color: var(--ev-offside); }
+#overlay-event[data-event="card"] .sheet { border-top-color: var(--card-yellow); }
+#overlay-event[data-event="out_of_bounds"] .sheet { border-top-color: var(--ev-out); }
 /* Pointer feedback needs a pointer, and this screen is the one place in the
    app where assuming otherwise does real damage.
 
@@ -547,31 +627,28 @@ html, body {
    which is exactly what a press is, and it is the only confirmation a touch
    screen gets before `.flash` fires. */
 @media (hover: hover) {
-    .ev:hover { background: var(--surface-hi); }
+    .ev:hover { filter: brightness(.9); }
 }
 .ev:active { transform: translateY(3px); border-bottom-width: 3px; }
 .ev-label {
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 800;
     letter-spacing: .04em;
     text-transform: uppercase;
     text-align: center;
-    line-height: 1.15;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
 }
+/* The label grows and shrinks with the key, so size still reads as size. */
+.ev[data-event="throw_in"] .ev-label { font-size: 40px; }
+.ev[data-event="offside"] .ev-label,
+.ev[data-event="card"] .ev-label,
+.ev[data-event="out_of_bounds"] .ev-label { font-size: 18px; }
 
-/* Goal is the shirt: the biggest, darkest key, two columns wide. */
-.ev-goal {
-    grid-column: span 2;
-    background: var(--kit);
-    border-color: var(--text);
-}
-@media (hover: hover) {
-    .ev-goal:hover { background: var(--kit-hi); }
-}
-.ev-goal .ev-label { font-size: 38px; letter-spacing: .08em; color: var(--kit-on); }
-
-/* The card key carries a card: a thick edge of card yellow down its left. */
-.ev-card { border-left: 16px solid var(--card-yellow); }
+/* The goal keeps the team in it: a band of the trim along its top, the one
+   key that carries the kit. */
+.ev-goal { box-shadow: inset 0 7px 0 var(--kit-2); }
+.ev-goal .ev-label { font-size: 32px; letter-spacing: .08em; }
 
 /* The tap landed: the key flashes the trim colour. */
 .ev.flash { background: var(--kit-2); border-color: var(--text); }
@@ -604,6 +681,18 @@ html, body {
     white-space: nowrap;
 }
 .last-text.fresh { color: var(--accent); font-weight: 600; }
+/* The colour of the key that was pressed, so the strip is checked at a glance
+   rather than read: blue square, it was a throw-in. */
+.last-text[data-event]::before {
+    content: "";
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    margin-right: 8px;
+    vertical-align: -1px;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1.5px var(--text);
+}
 
 .live-footer { display: flex; gap: 10px; padding: 10px 20px 16px; flex-shrink: 0; }
 .live-footer .btn { flex: 1; min-height: 54px; border-width: 2px; border-color: var(--text); }
@@ -638,6 +727,7 @@ html, body {
    the dialog and its heading instead of leaving the caret on the page
    behind. Nobody put it there with Tab, so it gets no ring. */
 .sheet:focus { outline: none; }
+
 
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .sheet-head h2 { margin: 0; font-size: 20px; }
@@ -764,11 +854,25 @@ html, body {
     .tally-rail .tally { flex: 0 0 118px; }
 }
 
+/* The same ranking on four columns. */
 @media (max-width: 620px) {
-    .event-grid { grid-template-columns: repeat(2, 1fr); padding: 10px 14px; gap: 8px; }
-    .ev-goal { grid-column: span 2; }
-    .ev-label { font-size: 18px; }
-    .ev-goal .ev-label { font-size: 30px; }
+    .event-grid {
+        grid-template-columns: repeat(4, 1fr);
+        grid-template-areas:
+            "throw throw foul   foul"
+            "throw throw fk     fk"
+            "gk    gk    corner goal"
+            "off   card  oob    goal";
+        padding: 10px 14px;
+        gap: 8px;
+    }
+    .ev-label { font-size: 19px; }
+    .ev[data-event="throw_in"] .ev-label { font-size: 28px; }
+    .ev[data-event="corner"] .ev-label { font-size: 16px; }
+    .ev[data-event="offside"] .ev-label,
+    .ev[data-event="card"] .ev-label,
+    .ev[data-event="out_of_bounds"] .ev-label { font-size: 14px; letter-spacing: .02em; }
+    .ev-goal .ev-label { font-size: 20px; }
     #clock { font-size: 32px; }
     .sub-columns { grid-template-columns: 1fr; }
     .live-footer { padding: 8px 14px 12px; }

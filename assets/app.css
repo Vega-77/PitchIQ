@@ -76,6 +76,23 @@
     --card-yellow: #fbbf24;
     --card-red: #dc2626;
 
+    /* The live-tagging keys, one colour per event, so a tagger finds a key by
+       its colour without reading it. Hues as far apart as seven allow and the
+       lightness spread too, so no two neighbours differ in hue alone. --ev-on
+       is the lettering on the six dark ones, each 5.18 or better; the pale
+       out-of-bounds key is lettered in --text. The goal is --text itself and
+       the card is --card-yellow, so neither needs a token of its own. These
+       do not follow the team: the kit is chosen per squad and could land on
+       any of them. */
+    --ev-throw: #1f5bd6;
+    --ev-foul: #c2410c;
+    --ev-free: #9b2c74;
+    --ev-goal-kick: #1f7a3a;
+    --ev-corner: #0b7285;
+    --ev-offside: #4b5563;
+    --ev-out: #dfe3e8;
+    --ev-on: #ffffff;
+
     --radius: 8px;
     --radius-lg: 12px;
     --shell: 1120px;
