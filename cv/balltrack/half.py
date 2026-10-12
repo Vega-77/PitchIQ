@@ -333,6 +333,16 @@ class Half:
             assert np.array_equal(two['abs'], np.arange(self.lo, self.hi + 1)), 'stitched 2D has gaps'
             np.savez(os.path.join(AT, 'p2d', ver, '%s.npz' % self.tag), **two)
             np.savez(os.path.join(HOM if ver == 'cls_B' else H3D, '%s_ball3dd.npz' % self.tag), **three)
+        # the smoothed camera (H per frame) that match_video, spotlab and panned draw with
+        sm = {}
+        for p, a, b in zip(self.pieces, cuts[:-1], cuts[1:]):
+            with np.load(os.path.join(H3D, '%s_smooth2.npz' % p['ptag'])) as s:
+                m = (s['abs'] >= a) & (s['abs'] < b)
+                for k in s.files:
+                    sm.setdefault(k, []).append(s[k][m])
+        sm = {k: np.concatenate(v) for k, v in sm.items()}
+        assert np.array_equal(sm['abs'], np.arange(self.lo, self.hi + 1)), 'stitched smooth2 has gaps'
+        np.savez(os.path.join(H3D, '%s_smooth2.npz' % self.tag), **sm)
         for kind in ('reg', 'venue'):
             src = os.path.join(HOM, '%s_%s.npz' % (self.tag, kind))
             if os.path.exists(src):
@@ -387,8 +397,10 @@ def main():
     ap.add_argument('hi', type=int)
     ap.add_argument('--workers', type=int, default=12)
     ap.add_argument('--overlap', type=int, default=300)
+    ap.add_argument('--stitch-only', action='store_true', help='re-stitch finished pieces, run nothing')
     a = ap.parse_args()
-    Half(a.tag, a.lo, a.hi, a.workers, a.overlap).main()
+    h = Half(a.tag, a.lo, a.hi, a.workers, a.overlap)
+    h.stitch() if a.stitch_only else h.main()
 
 
 if __name__ == '__main__':

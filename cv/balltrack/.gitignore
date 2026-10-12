@@ -32,3 +32,6 @@ homog/*_ball3d*.csv
 
 # half.py: per-piece stage markers, logs and seams
 half/
+# half.py: drun's per-chunk manifests and each piece's slice of the registration
+*_k[0-9][0-9][0-9].json
+homog/*_q[0-9][0-9][0-9]_reg.npz
