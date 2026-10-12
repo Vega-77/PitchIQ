@@ -23,6 +23,12 @@ Calibration
     half it swings 0.32-0.77 with where the camera points. Kept for looking
     at, never as a flag.
 
+Tried and dropped
+  * Kit mix inside one identity (the linker fixes an identity's team, so a
+    "team flip" shows as its detections voting both kits). On the fm01/fr00
+    labels it flags clean identities as often as merged ones (fm01, mix > 0.2:
+    1 of 10 merges, 9 of 30 clean), so it is not a check.
+
 Map physics (on a `topdown.TopDown`, positions in metres)
   * `speeds`: steps faster than a person runs, and one-frame jumps.
   * `crowding`: frames with more than eleven of a team on the pitch.
