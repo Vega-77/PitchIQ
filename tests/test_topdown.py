@@ -197,3 +197,35 @@ def test_a_slot_hands_over_without_drawing_two_guesses():
 
 def test_a_slot_with_one_segment_guesses_to_both_edges():
     assert (TD.handover_share(50, 80, 120, None, None) == 1).all()
+
+
+def _dots_for_cap(n_boxed, n_held, ghost_alphas, frame=5):
+    boxed = SimpleNamespace(frames=np.array([frame]))
+    held = SimpleNamespace(frames=np.array([frame - 3]))       # its box blinked out
+    g = ('team_a', PLAYER)
+    return ([TD.Dot(1.0 * k, 0, True, 1.0, g, boxed, k) for k in range(n_boxed)]
+            + [TD.Dot(50.0 + k, 0, True, 1.0, g, held, -1) for k in range(n_held)]
+            + [TD.Dot(80.0, 0, False, a, g, None, 20 + k) for k, a in enumerate(ghost_alphas)])
+
+
+def test_the_map_never_draws_more_than_ten_of_a_team():
+    res = SimpleNamespace(team_at=lambda ident, f: 'team_a')
+    out = TD.cap_teams(_dots_for_cap(9, 2, [0.3, 0.8]), res, 5, 10)
+    drawn = [d for d in out if d.drawn_team == 'team_a']
+    assert len(drawn) == 10
+    # the faintest guesses go first, then a held dot is greyed; boxes stay
+    assert [d.alpha for d in out if not d.seen] == []
+    assert sum(d.team == 'unknown' for d in out) == 1
+    assert all(d.drawn_team == 'team_a' for d in out if d.seen and d.ident.frames[0] == 5)
+
+
+def test_the_cap_leaves_a_legal_team_alone():
+    res = SimpleNamespace(team_at=lambda ident, f: 'team_a')
+    out = TD.cap_teams(_dots_for_cap(8, 1, [0.5]), res, 5, 10)
+    assert len(out) == 10 and all(d.drawn_team == 'team_a' for d in out)
+
+
+def test_a_box_the_linker_greyed_stays_grey():
+    res = SimpleNamespace(team_at=lambda ident, f: 'unknown')
+    out = TD.cap_teams(_dots_for_cap(3, 0, []), res, 5, 10)
+    assert all(d.drawn_team == 'unknown' for d in out)

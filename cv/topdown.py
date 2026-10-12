@@ -92,6 +92,11 @@ class Dot:
     group: tuple                                # (team, role): which colour
     ident: object = None                        # the Identity while seen
     slot: int = -1                              # -1 for an identity outside the slots
+    team: str | None = None                     # the team it is drawn as ('unknown': greyed by the cap)
+
+    @property
+    def drawn_team(self) -> str:
+        return self.team if self.team is not None else self.group[0]
 
 
 @dataclass
@@ -464,6 +469,8 @@ def build(res: LinkResult, projector: PitchProjector, lo: int, hi: int, length_m
                 dots[t].append(Dot(xs[n, t, 0], xs[n, t, 1], True, 1.0, group[n], ident[owner[n, t]], slot_of[n]))
             elif alpha[n, t] > 0.02:
                 dots[t].append(Dot(xs[n, t, 0], xs[n, t, 1], False, float(alpha[n, t]), group[n], None, slot_of[n]))
+    for t in range(T):
+        dots[t] = cap_teams(dots[t], res, lo + t, s.outfield)
     return TopDown(lo, hi, dots, slots=[(g, [(v.pid, v.k) for v in r]) for g, r in slots],
                    extras=[(v.pid, v.k) for v in extras], path=xs[..., :2], owner=owner, alpha=alpha,
                    slot_of=np.array(slot_of), group=group)
@@ -498,6 +505,36 @@ def _team_velocity(xs, mask, groups, s: MapSettings) -> dict:
             out[(key, PLAYER)] = s.team_drift * m
         else:
             out[('', REFEREE)] = s.team_drift * m
+    return out
+
+
+def cap_teams(dots: list, res, frame: int, outfield: int) -> list:
+    """Never draw more than `outfield` of a team's outfield players in one frame.
+
+    The linker caps the boxes of a frame (`LinkResult.team_at`), but the map
+    also draws guesses for the unseen and holds a player whose box blinked out
+    for up to `blink_s`, and those can take a team past the cap. Over it, the
+    faintest guesses go first, then the held dots are greyed (no box this
+    frame: the least evidence), and only then the boxes the linker kept. A
+    greyed dot is drawn without a team rather than with a wrong one."""
+    def boxed(d):
+        fs = d.ident.frames
+        k = np.searchsorted(fs, frame)
+        return k < len(fs) and fs[k] == frame
+    for d in dots:
+        if d.seen and d.ident is not None and d.group[1] == PLAYER:
+            d.team = res.team_at(d.ident, frame) if boxed(d) else d.group[0]
+    out = list(dots)
+    for team in ('team_a', 'team_b'):
+        mine = [d for d in out if d.group[1] == PLAYER and d.drawn_team == team]
+        extra = len(mine) - outfield
+        if extra <= 0:
+            continue
+        ghosts = sorted((d for d in mine if not d.seen), key=lambda d: d.alpha)[:extra]
+        out = [d for d in out if all(d is not g for g in ghosts)]
+        extra -= len(ghosts)
+        for d in [d for d in mine if d.seen and not boxed(d)][:max(extra, 0)]:
+            d.team = 'unknown'
     return out
 
 

@@ -242,7 +242,7 @@ def main():
                 blend_dot(im, mm(d.x * kx, d.y * ky), 5, group_colour(d.group, col), d.alpha, ring=True)
         for d in dots:
             if d.seen:
-                c = colour(d.ident, col, res.team_at(d.ident, f))
+                c = colour(d.ident, col, d.drawn_team)
                 p = mm(d.x * kx, d.y * ky)
                 cv2.circle(im, p, 7, BLACK, -1, cv2.LINE_AA); cv2.circle(im, p, 5, c, -1, cv2.LINE_AA)
                 text(im, res.label(d.ident), (p[0] + 7, p[1] - 5), 0.36, WHITE)

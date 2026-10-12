@@ -180,6 +180,8 @@ def _on_pitch(xy: np.ndarray, length: float, width: float, out: float = OUT_M) -
 def crowding(td, length: float, width: float, roles=('player', 'keeper'), min_alpha: float = 0.02) -> dict:
     """Frames where a team has more than eleven drawn on the pitch, and the most at once.
     min_alpha: the faintest guess counted (inf: seen boxes only)."""
+    if td.dots:                                 # what the map draws, after its own team cap
+        return _crowding_dots(td, length, width, roles, min_alpha)
     k = _known(td, min_alpha) & _on_pitch(td.path, length, width)
     most = {}
     teams = sorted({g[0] for g in td.group if g and g[1] in roles and g[0] is not None})
@@ -192,6 +194,17 @@ def crowding(td, length: float, width: float, roles=('player', 'keeper'), min_al
         worst = np.maximum(worst, c)
     over = int((worst > 11).sum())
     return dict(frames=T, over11=over, most=most)
+
+
+def _crowding_dots(td, length, width, roles, min_alpha) -> dict:
+    count: dict = {}
+    for t, dots in enumerate(td.dots):
+        for d in dots:
+            if (d.group[1] in roles and (d.seen or d.alpha > min_alpha)
+                    and _on_pitch(np.array([d.x, d.y]), length, width) and d.drawn_team in ('team_a', 'team_b')):
+                count.setdefault(d.drawn_team, np.zeros(len(td.dots), int))[t] += 1
+    worst = np.max(list(count.values()), axis=0) if count else np.zeros(len(td.dots), int)
+    return dict(frames=len(td.dots), over11=int((worst > 11).sum()), most={k: int(v.max()) for k, v in count.items()})
 
 
 def still_outside(td, length: float, width: float, fps: float = 30.0, min_s: float = 2.0,
