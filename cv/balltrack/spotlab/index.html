@@ -1,0 +1,413 @@
+<title>Spot Check Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Same family as Fix Lab. One question at a time: the 2-second clip large, the whole frame beside it, answers under it, keys 1-4. */
+:root{
+  --ground:#131920; --panel:#1b232d; --panel2:#222c38; --line:#2c3845;
+  --ink:#e8edf3; --dim:#8695a6; --faint:#5d6b7a;
+  --signal:#f59e2c; --mark:#ffe600; --ok:#49c58c; --warn:#e0645f; --stage:#000000;
+  --disp:'Chivo',system-ui,sans-serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --r:6px; color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+  --signal:#c7730f; --mark:#b39b00; --ok:#23915f; --warn:#d23447; --stage:#0e141b; color-scheme:light;
+}}
+:root[data-theme="light"]{
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+  --signal:#c7730f; --mark:#b39b00; --ok:#23915f; --warn:#d23447; --stage:#0e141b; color-scheme:light;
+}
+:root[data-theme="dark"]{ color-scheme:dark; }
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0; background:var(--ground); color:var(--ink); font-family:var(--body);
+  font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased; overflow-x:hidden}
+button,select{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--signal); outline-offset:2px}
+kbd{font-family:var(--mono); font-size:11px; background:var(--panel2); border:1px solid var(--line);
+  border-bottom-width:2px; border-radius:4px; padding:1px 6px; white-space:nowrap; color:var(--ink)}
+
+.head{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--panel);
+  border-bottom:1px solid var(--line); padding:10px 16px}
+.headRow{display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap; max-width:1240px; margin:0 auto}
+h1{font-family:var(--disp); font-weight:900; font-size:15px; letter-spacing:.06em; text-transform:uppercase; margin:0}
+h1 span{color:var(--mark)}
+select.sel{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:5px 8px; font-size:12.5px; max-width:100%; min-width:0}
+.prog{margin-left:auto; font-size:12px; color:var(--dim); display:flex; gap:14px; flex-wrap:wrap}
+.prog b{font-family:var(--mono); font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums}
+.save{font-family:var(--mono); font-size:11px; color:var(--faint)}
+.save.busy{color:var(--signal)} .save.bad{color:var(--warn)}
+.bar{height:3px; background:var(--line); max-width:1240px; margin:8px auto 0; border-radius:2px; overflow:hidden}
+.bar i{display:block; height:100%; width:0; background:var(--ok); transition:width .2s}
+
+.wrap{max-width:1240px; margin:0 auto; padding:14px 16px 40px; display:flex; flex-direction:column; gap:12px}
+.banner{background:color-mix(in srgb, var(--warn) 14%, transparent); border:1px solid color-mix(in srgb, var(--warn) 55%, transparent);
+  border-radius:var(--r); padding:9px 11px; font-size:12.5px}
+.banner.note{background:color-mix(in srgb, var(--signal) 12%, transparent); border-color:color-mix(in srgb, var(--signal) 45%, transparent)}
+
+.grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,340px); gap:12px; align-items:start}
+@media (max-width:820px){.grid{grid-template-columns:minmax(0,1fr)}}
+.stage{position:relative; background:var(--stage); border-radius:var(--r); overflow:hidden; border:1px solid var(--line)}
+.stage video{display:block; width:100%; height:auto; aspect-ratio:16/9; background:var(--stage)}
+.load{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#c9d2dc;
+  font-family:var(--mono); font-size:12px; pointer-events:none}
+.clipbar{position:relative; height:6px; background:var(--line); border-radius:3px; margin-top:6px; overflow:hidden}
+.clipbar i{position:absolute; left:0; top:0; bottom:0; width:0; background:var(--dim)}
+.clipbar b{position:absolute; left:50%; top:0; bottom:0; width:2px; margin-left:-1px; background:var(--mark)}
+.under{display:flex; align-items:center; gap:10px; margin-top:6px; font-size:12px; color:var(--dim); flex-wrap:wrap}
+.under .sp{margin-left:auto; display:flex; gap:6px}
+
+.side{display:flex; flex-direction:column; gap:10px; min-width:0}
+.ctx{width:100%; max-width:100%; aspect-ratio:16/9; border-radius:var(--r); border:1px solid var(--line);
+  background-color:var(--stage); background-repeat:no-repeat; background-size:500% 500%}
+.cap{font-size:11.5px; color:var(--faint); margin:-4px 0 0}
+
+.card{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:14px; display:flex; flex-direction:column; gap:10px}
+.eyebrow{font-family:var(--disp); font-weight:700; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--signal)}
+.q{font-family:var(--disp); font-weight:700; font-size:19px; line-height:1.25; margin:0; text-wrap:balance}
+.hint{font-size:12.5px; color:var(--dim); margin:0; max-width:70ch}
+.opts{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px}
+.opt{display:flex; align-items:center; gap:10px; text-align:left; background:var(--panel2); border:1px solid var(--line);
+  border-radius:var(--r); padding:10px 12px; font-weight:500; min-width:0}
+.opt:hover:not(:disabled){border-color:var(--faint)}
+.opt:disabled{opacity:.4; cursor:not-allowed}
+.opt.cant{color:var(--dim)}
+.opt.flash{border-color:var(--ok); background:color-mix(in srgb, var(--ok) 18%, var(--panel2))}
+.opt.prev{border-color:var(--signal)}
+.sw{width:22px; height:22px; border-radius:4px; border:1px solid var(--line); flex:none}
+.row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.btn{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:6px 10px;
+  font-family:var(--disp); font-weight:700; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase}
+.btn:hover:not(:disabled){border-color:var(--faint)}
+.btn:disabled{opacity:.38; cursor:not-allowed}
+.btn.on{border-color:var(--signal); color:var(--signal)}
+.btn.go{background:var(--ok); border-color:var(--ok); color:var(--ground)}
+.keys{font-size:12px; color:var(--faint); display:flex; gap:12px; flex-wrap:wrap}
+
+.done{text-align:left}
+.tally{display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px}
+.tally div{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:8px 10px; font-size:12px; color:var(--dim)}
+.tally b{display:block; font-family:var(--mono); font-size:16px; color:var(--ink); font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+
+<header class="head">
+  <div class="headRow">
+    <h1>Spot <span>Check</span></h1>
+    <select class="sel" id="setSel" aria-label="Question set"></select>
+    <div class="prog">
+      <span>this sitting <b id="pSit">0</b> / <b id="pSitN">200</b></span>
+      <span>set <b id="pSet">0</b> / <b id="pSetN">0</b></span>
+      <span class="save" id="save">ready</span>
+    </div>
+  </div>
+  <div class="bar"><i id="barI"></i></div>
+</header>
+
+<main class="wrap">
+  <div class="banner" id="banner" hidden></div>
+
+  <section id="qView" hidden>
+    <div class="grid">
+      <div>
+        <div class="stage">
+          <video id="vid" muted playsinline preload="auto"></video>
+          <div class="load" id="load">loading clip…</div>
+        </div>
+        <div class="clipbar" aria-hidden="true"><i id="clipI"></i><b></b></div>
+        <div class="under">
+          <span>2-second clip, looping. The yellow tick marks the moment asked about.</span>
+          <span class="sp">
+            <button class="btn" id="bPause" type="button"><span id="bPauseT">Pause</span> <kbd>Space</kbd></button>
+            <button class="btn" id="bSlow" type="button">Slow <kbd>S</kbd></button>
+          </span>
+        </div>
+      </div>
+      <div class="side">
+        <div class="ctx" id="ctx" role="img" aria-label="The whole camera frame, with the zoomed area marked in yellow"></div>
+        <p class="cap">Whole frame. The yellow rectangle is the zoomed area.</p>
+        <div class="card">
+          <div class="eyebrow" id="qType"></div>
+          <p class="q" id="qText"></p>
+          <p class="hint" id="qHint"></p>
+          <div class="opts" id="opts"></div>
+          <div class="row">
+            <button class="btn" id="bBack" type="button">Back <kbd>Z</kbd></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card done" id="doneView" hidden>
+    <div class="eyebrow" id="doneEyebrow">Sitting done</div>
+    <p class="q" id="doneText"></p>
+    <div class="tally" id="tally"></div>
+    <div class="row"><button class="btn go" id="bMore" type="button">Start another sitting</button></div>
+  </section>
+
+  <section class="card" id="emptyView">
+    <div class="eyebrow">Loading</div>
+    <p class="q">Fetching the question sets…</p>
+    <p class="hint">Each question shows one thing the tracker drew: a box, a ring, the pitch lines or the ball ring. Answer with keys 1 to 4. Every answer saves as you go, so you can stop at any time.</p>
+  </section>
+
+  <div class="keys">
+    <span><kbd>1</kbd>–<kbd>4</kbd> answer</span>
+    <span><kbd>Z</kbd> back one</span>
+    <span><kbd>Space</kbd> pause</span>
+    <span><kbd>S</kbd> slow motion</span>
+  </div>
+</main>
+
+<script>
+const SITTING = 200, CHUNK = 100, CLIP_S = 2, KEEP_PACKS = 10;
+const CANT = ['cant', "Can't tell"];
+const YN = [['yes', 'Yes'], ['no', 'No']];
+const TYPES = {
+  role: {label: 'Who is it', q: 'The person in the yellow box is…',
+    hint: 'Goalkeepers are players. Referees include the assistants on the touchlines. Someone else: coaches, subs, ball kids, fans.',
+    opts: () => [['player', 'A player'], ['referee', 'A referee'], ['other', 'Someone else']]},
+  team: {label: 'Which team', q: 'Which kit is the person in the yellow box wearing?',
+    hint: 'A goalkeeper counts for the team whose goal they guard. Pick "not a player" for referees and anyone off the pitch.',
+    opts: q => [['A', kitName(q, 'team_a'), kitRgb(q, 'team_a')], ['B', kitName(q, 'team_b'), kitRgb(q, 'team_b')], ['none', 'Not a player']]},
+  same: {label: 'Same person', q: 'Does the yellow ring stay on the same person for the whole clip?',
+    hint: 'A ring that drops out for a moment is fine. A ring that jumps to someone else is a no.', opts: () => YN},
+  lines: {label: 'Pitch lines', q: 'Do the pink lines sit on the painted lines?',
+    hint: 'Judge only the painted lines you can see. Within about a stride (1 m) counts as on the line.', opts: () => YN},
+  missing: {label: 'Missing ring', q: 'Is anyone on the pitch here without a white ring?',
+    hint: 'Players and referees on the pitch should have a ring at their feet. Coaches, subs on the bench and fans should not.', opts: () => YN},
+  ballring: {label: 'Ball ring', q: 'Does the ring stay on the ball?',
+    hint: 'Green means the ball is on the ground; orange means in the air. A ring that drops out for a moment is fine. A ring on a shoe, a head or empty grass is a no.', opts: () => YN},
+  ballmiss: {label: 'Ball without ring', q: 'Is the ball in play and visible at some point with no ring on it?',
+    hint: 'Answer no if the ball is out of play, hidden, outside this view, or ringed whenever you can see it.', opts: () => YN},
+};
+const kitName = (q, t) => 'Kit ' + (t === 'team_a' ? 'A' : 'B') + (q.kits && q.kits[t] ? ' \u00b7 ' + q.kits[t].name : '');
+const kitRgb = (q, t) => (q.kits && q.kits[t] && q.kits[t].rgb) || null;
+const clone = o => JSON.parse(JSON.stringify(o));
+const $ = id => document.getElementById(id);
+
+const S = {db: null, local: false, sets: [], set: null, qs: [], index: {}, chunks: {}, ans: {},
+  cur: -1, history: [], sitN: 0, t0: 0, slow: false, paused: false, writes: {}};
+
+/* ---------- storage -------------------------------------------------------------------------- */
+function deepFreeze(o){ if (o && typeof o === 'object'){ Object.values(o).forEach(deepFreeze); Object.freeze(o); } return o; }
+function mockDb(){   // local preview only: behaves like the real store, snapshots frozen
+  const store = new Map();
+  const snap = (k, v) => ({id: k.split('/').pop(), exists: true, data: () => deepFreeze(clone(v)), metadata: {fromCache: false, hasPendingWrites: false}});
+  return {collection(p){ return {
+    doc: id => ({id, path: p + '/' + id, set: async d => { await new Promise(r => setTimeout(r, 30)); store.set(p + '/' + id, clone(d)); },
+                 get: async () => store.has(p + '/' + id) ? snap(p + '/' + id, store.get(p + '/' + id)) : {id, exists: false, data: () => undefined}}),
+    get: async () => { const docs = [...store].filter(([k]) => k.startsWith(p + '/') && !k.slice(p.length + 1).includes('/')).map(([k, v]) => snap(k, v));
+                       return {docs, size: docs.length, empty: !docs.length}; },
+  }; }};
+}
+function answersCol(){ return S.db.collection('sets/' + S.set.name + '/answers'); }
+const chunkId = k => 'c' + String(k).padStart(3, '0');
+
+function setSave(state, text){ const el = $('save'); el.className = 'save ' + state; el.textContent = text; }
+function saveChunk(k){
+  const w = S.writes[k] || (S.writes[k] = {busy: false, dirty: false});
+  if (w.busy){ w.dirty = true; return; }
+  w.busy = true; setSave('busy', 'saving…');
+  (async () => {
+    do {
+      w.dirty = false;
+      const body = clone(S.chunks[k]);
+      let tries = 0;
+      for (;;){
+        try { await answersCol().doc(chunkId(k)).set(body); setSave('', S.local ? 'saved in this tab' : 'saved'); break; }
+        catch (e){
+          if (e && e.code === 'unavailable' && tries++ < 1){ await new Promise(r => setTimeout(r, 800 + Math.random() * 1200)); continue; }
+          setSave('bad', 'not saved');
+          banner(e && e.code === 'quota_exceeded' ? 'The answer store is full. Stop here and tell Claude.' :
+                 'An answer did not save (' + ((e && e.code) || 'error') + '). It will retry with your next answer.');
+          w.dirty = true; w.busy = false; return;
+        }
+      }
+    } while (w.dirty);
+    w.busy = false;
+  })();
+}
+function banner(text, note){ const b = $('banner'); b.textContent = text; b.className = 'banner' + (note ? ' note' : ''); b.hidden = !text; }
+
+/* ---------- media ---------------------------------------------------------------------------- */
+const packs = new Map();   // url -> Promise<objectURL>
+function base(){ return 'sets/' + S.set.name + '/'; }
+function pack(path){
+  const u = base() + path;
+  if (!packs.has(u)){
+    packs.set(u, fetch(u).then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); }).then(b => URL.createObjectURL(b)));
+    packs.get(u).catch(() => packs.delete(u));
+  }
+  return packs.get(u);
+}
+function prune(keep){
+  for (const [u, p] of packs){
+    if (packs.size <= KEEP_PACKS) break;
+    if (!keep.has(u)){ packs.delete(u); p.then(x => { if ($('vid').src !== x) URL.revokeObjectURL(x); }).catch(() => {}); }
+  }
+}
+function upcoming(n){
+  const out = []; for (let i = S.cur; i < S.qs.length && out.length < n; i++) if (i >= 0 && !(S.qs[i].id in S.ans)) out.push(i);
+  return out;
+}
+function prefetch(){
+  const ids = upcoming(8), keep = new Set(ids.map(i => base() + S.qs[i].pack));
+  ids.forEach(i => { pack(S.qs[i].pack); const im = new Image(); im.src = base() + S.qs[i].atlas; });
+  prune(keep);
+}
+
+const V = {start: 0, token: 0};
+function loopTick(){
+  const v = $('vid'), t = v.currentTime, s = V.start;
+  $('clipI').style.width = Math.max(0, Math.min(100, (t - s) / CLIP_S * 100)) + '%';
+  if (t >= s + CLIP_S - 0.5 / 8 || t < s - 0.01){ v.currentTime = s + 0.01; }
+}
+function frameLoop(){
+  const v = $('vid'), my = V.token;
+  const step = () => { if (my !== V.token) return; loopTick(); if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); };
+  if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step);
+  const iv = setInterval(() => { if (my !== V.token){ clearInterval(iv); return; } loopTick(); }, 25);
+}
+async function showClip(q){
+  const v = $('vid'), my = ++V.token;
+  $('load').hidden = false; $('load').textContent = 'loading clip…';
+  let url;
+  try { url = await pack(q.pack); } catch (e){ if (my === V.token) $('load').textContent = 'clip failed to load; press Z then answer again, or reload'; return; }
+  if (my !== V.token) return;
+  V.start = q.slot * CLIP_S;
+  if (v.src !== url){ v.src = url; await new Promise(r => { v.onloadedmetadata = r; }); if (my !== V.token) return; }
+  v.playbackRate = S.slow ? 0.35 : 1;
+  v.currentTime = V.start + (S.paused ? CLIP_S / 2 : 0) + 0.01;
+  if (!S.paused) v.play().catch(() => { if (my === V.token){ S.paused = true; pauseLabel(); v.currentTime = V.start + CLIP_S / 2 + 0.01; } });   // autoplay refused: Space or a click starts it
+  $('load').hidden = true;
+  frameLoop();
+}
+
+/* ---------- questions ------------------------------------------------------------------------ */
+function nextUnanswered(from){ for (let i = Math.max(0, from); i < S.qs.length; i++) if (!(S.qs[i].id in S.ans)) return i; return -1; }
+function answeredCount(){ return Object.keys(S.ans).length; }
+function progress(){
+  $('pSit').textContent = S.sitN; $('pSitN').textContent = SITTING;
+  $('pSet').textContent = answeredCount(); $('pSetN').textContent = S.qs.length;
+  $('barI').style.width = (S.qs.length ? answeredCount() / S.qs.length * 100 : 0) + '%';
+}
+function show(i){
+  S.cur = i; progress();
+  if (i < 0 || S.sitN >= SITTING){ return finish(); }
+  const q = S.qs[i], T = TYPES[q.type];
+  $('qView').hidden = false; $('doneView').hidden = true; $('emptyView').hidden = true;
+  $('qType').textContent = T.label + (q.type === 'team' ? '' : '');
+  $('qText').textContent = T.q; $('qHint').textContent = T.hint;
+  const r = Math.floor(q.cell / 5), c = q.cell % 5;
+  const ctx = $('ctx'); ctx.style.backgroundImage = 'url("' + base() + q.atlas + '")'; ctx.style.backgroundPosition = (c * 25) + '% ' + (r * 25) + '%';
+  const opts = [...T.opts(q), CANT], box = $('opts'); box.replaceChildren();
+  const prev = S.ans[q.id] && S.ans[q.id].v;
+  opts.forEach(([v, label, rgb], k) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'opt' + (v === 'cant' ? ' cant' : '') + (v === prev ? ' prev' : '');
+    b.dataset.v = v; const kb = document.createElement('kbd'); kb.textContent = String(k + 1); b.append(kb);
+    if (rgb){ const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = rgb; b.append(sw); }
+    const t = document.createElement('span'); t.textContent = label; b.append(t);
+    b.disabled = !S.db; b.onclick = () => answer(v, b); box.append(b);
+  });
+  $('bBack').disabled = !S.history.length;
+  S.t0 = performance.now();
+  showClip(q); prefetch();
+}
+function answer(v, btn){
+  if (!S.db || S.cur < 0) return;
+  const q = S.qs[S.cur], k = Math.floor(S.cur / CHUNK);
+  const was = q.id in S.ans;
+  const rec = {v, ms: Math.round(performance.now() - S.t0), at: new Date().toISOString()};
+  S.ans[q.id] = rec;
+  S.chunks[k] = S.chunks[k] || {a: {}};
+  S.chunks[k].a[q.id] = rec;
+  saveChunk(k);
+  if (!was) S.sitN++;
+  S.history.push(S.cur);
+  if (btn) btn.classList.add('flash');
+  setTimeout(() => show(nextUnanswered(0)), btn ? 90 : 0);
+}
+function back(){
+  if (!S.history.length) return;
+  const i = S.history.pop();
+  show(i);
+}
+function finish(){
+  V.token++; $('vid').pause();
+  $('qView').hidden = true; $('emptyView').hidden = true; $('doneView').hidden = false;
+  const left = S.qs.length - answeredCount();
+  $('doneEyebrow').textContent = left ? 'Sitting done' : 'Set finished';
+  $('doneText').textContent = left ? S.sitN + ' answers saved. ' + left + ' questions left in this set.' :
+    'Every question in this set has an answer. Pick another set above, or tell Claude it is done.';
+  $('bMore').hidden = !left;
+  const tally = $('tally'); tally.replaceChildren();
+  for (const t of Object.keys(TYPES)){
+    const all = S.qs.filter(q => q.type === t); if (!all.length) continue;
+    const got = all.filter(q => q.id in S.ans), cant = got.filter(q => S.ans[q.id].v === 'cant').length;
+    const d = document.createElement('div'); const b = document.createElement('b');
+    b.textContent = got.length + ' / ' + all.length; d.append(b, TYPES[t].label + (got.length ? " \u00b7 can't tell " + Math.round(cant / got.length * 100) + '%' : ''));
+    tally.append(d);
+  }
+}
+
+/* ---------- loading -------------------------------------------------------------------------- */
+async function openSet(name){
+  const set = S.sets.find(s => s.name === name); if (!set) return;
+  S.set = set; S.ans = {}; S.chunks = {}; S.history = []; S.sitN = 0; S.writes = {};
+  try { localStorage.setItem('spotcheck.set', name); } catch (e) {}
+  $('emptyView').hidden = false; $('qView').hidden = true; $('doneView').hidden = true;
+  const r = await fetch(base() + 'questions.json'); const j = await r.json();
+  S.qs = j.questions;
+  if (S.db){
+    try {
+      const snap = await answersCol().get();
+      for (const d of snap.docs){
+        const k = parseInt(d.id.slice(1), 10), body = clone(d.data() || {});   // snapshots are frozen: keep an editable copy
+        if (!Number.isFinite(k)) continue;
+        S.chunks[k] = {a: body.a || {}};
+        Object.assign(S.ans, S.chunks[k].a);
+      }
+    } catch (e){ banner('Could not read earlier answers (' + ((e && e.code) || 'error') + '). Reload before answering, or earlier answers may be overwritten.'); S.db = null; }
+  }
+  show(nextUnanswered(0));
+}
+async function boot(){
+  if (!window.claude){ S.db = mockDb(); S.local = true; banner('Local preview: answers stay in this tab only.', true); }
+  else {
+    try { S.db = await window.claude.use('db'); } catch (e){ S.db = null; }
+    if (!S.db) banner('Answers cannot be saved in this view. Open the lab signed in to claude.ai to answer.');
+  }
+  try { S.sets = (await (await fetch('sets.json')).json()).sets; }
+  catch (e){ banner('The question sets did not load. Reload the page.'); return; }
+  const sel = $('setSel'); sel.replaceChildren();
+  S.sets.forEach(s => { const o = document.createElement('option'); o.value = s.name; o.textContent = s.title; sel.append(o); });
+  let pick = S.sets[0].name;
+  try { const m = localStorage.getItem('spotcheck.set'); if (m && S.sets.some(s => s.name === m)) pick = m; } catch (e) {}
+  sel.value = pick; sel.onchange = () => openSet(sel.value);
+  await openSet(pick);
+}
+
+$('bBack').onclick = back;
+$('vid').onclick = () => $('bPause').click();
+$('bMore').onclick = () => { S.sitN = 0; show(nextUnanswered(0)); };
+$('bSlow').onclick = () => { S.slow = !S.slow; $('bSlow').classList.toggle('on', S.slow); $('vid').playbackRate = S.slow ? 0.35 : 1; };
+function pauseLabel(){ $('bPause').classList.toggle('on', S.paused); $('bPauseT').textContent = S.paused ? 'Play' : 'Pause'; }
+$('bPause').onclick = () => { S.paused = !S.paused; pauseLabel(); S.paused ? $('vid').pause() : $('vid').play().catch(() => {}); };
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target.tagName === 'SELECT') return;
+  if (!$('qView').hidden && /^[1-9]$/.test(e.key)){
+    const b = $('opts').children[+e.key - 1]; if (b && !b.disabled){ e.preventDefault(); answer(b.dataset.v, b); }
+  } else if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace'){ e.preventDefault(); back(); }
+  else if (e.key === ' '){ e.preventDefault(); $('bPause').click(); }
+  else if (e.key === 's' || e.key === 'S'){ $('bSlow').click(); }
+});
+boot();
+</script>
