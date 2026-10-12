@@ -101,8 +101,9 @@ The vocabulary, and its four copies
 -----------------------------------
 
 `data-event` is the one attribute whose value is not free text. It is a member
-of a fixed set, and that set is written out four times: nine buttons in
-`live-tagging/index.html`, the `EVENTS` map in `assets/events.js`, the
+of a fixed set, and that set is written out four times: eight buttons in
+`live-tagging/index.html` (out of bounds lost its button on 2026-10-12 and
+kept everything else), the `EVENTS` map in `assets/events.js`, the
 `request.resource.data.type` allowlist in `firestore.rules`, and -- for the
 period markers only -- a second copy in `assets/report.js`, which has no
 imports by design so that `tests/video.test.js` can cover it.
@@ -416,6 +417,7 @@ EVENTS = object_keys(EVENTS_JS, 'export const EVENTS = {')
 PERIODS = object_keys(EVENTS_JS, 'export const PERIOD_LABELS = {')
 CARDS = object_keys(EVENTS_JS, 'export const CARD_COLOURS = {')
 BUTTONS = re.findall(r'data-event="([a-z_]+)"', read('live-tagging/index.html'))
+RETIRED = {'out_of_bounds'}
 
 
 class TestVocabulary(unittest.TestCase):
@@ -429,7 +431,10 @@ class TestVocabulary(unittest.TestCase):
             'label, no side wording and no player prompt.' % unknown))
 
     def test_every_event_the_app_knows_has_a_button(self):
-        unreachable = sorted(set(EVENTS) - set(BUTTONS))
+        # Bar one, by name. Out of bounds is never tagged now -- the restart
+        # that follows says where the ball went -- but the tags already in
+        # the log still have to read, and cv/ still reads them.
+        unreachable = sorted(set(EVENTS) - set(BUTTONS) - RETIRED)
         self.assertEqual(unreachable, [], (
             'EVENTS describes %s and no button in live-tagging/index.html '
             'carries it, so nobody can tag one.' % unreachable))
@@ -496,7 +501,8 @@ class TestVocabulary(unittest.TestCase):
     def test_the_vocabulary_scan_found_something(self):
         """The anti-vacuum guard: every comparison above is trivially true
         between two empty sets."""
-        self.assertEqual(len(BUTTONS), 9, BUTTONS)
+        self.assertEqual(len(BUTTONS), 8, BUTTONS)
+        self.assertTrue(RETIRED <= set(EVENTS) and not RETIRED & set(BUTTONS))
         self.assertEqual(len(EVENTS), 9, EVENTS)
         self.assertEqual(len(PERIODS), 4, PERIODS)
         self.assertEqual(len(CARDS), 3, CARDS)
