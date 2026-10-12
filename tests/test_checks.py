@@ -75,3 +75,50 @@ def test_still_outside_finds_a_sub_on_the_bench_not_a_winger_on_the_line():
     out_running = walk(40, -5, 4.0, T)                    # outside but moving: chasing a ball out
     r = C.still_outside(td([bench, winger, out_running], [(0, 'player')] * 3), L, W, FPS)
     assert r['tracks'] == [0]
+
+
+def _sb_per_px(mpp=0.05):
+    """A straight-down camera: mpp metres per pixel on a 105 x 68 m pitch, as px -> StatsBomb."""
+    return np.diag([mpp * 120 / L, mpp * 80 / W, 1.0])
+
+
+def test_paint_on_lines_finds_paint_on_the_halfway_line_only():
+    H = _sb_per_px()                                       # halfway line at x = 52.5 m = 1050 px
+    on = np.c_[np.full(50, 1050.0), np.linspace(100, 1200, 50)]
+    off = np.c_[np.full(50, 500.0), np.linspace(300, 1000, 50)]   # 25 m in, mid-half
+    assert C.paint_on_lines(H[None], [on], L, W)['on_lines'] == 1.0
+    assert C.paint_on_lines(H[None], [off], L, W)['on_lines'] == 0.0
+    r = C.paint_on_lines(np.stack([H, -H]), [on, off], L, W)
+    assert r['paint'] == 100 and abs(r['on_lines'] - 0.5) < 1e-9
+
+
+def test_paint_behind_the_camera_is_off_the_lines():
+    H = _sb_per_px()
+    on = np.c_[np.full(10, 1050.0), np.linspace(100, 1200, 10)]
+    H2 = H.copy(); H2[2] = [0, 0.001, -0.5]               # rows above v = 500 map behind
+    r = C.paint_on_lines(H2[None], [on], L, W)
+    assert r['paint'] == 10 and r['on_lines'] < 1.0
+
+
+def test_person_heights_on_a_straight_down_camera():
+    H = _sb_per_px(0.05)                                  # a 36 px box spans 1.8 m of ground
+    b = np.array([[100, 100, 112, 136], [800, 600, 812, 636]], float)
+    assert np.allclose(C.person_heights(H, b, L, W), 1.8)
+
+
+def test_far_near_is_one_without_perspective_and_moves_with_a_wrong_depth():
+    rng = np.random.default_rng(0)
+    v = rng.uniform(100, 1300, 200)
+    b = np.c_[np.full(200, 500.0), v - 36, np.full(200, 512.0), v]
+    r = C.far_near(_sb_per_px()[None], [b], L, W)
+    assert r['people'] == 200 and abs(r['ratio'] - 1) < 1e-9 and abs(r['median_m'] - 1.8) < 1e-9
+    # a calibration that stretches the bottom of the image (near) more than the top: near people come out taller
+    Hp = _sb_per_px() @ np.array([[1, 0, 0], [0, 1, 0], [0, -0.0005, 1.0]])
+    assert C.far_near(Hp[None], [b], L, W)['ratio'] < 0.6
+
+
+def test_cal_flags():
+    assert C.cal_flags(dict(people=200, ratio=0.98, median_m=1.75)) == []
+    assert C.cal_flags(dict(people=200, ratio=0.67, median_m=1.44)) == ['far/near 0.67', 'height 1.44 m']
+    assert C.cal_flags(dict(people=200, ratio=2.2, median_m=1.75)) == ['far/near 2.20']
+    assert C.cal_flags(dict(people=5, ratio=2.2, median_m=1.0)) == []
