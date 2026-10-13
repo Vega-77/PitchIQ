@@ -872,7 +872,18 @@ html, body {
     .ev-goal .ev-label { font-size: 20px; }
     #clock { font-size: 32px; }
     .sub-columns { grid-template-columns: 1fr; }
-    .live-footer { padding: 8px 14px 12px; }
+    /* Four equal quarters of a phone left "Make a sub" and "Start 2nd half"
+       three lines tall under twenty pixels of padding a side. Sized to their
+       labels instead, the four fit one line each on a 375px phone; on a
+       narrower one they wrap to two rather than spilling. */
+    .live-footer { padding: 8px 14px 12px; gap: 6px; }
+    .live-footer .btn {
+        flex: 1 1 auto;
+        min-height: 50px;
+        padding: 6px 8px;
+        font-size: 15px;
+        letter-spacing: .02em;
+    }
     .last-strip { padding: 8px 14px; }
 }
 

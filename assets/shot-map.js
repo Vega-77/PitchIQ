@@ -31,8 +31,8 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, pitchMarkings,
-} from './pitch-backdrop.js?v=128';
-import { svgEl as el } from './svg.js?v=128';
+} from './pitch-backdrop.js?v=129';
+import { svgEl as el } from './svg.js?v=129';
 
 // Only the attacking half is drawn. A shot from inside your own half is worth
 // about 0.005 xG and happens twice a season; giving it half the picture costs
