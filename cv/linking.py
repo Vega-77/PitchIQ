@@ -151,8 +151,10 @@ class LinkSettings:
     # The rows between two sustained runs are the moment of the swap and are
     # dropped. A gap at least `kit_cut_keep_rows` long is not a moment (a shirt
     # that reads neither kit for seconds): it becomes its own piece instead,
-    # joined or not like any other. 0 drops every gap.
-    kit_cut_keep_rows: int = 0
+    # joined or not like any other. 0 drops every gap. On the vid1 lab (set
+    # vid1-gaps, 2026-10-12) the ring stayed on one person at 44 of 45 ends of
+    # kept gaps, and the kept rows were 3% of vid1's on-pitch detections.
+    kit_cut_keep_rows: int = 30
     # Eleven a side, one in goal: never more than this many outfield players
     # of one team in a frame. Where the kits say more, the least sure of them
     # (median lean toward their own kit, then fewer rows) are shown as unsure
