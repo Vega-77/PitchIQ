@@ -333,16 +333,18 @@ class Half:
             assert np.array_equal(two['abs'], np.arange(self.lo, self.hi + 1)), 'stitched 2D has gaps'
             np.savez(os.path.join(AT, 'p2d', ver, '%s.npz' % self.tag), **two)
             np.savez(os.path.join(HOM if ver == 'cls_B' else H3D, '%s_ball3dd.npz' % self.tag), **three)
-        # the smoothed camera (H per frame) that match_video, spotlab and panned draw with
-        sm = {}
-        for p, a, b in zip(self.pieces, cuts[:-1], cuts[1:]):
-            with np.load(os.path.join(H3D, '%s_smooth2.npz' % p['ptag'])) as s:
-                m = (s['abs'] >= a) & (s['abs'] < b)
-                for k in s.files:
-                    sm.setdefault(k, []).append(s[k][m])
-        sm = {k: np.concatenate(v) for k, v in sm.items()}
-        assert np.array_equal(sm['abs'], np.arange(self.lo, self.hi + 1)), 'stitched smooth2 has gaps'
-        np.savez(os.path.join(H3D, '%s_smooth2.npz' % self.tag), **sm)
+        # the smoothed camera (H per frame) that match_video, spotlab and panned draw with,
+        # and the ball track (per-frame H + image point) that vflight.Track reads
+        for name in ('smooth2', 'ballsb', 'img'):
+            sm = {}
+            for p, a, b in zip(self.pieces, cuts[:-1], cuts[1:]):
+                with np.load(os.path.join(H3D, '%s_%s.npz' % (p['ptag'], name))) as s:
+                    m = (s['abs'] >= a) & (s['abs'] < b)
+                    for k in s.files:
+                        sm.setdefault(k, []).append(s[k][m])
+            sm = {k: np.concatenate(v) for k, v in sm.items()}
+            assert np.array_equal(sm['abs'], np.arange(self.lo, self.hi + 1)), 'stitched %s has gaps' % name
+            np.savez(os.path.join(H3D, '%s_%s.npz' % (self.tag, name)), **sm)
         for kind in ('reg', 'venue'):
             src = os.path.join(HOM, '%s_%s.npz' % (self.tag, kind))
             if os.path.exists(src):
