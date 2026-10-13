@@ -3400,6 +3400,17 @@ describe('cvReads', () => {
         assert.match(flattered[0].title, /scoreline is ahead of the chances/);
     });
 
+    test('the tagged score, when there is one, is the goals it reads', () => {
+        // The video counted 2 where the scoreline above says 1. The read must
+        // quote the scoreline, and here that turns "flattered" into nothing.
+        const team = { xg: 0.8, goals: 2, shots: 4 };
+        assert.match(report.cvReads(cv(team))[0].detail, /^2 from about 0\.8/);
+        assert.deepEqual(report.cvReads(cv(team), { goals: 1 }), []);
+        // And a tagged 0 is a 0, not a gap to fall back through.
+        const wasteful = report.cvReads(cv({ xg: 1.6, goals: 1, shots: 9 }), { goals: 0 });
+        assert.match(wasteful[0].detail, /and 0 scored/);
+    });
+
     test('a normal conversion rate is not a story', () => {
         assert.deepEqual(report.cvReads(cv({ xg: 1.4, goals: 1, shots: 8 })), []);
     });

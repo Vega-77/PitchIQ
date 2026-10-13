@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=125';
+} from '../assets/auth.js?v=126';
 import {
     createTeam, updateTeamKit, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../assets/db.js?v=125';
-import { nowIndex } from '../assets/timeline.js?v=125';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=125';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=125';
+} from '../assets/db.js?v=126';
+import { nowIndex } from '../assets/timeline.js?v=126';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=126';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=126';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=125';
+} from '../assets/sample-report.js?v=126';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=125';
-import { renderPassMap } from '../assets/pass-map.js?v=125';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=125';
+} from '../assets/passing.js?v=126';
+import { renderPassMap } from '../assets/pass-map.js?v=126';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=126';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=125';
-import { renderForms } from '../assets/form-chart.js?v=125';
+} from '../assets/season.js?v=126';
+import { renderForms } from '../assets/form-chart.js?v=126';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, hasVerdict, currentAnswers, xgTrust,
@@ -44,26 +44,26 @@ import {
     minutesNote, FROM_LAST_TAG,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=125';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=125';
-import { mountRail } from '../assets/rail.js?v=125';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=125';
-import { startMotion } from '../assets/motion.js?v=125';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=125';
-import { videoKind } from '../assets/video.js?v=125';
+} from '../assets/report.js?v=126';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=126';
+import { mountRail } from '../assets/rail.js?v=126';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=126';
+import { startMotion } from '../assets/motion.js?v=126';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=126';
+import { videoKind } from '../assets/video.js?v=126';
 import {
     byId, setText, toast, clockText, signed, plural, localDate,
     statCard, statGroup, fillStatGroup, figure, cardChips, timelineRow,
     minutesChart, stackBar, coverageStrip, kitPicker,
-} from '../assets/ui.js?v=125';
+} from '../assets/ui.js?v=126';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=125';
+} from './shell.js?v=126';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=125';
+} from './review.js?v=126';
 
 // ---------------------------------------------------------------- team setup
 
@@ -2140,9 +2140,14 @@ function railFacts() {
     const cv = activeCv();
     const played = stats.players?.filter((p) => (p.minutesPlayed ?? 0) > 0).length || 0;
 
+    // The same rule as the scoreline in the header: a match nobody tagged has
+    // no score, not a 0–0 it never had.
+    const log = state.match.log || [];
     const facts = [{
         label: 'Score',
-        value: `${stats.counts.us.goal ?? 0}–${stats.counts.them.goal ?? 0}`,
+        value: log.length
+            ? `${taggedCount(stats.counts.us.goal, log)}–${taggedCount(stats.counts.them.goal, log)}`
+            : null,
         tone: 'is-big',
     }];
 
@@ -3719,6 +3724,27 @@ function renderMatchStatus() {
     setText('match-sub',
         `${match.date || 'no date'} · ${(match.status || 'scheduled').replace(/_/g, ' ')}`
         + (match.finalized ? ' · reports published' : ''));
+
+    // The match list and the players' reports show the score stored when the
+    // reports went out; this page counts the tags as they are now. When a goal
+    // was tagged or deleted since, the two disagree and neither page can see
+    // the other, so this one says so, and says how to put it right.
+    const stale = byId('match-stale');
+    if (stale) {
+        const us = match.stats?.counts.us.goal ?? 0;
+        const them = match.stats?.counts.them.goal ?? 0;
+        const differs = match.finalized && match.scoreUs != null
+            && (match.scoreUs !== us || (match.scoreThem ?? 0) !== them);
+        stale.classList.toggle('hidden', !differs);
+        setText('match-stale-text', differs
+            ? `Reports went out at ${match.scoreUs}–${match.scoreThem ?? 0}, but `
+                + (match.log?.length
+                    ? `the tags now come to ${us}–${them}.`
+                    : 'nothing is tagged on this match now.')
+                + ' Re-publish to bring the match list and the players’ reports '
+                + 'into line.'
+            : '');
+    }
 
     const publish = byId('btn-publish');
     if (publish) {
