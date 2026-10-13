@@ -4338,3 +4338,55 @@ input[type="file"]::file-selector-button {
         gap: 4px 10px;
     }
 }
+
+/* ------------------------------------------------------------ jump bar */
+
+/* The rail's sections as a strip of chips pinned to the top, for every width
+   below the one that has the rail. It scrolls to a section rather than
+   swapping it in; see `mountRail`. Full bleed across the gutter so chips
+   slide in from the screen edge rather than from a margin. */
+.jump-bar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -24px 18px;
+    padding: 10px 24px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+}
+.jump-bar::-webkit-scrollbar { display: none; }
+.jump-bar:empty,
+.jump-bar[hidden] { display: none; }
+.jump-link {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    font-family: inherit;
+}
+.jump-link .rail-tag { margin-left: 0; }
+.jump-link.on .rail-tag { background: var(--on-accent); color: var(--accent); }
+
+/* A section scrolled to stops below the bar, not under it. */
+.report-body > .block,
+.report-body > .block-stack > .block { scroll-margin-top: 72px; }
+
+@media (max-width: 640px) {
+    .jump-bar { margin-inline: -16px; padding-inline: 16px; }
+}
+@media (min-width: 1180px) {
+    .jump-bar { display: none; }
+}
+
+/* Text-sized buttons are a mouse-sized target. On a touch screen the
+   shot-log seek line and the "same figure" toggle get room for a finger
+   above and below; a mouse keeps the tight layout. */
+@media (pointer: coarse) {
+    .shot-row .shot-seek,
+    .same-as-toggle { padding-block: 8px; }
+}
