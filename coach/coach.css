@@ -507,3 +507,15 @@
 .stat-group.fold[open] > summary { margin-bottom: 6px; }
 .stat-groups.has-folds { gap: 4px; }
 .stat-groups.has-folds > .stat-group:first-child { margin-bottom: 18px; }
+
+/* --------------------------------------------------- estimate details */
+
+/* The caveats behind the estimates banner, folded under its one sentence. */
+.cv-why { flex-basis: 100%; }
+.cv-why > summary {
+    cursor: pointer;
+    color: var(--text-dim);
+    font-weight: 600;
+}
+.cv-why > ul { margin: 6px 0 0; padding-left: 18px; }
+.cv-why li + li { margin-top: 3px; }

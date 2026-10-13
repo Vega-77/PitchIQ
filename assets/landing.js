@@ -1,17 +1,17 @@
 import {
     signIn, signOut, onUser, resolveAccess, pendingInvites, claimInvite,
     configWarning,
-} from './auth.js?v=131';
-import { mountPitchBackdrop } from './pitch-backdrop.js?v=131';
-import { HOUSE_KIT, applyKit, clearKit, kitTokens } from './kit.js?v=131';
-import { startMotion } from './motion.js?v=131';
-import { listMatches, listPlayers, seasonSummary } from './db.js?v=131';
+} from './auth.js?v=132';
+import { mountPitchBackdrop } from './pitch-backdrop.js?v=132';
+import { HOUSE_KIT, applyKit, clearKit, kitTokens } from './kit.js?v=132';
+import { startMotion } from './motion.js?v=132';
+import { listMatches, listPlayers, seasonSummary } from './db.js?v=132';
 import {
     formGuide, nextFixture, whenLabel, seasonJobs,
-} from './report.js?v=131';
+} from './report.js?v=132';
 import {
     byId, setText, toast, showOnly, figure, signed, plural, localDate, kitPicker,
-} from './ui.js?v=131';
+} from './ui.js?v=132';
 
 const VIEWS = ['view-marketing', 'view-nowhere', 'view-routes'];
 
