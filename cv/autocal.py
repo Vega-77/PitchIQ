@@ -127,7 +127,14 @@ def paint_mask(image: np.ndarray, scale: float = 0.5, gold: float = 0.45, logo: 
     # Brunswick) or a rail along it (North Brunswick) they pull that line off the grass.
     warm &= cv2.resize(playing_surface(image).astype(np.uint8), warm.shape[::-1], interpolation=cv2.INTER_NEAREST) > 0
     m = ((top > 12) & warm).astype(np.uint8) * 255
-    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
+    if (colour or LINES) == 'white':
+        # Sunlit white lines come out as broken one-pixel streaks at this size: a 2 x 2
+        # opening took most of North Brunswick's circle and halfway line. Keep any pixel
+        # with a neighbour along some direction; only lone specks go.
+        m = np.bitwise_or.reduce([cv2.morphologyEx(m, cv2.MORPH_OPEN, np.array(k, np.uint8))
+                                  for k in ([[1, 1]], [[1], [1]], [[1, 0], [0, 1]], [[0, 1], [1, 0]])])
+    else:
+        m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
     blob = cv2.erode(m, np.ones((9, 9), np.uint8))
     blob = cv2.dilate(blob, np.ones((11, 11), np.uint8))
     if logo:
@@ -302,8 +309,9 @@ class Primitives:
                               (L - SPOT_D, c, 1.0, np.pi - a, np.pi + a)])
         self.centre = np.array([L / 2, c])
 
-    def nearest(self, p: np.ndarray) -> np.ndarray:
-        """The nearest point on any line to each ground point p (n, 2)."""
+    def nearest(self, p: np.ndarray, with_id: bool = False):
+        """The nearest point on any line to each ground point p (n, 2); with
+        `with_id` also which line (segments first, then arcs)."""
         ab = self.b - self.a
         t = np.clip(((p[:, None, :] - self.a) * ab).sum(-1) / (ab ** 2).sum(-1), 0, 1)
         q = self.a + t[..., None] * ab                                   # (n, segs, 2)
@@ -316,7 +324,22 @@ class Primitives:
             cands.append(np.stack([cu + r * np.cos(ang), cv + r * np.sin(ang)], -1)[:, None, :])
         q = np.concatenate(cands, 1)
         k = np.argmin(((q - p[:, None, :]) ** 2).sum(-1), 1)
-        return q[np.arange(len(p)), k]
+        return (q[np.arange(len(p)), k], k) if with_id else q[np.arange(len(p)), k]
+
+    def independent(self, ids: np.ndarray, xy: np.ndarray, each: int = 20, spread: float = 80.0) -> bool:
+        """Do the lines in `ids` (one per paint pixel, at image points `xy`) fix a
+        pose? Paint along a single line lets the camera slide along it; it takes two
+        lines that cross in direction (or one of them curved), each with `each`
+        pixels spread over `spread` px of the image: on eb1 91650 a referee's gold
+        shirt made a second line out of 10 pixels."""
+        n_seg = len(self.a)
+        got = [i for i in np.unique(ids) if (ids == i).sum() >= each
+               and np.linalg.norm(np.ptp(xy[ids == i], 0)) >= spread]
+        d = [(self.b[i] - self.a[i]) / np.linalg.norm(self.b[i] - self.a[i]) for i in got if i < n_seg]
+        curved = sum(i >= n_seg for i in got)
+        if curved and len(got) >= 2:
+            return True
+        return any(abs(u[0] * v[1] - u[1] * v[0]) > 0.5 for j, u in enumerate(d) for v in d[j + 1:])
 
 
 def paint_points(paint: Paint, n: int = 400, rng=None) -> np.ndarray:
@@ -349,6 +372,111 @@ class Rig:
         """Frame k pixels -> StatsBomb."""
         H = pitch.to_sb() @ np.linalg.inv(self.ground_to_image(k))
         return H / H[2, 2]
+
+
+def fit_sample(xy, R, f: float, C, pitch: PitchModel, x0=None, f_scale: float = 3.0, logo_r: float = 0.9,
+               dep0: float = 2.0, tol: float = 4.0, step: float = 2.0, zoom: float = 0.1):
+    """One sample's correction to its chained pose, from its own paint: a small
+    rotation (vector, applied as rodrigues(x) @ R) and log focal change pulling
+    the paint pixels xy (full frame) onto the nearest model line, measured in the
+    image (Cauchy, so kits and benches give up). Returns (x, paint within `tol`
+    px after, before at x0; 0 unless it fixes the pose, `Primitives.independent`). The fit stays within `step` degrees and `zoom` log
+    focal of x0: left free, it slid onto whichever other line was nearest."""
+    C = np.asarray(C, float)
+    prim = Primitives(pitch)
+    sin0 = np.sin(np.radians(dep0))
+    x0 = np.zeros(4) if x0 is None else np.asarray(x0, float)
+
+    def proj(x):
+        Rk = rodrigues(x[None, :3])[0] @ R
+        fk = f * np.exp(x[3])
+        d = rays(xy, fk) @ Rk                           # world directions
+        ok = -d[:, 2] > sin0
+        t = np.where(ok, -C[2] / np.where(ok, d[:, 2], -1), 0)
+        X = C[:2] + t[:, None] * d[:, :2]
+        ok &= np.hypot(*(X - prim.centre).T) > logo_r
+        ok &= (X[:, 0] > -1) & (X[:, 0] < pitch.L + 1) & (X[:, 1] > -1) & (X[:, 1] < pitch.W + 1)
+        q, ids = prim.nearest(X, with_id=True)
+        e = to_px((np.c_[q, np.zeros(len(q))] - C) @ Rk.T, fk) - xy
+        e[~ok] = 0
+        return e, ok, ids
+
+    def res(x):
+        return proj(x)[0].ravel()
+
+    def good(x):
+        # paint on the lines, counted only when it lies on two independent lines:
+        # eb1 91200-91800 saw one near line, and fitting it tilted the far box off
+        e, ok, ids = proj(x)
+        on = ok & (np.hypot(*e.T) < tol)
+        return int(on.sum()) if prim.independent(ids[on], xy[on]) else 0
+
+    if step <= 0:
+        return x0, good(x0), good(x0)
+    xs = np.r_[0.002, 0.002, 0.002, 0.01]
+    span = np.r_[[np.radians(step)] * 3, zoom]
+    lo, hi = x0 - span, x0 + span
+    x = least_squares(res, x0, loss='cauchy', f_scale=25.0, x_scale=xs, max_nfev=60, bounds=(lo, hi)).x
+    x = least_squares(res, x, loss='cauchy', f_scale=f_scale, x_scale=xs, max_nfev=60, bounds=(lo, hi)).x
+    return x, good(x), good(x0)
+
+
+def anchor_chain(paint: dict, R, f, C, R0, pitch: PitchModel, min_good: int = 40, half: int = 10, log=None):
+    """Tie a long stretch's chained rotations back to the pitch, sample by sample.
+
+    The chain walks forward along SIFT links with nothing to stop it wandering:
+    over North Brunswick's first half it drifted by up to ~10 degrees, so the
+    stitched panorama smeared and the pitch landed off the paint. Walking the
+    samples in order, each one's own paint is fitted from the running
+    correction and a few degrees around it; the fit, the running correction or
+    none at all (the chain itself), whichever puts the most paint on the lines,
+    is kept when that is at least `min_good` pixels. The kept corrections are then
+    median-smoothed over +-`half` samples and interpolated across the rest; last,
+    each sample with paint enough to judge takes the smoothed correction, its own
+    fit or none, whichever its paint prefers.
+    Returns (R (n, 3, 3) world -> camera, f (n,), info)."""
+    n = len(R)
+    R = np.asarray(R) @ R0
+    xs = np.full((n, 4), np.nan)
+    cur, recent = np.zeros(4), []
+    for k in range(n):
+        xy = paint.get(k)
+        if xy is None or len(xy) < min_good:
+            continue
+        x, g, g_cur = fit_sample(xy, R[k], f[k], C, pitch, x0=cur)
+        g_chain = fit_sample(xy, R[k], f[k], C, pitch, step=0)[1] if np.any(cur) else g_cur
+        x, g = max([(x, g), (cur, g_cur), (np.zeros(4), g_chain)], key=lambda c: c[1])
+        if g >= min_good:
+            xs[k] = x
+            recent = (recent + [x])[-half:]
+            cur = np.median(recent, 0)
+    kept = np.flatnonzero(~np.isnan(xs[:, 0]))
+    if not len(kept):
+        return R, np.asarray(f, float), dict(kept=0, n=n)
+    sm = np.array([np.median(xs[kept[(kept >= kept[i] - half) & (kept <= kept[i] + half)]], 0)
+                   for i in range(len(kept))])
+    corr = np.stack([np.interp(np.arange(n), kept, sm[:, j]) for j in range(4)], 1)
+    # Smoothing carries a neighbour's correction across a jump in the chain onto
+    # samples the chain had right (eb1 83000: 190 px on the lines -> 0). Where a
+    # sample has paint enough to judge, it keeps whichever of the smoothed
+    # correction, its own fit and none puts the most paint on the lines.
+    for k in range(n):
+        xy = paint.get(k)
+        if xy is None or len(xy) < min_good:
+            continue
+        cands = [corr[k], np.zeros(4)] + ([] if np.isnan(xs[k, 0]) else [xs[k]])
+        score = [fit_sample(xy, R[k], f[k], C, pitch, x0=c, step=0)[1] for c in cands]
+        if max(score) >= min_good:
+            corr[k] = cands[int(np.argmax(score))]
+    R2 = rodrigues(corr[:, :3]) @ R
+    f2 = np.asarray(f, float) * np.exp(corr[:, 3])
+    ang = np.degrees(np.linalg.norm(corr[:, :3], axis=1))
+    info = dict(kept=len(kept), n=n, ang_p50=float(np.median(ang)), ang_p90=float(np.percentile(ang, 90)),
+                ang_max=float(ang.max()))
+    if log:
+        log('anchored %d/%d samples to their paint; correction p50 %.2f p90 %.2f max %.2f deg'
+            % (len(kept), n, info['ang_p50'], info['ang_p90'], info['ang_max']))
+    return R2, f2, info
 
 
 def relative_rotation(xi, xj, fi: float):

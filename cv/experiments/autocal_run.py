@@ -174,15 +174,21 @@ def height(tag: str, Q: dict, cal: tuple, log) -> tuple:
     return C, R0, pm.L, pm.W
 
 
-def write(tag: str, Q: dict, rig_pose: tuple, homog: Path, log) -> dict:
+def write(tag: str, Q: dict, rig_pose: tuple, homog: Path, log, paint: dict | None = None) -> dict:
     """The tracker's registration (every sample's frame -> StatsBomb) and venue
     (camera heights -> StatsBomb, the reference view, the pitch), plus the fit:
-    each sample's paint on the ground, distance to the nearest model line."""
+    each sample's paint on the ground, distance to the nearest model line.
+    With `paint` (gather's points per sample) the chained rotations are first
+    tied back to the pitch sample by sample (`autocal.anchor_chain`)."""
     C, R0, L, W = rig_pose
     C = np.asarray(C, float)
     pm = A.PitchModel(L=L, W=W)
     prim = A.Primitives(pm)
-    rig = A.Rig(C, np.array([R @ R0 for R in Q['R']]), Q['f'])
+    if paint is None:
+        rig = A.Rig(C, np.array([R @ R0 for R in Q['R']]), Q['f'])
+    else:
+        R2, f2, _ = A.anchor_chain(paint, Q['R'], Q['f'], C, R0, pm, log=log)
+        rig = A.Rig(C, R2, f2)
     n = len(Q['frames'])
     Hsb = np.array([rig.to_sb(k, pm) for k in range(n)])
 
@@ -283,7 +289,7 @@ def run(tag: str, lo: int, hi: int, work: Path = WORK, homog: Path = HOMOG, line
             _save(out['height'], height(tag, Q, _load(out['cal']), log))
         pose = _load(out['height'])
     log('== write')
-    err = write(tag, Q, pose, homog, log)
+    err = write(tag, Q, pose, homog, log, _load(out['gather'])['paint'])
     log('done')
     logfile.close()
     return err
