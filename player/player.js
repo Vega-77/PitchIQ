@@ -9,34 +9,34 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=129';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=130';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=129';
-import { CARD_COLOURS } from '../assets/events.js?v=129';
-import { mountRail } from '../assets/rail.js?v=129';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=129';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=129';
-import { startMotion } from '../assets/motion.js?v=129';
-import { renderHeatmap } from '../assets/heatmap.js?v=129';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=129';
+} from '../assets/db.js?v=130';
+import { CARD_COLOURS } from '../assets/events.js?v=130';
+import { mountRail } from '../assets/rail.js?v=130';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=130';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=130';
+import { startMotion } from '../assets/motion.js?v=130';
+import { renderHeatmap } from '../assets/heatmap.js?v=130';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=130';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
     playerWobbleNote,
     minutesNote, seasonGroups, matchLine, FULL_MATCH_MIN,
-} from '../assets/report.js?v=129';
+} from '../assets/report.js?v=130';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=129';
-import { renderForms } from '../assets/form-chart.js?v=129';
+} from '../assets/season.js?v=130';
+import { renderForms } from '../assets/form-chart.js?v=130';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=129';
-import { renderMatchVideo } from '../assets/match-video.js?v=129';
+} from '../assets/sample-report.js?v=130';
+import { renderMatchVideo } from '../assets/match-video.js?v=130';
 import {
     byId, setText, toast, showOnly, clockText, statCard, fillStatGroup,
     figure, cardChips, plural, minutesChart, tally, coverageStrip,
-} from '../assets/ui.js?v=129';
+} from '../assets/ui.js?v=130';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 

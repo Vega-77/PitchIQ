@@ -32,8 +32,8 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, PITCH_VIEWBOX, pitchMarkings,
-} from './pitch-backdrop.js?v=129';
-import { svgEl as el } from './svg.js?v=129';
+} from './pitch-backdrop.js?v=130';
+import { svgEl as el } from './svg.js?v=130';
 
 // Anything below this share of the busiest cell is left blank rather than drawn
 // at 2% opacity. A wash of near-invisible colour over the whole pitch reads as

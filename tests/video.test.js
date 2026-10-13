@@ -3315,6 +3315,81 @@ describe('pressingNote', () => {
 // match — a flag that always appears stops being read and takes the ones that
 // matter with it. So most of these test silence.
 
+describe('matchBrief', () => {
+    const roster = [{ id: 'p1', playerName: 'Alex Vega' }, { id: 'p2', playerName: 'Rae Nkemelu' }];
+    const counts = (us, them) => ({ us: { goal: us }, them: { goal: them } });
+    const goal = (side, s, playerId) => ({ kind: 'event', type: 'goal', side, matchClockS: s, playerId });
+    const row = (label, usN, themN, better = 'high', extra = {}) => ({
+        label, usN, themN, better, kind: 'count', value: usN, themValue: themN, ...extra,
+    });
+
+    test('the result, with who scored and when, comes first', () => {
+        const [first] = report.matchBrief({
+            log: [goal('us', 940, 'p1'), goal('them', 2000), goal('us', 3000, 'p1')],
+            roster, counts: counts(2, 1), status: 'full_time',
+        });
+        assert.equal(first.title, 'Won 2–1');
+        assert.equal(first.detail, 'Scored by Alex Vega 16′, Alex Vega 51′.');
+        assert.equal(first.tone, 'good');
+    });
+
+    test('a match still going says so instead of calling a result', () => {
+        const lines = report.matchBrief({
+            log: [goal('us', 940, 'p1')], roster, counts: counts(1, 0), status: 'halftime',
+        });
+        assert.equal(lines[0].title, '1–0 up at half-time');
+        assert.equal(report.matchBrief({
+            log: [{ kind: 'event', type: 'corner', side: 'us', matchClockS: 5 }],
+            counts: counts(0, 0), status: 'second_half',
+        })[0].title, 'Level at 0–0 so far');
+    });
+
+    test('nothing tagged means no result line, not a 0–0', () => {
+        assert.deepEqual(report.matchBrief({ log: [], counts: counts(0, 0), status: 'full_time' }), []);
+    });
+
+    test('our cards are named with the minute', () => {
+        const lines = report.matchBrief({
+            log: [{ kind: 'event', type: 'card', side: 'us', matchClockS: 1500,
+                    playerId: 'p2', cardColor: 'yellow' }],
+            roster, counts: counts(0, 0), status: 'full_time',
+        });
+        assert.equal(lines[1].title, 'One card');
+        assert.equal(lines[1].detail, 'Rae Nkemelu 26′.');
+    });
+
+    test('edges are the big gaps only, in the direction that is better', () => {
+        const lines = report.matchBrief({
+            rows: [
+                row('Shots', 6, 4),                      // a third apart: an edge
+                row('Ground duels', 44, 44),             // level: nothing
+                row('Fouls committed', 2, 9, 'low'),     // fewer is better: ahead
+                row('Tackles', 12, 21),                  // behind
+                row('Corners won', 1, 0),                // too small to mean anything
+                row('Goals', 3, 0),                      // has a line of its own
+            ],
+        });
+        const ahead = lines.find((l) => l.title === 'Ahead on');
+        const behind = lines.find((l) => l.title === 'Behind on');
+        assert.equal(ahead.detail, 'Fouls committed 2 to 9 · Shots 6 to 4');
+        assert.equal(behind.detail, 'Tackles 12 to 21');
+        assert.equal(lines.length, 2);
+    });
+
+    test('an edge resting on the video says it is estimated', () => {
+        const [line] = report.matchBrief({
+            rows: [row('Shots', 6, 2, 'high', { confidence: 'medium' })],
+        });
+        assert.equal(line.estimated, true);
+    });
+
+    test('the video reads are carried, two at most', () => {
+        const reads = [1, 2, 3].map((n) => ({ title: `Read ${n}`, detail: '' }));
+        const lines = report.matchBrief({ reads });
+        assert.deepEqual(lines.map((l) => l.title), ['Read 1', 'Read 2']);
+    });
+});
+
 describe('cvReads', () => {
     const cv = (team) => ({ teams: { team_a: team } });
 
