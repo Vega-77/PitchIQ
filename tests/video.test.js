@@ -3315,6 +3315,35 @@ describe('pressingNote', () => {
 // match — a flag that always appears stops being read and takes the ones that
 // matter with it. So most of these test silence.
 
+describe('seasonMoments', () => {
+    const t = (clockS, type, label, mine = true) => ({ clockS, type, label, mine });
+
+    test('their goals, assists and cards, newest match first, in match order', () => {
+        const newer = { opponentName: 'B', timeline: [
+            t(3000, 'goal', 'You assisted Sam'), t(600, 'goal', 'You scored'),
+        ] };
+        const older = { opponentName: 'A', timeline: [t(2440, 'card', 'You were booked')] };
+        const moments = report.seasonMoments([newer, older]);
+        assert.deepEqual(moments.map((m) => [m.kind, m.minute, m.report.opponentName]), [
+            ['goal', '11′', 'B'], ['assist', '51′', 'B'], ['card', '41′', 'A'],
+        ]);
+    });
+
+    test('nobody else’s goals, and none of the rest of their timeline', () => {
+        const r = { timeline: [
+            t(0, 'kickoff_1st', 'Kick-off', false), t(900, 'goal', 'Sam scored', false),
+            t(1200, 'goal', 'Goal conceded', false), t(1800, 'sub', 'Came off'),
+            t(2000, 'foul', 'You conceded a foul'),
+        ] };
+        assert.deepEqual(report.seasonMoments([r]), []);
+    });
+
+    test('a report from before timelines adds nothing rather than failing', () => {
+        assert.deepEqual(report.seasonMoments([{ opponentName: 'Old' }]), []);
+        assert.deepEqual(report.seasonMoments(null), []);
+    });
+});
+
 describe('matchBrief', () => {
     const roster = [{ id: 'p1', playerName: 'Alex Vega' }, { id: 'p2', playerName: 'Rae Nkemelu' }];
     const counts = (us, them) => ({ us: { goal: us }, them: { goal: them } });

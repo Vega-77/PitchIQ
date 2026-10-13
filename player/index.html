@@ -7,9 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Saira+Condensed:wght@600;700;800&family=Saira:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=130">
-    <script src="../assets/kit-boot.js?v=130"></script>
-    <link rel="stylesheet" href="player.css?v=130">
+    <link rel="stylesheet" href="../assets/app.css?v=131">
+    <script src="../assets/kit-boot.js?v=131"></script>
+    <link rel="stylesheet" href="player.css?v=131">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to the main content</a>
@@ -106,6 +106,17 @@
             </div>
         </header>
 
+        <!-- The match they most likely opened the page for, one tap away
+             rather than at the bottom of a list. -->
+        <button type="button" class="latest-match hidden" id="latest-match">
+            <span class="grow">
+                <span class="latest-eyebrow">Latest match</span>
+                <span class="latest-title" id="latest-title"></span>
+                <span class="latest-line" id="latest-line"></span>
+            </span>
+            <span class="latest-go" aria-hidden="true">&rsaquo;</span>
+        </button>
+
         <!-- Laid out exactly as the coach's view of the same season is, because
              it is the same season. The two of them talking about it should be
              looking at the same arrangement of the same blocks, not at one
@@ -145,6 +156,13 @@
                     <div id="minutes-chart" class="chart"></div>
                     <p class="muted" id="chart-note" style="margin-top:10px"></p>
                 </figure>
+            </div>
+
+            <!-- The goals, assists and cards behind the totals above, each a
+                 way into its match. See `seasonMoments`. -->
+            <div class="moments hidden" id="season-moments">
+                <h4>Your moments</h4>
+                <div id="moments-list" class="moment-list"></div>
             </div>
         </section>
 
@@ -286,7 +304,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="player.js?v=130"></script>
+<script type="module" src="player.js?v=131"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

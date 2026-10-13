@@ -13,21 +13,21 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=130';
+import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=131';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=130';
+} from '../assets/db.js?v=131';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=130';
-import { syncState, safeToClose } from '../assets/report.js?v=130';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=130';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=130';
+} from '../assets/events.js?v=131';
+import { syncState, safeToClose } from '../assets/report.js?v=131';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=131';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=131';
 import { byId, toast, clockText, timelineRow, tally, groupHead }
-    from '../assets/ui.js?v=130';
-import { openSheet, closeSheet, mountSheets } from './sheet.js?v=130';
+    from '../assets/ui.js?v=131';
+import { openSheet, closeSheet, mountSheets } from './sheet.js?v=131';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {

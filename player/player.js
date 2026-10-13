@@ -9,34 +9,34 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=130';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=131';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=130';
-import { CARD_COLOURS } from '../assets/events.js?v=130';
-import { mountRail } from '../assets/rail.js?v=130';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=130';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=130';
-import { startMotion } from '../assets/motion.js?v=130';
-import { renderHeatmap } from '../assets/heatmap.js?v=130';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=130';
+} from '../assets/db.js?v=131';
+import { CARD_COLOURS } from '../assets/events.js?v=131';
+import { mountRail } from '../assets/rail.js?v=131';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=131';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=131';
+import { startMotion } from '../assets/motion.js?v=131';
+import { renderHeatmap } from '../assets/heatmap.js?v=131';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=131';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
     playerWobbleNote,
-    minutesNote, seasonGroups, matchLine, FULL_MATCH_MIN,
-} from '../assets/report.js?v=130';
+    minutesNote, seasonGroups, matchLine, FULL_MATCH_MIN, seasonMoments,
+} from '../assets/report.js?v=131';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=130';
-import { renderForms } from '../assets/form-chart.js?v=130';
+} from '../assets/season.js?v=131';
+import { renderForms } from '../assets/form-chart.js?v=131';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=130';
-import { renderMatchVideo } from '../assets/match-video.js?v=130';
+} from '../assets/sample-report.js?v=131';
+import { renderMatchVideo } from '../assets/match-video.js?v=131';
 import {
     byId, setText, toast, showOnly, clockText, statCard, fillStatGroup,
     figure, cardChips, plural, minutesChart, tally, coverageStrip,
-} from '../assets/ui.js?v=130';
+} from '../assets/ui.js?v=131';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -219,6 +219,41 @@ function renderMatches(reports) {
 
         list.append(row);
     }
+}
+
+/** The newest match, as a way straight into it. */
+function renderLatest(report) {
+    const card = byId('latest-match');
+    if (!card) return;
+    setText('latest-title', `vs ${report.opponentName || '—'}`
+        + (report.scoreUs != null ? ` · ${report.scoreUs}–${report.scoreThem ?? 0}` : '')
+        + (report.matchDate ? ` · ${report.matchDate}` : ''));
+    setText('latest-line', matchLine(report));
+    card.onclick = () => openMatch(report);
+    card.classList.remove('hidden');
+}
+
+/** Their goals, assists and cards across the season. See `seasonMoments`. */
+function renderMoments(reports) {
+    const moments = seasonMoments(reports);
+    const list = byId('moments-list');
+    list.innerHTML = '';
+
+    for (const moment of moments) {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = `moment-row is-${moment.kind}`
+            + (moment.kind === 'card' && moment.label.endsWith('— red') ? ' is-red' : '');
+        row.innerHTML = '<span class="moment-mark" aria-hidden="true"></span>'
+            + '<span class="moment-text"><strong></strong><span></span></span>';
+        row.querySelector('strong').textContent = moment.label;
+        row.querySelector('.moment-text span').textContent =
+            `${moment.minute} · vs ${moment.report.opponentName || '—'}`
+            + (moment.report.matchDate ? ` · ${moment.report.matchDate}` : '');
+        row.addEventListener('click', () => openMatch(moment.report));
+        list.append(row);
+    }
+    byId('season-moments').classList.toggle('hidden', !moments.length);
 }
 
 // ---------------------------------------------------------------- one match
@@ -647,6 +682,8 @@ async function loadReports(user) {
 
     renderSeason(reports);
     renderChart(reports);
+    renderLatest(latest);
+    renderMoments(reports);
     renderMatches(reports);
     // Last, once every block above has decided whether it is on screen: the
     // rail lists what is there, and a season with no footage behind it has
