@@ -1138,11 +1138,17 @@ describe('seasonGroups', () => {
         assert.equal(minutes.value, '—');
     });
 
-    test('per 90 needs a denominator worth dividing into', () => {
+    test('per 80 needs a denominator worth dividing into', () => {
         assert.ok(!labels(report.seasonGroups([], totals({ minutes: 30 }))[0])
-            .includes('G+A per 90'));
+            .includes('G+A per 80 min'));
         assert.ok(labels(report.seasonGroups([], totals({ minutes: 90 }))[0])
-            .includes('G+A per 90'));
+            .includes('G+A per 80 min'));
+    });
+
+    test('per 80 is per full match: one involvement in 80 minutes reads 1.00', () => {
+        const row = report.seasonGroups([], totals({ minutes: 80, goals: 1, assists: 0 }))[0]
+            .rows.find((r) => r.label === 'G+A per 80 min');
+        assert.equal(row.value, '1.00');
     });
 
     test('their best afternoon is named, and only when there was one', () => {

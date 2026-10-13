@@ -519,3 +519,29 @@
 }
 .cv-why > ul { margin: 6px 0 0; padding-left: 18px; }
 .cv-why li + li { margin-top: 3px; }
+
+/* ------------------------------------------------ players table, phone */
+
+/* On a phone the table is three times the width of the screen, and scrolled
+   to the video columns it was a grid of numbers with nobody's name on it.
+   The name column sticks once it reaches the left edge; the shirt number
+   scrolls away under it. */
+@media (max-width: 760px) {
+    #player-table tbody tr:not(.pos-head) > td:nth-child(2),
+    #player-table thead tr:last-child > th:nth-child(2) {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        background: var(--surface);
+        box-shadow: 1px 0 0 var(--line);
+    }
+    #player-table thead tr:last-child > th:nth-child(2) {
+        z-index: 2;
+        background: var(--bg-raised);
+    }
+}
+/* The line of the team stays readable at any scroll, for the same reason. */
+.pos-head-label { position: sticky; left: 16px; display: inline-block; }
+/* And the note under the table, which sits inside the scrolling box and went
+   with the columns, leaving a blank band where it had been. */
+#player-table-note { position: sticky; left: 0; padding: 0 16px 14px; }

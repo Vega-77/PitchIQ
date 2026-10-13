@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=132';
+} from '../assets/auth.js?v=133';
 import {
     createTeam, updateTeamKit, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../assets/db.js?v=132';
-import { nowIndex } from '../assets/timeline.js?v=132';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=132';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=132';
+} from '../assets/db.js?v=133';
+import { nowIndex } from '../assets/timeline.js?v=133';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=133';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=133';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=132';
+} from '../assets/sample-report.js?v=133';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=132';
-import { renderPassMap } from '../assets/pass-map.js?v=132';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=132';
+} from '../assets/passing.js?v=133';
+import { renderPassMap } from '../assets/pass-map.js?v=133';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=133';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=132';
-import { renderForms } from '../assets/form-chart.js?v=132';
+} from '../assets/season.js?v=133';
+import { renderForms } from '../assets/form-chart.js?v=133';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, hasVerdict, currentAnswers, xgTrust,
@@ -44,26 +44,26 @@ import {
     minutesNote, FROM_LAST_TAG, FULL_MATCH_MIN, matchBrief, cvReads,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=132';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=132';
-import { mountRail } from '../assets/rail.js?v=132';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=132';
-import { startMotion } from '../assets/motion.js?v=132';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=132';
-import { videoKind } from '../assets/video.js?v=132';
+} from '../assets/report.js?v=133';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=133';
+import { mountRail } from '../assets/rail.js?v=133';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=133';
+import { startMotion } from '../assets/motion.js?v=133';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=133';
+import { videoKind } from '../assets/video.js?v=133';
 import {
     byId, setText, toast, clockText, signed, plural, localDate,
     statCard, statGroup, fillStatGroup, figure, cardChips, timelineRow,
     minutesChart, stackBar, coverageStrip, kitPicker,
-} from '../assets/ui.js?v=132';
+} from '../assets/ui.js?v=133';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=132';
+} from './shell.js?v=133';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=132';
+} from './review.js?v=133';
 
 // ---------------------------------------------------------------- team setup
 
@@ -74,8 +74,7 @@ function showCreateTeam() {
     setText('noteam-lede', hasTeams
         ? 'A separate squad keeps its own roster, matches and player reports. '
           + 'You stay the coach of both and can switch between them at any time.'
-        : "Set this up once, then add your roster. You'll need to be on the coach "
-          + "allowlist — if this fails, that's why.");
+        : 'Set this up once, then add your players.');
 
     byId('btn-cancel-team').classList.toggle('hidden', !hasTeams);
     byId('input-team-name').value = '';
@@ -384,7 +383,7 @@ function renderRoster() {
     list.innerHTML = '';
 
     if (!state.players.length) {
-        list.innerHTML = '<div class="empty">No players yet. Add your squad above.</div>';
+        list.innerHTML = '<div class="empty">No players yet. Add them with the Add a player form.</div>';
         return;
     }
 
@@ -1055,7 +1054,7 @@ function renderMatches() {
     if (!state.matches.length) {
         list.innerHTML =
             '<div class="empty">No matches yet.<br>'
-            + '<span class="muted">Add one on the right, then tag it live from the touchline.</span></div>';
+            + '<span class="muted">Add one with the New match form, then tag it live from the touchline.</span></div>';
         return;
     }
 
@@ -1105,7 +1104,7 @@ function matchRow(match) {
 
 async function doCreateMatch() {
     const opponentName = byId('input-opponent').value.trim();
-    const date = byId('input-date').value || new Date().toISOString().slice(0, 10);
+    const date = byId('input-date').value || localDate();
     if (!opponentName) return toast('Who are you playing?', true);
 
     try {
@@ -2600,7 +2599,12 @@ function positionHeadRow(group, columns) {
     const th = document.createElement('th');
     th.colSpan = columns;
     th.scope = 'rowgroup';
-    th.textContent = group.title;
+    // In a span so the label can stay in view while a phone scrolls the
+    // table sideways; the cell itself is as wide as the table and cannot.
+    const label = document.createElement('span');
+    label.className = 'pos-head-label';
+    label.textContent = group.title;
+    th.append(label);
     tr.append(th);
     return tr;
 }
@@ -4005,7 +4009,10 @@ function init() {
         option.textContent = type;
         missedType.append(option);
     }
-    byId('input-date').value = new Date().toISOString().slice(0, 10);
+    // The coach's own calendar day. `toISOString` is UTC, which in an American
+    // evening is already tomorrow, and every match made after dinner was dated
+    // a day late.
+    byId('input-date').value = localDate();
 
     onUser((user) => {
         if (!user) { location.href = '../'; return; }
