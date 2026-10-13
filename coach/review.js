@@ -11,21 +11,21 @@
  * way directly would be a cycle. See `onReviewChange`.
  */
 
-import { saveCvReview, updateMatch } from '../assets/db.js?v=126';
-import { EVENTS, describeEvent } from '../assets/events.js?v=126';
+import { saveCvReview, updateMatch } from '../assets/db.js?v=127';
+import { EVENTS, describeEvent } from '../assets/events.js?v=127';
 import {
     BY_CLOCK, BY_DOUBT, CONFIRMED_STATUS, EDITED_STATUS, FROM_TAGGED,
     FROM_VIDEO, HALF_TIME, NOT_A_PLAYER, REJECTED_STATUS, clockFromMatch,
     currentAnswers,
     hasVerdict, keeperOfTrack, orderCaveat, orderFeed, reviewFeed,
     reviewLabels, reviewScore,
-} from '../assets/report.js?v=126';
-import { renderStrip, timelineEnd } from '../assets/timeline.js?v=126';
+} from '../assets/report.js?v=127';
+import { renderStrip, timelineEnd } from '../assets/timeline.js?v=127';
 import {
     byId, clockText, confidenceMark, plural, setText, toast,
-} from '../assets/ui.js?v=126';
-import { mount as mountVideo, videoKind } from '../assets/video.js?v=126';
-import { download, matchXgTally, state, teamLabels } from './shell.js?v=126';
+} from '../assets/ui.js?v=127';
+import { mount as mountVideo, videoKind } from '../assets/video.js?v=127';
+import { download, matchXgTally, state, teamLabels } from './shell.js?v=127';
 
 // Two things outside this module have to be redrawn when a verdict lands, and
 // they are not the same thing. The shot views are drawn *from* the ledger, so
