@@ -21,8 +21,15 @@
 // navigation, and a phone showing one section with no way to reach the others
 // would be a page with most of itself missing. The same rule keeps every
 // section on the paper when the report is printed.
+//
+// Below the breakpoint the same entries become a **jump bar** instead: a strip
+// of chips pinned to the top that scrolls to a section rather than swapping it
+// in. A match review on a phone is seventeen screens with Publish at the
+// bottom, and scrolling is not navigation at that length. Built from the same
+// `entries()` as the rail so the two can never list different sections, and
+// hidden by CSS at desktop width, where the rail does the job.
 
-import { railTarget } from './report.js?v=133';
+import { railTarget } from './report.js?v=134';
 
 /**
  * Wire a rail to a report body.
@@ -43,6 +50,61 @@ export function mountRail({
 
     const RAILED = 'section.block[data-rail], section.block[data-rail-group]';
     const groupOf = (block) => block.dataset.railGroup || block.id;
+
+    // The jump bar, made on the first render. Placed just before the report
+    // body so it pins for exactly as long as the report is on screen.
+    const jump = document.createElement('nav');
+    jump.className = 'jump-bar no-print';
+    jump.setAttribute('aria-label', heading);
+    body.before(jump);
+
+    /** The first block a jump-bar entry stands for, if it is on the page. */
+    const firstBlock = (id) => [...body.querySelectorAll(RAILED)]
+        .find((block) => groupOf(block) === id && !block.classList.contains('hidden'));
+
+    /**
+     * Light the chip for the section under the bar, and bring it into view.
+     *
+     * Measured rather than observed: an IntersectionObserver would need a
+     * threshold per block height, and the answer wanted is simply "the last
+     * section whose top has passed under the bar".
+     */
+    let pending = false;
+    function trackScroll() {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(() => {
+            pending = false;
+            // Not drawn (desktop, or another view is showing): nothing to track.
+            if (!jump.offsetParent) return;
+            const line = jump.getBoundingClientRect().bottom + 24;
+            // At the foot of the page the last sections are too short to reach
+            // the bar, so "on screen" stands in for "under the bar" — or
+            // tapping Publish would light up whatever sits above it.
+            const atEnd = window.innerHeight + window.scrollY
+                >= document.documentElement.scrollHeight - 4;
+            let here = null;
+            for (const chip of jump.querySelectorAll('.jump-link')) {
+                const top = firstBlock(chip.dataset.target)?.getBoundingClientRect().top;
+                if (top != null && top <= (atEnd ? window.innerHeight - 80 : line)) here = chip;
+            }
+            here ||= jump.querySelector('.jump-link');
+            if (!here || here.classList.contains('on')) return;
+            for (const chip of jump.querySelectorAll('.jump-link')) {
+                const on = chip === here;
+                chip.classList.toggle('on', on);
+                if (on) chip.setAttribute('aria-current', 'true');
+                else chip.removeAttribute('aria-current');
+            }
+            // Sideways only. `scrollIntoView` would also move the page, which
+            // is the one thing a reader scrolling the page does not want.
+            jump.scrollTo({
+                left: here.offsetLeft - (jump.clientWidth - here.offsetWidth) / 2,
+                behavior: 'smooth',
+            });
+        });
+    }
+    window.addEventListener('scroll', trackScroll, { passive: true });
 
     /**
      * The rail's entries: one per group, in page order.
@@ -150,6 +212,16 @@ export function mountRail({
             list.addEventListener('keydown', onKey);
             for (const entry of available) list.append(railLink(entry, show));
             rail.append(list);
+
+            jump.innerHTML = '';
+            for (const entry of available) {
+                jump.append(jumpLink(entry, () => firstBlock(entry.id)));
+            }
+            // Three sections or fewer are a page a thumb crosses in a flick (a
+            // player's season, one of their matches), and a bar pinned over it
+            // would cost a strip of screen to save nothing.
+            jump.hidden = available.length < 4;
+            trackScroll();
         }
 
         drawFacts(rail.querySelector('.rail-facts'), facts());
@@ -164,6 +236,12 @@ export function mountRail({
             // a tooltip you have to hit it exactly to see is not a tooltip.
             if (count) link.title = count.title;
             else link.removeAttribute('title');
+        }
+        for (const chip of jump.querySelectorAll('.jump-link')) {
+            const count = tally[chip.dataset.target];
+            const tag = chip.querySelector('.rail-tag');
+            tag.textContent = count ? count.n : '';
+            tag.hidden = !count;
         }
 
         show(section);
@@ -203,6 +281,26 @@ function railLink(entry, show) {
 
     button.addEventListener('click', () => show(entry.id));
 
+    return button;
+}
+
+/** A chip in the jump bar: scrolls to its section, never swaps it in. */
+function jumpLink(entry, target) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'chip jump-link';
+    button.dataset.target = entry.id;
+
+    const label = document.createElement('span');
+    label.textContent = entry.label;
+    const tag = document.createElement('span');
+    tag.className = 'rail-tag';
+    tag.hidden = true;
+    button.append(label, tag);
+
+    button.addEventListener('click', () => {
+        target()?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     return button;
 }
 

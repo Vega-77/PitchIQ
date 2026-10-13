@@ -525,8 +525,9 @@
 /* On a phone the table is three times the width of the screen, and scrolled
    to the video columns it was a grid of numbers with nobody's name on it.
    The name column sticks once it reaches the left edge; the shirt number
-   scrolls away under it. */
-@media (max-width: 760px) {
+   scrolls away under it. Up to the desktop layout, because an upright
+   tablet scrolls this table too. */
+@media (max-width: 1179px) {
     #player-table tbody tr:not(.pos-head) > td:nth-child(2),
     #player-table thead tr:last-child > th:nth-child(2) {
         position: sticky;
