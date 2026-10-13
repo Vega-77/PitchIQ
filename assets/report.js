@@ -3067,7 +3067,7 @@ export function teamStatRows(cv, confidence = {}) {
         // two sides do not divide a fixed quantity of pressing between them —
         // so it is drawn against whichever was larger. Fewer means pressing
         // harder, so the low side is the good one and the bar has to be told.
-        row('defending', 'PPDA', LEVEL, (t) => t.ppda,
+        row('defending', 'Passes allowed per tackle (PPDA)', LEVEL, (t) => t.ppda,
             { format: (v) => v.toFixed(1), better: 'low' }),
         // The giveaways that turn straight into a chance against you. A single
         // turnover count cannot say this, which is why it is counted by third.

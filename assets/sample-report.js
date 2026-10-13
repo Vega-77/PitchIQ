@@ -45,8 +45,8 @@
 // cheap and a mistake is greppable.
 
 /** Said wherever sample data is on screen. Short enough to fit in a banner. */
-export const SAMPLE_NOTICE = 'Sample data — invented numbers in the real layout, '
-    + 'so this page can be checked before there is footage to fill it.';
+export const SAMPLE_NOTICE = 'Sample data — made-up numbers, so you can see '
+    + 'the layout before there is footage.';
 
 /** Whether a value came from this module. Nothing sampled may be saved. */
 export function isSample(value) {

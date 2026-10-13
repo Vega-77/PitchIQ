@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=131';
+} from '../assets/auth.js?v=132';
 import {
     createTeam, updateTeamKit, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../assets/db.js?v=131';
-import { nowIndex } from '../assets/timeline.js?v=131';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=131';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=131';
+} from '../assets/db.js?v=132';
+import { nowIndex } from '../assets/timeline.js?v=132';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=132';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=132';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=131';
+} from '../assets/sample-report.js?v=132';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=131';
-import { renderPassMap } from '../assets/pass-map.js?v=131';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=131';
+} from '../assets/passing.js?v=132';
+import { renderPassMap } from '../assets/pass-map.js?v=132';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=132';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=131';
-import { renderForms } from '../assets/form-chart.js?v=131';
+} from '../assets/season.js?v=132';
+import { renderForms } from '../assets/form-chart.js?v=132';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, hasVerdict, currentAnswers, xgTrust,
@@ -44,26 +44,26 @@ import {
     minutesNote, FROM_LAST_TAG, FULL_MATCH_MIN, matchBrief, cvReads,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=131';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=131';
-import { mountRail } from '../assets/rail.js?v=131';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=131';
-import { startMotion } from '../assets/motion.js?v=131';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=131';
-import { videoKind } from '../assets/video.js?v=131';
+} from '../assets/report.js?v=132';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=132';
+import { mountRail } from '../assets/rail.js?v=132';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=132';
+import { startMotion } from '../assets/motion.js?v=132';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=132';
+import { videoKind } from '../assets/video.js?v=132';
 import {
     byId, setText, toast, clockText, signed, plural, localDate,
     statCard, statGroup, fillStatGroup, figure, cardChips, timelineRow,
     minutesChart, stackBar, coverageStrip, kitPicker,
-} from '../assets/ui.js?v=131';
+} from '../assets/ui.js?v=132';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=131';
+} from './shell.js?v=132';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=131';
+} from './review.js?v=132';
 
 // ---------------------------------------------------------------- team setup
 
@@ -2435,12 +2435,30 @@ function cvNote() {
     const sampled = isSample(cv);
     if (sampled) note.classList.add('is-sample');
 
+    // One plain sentence up front; the list of what limited the run is there
+    // for whoever wants it, folded, because as a paragraph it buried the one
+    // thing everybody needs — these are estimates.
     note.innerHTML = '<span></span>';
     note.querySelector('span').textContent = sampled
-        ? `${SAMPLE_NOTICE} Nothing here was measured: ${bits.join('; ')}.`
-        : (bits.length
-            ? `Measured from video: ${bits.join('; ')}. Treat these as estimates.`
-            : 'Measured from video. Treat these as estimates.');
+        // The label beside it already says "Sample", so not the notice's own
+        // "Sample data —" a second time.
+        ? 'Made-up numbers, so you can see the layout before there is footage. '
+            + 'Nothing here was measured.'
+        : 'Measured from video, so treat these as close rather than exact.';
+    if (bits.length) {
+        const why = document.createElement('details');
+        why.className = 'cv-why';
+        why.innerHTML = '<summary></summary><ul></ul>';
+        why.querySelector('summary').textContent = sampled
+            ? 'What a real run would be limited by'
+            : 'What limits these numbers';
+        for (const bit of bits) {
+            const li = document.createElement('li');
+            li.textContent = bit.charAt(0).toUpperCase() + bit.slice(1) + '.';
+            why.querySelector('ul').append(li);
+        }
+        note.append(why);
+    }
 
     const strong = document.createElement('strong');
     strong.textContent = sampled ? 'Sample ' : 'Estimated ';

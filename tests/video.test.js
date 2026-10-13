@@ -5257,7 +5257,7 @@ describe('the opponent reaches the report', () => {
         };
         const rows = report.groupStats(report.teamStatRows(cv))
             .flatMap((g) => g.rows);
-        const ppda = find(rows, 'PPDA');
+        const ppda = find(rows, 'Passes allowed per tackle (PPDA)');
         assert.ok(ppda, 'the row was dropped along with their figure');
         assert.equal(ppda.value, null);
         assert.equal(ppda.themValue, '8.2');
