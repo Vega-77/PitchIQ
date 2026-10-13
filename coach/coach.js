@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=129';
+} from '../assets/auth.js?v=130';
 import {
     createTeam, updateTeamKit, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../assets/db.js?v=129';
-import { nowIndex } from '../assets/timeline.js?v=129';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=129';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=129';
+} from '../assets/db.js?v=130';
+import { nowIndex } from '../assets/timeline.js?v=130';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=130';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=130';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=129';
+} from '../assets/sample-report.js?v=130';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=129';
-import { renderPassMap } from '../assets/pass-map.js?v=129';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=129';
+} from '../assets/passing.js?v=130';
+import { renderPassMap } from '../assets/pass-map.js?v=130';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=130';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=129';
-import { renderForms } from '../assets/form-chart.js?v=129';
+} from '../assets/season.js?v=130';
+import { renderForms } from '../assets/form-chart.js?v=130';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, hasVerdict, currentAnswers, xgTrust,
@@ -41,29 +41,29 @@ import {
     substitutionWindows, substitutionRead, substitutionNote, CHANGE_REASONS,
     matchClockMap,
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
-    minutesNote, FROM_LAST_TAG, FULL_MATCH_MIN,
+    minutesNote, FROM_LAST_TAG, FULL_MATCH_MIN, matchBrief, cvReads,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=129';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=129';
-import { mountRail } from '../assets/rail.js?v=129';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=129';
-import { startMotion } from '../assets/motion.js?v=129';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=129';
-import { videoKind } from '../assets/video.js?v=129';
+} from '../assets/report.js?v=130';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=130';
+import { mountRail } from '../assets/rail.js?v=130';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=130';
+import { startMotion } from '../assets/motion.js?v=130';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=130';
+import { videoKind } from '../assets/video.js?v=130';
 import {
     byId, setText, toast, clockText, signed, plural, localDate,
     statCard, statGroup, fillStatGroup, figure, cardChips, timelineRow,
     minutesChart, stackBar, coverageStrip, kitPicker,
-} from '../assets/ui.js?v=129';
+} from '../assets/ui.js?v=130';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=129';
+} from './shell.js?v=130';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=129';
+} from './review.js?v=130';
 
 // ---------------------------------------------------------------- team setup
 
@@ -1248,7 +1248,14 @@ function renderTeamStats(stats) {
         }),
     ];
 
-    for (const group of groupStats(rows)) host.append(statGroup(group));
+    // The first group open, the rest folded to their headings: five screens
+    // of boxes were the one complaint about this page that every figure on it
+    // could not answer. See `renderBrief` for what replaced the scrolling.
+    groupStats(rows).forEach((group, i) => {
+        host.append(statGroup(group, { folded: i > 0 }));
+    });
+    host.classList.toggle('has-folds', host.children.length > 1);
+    renderBrief(rows);
 
     // Said once, here, rather than left as an absence a reader has to notice.
     // A filmed match nobody tagged is not a corner case — it is the ordinary
@@ -1275,6 +1282,52 @@ function renderTeamStats(stats) {
         setText('tk-them', themName);
         key.hidden = !host.querySelector('.tally');
     }
+}
+
+/** The lines at the top of the review. See `matchBrief`. */
+function renderBrief(rows) {
+    const block = byId('match-brief');
+    const list = byId('brief-list');
+    if (!block || !list) return;
+
+    const match = state.match;
+    const log = match?.log || [];
+    const cv = activeCv();
+    const lines = matchBrief({
+        log,
+        roster: match?.roster,
+        counts: match?.stats?.counts,
+        status: match?.status,
+        rows,
+        reads: cvReads(cv, {
+            videoOffsetS: match?.videoOffsetS ?? 0,
+            goals: !state.cvPreview && log.length
+                ? (match?.stats?.counts.us.goal ?? 0) : undefined,
+        }),
+    });
+
+    list.innerHTML = '';
+    for (const line of lines) {
+        const item = document.createElement('li');
+        item.className = 'brief-line'
+            + (line.tone ? ` is-${line.tone}` : '');
+        const title = document.createElement('strong');
+        title.textContent = line.title;
+        item.append(title);
+        if (line.detail) {
+            const detail = document.createElement('span');
+            detail.textContent = line.detail;
+            item.append(detail);
+        }
+        if (line.estimated) {
+            const mark = document.createElement('span');
+            mark.className = 'brief-est';
+            mark.textContent = isSample(cv) ? 'Sample data' : 'Estimated from video';
+            item.append(mark);
+        }
+        list.append(item);
+    }
+    block.classList.toggle('hidden', !lines.length);
 }
 
 /**
@@ -3897,6 +3950,13 @@ function init() {
     byId('btn-add-player').addEventListener('click', doAddPlayer);
     byId('btn-create-match').addEventListener('click', doCreateMatch);
     byId('btn-print').addEventListener('click', () => window.print());
+    // Paper cannot click a folded group open, so every one opens for print,
+    // from the button or from the browser's own menu.
+    window.addEventListener('beforeprint', () => {
+        for (const group of document.querySelectorAll('details.stat-group')) {
+            group.open = true;
+        }
+    });
     byId('btn-back').addEventListener('click', () => {
         // Leaving the match has to take the video with it. A hidden iframe
         // keeps playing, and a coach walking away from a page that is still

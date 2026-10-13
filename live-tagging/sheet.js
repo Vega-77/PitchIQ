@@ -23,7 +23,7 @@
 // very sheet it belongs to; focusing the container announces the dialog and its
 // heading and leaves the screen alone.
 
-import { byId } from '../assets/ui.js?v=129';
+import { byId } from '../assets/ui.js?v=130';
 
 const KEEP = 'a[href], button, input, select, textarea, [tabindex]';
 

@@ -7,9 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Saira+Condensed:wght@600;700;800&family=Saira:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/app.css?v=129">
-    <script src="../assets/kit-boot.js?v=129"></script>
-    <link rel="stylesheet" href="coach.css?v=129">
+    <link rel="stylesheet" href="../assets/app.css?v=130">
+    <script src="../assets/kit-boot.js?v=130"></script>
+    <link rel="stylesheet" href="coach.css?v=130">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to the main content</a>
@@ -422,6 +422,14 @@
             </div>
         </div>
 
+        <!-- The answer before the evidence: the result, who scored, who was
+             booked, where it was won and lost. Every line is a figure that is
+             also further down; this only picks which. See `matchBrief`. -->
+        <section class="block brief hidden" id="match-brief">
+            <h3>In brief</h3>
+            <ul class="brief-list" id="brief-list"></ul>
+        </section>
+
         <!-- The phone-sized read, for the touchline rather than a desk. -->
         <a class="action-card primary-action" id="link-halftime" href="#" style="margin-bottom:8px">
             <div class="action-icon">&#9202;</div>
@@ -788,7 +796,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=129"></script>
+<script type="module" src="coach.js?v=130"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

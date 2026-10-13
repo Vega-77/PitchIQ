@@ -5,9 +5,9 @@
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
-import { comparePair, verdict, COUNT, knownMinutes, FULL_MATCH_MIN } from './report.js?v=129';
-import { svgEl } from './svg.js?v=129';
-import { HOUSE_KIT, KIT_PRESETS, kitWarnings, normaliseHex } from './kit.js?v=129';
+import { comparePair, verdict, COUNT, knownMinutes, FULL_MATCH_MIN } from './report.js?v=130';
+import { svgEl } from './svg.js?v=130';
+import { HOUSE_KIT, KIT_PRESETS, kitWarnings, normaliseHex } from './kit.js?v=130';
 
 export const byId = (id) => document.getElementById(id);
 
@@ -151,10 +151,28 @@ export function groupHead(title, note = '') {
  * an extra number in it: a reader should be able to tell at a glance which
  * figures have something to be compared against.
  */
-export function statGroup({ title, note = '', rows = [] }) {
-    const section = document.createElement('section');
-    section.className = 'stat-group';
-    section.append(groupHead(title, note));
+export function statGroup({ title, note = '', rows = [] }, { folded = null } = {}) {
+    // `folded` true or false makes the group a disclosure, closed or open; left
+    // null it is the plain section every other page draws.
+    const foldable = folded != null;
+    const section = document.createElement(foldable ? 'details' : 'section');
+    section.className = foldable ? 'stat-group fold' : 'stat-group';
+    if (foldable) {
+        section.open = !folded;
+        const summary = document.createElement('summary');
+        const peek = document.createElement('span');
+        peek.className = 'fold-peek';
+        peek.textContent = rows.slice(0, 3)
+            .filter((row) => row.value != null)
+            .map((row) => (row.kind && row.themValue != null
+                ? `${row.label} ${row.value}–${row.themValue}`
+                : `${row.label} ${row.value}`))
+            .join(' · ');
+        summary.append(groupHead(title, note), peek);
+        section.append(summary);
+    } else {
+        section.append(groupHead(title, note));
+    }
 
     const cards = rows.filter((row) => !row.kind);
     const bars = rows.filter((row) => row.kind);
