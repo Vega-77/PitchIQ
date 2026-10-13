@@ -1789,7 +1789,10 @@ export function railTarget(ids, wanted) {
 // back specs rather than elements, so `statGroup` in ui.js can draw them and
 // this module can stay importable by a test file with no DOM.
 
-const FULL_MATCH_MIN = 80;
+/** A full high-school match: two forty-minute halves. The reference line on
+ *  the minutes charts is this too, so a full shift reaches it rather than
+ *  stopping short of a professional ninety. */
+export const FULL_MATCH_MIN = 80;
 
 /**
  * A player's season as titled groups of figures.

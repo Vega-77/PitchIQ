@@ -5,9 +5,9 @@
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
-import { comparePair, verdict, COUNT, knownMinutes } from './report.js?v=126';
-import { svgEl } from './svg.js?v=126';
-import { HOUSE_KIT, KIT_PRESETS, kitWarnings, normaliseHex } from './kit.js?v=126';
+import { comparePair, verdict, COUNT, knownMinutes, FULL_MATCH_MIN } from './report.js?v=127';
+import { svgEl } from './svg.js?v=127';
+import { HOUSE_KIT, KIT_PRESETS, kitWarnings, normaliseHex } from './kit.js?v=127';
 
 export const byId = (id) => document.getElementById(id);
 
@@ -499,7 +499,7 @@ export function cardChips(yellowCards = 0, redCards = 0, labels = {}) {
  * matchDate and opponentName. Drawn with a viewBox so one piece of markup
  * scales from a phone to a monitor with no redraw on resize.
  */
-export function minutesChart(reports, { fullMatchMinutes = 90 } = {}) {
+export function minutesChart(reports, { fullMatchMinutes = FULL_MATCH_MIN } = {}) {
     const season = reports.slice().reverse();          // oldest first
     const involved = (r) => (r.goals || 0) + (r.assists || 0);
     const minutesOf = (r) => (knownMinutes(r) ? (r.minutesPlayed || 0) : null);
@@ -574,7 +574,7 @@ export function minutesChart(reports, { fullMatchMinutes = 90 } = {}) {
  * `thinBelow` is `MIN_POINT_MINUTES` from season.js, passed in rather than
  * imported so this module keeps drawing and stops deciding.
  */
-export function coverageStrip(reports, { thinBelow = 10, fullMatchMinutes = 90 } = {}) {
+export function coverageStrip(reports, { thinBelow = 10, fullMatchMinutes = FULL_MATCH_MIN } = {}) {
     const host = document.createElement('div');
     host.className = 'coverage-strip';
 

@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=126';
+} from '../assets/auth.js?v=127';
 import {
     createTeam, updateTeamKit, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../assets/db.js?v=126';
-import { nowIndex } from '../assets/timeline.js?v=126';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=126';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=126';
+} from '../assets/db.js?v=127';
+import { nowIndex } from '../assets/timeline.js?v=127';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=127';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=127';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=126';
+} from '../assets/sample-report.js?v=127';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=126';
-import { renderPassMap } from '../assets/pass-map.js?v=126';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=126';
+} from '../assets/passing.js?v=127';
+import { renderPassMap } from '../assets/pass-map.js?v=127';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=127';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=126';
-import { renderForms } from '../assets/form-chart.js?v=126';
+} from '../assets/season.js?v=127';
+import { renderForms } from '../assets/form-chart.js?v=127';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, hasVerdict, currentAnswers, xgTrust,
@@ -41,29 +41,29 @@ import {
     substitutionWindows, substitutionRead, substitutionNote, CHANGE_REASONS,
     matchClockMap,
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition,
-    minutesNote, FROM_LAST_TAG,
+    minutesNote, FROM_LAST_TAG, FULL_MATCH_MIN,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=126';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=126';
-import { mountRail } from '../assets/rail.js?v=126';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=126';
-import { startMotion } from '../assets/motion.js?v=126';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=126';
-import { videoKind } from '../assets/video.js?v=126';
+} from '../assets/report.js?v=127';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=127';
+import { mountRail } from '../assets/rail.js?v=127';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=127';
+import { startMotion } from '../assets/motion.js?v=127';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=127';
+import { videoKind } from '../assets/video.js?v=127';
 import {
     byId, setText, toast, clockText, signed, plural, localDate,
     statCard, statGroup, fillStatGroup, figure, cardChips, timelineRow,
     minutesChart, stackBar, coverageStrip, kitPicker,
-} from '../assets/ui.js?v=126';
+} from '../assets/ui.js?v=127';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=126';
+} from './shell.js?v=127';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=126';
+} from './review.js?v=127';
 
 // ---------------------------------------------------------------- team setup
 
@@ -942,10 +942,11 @@ function renderPlayerChart(reports) {
     host.append(minutesChart(reports));
 
     const involved = reports.filter((r) => (r.goals || 0) + (r.assists || 0)).length;
+    const line = `The line is a full ${FULL_MATCH_MIN}-minute match, oldest match on the left.`;
     setText('pv-chart-note', involved
-        ? `The line is 90 minutes, oldest match on the left. Highlighted bars are `
+        ? `${line} Highlighted bars are `
           + `matches they scored or assisted in — ${plural(involved, 'match', 'matches')}.`
-        : 'The line is 90 minutes, oldest match on the left.');
+        : line);
 }
 
 /**
