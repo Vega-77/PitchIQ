@@ -3317,6 +3317,36 @@ export function playerTimeline(log, roster, playerId) {
         .slice(0, MAX_TIMELINE);
 }
 
+/**
+ * A player's own moments across the season: every goal they scored or set up
+ * and every card they were shown, newest match first and in match order
+ * within it.
+ *
+ * Read off the timelines already in their reports, which `playerTimeline`
+ * built for them alone, so this can show nothing the match pages could not.
+ * Each moment carries its report so the page can open that match. Reports
+ * published before timelines existed simply contribute nothing.
+ */
+export function seasonMoments(reports, { limit = 12 } = {}) {
+    const moments = [];
+    for (const report of reports || []) {
+        const own = (report.timeline || [])
+            .filter((e) => e.mine && (e.type === 'goal' || e.type === 'card'))
+            .sort((a, b) => (a.clockS || 0) - (b.clockS || 0));
+        for (const entry of own) {
+            const kind = entry.type === 'card' ? 'card'
+                : /^You assisted/.test(entry.label) ? 'assist' : 'goal';
+            moments.push({
+                kind,
+                label: entry.label,
+                minute: `${Math.floor((entry.clockS || 0) / 60) + 1}′`,
+                report,
+            });
+        }
+    }
+    return moments.slice(0, limit);
+}
+
 // ------------------------------------------------------ scoring the reviewer
 //
 // The review tool has been collecting verdicts since it shipped and computing
