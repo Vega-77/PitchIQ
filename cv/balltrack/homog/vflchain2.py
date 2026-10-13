@@ -201,8 +201,8 @@ def main():
     S, C = Z['S'], {c: i for i, c in enumerate(Z['cols'].tolist())}
     S = S[np.isfinite(S[:, C['d_rms']])]
     TH = S[:, [C[c] for c in 'u0 v0 vu vv tau Tf k'.split()]]
-    P0 = np.array([D.drag(th, np.array([th[4]]))[0, :2] for th in TH])
-    P1 = np.array([D.drag(th, np.array([th[4] + th[5]]))[0, :2] for th in TH])
+    P0 = np.array([D.drag(th, np.array([th[4]]))[0, :2] for th in TH]).reshape(-1, 2)   # (0, 2): no window fitted
+    P1 = np.array([D.drag(th, np.array([th[4] + th[5]]))[0, :2] for th in TH]).reshape(-1, 2)
     sb0, sb1 = tr.to_sb(P0), tr.to_sb(P1)
     onp = np.all([(sb[:, 0] > -10) & (sb[:, 0] < 130) & (sb[:, 1] > -10) & (sb[:, 1] < 90) for sb in (sb0, sb1)], 0)
     rows = select_flights(S, C, onp)

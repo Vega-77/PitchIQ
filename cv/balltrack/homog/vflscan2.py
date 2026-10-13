@@ -112,7 +112,8 @@ def main():
     chunks = [(tag, starts[i::32]) for i in range(32)]
     t0 = time.time()
     with Pool(procs) as p:
-        S = np.array(sum(p.map(work, chunks), []))
+        # (n, cols) even when no window fits: a piece before kickoff has no ball at all
+        S = np.array(sum(p.map(work, chunks), []), dtype=float).reshape(-1, len(COLS))
     out = os.path.join(V.HERE, '%s_scan2%s.npz' % (tag, '_lim' if lim else ''))
     np.savez(out, S=S, cols=np.array(COLS))
     print('%d starts, %d windows, %d drag-fitted  (%.0f s)' % (
