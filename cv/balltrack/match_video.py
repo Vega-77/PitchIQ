@@ -55,17 +55,34 @@ def ring(im, c, r, col):
     cv2.circle(im, c, r, BLACK, 4, cv2.LINE_AA); cv2.circle(im, c, r, col, 2, cv2.LINE_AA)
 
 
+MIN_RUN = 5    # frames; on the labelled ball points every ring shown for fewer was wrong (2026-10-12)
+
+
+def short_runs(on, k=MIN_RUN):
+    """True on the frames of each run of `on` shorter than k frames."""
+    d = np.diff(np.r_[0, np.asarray(on, bool).astype(np.int8), 0])
+    out = np.zeros(len(on), bool)
+    for b, e in zip(np.where(d == 1)[0], np.where(d == -1)[0]):
+        out[b:e] = e - b < k
+    return out
+
+
 def ball(tag, lo, hi):
-    """Per frame: image point, StatsBomb point, kind, ground point under an air ball."""
+    """Per frame: image point, StatsBomb point, kind, ground point under an air ball.
+    A ring that would show for under MIN_RUN frames is not drawn at all."""
     tr = V.Track(tag)
     a0 = int(tr.abs[0])
     B = np.load(os.path.join(HG, '%s_ball3dd.npz' % tag))
     P = np.load(os.path.join(HERE, 'alltests', 'p2d', 'hyb90', '%s.npz' % tag))
+    air = (B['state'] == 'air') & np.isfinite(B['x'])
+    flash = short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
     n = hi - lo
     img = np.full((n, 2), np.nan); sb = np.full((n, 2), np.nan); gnd = np.full((n, 2), np.nan); kind = [''] * n
     for k in range(n):
         i = lo - a0 + k
-        if str(B['state'][i]) == 'air' and np.isfinite(B['x'][i]):
+        if flash[i]:
+            continue
+        if air[i]:
             q = np.linalg.solve(tr.A, [B['x'][i], B['y'][i], 1.0]); uv = q[:2] / q[2]
             b_, g_ = tr.project(np.full(2, i), np.array([[uv[0], uv[1], B['z'][i]], [uv[0], uv[1], 0.0]]))
             img[k], gnd[k], kind[k] = b_, g_, 'air'
