@@ -1838,11 +1838,12 @@ export function seasonGroups(reports, totals, options = {}) {
 
     // The figure that survives uneven minutes, which is exactly the comparison
     // between a starter and a squad player. Below 45 minutes the denominator is
-    // too small to divide into.
+    // too small to divide into. Per full match as this site counts one — the
+    // professional "per 90" would be a match these players never play.
     if (t.minutes >= 45) {
         tagged.push({
-            value: ((t.goals + t.assists) / t.minutes * 90).toFixed(2),
-            label: 'G+A per 90',
+            value: ((t.goals + t.assists) / t.minutes * FULL_MATCH_MIN).toFixed(2),
+            label: `G+A per ${FULL_MATCH_MIN} min`,
             tone: 'is-muted',
         });
     }
