@@ -11,7 +11,7 @@
 // every shot in the wrong place under a diagram that still looked right.
 // tests/test_pitch_dimensions.py holds them to cv/pitch.py.
 
-import { svgEl as el } from './svg.js?v=125';
+import { svgEl as el } from './svg.js?v=126';
 
 // Metres, matching the defaults in cv/pitch.py.
 const L = 105;

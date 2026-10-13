@@ -4435,6 +4435,12 @@ const SHAPE_WORDS = {
  * Left out it quotes video minutes, which are the right minutes when nobody has
  * synced the clock — a wrong match minute reads as fact, a video minute reads
  * as a position in the footage.
+ *
+ * `options.goals` is the tagged score for our side, when there is one. It
+ * replaces the video's goal count in the chances read: the scoreline at the
+ * top of the same page is the tagged one, and a read saying "2 scored" under a
+ * 1–0 is the page arguing with itself. The video still supplies the shots and
+ * the expected goals, which nobody tags.
  */
 export function cvReads(cv, options = {}) {
     const ours = cv?.teams?.team_a;
@@ -4491,18 +4497,19 @@ export function cvReads(cv, options = {}) {
 
     // Chances created against chances taken. Both directions are worth saying:
     // one is bad luck or bad finishing, the other is a lead that flatters.
-    if (ours.xg != null && ours.goals != null && ours.shots) {
-        const gap = ours.goals - ours.xg;
+    const goals = options.goals ?? ours.goals;
+    if (ours.xg != null && goals != null && ours.shots) {
+        const gap = goals - ours.xg;
         if (gap <= -1.0) {
             reads.push({
                 title: 'You have made more than you have taken',
                 detail: `${ours.shots} shots worth about ${ours.xg.toFixed(1)} `
-                    + `expected goals, and ${ours.goals} scored.`,
+                    + `expected goals, and ${goals} scored.`,
             });
         } else if (gap >= 1.0) {
             reads.push({
                 title: 'The scoreline is ahead of the chances',
-                detail: `${ours.goals} from about ${ours.xg.toFixed(1)} expected `
+                detail: `${goals} from about ${ours.xg.toFixed(1)} expected `
                     + `goals across ${ours.shots} shots.`,
             });
         }

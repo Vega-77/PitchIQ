@@ -10,24 +10,24 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=125';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=125';
+import { onUser, resolveAccess, configWarning } from '../assets/auth.js?v=126';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=126';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../assets/db.js?v=125';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=125';
+} from '../assets/db.js?v=126';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../assets/events.js?v=126';
 import {
     possessionIsInPlay, cvReads, xgTrust, groupStats, clockFromMatch,
     taggedTeamRows, taggedCount,
     SHARE, COUNT, RATE,
-} from '../assets/report.js?v=125';
-import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=125';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=125';
+} from '../assets/report.js?v=126';
+import { sampleCvSummary, SAMPLE_NOTICE } from '../assets/sample-report.js?v=126';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=126';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
     tally, groupHead,
-} from '../assets/ui.js?v=125';
+} from '../assets/ui.js?v=126';
 
 const VIEWS = ['view-error', 'view-report'];
 
@@ -131,8 +131,13 @@ function renderDecisions() {
     //
     // Marked `est` rather than `info` so an estimate never sits in the same
     // visual register as a card somebody was actually shown.
+    // The tagged goals, so the chances read agrees with the scoreline above
+    // it. Not for the sample, whose made-up shots go with its made-up goals,
+    // and not before anything is tagged, when the scoreline is a dash.
+    const tagged = !state.cvPreview && state.log?.length;
     for (const read of cvReads(activeCv(), {
         videoOffsetS: state.match?.videoOffsetS ?? 0,
+        goals: tagged ? (state.stats?.counts.us.goal ?? 0) : undefined,
     })) {
         list.append(decision('est', read.title, read.detail));
     }
