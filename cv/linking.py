@@ -148,6 +148,11 @@ class LinkSettings:
     kit_cut_win: int = 15
     kit_cut_lean: float = 0.3
     kit_cut_sure: float = 0.9
+    # The rows between two sustained runs are the moment of the swap and are
+    # dropped. A gap at least `kit_cut_keep_rows` long is not a moment (a shirt
+    # that reads neither kit for seconds): it becomes its own piece instead,
+    # joined or not like any other. 0 drops every gap.
+    kit_cut_keep_rows: int = 0
     # Eleven a side, one in goal: never more than this many outfield players
     # of one team in a frame. Where the kits say more, the least sure of them
     # (median lean toward their own kit, then fewer rows) are shown as unsure
@@ -436,6 +441,11 @@ class Linker:
                     end_reason=tr.end_reason if p == len(runs) - 1 else 'cut',
                     start_reason=tr.start_reason if p == 0 else 'cut',
                 ))
+                gap = runs[p + 1][0] - hi_k if p < len(runs) - 1 else 0
+                if s.kit_cut_keep_rows and gap >= s.kit_cut_keep_rows:
+                    out.append(Tracklet(tid=next_tid, rows=rows[hi_k:hi_k + gap],
+                                        end_reason='cut', start_reason='cut'))
+                    next_tid += 1
         return out
 
     def _other_kits(self, pieces: list[_Piece], det: Detections) -> None:

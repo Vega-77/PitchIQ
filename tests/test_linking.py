@@ -245,6 +245,34 @@ def test_a_tracklet_that_changes_shirt_is_cut():
     assert all(len(people_in(i, owner)) == 1 for i in mine)
 
 
+def _white_neither_black():
+    """One tracklet: a white shirt, then 40 rows that read neither kit, then a black shirt."""
+    neither = dict(team=-1, kit=[135.0, 128.0, 128.0, 5.0], desc=[135.0, 128.0, 128.0, 45.0, 128.0, 128.0])
+    s = Scene(160)
+    background(s, range(160))
+    w = walker(40.0, 20.0, vx=1.0)
+    ids = (s.person(w, LIGHT, range(0, 60)), s.person(w, neither, range(60, 100)), s.person(w, DARK, range(100, 160)))
+    det, tracklets, owner = s.build(True)
+    last = tracklets[-3:]
+    merged = Tracklet(last[0].tid, np.concatenate([t.rows for t in last]), 'lost', 'new')
+    return det, tracklets[:-3] + [merged], owner, ids
+
+
+def test_the_gap_of_a_kit_cut_is_dropped_by_default():
+    det, tracklets, owner, (white, gap, black) = _white_neither_black()
+    res = Linker(projector(160), PITCH_L, PITCH_W, LinkSettings()).link(tracklets, det)
+    assert not any(gap in people_in(i, owner) for i in res.identities)
+    assert not any({white, black} <= people_in(i, owner) for i in res.identities)
+
+
+def test_a_long_kit_cut_gap_is_kept_as_its_own_piece():
+    det, tracklets, owner, (white, gap, black) = _white_neither_black()
+    res = Linker(projector(160), PITCH_L, PITCH_W, LinkSettings(kit_cut_keep_rows=20)).link(tracklets, det)
+    held = [i for i in res.identities if gap in people_in(i, owner)]
+    assert held and sum(sum(owner[r] == gap for r in i.rows if r >= 0) for i in held) == 40
+    assert not any({white, black} <= people_in(i, owner) for i in res.identities)
+
+
 def test_a_dark_shirt_washed_grey_by_the_sun_is_not_cut():
     # nothing makes a black shirt read bright white; halfway to grey is still one person
     grey = dict(team=1, kit=[150.0, 128.0, 128.0, 50.0], desc=DARK['desc'])
