@@ -20,6 +20,10 @@ Every question has "can't tell". A share (--hard) of each type comes from the
 cases the pipeline is least sure of (near a line, at a join, an unringed
 detection, a ball in the air); scores must use only sample == "random".
 
+--keep-gaps N links with `kit_cut_keep_rows=N` and adds a `same` question
+(sample "gap") at each end of every stretch that setting gives back: rows the
+shipped linker drops as a kit swap. Those answers decide whether to turn it on.
+
 Writes <out>/questions.json, <out>/packs/p<k>.webm (10 two-second clips each,
 8 fps; the page seeks to slot * 2 s) and <out>/ctx/a<k>.jpg (5 x 5 atlases of
 the whole frame with the crop marked).
@@ -77,14 +81,30 @@ def _crop_rect(cx, cy, ch, W=1920, H=1080):
 class _Window:
     """One stretch: linked players, ball and camera, and the question pools."""
 
-    def __init__(self, tag, lo, hi, det, meta, proj, pitch, Hs, a0, rng):
+    def __init__(self, tag, lo, hi, det, meta, proj, pitch, Hs, a0, rng, keep_gaps=0):
         MV = _mv()
         from cv.experiments import player_lab as L
         m = (det.frame >= lo) & (det.frame < hi)
         dw = _subset(det, m)
         mw = dict(meta, lo=lo, n=hi - lo)
-        _, self.res = L.run_variant('A+B+C', dw, mw, proj, pitch)
         self.lo, self.hi, self.Hs, self.a0, self.det = lo, hi, Hs, a0, dw
+        _, self.res = L.run_variant('A+B+C', dw, mw, proj, pitch)
+        self.gap_ends = []
+        if keep_gaps:
+            held0 = np.zeros(len(dw), bool)
+            for i in self.res.identities:
+                held0[i.rows[i.rows >= 0].astype(int)] = True
+            L.VARIANTS['spot keep gaps'] = ({}, {'kit_cut_keep_rows': keep_gaps})
+            _, self.res = L.run_variant('spot keep gaps', dw, mw, proj, pitch)
+            for ident in self.res.identities:
+                if ident.role == 'off':
+                    continue
+                back = np.array([r >= 0 and not held0[r] for r in ident.rows])
+                d = np.diff(np.r_[0, back.astype(np.int8), 0])
+                for b, e in zip(np.flatnonzero(d == 1), np.flatnonzero(d == -1)):
+                    for f in (int(ident.frames[b]), int(ident.frames[e - 1])):
+                        if self.fits(f):
+                            self.gap_ends.append((f, ident, True))
         _, self.bimg, _, self.bgnd, self.bkind = MV.ball(tag, lo, hi)
         shirt = {}
         for t in ('team_a', 'team_b'):
@@ -341,7 +361,7 @@ class _Writer:
 
 
 def make(tag: str, out: Path, per_type: int = 100, windows: int = 6, win_s: float = 180.0,
-         hard: float = 0.3, seed: int = 0, types=TYPES) -> list[dict]:
+         hard: float = 0.3, seed: int = 0, types=TYPES, keep_gaps: int = 0) -> list[dict]:
     import cv2
 
     MV = _mv()
@@ -365,7 +385,7 @@ def make(tag: str, out: Path, per_type: int = 100, windows: int = 6, win_s: floa
     for w, lo in enumerate(edges):
         lo = int(lo); hi = lo + win
         print('window %d: %d..%d' % (w, lo, hi), flush=True)
-        win_ = _Window(tag, lo, hi, det, meta, proj, pitch, Hs, a0, rng)
+        win_ = _Window(tag, lo, hi, det, meta, proj, pitch, Hs, a0, rng, keep_gaps)
         want = []
         for kind in types:
             n = int(round(per_type / windows))
@@ -380,6 +400,8 @@ def make(tag: str, out: Path, per_type: int = 100, windows: int = 6, win_s: floa
             for i, sample in [(i, 'hard') for i in pick] + [(i, 'random') for i in pick_r]:
                 f, payload, _ = pool[i]
                 want.append(dict(kind=kind, f=int(f), payload=payload, sample=sample))
+        for f, ident, _ in win_.gap_ends:
+            want.append(dict(kind='same', f=f, payload=ident, sample='gap'))
         want.sort(key=lambda q: q['f'])
         need = {}
         for q in want:
@@ -437,12 +459,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument('--hard', type=float, default=0.3, help='share of each type taken from the unsure cases')
     p.add_argument('--seed', type=int, default=0)
     p.add_argument('--types', nargs='+', choices=TYPES, default=list(TYPES))
+    p.add_argument('--keep-gaps', type=int, default=0, help='link with kit_cut_keep_rows=N and ask about the stretches it keeps')
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     a = build_parser().parse_args(argv)
-    qs = make(a.tag, a.out, a.per_type, a.windows, a.win_s, a.hard, a.seed, tuple(a.types))
+    qs = make(a.tag, a.out, a.per_type, a.windows, a.win_s, a.hard, a.seed, tuple(a.types), a.keep_gaps)
     n = {t: sum(q['type'] == t for q in qs) for t in TYPES}
     print('questions:', len(qs), n)
     print('size: %.1f MB' % (sum(f.stat().st_size for f in a.out.rglob('*') if f.is_file()) / 2 ** 20))
