@@ -220,7 +220,12 @@ export function fixture() {
             archived: false,
             createdBy: COACH.uid,
         }],
-        [`teams/${TEAM_ID}/staff/${COACH.uid}`, { name: 'A Coach', role: 'coach' }],
+        // The shape `saveStaffProfile` writes and the rules allow. It was once
+        // `{ name, role }`, which no real entry has, and the staff tab read
+        // "undefined (you)" in every run on this fixture.
+        [`teams/${TEAM_ID}/staff/${COACH.uid}`, {
+            displayName: COACH.displayName, emailLower: COACH.email, role: 'coach',
+        }],
 
         [`teams/${TEAM_ID}/players/p-rae`, {
             name: 'Rae Nkemelu', jerseyNumber: 7, emailLower: STUDENT.email,
