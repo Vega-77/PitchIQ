@@ -361,7 +361,8 @@ class _Writer:
 
 
 def make(tag: str, out: Path, per_type: int = 100, windows: int = 6, win_s: float = 180.0,
-         hard: float = 0.3, seed: int = 0, types=TYPES, keep_gaps: int = 0) -> list[dict]:
+         hard: float = 0.3, seed: int = 0, types=TYPES, keep_gaps: int = 0,
+         play: tuple[int | None, int | None] = (None, None)) -> list[dict]:
     import cv2
 
     MV = _mv()
@@ -376,6 +377,8 @@ def make(tag: str, out: Path, per_type: int = 100, windows: int = 6, win_s: floa
     proj, pitch = L.projector(tag, meta['w'], meta['h'])
     _PITCH, _LINES = (pitch.length_m, pitch.width_m), None
     lo_all, hi_all = max(a0, int(det.frame.min())), min(int(frames[-1]) + 1, int(det.frame.max()) + 1)
+    # a pass range can run past play (walk-on before kickoff, walk-off after the whistle)
+    lo_all, hi_all = max(lo_all, play[0] or lo_all), min(hi_all, play[1] or hi_all)
     win = int(win_s * meta['fps'])
     edges = np.linspace(lo_all, hi_all - win, windows).astype(int)
     out.mkdir(parents=True, exist_ok=True)
@@ -460,12 +463,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument('--seed', type=int, default=0)
     p.add_argument('--types', nargs='+', choices=TYPES, default=list(TYPES))
     p.add_argument('--keep-gaps', type=int, default=0, help='link with kit_cut_keep_rows=N and ask about the stretches it keeps')
+    p.add_argument('--lo', type=int, help='first frame of play (default: the pass range)')
+    p.add_argument('--hi', type=int, help='frame after play ends (default: the pass range)')
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     a = build_parser().parse_args(argv)
-    qs = make(a.tag, a.out, a.per_type, a.windows, a.win_s, a.hard, a.seed, tuple(a.types), a.keep_gaps)
+    qs = make(a.tag, a.out, a.per_type, a.windows, a.win_s, a.hard, a.seed, tuple(a.types), a.keep_gaps, (a.lo, a.hi))
     n = {t: sum(q['type'] == t for q in qs) for t in TYPES}
     print('questions:', len(qs), n)
     print('size: %.1f MB' % (sum(f.stat().st_size for f in a.out.rglob('*') if f.is_file()) / 2 ** 20))
