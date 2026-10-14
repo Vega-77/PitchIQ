@@ -289,7 +289,7 @@ def run(tag: str, lo: int, hi: int, work: Path = WORK, homog: Path = HOMOG, line
             _save(out['height'], height(tag, Q, _load(out['cal']), log))
         pose = _load(out['height'])
     log('== write')
-    err = write(tag, Q, pose, homog, log, _load(out['gather'])['paint'])
+    err = write(tag, Q, pose, homog, log, _load(out['gather']).get('paint'))
     log('done')
     logfile.close()
     return err

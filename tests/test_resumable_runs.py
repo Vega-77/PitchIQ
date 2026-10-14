@@ -82,7 +82,7 @@ def stubbed(monkeypatch):
                                                                            np.zeros((2, 2, 3), np.uint8)))
     monkeypatch.setattr(R, 'calibrate', lambda Q, cam, log: calls.append(('cal', cam)) or (np.ones(3), np.eye(3), 12.3, 7.5))
     monkeypatch.setattr(R, 'height', lambda tag, Q, cal, log: calls.append('height') or cal)
-    monkeypatch.setattr(R, 'write', lambda tag, Q, pose, homog, log: calls.append('write') or {})
+    monkeypatch.setattr(R, 'write', lambda tag, Q, pose, homog, log, paint=None: calls.append('write') or {})
     return calls
 
 
