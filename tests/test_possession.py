@@ -410,9 +410,12 @@ class TestTrainingBibs:
 
     @pytest.mark.parametrize('tag', ['fm01', 'fr00'])
     def test_lightness_alone_hands_most_bibs_to_black(self, tag, monkeypatch):
-        """The fixture fails without the tint, or the next test proves nothing."""
+        """The fixture fails without the tint, or the next test proves nothing.
+        Lightness split by tracks, that is: split by frames it already hands fr00's
+        bibs to white (0.84), though fm01 stays near a coin toss (0.60)."""
         from cv import teams
         monkeypatch.setattr(teams, '_discriminant_refit', lambda *a: None)
+        monkeypatch.setattr(teams, '_weighted_two_means', lambda samples, weights: teams._kmeans_two(samples))
         rows, assignment = self.split(tag)
         assert self.shares(rows, assignment)['bib'] < 0.5
 

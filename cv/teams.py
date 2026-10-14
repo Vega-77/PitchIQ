@@ -110,6 +110,16 @@ MIN_CLUSTER_SHARE = 0.25
 # short sunlit tracks cannot drag. A balanced split (45% on the dev window) is left alone.
 BALANCED_SHARE = 0.35
 
+# With track lengths given, each candidate axis is also split by frames rather
+# than by tracks (`_weighted_two_means`), and a winner that still leaves the
+# smaller team under BALANCED_SHARE gives way to the other axis when that one
+# divides the frames more evenly. The case is a hazy, half-sunlit minute at
+# North Brunswick: chroma put sunlit white on one side and blue with shaded
+# white on the other (8% of the frames against 92%), while lightness against
+# the grass had the real gap. On the spot-lab team answers over seven dev
+# halves this took 142 -> 152 of 175 right and 14 -> 10 wrong; no half got worse,
+# and fm01/fr00 scored the same.
+
 # Once grass-relative lightness has split the pitch, the split is refitted with
 # the shirt's tint alongside its lightness: a two-class discriminant with one
 # shared covariance, started from the lightness split. The case is a team in
@@ -364,6 +374,52 @@ def _kmeans_two(samples: np.ndarray, iterations: int = 25) -> tuple[np.ndarray, 
     return centres, np.argmin(d, axis=1)
 
 
+def _weighted_two_means(samples: np.ndarray, weights: np.ndarray,
+                        iterations: int = 25) -> tuple[np.ndarray, np.ndarray]:
+    """Two-cluster means with every track counted by its frames, from the best single cut.
+
+    Along one axis the cut is exact: of every place to divide the sorted tracks,
+    the one with the most between-cluster variance by frames (Otsu's rule).
+    With more axes the cut is made along the frames' main direction of spread,
+    then refined by weighted Lloyd steps. Unweighted, a scatter of short sunlit
+    tracks outvotes the long ones; on a hazy minute at North Brunswick it put
+    the cut between sunlit white and everything else, blue and shaded white
+    together (7% of the frames against 93%).
+    """
+    x = samples.astype(np.float64)
+    w = np.maximum(weights.astype(np.float64), 1e-9)
+    mu = (x * w[:, None]).sum(0) / w.sum()
+    if x.shape[1] == 1:
+        z = x[:, 0]
+    else:
+        c = x - mu
+        _, vecs = np.linalg.eigh((c * w[:, None]).T @ c)
+        z = c @ vecs[:, -1]
+    order = np.argsort(z, kind='stable')
+    zw, ws = z[order] * w[order], w[order]
+    w0, s0 = np.cumsum(ws)[:-1], np.cumsum(zw)[:-1]
+    w1, s1 = ws.sum() - w0, zw.sum() - s0
+    between = w0 * w1 * (s0 / w0 - s1 / w1) ** 2
+    distinct = np.diff(z[order]) > 0
+    if not distinct.any():
+        return _kmeans_two(samples)
+    cut = int(np.argmax(np.where(distinct, between, -1.0)))
+    labels = np.zeros(len(x), dtype=int)
+    labels[order[cut + 1:]] = 1
+    centres = np.array([(x[labels == k] * w[labels == k, None]).sum(0) / w[labels == k].sum() for k in (0, 1)])
+    for _ in range(iterations if x.shape[1] > 1 else 0):
+        new = np.argmin(np.linalg.norm(x[:, None, :] - centres[None], axis=2), axis=1)
+        if (new == labels).all() or len(set(new.tolist())) < 2:
+            break
+        labels = new
+        centres = np.array([(x[labels == k] * w[labels == k, None]).sum(0) / w[labels == k].sum() for k in (0, 1)])
+    # Name the clusters as `_kmeans_two` would: cluster 0 holds the sample
+    # farthest from the first, so a split both agree on keeps its team names.
+    if labels[int(np.argmax(np.linalg.norm(x - x[0], axis=1)))] == 1:
+        labels, centres = 1 - labels, centres[::-1].copy()
+    return centres, labels
+
+
 def _kmedians_two(samples: np.ndarray, centres: np.ndarray, weights: np.ndarray,
                   iterations: int = 25) -> tuple[np.ndarray, np.ndarray]:
     """Two-cluster k-medians from given centres, each median weighted by frames.
@@ -537,9 +593,38 @@ def assign_teams(
     Each track is labelled by where its own median colour falls, which is what
     makes the result robust to any single blurred or occluded frame.
 
-    `weights` (per track, its length in frames) turn on the BALANCED_SHARE
-    check; without them the split is exactly as before.
+    `weights` (per track, its length in frames) turn on the frame-weighted
+    split and the BALANCED_SHARE checks; without them the split is exactly as before.
     """
+    result = _assign(samples_by_track, outlier_ratio, weights)
+    if weights is None or _frame_share(result, weights) >= BALANCED_SHARE:
+        return result
+    for name in ('chroma', 'grass-relative lightness'):
+        if name == result.axis:
+            continue
+        other = _assign(samples_by_track, outlier_ratio, weights, only=name)
+        if _frame_share(other, weights) > _frame_share(result, weights):
+            result = other
+    return result
+
+
+def _frame_share(assignment: TeamAssignment, weights: dict[int, float]) -> float:
+    """The smaller team's share of the frames held by either team (0 with one team)."""
+    held = {TEAM_A: 0.0, TEAM_B: 0.0}
+    for track_id, label in assignment.by_track.items():
+        if label in held:
+            held[label] += float(weights.get(track_id, 1.0))
+    total = held[TEAM_A] + held[TEAM_B]
+    return min(held.values()) / total if total else 0.0
+
+
+def _assign(
+    samples_by_track: dict[int, list[np.ndarray]],
+    outlier_ratio: float,
+    weights: dict[int, float] | None,
+    only: str | None = None,
+) -> TeamAssignment:
+    """`assign_teams` on the candidate axes, or on the one axis named `only`."""
     result = TeamAssignment()
 
     # nanmedian, because a detection at the frame edge can be missing its
@@ -560,10 +645,16 @@ def assign_teams(
     # UNKNOWN below rather than clustered on a number they do not have.
     best = None
     for name, candidate in _candidate_axes(full):
+        if only is not None and name != only:
+            continue
         known = np.all(np.isfinite(candidate), axis=1)
         if known.sum() < 2:
             continue
-        centres, labels = _kmeans_two(candidate[known])
+        if weights is not None:
+            wk = np.array([float(weights.get(t, 1.0)) for t in track_ids])[known]
+            centres, labels = _weighted_two_means(candidate[known], wk)
+        else:
+            centres, labels = _kmeans_two(candidate[known])
         score = _separability(candidate[known], centres, labels)
         even = _balance(labels) >= MIN_CLUSTER_SHARE
         if best is None:
