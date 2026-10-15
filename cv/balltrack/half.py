@@ -230,7 +230,8 @@ class Half:
                 _, n = ex.feat_part_from_dets(self.tag, clo, chi, first_row)
                 first_row += n
                 self.say('players  %d..%d features  (%.0f s)' % (clo, chi, time.time() - t))
-        except Exception as e:      # noqa: BLE001 - reported and re-raised by main
+        except BaseException as e:  # noqa: BLE001 - reported and re-raised by main; a thread
+            # that let SystemExit (player_lab's 'video ended at') through would die without a word
             self.err = e
 
     def ball_gpu_loop(self):
@@ -245,7 +246,7 @@ class Half:
                     time.sleep(5)
                     continue
                 self.do(stage, p)
-        except Exception as e:      # noqa: BLE001
+        except BaseException as e:  # noqa: BLE001
             self.err = e
 
     def cpu_loop(self):
@@ -264,7 +265,7 @@ class Half:
                     time.sleep(5)
                     continue
                 self.do(stage, p)
-        except Exception as e:      # noqa: BLE001
+        except BaseException as e:  # noqa: BLE001
             self.err = e
 
     def do(self, stage, p):

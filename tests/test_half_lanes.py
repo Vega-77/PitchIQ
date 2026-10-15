@@ -71,3 +71,19 @@ def test_every_stage_runs_once_after_what_it_reads(run):
 def test_features_number_their_rows_in_chunk_order(run):
     h, _, feats = run
     assert feats == [(c, 10 * k) for k, (c, _) in enumerate(h.chunks)]
+
+
+def test_a_player_lane_that_exits_is_reported(tmp_path, monkeypatch):
+    """player_lab raises SystemExit past the video's end; the lane must not die silently."""
+    from cv.experiments import player_lab as L
+
+    class Ex:
+        def dets_part(self, tag, a, b):
+            raise SystemExit('video ended at %d' % b)
+
+    monkeypatch.setattr(L, 'Extractor', Ex)
+    monkeypatch.setattr(L, '_part', lambda tag, kind, a, b: tmp_path / ('%s_%d' % (kind, a)))
+    monkeypatch.setattr(half, 'S2', str(tmp_path))
+    h = half.Half('t', 0, 9000 - 1, 6, 300)
+    h.players_loop()
+    assert isinstance(h.err, SystemExit)
