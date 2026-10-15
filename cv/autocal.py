@@ -250,6 +250,12 @@ def frame_features(image: np.ndarray, sift=None, scale: float = 0.5):
 def link(a, b, max_pairs: int = 80, rng=None):
     """Matched points between two frames' features that agree on one homography
     (players running are the outliers). Returns (xa, xb) or None."""
+    return thin_link(link_inliers(a, b), max_pairs, rng)
+
+
+def link_inliers(a, b):
+    """`link` before the thinning: every inlier pair, (xa, xb) or None. It draws
+    no random numbers, so pairs can be matched in any order or process."""
     (xa, da), (xb, db) = a, b
     if len(da) < 20 or len(db) < 20:
         return None
@@ -262,6 +268,15 @@ def link(a, b, max_pairs: int = 80, rng=None):
     if H is None or inl.sum() < 30:
         return None
     k = np.flatnonzero(inl.ravel())
+    return pa[k], pb[k]
+
+
+def thin_link(pairs, max_pairs: int = 80, rng=None):
+    """At most max_pairs of `link_inliers`' pairs, drawn from rng."""
+    if pairs is None:
+        return None
+    pa, pb = pairs
+    k = np.arange(len(pa))
     rng = rng or np.random.default_rng(0)
     if len(k) > max_pairs:
         k = rng.choice(k, max_pairs, replace=False)
@@ -505,28 +520,51 @@ def chain_rotations(links, n: int, f0: float):
     return R, f
 
 
-def best_focal(links, n: int, lo: float = 600.0, hi: float = 9000.0):
+def best_focal(links, n: int, lo: float = 600.0, hi: float = 9000.0, pool=None):
     """Sample 0's focal length: the one under which all the links agree best.
 
     With the wrong focal length the rotations chained along short links do not
     explain the longer ones (0.5 vs 2 s apart); the residual has one clear
-    minimum (scrimmage: 2110 found vs 2053 from the accepted registration)."""
-    def cost(lf):
-        R, f = chain_rotations(links, n, np.exp(lf))
-        e = np.concatenate([np.hypot(*(to_px(rays(xi, f[i]) @ R[i] @ R[j].T, f[j]) - xj).T)
-                            for i, j, xi, xj in links])
-        return float(np.minimum(e, 10).mean())
+    minimum (scrimmage: 2110 found vs 2053 from the accepted registration).
+
+    Each cost is a whole chain (half a minute over a half), so `pool` (one
+    started with `focal_pool_init(links, n)`) prices the grid at once and each
+    golden-section pair side by side; the answer is the same either way."""
+    if pool is None:
+        costs = lambda lfs: [_focal_cost(links, n, lf) for lf in lfs]   # noqa: E731
+    else:
+        costs = lambda lfs: pool.map(_pooled_focal_cost, lfs, chunksize=1)   # noqa: E731
     grid = np.linspace(np.log(lo), np.log(hi), 15)
-    c = [cost(g) for g in grid]
+    c = costs(grid)
     k = int(np.argmin(c))
     a, b = grid[max(k - 1, 0)], grid[min(k + 1, len(grid) - 1)]
     for _ in range(12):                                   # golden section
         m1, m2 = b - 0.618 * (b - a), a + 0.618 * (b - a)
-        if cost(m1) < cost(m2):
+        c1, c2 = costs([m1, m2])
+        if c1 < c2:
             b = m2
         else:
             a = m1
     return float(np.exp((a + b) / 2))
+
+
+def _focal_cost(links, n: int, lf: float) -> float:
+    R, f = chain_rotations(links, n, np.exp(lf))
+    e = np.concatenate([np.hypot(*(to_px(rays(xi, f[i]) @ R[i] @ R[j].T, f[j]) - xj).T)
+                        for i, j, xi, xj in links])
+    return float(np.minimum(e, 10).mean())
+
+
+_FOCAL = {}
+
+
+def focal_pool_init(links, n: int) -> None:
+    """A `best_focal` pool worker's copy of the links."""
+    _FOCAL.update(links=links, n=n)
+
+
+def _pooled_focal_cost(lf: float) -> float:
+    return _focal_cost(_FOCAL['links'], _FOCAL['n'], lf)
 
 
 # ---- the camera's whole view, stitched ----------------------------------------------
@@ -571,20 +609,42 @@ def build_panorama(masks: dict, R_rel, f, scale: float = 0.5, F: float = None) -
     x0, x1, y0, y1 = az.min() * F - 4, az.max() * F + 4, el.min() * F - 4, el.max() * F + 4
     w, h = int(x1 - x0), int(y1 - y0)
     pano = Panorama(np.zeros((h, w), np.float32), np.zeros((h, w), np.int32), F, -x0, -y0)
-    D = pano.directions().reshape(-1, 3)
-    hits = np.zeros(h * w, np.float32)
+    D = pano.directions()
+    hits = np.zeros((h, w), np.float32)
     for k in ks:
-        v = D @ R_rel[k].T
+        # only the panorama cells the frame can reach: the box round its outline
+        # (a frame is a few hundred of the panorama's thousands of columns)
+        y0k, y1k, x0k, x1k = _footprint(pano, R_rel[k], f[k], h, w)
+        v = D[y0k:y1k, x0k:x1k].reshape(-1, 3) @ R_rel[k].T
         ok = v[:, 2] > 1e-3
         px = np.where(ok[:, None], v[:, :2] / np.where(ok, v[:, 2], 1)[:, None], 0) * f[k] + CENTRE
         px *= scale
         m = masks[k]
         xi = np.round(px[:, 0]).astype(int); yi = np.round(px[:, 1]).astype(int)
         ok &= (xi >= 0) & (xi < m.shape[1]) & (yi >= 0) & (yi < m.shape[0])
-        pano.cover.reshape(-1)[ok] += 1
-        hits[ok] += m[yi[ok], xi[ok]] > 0
-    pano.paint[:] = (hits / np.maximum(pano.cover.reshape(-1), 1)).reshape(h, w)
+        ok2 = ok.reshape(y1k - y0k, x1k - x0k)
+        pano.cover[y0k:y1k, x0k:x1k][ok2] += 1
+        hits[y0k:y1k, x0k:x1k][ok2] += m[yi[ok], xi[ok]] > 0
+    pano.paint[:] = hits / np.maximum(pano.cover, 1)
     return pano
+
+
+_XS, _YS = np.arange(-4.0, 1925, 8), np.arange(-4.0, 1085, 8)
+_OUTLINE = np.concatenate([np.c_[_XS, np.full(len(_XS), _YS[0])], np.c_[_XS, np.full(len(_XS), _YS[-1])],
+                           np.c_[np.full(len(_YS), _XS[0]), _YS], np.c_[np.full(len(_YS), _XS[-1]), _YS]])
+
+
+def _footprint(pano: Panorama, R, f: float, h: int, w: int, pad: int = 12):
+    """Rows y0..y1 and columns x0..x1 of the panorama holding every cell a frame
+    (rotation R from sample 0's camera, focal f) sees: its outline, a few pixels
+    wide of the frame, sampled every 8 px and padded. The whole panorama when
+    the frame would wrap round behind the camera."""
+    p = pano.to_px(np.c_[(_OUTLINE - CENTRE) / f, np.ones(len(_OUTLINE))] @ R)
+    if np.ptp(p[:, 0]) > pano.F * np.pi:
+        return 0, h, 0, w
+    x0, y0 = np.floor(p.min(0)).astype(int) - pad
+    x1, y1 = np.ceil(p.max(0)).astype(int) + pad
+    return max(y0, 0), min(max(y1, 0), h), max(x0, 0), min(max(x1, 0), w)
 
 
 def explained_paint(pano: Panorama, C, R0, pitch: PitchModel, tol: float = 4.0, thresh: float = 0.25,

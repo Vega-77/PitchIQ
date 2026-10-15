@@ -64,3 +64,50 @@ def test_white_paint_skips_a_fence_rail_above_the_grass():
     m = A.paint_mask(im, colour='white')
     assert m[205:217].sum() == 0
     assert m[265:277, 100:860].mean() > 0.1
+
+
+# ---- the faster registration gives the same answers ---------------------------------
+
+
+def test_thin_link_draws_the_same_pairs_as_thinning_the_index():
+    """gather thins links after matching them in worker processes; the draw from
+    the inlier pairs must match the old draw from their indices, pair for pair."""
+    rng = np.random.default_rng(3)
+    pa, pb = rng.uniform(0, 1920, (500, 2)).astype(np.float32), rng.uniform(0, 1920, (500, 2)).astype(np.float32)
+    k = np.sort(rng.choice(500, 230, replace=False))
+    old, new = np.random.default_rng(0), np.random.default_rng(0)
+    for _ in range(5):
+        kk = old.choice(k, 80, replace=False)
+        got = A.thin_link((pa[k], pb[k]), 80, new)
+        assert np.array_equal(got[0], pa[kk].astype(float)) and np.array_equal(got[1], pb[kk].astype(float))
+    assert old.random() == new.random()
+
+
+def _full_panorama(masks, R_rel, f, scale=0.5):
+    """build_panorama as it was: every panorama cell against every sample."""
+    P = A.build_panorama(masks, R_rel, f, scale)      # for the frame of reference
+    h, w = P.paint.shape
+    D = P.directions().reshape(-1, 3)
+    cover = np.zeros(h * w, np.int32); hits = np.zeros(h * w, np.float32)
+    for k in sorted(masks):
+        v = D @ R_rel[k].T
+        ok = v[:, 2] > 1e-3
+        px = (np.where(ok[:, None], v[:, :2] / np.where(ok, v[:, 2], 1)[:, None], 0) * f[k] + A.CENTRE) * scale
+        m = masks[k]
+        xi = np.round(px[:, 0]).astype(int); yi = np.round(px[:, 1]).astype(int)
+        ok &= (xi >= 0) & (xi < m.shape[1]) & (yi >= 0) & (yi < m.shape[0])
+        cover[ok] += 1
+        hits[ok] += m[yi[ok], xi[ok]] > 0
+    return P, cover.reshape(h, w), (hits / np.maximum(cover, 1)).reshape(h, w).astype(np.float32)
+
+
+def test_panorama_footprints_miss_no_cell():
+    """Each sample only visits the cells round its outline: a wide pan with zoom
+    and roll must stitch exactly the panorama that visiting every cell does."""
+    rng = np.random.default_rng(1)
+    n = 12
+    R = A.rodrigues(np.c_[rng.uniform(-0.1, 0.1, n), np.linspace(-0.9, 0.9, n), rng.uniform(-0.05, 0.05, n)])
+    f = rng.uniform(900, 3000, n)
+    masks = {k: (rng.random((540, 960)) < 0.05).astype(np.uint8) * 255 for k in range(n)}
+    P, cover, paint = _full_panorama(masks, R, f)
+    assert np.array_equal(P.cover, cover) and np.array_equal(P.paint, paint)

@@ -7,7 +7,8 @@
 Five stages, each cached in `<work>/<tag>/` and skipped when its file exists
 (`--redo STAGE` reruns that stage and everything after it):
 
-    gather   SIFT links and paint points every 15 frames         -> gather.pkl
+    gather   SIFT links, paint points and paint masks             -> gather.pkl
+             every 15 frames (AUTOCAL_WORKERS processes)
     prep     focal, chained rotations, the paint panorama        -> prep.pkl, pano.jpg
     cal      the whole pose from the panorama (`calibrate_pano`)  -> cal.pkl
              or, with --camera, the rotation alone from another
@@ -29,7 +30,9 @@ import os
 import pickle
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -44,6 +47,9 @@ STEP = 15                      # frames between samples
 M_PER_R = 9.15                 # metres per centre-circle radius
 INLIER_M = 1.5                 # paint this close to a model line counts as fitted
 PERSON_CONF = 0.5              # the height cue's people: confident, whole boxes only
+MASK_SHAPE = (540, 960)        # paint_mask's size for a 1920 x 1080 frame
+# processes reading and matching frames (gather) and pricing focal lengths (prep)
+WORKERS = int(os.environ.get('AUTOCAL_WORKERS', min(12, os.cpu_count() or 1)))
 
 
 def _video():
@@ -81,38 +87,107 @@ def _save(path: Path, obj) -> None:
 # ---- the stages ------------------------------------------------------------------
 
 
-def gather(lo: int, hi: int, log) -> dict:
-    import cv2
-    cap = _video()
+def gather(lo: int, hi: int, log, workers: int = WORKERS) -> dict:
+    """Every sample's SIFT links to the samples 1, 2 and 4 ahead, its paint
+    points and its whole paint mask (packed, so prep and write never read the
+    video again). `workers` processes read and match a block of samples each;
+    the random draws (which paint points, which link pairs) are made here
+    afterwards in sample order, so the result does not depend on `workers`."""
     frames = list(range(lo, hi + 1, STEP))
-    sift = cv2.SIFT_create(nfeatures=3000)
+    n = len(frames)
+    size = max(8, -(-n // (4 * workers)))
+    blocks = [(frames, s, min(s + size, n), A.LINES) for s in range(0, n, size)]
+    packed, pairs = [], []
+    for got_masks, got_pairs in _pool_map(_gather_block, blocks, workers):
+        packed.extend(got_masks)
+        pairs.extend(got_pairs)
+    masks = _Masks(packed)
     rng = np.random.default_rng(0)
-    feats, paint, amount = [], {}, []
-    for k, ab in enumerate(frames):
-        im = _frame(cap, ab)
-        feats.append(A.frame_features(im, sift))
-        P = A.Paint(im)
-        paint[k] = A.paint_points(P, 400, rng)
-        amount.append(P.amount)
+    paint, amount = {}, []
+    for k in range(n):
+        m = masks[k]
+        paint[k] = A.paint_points(SimpleNamespace(mask=m, scale=0.5), 400, rng)
+        amount.append(int(m.sum()))
     links = []
-    for i in range(len(frames)):
+    for i, j, got in pairs:
+        got = A.thin_link(got, rng=rng)
+        if got is not None:
+            links.append((i, j) + got)
+    log('%d samples, %d links' % (n, len(links)))
+    return dict(frames=frames, links=links, paint=paint, amount=amount, masks=np.stack(packed))
+
+
+def _gather_block(args):
+    """Samples s..e-1: their packed paint masks, and their links' inlier pairs
+    as (i, j, pairs or None) in the order gather draws from them."""
+    import cv2
+    frames, s, e, lines = args
+    A.LINES = lines
+    cap = _video()
+    sift = cv2.SIFT_create(nfeatures=3000)
+    feats, masks = {}, []
+    for k in range(s, min(e + 4, len(frames))):          # a link reaches 4 samples ahead
+        im = _frame(cap, frames[k])
+        feats[k] = A.frame_features(im, sift)
+        if k < e:
+            m = A.paint_mask(im) > 0
+            if m.shape != MASK_SHAPE:
+                raise SystemExit(f'paint mask is {m.shape}, not {MASK_SHAPE}: not a 1920 x 1080 video')
+            masks.append(np.packbits(m))
+    pairs = []
+    for i in range(s, e):
         for d in (1, 2, 4):
             j = i + d
             if j < len(frames):
-                got = A.link(feats[i], feats[j], rng=rng)
-                if got is not None:
-                    links.append((i, j) + got)
-    log('%d samples, %d links' % (len(frames), len(links)))
-    return dict(frames=frames, links=links, paint=paint, amount=amount)
+                pairs.append((i, j, A.link_inliers(feats[i], feats[j])))
+    return masks, pairs
 
 
-def prep(D: dict, log) -> tuple[dict, np.ndarray]:
+class _Masks(Mapping):
+    """Sample index -> paint mask (h, w) of 0/1, from gather's packed masks or,
+    for a gather made before it kept them, read again from the video."""
+
+    def __init__(self, packed=None, frames=None):
+        self.packed, self.frames, self.cap = packed, frames, None
+
+    def __getitem__(self, k):
+        if self.packed is None:
+            self.cap = self.cap or _video()
+            return A.paint_mask(_frame(self.cap, self.frames[k]))
+        return np.unpackbits(self.packed[k], count=MASK_SHAPE[0] * MASK_SHAPE[1]).reshape(MASK_SHAPE)
+
+    def __iter__(self):
+        return iter(range(len(self)))
+
+    def __len__(self):
+        return len(self.packed if self.packed is not None else self.frames)
+
+
+
+
+def _pool_map(fn, items, workers, initializer=None, initargs=()):
+    """fn over items, results in order, in `workers` processes (this one when 1)."""
+    if workers <= 1:
+        if initializer:
+            initializer(*initargs)
+        yield from map(fn, items)
+        return
+    import multiprocessing as mp
+    with mp.get_context('spawn').Pool(workers, initializer=initializer, initargs=initargs) as pool:
+        yield from pool.imap(fn, items)
+
+
+def prep(D: dict, log, workers: int = WORKERS) -> tuple[dict, np.ndarray]:
     n = len(D['frames'])
-    f0 = A.best_focal(D['links'], n)
+    if workers > 1:
+        import multiprocessing as mp
+        with mp.get_context('spawn').Pool(min(workers, 15), initializer=A.focal_pool_init,
+                                          initargs=(D['links'], n)) as pool:
+            f0 = A.best_focal(D['links'], n, pool=pool)
+    else:
+        f0 = A.best_focal(D['links'], n)
     R, f = A.chain_rotations(D['links'], n, f0)
-    cap = _video()
-    masks = {k: A.paint_mask(_frame(cap, ab)) for k, ab in enumerate(D['frames'])}
-    P = A.build_panorama(masks, R, f)
+    P = A.build_panorama(_Masks(D.get('masks'), D['frames']), R, f)
     log('%d samples, %d links, f0 %.0f, f %.0f..%.0f, pano %dx%d'
         % (n, len(D['links']), f0, f.min(), f.max(), P.paint.shape[1], P.paint.shape[0]))
     img = np.zeros(P.paint.shape + (3,), np.uint8)
@@ -174,10 +249,12 @@ def height(tag: str, Q: dict, cal: tuple, log) -> tuple:
     return C, R0, pm.L, pm.W
 
 
-def write(tag: str, Q: dict, rig_pose: tuple, homog: Path, log, paint: dict | None = None) -> dict:
+def write(tag: str, Q: dict, rig_pose: tuple, homog: Path, log, paint: dict | None = None,
+          masks: np.ndarray | None = None) -> dict:
     """The tracker's registration (every sample's frame -> StatsBomb) and venue
     (camera heights -> StatsBomb, the reference view, the pitch), plus the fit:
-    each sample's paint on the ground, distance to the nearest model line.
+    each sample's paint on the ground, distance to the nearest model line
+    (`masks`: gather's packed paint masks; read from the video without them).
     With `paint` (gather's points per sample) the chained rotations are first
     tied back to the pitch sample by sample (`autocal.anchor_chain`)."""
     C, R0, L, W = rig_pose
@@ -192,11 +269,11 @@ def write(tag: str, Q: dict, rig_pose: tuple, homog: Path, log, paint: dict | No
     n = len(Q['frames'])
     Hsb = np.array([rig.to_sb(k, pm) for k in range(n)])
 
-    cap = _video()
+    masks = _Masks(masks, Q['frames'])
     ninl = np.zeros(n, int)
     d_all = []
-    for k, ab in enumerate(Q['frames']):
-        ys, xs = np.nonzero(A.paint_mask(_frame(cap, ab)))
+    for k in range(n):
+        ys, xs = np.nonzero(masks[k])
         G = np.linalg.inv(rig.ground_to_image(k))
         g = np.c_[xs * 2.0 + 0.5, ys * 2.0 + 0.5, np.ones(len(xs))] @ G.T
         g = g[g[:, 2] > 0]
@@ -289,7 +366,8 @@ def run(tag: str, lo: int, hi: int, work: Path = WORK, homog: Path = HOMOG, line
             _save(out['height'], height(tag, Q, _load(out['cal']), log))
         pose = _load(out['height'])
     log('== write')
-    err = write(tag, Q, pose, homog, log, _load(out['gather']).get('paint'))
+    G = _load(out['gather'])
+    err = write(tag, Q, pose, homog, log, G.get('paint'), G.get('masks'))
     log('done')
     logfile.close()
     return err
