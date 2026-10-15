@@ -54,6 +54,15 @@ TOL2, TOL3 = 1.0, 0.5                          # agreement: px in 2D, StatsBomb 
 ONE_THREAD = dict(OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', MKL_NUM_THREADS='1')
 MIN_CORE = drun.CHUNK // 5                     # a minute: a shorter end chunk joins its neighbour
 LANES = 2                                      # the ball's CPU jobs at a time
+LOOKAHEAD = 10                                 # dense.OFFS: the ball detector reads 10 frames each side
+
+
+def scorable(video):
+    """The first and last frames a pass can score: the video's frames are
+    0..count-1 and the ball detector reads LOOKAHEAD past either side."""
+    import cv2
+    n = int(cv2.VideoCapture(video).get(cv2.CAP_PROP_FRAME_COUNT))
+    return LOOKAHEAD, n - 1 - LOOKAHEAD
 
 
 class Half:
@@ -370,6 +379,10 @@ class Half:
             raise SystemExit('homog/%s_reg.npz missing: run autocal_run --homog first' % self.tag)
         if 'PIQ_VIDEO' not in os.environ:
             self.say('PIQ_VIDEO is not set: this is the scrimmage video')
+        first, last = scorable(L.VIDEO)
+        if not first <= self.lo <= self.hi <= last:
+            raise SystemExit('%d..%d is not inside %d..%d, the frames this video lets a pass score'
+                             % (self.lo, self.hi, first, last))
         self.say('HALF %s  %d..%d  %d pieces, overlap %d frames, drun %d workers, %d lanes'
                  % (self.tag, self.lo, self.hi, len(self.pieces), self.ov, self.workers, self.lanes))
         dlog = open(os.path.join(self.dir, 'drun.log'), 'a', encoding='utf-8')

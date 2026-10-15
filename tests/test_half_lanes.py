@@ -87,3 +87,19 @@ def test_a_player_lane_that_exits_is_reported(tmp_path, monkeypatch):
     h = half.Half('t', 0, 9000 - 1, 6, 300)
     h.players_loop()
     assert isinstance(h.err, SystemExit)
+
+
+def test_scorable_frames_leave_the_detector_its_lookahead(tmp_path):
+    import re
+
+    import cv2
+    import numpy as np
+
+    path = str(tmp_path / 'v.avi')
+    vw = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*'MJPG'), 30, (64, 48))
+    for _ in range(30):
+        vw.write(np.zeros((48, 64, 3), np.uint8))
+    vw.release()
+    assert half.scorable(path) == (10, 19)
+    offs = re.search(r'^OFFS = list\(range\((-?\d+), (\d+)\)\)', open(os.path.join(S2, 'dense.py')).read(), re.M)
+    assert -int(offs.group(1)) == int(offs.group(2)) - 1 == half.LOOKAHEAD
