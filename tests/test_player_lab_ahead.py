@@ -34,3 +34,13 @@ def test_stopping_early_ends_the_thread():
     next(it)
     it.close()
     assert threading.active_count() == before
+
+
+def test_float16_features_link_exactly_as_float32():
+    """load_detections keeps features float16; the linker's float64 mean must not notice."""
+    from cv.linking import _unit_mean
+
+    rng = np.random.default_rng(0)
+    f16 = rng.normal(size=(500, 1024)).astype(np.float16)
+    rows = rng.choice(500, 40, replace=False)
+    assert np.array_equal(_unit_mean(f16, rows), _unit_mean(f16.astype(np.float32), rows))

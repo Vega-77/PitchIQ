@@ -392,7 +392,9 @@ def load_detections(tag: str, dedupe: bool = True, with_features: bool = True):
         feat = np.load(path)['feat']
         if len(feat) != len(det):
             raise SystemExit(f'{path} has {len(feat)} rows for {len(det)} detections: run `features` again')
-        det.feat = feat.astype(np.float32)
+        # kept float16, as saved: the linker averages them in float64 (linking._unit_mean), which
+        # float16 converts to exactly, and a float32 copy of a whole half was 18 GB on NB
+        det.feat = feat
     return det, meta
 
 
