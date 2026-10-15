@@ -47,7 +47,7 @@ S2 = os.path.dirname(os.path.abspath(__file__))
 FLUSH = 250              # anchors between part files
 CHUNK = int(os.environ.get("DRUN_CHUNK", 9000))   # 5 min of video: a finished chunk is never redone
 CPU_MATCH = os.environ.get('DRUN_CPU_MATCH') == '1'   # match on the CPU: no torch, no CUDA context
-SHARED = os.environ.get('DRUN_SHARED_MATCH') == '1'  # one GPU matcher process for the pool (mshare.py)
+SHARED = os.environ.get('DRUN_SHARED_MATCH', '1') == '1'   # one GPU matcher for the pool (mshare.py); '0' = one per worker
 PROCS = 16               # dpar8's confirmed point: 29.07 fps, 6607 MiB peak
 
 
