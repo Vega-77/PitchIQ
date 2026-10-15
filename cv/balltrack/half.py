@@ -53,11 +53,12 @@ TOL2, TOL3 = 1.0, 0.5                          # agreement: px in 2D, StatsBomb 
 # thread: 16 scan workers x 28 OpenBLAS threads beside drun ran out of commit
 ONE_THREAD = dict(OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', MKL_NUM_THREADS='1')
 MIN_CORE = drun.CHUNK // 5                     # a minute: a shorter end chunk joins its neighbour
+LANES = 2                                      # the ball's CPU jobs at a time
 
 
 class Half:
-    def __init__(self, tag, lo, hi, workers, overlap):
-        self.tag, self.lo, self.hi, self.workers, self.ov = tag, lo, hi, workers, overlap
+    def __init__(self, tag, lo, hi, workers, overlap, lanes=LANES):
+        self.tag, self.lo, self.hi, self.workers, self.ov, self.lanes = tag, lo, hi, workers, overlap, lanes
         self.dir = os.path.join(S2, 'half', tag)
         os.makedirs(self.dir, exist_ok=True)
         self.chunks = drun.chunk_edges(lo, hi)
@@ -77,6 +78,7 @@ class Half:
         self.err = None
         self.lock = threading.Lock()
         self.procs = set()
+        self.claimed = set()
         self.env = dict(os.environ, PYTHONPATH=REPO + os.pathsep + os.environ.get('PYTHONPATH', ''))
 
     # ---- bookkeeping ------------------------------------------------------------------
@@ -190,82 +192,86 @@ class Half:
                 shutil.copy2(src, H3D)
         self.run(AT, 'mk3d.py', 'hyb90', P, env=ONE_THREAD)
 
-    # ---- the two queues -----------------------------------------------------------------
+    # ---- the queues ----------------------------------------------------------------------
+    # Three kinds of lane. The players' detector spends four fifths of its time on
+    # the CPU (colour samples of ~50 boxes a frame, decoding), so it gets a GPU lane
+    # of its own and the ball's GPU jobs (TAPNext bridges, the classifier) fill the
+    # card meanwhile; TAPNext alone keeps the card busy, so one ball lane. The ball's
+    # CPU jobs (shipped chain, hybrid, build) run `lanes` at a time. Every job reads
+    # only finished files and was checked to give the same bytes whatever runs
+    # beside it, so the order changes no output.
 
-    def next_gpu(self, ex, state):
-        """One GPU job, most urgent first: bridges, classifier, then player pieces."""
-        for p in self.pieces:
-            if self.done(p['ptag'], 'shipped') and not self.done(p['ptag'], 'bridges'):
-                return 'bridges', p
-        for p in self.pieces:
-            if self.done(p['ptag'], 'build') and not self.done(p['ptag'], 'classify'):
-                return 'classify', p
-        from cv.experiments import player_lab as L
-        for clo, chi in self.chunks:
-            if not os.path.exists(L._part(self.tag, 'dets', clo, chi)):
-                return 'dets', (clo, chi)
-        if state['feat'] < len(self.chunks):
-            return 'feat', self.chunks[state['feat']]
+    def claim(self, cands):
+        """The first (stage, piece) of cands not done and not taken by another lane."""
+        with self.lock:
+            for stage, p in cands:
+                key = (p['ptag'], stage)
+                if key not in self.claimed and not self.done(*key):
+                    self.claimed.add(key)
+                    return stage, p
         return None, None
 
-    def gpu_loop(self):
+    def players_loop(self):
         from cv.experiments import player_lab as L
-        ex = L.Extractor()
-        state = dict(feat=0, first_row=0)
+        try:
+            ex = L.Extractor()
+            first_row = 0
+            for clo, chi in self.chunks:
+                if self.err is not None:
+                    return
+                if not os.path.exists(L._part(self.tag, 'dets', clo, chi)):
+                    t = time.time()
+                    ex.dets_part(self.tag, clo, chi)
+                    self.say('players  %d..%d detected  (%.0f s)' % (clo, chi, time.time() - t))
+            for clo, chi in self.chunks:
+                if self.err is not None:
+                    return
+                t = time.time()
+                _, n = ex.feat_part_from_dets(self.tag, clo, chi, first_row)
+                first_row += n
+                self.say('players  %d..%d features  (%.0f s)' % (clo, chi, time.time() - t))
+        except Exception as e:      # noqa: BLE001 - reported and re-raised by main
+            self.err = e
+
+    def ball_gpu_loop(self):
+        """Bridges first (a hybrid waits on them), then the classifier."""
         try:
             while self.err is None:
-                job, arg = self.next_gpu(ex, state)
-                if job is None:
+                stage, p = self.claim([('bridges', p) for p in self.pieces if self.done(p['ptag'], 'shipped')]
+                                      + [('classify', p) for p in self.pieces if self.done(p['ptag'], 'build')])
+                if stage is None:
                     if all(self.done(p['ptag'], 'bridges') for p in self.pieces):
                         return
                     time.sleep(5)
                     continue
-                t = time.time()
-                if job == 'dets':
-                    ex.dets_part(self.tag, *arg)
-                    self.say('players  %d..%d detected  (%.0f s)' % (arg + (time.time() - t,)))
-                elif job == 'feat':
-                    _, n = ex.feat_part_from_dets(self.tag, arg[0], arg[1], state['first_row'])
-                    state['first_row'] += n; state['feat'] += 1
-                    self.say('players  %d..%d features  (%.0f s)' % (arg + (time.time() - t,)))
-                else:
-                    getattr(self, {'bridges': 'bridges', 'classify': 'classify'}[job])(arg)
-                    self.mark(arg['ptag'], job)
-                    self.say('%-8s %s  (%.0f s)' % (job, arg['ptag'], time.time() - t))
-        except Exception as e:      # noqa: BLE001 - reported and re-raised by main
+                self.do(stage, p)
+        except Exception as e:      # noqa: BLE001
             self.err = e
 
     def cpu_loop(self):
+        """Hybrids first (they finish pieces), then the shipped chain, then builds."""
         try:
             while self.err is None:
-                job = None
-                for p in self.pieces:
-                    P = p['ptag']
-                    if self.done(P, 'bridges') and not self.done(P, 'hybrid'):
-                        job = ('hybrid', p); break
-                if job is None:
-                    for p in self.pieces:
-                        P = p['ptag']
-                        if self.done(P, 'build') and self.done(P, 'classify') and not self.done(P, 'shipped'):
-                            job = ('shipped', p); break
-                if job is None:
-                    for p in self.pieces:
-                        P = p['ptag']
-                        a, b = p['win']
-                        if not self.done(P, 'build') and self.drun_res(a, b) is not None and self.dets_ready(a, b):
-                            job = ('build', p); break
-                if job is None:
+                stage, p = self.claim(
+                    [('hybrid', p) for p in self.pieces if self.done(p['ptag'], 'bridges')]
+                    + [('shipped', p) for p in self.pieces
+                       if self.done(p['ptag'], 'build') and self.done(p['ptag'], 'classify')]
+                    + [('build', p) for p in self.pieces if not self.done(p['ptag'], 'build')
+                       and self.drun_res(*p['win']) is not None and self.dets_ready(*p['win'])])
+                if stage is None:
                     if all(self.done(p['ptag'], 'hybrid') for p in self.pieces):
                         return
                     time.sleep(5)
                     continue
-                name, p = job
-                t = time.time()
-                getattr(self, name)(p)
-                self.mark(p['ptag'], name)
-                self.say('%-8s %s  (%.0f s)' % (name, p['ptag'], time.time() - t))
+                self.do(stage, p)
         except Exception as e:      # noqa: BLE001
             self.err = e
+
+    def do(self, stage, p):
+        t = time.time()
+        getattr(self, stage)(p)
+        self.mark(p['ptag'], stage)
+        self.say('%-8s %s  (%.0f s)' % (stage, p['ptag'], time.time() - t))
 
     # ---- stitching ----------------------------------------------------------------------
 
@@ -363,12 +369,14 @@ class Half:
             raise SystemExit('homog/%s_reg.npz missing: run autocal_run --homog first' % self.tag)
         if 'PIQ_VIDEO' not in os.environ:
             self.say('PIQ_VIDEO is not set: this is the scrimmage video')
-        self.say('HALF %s  %d..%d  %d pieces, overlap %d frames, drun %d workers'
-                 % (self.tag, self.lo, self.hi, len(self.pieces), self.ov, self.workers))
+        self.say('HALF %s  %d..%d  %d pieces, overlap %d frames, drun %d workers, %d lanes'
+                 % (self.tag, self.lo, self.hi, len(self.pieces), self.ov, self.workers, self.lanes))
         dlog = open(os.path.join(self.dir, 'drun.log'), 'a', encoding='utf-8')
         drun_p = subprocess.Popen([PY, '-W', 'ignore', 'drun.py', str(self.lo), str(self.hi), str(self.workers),
                                    self.tag], cwd=S2, env=self.env, stdout=dlog, stderr=subprocess.STDOUT)
-        threads = [threading.Thread(target=self.gpu_loop), threading.Thread(target=self.cpu_loop)]
+        threads = [threading.Thread(target=self.players_loop)]
+        threads += [threading.Thread(target=self.ball_gpu_loop)]
+        threads += [threading.Thread(target=self.cpu_loop) for _ in range(self.lanes)]
         for t in threads:
             t.start()
         with self.lock:
@@ -399,9 +407,10 @@ def main():
     ap.add_argument('hi', type=int)
     ap.add_argument('--workers', type=int, default=12)
     ap.add_argument('--overlap', type=int, default=300)
+    ap.add_argument('--lanes', type=int, default=LANES, help="the ball's CPU jobs at a time")
     ap.add_argument('--stitch-only', action='store_true', help='re-stitch finished pieces, run nothing')
     a = ap.parse_args()
-    h = Half(a.tag, a.lo, a.hi, a.workers, a.overlap)
+    h = Half(a.tag, a.lo, a.hi, a.workers, a.overlap, a.lanes)
     h.stitch() if a.stitch_only else h.main()
 
 
