@@ -46,6 +46,8 @@ import time
 S2 = os.path.dirname(os.path.abspath(__file__))
 FLUSH = 250              # anchors between part files
 CHUNK = int(os.environ.get("DRUN_CHUNK", 9000))   # 5 min of video: a finished chunk is never redone
+CPU_MATCH = os.environ.get('DRUN_CPU_MATCH') == '1'   # match on the CPU: no torch, no CUDA context
+SHARED = os.environ.get('DRUN_SHARED_MATCH') == '1'  # one GPU matcher process for the pool (mshare.py)
 PROCS = 16               # dpar8's confirmed point: 29.07 fps, 6607 MiB peak
 
 
@@ -61,11 +63,8 @@ def worker(args):
     import dense as D
     import tfast
     import rfast2
-    import gmatch2
-    import torch
 
     cv2.setNumThreads(1)
-    torch.set_num_threads(1)
     D.LO, D.HI = alo, ahi          # set at runtime; dense.py is not edited
 
     log = io.open(os.path.join(S2, '%s_w%02d.log' % (tag, wid)), 'w',
@@ -75,17 +74,29 @@ def worker(args):
         log.write(m + '\n')
         log.flush()
 
-    M = gmatch2.Matcher()
+    # CPU_MATCH workers leave the GPU (and torch) alone: bf.match is the
+    # reference the batched matcher reproduces exactly, so the parts are the
+    # same; the worker just commits no CUDA context, host or device.
+    M = None
+    if SHARED:
+        import mshare
+        M = mshare.proxy()
+    elif not CPU_MATCH:
+        import gmatch2
+        import torch
+        torch.set_num_threads(1)
+        M = gmatch2.Matcher()
     reg = rfast2.Registrar(cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True), M)
-    # burn the CUDA context in before the clock starts, on junk descriptors,
-    # so the first real anchor is not paying for cuBLAS handle creation
-    d0 = np.random.randint(0, 256, (2000, 32), dtype=np.uint8)
-    d1 = np.random.randint(0, 256, (2000, 32), dtype=np.uint8)
-    M.match_many([(-2, d0)], -1, d1)
-    torch.cuda.synchronize()
-    M._bits.clear()
-    M._pop.clear()
-    M.calls = M.pairs = 0
+    if M is not None and not SHARED:
+        # burn the CUDA context in before the clock starts, on junk descriptors,
+        # so the first real anchor is not paying for cuBLAS handle creation
+        d0 = np.random.randint(0, 256, (2000, 32), dtype=np.uint8)
+        d1 = np.random.randint(0, 256, (2000, 32), dtype=np.uint8)
+        M.match_many([(-2, d0)], -1, d1)
+        torch.cuda.synchronize()
+        M._bits.clear()
+        M._pop.clear()
+        M.calls = M.pairs = 0
 
     z = np.load(os.path.join(S2, 'still4.npz'), allow_pickle=True)
     cmaj, cara = z['cmaj'], z['cara']
@@ -333,7 +344,13 @@ def main():
     left = {k: len(v) for k, v in pending.items()}
     got_c = {k: [] for k in pending}
     if todo:
-        with mp.Pool(procs) as pool:
+        if SHARED:
+            import mshare
+            server, req, init = mshare.start(procs)
+            pool_args = dict(initializer=mshare.init_worker, initargs=init)
+        else:
+            pool_args = {}
+        with mp.Pool(procs, **pool_args) as pool:
             for r in pool.imap_unordered(worker, todo):
                 ct = r['tag']
                 got_c[ct].append(r)
@@ -347,6 +364,8 @@ def main():
                     res.extend(got_c[ct])
                     print('  chunk %s done  [%.0f s]' % (ct, time.time() - t0),
                           flush=True)
+        if SHARED:
+            mshare.stop(server, req)
     wall = max(time.time() - t0, 1e-9)
 
     got = sum(r['done'] for r in res)
