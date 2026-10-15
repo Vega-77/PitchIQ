@@ -78,17 +78,47 @@ def _crop_rect(cx, cy, ch, W=1920, H=1080):
     return x0, y0, cw, ch
 
 
+LINK_PROCS = int(os.environ.get('SPOTLAB_PROCS', 3))   # windows linked side by side
+_LW = {}
+
+
+def _link_init(tag, meta):
+    from cv.experiments import player_lab as L
+    _LW['meta'] = meta
+    _LW['proj'], _LW['pitch'] = L.projector(tag, meta['w'], meta['h'])
+
+
+def _link_one(job):
+    from cv.experiments import player_lab as L
+    lo, hi, dw = job
+    return L.run_variant('A+B+C', dw, dict(_LW['meta'], lo=lo, n=hi - lo), _LW['proj'], _LW['pitch'])[1]
+
+
+def linked(tag, det, meta, spans, procs=LINK_PROCS):
+    """run_variant('A+B+C') on each (lo, hi) span's detections, in span order,
+    `procs` spans at a time in their own processes: the linker draws nothing at
+    random and each span is linked alone, so the results are the serial ones."""
+    import multiprocessing as mp
+    jobs = [(lo, hi, _subset(det, (det.frame >= lo) & (det.frame < hi))) for lo, hi in spans]
+    if procs <= 1:
+        _link_init(tag, meta)
+        yield from map(_link_one, jobs)
+        return
+    with mp.get_context('spawn').Pool(min(procs, len(jobs)), initializer=_link_init, initargs=(tag, meta)) as pool:
+        yield from pool.imap(_link_one, jobs)
+
+
 class _Window:
     """One stretch: linked players, ball and camera, and the question pools."""
 
-    def __init__(self, tag, lo, hi, det, meta, proj, pitch, Hs, a0, rng, keep_gaps=0):
+    def __init__(self, tag, lo, hi, det, meta, proj, pitch, Hs, a0, rng, keep_gaps=0, res=None):
         MV = _mv()
         from cv.experiments import player_lab as L
         m = (det.frame >= lo) & (det.frame < hi)
         dw = _subset(det, m)
         mw = dict(meta, lo=lo, n=hi - lo)
         self.lo, self.hi, self.Hs, self.a0, self.det = lo, hi, Hs, a0, dw
-        _, self.res = L.run_variant('A+B+C', dw, mw, proj, pitch)
+        self.res = res if res is not None else L.run_variant('A+B+C', dw, mw, proj, pitch)[1]
         self.gap_ends = []
         if keep_gaps:
             held0 = np.zeros(len(dw), bool)
@@ -385,10 +415,10 @@ def make(tag: str, out: Path, per_type: int = 100, windows: int = 6, win_s: floa
     W = _Writer(out)
     qs = []
     cap = cv2.VideoCapture(L.VIDEO)
-    for w, lo in enumerate(edges):
-        lo = int(lo); hi = lo + win
+    spans = [(int(lo), int(lo) + win) for lo in edges]
+    for w, ((lo, hi), res) in enumerate(zip(spans, linked(tag, det, meta, spans))):
         print('window %d: %d..%d' % (w, lo, hi), flush=True)
-        win_ = _Window(tag, lo, hi, det, meta, proj, pitch, Hs, a0, rng, keep_gaps)
+        win_ = _Window(tag, lo, hi, det, meta, proj, pitch, Hs, a0, rng, keep_gaps, res=res)
         want = []
         for kind in types:
             n = int(round(per_type / windows))
