@@ -82,6 +82,68 @@ def _part(tag: str, kind: str, a: int, b: int) -> Path:
     return PLAB / 'out' / 'parts' / f'{tag}_{kind}_{a}_{b}.npz'
 
 
+def _frames(cap, a: int, b: int):
+    """(f, frame) for f in a..b from cap, already seeked to a; a short video raises."""
+    for f in range(a, b + 1):
+        ok, frame = cap.read()
+        if not ok:
+            raise SystemExit(f'video ended at {f}')
+        yield f, frame
+
+
+def _ahead(it, depth: int = 16):
+    """The items of `it`, in order, produced on a thread up to `depth` ahead:
+    OpenCV lets go of the GIL while it decodes and resizes, so the GPU and the
+    colour work run meanwhile. An exception in `it` is raised here."""
+    import queue
+    import threading
+
+    q, stop = queue.Queue(depth), threading.Event()
+
+    def put(x):
+        while not stop.is_set():
+            try:
+                q.put(x, timeout=0.1)
+                return True
+            except queue.Full:
+                pass
+        return False
+
+    def run():
+        try:
+            for x in it:
+                if not put(x):
+                    return
+            put(None)
+        except BaseException as e:   # noqa: BLE001 - handed to the reader
+            put(e)
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    try:
+        while (x := q.get()) is not None:
+            if isinstance(x, BaseException):
+                raise x
+            yield x
+    finally:
+        stop.set()
+        t.join()
+
+
+def _colours(idx, batch, boxes):
+    """kit and desc rows of one predicted batch: [(f, xyxy, conf, kit, desc)]."""
+    from cv.teams import kit_sample
+
+    out = []
+    for fi, img, (xy, cf) in zip(idx, batch, boxes):
+        grass = grass_hue(img)
+        for xyxy, c in zip(xy, cf):
+            k = kit_sample(img, xyxy)
+            out.append((fi, xyxy, float(c), np.full(4, np.nan) if k is None else np.asarray(k, dtype=np.float64),
+                        body_descriptor(img, xyxy, grass)))
+    return out
+
+
 def _save_atomic(path: Path, **arrays) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + '.part.npz')
@@ -122,35 +184,38 @@ class Extractor:
             with np.load(path) as z:
                 if int(z['imgsz']) == self.imgsz and float(z['min_conf']) == self.conf and str(z['video']) == VIDEO:
                     return path
+        from concurrent.futures import ThreadPoolExecutor
+
         from cv.detector import CLASS_PERSON, DEFAULT_WEIGHTS
-        from cv.teams import kit_sample
 
         if self.model is None:
             from ultralytics import YOLO
             self.model = YOLO(str(DEFAULT_WEIGHTS))
         self._seek(a)
         rows = {'frame': [], 'box': [], 'conf': [], 'kit': [], 'desc': []}
-        batch, idx = [], []
-        for f in range(a, b + 1):
-            ok, frame = self.cap.read()
-            if not ok:
-                raise SystemExit(f'video ended at {f}')
-            batch.append(frame)
-            idx.append(f)
-            if len(batch) == 8 or f == b:
-                results = self.model.predict(batch, classes=[CLASS_PERSON], conf=self.conf, imgsz=self.imgsz,
-                                             verbose=False)
-                for fi, img, res in zip(idx, batch, results):
-                    bx = res.boxes
-                    grass = grass_hue(img)
-                    for xyxy, c in zip(bx.xyxy.cpu().numpy(), bx.conf.cpu().numpy()):
-                        rows['frame'].append(fi)
-                        rows['box'].append(xyxy)
-                        rows['conf'].append(float(c))
-                        k = kit_sample(img, xyxy)
-                        rows['kit'].append(np.full(4, np.nan) if k is None else np.asarray(k, dtype=np.float64))
-                        rows['desc'].append(body_descriptor(img, xyxy, grass))
-                batch, idx = [], []
+
+        def take(fut):
+            for fi, xyxy, c, k, d in fut.result():
+                for key, v in zip(rows, (fi, xyxy, c, k, d)):
+                    rows[key].append(v)
+
+        # one colour thread, batches in order, while the detector runs the next
+        pending = []
+        with ThreadPoolExecutor(1) as colour:
+            batch, idx = [], []
+            for f, frame in _ahead(_frames(self.cap, a, b)):
+                batch.append(frame)
+                idx.append(f)
+                if len(batch) == 8 or f == b:
+                    results = self.model.predict(batch, classes=[CLASS_PERSON], conf=self.conf, imgsz=self.imgsz,
+                                                 verbose=False)
+                    boxes = [(r.boxes.xyxy.cpu().numpy(), r.boxes.conf.cpu().numpy()) for r in results]
+                    pending.append(colour.submit(_colours, idx, batch, boxes))
+                    if len(pending) > 2:
+                        take(pending.pop(0))
+                    batch, idx = [], []
+            for fut in pending:
+                take(fut)
         _save_atomic(path, frame=np.array(rows['frame'], dtype=np.int64), box=np.array(rows['box']).reshape(-1, 4),
                      conf=np.array(rows['conf']), kit=np.array(rows['kit']).reshape(-1, 4),
                      desc=np.array(rows['desc']), imgsz=self.imgsz, min_conf=self.conf, video=VIDEO)
@@ -166,37 +231,38 @@ class Extractor:
             from ultralytics import YOLO
 
             from cv.detector import DEFAULT_WEIGHTS
-            self.net = YOLO(str(DEFAULT_WEIGHTS)).model.eval().cuda()
-            self.grab = {}
-            self.net.model[FEATURE_LAYER].register_forward_hook(lambda m, i, o: self.grab.__setitem__('fm', o))
-        net, grab = self.net, self.grab
+            # only the backbone up to the feature layer: nothing after it changes its output
+            self.net = YOLO(str(DEFAULT_WEIGHTS)).model.eval().cuda().model[:FEATURE_LAYER + 1]
+            assert all(m.f == -1 for m in self.net)       # a plain chain, each layer reads the last
+        net = self.net
         rows_by = det.rows_by_frame()
         out = np.zeros((len(det), 128 * 8), np.float16)    # layer 6 has 128 channels, pooled 4 x 2
 
         def run(batch):
-            x = torch.from_numpy(np.stack([cv2.resize(im, (1280, 736))[:, :, ::-1] for _, im in batch]))
+            x = torch.from_numpy(np.stack([im[:, :, ::-1] for _, (im, _) in batch]))
             x = x.permute(0, 3, 1, 2)
-            sx, sy = 1280 / batch[0][1].shape[1], 736 / batch[0][1].shape[0]
+            shape = batch[0][1][1]
+            sx, sy = 1280 / shape[1], 736 / shape[0]
             rows = np.concatenate([rows_by[f] for f, _ in batch])
             bx = det.box[rows]
             which = np.concatenate([np.full(len(rows_by[f]), q) for q, (f, _) in enumerate(batch)])
             boxes = torch.tensor(np.c_[which, bx[:, 0] * sx, bx[:, 1] * sy, bx[:, 2] * sx, bx[:, 3] * sy],
                                  dtype=torch.float32).cuda()
             with torch.no_grad():
-                net(x.float().cuda() / 255)
-                fm = grab['fm'].float()
+                fm = net(x.cuda().float() / 255).float()
                 r = roi_align(fm, boxes, output_size=(4, 2), spatial_scale=fm.shape[-1] / 1280, aligned=True)
                 out[rows] = torch.nn.functional.normalize(r.flatten(1), dim=1).half().cpu().numpy()
 
         if len(det):
             self._seek(a)
             batch = []
-            for f in range(a, b + 1):
-                ok, img = self.cap.read()
-                if not ok:
-                    raise SystemExit(f'video ended at {f}')
-                if f in rows_by and len(rows_by[f]):
-                    batch.append((f, img))
+            # the reader thread decodes and shrinks; the GPU never waits on it
+            used = (f in rows_by and len(rows_by[f]) for f in range(a, b + 1))
+            frames = ((f, (cv2.resize(img, (1280, 736)), img.shape) if use else None)
+                      for use, (f, img) in zip(used, _frames(self.cap, a, b)))
+            for f, x in _ahead(frames):
+                if x is not None:
+                    batch.append((f, x))
                 if len(batch) == FEATURE_BATCH or (f == b and batch):
                     run(batch)
                     batch = []
