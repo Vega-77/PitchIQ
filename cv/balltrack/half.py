@@ -167,7 +167,11 @@ class Half:
         np.savez_compressed(os.path.join(S2, '%sppl.npz' % P), f=np.concatenate(F).astype(np.int32),
                             box=np.concatenate(B).astype(np.float32), conf=np.concatenate(C).astype(np.float32),
                             lo=a, hi=b, imgsz=1280, minconf=0.25)
-        # the chain reads registration only inside the piece's own window
+        self.registration(p)
+
+    def registration(self, p):
+        """The half's registration cut to the piece's window (the chain reads it only there)."""
+        a, b = p['win']; P = p['ptag']
         with np.load(os.path.join(HOM, '%s_reg.npz' % self.tag)) as r:
             m = (r['abs'] >= a) & (r['abs'] <= b)
             np.savez(os.path.join(HOM, '%s_reg.npz' % P), **{k: r[k][m] for k in r.files})

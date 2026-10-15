@@ -37,6 +37,11 @@ MAXGAP = int(os.environ.get('MAXGAP', 90))
 B = int(os.environ.get('TNB', 1))
 SPAN = 600                      # frames one group may span (read once, sequentially)
 CKPT_S = float(os.environ.get('TN_CKPT_S', 300))   # seconds of work between checkpoints: a crash loses at most this
+# TN_PREV: a directory holding an earlier run's bridges_<tag>.npy and the cls_B picks it was seeded
+# from (cls_B_<tag>.npz). With B = 1 every track depends only on its frames and its seed, so a track
+# whose gap, direction and seed pick are unchanged is taken from there instead of re-run: a rerun
+# after a registration change then tracks only the gaps its new air flags open.
+PREV = os.environ.get('TN_PREV')
 
 
 def model():
@@ -115,6 +120,9 @@ def bridges(net, tag):
             jobs.append((a, b, -1, list(range(b, a - 1, -1)), (px[j], py[j])))
             goal[(a, b)] = (px[j], py[j])
     jobs.sort(key=lambda t: (min(t[3]), -len(t[3])))
+    cache = prev_tracks(tag) if PREV and B == 1 else {}
+    key = lambda t: (t[0], t[1], t[2], float(t[4][0]), float(t[4][1]))   # noqa: E731
+    reused = 0
     cap = cv2.VideoCapture(feat4.VIDEO)
     res = []; t0 = time.time(); k0 = 0; done = 0
     # Resume: groups are fixed by the jobs and run independently, so a checkpoint of
@@ -133,7 +141,7 @@ def bridges(net, tag):
             span.append(jobs[k]); k += 1
         k0 = k
         need = set(f for t in span for f in t[3]); hi = max(need)
-        frames = read_range(cap, lo, hi, need)
+        frames = read_range(cap, lo, hi, need) if any(key(t) not in cache for t in span) else None
         # Forward first. A forward track that misses the pick at b by more than
         # hybrid.py's ANC sinks the gap whatever the backward track does, so its
         # backward run is skipped (17% of track-frames on fr00).
@@ -142,6 +150,20 @@ def bridges(net, tag):
             part = [t for t in span if t[2] < 0 and (t[0], t[1]) in landed] if backward else fwd
             for g0 in range(0, len(part), B):
                 g = part[g0:g0 + B]
+                if len(g) == 1 and key(g[0]) in cache:
+                    t = g[0]; n = len(t[3])
+                    # rebuilt as the run builds them (views of fresh arrays), so the saved
+                    # file pickles byte for byte as a fresh run's
+                    xy = np.full((1, n, 2), np.nan); vis = np.zeros((1, n), bool)
+                    xy[0], vis[0] = cache[key(t)]
+                    xy_t, vis_t = xy[0, :n], vis[0, :n]
+                    res.append((t[0], t[1], t[2], xy_t, vis_t))
+                    if t[2] > 0:
+                        fwd_xy[(t[0], t[1])] = xy_t
+                    if t[2] > 0 and np.hypot(*(xy_t[-1] - goal[(t[0], t[1])])) <= ANC:
+                        landed.add((t[0], t[1]))
+                    done += 1; reused += 1
+                    continue
                 G = Group(net, [t[4] for t in g]); L = max(len(t[3]) for t in g)
                 xy = np.full((len(g), L, 2), np.nan); vis = np.zeros((len(g), L), bool)
                 cut = np.zeros(len(g), bool)
@@ -176,7 +198,23 @@ def bridges(net, tag):
     np.save(os.path.join(OUT, 'bridges_%s.npy' % tag), np.array(res, dtype=object), allow_pickle=True)
     if os.path.exists(ckpt):
         os.remove(ckpt)
-    print('%s  %d tracks  %d frames  %.0f s' % (tag, len(res), sum(len(r[3]) for r in res), time.time() - t0), flush=True)
+    print('%s  %d tracks  %d frames  %.0f s%s' % (tag, len(res), sum(len(r[3]) for r in res), time.time() - t0,
+          '  (%d reused from %s)' % (reused, PREV) if PREV else ''), flush=True)
+
+
+def prev_tracks(tag):
+    """{(a, b, direction, seed x, seed y): (xy, vis)} from TN_PREV, or {} when it has no run of tag."""
+    pb = os.path.join(PREV, 'bridges_%s.npy' % tag); pp = os.path.join(PREV, 'cls_B_%s.npz' % tag)
+    if not (os.path.exists(pb) and os.path.exists(pp)):
+        return {}
+    z = np.load(pp)
+    seed = {int(f): (float(x), float(y)) for f, x, y, s in zip(z['abs'], z['x'], z['y'], z['src']) if s == 1}
+    out = {}
+    for a, b, d, xy, vis in np.load(pb, allow_pickle=True):
+        s = seed.get(int(a) if d > 0 else int(b))
+        if s is not None:
+            out[(int(a), int(b), int(d)) + s] = (xy, vis)
+    return out
 
 
 def alone(net, tags):
