@@ -1,0 +1,386 @@
+<title>Ball Clicker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Spot Check Lab's family. One frame at a time: the whole frame large, a zoom beside it for the exact click. */
+:root{
+  --ground:#131920; --panel:#1b232d; --panel2:#222c38; --line:#2c3845;
+  --ink:#e8edf3; --dim:#8695a6; --faint:#5d6b7a;
+  --signal:#f59e2c; --mark:#ffe600; --ok:#49c58c; --warn:#e0645f; --stage:#000000;
+  --disp:'Chivo',system-ui,sans-serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --r:6px; color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+  --signal:#c7730f; --mark:#b39b00; --ok:#23915f; --warn:#d23447; --stage:#0e141b; color-scheme:light;
+}}
+:root[data-theme="light"]{
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+  --signal:#c7730f; --mark:#b39b00; --ok:#23915f; --warn:#d23447; --stage:#0e141b; color-scheme:light;
+}
+:root[data-theme="dark"]{ color-scheme:dark; }
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0; background:var(--ground); color:var(--ink); font-family:var(--body);
+  font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased; overflow-x:hidden}
+button,select{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--signal); outline-offset:2px}
+kbd{font-family:var(--mono); font-size:11px; background:var(--panel2); border:1px solid var(--line);
+  border-bottom-width:2px; border-radius:4px; padding:1px 6px; white-space:nowrap; color:var(--ink)}
+
+.head{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--panel);
+  border-bottom:1px solid var(--line); padding:10px 16px}
+.headRow{display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap; max-width:1400px; margin:0 auto}
+h1{font-family:var(--disp); font-weight:900; font-size:15px; letter-spacing:.06em; text-transform:uppercase; margin:0}
+h1 span{color:var(--mark)}
+select.sel{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:5px 8px; font-size:12.5px; max-width:100%; min-width:0}
+.prog{margin-left:auto; font-size:12px; color:var(--dim); display:flex; gap:14px; flex-wrap:wrap}
+.prog b{font-family:var(--mono); font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums}
+.save{font-family:var(--mono); font-size:11px; color:var(--faint)}
+.save.busy{color:var(--signal)} .save.bad{color:var(--warn)}
+.bar{height:3px; background:var(--line); max-width:1400px; margin:8px auto 0; border-radius:2px; overflow:hidden}
+.bar i{display:block; height:100%; width:0; background:var(--ok); transition:width .2s}
+
+.wrap{max-width:1400px; margin:0 auto; padding:14px 16px 40px; display:flex; flex-direction:column; gap:12px}
+.banner{background:color-mix(in srgb, var(--warn) 14%, transparent); border:1px solid color-mix(in srgb, var(--warn) 55%, transparent);
+  border-radius:var(--r); padding:9px 11px; font-size:12.5px}
+.banner.note{background:color-mix(in srgb, var(--signal) 12%, transparent); border-color:color-mix(in srgb, var(--signal) 45%, transparent)}
+
+.grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,370px); gap:12px; align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.stage{position:relative; background:var(--stage); border-radius:var(--r); overflow:hidden; border:1px solid var(--line);
+  aspect-ratio:16/9; cursor:crosshair; user-select:none; -webkit-user-select:none}
+.stage img{position:absolute; inset:0; width:100%; height:100%; display:block; -webkit-user-drag:none}
+.stage.motion{cursor:pointer}
+.load{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#c9d2dc;
+  font-family:var(--mono); font-size:12px; pointer-events:none}
+.tag{position:absolute; left:8px; top:8px; font-family:var(--mono); font-size:11px; padding:2px 7px; border-radius:4px;
+  background:rgba(0,0,0,.6); color:#fff; pointer-events:none}
+.zbox{position:absolute; border:1.5px solid var(--mark); box-shadow:0 0 0 1px #000; pointer-events:none}
+.bmark{position:absolute; width:20px; height:20px; margin:-10px 0 0 -10px; border:2px solid var(--ok); border-radius:50%;
+  box-shadow:0 0 0 2px #000; pointer-events:none}
+.under{display:flex; align-items:center; gap:10px; margin-top:6px; font-size:12px; color:var(--dim); flex-wrap:wrap}
+.under .sp{margin-left:auto; display:flex; gap:6px}
+
+.side{display:flex; flex-direction:column; gap:10px; min-width:0}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:12px 14px; display:flex; flex-direction:column; gap:8px}
+.eyebrow{font-family:var(--disp); font-weight:700; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--signal)}
+.q{font-family:var(--disp); font-weight:700; font-size:17px; line-height:1.25; margin:0; text-wrap:balance}
+.hint{font-size:12.5px; color:var(--dim); margin:0; max-width:70ch}
+.zoomWrap{position:relative; width:100%; max-width:min(100%, 46vh); margin:0 auto; aspect-ratio:1/1; background:var(--stage); border:1px solid var(--line); border-radius:var(--r); overflow:hidden}
+.zoomWrap canvas{position:absolute; inset:0; width:100%; height:100%; cursor:crosshair; image-rendering:auto}
+.zoomWrap .empty{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center;
+  padding:18px; color:var(--faint); font-size:12.5px}
+.opts{display:grid; grid-template-columns:minmax(0,1fr); gap:6px}
+.opt{display:flex; align-items:center; gap:10px; text-align:left; background:var(--panel2); border:1px solid var(--line);
+  border-radius:var(--r); padding:7px 12px; font-weight:500; min-width:0}
+.opt:hover:not(:disabled){border-color:var(--faint)}
+.opt small{display:block; color:var(--dim); font-size:11.5px; font-weight:400}
+.opt kbd{margin-left:auto}
+.opt.flash{border-color:var(--ok); background:color-mix(in srgb, var(--ok) 18%, var(--panel2))}
+.opt.prev{border-color:var(--signal)}
+.btn{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:6px 10px;
+  font-family:var(--disp); font-weight:700; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase}
+.btn:hover:not(:disabled){border-color:var(--faint)}
+.btn:disabled{opacity:.38; cursor:not-allowed}
+.btn.on{border-color:var(--signal); color:var(--signal)}
+.keys{font-size:12px; color:var(--faint); display:flex; gap:12px; flex-wrap:wrap}
+
+.tally{display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px}
+.tally div{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:8px 10px; font-size:12px; color:var(--dim)}
+.tally b{display:block; font-family:var(--mono); font-size:16px; color:var(--ink); font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+
+<header class="head">
+  <div class="headRow">
+    <h1>Ball <span>Clicker</span></h1>
+    <select class="sel" id="batchSel" aria-label="Batch"></select>
+    <div class="prog">
+      <span>this sitting <b id="pSit">0</b></span>
+      <span>batch <b id="pDone">0</b> / <b id="pN">0</b></span>
+      <span class="save" id="save">ready</span>
+    </div>
+  </div>
+  <div class="bar"><i id="barI"></i></div>
+</header>
+
+<main class="wrap">
+  <div class="banner" id="banner" hidden></div>
+
+  <section id="qView" hidden>
+    <div class="grid">
+      <div>
+        <div class="stage" id="stage">
+          <img id="still" alt="The camera frame to find the ball in" draggable="false">
+          <img id="loop" alt="" hidden draggable="false">
+          <div class="load" id="load">loading frame&#8230;</div>
+          <div class="tag" id="tag"></div>
+          <div class="zbox" id="zbox" hidden></div>
+          <div class="bmark" id="bmark" hidden></div>
+        </div>
+        <div class="under">
+          <span id="underT">Click near the ball. A zoom opens on the right for the exact click.</span>
+          <span class="sp">
+            <button class="btn" id="bMotion" type="button"><span id="bMotionT">Show motion</span> <kbd>Space</kbd></button>
+          </span>
+        </div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <div class="eyebrow" id="eyebrow">Item</div>
+          <p class="q">Where is the ball in this frame?</p>
+          <p class="hint">Click near it on the frame, then on its exact centre in the zoom.</p>
+          <div class="zoomWrap">
+            <canvas id="zoom" width="420" height="420" aria-label="Zoomed view: click the centre of the ball"></canvas>
+            <div class="empty" id="zEmpty">Click near the ball on the frame to zoom in here.</div>
+          </div>
+          <div class="opts">
+            <button class="opt" type="button" data-v="out"><span>Not in frame<small>The ball is not in this shot.</small></span><kbd>N</kbd></button>
+            <button class="opt" type="button" data-v="dead"><span>Dead ball<small>It is there, but out of play: a restart, a wait, after the whistle.</small></span><kbd>D</kbd></button>
+            <button class="opt" type="button" data-v="cant"><span>Can't tell<small>Hidden behind a player, or you are not sure.</small></span><kbd>C</kbd></button>
+          </div>
+          <div class="keys"><span><kbd>B</kbd> back</span><span><kbd>Esc</kbd> close the zoom</span><span><kbd>Space</kbd> motion</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="doneView" hidden>
+    <div class="card">
+      <div class="eyebrow">Batch done</div>
+      <p class="q" id="doneQ">Every item in this batch is answered.</p>
+      <p class="hint">Tell Claude, and the next batch goes up. Pick another batch above to look back at answers.</p>
+      <div class="tally" id="tally"></div>
+      <div><button class="btn" id="bReview" type="button">Review from the start</button></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const ZOOM_SRC = 150;            // full-resolution pixels across the zoom
+const PER_DOC = 100;             // answers per stored document
+const clone = o => JSON.parse(JSON.stringify(o));
+const $ = id => document.getElementById(id);
+const S = {db: null, local: false, batches: [], batch: null, items: [], ans: {}, docs: {}, writes: {},
+  cur: -1, sit: 0, t0: 0, zc: null, motion: false, review: false, lock: false};
+
+/* ---------- storage -------------------------------------------------------------------------- */
+function deepFreeze(o){ if (o && typeof o === 'object'){ Object.values(o).forEach(deepFreeze); Object.freeze(o); } return o; }
+function mockDb(){   // local preview only: behaves like the real store, snapshots frozen
+  const store = new Map();
+  const snap = (k, v) => ({id: k.split('/').pop(), exists: true, data: () => deepFreeze(clone(v))});
+  return {collection(p){ return {
+    doc: id => ({id, set: async d => { await new Promise(r => setTimeout(r, 30)); store.set(p + '/' + id, clone(d)); },
+                 get: async () => store.has(p + '/' + id) ? snap(p + '/' + id, store.get(p + '/' + id)) : {id, exists: false, data: () => undefined}}),
+    get: async () => { const docs = [...store].filter(([k]) => k.startsWith(p + '/') && !k.slice(p.length + 1).includes('/')).map(([k, v]) => snap(k, v));
+                       return {docs, size: docs.length, empty: !docs.length}; },
+  }; }};
+}
+const col = () => S.db.collection('batches/' + S.batch.name + '/answers');
+const docId = k => 'c' + String(k).padStart(3, '0');
+function setSave(state, text){ const el = $('save'); el.className = 'save ' + state; el.textContent = text; }
+function banner(text, note){ const b = $('banner'); b.textContent = text; b.className = 'banner' + (note ? ' note' : ''); b.hidden = !text; }
+function saveDoc(k){
+  if (!S.db) return;
+  const w = S.writes[k] || (S.writes[k] = {busy: false, dirty: false});
+  if (w.busy){ w.dirty = true; return; }
+  w.busy = true; setSave('busy', 'saving\u2026');
+  (async () => {
+    do {
+      w.dirty = false;
+      const body = clone(S.docs[k]);
+      let tries = 0;
+      for (;;){
+        try { await col().doc(docId(k)).set(body); setSave('', S.local ? 'saved in this tab' : 'saved'); break; }
+        catch (e){
+          if (e && e.code === 'unavailable' && tries++ < 1){ await new Promise(r => setTimeout(r, 800 + Math.random() * 1200)); continue; }
+          setSave('bad', 'not saved');
+          banner(e && e.code === 'quota_exceeded' ? 'The answer store is full. Stop here and tell Claude.' :
+                 'An answer did not save (' + ((e && e.code) || 'error') + '). It will retry with your next answer.');
+          w.dirty = true; w.busy = false; return;
+        }
+      }
+    } while (w.dirty);
+    w.busy = false;
+  })();
+}
+
+/* ---------- media ---------------------------------------------------------------------------- */
+const base = () => 'batches/' + S.batch.name + '/';
+const pre = new Map();
+function prefetch(){
+  let n = 0;
+  for (let i = S.cur + 1; i < S.items.length && n < 6; i++){
+    if (S.items[i].id in S.ans) continue; n++;
+    for (const k of ['still', 'loop']){
+      const u = base() + S.items[i][k];
+      if (!pre.has(u)){ const im = new Image(); im.decoding = 'async'; im.src = u; pre.set(u, im); }
+    }
+  }
+  while (pre.size > 40){ pre.delete(pre.keys().next().value); }
+}
+
+/* ---------- one item ------------------------------------------------------------------------- */
+function stageXY(e){   // event -> full-resolution frame pixels
+  const r = $('stage').getBoundingClientRect();
+  return [Math.max(0, Math.min(1919, (e.clientX - r.left) / r.width * 1920)),
+          Math.max(0, Math.min(1079, (e.clientY - r.top) / r.height * 1080))];
+}
+function place(el, x, y){ el.style.left = (x / 1920 * 100) + '%'; el.style.top = (y / 1080 * 100) + '%'; }
+function setMotion(on){
+  S.motion = on;
+  $('loop').hidden = !on; $('stage').classList.toggle('motion', on);
+  $('bMotion').classList.toggle('on', on); $('bMotionT').textContent = on ? 'Show the frame' : 'Show motion';
+  $('underT').textContent = on ? 'Motion: the second before and after, to help find it. Click or press Space to go back to the frame and click there.'
+                               : 'Click near the ball. A zoom opens on the right for the exact click.';
+  if (on){ const u = base() + S.items[S.cur].loop; if ($('loop').getAttribute('src') !== u) $('loop').src = u; }
+}
+function closeZoom(){
+  S.zc = null; $('zbox').hidden = true; $('zEmpty').hidden = false;
+  const c = $('zoom'); c.getContext('2d').clearRect(0, 0, c.width, c.height);
+}
+function drawZoom(){
+  const c = $('zoom'), g = c.getContext('2d'), im = $('still');
+  if (!S.zc || !im.complete || !im.naturalWidth) return;
+  const [x0, y0] = S.zc;
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(im, x0, y0, ZOOM_SRC, ZOOM_SRC, 0, 0, c.width, c.height);
+  const a = S.ans[S.items[S.cur].id];
+  if (a && a.v === 'ball' && a.x >= x0 && a.x < x0 + ZOOM_SRC && a.y >= y0 && a.y < y0 + ZOOM_SRC){
+    const k = c.width / ZOOM_SRC;
+    g.strokeStyle = '#49c58c'; g.lineWidth = 2; g.beginPath(); g.arc((a.x - x0) * k, (a.y - y0) * k, 14, 0, 7); g.stroke();
+  }
+}
+function openZoom(x, y){
+  const x0 = Math.round(Math.max(0, Math.min(1920 - ZOOM_SRC, x - ZOOM_SRC / 2)));
+  const y0 = Math.round(Math.max(0, Math.min(1080 - ZOOM_SRC, y - ZOOM_SRC / 2)));
+  S.zc = [x0, y0];
+  const z = $('zbox'); z.hidden = false; place(z, x0, y0);
+  z.style.width = (ZOOM_SRC / 1920 * 100) + '%'; z.style.height = (ZOOM_SRC / 1080 * 100) + '%';
+  $('zEmpty').hidden = true; drawZoom();
+}
+function show(i){
+  if (i < 0 || i >= S.items.length){ finish(); return; }
+  S.cur = i; S.lock = false; S.t0 = performance.now(); $('qView').hidden = false; $('doneView').hidden = true;
+  const it = S.items[i], a = S.ans[it.id];
+  if (!a) S.review = false;   // back at new items: skip answered ones again
+  setMotion(false); closeZoom();
+  $('load').hidden = false; $('load').textContent = 'loading frame\u2026';
+  const im = $('still'), u = base() + it.still;
+  im.onload = () => { if (S.cur === i){ $('load').hidden = true; if (a && a.v === 'ball') openZoom(a.x, a.y); } };
+  im.onerror = () => { if (S.cur === i) $('load').textContent = 'the frame did not load; press B then come back, or reload'; };
+  if (im.getAttribute('src') !== u) im.src = u; else if (im.complete) im.onload();
+  $('loop').removeAttribute('src');
+  $('tag').textContent = it.title;
+  $('eyebrow').textContent = 'Item ' + (i + 1) + ' of ' + S.items.length + (a ? ' \u00b7 answered: ' + label(a) : '');
+  const bm = $('bmark'); bm.hidden = !(a && a.v === 'ball'); if (a && a.v === 'ball') place(bm, a.x, a.y);
+  document.querySelectorAll('.opt').forEach(b => b.classList.toggle('prev', !!a && b.dataset.v === a.v));
+  prefetch();
+}
+const label = a => ({ball: 'ball clicked', out: 'not in frame', dead: 'dead ball', cant: "can't tell"})[a.v] || a.v;
+function answer(v, x, y){
+  if (S.cur < 0 || S.lock) return;
+  S.lock = true;   // until the next item shows: a fast second key must not re-answer this one
+  const it = S.items[S.cur], k = Math.floor(S.cur / PER_DOC);
+  const rec = {v, ms: Math.round(performance.now() - S.t0), at: Date.now()};
+  if (v === 'ball'){ rec.x = Math.round(x * 10) / 10; rec.y = Math.round(y * 10) / 10; }
+  const was = it.id in S.ans;
+  S.ans[it.id] = rec;
+  S.docs[k] = S.docs[k] || {a: {}};
+  S.docs[k] = {a: Object.assign({}, S.docs[k].a, {[it.id]: rec})};
+  saveDoc(k);
+  if (!was) S.sit++;
+  progress();
+  const btn = document.querySelector('.opt[data-v="' + v + '"]');
+  if (btn){ btn.classList.add('flash'); setTimeout(() => btn.classList.remove('flash'), 220); }
+  if (v === 'ball'){ const bm = $('bmark'); bm.hidden = false; place(bm, x, y); }
+  setTimeout(() => show(S.review ? S.cur + 1 : next(S.cur + 1)), v === 'ball' ? 260 : 120);
+}
+function next(from){
+  for (let i = from; i < S.items.length; i++) if (!(S.items[i].id in S.ans)) return i;
+  for (let i = 0; i < from && i < S.items.length; i++) if (!(S.items[i].id in S.ans)) return i;
+  return -1;
+}
+function back(){ if (!S.lock && S.cur > 0){ S.review = true; show(S.cur - 1); } }
+function progress(){
+  const d = S.items.filter(it => it.id in S.ans).length;
+  $('pDone').textContent = d; $('pN').textContent = S.items.length; $('pSit').textContent = S.sit;
+  $('barI').style.width = (S.items.length ? d / S.items.length * 100 : 0) + '%';
+}
+function finish(){
+  S.cur = -1; S.lock = false; $('qView').hidden = true; $('doneView').hidden = false;
+  const c = {ball: 0, out: 0, dead: 0, cant: 0};
+  Object.values(S.ans).forEach(a => { c[a.v] = (c[a.v] || 0) + 1; });
+  const t = $('tally'); t.replaceChildren();
+  [['ball', 'balls clicked'], ['out', 'not in frame'], ['dead', 'dead ball'], ['cant', "can't tell"]].forEach(([k, n]) => {
+    const d = document.createElement('div'), b = document.createElement('b'); b.textContent = c[k]; d.append(b, n); t.append(d);
+  });
+}
+
+/* ---------- events --------------------------------------------------------------------------- */
+$('stage').addEventListener('click', e => {
+  if (S.cur < 0) return;
+  if (S.motion){ setMotion(false); return; }
+  if (!$('still').naturalWidth) return;
+  const [x, y] = stageXY(e); openZoom(x, y);
+});
+$('zoom').addEventListener('click', e => {
+  if (!S.zc) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  const x = S.zc[0] + (e.clientX - r.left) / r.width * ZOOM_SRC, y = S.zc[1] + (e.clientY - r.top) / r.height * ZOOM_SRC;
+  answer('ball', x, y);
+});
+document.querySelectorAll('.opt').forEach(b => b.onclick = () => answer(b.dataset.v));
+$('bMotion').onclick = () => { if (S.cur >= 0) setMotion(!S.motion); };
+$('bReview').onclick = () => { S.review = true; show(0); };
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT' || e.ctrlKey || e.metaKey || e.altKey || S.cur < 0) return;
+  const k = e.key.toLowerCase();
+  if (k === ' '){ e.preventDefault(); setMotion(!S.motion); }
+  else if (k === 'n') answer('out');
+  else if (k === 'd') answer('dead');
+  else if (k === 'c') answer('cant');
+  else if (k === 'b' || k === 'backspace'){ e.preventDefault(); back(); }
+  else if (k === 'escape') closeZoom();
+});
+
+/* ---------- batches -------------------------------------------------------------------------- */
+async function openBatch(name){
+  S.batch = S.batches.find(b => b.name === name); S.ans = {}; S.docs = {}; S.writes = {}; S.review = false;
+  try { localStorage.setItem('clicker.batch', name); } catch (e) {}
+  try { S.items = (await (await fetch(base() + 'items.json')).json()).items; }
+  catch (e){ banner('This batch did not load. Reload the page.'); return; }
+  if (S.db){
+    try {
+      const q = await col().get();
+      q.docs.forEach(d => { const k = parseInt(d.id.slice(1), 10), body = clone(d.data() || {}); S.docs[k] = {a: body.a || {}}; Object.assign(S.ans, S.docs[k].a); });
+    } catch (e){ banner('Could not read earlier answers (' + ((e && e.code) || 'error') + '). Reload before answering, or earlier answers may be overwritten.'); S.db = null; }
+  }
+  progress();
+  const i = next(0); i < 0 ? finish() : show(i);
+}
+async function boot(){
+  if (!window.claude){ S.db = mockDb(); S.local = true; banner('Local preview: answers stay in this tab only.', true); }
+  else {
+    try { S.db = await window.claude.use('db'); } catch (e){ S.db = null; }
+    if (!S.db) banner('Answers cannot be saved in this view. Open the clicker signed in to claude.ai to answer.');
+  }
+  try { S.batches = (await (await fetch('batches.json')).json()).batches; }
+  catch (e){ banner('The batches did not load. Reload the page.'); return; }
+  const sel = $('batchSel'); sel.replaceChildren();
+  S.batches.forEach(b => { const o = document.createElement('option'); o.value = b.name; o.textContent = b.title; sel.append(o); });
+  let pick = S.batches[S.batches.length - 1].name;
+  try { const m = localStorage.getItem('clicker.batch'); if (m && S.batches.some(b => b.name === m)) pick = m; } catch (e) {}
+  sel.value = pick; sel.onchange = () => openBatch(sel.value);
+  await openBatch(pick);
+}
+window.addEventListener('resize', drawZoom);
+boot();
+</script>
