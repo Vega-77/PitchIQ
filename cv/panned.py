@@ -60,6 +60,7 @@ import cv2
 import numpy as np
 
 from .ball import BallPoint, BallTrajectory
+from .balltrack import ballgate
 from .calibration import Calibration, CalibrationError
 from .frames import COL_X1, COL_X2, COL_Y1, COL_Y2, FrameTable
 from .pitch import STATSBOMB_LENGTH, STATSBOMB_WIDTH, Pitch
@@ -180,9 +181,11 @@ class PannedCamera:
             width_m=round(float(venue['W']) * CENTRE_CIRCLE_RADIUS_M, 1),
         )
         observed = np.isin(picks['src'], OBSERVED_SOURCES)
+        # No ball where the classifier is lost for minutes (cv/balltrack/ballgate.py).
+        lost = ballgate.lost(tag, int(frames[0]), (picks['src'] > 0) & np.isfinite(picks['x']))
         return cls.from_arrays(
             frames, smooth['H'], reference_to_sb, pitch,
-            ball['x'], ball['y'], observed, error,
+            np.where(lost, np.nan, ball['x']), np.where(lost, np.nan, ball['y']), observed, error,
         )
 
     @property

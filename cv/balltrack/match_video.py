@@ -27,6 +27,7 @@ os.chdir(HG)                                      # vovl and vflight read their 
 import render_vid as RV      # noqa: E402  (clock)
 import vovl                  # noqa: E402
 import vflight as V          # noqa: E402
+import ballgate              # noqa: E402
 
 WD = 720; CW, CH = 720, 405; TOP = 44
 MS = 5.4                                      # map px per StatsBomb unit
@@ -69,13 +70,15 @@ def short_runs(on, k=MIN_RUN):
 
 def ball(tag, lo, hi):
     """Per frame: image point, StatsBomb point, kind, ground point under an air ball.
-    A ring that would show for under MIN_RUN frames is not drawn at all."""
+    A ring that would show for under MIN_RUN frames is not drawn at all, nor any ball where
+    ballgate finds the classifier lost."""
     tr = V.Track(tag)
     a0 = int(tr.abs[0])
     B = np.load(os.path.join(HG, '%s_ball3dd.npz' % tag))
     P = np.load(os.path.join(HERE, 'alltests', 'p2d', 'hyb90', '%s.npz' % tag))
     air = (B['state'] == 'air') & np.isfinite(B['x'])
     flash = short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
+    flash |= ballgate.lost(tag, a0, (P['src'] > 0) & np.isfinite(P['x']))   # the classifier is lost there
     n = hi - lo
     img = np.full((n, 2), np.nan); sb = np.full((n, 2), np.nan); gnd = np.full((n, 2), np.nan); kind = [''] * n
     for k in range(n):
