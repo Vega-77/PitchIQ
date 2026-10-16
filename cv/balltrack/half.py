@@ -193,7 +193,9 @@ class Half:
                  env=ONE_THREAD)
 
     def bridges(self, p):
-        self.run(TNX, '-u', 'tn_engine.py', 'bridges', p['ptag'])
+        # neighbours already bridged lend their tracks in the overlap (same gap, picks and frames)
+        near = [q['ptag'] for q in self.pieces if abs(q['k'] - p['k']) == 1 and self.done(q['ptag'], 'bridges')]
+        self.run(TNX, '-u', 'tn_engine.py', 'bridges', p['ptag'], env=dict(TN_NEAR=','.join(near)))
 
     def hybrid(self, p):
         P = p['ptag']
@@ -206,11 +208,14 @@ class Half:
         self.run(AT, 'mk3d.py', 'hyb90', P, env=ONE_THREAD)
 
     # ---- the queues ----------------------------------------------------------------------
-    # Three kinds of lane. The players' detector spends four fifths of its time on
+    # Four kinds of lane. The players' detector spends four fifths of its time on
     # the CPU (colour samples of ~50 boxes a frame, decoding), so it gets a GPU lane
-    # of its own and the ball's GPU jobs (TAPNext bridges, the classifier) fill the
-    # card meanwhile; TAPNext alone keeps the card busy, so one ball lane. The ball's
-    # CPU jobs (shipped chain, hybrid, build) run `lanes` at a time. Every job reads
+    # of its own and the ball's GPU jobs fill the card meanwhile. TAPNext alone keeps
+    # the card busy, so one bridges lane. The classifier is mostly decoding and crop
+    # cutting, so it gets a lane of its own: sharing the bridges' lane, a 15-minute
+    # bridges job held every other piece's classify (and so its shipped chain and its
+    # bridges) back, ~10 min of a day half (pi1 log, 2026-10-16). The ball's CPU jobs
+    # (shipped chain, hybrid, build) run `lanes` at a time. Every job reads
     # only finished files and was checked to give the same bytes whatever runs
     # beside it, so the order changes no output.
 
@@ -243,18 +248,21 @@ class Half:
                 _, n = ex.feat_part_from_dets(self.tag, clo, chi, first_row)
                 first_row += n
                 self.say('players  %d..%d features  (%.0f s)' % (clo, chi, time.time() - t))
+            while self.err is None and not all(self.done(p['ptag'], 'build') for p in self.pieces):
+                time.sleep(5)
+            if self.err is None:
+                self.merge_players()
         except BaseException as e:  # noqa: BLE001 - reported and re-raised by main; a thread
             # that let SystemExit (player_lab's 'video ended at') through would die without a word
             self.err = e
 
-    def ball_gpu_loop(self):
-        """Bridges first (a hybrid waits on them), then the classifier."""
+    def ball_gpu_loop(self, stage, after):
+        """One GPU stage, piece by piece as `after` finishes them: bridges, or the classifier."""
         try:
             while self.err is None:
-                stage, p = self.claim([('bridges', p) for p in self.pieces if self.done(p['ptag'], 'shipped')]
-                                      + [('classify', p) for p in self.pieces if self.done(p['ptag'], 'build')])
-                if stage is None:
-                    if all(self.done(p['ptag'], 'bridges') for p in self.pieces):
+                stage_, p = self.claim([(stage, p) for p in self.pieces if self.done(p['ptag'], after)])
+                if stage_ is None:
+                    if all(self.done(p['ptag'], stage) for p in self.pieces):
                         return
                     time.sleep(5)
                     continue
@@ -280,6 +288,12 @@ class Half:
                 self.do(stage, p)
         except BaseException as e:  # noqa: BLE001
             self.err = e
+
+    def merge_players(self):
+        from cv.experiments import player_lab as L
+        L.extract(self.tag, self.lo, self.hi - self.lo + 1, 1280, 0.05)     # parts done: merges only
+        L.features(self.tag)
+        self.say('players merged')
 
     def do(self, stage, p):
         t = time.time()
@@ -393,7 +407,8 @@ class Half:
         drun_p = subprocess.Popen([PY, '-W', 'ignore', 'drun.py', str(self.lo), str(self.hi), str(self.workers),
                                    self.tag], cwd=S2, env=self.env, stdout=dlog, stderr=subprocess.STDOUT)
         threads = [threading.Thread(target=self.players_loop)]
-        threads += [threading.Thread(target=self.ball_gpu_loop)]
+        threads += [threading.Thread(target=self.ball_gpu_loop, args=('bridges', 'shipped'))]
+        threads += [threading.Thread(target=self.ball_gpu_loop, args=('classify', 'build'))]
         threads += [threading.Thread(target=self.cpu_loop) for _ in range(self.lanes)]
         for t in threads:
             t.start()
@@ -413,9 +428,7 @@ class Half:
         drun_p.wait()
         self.say('drun done')
         self.stitch()
-        L.extract(self.tag, self.lo, self.hi - self.lo + 1, 1280, 0.05)     # parts done: merges only
-        L.features(self.tag)
-        self.say('players merged; HALF DONE')
+        self.say('HALF DONE')
 
 
 def main():

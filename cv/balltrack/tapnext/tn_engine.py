@@ -42,6 +42,10 @@ CKPT_S = float(os.environ.get('TN_CKPT_S', 300))   # seconds of work between che
 # whose gap, direction and seed pick are unchanged is taken from there instead of re-run: a rerun
 # after a registration change then tracks only the gaps its new air flags open.
 PREV = os.environ.get('TN_PREV')
+# TN_NEAR: comma-separated tags of finished neighbouring pieces (bridges in OUT, picks in p2d/cls_B).
+# Pieces overlap by half.py's 300 frames each side, so ~6% of a piece's tracks were already run by
+# its neighbours; the same rule takes them from there.
+NEAR = [t for t in os.environ.get('TN_NEAR', '').split(',') if t]
 
 
 def model():
@@ -111,6 +115,7 @@ def bridges(net, tag):
     air = air_mask(tag, ab)
     jobs = []                       # (a, b, direction, order, seed)
     goal = {}                       # (a, b) -> the pick at b a forward track must land on
+    start = {}                      # (a, b) -> the pick at a
     fwd_xy = {}                     # (a, b) -> the forward track, which a backward one must stay near
     for i, j in zip(anc[:-1], anc[1:]):
         L = j - i - 1
@@ -118,10 +123,17 @@ def bridges(net, tag):
             a, b = int(ab[i]), int(ab[j])
             jobs.append((a, b, +1, list(range(a, b + 1)), (px[i], py[i])))
             jobs.append((a, b, -1, list(range(b, a - 1, -1)), (px[j], py[j])))
-            goal[(a, b)] = (px[j], py[j])
+            goal[(a, b)] = (px[j], py[j]); start[(a, b)] = (px[i], py[i])
     jobs.sort(key=lambda t: (min(t[3]), -len(t[3])))
-    cache = prev_tracks(tag) if PREV and B == 1 else {}
-    key = lambda t: (t[0], t[1], t[2], float(t[4][0]), float(t[4][1]))   # noqa: E731
+    cache = {}
+    if B == 1:
+        for other in NEAR:
+            cache.update(prev_tracks(other, OUT))
+        if PREV:
+            cache.update(prev_tracks(tag, PREV))
+    # A track depends on its frames and its seed; a backward one also on the forward track it is cut
+    # against (AGR), so on the pick at a too, and whether it runs at all on the pick at b: key on both.
+    key = lambda t: (t[0], t[1], t[2]) + tuple(float(v) for v in start[(t[0], t[1])] + goal[(t[0], t[1])])   # noqa: E731
     reused = 0
     cap = cv2.VideoCapture(feat4.VIDEO)
     res = []; t0 = time.time(); k0 = 0; done = 0
@@ -135,6 +147,10 @@ def bridges(net, tag):
             res, k0, done = c['res'], c['k0'], c['done']
             print('%s  resuming at %d/%d tracks' % (tag, done, len(jobs)), flush=True)
     saved = time.time()
+    # One autocast context for the whole run: Group.step's own (nested) context then no longer
+    # drops autocast's fp16 weight casts after every step. Same casts, same kernels: bit-identical
+    # tracks, 3-5% faster (tn_cache.py, 2026-10-16).
+    amp = torch.amp.autocast('cuda', dtype=torch.float16); amp.__enter__()
     while k0 < len(jobs):
         span = [jobs[k0]]; lo = min(jobs[k0][3]); k = k0 + 1
         while k < len(jobs) and max(jobs[k][3]) - lo <= SPAN:
@@ -194,26 +210,32 @@ def bridges(net, tag):
             os.makedirs(OUT, exist_ok=True)
             np.save(ckpt + '.part.npy', dict(sig=sig, res=res, k0=k0, done=done), allow_pickle=True)
             os.replace(ckpt + '.part.npy', ckpt); saved = time.time()
+    amp.__exit__(None, None, None)
     os.makedirs(OUT, exist_ok=True)
     np.save(os.path.join(OUT, 'bridges_%s.npy' % tag), np.array(res, dtype=object), allow_pickle=True)
     if os.path.exists(ckpt):
         os.remove(ckpt)
     print('%s  %d tracks  %d frames  %.0f s%s' % (tag, len(res), sum(len(r[3]) for r in res), time.time() - t0,
-          '  (%d reused from %s)' % (reused, PREV) if PREV else ''), flush=True)
+          '  (%d reused from %s)' % (reused, ' '.join(NEAR + ([PREV] if PREV else [])))
+          if PREV or NEAR else ''), flush=True)
 
 
-def prev_tracks(tag):
-    """{(a, b, direction, seed x, seed y): (xy, vis)} from TN_PREV, or {} when it has no run of tag."""
-    pb = os.path.join(PREV, 'bridges_%s.npy' % tag); pp = os.path.join(PREV, 'cls_B_%s.npz' % tag)
+def prev_tracks(tag, where):
+    """{(a, b, direction, pick a x, y, pick b x, y): (xy, vis)} from a finished run of tag, or {}.
+
+    where = TN_PREV (bridges_<tag>.npy beside cls_B_<tag>.npz) or OUT (a neighbouring piece: its picks
+    are in p2d/cls_B/<tag>.npz)."""
+    pb = os.path.join(where, 'bridges_%s.npy' % tag)
+    pp = os.path.join(where, 'cls_B_%s.npz' % tag) if where != OUT else os.path.join(AT, 'p2d', 'cls_B', '%s.npz' % tag)
     if not (os.path.exists(pb) and os.path.exists(pp)):
         return {}
     z = np.load(pp)
     seed = {int(f): (float(x), float(y)) for f, x, y, s in zip(z['abs'], z['x'], z['y'], z['src']) if s == 1}
     out = {}
     for a, b, d, xy, vis in np.load(pb, allow_pickle=True):
-        s = seed.get(int(a) if d > 0 else int(b))
-        if s is not None:
-            out[(int(a), int(b), int(d)) + s] = (xy, vis)
+        sa, sb = seed.get(int(a)), seed.get(int(b))
+        if sa is not None and sb is not None:
+            out[(int(a), int(b), int(d)) + sa + sb] = (xy, vis)
     return out
 
 
