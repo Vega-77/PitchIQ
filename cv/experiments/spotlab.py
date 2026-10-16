@@ -144,10 +144,12 @@ class _Window:
         self.kits = {t: dict(name=MV.kit_name(s) if np.isfinite(s).all() else t, lab=[float(v) for v in s], rgb=_rgb(s))
                      for t, s in shirt.items()}
         ka, kb = self.kits['team_a'], self.kits['team_b']
-        if ka['name'] == kb['name'] and np.isfinite(ka['lab'][0]) and np.isfinite(kb['lab'][0]):
-            # both kits read as one colour (night glare: white looks grey): tell them apart by lightness
-            light = ka['lab'][0] >= kb['lab'][0]
-            ka['name'], kb['name'] = ('lighter', 'darker') if light else ('darker', 'lighter')
+        ab = ka['lab'][0] >= kb['lab'][0]
+        if np.isfinite(ka['lab'][0]) and np.isfinite(kb['lab'][0]) and (
+                ka['name'] == kb['name'] or (ka['name'] == 'white') != ab and 'white' in (ka['name'], kb['name'])):
+            # both kits read as one colour (glare: white looks grey), or 'white' is the darker swatch:
+            # tell them apart by lightness
+            ka['name'], kb['name'] = ('lighter', 'darker') if ab else ('darker', 'lighter')
         self.rng = rng
 
     def _joins(self, ident):
