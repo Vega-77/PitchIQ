@@ -480,7 +480,8 @@ def make(tag: str, out: Path, per_type: int = 100, windows: int = 6, win_s: floa
                     qs.append(dict(id='%s_%d_%s_%d' % (tag, q['f'], q['kind'], len(qs)), type=q['kind'], frame=q['f'],
                                    window=w, sample=q['sample'], pack=pack, slot=slot, atlas=atlas, cell=cell,
                                    model=win_.model_answer(q['kind'], q['f'], p),
-                                   pid=getattr(p, 'pid', None), kits=win_.kits if q['kind'] == 'team' else None))
+                                   pid=getattr(p, 'pid', None), kits=win_.kits if q['kind'] == 'team' else None,
+                                   rect=[round(float(v), 1) for v in q['rect']]))   # x0, y0, w, h of the clip in the frame
             f += 1
     W.close()
     order = rng.permutation(len(qs))
