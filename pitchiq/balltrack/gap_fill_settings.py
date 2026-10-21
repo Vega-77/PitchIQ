@@ -2,7 +2,7 @@
 tuning, so no split to overfit.  Wrong picks are split into those the
 fill added and those the tracker already made.
 
-    python -m pitchiq.balltrack.gapfill_fixed
+    python -m pitchiq.balltrack.gap_fill_settings
 """
 
 from . import ball_tracker

@@ -157,7 +157,7 @@ script's `S2 = dirname(HERE)` pointing here, so no path was edited in the move.
 ## How good it is
 
 The held-out test set is 18 clips of 1200 frames. `truthdb/` holds 269 human
-marks (ball / off-screen). Score with `python -m pitchiq.balltrack.gapfill_fixed`. A pick counts
+marks (ball / off-screen). Score with `python -m pitchiq.balltrack.gap_fill_settings`. A pick counts
 as right if it is within 60 px of the mark.
 
 | | accuracy over all marks | wrong picks |
