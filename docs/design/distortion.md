@@ -44,3 +44,57 @@ Everything here is one parameter. Real lenses want two or three, plus a
 principal point that is not quite the image centre, and fitting those from one
 frame of a pitch would fit the noise beautifully. One coefficient is what a
 single frame of paint can support.
+
+---
+
+## Moved from comments
+
+Moved verbatim from comments beside the code in the deep clean (C-2).
+
+### Turn caps
+
+The tracer follows curvature, which is the point, and must not follow it
+around a corner flag onto the goal line. Two caps, because one will not do.
+
+Per step: a centroid taken from rasterised paint wobbles a few tenths of a
+pixel, which over a six-pixel step is already about three degrees of apparent
+turn. A cap tight enough to be interesting is therefore tighter than the
+tracer's own noise, and simply stops every chain at random. Twenty degrees is
+noise-proof and still nothing like a right angle.
+
+Cumulative, from the seed: this is the one that does the work. A lens bends a
+whole touchline by a handful of degrees end to end. Anything that has turned
+thirty-five degrees since it started is not a straight line seen through a
+lens -- it is the centre circle, or the tracer has stepped onto another line.
+
+### Straight enough
+
+Paint rasterises to a few pixels wide and a traced centreline wobbles inside
+it. Below this the lines are already as straight as the tracer can measure,
+and any `k1` that "improves" on it is fitting that wobble.
+
+As a fraction of half the image diagonal, because the bow a given lens puts
+in a line is a fraction of the frame rather than a number of pixels: the same
+camera measured at 1080p bows its lines half again as far as at 720p, and a
+constant here would quietly get stricter as the footage got better. Half the
+diagonal is the same normalisation `DistortionModel.scale` uses.
+
+8e-4 is 0.59px at 1280x720. Measured on the synthetic camera, the tracer's
+own noise floor there is 0.31px -- that is what a perfectly rectilinear frame
+scores, and it stays flat at 0.31-0.41px across the whole sweep -- so this
+asks for a bow about twice the wobble before treating it as a lens.
+
+### Clean start
+
+Snap to the middle of the paint before walking. A seed's midpoint
+sits wherever Hough put it, which can be a couple of pixels off the
+centreline, and starting there throws the first step sideways by that
+much -- over a six-pixel step, a three-pixel offset reads as a
+twenty-seven-degree turn and the cap kills the trace before it takes
+a second step.
+
+The midpoint is also the likeliest place on the whole segment to be a
+junction, since Hough merges a line across its crossings and the
+crossings tend to sit in the middle of it, so a midpoint that cannot
+be centred is normal rather than fatal: walk along the seed and start
+from the first place the paint is legible on its own.

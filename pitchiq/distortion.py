@@ -49,19 +49,9 @@ TRACE_STEP_PX = 6.0
 # centreline. See `_centre_of_paint`.
 MAX_PAINT_PX = 14.0
 
-# The tracer follows curvature, which is the point, and must not follow it
-# around a corner flag onto the goal line. Two caps, because one will not do.
-#
-# Per step: a centroid taken from rasterised paint wobbles a few tenths of a
-# pixel, which over a six-pixel step is already about three degrees of apparent
-# turn. A cap tight enough to be interesting is therefore tighter than the
-# tracer's own noise, and simply stops every chain at random. Twenty degrees is
-# noise-proof and still nothing like a right angle.
-#
-# Cumulative, from the seed: this is the one that does the work. A lens bends a
-# whole touchline by a handful of degrees end to end. Anything that has turned
-# thirty-five degrees since it started is not a straight line seen through a
-# lens -- it is the centre circle, or the tracer has stepped onto another line.
+# The tracer may follow a line's curve but not turn a corner: a per-step cap
+# above the tracer's own noise, and a cumulative cap from the seed that does the
+# work. docs/design/distortion.md, "Turn caps".
 MAX_TURN_DEG = 20.0
 MAX_BEND_DEG = 35.0
 
@@ -69,20 +59,9 @@ MAX_BEND_DEG = 35.0
 MIN_CHAINS = 3
 MIN_POINTS = 150
 
-# Paint rasterises to a few pixels wide and a traced centreline wobbles inside
-# it. Below this the lines are already as straight as the tracer can measure,
-# and any `k1` that "improves" on it is fitting that wobble.
-#
-# As a fraction of half the image diagonal, because the bow a given lens puts
-# in a line is a fraction of the frame rather than a number of pixels: the same
-# camera measured at 1080p bows its lines half again as far as at 720p, and a
-# constant here would quietly get stricter as the footage got better. Half the
-# diagonal is the same normalisation `DistortionModel.scale` uses.
-#
-# 8e-4 is 0.59px at 1280x720. Measured on the synthetic camera, the tracer's
-# own noise floor there is 0.31px -- that is what a perfectly rectilinear frame
-# scores, and it stays flat at 0.31-0.41px across the whole sweep -- so this
-# asks for a bow about twice the wobble before treating it as a lens.
+# Below this bow, as a fraction of half the image diagonal, the lines are as
+# straight as the tracer can measure and any `k1` is fitting its wobble.
+# docs/design/distortion.md, "Straight enough".
 STRAIGHT_ENOUGH_FRACTION = 8e-4
 
 # How much straighter the correction has to make things. Not a p-value, a
@@ -275,18 +254,8 @@ def trace_chains(
         angle = math.radians(seed.angle_deg)
         direction = np.array([math.cos(angle), math.sin(angle)])
 
-        # Snap to the middle of the paint before walking. A seed's midpoint
-        # sits wherever Hough put it, which can be a couple of pixels off the
-        # centreline, and starting there throws the first step sideways by that
-        # much -- over a six-pixel step, a three-pixel offset reads as a
-        # twenty-seven-degree turn and the cap kills the trace before it takes
-        # a second step.
-        #
-        # The midpoint is also the likeliest place on the whole segment to be a
-        # junction, since Hough merges a line across its crossings and the
-        # crossings tend to sit in the middle of it, so a midpoint that cannot
-        # be centred is normal rather than fatal: walk along the seed and start
-        # from the first place the paint is legible on its own.
+        # Snap to the middle of the paint before walking, or start from the first
+        # legible place along the seed. docs/design/distortion.md, "Clean start".
         start = _clean_start(mask, seed, direction, band_px)
         if start is None:
             continue

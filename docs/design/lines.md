@@ -52,3 +52,22 @@ this measures a calibration rather than replacing the clicks that made it.
 Everything below is pure geometry over OpenCV primitives, so the whole module
 is testable against a synthetic camera with exact ground truth -- see
 `tests/test_lines.py`.
+
+---
+
+## Moved from comments
+
+Moved verbatim from comments beside the code in the deep clean (C-2).
+
+### Penalty arcs
+
+The penalty arcs. Easy to leave out -- no landmark sits on one and no
+calibration is fitted from one -- and leaving them out is not neutral:
+they are metres of real paint that the detector finds and the model then
+fails to explain, so every frame containing one reports coverage lower
+than the calibration deserves. An unmodelled line is indistinguishable
+from a wrong calibration.
+Clamped at both ends, not just the top. On Laws markings the ratio is
++0.60 and the lower clamp is unreachable, but a measured pitch can put
+the spot far enough behind the box line to drive it past -1, and acos
+raises rather than degrading.

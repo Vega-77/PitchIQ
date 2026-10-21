@@ -35,49 +35,19 @@ SUMMARY_DOC = 'summary'
 IDENTITY_DOC = 'identity'
 EVENTS_DOC = 'events'
 
-# The cropped pictures, kept apart from everything else in cvStats — and this is
-# a privacy decision rather than a data-modelling one.
-#
-# They are photographs of children, cut out of match footage. They exist for one
-# job: letting a coach look at a tracked figure and say which of their players it
-# is. Once that mapping is confirmed the job is done, and what is left is a set
-# of pictures of minors with no remaining purpose, sitting in a database
-# forever.
-#
-# While they lived inside `identity` alongside the clusters and the per-track
-# stats, nobody could remove them without destroying every number in the same
-# document — and `cvStats` is `allow write: if false` to every client, so in
-# practice nobody could remove them at all. In their own document a coach can
-# delete the pictures and keep the match. See `firestore.rules`, which grants
-# delete on this one path and nothing else: a client may destroy these, and
-# still may not fabricate a statistic.
+# The cropped pictures get their own document so a coach can delete them and
+# keep the match: they are photographs of minors, and firestore.rules grants
+# delete on this path alone. docs/design/publish_to_firestore.md, "Thumbnails apart".
 THUMBS_DOC = 'thumbs'
 
-# Individual events written to Firestore, for the coach review tool.
-#
-# Deliberately capped rather than paginated. A half produces a few hundred of
-# these; a run that produces thousands has gone wrong, and the right response to
-# that is a truncated document plus a flag saying so, not a document that fails
-# to write at all because it crossed a megabyte.
-#
-# Fits under `byEvent.size() <= 1500` in firestore.rules. Nothing bounds this
-# document — the Admin SDK bypasses rules — but the coach's review of it is
-# written by a browser and capped, one decision per event. The two numbers were
-# reached by separate arguments about megabytes and happen to land equal, which
-# leaves the review no headroom at all: nothing clears `cvReview` when a run is
-# re-published, so a second run's decisions accumulate on top of the first's
-# until the whole document stops saving. Lowering this is safe; raising it is
-# not, and raising the rule is what the pair actually wants.
+# Events written for the coach review tool, capped rather than paginated.
+# Lowering this is safe, raising it is not; why: docs/design/publish_to_firestore.md,
+# "Event cap". Fits under `byEvent.size() <= 1500` in firestore.rules.
 MAX_EVENTS = 1500
 
-# Why the pipeline left figures out, written alongside the stats they were left
-# out of. Only the tracks something was decided about — the ones it kept and
-# believed carry no news, and there are forty of those for every one of these.
-#
-# Capped because a school pitch with a crowd behind it produces a lot of
-# stationary people. The authoritative counts are in `quality.excluded_tracks`
-# and `quality.flagged_officials`, so truncating this list loses the reasons for
-# the least significant few and never the size of the correction.
+# Why the pipeline left figures out, for the tracks something was decided about.
+# Capped; the counts in `quality` stay exact.
+# docs/design/publish_to_firestore.md, "Participant notes".
 MAX_PARTICIPANT_NOTES = 40
 
 # CV fields added to a playerReports document. All prefixed, so a coach's
@@ -195,15 +165,9 @@ def summary_payload(report_json: dict) -> dict:
         'warnings': report_json.get('warnings') or [],
         'trustworthy': report_json.get('trustworthy', False),
         'teams': report_json.get('teams') or {},
-        # A full stat block per keeper — saves, goals conceded, save
-        # percentage, sweeper actions, distribution accuracy by type — drawn
-        # on the coach's match view since the keeper block shipped. It sat
-        # here rendered by nothing for as long as the field existed, which is
-        # the failure `tests/smoke.test.js` now watches this dict for: a figure
-        # that is computed, published and downloaded by every client, and put
-        # on no screen. The track ids in it are also what the outfield shape
-        # figures were computed against, since `pitchiq/metrics.py` excludes keepers
-        # from every one of them.
+        # A full stat block per keeper, drawn on the coach's match view; its track ids
+        # are what the outfield shape figures exclude.
+        # docs/design/publish_to_firestore.md, "Keepers".
         'keepers': report_json.get('keepers') or [],
         'participants': participant_notes(report_json),
         'reconciliation': report_json.get('reconciliation'),
@@ -391,20 +355,9 @@ def identity_payload(report_json: dict, mapping: dict[str, str] | None = None) -
 # that stripping them out and writing them back cannot drift apart.
 THUMB_FIELDS = ('thumb', 'thumb_height_px')
 
-# Track-row figures the report JSON carries and this document does not.
-#
-# `team` and `track_ids` are not merely similar to the cluster row's — they are
-# the same values. `report_export.track_stats` seeds every `TrackStats` straight
-# off its `PlayerCluster`, and neither is touched again, so publishing both put
-# each team name and each fragment list on the wire twice in one document. The
-# copies that are read live on the cluster row: `coach.js::clusterRow`,
-# `passing.js::playersByTrack`, `review.js::whoIs`.
-#
-# `pass_accuracy` is a quotient of two fields published beside it, and every
-# page that wants it divides for itself — `report.js::cvStatsByPlayer` computes
-# `passAccuracy` from the merged totals, which is the only correct way to get
-# it once two fragments are joined. Dropping it here is the same call, for the
-# same reason, as dropping `cvPassAccuracy` from `player_report_fields` below.
+# Track-row figures the report JSON carries and this document does not: `team`
+# and `track_ids` repeat the cluster row, and every page derives `pass_accuracy`.
+# docs/design/publish_to_firestore.md, "Dropped track fields".
 DROPPED_TRACK_FIELDS = ('team', 'track_ids', 'pass_accuracy')
 
 # And the cluster row's `minutes_tracked`, for the same reason as `team`: it is

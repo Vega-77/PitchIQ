@@ -170,16 +170,8 @@ def pitch_line_segments(pitch: Pitch) -> list[Segment]:
 
     segments += _arc(length / 2, cy, circle, 0.0, 2 * math.pi)
 
-    # The penalty arcs. Easy to leave out -- no landmark sits on one and no
-    # calibration is fitted from one -- and leaving them out is not neutral:
-    # they are metres of real paint that the detector finds and the model then
-    # fails to explain, so every frame containing one reports coverage lower
-    # than the calibration deserves. An unmodelled line is indistinguishable
-    # from a wrong calibration.
-    # Clamped at both ends, not just the top. On Laws markings the ratio is
-    # +0.60 and the lower clamp is unreachable, but a measured pitch can put
-    # the spot far enough behind the box line to drive it past -1, and acos
-    # raises rather than degrading.
+    # The penalty arcs: unmodelled paint reads as a wrong calibration. The ratio is
+    # clamped at both ends because acos raises. docs/design/lines.md, "Penalty arcs".
     spot = pitch.penalty_spot_m
     half_angle = math.acos(max(-1.0, min(1.0, (pitch.penalty_area_length_m - spot) / circle)))
     for spot_x, facing in ((spot, 0.0), (length - spot, math.pi)):
