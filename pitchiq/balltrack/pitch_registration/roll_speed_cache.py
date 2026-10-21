@@ -18,6 +18,9 @@ _TR = None
 
 
 def rows(args):
+    """Ground speed (StatsBomb units/s) and fit error (px) of the drag roll over each scan row
+    a0..a1 of <tag>_scan2.npz; NaN where the row has no roll fit.
+    """
     global _TR
     tag, a0, a1 = args
     if _TR is None:
@@ -43,6 +46,7 @@ def rows(args):
 
 
 def main():
+    """Command line: [tag] [procs] - every scan row's roll speed -> <tag>_rowspd.npy."""
     tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
     procs = int(sys.argv[2]) if len(sys.argv) > 2 else 8
     n = len(np.load('%s_scan2.npz' % tag)['S'])

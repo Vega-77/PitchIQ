@@ -26,6 +26,12 @@ def drag(th, t):
 
 
 def fit(tr, a, b, kmax=1.5):
+    """Least-squares drag flight over frames a..b, fitted to the tracked pixels.
+
+    Returns (th, e): th as `drag` takes it, started from the ground points at the two ends,
+    with take-off tau near 0, flight time Tf in [0.8 T, T + 0.15 s] and k in [0, kmax];
+    e is each tracked frame's error in source px.
+    """
     idx = np.arange(a, b + 1)
     idx = idx[tr.has[idx]]
     t = (idx - a) / flight_model.FPS

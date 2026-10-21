@@ -46,11 +46,18 @@ for k_ in P:
 
 
 def proj(H, p):
+    """Apply homography H to the n x 2 points p."""
     q = np.c_[p, np.ones(len(p))].dot(H.T)
     return q[:, :2] / q[:, 2:]
 
 
 def smooth_H(tag, K=None, sig=None):
+    """Every frame's image -> StatsBomb homography, from all ok registrations within +-K.
+
+    Each registration is carried to the frame by the pan and placed through the corners Q;
+    the corners are averaged with Gaussian weights in time (sig seconds), dropping
+    registrations that land far from the rest.  Returns (hi - lo + 1) x 3 x 3.
+    """
     K = int(P['K'] if K is None else K)
     sig = P['sig'] if sig is None else sig
     r = np.load(os.path.join(HERE, '%s_reg.npz' % tag))
@@ -83,6 +90,7 @@ def smooth_H(tag, K=None, sig=None):
 
 
 def jac(H, u):
+    """d(StatsBomb)/d(pixel) of homography H at image point u (2 x 2)."""
     q = H.dot([u[0], u[1], 1.0])
     s = q[:2] / q[2]
     return (H[:2, :2] - np.outer(s, H[2, :2])) / q[2]
@@ -298,6 +306,13 @@ def runs_of(m):
 
 
 def main():
+    """Command line: [tag] - smooth the ground ball in StatsBomb units -> <tag>_smooth.npz
+    (or VS_OUT).
+
+    Frames the chains call air (<tag>_ball3d2.npz, or VS_B3) and readings beyond the lines
+    are left to the smoother to bridge; positions far from any reading, off the pitch or
+    too fast are blanked.
+    """
     tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
     from .. import render_review_video
 

@@ -37,6 +37,9 @@ for l_ in open(os.path.join('labeling', 'flight_labels', 'flights.jsonl')):
 
 
 def score(p, par):
+    """One line of air and position scores for ball3d file p on the clips of parity `par`
+    (0: the even dev clips, 1: the odd held-out ones).
+    """
     B = np.load(p)
     st = B['state']
     air = st == 'air'

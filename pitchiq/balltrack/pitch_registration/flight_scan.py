@@ -24,11 +24,15 @@ COLS = ('a b n q_rms q_trim q_apex r_rms r_trim d_rms d_trim d_apex u0 v0 vu vv 
 
 
 def trim(e, keep=0.8):
+    """RMS of the smallest `keep` share of the errors e (at least 3 of them)."""
     e = np.sort(e**2)
     return float(np.sqrt(np.mean(e[: max(3, int(np.ceil(keep * len(e))))])))
 
 
 def roll(tr, a, b):
+    """Straight constant-speed roll over frames a..b, fitted on the ground plane: its pixel
+    RMS error and trimmed error.
+    """
     idx = np.arange(a, b + 1)
     idx = idx[tr.has[idx]]
     t = (idx - a) / flight_model.FPS
@@ -81,6 +85,12 @@ _TR = None
 
 
 def work(args):
+    """One pool process: every (start, length) window from `starts` -> rows of COLS.
+
+    A window needs its end frame and 70% of its frames tracked.  Each row holds the plain
+    arc's fit, the straight roll's, and (when the arc's trimmed error is within SCREEN) the
+    drag fit and its parameters; NaN otherwise.
+    """
     global _TR
     tag, starts = args
     if _TR is None:
@@ -122,6 +132,9 @@ def work(args):
 
 
 def main():
+    """Command line: <tag> [procs] [limit_starts] - scan every window -> <tag>_scan2.npz
+    (S, cols), or <tag>_scan2_lim.npz with a limit.
+    """
     tag = sys.argv[1]
     procs = int(sys.argv[2]) if len(sys.argv) > 2 else 8
     lim = int(sys.argv[3]) if len(sys.argv) > 3 else 0

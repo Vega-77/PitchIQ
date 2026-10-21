@@ -57,6 +57,13 @@ PROCS = config.WORKERS
 
 
 def worker(args):
+    """One pool process: detect candidates on anchors alo..ahi of chunk tag `<tag>_k<chunk>`.
+
+    args is (wid, alo, ahi, tag).  Runs blob proposals, features, temporal features, pan
+    registration and the ranker per anchor, writing a part file every FLUSH anchors.  Returns
+    a dict with wid, tag, lo, hi, done, secs, parts (the part file names), prof (seconds by
+    step) and the registrar's cached / batched / misses counts.
+    """
     wid, alo, ahi, tag = args  # tag here is '<tag>_k<chunk>', so part names never collide
     for v in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
         os.environ[v] = '1'
@@ -251,10 +258,12 @@ def chunk_edges(lo, hi):
 
 
 def _manifest(ctag):
+    """Path of chunk `ctag`'s manifest: the JSON list of its workers' results."""
     return os.path.join(S2, '%s.json' % ctag)
 
 
 def save_chunk(ctag, res):
+    """Write chunk `ctag`'s worker results as its manifest, atomically (via a .part file)."""
     path = _manifest(ctag)
     io.open(path + '.part', 'w', encoding='utf-8').write(json.dumps(res))
     os.replace(path + '.part', path)
@@ -277,6 +286,11 @@ def load_chunk(tag, c, clo, chi):
 
 
 def merge(tag, lo, hi, res):
+    """Join the part files of `res` into <tag>.npz, keeping anchors lo..hi only.
+
+    Writes f, x, y, s (candidates: abs frame, source px, score), frames, ncand, how
+    (per anchor), lo, hi, keep, stage1.  Fails if an anchor appears twice.
+    """
     import numpy as np
 
     parts = []
@@ -344,6 +358,10 @@ def merge(tag, lo, hi, res):
 
 
 def main():
+    """Command line: <lo> <hi> [procs] [tag] - candidates for abs frames lo..hi -> <tag>.npz.
+
+    Chunks already finished (their manifest exists) are reused; the rest go to one pool.
+    """
     lo = int(sys.argv[1])
     hi = int(sys.argv[2])
     procs = int(sys.argv[3]) if len(sys.argv) > 3 else PROCS

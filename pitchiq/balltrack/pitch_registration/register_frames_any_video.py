@@ -26,11 +26,16 @@ COARSE = 4  # every n-th keyframe when it is not
 
 
 def _centre(H):
+    """Where homography H puts the image point CENTRE."""
     q = H.dot([CENTRE[0], CENTRE[1], 1.0])
     return q[:2] / q[2]
 
 
 def work(args):
+    """One pool process: register its sample frames to the venue map by SIFT, choosing the
+    keyframes by where the camera points (see the module docstring).  Returns [(abs, Hsb
+    image -> StatsBomb, inliers)], Hsb all NaN when nothing matched.
+    """
     (frames,) = args
     import cv2
 
@@ -94,6 +99,9 @@ def work(args):
 
 
 def main():
+    """Command line: <lo> <hi> <tag> [procs] - register every STEP-th frame -> <tag>_reg.npz
+    (abs, Hsb, ninl, ok = ninl >= MIN_INL).
+    """
     lo, hi, tag = int(sys.argv[1]), int(sys.argv[2]), sys.argv[3]
     procs = int(sys.argv[4]) if len(sys.argv) > 4 else 4
     frames = list(range(lo, hi + 1, STEP))

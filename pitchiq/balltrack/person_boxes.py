@@ -61,6 +61,11 @@ def from_dets(tag, lo, hi):
 
 
 def run(det, tag):
+    """People boxes for every frame <tag>.npz covers -> <tag>ppl.npz (f, box xyxy source px, conf).
+
+    Reuses the player lab's detections when they cover the window; otherwise runs `det`
+    chunk by chunk, keeping each finished chunk so a crash resumes.
+    """
     z = np.load(os.path.join(S2, '%s.npz' % tag), allow_pickle=True)
     lo, hi = int(z['lo']), int(z['hi'])
     if from_dets(tag, lo, hi):
@@ -100,6 +105,7 @@ def run(det, tag):
 
 
 def run_chunk(det, lo, hi, name):
+    """Detect people on abs frames lo..hi in batches of BATCH and save them to `name`."""
     cap = cv2.VideoCapture(config.VIDEO)
     assert cap.isOpened(), 'cannot open video'
     cap.set(cv2.CAP_PROP_POS_FRAMES, lo)
@@ -139,6 +145,7 @@ def run_chunk(det, lo, hi, name):
 
 
 def main():
+    """Command line: <tag> ... - person boxes for each tag that has none yet."""
     det = None
     for tag in sys.argv[1:]:
         if os.path.exists(os.path.join(S2, '%sppl.npz' % tag)):

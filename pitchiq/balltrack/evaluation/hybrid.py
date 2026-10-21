@@ -38,6 +38,7 @@ STATS = {}
 
 
 def air_mask(tag, ab):
+    """True for each frame in `ab` that <tag>_ball3dd.npz calls 'air' (all False without the file)."""
     p = os.path.join(S2, 'pitch_registration', '%s_ball3dd.npz' % tag)
     if not os.path.exists(p):
         return np.zeros(len(ab), bool)
@@ -51,6 +52,14 @@ def air_mask(tag, ab):
 
 
 def build(tag):
+    """Fill the shipped picks' gaps with TAPNext bridges -> p2d/hyb32, hyb90, hyb90s/<tag>.npz.
+
+    Reads p2d/cls_B/<tag>.npz (abs, x, y in source px, src) and tn/bridges_<tag>.npy.  A gap
+    of up to 32 or 90 frames between two tracked picks is filled from the forward and
+    backward bridges when it is on the ground, both runs land on the next pick and they
+    agree; src 3 marks a bridged frame.  hyb90s also blanks the gaps it rejects.  Counts
+    for hyb90 go to STATS[tag].
+    """
     z = np.load(os.path.join(HERE, 'p2d', 'cls_B', '%s.npz' % tag))
     ab, X, Y, SRC = z['abs'], z['x'], z['y'], z['src']
     R = np.load(os.path.join(TN, 'bridges_%s.npy' % tag), allow_pickle=True)
@@ -140,6 +149,11 @@ def build(tag):
 
 
 def alone(tag):
+    """TAPNext run on its own from one seed (tn/alone_<tag>.npz) -> p2d/tn_alone and tn_alone_raw.
+
+    tn_alone keeps the frames TAPNext calls visible; tn_alone_raw keeps its track
+    everywhere.  Does nothing without the input file.
+    """
     p = os.path.join(HERE, 'tn', 'alone_%s.npz' % tag)
     if not os.path.exists(p):
         return

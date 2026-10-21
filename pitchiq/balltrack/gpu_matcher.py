@@ -83,6 +83,7 @@ class Matcher:
     """
 
     def __init__(self, chunk=CHUNK):
+        """An empty matcher; `chunk` queries share one batched distance block."""
         self.chunk = chunk
         self._bits = {}
         self._pop = {}
@@ -90,11 +91,13 @@ class Matcher:
         self.pairs = 0
 
     def evict(self, oldest):
+        """Forget the cached bits of every frame id below `oldest`."""
         for k in [k for k in self._bits if k < oldest]:
             del self._bits[k]
             del self._pop[k]
 
     def bits(self, fid, desc):
+        """Frame fid's descriptors as a bit matrix on the GPU, and each row's popcount (cached)."""
         t = self._bits.get(fid)
         if t is None:
             d = torch.from_numpy(np.ascontiguousarray(desc)).to(DEV).long()
@@ -122,6 +125,12 @@ class Matcher:
         return out
 
     def _chunk(self, qs, bt, pb, nb):
+        """Mutual-nearest Hamming matches of the queries `qs` against one target, in one batch.
+
+        bt, pb, nb are the target's transposed bits, popcounts and row count.  Returns one
+        (queryIdx, trainIdx) int32 pair of arrays per query, as cv2's crossCheck bf.match
+        would.
+        """
         parts, pops, ns = [], [], []
         for fa, da in qs:
             a, pa = self.bits(fa, da)
@@ -174,6 +183,7 @@ class Matcher:
 
 
 def warm(seconds):
+    """Keep the CPU busy for `seconds` so its clocks are up before anything is timed."""
     a = np.random.rand(700, 700)
     t0 = time.time()
     while time.time() - t0 < seconds:
@@ -181,6 +191,9 @@ def warm(seconds):
 
 
 def main():
+    """Command line: [anchors] [warm s] - time the batched matcher against bf.match on the
+    labelled stretch and check both give the same matches.
+    """
     n_anchor = int(sys.argv[1]) if len(sys.argv) > 1 else 6
     warm_s = float(sys.argv[2]) if len(sys.argv) > 2 else 12.0
     assert DEV == 'cuda', 'no CUDA, nothing to measure'

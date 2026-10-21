@@ -11,6 +11,7 @@ z = np.load('vmap.npz')
 
 
 def apply(H, p):
+    """Apply homography H to the n x 2 points p."""
     q = np.c_[p, np.ones(len(p))].dot(H.T)
     return q[:, :2] / q[:, 2:3]
 

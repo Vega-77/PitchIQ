@@ -92,6 +92,7 @@ CTX_CLIP = 5.0  # standardised ctx is clipped to +-this (dist_px can be huge)
 
 
 def seed_all(seed):
+    """Seed Python, numpy and torch, and make cuDNN deterministic."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -101,6 +102,7 @@ def seed_all(seed):
 
 
 def device():
+    """The GPU when there is one, else the CPU."""
     return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -178,6 +180,9 @@ def reorder_ctx(ctx, have, want):
 
 
 def ctx_stats(ctx):
+    """Per-column mean and standard deviation of the context (non-finite values read as 0;
+    a near-constant column gets sd 1).
+    """
     x = np.nan_to_num(ctx.astype(np.float64), nan=0.0, posinf=0.0, neginf=0.0)
     mu = x.mean(0)
     sd = x.std(0)
@@ -186,6 +191,7 @@ def ctx_stats(ctx):
 
 
 def ctx_norm(ctx, mu, sd):
+    """Standardise the context with (mu, sd) and clip it to +-CTX_CLIP."""
     x = np.nan_to_num(ctx.astype(np.float32), nan=0.0, posinf=0.0, neginf=0.0)
     return np.clip((x - mu) / sd, -CTX_CLIP, CTX_CLIP).astype(np.float32)
 
@@ -194,6 +200,7 @@ def ctx_norm(ctx, mu, sd):
 
 
 def block(cin, cout, pool):
+    """Conv 3x3 - batch norm - ReLU, with a 2x max-pool when `pool`."""
     layers = [
         nn.Conv2d(cin, cout, 3, padding=1, bias=False),
         nn.BatchNorm2d(cout),
@@ -206,6 +213,9 @@ def block(cin, cout, pool):
 
 class BallNet(nn.Module):
     def __init__(self, k_ctx, n_cls=len(CLASSES), w=(16, 32, 48, 64)):
+        """A small CNN over the WIN x WIN window plus a branch for the k_ctx context values;
+        one logit per class.
+        """
         super().__init__()
         self.conv = nn.Sequential(
             block(3, w[0], True),  # 32 -> 16
@@ -222,6 +232,7 @@ class BallNet(nn.Module):
         )
 
     def forward(self, img, ctx):
+        """Class logits from the image (whole-window and centre features) and the context."""
         m = self.conv(img)  # B x C x 4 x 4
         g = m.mean((2, 3))  # surroundings
         c = m[:, :, 1:3, 1:3].mean((2, 3))  # the candidate itself
@@ -254,6 +265,9 @@ def to_input(crops_u8, dev, oy=None, ox=None):
 
 
 def augment(crops_u8, dev, rng):
+    """Training-time inputs: the window shifted up to SHIFT px, flipped left-right half the
+    time, with random contrast and brightness.
+    """
     n, h, w = crops_u8.shape[:3]
     cy, cx = (h - WIN) // 2, (w - WIN) // 2
     oy = cy + rng.integers(-SHIFT, SHIFT + 1, n)
@@ -272,6 +286,7 @@ def augment(crops_u8, dev, rng):
 
 
 def n_params(m):
+    """Number of parameters in module m."""
     return sum(p.numel() for p in m.parameters())
 
 
@@ -282,6 +297,7 @@ class Scorer:
     """A trained BallNet plus the ctx normalisation it was trained with."""
 
     def __init__(self, net, mu, sd, ctx_names, dev):
+        """A trained net with its context normalisation (mu, sd) and context column order."""
         self.net, self.mu, self.sd = net.eval(), mu, sd
         self.ctx_names, self.dev = list(ctx_names), dev
 
@@ -308,6 +324,7 @@ class Scorer:
 
 
 def load_model(path, dev=None):
+    """A Scorer from a checkpoint written by `train`."""
     dev = dev or device()
     ck = torch.load(path, map_location=dev, weights_only=False)  # our own file
     net = BallNet(len(ck['ctx_names'])).to(dev)
@@ -409,6 +426,7 @@ def frame_ranks(f, score, is_ball):
 
 
 def rank_line(name, r):
+    """One printed line of rank statistics for the ranks r."""
     if len(r) == 0:
         return '    %-4s  no frames' % name
     return '    %-4s  rank0 %5.1f%%  top3 %5.1f%%  median %4.1f  mean %5.2f  (%d frames)' % (
@@ -457,6 +475,9 @@ def evaluate(scorer, data, tags):
 
 
 def gather(data, tags, names):
+    """The labelled crops, contexts (in `names` order), classes and weights of `tags`,
+    concatenated.
+    """
     crops, ctx, y, w = [], [], [], []
     for t in tags:
         d = data[t]
@@ -469,6 +490,7 @@ def gather(data, tags, names):
 
 
 def train_on(data, tags, names, epochs, dev, seed, log):
+    """Train a net on the labelled crops of `tags` and wrap it as a Scorer."""
     crops, ctx, y, w = gather(data, tags, names)
     mu, sd = ctx_stats(ctx)
     net = fit(crops, ctx_norm(ctx, mu, sd), y, w, epochs, dev, seed, log=log)
@@ -476,6 +498,9 @@ def train_on(data, tags, names, epochs, dev, seed, log):
 
 
 def cmd_train(a):
+    """`train`: join the labels to each tag's crops, report leave-clips-out folds (when there
+    are at least 2 labelled tags), then train on all of them -> --out (default cls.pt).
+    """
     dev = device()
     seed_all(a.seed)
     tags = [t for t in a.tags.split(',') if t]
@@ -555,6 +580,7 @@ def cmd_train(a):
 
 
 def cmd_score(a):
+    """`score`: classifier log-odds for every stored crop of a tag -> <tag>cls.npz (f, j, p)."""
     seed_all(0)
     path = a.model if os.path.isabs(a.model) else os.path.join(S2, a.model)
     m = load_model(path)
@@ -571,6 +597,9 @@ def cmd_score(a):
 
 
 def main(argv):
+    """Command line: train --tags a,b,... [--labels] [--epochs] [--folds] [--seed] [--out], or
+    score <tag> [--model].
+    """
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     sub = ap.add_subparsers(dest='cmd', required=True)
     t = sub.add_parser('train')

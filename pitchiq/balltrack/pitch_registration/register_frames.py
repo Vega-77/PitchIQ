@@ -20,6 +20,12 @@ MIN_INL = 30
 
 
 def work(args):
+    """One pool process: register its sample frames to the venue map by SIFT.
+
+    Each frame is matched against its 4 nearest ok keyframes, or chained from the previous
+    sample when that gives 1.5x the inliers.  Returns [(abs, Hsb image -> StatsBomb,
+    inliers)], Hsb all NaN when nothing matched.
+    """
     (frames,) = args
     import cv2
 
@@ -65,6 +71,9 @@ def work(args):
 
 
 def main():
+    """Command line: <lo> <hi> <tag> [procs] - register every STEP-th frame -> <tag>_reg.npz
+    (abs, Hsb, ninl, ok = ninl >= MIN_INL).
+    """
     lo, hi, tag = int(sys.argv[1]), int(sys.argv[2]), sys.argv[3]
     procs = int(sys.argv[4]) if len(sys.argv) > 4 else 6
     frames = list(range(lo, hi + 1, STEP))

@@ -29,6 +29,12 @@ READY = '.ready'
 
 
 def setup(ver):
+    """The work folder h3d_<ver>/ for one 2D version, created once.
+
+    Copies the map inputs (registrations, venue files, .json) and the three label sets plus
+    the Air Lab manifest, never a window's own chain outputs.  A second caller waits for the
+    READY marker instead of copying again.
+    """
     d = os.path.join(S2, 'h3d_' + ver)
     # folders set up before 2026-10-21 hold rv_shim.py (and script copies) instead
     if any(os.path.exists(os.path.join(d, m)) for m in (READY, 'rv_shim.py')):
@@ -89,6 +95,11 @@ def run(d, ver, log, *cmd, env=None):
 
 
 def chain(ver, tag, variants):
+    """Run the 3D chain on 2D version `ver` for `tag` in h3d_<ver>/ -> <tag>_ball3dd.npz.
+
+    With `variants`, also the strict-flights variant -> <tag>_ball3dsx.npz.  Each step is
+    skipped when its final output is already there; the log is chain_<tag>.log.
+    """
     d = setup(ver)
     t0 = time.time()
     with open(os.path.join(d, 'chain_%s.log' % tag), 'a') as log:

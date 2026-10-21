@@ -37,6 +37,7 @@ for f in L:
 
 
 def near(xy, ok, i, r=2):
+    """xy at frame i, or at the nearest frame within r where ok; None if there is none."""
     for d in range(r + 1):
         for k in (i - d, i + d):
             if 0 <= k < n and ok[k]:
@@ -45,6 +46,9 @@ def near(xy, ok, i, r=2):
 
 
 def score(p):
+    """One line of Flight Lab 2 scores (air, hit, false, spots, track, air-only) for ball3d
+    file p, or for the flat ground reading when p is 'flat'.
+    """
     if p == 'flat':
         air = np.zeros(n, bool)
         xy = flat.copy()

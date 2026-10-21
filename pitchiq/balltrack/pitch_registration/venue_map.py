@@ -32,6 +32,7 @@ REF_ABS = 40050  # a wide midfield view
 
 
 def load():
+    """The keyframes of vfeats.npz: [{abs, xy, d (float32 descriptors)}]."""
     z = np.load(os.path.join(HERE, 'vfeats.npz'))
     off = np.concatenate([[0], np.cumsum(z['n'])])
     K = []
@@ -61,11 +62,16 @@ def match(A, B):
 
 
 def apply(H, p):
+    """Apply homography H to the n x 2 points p."""
     q = np.c_[p, np.ones(len(p))].dot(H.T)
     return q[:, :2] / q[:, 2:3]
 
 
 def main():
+    """Build the venue map from vfeats.npz -> vmap.npz (abs, H, ok, ref) and vmap_edges.npz
+    (e, ninl): temporal edges, a spanning tree from the reference, straggler links, loop
+    edges, then one least-squares solve.
+    """
     t0 = time.time()
     K = load()
     N = len(K)

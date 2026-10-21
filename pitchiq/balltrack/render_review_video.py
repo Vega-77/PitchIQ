@@ -81,15 +81,20 @@ def picks_for(tag):
 
 
 def sig(p):
+    """Logistic sigmoid: classifier log-odds -> confidence in 0..1."""
     return 1.0 / (1.0 + np.exp(-p))
 
 
 def clock(ab):
+    """Match clock m:ss for abs frame ab."""
     s = ab / FPS
     return '%d:%02d' % (s // 60, s % 60)
 
 
 def main():
+    """Command line: <tag> [out.mp4] [scale] - draw the tracker's picks on the clip's frames
+    -> <tag>.mp4 by default (scale 2/3), and print how many frames were tracked / filled.
+    """
     import cv2
     from . import config
 

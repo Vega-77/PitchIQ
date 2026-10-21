@@ -52,21 +52,31 @@ COL = {'air': ORANGE, 'track': GREEN, 'fill': FILLC, 'bridge': MAG}
 
 
 def mm(x, y):
+    """StatsBomb (x, y) -> minimap pixel, camera touchline at the bottom (clipped 4 units out)."""
     return (int(MX0 + np.clip(x, -4, 124) * MS), int(MY0 + (80 - np.clip(y, -4, 84)) * MS))
 
 
 def text(im, s, org, sc, col, th=1):
+    """Draw string s at org with a black outline."""
     cv2.putText(im, s, org, FONT, sc, (0, 0, 0), th + 2, cv2.LINE_AA)
     cv2.putText(im, s, org, FONT, sc, col, th, cv2.LINE_AA)
 
 
 def ring(im, c, r, col):
+    """Draw a ring of radius r at c in colour col, with a black outline."""
     c = (int(c[0]), int(c[1]))
     cv2.circle(im, c, r, (0, 0, 0), 4, cv2.LINE_AA)
     cv2.circle(im, c, r, col, 2, cv2.LINE_AA)
 
 
 def per_frame():
+    """Each frame of the window LO..HI as the video draws it.
+
+    Returns (A0, Hs, img, sb, kind, gnd, hgt): the track's first abs frame, the smoothed
+    per-frame homographies, the ball's image position (source px), its StatsBomb x, y,
+    its kind ('air', 'track', 'fill', 'bridge' or ''), and for air frames the image point
+    under the ball and its height in centre-circle radii.
+    """
     tr = flight_model.Track(TAG)
     A0 = int(tr.abs[0])
     Hs = np.load(os.path.join(HG, '%s_smooth2.npz' % TAG))['H']
@@ -96,6 +106,9 @@ def per_frame():
 
 
 def main():
+    """Render the window -> hyb90_<tag>_<lo>.mp4 (H.264, OW px wide, default 576): camera
+    view with ring and trail, 4x close-up and pitch map.
+    """
     from .. import config
 
     A0, Hs, img, sb, kind, gnd, hgt = per_frame()

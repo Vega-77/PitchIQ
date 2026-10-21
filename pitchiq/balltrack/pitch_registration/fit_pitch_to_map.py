@@ -42,10 +42,14 @@ X = np.array([o[0] for o in obs], float)
 
 
 def Hof(p):
+    """The 3 x 3 map -> pitch homography from the first 8 parameters (H[2, 2] = 1)."""
     return np.append(p[:8], 1).reshape(3, 3)
 
 
 def resid(p):
+    """Weighted landmark residuals (pitch units, R) for parameters p = (H 8, Lr, Wr); a
+    landmark that fixes only u or only v adds 0 for the other.
+    """
     H = Hof(p)
     L, W = p[8], p[9]
     q = np.c_[X, np.ones(len(X))].dot(H.T)

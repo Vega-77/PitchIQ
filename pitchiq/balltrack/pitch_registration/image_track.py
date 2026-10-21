@@ -1,3 +1,14 @@
+"""The tracker's ball in image pixels, frame by frame, for the 3D chain.
+
+    python -m pitchiq.balltrack.pitch_registration.image_track <tag>   -> <tag>_img.npz
+
+Reads <tag>_ballsb.npz (ball_on_pitch) for the frame list and takes each frame's pick from
+render_review_video.picks_for (PIQ_P2D selects a saved 2D version).  Writes abs, ix, iy:
+the pick in source-video pixels, NaN where the tracker has no ball; flight_model reads it.
+Run in the work folder.  Also prints the ground speeds (StatsBomb units/s) and the fast
+runs (> 30 units/s, merged across gaps of <= 6 frames) as a quick look at likely kicks.
+"""
+
 import sys
 import numpy as np
 

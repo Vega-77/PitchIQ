@@ -24,11 +24,18 @@ Q = np.float32([[200, 500], [1720, 500], [1720, 1000], [200, 1000]])
 
 
 def proj(H, p):
+    """Apply homography H to the n x 2 points p."""
     q = np.c_[p, np.ones(len(p))].dot(H.T)
     return q[:, :2] / q[:, 2:]
 
 
 def per_frame(tag):
+    """{abs frame: image -> StatsBomb homography} for every frame <tag>pan.npz covers.
+
+    Each ok half-second registration in <tag>_reg.npz (Hsb) is carried to the frame through
+    the pan cum; between two registrations the frame blends both, through where they put the
+    corners Q.  H is scaled to H[2, 2] = 1 with w > 0 for points in view.
+    """
     r = np.load(os.path.join(HERE, '%s_reg.npz' % tag))
     p = np.load(os.path.join(S2, '%span.npz' % tag))
     lo, cum = int(p['lo']), p['cum']
@@ -56,6 +63,11 @@ def per_frame(tag):
 
 
 def main():
+    """Command line: <tag> [video] - the ball in StatsBomb coordinates, frame by frame.
+
+    Writes <tag>_ballsb.npz (abs, x, y, has, tracked, H per frame, onpitch: within MARGIN of
+    the lines) and <tag>_ballsb.csv; with `video`, also renders <tag>_pitch.mp4.
+    """
     tag = sys.argv[1]
     video = len(sys.argv) > 2 and sys.argv[2] == 'video'
     Hf = per_frame(tag)
@@ -116,6 +128,9 @@ def main():
 
 
 def render(tag, Hf, by):
+    """Write <tag>_pitch.mp4 (1280 x 720): the pitch lines drawn over each frame, a minimap
+    with the ball and its trail, and the clock.
+    """
     from .. import config
 
     sc = 2 / 3.0

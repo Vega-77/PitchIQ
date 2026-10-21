@@ -42,13 +42,18 @@ class Proxy:
     """The two calls pan_registration.Registrar makes on its matcher, answered by the server."""
 
     def __init__(self, req, resp, i):
+        """Worker i's handle on the server: asks it for a fresh Matcher."""
         self.req, self.resp, self.i = req, resp, i
         req.put(('start', i))
 
     def evict(self, oldest):
+        """Forward Matcher.evict(oldest) to the server, in order with the matches."""
         self.req.put(('evict', self.i, oldest))
 
     def match_many(self, queries, fb, db):
+        """Matcher.match_many(queries, fb, db) run by the server; raises if the server's call
+        failed.
+        """
         if not queries:
             return []
         self.req.put(('match', self.i, queries, fb, db))
@@ -70,6 +75,7 @@ def init_worker(req, resps, slot):
 
 
 def proxy():
+    """This pool worker's Proxy (after init_worker)."""
     return Proxy(_W['req'], _W['resp'], _W['i'])
 
 
@@ -84,5 +90,6 @@ def start(procs):
 
 
 def stop(server, req):
+    """Tell the server to finish and wait up to 60 s for it."""
     req.put(None)
     server.join(60)

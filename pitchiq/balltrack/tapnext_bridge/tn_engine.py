@@ -1,6 +1,6 @@
 """TAPNext++ in batches, for the all-tests comparison.
 
-    python -m pitchiq.balltrack.tapnext_bridge.tn_engine bridges <tag> [<tag> ...]   -> ../evaluation/tn/bridges_<tag>.npz
+    python -m pitchiq.balltrack.tapnext_bridge.tn_engine bridges <tag> [<tag> ...]   -> ../evaluation/tn/bridges_<tag>.npy
     python -m pitchiq.balltrack.tapnext_bridge.tn_engine alone <tag> [<tag> ...]     -> ../evaluation/tn/alone_<tag>.npz
 
 bridges  every gap between two confident picks of the shipped tracker (cls_B), up to MAXGAP
@@ -56,6 +56,7 @@ NEAR = [t for t in os.environ.get('TN_NEAR', '').split(',') if t]
 
 
 def model():
+    """The TAPNext++ network from tapnextpp_512.ckpt on the GPU, at input resolution S."""
     m = TAPNextPP.from_checkpoint(
         os.path.join(HERE, 'tapnextpp_512.ckpt'), device='cuda', input_resolution=S
     )
@@ -63,12 +64,16 @@ def model():
 
 
 def crop(fr, c):
+    """The S x S crop of frame fr centred on c (kept inside the 1920 x 1080 frame), and its
+    top-left offset.
+    """
     ox = int(round(np.clip(c[0] - S / 2, 0, 1920 - S)))
     oy = int(round(np.clip(c[1] - S / 2, 0, 1080 - S)))
     return fr[oy : oy + S, ox : ox + S], np.array([ox, oy], float)
 
 
 def to_t(crops):
+    """BGR uint8 crops -> an RGB float tensor in [-1, 1] on the GPU, one frame per crop."""
     a = np.stack(crops)[..., ::-1].copy()
     return torch.from_numpy(a).cuda().float().div_(127.5).sub_(1.0)[:, None]
 
@@ -77,6 +82,9 @@ class Group:
     """B tracks advanced in lock-step; each gets one frame per step from get(j, k)."""
 
     def __init__(self, net, seeds):
+        """Tracks for TAPNext run side by side, one per seed (source px); the first step
+        queries the seeds.
+        """
         self.net = net
         self.n = len(seeds)
         self.seed = np.array(seeds, float)
@@ -87,6 +95,9 @@ class Group:
 
     @torch.no_grad()
     def step(self, frames):
+        """Advance every track by one frame (one frame per track) in a window centred on its last
+        estimate plus its velocity.  Returns (xy source px, visible) per track.
+        """
         crops, offs = [], []
         for j, fr in enumerate(frames):
             im, off = crop(fr, self.c[j] + self.v[j])
@@ -113,6 +124,7 @@ class Group:
 
 
 def read_range(cap, lo, hi, need):
+    """Read frames lo..hi in order, decoding only the abs frames in `need` -> {abs: frame}."""
     cap.set(cv2.CAP_PROP_POS_FRAMES, lo)
     out = {}
     for f in range(lo, hi + 1):
@@ -126,6 +138,13 @@ def read_range(cap, lo, hi, need):
 
 
 def bridges(net, tag):
+    """TAPNext forward and backward over every ground gap of up to MAXGAP frames between two
+    tracked picks of p2d/cls_B/<tag>.npz -> OUT/bridges_<tag>.npy.
+
+    A backward run is skipped unless the forward one lands within ANC of the pick after the
+    gap, and cut once it strays more than AGR from the forward track.  Tracks already run
+    (NEAR, PREV) are reused; a checkpoint every CKPT_S seconds lets a crash resume.
+    """
     from .. import config
 
     z = np.load(os.path.join(AT, 'p2d', 'cls_B', '%s.npz' % tag))
@@ -179,7 +198,7 @@ def bridges(net, tag):
     saved = time.time()
     # One autocast context for the whole run: Group.step's own (nested) context then no longer
     # drops autocast's fp16 weight casts after every step. Same casts, same kernels: bit-identical
-    # tracks, 3-5% faster (tn_cache.py, 2026-10-16).
+    # tracks, 3-5% faster (measured 2026-10-16).
     amp = torch.amp.autocast('cuda', dtype=torch.float16)
     amp.__enter__()
     while k0 < len(jobs):
@@ -309,6 +328,9 @@ def prev_tracks(tag, where):
 
 
 def alone(net, tags):
+    """TAPNext seeded once on each tag's first tracked pick and left to run to the end of
+    its window, all tags in one batch -> OUT/alone_<tag>.npz.
+    """
     from .. import config
 
     caps, seeds, spans = [], [], []

@@ -29,6 +29,9 @@ NFEAT = 1500
 
 
 def work(frames):
+    """One pool process: SIFT features (on the pitch only) of each abs frame in `frames`.
+    Returns [(abs, xy source px, descriptors uint8)].
+    """
     import cv2
 
     from pitchiq import lines
@@ -51,6 +54,9 @@ def work(frames):
 
 
 def main():
+    """Command line: [procs] - every STEP-th frame of the play periods -> vfeats.npz (abs, n,
+    xy, desc).
+    """
     procs = int(sys.argv[1]) if len(sys.argv) > 1 else 6
     frames = [ab for lo, hi in PERIODS for ab in range(lo, hi, STEP)]
     chunks = [frames[i::procs] for i in range(procs)]

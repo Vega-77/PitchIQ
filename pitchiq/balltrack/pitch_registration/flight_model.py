@@ -44,6 +44,13 @@ SIG = 2.0  # pixel noise of the tracker's ball
 
 class Track:
     def __init__(self, tag):
+        """The tracked ball of `tag` with the camera model the flight fits need.
+
+        Loads <tag>_ballsb.npz and <tag>_img.npz, and <tag>_venue.npz when the camera was
+        calibrated in-match (else vtop / vpitch).  A maps CH ground -> StatsBomb; M[f] maps
+        frame f's pixels to CH rays (w > 0 below the horizon); px are the image positions
+        (source px), has marks the frames with a ball, src_track the tracker's own picks.
+        """
         z = np.load(os.path.join(HERE, '%s_ballsb.npz' % tag))
         im = np.load(os.path.join(HERE, '%s_img.npz' % tag))
         own = os.path.join(HERE, '%s_venue.npz' % tag)
@@ -81,6 +88,7 @@ class Track:
         return x[:, :2] / x[:, 2:3]
 
     def to_sb(self, uv):
+        """CH ground points uv (n x 2) -> StatsBomb."""
         q = np.c_[uv, np.ones(len(uv))].dot(self.A.T)
         return q[:, :2] / q[:, 2:3]
 

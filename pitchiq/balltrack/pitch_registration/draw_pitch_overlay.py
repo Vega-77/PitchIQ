@@ -43,6 +43,7 @@ def polylines():
 
 
 def frame_to_sb(k):
+    """Venue-map keyframe k's pixels -> StatsBomb: P T B K^-1 H_k."""
     return pz['P'].dot(t['T']).dot(t['B']).dot(np.linalg.inv(t['K'])).dot(z['H'][k])
 
 

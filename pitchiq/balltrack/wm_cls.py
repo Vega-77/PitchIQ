@@ -27,6 +27,9 @@ S2 = os.path.dirname(os.path.abspath(__file__))
 
 
 def attach(F, tag):
+    """Give each frame of F its candidates' classifier log-odds p from <tag>cls.npz, and keep
+    the detector scores as s0.
+    """
     z = np.load(os.path.join(S2, '%scls.npz' % tag))
     p = {}
     for f, j, v in zip(z['f'], z['j'], z['p']):
@@ -37,6 +40,9 @@ def attach(F, tag):
 
 
 def ranks(T, F, idx):
+    """Print where the labelled ball ranks among its frame's candidates, by detector score and
+    by classifier log-odds (rank 0: nothing scores above it).
+    """
     r_s, r_p = [], []
     for t in T:
         if t['kind'] != 'ball':
@@ -69,6 +75,9 @@ def ranks(T, F, idx):
 
 
 def main():
+    """Rank the true ball by both scores, then grid-search the tracker on a blend of them
+    (a * p + (1 - a) * s0), tuning on one half and testing on the other.
+    """
     T, tags, F, idx = wm_tune.load_all()
     for tag in tags:
         attach(F[tag], tag)

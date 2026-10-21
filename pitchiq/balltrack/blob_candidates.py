@@ -171,6 +171,7 @@ PROF = None
 
 
 def _bucket(need):
+    """The smallest padded gather size in BUCKETS that holds `need` components (or need itself)."""
     for b in BUCKETS:
         if b >= need:
             return b

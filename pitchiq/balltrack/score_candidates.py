@@ -26,6 +26,9 @@ BATCH_FRAMES = 32
 
 
 def run(model, tag):
+    """Classifier log-odds for every candidate in <tag>.npz, cut from the video as it plays
+    -> <tag>cls.npz (f abs frame, j candidate index, p).
+    """
     import cv2
     from . import config
 
@@ -90,6 +93,7 @@ def run(model, tag):
 
 
 def main():
+    """Command line: <model.pt> <tag> ... - score every candidate of each tag."""
     from .train_ball_classifier import load_model
 
     model = load_model(sys.argv[1])

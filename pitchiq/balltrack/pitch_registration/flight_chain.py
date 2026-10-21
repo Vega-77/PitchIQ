@@ -40,6 +40,7 @@ G = flight_model.G
 
 
 def E(k, s):
+    """Integral of exp(-k s) from 0 to s: how far a drag-slowed speed carries in time s."""
     return (1 - np.exp(-k * s)) / k
 
 
@@ -53,6 +54,7 @@ def seg_pos(P0, P1, T, k, s):
 
 
 def seg_vel(P0, P1, T, k, s):
+    """Velocity (u, v, z per s) at time s in the segment from node P0 to node P1 taking T."""
     k = max(k, 1e-4)
     e = np.exp(-k * s)
     vz = (P1[2] - P0[2] + G * T / k) / E(k, T) - G / k
@@ -60,6 +62,9 @@ def seg_vel(P0, P1, T, k, s):
 
 
 def unpack(x, m):
+    """Split a chain's parameter vector for m flights into nodes ((m + 1) x 3: u, v, z),
+    node times ts (m + 1, frames) and drag constants ks (m).
+    """
     nodes = x[: 3 * (m + 1)].reshape(m + 1, 3)
     ts = x[3 * (m + 1) : 4 * (m + 1)]
     ks = x[4 * (m + 1) :]
@@ -124,6 +129,10 @@ def sb_per_ch(tr):
 
 
 def select_flights(S, C, onpitch):
+    """Scan rows (of S, columns C) that pass the pre-label gates, then the heaviest set of
+    them that do not overlap in time (weight: tracked frames less half the trimmed error).
+    Returns their row indices in time order.
+    """
     e = S[:, C['d_trim']]
     ok = (
         (e <= GATE['err'])
@@ -166,12 +175,19 @@ def bend_px(tr, P, frame):
 
 
 def rise_px(tr, P0, P1, T, k, t0):
+    """Visible height (px) of the segment P0 -> P1 taking T, seen from its middle frame."""
     s = np.linspace(0, T, 21)
     return bend_px(tr, seg_pos(P0, P1, T, k, s), t0 + T * flight_model.FPS / 2)
 
 
 class Chain:
     def __init__(self, tr, flights, vmax):
+        """A chain of touching flights to fit as one path of nodes joined by drag segments.
+
+        Sets the observed frames (idx, obs), which end nodes may be open (the ball is lost past
+        them), the bounds and start of each node time, and the start nodes and drag constants
+        taken from the single-flight fits.  vmax is (speed cap in SB units/s, SB per CH unit).
+        """
         self.tr, self.fl, self.m = tr, flights, len(flights)
         self.vmax = vmax
         lo, hi = flights[0]['a'], flights[-1]['b']
@@ -217,6 +233,10 @@ class Chain:
         self.k_init = np.array([f['th'][6] for f in flights])
 
     def residuals(self, x, free):
+        """Pixel residuals of the chain (in SIG units) plus the penalties: node times at least
+        3 frames apart, the speed cap, and at each ground node not in `free` the bounce limits
+        (BOUNCE_KEEP speed ratio, BOUNCE_TURN turn).
+        """
         tr, m = self.tr, self.m
         r = ((tr.project(self.idx, chain_eval(tr, x, m, self.idx)) - self.obs) / SIG).ravel()
         nodes, ts, ks = unpack(x, m)
@@ -248,6 +268,10 @@ class Chain:
         return np.r_[r, np.concatenate([np.ravel(e) for e in extra])]
 
     def fit(self, free):
+        """Least-squares fit of the chain with the nodes in `free` allowed off the ground (z up
+        to 3 CH) and the others held on it, from three starting heights; the best result or
+        None.
+        """
         m = self.m
         zhi = np.where(free, 3.0, 1e-9)
         lo = np.r_[
@@ -291,6 +315,7 @@ class Chain:
         return best
 
     def rises(self, x):
+        """Each segment's visible height (px) for parameters x."""
         nodes, ts, ks = unpack(x, self.m)
         return [
             rise_px(
@@ -333,6 +358,12 @@ def fit_chain(tr, flights, vmax):
 
 
 def main():
+    """Pick the flights from <tag>_scan2.npz, keep those the slowing-roll test calls air, chain
+    the ones that touch, and fit each chain, lifting a node only when it pays.
+
+    Writes <tag>_chains2.npy (one dict per chain) and <tag>_ball3d2.npz (abs, x, y in
+    StatsBomb, z in CH, state per frame).
+    """
     tr = flight_model.Track(tag)
     flight_model.ground_all(tr)
     n = len(tr.abs)

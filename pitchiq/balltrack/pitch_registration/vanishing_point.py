@@ -1,3 +1,17 @@
+"""The ground plane's two vanishing directions, from long straight paint.
+
+    python -m pitchiq.balltrack.pitch_registration.vanishing_point   -> vvp.npz
+
+Reads vsegs.npz (paint_segments: segment ends p0, p1 in reference-plane pixels, and
+their lengths) and fref.npy (the reference plane's focal length, pixels; principal point
+960, 540).  Two length-weighted RANSAC fits find the dominant direction and then the one
+the remaining segments share.  Writes v1, v2 (unit rays, camera coordinates), n (the
+ground normal, camera coordinates: x right, y down, z forward, pointing up), f, and
+in1 / in2 (which segments support each).  top_down_map builds the camera-height plane
+from it.  Prints the angle between the two directions, which should be 90 deg, and how
+that angle moves with other focal lengths.
+"""
+
 import numpy as np
 
 S = np.load('vsegs.npz')
@@ -7,6 +21,7 @@ Ki = np.linalg.inv(K)
 
 
 def h(p):
+    """The n x 2 points p in homogeneous coordinates (n x 3)."""
     return np.c_[p, np.ones(len(p))]
 
 
@@ -22,6 +37,9 @@ W = S['len']
 
 def support(v, tol):
     # angle between segment direction and direction from midpoint towards v (v homogeneous ray)
+    """True for each segment whose direction points at the vanishing point v (homogeneous),
+    within tol degrees.
+    """
     if abs(v[2]) > 1e-9:
         t = v[:2] / v[2] - mid[:, :2] / mid[:, 2:3]
     else:
@@ -35,6 +53,9 @@ rng = np.random.default_rng(1)
 
 
 def ransac(mask, tol=0.7, it=6000):
+    """The vanishing point (unit homogeneous vector) that the most segment weight W within
+    `mask` points at, from `it` random segment pairs, and that weight.
+    """
     idx = np.where(mask)[0]
     p = W[idx] / W[idx].sum()
     best, bv = 0, None

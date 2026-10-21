@@ -40,6 +40,7 @@ MINMATCH, MININL = 12, 10  # fewest matches / inliers a fit may rest on
 
 
 def homog(M):
+    """The 2 x 3 affine M as a 3 x 3 matrix."""
     H = np.eye(3)
     H[:2] = M
     return H
@@ -49,6 +50,7 @@ class Registrar:
     """Affines between buffered frames, with an optional batched matcher for the direct fits."""
 
     def __init__(self, bf, matcher=None):
+        """A registrar over cv2 matcher `bf`, with an optional batched GPU `matcher`."""
         self.bf = bf
         self.M = matcher
         self._mm = {}  # (src, dst) -> (queryIdx, trainIdx), bf.match order
@@ -71,6 +73,7 @@ class Registrar:
             self.M.evict(oldest)
 
     def coords(self, fid, kp):
+        """Frame fid's keypoint positions (n x 2 float32, source px), cached."""
         a = self._pt.get(fid)
         if a is None:
             a = np.float32([k.pt for k in kp]).reshape(-1, 2)

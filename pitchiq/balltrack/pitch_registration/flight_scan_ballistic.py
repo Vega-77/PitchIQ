@@ -29,6 +29,11 @@ FILL_MAX = 90  # frames: straight-line fallback across unexplained gaps
 
 
 def quick_fit(tr, a, b):
+    """Drag-free arc over frames a..b fitted to the tracked pixels, from two starts.
+
+    Returns (th, RMS px, median px), th as flight_model.ballistic takes it, or None when no
+    fit ran.
+    """
     idx = np.arange(a, b + 1)
     idx = idx[tr.has[idx]]
     t = (idx - a) / flight_model.FPS
@@ -61,6 +66,7 @@ def quick_fit(tr, a, b):
 
 
 def roll_fit(tr, a, b):
+    """RMS error of a straight constant-speed roll over frames a..b, on the ground plane."""
     idx = np.arange(a, b + 1)
     idx = idx[tr.has[idx]]
     t = (idx - a) / flight_model.FPS
@@ -78,6 +84,11 @@ _TR = None
 
 
 def work(args):
+    """One pool process: the arc and roll fits of every (start, length) window from `starts`.
+
+    A window needs its end frame and 70% of its frames (at least 8) tracked.  Each row is
+    (a, b, tracked, arc RMS, arc median, apex, roll RMS, *th).
+    """
     global _TR
     tag, starts = args
     if _TR is None:
@@ -132,6 +143,10 @@ def select(S):
 
 
 def main():
+    """Command line: <tag> [procs] [reuse] - scan the windows (or reuse <tag>_scan.npz),
+    choose the flights, refine each with the drag model and keep the better of any two that
+    overlap, then write every frame (per_frame).
+    """
     tag = sys.argv[1]
     procs = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else 6
     tr = flight_model.Track(tag)
@@ -177,6 +192,12 @@ PITCH_SLACK = 10  # take-off / landing must be within this of the lines
 
 
 def refine(tr, a, b):
+    """Drag fit of a flight with its ends slid up to 6 frames earlier / 9 later.
+
+    Keeps the longest fit within max(MAX_RMS, 1.2x the unslid error).  Returns a dict (th, a, b,
+    n, rms, take / land in CH ground, t_take / t_land in frames, apex in CH), or None when no
+    fit ran or an end falls more than PITCH_SLACK off the pitch.
+    """
     base = None
     cands = []
     for da in (0, -3, -6):
@@ -219,6 +240,13 @@ def refine(tr, a, b):
 
 
 def per_frame(tr, tag, fl):
+    """Every frame's ball in 3D from the flights `fl` -> <tag>_ball3d.npz / .csv and
+    <tag>_flights.npz.
+
+    Flight frames take the drag path ('air'); the rest keep the ground reading ('ground').
+    Ground readings far off the pitch that no flight explains are replaced by the straight
+    line between the good points either side.
+    """
     n = len(tr.abs)
     uv = tr.g.copy()  # ground reading (z = 0)
     z = np.zeros(n)

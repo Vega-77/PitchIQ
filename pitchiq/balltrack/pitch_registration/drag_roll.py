@@ -8,6 +8,7 @@ KS = np.linspace(0, 1.5, 16)
 
 
 def trim(e, keep=0.8):
+    """RMS of the smallest `keep` share of the errors e (at least 3 of them)."""
     e = np.sort(e**2)
     return float(np.sqrt(np.mean(e[: max(3, int(np.ceil(keep * len(e))))])))
 

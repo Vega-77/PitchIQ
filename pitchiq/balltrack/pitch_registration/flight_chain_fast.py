@@ -66,6 +66,9 @@ KPHYS = (
 
 
 def roll_speed(tr, a, b):
+    """Trimmed error (px) and ground speed (StatsBomb units/s) of the best slowing roll over
+    frames a..b; speed 0 when no roll fits.
+    """
     e, th = drag_roll.droll(tr, a, b)
     if th is None:
         return e, 0.0
@@ -77,6 +80,10 @@ def roll_speed(tr, a, b):
 
 
 def select_flights(S, C, onpitch, spd):
+    """Scan rows (of S, columns C) that pass the pre-label gates, or (with OPT fast) are too
+    fast for any roll, then the heaviest set of them that do not overlap in time.  Returns
+    their row indices in time order.
+    """
     e = S[:, C['d_trim']]
     ok = (
         (e <= GATE['err'])
@@ -116,6 +123,11 @@ def select_flights(S, C, onpitch, spd):
 
 class Chain:
     def __init__(self, tr, flights, vmax):
+        """A chain of touching flights to fit as one path of nodes joined by drag segments.
+
+        As flight_chain.Chain, and a node where no roll slower than VMAX explains the pixels
+        (OPT fastnode) may also leave the ground.
+        """
         self.tr, self.fl, self.m = tr, flights, len(flights)
         self.vmax = vmax
         lo, hi = flights[0]['a'], flights[-1]['b']
@@ -171,6 +183,10 @@ class Chain:
         self.k_init = np.array([f['th'][6] for f in flights])
 
     def residuals(self, x, free):
+        """Pixel residuals of the chain (in SIG units) plus the penalties: node times at least
+        3 frames apart, the speed cap, the drag a real football has at that speed (OPT phys_k),
+        and the bounce limits at each ground node not in `free`.
+        """
         tr, m = self.tr, self.m
         r = (
             (tr.project(self.idx, flight_chain.chain_eval(tr, x, m, self.idx)) - self.obs) / SIG
@@ -207,6 +223,10 @@ class Chain:
         return np.r_[r, np.concatenate([np.ravel(e) for e in extra])]
 
     def fit(self, free):
+        """Least-squares fit of the chain with the nodes in `free` allowed off the ground (an
+        inner node no higher than OPT touch_z), from three starting heights; the best result or
+        None.
+        """
         m = self.m
         zhi = np.where(free, 3.0, 1e-9)
         if OPT['touch_z']:  # 7: a touch in the air is within a jumping head's reach
@@ -255,6 +275,7 @@ class Chain:
         return best
 
     def rises(self, x):
+        """Each segment's visible height (px) for parameters x."""
         nodes, ts, ks = flight_chain.unpack(x, self.m)
         return [
             rise_px(
@@ -300,6 +321,9 @@ def fit_chain(tr, flights, vmax):
 
 
 def main():
+    """Pick the flights from <tag>_scan2.npz and <tag>_rowspd.npy, chain and fit them as
+    flight_chain does -> <tag>_chains<out>.npy and <tag>_ball3d<out>.npz.
+    """
     tr = flight_model.Track(tag)
     flight_model.ground_all(tr)
     n = len(tr.abs)

@@ -140,6 +140,10 @@ def cut(img, x, y, size, dst):
 
 
 def choose(frames, every, fjson):
+    """The frames to crop: every `every`-th one, or exactly the abs frames listed in `fjson`.
+
+    Requested frames with no candidates (or outside the clip) are skipped and counted.
+    """
     if fjson is None:
         return frames[::every]
     want = set(int(v) for v in json.load(io.open(fjson, encoding='utf-8')))
@@ -151,6 +155,13 @@ def choose(frames, every, fjson):
 
 
 def run(tag, every, fjson, size):
+    """Cut a size x size crop and the context vector around every candidate in the chosen frames.
+
+    Reads <tag>.npz candidates (ball_tracker.load_frames), <tag>ppl.npz person boxes when
+    present, and the video at config.VIDEO with a single seek.  Writes <tag>crops.npz:
+    f (abs frame), j (candidate index), x, y (source px), s (detector score), crop
+    (N x size x size x 3, BGR uint8), ctx (N x len(CTX_NAMES)), ctx_names, size, tag.
+    """
     import cv2
     from . import config
 
@@ -291,6 +302,7 @@ def selftest():
 
 
 def main():
+    """Command line: <tag> [--every N] [--frames list.json] [--size px], or selftest."""
     a = sys.argv[1:]
     if a and a[0] == 'selftest':
         selftest()

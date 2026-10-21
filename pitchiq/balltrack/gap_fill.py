@@ -37,6 +37,7 @@ KX, KY = 'sx', 'sy'
 
 
 def _take(fr, px, py, R, pmin):
+    """Index of fr's candidate nearest (px, py) within R pan-stabilised px with score >= pmin, or None."""
     if not len(fr['p']):
         return None
     d = np.hypot(fr[KX] - px, fr[KY] - py)
@@ -47,6 +48,7 @@ def _take(fr, px, py, R, pmin):
 
 
 def attach_pan(frames, tag):
+    """Give each frame 'Hinv': the inverse of its pan from <tag>pan.npz (stabilised -> source px)."""
     import os
 
     p = np.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), '%span.npz' % tag))
@@ -56,17 +58,25 @@ def attach_pan(frames, tag):
 
 
 def _synth(fr, px, py):
+    """A synthetic pick at stabilised (px, py): ('syn', x, y) in source px, through fr's Hinv."""
     q = fr['Hinv'].dot([px, py, 1.0])
     return ('syn', float(q[0] / q[2]), float(q[1] / q[2]))
 
 
 def xy(fr, j):
+    """Source-px position of pick j in frame fr: a candidate index, or a ('syn', x, y) tuple."""
     if isinstance(j, tuple):
         return j[1], j[2]
     return fr['x'][j], fr['y'][j]
 
 
 def score(T, F, idx, picks, clips):
+    """Counts over the labelled frames of `clips`: ball, off, right, wrong, none, ok, syn_right, syn_wrong.
+
+    T are the whole-match labels, idx maps clip -> {abs: frame index}, picks maps clip ->
+    the per-frame picks.  A pick is right within wm_tune.W.TOL source px of the label; an
+    'off' label is ok when there is no pick.
+    """
     import collections
 
     c = collections.Counter()
@@ -94,6 +104,14 @@ def score(T, F, idx, picks, clips):
 
 
 def fill(frames, picks, maxgap=32, rad0=20.0, rgrow=5.0, pmin=-99.0, ext=0, synth=0):
+    """The tracker's picks with gaps filled by motion; a new list, one entry per frame.
+
+    A None run of at most `maxgap` frames between two picks takes, at each frame, the
+    candidate nearest the straight line between them in pan-stabilised px (radius rad0,
+    growing by rgrow per frame from the nearer end, score >= pmin), or with `synth` a
+    synthetic point on the line.  With ext > 0 the picks also coast up to `ext` frames past
+    each segment end at their last velocity.
+    """
     out = list(picks)
     T = len(frames)
     on = [t for t in range(T) if picks[t] is not None]
@@ -145,6 +163,9 @@ def fill(frames, picks, maxgap=32, rad0=20.0, rgrow=5.0, pmin=-99.0, ext=0, synt
 
 
 def main():
+    """Grid-search the tracker and fill settings on the whole-match labels, tuning on one half
+    and testing on the other, and print the best per pool (no fill, candidates only, + synth).
+    """
     T, tags, F, idx = wm_tune.load_all()
     for tag in tags:
         wm_cls.attach(F[tag], tag)

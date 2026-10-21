@@ -19,6 +19,9 @@ from . import WORK as HERE
 
 
 def load_truth():
+    """The Flight Lab flights from labeling/flight_labels/flights.jsonl, without deleted
+    ones.
+    """
     F = [
         json.loads(line)[1]
         for line in open(os.path.join(HERE, 'labeling', 'flight_labels', 'flights.jsonl'))
@@ -27,6 +30,9 @@ def load_truth():
 
 
 def track(f):
+    """A marked flight's ground track: (frame, x, y) rows in StatsBomb, from the take-off spot
+    through the marked points to the landing spot, sorted by frame.
+    """
     P = []
     if f.get('p0'):
         P.append((f['f0'], f['p0']['x'], f['p0']['y']))
@@ -37,6 +43,9 @@ def track(f):
 
 
 def main():
+    """Print the calibration, per-flight error and direction scores of the flat reading and
+    the two vid1 3D outputs against the Flight Lab marks.
+    """
     fl = load_truth()
     z = np.load(os.path.join(HERE, 'vid1_ballsb.npz'))
     A0 = int(z['abs'][0])

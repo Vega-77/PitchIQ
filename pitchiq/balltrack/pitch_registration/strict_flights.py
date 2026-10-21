@@ -26,10 +26,15 @@ for k_ in P:
 
 
 def outside(x, y, mg):
+    """True where (x, y) is more than mg StatsBomb units outside the pitch lines."""
     return ~((x > -mg) & (x < 120 + mg) & (y > -mg) & (y < 80 + mg))
 
 
 def strict(B, has):
+    """Apply the strict rules to the air runs of ball3d B, given the tracker's seen frames
+    `has`.  Returns the new state per frame and the count of runs kept and dropped by each
+    rule.
+    """
     st = B['state'].copy()
     x, y = B['x'], B['y']
     why = {'unseen': 0, 'out': 0, 'short': 0, 'kept': 0}
@@ -62,6 +67,7 @@ def strict(B, has):
 
 
 def main():
+    """Command line: <in.npz> <out.npz> [tag] - write the ball3d file with stricter flights."""
     src, dst = sys.argv[1], sys.argv[2]
     tag = sys.argv[3] if len(sys.argv) > 3 else 'vid1'
     B = dict(np.load(src))
