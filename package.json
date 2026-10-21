@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Dev tooling only. The frontend is plain ES modules with no build step.",
+  "engines": {
+    "node": ">=22.15"
+  },
   "scripts": {
     "test": "npm run test:unit && npm run test:pages && firebase emulators:exec --only firestore --project pitchiq-test \"node --test --test-concurrency=1 tests/rules.test.js tests/flow.test.js tests/onboarding.test.js\"",
     "test:unit": "node --test tests/video.test.js tests/players.test.js tests/cv-notes.test.js tests/season.test.js tests/review.test.js tests/passing.test.js tests/shots.test.js tests/match-stats.test.js tests/match-brief.test.js tests/tagged-log.test.js tests/pitch-maps.test.js tests/sample-report.test.js tests/kit.test.js",

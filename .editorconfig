@@ -1,0 +1,21 @@
+# Editor defaults matching what the repo already does. Line endings are left
+# to git (core.autocrlf), so no end_of_line here.
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Python layout is ruff format's (docs/conventions.md); this only sets the editor.
+[*.py]
+max_line_length = 100
+
+[*.{html,json,yml,yaml,sh}]
+indent_size = 2
+
+# Two trailing spaces are a line break in Markdown.
+[*.md]
+trim_trailing_whitespace = false
