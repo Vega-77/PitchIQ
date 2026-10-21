@@ -2,7 +2,7 @@
 # The default ball path, chosen 2026-10-01 on vid2 (unseen) and vid1 (dev + holdout):
 #   chain2 flights (the most precise: one false flight on each clip)
 #   + ground smoothed by smooth_ball (hop 0), merged -> <tag>_ball3dd.npz
-# vstrict is left out: on chain2 it lowered precision on 2 of 3 test sets and cost flights.
+# strict_flights is left out: on chain2 it lowered precision on 2 of 3 test sets and cost flights.
 #
 #   sh vdefault.sh vid2        (needs <tag>_scan2.npz from flight_scan.py)
 BT="$(cd "$(dirname "$0")/.." && pwd)"; . "$BT/pyenv.sh"

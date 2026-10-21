@@ -9,7 +9,7 @@
 
 Dropped flight frames go back to 'ground' where the tracker has a ball, else 'none'.
 
-    python -m pitchiq.balltrack.homog.vstrict in.npz out.npz [tag]
+    python -m pitchiq.balltrack.homog.strict_flights in.npz out.npz [tag]
 """
 
 import os
