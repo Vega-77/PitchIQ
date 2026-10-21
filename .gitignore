@@ -15,6 +15,9 @@ Thumbs.db
 /runs/
 /scratch_frames/
 *.pt
+# The ball tracker's crop classifier (240 KB) is the one checkpoint in git:
+# hybrid.sh cannot run without it and nothing downloads it.
+!cv/balltrack/cls_B.pt
 
 # Local database
 *.db

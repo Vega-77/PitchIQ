@@ -84,14 +84,19 @@ clone and a 2.4 GB TAPNext++ checkpoint, described there and in
 `cv/balltrack/README.md`.
 
 **Detector weights.** `cv/detector.py` loads `cv/weights/yolov8n.pt`, which
-is not in git (`*.pt` is ignored). If the file is missing, it falls back to
-Ultralytics' own `yolov8n.pt`, which Ultralytics downloads on first use. To
-pin the exact file:
+is not in git (`*.pt` is ignored). If the file is missing, Ultralytics
+downloads its `yolov8n.pt` (release v8.4.0) to that path on first use, so a
+clone with network access needs nothing more. To fetch it ahead of time, for
+a machine that will be offline at the field:
 
 ```bash
 mkdir -p cv/weights
 curl -L -o cv/weights/yolov8n.pt https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8n.pt
 ```
+
+Either way it is the same file every measurement here used: sha256
+`f59b3d833e2ff32e194b5bb8e08d211dc7c5bdf144b90d2c8412c47ccfc83b36`
+(`tests/test_detector_weights.py` checks it).
 
 Scripts take their paths from the environment, with defaults that work from
 a clone:
