@@ -1,6 +1,6 @@
 """What the ball tracker thinks, drawn on the match video.
 
-The full chain as it stands: detector candidates (drun), classifier
+The full chain as it stands: detector candidates (detect_candidates), classifier
 log-odds on every candidate (cls_B), ball_tracker.track_ball on 0.75*p + 0.25*s0, then
 gapfill.fill.  Each output frame shows
 

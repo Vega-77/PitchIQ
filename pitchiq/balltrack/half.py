@@ -5,7 +5,7 @@
 Needs homog/<tag>_reg.npz (and <tag>_venue.npz) from
 `python -m pitchiq.experiments.autocal_run <tag> ... --homog`.
 
-drun.py runs over the whole half on the CPU. Each of its 5-minute chunks
+detect_candidates.py runs over the whole half on the CPU. Each of its 5-minute chunks
 becomes a piece as soon as the chunks around it are done: the chunk plus
 `overlap` frames each side, run through the same chain hybrid.sh runs on a
 lab window (classifier, shipped picks, shipped 3D, TAPNext bridges, hybrid,
@@ -15,7 +15,7 @@ at the frame nearest the chunk edge where both neighbours agree on the ball,
 in 2D and 3D, for 11 frames running.
 
 Every stage leaves a marker in half/<tag>/, so a rerun after a crash or a
-reboot redoes only unfinished stages (drun and the player pieces keep their
+reboot redoes only unfinished stages (detect_candidates and the player pieces keep their
 own 5-minute parts).
 
 Outputs, as hybrid.sh writes them for a window:
@@ -36,7 +36,7 @@ import time
 
 import numpy as np
 
-from . import config, drun, script
+from . import config, detect_candidates, script
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(S2))
@@ -49,9 +49,9 @@ PY = sys.executable
 AGREE = 5  # frames each side of a cut that must agree
 TOL2, TOL3 = 1.0, 0.5  # agreement: px in 2D, StatsBomb units in 3D
 # CPU stages run as many processes as there are cores, so each keeps one BLAS
-# thread: 16 scan workers x 28 OpenBLAS threads beside drun ran out of commit
+# thread: 16 scan workers x 28 OpenBLAS threads beside detect_candidates ran out of commit
 ONE_THREAD = dict(OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', MKL_NUM_THREADS='1')
-MIN_CORE = drun.CHUNK // 5  # a minute: a shorter end chunk joins its neighbour
+MIN_CORE = detect_candidates.CHUNK // 5  # a minute: a shorter end chunk joins its neighbour
 LANES = 2  # the ball's CPU jobs at a time
 LOOKAHEAD = 10  # candidate_features.OFFS: the ball detector reads 10 frames each side
 
@@ -77,7 +77,7 @@ class Half:
         )
         self.dir = os.path.join(S2, 'half', tag)
         os.makedirs(self.dir, exist_ok=True)
-        self.chunks = drun.chunk_edges(lo, hi)
+        self.chunks = detect_candidates.chunk_edges(lo, hi)
         # a chunk under a minute (the half's ragged ends) joins its neighbour's piece
         cores = []
         for a, b in self.chunks:
@@ -90,7 +90,7 @@ class Half:
             self.pieces.append(
                 dict(
                     k=k,
-                    ptag='%s_q%03d' % (tag, a // drun.CHUNK),
+                    ptag='%s_q%03d' % (tag, a // detect_candidates.CHUNK),
                     core=(a, b),
                     win=(max(lo, a - overlap), min(hi, b + overlap)),
                 )
@@ -153,13 +153,13 @@ class Half:
 
     # ---- what is ready ----------------------------------------------------------------
 
-    def drun_res(self, a, b):
-        """drun's worker results for every chunk touching a..b, or None if one is unfinished."""
+    def detector_res(self, a, b):
+        """The detector's worker results for every chunk touching a..b, or None if one is unfinished."""
         res = []
         for clo, chi in self.chunks:
             if chi < a or clo > b:
                 continue
-            r = drun.load_chunk(self.tag, clo // drun.CHUNK, clo, chi)
+            r = detect_candidates.load_chunk(self.tag, clo // detect_candidates.CHUNK, clo, chi)
             if r is None:
                 return None
             res.extend(r)
@@ -182,7 +182,7 @@ class Half:
 
         a, b = p['win']
         P = p['ptag']
-        drun.merge(P, a, b, self.drun_res(a, b))
+        detect_candidates.merge(P, a, b, self.detector_res(a, b))
         F, B, C = [], [], []
         for clo, chi in self.chunks:
             if chi < a or clo > b:
@@ -347,7 +347,7 @@ class Half:
                         ('build', p)
                         for p in self.pieces
                         if not self.done(p['ptag'], 'build')
-                        and self.drun_res(*p['win']) is not None
+                        and self.detector_res(*p['win']) is not None
                         and self.dets_ready(*p['win'])
                     ]
                 )
@@ -494,7 +494,7 @@ class Half:
     def main(self):
         from pitchiq.experiments import player_lab as L
 
-        if L.CHUNK != drun.CHUNK:
+        if L.CHUNK != detect_candidates.CHUNK:
             raise SystemExit('PLAB_CHUNK and DRUN_CHUNK must match')
         if not os.path.exists(os.path.join(HOM, '%s_reg.npz' % self.tag)):
             raise SystemExit('homog/%s_reg.npz missing: run autocal_run --homog first' % self.tag)
@@ -507,16 +507,16 @@ class Half:
                 % (self.lo, self.hi, first, last)
             )
         self.say(
-            'HALF %s  %d..%d  %d pieces, overlap %d frames, drun %d workers, %d lanes'
+            'HALF %s  %d..%d  %d pieces, overlap %d frames, detector %d workers, %d lanes'
             % (self.tag, self.lo, self.hi, len(self.pieces), self.ov, self.workers, self.lanes)
         )
         dlog = open(os.path.join(self.dir, 'drun.log'), 'a', encoding='utf-8')
-        drun_p = subprocess.Popen(
+        detector_p = subprocess.Popen(
             [
                 PY,
                 '-W',
                 'ignore',
-                *script('drun'),
+                *script('detect_candidates'),
                 str(self.lo),
                 str(self.hi),
                 str(self.workers),
@@ -534,13 +534,14 @@ class Half:
         for t in threads:
             t.start()
         with self.lock:
-            self.procs.add(drun_p)
+            self.procs.add(detector_p)
         killed = False
         while any(t.is_alive() for t in threads):
             time.sleep(5)
-            if drun_p.poll() not in (None, 0) and self.err is None:
+            if detector_p.poll() not in (None, 0) and self.err is None:
                 self.err = RuntimeError(
-                    'drun.py exited with %d (half/%s/drun.log)' % (drun_p.returncode, self.tag)
+                    'detect_candidates.py exited with %d (half/%s/drun.log)'
+                    % (detector_p.returncode, self.tag)
                 )
             if self.err is not None and not killed:
                 self.kill_all()  # the other thread may be blocked in a child
@@ -548,8 +549,8 @@ class Half:
         if self.err is not None:
             self.say('FAILED: %s' % self.err)
             raise SystemExit(1)
-        drun_p.wait()
-        self.say('drun done')
+        detector_p.wait()
+        self.say('detector done')
         self.stitch()
         self.say('HALF DONE')
 

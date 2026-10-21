@@ -1,6 +1,6 @@
 """Long runs resume: a crash or reboot mid-half must lose one 5-minute chunk, not the half.
 
-drun.py cuts its window on absolute 5-minute boundaries and records each chunk
+detect_candidates.py cuts its window on absolute 5-minute boundaries and records each chunk
 when its last worker returns; autocal_run caches each stage. Both are only
 worth anything if a rerun trusts exactly the finished work and nothing else.
 """
@@ -11,25 +11,25 @@ import os
 import numpy as np
 import pytest
 
-from pitchiq.balltrack import drun
+from pitchiq.balltrack import detect_candidates
 from pitchiq.experiments import autocal_run as R
 
 
-# ---- drun chunks ---------------------------------------------------------------------
+# ---- detect_candidates chunks ---------------------------------------------------------------------
 
 
 def test_chunks_cover_the_window_once_on_absolute_boundaries():
     for lo, hi in ((7200, 79200), (150828, 152628), (8999, 9000), (9000, 9000)):
-        ch = drun.chunk_edges(lo, hi)
+        ch = detect_candidates.chunk_edges(lo, hi)
         assert ch[0][0] == lo and ch[-1][1] == hi
         assert all(b + 1 == c for (_, b), (c, _) in zip(ch, ch[1:]))
-        assert all(a // drun.CHUNK == b // drun.CHUNK for a, b in ch)
-        assert all(b - a + 1 <= drun.CHUNK for a, b in ch)
+        assert all(a // detect_candidates.CHUNK == b // detect_candidates.CHUNK for a, b in ch)
+        assert all(b - a + 1 <= detect_candidates.CHUNK for a, b in ch)
 
 
 def test_the_same_frames_make_the_same_chunk_whatever_window_asks():
-    a = drun.chunk_edges(7200, 79200)
-    b = drun.chunk_edges(9000, 40000)
+    a = detect_candidates.chunk_edges(7200, 79200)
+    b = detect_candidates.chunk_edges(9000, 40000)
     assert set(a) >= set(b[:-1])  # the inner chunks are shared exactly
 
 
@@ -42,28 +42,30 @@ def _manifest(tmp, ctag, res, parts=True):
 
 
 def test_a_chunk_counts_as_done_only_when_complete(tmp_path, monkeypatch):
-    monkeypatch.setattr(drun, 'S2', str(tmp_path))
-    c = 18000 // drun.CHUNK
+    monkeypatch.setattr(detect_candidates, 'S2', str(tmp_path))
+    c = 18000 // detect_candidates.CHUNK
     ctag = 't_k%03d' % c
     res = [
         dict(wid=0, tag=ctag, lo=18000, hi=22499, parts=['a.npz']),
         dict(wid=1, tag=ctag, lo=22500, hi=26999, parts=['b.npz']),
     ]
-    assert drun.load_chunk('t', c, 18000, 26999) is None  # nothing yet
+    assert detect_candidates.load_chunk('t', c, 18000, 26999) is None  # nothing yet
 
     _manifest(tmp_path, ctag, res)
-    assert drun.load_chunk('t', c, 18000, 26999) == res
+    assert detect_candidates.load_chunk('t', c, 18000, 26999) == res
 
     os.remove(tmp_path / 'b.npz')  # a part went missing
-    assert drun.load_chunk('t', c, 18000, 26999) is None
+    assert detect_candidates.load_chunk('t', c, 18000, 26999) is None
 
     _manifest(tmp_path, ctag, res)
-    assert drun.load_chunk('t', c, 20000, 26999) is None  # another window's piece of the slot
+    assert (
+        detect_candidates.load_chunk('t', c, 20000, 26999) is None
+    )  # another window's piece of the slot
 
 
 def test_save_chunk_leaves_no_half_written_manifest(tmp_path, monkeypatch):
-    monkeypatch.setattr(drun, 'S2', str(tmp_path))
-    drun.save_chunk('t_k002', [dict(wid=0, lo=1, hi=2, parts=[])])
+    monkeypatch.setattr(detect_candidates, 'S2', str(tmp_path))
+    detect_candidates.save_chunk('t_k002', [dict(wid=0, lo=1, hi=2, parts=[])])
     assert sorted(os.listdir(tmp_path)) == ['t_k002.json']
 
 
@@ -150,11 +152,11 @@ def test_no_video_no_run(monkeypatch):
 # ---- player lab extract / features ------------------------------------------------------
 
 
-def test_player_lab_pieces_match_drun_chunks():
+def test_player_lab_pieces_match_detector_chunks():
     from pitchiq.experiments import player_lab as L
 
     for lo, hi in ((7200, 79200), (40500, 42299), (8999, 9000)):
-        assert L._chunks(lo, hi) == drun.chunk_edges(lo, hi)
+        assert L._chunks(lo, hi) == detect_candidates.chunk_edges(lo, hi)
 
 
 def test_player_lab_saves_leave_no_half_written_file(tmp_path):

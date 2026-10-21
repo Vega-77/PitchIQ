@@ -1,5 +1,5 @@
 """Ball on the pitch: every frame's image->StatsBomb homography (half-second
-registrations carried by the drun pan and blended), the tracker's ball
+registrations carried by the detect_candidates pan and blended), the tracker's ball
 mapped through it, and a review video.
 
     python -m pitchiq.balltrack.homog.vballsb <tag> [video]  -> <tag>_ballsb.npz, <tag>_ballsb.csv,

@@ -34,7 +34,7 @@ The `homog/` scripts read and write their files in `homog/` unless
 
 | step | script | writes |
 |---|---|---|
-| candidates: blob detector + xgboost ranker (`rank6.model.json`), about 40 per frame, plus camera pan | `drun.py` | `<tag>.npz`, `<tag>pan.npz` |
+| candidates: blob detector + xgboost ranker (`rank6.model.json`), about 40 per frame, plus camera pan | `detect_candidates.py` | `<tag>.npz`, `<tag>pan.npz` |
 | person boxes (the repo's YOLOv8n, via `pitchiq.detector`), used only as classifier context | `ppl.py` | `<tag>ppl.npz` |
 | crop classifier log-odds on every candidate | `clsscore.py cls_B.pt` | `<tag>cls.npz` |
 | tracker: `ball_tracker.track_ball` on `0.75*p + 0.25*rank`, then `gapfill.fill` | `render_vid.py` | `<tag>.mp4` |
@@ -98,7 +98,7 @@ say it is no worse.
 PIQ_VIDEO=<video> python -m pitchiq.balltrack.half <tag> <lo> <hi> [--workers 12]
 ```
 
-`half.py` runs the chain `hybrid.sh` runs on a window over a whole half: drun
+`half.py` runs the chain `hybrid.sh` runs on a window over a whole half: detect_candidates
 on the CPU in 5-minute chunks, each chunk (plus 300 frames of overlap) through
 the classifier, the shipped picks, TAPNext bridges, Hybrid 90 and the 3D chain,
 and the person detector on the GPU meanwhile. The pieces are stitched where
@@ -146,7 +146,7 @@ Built here, by the scripts that read them:
   `pitchiq/panning_camera.py` reads), and `homog/<tag>_ball3dd.npz` for the shipped picks.
 - The ball on the pitch: `homog/<tag>_ballsb.npz` and `.csv` (`vballsb.py`).
 - A half's working state: `half/<tag>/` (stage markers, seams, log) and
-  drun's `*_kNNN.json` chunk manifests; the players in `plab/out/`.
+  detect_candidates's `*_kNNN.json` chunk manifests; the players in `plab/out/`.
 - Every video (`*.mp4`, `*.webm`), image and log, and the lab clip media.
 
 The registrations themselves, `homog/<tag>_reg.npz`, are small and are in git.

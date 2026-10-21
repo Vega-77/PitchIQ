@@ -1,7 +1,7 @@
 """Person boxes for every frame of a clip - context for the crop classifier.
 
 The pipeline's own detector (pitchiq/detector.py: YOLOv8n, COCO person class) run
-over the same frames drun.py scored, so each ball candidate can be placed
+over the same frames detect_candidates.py scored, so each ball candidate can be placed
 relative to the nearest player: on a head, at the feet, or clear of anyone.
 This is the first stage of player tracking and nothing more - boxes, no ids.
 
@@ -12,7 +12,7 @@ When the player lab has already detected people over the window
 boxes at conf >= 0.25 are used instead of a second pass: on fm01 they match
 this pass's to under 1 px (99.9%) and move one ball pick of 1801 by 3 px.
 
-Long windows run in drun's 5-minute chunks: each writes tagppl_k<chunk>.npz as
+Long windows run in detect_candidates's 5-minute chunks: each writes tagppl_k<chunk>.npz as
 it finishes, a rerun skips those, and the last step joins them.
 """
 
@@ -24,7 +24,7 @@ import cv2
 import numpy as np
 
 from . import config
-from .drun import chunk_edges
+from .detect_candidates import chunk_edges
 from pitchiq.detector import PersonBallDetector
 
 S2 = os.path.dirname(os.path.abspath(__file__))

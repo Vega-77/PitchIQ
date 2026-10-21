@@ -9,7 +9,7 @@
 
 -r requirements.txt
 
-# the candidate ranker (rank6.model.json), in drun.py and dense.py
+# the candidate ranker (rank6.model.json), in detect_candidates.py and reference/single_process_run.py
 xgboost==3.4.0
 # plots: pitchiq/experiments/halves.py
 matplotlib==3.11.1

@@ -4,7 +4,7 @@ PIQ_VIDEO        the match video every stage reads (default: the scrimmage file
                  in Downloads)
 PIQ_LEGACY_SP    a copy of the first labelling round's scratchpad (label/manifest.json,
                  clips/); only the legacy training scripts read it
-PIQ_WORKERS      detector processes for one window (run.sh, drun.py); default 8.
+PIQ_WORKERS      detector processes for one window (run.sh, detect_candidates.py); default 8.
                  Each holds ~388 MiB of VRAM for its CUDA context, so 16 pages.
 PIQ_HALF_WORKERS detector processes for a whole half (half.py); default 12
 """

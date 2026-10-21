@@ -2,7 +2,7 @@
 
     PIQ_VIDEO=<video> python -m pitchiq.balltrack.rereg <tag> <lo> <hi> [--lanes 3] [--prev DIR]
 
-half.py from scratch would also redo drun, the classifier and the players (their chunk parts
+half.py from scratch would also redo detect_candidates, the classifier and the players (their chunk parts
 are merged and gone, so it detects every frame again), none of which reads the registration.
 Here, per piece: the new registration cut to its window (Half.registration, as build does),
 the shipped chain, TAPNext bridges, the hybrid, then the stitch, the same commands half.py

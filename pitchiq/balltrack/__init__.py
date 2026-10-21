@@ -10,7 +10,7 @@ README.md says what each script does and in what order the shipping chain runs t
 
 
 def script(name):
-    """`-m` and the module of tracker script `name` ('drun', 'homog.vballsb').
+    """`-m` and the module of tracker script `name` ('detect_candidates', 'homog.vballsb').
 
     How one script runs another: [sys.executable, '-W', 'ignore'] + script(name) + args.
     """

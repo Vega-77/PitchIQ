@@ -1,6 +1,6 @@
-"""One GPU matcher for the whole drun pool, instead of one per worker.
+"""One GPU matcher for the whole detect_candidates pool, instead of one per worker.
 
-Every drun worker used to build its own gpu_matcher.Matcher, which costs each
+Every detect_candidates worker used to build its own gpu_matcher.Matcher, which costs each
 process a CUDA context: ~388 MiB of the card and ~1.4 GB of host commit
 (a worker commits 2.36 GB with it, 0.91 GB without).  The card is only a
 quarter busy (cuda-context notes), so the contexts, not the arithmetic, are

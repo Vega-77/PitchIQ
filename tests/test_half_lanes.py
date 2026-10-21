@@ -44,7 +44,7 @@ def run(tmp_path, monkeypatch):
     h = half.Half('t', 0, 4 * 9000 - 1, 6, 300)
     h.dir = str(tmp_path)
     h.say = lambda msg: None
-    h.drun_res = lambda a, b: []
+    h.detector_res = lambda a, b: []
     h.dets_ready = lambda a, b: all(c in dets for c, d in h.chunks if not (d < a or c > b))
     for stage in ('build', 'classify', 'shipped', 'bridges', 'hybrid'):
         monkeypatch.setattr(h, stage, lambda p, stage=stage: rec(stage, p['ptag']))

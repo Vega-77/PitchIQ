@@ -34,7 +34,7 @@ boundaries).  When a chunk's last worker returns, <tag>_k<chunk>.json records
 its part files; a rerun of the same command skips every chunk with a complete
 manifest, so a crash or a reboot costs at most the chunks in flight.
 
-    python -m pitchiq.balltrack.drun <lo> <hi> [procs] [tag]
+    python -m pitchiq.balltrack.detect_candidates <lo> <hi> [procs] [tag]
 """
 
 import io
@@ -284,7 +284,7 @@ def merge(tag, lo, hi, res):
         parts.extend(r['parts'])
     F, X, Y, S, FR, NCn, HW, HS = [], [], [], [], [], [], [], []
     # Parts are kept to lo..hi, so a window cut from finished chunks (half.py's
-    # pieces) is exactly what drun over that window would have written.
+    # pieces) is exactly what detect_candidates over that window would have written.
     for name in parts:
         z = np.load(os.path.join(S2, name))
         m = (z['f'] >= lo) & (z['f'] <= hi)
