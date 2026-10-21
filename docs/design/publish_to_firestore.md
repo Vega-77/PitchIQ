@@ -54,7 +54,7 @@ standing beside the two nulls it was supposedly derived from — a trap
 for whoever reads it next, in exchange for a number already on the
 document twice over.
 
-### `merge_tracks`
+### `merge_track_stats`
 
 Until 2026-08-17 this function did not exist and the loop below wrote one
 document per *cluster*. Two fragments of the same player meant two writes to

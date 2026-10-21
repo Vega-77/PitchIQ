@@ -28,7 +28,7 @@ from pitchiq.publish_to_firestore import (
     MAX_PARTICIPANT_NOTES,
     events_payload,
     identity_payload,
-    merge_tracks,
+    merge_track_stats,
     thumbs_payload,
     participant_notes,
     player_report_fields,
@@ -524,7 +524,7 @@ class TestOnePlayerSeveralFigures:
         report carries the two halves of the fraction and not the fraction —
         see `player_report_fields`. Every page divides them itself.
         """
-        merged = merge_tracks(self.two_fragments())
+        merged = merge_track_stats(self.two_fragments())
         assert merged['pass_accuracy'] == pytest.approx(26 / 35)
         _, fields = self.published()
         assert fields[f'{CV_FIELD_PREFIX}PassesAttempted'] == 35
@@ -546,26 +546,26 @@ class TestOnePlayerSeveralFigures:
         tracks = self.two_fragments()
         for track in tracks:
             track['accelerations'] = None
-        merged = merge_tracks(tracks)
+        merged = merge_track_stats(tracks)
         assert merged['accelerations'] is None
 
     def test_one_fragment_answering_is_enough(self):
         tracks = self.two_fragments()
         tracks[0]['accelerations'] = None
         tracks[1]['accelerations'] = 4
-        assert merge_tracks(tracks)['accelerations'] == 4
+        assert merge_track_stats(tracks)['accelerations'] == 4
 
     def test_grids_of_different_shapes_are_no_grid(self):
         """Every heatmap comes from the same `Pitch`, so a mismatch means two
         runs got mixed. Half a heatmap is worse than none."""
         tracks = self.two_fragments()
         tracks[1]['heatmap'] = [[1.0, 2.0, 3.0]]
-        assert merge_tracks(tracks)['heatmap'] is None
+        assert merge_track_stats(tracks)['heatmap'] is None
 
     def test_one_figure_is_passed_through_untouched(self):
         """The overwhelmingly common case, and it must not go near the merge."""
         one = self.two_fragments()[0]
-        assert merge_tracks([one]) is one
+        assert merge_track_stats([one]) is one
 
 
 class TestPayloads:

@@ -8,8 +8,8 @@ another's work and could not be undone.
 
 That makes the merge arithmetic real, and it exists twice:
 
-    shared/report.js   cvStatsByPlayer()  — the coach's match view
-    pitchiq/publish_to_firestore.py      merge_tracks()     — the student's own report
+    shared/report.js                 cvStatsByPlayer()    — the coach's match view
+    pitchiq/publish_to_firestore.py  merge_track_stats()  — the student's own report
 
 Neither reads the other. They are the same player's afternoon rendered on two
 screens, and until 2026-08-17 the Python side did not merge at all: it wrote one
@@ -36,7 +36,7 @@ from pathlib import Path
 
 import pytest
 
-from pitchiq.publish_to_firestore import merge_tracks, player_report_fields
+from pitchiq.publish_to_firestore import merge_track_stats, player_report_fields
 
 REPO = Path(__file__).resolve().parents[1]
 JS_REPORT = REPO / 'shared' / 'report.js'
@@ -167,7 +167,7 @@ def from_browser(tracks: list[dict], mapping: dict[str, str]) -> dict:
 
 @pytest.fixture(scope='module')
 def both():
-    return merge_tracks(FRAGMENTS), from_browser(FRAGMENTS, MAPPING)
+    return merge_track_stats(FRAGMENTS), from_browser(FRAGMENTS, MAPPING)
 
 
 @pytest.mark.parametrize('field', COMPARED)
@@ -203,7 +203,7 @@ def test_a_question_no_fragment_answered_is_unanswered_on_both():
     them reaching for a zero.
     """
     fragments = [dict(f, accelerations=None) for f in FRAGMENTS]
-    assert merge_tracks(fragments)['accelerations'] is None
+    assert merge_track_stats(fragments)['accelerations'] is None
     assert from_browser(fragments, MAPPING).get('accelerations') is None
 
 

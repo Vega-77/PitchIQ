@@ -538,7 +538,7 @@ SUMMED_FIELDS = (
 MAXED_FIELDS = ('top_speed_kmh', 'position_noise_m', 'top_acceleration_ms2')
 
 
-def merge_tracks(tracks: list[dict]) -> dict:
+def merge_track_stats(tracks: list[dict]) -> dict:
     """Several tracked fragments of one person, added up as one person.
 
     A player is legitimately several clusters. The tracker loses people when
@@ -665,7 +665,7 @@ def publish(
 
     # Grouped by player before anything is written, so a student named as two
     # tracked figures gets one document holding both of them rather than two
-    # writes where the last one wins. See `merge_tracks`.
+    # writes where the last one wins. See `merge_track_stats`.
     tracks_for: dict[str, list[dict]] = {}
     for cluster_id, player_id in mapping.items():
         # The coach's way of saying a tracked figure is nobody — a referee, or
@@ -683,7 +683,7 @@ def publish(
         tracks_for.setdefault(player_id, []).append(track)
 
     for player_id, player_tracks in tracks_for.items():
-        track = merge_tracks(player_tracks)
+        track = merge_track_stats(player_tracks)
 
         report_ref = match_ref.collection('playerReports').document(player_id)
         # Update, never create: a report exists because a coach published the
