@@ -188,7 +188,9 @@ class Half:
             if chi < a or clo > b:
                 continue
             with np.load(L._part(self.tag, 'dets', clo, chi)) as d:
-                m = (d['conf'] >= 0.25) & (d['frame'] >= a) & (d['frame'] <= b)  # ppl.from_dets
+                m = (
+                    (d['conf'] >= 0.25) & (d['frame'] >= a) & (d['frame'] <= b)
+                )  # person_boxes.from_dets
                 F.append(d['frame'][m])
                 B.append(d['box'][m])
                 C.append(d['conf'][m])

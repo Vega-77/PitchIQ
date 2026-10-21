@@ -35,7 +35,7 @@ The `homog/` scripts read and write their files in `homog/` unless
 | step | script | writes |
 |---|---|---|
 | candidates: blob detector + xgboost ranker (`rank6.model.json`), about 40 per frame, plus camera pan | `detect_candidates.py` | `<tag>.npz`, `<tag>pan.npz` |
-| person boxes (the repo's YOLOv8n, via `pitchiq.detector`), used only as classifier context | `ppl.py` | `<tag>ppl.npz` |
+| person boxes (the repo's YOLOv8n, via `pitchiq.detector`), used only as classifier context | `person_boxes.py` | `<tag>ppl.npz` |
 | crop classifier log-odds on every candidate | `clsscore.py cls_B.pt` | `<tag>cls.npz` |
 | tracker: `ball_tracker.track_ball` on `0.75*p + 0.25*rank`, then `gapfill.fill` | `render_vid.py` | `<tag>.mp4` |
 

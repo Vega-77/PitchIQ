@@ -5,7 +5,7 @@ over the same frames detect_candidates.py scored, so each ball candidate can be 
 relative to the nearest player: on a head, at the feet, or clear of anyone.
 This is the first stage of player tracking and nothing more - boxes, no ids.
 
-    python -m pitchiq.balltrack.ppl <tag> [<tag> ...]     # lo/hi from tag.npz -> tagppl.npz
+    python -m pitchiq.balltrack.person_boxes <tag> [<tag> ...]     # lo/hi from tag.npz -> tagppl.npz
 
 When the player lab has already detected people over the window
 (plab/out/<tag>_dets.npz, the same YOLOv8n at 1280 down to conf 0.05), its

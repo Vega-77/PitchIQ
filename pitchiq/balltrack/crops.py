@@ -11,7 +11,7 @@ This script produces that dataset and nothing else.  For a chosen subset of
 frames it cuts a size x size BGR crop at native resolution around every
 candidate (zero-padded at the image border, never resized - the ball is small
 and interpolation is exactly what smears it into grass), and computes a short
-context vector against that frame's person boxes from ppl.py:
+context vector against that frame's person boxes from person_boxes.py:
 
     has_ppl    1 if <tag>ppl.npz exists at all, else 0 and the rest default
     n_people   boxes in the frame with conf >= 0.25
