@@ -1,7 +1,7 @@
 """Cache: for every scan2 row, the ground speed (SB/s) a slowing roll would need
 to explain its pixels, and that roll's trimmed px error.
 
-    python -m pitchiq.balltrack.homog.vrowspd [tag] [procs]  -> <tag>_rowspd.npy
+    python -m pitchiq.balltrack.homog.roll_speed_cache [tag] [procs]  -> <tag>_rowspd.npy
 
 Rows are independent, so they are split over processes; the output is the same
 whatever the count (8 by default)."""

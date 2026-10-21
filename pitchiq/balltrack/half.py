@@ -228,7 +228,7 @@ class Half:
             ('homog.ball_on_pitch', P),
             ('homog.image_track', P),
             ('homog.flight_scan', P, '16'),
-            ('homog.vrowspd', P),
+            ('homog.roll_speed_cache', P),
             ('homog.flight_chain', P),
         ):
             self.run(HOM, *cmd, log=log, env=ONE_THREAD)
