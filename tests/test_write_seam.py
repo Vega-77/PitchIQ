@@ -74,7 +74,7 @@ OPS = {
 # Paths whose rule grants no closed field set, with the reason it does not.
 # Checked backwards too: a path that grows a `hasOnly` has to leave this list.
 NO_ALLOWLIST = {
-    'teams/{}/matches/{}/playerReports/{}': 'merged with the cv-prefixed fields pitchiq/publish.py wrote through the '
+    'teams/{}/matches/{}/playerReports/{}': 'merged with the cv-prefixed fields pitchiq/publish_to_firestore.py wrote through the '
     'Admin SDK, so the merged result is not a set this file can know; '
     'capped by key count instead',
 }
@@ -901,7 +901,7 @@ def test_the_cleared_cv_fields_are_all_real(all_src):
     """And the other way: a name nobody writes is a null nobody needs.
 
     Three are deliberate — the heatmap, the attacking end and the calibration
-    error are written by `pitchiq/publish.py` and cleared only here. Every other
+    error are written by `pitchiq/publish_to_firestore.py` and cleared only here. Every other
     entry has to be a field this function actually produces.
     """
     nulled, written = cv_branches(all_src)
@@ -909,7 +909,7 @@ def test_the_cleared_cv_fields_are_all_real(all_src):
     stray = sorted(nulled - written - pipeline)
     assert not stray, (
         'CV_REPORT_KEYS lists %s, which cvReportFields never writes and '
-        'pitchiq/publish.py does not either' % stray
+        'pitchiq/publish_to_firestore.py does not either' % stray
     )
 
 

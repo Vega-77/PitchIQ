@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=139';
+} from '../assets/auth.js?v=140';
 import {
     createTeam, updateTeamKit, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../assets/db.js?v=139';
-import { nowIndex } from '../assets/timeline.js?v=139';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=139';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=139';
+} from '../assets/db.js?v=140';
+import { nowIndex } from '../assets/timeline.js?v=140';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=140';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=140';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=139';
+} from '../assets/sample-report.js?v=140';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=139';
-import { renderPassMap } from '../assets/pass-map.js?v=139';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=139';
+} from '../assets/passing.js?v=140';
+import { renderPassMap } from '../assets/pass-map.js?v=140';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=140';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=139';
-import { renderForms } from '../assets/form-chart.js?v=139';
+} from '../assets/season.js?v=140';
+import { renderForms } from '../assets/form-chart.js?v=140';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, hasVerdict, currentAnswers, xgTrust,
@@ -44,26 +44,26 @@ import {
     minutesNote, FROM_LAST_TAG, FULL_MATCH_MIN, matchBrief, cvReads,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=139';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=139';
-import { mountRail } from '../assets/rail.js?v=139';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=139';
-import { startMotion } from '../assets/motion.js?v=139';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=139';
-import { videoKind } from '../assets/video.js?v=139';
+} from '../assets/report.js?v=140';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=140';
+import { mountRail } from '../assets/rail.js?v=140';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=140';
+import { startMotion } from '../assets/motion.js?v=140';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=140';
+import { videoKind } from '../assets/video.js?v=140';
 import {
     byId, setText, toast, clockText, signed, plural, localDate,
     statCard, statGroup, fillStatGroup, figure, cardChips, timelineRow,
     minutesChart, stackBar, coverageStrip, kitPicker,
-} from '../assets/ui.js?v=139';
+} from '../assets/ui.js?v=140';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=139';
+} from './shell.js?v=140';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=139';
+} from './review.js?v=140';
 
 // ---------------------------------------------------------------- team setup
 
@@ -2722,7 +2722,7 @@ function playerTableRow(player, fullMinutes) {
  * So this is the step that turns tracked motion into a player's stats, and
  * nothing per-player is written until it is done. Read-only here: confirming a
  * mapping writes to cvStats, which every client is denied — the coach's choices
- * go back through pitchiq/publish.py. What this view does is make the mapping
+ * go back through pitchiq/publish_to_firestore.py. What this view does is make the mapping
  * possible to work out.
  */
 function renderClusterMapping() {
@@ -3761,7 +3761,7 @@ async function doSaveVideo() {
  * Hand the tagged log to the video pipeline, as a file.
  *
  * A file rather than the pipeline reading Firestore itself. The service account
- * pitchiq/publish.py uses bypasses every security rule, so the less it is allowed to
+ * pitchiq/publish_to_firestore.py uses bypasses every security rule, so the less it is allowed to
  * touch the better — it writes CV stats and nothing else, and giving it a read
  * path into a match would widen that for no gain. This runs as the coach, under
  * the rules, and the pipeline gets a plain list of events.

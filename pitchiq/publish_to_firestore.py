@@ -149,7 +149,7 @@ def _client(key_path: str | None = None):
     """A Firestore client from the service account, imported lazily.
 
     Lazily because `firebase-admin` is a publishing dependency, and importing
-    `pitchiq.publish` for its constants should not require it to be installed.
+    `pitchiq.publish_to_firestore` for its constants should not require it to be installed.
     """
     key = _check_key(key_path or os.environ.get('PITCHIQ_SA_KEY'))
 

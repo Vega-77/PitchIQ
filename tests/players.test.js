@@ -780,7 +780,7 @@ describe('cvReportFields', () => {
 
     test('the nulls reach the fields only the pipeline writes', () => {
         // The heatmap, the attacking end and the calibration error are written
-        // by pitchiq/publish.py after this document exists. Under a merge, nothing
+        // by pitchiq/publish_to_firestore.py after this document exists. Under a merge, nothing
         // else would ever clear them.
         const fields = report.cvReportFields(undefined);
         for (const key of ['cvHeatmap', 'cvAttackingEnd', 'cvCalibrationErrorM',

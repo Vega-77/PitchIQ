@@ -1,6 +1,6 @@
 """A field name assembled in Python, and the screen that has to spell it back.
 
-`pitchiq/publish.py` does not write its field names. It builds them:
+`pitchiq/publish_to_firestore.py` does not write its field names. It builds them:
 
     f'{CV_FIELD_PREFIX}TopSpeedKmh': track_stats.get('top_speed_kmh')
 
@@ -13,7 +13,7 @@ either side is invisible to every tool that works by matching text.
 Four places have to agree about these names, and no two of them can see each
 other:
 
-    pitchiq/publish.py    player_report_fields()   21 fields, prefix + suffix
+    pitchiq/publish_to_firestore.py    player_report_fields()   21 fields, prefix + suffix
     assets/report.js cvReportFields(stats)    23 fields, written out in full
     assets/report.js CV_REPORT_KEYS           26 names, the clearing list
     the pages        report.cvTopSpeedKmh     26 names, read off a document
@@ -78,7 +78,7 @@ from pathlib import Path
 
 import pytest
 
-from pitchiq.publish import player_report_fields
+from pitchiq.publish_to_firestore import player_report_fields
 from test_free_names import blank
 
 REPO = Path(__file__).resolve().parents[1]

@@ -812,7 +812,7 @@ class TestTiming:
         assert data['timing']['unaccounted_s'] == pytest.approx(5.0)
 
     def test_the_factor_sits_in_quality_where_the_app_reads_it(self):
-        # 30s of work over 15s of footage. `quality` is the block publish.py
+        # 30s of work over 15s of footage. `quality` is the block publish_to_firestore.py
         # forwards whole, which is how this reaches a coach's screen.
         data = self.timed(30.0).to_json()
         assert data['quality']['realtime_factor'] == pytest.approx(2.0)

@@ -11,7 +11,7 @@
 //
 //     It is a fixture, not a demo.
 //
-// The shapes below are copied from `pitchiq/publish.py` — `summary_payload` and
+// The shapes below are copied from `pitchiq/publish_to_firestore.py` — `summary_payload` and
 // `player_report_fields` — key for key. That is the whole point: when the first
 // real run lands, nothing needs to change for it to render, and if something
 // does, this file was wrong and the tests that read it should have said so.
@@ -170,7 +170,7 @@ const totalXg = (shots) =>
 
 // ------------------------------------------------------- the team document
 //
-// Key for key with `pitchiq/publish.py::summary_payload`. A key that exists there and
+// Key for key with `pitchiq/publish_to_firestore.py::summary_payload`. A key that exists there and
 // not here is a block this preview silently cannot check.
 
 /**
@@ -529,7 +529,7 @@ export function sampleCvSummary() {
 
 // ------------------------------------------------------ the player document
 //
-// Key for key with `pitchiq/publish.py::player_report_fields`.
+// Key for key with `pitchiq/publish_to_firestore.py::player_report_fields`.
 
 // ------------------------------------------------------ the passing network
 //

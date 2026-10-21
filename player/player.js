@@ -9,34 +9,34 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=139';
+import { onUser, signOut, configWarning } from '../assets/auth.js?v=140';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=139';
-import { CARD_COLOURS } from '../assets/events.js?v=139';
-import { mountRail } from '../assets/rail.js?v=139';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=139';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=139';
-import { startMotion } from '../assets/motion.js?v=139';
-import { renderHeatmap } from '../assets/heatmap.js?v=139';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=139';
+} from '../assets/db.js?v=140';
+import { CARD_COLOURS } from '../assets/events.js?v=140';
+import { mountRail } from '../assets/rail.js?v=140';
+import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=140';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=140';
+import { startMotion } from '../assets/motion.js?v=140';
+import { renderHeatmap } from '../assets/heatmap.js?v=140';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=140';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
     playerWobbleNote,
     minutesNote, seasonGroups, matchLine, FULL_MATCH_MIN, seasonMoments,
-} from '../assets/report.js?v=139';
+} from '../assets/report.js?v=140';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=139';
-import { renderForms } from '../assets/form-chart.js?v=139';
+} from '../assets/season.js?v=140';
+import { renderForms } from '../assets/form-chart.js?v=140';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=139';
-import { renderMatchVideo } from '../assets/match-video.js?v=139';
+} from '../assets/sample-report.js?v=140';
+import { renderMatchVideo } from '../assets/match-video.js?v=140';
 import {
     byId, setText, toast, showOnly, clockText, statCard, fillStatGroup,
     figure, cardChips, plural, minutesChart, tally, coverageStrip,
-} from '../assets/ui.js?v=139';
+} from '../assets/ui.js?v=140';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -506,7 +506,7 @@ function renderPlayerHeatmap(report) {
 function renderVideo(report) {
     const block = byId('md-video-block');
     const moments = (report.timeline || []).filter((e) => e.mine);
-    // Written by pitchiq/publish.py, and only for a player whose cluster a coach
+    // Written by pitchiq/publish_to_firestore.py, and only for a player whose cluster a coach
     // has confirmed — an unconfirmed one would put somebody else's touches on
     // this player's video.
     const touches = report.cvTouchTimes || [];

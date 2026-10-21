@@ -1,6 +1,6 @@
 """Nothing under `pitchiq/` is finished, tested, and connected to nothing.
 
-The audit that produced this file found `pitchiq/publish.py` — the last mile of the
+The audit that produced this file found `pitchiq/publish_to_firestore.py` — the last mile of the
 whole project, the code that puts numbers on a coach's screen — fully written,
 fully guarded and fully tested, with no way to run it. No `main`, no
 `__main__`, no caller outside `tests/`. The suite was green the entire time,

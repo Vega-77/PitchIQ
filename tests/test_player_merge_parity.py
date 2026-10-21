@@ -9,7 +9,7 @@ another's work and could not be undone.
 That makes the merge arithmetic real, and it exists twice:
 
     assets/report.js   cvStatsByPlayer()  — the coach's match view
-    pitchiq/publish.py      merge_tracks()     — the student's own report
+    pitchiq/publish_to_firestore.py      merge_tracks()     — the student's own report
 
 Neither reads the other. They are the same player's afternoon rendered on two
 screens, and until 2026-08-17 the Python side did not merge at all: it wrote one
@@ -36,7 +36,7 @@ from pathlib import Path
 
 import pytest
 
-from pitchiq.publish import merge_tracks, player_report_fields
+from pitchiq.publish_to_firestore import merge_tracks, player_report_fields
 
 REPO = Path(__file__).resolve().parents[1]
 JS_REPORT = REPO / 'assets' / 'report.js'

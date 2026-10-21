@@ -1,6 +1,6 @@
 """The step that had no way to be typed.
 
-`pitchiq/publish.py` has been guarded and tested since the pipeline started
+`pitchiq/publish_to_firestore.py` has been guarded and tested since the pipeline started
 producing reports, and had no entry point: no `main`, no `__main__`, and no
 caller anywhere outside `tests/`. Every piece worked and nothing called them,
 which is a shape a unit test cannot see by construction — the audit that found
@@ -9,7 +9,7 @@ it walked the call graph, not the coverage.
 So these tests are about the wrapper and only the wrapper: does it read the two
 file shapes a mapping actually arrives in, does it refuse the ways a person
 mistypes an argument, and does `--dry-run` write nothing. What gets written and
-what gets refused is `tests/test_publish.py`'s job, and duplicating it here
+what gets refused is `tests/test_publish_to_firestore.py`'s job, and duplicating it here
 would mean two files to change the day a rule does.
 
 Run:  .venv/Scripts/python.exe -m pytest tests/test_publish_report_cli.py -q
@@ -32,7 +32,7 @@ from pitchiq.experiments.publish_report import (
 
 
 def a_report(**extra) -> dict:
-    """Small, and the same shape `tests/test_publish.py` publishes."""
+    """Small, and the same shape `tests/test_publish_to_firestore.py` publishes."""
     return {
         **{
             'schema_version': 13,
@@ -200,7 +200,7 @@ class TestDryRun:
 
     def test_the_cvstats_documents_are_all_accounted_for(self, report_path):
         client = DryRunClient()
-        from pitchiq.publish import publish
+        from pitchiq.publish_to_firestore import publish
 
         publish(json.loads(report_path.read_text(encoding='utf-8')), 't', 'm', client=client)
         paths = [path for _, path, _ in client.writes]

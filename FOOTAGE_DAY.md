@@ -342,7 +342,7 @@ python -m pitchiq.experiments.publish_report \
 
 That needs no credential and writes nothing. Drop `--dry-run` to publish for
 real, which does need `PITCHIQ_SA_KEY` pointing at a service-account key
-**outside this repository** — `pitchiq/publish.py` refuses to run if the key is
+**outside this repository** — `pitchiq/publish_to_firestore.py` refuses to run if the key is
 inside the working tree, because a key committed to a repo that publishes to
 GitHub Pages is every team's data gone.
 

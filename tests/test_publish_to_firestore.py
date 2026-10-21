@@ -1,6 +1,6 @@
 """The guards on the one credential that bypasses every security rule.
 
-pitchiq/publish.py authenticates with a Firebase service account, which means the
+pitchiq/publish_to_firestore.py authenticates with a Firebase service account, which means the
 Firestore rules — the entire security boundary of an app holding minors' names
 and email addresses — simply do not apply to it. Nothing it does is checked by
 anything except this file.
@@ -13,14 +13,14 @@ that no coach published.
 The Firestore client is faked. It has to be — the real one would need a
 credential, and a test that needs a credential is a test nobody runs.
 
-Run:  .venv/Scripts/python.exe -m pytest tests/test_publish.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_publish_to_firestore.py -q
 """
 
 from __future__ import annotations
 
 import pytest
 
-from pitchiq.publish import (
+from pitchiq.publish_to_firestore import (
     CV_FIELD_PREFIX,
     PublishError,
     _check_key,
@@ -142,7 +142,7 @@ class TestKeyLocation:
         here is full read and write access to every team's data, for anyone who
         clones it, and nothing downstream would notice.
         """
-        from pitchiq.publish import REPO_ROOT
+        from pitchiq.publish_to_firestore import REPO_ROOT
 
         key = REPO_ROOT / 'accidentally-here.sa.json'
         key.write_text('{}', encoding='utf-8')
@@ -613,7 +613,7 @@ class TestPayloads:
         It travels in `thumbs` now rather than inside `identity`, so that a
         coach can delete the photographs of their players without destroying
         every statistic in the same document. See TestThePicturesAreKeptApart
-        below, and THUMBS_DOC in pitchiq/publish.py for why.
+        below, and THUMBS_DOC in pitchiq/publish_to_firestore.py for why.
         """
         report = a_report(
             clusters=[

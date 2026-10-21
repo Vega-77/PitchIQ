@@ -314,7 +314,7 @@ test('every match field the match pages read is one something writes', () => {
  * The mirror of the test above, and the harder direction of the same seam.
  * That one catches a read with no writer — a page asking a match document for
  * a field nothing ever fills in. This one catches a write with no reader: a
- * number computed in Python, serialised, carried through `pitchiq/publish.py` into
+ * number computed in Python, serialised, carried through `pitchiq/publish_to_firestore.py` into
  * a Firestore document every client downloads, and then drawn by nothing at
  * all.
  *
@@ -362,7 +362,7 @@ test('every match field the match pages read is one something writes', () => {
  * field is read off it, and a `.team` there has to be a `.team` on an event.
  */
 test('every figure the pipeline publishes is one some page reads', () => {
-    const payload = read('pitchiq/publish.py');
+    const payload = read('pitchiq/publish_to_firestore.py');
 
     // Every builder in the file, with where what it returns ends up. A new
     // payload added without a line here is the one gap this cannot see, so the
@@ -377,7 +377,7 @@ test('every figure the pipeline publishes is one some page reads', () => {
     const defined = [...payload.matchAll(/^def (\w+_payload|player_report_fields)\(/gm)]
         .map((match) => match[1]).sort();
     assert.deepEqual(defined, builders.map(([name]) => name).sort(),
-        'pitchiq/publish.py has gained or lost a payload builder — add it to the'
+        'pitchiq/publish_to_firestore.py has gained or lost a payload builder — add it to the'
         + ' table above, or this scan quietly stops covering it');
 
     const published = new Map();
@@ -402,7 +402,7 @@ test('every figure the pipeline publishes is one some page reads', () => {
     assert.ok(published.get('summary_payload').includes('keepers')
         && published.get('events_payload').includes('startM')
         && published.get('player_report_fields').includes('cvTouches'),
-        'the keys parsed out are not the ones pitchiq/publish.py publishes');
+        'the keys parsed out are not the ones pitchiq/publish_to_firestore.py publishes');
 
     // Whatever the site serves. The fixture is skipped on purpose: it writes
     // these keys rather than reading them, so counting it as a reader would
@@ -431,7 +431,7 @@ test('every figure the pipeline publishes is one some page reads', () => {
 
     // Five keys travel without a reader, and each is here because the reason
     // is worth stating rather than because the test was inconvenient. Three of
-    // them say so in `pitchiq/publish.py` already; this is where that claim stops
+    // them say so in `pitchiq/publish_to_firestore.py` already; this is where that claim stops
     // being a comment nobody rechecks.
     const unread = {
         // Provenance, and `summary_payload` says so itself: "No page branches
@@ -467,7 +467,7 @@ test('every figure the pipeline publishes is one some page reads', () => {
         }
     }
     assert.deepEqual(dead, [],
-        'pitchiq/publish.py publishes these and no page reads them:\n  '
+        'pitchiq/publish_to_firestore.py publishes these and no page reads them:\n  '
         + `${dead.join('\n  ')}`);
 
     // And the allowlist itself has to stay honest: a key that gains a reader,
@@ -669,7 +669,7 @@ test('every field the rules let a client write is one something reads', () => {
  */
 test('the sample summary carries the keys a published one does', async () => {
     const { sampleCvSummary } = await import('../assets/sample-report.js');
-    const payload = read('pitchiq/publish.py');
+    const payload = read('pitchiq/publish_to_firestore.py');
     const from = payload.indexOf('def summary_payload(');
     const body = payload.slice(from, payload.indexOf('\ndef ', from + 1));
     const published = [...body.matchAll(/^\s{8}'(\w+)':/gm)].map((m) => m[1]).sort();

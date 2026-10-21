@@ -4,7 +4,7 @@
 one some page reads. It does that over the top-level keys of the five payload
 builders, and for one of those keys the check is empty:
 
-    'quality': report_json.get('quality') or {},   # pitchiq/publish.py
+    'quality': report_json.get('quality') or {},   # pitchiq/publish_to_firestore.py
 
 One name, one reader, gate satisfied — and twenty-nine figures inside it that
 nothing has ever looked at, in either direction. That is not a hypothetical.
@@ -150,7 +150,7 @@ class TestForwarded:
         # If this stops being true — if summary_payload starts naming the
         # figures individually — then tests/smoke.test.js covers them and this
         # file is duplicated work rather than the only thing looking.
-        text = (ROOT / 'pitchiq' / 'publish.py').read_text(encoding='utf-8')
+        text = (ROOT / 'pitchiq' / 'publish_to_firestore.py').read_text(encoding='utf-8')
         assert "'quality': report_json.get('quality')" in text
 
 

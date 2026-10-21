@@ -4,7 +4,7 @@
 checks that some page reads each one. For four of those keys the check is
 empty, because the key is a whole block forwarded whole:
 
-    'keepers': report_json.get('keepers') or [],   # pitchiq/publish.py
+    'keepers': report_json.get('keepers') or [],   # pitchiq/publish_to_firestore.py
 
 One name, one reader, gate satisfied — and sixteen figures inside it that
 nothing has ever looked at in either direction. `tests/test_quality_seam.py`
@@ -223,7 +223,7 @@ class TestForwarded:
         # If this stops being true — if summary_payload starts naming the
         # figures individually — then tests/smoke.test.js covers them and this
         # file is duplicated work rather than the only thing looking.
-        text = (ROOT / 'pitchiq' / 'publish.py').read_text(encoding='utf-8')
+        text = (ROOT / 'pitchiq' / 'publish_to_firestore.py').read_text(encoding='utf-8')
         assert "'keepers': report_json.get('keepers')" in text
 
 

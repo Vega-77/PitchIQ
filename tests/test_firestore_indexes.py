@@ -33,7 +33,7 @@ Scope: this walks the same module directories `stamp_version.py` stamps, which
 is the whole browser surface as long as two neighbouring gates hold —
 `test_version_stamp.py` pins `MODULE_DIRS` against what is on disk and pins that
 no page carries an inline `<script type="module">` body. The only other code
-that talks to Firestore is `pitchiq/publish.py`, on the Admin SDK, and it is asserted
+that talks to Firestore is `pitchiq/publish_to_firestore.py`, on the Admin SDK, and it is asserted
 here to build no queries at all rather than left to be remembered.
 """
 
@@ -50,7 +50,7 @@ import stamp_version
 REPO = Path(__file__).resolve().parent.parent
 MODULE_DIRS = stamp_version.MODULE_DIRS
 INDEXES = REPO / 'firestore.indexes.json'
-ADMIN = REPO / 'pitchiq' / 'publish.py'
+ADMIN = REPO / 'pitchiq' / 'publish_to_firestore.py'
 
 # `in` and `array-contains-any` are disjunctions and `!=` is a range; all of
 # them constrain a field the same way for the purpose of counting dimensions.
@@ -247,7 +247,7 @@ class TestEveryCompoundQueryHasAnIndex(unittest.TestCase):
 
 class TestTheScannerReachesEverything(unittest.TestCase):
     def test_the_admin_sdk_still_builds_no_queries(self):
-        # pitchiq/publish.py is the only Firestore code outside the browser modules,
+        # pitchiq/publish_to_firestore.py is the only Firestore code outside the browser modules,
         # and it writes rather than reads. If that ever changes, its queries
         # need the same check and this scanner does not see Python.
         source = _read(ADMIN)

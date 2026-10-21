@@ -261,7 +261,7 @@ export function reviewedCorrections(events, review, clusters, byCluster) {
 }
 
 // Everything a player's report can hold from the video, including the four
-// fields `pitchiq/publish.py` writes and this module does not. Used to blank them
+// fields `pitchiq/publish_to_firestore.py` writes and this module does not. Used to blank them
 // all when a player has no confirmed mapping.
 //
 // It has to be a list rather than "whatever this function returns", because the
@@ -300,7 +300,7 @@ const CV_REPORT_KEYS = [
  *
  * `coverage` is optional and comes from the roster rather than the pipeline —
  * Python has no sub log and cannot compute it, which is why those fields have
- * no twin in `pitchiq/publish.py::player_report_fields`. Without it the report is
+ * no twin in `pitchiq/publish_to_firestore.py::player_report_fields`. Without it the report is
  * exactly what it was before, with the totals unqualified.
  *
  * `shotRows` is the coach's shot ledger. It is what carries a body-part tag

@@ -7,14 +7,14 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=139';
-import { EVENT_TYPES } from './events.js?v=139';
+import { db } from './firebase-init.js?v=140';
+import { EVENT_TYPES } from './events.js?v=140';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
     mappingWithout, positionOf, whistleFrom, minutesFrom, knownMinutes,
-} from './report.js?v=139';
+} from './report.js?v=140';
 
 export {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
@@ -847,7 +847,7 @@ export async function publishReports(teamId, matchId, match, team, players, scor
                     extra.cvShotRows || null,
                 ),
             },
-            // Merged, not overwritten. `pitchiq/publish.py` fills in the heatmap,
+            // Merged, not overwritten. `pitchiq/publish_to_firestore.py` fills in the heatmap,
             // the shot map's attacking end and the calibration error *after*
             // this document is created — a plain set() deleted all of them
             // every time a coach re-published, and nothing noticed because
@@ -1017,7 +1017,7 @@ export function seasonTotals(reports) {
 /**
  * What the video pipeline derived for a match, or null if it was never run.
  *
- * These documents are written by pitchiq/publish.py through the Admin SDK; the
+ * These documents are written by pitchiq/publish_to_firestore.py through the Admin SDK; the
  * security rules make them read-only to every client, so what comes back here
  * genuinely came from the pipeline rather than from somebody's browser.
  */
@@ -1028,7 +1028,7 @@ export async function readCvStats(teamId, matchId) {
         getDoc(doc(db, ...base, 'identity')),
         // A separate document so a coach can delete the pictures without
         // destroying a statistic, and absent whenever they have. See
-        // THUMBS_DOC in pitchiq/publish.py for why they are kept apart at all.
+        // THUMBS_DOC in pitchiq/publish_to_firestore.py for why they are kept apart at all.
         getDoc(doc(db, ...base, 'thumbs')).catch(() => null),
     ]);
     if (!summary.exists()) return null;

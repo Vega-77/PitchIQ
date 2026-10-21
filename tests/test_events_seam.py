@@ -440,7 +440,7 @@ def produced() -> dict[str, str]:
     spaces inside the returned dict, and a row's keys at sixteen, inside the
     list comprehension that builds each event.
     """
-    text = (ROOT / 'pitchiq' / 'publish.py').read_text(encoding='utf-8')
+    text = (ROOT / 'pitchiq' / 'publish_to_firestore.py').read_text(encoding='utf-8')
     body = text.split('def events_payload(', 1)[1]
     body = body.split('\ndef ', 1)[0]
     body = body.split('    return {', 1)[1]
@@ -517,7 +517,7 @@ class TestThePremiseHolds:
     """If any of this stops being true the file above is checking nothing."""
 
     def test_publish_writes_the_events_document(self):
-        text = (ROOT / 'pitchiq' / 'publish.py').read_text(encoding='utf-8')
+        text = (ROOT / 'pitchiq' / 'publish_to_firestore.py').read_text(encoding='utf-8')
         assert "EVENTS_DOC = 'events'" in text
         assert 'events_payload(report_json)' in text
 

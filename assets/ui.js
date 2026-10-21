@@ -5,9 +5,9 @@
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
-import { comparePair, verdict, COUNT, knownMinutes, FULL_MATCH_MIN } from './report.js?v=139';
-import { svgEl } from './svg.js?v=139';
-import { HOUSE_KIT, KIT_PRESETS, kitWarnings, normaliseHex } from './kit.js?v=139';
+import { comparePair, verdict, COUNT, knownMinutes, FULL_MATCH_MIN } from './report.js?v=140';
+import { svgEl } from './svg.js?v=140';
+import { HOUSE_KIT, KIT_PRESETS, kitWarnings, normaliseHex } from './kit.js?v=140';
 
 export const byId = (id) => document.getElementById(id);
 

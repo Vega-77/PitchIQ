@@ -486,7 +486,7 @@ def scan(
 
 
 def payload_keys():
-    text = (ROOT / 'pitchiq' / 'publish.py').read_text(encoding='utf-8')
+    text = (ROOT / 'pitchiq' / 'publish_to_firestore.py').read_text(encoding='utf-8')
     body = text.split('def identity_payload(', 1)[1].split('\ndef ', 1)[0]
     return re.findall(r"^ {8}'(\w+)':", body, re.M)
 
@@ -502,11 +502,11 @@ def _to_json_keys(path, cls):
 def _stripped(*tuples):
     """The field names `identity_payload` takes back off a row on its way out.
 
-    Read out of publish.py rather than restated here, so that a name added to
+    Read out of publish_to_firestore.py rather than restated here, so that a name added to
     one of those tuples cannot leave this probe measuring a document the seam
     stopped publishing.
     """
-    pub = (ROOT / 'pitchiq' / 'publish.py').read_text(encoding='utf-8')
+    pub = (ROOT / 'pitchiq' / 'publish_to_firestore.py').read_text(encoding='utf-8')
     out = set()
     for name in tuples:
         body = re.search(r'%s = \(([^)]*)\)' % name, pub).group(1)
@@ -605,7 +605,7 @@ def seen_clusters():
 
 @pytest.fixture(scope='module')
 def publish_source():
-    return (ROOT / 'pitchiq' / 'publish.py').read_text(encoding='utf-8')
+    return (ROOT / 'pitchiq' / 'publish_to_firestore.py').read_text(encoding='utf-8')
 
 
 class TestEveryPublishedFigureReachesAPage:

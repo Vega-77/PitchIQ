@@ -3,7 +3,7 @@
     python -m pitchiq.experiments.publish_report report.json --team T --match M
         [--mapping cvMapping.json] [--dry-run]
 
-`pitchiq/publish.py` is the last mile of this whole project: every number the
+`pitchiq/publish_to_firestore.py` is the last mile of this whole project: every number the
 pipeline works out is worth nothing until it is in Firestore where the app can
 read it. It has been written, guarded and tested since the day the pipeline
 started producing reports — and until now it had no way to be run. No `main`,
@@ -16,7 +16,7 @@ works, and nothing calls them.
 So this file is thin on purpose. It parses arguments, reads two JSON files,
 calls `publish` and prints what came back. Every decision that matters — which
 paths may be written, what happens without a confirmed mapping, refusing to
-create a player report — stays in `pitchiq/publish.py`, where it is tested.
+create a player report — stays in `pitchiq/publish_to_firestore.py`, where it is tested.
 
     Dry runs, and the one thing a dry run cannot tell you.
 
@@ -45,7 +45,7 @@ That is `publish`'s decision and this tool does not override it: an unconfirmed
 cluster is a guess about which child a set of numbers belongs to.
 
 The service-account key comes from `PITCHIQ_SA_KEY` and nowhere else. See
-`pitchiq/publish.py`'s module docstring for how to set it, and for why it must live
+`pitchiq/publish_to_firestore.py`'s module docstring for how to set it, and for why it must live
 outside this repository.
 """
 
@@ -56,7 +56,7 @@ import json
 import sys
 from pathlib import Path
 
-from pitchiq.publish import PublishError, publish
+from pitchiq.publish_to_firestore import PublishError, publish
 
 # What a dry run assumes about every mapped player, and the reason the count it
 # prints is an upper bound rather than a prediction.
@@ -219,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
             client=client,
         )
     except PublishError as exc:
-        # The refusals are the point of `pitchiq/publish.py`, and every one of them
+        # The refusals are the point of `pitchiq/publish_to_firestore.py`, and every one of them
         # says why. A traceback would bury that under a stack nobody needs.
         print(f'refused: {exc}', file=sys.stderr)
         return 1

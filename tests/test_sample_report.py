@@ -12,7 +12,7 @@ Python test dependency — and checks that every key a published report can carr
 is set somewhere in the fixture. Crude, and right for the failure it is
 guarding: a field added on one side and forgotten on the other.
 
-*Both* writers, which took a second pass to get right. `pitchiq/publish.py` writes 21
+*Both* writers, which took a second pass to get right. `pitchiq/publish_to_firestore.py` writes 21
 of the 26 `cv` fields; the coach's page adds the last five in `cvReportFields`
 on the way to Firestore, onto the same document, and for a long time this file
 compared against the Python half alone and read as though it covered the whole
@@ -31,7 +31,7 @@ from pathlib import Path
 import pytest
 
 from pitchiq.keeper import KeeperReport
-from pitchiq.publish import player_report_fields, summary_payload
+from pitchiq.publish_to_firestore import player_report_fields, summary_payload
 from pitchiq.report_json import TeamStats
 from test_free_names import blank
 
