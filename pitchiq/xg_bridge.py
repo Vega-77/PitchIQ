@@ -93,7 +93,7 @@ def shot_angle(location: np.ndarray) -> float:
     return float(np.arccos(np.clip(cos, -1, 1)))
 
 
-def in_shot_cone(point: np.ndarray, ball: np.ndarray) -> bool:
+def in_shot_cone_sb(point: np.ndarray, ball: np.ndarray) -> bool:
     """Barycentric test — is `point` inside ball -> post_L -> post_R?
 
     Ported from main.py so the pipeline counts defenders the same way the
@@ -131,7 +131,7 @@ def build_features(context: ShotContext, pitch: Pitch) -> dict[str, float]:
     defender_pressure = 0.0
     for defender in context.defenders_m:
         point = np.array(pitch.to_statsbomb(*defender, context.attacking_end))
-        if in_shot_cone(point, ball):
+        if in_shot_cone_sb(point, ball):
             defenders_in_cone += 1
             defender_pressure += 1.0 / (float(np.linalg.norm(point - ball)) + 1e-9)
 

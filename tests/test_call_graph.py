@@ -80,6 +80,11 @@ PENDING_BY_DESIGN = {
     'zone_grid': 'The full grid of pitch zones. The heatmap bins positions '
     'itself because it needs its own resolution; this exists for '
     'a zone-by-zone table that has not been designed.',
+    'in_shot_cone_m': 'Defender-between-shooter-and-goal test in metres, the '
+    'twin of xg_bridge.in_shot_cone_sb. For counting '
+    'defenders at event time without converting to StatsBomb '
+    'space; the only defender count today is the xG one, '
+    'which converts first and uses the StatsBomb copy.',
     # --- tracking and shape primitives
     'nearest_player': 'Closest tracked figure to the ball, in pixels. '
     '`pitchiq/touches.py` runs its own search because it also '

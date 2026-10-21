@@ -34,7 +34,7 @@ from pitchiq.zones import (
     in_final_third,
     in_goal_area,
     in_penalty_area,
-    in_shot_cone,
+    in_shot_cone_m,
     in_wide_channel,
     is_cross,
     is_progressive,
@@ -307,17 +307,17 @@ class TestDefensiveLine:
 
 class TestShotCone:
     def test_a_defender_on_the_line_of_the_shot_is_in_the_cone(self):
-        assert in_shot_cone(PITCH, (L - 5.0, MID_Y), (L - 20.0, MID_Y), 'right')
+        assert in_shot_cone_m(PITCH, (L - 5.0, MID_Y), (L - 20.0, MID_Y), 'right')
 
     def test_a_defender_behind_the_shooter_is_not(self):
-        assert not in_shot_cone(PITCH, (L - 30.0, MID_Y), (L - 20.0, MID_Y), 'right')
+        assert not in_shot_cone_m(PITCH, (L - 30.0, MID_Y), (L - 20.0, MID_Y), 'right')
 
     def test_a_defender_wide_of_the_cone_is_not(self):
-        assert not in_shot_cone(PITCH, (L - 5.0, 5.0), (L - 20.0, MID_Y), 'right')
+        assert not in_shot_cone_m(PITCH, (L - 5.0, 5.0), (L - 20.0, MID_Y), 'right')
 
     def test_the_cone_mirrors(self):
-        assert in_shot_cone(PITCH, (5.0, MID_Y), (20.0, MID_Y), 'left')
-        assert not in_shot_cone(PITCH, (5.0, MID_Y), (20.0, MID_Y), 'right')
+        assert in_shot_cone_m(PITCH, (5.0, MID_Y), (20.0, MID_Y), 'left')
+        assert not in_shot_cone_m(PITCH, (5.0, MID_Y), (20.0, MID_Y), 'right')
 
 
 class TestPitchSizeSensitivity:

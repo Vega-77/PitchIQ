@@ -24,7 +24,7 @@ from pitchiq.xg_bridge import (
     ShotContext,
     build_features,
     feature_vector,
-    in_shot_cone,
+    in_shot_cone_sb,
     shot_context_from_tracking,
 )
 
@@ -163,8 +163,8 @@ class TestDefenders:
 
     def test_cone_test_matches_the_training_definition(self):
         ball = np.array([100.0, 40.0])
-        assert in_shot_cone(np.array([110.0, 40.0]), ball)
-        assert not in_shot_cone(np.array([90.0, 40.0]), ball)
+        assert in_shot_cone_sb(np.array([110.0, 40.0]), ball)
+        assert not in_shot_cone_sb(np.array([90.0, 40.0]), ball)
 
 
 class TestKeeper:
