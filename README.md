@@ -23,8 +23,9 @@ own frame-to-pitch homography:
 - `cv/autocal.py` calibrates the camera from the match itself, using the
   paint plus SIFT between frames;
 - `cv/balltrack/homog/vreg.py` registers frames to a venue map;
-- landmark pins clicked on the camera's panorama on the calibrate page place
-  the pitch.
+- landmark pins clicked on the camera's panorama on the calibrate page can
+  place the pitch instead (the pin solve that reads them, `pin_cal.py`, is not
+  in the repo yet).
 
 The ball comes from the Hybrid 90 tracker in `cv/balltrack/`, and
 `PannedCamera` moves everything into one still reference view. After that,
@@ -39,9 +40,10 @@ report = analyse_match(video, panned=camera, start_s=..., end_s=...)
 ```
 
 `from_tracker` reads files that `sh cv/balltrack/hybrid.sh <lo> <hi> <tag>`
-writes. They are generated outputs, not in git (see
-`cv/balltrack/README.md`, "Generated, not in git"). Accuracy figures for the
-tracker are in that README too.
+(one window) or `cv/balltrack/half.py` (a whole half) writes. They are
+generated outputs, not in git (see `cv/balltrack/README.md`, "Generated, not
+in git"). Accuracy figures for the tracker are in that README too, and
+`FOOTAGE_DAY.md` ("Fixed or panning") sets out which pipeline a camera needs.
 
 ## Repo map
 

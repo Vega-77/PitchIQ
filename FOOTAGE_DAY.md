@@ -54,10 +54,14 @@ Cropping and upscaling do not bring it back — those pixels were never recorded
 
 - **Pitch fills most of the frame.** The test is whether jersey numbers are
   faintly legible. If they are not, the ball is not there either.
-- **The camera does not move.** Fixed on a tripod, not handheld, and **not
-  auto-tracking**. Two reasons: a panning camera breaks the one-time homography,
-  so the calibration would have to be redone every frame; and the auto-tracking
-  camera we tested lost the ball for **12 seconds at a stretch** while chasing it.
+- **The camera stays where it is put.** A tripod, not handheld. A camera that
+  only turns on the spot (pan and tilt, as the Hudl camera does when it follows
+  the play) is fine now: the panning pipeline gives every frame its own
+  calibration (see "Fixed or panning" below). What breaks both pipelines is a
+  camera that is *carried* to a new spot mid-half. A fixed shot is still the
+  cheaper one: one calibration, minutes of work instead of hours, and no ball
+  lost off the edge of a frame that is chasing it (the auto-tracking camera we
+  first tested lost it for **12 seconds at a stretch**).
 - **Elevated, if there is any choice.** Higher is better for the homography —
   players overlap less and the ground plane is better conditioned. A press box or
   a stand beats standing on the touchline.
@@ -73,24 +77,37 @@ Cropping and upscaling do not bring it back — those pixels were never recorded
 The wide stadium rig is a once-a-season venue for this team. Design for the
 tighter position, which is what almost every game actually uses.
 
-### If it is the Hudl camera: two settings, and only one of them is a judgement call
+### Fixed or panning: the two pipelines
 
-**Turn "follow the play" off.** This is the default and it is the one thing
-that cannot be fixed afterwards. An auto-tracking camera is a moving camera, so
-every metre-space number in the system — distance, speed, shape, shots, xG —
-rests on a homography that stops being true the moment it pans. There is no
-setting on this laptop that recovers it, and re-deriving the homography per
-frame is a different project. This is also the camera that lost the ball for 12
-seconds at a stretch. A fixed wide shot with players too small is a footage
-problem we can measure and argue about; a moving shot is not usable footage at
-all.
+This section used to say a panning camera was unusable. It was, until the ball
+tracker in `cv/balltrack/` learnt to register every frame to the pitch
+(October 2026). Now there are two ways through, and the camera decides which.
 
-**A pan is camera motion too.** A slow manual sweep across the pitch is the same
-problem as the auto-tracker, just politely. What is wanted is a **static** wide
-shot — camera locked off, whole pitch in frame, nobody touching it. If a pan is
-the only way to prove the camera can see the whole pitch, fine: pan once to show
-the framing, then stop and let it run still for a few minutes. The still part is
-the part we can use.
+| | fixed camera | panning camera (Hudl "follow the play") |
+|---|---|---|
+| calibration | one frame, pinned on `calibrate/` (section 2) | from the match itself: `python -m cv.experiments.autocal_run nb1 7200 9000` (tag, first and last frame) |
+| ball | the pipeline's own detector | the Hybrid 90 tracker, `cv/balltrack/` |
+| players | `analyse_match` | `analyse_match`, after `PannedCamera` moves every box into one still view |
+| run | `python -m cv.experiments.event_report --video clips/first-half.mp4 --calibration clips/first-half.calib.json` (section 5) | `sh cv/balltrack/hybrid.sh <lo> <hi> <tag>` for a window or `python cv/balltrack/half.py <tag> <lo> <hi>` for a half, then `python -m cv.experiments.event_report --video clips/first-half.mp4 --panned nb1` |
+| cost on this laptop | minutes | hours of GPU per half |
+
+The panning pipeline's steps, what each writes and how good the ball is (its
+accuracy table, scored against hand marks) are in `cv/balltrack/README.md`;
+the `PannedCamera` usage is in the root `README.md` under "Two camera
+pipelines". Set `PIQ_VIDEO` to the match file for every tracker command: unset,
+it reads the scrimmage and says nothing.
+
+### If it is the Hudl camera
+
+**"Follow the play" can stay on.** It is a pan and tilt about one point, which
+is what the panning pipeline is built for. Two things still matter:
+
+- **The camera does not move house.** Pan, tilt and zoom are absorbed; the
+  tripod being picked up and carried is not. One position per game (both
+  halves) is what the calibration assumes.
+- **A ball the camera never framed is not in the file.** The tracker abstains
+  when it cannot see the ball rather than guess, and those gaps are the
+  camera's, not the tracker's.
 
 **Wide framing is the judgement call, and it is genuinely open.** Everything in
 the table above was measured on a 720p screen recording. A native Hudl export of

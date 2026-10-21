@@ -26,6 +26,52 @@ jersey numbers robustly in month 1.
 
 ---
 
+## Status (2026-10-20): the panning camera works
+
+The status block below (2026-08-17) was written when the only usable footage
+was a fixed camera and a panning one was called unusable. That has changed:
+the team's Hudl footage, which follows the play, now runs end to end.
+
+- **Calibration per frame.** `cv/autocal.py` calibrates the camera from the
+  match itself (paint and SIFT, no clicks; `python -m cv.experiments.autocal_run`),
+  and `cv/balltrack/homog/vreg.py` registers every frame to it. One camera
+  position per game; each half solves its own aim.
+- **The ball.** The Hybrid 90 tracker in `cv/balltrack/` (accepted 2026-10-03):
+  a detector + classifier tracker that owns every confident pick, with
+  TAPNext++ bridging gaps of 90 frames or fewer, then a 3D chain that tells
+  ground from air. `half.py` runs a whole half; `ballgate.py` blanks the
+  stretches where the classifier is lost.
+- **Into the pipeline.** `cv/panned.py` (`PannedCamera.from_tracker(tag)`)
+  moves every player box into one still reference view and hands
+  `analyse_match` the tracker's ball, so the fixed-camera pipeline runs
+  unchanged. `event_report` and `match_report` take `--panned <tag>`.
+- **Pins.** `calibrate/` is back in the site: landmark pins for a fixed frame
+  (fitted and checked live) or a panorama (for the pin solve).
+
+How good the ball is, from `cv/balltrack/README.md`:
+
+| | Ball Truth | wrong picks | Find the Ball | passes |
+|---|---|---|---|---|
+| Hybrid 90 + default 3D | 78 % | 6 | 36/47 | 14/16 |
+| cls_B tracker alone | 72 % | 4 | 34/47 | 14/16 |
+
+On the 18 held-out truth clips (269 hand marks, a pick right within 60 px):
+74 % on the first half's clips and 70 % on the second's, with 4 and 0 wrong
+picks. Almost every miss is an abstention, which is the intended failure: a
+wrong ball is worse than no ball.
+
+Open, in rough order:
+- The top-down map (players and ball on one pitch drawing) is the next
+  priority.
+- Night games: the floodlit second half loses the ball at every stage
+  (detector, ranker, classifier).
+- The pin solve (`pin_cal.py`) and the panorama builder live outside the repo.
+- A half takes hours of GPU on the RTX 4060 (`cv/balltrack/README.md`, speed).
+
+How to run it: `FOOTAGE_DAY.md`, "Fixed or panning", and the root `README.md`.
+
+---
+
 ## Current Status (2026-08-17)
 
 **Built and verified:**
