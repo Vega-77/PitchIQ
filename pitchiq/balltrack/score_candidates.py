@@ -4,7 +4,7 @@ candidate_crops.py stores pixels for a sample of frames, which is what training 
 Tracking needs a classifier score on every candidate of every frame, and
 storing 48x48 crops for 1200 frames x 40 candidates is ~330 MB a clip for
 numbers that are used once.  So this cuts the same crops (crops.cut, the
-same context vector from crops.context) and scores them in batches as the
+same context vector from candidate_crops.context) and scores them in batches as the
 video goes past, keeping only (f, j, p).
 
     python -m pitchiq.balltrack.score_candidates <model.pt> <tag> [<tag> ...]    # -> <tag>cls.npz
