@@ -48,15 +48,15 @@ BT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'ballt
 TOL = 15.0  # px at 1920x1080: the drawn ring's radius (14) plus one
 
 
-def rings(MV, tag, frames):
+def rings(match_video, tag, frames):
     """match_video.ball's image point and kind, at the given frames only (the whole half takes minutes)."""
-    tr = MV.V.Track(tag)
+    tr = match_video.V.Track(tag)
     a0 = int(tr.abs[0])
-    B = np.load(os.path.join(MV.HG, '%s_ball3dd.npz' % tag))
-    P = np.load(os.path.join(MV.HERE, 'evaluation', 'p2d', 'hyb90', '%s.npz' % tag))
+    B = np.load(os.path.join(match_video.HG, '%s_ball3dd.npz' % tag))
+    P = np.load(os.path.join(match_video.HERE, 'evaluation', 'p2d', 'hyb90', '%s.npz' % tag))
     air = (B['state'] == 'air') & np.isfinite(B['x'])
-    flash = MV.short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
-    flash |= MV.ballgate.lost(tag, a0, (P['src'] > 0) & np.isfinite(P['x']))
+    flash = match_video.short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
+    flash |= match_video.ballgate.lost(tag, a0, (P['src'] > 0) & np.isfinite(P['x']))
     out = {}
     for f in frames:
         i = f - a0
@@ -91,7 +91,7 @@ def main():
     by = defaultdict(list)
     for k, a in A.items():
         by[items[k]['half']].append((items[k]['f'], a, k))
-    from pitchiq.balltrack import match_video as MV
+    from pitchiq.balltrack import match_video
 
     out = {}
     for tag in sorted(by):
@@ -106,7 +106,7 @@ def main():
                 '%-8s %3d answered  %s  (no pass yet: not scored)' % (tag, len(by[tag]), dict(vals))
             )
             continue
-        at = rings(MV, tag, [f for f, _, _ in by[tag]])
+        at = rings(match_video, tag, [f for f, _, _ in by[tag]])
         ring, miss, wrong = [0, 0], [0, 0], []
         for f, a, k in sorted(by[tag]):
             if a['v'] not in ('ball', 'out'):

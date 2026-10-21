@@ -4,7 +4,7 @@ reference-plane coordinates.  -> vsegs.npz (k, p0, p1 in ref plane, len_px)"""
 import cv2
 import numpy as np
 
-from pitchiq import lines as L
+from pitchiq import lines
 from . import venue_features
 
 z = np.load('vmap.npz')
@@ -24,7 +24,7 @@ for k in range(0, len(z['abs']), 2):
     ok, im = cap.read()
     if not ok:
         continue
-    fm = cv2.erode(L.field_mask(im), np.ones((21, 21), np.uint8))
+    fm = cv2.erode(lines.field_mask(im), np.ones((21, 21), np.uint8))
     g = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     # thin-line response: pixels differing from a local median (paint of any colour)
     hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)

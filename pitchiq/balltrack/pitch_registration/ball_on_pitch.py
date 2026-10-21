@@ -12,7 +12,7 @@ import time
 import cv2
 import numpy as np
 
-from .. import render_review_video as RV
+from .. import render_review_video
 from . import draw_pitch_overlay
 
 from . import WORK as HERE
@@ -59,7 +59,7 @@ def main():
     tag = sys.argv[1]
     video = len(sys.argv) > 2 and sys.argv[2] == 'video'
     Hf = per_frame(tag)
-    by = RV.picks_for(tag)
+    by = render_review_video.picks_for(tag)
     rows = []
     for f in sorted(Hf):
         rec = by.get(f, {})
@@ -160,7 +160,7 @@ def render(tag, Hf, by):
         ball = None
         if rec.get('src'):
             ball = proj(Hf[f], np.array([[rec['x'], rec['y']]]))[0]
-            col = RV.GREEN if rec['src'] == 'track' else RV.ORANGE
+            col = render_review_video.GREEN if rec['src'] == 'track' else render_review_video.ORANGE
             c = (int(rec['x'] * sc), int(rec['y'] * sc))
             cv2.circle(im, c, 14, (0, 0, 0), 4, cv2.LINE_AA)
             cv2.circle(im, c, 14, col, 2, cv2.LINE_AA)
@@ -187,9 +187,25 @@ def render(tag, Hf, by):
         else:
             s = 'no ball chosen'
         cv2.putText(im, s, (mx0, my0 + 262), font, 0.5, (235, 235, 235), 1, cv2.LINE_AA)
-        cv2.putText(im, 'match %s' % RV.clock(f), (12, 30), font, 0.7, (0, 0, 0), 4, cv2.LINE_AA)
         cv2.putText(
-            im, 'match %s' % RV.clock(f), (12, 30), font, 0.7, (255, 255, 255), 1, cv2.LINE_AA
+            im,
+            'match %s' % render_review_video.clock(f),
+            (12, 30),
+            font,
+            0.7,
+            (0, 0, 0),
+            4,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            im,
+            'match %s' % render_review_video.clock(f),
+            (12, 30),
+            font,
+            0.7,
+            (255, 255, 255),
+            1,
+            cv2.LINE_AA,
         )
         vw.write(im)
         if (f - lo) % 1500 == 0:

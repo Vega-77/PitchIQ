@@ -19,9 +19,9 @@ import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from . import half as H
+from . import half
 
-DATA = os.path.join(os.path.dirname(H.REPO), 'PitchIQ-data', 'tnprev')
+DATA = os.path.join(os.path.dirname(half.REPO), 'PitchIQ-data', 'tnprev')
 
 
 def main():
@@ -33,18 +33,18 @@ def main():
     ap.add_argument(
         '--lanes',
         type=int,
-        default=H.LANES,
+        default=half.LANES,
         help='CPU jobs (shipped chain, hybrid) at a time (at most half.LANES)',
     )
     ap.add_argument('--prev', help='where the old bridges go (default PitchIQ-data/tnprev/<tag>)')
     a = ap.parse_args()
     # never more than half.py's lanes: each hybrid runs a 16-process scan, and at 3 lanes (ww1, ww2
     # 2026-10-15) the CPU jobs starved TAPNext (one piece's bridges took 8-10 min, then died silently)
-    a.lanes = min(a.lanes, H.LANES)
-    h = H.Half(a.tag, a.lo, a.hi, 0, a.overlap)
+    a.lanes = min(a.lanes, half.LANES)
+    h = half.Half(a.tag, a.lo, a.hi, 0, a.overlap)
     prev = a.prev or os.path.join(DATA, a.tag)
     os.makedirs(prev, exist_ok=True)
-    tn = os.path.join(H.AT, 'tn')
+    tn = os.path.join(half.AT, 'tn')
     h.say(
         'REREG %s  %d..%d  %d pieces, %d lanes, old bridges -> %s'
         % (a.tag, a.lo, a.hi, len(h.pieces), a.lanes, prev)
@@ -61,13 +61,13 @@ def main():
                 os.path.join(prev, 'bridges_%s.npy' % P)
             ):  # a restarted rerun keeps the first old copy
                 shutil.copy2(
-                    os.path.join(H.AT, 'p2d', 'cls_B', '%s.npz' % P),
+                    os.path.join(half.AT, 'p2d', 'cls_B', '%s.npz' % P),
                     os.path.join(prev, 'cls_B_%s.npz' % P),
                 )
                 shutil.move(b, os.path.join(prev, 'bridges_%s.npy' % P))
             else:
                 os.remove(b)
-        d3 = os.path.join(H.H3D, '%s_ball3dd.npz' % P)
+        d3 = os.path.join(half.H3D, '%s_ball3dd.npz' % P)
         if os.path.exists(d3):
             os.remove(d3)
     h.env['TN_PREV'] = prev

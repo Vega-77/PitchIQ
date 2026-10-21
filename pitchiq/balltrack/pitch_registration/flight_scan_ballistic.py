@@ -16,8 +16,8 @@ from multiprocessing import Pool
 import numpy as np
 from scipy.optimize import least_squares
 
-from . import flight_model as V
-from . import drag_flight as D
+from . import flight_model
+from . import drag_flight
 
 LENS = tuple(range(9, 76, 3))
 STEP = 2
@@ -31,15 +31,15 @@ FILL_MAX = 90  # frames: straight-line fallback across unexplained gaps
 def quick_fit(tr, a, b):
     idx = np.arange(a, b + 1)
     idx = idx[tr.has[idx]]
-    t = (idx - a) / V.FPS
-    T = (b - a) / V.FPS
+    t = (idx - a) / flight_model.FPS
+    T = (b - a) / flight_model.FPS
     ga, gb = tr.g[idx[0]], tr.g[idx[-1]]
     obs = tr.px[idx]
     lo = [-np.inf] * 4 + [-0.1, T * 0.8]
     hi = [np.inf] * 4 + [0.05, T + 0.15]
 
     def res(th):
-        return ((tr.project(idx, V.ballistic(th, t)) - obs) / V.SIG).ravel()
+        return ((tr.project(idx, flight_model.ballistic(th, t)) - obs) / flight_model.SIG).ravel()
 
     best = None
     for Tf, tau in ((T, 0.0), (T + 0.1, -0.05)):
@@ -56,14 +56,14 @@ def quick_fit(tr, a, b):
             best = s
     if best is None:
         return None
-    e = np.hypot(*(tr.project(idx, V.ballistic(best.x, t)) - obs).T)
+    e = np.hypot(*(tr.project(idx, flight_model.ballistic(best.x, t)) - obs).T)
     return best.x, float(np.sqrt(np.mean(e**2))), float(np.median(e))
 
 
 def roll_fit(tr, a, b):
     idx = np.arange(a, b + 1)
     idx = idx[tr.has[idx]]
-    t = (idx - a) / V.FPS
+    t = (idx - a) / flight_model.FPS
     Z = np.zeros_like(t)
     ONE = np.ones_like(t)
     Arow = np.stack([np.stack([ONE, Z, t, Z], 1), np.stack([Z, ONE, Z, t], 1)], 1)
@@ -81,8 +81,8 @@ def work(args):
     global _TR
     tag, starts = args
     if _TR is None:
-        _TR = V.Track(tag)
-        V.ground_all(_TR)
+        _TR = flight_model.Track(tag)
+        flight_model.ground_all(_TR)
     tr = _TR
     n = len(tr.abs)
     out = []
@@ -98,7 +98,7 @@ def work(args):
             if r is None:
                 continue
             th, rms, med = r
-            apex = V.G * th[5] ** 2 / 8
+            apex = flight_model.G * th[5] ** 2 / 8
             out.append((a, b, k, rms, med, apex, roll_fit(tr, a, b), *th))
     return out
 
@@ -134,13 +134,13 @@ def select(S):
 def main():
     tag = sys.argv[1]
     procs = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else 6
-    tr = V.Track(tag)
-    V.ground_all(tr)
+    tr = flight_model.Track(tag)
+    flight_model.ground_all(tr)
     n = len(tr.abs)
     starts = [a for a in range(0, n, STEP) if tr.has[a]]
     chunks = [(tag, starts[i :: procs * 4]) for i in range(procs * 4)]
     t0 = time.time()
-    sp = os.path.join(V.HERE, '%s_scan.npz' % tag)
+    sp = os.path.join(flight_model.HERE, '%s_scan.npz' % tag)
     if 'reuse' in sys.argv and os.path.exists(sp):
         S = np.load(sp)['S']
     else:
@@ -184,7 +184,7 @@ def refine(tr, a, b):
             aa, bb = a + da, b + db
             if aa < 0 or bb >= len(tr.abs) or not tr.has[aa] or not tr.has[bb]:
                 continue
-            th, e = D.fit(tr, aa, bb)
+            th, e = drag_flight.fit(tr, aa, bb)
             rms = float(np.sqrt(np.mean(e**2)))
             if da == 0 and db == 0:
                 base = rms
@@ -194,7 +194,7 @@ def refine(tr, a, b):
     lim = max(MAX_RMS, 1.2 * base)
     ok = [c for c in cands if c[0] <= lim]
     rms, aa, bb, th, n = max(ok, key=lambda c: (c[4], -c[0]))
-    P = D.drag(th, np.array([th[4], th[4] + th[5]]))
+    P = drag_flight.drag(th, np.array([th[4], th[4] + th[5]]))
     sb = tr.to_sb(P[:, :2])
     if not (
         (sb[:, 0] > -PITCH_SLACK)
@@ -203,7 +203,7 @@ def refine(tr, a, b):
         & (sb[:, 1] < 80 + PITCH_SLACK)
     ).all():
         return None
-    zmax = D.drag(th, th[4] + np.linspace(0, th[5], 60))[:, 2].max()
+    zmax = drag_flight.drag(th, th[4] + np.linspace(0, th[5], 60))[:, 2].max()
     return dict(
         th=th,
         a=aa,
@@ -212,8 +212,8 @@ def refine(tr, a, b):
         rms=rms,
         take=P[0, :2],
         land=P[1, :2],
-        t_take=aa + th[4] * V.FPS,
-        t_land=aa + (th[4] + th[5]) * V.FPS,
+        t_take=aa + th[4] * flight_model.FPS,
+        t_land=aa + (th[4] + th[5]) * flight_model.FPS,
         apex=float(zmax),
     )
 
@@ -230,7 +230,7 @@ def per_frame(tr, tag, fl):
         b0 = int(np.ceil(r['t_land']))
         fr = np.arange(max(0, a0), min(n, b0 + 1))
         th = r['th']
-        P = D.drag(th, np.clip((fr - r['a']) / V.FPS, th[4], th[4] + th[5]))
+        P = drag_flight.drag(th, np.clip((fr - r['a']) / flight_model.FPS, th[4], th[4] + th[5]))
         uv[fr] = P[:, :2]
         z[fr] = np.clip(P[:, 2], 0, None)
         state[fr] = 'air'
@@ -278,7 +278,7 @@ def per_frame(tr, tag, fl):
                     sb[k] = np.nan
         i = j
     np.savez(
-        os.path.join(V.HERE, '%s_ball3d.npz' % tag),
+        os.path.join(flight_model.HERE, '%s_ball3d.npz' % tag),
         abs=tr.abs,
         x=sb[:, 0],
         y=sb[:, 1],
@@ -286,12 +286,12 @@ def per_frame(tr, tag, fl):
         state=state,
     )
     np.savez(
-        os.path.join(V.HERE, '%s_flights.npz' % tag),
+        os.path.join(flight_model.HERE, '%s_flights.npz' % tag),
         F=np.array(rows),
         cols='take_abs,land_abs,take_x,take_y,land_x,land_y,apex_ch,rms_px',
     )
-    R = V.R_CH
-    with open(os.path.join(V.HERE, '%s_ball3d.csv' % tag), 'w') as fh:
+    R = flight_model.R_CH
+    with open(os.path.join(flight_model.HERE, '%s_ball3d.csv' % tag), 'w') as fh:
         fh.write('frame,ball_x_sb,ball_y_sb,height_circle_radii,state\n')
         for k in range(n):
 
@@ -314,7 +314,7 @@ def per_frame(tr, tag, fl):
         'flights: %d  (median %.1f s, apex median %.2f circle radii)'
         % (
             len(rows),
-            np.median([r[1] - r[0] for r in rows]) / V.FPS if rows else 0,
+            np.median([r[1] - r[0] for r in rows]) / flight_model.FPS if rows else 0,
             np.median([r[6] for r in rows]) / R if rows else 0,
         )
     )

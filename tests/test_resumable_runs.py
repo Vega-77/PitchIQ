@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from pitchiq.balltrack import detect_candidates
-from pitchiq.experiments import autocal_run as R
+from pitchiq.experiments import autocal_run
 
 
 # ---- detect_candidates chunks ---------------------------------------------------------------------
@@ -79,23 +79,25 @@ def stubbed(monkeypatch):
     monkeypatch.setenv('PIQ_VIDEO', 'v.mp4')
     monkeypatch.delenv('PIQ_LINES', raising=False)
     monkeypatch.setattr(
-        R, 'gather', lambda lo, hi, log: calls.append('gather') or dict(frames=[lo, hi])
+        autocal_run, 'gather', lambda lo, hi, log: calls.append('gather') or dict(frames=[lo, hi])
     )
     monkeypatch.setattr(
-        R,
+        autocal_run,
         'prep',
         lambda D, log: (
             calls.append('prep') or (dict(frames=D['frames']), np.zeros((2, 2, 3), np.uint8))
         ),
     )
     monkeypatch.setattr(
-        R,
+        autocal_run,
         'calibrate',
         lambda Q, cam, log: calls.append(('cal', cam)) or (np.ones(3), np.eye(3), 12.3, 7.5),
     )
-    monkeypatch.setattr(R, 'height', lambda tag, Q, cal, log: calls.append('height') or cal)
     monkeypatch.setattr(
-        R,
+        autocal_run, 'height', lambda tag, Q, cal, log: calls.append('height') or cal
+    )
+    monkeypatch.setattr(
+        autocal_run,
         'write',
         lambda tag, Q, pose, homog, log, paint=None, masks=None: calls.append('write') or {},
     )
@@ -103,41 +105,43 @@ def stubbed(monkeypatch):
 
 
 def test_a_rerun_skips_finished_stages(tmp_path, stubbed):
-    R.run('t', 0, 100, work=tmp_path, homog=tmp_path)
+    autocal_run.run('t', 0, 100, work=tmp_path, homog=tmp_path)
     assert stubbed == ['gather', 'prep', ('cal', None), 'height', 'write']
     stubbed.clear()
-    R.run('t', 0, 100, work=tmp_path, homog=tmp_path)
+    autocal_run.run('t', 0, 100, work=tmp_path, homog=tmp_path)
     assert stubbed == ['write']
 
 
 def test_redo_reruns_that_stage_and_everything_after(tmp_path, stubbed):
-    R.run('t', 0, 100, work=tmp_path, homog=tmp_path)
+    autocal_run.run('t', 0, 100, work=tmp_path, homog=tmp_path)
     stubbed.clear()
-    R.run('t', 0, 100, work=tmp_path, homog=tmp_path, redo='cal')
+    autocal_run.run('t', 0, 100, work=tmp_path, homog=tmp_path, redo='cal')
     assert stubbed == [('cal', None), 'height', 'write']
 
 
 def test_a_missing_stage_file_reruns_the_later_stages_too(tmp_path, stubbed):
-    R.run('t', 0, 100, work=tmp_path, homog=tmp_path)
+    autocal_run.run('t', 0, 100, work=tmp_path, homog=tmp_path)
     os.remove(tmp_path / 't' / 'prep.pkl')
     stubbed.clear()
-    R.run('t', 0, 100, work=tmp_path, homog=tmp_path)
+    autocal_run.run('t', 0, 100, work=tmp_path, homog=tmp_path)
     assert stubbed == ['prep', ('cal', None), 'height', 'write']
 
 
 def test_a_different_stretch_or_paint_is_refused_not_mixed(tmp_path, stubbed):
-    R.run('t', 0, 100, work=tmp_path, homog=tmp_path)
+    autocal_run.run('t', 0, 100, work=tmp_path, homog=tmp_path)
     with pytest.raises(SystemExit):
-        R.run('t', 0, 200, work=tmp_path, homog=tmp_path)
+        autocal_run.run('t', 0, 200, work=tmp_path, homog=tmp_path)
     with pytest.raises(SystemExit):
-        R.run('t', 0, 100, work=tmp_path, homog=tmp_path, lines='white')
-    R.run('t', 0, 200, work=tmp_path, homog=tmp_path, redo='gather')  # unless asked to start over
+        autocal_run.run('t', 0, 100, work=tmp_path, homog=tmp_path, lines='white')
+    autocal_run.run(
+        't', 0, 200, work=tmp_path, homog=tmp_path, redo='gather'
+    )  # unless asked to start over
 
 
 def test_a_borrowed_camera_solves_rotation_only(tmp_path, stubbed):
-    R.run('home', 0, 100, work=tmp_path, homog=tmp_path)
+    autocal_run.run('home', 0, 100, work=tmp_path, homog=tmp_path)
     stubbed.clear()
-    R.run('later', 500, 600, work=tmp_path, homog=tmp_path, camera='home')
+    autocal_run.run('later', 500, 600, work=tmp_path, homog=tmp_path, camera='home')
     assert stubbed[:2] == ['gather', 'prep']
     assert stubbed[2][0] == 'cal' and stubbed[2][1] is not None
     assert 'height' not in stubbed
@@ -146,21 +150,21 @@ def test_a_borrowed_camera_solves_rotation_only(tmp_path, stubbed):
 def test_no_video_no_run(monkeypatch):
     monkeypatch.delenv('PIQ_VIDEO', raising=False)
     with pytest.raises(SystemExit):
-        R._video()
+        autocal_run._video()
 
 
 # ---- player lab extract / features ------------------------------------------------------
 
 
 def test_player_lab_pieces_match_detector_chunks():
-    from pitchiq.experiments import player_lab as L
+    from pitchiq.experiments import player_lab
 
     for lo, hi in ((7200, 79200), (40500, 42299), (8999, 9000)):
-        assert L._chunks(lo, hi) == detect_candidates.chunk_edges(lo, hi)
+        assert player_lab._chunks(lo, hi) == detect_candidates.chunk_edges(lo, hi)
 
 
 def test_player_lab_saves_leave_no_half_written_file(tmp_path):
-    from pitchiq.experiments import player_lab as L
+    from pitchiq.experiments import player_lab
 
-    L._save_atomic(tmp_path / 'a.npz', x=np.arange(3))
+    player_lab._save_atomic(tmp_path / 'a.npz', x=np.arange(3))
     assert sorted(os.listdir(tmp_path)) == ['a.npz']

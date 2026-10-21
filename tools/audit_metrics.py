@@ -14,6 +14,8 @@ FILES = subprocess.check_output(['git', 'ls-files', '*.py']).decode().split()
 CORE = [f for f in FILES if re.fullmatch(r'pitchiq/[a-z_0-9]+\.py', f)]
 BALLTRACK = [f for f in FILES if f.startswith('pitchiq/balltrack/')]
 KEEP_ALIASES = {'np', 'pd', 'mp', 'plt', 'cv2'}
+# the community's own short names for these modules, so not counted either
+KEEP_PAIRS = {('torch.nn', 'nn'), ('torch.nn.functional', 'F'), ('networkx', 'nx')}
 
 
 def parse(path):
@@ -48,7 +50,11 @@ def short_aliases(paths):
         for node in ast.walk(parse(path)):
             if isinstance(node, (ast.Import, ast.ImportFrom)):
                 for alias in node.names:
-                    if alias.asname and len(alias.asname) < 3 and alias.asname not in KEEP_ALIASES:
+                    if not alias.asname or len(alias.asname) >= 3 or alias.asname in KEEP_ALIASES:
+                        continue
+                    module = getattr(node, 'module', None)
+                    full = f'{module}.{alias.name}' if module else alias.name
+                    if (full, alias.asname) not in KEEP_PAIRS:
                         found[path] += 1
     return found
 

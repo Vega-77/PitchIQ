@@ -36,7 +36,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from pitchiq import autocal as A
+from pitchiq import autocal
 
 REPO = Path(__file__).resolve().parents[2]
 WORK = REPO.parent / 'PitchIQ-data' / 'autocal'
@@ -100,7 +100,7 @@ def gather(lo: int, hi: int, log, workers: int = WORKERS) -> dict:
     frames = list(range(lo, hi + 1, STEP))
     n = len(frames)
     size = max(8, -(-n // (4 * workers)))
-    blocks = [(frames, s, min(s + size, n), A.LINES) for s in range(0, n, size)]
+    blocks = [(frames, s, min(s + size, n), autocal.LINES) for s in range(0, n, size)]
     packed, pairs = [], []
     for got_masks, got_pairs in _pool_map(_gather_block, blocks, workers):
         packed.extend(got_masks)
@@ -110,11 +110,11 @@ def gather(lo: int, hi: int, log, workers: int = WORKERS) -> dict:
     paint, amount = {}, []
     for k in range(n):
         m = masks[k]
-        paint[k] = A.paint_points(SimpleNamespace(mask=m, scale=0.5), 400, rng)
+        paint[k] = autocal.paint_points(SimpleNamespace(mask=m, scale=0.5), 400, rng)
         amount.append(int(m.sum()))
     links = []
     for i, j, got in pairs:
-        got = A.thin_link(got, rng=rng)
+        got = autocal.thin_link(got, rng=rng)
         if got is not None:
             links.append((i, j) + got)
     log('%d samples, %d links' % (n, len(links)))
@@ -127,15 +127,15 @@ def _gather_block(args):
     import cv2
 
     frames, s, e, lines = args
-    A.LINES = lines
+    autocal.LINES = lines
     cap = _video()
     sift = cv2.SIFT_create(nfeatures=3000)
     feats, masks = {}, []
     for k in range(s, min(e + 4, len(frames))):  # a link reaches 4 samples ahead
         im = _frame(cap, frames[k])
-        feats[k] = A.frame_features(im, sift)
+        feats[k] = autocal.frame_features(im, sift)
         if k < e:
-            m = A.paint_mask(im) > 0
+            m = autocal.paint_mask(im) > 0
             if m.shape != MASK_SHAPE:
                 raise SystemExit(
                     f'paint mask is {m.shape}, not {MASK_SHAPE}: not a 1920 x 1080 video'
@@ -146,7 +146,7 @@ def _gather_block(args):
         for d in (1, 2, 4):
             j = i + d
             if j < len(frames):
-                pairs.append((i, j, A.link_inliers(feats[i], feats[j])))
+                pairs.append((i, j, autocal.link_inliers(feats[i], feats[j])))
     return masks, pairs
 
 
@@ -160,7 +160,7 @@ class _Masks(Mapping):
     def __getitem__(self, k):
         if self.packed is None:
             self.cap = self.cap or _video()
-            return A.paint_mask(_frame(self.cap, self.frames[k]))
+            return autocal.paint_mask(_frame(self.cap, self.frames[k]))
         return np.unpackbits(self.packed[k], count=MASK_SHAPE[0] * MASK_SHAPE[1]).reshape(
             MASK_SHAPE
         )
@@ -191,13 +191,13 @@ def prep(D: dict, log, workers: int = WORKERS) -> tuple[dict, np.ndarray]:
         import multiprocessing as mp
 
         with mp.get_context('spawn').Pool(
-            min(workers, 15), initializer=A.focal_pool_init, initargs=(D['links'], n)
+            min(workers, 15), initializer=autocal.focal_pool_init, initargs=(D['links'], n)
         ) as pool:
-            f0 = A.best_focal(D['links'], n, pool=pool)
+            f0 = autocal.best_focal(D['links'], n, pool=pool)
     else:
-        f0 = A.best_focal(D['links'], n)
-    R, f = A.chain_rotations(D['links'], n, f0)
-    P = A.build_panorama(_Masks(D.get('masks'), D['frames']), R, f)
+        f0 = autocal.best_focal(D['links'], n)
+    R, f = autocal.chain_rotations(D['links'], n, f0)
+    P = autocal.build_panorama(_Masks(D.get('masks'), D['frames']), R, f)
     log(
         '%d samples, %d links, f0 %.0f, f %.0f..%.0f, pano %dx%d'
         % (n, len(D['links']), f0, f.min(), f.max(), P.paint.shape[1], P.paint.shape[0])
@@ -210,10 +210,12 @@ def prep(D: dict, log, workers: int = WORKERS) -> tuple[dict, np.ndarray]:
 
 def calibrate(Q: dict, camera: tuple | None, log) -> tuple:
     if camera is None:
-        got = A.calibrate_pano(Q['pano'], log=log)
+        got = autocal.calibrate_pano(Q['pano'], log=log)
     else:
         C, _R0, L, W = camera
-        got = A.calibrate_rotation(Q['pano'], np.asarray(C, float), A.PitchModel(L=L, W=W), log=log)
+        got = autocal.calibrate_rotation(
+            Q['pano'], np.asarray(C, float), autocal.PitchModel(L=L, W=W), log=log
+        )
     if got is None:
         raise SystemExit(
             'no halfway line and centre circle found: pick a stretch where the camera sees midfield'
@@ -268,8 +270,15 @@ def _whole(boxes: dict) -> dict:
 def height(tag: str, Q: dict, cal: tuple, log) -> tuple:
     C, R0, L, W = cal
     boxes = people(tag, Q['frames'], log)
-    C, R0, pm, _rows = A.height_from_people(
-        Q['pano'], Q['R'], Q['f'], np.asarray(C, float), R0, A.PitchModel(L=L, W=W), boxes, log=log
+    C, R0, pm, _rows = autocal.height_from_people(
+        Q['pano'],
+        Q['R'],
+        Q['f'],
+        np.asarray(C, float),
+        R0,
+        autocal.PitchModel(L=L, W=W),
+        boxes,
+        log=log,
     )
     log('C %s  W %.2f' % (np.round(C, 3), pm.W))
     return C, R0, pm.L, pm.W
@@ -292,13 +301,13 @@ def write(
     tied back to the pitch sample by sample (`autocal.anchor_chain`)."""
     C, R0, L, W = rig_pose
     C = np.asarray(C, float)
-    pm = A.PitchModel(L=L, W=W)
-    prim = A.Primitives(pm)
+    pm = autocal.PitchModel(L=L, W=W)
+    prim = autocal.Primitives(pm)
     if paint is None:
-        rig = A.Rig(C, np.array([R @ R0 for R in Q['R']]), Q['f'])
+        rig = autocal.Rig(C, np.array([R @ R0 for R in Q['R']]), Q['f'])
     else:
-        R2, f2, _ = A.anchor_chain(paint, Q['R'], Q['f'], C, R0, pm, log=log)
-        rig = A.Rig(C, R2, f2)
+        R2, f2, _ = autocal.anchor_chain(paint, Q['R'], Q['f'], C, R0, pm, log=log)
+        rig = autocal.Rig(C, R2, f2)
     n = len(Q['frames'])
     Hsb = np.array([rig.to_sb(k, pm) for k in range(n)])
 
@@ -386,7 +395,7 @@ def run(
         if redo != 'gather':
             raise SystemExit(f'{d} was run with other {changed}; pass --redo gather or another tag')
     _save(d / 'spec.pkl', spec)
-    A.LINES = spec['lines']
+    autocal.LINES = spec['lines']
     log(
         '%s %d..%d lines %s%s'
         % (tag, lo, hi, spec['lines'], ' camera from ' + camera if camera else '')

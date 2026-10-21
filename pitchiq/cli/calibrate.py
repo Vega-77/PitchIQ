@@ -214,17 +214,25 @@ def _print_verdict(calib: Calibration, fit_err, holdout) -> bool:
 
 def _non_standard_marks(pitch):
     """(label, "measured, Laws say x") for every marking that has moved."""
-    from pitchiq import pitch as P
+    from pitchiq.pitch import (
+        CENTRE_CIRCLE_RADIUS_M,
+        GOAL_AREA_LENGTH_M,
+        GOAL_AREA_WIDTH_M,
+        GOAL_WIDTH_M,
+        PENALTY_AREA_LENGTH_M,
+        PENALTY_AREA_WIDTH_M,
+        PENALTY_SPOT_M,
+    )
 
     rows = []
     for field_name, laws, label in (
-        ('penalty_area_length_m', P.PENALTY_AREA_LENGTH_M, 'penalty area depth'),
-        ('penalty_area_width_m', P.PENALTY_AREA_WIDTH_M, 'penalty area width'),
-        ('goal_area_length_m', P.GOAL_AREA_LENGTH_M, 'six-yard box depth'),
-        ('goal_area_width_m', P.GOAL_AREA_WIDTH_M, 'six-yard box width'),
-        ('penalty_spot_m', P.PENALTY_SPOT_M, 'penalty spot'),
-        ('goal_width_m', P.GOAL_WIDTH_M, 'goal width'),
-        ('centre_circle_radius_m', P.CENTRE_CIRCLE_RADIUS_M, 'centre circle'),
+        ('penalty_area_length_m', PENALTY_AREA_LENGTH_M, 'penalty area depth'),
+        ('penalty_area_width_m', PENALTY_AREA_WIDTH_M, 'penalty area width'),
+        ('goal_area_length_m', GOAL_AREA_LENGTH_M, 'six-yard box depth'),
+        ('goal_area_width_m', GOAL_AREA_WIDTH_M, 'six-yard box width'),
+        ('penalty_spot_m', PENALTY_SPOT_M, 'penalty spot'),
+        ('goal_width_m', GOAL_WIDTH_M, 'goal width'),
+        ('centre_circle_radius_m', CENTRE_CIRCLE_RADIUS_M, 'centre circle'),
     ):
         value = getattr(pitch, field_name)
         if abs(value - laws) > 1e-9:

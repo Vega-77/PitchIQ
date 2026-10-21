@@ -23,8 +23,8 @@ import time
 import numpy as np
 
 from . import ball_tracker
-from . import gap_fill as G
-from . import wm_cls as C
+from . import gap_fill
+from . import wm_cls
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 
@@ -63,12 +63,12 @@ def picks_for(tag):
     if os.environ.get('PIQ_P2D'):
         return saved_picks(os.environ['PIQ_P2D'], tag)
     F = ball_tracker.load_frames(tag)
-    C.attach(F, tag)
-    G.attach_pan(F, tag)
+    wm_cls.attach(F, tag)
+    gap_fill.attach_pan(F, tag)
     for fr in F:
         fr['s'] = A * fr['p'] + (1 - A) * fr['s0']
     base = ball_tracker.track_ball(F, return_drift=12.0, return_gate=2.0, **BASE)
-    out = G.fill(F, base)
+    out = gap_fill.fill(F, base)
     by = {}
     for fr, b, o in zip(F, base, out):
         top = int(np.argmax(fr['p']))

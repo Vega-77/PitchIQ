@@ -299,12 +299,12 @@ def runs_of(m):
 
 def main():
     tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
-    from .. import render_review_video as RV
+    from .. import render_review_video
 
     Z = np.load(os.path.join(HERE, '%s_ballsb.npz' % tag))
     ab = Z['abs']
     Hs = smooth_H(tag)
-    by = RV.picks_for(tag)
+    by = render_review_video.picks_for(tag)
     ix = np.array(
         [by.get(f, {}).get('x', np.nan) if by.get(f, {}).get('src') else np.nan for f in ab]
     )

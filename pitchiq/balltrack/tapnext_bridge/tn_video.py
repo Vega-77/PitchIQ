@@ -15,9 +15,9 @@ import time
 import cv2
 import numpy as np
 
-from .. import render_review_video as RV
+from .. import render_review_video
 from ..pitch_registration import draw_pitch_overlay
-from ..pitch_registration import flight_model as V
+from ..pitch_registration import flight_model
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
@@ -35,7 +35,7 @@ MY0 = RY + 4
 HT = RY + max(ZS, int(80 * MS) + 8) + 34
 HT += HT % 2
 SC = CW / 1920.0
-GREEN, FILLC = RV.GREEN, RV.ORANGE
+GREEN, FILLC = render_review_video.GREEN, render_review_video.ORANGE
 CYAN, ORANGE, WHITE, GREY, MAG = (
     (230, 200, 60),
     (40, 140, 255),
@@ -67,7 +67,7 @@ def ring(im, c, r, col, dashed=False):
 
 def per_frame():
     """Per frame of [LO, HI): image position (1920 px), colour, kind, SB spot for the map."""
-    tr = V.Track(TAG)
+    tr = flight_model.Track(TAG)
     A0 = int(tr.abs[0])
     Hs = np.load(os.path.join(HG, '%s_smooth.npz' % TAG))['H']
     n = HI - LO
@@ -87,7 +87,7 @@ def per_frame():
                 uv = q[:2] / q[2]
                 P = np.array([[uv[0], uv[1], B['z'][i]], [uv[0], uv[1], 0.0]])
                 b_, g_ = tr.project(np.full(2, i), P)
-                img[k], gnd[k], kind[k], hgt[k] = b_, g_, 'air', B['z'][i] / V.R_CH
+                img[k], gnd[k], kind[k], hgt[k] = b_, g_, 'air', B['z'][i] / flight_model.R_CH
             elif ours['src'][i]:
                 img[k] = ours['px'][i], ours['py'][i]
                 kind[k] = 'track' if ours['src'][i] == 1 else 'fill'
@@ -168,7 +168,7 @@ def main():
         im[TOP : TOP + CH] = cam
         # header
         text(im, title, (12, 31), 0.8, MAG if WHO == 'tn' else GREEN, 2)
-        text(im, 'match %s' % RV.clock(LO + k)[:5], (WD - 150, 31), 0.65, WHITE, 2)
+        text(im, 'match %s' % render_review_video.clock(LO + k)[:5], (WD - 150, 31), 0.65, WHITE, 2)
         msg = {
             'air': 'in the air, %.1f CR up' % hgt[k] if np.isfinite(hgt[k]) else 'in the air',
             'track': 'on the ground (tracked)',

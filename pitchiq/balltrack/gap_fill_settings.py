@@ -6,9 +6,9 @@ fill added and those the tracker already made.
 """
 
 from . import ball_tracker
-from . import gap_fill as G
-from . import wm_cls as C
-from . import wm_tune as U
+from . import gap_fill
+from . import wm_cls
+from . import wm_tune
 
 BASE = dict(off_score=-0.5, enter_cost=12.0, return_cost=6.0, skip_cost=4.0)
 A = 0.75
@@ -26,10 +26,10 @@ FILLS = [
 
 
 def main():
-    T, tags, F, idx = U.load_all()
+    T, tags, F, idx = wm_tune.load_all()
     for tag in tags:
-        C.attach(F[tag], tag)
-        G.attach_pan(F[tag], tag)
+        wm_cls.attach(F[tag], tag)
+        gap_fill.attach_pan(F[tag], tag)
         for fr in F[tag]:
             fr['s'] = A * fr['p'] + (1 - A) * fr['s0']
     base = {
@@ -38,11 +38,11 @@ def main():
     }
     halves = {'H1': {t for t in tags if int(t[2:]) < 9}, 'H2': {t for t in tags if int(t[2:]) >= 9}}
     for name, fc in FILLS:
-        p = base if fc is None else {t: G.fill(F[t], base[t], **fc) for t in tags}
+        p = base if fc is None else {t: gap_fill.fill(F[t], base[t], **fc) for t in tags}
         print('%-18s' % name)
         for h in ('H1', 'H2'):
-            r = G.score(T, F, idx, p, halves[h])
-            print('   %s %s  syn +%d/-%d' % (h, U.fmt(r), r['syn_right'], r['syn_wrong']))
+            r = gap_fill.score(T, F, idx, p, halves[h])
+            print('   %s %s  syn +%d/-%d' % (h, wm_tune.fmt(r), r['syn_right'], r['syn_wrong']))
 
 
 if __name__ == '__main__':

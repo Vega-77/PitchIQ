@@ -20,13 +20,13 @@ import os
 import numpy as np
 
 from . import ball_tracker
-from . import wm_score as W
+from . import wm_score
 
-TOL = W.TOL
+TOL = wm_score.TOL
 
 
 def load_all():
-    T = W.truth()
+    T = wm_score.truth()
     tags = sorted({t['clip'] for t in T})
     F = {tag: ball_tracker.load_frames(tag) for tag in tags}
     idx = {tag: {fr['abs']: k for k, fr in enumerate(F[tag])} for tag in tags}
@@ -102,7 +102,7 @@ def main():
         print('  TEST %-4s %s' % (test, fmt(r[test])))
     json.dump(
         [(cfg, {h: dict(c) for h, c in r.items()}) for cfg, r in res],
-        open(os.path.join(W.S2, 'wm_tune.json'), 'w'),
+        open(os.path.join(wm_score.S2, 'wm_tune.json'), 'w'),
     )
 
 

@@ -23,14 +23,14 @@ import cv2
 import numpy as np
 
 from . import ballgate, pitch_registration
-from . import render_review_video as RV  # clock
+from . import render_review_video  # clock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HG = os.path.join(HERE, 'h3d_hyb90')
 os.chdir(HG)  # draw_pitch_overlay reads its maps from the working folder
 pitch_registration.WORK = HG  # and flight_model from its work folder
 from .pitch_registration import draw_pitch_overlay  # noqa: E402
-from .pitch_registration import flight_model as V  # noqa: E402
+from .pitch_registration import flight_model  # noqa: E402
 
 WD = 720
 CW, CH = 720, 405
@@ -80,7 +80,7 @@ def ball(tag, lo, hi):
     """Per frame: image point, StatsBomb point, kind, ground point under an air ball.
     A ring that would show for under MIN_RUN frames is not drawn at all, nor any ball where
     ballgate finds the classifier lost."""
-    tr = V.Track(tag)
+    tr = flight_model.Track(tag)
     a0 = int(tr.abs[0])
     B = np.load(os.path.join(HG, '%s_ball3dd.npz' % tag))
     P = np.load(os.path.join(HERE, 'evaluation', 'p2d', 'hyb90', '%s.npz' % tag))
@@ -132,11 +132,11 @@ def kit_name(lab) -> str:
 
 
 def players(tag):
-    from pitchiq.experiments import player_lab as L
+    from pitchiq.experiments import player_lab
 
-    det, meta = L.load_detections(tag)
-    proj, pitch = L.projector(tag, meta['w'], meta['h'])
-    _, res = L.run_variant('A+B+C', det, meta, proj, pitch)
+    det, meta = player_lab.load_detections(tag)
+    proj, pitch = player_lab.projector(tag, meta['w'], meta['h'])
+    _, res = player_lab.run_variant('A+B+C', det, meta, proj, pitch)
     # which label is the black kit: the darker median shirt
     shade, shirt = {}, {}
     for t in ('team_a', 'team_b'):
@@ -183,14 +183,14 @@ def footprint(H):
 def pitch_map(tag, res, Hs, a0, lo, hi, settings=None):
     """pitchiq/topdown on this clip: everyone's feet in metres, every frame, guesses while unseen."""
     from pitchiq import topdown
-    from pitchiq.experiments import player_lab as L
+    from pitchiq.experiments import player_lab
     from pitchiq.pitchtrack import PitchProjector
 
-    _, pitch = L.projector(tag, 1920, 1080)
+    _, pitch = player_lab.projector(tag, 1920, 1080)
     D = np.diag([pitch.length_m / 120, pitch.width_m / 80, 1.0])
     proj = PitchProjector({f: D @ Hs[f - a0] for f in range(lo, hi)}, 1920, 1080)
-    Ai = np.linalg.inv(V.Track(tag).A)
-    ch_m = 9.15 / V.R_CH  # metres in one camera height (Track set this camera's)
+    Ai = np.linalg.inv(flight_model.Track(tag).A)
+    ch_m = 9.15 / flight_model.R_CH  # metres in one camera height (Track set this camera's)
 
     def person_px(fs, boxes):
         """Pixel height of a 1.75 m person standing at each box's feet (the camera's 3D model)."""
@@ -367,7 +367,7 @@ def main():
         text(
             im, '%s %d  %s %d' % (kits[DARK], n[DARK], kits[LIGHT], n[LIGHT]), (390, 30), 0.5, WHITE
         )
-        text(im, RV.clock(f)[:5], (WD - 72, 30), 0.65, WHITE, 2)
+        text(im, render_review_video.clock(f)[:5], (WD - 72, 30), 0.65, WHITE, 2)
         vw.write(im)
     vw.release()
     print(

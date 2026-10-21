@@ -2,10 +2,10 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from pitchiq import topdown as TD
+from pitchiq import topdown
 from pitchiq.linking import PLAYER
 
-S = TD.MapSettings()
+S = topdown.MapSettings()
 FPS = int(S.fps)
 
 
@@ -19,8 +19,8 @@ def track(fs, xy, sd=0.3):
 
 
 def run(T, *tracks, drift=None, s=S):
-    z, R, mask = TD._timeline(list(tracks), 0, T)
-    return TD.smooth(z, R, mask, s, drift)
+    z, R, mask = topdown._timeline(list(tracks), 0, T)
+    return topdown.smooth(z, R, mask, s, drift)
 
 
 def test_smoother_bridges_a_gap_along_the_run():
@@ -69,7 +69,7 @@ def test_one_wild_foot_is_not_followed():
 
 
 def visit(pid, first, last, start, end, k=0, group=('team_a', PLAYER)):
-    return TD._Visit(
+    return topdown._Visit(
         pid,
         k,
         group,
@@ -86,7 +86,7 @@ def test_chain_joins_a_player_who_leaves_and_comes_back():
     polys = [None] * (hi - lo)
     a = visit(1, 0, 10 * FPS, [20, 30], [20, 30])
     b = visit(2, 15 * FPS, hi - 1, [24, 32], [24, 32])
-    slots, left = TD.chain([a, b], polys, lo, hi, 1, S)
+    slots, left = topdown.chain([a, b], polys, lo, hi, 1, S)
     assert [[v.pid for v in r] for r in slots] == [[1, 2]] and not left
 
 
@@ -95,10 +95,10 @@ def test_chain_keeps_two_people_seen_together_apart():
     polys = [None] * (hi - lo)
     a = visit(1, 0, hi - 1, [20, 30], [20, 30])
     b = visit(2, 0, hi - 1, [60, 30], [60, 30])
-    slots, left = TD.chain([a, b], polys, lo, hi, 2, S)
+    slots, left = topdown.chain([a, b], polys, lo, hi, 2, S)
     assert sorted(v.pid for r in slots for v in r) == [1, 2] and all(len(r) == 1 for r in slots)
     # with one slot only, one of them is left over
-    slots, left = TD.chain([a, b], polys, lo, hi, 1, S)
+    slots, left = topdown.chain([a, b], polys, lo, hi, 1, S)
     assert len(slots) == 1 and len(left) == 1
 
 
@@ -108,7 +108,7 @@ def test_chain_prefers_the_return_that_fits():
     a = visit(1, 0, 10 * FPS, [20, 30], [20, 30])
     near = visit(2, 14 * FPS, hi - 1, [22, 31], [22, 31])
     far = visit(3, 14 * FPS, hi - 1, [50, 60], [50, 60])
-    slots, _ = TD.chain([a, near, far], polys, lo, hi, 2, S)
+    slots, _ = topdown.chain([a, near, far], polys, lo, hi, 2, S)
     runs = [[v.pid for v in r] for r in slots]
     assert [1, 2] in runs and [3] in runs
 
@@ -119,9 +119,9 @@ def test_chain_will_not_walk_a_guess_through_the_picture():
     seen_ground = np.array([[25.0, 20.0], [45.0, 20.0], [45.0, 40.0], [25.0, 40.0]])
     a = visit(1, 0, 10 * FPS, [20, 30], [20, 30])
     b = visit(2, 20 * FPS, hi - 1, [50, 30], [50, 30])
-    s = TD.MapSettings(view_cost=5.0)
-    walls = TD.chain([a, b], [seen_ground] * (hi - lo), lo, hi, 2, s)[0]
-    free = TD.chain([a, b], [None] * (hi - lo), lo, hi, 2, s)[0]
+    s = topdown.MapSettings(view_cost=5.0)
+    walls = topdown.chain([a, b], [seen_ground] * (hi - lo), lo, hi, 2, s)[0]
+    free = topdown.chain([a, b], [None] * (hi - lo), lo, hi, 2, s)[0]
     assert len(free) == 1 and len(walls) == 2
 
 
@@ -134,15 +134,15 @@ def test_a_blink_is_one_visit_unless_someone_was_seen_there():
     fs = np.r_[np.arange(0, 60), np.arange(70, 120)]
     xs = np.zeros((T, 4))
     xs[:, :2] = [30.0, 20.0]
-    assert len(TD.visits(ident(1), fs, xs, 0, S)) == 1
+    assert len(topdown.visits(ident(1), fs, xs, 0, S)) == 1
     others = {f: [(2, ('team_a', PLAYER), np.array([30.5, 20.0]))] for f in range(60, 70)}
-    assert len(TD.visits(ident(1), fs, xs, 0, S, others)) == 2
+    assert len(topdown.visits(ident(1), fs, xs, 0, S, others)) == 2
     # someone of the other team standing there is no reason to split
     others = {f: [(3, ('team_b', PLAYER), np.array([30.5, 20.0]))] for f in range(60, 70)}
-    assert len(TD.visits(ident(1), fs, xs, 0, S, others)) == 1
+    assert len(topdown.visits(ident(1), fs, xs, 0, S, others)) == 1
     # a long gap always splits
     fs = np.r_[np.arange(0, 30), np.arange(80, 120)]
-    assert len(TD.visits(ident(1), fs, xs, 0, S)) == 2
+    assert len(topdown.visits(ident(1), fs, xs, 0, S)) == 2
 
 
 def ghosts(T, seen_until, view=None, other=None):
@@ -158,7 +158,7 @@ def ghosts(T, seen_until, view=None, other=None):
         owner[1] = 8
     mask = owner >= 0
     groups = [('team_a', PLAYER)] * N
-    return TD._ghost_alpha(xs, Ps, owner, mask, np.ones((N, T)), groups, [view] * T, S)[0]
+    return topdown._ghost_alpha(xs, Ps, owner, mask, np.ones((N, T)), groups, [view] * T, S)[0]
 
 
 def test_guess_is_drawn_while_out_of_view():
@@ -182,7 +182,7 @@ def test_guess_fades_under_a_teammate_seen_on_it():
 
 
 def test_ghost_alpha_fades_with_doubt():
-    a = TD.ghost_alpha(np.array([0.0, 2.0, 8.0, 30.0]))
+    a = topdown.ghost_alpha(np.array([0.0, 2.0, 8.0, 30.0]))
     assert (np.diff(a) <= 0).all() and a[0] <= 0.9 and a[-1] >= 0.4
 
 
@@ -195,18 +195,20 @@ def test_team_velocity_is_the_mean_of_seen_teammates():
     mask = np.ones((3, T), dtype=bool)
     mask[1, :FPS] = False
     groups = [('team_a', PLAYER), ('team_a', PLAYER), ('team_b', PLAYER)]
-    v = TD._team_velocity(xs, mask, groups, S)
+    v = topdown._team_velocity(xs, mask, groups, S)
     a = v[('team_a', PLAYER)][:, 0] / S.team_drift
     assert abs(a[5] - 2.0) < 1e-6 and abs(a[-5] - 3.0) < 1e-6
     assert abs(v[('team_b', PLAYER)][T // 2, 0] / S.team_drift + 5.0) < 1e-6
     # the referee goes with everyone
-    assert ('', TD.REFEREE) in v
+    assert ('', topdown.REFEREE) in v
 
 
 def test_a_slot_hands_over_without_drawing_two_guesses():
     T = 200
-    old = TD.handover_share(0, 59, T, None, 120)  # seen 0-59, the slot's next segment starts at 120
-    new = TD.handover_share(120, 199, T, 59, None)
+    old = topdown.handover_share(
+        0, 59, T, None, 120
+    )  # seen 0-59, the slot's next segment starts at 120
+    new = topdown.handover_share(120, 199, T, 59, None)
     assert (old[:60] == 1).all() and (new[120:] == 1).all()
     both = (old > 0.02) & (new > 0.02)
     assert not both.any()  # never two dots for one slot
@@ -215,7 +217,7 @@ def test_a_slot_hands_over_without_drawing_two_guesses():
 
 
 def test_a_slot_with_one_segment_guesses_to_both_edges():
-    assert (TD.handover_share(50, 80, 120, None, None) == 1).all()
+    assert (topdown.handover_share(50, 80, 120, None, None) == 1).all()
 
 
 def _dots_for_cap(n_boxed, n_held, ghost_alphas, frame=5):
@@ -223,15 +225,15 @@ def _dots_for_cap(n_boxed, n_held, ghost_alphas, frame=5):
     held = SimpleNamespace(frames=np.array([frame - 3]))  # its box blinked out
     g = ('team_a', PLAYER)
     return (
-        [TD.Dot(1.0 * k, 0, True, 1.0, g, boxed, k) for k in range(n_boxed)]
-        + [TD.Dot(50.0 + k, 0, True, 1.0, g, held, -1) for k in range(n_held)]
-        + [TD.Dot(80.0, 0, False, a, g, None, 20 + k) for k, a in enumerate(ghost_alphas)]
+        [topdown.Dot(1.0 * k, 0, True, 1.0, g, boxed, k) for k in range(n_boxed)]
+        + [topdown.Dot(50.0 + k, 0, True, 1.0, g, held, -1) for k in range(n_held)]
+        + [topdown.Dot(80.0, 0, False, a, g, None, 20 + k) for k, a in enumerate(ghost_alphas)]
     )
 
 
 def test_the_map_never_draws_more_than_ten_of_a_team():
     res = SimpleNamespace(team_at=lambda ident, f: 'team_a')
-    out = TD.cap_teams(_dots_for_cap(9, 2, [0.3, 0.8]), res, 5, 10)
+    out = topdown.cap_teams(_dots_for_cap(9, 2, [0.3, 0.8]), res, 5, 10)
     drawn = [d for d in out if d.drawn_team == 'team_a']
     assert len(drawn) == 10
     # the faintest guesses go first, then a held dot is greyed; boxes stay
@@ -242,11 +244,11 @@ def test_the_map_never_draws_more_than_ten_of_a_team():
 
 def test_the_cap_leaves_a_legal_team_alone():
     res = SimpleNamespace(team_at=lambda ident, f: 'team_a')
-    out = TD.cap_teams(_dots_for_cap(8, 1, [0.5]), res, 5, 10)
+    out = topdown.cap_teams(_dots_for_cap(8, 1, [0.5]), res, 5, 10)
     assert len(out) == 10 and all(d.drawn_team == 'team_a' for d in out)
 
 
 def test_a_box_the_linker_greyed_stays_grey():
     res = SimpleNamespace(team_at=lambda ident, f: 'unknown')
-    out = TD.cap_teams(_dots_for_cap(3, 0, []), res, 5, 10)
+    out = topdown.cap_teams(_dots_for_cap(3, 0, []), res, 5, 10)
     assert all(d.drawn_team == 'unknown' for d in out)

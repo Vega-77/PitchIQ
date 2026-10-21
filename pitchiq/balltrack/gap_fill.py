@@ -30,8 +30,8 @@ import itertools
 import numpy as np
 
 from . import ball_tracker
-from . import wm_cls as C
-from . import wm_tune as U
+from . import wm_cls
+from . import wm_tune
 
 KX, KY = 'sx', 'sy'
 
@@ -83,7 +83,7 @@ def score(T, F, idx, picks, clips):
             c['none'] += 1
             continue
         x, y = xy(F[t['clip']][k], j)
-        if np.hypot(x - t['x'], y - t['y']) <= U.W.TOL:
+        if np.hypot(x - t['x'], y - t['y']) <= wm_tune.W.TOL:
             c['right'] += 1
             c['ok'] += 1
             c['syn_right'] += isinstance(j, tuple)
@@ -145,9 +145,9 @@ def fill(frames, picks, maxgap=32, rad0=20.0, rgrow=5.0, pmin=-99.0, ext=0, synt
 
 
 def main():
-    T, tags, F, idx = U.load_all()
+    T, tags, F, idx = wm_tune.load_all()
     for tag in tags:
-        C.attach(F[tag], tag)
+        wm_cls.attach(F[tag], tag)
         attach_pan(F[tag], tag)
     halves = {'H1': {t for t in tags if int(t[2:]) < 9}, 'H2': {t for t in tags if int(t[2:]) >= 9}}
     base_grid = dict(
@@ -205,14 +205,14 @@ def main():
     ):
         print('\n== %s' % name)
         cfg, r, al = max(pool, key=lambda z: obj(z[2]))
-        print('best-on-all %s\n  %s' % (cfg, U.fmt(al)))
+        print('best-on-all %s\n  %s' % (cfg, wm_tune.fmt(al)))
         for tune, test in (('H1', 'H2'), ('H2', 'H1')):
             cfg, r, al = max(pool, key=lambda z: obj(z[1][tune]))
             print('tuned on %s: %s' % (tune, cfg))
-            print('  tune %s %s' % (tune, U.fmt(r[tune])))
+            print('  tune %s %s' % (tune, wm_tune.fmt(r[tune])))
             print(
                 '  TEST %s %s  (synth right %d wrong %d)'
-                % (test, U.fmt(r[test]), r[test]['syn_right'], r[test]['syn_wrong'])
+                % (test, wm_tune.fmt(r[test]), r[test]['syn_right'], r[test]['syn_wrong'])
             )
 
 

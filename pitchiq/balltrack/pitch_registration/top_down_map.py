@@ -6,7 +6,7 @@ import sys
 import cv2
 import numpy as np
 
-from pitchiq import lines as L
+from pitchiq import lines
 from . import venue_features
 
 z = np.load('vmap.npz')
@@ -51,7 +51,7 @@ for k in sorted(G)[::every]:
     ok, im = cap.read()
     if not ok:
         continue
-    m = L.field_mask(im).astype(np.float32) / 255
+    m = lines.field_mask(im).astype(np.float32) / 255
     m[:300] = 0  # sky / far background
     M = T.dot(G[k])
     w = cv2.warpPerspective(m, M, size, flags=cv2.INTER_LINEAR)

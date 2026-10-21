@@ -31,7 +31,7 @@ NFEAT = 1500
 def work(frames):
     import cv2
 
-    from pitchiq import lines as L
+    from pitchiq import lines
 
     sift = cv2.SIFT_create(nfeatures=NFEAT)
     cap = cv2.VideoCapture(VIDEO)
@@ -41,7 +41,7 @@ def work(frames):
         ok, im = cap.read()
         if not ok:
             continue
-        m = cv2.erode(L.field_mask(im), np.ones((15, 15), np.uint8))
+        m = cv2.erode(lines.field_mask(im), np.ones((15, 15), np.uint8))
         kp, d = sift.detectAndCompute(cv2.cvtColor(im, cv2.COLOR_BGR2GRAY), m)
         if d is None:
             d = np.zeros((0, 128), np.float32)

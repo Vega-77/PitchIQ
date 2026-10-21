@@ -16,7 +16,7 @@ import time
 
 import numpy as np
 
-from . import candidate_crops as CR
+from . import candidate_crops
 from . import ball_tracker
 
 S2 = os.path.dirname(os.path.abspath(__file__))
@@ -31,7 +31,7 @@ def run(model, tag):
 
     t0 = time.time()
     frames = ball_tracker.load_frames(tag)
-    ppl = CR.load_ppl(tag)
+    ppl = candidate_crops.load_ppl(tag)
     has = ppl is not None
     N = sum(len(fr['s']) for fr in frames)
     F = np.empty(N, np.int32)
@@ -46,7 +46,7 @@ def run(model, tag):
         c = np.concatenate(buf_c)
         x = np.concatenate(buf_k)
         i = np.concatenate(buf_i)
-        P[i] = model.score(c, x, ctx_names=CR.CTX_NAMES)
+        P[i] = model.score(c, x, ctx_names=candidate_crops.CTX_NAMES)
         buf_c.clear()
         buf_k.clear()
         buf_i.clear()
@@ -67,11 +67,13 @@ def run(model, tag):
         n = len(fr['s'])
         c = np.empty((n, SIZE, SIZE, 3), np.uint8)
         for j in range(n):
-            CR.cut(img, fr['x'][j], fr['y'][j], SIZE, c[j])
+            candidate_crops.cut(img, fr['x'][j], fr['y'][j], SIZE, c[j])
         F[k : k + n] = ab
         J[k : k + n] = np.arange(n)
         buf_c.append(c)
-        buf_k.append(CR.context(fr['x'], fr['y'], fr['s'], ppl.get(ab) if has else None, has))
+        buf_k.append(
+            candidate_crops.context(fr['x'], fr['y'], fr['s'], ppl.get(ab) if has else None, has)
+        )
         buf_i.append(np.arange(k, k + n))
         k += n
         if (q + 1) % BATCH_FRAMES == 0:

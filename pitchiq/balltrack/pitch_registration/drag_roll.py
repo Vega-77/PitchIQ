@@ -2,7 +2,7 @@
 Linear in (uv0, v) for fixed k, so k is scanned."""
 
 import numpy as np
-from . import flight_model as V
+from . import flight_model
 
 KS = np.linspace(0, 1.5, 16)
 
@@ -18,7 +18,7 @@ def droll(tr, a, b):
     idx = idx[tr.has[idx]]
     if len(idx) < 4:
         return np.nan, None
-    t = (idx - a) / V.FPS
+    t = (idx - a) / flight_model.FPS
     best = (np.inf, None)
     for k in KS:
         Et = t if k == 0 else (1 - np.exp(-k * t)) / k

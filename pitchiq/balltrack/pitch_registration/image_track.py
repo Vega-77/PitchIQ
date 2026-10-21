@@ -1,14 +1,14 @@
 import sys
 import numpy as np
 
-from .. import render_review_video as RV
+from .. import render_review_video
 
 TAG = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
 
 z = np.load(TAG + '_ballsb.npz')
 a = z['abs']
 H = z['H']
-by = RV.picks_for(TAG)
+by = render_review_video.picks_for(TAG)
 ix = np.array([by.get(f, {}).get('x', np.nan) if by.get(f, {}).get('src') else np.nan for f in a])
 iy = np.array([by.get(f, {}).get('y', np.nan) if by.get(f, {}).get('src') else np.nan for f in a])
 np.savez(TAG + '_img.npz', abs=a, ix=ix, iy=iy)

@@ -20,8 +20,8 @@ import os
 import numpy as np
 
 from . import ball_tracker
-from . import wm_score as W
-from . import wm_tune as U
+from . import wm_score
+from . import wm_tune
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 
@@ -46,7 +46,7 @@ def ranks(T, F, idx):
             continue
         fr = F[t['clip']][k]
         d = np.hypot(fr['x'] - t['x'], fr['y'] - t['y'])
-        ok = d <= W.TOL
+        ok = d <= wm_score.TOL
         if not ok.any():
             continue
         for sc, out in ((fr['s0'], r_s), (fr['p'], r_p)):
@@ -69,7 +69,7 @@ def ranks(T, F, idx):
 
 
 def main():
-    T, tags, F, idx = U.load_all()
+    T, tags, F, idx = wm_tune.load_all()
     for tag in tags:
         attach(F[tag], tag)
     print("RANK of the true ball among its frame's candidates")
@@ -99,19 +99,19 @@ def main():
         res.append(
             (
                 cfg,
-                {h: U.score(T, F, idx, p, cl) for h, cl in halves.items()},
-                U.score(T, F, idx, p, set(tags)),
+                {h: wm_tune.score(T, F, idx, p, cl) for h, cl in halves.items()},
+                wm_tune.score(T, F, idx, p, set(tags)),
             )
         )
     print('\nTRACK  %d grid points' % len(res))
     for a in grid['a']:
         cfg, r, al = max((z for z in res if z[0]['a'] == a), key=lambda z: z[2]['ok'])
-        print('  a %.2f best-on-all  %s' % (a, U.fmt(al)))
+        print('  a %.2f best-on-all  %s' % (a, wm_tune.fmt(al)))
     for tune, test in (('H1', 'H2'), ('H2', 'H1')):
         cfg, r, al = max(res, key=lambda z: z[1][tune]['ok'])
         print('\ntuned on %s: %s' % (tune, cfg))
-        print('  tune %s %s' % (tune, U.fmt(r[tune])))
-        print('  TEST %s %s' % (test, U.fmt(r[test])))
+        print('  tune %s %s' % (tune, wm_tune.fmt(r[tune])))
+        print('  TEST %s %s' % (test, wm_tune.fmt(r[test])))
 
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@
 
 import numpy as np
 from scipy.optimize import least_squares
-from . import flight_model as V
+from . import flight_model
 
 
 def drag(th, t):
@@ -15,9 +15,11 @@ def drag(th, t):
     def E(x):
         return (1 - np.exp(-k * x)) / k  # integral of exp(-k s)
 
-    vz = V.G * Tf / (k * E(Tf)) - V.G / k
+    vz = flight_model.G * Tf / (k * E(Tf)) - flight_model.G / k
     sc = np.clip(s, 0, Tf)
-    z = np.where((s >= 0) & (s <= Tf), (vz + V.G / k) * E(sc) - V.G * sc / k, 0.0)
+    z = np.where(
+        (s >= 0) & (s <= Tf), (vz + flight_model.G / k) * E(sc) - flight_model.G * sc / k, 0.0
+    )
     # outside the flight the ball rolls on with the speed it had at the ends
     h = E(sc) + np.where(s > Tf, (s - Tf) * np.exp(-k * Tf), 0) + np.where(s < 0, s, 0)
     return np.column_stack((u0 + vu * h, v0 + vv * h, z))
@@ -26,15 +28,15 @@ def drag(th, t):
 def fit(tr, a, b, kmax=1.5):
     idx = np.arange(a, b + 1)
     idx = idx[tr.has[idx]]
-    t = (idx - a) / V.FPS
-    T = (b - a) / V.FPS
+    t = (idx - a) / flight_model.FPS
+    T = (b - a) / flight_model.FPS
     ga, gb = tr.ground(idx[0]), tr.ground(idx[-1])
     obs = tr.px[idx]
     lo = [-np.inf] * 4 + [-0.1, T * 0.8, 0.0]
     hi = [np.inf] * 4 + [0.05, T + 0.15, kmax]
 
     def res(th):
-        return ((tr.project(idx, drag(th, t)) - obs) / V.SIG).ravel()
+        return ((tr.project(idx, drag(th, t)) - obs) / flight_model.SIG).ravel()
 
     best = None
     for Tf in (T, T + 0.1):
@@ -54,8 +56,8 @@ def fit(tr, a, b, kmax=1.5):
 
 
 if __name__ == '__main__':
-    tr = V.Track('vid1')
-    V.ground_all(tr)
+    tr = flight_model.Track('vid1')
+    flight_model.ground_all(tr)
     for a, b in [(1479, 1536), (33, 96), (968, 1038), (492, 510)]:
         for km in (0.0001, 1.5, 4.0):
             th, e = fit(tr, a, b, km)
@@ -70,5 +72,6 @@ if __name__ == '__main__':
                 sb[0].round(1),
                 'land',
                 sb[1].round(1),
-                'apexR %.2f' % (drag(th, th[4] + np.linspace(0, th[5], 50))[:, 2].max() / V.R_CH),
+                'apexR %.2f'
+                % (drag(th, th[4] + np.linspace(0, th[5], 50))[:, 2].max() / flight_model.R_CH),
             )

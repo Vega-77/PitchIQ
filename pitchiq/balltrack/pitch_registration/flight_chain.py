@@ -19,13 +19,13 @@ import sys
 import numpy as np
 from scipy.optimize import least_squares
 
-from . import flight_model as V
-from . import drag_flight as D
-from . import drag_roll as R
+from . import flight_model
+from . import drag_flight
+from . import drag_roll
 
 tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
-HERE = V.HERE
-SIG = V.SIG  # tracker noise, px
+HERE = flight_model.HERE
+SIG = flight_model.SIG  # tracker noise, px
 RISE_MIN = 3 * SIG  # px: visible height an arc must show
 GATE = dict(
     err=3.0, apex=0.08, roll_ratio=2.5, roll_min=4.0
@@ -36,7 +36,7 @@ EXT = 1.5
 LOST = 6  # frames unseen beyond an end: the ball is lost there
 
 
-G = V.G
+G = flight_model.G
 
 
 def E(k, s):
@@ -73,26 +73,28 @@ def chain_eval(tr, x, m, frames):
     out = np.zeros((len(frames), 3))
     tf = np.asarray(frames, float)
     for j in range(m):
-        T = max((ts[j + 1] - ts[j]) / V.FPS, 1e-3)
+        T = max((ts[j + 1] - ts[j]) / flight_model.FPS, 1e-3)
         sel = (tf >= ts[j]) & (tf <= ts[j + 1])
         if sel.any():
-            out[sel] = seg_pos(nodes[j], nodes[j + 1], T, ks[j], (tf[sel] - ts[j]) / V.FPS)
-    T0 = max((ts[1] - ts[0]) / V.FPS, 1e-3)
-    Tm = max((ts[m] - ts[m - 1]) / V.FPS, 1e-3)
+            out[sel] = seg_pos(
+                nodes[j], nodes[j + 1], T, ks[j], (tf[sel] - ts[j]) / flight_model.FPS
+            )
+    T0 = max((ts[1] - ts[0]) / flight_model.FPS, 1e-3)
+    Tm = max((ts[m] - ts[m - 1]) / flight_model.FPS, 1e-3)
     b = tf < ts[0]
     if b.any():
         v = seg_vel(nodes[0], nodes[1], T0, ks[0], 0.0)
         out[b] = np.c_[
-            nodes[0, 0] + v[0] * (tf[b] - ts[0]) / V.FPS,
-            nodes[0, 1] + v[1] * (tf[b] - ts[0]) / V.FPS,
+            nodes[0, 0] + v[0] * (tf[b] - ts[0]) / flight_model.FPS,
+            nodes[0, 1] + v[1] * (tf[b] - ts[0]) / flight_model.FPS,
             np.full(b.sum(), nodes[0, 2]),
         ]
     b = tf > ts[m]
     if b.any():
         v = seg_vel(nodes[m - 1], nodes[m], Tm, ks[m - 1], Tm)
         out[b] = np.c_[
-            nodes[m, 0] + v[0] * (tf[b] - ts[m]) / V.FPS,
-            nodes[m, 1] + v[1] * (tf[b] - ts[m]) / V.FPS,
+            nodes[m, 0] + v[0] * (tf[b] - ts[m]) / flight_model.FPS,
+            nodes[m, 1] + v[1] * (tf[b] - ts[m]) / flight_model.FPS,
             np.full(b.sum(), nodes[m, 2]),
         ]
     return out
@@ -125,7 +127,7 @@ def select_flights(S, C, onpitch):
     e = S[:, C['d_trim']]
     ok = (
         (e <= GATE['err'])
-        & (S[:, C['d_apex']] >= GATE['apex'] * V.R_CH0 / V.R_CH)
+        & (S[:, C['d_apex']] >= GATE['apex'] * flight_model.R_CH0 / flight_model.R_CH)
         & (S[:, C['r_trim']] >= np.maximum(GATE['roll_ratio'] * e, GATE['roll_min']))
         & onpitch
     )
@@ -165,7 +167,7 @@ def bend_px(tr, P, frame):
 
 def rise_px(tr, P0, P1, T, k, t0):
     s = np.linspace(0, T, 21)
-    return bend_px(tr, seg_pos(P0, P1, T, k, s), t0 + T * V.FPS / 2)
+    return bend_px(tr, seg_pos(P0, P1, T, k, s), t0 + T * flight_model.FPS / 2)
 
 
 class Chain:
@@ -179,9 +181,9 @@ class Chain:
         m = self.m
         th0, th1 = flights[0]['th'], flights[-1]['th']
         t_init = (
-            [flights[0]['a'] + th0[4] * V.FPS]
+            [flights[0]['a'] + th0[4] * flight_model.FPS]
             + [f['b'] for f in flights[:-1]]
-            + [flights[-1]['a'] + (th1[4] + th1[5]) * V.FPS]
+            + [flights[-1]['a'] + (th1[4] + th1[5]) * flight_model.FPS]
         )
         # 2: an end may leave the seen stretch (and the ground) only where the ball is lost
         n = len(tr.abs)
@@ -189,15 +191,19 @@ class Chain:
         lost1 = not tr.has[hi + 1 : min(n, hi + 1 + LOST)].any()
         self.open = np.r_[lost0, np.ones(m - 1, bool), lost1]
         self.t_lo = np.r_[
-            lo - (EXT * V.FPS if lost0 else 2), [t - 6 for t in t_init[1:-1]], flights[-1]['a'] + 3
+            lo - (EXT * flight_model.FPS if lost0 else 2),
+            [t - 6 for t in t_init[1:-1]],
+            flights[-1]['a'] + 3,
         ]
         self.t_hi = np.r_[
-            flights[0]['b'] - 3, [t + 6 for t in t_init[1:-1]], hi + (EXT * V.FPS if lost1 else 2)
+            flights[0]['b'] - 3,
+            [t + 6 for t in t_init[1:-1]],
+            hi + (EXT * flight_model.FPS if lost1 else 2),
         ]
         self.t_init = np.clip(t_init, self.t_lo + 0.5, self.t_hi - 0.5)
 
         def at(f, t):
-            return D.drag(f['th'], np.array([(t - f['a']) / V.FPS]))[0]
+            return drag_flight.drag(f['th'], np.array([(t - f['a']) / flight_model.FPS]))[0]
 
         n0 = np.array(
             [at(flights[0], self.t_init[0])]
@@ -217,7 +223,7 @@ class Chain:
         extra = [10 * np.maximum(0, 3 - np.diff(ts))]
         vs = []
         for j in range(m):
-            T = max((ts[j + 1] - ts[j]) / V.FPS, 1e-3)
+            T = max((ts[j + 1] - ts[j]) / flight_model.FPS, 1e-3)
             v0 = seg_vel(nodes[j], nodes[j + 1], T, ks[j], 0.0)
             v1 = seg_vel(nodes[j], nodes[j + 1], T, ks[j], T)
             vs.append((v0, v1))
@@ -287,7 +293,14 @@ class Chain:
     def rises(self, x):
         nodes, ts, ks = unpack(x, self.m)
         return [
-            rise_px(self.tr, nodes[j], nodes[j + 1], (ts[j + 1] - ts[j]) / V.FPS, ks[j], ts[j])
+            rise_px(
+                self.tr,
+                nodes[j],
+                nodes[j + 1],
+                (ts[j + 1] - ts[j]) / flight_model.FPS,
+                ks[j],
+                ts[j],
+            )
             for j in range(self.m)
         ]
 
@@ -320,17 +333,19 @@ def fit_chain(tr, flights, vmax):
 
 
 def main():
-    tr = V.Track(tag)
-    V.ground_all(tr)
+    tr = flight_model.Track(tag)
+    flight_model.ground_all(tr)
     n = len(tr.abs)
     Z = np.load(os.path.join(HERE, '%s_scan2.npz' % tag))
     S, C = Z['S'], {c: i for i, c in enumerate(Z['cols'].tolist())}
     S = S[np.isfinite(S[:, C['d_rms']])]
     TH = S[:, [C[c] for c in 'u0 v0 vu vv tau Tf k'.split()]]
-    P0 = np.array([D.drag(th, np.array([th[4]]))[0, :2] for th in TH]).reshape(
+    P0 = np.array([drag_flight.drag(th, np.array([th[4]]))[0, :2] for th in TH]).reshape(
         -1, 2
     )  # (0, 2): no window fitted
-    P1 = np.array([D.drag(th, np.array([th[4] + th[5]]))[0, :2] for th in TH]).reshape(-1, 2)
+    P1 = np.array([drag_flight.drag(th, np.array([th[4] + th[5]]))[0, :2] for th in TH]).reshape(
+        -1, 2
+    )
     sb0, sb1 = tr.to_sb(P0), tr.to_sb(P1)
     onp = np.all(
         [
@@ -348,7 +363,7 @@ def main():
     # 1: single-flight rise test before chaining
     keep = []
     for f in fl:
-        f['roll'] = R.droll(tr, f['a'], f['b'])[0]
+        f['roll'] = drag_roll.droll(tr, f['a'], f['b'])[0]
         if is_air(f['err'], f['roll']):
             keep.append(f)
     print('after the slowing-roll test: %d flights' % len(keep))
@@ -368,14 +383,14 @@ def main():
         e = np.hypot(*(tr.project(c.idx, chain_eval(tr, x, c.m, c.idx)) - c.obs).T)
         ends = []
         if free[0] and nodes[0, 2] > 0.02:
-            v = seg_vel(nodes[0], nodes[1], (ts[1] - ts[0]) / V.FPS, ks[0], 0.0)
+            v = seg_vel(nodes[0], nodes[1], (ts[1] - ts[0]) / flight_model.FPS, ks[0], 0.0)
             s_, uv = ground_hit(nodes[0], v, -1)
-            ends.append(('take-off', ts[0] - s_ * V.FPS, tr.to_sb(uv[None])[0]))
+            ends.append(('take-off', ts[0] - s_ * flight_model.FPS, tr.to_sb(uv[None])[0]))
         if free[-1] and nodes[-1, 2] > 0.02:
-            Tm = (ts[-1] - ts[-2]) / V.FPS
+            Tm = (ts[-1] - ts[-2]) / flight_model.FPS
             v = seg_vel(nodes[-2], nodes[-1], Tm, ks[-1], Tm)
             s_, uv = ground_hit(nodes[-1], v, +1)
-            ends.append(('landing', ts[-1] + s_ * V.FPS, tr.to_sb(uv[None])[0]))
+            ends.append(('landing', ts[-1] + s_ * flight_model.FPS, tr.to_sb(uv[None])[0]))
         seg_air = []
         for j in range(c.m):
             a_, b_ = int(np.ceil(ts[j])), int(np.floor(ts[j + 1]))
@@ -384,8 +399,10 @@ def main():
             if len(ii) < 4:
                 seg_air.append(bool(free[j] or free[j + 1]))
                 continue  # unseen: trust the chain
-            ea = R.trim(np.hypot(*(tr.project(ii, chain_eval(tr, x, c.m, ii)) - tr.px[ii]).T))
-            seg_air.append(is_air(ea, R.droll(tr, a_, b_)[0]))
+            ea = drag_roll.trim(
+                np.hypot(*(tr.project(ii, chain_eval(tr, x, c.m, ii)) - tr.px[ii]).T)
+            )
+            seg_air.append(is_air(ea, drag_roll.droll(tr, a_, b_)[0]))
         out.append(
             dict(
                 x=x,
@@ -408,7 +425,8 @@ def main():
                 out[-1]['err'],
                 ''.join('A' if q else 'g' for q in seg_air),
                 '  '.join(
-                    '(%.0f,%.0f%s)' % (p[0], p[1], ' h%.2f' % (z / V.R_CH) if fr_ else '')
+                    '(%.0f,%.0f%s)'
+                    % (p[0], p[1], ' h%.2f' % (z / flight_model.R_CH) if fr_ else '')
                     for p, z, fr_ in zip(sb, nodes[:, 2], free)
                 ),
             )

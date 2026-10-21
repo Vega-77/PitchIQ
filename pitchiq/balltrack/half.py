@@ -166,10 +166,10 @@ class Half:
         return res
 
     def dets_ready(self, a, b):
-        from pitchiq.experiments import player_lab as L
+        from pitchiq.experiments import player_lab
 
         return all(
-            os.path.exists(L._part(self.tag, 'dets', clo, chi))
+            os.path.exists(player_lab._part(self.tag, 'dets', clo, chi))
             for clo, chi in self.chunks
             if not (chi < a or clo > b)
         )
@@ -178,7 +178,7 @@ class Half:
 
     def build(self, p):
         """<ptag>.npz / pan / ppl cut from the finished chunks, registration copied."""
-        from pitchiq.experiments import player_lab as L
+        from pitchiq.experiments import player_lab
 
         a, b = p['win']
         P = p['ptag']
@@ -187,7 +187,7 @@ class Half:
         for clo, chi in self.chunks:
             if chi < a or clo > b:
                 continue
-            with np.load(L._part(self.tag, 'dets', clo, chi)) as d:
+            with np.load(player_lab._part(self.tag, 'dets', clo, chi)) as d:
                 m = (
                     (d['conf'] >= 0.25) & (d['frame'] >= a) & (d['frame'] <= b)
                 )  # person_boxes.from_dets
@@ -297,15 +297,15 @@ class Half:
         return None, None
 
     def players_loop(self):
-        from pitchiq.experiments import player_lab as L
+        from pitchiq.experiments import player_lab
 
         try:
-            ex = L.Extractor()
+            ex = player_lab.Extractor()
             first_row = 0
             for clo, chi in self.chunks:
                 if self.err is not None:
                     return
-                if not os.path.exists(L._part(self.tag, 'dets', clo, chi)):
+                if not os.path.exists(player_lab._part(self.tag, 'dets', clo, chi)):
                     t = time.time()
                     ex.dets_part(self.tag, clo, chi)
                     self.say('players  %d..%d detected  (%.0f s)' % (clo, chi, time.time() - t))
@@ -369,10 +369,12 @@ class Half:
             self.err = e
 
     def merge_players(self):
-        from pitchiq.experiments import player_lab as L
+        from pitchiq.experiments import player_lab
 
-        L.extract(self.tag, self.lo, self.hi - self.lo + 1, 1280, 0.05)  # parts done: merges only
-        L.features(self.tag)
+        player_lab.extract(
+            self.tag, self.lo, self.hi - self.lo + 1, 1280, 0.05
+        )  # parts done: merges only
+        player_lab.features(self.tag)
         self.say('players merged')
 
     def do(self, stage, p):
@@ -500,9 +502,9 @@ class Half:
     # ---- the run ----------------------------------------------------------------------------
 
     def main(self):
-        from pitchiq.experiments import player_lab as L
+        from pitchiq.experiments import player_lab
 
-        if L.CHUNK != detect_candidates.CHUNK:
+        if player_lab.CHUNK != detect_candidates.CHUNK:
             raise SystemExit('PLAB_CHUNK and DRUN_CHUNK must match')
         if not os.path.exists(os.path.join(HOM, '%s_reg.npz' % self.tag)):
             raise SystemExit(
@@ -510,7 +512,7 @@ class Half:
             )
         if 'PIQ_VIDEO' not in os.environ:
             self.say('PIQ_VIDEO is not set: this is the scrimmage video')
-        first, last = scorable(L.VIDEO)
+        first, last = scorable(player_lab.VIDEO)
         if not first <= self.lo <= self.hi <= last:
             raise SystemExit(
                 '%d..%d is not inside %d..%d, the frames this video lets a pass score'

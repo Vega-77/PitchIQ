@@ -9,14 +9,14 @@ import numpy as np
 
 _cwd = os.getcwd()
 try:
-    from pitchiq.balltrack import match_video as M  # chdirs on import
+    from pitchiq.balltrack import match_video  # chdirs on import
 finally:
     os.chdir(_cwd)
 
 
 def test_short_runs_marks_only_runs_under_k():
     on = np.array([1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1], bool)
-    got = M.short_runs(on, 5)
+    got = match_video.short_runs(on, 5)
     assert got.tolist() == [
         True,
         False,
@@ -35,14 +35,14 @@ def test_short_runs_marks_only_runs_under_k():
 
 
 def test_short_runs_keeps_a_run_of_exactly_k():
-    assert not M.short_runs(np.ones(5, bool), 5).any()
+    assert not match_video.short_runs(np.ones(5, bool), 5).any()
 
 
 def test_short_runs_empty_and_all_off():
-    assert M.short_runs(np.zeros(0, bool)).shape == (0,)
-    assert not M.short_runs(np.zeros(7, bool)).any()
+    assert match_video.short_runs(np.zeros(0, bool)).shape == (0,)
+    assert not match_video.short_runs(np.zeros(7, bool)).any()
 
 
 def test_default_is_min_run():
-    assert M.short_runs(np.ones(M.MIN_RUN - 1, bool)).all()
-    assert not M.short_runs(np.ones(M.MIN_RUN, bool)).any()
+    assert match_video.short_runs(np.ones(match_video.MIN_RUN - 1, bool)).all()
+    assert not match_video.short_runs(np.ones(match_video.MIN_RUN, bool)).any()

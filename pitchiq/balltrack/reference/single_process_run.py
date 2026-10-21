@@ -61,8 +61,8 @@ import cv2
 import numpy as np
 import xgboost as xgb
 
-from . import blobs_per_candidate as F
-from . import temporal_from_sheets as TT
+from . import blobs_per_candidate
+from . import temporal_from_sheets
 from ..pan_registration import MININL, MINMATCH, homog
 from ..candidate_features import (
     CZERO,
@@ -76,8 +76,8 @@ from ..candidate_features import (
 )
 
 S2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # data sits in balltrack/
-SP = F.SP
-VIDEO = F.VIDEO
+SP = blobs_per_candidate.SP
+VIDEO = blobs_per_candidate.VIDEO
 OUT = os.path.join(S2, 'dense.npz')
 
 LO, HI = 186600, 188275  # the test stretch, inclusive, absolute frames
@@ -145,9 +145,9 @@ def temporal_rows(tiles, pts):
     bg = np.median(tiles, axis=0)
     fgs = np.clip(tiles - bg, 0, None)
     cur = tiles[CZERO]
-    RP, RW, FG = TT.RP, TT.RW, TT.FG
+    RP, RW, FG = temporal_from_sheets.RP, temporal_from_sheets.RW, temporal_from_sheets.FG
     H, W = TH, TW
-    T = np.zeros((len(pts), len(TT.TNAMES)), np.float32)
+    T = np.zeros((len(pts), len(temporal_from_sheets.TNAMES)), np.float32)
     for idx in range(len(pts)):
         tx, ty = pts[idx][0] / SCALE, pts[idx][1] / SCALE
         ix, iy = int(round(tx)), int(round(ty))
@@ -204,7 +204,7 @@ def temporal_rows(tiles, pts):
             float(series.std()),
             bright.mean(),
             persist.mean(),
-            TT.run_around(persist, CZERO),
+            temporal_from_sheets.run_around(persist, CZERO),
             float(fgser[CZERO]),
             float(fgs[CZERO, yy0:yy1, x0:x1].mean()),
             float(fgser[CZERO]) / max(1.0, v0),
@@ -345,7 +345,7 @@ def main():
             continue
 
         anchor = ab + OFFS[0]  # the middle of the buffer
-        bs, _ = F.blobs(bgrs[CZERO], cmaj)
+        bs, _ = blobs_per_candidate.blobs(bgrs[CZERO], cmaj)
         NC[anchor] = len(bs)
         if not bs:
             done += 1

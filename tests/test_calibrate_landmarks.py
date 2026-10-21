@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from pitchiq import autocal as A
+from pitchiq import autocal
 from pitchiq.pitch import CENTRE_CIRCLE_RADIUS_M, Pitch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,13 +45,13 @@ def pin_solve_landmarks(L, W):
     for side, g, s in (('left', 0.0, 1.0), ('right', L, -1.0)):
         out[f'{side} corner near'] = (g, 0)
         out[f'{side} corner far'] = (g, W)
-        out[f'{side} box near'] = (g + s * A.BOX_D, c - A.BOX_HW)
-        out[f'{side} box far'] = (g + s * A.BOX_D, c + A.BOX_HW)
-        out[f'{side} box line near'] = (g, c - A.BOX_HW)
-        out[f'{side} box line far'] = (g, c + A.BOX_HW)
-        out[f'{side} goal area near'] = (g + s * A.GOAL_AREA_D, c - A.GOAL_AREA_HW)
-        out[f'{side} goal area far'] = (g + s * A.GOAL_AREA_D, c + A.GOAL_AREA_HW)
-        out[f'{side} spot'] = (g + s * A.SPOT_D, c)
+        out[f'{side} box near'] = (g + s * autocal.BOX_D, c - autocal.BOX_HW)
+        out[f'{side} box far'] = (g + s * autocal.BOX_D, c + autocal.BOX_HW)
+        out[f'{side} box line near'] = (g, c - autocal.BOX_HW)
+        out[f'{side} box line far'] = (g, c + autocal.BOX_HW)
+        out[f'{side} goal area near'] = (g + s * autocal.GOAL_AREA_D, c - autocal.GOAL_AREA_HW)
+        out[f'{side} goal area far'] = (g + s * autocal.GOAL_AREA_D, c + autocal.GOAL_AREA_HW)
+        out[f'{side} spot'] = (g + s * autocal.SPOT_D, c)
     return out
 
 

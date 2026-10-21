@@ -33,10 +33,12 @@ def run(tmp_path, monkeypatch):
             feats.append((a, first_row))
             return None, 10
 
-    from pitchiq.experiments import player_lab as L
+    from pitchiq.experiments import player_lab
 
-    monkeypatch.setattr(L, 'Extractor', Ex)
-    monkeypatch.setattr(L, '_part', lambda tag, kind, a, b: tmp_path / ('%s_%d' % (kind, a)))
+    monkeypatch.setattr(player_lab, 'Extractor', Ex)
+    monkeypatch.setattr(
+        player_lab, '_part', lambda tag, kind, a, b: tmp_path / ('%s_%d' % (kind, a))
+    )
     monkeypatch.setattr(half, 'S2', str(tmp_path))
     monkeypatch.setattr(
         half, 'time', SimpleNamespace(time=time.time, sleep=lambda s: time.sleep(0.01))
@@ -87,14 +89,16 @@ def test_features_number_their_rows_in_chunk_order(run):
 
 def test_a_player_lane_that_exits_is_reported(tmp_path, monkeypatch):
     """player_lab raises SystemExit past the video's end; the lane must not die silently."""
-    from pitchiq.experiments import player_lab as L
+    from pitchiq.experiments import player_lab
 
     class Ex:
         def dets_part(self, tag, a, b):
             raise SystemExit('video ended at %d' % b)
 
-    monkeypatch.setattr(L, 'Extractor', Ex)
-    monkeypatch.setattr(L, '_part', lambda tag, kind, a, b: tmp_path / ('%s_%d' % (kind, a)))
+    monkeypatch.setattr(player_lab, 'Extractor', Ex)
+    monkeypatch.setattr(
+        player_lab, '_part', lambda tag, kind, a, b: tmp_path / ('%s_%d' % (kind, a))
+    )
     monkeypatch.setattr(half, 'S2', str(tmp_path))
     h = half.Half('t', 0, 9000 - 1, 6, 300)
     h.players_loop()

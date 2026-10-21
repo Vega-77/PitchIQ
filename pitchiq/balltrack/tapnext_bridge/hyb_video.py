@@ -17,14 +17,14 @@ import cv2
 import numpy as np
 
 from .. import pitch_registration
-from .. import render_review_video as RV  # colours, clock
+from .. import render_review_video  # colours, clock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
 HG = os.path.join(S2, 'h3d_hyb90')
 pitch_registration.WORK = HG  # flight_model reads the hybrid 3D chain's files (run from h3d_hyb90/)
 from ..pitch_registration import draw_pitch_overlay  # noqa: E402
-from ..pitch_registration import flight_model as V  # noqa: E402
+from ..pitch_registration import flight_model  # noqa: E402
 
 TAG, LO, HI = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 PART = sys.argv[4] if len(sys.argv) > 4 else ''
@@ -39,7 +39,7 @@ MY0 = RY + 4
 HT = RY + max(ZS, int(80 * MS) + 8) + 34 + 24
 HT += HT % 2
 SC = CW / 1920.0
-GREEN, FILLC = RV.GREEN, RV.ORANGE
+GREEN, FILLC = render_review_video.GREEN, render_review_video.ORANGE
 CYAN, ORANGE, WHITE, GREY, MAG = (
     (230, 200, 60),
     (40, 140, 255),
@@ -67,7 +67,7 @@ def ring(im, c, r, col):
 
 
 def per_frame():
-    tr = V.Track(TAG)
+    tr = flight_model.Track(TAG)
     A0 = int(tr.abs[0])
     Hs = np.load(os.path.join(HG, '%s_smooth2.npz' % TAG))['H']
     B = np.load(os.path.join(HG, '%s_ball3dd.npz' % TAG))
@@ -86,7 +86,7 @@ def per_frame():
             uv = q[:2] / q[2]
             Q = np.array([[uv[0], uv[1], B['z'][i]], [uv[0], uv[1], 0.0]])
             b_, g_ = tr.project(np.full(2, i), Q)
-            img[k], gnd[k], kind[k], hgt[k] = b_, g_, 'air', B['z'][i] / V.R_CH
+            img[k], gnd[k], kind[k], hgt[k] = b_, g_, 'air', B['z'][i] / flight_model.R_CH
         elif P['src'][i] > 0 and np.isfinite(P['x'][i]):
             img[k] = P['x'][i], P['y'][i]
             kind[k] = {1: 'track', 2: 'fill', 3: 'bridge'}[int(P['src'][i])]
@@ -155,7 +155,7 @@ def main():
             last = img[k].copy()
         im[TOP : TOP + CH] = cam
         text(im, 'HYBRID 90' + (' ' + PART if PART else ''), (12, 31), 0.8, GREEN, 2)
-        text(im, 'match %s' % RV.clock(LO + k)[:5], (WD - 150, 31), 0.65, WHITE, 2)
+        text(im, 'match %s' % render_review_video.clock(LO + k)[:5], (WD - 150, 31), 0.65, WHITE, 2)
         msg = {
             'air': 'in the air, %.1f CR up' % hgt[k] if np.isfinite(hgt[k]) else 'in the air',
             'track': 'on the ground (tracked)',

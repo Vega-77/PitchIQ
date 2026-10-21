@@ -13,14 +13,14 @@ import sys
 
 import numpy as np
 
-from .. import render_review_video as RV
+from .. import render_review_video
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
 
 tag = sys.argv[1]
 os.chdir(S2)
-p = RV.picks_for(tag)
+p = render_review_video.picks_for(tag)
 ab = np.array(sorted(p))
 x = np.full(len(ab), np.nan)
 y = x.copy()

@@ -99,17 +99,17 @@ _LW = {}
 
 
 def _link_init(tag, meta):
-    from pitchiq.experiments import player_lab as L
+    from pitchiq.experiments import player_lab
 
     _LW['meta'] = meta
-    _LW['proj'], _LW['pitch'] = L.projector(tag, meta['w'], meta['h'])
+    _LW['proj'], _LW['pitch'] = player_lab.projector(tag, meta['w'], meta['h'])
 
 
 def _link_one(job):
-    from pitchiq.experiments import player_lab as L
+    from pitchiq.experiments import player_lab
 
     lo, hi, dw = job
-    return L.run_variant(
+    return player_lab.run_variant(
         'A+B+C', dw, dict(_LW['meta'], lo=lo, n=hi - lo), _LW['proj'], _LW['pitch']
     )[1]
 
@@ -136,20 +136,22 @@ class _Window:
 
     def __init__(self, tag, lo, hi, det, meta, proj, pitch, Hs, a0, rng, keep_gaps=0, res=None):
         MV = _mv()
-        from pitchiq.experiments import player_lab as L
+        from pitchiq.experiments import player_lab
 
         m = (det.frame >= lo) & (det.frame < hi)
         dw = _subset(det, m)
         mw = dict(meta, lo=lo, n=hi - lo)
         self.lo, self.hi, self.Hs, self.a0, self.det = lo, hi, Hs, a0, dw
-        self.res = res if res is not None else L.run_variant('A+B+C', dw, mw, proj, pitch)[1]
+        self.res = (
+            res if res is not None else player_lab.run_variant('A+B+C', dw, mw, proj, pitch)[1]
+        )
         self.gap_ends = []
         if keep_gaps:
             held0 = np.zeros(len(dw), bool)
             for i in self.res.identities:
                 held0[i.rows[i.rows >= 0].astype(int)] = True
-            L.VARIANTS['spot keep gaps'] = ({}, {'kit_cut_keep_rows': keep_gaps})
-            _, self.res = L.run_variant('spot keep gaps', dw, mw, proj, pitch)
+            player_lab.VARIANTS['spot keep gaps'] = ({}, {'kit_cut_keep_rows': keep_gaps})
+            _, self.res = player_lab.run_variant('spot keep gaps', dw, mw, proj, pitch)
             for ident in self.res.identities:
                 if ident.role == 'off':
                     continue
@@ -495,7 +497,7 @@ def make(
     import cv2
 
     MV = _mv()
-    from pitchiq.experiments import player_lab as L
+    from pitchiq.experiments import player_lab
 
     global _PITCH, _LINES
     rng = np.random.default_rng(seed)
@@ -503,8 +505,8 @@ def make(
     sm = np.load(HG / f'{tag}_smooth2.npz')
     Hs, frames = sm['H'], sm['abs']
     a0 = int(frames[0])
-    det, meta = L.load_detections(tag)
-    proj, pitch = L.projector(tag, meta['w'], meta['h'])
+    det, meta = player_lab.load_detections(tag)
+    proj, pitch = player_lab.projector(tag, meta['w'], meta['h'])
     _PITCH, _LINES = (pitch.length_m, pitch.width_m), None
     lo_all, hi_all = (
         max(a0, int(det.frame.min())),
@@ -517,7 +519,7 @@ def make(
     out.mkdir(parents=True, exist_ok=True)
     W = _Writer(out)
     qs = []
-    cap = cv2.VideoCapture(L.VIDEO)
+    cap = cv2.VideoCapture(player_lab.VIDEO)
     spans = [(int(lo), int(lo) + win) for lo in edges]
     for w, ((lo, hi), res) in enumerate(zip(spans, linked(tag, det, meta, spans))):
         print('window %d: %d..%d' % (w, lo, hi), flush=True)

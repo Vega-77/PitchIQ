@@ -13,7 +13,7 @@ import sys
 
 import numpy as np
 
-from . import score_flight_labels as S
+from . import score_flight_labels
 from .smooth_ball import runs_of
 
 A0 = 86475
@@ -28,7 +28,7 @@ clipof = np.full(n, -1)
 for i, c in enumerate(man):
     clipof[c['start'] - A0 : c['end'] - A0 + 1] = i
 lab = np.array([tt.get(a + A0, '') for a in range(n)])
-FL = S.load_truth()
+FL = score_flight_labels.load_truth()
 # flights you deleted in the Flight Lab: your later call, so their frames are not scored
 for l_ in open(os.path.join('labeling', 'flight_labels', 'flights.jsonl')):
     f_ = json.loads(l_)[1]
@@ -56,7 +56,7 @@ def score(p, par):
     for f in FL:
         if clipof[f['f0'] - A0] % 2 != par:
             continue
-        Tk = S.track(f)
+        Tk = score_flight_labels.track(f)
         if len(Tk) < 2:
             continue
         fr_ = np.arange(int(Tk[0, 0]) + 1, int(Tk[-1, 0])) - A0

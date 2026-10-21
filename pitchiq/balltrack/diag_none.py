@@ -20,17 +20,17 @@ import collections
 import numpy as np
 
 from . import ball_tracker
-from . import wm_cls as C
-from . import wm_score as W
-from . import wm_tune as U
+from . import wm_cls
+from . import wm_score
+from . import wm_tune
 
 CFG = dict(off_score=-0.5, enter_cost=12.0, return_cost=6.0, skip_cost=4.0)
 
 
 def main():
-    T, tags, F, idx = U.load_all()
+    T, tags, F, idx = wm_tune.load_all()
     for tag in tags:
-        C.attach(F[tag], tag)
+        wm_cls.attach(F[tag], tag)
         for fr in F[tag]:
             fr['s'] = fr['p']
     picks = {
@@ -50,7 +50,7 @@ def main():
             ps['off_top'].append(top)
             continue
         d = np.hypot(fr['x'] - t['x'], fr['y'] - t['y'])
-        ok = d <= W.TOL
+        ok = d <= wm_score.TOL
         state = 'none' if j is None else 'right' if ok[j] else 'wrong'
         if not ok.any():
             cat[(state, 'MISS')] += 1

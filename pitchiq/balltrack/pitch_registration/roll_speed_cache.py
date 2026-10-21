@@ -11,8 +11,8 @@ from multiprocessing import Pool
 
 import numpy as np
 
-from . import flight_model as V
-from . import drag_roll as R
+from . import flight_model
+from . import drag_roll
 
 _TR = None
 
@@ -21,8 +21,8 @@ def rows(args):
     global _TR
     tag, a0, a1 = args
     if _TR is None:
-        _TR = V.Track(tag)
-        V.ground_all(_TR)
+        _TR = flight_model.Track(tag)
+        flight_model.ground_all(_TR)
     tr = _TR
     Z = np.load('%s_scan2.npz' % tag)
     S, C = Z['S'], {c: i for i, c in enumerate(Z['cols'].tolist())}
@@ -31,11 +31,11 @@ def rows(args):
         if not np.isfinite(S[r, C['d_rms']]):
             continue
         a, b = int(S[r, C['a']]), int(S[r, C['b']])
-        e, th = R.droll(tr, a, b)
+        e, th = drag_roll.droll(tr, a, b)
         if th is None:
             continue
         uv0, v, k = th
-        Tt = (b - a) / V.FPS
+        Tt = (b - a) / flight_model.FPS
         E = Tt if k == 0 else (1 - np.exp(-k * Tt)) / k
         p = tr.to_sb(np.array([uv0, uv0 + v * E]))
         out[r - a0] = (np.hypot(*(p[1] - p[0])) / Tt, e)

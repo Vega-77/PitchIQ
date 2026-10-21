@@ -34,7 +34,7 @@ def work(args):
     (frames,) = args
     import cv2
 
-    from pitchiq import lines as L
+    from pitchiq import lines
     from . import venue_features
     from . import venue_map
     from . import draw_pitch_overlay
@@ -67,7 +67,7 @@ def work(args):
             out.append((ab, np.full((3, 3), np.nan), 0))
             prev = None
             continue
-        m = cv2.erode(L.field_mask(im), np.ones((15, 15), np.uint8))
+        m = cv2.erode(lines.field_mask(im), np.ones((15, 15), np.uint8))
         kp, d = sift.detectAndCompute(cv2.cvtColor(im, cv2.COLOR_BGR2GRAY), m)
         F = dict(
             xy=np.float32([p.pt for p in kp]).reshape(-1, 2),

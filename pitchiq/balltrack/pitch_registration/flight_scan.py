@@ -13,9 +13,9 @@ from multiprocessing import Pool
 import numpy as np
 from scipy.optimize import least_squares
 
-from . import flight_model as V
-from . import drag_flight as D
-from . import flight_scan_ballistic as S1
+from . import flight_model
+from . import drag_flight
+from . import flight_scan_ballistic
 
 LENS = tuple(range(6, 76, 3))
 STEP = 2
@@ -31,7 +31,7 @@ def trim(e, keep=0.8):
 def roll(tr, a, b):
     idx = np.arange(a, b + 1)
     idx = idx[tr.has[idx]]
-    t = (idx - a) / V.FPS
+    t = (idx - a) / flight_model.FPS
     Z = np.zeros_like(t)
     ONE = np.ones_like(t)
     Arow = np.stack([np.stack([ONE, Z, t, Z], 1), np.stack([Z, ONE, Z, t], 1)], 1)
@@ -46,15 +46,15 @@ def dfit(tr, a, b, kmax=1.5):
     """Drag fit, 2 starts (cheaper than drag_flight.fit's 6)."""
     idx = np.arange(a, b + 1)
     idx = idx[tr.has[idx]]
-    t = (idx - a) / V.FPS
-    T = (b - a) / V.FPS
+    t = (idx - a) / flight_model.FPS
+    T = (b - a) / flight_model.FPS
     ga, gb = tr.g[idx[0]], tr.g[idx[-1]]
     obs = tr.px[idx]
     lo = [-np.inf] * 4 + [-0.1, T * 0.8, 0.0]
     hi = [np.inf] * 4 + [0.05, T + 0.15, kmax]
 
     def res(th):
-        return ((tr.project(idx, D.drag(th, t)) - obs) / V.SIG).ravel()
+        return ((tr.project(idx, drag_flight.drag(th, t)) - obs) / flight_model.SIG).ravel()
 
     best = None
     for Tf, k in ((T, 0.1), (T + 0.1, 0.6)):
@@ -72,8 +72,8 @@ def dfit(tr, a, b, kmax=1.5):
     if best is None:
         return None
     th = best.x
-    e = np.hypot(*(tr.project(idx, D.drag(th, t)) - obs).T)
-    apex = D.drag(th, th[4] + np.linspace(0, th[5], 40))[:, 2].max()
+    e = np.hypot(*(tr.project(idx, drag_flight.drag(th, t)) - obs).T)
+    apex = drag_flight.drag(th, th[4] + np.linspace(0, th[5], 40))[:, 2].max()
     return th, float(np.sqrt(np.mean(e**2))), trim(e), float(apex)
 
 
@@ -84,8 +84,8 @@ def work(args):
     global _TR
     tag, starts = args
     if _TR is None:
-        _TR = V.Track(tag)
-        V.ground_all(_TR)
+        _TR = flight_model.Track(tag)
+        flight_model.ground_all(_TR)
     tr = _TR
     n = len(tr.abs)
     out = []
@@ -97,15 +97,20 @@ def work(args):
             k = tr.has[a : b + 1].sum()
             if k < max(6, 0.7 * (L + 1)):
                 continue
-            q = S1.quick_fit(tr, a, b)
+            q = flight_scan_ballistic.quick_fit(tr, a, b)
             if q is None:
                 continue
             idx = np.arange(a, b + 1)
             idx = idx[tr.has[idx]]
-            eq = np.hypot(*(tr.project(idx, V.ballistic(q[0], (idx - a) / V.FPS)) - tr.px[idx]).T)
+            eq = np.hypot(
+                *(
+                    tr.project(idx, flight_model.ballistic(q[0], (idx - a) / flight_model.FPS))
+                    - tr.px[idx]
+                ).T
+            )
             qt = trim(eq)
             rr, rt = roll(tr, a, b)
-            row = [a, b, k, q[1], qt, V.G * q[0][5] ** 2 / 8, rr, rt]
+            row = [a, b, k, q[1], qt, flight_model.G * q[0][5] ** 2 / 8, rr, rt]
             d = dfit(tr, a, b) if qt <= SCREEN else None
             if d is None:
                 row += [np.nan] * 3 + [np.nan] * 7
@@ -120,8 +125,8 @@ def main():
     tag = sys.argv[1]
     procs = int(sys.argv[2]) if len(sys.argv) > 2 else 8
     lim = int(sys.argv[3]) if len(sys.argv) > 3 else 0
-    tr = V.Track(tag)
-    V.ground_all(tr)
+    tr = flight_model.Track(tag)
+    flight_model.ground_all(tr)
     starts = [a for a in range(0, len(tr.abs), STEP) if tr.has[a]]
     if lim:
         starts = starts[:lim]
@@ -131,7 +136,7 @@ def main():
     with Pool(procs) as p:
         # (n, cols) even when no window fits: a piece before kickoff has no ball at all
         S = np.array(sum(p.map(work, chunks), []), dtype=float).reshape(-1, len(COLS))
-    out = os.path.join(V.HERE, '%s_scan2%s.npz' % (tag, '_lim' if lim else ''))
+    out = os.path.join(flight_model.HERE, '%s_scan2%s.npz' % (tag, '_lim' if lim else ''))
     np.savez(out, S=S, cols=np.array(COLS))
     print(
         '%d starts, %d windows, %d drag-fitted  (%.0f s)'
