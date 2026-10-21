@@ -700,10 +700,8 @@ def build_report_json(
     split = getattr(report, 'territory', None)
     territory_json = split.to_json() if split else {}
 
-    # Both were missing entirely until 2026-08-02, and `ppda` was therefore
-    # None in every report this project has ever produced — not because the
-    # footage could not support it, but because nothing handed the function a
-    # pitch to measure the pressing zone on.
+    # `ppda` needs both: without a pitch to measure the pressing zone on, it
+    # is None whatever the footage could support.
     pitch = getattr(report, 'pitch', None)
     ends = getattr(report, 'attacking_ends', None) or {}
 

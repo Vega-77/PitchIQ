@@ -1,39 +1,17 @@
 """Where the tagged log and the pipeline disagree.
 
-Two people watched the same match: somebody on the touchline tapping a tablet,
-and this pipeline. Neither is right. The tagger looks away, taps late, and gives
-up on the boring stretches; the pipeline loses the ball for seconds at a time
-and has never seen a real match. What is worth having is not a verdict on which
-one to believe — it is a list of the moments where they say different things,
-because those are the moments worth a human's twenty seconds.
+`reconcile` lines up the touchline tagger's log with what the pipeline derived
+and returns a `Reconciliation`: the `Disagreement`s worth a human's twenty
+seconds. Only two things can honestly be compared: goals (the one word both
+vocabularies share, and the one that matters most), and the ball leaving play
+(`ball_exits`, via `zones.leaves_play`) against tagged `out_of_bounds`,
+`throw_in`, `corner` and `goal_kick`. `warnings_for` turns it into report
+warnings.
 
-    What can honestly be compared.
+It is not ground truth and no rate here is an accuracy: both sides can be wrong
+the same way. It is useful as a trend across matches.
 
-Almost nothing, and pretending otherwise would manufacture agreement. The tagged
-vocabulary is about *why play stopped* — corners, throw-ins, fouls, cards. The
-derived vocabulary is about *what a player did* — passes, carries, tackles. They
-intersect on exactly one word:
-
-    goal
-
-which is also the one worth getting right above all others. A coach who sees a
-goal that did not happen, or misses one that did, stops trusting everything else
-on the page and is correct to.
-
-The second comparison is not a shared word but a shared event. The tagger records
-`out_of_bounds`, `throw_in`, `corner`, `goal_kick`; the pipeline can see the ball
-cross a line, via `zones.leaves_play`. That is the independent cross-check the
-roadmap asks for in Phase 9 — until now the tagged log was the pipeline's only
-source of truth about stoppages, so a stoppage nobody tagged was invisible and a
-mistaken tap was unquestionable.
-
-    What this is not.
-
-It is not ground truth, and no rate here is an accuracy. Both sides can be wrong
-about the same moment in the same direction, and this would call that agreement.
-The number is only useful as a trend across matches: a run of games where the two
-records drift apart means something changed — the camera, the tagger, the
-detector — and it is worth finding out which before the numbers are believed.
+Design notes, measurements and history: `docs/design/reconcile.md`.
 """
 
 from __future__ import annotations

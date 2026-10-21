@@ -298,7 +298,7 @@ def nearest_player(
 
     Compares against each player's ground point rather than box centre, since
     the ball is on the floor. This is the primitive possession is built from —
-    but note that at the fragmentation levels measured in Phase 6, the track id
+    but note that at the fragmentation this pipeline measures, the track id
     it returns is not a stable player identity, so it supports team-level
     possession long before it supports per-player touch counts.
     """

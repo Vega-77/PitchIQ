@@ -1,27 +1,17 @@
 """Where on the pitch something happened.
 
-Every event statistic beyond a raw count is really a question about geography.
-A pass is progressive if it gained ground *towards a particular goal*. A cross
-comes from a wide area *of the attacking third*. A clearance leaves the
-defensive third. None of those mean anything until you can say which end of the
-pitch a team is playing towards.
+Pure geometry over `Pitch`, in metres: thirds, channels and the zone grid,
+penalty and goal areas, distance and angle to goal, the ball crossing the goal
+line or leaving play, and progressive passes, switches and crosses.
+`attacking_end` (or `end`, or `defending_end`) is a required argument throughout
+and never defaulted, because getting the end wrong does not raise: it silently
+turns a defensive clearance into a final-third entry.
 
-So `attacking_end` (or `end`, or `defending_end`) is a required argument
-throughout this module, never defaulted. That is deliberate and slightly
-annoying. The failure mode it prevents is the one `Pitch.to_statsbomb` already
-warns about: getting the end wrong does not raise, it silently reports a
-defensive clearance as a final-third entry and a shot from your own box as a
-tap-in. A wrong number that looks right is worse than a crash.
+Needs a calibration upstream. Offside is deliberately absent: it needs every
+defender's exact position at the moment of release, and neither is available;
+it stays human-tagged.
 
-Everything here is in metres and needs a calibration upstream. The functions
-themselves are pure geometry over `Pitch`, so they are fully testable today —
-which matters, because the footage that would let them run for real does not
-exist yet.
-
-Deliberately absent: offside. It needs the complete and accurate positions of
-every defender at the exact moment of release. We have neither complete
-positions (players leave frame) nor an accurate release moment (the ball is
-detected in about 60% of frames). It stays human-tagged; see the ROADMAP archive, Phase 10.
+Design notes, measurements and history: `docs/design/zones.md`.
 """
 
 from __future__ import annotations

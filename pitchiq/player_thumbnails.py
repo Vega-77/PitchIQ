@@ -1,35 +1,17 @@
 """A recognisable picture of each tracked figure, cut while the pixels exist.
 
-The mapping step is the one part of this pipeline that cannot be automated and
-has never been made easy. A coach opens the review tool and is shown forty
-tracked figures described as *"team a · 3 fragments · 12:04–19:31 · 2,410
-frames"* beside a swatch of kit colour, and has to decide which teenager each
-one is. The sub log narrows the list (Phase 7) and the frame count says which
-figures are worth the effort, but neither answers the actual question, which is
-visual: *that is the tall one who plays left back.*
+The review tool asks a coach to map tracked figures to players, and that
+question is visual. So `consider` scores each sighting (`crop_score`) inside the
+decode loop, where the image still exists, and keeps the best crop per track;
+`cut` and `encode` make it, `attach_thumbs` puts them on the report and
+`fit_budget` keeps the total small.
 
-So this cuts one small picture of each track out of the footage. It has to
-happen inside the decode loop for the same reason `_sample_colours` does — what
-survives a batch is a few numbers per detection, never the image — which is why
-this is a scoring function and an encoder rather than a pass of its own.
+Three rules, each about not showing something worse than nothing: never upscale
+(a tiny picture is the truth about that figure); nothing clipped by the frame
+edge; nothing wider than it is tall (two merged players, or someone on the
+ground). A track never cleanly seen keeps its colour swatch.
 
-Three rules, and each of them is about not showing a coach something worse than
-nothing:
-
-  * **Never upscale.** A player forty pixels tall gets a forty-pixel thumbnail.
-    Blowing it up to a tidy uniform size would invent detail the sensor never
-    recorded and make an unusable crop look like a usable one. A row where the
-    picture is visibly tiny is telling the truth about that figure.
-  * **Nothing clipped by the frame edge.** Half a player is not recognisable and
-    is actively misleading — the missing half reads as a smaller person.
-  * **Nothing wider than it is tall.** That box is two players the detector
-    merged, or somebody on the ground. Either way it is not a portrait of one
-    person, and a coach who matches a name to it has mislabelled a whole track.
-
-A rejected candidate is not a rejected track: the next sighting is a few frames
-away, and over a half every track that was ever cleanly seen gets its picture.
-A track that never was is a track the tracker was struggling with anyway, and it
-keeps its colour swatch.
+Design notes, measurements and history: `docs/design/player_thumbnails.md`.
 """
 
 from __future__ import annotations

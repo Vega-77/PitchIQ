@@ -1,35 +1,18 @@
 """Scoring player tracking against the player lab's hand labels.
 
-The lab (`pitchiq/balltrack/plab/`) shows forty keyframes, half a second apart, and
-the user names every person in each: A1..An and B1..Bn for the two kits, AGK
-and BGK for keepers, R for a referee, X for someone not playing, '-' for a box
-that is not one person, and A?, B? or ? for a player whose identity they
-can't tell. Missing players are added by tapping their feet. A confirmed
-keyframe is complete truth; an unconfirmed one counts only for the labels the
-user actually set.
+`load_docs` and `build_truth` read the lab's labels (`pitchiq/balltrack/plab/`:
+A1..An and B1..Bn per kit, AGK/BGK keepers, R referee, X not playing, '-' not
+one person, A?/B?/? unidentified; a confirmed keyframe is complete truth).
+`score` compares a tracker's predictions (`Pred`: identity, box, team, role per
+keyframe) and returns a `Score`; `format_table` prints it. Every tracker is
+scored the same way.
 
-What is measured, and why these:
+Measured: coverage (recall), precision (boxes on X or R count against it),
+**wrong-person rate** (the number that matters most), IDF1, fragments and ID
+switches, team accuracy, referee, identities per team, and foot position error
+in metres when a projector is given.
 
-* **coverage** — of the players on the pitch, how many the tracker has a box
-  on. Recall over every labelled player, named or not.
-* **precision** — of the boxes the tracker calls a player, how many are one.
-  A box on a coach (X) or the referee (R) counts against it; a box on an
-  unlabelled or '-' box is ignored, because nobody said what is there.
-* **wrong-person rate** — the share of a tracker identity's appearances that
-  belong to someone other than the player it mostly is. This is the number
-  the user cares about most: a wrong identity silently gives one player's
-  minutes, distance and touches to another, and nobody can see it happen.
-* **IDF1** — the standard identity score: the best one-to-one pairing of
-  labelled players with tracker identities, and how many appearances agree.
-* **fragments** — tracker identities per labelled player; ID switches along
-  each player's keyframes.
-* **team accuracy**, **referee**, **identities per team** against the truth's.
-* **position error** — feet in metres, when a projector is given, which says
-  whether a box is on the right player and not merely near them.
-
-Predictions are plain: for each keyframe frame, a list of (identity, box,
-team, role). Every tracker — the shipped BoT-SORT, the pipeline's merged
-clusters, the pitch tracker — is scored the same way.
+Design notes, measurements and history: `docs/design/player_eval.md`.
 """
 
 from __future__ import annotations
