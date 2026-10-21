@@ -57,16 +57,11 @@ import time
 import cv2
 import numpy as np
 
+from . import config
+
 S2 = os.path.dirname(os.path.abspath(__file__))
-# The first labelling round's scratchpad (label/manifest.json, clips/). The
-# temp folder it lived in is gone; point PIQ_LEGACY_SP at a copy to rerun this.
-SP = os.environ.get('PIQ_LEGACY_SP', os.path.join(S2, 'legacy_sp'))
-VIDEO = os.environ.get(
-    'PIQ_VIDEO',
-    os.path.join(
-        os.path.expanduser('~'), 'Downloads', '8-26-26 Scrimmage v Gov Livingston - Tactical.mp4'
-    ),
-)
+SP = config.LEGACY_SP  # the first labelling round (label/manifest.json, clips/)
+VIDEO = config.VIDEO
 OUT = os.path.join(S2, 'still4.npz')
 
 POS_TOL = 8.0

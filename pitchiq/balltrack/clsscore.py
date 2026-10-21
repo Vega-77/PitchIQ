@@ -27,7 +27,7 @@ BATCH_FRAMES = 32
 
 def run(model, tag):
     import cv2
-    from . import feat4
+    from . import config
 
     t0 = time.time()
     frames = ball_tracker.load_frames(tag)
@@ -51,7 +51,7 @@ def run(model, tag):
         buf_k.clear()
         buf_i.clear()
 
-    cap = cv2.VideoCapture(feat4.VIDEO)
+    cap = cv2.VideoCapture(config.VIDEO)
     assert cap.isOpened(), 'cannot open video'
     pos = frames[0]['abs']
     cap.set(cv2.CAP_PROP_POS_FRAMES, pos)

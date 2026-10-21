@@ -126,7 +126,7 @@ def read_range(cap, lo, hi, need):
 
 
 def bridges(net, tag):
-    from .. import feat4
+    from .. import config
 
     z = np.load(os.path.join(AT, 'p2d', 'cls_B', '%s.npz' % tag))
     ab, px, py, src = z['abs'], z['x'], z['y'], z['src']
@@ -162,7 +162,7 @@ def bridges(net, tag):
         )  # noqa: E731
 
     reused = 0
-    cap = cv2.VideoCapture(feat4.VIDEO)
+    cap = cv2.VideoCapture(config.VIDEO)
     res = []
     t0 = time.time()
     k0 = 0
@@ -309,7 +309,7 @@ def prev_tracks(tag, where):
 
 
 def alone(net, tags):
-    from .. import feat4
+    from .. import config
 
     caps, seeds, spans = [], [], []
     for tag in tags:
@@ -318,7 +318,7 @@ def alone(net, tags):
         s = int(z['abs'][i])
         spans.append((s, int(z['abs'][-1]), int(z['abs'][0]), len(z['abs'])))
         seeds.append((z['x'][i], z['y'][i]))
-        cap = cv2.VideoCapture(feat4.VIDEO)
+        cap = cv2.VideoCapture(config.VIDEO)
         cap.set(cv2.CAP_PROP_POS_FRAMES, s)
         caps.append(cap)
     L = max(e - s + 1 for s, e, _, _ in spans)

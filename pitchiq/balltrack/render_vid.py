@@ -91,7 +91,7 @@ def clock(ab):
 
 def main():
     import cv2
-    from . import feat4
+    from . import config
 
     tag = sys.argv[1]
     out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(S2, tag + '.mp4')
@@ -101,7 +101,7 @@ def main():
     by = picks_for(tag)
     print('picks ready: %d frames with candidates' % len(by), flush=True)
 
-    cap = cv2.VideoCapture(feat4.VIDEO)
+    cap = cv2.VideoCapture(config.VIDEO)
     cap.set(cv2.CAP_PROP_POS_FRAMES, lo)
     W, H = int(1920 * sc), int(1080 * sc)
     vw = cv2.VideoWriter(out, cv2.VideoWriter_fourcc(*'mp4v'), FPS, (W, H))

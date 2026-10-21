@@ -152,7 +152,7 @@ def choose(frames, every, fjson):
 
 def run(tag, every, fjson, size):
     import cv2
-    from . import feat4  # only cv2 / numpy
+    from . import config
 
     t0 = time.time()
     frames = choose(ball_tracker.load_frames(tag), every, fjson)
@@ -174,7 +174,7 @@ def run(tag, every, fjson, size):
     C = np.empty((N, size, size, 3), np.uint8)
     K = np.empty((N, len(CTX_NAMES)), np.float32)
 
-    cap = cv2.VideoCapture(feat4.VIDEO)
+    cap = cv2.VideoCapture(config.VIDEO)
     assert cap.isOpened(), 'cannot open video'
     pos = frames[0]['abs']
     cap.set(cv2.CAP_PROP_POS_FRAMES, pos)  # the one seek

@@ -15,7 +15,7 @@ import sys
 import cv2
 import numpy as np
 
-from .. import feat4
+from .. import config
 from pitchiq.tracking import PlayerTracker
 from pitchiq.teams import assign_teams, kit_sample
 
@@ -28,7 +28,7 @@ STEP = int(sys.argv[4]) if len(sys.argv) > 4 else 15
 HI = LO + N * STEP  # exclusive
 
 os.makedirs(os.path.join(OUT, 'frames'), exist_ok=True)
-cap = cv2.VideoCapture(feat4.VIDEO)
+cap = cv2.VideoCapture(config.VIDEO)
 fps = cap.get(cv2.CAP_PROP_FPS)
 cap.set(cv2.CAP_PROP_POS_FRAMES, LO)
 tr = PlayerTracker(imgsz=1280)
@@ -84,7 +84,7 @@ life = {
     if t.label == 'person'
 }
 meta = {
-    'video': os.path.basename(feat4.VIDEO),
+    'video': os.path.basename(config.VIDEO),
     'fps': fps,
     'w': W,
     'h': H,

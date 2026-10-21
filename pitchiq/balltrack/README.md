@@ -9,9 +9,13 @@ sh run.sh <lo> <hi> <tag> [workers]     # abs frame numbers; workers default 8
 sh run.sh 86475 95475 vid1              # -> vid1.mp4, the review video
 ```
 
-Set `PIQ_VIDEO` to point at another video. The default is the scrimmage file
-in Downloads. The detector needs the CUDA GPU (gmatch2). Use 8 workers, not
-16: each process holds about 388 MiB of VRAM for its CUDA context.
+Settings come from the environment, with defaults in `config.py`: `PIQ_VIDEO`
+(the match video; default the scrimmage file in Downloads), `PIQ_WORKERS`
+(detector processes for one window, default 8), `PIQ_HALF_WORKERS` (for a
+whole half, default 12) and `PIQ_LEGACY_SP` (the first labelling round, for the
+legacy training scripts only). The detector needs the CUDA GPU (gmatch2). Keep
+the workers near 8, not 16: each process holds about 388 MiB of VRAM for its
+CUDA context.
 
 The tracker is a package, `pitchiq.balltrack`. The shell scripts source
 `pyenv.sh`, which picks the repo's venv python and puts the repo root on

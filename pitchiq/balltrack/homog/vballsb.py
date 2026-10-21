@@ -116,7 +116,7 @@ def main():
 
 
 def render(tag, Hf, by):
-    from .. import feat4
+    from .. import config
 
     sc = 2 / 3.0
     Wd, Ht = 1280, 720
@@ -132,7 +132,7 @@ def render(tag, Hf, by):
     for pl in lines:
         cv2.polylines(base, [np.int32(pl * ms)], False, (230, 230, 230), 1, cv2.LINE_AA)
     lo, hi = min(Hf), max(Hf)
-    cap = cv2.VideoCapture(feat4.VIDEO)
+    cap = cv2.VideoCapture(config.VIDEO)
     cap.set(cv2.CAP_PROP_POS_FRAMES, lo)
     vw = cv2.VideoWriter(
         os.path.join(HERE, '%s_pitch.mp4' % tag), cv2.VideoWriter_fourcc(*'mp4v'), 30, (Wd, Ht)

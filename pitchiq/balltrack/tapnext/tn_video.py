@@ -106,7 +106,7 @@ def per_frame():
 
 
 def main():
-    from .. import feat4
+    from .. import config
 
     A0, Hs, img, sb, kind, gnd, hgt = per_frame()
     lines = vovl.polylines()
@@ -127,7 +127,7 @@ def main():
     vw = cv2.VideoWriter(out_p, cv2.CAP_MSMF, cv2.VideoWriter_fourcc(*'H264'), 30, (OW, OH))
     assert vw.isOpened(), 'no H.264 writer'
     title = 'WHAT WE HAVE' if WHO == 'ours' else 'TAPNext++'
-    cap = cv2.VideoCapture(feat4.VIDEO)
+    cap = cv2.VideoCapture(config.VIDEO)
     cap.set(cv2.CAP_PROP_POS_FRAMES, LO)
     last = None
     t0 = time.time()

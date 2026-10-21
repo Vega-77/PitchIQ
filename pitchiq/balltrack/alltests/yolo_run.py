@@ -35,12 +35,12 @@ def detect(tag):
     p = os.path.join(HERE, 'yolo', '%s.npz' % tag)
     if os.path.exists(p):
         return np.load(p)
-    from .. import feat4
+    from .. import config
     from ultralytics import YOLO
 
     m = YOLO(os.path.join(REPO, 'pitchiq', 'weights', 'yolov8n.pt'))
     lo, hi = window(tag)
-    cap = cv2.VideoCapture(feat4.VIDEO)
+    cap = cv2.VideoCapture(config.VIDEO)
     cap.set(cv2.CAP_PROP_POS_FRAMES, lo)
     F, X, Y, Cf = [], [], [], []
     t0 = time.time()

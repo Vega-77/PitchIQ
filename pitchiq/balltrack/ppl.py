@@ -23,7 +23,7 @@ import time
 import cv2
 import numpy as np
 
-from . import feat4  # VIDEO path
+from . import config
 from .drun import chunk_edges
 from pitchiq.detector import PersonBallDetector
 
@@ -100,7 +100,7 @@ def run(det, tag):
 
 
 def run_chunk(det, lo, hi, name):
-    cap = cv2.VideoCapture(feat4.VIDEO)
+    cap = cv2.VideoCapture(config.VIDEO)
     assert cap.isOpened(), 'cannot open video'
     cap.set(cv2.CAP_PROP_POS_FRAMES, lo)
     F, B, C = [], [], []

@@ -26,10 +26,12 @@ import time
 import cv2
 import numpy as np
 
+from . import config
+
 S2 = os.path.dirname(os.path.abspath(__file__))
 # The first labelling round's scratchpad (label/manifest.json, clips/). The
 # temp folder it lived in is gone; point PIQ_LEGACY_SP at a copy to rerun this.
-SP = os.environ.get('PIQ_LEGACY_SP', os.path.join(S2, 'legacy_sp'))
+SP = config.LEGACY_SP
 CLIPS = os.path.join(SP, 'clips')
 NPZ = os.path.join(S2, 'still4.npz')
 OUT = os.path.join(S2, 'temporal4.npz')

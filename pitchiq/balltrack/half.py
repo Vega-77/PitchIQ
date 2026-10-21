@@ -36,7 +36,7 @@ import time
 
 import numpy as np
 
-from . import drun, script
+from . import config, drun, script
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(S2))
@@ -559,7 +559,7 @@ def main():
     ap.add_argument('tag')
     ap.add_argument('lo', type=int)
     ap.add_argument('hi', type=int)
-    ap.add_argument('--workers', type=int, default=12)
+    ap.add_argument('--workers', type=int, default=config.HALF_WORKERS)
     ap.add_argument('--overlap', type=int, default=300)
     ap.add_argument('--lanes', type=int, default=LANES, help="the ball's CPU jobs at a time")
     ap.add_argument(
