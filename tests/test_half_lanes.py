@@ -45,7 +45,11 @@ def run(tmp_path, monkeypatch):
     h.dets_ready = lambda a, b: all(c in dets for c, d in h.chunks if not (d < a or c > b))
     for stage in ('build', 'classify', 'shipped', 'bridges', 'hybrid'):
         monkeypatch.setattr(h, stage, lambda p, stage=stage: rec(stage, p['ptag']))
-    threads = [threading.Thread(target=h.players_loop), threading.Thread(target=h.ball_gpu_loop)]
+    monkeypatch.setattr(h, 'merge_players', lambda: rec('merge', None))
+    # the lanes Half.run starts: players, two GPU stages each on its own lane, the CPU jobs
+    threads = [threading.Thread(target=h.players_loop),
+               threading.Thread(target=h.ball_gpu_loop, args=('bridges', 'shipped')),
+               threading.Thread(target=h.ball_gpu_loop, args=('classify', 'build'))]
     threads += [threading.Thread(target=h.cpu_loop) for _ in range(2)]
     for t in threads:
         t.start()
@@ -65,7 +69,8 @@ def test_every_stage_runs_once_after_what_it_reads(run):
         assert order == sorted(order)
         a, b = p['win']
         assert all(at[('dets', c)] < at[('build', P)] for c, d in h.chunks if not (d < a or c > b))
-    assert len(log) == 5 * len(h.pieces) + 2 * len(h.chunks)
+    assert at[('merge', None)] > max(at[('build', p['ptag'])] for p in h.pieces)   # players merge last
+    assert len(log) == 5 * len(h.pieces) + 2 * len(h.chunks) + 1
 
 
 def test_features_number_their_rows_in_chunk_order(run):

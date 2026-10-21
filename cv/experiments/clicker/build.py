@@ -12,7 +12,6 @@ Held-out halves (NB H2, Piscataway H1/H2, WH H1) are test-only: never trained on
 
     python build.py [<out root>]        -> <root>/b1..b5/{items.json, media}, <root>/items_all.json
 """
-import io
 import json
 import os
 import sys
