@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 
 from pitchiq.calibration import CalibrationError
-from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.frame_table import FrameRecord, FrameTable
 from pitchiq.panned import MAP_FIT_ERROR, PannedCamera
 from pitchiq.pipeline import analyse_match
 from pitchiq.pitch import Pitch, STATSBOMB_LENGTH, STATSBOMB_WIDTH

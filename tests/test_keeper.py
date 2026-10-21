@@ -25,7 +25,7 @@ from pitchiq.keeper import (
     identify_keepers,
     keeper_reports,
 )
-from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.frame_table import FrameRecord, FrameTable
 from pitchiq.pitch import Pitch
 from pitchiq.teams import TEAM_A, TEAM_B
 

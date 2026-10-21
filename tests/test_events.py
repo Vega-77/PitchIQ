@@ -41,7 +41,7 @@ from pitchiq.events import (
     pressing_segments,
     turnovers_by_third,
 )
-from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.frame_table import FrameRecord, FrameTable
 from pitchiq.phases import DeadSpan, PhaseTable
 from pitchiq.pitch import MatchOrientation, Pitch
 from pitchiq.teams import TEAM_A, TEAM_B

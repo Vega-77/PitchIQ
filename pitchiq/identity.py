@@ -47,7 +47,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .frames import FrameTable
+from .frame_table import FrameTable
 from .teams import UNKNOWN
 
 # Tracks separated by more than this in time are not merged on proximity alone —

@@ -17,7 +17,7 @@ import math
 import numpy as np
 
 from pitchiq.calibration import Calibration
-from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.frame_table import FrameRecord, FrameTable
 from pitchiq.participants import (
     MIN_SCREEN_TIME_S,
     ROLE_OFFFIELD,

@@ -15,7 +15,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.frame_table import FrameRecord, FrameTable
 from pitchiq.identity import (
     MAX_BRIDGE_S,
     cluster_of_track,

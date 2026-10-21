@@ -47,7 +47,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field, replace
 
-from .frames import FrameTable
+from .frame_table import FrameTable
 from .pitch import MatchOrientation, Pitch
 from .teams import TEAM_A, TEAM_B, UNKNOWN
 from .touches import Touch, TouchSequence

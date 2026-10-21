@@ -1,6 +1,6 @@
 """The single pass that finally lets one frame know all three of its facts.
 
-Before pitchiq/frames.py the pipeline ran the model twice over two identity spaces
+Before pitchiq/frame_table.py the pipeline ran the model twice over two identity spaces
 that could not see each other: a detection pass that knew the ball and the
 shirt colours but numbered players per-detection, and a tracking pass that gave
 players persistent ids but discarded the ball. An event needs the ball, a
@@ -12,7 +12,7 @@ are injected, because everything TrackedFramePass does with a frame is
 bookkeeping — which rows go where, which frames get skipped, when a colour gets
 sampled — and bookkeeping is the part that breaks quietly.
 
-Run:  .venv/Scripts/python.exe -m pytest tests/test_frames.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_frame_table.py -q
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 
 from pitchiq.detector import CLASS_BALL, CLASS_PERSON
-from pitchiq.frames import (
+from pitchiq.frame_table import (
     COL_CONF,
     FrameRecord,
     FrameTable,

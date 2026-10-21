@@ -53,7 +53,7 @@ from .calibration import Calibration
 from .camera import CameraMotion, camera_warnings, detect_camera_shift
 from .coverage import PitchCoverage, coverage_warnings, pitch_coverage
 from .events import EventLog, attach_xg, attacking_end_for, derive_events
-from .frames import FrameTable, TrackedFramePass, attach_trajectory
+from .frame_table import FrameTable, TrackedFramePass, attach_trajectory
 from .video_io import effective_fps, stride_for_fps, video_info
 from .identity import PlayerCluster, cluster_of_track, merge_tracks
 from .keeper import KeeperAssignment, identify_keepers, keeper_reports
@@ -533,7 +533,7 @@ def analyse_match(
 
     `detector` and `tracker_factory` are handed straight to `TrackedFramePass`,
     which has taken both since it was written so that its bookkeeping could be
-    checked without a GPU (see pitchiq/frames.py). For a long time the seam stopped
+    checked without a GPU (see pitchiq/frame_table.py). For a long time the seam stopped
     one level short of here, and this — the function every published number
     comes out of — was the one part of the pipeline nothing could test: the
     detector was built inside, so calling this at all meant installing

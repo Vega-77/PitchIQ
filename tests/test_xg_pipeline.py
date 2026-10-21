@@ -17,7 +17,7 @@ import pytest
 
 from pitchiq.calibration import Calibration
 from pitchiq.events import GOAL, attach_xg, derive_events
-from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.frame_table import FrameRecord, FrameTable
 from pitchiq.keeper import KeeperAssignment
 from pitchiq.pipeline import MatchReport
 from pitchiq.pitch import MatchOrientation, Pitch

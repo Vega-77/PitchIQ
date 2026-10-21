@@ -492,7 +492,7 @@ def projector(tag: str, w: int, h: int) -> tuple[PitchProjector, object]:
 
 
 def baseline(tag: str, lo: int, n: int, imgsz: int) -> None:
-    from pitchiq.frames import TrackedFramePass
+    from pitchiq.frame_table import TrackedFramePass
     from pitchiq.identity import cluster_of_track, merge_tracks
     from pitchiq.panned import PannedCamera
     from pitchiq.participants import classify_participants

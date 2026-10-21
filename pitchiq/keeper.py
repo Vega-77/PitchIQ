@@ -43,7 +43,7 @@ import math
 from dataclasses import dataclass, field
 
 from .events import CARRY, GOAL, SAVED, EventLog, Pass
-from .frames import FrameTable
+from .frame_table import FrameTable
 from .pitch import Pitch
 from . import zones
 

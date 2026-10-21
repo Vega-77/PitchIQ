@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 
 from pitchiq.camera import CameraMotion, Shift, camera_warnings, detect_camera_shift
-from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.frame_table import FrameRecord, FrameTable
 
 FPS = 30.0
 HEIGHT_PX = 60.0  # one player height, the unit everything is measured in

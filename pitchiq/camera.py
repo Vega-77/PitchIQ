@@ -49,7 +49,7 @@ is reported. In a real bump agreement is near total.
 
 Everything is measured in **player heights** rather than pixels, so the same
 threshold holds for a camera at the halfway line and one up a floodlight, and
-for 720p and 4K. `frames.FrameRecord.scale_px` is the same measure the touch
+for 720p and 4K. `frame_table.FrameRecord.scale_px` is the same measure the touch
 detector and the identity bridge already use.
 
     What this cannot do, stated because it matters.
@@ -76,7 +76,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .frames import FrameTable
+from .frame_table import FrameTable
 
 # How far apart to sample, in seconds. Long enough that a real bump lands inside
 # one interval rather than being spread across several and looking like drift;

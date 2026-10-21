@@ -62,7 +62,7 @@ import numpy as np
 from .ball import BallPoint, BallTrajectory
 from .balltrack import ballgate
 from .calibration import Calibration, CalibrationError
-from .frames import COL_X1, COL_X2, COL_Y1, COL_Y2, FrameTable
+from .frame_table import COL_X1, COL_X2, COL_Y1, COL_Y2, FrameTable
 from .pitch import STATSBOMB_LENGTH, STATSBOMB_WIDTH, Pitch
 
 TRACKER = Path(__file__).resolve().parent / 'balltrack'

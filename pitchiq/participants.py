@@ -66,7 +66,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .frames import COL_TRACK_ID, COL_X1, COL_X2, COL_Y1, COL_Y2, FrameTable
+from .frame_table import COL_TRACK_ID, COL_X1, COL_X2, COL_Y1, COL_Y2, FrameTable
 from .teams import UNKNOWN
 
 ROLE_PLAYER = 'player'
@@ -284,7 +284,7 @@ def classify_participants(table: FrameTable, team_of=None) -> ParticipantReport:
 
     `team_of` maps a track id to a team name; it defaults to the table's own
     assignment. Injectable so the classifier can be tested without building a
-    TeamAssignment, the same seam `pitchiq/frames.py` uses for its detector.
+    TeamAssignment, the same seam `pitchiq/frame_table.py` uses for its detector.
     """
     team_of = team_of or table.team_of
     width = float(table.frame_width or 0)

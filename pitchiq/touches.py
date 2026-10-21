@@ -54,7 +54,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .frames import FrameTable
+from .frame_table import FrameTable
 from .possession import median_player_height
 from .teams import UNKNOWN
 
@@ -425,7 +425,7 @@ def segment_touches(
     """Find the moments somebody touched the ball.
 
     Expects `table.records` to carry ball positions already — run
-    `frames.attach_trajectory` first.
+    `frame_table.attach_trajectory` first.
 
     `is_player` keeps anyone not in the match out of the attribution. It matters
     more here than almost anywhere: a touch is credited to the nearest figure,
