@@ -1,6 +1,6 @@
 """Top-down venue map.  G_k = B . K^-1 . H_k maps keyframe k's pixels to the
 ground plane (units: camera heights), B = rows (e1 along field, e2 across, -n).
-    python -m pitchiq.balltrack.homog.top_down_map [every] [px_per_unit]   -> top_down_map.jpg, vtop.npz (B, K, T)"""
+    python -m pitchiq.balltrack.pitch_registration.top_down_map [every] [px_per_unit]   -> top_down_map.jpg, vtop.npz (B, K, T)"""
 
 import sys
 import cv2

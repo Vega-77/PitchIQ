@@ -27,7 +27,7 @@ changed: the team's Hudl footage, which follows the play, now runs end to end.
 
 - **Calibration per frame.** `pitchiq/autocal.py` calibrates the camera from the
   match itself (paint and SIFT, no clicks; `python -m pitchiq.experiments.autocal_run`),
-  and `pitchiq/balltrack/homog/register_frames.py` registers every frame to it. One camera
+  and `pitchiq/balltrack/pitch_registration/register_frames.py` registers every frame to it. One camera
   position per game; each half solves its own aim.
 - **The ball.** The Hybrid 90 tracker in `pitchiq/balltrack/` (accepted 2026-10-03):
   a detector + classifier tracker that owns every confident pick, with

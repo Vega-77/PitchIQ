@@ -22,15 +22,15 @@ import time
 import cv2
 import numpy as np
 
-from . import ballgate, homog
+from . import ballgate, pitch_registration
 from . import render_review_video as RV  # clock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HG = os.path.join(HERE, 'h3d_hyb90')
 os.chdir(HG)  # draw_pitch_overlay reads its maps from the working folder
-homog.WORK = HG  # and flight_model from its work folder
-from .homog import draw_pitch_overlay  # noqa: E402
-from .homog import flight_model as V  # noqa: E402
+pitch_registration.WORK = HG  # and flight_model from its work folder
+from .pitch_registration import draw_pitch_overlay  # noqa: E402
+from .pitch_registration import flight_model as V  # noqa: E402
 
 WD = 720
 CW, CH = 720, 405

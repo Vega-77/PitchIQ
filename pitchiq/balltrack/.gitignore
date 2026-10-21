@@ -19,19 +19,19 @@ h3d_*/
 evaluation/p2d/
 evaluation/tn/
 tapnext_bridge/tapnet/
-homog/*_ballsb.csv
-homog/*_ball3d*.csv
+pitch_registration/*_ballsb.csv
+pitch_registration/*_ball3d*.csv
 # ...except the small inputs the homography and the 3D labs need
-!homog/vmap.npz
-!homog/vmap_edges.npz
-!homog/vpitch.npz
-!homog/vtop.npz
-!homog/vid1_rollrms.npy
-!homog/airtruth.npz
-!homog/*_reg.npz
+!pitch_registration/vmap.npz
+!pitch_registration/vmap_edges.npz
+!pitch_registration/vpitch.npz
+!pitch_registration/vtop.npz
+!pitch_registration/vid1_rollrms.npy
+!pitch_registration/airtruth.npz
+!pitch_registration/*_reg.npz
 
 # half.py: per-piece stage markers, logs and seams
 half/
 # half.py: drun's per-chunk manifests and each piece's slice of the registration
 *_k[0-9][0-9][0-9].json
-homog/*_q[0-9][0-9][0-9]_reg.npz
+pitch_registration/*_q[0-9][0-9][0-9]_reg.npz

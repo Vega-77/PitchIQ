@@ -22,7 +22,7 @@ actually has is from a Hudl camera that follows the play. Every frame gets its
 own frame-to-pitch homography:
 - `pitchiq/autocal.py` calibrates the camera from the match itself, using the
   paint plus SIFT between frames;
-- `pitchiq/balltrack/homog/register_frames.py` registers frames to a venue map;
+- `pitchiq/balltrack/pitch_registration/register_frames.py` registers frames to a venue map;
 - landmark pins clicked on the camera's panorama on the calibrate page can
   place the pitch instead (the pin solve that reads them, `pin_cal.py`, is not
   in the repo yet).
@@ -52,7 +52,7 @@ in git"). Accuracy figures for the tracker are in that README too, and
 | `pitchiq/` | the pipeline: detection, tracking, identity, calibration, ball, possession, events, top-down map, report JSON, publishing to Firestore |
 | `pitchiq/cli/` | the match-day commands, run as `python -m pitchiq <command>`: `grab_frame`, `calibrate`, `event_report`, `match_report`, `compare_reports`, `publish_report` |
 | `pitchiq/experiments/` | research tools and labs: `spike_detect`, `track_report`, `speed_report`, `autocal_run`, `player_lab`, ... |
-| `pitchiq/balltrack/` | the ball tracker for panning footage (Hybrid 90: detector + classifier + TAPNext++ bridges + 3D flight chain), and the venue map and registration in `homog/` |
+| `pitchiq/balltrack/` | the ball tracker for panning footage (Hybrid 90: detector + classifier + TAPNext++ bridges + 3D flight chain), and the venue map and registration in `pitch_registration/` |
 | `shared/` | shared frontend modules and CSS (no build step, plain ES modules) |
 | `index.html` | landing page and sign-in |
 | `coach/` | coach dashboard: season, roster, matches, staff, player reports |

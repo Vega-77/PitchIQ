@@ -14,9 +14,9 @@ Hudl camera that follows the play, and `FOOTAGE_DAY.md` says plainly what that
 does to a single homography: breaks it.
 
 The ball tracker in `pitchiq/balltrack` already solved the harder half of this. It
-registers every frame to a venue map (`homog/register_frames.py`, SIFT against map
+registers every frame to a venue map (`pitch_registration/register_frames.py`, SIFT against map
 keyframes every half second) and fits that map to the pitch once
-(`homog/fit_pitch_to_map.py`). So each frame has its own frame -> StatsBomb homography.
+(`pitch_registration/fit_pitch_to_map.py`). So each frame has its own frame -> StatsBomb homography.
 
 What this module does with that is small on purpose. The Hudl camera pans and
 tilts about a fixed point, so frame -> frame is a homography for *every* point

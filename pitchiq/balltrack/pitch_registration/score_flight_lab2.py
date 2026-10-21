@@ -11,7 +11,7 @@ marked flight is wrong (ends get TOL frames of slack).
          (the model's air position where it claims air, else its ground position)
   air-only  the same, on claimed air frames only
 
-    python -m pitchiq.balltrack.homog.score_flight_lab2 a.npz b.npz ...      ('flat' scores the raw ground reading)
+    python -m pitchiq.balltrack.pitch_registration.score_flight_lab2 a.npz b.npz ...      ('flat' scores the raw ground reading)
 """
 
 import json

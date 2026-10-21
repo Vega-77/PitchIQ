@@ -16,12 +16,12 @@ import cv2
 import numpy as np
 
 from .. import render_review_video as RV
-from ..homog import draw_pitch_overlay
-from ..homog import flight_model as V
+from ..pitch_registration import draw_pitch_overlay
+from ..pitch_registration import flight_model as V
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
-HG = os.path.join(S2, 'homog')
+HG = os.path.join(S2, 'pitch_registration')
 
 TAG, LO, HI, WHO = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
 WD = 720

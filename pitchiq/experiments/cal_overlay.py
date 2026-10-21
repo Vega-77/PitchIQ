@@ -2,7 +2,7 @@
 
     PIQ_VIDEO=<video> python -m pitchiq.experiments.cal_overlay <tag> [--n 6]
 
-Reads balltrack/homog/<tag>_reg.npz (per-frame px -> StatsBomb homographies),
+Reads balltrack/pitch_registration/<tag>_reg.npz (per-frame px -> StatsBomb homographies),
 takes n frames spread over it, and draws the touchlines, goal lines, halfway
 line, boxes and centre circle back into each frame (the boxes and circle at
 their metre sizes on the pitch size in <tag>_venue.npz, if there is one,
@@ -26,7 +26,7 @@ from pitchiq.checks import feet_on_pitch
 from pitchiq.experiments.autocal_run import M_PER_R
 from pitchiq.experiments.player_lab import PLAB, VIDEO
 
-HOMOG = PLAB.parent / 'homog'
+HOMOG = PLAB.parent / 'pitch_registration'
 
 
 def _lines(L: float = 105.0, W: float = 68.0) -> list[np.ndarray]:

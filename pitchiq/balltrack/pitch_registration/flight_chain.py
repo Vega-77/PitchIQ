@@ -10,7 +10,7 @@ gates   the pre-label limits (fit error 3 px, apex 0.08 CH, roll 2.5x / 4 px)
         lose some speed but not turn or speed up much
 4 cap   horizontal speed above VMAX is penalised
 
-  python -m pitchiq.balltrack.homog.flight_chain [tag] -> <tag>_chains2.npy, <tag>_ball3d2.npz
+  python -m pitchiq.balltrack.pitch_registration.flight_chain [tag] -> <tag>_chains2.npy, <tag>_ball3d2.npz
 """
 
 import os

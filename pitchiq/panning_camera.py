@@ -34,7 +34,7 @@ from .pitch import CENTRE_CIRCLE_RADIUS_M, STATSBOMB_LENGTH, STATSBOMB_WIDTH, Pi
 
 TRACKER = Path(__file__).resolve().parent / 'balltrack'
 
-# The venue map's fit to the pitch, measured by `homog/fit_pitch_to_map.py` on 40
+# The venue map's fit to the pitch, measured by `pitch_registration/fit_pitch_to_map.py` on 40
 # landmarks and converted from radii to metres.
 MAP_FIT_ERROR = CalibrationError(mean_m=0.28, max_m=2.07, p90_m=0.84)
 
@@ -48,7 +48,7 @@ class PannedCalibration(Calibration):
 
     A plain `Calibration` measures itself from clicked correspondences, and
     there are none here: the fit was made once, on the venue map, by
-    `homog/fit_pitch_to_map.py`. Reporting NaN would read as "never checked", which is
+    `pitch_registration/fit_pitch_to_map.py`. Reporting NaN would read as "never checked", which is
     not true, and a fabricated set of clicks would report a fit to points that
     were never clicked. So the measured number is carried as it is.
     """
@@ -125,12 +125,12 @@ class PannedCamera:
 
         Those files are generated, not in git. The chain that makes them:
         the camera's registration (`python -m pitchiq.experiments.autocal_run`,
-        which writes `homog/<tag>_reg.npz` and `<tag>_venue.npz`; hybrid.sh
-        falls back to `homog/register_frames.py` on the scrimmage's venue map), then
+        which writes `pitch_registration/<tag>_reg.npz` and `<tag>_venue.npz`; hybrid.sh
+        falls back to `pitch_registration/register_frames.py` on the scrimmage's venue map), then
         `hybrid.sh` for a window or `half.py` for a half, with PIQ_VIDEO set
         to the match. See `pitchiq/balltrack/README.md`.
         """
-        homog = TRACKER / 'homog'
+        homog = TRACKER / 'pitch_registration'
         paths = (
             TRACKER / f'h3d_{version}' / f'{tag}_smooth2.npz',
             TRACKER / f'h3d_{version}' / f'{tag}_ball3dd.npz',
@@ -165,11 +165,11 @@ class PannedCamera:
         else:
             venue = np.load(homog / 'vpitch.npz')
             top = np.load(homog / 'vtop.npz')
-            # The venue map's reference keyframe -> StatsBomb; `homog/draw_pitch_overlay.py`'s
+            # The venue map's reference keyframe -> StatsBomb; `pitch_registration/draw_pitch_overlay.py`'s
             # frame_to_sb for the keyframe whose own map homography is identity.
             reference_to_sb = venue['P'] @ top['T'] @ top['B'] @ np.linalg.inv(top['K'])
         # The venue map measures the pitch in centre-circle radii, the one
-        # length the laws of the game fix. See `homog/fit_pitch_to_map.py`.
+        # length the laws of the game fix. See `pitch_registration/fit_pitch_to_map.py`.
         pitch = Pitch(
             length_m=round(float(venue['L']) * CENTRE_CIRCLE_RADIUS_M, 1),
             width_m=round(float(venue['W']) * CENTRE_CIRCLE_RADIUS_M, 1),

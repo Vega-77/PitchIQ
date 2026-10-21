@@ -3,7 +3,7 @@ person height and feet on the pitch, per stretch of the match.
 
     PIQ_VIDEO=<video> python -m pitchiq.experiments.cal_health <tag | reg.npz> [--every 60] [--window 5]
 
-<tag> is a registration in pitchiq/balltrack/homog (`<tag>_reg.npz`, with
+<tag> is a registration in pitchiq/balltrack/pitch_registration (`<tag>_reg.npz`, with
 `<tag>_venue.npz` for the pitch size when there is one; a path to a reg file
 looks for its venue file beside it). One frame every --every seconds is read;
 each --window minutes gets a row. Set PIQ_LINES=white for white-lined fields,
@@ -23,7 +23,7 @@ from pitchiq.checks import cal_flags, far_near, feet_on_pitch, paint_on_lines
 from pitchiq.experiments.autocal_run import M_PER_R
 from pitchiq.experiments.player_lab import PLAB, VIDEO
 
-HOMOG = PLAB.parent / 'homog'
+HOMOG = PLAB.parent / 'pitch_registration'
 
 
 def _files(tag: str):
@@ -111,7 +111,8 @@ def build_parser() -> argparse.ArgumentParser:
         prog='python -m pitchiq.experiments.cal_health', description=__doc__.split('\n\n')[0]
     )
     p.add_argument(
-        'tag', help='registration tag in pitchiq/balltrack/homog, or a path to a _reg.npz'
+        'tag',
+        help='registration tag in pitchiq/balltrack/pitch_registration, or a path to a _reg.npz',
     )
     p.add_argument('--every', type=float, default=60.0, help='seconds between sampled frames')
     p.add_argument('--window', type=float, default=5.0, help='minutes per row')

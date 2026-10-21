@@ -3,7 +3,7 @@ folder so the shipped outputs are never touched.
 
     python -m pitchiq.balltrack.evaluation.mk3d <ver> <tag> [<tag> ...] [--variants]
 
-  work   S2/h3d_<ver>/  (labels, registrations): the homog scripts run there with
+  work   S2/h3d_<ver>/  (labels, registrations): the pitch_registration scripts run there with
          PIQ_HOMOG pointing at it and PIQ_P2D=<ver>, so render_review_video.picks_for serves
          evaluation/p2d/<ver>/<tag>.npz
   chain  ball_on_pitch -> image_track -> flight_scan 16 -> roll_speed_cache -> default_ball_path (flight_chain + smooth_ball) -> <tag>_ball3dd.npz
@@ -23,7 +23,7 @@ from .. import script
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
-HOM = os.path.join(S2, 'homog')
+HOM = os.path.join(S2, 'pitch_registration')
 PY = sys.executable
 READY = '.ready'
 
@@ -57,7 +57,7 @@ def setup(ver):
                 )
             )
         ):
-            # map inputs only: a window's own chain outputs in homog are the SHIPPED picks' 3D,
+            # map inputs only: a window's own chain outputs in pitch_registration are the SHIPPED picks' 3D,
             # and copying e.g. <tag>_ball3dd.npz would make chain() think this version is done
             shutil.copy2(p, d)
     os.makedirs(os.path.join(d, 'airlab'), exist_ok=True)
@@ -67,11 +67,11 @@ def setup(ver):
 
 
 def run(d, ver, log, *cmd, env=None):
-    """homog script cmd[0] with args cmd[1:], in work folder d on 2D version ver."""
+    """pitch_registration script cmd[0] with args cmd[1:], in work folder d on 2D version ver."""
     t = time.time()
     e = dict(os.environ, PIQ_HOMOG=d, PIQ_P2D=ver, **(env or {}))
     r = subprocess.run(
-        [PY, '-W', 'ignore'] + script('homog.' + cmd[0]) + list(cmd[1:]),
+        [PY, '-W', 'ignore'] + script('pitch_registration.' + cmd[0]) + list(cmd[1:]),
         cwd=d,
         env=e,
         stdout=subprocess.PIPE,

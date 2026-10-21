@@ -23,10 +23,10 @@ The tracker is a package, `pitchiq.balltrack`. The shell scripts source
 and run it as a module from the folder it reads and writes:
 
 ```
-cd homog && python -m pitchiq.balltrack.homog.register_frames <lo> <hi> <tag> 4
+cd pitch_registration && python -m pitchiq.balltrack.pitch_registration.register_frames <lo> <hi> <tag> 4
 ```
 
-The `homog/` scripts read and write their files in `homog/` unless
+The `pitch_registration/` scripts read and write their files in `pitch_registration/` unless
 `PIQ_HOMOG` names another folder; `evaluation/mk3d.py` points it at
 `h3d_<ver>/` (and sets `PIQ_P2D=<ver>`) to run the 3D chain on one 2D version.
 
@@ -102,7 +102,7 @@ PIQ_VIDEO=<video> python -m pitchiq.balltrack.half <tag> <lo> <hi> [--workers 12
 on the CPU in 5-minute chunks, each chunk (plus 300 frames of overlap) through
 the classifier, the shipped picks, TAPNext bridges, Hybrid 90 and the 3D chain,
 and the person detector on the GPU meanwhile. The pieces are stitched where
-neighbours agree on the ball. It needs `homog/<tag>_reg.npz` and
+neighbours agree on the ball. It needs `pitch_registration/<tag>_reg.npz` and
 `<tag>_venue.npz` first, from `python -m pitchiq.experiments.autocal_run <tag> ...
 --homog`. Every stage leaves a marker in `half/<tag>/`, so a rerun after a
 crash redoes only what did not finish. `rereg.py` reruns a finished half's
@@ -121,7 +121,7 @@ ball, and `match_video.py` before drawing it.
 
 | dir | what |
 |---|---|
-| `homog/` | venue map (`venue_map.py` -> `vmap.npz`), pitch registration (`register_frames.py` -> `<tag>_reg.npz`), 3D flight chain, Air/Flight/Fix lab labels and scorers |
+| `pitch_registration/` | venue map (`venue_map.py` -> `vmap.npz`), pitch registration (`register_frames.py` -> `<tag>_reg.npz`), 3D flight chain, Air/Flight/Fix lab labels and scorers |
 | `tapnext_bridge/` | `tn_engine.py` (bridges), `hyb_video.py` (the review video) |
 | `reference/` | the one-candidate-at-a-time detector the shipping one was checked against (`blobs_per_candidate.py`, `single_process_run.py`, `temporal_from_sheets.py`); `python -m pitchiq.balltrack.reference.check_fast` compares them on real frames |
 | `archive/` | a README listing the scripts nothing runs any more (deleted 2026-10-21) and how to restore one from git |
@@ -136,20 +136,20 @@ get them):
   commit 730cda1.
 
 Built here, by the scripts that read them:
-- `homog/vfeats.npz` (102 MB, over GitHub's limit; rebuild with
-  `python -m pitchiq.balltrack.homog.venue_features`).
+- `pitch_registration/vfeats.npz` (102 MB, over GitHub's limit; rebuild with
+  `python -m pitchiq.balltrack.pitch_registration.venue_features`).
 - The per-window detector outputs: `<tag>.npz`, `<tag>pan.npz`,
   `<tag>ppl.npz`, `<tag>cls.npz` (`run.sh`).
 - The picks: `evaluation/p2d/<version>/<tag>.npz` (`cls_B` shipped, `hyb90`
   Hybrid 90), and the TAPNext-alone runs in `evaluation/tn/`.
 - The 3D chain: `h3d_<version>/<tag>_ball3dd.npz` and `_smooth2.npz` (what
-  `pitchiq/panning_camera.py` reads), and `homog/<tag>_ball3dd.npz` for the shipped picks.
-- The ball on the pitch: `homog/<tag>_ballsb.npz` and `.csv` (`ball_on_pitch.py`).
+  `pitchiq/panning_camera.py` reads), and `pitch_registration/<tag>_ball3dd.npz` for the shipped picks.
+- The ball on the pitch: `pitch_registration/<tag>_ballsb.npz` and `.csv` (`ball_on_pitch.py`).
 - A half's working state: `half/<tag>/` (stage markers, seams, log) and
   detect_candidates's `*_kNNN.json` chunk manifests; the players in `plab/out/`.
 - Every video (`*.mp4`, `*.webm`), image and log, and the lab clip media.
 
-The registrations themselves, `homog/<tag>_reg.npz`, are small and are in git.
+The registrations themselves, `pitch_registration/<tag>_reg.npz`, are small and are in git.
 The inputs and the scrimmage's outputs are also in the full backup at
 `PitchIQ-data/scratch-2026-10-03` beside the repo. The layout keeps every
 script's `S2 = dirname(HERE)` pointing here, so no path was edited in the move.
@@ -182,7 +182,7 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   `run.sh` over the training clip windows, then `pseudolab.py` and `candidate_crops.py`.
 - Every lab's answers are packed one set to a file: `crop_labels/crops.jsonl`,
   `evaluation/findball/labels.jsonl`, `evaluation/fixlab/fixes.jsonl`,
-  `evaluation/passbench/truth.jsonl`, and in `homog/` the `airlabels/clips`,
+  `evaluation/passbench/truth.jsonl`, and in `pitch_registration/` the `airlabels/clips`,
   `flightlabels/flights` and `fl2db/flights` sets. Each line is
   `["<name>.json", doc]`, the document exactly as the lab's database gave it.
   A fresh download comes down as one file per document; pack it with
@@ -200,7 +200,7 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   data from an old scratchpad that no longer exists; set `PIQ_LEGACY_SP` to a
   copy to rerun them. Only the legacy training paths read it; `run.sh` does
   not.
-- The tracker works in image pixels. `homog/register_frames.py` registers each frame to
+- The tracker works in image pixels. `pitch_registration/register_frames.py` registers each frame to
   the venue map and `ball_on_pitch.py` and the 3D chain carry the ball onto the
   pitch (StatsBomb 120x80); `pitchiq/panning_camera.py` does the same for the players. The
   pitch position is only as good as the registration, which is checked by

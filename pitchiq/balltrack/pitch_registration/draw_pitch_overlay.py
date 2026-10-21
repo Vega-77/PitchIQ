@@ -1,6 +1,6 @@
 """Draw the fitted pitch back onto keyframes.
 
-python -m pitchiq.balltrack.homog.draw_pitch_overlay abs1 abs2 ...
+python -m pitchiq.balltrack.pitch_registration.draw_pitch_overlay abs1 abs2 ...
 """
 
 import sys

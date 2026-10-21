@@ -2,7 +2,7 @@
 
     PIQ_VIDEO=<video> python -m pitchiq.balltrack.half <tag> <lo> <hi> [--workers 12] [--overlap 300]
 
-Needs homog/<tag>_reg.npz (and <tag>_venue.npz) from
+Needs pitch_registration/<tag>_reg.npz (and <tag>_venue.npz) from
 `python -m pitchiq.experiments.autocal_run <tag> ... --homog`.
 
 detect_candidates.py runs over the whole half on the CPU. Each of its 5-minute chunks
@@ -19,7 +19,7 @@ reboot redoes only unfinished stages (detect_candidates and the player pieces ke
 own 5-minute parts).
 
 Outputs, as hybrid.sh writes them for a window:
-  evaluation/p2d/cls_B/<tag>.npz, homog/<tag>_ball3dd.npz        shipped picks + 3D
+  evaluation/p2d/cls_B/<tag>.npz, pitch_registration/<tag>_ball3dd.npz        shipped picks + 3D
   evaluation/p2d/hyb90/<tag>.npz, h3d_hyb90/<tag>_ball3dd.npz    Hybrid 90 + 3D
   plab/out/<tag>_dets.npz, <tag>_feat.npz                      players
   half/<tag>/seams.json, log.txt
@@ -40,7 +40,7 @@ from . import config, detect_candidates, script
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(S2))
-HOM = os.path.join(S2, 'homog')
+HOM = os.path.join(S2, 'pitch_registration')
 AT = os.path.join(S2, 'evaluation')
 TNX = os.path.join(S2, 'tapnext_bridge')
 H3D = os.path.join(S2, 'h3d_hyb90')
@@ -119,7 +119,7 @@ class Half:
         open(os.path.join(self.dir, '%s.%s.done' % (ptag, stage)), 'w').close()
 
     def run(self, cwd, *cmd, env=None, log=None):
-        """Tracker script cmd[0] ('homog.ball_on_pitch') with args cmd[1:], from folder cwd."""
+        """Tracker script cmd[0] ('pitch_registration.ball_on_pitch') with args cmd[1:], from folder cwd."""
         e = dict(self.env, **(env or {}))
         proc = subprocess.Popen(
             [PY, '-W', 'ignore'] + script(cmd[0]) + list(cmd[1:]),
@@ -225,19 +225,23 @@ class Half:
         log = os.path.join(HOM, '%s_chain.log' % P)
         self.run(AT, 'evaluation.mkpicks_one', P, log=log, env=ONE_THREAD)
         for cmd in (
-            ('homog.ball_on_pitch', P),
-            ('homog.image_track', P),
-            ('homog.flight_scan', P, '16'),
-            ('homog.roll_speed_cache', P),
-            ('homog.flight_chain', P),
+            ('pitch_registration.ball_on_pitch', P),
+            ('pitch_registration.image_track', P),
+            ('pitch_registration.flight_scan', P, '16'),
+            ('pitch_registration.roll_speed_cache', P),
+            ('pitch_registration.flight_chain', P),
         ):
             self.run(HOM, *cmd, log=log, env=ONE_THREAD)
         self.run(
-            HOM, 'homog.smooth_ball', P, env=dict(ONE_THREAD, VS_B3='%s_ball3d2.npz' % P), log=log
+            HOM,
+            'pitch_registration.smooth_ball',
+            P,
+            env=dict(ONE_THREAD, VS_B3='%s_ball3d2.npz' % P),
+            log=log,
         )
         self.run(
             HOM,
-            'homog.merge_air_and_ground',
+            'pitch_registration.merge_air_and_ground',
             '%s_ball3d2.npz' % P,
             '%s_smooth.npz' % P,
             '%s_ball3dd.npz' % P,
@@ -501,7 +505,9 @@ class Half:
         if L.CHUNK != detect_candidates.CHUNK:
             raise SystemExit('PLAB_CHUNK and DRUN_CHUNK must match')
         if not os.path.exists(os.path.join(HOM, '%s_reg.npz' % self.tag)):
-            raise SystemExit('homog/%s_reg.npz missing: run autocal_run --homog first' % self.tag)
+            raise SystemExit(
+                'pitch_registration/%s_reg.npz missing: run autocal_run --homog first' % self.tag
+            )
         if 'PIQ_VIDEO' not in os.environ:
             self.say('PIQ_VIDEO is not set: this is the scrimmage video')
         first, last = scorable(L.VIDEO)

@@ -40,7 +40,7 @@ from pitchiq import autocal as A
 
 REPO = Path(__file__).resolve().parents[2]
 WORK = REPO.parent / 'PitchIQ-data' / 'autocal'
-HOMOG = REPO / 'pitchiq' / 'balltrack' / 'homog'
+HOMOG = REPO / 'pitchiq' / 'balltrack' / 'pitch_registration'
 DETS = REPO / 'pitchiq' / 'balltrack' / 'plab' / 'out'
 STAGES = ('gather', 'prep', 'cal', 'height', 'write')
 STEP = 15  # frames between samples

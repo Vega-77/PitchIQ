@@ -39,9 +39,9 @@ FIX = [json.loads(line)[1] for line in open(os.path.join(HERE, 'fixlab', 'fixes.
 
 
 def sh(d, name, *a):
-    """homog script `name` with args a, in work folder d -> its output lines."""
+    """pitch_registration script `name` with args a, in work folder d -> its output lines."""
     r = subprocess.run(
-        [PY, '-W', 'ignore'] + script('homog.' + name) + list(a),
+        [PY, '-W', 'ignore'] + script('pitch_registration.' + name) + list(a),
         cwd=d,
         env=dict(os.environ, PIQ_HOMOG=d),
         stdout=subprocess.PIPE,

@@ -6,10 +6,10 @@
 #
 #   sh default_ball_path.sh vid2        (needs <tag>_scan2.npz from flight_scan.py)
 BT="$(cd "$(dirname "$0")/.." && pwd)"; . "$BT/pyenv.sh"
-cd "$BT/homog"
+cd "$BT/pitch_registration"
 set -e
 tag=${1:-vid1}
-"$PY" -m $M.homog.flight_chain $tag
-VS_B3=${tag}_ball3d2.npz "$PY" -m $M.homog.smooth_ball $tag
-"$PY" -m $M.homog.merge_air_and_ground ${tag}_ball3d2.npz ${tag}_smooth.npz ${tag}_ball3dd.npz
+"$PY" -m $M.pitch_registration.flight_chain $tag
+VS_B3=${tag}_ball3d2.npz "$PY" -m $M.pitch_registration.smooth_ball $tag
+"$PY" -m $M.pitch_registration.merge_air_and_ground ${tag}_ball3d2.npz ${tag}_smooth.npz ${tag}_ball3dd.npz
 echo "-> ${tag}_ball3dd.npz"

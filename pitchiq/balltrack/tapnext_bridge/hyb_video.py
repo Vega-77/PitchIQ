@@ -16,15 +16,15 @@ import time
 import cv2
 import numpy as np
 
-from .. import homog
+from .. import pitch_registration
 from .. import render_review_video as RV  # colours, clock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
 HG = os.path.join(S2, 'h3d_hyb90')
-homog.WORK = HG  # flight_model reads the hybrid 3D chain's files (run from h3d_hyb90/)
-from ..homog import draw_pitch_overlay  # noqa: E402
-from ..homog import flight_model as V  # noqa: E402
+pitch_registration.WORK = HG  # flight_model reads the hybrid 3D chain's files (run from h3d_hyb90/)
+from ..pitch_registration import draw_pitch_overlay  # noqa: E402
+from ..pitch_registration import flight_model as V  # noqa: E402
 
 TAG, LO, HI = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 PART = sys.argv[4] if len(sys.argv) > 4 else ''

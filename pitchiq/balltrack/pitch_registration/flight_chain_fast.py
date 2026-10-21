@@ -13,7 +13,7 @@ gates   the pre-label limits (fit error 3 px, apex 0.08 CH, roll 2.5x / 4 px)
 5 fast   (v3) a window no slowing roll can explain below VMAX SB/s is in the
         air even when a roll fits its pixels as well as an arc does
 
-  python -m pitchiq.balltrack.homog.flight_chain_fast [tag] [out] -> <tag>_chains<out>.npy, <tag>_ball3d<out>.npz
+  python -m pitchiq.balltrack.pitch_registration.flight_chain_fast [tag] [out] -> <tag>_chains<out>.npy, <tag>_ball3d<out>.npz
   options from the environment, see OPT
 """
 

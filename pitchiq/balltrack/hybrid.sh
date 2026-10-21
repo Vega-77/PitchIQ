@@ -5,9 +5,9 @@
 # Steps already done for the tag are skipped (detector outputs, registration).
 #
 #   1 run.sh           detector + people + cls_B classifier        -> <tag>.npz, <tag>cls.npz ...
-#   2 homog/register_frames.py    pitch registration every 15 frames          -> homog/<tag>_reg.npz
+#   2 pitch_registration/register_frames.py    pitch registration every 15 frames          -> pitch_registration/<tag>_reg.npz
 #   3 shipped picks    cls_B tracker (track_ball + gap_fill)       -> evaluation/p2d/cls_B/<tag>.npz
-#   4 shipped 3D       flights of the shipped picks: the air gate  -> homog/<tag>_ball3dd.npz
+#   4 shipped 3D       flights of the shipped picks: the air gate  -> pitch_registration/<tag>_ball3dd.npz
 #   5 tn_engine        TAPNext++ fwd + bwd over gaps <= 90 frames  -> evaluation/tn/bridges_<tag>.npy
 #   6 hybrid.py        accept bridges (20 px anchors, 24 px agree) -> evaluation/p2d/hyb90/<tag>.npz
 #   7 mk3d.py          default 3D chain on the hybrid picks        -> h3d_hyb90/<tag>_ball3dd.npz
@@ -22,22 +22,22 @@ LO=$1; HI=$2; T=$3
 [ -n "$T" ] || { echo "usage: sh hybrid.sh <lo> <hi> <tag>"; exit 2; }
 
 [ -f "${T}cls.npz" ] || sh run.sh "$LO" "$HI" "$T"
-if [ ! -f "homog/${T}_reg.npz" ]; then
-    echo "=== registration $(date +%T)"; (cd homog && "$PY" -W ignore -m $M.homog.register_frames "$LO" "$HI" "$T" 4)
+if [ ! -f "pitch_registration/${T}_reg.npz" ]; then
+    echo "=== registration $(date +%T)"; (cd pitch_registration && "$PY" -W ignore -m $M.pitch_registration.register_frames "$LO" "$HI" "$T" 4)
 fi
 
 echo "=== shipped picks $(date +%T)"
 "$PY" -W ignore -m $M.evaluation.mkpicks_one "$T"
 
 echo "=== shipped 3D $(date +%T)"
-cd homog
-"$PY" -W ignore -m $M.homog.ball_on_pitch "$T" > "${T}_chain.log" 2>&1
-"$PY" -W ignore -m $M.homog.image_track "$T" >> "${T}_chain.log" 2>&1
-"$PY" -W ignore -m $M.homog.flight_scan "$T" 16 >> "${T}_chain.log" 2>&1
-"$PY" -W ignore -m $M.homog.roll_speed_cache "$T" >> "${T}_chain.log" 2>&1
-"$PY" -W ignore -m $M.homog.flight_chain "$T" >> "${T}_chain.log" 2>&1
-VS_B3="${T}_ball3d2.npz" "$PY" -W ignore -m $M.homog.smooth_ball "$T" >> "${T}_chain.log" 2>&1
-"$PY" -W ignore -m $M.homog.merge_air_and_ground "${T}_ball3d2.npz" "${T}_smooth.npz" "${T}_ball3dd.npz" >> "${T}_chain.log" 2>&1
+cd pitch_registration
+"$PY" -W ignore -m $M.pitch_registration.ball_on_pitch "$T" > "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.pitch_registration.image_track "$T" >> "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.pitch_registration.flight_scan "$T" 16 >> "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.pitch_registration.roll_speed_cache "$T" >> "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.pitch_registration.flight_chain "$T" >> "${T}_chain.log" 2>&1
+VS_B3="${T}_ball3d2.npz" "$PY" -W ignore -m $M.pitch_registration.smooth_ball "$T" >> "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.pitch_registration.merge_air_and_ground "${T}_ball3d2.npz" "${T}_smooth.npz" "${T}_ball3dd.npz" >> "${T}_chain.log" 2>&1
 
 echo "=== TAPNext bridges $(date +%T)"
 cd "$B/tapnext_bridge"
@@ -47,8 +47,8 @@ echo "=== hybrid $(date +%T)"
 cd "$B/evaluation"
 "$PY" -W ignore -m $M.evaluation.hybrid "$T"
 mkdir -p "$B/h3d_hyb90"
-cp "$B/homog/${T}_reg.npz" "$B/h3d_hyb90/"
-[ ! -f "$B/homog/${T}_venue.npz" ] || cp "$B/homog/${T}_venue.npz" "$B/h3d_hyb90/"
+cp "$B/pitch_registration/${T}_reg.npz" "$B/h3d_hyb90/"
+[ ! -f "$B/pitch_registration/${T}_venue.npz" ] || cp "$B/pitch_registration/${T}_venue.npz" "$B/h3d_hyb90/"
 
 echo "=== hybrid 3D $(date +%T)"
 "$PY" -W ignore -m $M.evaluation.mk3d hyb90 "$T"

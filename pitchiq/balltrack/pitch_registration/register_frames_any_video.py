@@ -8,7 +8,7 @@ sample's; a sample with nothing to go on (the first, or after a failure)
 searches every fourth keyframe, then the neighbours of the best. Matching,
 inlier threshold and the output are register_frames.py's.
 
-    python -m pitchiq.balltrack.homog.register_frames_any_video lo hi tag [procs]   -> <tag>_reg.npz (abs, Hsb, ninl, ok)
+    python -m pitchiq.balltrack.pitch_registration.register_frames_any_video lo hi tag [procs]   -> <tag>_reg.npz (abs, Hsb, ninl, ok)
 """
 
 import os

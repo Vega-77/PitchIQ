@@ -7,7 +7,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pitchiq.balltrack.homog import flight_model as V
+from pitchiq.balltrack.pitch_registration import flight_model as V
 
 
 @pytest.fixture(autouse=True)

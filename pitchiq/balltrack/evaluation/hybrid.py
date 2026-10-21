@@ -38,7 +38,7 @@ STATS = {}
 
 
 def air_mask(tag, ab):
-    p = os.path.join(S2, 'homog', '%s_ball3dd.npz' % tag)
+    p = os.path.join(S2, 'pitch_registration', '%s_ball3dd.npz' % tag)
     if not os.path.exists(p):
         return np.zeros(len(ab), bool)
     z = np.load(p)

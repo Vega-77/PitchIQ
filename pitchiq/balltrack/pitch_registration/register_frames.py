@@ -4,7 +4,7 @@ Each sampled frame is SIFT-matched against the nearest venue-map keyframes
 (and the previous sample); the best RANSAC fit gives frame -> keyframe, and
 the keyframe's own map placement gives frame -> StatsBomb 120x80.
 
-    python -m pitchiq.balltrack.homog.register_frames lo hi tag [procs]   -> <tag>_reg.npz (abs, Hsb, ninl, ok)
+    python -m pitchiq.balltrack.pitch_registration.register_frames lo hi tag [procs]   -> <tag>_reg.npz (abs, Hsb, ninl, ok)
 """
 
 import os
