@@ -81,7 +81,7 @@ PENDING_BY_DESIGN = {
     'itself because it needs its own resolution; this exists for '
     'a zone-by-zone table that has not been designed.',
     'in_shot_cone_m': 'Defender-between-shooter-and-goal test in metres, the '
-    'twin of xg_bridge.in_shot_cone_sb. For counting '
+    'twin of xg_model.in_shot_cone_sb. For counting '
     'defenders at event time without converting to StatsBomb '
     'space; the only defender count today is the xG one, '
     'which converts first and uses the StatsBomb copy.',

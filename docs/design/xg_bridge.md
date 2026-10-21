@@ -36,6 +36,10 @@ This is where the computer vision work meets the model already trained in
 order below must match `FEATURES` in main.py exactly; a mismatch does not raise,
 it silently produces a plausible-looking wrong number.
 
+(Since the deep clean, `FEATURES`, the model path and version, and the goal
+geometry live in `pitchiq/xg_model.py`, which training and this module both
+import; `xg_training/export.py` writes the file.)
+
 Two things are known to be unresolved rather than merely untested:
 
 * **shot_height was never a feature, and is gone.** *(Resolved 2026-08-06 —

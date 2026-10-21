@@ -4,8 +4,8 @@
 (shooter, keeper and defenders in pitch metres), `predict_xg` runs
 `xg_model8.onnx`, and `xg_for_shots` connects it to the pipeline's shots.
 This is the only place xG is computed; the site shows the stored figures. The
-feature order must match `FEATURES` in `xg_training/main.py` exactly, or the
-answer is silently wrong.
+feature order, model file and goal geometry come from `pitchiq/xg_model.py`,
+which training imports too.
 
 Limits: the model half is verified against the real model; spotting a shot in
 footage and choosing the right players for `ShotContext` is not. The model was
@@ -27,41 +27,23 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from .calibration import Calibration
-from .pitch import STATSBOMB_LENGTH, STATSBOMB_WIDTH, MatchOrientation, Pitch
+from .pitch import MatchOrientation, Pitch
+from .xg_model import (
+    FEATURES,
+    MODEL_PATH,
+    distance_sb,
+    in_shot_cone_sb,
+    shot_angle,
+)
 
 if TYPE_CHECKING:
     import onnxruntime as ort
-
-# Order matters and must mirror FEATURES in xg_training/main.py.
-FEATURE_ORDER = [
-    'distance_to_goal',
-    'angle_to_goal',
-    'is_foot',
-    'is_header',
-    'under_pressure',
-    'is_open_play',
-    'keeper_distance_to_goal',
-    'keeper_angle_coverage',
-    'keeper_off_line',
-    'defenders_in_cone',
-    'defender_pressure',
-]
-
-# StatsBomb goal geometry, matching main.py.
-GOAL_CENTRE_SB = np.array([STATSBOMB_LENGTH, STATSBOMB_WIDTH / 2])
-POST_L = np.array([STATSBOMB_LENGTH, 36.0])
-POST_R = np.array([STATSBOMB_LENGTH, 44.0])
 
 # No stand-in for the z axis any more, because there is no z-axis feature.
 # DEFAULT_SHOT_HEIGHT used to be substituted on every shot, until
 # `shot_height` turned out to be where the ball *finished* rather than anything
 # about the shot — so feeding a constant was feeding the model a claim about the
 # outcome, and a wrong one. See docs/design/xg_bridge.md.
-
-# The model behind every xG number anyone has actually looked at. Its two
-# predecessors (xg_model6, uncalibrated; xg_model7, fed a constant shot height)
-# and why they were retired are in docs/design/xg_bridge.md.
-MODEL_PATH = Path(__file__).resolve().parent / 'xg_model8.onnx'
 
 
 def load_session(model_path: str | Path | None = None) -> ort.InferenceSession:
@@ -89,44 +71,20 @@ class ShotContext:
     is_open_play: bool = True
 
 
-def shot_angle(location: np.ndarray) -> float:
-    """Angle subtended by the goal mouth, in radians. Mirrors main.py."""
-    a = POST_L - location
-    b = POST_R - location
-    cos = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9)
-    return float(np.arccos(np.clip(cos, -1, 1)))
-
-
-def in_shot_cone_sb(point: np.ndarray, ball: np.ndarray) -> bool:
-    """Barycentric test — is `point` inside ball -> post_L -> post_R?
-
-    Ported from main.py so the pipeline counts defenders the same way the
-    training data did. Counting them differently is exactly the kind of
-    mismatch that produces confident wrong numbers.
-    """
-    v0, v1, v2 = POST_R - ball, POST_L - ball, point - ball
-    d00, d01, d02 = np.dot(v0, v0), np.dot(v0, v1), np.dot(v0, v2)
-    d11, d12 = np.dot(v1, v1), np.dot(v1, v2)
-    inv = 1.0 / (d00 * d11 - d01 * d01 + 1e-9)
-    u = (d11 * d02 - d01 * d12) * inv
-    v = (d00 * d12 - d01 * d02) * inv
-    return bool(u >= 0 and v >= 0 and (u + v) < 1)
-
-
 def build_features(context: ShotContext, pitch: Pitch) -> dict[str, float]:
     """Metres -> the 11 features, expressed in StatsBomb space."""
     ball = np.array(pitch.to_statsbomb(*context.shooter_m, context.attacking_end))
 
-    distance = float(np.linalg.norm(ball - GOAL_CENTRE_SB))
+    distance = distance_sb(ball)
     angle = shot_angle(ball)
 
     if context.keeper_m is not None:
         keeper = np.array(pitch.to_statsbomb(*context.keeper_m, context.attacking_end))
-        keeper_distance = float(np.linalg.norm(keeper - GOAL_CENTRE_SB))
+        keeper_distance = distance_sb(keeper)
         keeper_angle = shot_angle(keeper)
         keeper_off_line = 1.0 if keeper_distance > 3.0 else 0.0
     else:
-        # Same fallback main.py uses when a freeze frame has no keeper.
+        # Same fallback training uses when a freeze frame has no keeper.
         keeper_distance = 5.0
         keeper_angle = shot_angle(np.array([115.0, 40.0]))
         keeper_off_line = 0.0
@@ -137,7 +95,7 @@ def build_features(context: ShotContext, pitch: Pitch) -> dict[str, float]:
         point = np.array(pitch.to_statsbomb(*defender, context.attacking_end))
         if in_shot_cone_sb(point, ball):
             defenders_in_cone += 1
-            defender_pressure += 1.0 / (float(np.linalg.norm(point - ball)) + 1e-9)
+            defender_pressure += 1.0 / (distance_sb(point, ball) + 1e-9)
 
     return {
         'distance_to_goal': distance,
@@ -157,7 +115,7 @@ def build_features(context: ShotContext, pitch: Pitch) -> dict[str, float]:
 def feature_vector(context: ShotContext, pitch: Pitch) -> np.ndarray:
     """The features as a (1, 12) float32 array, in the model's own order."""
     features = build_features(context, pitch)
-    return np.array([[features[name] for name in FEATURE_ORDER]], dtype=np.float32)
+    return np.array([[features[name] for name in FEATURES]], dtype=np.float32)
 
 
 def shot_context_from_tracking(

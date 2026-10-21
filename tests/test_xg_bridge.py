@@ -11,7 +11,7 @@ not been checked against a match anyone watched; see pitchiq/pipeline.py's statu
 
 from __future__ import annotations
 
-import ast
+import importlib.util
 from pathlib import Path
 
 import numpy as np
@@ -20,16 +20,24 @@ import pytest
 from pitchiq.calibration import Calibration
 from pitchiq.pitch import STATSBOMB_LENGTH, STATSBOMB_WIDTH, MatchOrientation, Pitch
 from pitchiq.xg_bridge import (
-    FEATURE_ORDER,
     ShotContext,
     build_features,
     feature_vector,
     in_shot_cone_sb,
     shot_context_from_tracking,
 )
+from pitchiq.xg_model import FEATURES
 
 REPO = Path(__file__).resolve().parents[1]
-TRAINING_SCRIPT = REPO / 'xg_training' / 'main.py'
+TRAINING_FEATURES = REPO / 'xg_training' / 'features.py'
+
+
+def training_features():
+    """`xg_training/features.py`, loaded from its file: the folder is scripts, not a package."""
+    spec = importlib.util.spec_from_file_location('xg_training_features', TRAINING_FEATURES)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 @pytest.fixture
@@ -40,28 +48,54 @@ def pitch() -> Pitch:
 class TestFeatureParity:
     """The features here must match the ones the model was trained on."""
 
-    def test_order_matches_the_training_script(self):
-        """Read FEATURES straight out of main.py and compare.
+    def test_training_and_the_bridge_read_one_shot_the_same(self, pitch):
+        """Training's `parse` and the bridge, run on the same shot, agree on every feature.
 
-        Hard-coding the expected list here would defeat the purpose: it would
-        pass happily while main.py drifted away from it.
+        Both import their geometry and `FEATURES` from `pitchiq/xg_model.py`, so
+        the order cannot drift; this checks the parts each side still writes for
+        itself: the body-part flags, the keeper fallback, who counts as a defender.
         """
-        tree = ast.parse(TRAINING_SCRIPT.read_text(encoding='utf-8'))
-        assigned = [
-            node.value
-            for node in tree.body
-            if isinstance(node, ast.Assign)
-            and any(isinstance(t, ast.Name) and t.id == 'FEATURES' for t in node.targets)
-        ]
-        assert assigned, 'could not find FEATURES in main.py'
-
-        trained = ast.literal_eval(assigned[0])
-
-        assert trained == FEATURE_ORDER, (
-            'feature order drifted from the trained model.\n'
-            f'  main.py:    {trained}\n'
-            f'  xg_bridge:  {FEATURE_ORDER}'
+        context = ShotContext(
+            shooter_m=(92.0, 30.0),
+            keeper_m=(103.0, 33.0),
+            defenders_m=[(97.0, 32.0), (99.0, 36.0), (80.0, 10.0)],
+            is_header=True,
+            under_pressure=True,
+            is_open_play=True,
         )
+        end = context.attacking_end
+
+        def sb(xy):
+            return list(pitch.to_statsbomb(*xy, end))
+
+        freeze = [{'location': sb(context.keeper_m), 'position': {'name': 'Goalkeeper'}}]
+        freeze += [
+            {'location': sb(d), 'position': {'name': 'Center Back'}, 'teammate': False}
+            for d in context.defenders_m
+        ]
+        freeze.append({'location': sb((98.0, 31.0)), 'position': {'name': 'X'}, 'teammate': True})
+        row = {
+            'location': sb(context.shooter_m),
+            'under_pressure': True,
+            'shot': {
+                'freeze_frame': freeze,
+                'body_part': {'name': 'Head'},
+                'type': {'name': 'Open Play'},
+            },
+        }
+
+        trained = training_features().parse(row)
+        bridged = build_features(context, pitch)
+        assert trained['defenders_in_cone'] >= 1, 'the shot should have someone in the way'
+        for name in FEATURES:
+            assert trained[name] == pytest.approx(bridged[name], rel=1e-9), name
+
+    def test_the_keeper_fallback_matches_training(self, pitch):
+        row = {'location': [100.0, 40.0], 'shot': {'freeze_frame': []}}
+        trained = training_features().parse(row)
+        bridged = build_features(ShotContext(shooter_m=TestTheRealModel.metres(100, 40)), pitch)
+        for name in ('keeper_distance_to_goal', 'keeper_angle_coverage', 'keeper_off_line'):
+            assert trained[name] == pytest.approx(bridged[name], rel=1e-9), name
 
     def test_vector_has_twelve_columns(self, pitch):
         vector = feature_vector(ShotContext(shooter_m=(95.0, 34.0)), pitch)
@@ -73,7 +107,7 @@ class TestFeatureParity:
         features = build_features(context, pitch)
         vector = feature_vector(context, pitch)
 
-        for i, name in enumerate(FEATURE_ORDER):
+        for i, name in enumerate(FEATURES):
             assert vector[0][i] == pytest.approx(features[name], rel=1e-6)
 
 
@@ -205,7 +239,7 @@ class TestShotHeight:
         """
         features = build_features(ShotContext(shooter_m=(95.0, 34.0)), pitch)
         assert 'shot_height' not in features
-        assert 'shot_height' not in FEATURE_ORDER
+        assert 'shot_height' not in FEATURES
 
 
 class TestPitchSizeSensitivity:

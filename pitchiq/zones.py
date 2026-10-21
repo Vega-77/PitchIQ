@@ -362,7 +362,7 @@ def in_shot_cone_m(
     """Whether a player stands between the shooter and the goal mouth.
 
     The triangle shooter-post-post, tested by sign of cross product. This is
-    the metres-space twin of xg_bridge.in_shot_cone_sb, which works in StatsBomb
+    the metres-space twin of xg_model.in_shot_cone_sb, which works in StatsBomb
     coordinates because that is what the model wants; keeping both means events
     can count defenders before anything has been converted.
     """

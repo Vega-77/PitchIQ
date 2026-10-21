@@ -33,7 +33,7 @@ networkx==3.6.1
 
 # The ball tracker (pitchiq/balltrack/) needs a little more: requirements-balltrack.txt.
 
-# --- xG model training (xg_training/main.py) ---
+# --- xG model training (xg_training/) ---
 # Not needed to run the app; only to retrain the xG model from StatsBomb data.
 # statsbombpy
 # xgboost
