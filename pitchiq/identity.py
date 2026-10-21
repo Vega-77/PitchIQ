@@ -99,7 +99,7 @@ class PlayerCluster:
     # refuses nested arrays outright, and `identity_payload` flattens the track
     # copy but never flattened this one, so the day anybody filled it in the
     # whole publish would have failed. See `pitchiq/report_json.py::track_stats`.
-    # A `data:` URI cut from the footage by pitchiq/thumbs.py, so a coach can match a
+    # A `data:` URI cut from the footage by pitchiq/player_thumbnails.py, so a coach can match a
     # figure to a teenager by looking at it rather than by reading a time span.
     # None whenever the tracker never saw this person cleanly and whole, which
     # is a real answer and not a failure — the kit swatch stays either way.

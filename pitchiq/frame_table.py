@@ -68,7 +68,7 @@ from .calibration import Calibration
 from .detector import CLASS_BALL, CLASS_PERSON, DEFAULT_WEIGHTS, PersonBallDetector
 from .possession import median_player_height
 from .teams import UNKNOWN, kit_sample
-from .thumbs import Thumb, consider
+from .player_thumbnails import Thumb, consider
 
 # Columns of FrameRecord.players.
 COL_TRACK_ID, COL_X1, COL_Y1, COL_X2, COL_Y2, COL_CONF = range(6)
@@ -178,7 +178,7 @@ class FrameTable:
     frame_height: int
     records: list[FrameRecord] = field(default_factory=list)
     team_by_track: dict[int, str] = field(default_factory=dict)
-    # The best picture of each track seen so far, chosen online by pitchiq/thumbs.py.
+    # The best picture of each track seen so far, chosen online by pitchiq/player_thumbnails.py.
     # Track-keyed rather than frame-keyed, which is why it sits here beside
     # `team_by_track` instead of being a fourth thing `run` hands back: it is a
     # fact about an identity that spans the window, not about a frame.

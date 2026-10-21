@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=138';
+} from '../assets/auth.js?v=139';
 import {
     createTeam, updateTeamKit, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../assets/db.js?v=138';
-import { nowIndex } from '../assets/timeline.js?v=138';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=138';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=138';
+} from '../assets/db.js?v=139';
+import { nowIndex } from '../assets/timeline.js?v=139';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=139';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=139';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=138';
+} from '../assets/sample-report.js?v=139';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=138';
-import { renderPassMap } from '../assets/pass-map.js?v=138';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=138';
+} from '../assets/passing.js?v=139';
+import { renderPassMap } from '../assets/pass-map.js?v=139';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=139';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=138';
-import { renderForms } from '../assets/form-chart.js?v=138';
+} from '../assets/season.js?v=139';
+import { renderForms } from '../assets/form-chart.js?v=139';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, hasVerdict, currentAnswers, xgTrust,
@@ -44,26 +44,26 @@ import {
     minutesNote, FROM_LAST_TAG, FULL_MATCH_MIN, matchBrief, cvReads,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=138';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=138';
-import { mountRail } from '../assets/rail.js?v=138';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=138';
-import { startMotion } from '../assets/motion.js?v=138';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=138';
-import { videoKind } from '../assets/video.js?v=138';
+} from '../assets/report.js?v=139';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=139';
+import { mountRail } from '../assets/rail.js?v=139';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=139';
+import { startMotion } from '../assets/motion.js?v=139';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=139';
+import { videoKind } from '../assets/video.js?v=139';
 import {
     byId, setText, toast, clockText, signed, plural, localDate,
     statCard, statGroup, fillStatGroup, figure, cardChips, timelineRow,
     minutesChart, stackBar, coverageStrip, kitPicker,
-} from '../assets/ui.js?v=138';
+} from '../assets/ui.js?v=139';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=138';
+} from './shell.js?v=139';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=138';
+} from './review.js?v=139';
 
 // ---------------------------------------------------------------- team setup
 
@@ -2776,7 +2776,7 @@ function restoreFocus() {
 }
 
 // A crop below this many pixels tall in the original footage has no face, no
-// number and no hair in it. Matching pitchiq/thumbs.py's own floor for storing one
+// number and no hair in it. Matching pitchiq/player_thumbnails.py's own floor for storing one
 // at all; this second, higher line is about how much to believe what you see.
 const FAINT_THUMB_PX = 40;
 
@@ -3126,7 +3126,7 @@ function updateMappingNote() {
 
 // ------------------------------------------------- the pictures, and dropping them
 //
-// `pitchiq/thumbs.py` cuts a crop of each tracked figure out of the footage so a
+// `pitchiq/player_thumbnails.py` cuts a crop of each tracked figure out of the footage so a
 // coach can look at a row and say which of their players it is. They are
 // photographs of children, and they exist for that one job.
 //

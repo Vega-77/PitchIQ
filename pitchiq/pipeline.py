@@ -94,7 +94,7 @@ from .reconcile import Reconciliation, reconcile, warnings_for
 from .teams import TEAM_A, TEAM_B, assign_teams, separation
 from .territory import TerritorySplit, territory
 from .run_timing import FIXED, SUPERLINEAR, Timings
-from .thumbs import attach_thumbs, fit_budget
+from .player_thumbnails import attach_thumbs, fit_budget
 from .xg_bridge import xg_for_shots
 
 # Tracks shorter than this are noise — a detection that flickered for a fraction

@@ -127,7 +127,7 @@ function clusters() {
         sightings,
         colour: team === 'team_a' ? [0.1, 0.3, 0.8] : [0.9, 0.2, 0.2],
         heatmap: null,
-        // No pictures. `pitchiq/thumbs.py` writes those to a separate document
+        // No pictures. `pitchiq/player_thumbnails.py` writes those to a separate document
         // precisely so a coach can delete them, and a fixture that always has
         // them would never load the picker's no-picture path — which is the one
         // every run without `--thumbs` takes.

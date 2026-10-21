@@ -10,7 +10,7 @@ full of half-players and two-players-in-one-box is worse than a picker full of
 swatches — a coach can tell a swatch is uninformative, and cannot tell that the
 smudge they just named was actually two people.
 
-Run:  .venv/Scripts/python.exe -m pytest tests/test_thumbs.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_player_thumbnails.py -q
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 
 from pitchiq.identity import PlayerCluster
-from pitchiq.thumbs import (
+from pitchiq.player_thumbnails import (
     MAX_THUMB_H,
     MIN_THUMB_H,
     Thumb,

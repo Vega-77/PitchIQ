@@ -441,7 +441,7 @@ class TestThumbnails:
 
     What survives a batch is a few numbers per detection, never the image — the
     same constraint that puts colour sampling in this loop. These check the
-    bookkeeping around that, not the cropping itself (tests/test_thumbs.py).
+    bookkeeping around that, not the cropping itself (tests/test_player_thumbnails.py).
     """
 
     def test_a_tracked_figure_comes_out_with_a_picture(self):
