@@ -13,13 +13,16 @@ test still passes. A baseline is the only thing that notices.
 
 ## This directory is empty, on purpose
 
-There is no footage yet from a camera that holds still, so there is no run worth
-believing, so there is no honest baseline to commit. A synthetic one would be
-worse than none: it would pin the pipeline to its own current bugs and call that
-a regression suite.
+Until October there was no real footage the pipeline could run on, so no run
+worth believing. There is now: the team's panning footage runs end to end
+through `--panned` (2026-10-20). What there is not yet is a run somebody has
+checked against the match and believed, and a synthetic baseline would be worse
+than none: it would pin the pipeline to its own current bugs and call that a
+regression suite.
 
-**The first thing to do with the first real clip is make one.** See
-`FOOTAGE_DAY.md`.
+**The first one should be a window of a dev half whose ball and lines have been
+checked by hand** (the Spot Check Lab sets), made with the panned command below.
+Never one from a held-out half. See `FOOTAGE_DAY.md`.
 
 ## Making one
 
@@ -30,6 +33,14 @@ python -m cv.experiments.event_report \
     --tag-log clips/2026-08-15.log.json \
     --video-offset 137 \
     --json baselines/2026-08-15-first-half.json
+```
+
+From the panning camera, after the ball tracker has run on that window
+(`cv/balltrack/README.md`):
+
+```bash
+python -m cv.experiments.event_report --video clips/first-half.mp4 \
+    --panned nb1 --json baselines/nb1-first-half.json
 ```
 
 Then watch enough of the clip to have an opinion, and commit the JSON **with the
@@ -60,7 +71,8 @@ Two flags worth knowing:
 
 ## Baselines are tied to a schema version
 
-Record the `schema_version` of every baseline in the table below. A report from
+Record the `schema_version` of every baseline in the table below (the
+current one is `SCHEMA_VERSION` in `cv/report_json.py`, 15 on 2026-10-20). A report from
 an older schema does not merely have fewer keys — a version bump can mean the
 same footage now produces different numbers, and the diff will be real rather
 than cosmetic.

@@ -5,8 +5,11 @@
 Run this before committing any frontend change, and bump the number each time:
 
 ```bash
-python stamp_version.py 6
+python stamp_version.py N
 ```
+
+N is one more than the stamp the pages carry now, the `?v=` number in
+`index.html`. The examples below use 5.
 
 There is no build step and therefore no hashed filenames, so without a version
 query browsers happily keep serving the old file — GitHub Pages sets a
@@ -28,7 +31,8 @@ import { byId, toast } from '../assets/ui.js?v=5';
 
 Versioning only the page's `<link>` and `<script>` tags is half a fix, because a
 versioned entry point does **not** version what it imports: `coach.js?v=5` loads
-fresh and then pulls `../assets/auth.js` straight from cache. That failure mode
+fresh and then pulls `../assets/auth.js` (its import, relative to `coach/`)
+straight from cache. That failure mode
 is genuinely misleading — it surfaces as
 
 ```
