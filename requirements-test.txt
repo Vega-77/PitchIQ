@@ -11,6 +11,8 @@
 opencv-python==5.0.0.93
 numpy==2.4.4
 onnxruntime==1.28.0
+# cv/autocal.py imports it at module scope, and five test modules import that.
+scipy==1.18.0
 
 # Not in requirements.txt: only the tests and the pre-commit check use these.
 pytest==9.1.1

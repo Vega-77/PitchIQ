@@ -16,6 +16,8 @@ ultralytics==8.4.108
 torch==2.13.0
 torchvision==0.28.0
 numpy==2.4.4
+# cv/autocal.py's pose solve (least_squares), and the ball tracker's 3D chain.
+scipy==1.18.0
 # Runs the trained xG model from Python, so cv/xg_bridge.py can be checked
 # against the copy the browser loads. The browser uses onnxruntime-web instead.
 onnxruntime==1.28.0
@@ -25,6 +27,8 @@ onnxruntime==1.28.0
 # offline CV work above. A FastAPI + SQLAlchemy + SQLite server used to live in
 # backend/; Firestore replaced it, and it was deleted once a full match had been
 # tagged without it.
+
+# The ball tracker (cv/balltrack/) needs a little more: requirements-balltrack.txt.
 
 # --- xG model training (PitchIQHelper/main.py) ---
 # Not needed to run the app; only to retrain the xG model from StatsBomb data.

@@ -1,0 +1,33 @@
+# The ball tracker (cv/balltrack/) on top of the base install. Versions are the
+# ones the accepted tracker (Hybrid 90) and every lab score were measured on;
+# tests/test_requirements.py keeps the shared pins equal to requirements.txt.
+#
+#   pip install -r requirements-balltrack.txt      (installs requirements.txt too)
+#
+# Install the CUDA build of torch first, as requirements.txt says: the detector
+# and TAPNext++ need the GPU.
+
+-r requirements.txt
+
+# the candidate ranker (rank6.model.json), in drun.py and dense.py
+xgboost==3.4.0
+# plots: homog/vpathplot.py, cv/experiments/halves.py
+matplotlib==3.11.1
+# images: lab_sheets2.py, the clicker's frames (cv/experiments/clicker)
+pillow==12.2.0
+# TAPNext++'s model code
+einops==0.8.2
+
+# Two things pip cannot install, both needed only by the TAPNext++ bridges
+# (tapnext/tn_engine.py, step 5 of hybrid.sh):
+#
+# 1. The tapnet code, cloned into cv/balltrack/tapnext/tapnet at the commit
+#    every bridge was made with:
+#
+#      git clone https://github.com/google-deepmind/tapnet cv/balltrack/tapnext/tapnet
+#      git -C cv/balltrack/tapnext/tapnet checkout 730cda1
+#
+# 2. The TAPNext++ checkpoint, 2.4 GB (Apache 2.0), at
+#    cv/balltrack/tapnext/tapnextpp_512.ckpt:
+#
+#      curl -L -o cv/balltrack/tapnext/tapnextpp_512.ckpt https://storage.googleapis.com/gresearch/tapnextpp/tapnextpp_512.ckpt

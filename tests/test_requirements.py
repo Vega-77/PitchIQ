@@ -1,10 +1,13 @@
-"""The two requirements files must agree about the versions they share.
+"""The requirements files must agree about the versions they share.
 
 `requirements-test.txt` exists so CI does not install torch to run tests that
 never touch it. The risk that creates is drift: a pin bumped in one file and not
 the other means CI is testing against a different numpy than anyone develops on,
 and the failure mode is a green CI and a broken machine — or worse, the reverse,
 which is the kind of thing that gets a test suite ignored.
+
+`requirements-balltrack.txt` is the ball tracker's extras on top of
+requirements.txt, which it includes (`-r`); the same rule holds for it.
 
 Read from the files rather than hard-coded here, for the same reason
 tests/test_xg_bridge.py scrapes FEATURES out of main.py: a copy of the answer
@@ -18,6 +21,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 MAIN = REPO / 'requirements.txt'
 TEST = REPO / 'requirements-test.txt'
+BALL = REPO / 'requirements-balltrack.txt'
 
 
 def pins(path: Path) -> dict[str, str]:
@@ -64,5 +68,27 @@ class TestPinsAgree:
     def test_everything_the_tests_import_is_pinned_somewhere(self):
         """Guards the other direction: a new third-party import with no pin
         passes locally, where it is already installed, and fails only in CI."""
-        for package in ('numpy', 'opencv-python', 'onnxruntime'):
+        for package in ('numpy', 'opencv-python', 'onnxruntime', 'scipy'):
             assert package in pins(TEST), package
+
+
+class TestBalltrack:
+    def test_it_builds_on_the_base_install(self):
+        lines = [ln.strip() for ln in BALL.read_text(encoding='utf-8').splitlines()]
+        assert '-r requirements.txt' in lines
+
+    def test_it_pins_what_the_tracker_imports(self):
+        for package in ('xgboost', 'matplotlib', 'pillow', 'einops'):
+            assert package in pins(BALL), package
+
+    def test_nothing_it_pins_disagrees_with_the_other_files(self):
+        ball = pins(BALL)
+        for path in (MAIN, TEST):
+            other = pins(path)
+            clash = {n: (ball[n], other[n]) for n in set(ball) & set(other) if ball[n] != other[n]}
+            assert not clash, (path.name, clash)
+
+    def test_it_names_the_tapnet_commit_and_the_checkpoint(self):
+        text = BALL.read_text(encoding='utf-8')
+        assert 'checkout 730cda1' in text
+        assert 'tapnextpp_512.ckpt' in text
