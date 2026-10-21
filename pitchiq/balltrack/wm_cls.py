@@ -11,7 +11,7 @@ if the first moved:
          a * p + (1 - a) * s, over a small grid, tuned on one match half and
          reported on the other (wm_tune.py's split).
 
-    python -m pitchiq.balltrack.wm_cls          # needs wmNNcls.npz from clsscore.py
+    python -m pitchiq.balltrack.wm_cls          # needs wmNNcls.npz from score_candidates.py
 """
 
 import itertools

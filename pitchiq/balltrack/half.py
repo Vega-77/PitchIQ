@@ -218,7 +218,7 @@ class Half:
             shutil.copy2(venue, os.path.join(HOM, '%s_venue.npz' % P))
 
     def classify(self, p):
-        self.run(S2, 'clsscore', 'cls_B.pt', p['ptag'])
+        self.run(S2, 'score_candidates', 'cls_B.pt', p['ptag'])
 
     def shipped(self, p):
         P = p['ptag']

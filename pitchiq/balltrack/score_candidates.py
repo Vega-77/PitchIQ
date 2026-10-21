@@ -7,7 +7,7 @@ numbers that are used once.  So this cuts the same crops (crops.cut, the
 same context vector from crops.context) and scores them in batches as the
 video goes past, keeping only (f, j, p).
 
-    python -m pitchiq.balltrack.clsscore <model.pt> <tag> [<tag> ...]    # -> <tag>cls.npz
+    python -m pitchiq.balltrack.score_candidates <model.pt> <tag> [<tag> ...]    # -> <tag>cls.npz
 """
 
 import os

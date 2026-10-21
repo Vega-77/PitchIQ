@@ -1,6 +1,6 @@
 #!/bin/sh
 # Two label sets from the croplab db dump in labdb5/, trained side by side,
-# then each scored on the wm test clips in turn (clsscore overwrites
+# then each scored on the wm test clips in turn (score_candidates overwrites
 # wmNNcls.npz, so the scoring is sequential).
 #   A  pseudo-labels (ball + notball) + human
 #   B  pseudo notball only + human    (pseudo "ball" was 20% wrong)
@@ -21,7 +21,7 @@ print('human',len(H),'pseudo',len(P))
 wait
 for v in A B; do
   [ -f cls_$v.pt ] || { echo "no cls_$v.pt"; continue; }
-  "$PY" -m $M.clsscore cls_$v.pt $WM > clsscore_$v.log 2>&1 || { echo "score $v failed"; continue; }
+  "$PY" -m $M.score_candidates cls_$v.pt $WM > clsscore_$v.log 2>&1 || { echo "score $v failed"; continue; }
   mkdir -p cls_$v; cp wm[0-9][0-9]cls.npz cls_$v/
   "$PY" -m $M.wm_cls > wm_cls_$v.log 2>&1
   echo "=== $v"; cat wm_cls_$v.log
