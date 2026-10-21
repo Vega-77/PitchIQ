@@ -6,7 +6,7 @@ those clicks recovers the original transform. That gives exact ground truth,
 which real footage can never provide — on a real frame nobody knows where the
 corner flag truly is to the centimetre.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_calibration.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_calibration.py -q
 """
 
 from __future__ import annotations

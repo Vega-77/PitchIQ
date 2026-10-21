@@ -5,7 +5,7 @@ strict and every run fails on a floating-point digit and the check gets switched
 off; too loose and a real change slides through. The cases below are the ones
 that decide which side of that line the tool sits on.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_compare_reports.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_compare_reports.py -q
 """
 
 import json

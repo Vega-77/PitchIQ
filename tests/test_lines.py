@@ -20,7 +20,7 @@ break that:
     calibration closer to where the pitch actually is, not merely closer to
     where this module thinks its lines are.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_lines.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_lines.py -q
 """
 
 from __future__ import annotations

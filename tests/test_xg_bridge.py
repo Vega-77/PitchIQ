@@ -29,7 +29,7 @@ from cv.xg_bridge import (
 )
 
 REPO = Path(__file__).resolve().parents[1]
-TRAINING_SCRIPT = REPO / 'PitchIQHelper' / 'main.py'
+TRAINING_SCRIPT = REPO / 'xg_training' / 'main.py'
 
 
 @pytest.fixture

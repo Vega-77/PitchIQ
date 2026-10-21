@@ -31,7 +31,7 @@ measured on real footage and recorded in `analyse_match`. The finding here is
 narrower and more useful than "subsample everything": the movement figures were
 never the reason to run at full rate.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_sampling.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_sampling.py -q
 """
 
 from __future__ import annotations

@@ -10,7 +10,7 @@ without a calibration, no completed pass across a span where the ball was never
 seen, no shot without knowing which goal is which. Those are the places where
 the easy implementation quietly produces a plausible wrong number.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_events.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_events.py -q
 """
 
 from __future__ import annotations

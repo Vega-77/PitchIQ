@@ -2,7 +2,7 @@
 # GPU jobs, one at a time (they page if run together)
 cd "$(dirname "$0")/../tapnext"
 R="$(cd ../../.. && pwd)"
-V="$R/PitchIQHelper/.venv/Scripts/python.exe"; [ -x "$V" ] || V=python
+V="$R/.venv/Scripts/python.exe"; [ -x "$V" ] || V="$R/.venv/bin/python"; [ -x "$V" ] || V=python
 PY="${PY:-$V}"
 T0=$(date +%s); st(){ echo "=== $1  $(( $(date +%s) - T0 )) s  $(date +%T)"; }
 st bridges

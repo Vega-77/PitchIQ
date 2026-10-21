@@ -5,7 +5,7 @@ where the shape is decided, so they are mostly about the definition rather than
 the arithmetic: what counts as one possession, what "reached the final third"
 means, and which of the several plausible denominators each figure uses.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_sequences.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_sequences.py -q
 """
 
 from __future__ import annotations

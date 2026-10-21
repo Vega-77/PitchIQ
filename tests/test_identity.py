@@ -7,7 +7,7 @@ to another and there is no way to undo it downstream; a missed merge leaves two
 clusters that the coach maps to the same player, which still sums correctly.
 So the tests lean hard on the refusals.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_identity.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_identity.py -q
 """
 
 from __future__ import annotations

@@ -7,7 +7,7 @@
 #   sh vdefault.sh vid2        (needs <tag>_scan2.npz from vflscan2.py)
 cd "$(dirname "$0")"
 R="$(cd ../../.. && pwd)"
-V="$R/PitchIQHelper/.venv/Scripts/python.exe"; [ -x "$V" ] || V=python
+V="$R/.venv/Scripts/python.exe"; [ -x "$V" ] || V="$R/.venv/bin/python"; [ -x "$V" ] || V=python
 PY="${PY:-$V}"
 set -e
 tag=${1:-vid1}

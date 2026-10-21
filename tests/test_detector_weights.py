@@ -8,7 +8,7 @@ measurement in this repo used, on 2026-10-20: the same sha256, below. These
 tests hold the two halves of that in place, so a rename of the default or an
 Ultralytics that stops publishing the name fails here rather than at the field.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_detector_weights.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_detector_weights.py -q
 """
 
 from __future__ import annotations

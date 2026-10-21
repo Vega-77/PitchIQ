@@ -177,12 +177,12 @@ PitchIQ/
 │   ├── experiments/        the command-line entry points (python -m cv.experiments.<name>)
 │   └── balltrack/          the ball tracker (Hybrid 90) and its labs
 ├── baselines/           report JSONs a person checked against the match
-├── PitchIQHelper/       xG model training (main.py), and the shared .venv
+├── xg_training/         xG model training (main.py)
 ├── docs/history/        the ROADMAP archive
 ├── FOOTAGE_DAY.md       the field guide: filming, calibrating, running a match
 ├── requirements*.txt    Python dependencies (base, tests, ball tracker)
 └── package.json         dev tooling only; the frontend has no build step
 ```
 
-One venv at `PitchIQHelper/.venv` covers all the Python. The frontend loads the
+One venv at the repo root, `.venv`, covers all the Python. The frontend loads the
 Firebase SDK as CDN ES modules, so `npm` is only for the emulator and the tests.

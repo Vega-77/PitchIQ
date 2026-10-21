@@ -22,7 +22,7 @@ The reverse direction is deliberately not checked. The fixture is allowed extra
 keys — `isSample` is one, and a field removed from the pipeline can sit in the
 fixture harmlessly until someone tidies it.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_sample_report.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_sample_report.py -q
 """
 
 import re

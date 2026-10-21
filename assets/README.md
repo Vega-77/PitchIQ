@@ -117,7 +117,7 @@ Two guards worth not removing:
 ## Local development
 
 ```bash
-PitchIQHelper/.venv/Scripts/python.exe -m http.server 8080
+.venv/Scripts/python.exe -m http.server 8080
 ```
 
 Then open **`http://localhost:8080/?prod=1`**.

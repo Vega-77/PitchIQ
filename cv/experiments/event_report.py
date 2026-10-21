@@ -1,6 +1,6 @@
 """Run the event chain over a clip and print what it found, timestamped.
 
-    PitchIQHelper/.venv/Scripts/python.exe -m cv.experiments.event_report \
+    .venv/Scripts/python.exe -m cv.experiments.event_report \
         --video clips/clip.mp4 --start 90 --end 105
 
 This exists to be checked against the video, not to be believed on its own.

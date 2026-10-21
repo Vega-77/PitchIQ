@@ -24,7 +24,7 @@ own screen against a student's would ever see it.
 
 Skipped automatically when Node isn't installed.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_player_merge_parity.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_player_merge_parity.py -q
 """
 
 from __future__ import annotations

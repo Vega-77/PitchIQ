@@ -33,7 +33,7 @@ tool can reach.
 without a guard, so a disagreement there is a TypeError on the spot. This file
 is about the disagreement that stays quiet.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_review_verdicts.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_review_verdicts.py -q
 """
 
 import re

@@ -20,7 +20,7 @@ as a measurement. The footage is nine seconds of coloured boxes moving along
 arithmetic; the pass is a pass because the script says so, not because anything
 in the pipeline recognised football.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_pipeline_end_to_end.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_pipeline_end_to_end.py -q
 """
 
 from __future__ import annotations

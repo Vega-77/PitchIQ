@@ -59,7 +59,7 @@ in git"). Accuracy figures for the tracker are in that README too, and
 | `halftime/` | the three-minute read for the touchline |
 | `live-tagging/` | match-day tablet tool |
 | `calibrate/` | landmark pins on a frame or a panorama, exported for both calibrators |
-| `PitchIQHelper/` | xG model training (`main.py`, StatsBomb open data -> ONNX) |
+| `xg_training/` | xG model training (`main.py`, StatsBomb open data -> ONNX) |
 | `baselines/` | committed report JSONs that `compare_reports` checks changes against |
 | `tests/` | Python (pytest) and JavaScript (`node --test`, Firestore emulator) suites |
 | `docs/` | conventions, history and generated figures |
@@ -112,8 +112,8 @@ a clone:
 pip install -r requirements-test.txt
 python -m pytest tests/ -q
 python -m pyflakes $(git ls-files 'cv/*.py' 'tests/*.py')
-python -m ruff format --check cv tests tools PitchIQHelper
-python -m ruff check cv tests tools PitchIQHelper
+python -m ruff format --check cv tests tools xg_training
+python -m ruff check cv tests tools xg_training
 npm test                 # JS suites + Firestore rules (needs Node and a JVM)
 ```
 

@@ -12,7 +12,7 @@ mistypes an argument, and does `--dry-run` write nothing. What gets written and
 what gets refused is `tests/test_publish.py`'s job, and duplicating it here
 would mean two files to change the day a rule does.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_publish_report_cli.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_publish_report_cli.py -q
 """
 
 from __future__ import annotations

@@ -9,7 +9,7 @@ Everything here is synthetic except the model, which is the real
 `cv/xg_model8.onnx`. That leaves exactly one link untested — whether the
 shot was a shot — and that one needs footage.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_xg_pipeline.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_xg_pipeline.py -q
 """
 
 import numpy as np

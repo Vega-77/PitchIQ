@@ -4,7 +4,7 @@ The distinction this exists for: a side pinned in its own half can hold 60% of
 the ball and be losing badly, and every possession figure this pipeline produced
 before now would have called that a good half.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_territory.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_territory.py -q
 """
 
 import pytest

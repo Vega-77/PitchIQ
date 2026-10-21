@@ -8,7 +8,7 @@ These tests pin the two properties that fix depends on: every frame in the
 window is delivered exactly once and in order, and no more than one batch is
 ever held at a time.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_pipeline_stream.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_pipeline_stream.py -q
 """
 
 from __future__ import annotations

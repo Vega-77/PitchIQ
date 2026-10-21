@@ -13,7 +13,7 @@ bearing and each has its own tests below:
     measured cold, the pipeline reads 1.48x and "impossible"; the same run once
     warm reads 0.33x and "comfortably live". See cv/timing.py for the figures.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_timing.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_timing.py -q
 """
 
 from __future__ import annotations

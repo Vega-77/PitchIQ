@@ -43,7 +43,7 @@ matters for a match total. And the shifts are one shot at a time; summing many
 shots averages much of this out, so team xG for a half is far steadier than any
 single number in the table above.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_xg_noise.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_xg_noise.py -q
 """
 
 import pytest

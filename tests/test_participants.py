@@ -7,7 +7,7 @@ that it rejects people who never moved and people who are demonstrably not on
 the pitch, that it keeps everyone else including anyone it is unsure about, and
 that none of its answers change when the camera zooms.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_participants.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_participants.py -q
 """
 
 from __future__ import annotations

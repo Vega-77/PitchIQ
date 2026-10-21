@@ -6,7 +6,7 @@ Two systems are needed and they are not interchangeable:
     only meaningful here, and high school pitches genuinely vary in size, so the
     dimensions are configurable rather than assumed.
 
-  * **StatsBomb 120x80** — the space `PitchIQHelper/main.py` trained the xG model
+  * **StatsBomb 120x80** — the space `xg_training/main.py` trained the xG model
     in, and what `cv/xg_bridge.py` feeds it at inference time. Any shot feature
     handed to that model has to be expressed here or the numbers are silently
     wrong.

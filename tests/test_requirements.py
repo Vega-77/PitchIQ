@@ -13,7 +13,7 @@ Read from the files rather than hard-coded here, for the same reason
 tests/test_xg_bridge.py scrapes FEATURES out of main.py: a copy of the answer
 written down in a third place would just be one more thing to drift.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_requirements.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_requirements.py -q
 """
 
 from pathlib import Path

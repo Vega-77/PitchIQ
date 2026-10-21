@@ -23,7 +23,7 @@ the real conversion rate closely in every distance band. Any figure, note or
 screenshot from before 2026-08-06 is on a different scale.
 
 This is where the computer vision work meets the model already trained in
-`PitchIQHelper/main.py`, which writes it beside this file as `xg_model8.onnx`
+`xg_training/main.py`, which writes it beside this file as `xg_model8.onnx`
 (the only copy; its plots are in docs/xg/). The feature
 order below must match `FEATURES` in main.py exactly; a mismatch does not raise,
 it silently produces a plausible-looking wrong number.
@@ -114,7 +114,7 @@ import numpy as np
 from .calibration import Calibration
 from .pitch import STATSBOMB_LENGTH, STATSBOMB_WIDTH, MatchOrientation, Pitch
 
-# Order matters and must mirror FEATURES in PitchIQHelper/main.py.
+# Order matters and must mirror FEATURES in xg_training/main.py.
 FEATURE_ORDER = [
     'distance_to_goal',
     'angle_to_goal',

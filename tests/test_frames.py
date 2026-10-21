@@ -12,7 +12,7 @@ are injected, because everything TrackedFramePass does with a frame is
 bookkeeping — which rows go where, which frames get skipped, when a colour gets
 sampled — and bookkeeping is the part that breaks quietly.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_frames.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_frames.py -q
 """
 
 from __future__ import annotations

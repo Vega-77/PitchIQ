@@ -89,7 +89,7 @@ A site goes for having nothing to read, never for looking unlikely to -- the
 second is a prediction about a codebase, and predictions go stale without
 mentioning it.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_id_seam.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_id_seam.py -q
 """
 
 from __future__ import annotations

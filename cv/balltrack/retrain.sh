@@ -6,7 +6,7 @@
 #   B  pseudo notball only + human    (pseudo "ball" was 20% wrong)
 S2="$(cd "$(dirname "$0")" && pwd)"
 R="$(cd "$(dirname "$0")/../.." && pwd)"
-V="$R/PitchIQHelper/.venv/Scripts/python.exe"; [ -x "$V" ] || V=python
+V="$R/.venv/Scripts/python.exe"; [ -x "$V" ] || V="$R/.venv/bin/python"; [ -x "$V" ] || V=python
 PY="${PY:-$V}"
 cd "$S2" || exit 1
 TAGS=tr00,tr01,tr02,tr03,tr04,tr05,tr06,tr07,tr08,tr09,tr10,tr11,tr12,tr13,tr14,tr15,tr16

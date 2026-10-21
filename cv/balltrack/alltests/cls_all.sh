@@ -1,6 +1,6 @@
 #!/bin/sh
 R="$(cd "$(dirname "$0")/../../.." && pwd)"
-V="$R/PitchIQHelper/.venv/Scripts/python.exe"; [ -x "$V" ] || V=python
+V="$R/.venv/Scripts/python.exe"; [ -x "$V" ] || V="$R/.venv/bin/python"; [ -x "$V" ] || V=python
 PY="${PY:-$V}"
 cd "$(dirname "$0")" || exit 1
 TAGS="wm00 wm01 wm02 wm03 wm04 wm05 wm06 wm07 wm08 wm09 wm10 wm11 wm12 wm13 wm14 wm15 wm16 wm17 pm vid1 vid2 vid3"

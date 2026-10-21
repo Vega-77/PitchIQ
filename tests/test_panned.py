@@ -11,7 +11,7 @@ The second half runs `analyse_match` end to end on the rectangle clip from
 `PannedCamera` instead of a still calibration, and checks that the metre-based
 stages run and agree with the still-camera run.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_panned.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_panned.py -q
 """
 
 from __future__ import annotations

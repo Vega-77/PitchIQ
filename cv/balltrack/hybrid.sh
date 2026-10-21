@@ -16,7 +16,7 @@
 # Speed: step 5 costs ~1 min of GPU per match minute (384 px window + early stop); TNS=512 was ~3.
 set -e
 R="$(cd "$(dirname "$0")/../.." && pwd)"
-V="$R/PitchIQHelper/.venv/Scripts/python.exe"; [ -x "$V" ] || V=python
+V="$R/.venv/Scripts/python.exe"; [ -x "$V" ] || V="$R/.venv/bin/python"; [ -x "$V" ] || V=python
 PY="${PY:-$V}"
 cd "$(dirname "$0")"
 B=$(pwd -W 2>/dev/null || pwd)

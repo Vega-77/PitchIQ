@@ -11,7 +11,7 @@ serialises as 0 tells a reader the thing was measured and came out zero. It was
 not measured at all. `analyse_match` already learned this once, which is why
 `movement_available` exists.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_report_json.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_report_json.py -q
 """
 
 from __future__ import annotations

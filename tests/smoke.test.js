@@ -161,7 +161,7 @@ test('the fixture only contains values the app recognises', async () => {
  */
 test('every button variant the markup asks for is one the stylesheet has', () => {
     const skip = new Set([
-        'node_modules', 'PitchIQHelper', '.git', 'runs', 'scratch_frames',
+        'node_modules', '.venv', 'xg_training', '.git', 'runs', 'scratch_frames',
         'cv', 'baselines', 'tests',
     ]);
     const files = [];
@@ -408,7 +408,7 @@ test('every figure the pipeline publishes is one some page reads', () => {
     // these keys rather than reading them, so counting it as a reader would
     // let the preview keep a figure alive that no page has ever drawn.
     const skip = new Set([
-        'node_modules', 'PitchIQHelper', '.git', 'runs', 'scratch_frames',
+        'node_modules', '.venv', 'xg_training', '.git', 'runs', 'scratch_frames',
         'cv', 'baselines', 'tests', 'sample-report.js',
     ]);
     const sources = [];
@@ -578,7 +578,7 @@ test('every field the rules let a client write is one something reads', () => {
     // are skipped: a fixture naming a field is not a page reading it, and the
     // emulator suite writes most of these by hand.
     const skip = new Set([
-        'node_modules', 'PitchIQHelper', '.git', 'runs', 'scratch_frames',
+        'node_modules', '.venv', 'xg_training', '.git', 'runs', 'scratch_frames',
         'baselines', '.firebase', 'tests',
     ]);
     const seen = new Set();

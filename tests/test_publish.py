@@ -13,7 +13,7 @@ that no coach published.
 The Firestore client is faked. It has to be — the real one would need a
 credential, and a test that needs a credential is a test nobody runs.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_publish.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_publish.py -q
 """
 
 from __future__ import annotations

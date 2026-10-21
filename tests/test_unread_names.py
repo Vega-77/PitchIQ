@@ -33,7 +33,7 @@ a top-level constant reads as a use of the constant. Both under-report. Neither
 can invent a finding, which is the right direction for a check with no parser
 behind it.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_unread_names.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_unread_names.py -q
 """
 
 import re

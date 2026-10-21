@@ -8,7 +8,7 @@ merely rolling past someone, one that invents touches inside a span where the
 ball was never seen, or one that reports a confident attribution when two
 players were equally close.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_touches.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_touches.py -q
 """
 
 from __future__ import annotations

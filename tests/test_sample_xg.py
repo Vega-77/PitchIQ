@@ -27,7 +27,7 @@ filmed one yet.
 Skipped without onnxruntime, which CI does not install — the same rule the rest
 of the model tests follow.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_sample_xg.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_sample_xg.py -q
 """
 
 from __future__ import annotations

@@ -47,7 +47,7 @@ against known reads by name and by file — and pins only the guards that were
 measured to fire. See `TestTheScannerActuallyScans` for the ones that are inert
 today and why they are kept anyway.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_reconcile_seam.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_reconcile_seam.py -q
 """
 
 import re

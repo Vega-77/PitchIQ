@@ -16,7 +16,7 @@ What a line fit *means* is `tests/test_lines.py`'s job, and the synthetic camera
 is imported from there rather than built twice -- two renderers drifting apart
 would make one of these files quietly stop testing anything.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_calibrate_cli.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_calibrate_cli.py -q
 """
 
 from __future__ import annotations

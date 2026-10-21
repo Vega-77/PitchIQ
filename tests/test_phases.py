@@ -6,7 +6,7 @@ mostly pin down is the *direction* of each compromise: a span shrinks rather
 than grows, an untagged restart times out rather than running to the whistle,
 and a restart nobody set up is ignored rather than guessed backwards from.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_phases.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_phases.py -q
 """
 
 from __future__ import annotations

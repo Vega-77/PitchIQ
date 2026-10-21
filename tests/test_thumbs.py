@@ -10,7 +10,7 @@ full of half-players and two-players-in-one-box is worse than a picker full of
 swatches — a coach can tell a swatch is uninformative, and cannot tell that the
 smudge they just named was actually two people.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_thumbs.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_thumbs.py -q
 """
 
 from __future__ import annotations

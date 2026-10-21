@@ -65,7 +65,7 @@ limit harmless today.
 
 Skipped automatically when Node isn't installed.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_cv_field_seam.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_cv_field_seam.py -q
 """
 
 from __future__ import annotations

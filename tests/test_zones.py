@@ -10,7 +10,7 @@ Pure geometry, no video and no calibration — which is the point. The footage
 that would let these run for real does not exist yet, so these tests are what
 stands behind the module until it does.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_zones.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_zones.py -q
 """
 
 from __future__ import annotations

@@ -27,7 +27,7 @@ there is no build step in this project and no JS runtime is a Python test
 dependency. The cost is that the scanner can be fooled, so the last class pins it
 against known reads by name and by file.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_quality_seam.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_quality_seam.py -q
 """
 
 import re

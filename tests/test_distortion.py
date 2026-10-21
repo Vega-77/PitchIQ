@@ -28,7 +28,7 @@ The synthetic camera is imported from `tests/test_lines.py` rather than built
 again here, for the reason that file already gives: two renderers drifting
 apart would make one of them quietly stop testing anything.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_distortion.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_distortion.py -q
 """
 
 from __future__ import annotations

@@ -10,7 +10,7 @@ So these tests are mostly about precedence and about noise: the tagged log beats
 the flag, a disagreement is said out loud, and a window that runs through the
 break is called out rather than quietly averaged into one answer.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_period.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_period.py -q
 """
 
 from __future__ import annotations

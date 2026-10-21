@@ -6,7 +6,7 @@ and none of them look wrong. So the tests that matter most here are the ones
 asserting that the module declines — no calibration, no answer; a centre-back
 who drops deep, no answer; a referee working a diagonal, no answer.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_keeper.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_keeper.py -q
 """
 
 from __future__ import annotations

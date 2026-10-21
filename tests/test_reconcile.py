@@ -4,7 +4,7 @@ The thing worth pinning here is restraint. It would be easy to write something
 that reports 95% agreement on any input by comparing generously, and that number
 would be worse than no number: it would look like validation.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_reconcile.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_reconcile.py -q
 """
 
 import numpy as np

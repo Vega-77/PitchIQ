@@ -48,7 +48,7 @@ directions: an unlisted orphan is a finding, and a listed name that has since
 been wired up or deleted is a stale entry to remove. The list is the record,
 and the test is what stops the record drifting from the code.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_call_graph.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_call_graph.py -q
 """
 
 from __future__ import annotations

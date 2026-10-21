@@ -45,7 +45,7 @@ against known reads by name and by file — and pins only the one guard that was
 measured to fire. See `TestTheScannerActuallyScans` for the three that are inert
 today, why they are kept anyway, and the fourth that was deleted.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_keepers_seam.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_keepers_seam.py -q
 """
 
 import re

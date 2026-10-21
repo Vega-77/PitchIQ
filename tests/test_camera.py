@@ -9,7 +9,7 @@ The signal it relies on is that the *median* per-track displacement over a
 second is near zero, because players move in different directions, while a
 camera moves all of them by one vector at once.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_camera.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_camera.py -q
 """
 
 from __future__ import annotations

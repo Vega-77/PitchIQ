@@ -9,7 +9,7 @@ These tests are the fit. They are synthetic on purpose — the ground truth is
 constructed, so the error is known exactly, which is not something any amount
 of real footage would give without a second measuring system alongside it.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_smoothing.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_smoothing.py -q
 """
 
 from __future__ import annotations

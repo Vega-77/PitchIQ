@@ -45,7 +45,7 @@ ones where two pieces of code hold the same number for the same reason.
 Nothing is blanked before scanning, unlike most gates here: the markers *are*
 comments, and blanking is what removes them.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_cap_pairs.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_cap_pairs.py -q
 """
 
 import re

@@ -5,7 +5,7 @@
 # Video path: env PIQ_VIDEO (default in feat4.py).  8 workers, not 16.
 # RVID=0 skips the review video (long windows).  drun and ppl resume by 5-min chunk.
 R="$(cd "$(dirname "$0")/../.." && pwd)"
-V="$R/PitchIQHelper/.venv/Scripts/python.exe"; [ -x "$V" ] || V=python
+V="$R/.venv/Scripts/python.exe"; [ -x "$V" ] || V="$R/.venv/bin/python"; [ -x "$V" ] || V=python
 PY="${PY:-$V}"
 cd "$(dirname "$0")" || exit 1
 LO=$1; HI=$2; TAG=$3; W=${4:-8}

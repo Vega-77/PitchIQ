@@ -10,7 +10,7 @@ in a straight line makes every burst reported a **false** one, which is the only
 way to measure a false-positive rate without ground truth — and ground truth is
 the thing this project does not have and will not have before the demo.
 
-Run:  PitchIQHelper/.venv/Scripts/python.exe -m pytest tests/test_bursts.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_bursts.py -q
 """
 
 from __future__ import annotations
