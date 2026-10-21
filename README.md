@@ -62,7 +62,7 @@ in git"). Accuracy figures for the tracker are in that README too, and
 | `PitchIQHelper/` | xG model training (`main.py`, StatsBomb open data -> ONNX) |
 | `baselines/` | committed report JSONs that `compare_reports` checks changes against |
 | `tests/` | Python (pytest) and JavaScript (`node --test`, Firestore emulator) suites |
-| `docs/` | history and generated figures |
+| `docs/` | conventions, history and generated figures |
 
 ## Setup
 
@@ -112,6 +112,8 @@ a clone:
 pip install -r requirements-test.txt
 python -m pytest tests/ -q
 python -m pyflakes $(git ls-files 'cv/*.py' 'tests/*.py')
+python -m ruff format --check cv tests tools PitchIQHelper
+python -m ruff check cv tests tools PitchIQHelper
 npm test                 # JS suites + Firestore rules (needs Node and a JVM)
 ```
 
@@ -129,5 +131,7 @@ carries now (see `assets/README.md`).
   good it is, and what it needs.
 - [ROADMAP.md](ROADMAP.md): where things stand and what is next. The full
   history is in [docs/history/ROADMAP-archive.md](docs/history/ROADMAP-archive.md).
+- [docs/conventions.md](docs/conventions.md): how the Python is written
+  (formatting, names, docstrings, types).
 - [assets/README.md](assets/README.md): frontend conventions and cache busting.
 - [baselines/README.md](baselines/README.md): regression baselines.
