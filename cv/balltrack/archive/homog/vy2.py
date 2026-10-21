@@ -1,4 +1,5 @@
-import numpy as np, cv2
+import numpy as np
+import cv2
 
 d = np.load('vyellow.npy')[350:1600, 0:760]
 # local contrast: subtract a wide median so thin lines pop over smear

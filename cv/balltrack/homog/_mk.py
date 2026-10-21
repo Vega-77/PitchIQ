@@ -1,4 +1,5 @@
-import sys, numpy as np
+import sys
+import numpy as np
 
 B = np.load(sys.argv[1])
 M = np.load(sys.argv[2])

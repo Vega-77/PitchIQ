@@ -230,7 +230,7 @@ def main():
         print('=' * 66)
         print('TRANSITION IN %s COORDINATES' % ('CAMERA-STABILISED' if stab else 'RAW SOURCE'))
         an = an_s if stab else an_r
-        print('  %-7s %s' % ('', '   '.join('%-9s' % ('lam ' + str(l)) for l in LAMS)))
+        print('  %-7s %s' % ('', '   '.join('%-9s' % ('lam ' + str(lam)) for lam in LAMS)))
         best = None
         for ms in MISSES:
             cells = []

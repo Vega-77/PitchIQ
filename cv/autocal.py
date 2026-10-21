@@ -930,7 +930,10 @@ def halfway_candidates(paint: np.ndarray, top: int = 6, max_tilt: float = 35.0):
     lines = []
     for _, (x0, y0, x1, y1) in found:
         d = np.array([x1 - x0, y1 - y0], float) / np.hypot(x1 - x0, y1 - y0)
-        off = lambda p: abs(d[0] * (p[1] - y0) - d[1] * (p[0] - x0))
+
+        def off(p):
+            return abs(d[0] * (p[1] - y0) - d[1] * (p[0] - x0))
+
         if any(off(q[:2]) < 12 and off(q[2:]) < 12 for q in lines):
             continue  # another piece of a line already kept
         lines.append((x0, y0, x1, y1))

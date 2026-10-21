@@ -192,7 +192,10 @@ def main():
                 )
             )
         old_e = np.concatenate(old_e)
-        tq = lambda v: float(np.sqrt(np.mean(np.sort(v**2)[: max(3, int(0.8 * len(v)))])))
+
+        def tq(v):
+            return float(np.sqrt(np.mean(np.sort(v**2)[: max(3, int(0.8 * len(v)))])))
+
         ends = []
         if nodes[0, 2] > 0.03:
             v = seg_vel(nodes[0], nodes[1], (ts[1] - ts[0]) / V.FPS, ks[0], 0.0)

@@ -154,11 +154,14 @@ def bridges(net, tag):
             cache.update(prev_tracks(other, OUT))
         if PREV:
             cache.update(prev_tracks(tag, PREV))
+
     # A track depends on its frames and its seed; a backward one also on the forward track it is cut
     # against (AGR), so on the pick at a too, and whether it runs at all on the pick at b: key on both.
-    key = lambda t: (
-        (t[0], t[1], t[2]) + tuple(float(v) for v in start[(t[0], t[1])] + goal[(t[0], t[1])])
-    )  # noqa: E731
+    def key(t):
+        return (t[0], t[1], t[2]) + tuple(
+            float(v) for v in start[(t[0], t[1])] + goal[(t[0], t[1])]
+        )  # noqa: E731
+
     reused = 0
     cap = cv2.VideoCapture(feat4.VIDEO)
     res = []

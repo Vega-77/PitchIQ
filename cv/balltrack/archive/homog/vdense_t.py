@@ -1,4 +1,8 @@
-import numpy as np, sys, vreg, vflight as V, vdrag as D
+import numpy as np
+import sys
+import vreg
+import vflight as V
+import vdrag as D
 from multiprocessing import Pool
 
 if __name__ == '__main__':

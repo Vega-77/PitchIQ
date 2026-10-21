@@ -23,8 +23,8 @@ def droll(tr, a, b):
     for k in KS:
         Et = t if k == 0 else (1 - np.exp(-k * t)) / k
         Z = np.zeros_like(t)
-        O = np.ones_like(t)
-        Arow = np.stack([np.stack([O, Z, Et, Z], 1), np.stack([Z, O, Z, Et], 1)], 1)
+        ONE = np.ones_like(t)
+        Arow = np.stack([np.stack([ONE, Z, Et, Z], 1), np.stack([Z, ONE, Z, Et], 1)], 1)
         Am = np.einsum('kij,kjl->kil', tr.J[idx], Arow).reshape(-1, 4)
         bm = np.einsum('kij,kj->ki', tr.J[idx], tr.g[idx]).ravel()
         th = np.linalg.lstsq(Am, bm, rcond=None)[0]

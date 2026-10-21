@@ -1,6 +1,7 @@
 """clsscore.py with its output redirected:  python clsrun.py <model.pt> <outdir> <tag> [<tag> ...]"""
 
-import os, sys
+import os
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)

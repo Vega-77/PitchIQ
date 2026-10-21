@@ -33,8 +33,8 @@ def roll(tr, a, b):
     idx = idx[tr.has[idx]]
     t = (idx - a) / V.FPS
     Z = np.zeros_like(t)
-    O = np.ones_like(t)
-    Arow = np.stack([np.stack([O, Z, t, Z], 1), np.stack([Z, O, Z, t], 1)], 1)
+    ONE = np.ones_like(t)
+    Arow = np.stack([np.stack([ONE, Z, t, Z], 1), np.stack([Z, ONE, Z, t], 1)], 1)
     Am = np.einsum('kij,kjl->kil', tr.J[idx], Arow).reshape(-1, 4)
     bm = np.einsum('kij,kj->ki', tr.J[idx], tr.g[idx]).ravel()
     th = np.linalg.lstsq(Am, bm, rcond=None)[0]
@@ -52,7 +52,10 @@ def dfit(tr, a, b, kmax=1.5):
     obs = tr.px[idx]
     lo = [-np.inf] * 4 + [-0.1, T * 0.8, 0.0]
     hi = [np.inf] * 4 + [0.05, T + 0.15, kmax]
-    res = lambda th: ((tr.project(idx, D.drag(th, t)) - obs) / V.SIG).ravel()
+
+    def res(th):
+        return ((tr.project(idx, D.drag(th, t)) - obs) / V.SIG).ravel()
+
     best = None
     for Tf, k in ((T, 0.1), (T + 0.1, 0.6)):
         th0 = np.clip(

@@ -100,8 +100,8 @@ def _line_distance(length: float, width: float, res: float = 0.1, pad: float = 1
         g = np.full(
             (int((width + 2 * pad) / res) + 1, int((length + 2 * pad) / res) + 1), 255, np.uint8
         )
-        for l in _lines(length, width):
-            m = l * [length / 120.0, width / 80.0]
+        for line in _lines(length, width):
+            m = line * [length / 120.0, width / 80.0]
             cv2.polylines(g, [np.round((m + pad) / res).astype(np.int32)], False, 0, 1)
         _DIST[key] = (cv2.distanceTransform(g, cv2.DIST_L2, 5) * res, pad, res)
     return _DIST[key]

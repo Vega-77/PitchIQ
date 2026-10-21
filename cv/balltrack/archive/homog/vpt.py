@@ -1,4 +1,6 @@
-import cv2, numpy as np, sys
+import cv2
+import numpy as np
+import sys
 
 z = np.load('vmap.npz')
 t = np.load('vtop.npz')

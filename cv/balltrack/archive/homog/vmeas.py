@@ -1,4 +1,5 @@
-import numpy as np, cv2
+import numpy as np
+import cv2
 
 d = np.load('vyellow.npy')[350:1600, 0:760].astype(np.float32)
 b = cv2.blur(d, (41, 41))

@@ -151,10 +151,13 @@ def segment(cap, vw, tr, f, nfl, truth, state, A0):
         cv2.rectangle(out, (x0, y0), (x0 + int(120 * MS), y0 + int(80 * MS)), (60, 110, 60), -1)
         cv2.rectangle(out, (x0, y0), (x0 + int(120 * MS), y0 + int(80 * MS)), WHITE, 1)
         cv2.line(out, (x0 + int(60 * MS), y0), (x0 + int(60 * MS), y0 + int(80 * MS)), WHITE, 1)
-        m = lambda q: (
-            int(x0 + np.clip(q[0], -4, 124) * MS),
-            int(y0 + (80 - np.clip(q[1], -4, 84)) * MS),
-        )
+
+        def m(q):
+            return (
+                int(x0 + np.clip(q[0], -4, 124) * MS),
+                int(y0 + (80 - np.clip(q[1], -4, 84)) * MS),
+            )
+
         cv2.polylines(
             out, [np.array([m(q) for q in arc_sb], np.int32)], False, CYAN, 1, cv2.LINE_AA
         )

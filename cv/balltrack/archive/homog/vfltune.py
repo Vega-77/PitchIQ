@@ -134,10 +134,20 @@ for g in grid:
     ch = run(*g)
     res.append((score(ch, 0), g))
 res.sort(key=lambda r: -r[0]['F'])
-fmt = lambda s: (
-    'F %.2f P %.2f R %.2f | flights %d/%d, detected %d, false %d'
-    % (s['F'], s['P'], s['R'], s['hit'], s['nt'], s['nd'], s['false'])
-)
+
+
+def fmt(s):
+    return 'F %.2f P %.2f R %.2f | flights %d/%d, detected %d, false %d' % (
+        s['F'],
+        s['P'],
+        s['R'],
+        s['hit'],
+        s['nt'],
+        s['nd'],
+        s['false'],
+    )
+
+
 print('top on train (even clips):')
 for s, g in res[:8]:
     print('  %-40s %s' % (g, fmt(s)))

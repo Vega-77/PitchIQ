@@ -1,4 +1,7 @@
-import sys, cv2, numpy as np, vfeats
+import sys
+import cv2
+import numpy as np
+import vfeats
 
 im = np.load('vid1_img.npz')
 a = list(im['abs'])

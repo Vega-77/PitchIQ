@@ -105,7 +105,10 @@ def main():
                     cv2.line(
                         im, tuple(np.int32(a)), tuple(np.int32(b)), (160, 60, 160), 1, cv2.LINE_AA
                     )
-        pj = lambda P: np.round(tr.project(np.full(len(P), i), P) * SC).astype(np.int32)
+
+        def pj(P):
+            return np.round(tr.project(np.full(len(P), i), P) * SC).astype(np.int32)
+
         # flights on screen now
         live = [c for c in chains if c['lo'] <= i <= c['hi']]
         for c in live:

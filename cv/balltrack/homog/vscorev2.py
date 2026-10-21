@@ -99,7 +99,10 @@ def score(p):
             E.append(np.median(e[pok[fr_]]))
         if okair[fr_].any():
             EA.append(np.median(e[okair[fr_]]))
-    md = lambda a: np.median(a) if len(a) else np.nan
+
+    def md(a):
+        return np.median(a) if len(a) else np.nan
+
     return (
         '%-20s air P %.2f R %.2f F %.2f | hit %2d/%d (touched %2d) false %2d (%3d fr) | spots med %4.1f mean %4.1f n%d'
         ' | track %4.1f  air-only %4.1f on %2d'

@@ -6,14 +6,18 @@ mapped through it, and a review video.
                                         [<tag>_pitch.mp4]
 """
 
-import os, sys, time
-import cv2, numpy as np
+import os
+import sys
+import time
+import cv2
+import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
 sys.path.insert(0, S2)
 sys.path.insert(0, HERE)
-import render_vid as RV, vovl
+import render_vid as RV
+import vovl
 
 MARGIN = 3.0
 Q = np.float32([[200, 500], [1720, 500], [1720, 1000], [200, 1000]])

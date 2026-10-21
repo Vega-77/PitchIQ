@@ -79,7 +79,7 @@ def per_frame():
     hgt = np.full(n, np.nan)
     if WHO == 'ours':
         B = np.load(os.path.join(HG, '%s_ball3dd.npz' % TAG))
-        O = np.load(os.path.join(HERE, 'tn_%s_ours.npz' % TAG))
+        ours = np.load(os.path.join(HERE, 'tn_%s_ours.npz' % TAG))
         for k in range(n):
             i = LO - A0 + k
             air = str(B['state'][i]) == 'air' and np.isfinite(B['x'][i])
@@ -89,9 +89,9 @@ def per_frame():
                 P = np.array([[uv[0], uv[1], B['z'][i]], [uv[0], uv[1], 0.0]])
                 b_, g_ = tr.project(np.full(2, i), P)
                 img[k], gnd[k], kind[k], hgt[k] = b_, g_, 'air', B['z'][i] / V.R_CH
-            elif O['src'][i]:
-                img[k] = O['px'][i], O['py'][i]
-                kind[k] = 'track' if O['src'][i] == 1 else 'fill'
+            elif ours['src'][i]:
+                img[k] = ours['px'][i], ours['py'][i]
+                kind[k] = 'track' if ours['src'][i] == 1 else 'fill'
             if np.isfinite(B['x'][i]):
                 sb[k] = B['x'][i], B['y'][i]
     else:

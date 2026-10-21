@@ -1,4 +1,8 @@
-import os, sys, cv2, numpy as np, vfeats
+import os
+import sys
+import cv2
+import numpy as np
+import vfeats
 
 sys.path.insert(
     0,

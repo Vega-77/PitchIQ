@@ -130,7 +130,7 @@ def flpos(which):
 
 
 # ---------- 2D ----------
-rows2 = [(k, l, gr, n, R2[k]) for (k, l, gr, n) in VERS if k in R2]
+rows2 = [(k, label, gr, n, R2[k]) for (k, label, gr, n) in VERS if k in R2]
 C2a = [
     (
         'Truth acc',
@@ -188,7 +188,7 @@ VAR = [
 
 def rows3(vs, variants):
     out = []
-    for k, l, gr, n in VERS:
+    for k, label, gr, n in VERS:
         if k not in R3 or (vs and k not in vs):
             continue
         for vk, vl in VAR if variants else VAR[:1]:
@@ -196,7 +196,7 @@ def rows3(vs, variants):
                 out.append(
                     (
                         k + vk,
-                        '%s · %s' % (l, vl) if variants else l,
+                        '%s · %s' % (label, vl) if variants else label,
                         gr,
                         n if (not variants or vk == 'dd') else '',
                         R3[k][vk],

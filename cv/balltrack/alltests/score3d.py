@@ -33,7 +33,7 @@ FILES = dict(
     x1='ball3dx1',
     sx='ball3dsx',
 )
-FIX = [json.loads(l)[1] for l in open(os.path.join(HERE, 'fixlab', 'fixes.jsonl'))]
+FIX = [json.loads(line)[1] for line in open(os.path.join(HERE, 'fixlab', 'fixes.jsonl'))]
 
 
 def sh(d, *a):

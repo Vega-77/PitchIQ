@@ -19,7 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def load_truth():
-    F = [json.loads(l)[1] for l in open(os.path.join(HERE, 'flightlabels', 'flights.jsonl'))]
+    F = [json.loads(line)[1] for line in open(os.path.join(HERE, 'flightlabels', 'flights.jsonl'))]
     return [f for f in F if not f.get('deleted')]
 
 
@@ -157,7 +157,10 @@ def main():
         % ('id', 'dur', 'len', 'height', 'flat', '3D label-free air')
     )
     for r in sorted(per, key=lambda r: int(r['id'].lstrip('u'))):
-        g = lambda m: ('%5.1f (%d/%d)' % r[m]) if m in r else '-'
+
+        def g(m):
+            return ('%5.1f (%d/%d)' % r[m]) if m in r else '-'
+
         print(
             '  %-6s %4.1f %5.1f %-6s  %-18s %-18s'
             % (

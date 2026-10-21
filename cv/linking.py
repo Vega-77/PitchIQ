@@ -617,9 +617,9 @@ class Linker:
             c = C[i, j]
             alts = [C[i, jj] - c for jj in range(C.shape[1]) if jj != j and jj not in taken_cols]
             alts += [C[ii, j] - c for ii in range(C.shape[0]) if ii != i and ii not in chosen]
-            for k, l in pairs:
-                if k != i:
-                    alts.append(C[i, l] + C[k, j] - c - C[k, l])
+            for other_i, other_j in pairs:
+                if other_i != i:
+                    alts.append(C[i, other_j] + C[other_i, j] - c - C[other_i, other_j])
             alts = [x for x in alts if np.isfinite(x)]
             why = None
             if alts and min(alts) < self.margin:

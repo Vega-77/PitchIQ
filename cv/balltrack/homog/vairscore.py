@@ -14,7 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
 
 recs = sorted(
-    (json.loads(l)[1] for l in open(os.path.join(HERE, 'airlabels', 'clips.jsonl'))),
+    (json.loads(line)[1] for line in open(os.path.join(HERE, 'airlabels', 'clips.jsonl'))),
     key=lambda r: r['start'],
 )
 A0, A1 = recs[0]['start'], max(r['end'] for r in recs)

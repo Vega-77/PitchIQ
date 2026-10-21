@@ -1,8 +1,10 @@
 """Long straight paint segments (any colour) from every 2nd keyframe, in
 reference-plane coordinates.  -> vsegs.npz (k, p0, p1 in ref plane, len_px)"""
 
-import os, sys
-import cv2, numpy as np
+import os
+import sys
+import cv2
+import numpy as np
 
 sys.path.insert(
     0,

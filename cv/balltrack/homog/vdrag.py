@@ -11,7 +11,10 @@ def drag(th, t):
     u0, v0, vu, vv, tau, Tf, k = th
     s = t - tau
     k = max(k, 1e-4)
-    E = lambda x: (1 - np.exp(-k * x)) / k  # integral of exp(-k s)
+
+    def E(x):
+        return (1 - np.exp(-k * x)) / k  # integral of exp(-k s)
+
     vz = V.G * Tf / (k * E(Tf)) - V.G / k
     sc = np.clip(s, 0, Tf)
     z = np.where((s >= 0) & (s <= Tf), (vz + V.G / k) * E(sc) - V.G * sc / k, 0.0)
@@ -29,7 +32,10 @@ def fit(tr, a, b, kmax=1.5):
     obs = tr.px[idx]
     lo = [-np.inf] * 4 + [-0.1, T * 0.8, 0.0]
     hi = [np.inf] * 4 + [0.05, T + 0.15, kmax]
-    res = lambda th: ((tr.project(idx, drag(th, t)) - obs) / V.SIG).ravel()
+
+    def res(th):
+        return ((tr.project(idx, drag(th, t)) - obs) / V.SIG).ravel()
+
     best = None
     for Tf in (T, T + 0.1):
         for k in (0.05, 0.5, 1.0):

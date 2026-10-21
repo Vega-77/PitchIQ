@@ -1,6 +1,10 @@
 """Baseline code-clarity metrics for PitchIQ. Run from the repo root: python tools/audit_metrics.py"""
 
-import ast, collections, hashlib, re, subprocess
+import ast
+import collections
+import hashlib
+import re
+import subprocess
 from pathlib import Path
 
 FILES = subprocess.check_output(['git', 'ls-files', '*.py']).decode().split()

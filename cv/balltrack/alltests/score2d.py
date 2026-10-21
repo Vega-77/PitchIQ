@@ -58,7 +58,7 @@ def hit(P, f, px, py, slack=0):
 def marks(dirn):
     """A label set: packed as <dirn>.jsonl (labels_pack.py), or truthdb's one file per mark."""
     if os.path.exists(dirn + '.jsonl'):
-        recs = [json.loads(l)[1] for l in open(dirn + '.jsonl')]
+        recs = [json.loads(line)[1] for line in open(dirn + '.jsonl')]
     else:
         recs = [json.load(open(f)) for f in sorted(glob.glob(os.path.join(dirn, '*.json')))]
     return [t.get('data', t) for t in recs]

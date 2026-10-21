@@ -65,8 +65,8 @@ def roll_fit(tr, a, b):
     idx = idx[tr.has[idx]]
     t = (idx - a) / V.FPS
     Z = np.zeros_like(t)
-    O = np.ones_like(t)
-    Arow = np.stack([np.stack([O, Z, t, Z], 1), np.stack([Z, O, Z, t], 1)], 1)
+    ONE = np.ones_like(t)
+    Arow = np.stack([np.stack([ONE, Z, t, Z], 1), np.stack([Z, ONE, Z, t], 1)], 1)
     Am = np.einsum('kij,kjl->kil', tr.J[idx], Arow).reshape(-1, 4)
     bm = np.einsum('kij,kj->ki', tr.J[idx], tr.g[idx]).ravel()
     th = np.linalg.lstsq(Am, bm, rcond=None)[0]
@@ -294,7 +294,10 @@ def per_frame(tr, tag, fl):
     with open(os.path.join(V.HERE, '%s_ball3d.csv' % tag), 'w') as fh:
         fh.write('frame,ball_x_sb,ball_y_sb,height_circle_radii,state\n')
         for k in range(n):
-            f = lambda v: '' if not np.isfinite(v) else '%.1f' % v
+
+            def f(v):
+                return '' if not np.isfinite(v) else '%.1f' % v
+
             fh.write(
                 '%d,%s,%s,%s,%s\n'
                 % (

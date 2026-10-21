@@ -1,4 +1,8 @@
-import sys, cv2, numpy as np, vfeats, vovl
+import sys
+import cv2
+import numpy as np
+import vfeats
+import vovl
 
 z = np.load('vid1_ballsb.npz')
 a = list(z['abs'])

@@ -122,8 +122,8 @@ def roll_rms(tr, half=7):
             continue
         t = (idx - i) / FPS
         Z = np.zeros_like(t)
-        O = np.ones_like(t)
-        Arow = np.stack([np.stack([O, Z, t, Z], 1), np.stack([Z, O, Z, t], 1)], 1)
+        ONE = np.ones_like(t)
+        Arow = np.stack([np.stack([ONE, Z, t, Z], 1), np.stack([Z, ONE, Z, t], 1)], 1)
         Am = np.einsum('kij,kjl->kil', tr.J[idx], Arow).reshape(-1, 4)
         bm = np.einsum('kij,kj->ki', tr.J[idx], tr.g[idx]).ravel()
         th = np.linalg.lstsq(Am, bm, rcond=None)[0]

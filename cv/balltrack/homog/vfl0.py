@@ -1,4 +1,5 @@
-import sys, numpy as np
+import sys
+import numpy as np
 
 TAG = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
 sys.path.insert(0, '..')

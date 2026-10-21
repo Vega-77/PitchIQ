@@ -1,4 +1,6 @@
-import cv2, vfeats, sys
+import cv2
+import vfeats
+import sys
 
 ab = int(sys.argv[1])
 x0, y0, x1, y1 = map(int, sys.argv[2:6])

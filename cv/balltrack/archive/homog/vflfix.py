@@ -109,7 +109,10 @@ def main():
                 fits[m0 + m1] = fit_mode(tr, a, b, m0, m1)
         mode = 'gg'
         base = fits['gg'][1]
-        good = lambda e, ref: e <= GAIN * ref or e <= ref - GAIN_PX
+
+        def good(e, ref):
+            return e <= GAIN * ref or e <= ref - GAIN_PX
+
         for m in ('ag', 'ga'):
             if m in fits and good(fits[m][1], fits[mode][1]):
                 if fits[m][1] < fits[mode][1]:

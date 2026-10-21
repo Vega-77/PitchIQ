@@ -7,7 +7,9 @@ the keyframe's own map placement gives frame -> StatsBomb 120x80.
     python vreg.py lo hi tag [procs]   -> <tag>_reg.npz (abs, Hsb, ninl, ok)
 """
 
-import os, sys, time
+import os
+import sys
+import time
 from multiprocessing import Pool
 import numpy as np
 
@@ -24,7 +26,9 @@ def work(args):
     sys.path.insert(0, REPO)
     sys.path.insert(0, HERE)
     from cv import lines as L
-    import vfeats, vmap, vovl
+    import vfeats
+    import vmap
+    import vovl
 
     K = vmap.load()
     z = np.load(os.path.join(HERE, 'vmap.npz'))

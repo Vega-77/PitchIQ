@@ -39,12 +39,12 @@ def _lines(L: float = 105.0, W: float = 68.0) -> list[np.ndarray]:
             out.append(np.array([[x0, a], [x0 + s * d * sx, a], [x0 + s * d * sx, b], [x0, b]]))
     t = np.linspace(0, 2 * np.pi, 73)
     out.append(np.c_[60 + 9.15 * sx * np.cos(t), 40 + 9.15 * sy * np.sin(t)])
-    return [np.asarray(l, float) for l in out]
+    return [np.asarray(line, float) for line in out]
 
 
-def _densify(l: np.ndarray, step: float = 1.0) -> np.ndarray:
-    out = [l[0]]
-    for a, b in zip(l[:-1], l[1:]):
+def _densify(line: np.ndarray, step: float = 1.0) -> np.ndarray:
+    out = [line[0]]
+    for a, b in zip(line[:-1], line[1:]):
         n = max(1, int(np.hypot(*(b - a)) / step))
         out.extend(a + (b - a) * t for t in np.linspace(0, 1, n + 1)[1:])
     return np.array(out)
@@ -91,8 +91,8 @@ def overlay(tag: str, n: int):
         ]  # the frame centre's pitch point must map back in front
         if (Hi @ (c / c[2]))[2] < 0:
             Hi = -Hi
-        for l in lines:
-            d = _densify(l)
+        for line in lines:
+            d = _densify(line)
             p = np.c_[d, np.ones(len(d))] @ Hi.T
             good = p[:, 2] > 0  # points behind the camera do not project
             q = p[:, :2] / p[:, 2:3]

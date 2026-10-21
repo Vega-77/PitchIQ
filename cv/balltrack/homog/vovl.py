@@ -1,6 +1,9 @@
 """Draw the fitted pitch back onto keyframes.  python vovl.py abs1 abs2 ..."""
 
-import sys, cv2, numpy as np, vfeats
+import sys
+import cv2
+import numpy as np
+import vfeats
 
 z = np.load('vmap.npz')
 t = np.load('vtop.npz')
@@ -12,9 +15,10 @@ sx, sy = 120 / L, 80 / W  # R units -> StatsBomb
 def polylines():
     """Pitch paint in StatsBomb coords (x along length, y across)."""
     P = []
-    seg = lambda a, b, n=40: [
-        (a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n) for i in range(n + 1)
-    ]
+
+    def seg(a, b, n=40):
+        return [(a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n) for i in range(n + 1)]
+
     P.append(
         seg((0, 0), (120, 0))
         + seg((120, 0), (120, 80))[1:]

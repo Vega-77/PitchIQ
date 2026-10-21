@@ -37,7 +37,9 @@ def work(args):
     sys.path.insert(0, REPO)
     sys.path.insert(0, HERE)
     from cv import lines as L
-    import vfeats, vmap, vovl
+    import vfeats
+    import vmap
+    import vovl
 
     K = vmap.load()
     ok = np.load(os.path.join(HERE, 'vmap.npz'))['ok']

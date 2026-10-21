@@ -5,8 +5,6 @@ from xgboost import XGBClassifier
 from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
 from sklearn.metrics import roc_auc_score, brier_score_loss
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
 import matplotlib.pyplot as plt
 import time
 
@@ -232,7 +230,7 @@ def load_data(offline=False):
                 if 'shots' in events:
                     new_shots_list.append(events['shots'])
                 time.sleep(0.5)  # Delay for the actual downloads too
-            except:
+            except Exception:
                 pass
 
         if new_shots_list:

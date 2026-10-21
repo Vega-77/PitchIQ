@@ -50,6 +50,12 @@ jobs:
       # which makes it worth failing a build over.
       - run: python -m pyflakes cv/ tests/
 
+      # ruff's formatter output is the house style (docs/conventions.md), so
+      # any diff from it fails; the lint rules are the classic pyflakes and
+      # pycodestyle errors, pinned in pyproject.toml.
+      - run: python -m ruff format --check cv tests tools PitchIQHelper
+      - run: python -m ruff check cv tests tools PitchIQHelper
+
   javascript:
     name: JavaScript
     runs-on: ubuntu-latest

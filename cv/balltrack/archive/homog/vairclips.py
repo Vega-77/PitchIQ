@@ -4,9 +4,13 @@ frame number and a zoomed inset around the ball.
     python vairclips.py lo hi [procs]  -> airlab/clips/<abs>.webm, airlab/manifest.json
 """
 
-import json, os, sys, time
+import json
+import os
+import sys
+import time
 from multiprocessing import Pool
-import cv2, numpy as np
+import cv2
+import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CLIP = 450

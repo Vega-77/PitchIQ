@@ -397,7 +397,7 @@ def _draw_lines(img, H, th):
 
     global _LINES
     if _LINES is None:
-        _LINES = [_densify(l) for l in _lines(*_PITCH)]
+        _LINES = [_densify(line) for line in _lines(*_PITCH)]
     Hi = np.linalg.inv(H)
     c = H @ [960.0, 540.0, 1.0]
     if (Hi @ (c / c[2]))[2] < 0:

@@ -1,4 +1,5 @@
-import numpy as np, cv2
+import numpy as np
+import cv2
 
 for name, (y0, y1) in [('top', (100, 560)), ('bot', (720, 1200))]:
     d = np.load('vend_%s.npy' % name)[350:1600, 0:760].astype(np.float32)

@@ -60,7 +60,10 @@ def main():
             ps[(state, where, 'top')].append(top)
     for k in sorted(cat):
         print(k, cat[k])
-    q = lambda v: np.percentile(v, [10, 25, 50, 75, 90]).round(1)
+
+    def q(v):
+        return np.percentile(v, [10, 25, 50, 75, 90]).round(1)
+
     for k in sorted(ps, key=str):
         print(k, 'n', len(ps[k]), 'p10/25/50/75/90', q(ps[k]))
 

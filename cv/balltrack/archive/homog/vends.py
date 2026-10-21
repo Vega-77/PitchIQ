@@ -1,4 +1,6 @@
-import cv2, numpy as np, vfeats
+import cv2
+import numpy as np
+import vfeats
 
 z = np.load('vmap.npz')
 t = np.load('vtop.npz')

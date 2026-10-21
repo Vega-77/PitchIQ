@@ -2,8 +2,10 @@
 ground plane (units: camera heights), B = rows (e1 along field, e2 across, -n).
     python vtop.py [every] [px_per_unit]   -> vtop.jpg, vtop.npz (B, K, T)"""
 
-import os, sys
-import cv2, numpy as np
+import os
+import sys
+import cv2
+import numpy as np
 
 sys.path.insert(
     0,

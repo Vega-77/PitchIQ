@@ -1,8 +1,10 @@
 """Yellow-paint density in the top-down map (fraction of views that saw
 yellow at each ground cell).   -> vyellow.npy, vyellow.jpg"""
 
-import os, sys
-import cv2, numpy as np
+import os
+import sys
+import cv2
+import numpy as np
 
 sys.path.insert(
     0,

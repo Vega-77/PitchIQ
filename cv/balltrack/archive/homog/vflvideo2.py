@@ -130,7 +130,10 @@ def segment(cap, vw, tr, c, nfl, truth, A0):
     cap.set(cv2.CAP_PROP_POS_FRAMES, A0 + lo)
     last = None
     n = 0
-    sbl = lambda P: tr.to_sb(P[:, :2])
+
+    def sbl(P):
+        return tr.to_sb(P[:, :2])
+
     for i in range(lo, hi + 1):
         ok, fr = cap.read()
         if not ok:
@@ -140,7 +143,10 @@ def segment(cap, vw, tr, c, nfl, truth, A0):
         if (i - lo) % STEP:
             continue
         img = fr.copy()
-        ii = lambda P: np.full(len(P), i)
+
+        def ii(P):
+            return np.full(len(P), i)
+
         for P in olds:
             cv2.polylines(
                 img, [np.round(tr.project(ii(P), P)).astype(np.int32)], False, MAG, 2, cv2.LINE_AA
@@ -210,13 +216,18 @@ def segment(cap, vw, tr, c, nfl, truth, A0):
         cv2.rectangle(out, (x0, y0), (x0 + int(120 * MS), y0 + int(80 * MS)), (60, 110, 60), -1)
         cv2.rectangle(out, (x0, y0), (x0 + int(120 * MS), y0 + int(80 * MS)), WHITE, 1)
         cv2.line(out, (x0 + int(60 * MS), y0), (x0 + int(60 * MS), y0 + int(80 * MS)), WHITE, 1)
-        mp = lambda q: (
-            int(x0 + np.clip(q[0], -4, 124) * MS),
-            int(y0 + (80 - np.clip(q[1], -4, 84)) * MS),
-        )
-        poly = lambda P, col, w: cv2.polylines(
-            out, [np.array([mp(q) for q in sbl(P)], np.int32)], False, col, w, cv2.LINE_AA
-        )
+
+        def mp(q):
+            return (
+                int(x0 + np.clip(q[0], -4, 124) * MS),
+                int(y0 + (80 - np.clip(q[1], -4, 84)) * MS),
+            )
+
+        def poly(P, col, w):
+            return cv2.polylines(
+                out, [np.array([mp(q) for q in sbl(P)], np.int32)], False, col, w, cv2.LINE_AA
+            )
+
         for Po in olds:
             poly(Po, MAG, 1)
         poly(arc, CYAN, 2)

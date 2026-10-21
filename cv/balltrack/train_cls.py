@@ -452,7 +452,10 @@ def evaluate(scorer, data, tags):
             if is_ball.any():
                 A['rn'].append(frame_ranks(d['f'], p, is_ball))
                 A['ro'].append(frame_ranks(d['f'], d['s'], is_ball))
-    cat = lambda v: np.concatenate(v) if v else np.zeros(0)
+
+    def cat(v):
+        return np.concatenate(v) if v else np.zeros(0)
+
     out = {}
     for k, A in acc.items():
         pos, neg = cat(A['ps']), cat(A['ns'])
