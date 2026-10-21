@@ -226,7 +226,7 @@ class Half:
         self.run(AT, 'alltests.mkpicks_one', P, log=log, env=ONE_THREAD)
         for cmd in (
             ('homog.ball_on_pitch', P),
-            ('homog.vfl0', P),
+            ('homog.image_track', P),
             ('homog.flight_scan', P, '16'),
             ('homog.vrowspd', P),
             ('homog.flight_chain', P),
