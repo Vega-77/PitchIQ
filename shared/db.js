@@ -7,14 +7,14 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=145';
-import { EVENT_TYPES } from './events.js?v=145';
+import { db } from './firebase-init.js?v=146';
+import { EVENT_TYPES } from './events.js?v=146';
 // Kept in dependency-free modules so the rules about what a player may see
 // can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
     mappingWithout, positionOf, whistleFrom, minutesFrom, knownMinutes,
-} from './report.js?v=145';
+} from './report.js?v=146';
 
 export {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
@@ -749,12 +749,13 @@ export function aggregateMatch(log, roster) {
  * rule against the query rather than per document — there is no way to let a
  * player read only their own row out of the shared match data, so the coach
  * publishes a per-player document instead.
+ *
+ * `extra` carries what only some reports need: the log, roster and counts for
+ * the timeline and the scoreline, and the cv* inputs that reach a player only
+ * through a mapping a coach confirmed.
  */
-export async function publishReports(teamId, matchId, match, team, players, score, extra = {}) {
+export async function publishReports({ teamId, matchId, match, team, players, score, extra = {} }) {
     const batch = writeBatch(db);
-    const log = extra.log || [];
-    const roster = extra.roster || [];
-    const counts = extra.counts || null;
 
     // Video stats reach a player only through a mapping a coach confirmed.
     // Without one this is empty and no cv* field is written at all — an
@@ -775,6 +776,15 @@ export async function publishReports(teamId, matchId, match, team, players, scor
         clock: clockFromMatch(match),
         matchEndS: extra.matchEndS ?? null,
     };
+    const context = {
+        matchId, match, team, score,
+        log: extra.log || [],
+        roster: extra.roster || [],
+        counts: extra.counts || null,
+        cvByPlayer,
+        coverageContext,
+        cvShotRows: extra.cvShotRows || null,
+    };
 
     for (const player of players) {
         const rosterDoc = await getDoc(
@@ -784,69 +794,7 @@ export async function publishReports(teamId, matchId, match, team, players, scor
 
         batch.set(
             doc(db, 'teams', teamId, 'matches', matchId, 'playerReports', player.id),
-            {
-                linkedUid: linkedUid ?? null,
-                published: true,
-                playerName: player.playerName,
-                jerseyNumber: player.jerseyNumber ?? null,
-                // `minutesPlayed` stays a number because `firestore.rules`
-                // requires one — `minutesPlayed is number && >= 0` — and every
-                // report already published carries one. The boolean beside it
-                // is what says whether the number is a measurement or a
-                // stand-in, and it needed no rules change: this block has no
-                // `hasOnly`, so it takes a new key as it is.
-                //
-                // Read as *true when absent* on the way back out, which is both
-                // the old behaviour and the right default for every report
-                // written before this field existed.
-                minutesPlayed: player.minutesPlayed ?? 0,
-                minutesKnown: player.minutesPlayed != null,
-                goals: player.goals,
-                assists: player.assists ?? 0,
-                // No summed `cards` field, deliberately. One was written here
-                // for a while and read by nothing, which was lucky: a yellow
-                // and a red mean completely different things, so a total of
-                // the two is a number with no meaning. See the rule this
-                // breaks at shared/ui.js::cardChips.
-                yellowCards: player.yellowCards ?? 0,
-                redCards: player.redCards ?? 0,
-                fouls: player.fouls ?? 0,
-                stints: player.stints || [],
-                matchDate: match.date || '',
-                opponentName: match.opponentName || '',
-                teamName: team.name || '',
-                // So the player's own page wears the squad's colours.
-                teamKit: team.kit ?? null,
-
-                // Denormalized so a player can see the match they played in.
-                // Their entire read surface is this one document — there is no
-                // rules-only way to give them part of a collection — so
-                // anything they should see has to be copied here at publish
-                // time. See the collection-group note in firestore.rules.
-                scoreUs: score?.us ?? 0,
-                scoreThem: score?.them ?? 0,
-                teamCounts: counts || null,
-                timeline: playerTimeline(log, roster, player.id),
-                matchId,
-                videoUrl: match.videoUrl || null,
-                // All three, because the player portal seeks this footage too
-                // and one offset only reaches half-time. See `clockFromMatch`.
-                videoOffsetS: match.videoOffsetS ?? 0,
-                secondHalfVideoS: match.secondHalfVideoS ?? null,
-                halfTimeClockS: match.halfTimeClockS ?? null,
-
-                ...cvReportFields(
-                    cvByPlayer[player.id],
-                    trackedCoverage(
-                        cvByPlayer[player.id]?.minutes_tracked,
-                        player.stints,
-                        coverageContext,
-                    ),
-                    // The coach's body-part tags, so a player's own shot map
-                    // and xG say what the coach's screen says.
-                    extra.cvShotRows || null,
-                ),
-            },
+            playerReportDoc(player, linkedUid, context),
             // Merged, not overwritten. `pitchiq/publish_to_firestore.py` fills in the heatmap,
             // the shot map's attacking end and the calibration error *after*
             // this document is created — a plain set() deleted all of them
@@ -866,6 +814,83 @@ export async function publishReports(teamId, matchId, match, team, players, scor
         scoreThem: score?.them ?? 0,
     });
     await batch.commit();
+}
+
+/**
+ * The report document for one player, as `publishReports` writes it.
+ *
+ * `context` is the match-wide part every player's document shares: the match,
+ * team and score, the log and roster their timeline is labelled from, and the
+ * mapped cv figures with what they were measured over.
+ */
+function playerReportDoc(player, linkedUid, context) {
+    const {
+        matchId, match, team, score, log, roster, counts,
+        cvByPlayer, coverageContext, cvShotRows,
+    } = context;
+    return {
+        linkedUid: linkedUid ?? null,
+        published: true,
+        playerName: player.playerName,
+        jerseyNumber: player.jerseyNumber ?? null,
+        // `minutesPlayed` stays a number because `firestore.rules`
+        // requires one — `minutesPlayed is number && >= 0` — and every
+        // report already published carries one. The boolean beside it
+        // is what says whether the number is a measurement or a
+        // stand-in, and it needed no rules change: this block has no
+        // `hasOnly`, so it takes a new key as it is.
+        //
+        // Read as *true when absent* on the way back out, which is both
+        // the old behaviour and the right default for every report
+        // written before this field existed.
+        minutesPlayed: player.minutesPlayed ?? 0,
+        minutesKnown: player.minutesPlayed != null,
+        goals: player.goals,
+        assists: player.assists ?? 0,
+        // No summed `cards` field, deliberately. One was written here
+        // for a while and read by nothing, which was lucky: a yellow
+        // and a red mean completely different things, so a total of
+        // the two is a number with no meaning. See the rule this
+        // breaks at shared/ui.js::cardChips.
+        yellowCards: player.yellowCards ?? 0,
+        redCards: player.redCards ?? 0,
+        fouls: player.fouls ?? 0,
+        stints: player.stints || [],
+        matchDate: match.date || '',
+        opponentName: match.opponentName || '',
+        teamName: team.name || '',
+        // So the player's own page wears the squad's colours.
+        teamKit: team.kit ?? null,
+
+        // Denormalized so a player can see the match they played in.
+        // Their entire read surface is this one document — there is no
+        // rules-only way to give them part of a collection — so
+        // anything they should see has to be copied here at publish
+        // time. See the collection-group note in firestore.rules.
+        scoreUs: score?.us ?? 0,
+        scoreThem: score?.them ?? 0,
+        teamCounts: counts || null,
+        timeline: playerTimeline(log, roster, player.id),
+        matchId,
+        videoUrl: match.videoUrl || null,
+        // All three, because the player portal seeks this footage too
+        // and one offset only reaches half-time. See `clockFromMatch`.
+        videoOffsetS: match.videoOffsetS ?? 0,
+        secondHalfVideoS: match.secondHalfVideoS ?? null,
+        halfTimeClockS: match.halfTimeClockS ?? null,
+
+        ...cvReportFields(
+            cvByPlayer[player.id],
+            trackedCoverage(
+                cvByPlayer[player.id]?.minutes_tracked,
+                player.stints,
+                coverageContext,
+            ),
+            // The coach's body-part tags, so a player's own shot map
+            // and xG say what the coach's screen says.
+            cvShotRows,
+        ),
+    };
 }
 
 /** Season totals derived from finalized matches. */

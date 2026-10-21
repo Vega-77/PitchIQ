@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../shared/auth.js?v=145';
+} from '../shared/auth.js?v=146';
 import {
     createTeam, updateTeamKit, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../shared/db.js?v=145';
-import { nowIndex } from '../shared/timeline.js?v=145';
-import { renderShotMap, shotSummary } from '../shared/shot-map.js?v=145';
-import { renderMatchVideo, teamMarks } from '../shared/match-video.js?v=145';
+} from '../shared/db.js?v=146';
+import { nowIndex } from '../shared/timeline.js?v=146';
+import { renderShotMap, shotSummary } from '../shared/shot-map.js?v=146';
+import { renderMatchVideo, teamMarks } from '../shared/match-video.js?v=146';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../shared/sample-report.js?v=145';
+} from '../shared/sample-report.js?v=146';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../shared/passing.js?v=145';
-import { renderPassMap } from '../shared/pass-map.js?v=145';
-import { mergeHeatmaps, orientedCentroid } from '../shared/heatmap.js?v=145';
+} from '../shared/passing.js?v=146';
+import { renderPassMap } from '../shared/pass-map.js?v=146';
+import { mergeHeatmaps, orientedCentroid } from '../shared/heatmap.js?v=146';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../shared/season.js?v=145';
-import { renderForms } from '../shared/form-chart.js?v=145';
+} from '../shared/season.js?v=146';
+import { renderForms } from '../shared/form-chart.js?v=146';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, hasVerdict, currentAnswers, xgTrust,
@@ -44,26 +44,26 @@ import {
     minutesNote, FROM_LAST_TAG, FULL_MATCH_MIN, matchBrief, cvReads,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../shared/report.js?v=145';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../shared/events.js?v=145';
-import { mountRail } from '../shared/rail.js?v=145';
-import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=145';
-import { startMotion } from '../shared/motion.js?v=145';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../shared/pitch-backdrop.js?v=145';
-import { videoKind } from '../shared/video.js?v=145';
+} from '../shared/report.js?v=146';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../shared/events.js?v=146';
+import { mountRail } from '../shared/rail.js?v=146';
+import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=146';
+import { startMotion } from '../shared/motion.js?v=146';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../shared/pitch-backdrop.js?v=146';
+import { videoKind } from '../shared/video.js?v=146';
 import {
     byId, setText, toast, clockText, signed, plural, localDate,
     statCard, statGroup, fillStatGroup, figure, cardChips, timelineRow,
     minutesChart, stackBar, coverageStrip, kitPicker,
-} from '../shared/ui.js?v=145';
+} from '../shared/ui.js?v=146';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=145';
+} from './shell.js?v=146';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=145';
+} from './review.js?v=146';
 
 // ---------------------------------------------------------------- team setup
 
@@ -1125,18 +1125,7 @@ async function openMatch(matchId) {
 
     try {
         const [match, roster, log, cv, cvMapping, cvEvents, cvReview] =
-            await Promise.all([
-                getMatch(state.team.id, matchId),
-                listMatchRoster(state.team.id, matchId),
-                listLog(state.team.id, matchId),
-                // Absent for any match nobody filmed, which is most of them, so
-                // a failure here must not take the tagged report down with it.
-                readCvStats(state.team.id, matchId).catch(() => null),
-                readCvMapping(state.team.id, matchId).catch(() => ({})),
-                readCvEvents(state.team.id, matchId).catch(() => null),
-                readCvReview(state.team.id, matchId)
-                    .catch(() => ({ byEvent: {}, missed: [] })),
-            ]);
+            await readMatchDocs(matchId);
 
         const stats = aggregateMatch(log, roster);
         state.match = {
@@ -1156,61 +1145,7 @@ async function openMatch(matchId) {
         // player — anything else is a guess with a name attached.
         mergeCvPlayers(stats.players, state.match, stats.matchEndS);
 
-        setText('match-title', `vs ${match.opponentName || '—'}`);
-        renderMatchStatus();
-
-        setText('match-print-stamp', printStamp({
-            subject: state.team?.name || null,
-            matchLine: `vs ${match.opponentName || '—'}`
-                + (match.date ? ` · ${match.date}` : ''),
-            estimated: Boolean(activeCv()),
-        }));
-
-        // Em dashes, not zeroes, on a match nobody tagged. See `taggedCount`.
-        setText('score-us', taggedCount(stats.counts.us.goal, log));
-        setText('score-them', taggedCount(stats.counts.them.goal, log));
-
-        byId('link-halftime').href =
-            `../halftime/?team=${encodeURIComponent(state.team.id)}`
-            + `&match=${encodeURIComponent(matchId)}`;
-
-        renderTeamStats(stats);
-
-        // The banner, the shot maps and the shot log all read the review
-        // document, so they go through the one function that draws all three.
-        // It also rebuilds the banner rather than appending — openMatch runs
-        // again every time a coach goes back and picks another match, and a
-        // stacking banner is the classic way that goes unnoticed.
-        redrawShotViews();
-        // Not on that redraw: the press is counted by the pipeline and no
-        // verdict a coach records can move it. Drawing it there would be
-        // harmless and would also say it depends on the review, which it does
-        // not — the block that never changes should not be in the list of
-        // blocks that go stale.
-        renderPressing();
-        // Same reasoning, and one more: this block is built from the roster's
-        // stints and the tag log's clock, neither of which the review touches.
-        renderSubs();
-        // Reads the mapping and the roster's positions. Neither is something a
-        // verdict in the review can move, so it lives on `redrawMappedViews`
-        // and is drawn once from here.
-        renderShape();
-
-        renderPlayerTable(stats.players);
-        renderMatchVideoBlock();
-        renderTimeline(log, roster);
-        renderClusterMapping();
-        renderExcluded();
-        renderReview();
-        renderSampleToggle();
-        // Last, once every block above has decided whether it is on screen.
-        renderMatchRail();
-
-        byId('input-video-url').value = match.videoUrl || '';
-        byId('input-video-offset').value = match.videoOffsetS ?? 0;
-        byId('input-second-half').value = match.secondHalfVideoS ?? '';
-        updateVideoHint();
-        renderClockMap();
+        drawMatch({ match, matchId, stats, log, roster });
 
         byId('btn-publish').disabled = false;
 
@@ -1220,6 +1155,81 @@ async function openMatch(matchId) {
         toast(err.message || 'Could not open that match.', true);
         show('view-main');
     }
+}
+
+/** Everything one match view reads, in the order `openMatch` unpacks it. */
+function readMatchDocs(matchId) {
+    return Promise.all([
+        getMatch(state.team.id, matchId),
+        listMatchRoster(state.team.id, matchId),
+        listLog(state.team.id, matchId),
+        // Absent for any match nobody filmed, which is most of them, so
+        // a failure here must not take the tagged report down with it.
+        readCvStats(state.team.id, matchId).catch(() => null),
+        readCvMapping(state.team.id, matchId).catch(() => ({})),
+        readCvEvents(state.team.id, matchId).catch(() => null),
+        readCvReview(state.team.id, matchId)
+            .catch(() => ({ byEvent: {}, missed: [] })),
+    ]);
+}
+
+/** Fill every block of the match view from a freshly opened match. */
+function drawMatch({ match, matchId, stats, log, roster }) {
+    setText('match-title', `vs ${match.opponentName || '—'}`);
+    renderMatchStatus();
+
+    setText('match-print-stamp', printStamp({
+        subject: state.team?.name || null,
+        matchLine: `vs ${match.opponentName || '—'}`
+            + (match.date ? ` · ${match.date}` : ''),
+        estimated: Boolean(activeCv()),
+    }));
+
+    // Em dashes, not zeroes, on a match nobody tagged. See `taggedCount`.
+    setText('score-us', taggedCount(stats.counts.us.goal, log));
+    setText('score-them', taggedCount(stats.counts.them.goal, log));
+
+    byId('link-halftime').href =
+        `../halftime/?team=${encodeURIComponent(state.team.id)}`
+        + `&match=${encodeURIComponent(matchId)}`;
+
+    renderTeamStats(stats);
+
+    // The banner, the shot maps and the shot log all read the review
+    // document, so they go through the one function that draws all three.
+    // It also rebuilds the banner rather than appending — openMatch runs
+    // again every time a coach goes back and picks another match, and a
+    // stacking banner is the classic way that goes unnoticed.
+    redrawShotViews();
+    // Not on that redraw: the press is counted by the pipeline and no
+    // verdict a coach records can move it. Drawing it there would be
+    // harmless and would also say it depends on the review, which it does
+    // not — the block that never changes should not be in the list of
+    // blocks that go stale.
+    renderPressing();
+    // Same reasoning, and one more: this block is built from the roster's
+    // stints and the tag log's clock, neither of which the review touches.
+    renderSubs();
+    // Reads the mapping and the roster's positions. Neither is something a
+    // verdict in the review can move, so it lives on `redrawMappedViews`
+    // and is drawn once from here.
+    renderShape();
+
+    renderPlayerTable(stats.players);
+    renderMatchVideoBlock();
+    renderTimeline(log, roster);
+    renderClusterMapping();
+    renderExcluded();
+    renderReview();
+    renderSampleToggle();
+    // Last, once every block above has decided whether it is on screen.
+    renderMatchRail();
+
+    byId('input-video-url').value = match.videoUrl || '';
+    byId('input-video-offset').value = match.videoOffsetS ?? 0;
+    byId('input-second-half').value = match.secondHalfVideoS ?? '';
+    updateVideoHint();
+    renderClockMap();
 }
 
 /**
@@ -2403,30 +2413,7 @@ function cvNote() {
     const note = document.createElement('div');
     note.className = 'cv-note';
 
-    const bits = cvQualityNotes(quality, {
-        calibrated: cv.calibrated,
-        // So the xG caveat appears only once there is an xG row to caveat.
-        shots: cv.teams?.team_a?.shots,
-        // Same idea for the line height, which is absent on most runs: it needs
-        // a calibration and somebody to have said which goal each side defends.
-        lineHeight: cv.teams?.team_a?.shape?.line_m,
-        calibrationErrorM: cv.calibrationErrorM,
-        // So the keeper caveat appears only once there are keeping rows to
-        // caveat. One keeper found is enough: `keeperStatRows` keeps a row on
-        // one side alone, and the caveat covers whichever side got one.
-        keepers: (cv.keepers || []).length,
-        reconciliation: cv.reconciliation,
-        // Which half, and what decided it. Every pitch picture below this
-        // banner is drawn from the answer, and a wrong one mirrors all of them
-        // without changing how any of them look.
-        period: cv.period,
-        periodSource: cv.periodSource,
-        // So the foot-shot caveat stops claiming to be unfixed on a match where
-        // the coach has already fixed it.
-        headersTagged: headerCorrection(shotLedger(
-            state.match?.cvEvents?.events || [], state.match?.cvReview,
-        ))?.headers || 0,
-    });
+    const bits = cvNoteBits(cv, quality);
 
     // "Measured from video" is a claim, and on the preview it is false. The
     // banner is the one element guaranteed to sit above every estimated block,
@@ -2463,29 +2450,63 @@ function cvNote() {
     strong.textContent = sampled ? 'Sample ' : 'Estimated ';
     note.prepend(strong);
 
-    // What the run never saw, drawn rather than described. The sentence above
-    // can carry one figure out of the split; the bar is the only thing that
-    // shows the proportion, which is the whole reason the split exists — a
-    // coach needs to know at a glance whether the missing time was stoppages
-    // or football.
-    const blind = blindSplit(quality);
-    if (blind?.segments?.length) {
-        // The worst single stretch beside the total, because the same lost
-        // minutes as one blackout and as a hundred flickers are different
-        // failures and only one of them is worth scrubbing to. In video time,
-        // which is what somebody would type into the player.
-        const worst = blind.worst
-            ? ` · longest ${roughDuration(blind.worst.durationS)} `
-                + `at ${clockText(blind.worst.startS)}`
-            : '';
-        note.append(stackBar(
-            blind.segments.map((part) => ({
-                ...part, text: roughDuration(part.seconds),
-            })),
-            { label: `No ball found — ${roughDuration(blind.totalS)} in total${worst}` },
-        ));
-    }
+    const bar = blindBar(quality);
+    if (bar) note.append(bar);
     return note;
+}
+
+/** What limited this run, as `cvQualityNotes` words it for the banner. */
+function cvNoteBits(cv, quality) {
+    return cvQualityNotes(quality, {
+        calibrated: cv.calibrated,
+        // So the xG caveat appears only once there is an xG row to caveat.
+        shots: cv.teams?.team_a?.shots,
+        // Same idea for the line height, which is absent on most runs: it needs
+        // a calibration and somebody to have said which goal each side defends.
+        lineHeight: cv.teams?.team_a?.shape?.line_m,
+        calibrationErrorM: cv.calibrationErrorM,
+        // So the keeper caveat appears only once there are keeping rows to
+        // caveat. One keeper found is enough: `keeperStatRows` keeps a row on
+        // one side alone, and the caveat covers whichever side got one.
+        keepers: (cv.keepers || []).length,
+        reconciliation: cv.reconciliation,
+        // Which half, and what decided it. Every pitch picture below this
+        // banner is drawn from the answer, and a wrong one mirrors all of them
+        // without changing how any of them look.
+        period: cv.period,
+        periodSource: cv.periodSource,
+        // So the foot-shot caveat stops claiming to be unfixed on a match where
+        // the coach has already fixed it.
+        headersTagged: headerCorrection(shotLedger(
+            state.match?.cvEvents?.events || [], state.match?.cvReview,
+        ))?.headers || 0,
+    });
+}
+
+/**
+ * What the run never saw, drawn rather than described. The banner's sentence
+ * can carry one figure out of the split; the bar is the only thing that
+ * shows the proportion, which is the whole reason the split exists — a
+ * coach needs to know at a glance whether the missing time was stoppages
+ * or football.
+ */
+function blindBar(quality) {
+    const blind = blindSplit(quality);
+    if (!blind?.segments?.length) return null;
+    // The worst single stretch beside the total, because the same lost
+    // minutes as one blackout and as a hundred flickers are different
+    // failures and only one of them is worth scrubbing to. In video time,
+    // which is what somebody would type into the player.
+    const worst = blind.worst
+        ? ` · longest ${roughDuration(blind.worst.durationS)} `
+            + `at ${clockText(blind.worst.startS)}`
+        : '';
+    return stackBar(
+        blind.segments.map((part) => ({
+            ...part, text: roughDuration(part.seconds),
+        })),
+        { label: `No ball found — ${roughDuration(blind.totalS)} in total${worst}` },
+    );
 }
 
 function renderPlayerTable(players) {
@@ -2861,6 +2882,42 @@ function clusterRow(cluster, mapping) {
     const select = row.querySelector('select');
     const key = String(cluster.cluster_id);
 
+    fillClusterPicker(select, cluster, clock);
+
+    select.value = mapping[key] || '';
+
+    select.addEventListener('change', () => {
+        const next = { ...(state.match.cvMapping || {}) };
+        if (select.value) next[key] = select.value;
+        else delete next[key];
+        state.match.cvMapping = next;
+
+        // The suggestions are about the player just named, so a change of name
+        // is a change of question. Opening the strip on the row the coach is
+        // working on is also the only moment it is worth their attention.
+        sameAsOpen = select.value && select.value !== NOT_A_PLAYER
+            ? cluster.cluster_id
+            : null;
+
+        pendingFocus = { clusterId: cluster.cluster_id, control: 'select' };
+        updateMappingNote();
+        queueMappingSave();
+        renderClusterMapping();
+    });
+
+    row.classList.toggle('unmatched', !select.value);
+
+    const strip = sameAsStrip(cluster, mapping);
+    if (strip) row.append(strip);
+
+    return row;
+}
+
+/**
+ * The picker's options: nobody, not a player, then the roster split by who
+ * was on the pitch while `cluster` was on screen.
+ */
+function fillClusterPicker(select, cluster, clock) {
     const blank = document.createElement('option');
     blank.value = '';
     blank.textContent = 'Not matched';
@@ -2903,34 +2960,6 @@ function clusterRow(cluster, mapping) {
 
     if (onPitch.children.length) select.append(onPitch);
     if (others.children.length) select.append(others);
-
-    select.value = mapping[key] || '';
-
-    select.addEventListener('change', () => {
-        const next = { ...(state.match.cvMapping || {}) };
-        if (select.value) next[key] = select.value;
-        else delete next[key];
-        state.match.cvMapping = next;
-
-        // The suggestions are about the player just named, so a change of name
-        // is a change of question. Opening the strip on the row the coach is
-        // working on is also the only moment it is worth their attention.
-        sameAsOpen = select.value && select.value !== NOT_A_PLAYER
-            ? cluster.cluster_id
-            : null;
-
-        pendingFocus = { clusterId: cluster.cluster_id, control: 'select' };
-        updateMappingNote();
-        queueMappingSave();
-        renderClusterMapping();
-    });
-
-    row.classList.toggle('unmatched', !select.value);
-
-    const strip = sameAsStrip(cluster, mapping);
-    if (strip) row.append(strip);
-
-    return row;
 }
 
 // ------------------------------------------------ the same player, seen twice
@@ -3842,17 +3871,20 @@ async function doPublish() {
     button.disabled = true;
 
     try {
-        await publishReports(
-            state.team.id, state.match.id, state.match, state.team,
-            state.match.stats.players,
-            {
+        await publishReports({
+            teamId: state.team.id,
+            matchId: state.match.id,
+            match: state.match,
+            team: state.team,
+            players: state.match.stats.players,
+            score: {
                 us: state.match.stats.counts.us.goal ?? 0,
                 them: state.match.stats.counts.them.goal ?? 0,
             },
             // The log and roster go in so each report can carry that player's
             // own timeline. They are read here and never reach the player —
             // publishReports turns them into labels first.
-            {
+            extra: {
                 log: state.match.log,
                 roster: state.match.roster,
                 counts: state.match.stats.counts,
@@ -3881,7 +3913,7 @@ async function doPublish() {
                     state.match.cvEvents?.events || [], state.match.cvReview,
                 ),
             },
-        );
+        });
         toast('Player reports published');
         // The open match, not just the list behind it. `publishReports` sets
         // `finalized` and the score on the match document; without mirroring

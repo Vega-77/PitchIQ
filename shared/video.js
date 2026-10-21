@@ -177,8 +177,8 @@ const YT_ORIGIN = 'https://www.youtube-nocookie.com';
 const LISTEN_EVERY_MS = 500;
 const LISTEN_FOR_MS = 10000;
 
-function mountYouTube(host, url, onReady) {
-    const id = youtubeId(url);
+/** The embed for YouTube video `id`: privacy-enhanced, and scriptable. */
+function youtubeFrame(id) {
     const frame = document.createElement('iframe');
     frame.className = 'match-video';
     // nocookie so a player watching their own highlights is not also being
@@ -187,18 +187,14 @@ function mountYouTube(host, url, onReady) {
     frame.allow = 'accelerometer; encrypted-media; picture-in-picture; fullscreen';
     frame.allowFullscreen = true;
     frame.referrerPolicy = 'strict-origin-when-cross-origin';
-    host.append(frame);
+    return frame;
+}
 
-    let ready = false;
-    frame.addEventListener('load', () => { ready = true; onReady?.(); }, { once: true });
-
-    const post = (func, args) => {
-        frame.contentWindow?.postMessage(
-            JSON.stringify({ event: 'command', func, args }),
-            YT_ORIGIN,
-        );
-    };
-
+/**
+ * Pass the embed's own reports of where it is to `feed`; returns the function
+ * that stops listening.
+ */
+function listenForPosition(frame, id, feed) {
     // Where it is, which YouTube will tell us but only if asked.
     //
     // The embed's API runs over postMessage in both directions. Sending
@@ -211,7 +207,6 @@ function mountYouTube(host, url, onReady) {
     // done here directly rather than by loading that script, because the only
     // thing wanted out of it is one number and the script is a third-party
     // dependency on every page that shows a video.
-    const feed = positionFeed();
     let heard = false;
 
     const askToListen = () => {
@@ -252,6 +247,30 @@ function mountYouTube(host, url, onReady) {
     }, LISTEN_EVERY_MS);
     frame.addEventListener('load', askToListen, { once: true });
 
+    return () => {
+        clearInterval(pump);
+        window.removeEventListener('message', onMessage);
+    };
+}
+
+function mountYouTube(host, url, onReady) {
+    const id = youtubeId(url);
+    const frame = youtubeFrame(id);
+    host.append(frame);
+
+    let ready = false;
+    frame.addEventListener('load', () => { ready = true; onReady?.(); }, { once: true });
+
+    const post = (func, args) => {
+        frame.contentWindow?.postMessage(
+            JSON.stringify({ event: 'command', func, args }),
+            YT_ORIGIN,
+        );
+    };
+
+    const feed = positionFeed();
+    const stopListening = listenForPosition(frame, id, feed);
+
     return {
         kind: 'youtube',
         element: frame,
@@ -266,12 +285,12 @@ function mountYouTube(host, url, onReady) {
         currentTime: feed.currentTime,
         onTime: feed.onTime,
         destroy() {
-            // Both of these outlive the element they belong to if left alone: a
-            // window listener holds the closure, and the interval holds a frame
-            // that is no longer in the document. The coach page mounts a new
-            // pair of players every time a match is opened.
-            clearInterval(pump);
-            window.removeEventListener('message', onMessage);
+            // The listener and the interval behind `stopListening` both outlive
+            // the element they belong to if left alone: a window listener holds
+            // the closure, and the interval holds a frame that is no longer in
+            // the document. The coach page mounts a new pair of players every
+            // time a match is opened.
+            stopListening();
             feed.clear();
             frame.remove();
         },

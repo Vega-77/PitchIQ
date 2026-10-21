@@ -26,10 +26,13 @@
 // of chips pinned to the top that scrolls to a section rather than swapping it
 // in. A match review on a phone is seventeen screens with Publish at the
 // bottom, and scrolling is not navigation at that length. Built from the same
-// `entries()` as the rail so the two can never list different sections, and
-// hidden by CSS at desktop width, where the rail does the job.
+// `railEntries()` as the rail so the two can never list different sections,
+// and hidden by CSS at desktop width, where the rail does the job.
 
-import { railTarget } from './report.js?v=145';
+import { railTarget } from './report.js?v=146';
+
+const RAILED = 'section.block[data-rail], section.block[data-rail-group]';
+const groupOf = (block) => block.dataset.railGroup || block.id;
 
 /**
  * Wire a rail to a report body.
@@ -48,9 +51,6 @@ export function mountRail({
 
     let section = null;
 
-    const RAILED = 'section.block[data-rail], section.block[data-rail-group]';
-    const groupOf = (block) => block.dataset.railGroup || block.id;
-
     // The jump bar, made on the first render. Placed just before the report
     // body so it pins for exactly as long as the report is on screen.
     const jump = document.createElement('nav');
@@ -58,139 +58,21 @@ export function mountRail({
     jump.setAttribute('aria-label', heading);
     body.before(jump);
 
-    /** The first block a jump-bar entry stands for, if it is on the page. */
-    const firstBlock = (id) => [...body.querySelectorAll(RAILED)]
-        .find((block) => groupOf(block) === id && !block.classList.contains('hidden'));
-
-    /**
-     * Light the chip for the section under the bar, and bring it into view.
-     *
-     * Measured rather than observed: an IntersectionObserver would need a
-     * threshold per block height, and the answer wanted is simply "the last
-     * section whose top has passed under the bar".
-     */
-    let pending = false;
-    function trackScroll() {
-        if (pending) return;
-        pending = true;
-        requestAnimationFrame(() => {
-            pending = false;
-            // Not drawn (desktop, or another view is showing): nothing to track.
-            if (!jump.offsetParent) return;
-            const line = jump.getBoundingClientRect().bottom + 24;
-            // At the foot of the page the last sections are too short to reach
-            // the bar, so "on screen" stands in for "under the bar" — or
-            // tapping Publish would light up whatever sits above it.
-            const atEnd = window.innerHeight + window.scrollY
-                >= document.documentElement.scrollHeight - 4;
-            let here = null;
-            for (const chip of jump.querySelectorAll('.jump-link')) {
-                const top = firstBlock(chip.dataset.target)?.getBoundingClientRect().top;
-                if (top != null && top <= (atEnd ? window.innerHeight - 80 : line)) here = chip;
-            }
-            here ||= jump.querySelector('.jump-link');
-            if (!here || here.classList.contains('on')) return;
-            for (const chip of jump.querySelectorAll('.jump-link')) {
-                const on = chip === here;
-                chip.classList.toggle('on', on);
-                if (on) chip.setAttribute('aria-current', 'true');
-                else chip.removeAttribute('aria-current');
-            }
-            // Sideways only. `scrollIntoView` would also move the page, which
-            // is the one thing a reader scrolling the page does not want.
-            jump.scrollTo({
-                left: here.offsetLeft - (jump.clientWidth - here.offsetWidth) / 2,
-                behavior: 'smooth',
-            });
-        });
-    }
+    const trackScroll = jumpBarTracker(jump, body);
     window.addEventListener('scroll', trackScroll, { passive: true });
 
-    /**
-     * The rail's entries: one per group, in page order.
-     *
-     * Most entries are one block. A few are two, because two blocks genuinely
-     * are one thing to read — a heatmap and a shot map of the same match are
-     * both pictures of the same pitch, and each caps its own width, so showing
-     * one alone leaves half a monitor empty beside it while the other sits
-     * hidden. A group is declared in the markup with `data-rail-group`; the
-     * label comes from whichever block in it carries `data-rail`.
-     */
-    function entries() {
-        const found = new Map();
-        for (const block of body.querySelectorAll(RAILED)) {
-            if (block.classList.contains('hidden')) continue;
-            const id = groupOf(block);
-            const entry = found.get(id);
-            if (entry) {
-                entry.blocks.push(block);
-                entry.label ||= block.dataset.rail;
-                continue;
-            }
-            found.set(id, { id, label: block.dataset.rail, blocks: [block] });
-        }
-        return [...found.values()];
-    }
-
     function show(id) {
-        const available = entries();
+        const available = railEntries(body);
         if (!available.length) return;
 
         section = railTarget(available.map((entry) => entry.id), id);
-
-        body.classList.add('is-sectioned');
-        for (const block of body.querySelectorAll(RAILED)) {
-            block.classList.toggle('is-showing', groupOf(block) === section);
-        }
-        // A stack of short blocks is one grid cell holding two sections, so it
-        // has to show whenever either of them is the one being read.
-        for (const stack of body.querySelectorAll('.block-stack')) {
-            stack.classList.toggle(
-                'is-showing',
-                [...stack.querySelectorAll(RAILED)]
-                    .some((block) => groupOf(block) === section),
-            );
-        }
-
-        for (const link of rail.querySelectorAll('.rail-link')) {
-            const here = link.dataset.target === section;
-            link.classList.toggle('is-here', here);
-            // The rail is a set of alternatives with one chosen, which is what
-            // aria-current says and what a tab list would be read as. Announced
-            // so a screen reader gets the same "you are here" the accent bar
-            // gives.
-            if (here) link.setAttribute('aria-current', 'true');
-            else link.removeAttribute('aria-current');
-        }
+        showSection(body, rail, section);
     }
 
-    /**
-     * Arrow keys walk the rail.
-     *
-     * A rail is a list of alternatives, and every other list of alternatives on
-     * a screen — a radio group, a tab strip — moves with the arrows. Without
-     * this a keyboard reader tabs through eight buttons to reach the ninth,
-     * which is the reason tab strips stopped being made of tab stops.
-     */
-    function onKey(event) {
-        const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[event.key];
-        const links = [...rail.querySelectorAll('.rail-link')];
-        const at = links.indexOf(event.target);
-        if (at < 0) return;
-
-        let next = null;
-        if (step) next = links[(at + step + links.length) % links.length];
-        else if (event.key === 'Home') next = links[0];
-        else if (event.key === 'End') next = links[links.length - 1];
-        if (!next) return;
-
-        event.preventDefault();
-        next.focus();
-        show(next.dataset.target);
-    }
+    const onKey = railKeys(rail, show);
 
     function render() {
-        const available = entries();
+        const available = railEntries(body);
         const signature = available.map((entry) => entry.id).join('|');
 
         // Rebuilt only when the set of sections changes, not on every save. The
@@ -199,51 +81,12 @@ export function mountRail({
         // which is the same bug the "same figure" strip already had to fix once.
         if (rail.dataset.signature !== signature) {
             rail.dataset.signature = signature;
-            rail.innerHTML = '';
-            rail.append(factsBox());
-
-            const head = document.createElement('div');
-            head.className = 'rail-head';
-            head.textContent = heading;
-            rail.append(head);
-
-            const list = document.createElement('div');
-            list.className = 'rail-links';
-            list.addEventListener('keydown', onKey);
-            for (const entry of available) list.append(railLink(entry, show));
-            rail.append(list);
-
-            jump.innerHTML = '';
-            for (const entry of available) {
-                jump.append(jumpLink(entry, () => firstBlock(entry.id)));
-            }
-            // Three sections or fewer are a page a thumb crosses in a flick (a
-            // player's season, one of their matches), and a bar pinned over it
-            // would cost a strip of screen to save nothing.
-            jump.hidden = available.length < 4;
+            buildRail({ body, rail, jump, heading, available, show, onKey });
             trackScroll();
         }
 
         drawFacts(rail.querySelector('.rail-facts'), facts());
-
-        const tally = counts();
-        for (const link of rail.querySelectorAll('.rail-link')) {
-            const count = tally[link.dataset.target];
-            const tag = link.querySelector('.rail-tag');
-            tag.textContent = count ? count.n : '';
-            tag.hidden = !count;
-            // On the button rather than the badge: the badge is 20px of pill and
-            // a tooltip you have to hit it exactly to see is not a tooltip.
-            if (count) link.title = count.title;
-            else link.removeAttribute('title');
-        }
-        for (const chip of jump.querySelectorAll('.jump-link')) {
-            const count = tally[chip.dataset.target];
-            const tag = chip.querySelector('.rail-tag');
-            tag.textContent = count ? count.n : '';
-            tag.hidden = !count;
-        }
-
+        drawCounts(rail, jump, counts());
         show(section);
     }
 
@@ -263,6 +106,185 @@ export function mountRail({
         reset() { section = null; },
         get section() { return section; },
     };
+}
+
+/** The first block a jump-bar entry stands for, if it is on the page. */
+function firstBlock(body, id) {
+    return [...body.querySelectorAll(RAILED)]
+        .find((block) => groupOf(block) === id && !block.classList.contains('hidden'));
+}
+
+/**
+ * A scroll handler that lights the chip for the section under the bar, and
+ * brings it into view.
+ *
+ * Measured rather than observed: an IntersectionObserver would need a
+ * threshold per block height, and the answer wanted is simply "the last
+ * section whose top has passed under the bar".
+ */
+function jumpBarTracker(jump, body) {
+    let pending = false;
+    return function trackScroll() {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(() => {
+            pending = false;
+            // Not drawn (desktop, or another view is showing): nothing to track.
+            if (!jump.offsetParent) return;
+            const line = jump.getBoundingClientRect().bottom + 24;
+            // At the foot of the page the last sections are too short to reach
+            // the bar, so "on screen" stands in for "under the bar" — or
+            // tapping Publish would light up whatever sits above it.
+            const atEnd = window.innerHeight + window.scrollY
+                >= document.documentElement.scrollHeight - 4;
+            let here = null;
+            for (const chip of jump.querySelectorAll('.jump-link')) {
+                const top = firstBlock(body, chip.dataset.target)?.getBoundingClientRect().top;
+                if (top != null && top <= (atEnd ? window.innerHeight - 80 : line)) here = chip;
+            }
+            here ||= jump.querySelector('.jump-link');
+            if (!here || here.classList.contains('on')) return;
+            for (const chip of jump.querySelectorAll('.jump-link')) {
+                const on = chip === here;
+                chip.classList.toggle('on', on);
+                if (on) chip.setAttribute('aria-current', 'true');
+                else chip.removeAttribute('aria-current');
+            }
+            // Sideways only. `scrollIntoView` would also move the page, which
+            // is the one thing a reader scrolling the page does not want.
+            jump.scrollTo({
+                left: here.offsetLeft - (jump.clientWidth - here.offsetWidth) / 2,
+                behavior: 'smooth',
+            });
+        });
+    };
+}
+
+/**
+ * The rail's entries: one per group, in page order.
+ *
+ * Most entries are one block. A few are two, because two blocks genuinely
+ * are one thing to read — a heatmap and a shot map of the same match are
+ * both pictures of the same pitch, and each caps its own width, so showing
+ * one alone leaves half a monitor empty beside it while the other sits
+ * hidden. A group is declared in the markup with `data-rail-group`; the
+ * label comes from whichever block in it carries `data-rail`.
+ */
+function railEntries(body) {
+    const found = new Map();
+    for (const block of body.querySelectorAll(RAILED)) {
+        if (block.classList.contains('hidden')) continue;
+        const id = groupOf(block);
+        const entry = found.get(id);
+        if (entry) {
+            entry.blocks.push(block);
+            entry.label ||= block.dataset.rail;
+            continue;
+        }
+        found.set(id, { id, label: block.dataset.rail, blocks: [block] });
+    }
+    return [...found.values()];
+}
+
+/** Show the blocks of `section` and mark its rail link as the one being read. */
+function showSection(body, rail, section) {
+    body.classList.add('is-sectioned');
+    for (const block of body.querySelectorAll(RAILED)) {
+        block.classList.toggle('is-showing', groupOf(block) === section);
+    }
+    // A stack of short blocks is one grid cell holding two sections, so it
+    // has to show whenever either of them is the one being read.
+    for (const stack of body.querySelectorAll('.block-stack')) {
+        stack.classList.toggle(
+            'is-showing',
+            [...stack.querySelectorAll(RAILED)]
+                .some((block) => groupOf(block) === section),
+        );
+    }
+
+    for (const link of rail.querySelectorAll('.rail-link')) {
+        const here = link.dataset.target === section;
+        link.classList.toggle('is-here', here);
+        // The rail is a set of alternatives with one chosen, which is what
+        // aria-current says and what a tab list would be read as. Announced
+        // so a screen reader gets the same "you are here" the accent bar
+        // gives.
+        if (here) link.setAttribute('aria-current', 'true');
+        else link.removeAttribute('aria-current');
+    }
+}
+
+/**
+ * A keydown handler: arrow keys walk the rail.
+ *
+ * A rail is a list of alternatives, and every other list of alternatives on
+ * a screen — a radio group, a tab strip — moves with the arrows. Without
+ * this a keyboard reader tabs through eight buttons to reach the ninth,
+ * which is the reason tab strips stopped being made of tab stops.
+ */
+function railKeys(rail, show) {
+    return function onKey(event) {
+        const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[event.key];
+        const links = [...rail.querySelectorAll('.rail-link')];
+        const at = links.indexOf(event.target);
+        if (at < 0) return;
+
+        let next = null;
+        if (step) next = links[(at + step + links.length) % links.length];
+        else if (event.key === 'Home') next = links[0];
+        else if (event.key === 'End') next = links[links.length - 1];
+        if (!next) return;
+
+        event.preventDefault();
+        next.focus();
+        show(next.dataset.target);
+    };
+}
+
+/** Rebuild the rail's links and the jump bar's chips for `available`. */
+function buildRail({ body, rail, jump, heading, available, show, onKey }) {
+    rail.innerHTML = '';
+    rail.append(factsBox());
+
+    const head = document.createElement('div');
+    head.className = 'rail-head';
+    head.textContent = heading;
+    rail.append(head);
+
+    const list = document.createElement('div');
+    list.className = 'rail-links';
+    list.addEventListener('keydown', onKey);
+    for (const entry of available) list.append(railLink(entry, show));
+    rail.append(list);
+
+    jump.innerHTML = '';
+    for (const entry of available) {
+        jump.append(jumpLink(entry, () => firstBlock(body, entry.id)));
+    }
+    // Three sections or fewer are a page a thumb crosses in a flick (a
+    // player's season, one of their matches), and a bar pinned over it
+    // would cost a strip of screen to save nothing.
+    jump.hidden = available.length < 4;
+}
+
+/** The count badges on the rail links and the jump-bar chips. */
+function drawCounts(rail, jump, tally) {
+    for (const link of rail.querySelectorAll('.rail-link')) {
+        const count = tally[link.dataset.target];
+        const tag = link.querySelector('.rail-tag');
+        tag.textContent = count ? count.n : '';
+        tag.hidden = !count;
+        // On the button rather than the badge: the badge is 20px of pill and
+        // a tooltip you have to hit it exactly to see is not a tooltip.
+        if (count) link.title = count.title;
+        else link.removeAttribute('title');
+    }
+    for (const chip of jump.querySelectorAll('.jump-link')) {
+        const count = tally[chip.dataset.target];
+        const tag = chip.querySelector('.rail-tag');
+        tag.textContent = count ? count.n : '';
+        tag.hidden = !count;
+    }
 }
 
 function railLink(entry, show) {

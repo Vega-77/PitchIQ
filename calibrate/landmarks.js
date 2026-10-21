@@ -16,7 +16,7 @@
 // tests/test_calibrate_landmarks.py holds the names to pitchiq/pitch.py and the
 // positions to `Pitch.landmarks()`.
 
-import { MARKINGS_M } from '../shared/pitch-backdrop.js?v=145';
+import { MARKINGS_M } from '../shared/pitch-backdrop.js?v=146';
 
 // [pitchiq/pitch.py name, pin-solve name or null, label, suggested]
 // Suggested: the spread the solve does best with when only a few can be placed.

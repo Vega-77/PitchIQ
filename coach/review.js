@@ -11,21 +11,21 @@
  * way directly would be a cycle. See `onReviewChange`.
  */
 
-import { saveCvReview, updateMatch } from '../shared/db.js?v=145';
-import { EVENTS, describeEvent } from '../shared/events.js?v=145';
+import { saveCvReview, updateMatch } from '../shared/db.js?v=146';
+import { EVENTS, describeEvent } from '../shared/events.js?v=146';
 import {
     BY_CLOCK, BY_DOUBT, CONFIRMED_STATUS, EDITED_STATUS, FROM_TAGGED,
     FROM_VIDEO, HALF_TIME, NOT_A_PLAYER, REJECTED_STATUS, clockFromMatch,
     currentAnswers,
     hasVerdict, keeperOfTrack, orderCaveat, orderFeed, reviewFeed,
     reviewLabels, reviewScore,
-} from '../shared/report.js?v=145';
-import { renderStrip, timelineEnd } from '../shared/timeline.js?v=145';
+} from '../shared/report.js?v=146';
+import { renderStrip, timelineEnd } from '../shared/timeline.js?v=146';
 import {
     byId, clockText, confidenceMark, plural, setText, toast,
-} from '../shared/ui.js?v=145';
-import { mount as mountVideo, videoKind } from '../shared/video.js?v=145';
-import { download, matchXgTally, state, teamLabels } from './shell.js?v=145';
+} from '../shared/ui.js?v=146';
+import { mount as mountVideo, videoKind } from '../shared/video.js?v=146';
+import { download, matchXgTally, state, teamLabels } from './shell.js?v=146';
 
 // Two things outside this module have to be redrawn when a verdict lands, and
 // they are not the same thing. The shot views are drawn *from* the ledger, so
@@ -340,17 +340,9 @@ function renderReviewFilters() {
     ];
 
     for (const [value, label] of options) {
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = 'chip';
-        chip.textContent = label;
-        chip.classList.toggle('on', reviewState.filter === value);
-        chip.addEventListener('click', () => {
+        host.append(reviewChip(label, reviewState.filter === value, () => {
             reviewState.filter = value;
-            renderReviewFilters();
-            renderReviewList();
-        });
-        host.append(chip);
+        }));
     }
 
     const toggles = [
@@ -362,17 +354,9 @@ function renderReviewFilters() {
 
     for (const [label, key, show] of toggles) {
         if (!show) continue;
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = 'chip';
-        chip.textContent = label;
-        chip.classList.toggle('on', reviewState[key]);
-        chip.addEventListener('click', () => {
+        host.append(reviewChip(label, reviewState[key], () => {
             reviewState[key] = !reviewState[key];
-            renderReviewFilters();
-            renderReviewList();
-        });
-        host.append(chip);
+        }));
     }
 
     // Order is not a filter — it changes nothing about which rows are here —
@@ -393,21 +377,32 @@ function renderReviewFilters() {
          + 'jumping around the video and of a reviewed set that is deliberately '
          + 'the hard cases'],
     ]) {
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = 'chip';
-        chip.textContent = label;
-        chip.title = title;
-        chip.classList.toggle('on', reviewState.order === value);
-        chip.addEventListener('click', () => {
+        const chip = reviewChip(label, reviewState.order === value, () => {
             reviewState.order = value;
-            renderReviewFilters();
-            renderReviewList();
-            renderScorecard();
-        });
+        }, renderScorecard);
+        chip.title = title;
         group.append(chip);
     }
     host.append(group);
+}
+
+/**
+ * One chip in the filter bar. A click runs `pick`, redraws the bar and the
+ * list, and then `after` when the change reaches further than the list.
+ */
+function reviewChip(label, on, pick, after) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = label;
+    chip.classList.toggle('on', on);
+    chip.addEventListener('click', () => {
+        pick();
+        renderReviewFilters();
+        renderReviewList();
+        after?.();
+    });
+    return chip;
 }
 
 function renderReviewList() {

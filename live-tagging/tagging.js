@@ -13,21 +13,21 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../shared/auth.js?v=145';
+import { onUser, signIn, resolveAccess, configWarning } from '../shared/auth.js?v=146';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../shared/db.js?v=145';
+} from '../shared/db.js?v=146';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../shared/events.js?v=145';
-import { syncState, safeToClose } from '../shared/report.js?v=145';
-import { mountPitchBackdrop } from '../shared/pitch-backdrop.js?v=145';
-import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=145';
+} from '../shared/events.js?v=146';
+import { syncState, safeToClose } from '../shared/report.js?v=146';
+import { mountPitchBackdrop } from '../shared/pitch-backdrop.js?v=146';
+import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=146';
 import { byId, toast, clockText, timelineRow, tally, groupHead }
-    from '../shared/ui.js?v=145';
-import { openSheet, closeSheet, mountSheets } from './sheet.js?v=145';
+    from '../shared/ui.js?v=146';
+import { openSheet, closeSheet, mountSheets } from './sheet.js?v=146';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -1339,6 +1339,94 @@ async function openLog() {
 
 // ---------------------------------------------------------------- init
 
+/**
+ * Ask before leaving the live view, saying what leaving will cost.
+ *
+ * Leaving mid-match is safe — every tap is already written — but the clock
+ * cannot be recovered on return, so the sheet says what will actually happen
+ * rather than asking a bare "are you sure".
+ */
+function openExitSheet() {
+    // "Everything you've tapped is saved" was said here unconditionally,
+    // at the exact moment it matters most and with nothing behind it. The
+    // listener knows, so it says so — and when it is not true, that leads.
+    const safe = safeToClose(state.sync);
+    const waiting = state.sync.pending;
+
+    // Three cases, not two. The first version had only "safe" and "not
+    // safe", so the not-yet-asked state — where `pending` is null — printed
+    // "null taps have not reached the server yet".
+    let saved;
+    if (safe) {
+        saved = "Everything you've tapped is on the server.";
+    } else if (waiting == null) {
+        saved = 'Still checking what has reached the server. Give it a few '
+            + 'seconds before closing this page.';
+    } else {
+        saved = `${waiting} tap${waiting === 1 ? '' : 's'} `
+            + `${waiting === 1 ? 'has' : 'have'} not reached the server yet. `
+            + 'Leave this page open somewhere with a signal until the counter '
+            + `clears — closing it now keeps ${waiting === 1 ? 'it' : 'them'} `
+            + 'on this tablet, and only this tablet.';
+    }
+
+    byId('exit-note').textContent = state.running
+        ? `${saved} The clock is at ${clockText(matchClock())} and will be `
+          + 'paused there when you come back, so check it against the '
+          + "referee's before carrying on."
+        : `${saved} The clock is already paused.`;
+
+    byId('exit-note').classList.toggle('is-warn', !safe);
+    byId('btn-exit-go').textContent = safe ? 'Leave' : 'Leave anyway';
+    openSheet('overlay-exit');
+}
+
+/** On every sign-in change: ask to sign in, or open a squad this account coaches. */
+async function onSignedIn(user) {
+    if (!user) {
+        byId('signin-block').classList.remove('hidden');
+        byId('match-block').classList.add('hidden');
+        return;
+    }
+
+    state.user = user;
+    try {
+        const access = await resolveAccess(user);
+        if (access.role !== 'coach' || !access.teams.length) {
+            toast('This account has no team to tag for.', true);
+            return;
+        }
+
+        state.teams = access.teams;
+        byId('signin-block').classList.add('hidden');
+
+        // A squad named in the link — the home page's "next up" card sends
+        // one, so a coach who has just read which team plays today does not
+        // have to answer the same question again on the next screen. Only
+        // honoured when it matches a squad this account actually coaches;
+        // `access.teams` is resolved from authoritative documents, so a
+        // hand-edited URL cannot smuggle in a team.
+        const wanted = new URLSearchParams(location.search).get('team');
+        const named = access.teams.find((t) => t.id === wanted);
+        if (named) {
+            await chooseTeam(named);
+            return;
+        }
+
+        // Picking the first squad silently would be a quiet disaster for a
+        // coach who runs varsity and JV: a full match tagged onto the wrong
+        // roster, discovered at publish time.
+        if (access.teams.length > 1) {
+            renderTeamPicker();
+            byId('team-block').classList.remove('hidden');
+            return;
+        }
+        await chooseTeam(access.teams[0]);
+    } catch (err) {
+        toast(err.message || 'Could not load your team.', true);
+    }
+}
+
 function init() {
     const warning = configWarning();
     if (warning) byId('config-slot').appendChild(warning);
@@ -1379,43 +1467,7 @@ function init() {
         commitDraft();
     });
 
-    // Leaving mid-match is safe — every tap is already written — but the clock
-    // cannot be recovered on return, so the sheet says what will actually
-    // happen rather than asking a bare "are you sure".
-    byId('btn-exit-live').addEventListener('click', () => {
-        // "Everything you've tapped is saved" was said here unconditionally,
-        // at the exact moment it matters most and with nothing behind it. The
-        // listener knows, so it says so — and when it is not true, that leads.
-        const safe = safeToClose(state.sync);
-        const waiting = state.sync.pending;
-
-        // Three cases, not two. The first version had only "safe" and "not
-        // safe", so the not-yet-asked state — where `pending` is null — printed
-        // "null taps have not reached the server yet".
-        let saved;
-        if (safe) {
-            saved = "Everything you've tapped is on the server.";
-        } else if (waiting == null) {
-            saved = 'Still checking what has reached the server. Give it a few '
-                + 'seconds before closing this page.';
-        } else {
-            saved = `${waiting} tap${waiting === 1 ? '' : 's'} `
-                + `${waiting === 1 ? 'has' : 'have'} not reached the server yet. `
-                + 'Leave this page open somewhere with a signal until the counter '
-                + `clears — closing it now keeps ${waiting === 1 ? 'it' : 'them'} `
-                + 'on this tablet, and only this tablet.';
-        }
-
-        byId('exit-note').textContent = state.running
-            ? `${saved} The clock is at ${clockText(matchClock())} and will be `
-              + 'paused there when you come back, so check it against the '
-              + "referee's before carrying on."
-            : `${saved} The clock is already paused.`;
-
-        byId('exit-note').classList.toggle('is-warn', !safe);
-        byId('btn-exit-go').textContent = safe ? 'Leave' : 'Leave anyway';
-        openSheet('overlay-exit');
-    });
+    byId('btn-exit-live').addEventListener('click', openExitSheet);
     byId('btn-exit-stay').addEventListener('click', () =>
         closeSheet('overlay-exit'));
     byId('btn-exit-go').addEventListener('click', () => {
@@ -1442,50 +1494,7 @@ function init() {
     byId('btn-log').addEventListener('click', openLog);
     byId('btn-log-close').addEventListener('click', () => closeSheet('overlay-log'));
 
-    onUser(async (user) => {
-        if (!user) {
-            byId('signin-block').classList.remove('hidden');
-            byId('match-block').classList.add('hidden');
-            return;
-        }
-
-        state.user = user;
-        try {
-            const access = await resolveAccess(user);
-            if (access.role !== 'coach' || !access.teams.length) {
-                toast('This account has no team to tag for.', true);
-                return;
-            }
-
-            state.teams = access.teams;
-            byId('signin-block').classList.add('hidden');
-
-            // A squad named in the link — the home page's "next up" card sends
-            // one, so a coach who has just read which team plays today does not
-            // have to answer the same question again on the next screen. Only
-            // honoured when it matches a squad this account actually coaches;
-            // `access.teams` is resolved from authoritative documents, so a
-            // hand-edited URL cannot smuggle in a team.
-            const wanted = new URLSearchParams(location.search).get('team');
-            const named = access.teams.find((t) => t.id === wanted);
-            if (named) {
-                await chooseTeam(named);
-                return;
-            }
-
-            // Picking the first squad silently would be a quiet disaster for a
-            // coach who runs varsity and JV: a full match tagged onto the wrong
-            // roster, discovered at publish time.
-            if (access.teams.length > 1) {
-                renderTeamPicker();
-                byId('team-block').classList.remove('hidden');
-                return;
-            }
-            await chooseTeam(access.teams[0]);
-        } catch (err) {
-            toast(err.message || 'Could not load your team.', true);
-        }
-    });
+    onUser(onSignedIn);
 }
 
 mountSheets();

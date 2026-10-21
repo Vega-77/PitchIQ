@@ -174,6 +174,331 @@ const totalXg = (shots) =>
 // not here is a block this preview silently cannot check.
 
 /**
+ * A fresh copy of one of the blocks below, so a page that sorts or annotates
+ * what it was handed cannot change the next preview. Plain data only: every
+ * value in them is a number, string, boolean, null, array or object.
+ */
+const copy = (value) => JSON.parse(JSON.stringify(value));
+
+const SAMPLE_QUALITY = {
+    // Measured on the real spike, not invented: the ball is the hard
+    // part and the preview should say so.
+    ball_seen_share: 0.83,
+    // A camera framed the way FOOTAGE_DAY insists on, which is why this
+    // one is not a flaw like the rest of the block. The whole Reality
+    // Check turns on framing being right, so a preview that shipped a
+    // partial-coverage caveat would teach a coach to expect a line that
+    // should never appear on a well-set-up camera. The metre grid clips
+    // the touchlines by half a cell, so a genuinely complete camera
+    // reads a shade under 1.0 rather than exactly it.
+    pitch_coverage: {
+        visible_share: 0.994,
+        thirds: { left: 0.993, middle: 1.0, right: 0.99 },
+        goalmouths: { left: 1.0, right: 1.0 },
+        complete: true,
+        cell_m: 1.0,
+    },
+    // A phone export read at half rate — the case the sampling
+    // measurement exists for, and the one the preview should show,
+    // because a full-rate run says nothing about it at all.
+    source_fps: 60,
+    sample_fps: 30,
+    no_ball_s: 459,
+    live_share: 0.71,
+    stoppages: 34,
+    // What those 459 seconds turned out to be. Most of it is stoppages
+    // — that is what a well-tagged half looks like from a camera, and
+    // showing it is the point: 95s of live football nobody could see
+    // is a very different report from 459s of blindness, and the two
+    // were the same number until pitchiq/ball_visibility.py split them.
+    //
+    // The three add to the total, and the worst single stretch is
+    // under the threshold that would have raised a warning, which is
+    // why there is no matching entry in `warnings` below.
+    blind: {
+        total_s: 459,
+        checked: true,
+        dead_s: 268,
+        accounted_s: 96,
+        unexplained_s: 95,
+        worst: [
+            { start_s: 1284, end_s: 1312, duration_s: 28,
+              kind: 'unexplained', tags: [] },
+            { start_s: 402, end_s: 421, duration_s: 19,
+              kind: 'unexplained', tags: [] },
+            { start_s: 2211, end_s: 2225, duration_s: 14,
+              kind: 'unexplained', tags: [] },
+        ],
+    },
+    // ---- the rest of what a run publishes ----
+    //
+    // Added when a guard that only checked top-level keys was extended
+    // to look inside `quality`, and found thirteen of these missing.
+    // The fixture had been drifting from the published shape for
+    // months and nothing noticed, which is the exact failure
+    // tests/test_sample_report.py exists to catch, one level down.
+    //
+    // Every figure below is consistent with the story the block above
+    // already tells rather than freshly invented: 22 figures at the
+    // measured 3.4 tracks each is 75 tracks, and 83% of frames with a
+    // sighting plus interpolation between them is the 94% filled.
+    tracks: 75,
+    clusters: 22,
+    ball_filled_share: 0.94,
+    clear_holder_share: 0.72,
+    kit_separation: 34.6,
+    // Of 2700 seconds, 71% live — the same split `live_share` states,
+    // written out because the two are published separately and a
+    // preview where they disagreed would be worse than either.
+    dead_ball_s: 783,
+    // Six figures dropped as off-field, and the keeper found the
+    // ordinary way. Both are counts of corrections rather than faults.
+    excluded_tracks: 6,
+    keeper_method: 'colour+position',
+    touch_confidence_p50: 0.66,
+    touch_confidence_p10: 0.31,
+    unseen_spans: 12,
+    // A camera that held still, checked and confirmed. Null would mean
+    // nobody looked, which is a different report — and the preview
+    // should show the case a coach is meant to achieve, matching the
+    // complete `pitch_coverage` above.
+    camera: { checked: true, moved: false, first_s: null, shifts: [] },
+    // Under 1, so the run would have finished before the whistle. The
+    // preview should not carry a lateness warning for a machine
+    // nobody's footage has met yet.
+    realtime_factor: 0.62,
+    // Kept, never dropped — see pitchiq/participants.py. Two figures the
+    // classifier could not rule out are inside the counts above.
+    flagged_officials: 2,
+    // 3.4 was the measured figure after pitchiq/identity.py merges. Above
+    // the threshold that adds the "broke each player into pieces" note,
+    // which is correct: it is true today and will be true on day one.
+    tracks_per_cluster: 3.4,
+    touch_confidence: 0.62,
+    // Comfortably under the 0.3m ceiling, so the preview shows bursts
+    // being counted rather than being withheld — the version worth
+    // seeing.
+    position_noise_m: 0.14,
+    // The window that wobble earns, and what it still costs. Both come
+    // from the pipeline rather than being re-derived here; see
+    // SMOOTH_BANDS in pitchiq/metrics.py for the fit and `phantom_m_per_minute`
+    // for the arithmetic. 0.14m lands in the middle band.
+    smoothing_s: 0.7,
+    phantom_m_per_minute: 21.3,
+};
+
+const SAMPLE_TEAMS = {
+    team_a: {
+        team: 'team_a',
+        possession_pct: 0.58,
+        touches: 604,
+        passes_attempted: 341,
+        passes_completed: 246,
+        pass_accuracy: 0.721,
+        // Buckets named by pitchiq/events.py::_bucket and ::_direction. They
+        // sum to passes_attempted, which is the check worth having: a
+        // breakdown that does not add up to its own total is the kind of
+        // thing a preview should never model as acceptable.
+        passes_by_length: { short: 198, medium: 109, long: 34 },
+        passes_by_direction: { forward: 142, sideways: 131, backward: 68 },
+        progressive_passes: 74,
+        final_third_entries: 31,
+        box_entries: 12,
+        switches: 9,
+        crosses: 14,
+        carries: 118,
+        shots: OUR_SHOTS.length,
+        shots_on_target: 4,
+        goals: 2,
+        xg: totalXg(OUR_SHOTS),
+        tackles: 17,
+        interceptions: 22,
+        recoveries: 39,
+        duels: 44,
+        // 145 passes allowed to 21 challenges across the 45 minutes.
+        // The blocks below are that total split three ways and they
+        // have to agree with it, because the chart sits under the row
+        // that prints this number.
+        ppda: 6.9,
+        // A side that pressed hard, eased off, and stopped. The last
+        // block is deliberately too thin to divide: three challenges is
+        // a number about three moments, and the preview should show
+        // what the page does with one rather than only the happy case.
+        pressing_segments: [
+            { start_s: 0, end_s: 900, allowed: 48, actions: 12, ppda: 4.0 },
+            { start_s: 900, end_s: 1800, allowed: 52, actions: 6, ppda: 8.67 },
+            { start_s: 1800, end_s: 2700, allowed: 45, actions: 3, ppda: null },
+        ],
+        // The line sits deep, which is the same story the two
+        // figures above and below it already tell: a side with 47% of
+        // its possession in its own third was not defending on
+        // halfway. `attacking_end` is 'right', so this is metres from
+        // the left goal.
+        shape: {
+            width_m: 41.2, depth_m: 33.8, compactness_m: 14.6,
+            line_m: 28.4,
+        },
+        // Fires the pinned-back read: more than PINNED_BACK_SHARE of
+        // possession spent in their own third.
+        territory: { defensive: 0.47, middle: 0.36, attacking: 0.17 },
+        // A side that gets the ball a lot and struggles to move it: 88
+        // possessions, only a third reach the final third, and the
+        // passing falls off a cliff once they do. The interesting shape
+        // to preview, because a funnel that only narrows gently shows
+        // nothing a coach would act on.
+        //
+        // Consistent by construction: reached is cumulative, so
+        // defensive >= middle >= attacking >= shots, and 41 of the 88
+        // started at the back with 23 escaping it.
+        phase_of_play: {
+            total: 88,
+            started: { defensive: 41, middle: 34, attacking: 13 },
+            reached: { defensive: 88, middle: 61, attacking: 29 },
+            ended: { shot: 10, lost: 44, stopped: 34 },
+            passes: { defensive: 121, middle: 154, attacking: 76 },
+            passes_completed: { defensive: 111, middle: 108, attacking: 41 },
+            escaped_defence: 23,
+        },
+        shape_drift: {
+            // Dropped six metres by the end, which is the same side of
+            // the story as the pressing blocks above: a team that
+            // stopped pressing sat back. Past SHAPE_MOVE_M, so the
+            // preview shows the sentence rather than only the row.
+            change: {
+                width_m: 4.3, depth_m: -3.6, compactness_m: 1.1,
+                line_m: -6.2,
+            },
+        },
+        attacking_end: 'right',
+        shot_map: OUR_SHOTS,
+        turnovers_by_third: { defensive: 9, middle: 14, attacking: 11 },
+    },
+    team_b: {
+        team: 'team_b',
+        possession_pct: 0.42,
+        touches: 471,
+        passes_attempted: 268,
+        passes_completed: 171,
+        pass_accuracy: 0.638,
+        passes_by_length: { short: 141, medium: 88, long: 39 },
+        passes_by_direction: { forward: 118, sideways: 96, backward: 54 },
+        progressive_passes: 61,
+        final_third_entries: 24,
+        box_entries: 9,
+        switches: 6,
+        crosses: 11,
+        carries: 96,
+        shots: THEIR_SHOTS.length,
+        shots_on_target: 2,
+        goals: 1,
+        xg: totalXg(THEIR_SHOTS),
+        tackles: 21,
+        interceptions: 18,
+        recoveries: 33,
+        duels: 44,
+        // 130 to 15, and unlike ours it holds all the way through —
+        // the contrast is the point of carrying the opponent's blocks
+        // at all.
+        ppda: 8.67,
+        pressing_segments: [
+            { start_s: 0, end_s: 900, allowed: 40, actions: 5, ppda: 8.0 },
+            { start_s: 900, end_s: 1800, allowed: 46, actions: 5, ppda: 9.2 },
+            { start_s: 1800, end_s: 2700, allowed: 44, actions: 5, ppda: 8.8 },
+        ],
+        shape: {
+            width_m: 37.9, depth_m: 30.2, compactness_m: 13.1,
+            // Higher than ours, from the other goal. The side that
+            // spent more of the match in our half.
+            line_m: 35.6,
+        },
+        territory: { defensive: 0.31, middle: 0.38, attacking: 0.31 },
+        // Fewer possessions and a wider funnel — they do more with
+        // less, which is what makes the two columns worth showing side
+        // by side rather than either one alone.
+        phase_of_play: {
+            total: 71,
+            started: { defensive: 26, middle: 31, attacking: 14 },
+            reached: { defensive: 71, middle: 55, attacking: 31 },
+            ended: { shot: 8, lost: 33, stopped: 30 },
+            passes: { defensive: 84, middle: 119, attacking: 65 },
+            passes_completed: { defensive: 74, middle: 65, attacking: 32 },
+            escaped_defence: 19,
+        },
+        shape_drift: null,
+        attacking_end: 'left',
+        shot_map: THEIR_SHOTS,
+        turnovers_by_third: { defensive: 12, middle: 17, attacking: 8 },
+    },
+};
+
+// Key for key with `KeeperReport.to_json()`. The shot figures are read
+// straight off the two maps above rather than invented: our keeper
+// faced the four in THEIR_SHOTS, two of which were on target — one
+// saved, one the 0.390 goal — and theirs faced the six in OUR_SHOTS,
+// four on target, two saved and two in. The distribution counts split
+// the same way `_distribution_kind` splits them, which is why they do
+// not add up to the three accuracies: 14 kicks and 9 throws out of 26
+// leaves 3 balls that were long with no hold, and 'unknown' is the only
+// honest answer for those from one camera.
+//
+// Our keeper never punted, so `punt_accuracy` is null and the row draws
+// a dash against their 40% instead of a nought per cent. That is the
+// case this preview exists to show.
+const SAMPLE_KEEPERS = [
+    {
+        team: 'team_a', track_ids: [2],
+        shots_faced: 4, shots_on_target_faced: 2,
+        saves: 1, goals_conceded: 1, save_pct: 0.5,
+        claims: 3, sweeper_actions: 2, sweeper_max_distance_m: 21.4,
+        distributions: 26,
+        kick_accuracy: 0.5, punt_accuracy: null, throw_accuracy: 0.889,
+        mean_kick_distance_m: 39.2, mean_punt_distance_m: null,
+    },
+    {
+        team: 'team_b', track_ids: [18],
+        shots_faced: 6, shots_on_target_faced: 4,
+        saves: 2, goals_conceded: 2, save_pct: 0.5,
+        claims: 1, sweeper_actions: 5, sweeper_max_distance_m: 28.6,
+        distributions: 31,
+        kick_accuracy: 0.35, punt_accuracy: 0.4, throw_accuracy: 0.75,
+        mean_kick_distance_m: 44.8, mean_punt_distance_m: 52.1,
+    },
+];
+
+// Two figures the classifier acted on, each with the sentence its own
+// guess produced. An exclusion a coach cannot question looks like the
+// pipeline knowing something it does not.
+const SAMPLE_PARTICIPANTS = [
+    {
+        trackId: 31, role: 'official',
+        reason: 'kit matched neither team, and stayed away from both goals',
+        screenTimeS: 2280,
+    },
+    {
+        trackId: 44, role: 'offfield',
+        reason: 'never entered the pitch bounds',
+        screenTimeS: 640,
+    },
+];
+
+// One goal the two records disagree about, which is the highest-value
+// thing on the page: a moment where two independent records conflict
+// beats a moment where only one of them spoke.
+const SAMPLE_RECONCILIATION = {
+    goal_agreement: 0.75,
+    exit_agreement: 0.62,
+    goals: { agreed: 3, cv_only: 0, tag_only: 1 },
+    exits: { agreed: 21, cv_only: 7, tag_only: 6 },
+    exits_checked: true,
+    disagreements: [
+        {
+            kind: 'goal', status: 'tag_only',
+            cv_s: null, tag_s: 1450.0, tag_type: 'goal', detail: null,
+        },
+    ],
+};
+
+/**
  * A `cvStats/summary` document, as the coach's match view and the half-time page
  * read it.
  *
@@ -202,328 +527,17 @@ export function sampleCvSummary() {
         calibrated: true,
         calibrationErrorM: 0.42,
 
-        quality: {
-            // Measured on the real spike, not invented: the ball is the hard
-            // part and the preview should say so.
-            ball_seen_share: 0.83,
-            // A camera framed the way FOOTAGE_DAY insists on, which is why this
-            // one is not a flaw like the rest of the block. The whole Reality
-            // Check turns on framing being right, so a preview that shipped a
-            // partial-coverage caveat would teach a coach to expect a line that
-            // should never appear on a well-set-up camera. The metre grid clips
-            // the touchlines by half a cell, so a genuinely complete camera
-            // reads a shade under 1.0 rather than exactly it.
-            pitch_coverage: {
-                visible_share: 0.994,
-                thirds: { left: 0.993, middle: 1.0, right: 0.99 },
-                goalmouths: { left: 1.0, right: 1.0 },
-                complete: true,
-                cell_m: 1.0,
-            },
-            // A phone export read at half rate — the case the sampling
-            // measurement exists for, and the one the preview should show,
-            // because a full-rate run says nothing about it at all.
-            source_fps: 60,
-            sample_fps: 30,
-            no_ball_s: 459,
-            live_share: 0.71,
-            stoppages: 34,
-            // What those 459 seconds turned out to be. Most of it is stoppages
-            // — that is what a well-tagged half looks like from a camera, and
-            // showing it is the point: 95s of live football nobody could see
-            // is a very different report from 459s of blindness, and the two
-            // were the same number until pitchiq/ball_visibility.py split them.
-            //
-            // The three add to the total, and the worst single stretch is
-            // under the threshold that would have raised a warning, which is
-            // why there is no matching entry in `warnings` below.
-            blind: {
-                total_s: 459,
-                checked: true,
-                dead_s: 268,
-                accounted_s: 96,
-                unexplained_s: 95,
-                worst: [
-                    { start_s: 1284, end_s: 1312, duration_s: 28,
-                      kind: 'unexplained', tags: [] },
-                    { start_s: 402, end_s: 421, duration_s: 19,
-                      kind: 'unexplained', tags: [] },
-                    { start_s: 2211, end_s: 2225, duration_s: 14,
-                      kind: 'unexplained', tags: [] },
-                ],
-            },
-            // ---- the rest of what a run publishes ----
-            //
-            // Added when a guard that only checked top-level keys was extended
-            // to look inside `quality`, and found thirteen of these missing.
-            // The fixture had been drifting from the published shape for
-            // months and nothing noticed, which is the exact failure
-            // tests/test_sample_report.py exists to catch, one level down.
-            //
-            // Every figure below is consistent with the story the block above
-            // already tells rather than freshly invented: 22 figures at the
-            // measured 3.4 tracks each is 75 tracks, and 83% of frames with a
-            // sighting plus interpolation between them is the 94% filled.
-            tracks: 75,
-            clusters: 22,
-            ball_filled_share: 0.94,
-            clear_holder_share: 0.72,
-            kit_separation: 34.6,
-            // Of 2700 seconds, 71% live — the same split `live_share` states,
-            // written out because the two are published separately and a
-            // preview where they disagreed would be worse than either.
-            dead_ball_s: 783,
-            // Six figures dropped as off-field, and the keeper found the
-            // ordinary way. Both are counts of corrections rather than faults.
-            excluded_tracks: 6,
-            keeper_method: 'colour+position',
-            touch_confidence_p50: 0.66,
-            touch_confidence_p10: 0.31,
-            unseen_spans: 12,
-            // A camera that held still, checked and confirmed. Null would mean
-            // nobody looked, which is a different report — and the preview
-            // should show the case a coach is meant to achieve, matching the
-            // complete `pitch_coverage` above.
-            camera: { checked: true, moved: false, first_s: null, shifts: [] },
-            // Under 1, so the run would have finished before the whistle. The
-            // preview should not carry a lateness warning for a machine
-            // nobody's footage has met yet.
-            realtime_factor: 0.62,
-            // Kept, never dropped — see pitchiq/participants.py. Two figures the
-            // classifier could not rule out are inside the counts above.
-            flagged_officials: 2,
-            // 3.4 was the measured figure after pitchiq/identity.py merges. Above
-            // the threshold that adds the "broke each player into pieces" note,
-            // which is correct: it is true today and will be true on day one.
-            tracks_per_cluster: 3.4,
-            touch_confidence: 0.62,
-            // Comfortably under the 0.3m ceiling, so the preview shows bursts
-            // being counted rather than being withheld — the version worth
-            // seeing.
-            position_noise_m: 0.14,
-            // The window that wobble earns, and what it still costs. Both come
-            // from the pipeline rather than being re-derived here; see
-            // SMOOTH_BANDS in pitchiq/metrics.py for the fit and `phantom_m_per_minute`
-            // for the arithmetic. 0.14m lands in the middle band.
-            smoothing_s: 0.7,
-            phantom_m_per_minute: 21.3,
-        },
+        quality: copy(SAMPLE_QUALITY),
 
         warnings: [
             'the tagged log has a goal at 24:10 that the pipeline did not find',
         ],
         trustworthy: false,
 
-        teams: {
-            team_a: {
-                team: 'team_a',
-                possession_pct: 0.58,
-                touches: 604,
-                passes_attempted: 341,
-                passes_completed: 246,
-                pass_accuracy: 0.721,
-                // Buckets named by pitchiq/events.py::_bucket and ::_direction. They
-                // sum to passes_attempted, which is the check worth having: a
-                // breakdown that does not add up to its own total is the kind of
-                // thing a preview should never model as acceptable.
-                passes_by_length: { short: 198, medium: 109, long: 34 },
-                passes_by_direction: { forward: 142, sideways: 131, backward: 68 },
-                progressive_passes: 74,
-                final_third_entries: 31,
-                box_entries: 12,
-                switches: 9,
-                crosses: 14,
-                carries: 118,
-                shots: OUR_SHOTS.length,
-                shots_on_target: 4,
-                goals: 2,
-                xg: totalXg(OUR_SHOTS),
-                tackles: 17,
-                interceptions: 22,
-                recoveries: 39,
-                duels: 44,
-                // 145 passes allowed to 21 challenges across the 45 minutes.
-                // The blocks below are that total split three ways and they
-                // have to agree with it, because the chart sits under the row
-                // that prints this number.
-                ppda: 6.9,
-                // A side that pressed hard, eased off, and stopped. The last
-                // block is deliberately too thin to divide: three challenges is
-                // a number about three moments, and the preview should show
-                // what the page does with one rather than only the happy case.
-                pressing_segments: [
-                    { start_s: 0, end_s: 900, allowed: 48, actions: 12, ppda: 4.0 },
-                    { start_s: 900, end_s: 1800, allowed: 52, actions: 6, ppda: 8.67 },
-                    { start_s: 1800, end_s: 2700, allowed: 45, actions: 3, ppda: null },
-                ],
-                // The line sits deep, which is the same story the two
-                // figures above and below it already tell: a side with 47% of
-                // its possession in its own third was not defending on
-                // halfway. `attacking_end` is 'right', so this is metres from
-                // the left goal.
-                shape: {
-                    width_m: 41.2, depth_m: 33.8, compactness_m: 14.6,
-                    line_m: 28.4,
-                },
-                // Fires the pinned-back read: more than PINNED_BACK_SHARE of
-                // possession spent in their own third.
-                territory: { defensive: 0.47, middle: 0.36, attacking: 0.17 },
-                // A side that gets the ball a lot and struggles to move it: 88
-                // possessions, only a third reach the final third, and the
-                // passing falls off a cliff once they do. The interesting shape
-                // to preview, because a funnel that only narrows gently shows
-                // nothing a coach would act on.
-                //
-                // Consistent by construction: reached is cumulative, so
-                // defensive >= middle >= attacking >= shots, and 41 of the 88
-                // started at the back with 23 escaping it.
-                phase_of_play: {
-                    total: 88,
-                    started: { defensive: 41, middle: 34, attacking: 13 },
-                    reached: { defensive: 88, middle: 61, attacking: 29 },
-                    ended: { shot: 10, lost: 44, stopped: 34 },
-                    passes: { defensive: 121, middle: 154, attacking: 76 },
-                    passes_completed: { defensive: 111, middle: 108, attacking: 41 },
-                    escaped_defence: 23,
-                },
-                shape_drift: {
-                    // Dropped six metres by the end, which is the same side of
-                    // the story as the pressing blocks above: a team that
-                    // stopped pressing sat back. Past SHAPE_MOVE_M, so the
-                    // preview shows the sentence rather than only the row.
-                    change: {
-                        width_m: 4.3, depth_m: -3.6, compactness_m: 1.1,
-                        line_m: -6.2,
-                    },
-                },
-                attacking_end: 'right',
-                shot_map: OUR_SHOTS,
-                turnovers_by_third: { defensive: 9, middle: 14, attacking: 11 },
-            },
-            team_b: {
-                team: 'team_b',
-                possession_pct: 0.42,
-                touches: 471,
-                passes_attempted: 268,
-                passes_completed: 171,
-                pass_accuracy: 0.638,
-                passes_by_length: { short: 141, medium: 88, long: 39 },
-                passes_by_direction: { forward: 118, sideways: 96, backward: 54 },
-                progressive_passes: 61,
-                final_third_entries: 24,
-                box_entries: 9,
-                switches: 6,
-                crosses: 11,
-                carries: 96,
-                shots: THEIR_SHOTS.length,
-                shots_on_target: 2,
-                goals: 1,
-                xg: totalXg(THEIR_SHOTS),
-                tackles: 21,
-                interceptions: 18,
-                recoveries: 33,
-                duels: 44,
-                // 130 to 15, and unlike ours it holds all the way through —
-                // the contrast is the point of carrying the opponent's blocks
-                // at all.
-                ppda: 8.67,
-                pressing_segments: [
-                    { start_s: 0, end_s: 900, allowed: 40, actions: 5, ppda: 8.0 },
-                    { start_s: 900, end_s: 1800, allowed: 46, actions: 5, ppda: 9.2 },
-                    { start_s: 1800, end_s: 2700, allowed: 44, actions: 5, ppda: 8.8 },
-                ],
-                shape: {
-                    width_m: 37.9, depth_m: 30.2, compactness_m: 13.1,
-                    // Higher than ours, from the other goal. The side that
-                    // spent more of the match in our half.
-                    line_m: 35.6,
-                },
-                territory: { defensive: 0.31, middle: 0.38, attacking: 0.31 },
-                // Fewer possessions and a wider funnel — they do more with
-                // less, which is what makes the two columns worth showing side
-                // by side rather than either one alone.
-                phase_of_play: {
-                    total: 71,
-                    started: { defensive: 26, middle: 31, attacking: 14 },
-                    reached: { defensive: 71, middle: 55, attacking: 31 },
-                    ended: { shot: 8, lost: 33, stopped: 30 },
-                    passes: { defensive: 84, middle: 119, attacking: 65 },
-                    passes_completed: { defensive: 74, middle: 65, attacking: 32 },
-                    escaped_defence: 19,
-                },
-                shape_drift: null,
-                attacking_end: 'left',
-                shot_map: THEIR_SHOTS,
-                turnovers_by_third: { defensive: 12, middle: 17, attacking: 8 },
-            },
-        },
-
-        // Key for key with `KeeperReport.to_json()`. The shot figures are read
-        // straight off the two maps above rather than invented: our keeper
-        // faced the four in THEIR_SHOTS, two of which were on target — one
-        // saved, one the 0.390 goal — and theirs faced the six in OUR_SHOTS,
-        // four on target, two saved and two in. The distribution counts split
-        // the same way `_distribution_kind` splits them, which is why they do
-        // not add up to the three accuracies: 14 kicks and 9 throws out of 26
-        // leaves 3 balls that were long with no hold, and 'unknown' is the only
-        // honest answer for those from one camera.
-        //
-        // Our keeper never punted, so `punt_accuracy` is null and the row draws
-        // a dash against their 40% instead of a nought per cent. That is the
-        // case this preview exists to show.
-        keepers: [
-            {
-                team: 'team_a', track_ids: [2],
-                shots_faced: 4, shots_on_target_faced: 2,
-                saves: 1, goals_conceded: 1, save_pct: 0.5,
-                claims: 3, sweeper_actions: 2, sweeper_max_distance_m: 21.4,
-                distributions: 26,
-                kick_accuracy: 0.5, punt_accuracy: null, throw_accuracy: 0.889,
-                mean_kick_distance_m: 39.2, mean_punt_distance_m: null,
-            },
-            {
-                team: 'team_b', track_ids: [18],
-                shots_faced: 6, shots_on_target_faced: 4,
-                saves: 2, goals_conceded: 2, save_pct: 0.5,
-                claims: 1, sweeper_actions: 5, sweeper_max_distance_m: 28.6,
-                distributions: 31,
-                kick_accuracy: 0.35, punt_accuracy: 0.4, throw_accuracy: 0.75,
-                mean_kick_distance_m: 44.8, mean_punt_distance_m: 52.1,
-            },
-        ],
-
-        // Two figures the classifier acted on, each with the sentence its own
-        // guess produced. An exclusion a coach cannot question looks like the
-        // pipeline knowing something it does not.
-        participants: [
-            {
-                trackId: 31, role: 'official',
-                reason: 'kit matched neither team, and stayed away from both goals',
-                screenTimeS: 2280,
-            },
-            {
-                trackId: 44, role: 'offfield',
-                reason: 'never entered the pitch bounds',
-                screenTimeS: 640,
-            },
-        ],
-
-        // One goal the two records disagree about, which is the highest-value
-        // thing on the page: a moment where two independent records conflict
-        // beats a moment where only one of them spoke.
-        reconciliation: {
-            goal_agreement: 0.75,
-            exit_agreement: 0.62,
-            goals: { agreed: 3, cv_only: 0, tag_only: 1 },
-            exits: { agreed: 21, cv_only: 7, tag_only: 6 },
-            exits_checked: true,
-            disagreements: [
-                {
-                    kind: 'goal', status: 'tag_only',
-                    cv_s: null, tag_s: 1450.0, tag_type: 'goal', detail: null,
-                },
-            ],
-        },
+        teams: copy(SAMPLE_TEAMS),
+        keepers: copy(SAMPLE_KEEPERS),
+        participants: copy(SAMPLE_PARTICIPANTS),
+        reconciliation: copy(SAMPLE_RECONCILIATION),
     };
 }
 

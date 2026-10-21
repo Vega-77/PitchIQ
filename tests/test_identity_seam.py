@@ -197,9 +197,62 @@ def _params(body):
         i += 1
     names = []
     for piece in _split_top(body[open_at + 1 : i]):
+        pattern = _object_pattern(piece)
+        if pattern is not None:
+            names.append(pattern)
+            continue
         piece = piece.split('=')[0].strip()
         names.append(piece if re.fullmatch(r'\w+', piece) else None)
     return names
+
+
+def _braced(text):
+    """What sits inside the `{...}` that `text` opens with, or None."""
+    text = text.strip()
+    if not text.startswith('{'):
+        return None
+    depth = 0
+    for i, ch in enumerate(text):
+        if ch in '([{':
+            depth += 1
+        elif ch in ')]}':
+            depth -= 1
+            if depth == 0:
+                return text[1:i]
+    return None
+
+
+def _object_pattern(piece):
+    """`{ a, b: c, d = 1 }` as {key: local name}, or None for any other parameter.
+
+    A function that takes one options object instead of a run of positional
+    arguments (`publishReports`) still hands each field to a local name, and
+    the cross-call step has to be able to follow a figure through that.
+    """
+    inner = _braced(piece)
+    if inner is None:
+        return None
+    out = {}
+    for part in _split_top(inner):
+        key, _, local = part.split('=')[0].partition(':')
+        key, local = key.strip(), local.strip() or key.strip()
+        if re.fullmatch(r'\w+', key) and re.fullmatch(r'\w+', local):
+            out[key] = local
+    return out
+
+
+def _object_entries(expr):
+    """`{ a: x, b }` as [(key, value expression)], or [] if `expr` is not one."""
+    inner = _braced(expr)
+    if inner is None:
+        return []
+    out = []
+    for part in _split_top(inner):
+        key, colon, value = part.partition(':')
+        key = key.strip()
+        if re.fullmatch(r'\w+', key):
+            out.append((key, value if colon else key))
+    return out
 
 
 def _args(body, at):
@@ -425,11 +478,20 @@ def scan(
                     if callee not in by_name or callee in BUILTIN:
                         continue
                     for i, expr in enumerate(_args(body, m.end() - 1)):
+                        for target in by_name[callee]:
+                            ps = _params(units[target][1])
+                            if i < len(ps) and isinstance(ps[i], dict):
+                                for field, value in _object_entries(expr):
+                                    local = ps[i].get(field)
+                                    if local and local not in seeds[target]:
+                                        if _alias(value, names, root, aliases, rowmaps[key], peel):
+                                            seeds[target].add(local)
+                                            grew = True
                         if not _alias(expr, names, root, aliases, rowmaps[key], peel):
                             continue
                         for target in by_name[callee]:
                             ps = _params(units[target][1])
-                            if i < len(ps) and ps[i]:
+                            if i < len(ps) and isinstance(ps[i], str):
                                 if ps[i] not in seeds[target]:
                                     seeds[target].add(ps[i])
                                     grew = True

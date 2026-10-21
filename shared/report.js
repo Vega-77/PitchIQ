@@ -10,72 +10,72 @@ export {
     stintOverlapS, FIRST_HALF, HALF_TIME, SECOND_HALF, matchClockMap, clockMapNote,
     clockFromMatch, rankRosterForCluster, TRACKED_SHARE_FLOOR, windowClockRange, trackedCoverage,
     metresPerMinute, coverageNote,
-} from './report-clock.js?v=145';
+} from './report-clock.js?v=146';
 
 export {
     FROM_VIDEO, FROM_TAGGED, BY_CLOCK, BY_DOUBT, orderFeed, orderCaveat, GOAL_PAIR_S, reviewFeed,
     CONFIRMED_STATUS, REJECTED_STATUS, EDITED_STATUS, hasVerdict, currentAnswers, reviewScore,
     reviewLabels,
-} from './report-review.js?v=145';
+} from './report-review.js?v=146';
 
 export {
     SHOT_RESULTS, shotLedger, headerCorrection, headerNote, correctedShotMarks, xgTally,
     sumXgTallies, xgCalibration, calibrationNote,
-} from './report-shots.js?v=145';
+} from './report-shots.js?v=146';
 
 export {
     MAX_TOUCH_TIMES, NOT_A_PLAYER, cvStatsByPlayer, cvReportFields, matchLine, playerTimeline,
-} from './report-player.js?v=145';
+} from './report-player.js?v=146';
 
 export {
     SAME_KIT_CHROMA, kitDistance, sameFigureCandidates,
-} from './report-same-person.js?v=145';
+} from './report-same-person.js?v=146';
 
 export {
     possessionIsInPlay, printStamp, roughDuration, shapeConfidence, xgTrust, periodNote,
     ACCEL_NOISE_CEILING_M, playerWobbleNote, blindSplit, cvQualityNotes,
-} from './report-quality-notes.js?v=145';
+} from './report-quality-notes.js?v=146';
 
 export {
     railTarget,
-} from './report-rail.js?v=145';
+} from './report-rail.js?v=146';
 
 export {
     STAT_TYPES, groupStats,
-} from './report-stats.js?v=145';
+} from './report-stats.js?v=146';
 
 export {
     POSITIONS, positionOf, positionLabel, isKeeper, groupByPosition, MAX_BAND_M, positionBand,
     coverageVerdict, positionalPlay,
-} from './report-positions.js?v=145';
+} from './report-positions.js?v=146';
 
 export {
     FULL_MATCH_MIN, seasonGroups, formGuide, daysBetween, nextFixture, whenLabel, seasonJobs,
     seasonMoments,
-} from './report-season.js?v=145';
+} from './report-season.js?v=146';
 
 export {
     SHARE, COUNT, RATE, comparePair, verdict, insideNoise, taggedCount, taggedTeamRows,
     teamStatRows, shapeStatRows, keeperStatRows, keeperOfTrack,
-} from './report-teams.js?v=145';
+} from './report-teams.js?v=146';
 
 export {
     syncState, safeToClose,
-} from './report-sync.js?v=145';
+} from './report-sync.js?v=146';
 
 export {
     pressingTrend, pressingRead, pressingNote, cvReads,
-} from './report-press.js?v=145';
+} from './report-press.js?v=146';
 
 export {
     matchBrief,
-} from './report-brief.js?v=145';
+} from './report-brief.js?v=146';
 
 export {
     shareShifted, substitutionChanges, substitutionWindows, substitutionRead, CHANGE_REASONS,
     substitutionNote,
-} from './report-substitutions.js?v=145';
+} from './report-substitutions.js?v=146';
 
 export {
     mappingWithout, erasureNote,
-} from './report-erasure.js?v=145';
+} from './report-erasure.js?v=146';
