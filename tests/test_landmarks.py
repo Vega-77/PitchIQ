@@ -47,7 +47,7 @@ import unittest
 from test_contrast_floor import HTML, read
 from test_heading_outline import VIEWS, decomment, spans
 
-# The one view that splits further. `coach/coach.js:3741` `showTab` hides two
+# The one view that splits further. `coach/shell.js::showTab` hides two
 # of these three whenever it shows the other, independently of which view is
 # up, so `view-main` is three screens rather than one.
 TABS = {'coach/index.html': {'view-main': ['tab-matches', 'tab-roster', 'tab-staff']}}
@@ -232,16 +232,16 @@ class TestTheTabsAreASecondLevelOfSwitching(unittest.TestCase):
                     self.assertIn('id="%s"' % i, src, (rel, i))
 
     def test_the_javascript_switches_exactly_these(self):
-        js = read('coach/coach.js')
+        js = read('coach/shell.js')
         m = re.search(r'const TABS = \[([^\]]*)\]', js)
-        self.assertIsNotNone(m, 'coach.js no longer declares TABS')
+        self.assertIsNotNone(m, 'coach/shell.js no longer declares TABS')
         named = re.findall(r"'([^']+)'", m.group(1))
         self.assertEqual(['tab-%s' % n for n in named], TABS['coach/index.html']['view-main'])
 
     def test_it_hides_the_ones_it_is_not_showing(self):
         """Without this line the panels would all be on screen together and
         the three asides really would need names."""
-        js = read('coach/coach.js')
+        js = read('coach/shell.js')
         self.assertIn("classList.toggle('hidden', name !== wanted)", js)
 
     def test_all_but_one_start_hidden(self):

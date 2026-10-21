@@ -368,12 +368,12 @@ class TestSites(unittest.TestCase):
 
     def test_selector_site_is_load_bearing(self):
         """And specifically: it is what keeps the two template-hole selectors
-        in `coach/coach.js` from reading as dead attributes."""
+        in `coach/mapping.js` from reading as dead attributes."""
         dead, ghost = self.deltas('selector')
         self.assertEqual(dead, ['cluster', 'same'], dead)
 
     def test_the_hole_shape_is_matched_by_name_not_by_value(self):
-        coach = read('coach/coach.js')
+        coach = read('coach/mapping.js')
         self.assertIn('[data-cluster="${', coach)
         self.assertIn('[data-same="${', coach)
         for name in ('cluster', 'same'):

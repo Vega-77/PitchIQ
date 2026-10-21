@@ -2,8 +2,8 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { num, count } from './report-format.js?v=146';
-import { FIRST_HALF, HALF_TIME, matchClockMap } from './report-clock.js?v=146';
+import { num, count } from './report-format.js?v=147';
+import { FIRST_HALF, HALF_TIME, matchClockMap } from './report-clock.js?v=147';
 
 // ------------------------------------------------ the football either side of
 //                                                   a substitution

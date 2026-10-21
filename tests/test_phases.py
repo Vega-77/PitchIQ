@@ -234,7 +234,7 @@ class TestClockConversion:
 class TestLoadingTheFile:
     """The seam between the coach's browser and the pipeline.
 
-    `doDownloadLog` in coach.js writes a wrapper object carrying the ids so a
+    `doDownloadLog` in coach/match.js writes a wrapper object carrying the ids so a
     file found later can say which match it belongs to; `listLog` returns a bare
     list. Both have to load, because both will exist on somebody's disk.
     """

@@ -20,7 +20,7 @@ not the same kind of problem:
 
         td.bar-cell .cell-bar { width: calc(var(--w, 0) * 100%); }
 
-    `--w` is the one token in this repo declared outside CSS -- `coach/coach.js`
+    `--w` is the one token in this repo declared outside CSS -- `coach/match-overview.js`
     writes it per row with `setProperty`. If that call is ever renamed away, the
     fallback catches it silently and every bar in the table renders at width
     zero. No error in the console, no unstyled flash, no exception. A cell of
@@ -54,7 +54,7 @@ terms, and it changed the roster in both directions:
 The last two are invisible to the delta tests -- switch either off and the
 counts do not move -- and both are load-bearing anyway:
 
-`js-use` was not in the scanner at all until the probe found `coach/coach.js`
+`js-use` was not in the scanner at all until the probe found `coach/mapping.js`
 setting `kit.style.background = 'var(--line)'` for a kit swatch with no sampled
 colour. `--line` has a hundred and eighteen other uses, so nothing was reported
 wrong; a token used *only* that way would have been reported dead. That is the
@@ -249,7 +249,7 @@ class TestAGhostWithAFallbackIsTheSilentOne:
         # longer the only witness; if the writer goes the bars go to zero.
         u = used()
         assert any(f for _, f in u['--w']), 'var(--w) lost its fallback'
-        assert declared()['--w'] == ['coach/coach.js']
+        assert declared()['--w'] == ['coach/match-overview.js']
 
 
 # ------------------------------------------------------- each site earns itself
@@ -269,7 +269,7 @@ class TestEachScanSiteIsLoadBearing:
         assert len(ghost(off={'css-decl'})) == 49
 
     def test_css_use_is_where_the_reading_happens(self):
-        # Everything but --line, which coach.js also reads.
+        # Everything but --line, which coach/mapping.js also reads.
         assert len(dead(off={'css-use'})) == 58
         assert '--line' not in dead(off={'css-use'})
 
@@ -283,7 +283,7 @@ class TestEachScanSiteIsLoadBearing:
         # direction that gets acted on.
         hits = {t: w for t, w in used().items() if any(rel.endswith('.js') for rel, _ in w)}
         assert set(hits) == {'--line'}
-        assert [rel for rel, _ in hits['--line'] if rel.endswith('.js')] == ['coach/coach.js']
+        assert [rel for rel, _ in hits['--line'] if rel.endswith('.js')] == ['coach/mapping.js']
         assert dead(off={'js-use'}) == dead()
 
     def test_comments_are_stripped_before_anything_is_counted(self):

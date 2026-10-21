@@ -247,12 +247,16 @@ test('every button variant the markup asks for is one the stylesheet has', () =>
  */
 test('every match field the match pages read is one something writes', () => {
     const read = (name) => readFileSync(new URL(name, root), 'utf8');
-    // The coach page is three modules, and the scan below has to see all of
-    // them or it quietly stops checking whatever moved. `xgCheck` is read only
-    // in review.js; when that block lived in coach.js this scan covered it, and
-    // a scan that shrinks when a file is split is a scan that lies.
-    const coach = read('coach/coach.js');
-    const coachPage = coach + read('coach/review.js') + read('coach/shell.js');
+    // The coach page is every module in coach/, and the scan below has to see
+    // all of them or it quietly stops checking whatever moved. `xgCheck` is
+    // read only in review.js; when that block lived in coach.js this scan
+    // covered it, and a scan that shrinks when a file is split is a scan that
+    // lies -- so it reads the folder rather than a list of names.
+    const coachPage = readdirSync(new URL('coach/', root))
+        .filter((name) => name.endsWith('.js'))
+        .sort()
+        .map((name) => read(`coach/${name}`))
+        .join('\n');
     const halftime = read('halftime/halftime.js');
     const rules = read('firestore.rules');
     const db = read('shared/db.js');
@@ -273,7 +277,7 @@ test('every match field the match pages read is one something writes', () => {
     // The coach page alone merges the subcollections in, so the page has one
     // object rather than five.
     const merged = new Set(stored);
-    const merge = coach.match(/state\.match\s*=\s*\{([^}]*)\}/);
+    const merge = coachPage.match(/state\.match\s*=\s*\{([^}]*)\}/);
     assert.ok(merge, 'no `state.match = {...}` literal found — the scan is broken');
     for (const key of merge[1].split(',')) {
         const token = key.trim();
@@ -442,7 +446,7 @@ test('every figure the pipeline publishes is one some page reads', () => {
         'events_payload.schemaVersion': 'provenance — nothing may branch on it',
         // Derived, and its input is already fully on the screen.
         // `trustworthy` is `not warnings` (pitchiq/report_export.py), and
-        // `cvWarnings` in coach/coach.js draws every warning in full. A page
+        // `cvWarnings` in coach/match-overview.js draws every warning in full. A page
         // rendering the boolean as well would be telling a coach this run
         // cannot be trusted directly above the list of what was wrong with it.
         'summary_payload.trustworthy': 'derived from `warnings`, which is drawn in full',

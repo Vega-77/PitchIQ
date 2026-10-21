@@ -36,7 +36,7 @@ a plain literal in a call:
 1. a literal handed to one of those helpers, or written into a stylesheet, a
    `querySelector('#...')`, or a `for=` / `aria-labelledby=` attribute;
 2. a **hole** -- ``byId(`view-${name}`)`` in `live-tagging/tagging.js` and
-   ``byId(`tab-${name}`)`` in `coach/coach.js` -- where the id never exists as a
+   ``byId(`tab-${name}`)`` in `coach/shell.js` -- where the id never exists as a
    string anywhere. Only the prefix before the first `${` survives a regex, so
    every declared id starting with it counts as reachable. Five ids are
    reachable *only* this way;
@@ -368,17 +368,18 @@ SEAM = scan()
 # --------------------------------------------------------------------------
 
 _WRAPPER = (
-    'positional argument to fillPlayerGroup/fillGroup, which calls '
-    'byId on it (coach/coach.js:806, player/player.js)'
+    'positional argument to fillStatGroup, which calls byId on it (shared/ui.js::fillStatGroup)'
 )
 _HOST = (
     'the `host:` key of a stat-group descriptor, read back as '
-    '`byId(group.host)` (coach/coach.js:910, player/player.js:177)'
+    '`byId(group.host)` (coach/player-view.js, player/player.js)'
 )
-_TUPLE = 'a column of the sides tuple table destructured in the shot-map loop (coach/coach.js:1247)'
+_TUPLE = (
+    'a column of the sides tuple table destructured in the shot-map loop (coach/match-shots.js)'
+)
 _CHECKLIST = (
     'a *key* of the renderGettingStarted checklist, iterated as '
-    '`byId(id)` over Object.entries (coach/coach.js:346)'
+    '`byId(id)` over Object.entries (coach/season.js)'
 )
 
 WEAK = {

@@ -359,7 +359,7 @@ a { color: var(--accent); text-decoration: none; }
  *
  * The rail loads a section in rather than scrolling to it, so the report is the
  * height of what you are reading instead of the height of everything. Set by
- * `showSection` in coach.js; the rule lives here so the two places it must not
+ * `showSection` in shared/rail.js; the rule lives here so the two places it must not
  * happen get it for free.
  *
  * **`screen` is load-bearing, not decoration.** On paper every section has to

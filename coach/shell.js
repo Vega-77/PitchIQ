@@ -1,17 +1,18 @@
 /**
  * What every block on the coach page shares.
  *
- * The page is three files: this one, `review.js` and `coach.js`. This one sits
- * at the bottom of that stack and draws nothing at all — deliberately, so
+ * The page is a stack of modules with `coach.js` on top as the entry point.
+ * This one sits at the bottom of that stack and draws nothing at all —
+ * deliberately, so
  * that importing it can never drag a page’s worth of rendering along behind
  * it. It holds the state the whole page reads, the view switch, and the two
  * helpers that would otherwise have to be duplicated or exported from whichever
  * renderer happened to define them first.
  */
 
-import { xgTally, xgTrust, shotLedger } from '../shared/report.js?v=146';
-import { sampleCvSummary } from '../shared/sample-report.js?v=146';
-import { showOnly } from '../shared/ui.js?v=146';
+import { xgTally, xgTrust, shotLedger } from '../shared/report.js?v=147';
+import { sampleCvSummary } from '../shared/sample-report.js?v=147';
+import { byId, showOnly } from '../shared/ui.js?v=147';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
@@ -94,4 +95,29 @@ export function download(filename, text) {
     // Revoked on the next tick rather than immediately: Safari has not started
     // reading the blob by the time click() returns.
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const TABS = ['matches', 'roster', 'staff'];
+
+/**
+ * Put one tab on screen.
+ *
+ * Extracted from the click handler because the "still to do" panel sends a
+ * coach to the tab a job is on — a to-do list that names a job and then leaves
+ * you to find it is half a feature.
+ */
+export function showTab(wanted) {
+    if (!TABS.includes(wanted)) return;
+    for (const tab of document.querySelectorAll('.tab')) {
+        tab.classList.toggle('active', tab.dataset.tab === wanted);
+    }
+    for (const name of TABS) {
+        byId(`tab-${name}`)?.classList.toggle('hidden', name !== wanted);
+    }
+}
+
+export function initTabs() {
+    for (const tab of document.querySelectorAll('.tab')) {
+        tab.addEventListener('click', () => showTab(tab.dataset.tab));
+    }
 }

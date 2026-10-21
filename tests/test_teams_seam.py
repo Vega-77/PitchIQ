@@ -296,7 +296,7 @@ class TestTheScannerActuallyScans:
         # player pages already did once, so pin a read from each.
         assert 'shared/report-teams.js' in readers('turnovers_by_third', seen)
         assert 'halftime/halftime.js' in readers('interceptions', seen)
-        assert 'coach/coach.js' in readers('pressing_segments', seen)
+        assert 'coach/match-play.js' in readers('pressing_segments', seen)
 
     def test_the_arrow_parameter_step_is_load_bearing(self, seen, named):
         # ppda is only ever reached as `(t) => t.ppda`, where t is bound by
@@ -310,8 +310,8 @@ class TestTheScannerActuallyScans:
         # shot_map is read as cv?.teams?.[key]?.shot_map — a computed side and
         # no alias at all. attacking_end is the same shape with the side spelled
         # out. Both were reported as orphans until the chain was followed.
-        assert 'coach/coach.js' in readers('shot_map', seen)
-        assert 'coach/coach.js' in readers('attacking_end', seen)
+        assert 'coach/match-shots.js' in readers('shot_map', seen)
+        assert 'coach/match-play.js' in readers('attacking_end', seen)
         without = read(direct=False)
         assert not readers('shot_map', without)
 

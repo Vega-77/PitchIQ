@@ -356,7 +356,9 @@ class TestTheScanCouldBeLying:
         # (2026-10-07), and rose to 30 the same day with the team colours
         # (shared/kit.js, and shared/kit-boot.js which paints them before the
         # first frame) and shared/motion.js, and to 47 when shared/report.js was
-        # split into seventeen shared/report-*.js parts behind it (deep clean, E-2).
+        # split into seventeen shared/report-*.js parts behind it (deep clean, E-2),
+        # and to 61 when coach/coach.js was split into fourteen view modules
+        # beside it (E-5).
         seen = js()
-        assert len(seen) == 47
+        assert len(seen) == 61
         assert IMPL in seen and 'live-tagging/tagging.js' in seen

@@ -7,7 +7,7 @@ The site writes the pitch down in four files.
                                  them as MARKINGS_M)
     shared/passing.js            pitchLengthM, pitchWidthM (default arguments)
     shared/sample-report.js      105 / COLS, 68 / ROWS
-    coach/coach.js               the 'Halfway' and 'Their goal' axis ticks
+    coach/match-play.js          the 'Halfway' and 'Their goal' axis ticks
 
 There were eight until the calibrate page and the xG sandbox left the site
 (2026-10-07); those two carried the rest. The calibrate page came back
@@ -24,7 +24,8 @@ drawn somewhere the player never stood, under a plot that is otherwise correct
 and gives no sign that anything is wrong.
 
 `shared/passing.js` is worse still, because its 105 and 68 look like fallbacks
-and are not: `coach/coach.js:1580` is the only caller and it passes neither, so
+and are not: `coach/match-play.js::renderPassing` is the only caller and it
+passes neither, so
 those two defaults are the pitch every published pass map is drawn on.
 
 The irony is that `pitchMarkings` already argues this case against itself:
@@ -137,9 +138,19 @@ SITES = [
         r'\bconst CELL_WIDTH_M = ' + NUMBER + r' / ROWS',
         lambda p: p.width_m,
     ),
-    # --- coach/coach.js: the shape scale a coach reads the bars against ---
-    ('coach/coach.js', "the 'Halfway' tick", r"'Halfway', " + NUMBER, lambda p: p.length_m / 2),
-    ('coach/coach.js', "the 'Their goal' tick", r"'Their goal', " + NUMBER, lambda p: p.length_m),
+    # --- coach/match-play.js: the shape scale a coach reads the bars against ---
+    (
+        'coach/match-play.js',
+        "the 'Halfway' tick",
+        r"'Halfway', " + NUMBER,
+        lambda p: p.length_m / 2,
+    ),
+    (
+        'coach/match-play.js',
+        "the 'Their goal' tick",
+        r"'Their goal', " + NUMBER,
+        lambda p: p.length_m,
+    ),
 ]
 
 

@@ -3,7 +3,7 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { num } from './report-format.js?v=146';
+import { num } from './report-format.js?v=147';
 
 // ------------------------------------------------- who was on, and when
 //
@@ -13,7 +13,7 @@ import { num } from './report-format.js?v=146';
 // picker offering all twenty players into one offering the four it could be.
 //
 // Nothing here filters. It ranks, and the picker groups by the ranking — see
-// `clusterRow` in coach.js for why that distinction is load-bearing.
+// `clusterRow` in coach/mapping.js for why that distinction is load-bearing.
 
 /** Everyone on the pitch at a given match-clock moment. */
 // --------------------------------------------------- when the match ended,

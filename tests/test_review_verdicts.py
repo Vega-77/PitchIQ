@@ -27,7 +27,8 @@ cannot import anything, and this file pins it in both directions: a state the
 tool can reach has to be styled, and a state that is styled has to be one the
 tool can reach.
 
-`coach/coach.js` also uses `data-act`, for row actions — invite, remove, erase
+`coach/roster.js` and `coach/staff.js` also use `data-act`, for row actions —
+invite, remove, erase
 — and is deliberately not covered. Those values are read back by
 `querySelector('[data-act="remove"]')` in the same file and dereferenced
 without a guard, so a disagreement there is a TypeError on the spot. This file

@@ -762,7 +762,8 @@ def drift_notes(drift: ShapeDrift | None, min_change_m: float = MIN_DRIFT_M) -> 
 
     Deliberately not coloured good or bad. A side that tightened up was
     well-drilled or was pinned in its own half, and this number cannot tell the
-    difference — the same reason `coach.js` refuses to tone the compactness row.
+    difference — the same reason `shared/report-teams.js` leaves the compactness
+    row untoned (`better: null`).
     """
     if drift is None:
         return []

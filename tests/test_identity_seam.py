@@ -778,7 +778,9 @@ class TestThePremiseHolds:
         assert 'identity: data ?' in db
 
     def test_the_pages_reach_it_the_way_this_file_assumes(self):
-        coach = (ROOT / 'coach' / 'coach.js').read_text(encoding='utf-8')
+        coach = ''.join(
+            p.read_text(encoding='utf-8') for p in sorted((ROOT / 'coach').glob('*.js'))
+        )
         assert 'cv?.identity?.tracks' in coach
         assert 'cv?.identity?.clusters' in coach
 

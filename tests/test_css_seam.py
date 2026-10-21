@@ -141,7 +141,7 @@ WEAK = {
     # Both had a proven home on the calibrate page's figures until it left on
     # 2026-10-07; what is left is the bare-string kind.
     'bad': "decision('bad', ...) in halftime.js -- a tone passed as an argument, like est and info",
-    'cm-label': "labelled('cm-label', label) in coach.js -- the class is a "
+    'cm-label': "labelled('cm-label', label) in coach/footage.js -- the class is a "
     'positional argument to a helper that builds the element',
     'cm-time': "labelled('cm-time', clockText(s)), same helper",
     'dim': "figure(..., 'dim') in landing.js -- a tone passed as an argument",

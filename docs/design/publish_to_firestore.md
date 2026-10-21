@@ -139,7 +139,7 @@ Track-row figures the report JSON carries and this document does not.
 the same values. `report_export.track_stats` seeds every `TrackStats` straight
 off its `PlayerCluster`, and neither is touched again, so publishing both put
 each team name and each fragment list on the wire twice in one document. The
-copies that are read live on the cluster row: `coach.js::clusterRow`,
+copies that are read live on the cluster row: `coach/mapping.js::clusterRow`,
 `passing.js::playersByTrack`, `review.js::whoIs`.
 
 `pass_accuracy` is a quotient of two fields published beside it, and every

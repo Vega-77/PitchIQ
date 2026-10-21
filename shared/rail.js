@@ -29,7 +29,7 @@
 // `railEntries()` as the rail so the two can never list different sections,
 // and hidden by CSS at desktop width, where the rail does the job.
 
-import { railTarget } from './report.js?v=146';
+import { railTarget } from './report.js?v=147';
 
 const RAILED = 'section.block[data-rail], section.block[data-rail-group]';
 const groupOf = (block) => block.dataset.railGroup || block.id;

@@ -35,7 +35,7 @@ By the time a row field is read, the only thing in scope is `events`, then
     shotLedger(events, review);                           # 4 arg -> param
     const { events } = passingSource();                   # 5 bag -> destructure
 
-Shape 5 exists because `coach/coach.js` builds three options bags -- from
+Shape 5 exists because the coach page builds three options bags -- from
 `passingSource`, `shapeSource` and `subsSource` -- each returning an object
 literal whose `events:` key holds the published list. Without it the passing
 network, which is the only reader of `startM` and `receiverTrackId` in the
@@ -69,7 +69,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 # Where the document lands in the browser. `readCvEvents` fetches
-# `cvStats/events` and `coach.js` binds it into `state.match` under this name;
+# `cvStats/events` and `coach/match.js` binds it into `state.match` under this name;
 # every path below starts here.
 HANDLE = 'cvEvents'
 
@@ -525,7 +525,7 @@ class TestThePremiseHolds:
         db = (ROOT / 'shared' / 'db.js').read_text(encoding='utf-8')
         assert 'export async function readCvEvents(' in db
         assert "'cvStats', 'events'" in db
-        coach = (ROOT / 'coach' / 'coach.js').read_text(encoding='utf-8')
+        coach = (ROOT / 'coach' / 'match.js').read_text(encoding='utf-8')
         assert HANDLE in coach, (
             'the scan starts from `state.match.%s` and nothing binds it' % HANDLE
         )
@@ -537,11 +537,11 @@ class TestThePremiseHolds:
 
     def test_the_scan_found_the_files_that_read_the_list(self, seen):
         where = {place.split('::')[0] for places in seen.values() for place in places}
-        # Five files, and each one matters: coach.js holds the handle,
+        # Five files, and each one matters: match-overview.js counts the rail,
         # report-shots.js the shot log, report-review.js the label export,
         # passing.js the only reader of `startM`, review.js the filter chips.
         for name in (
-            'coach/coach.js',
+            'coach/match-overview.js',
             'shared/report-shots.js',
             'shared/report-review.js',
             'shared/passing.js',
@@ -584,7 +584,7 @@ class TestTheScannerCannotPassVacuously:
         # once, and the two that do not are the exceptions that measure the
         # rule: they are read by the only three functions in the repo that
         # name the handle and read a row field in the same few lines --
-        # `review.js::deadBallCount` for `inPlay`, and `coach.js::railCounts`
+        # `review.js::deadBallCount` for `inPlay`, and `match-overview.js::railCounts`
         # and `review.js::updateReviewProgress` for `id`.
         #
         # Stated as what is lost rather than what survives, because those are
@@ -636,7 +636,7 @@ class TestTheScannerCannotPassVacuously:
         # scan stops at the file it started in. What it loses is precisely the
         # five figures that only `shared/report.js` and `shared/passing.js`
         # read -- neither file ever names the handle, and both are reached
-        # only by seeding from a call in `coach/coach.js`.
+        # only by seeding from a call in a coach page module.
         #
         # The other seven survive for a reason worth being suspicious of: a
         # whole file is one chunk, so every reader in it is credited to

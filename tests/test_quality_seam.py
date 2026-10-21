@@ -222,7 +222,7 @@ class TestTheScannerActuallyScans:
         # shared/report-*.js is where most of these are read. If the walk quietly
         # stopped there, the coach and player pages could drift again exactly as
         # they did before, so pin a read from each of the other directories.
-        assert 'coach/coach.js' in readers('excluded_tracks', seen)
+        assert 'coach/excluded.js' in readers('excluded_tracks', seen)
         assert 'shared/db.js' in readers('clear_holder_share', seen)
 
     def test_the_ghost_check_is_capable_of_failing(self, made):
