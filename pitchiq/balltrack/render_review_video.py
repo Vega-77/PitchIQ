@@ -13,7 +13,7 @@ gap_fill.fill.  Each output frame shows
                 (sigmoid of log-odds), share of frames with a ball so far,
                 and the last 10 s of confidence as bars
 
-    python -m pitchiq.balltrack.render_vid <tag> [out.mp4] [scale]     (scale 0.6667 -> 1280x720)
+    python -m pitchiq.balltrack.render_review_video <tag> [out.mp4] [scale]     (scale 0.6667 -> 1280x720)
 """
 
 import os

@@ -299,7 +299,7 @@ def runs_of(m):
 
 def main():
     tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
-    from .. import render_vid as RV
+    from .. import render_review_video as RV
 
     Z = np.load(os.path.join(HERE, '%s_ballsb.npz' % tag))
     ab = Z['abs']

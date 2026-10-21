@@ -23,7 +23,7 @@ import cv2
 import numpy as np
 
 from . import ballgate, homog
-from . import render_vid as RV  # clock
+from . import render_review_video as RV  # clock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HG = os.path.join(HERE, 'h3d_hyb90')

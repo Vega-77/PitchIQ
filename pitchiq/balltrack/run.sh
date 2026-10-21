@@ -11,5 +11,5 @@ LO=$1; HI=$2; TAG=$3; W=${4:-${PIQ_WORKERS:-8}}
 echo "=== detector $(date +%T)"; "$PY" -W ignore -m $M.detect_candidates "$LO" "$HI" "$W" "$TAG" || exit 1
 echo "=== people $(date +%T)";   "$PY" -W ignore -m $M.person_boxes "$TAG" || exit 1
 echo "=== classifier $(date +%T)"; "$PY" -W ignore -m $M.score_candidates cls_B.pt "$TAG" || exit 1
-[ "${RVID:-1}" = 0 ] || { echo "=== render $(date +%T)"; "$PY" -W ignore -m $M.render_vid "$TAG" "$TAG.mp4" || exit 1; }
+[ "${RVID:-1}" = 0 ] || { echo "=== render $(date +%T)"; "$PY" -W ignore -m $M.render_review_video "$TAG" "$TAG.mp4" || exit 1; }
 echo "DONE $(date +%T)"

@@ -1,7 +1,7 @@
 import sys
 import numpy as np
 
-from .. import render_vid as RV
+from .. import render_review_video as RV
 
 TAG = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
 

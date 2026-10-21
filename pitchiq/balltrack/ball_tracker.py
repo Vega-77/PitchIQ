@@ -3,7 +3,7 @@
 Input is a window of frames as `load_frames` returns them: per frame the
 absolute frame number and every candidate's image position (x, y), its
 pan-stabilised position (sx, sy) and its score s (higher = more ball-like;
-render_vid uses classifier log-odds blended with the detector score).
+render_review_video uses classifier log-odds blended with the detector score).
 
 The path chooses, in each frame, one candidate or OFF (no ball on screen):
 

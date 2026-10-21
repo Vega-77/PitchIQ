@@ -4,7 +4,7 @@ folder so the shipped outputs are never touched.
     python -m pitchiq.balltrack.alltests.mk3d <ver> <tag> [<tag> ...] [--variants]
 
   work   S2/h3d_<ver>/  (labels, registrations): the homog scripts run there with
-         PIQ_HOMOG pointing at it and PIQ_P2D=<ver>, so render_vid.picks_for serves
+         PIQ_HOMOG pointing at it and PIQ_P2D=<ver>, so render_review_video.picks_for serves
          alltests/p2d/<ver>/<tag>.npz
   chain  vballsb -> vfl0 -> flight_scan 16 -> vrowspd -> vdefault (flight_chain + vsmooth) -> <tag>_ball3dd.npz
   --variants  also vflscan 8 (v1), vflchain3 (3, 3k), vstrict (x1), vsmooth on x1 -> sx

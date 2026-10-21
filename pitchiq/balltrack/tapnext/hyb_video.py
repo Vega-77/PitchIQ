@@ -17,7 +17,7 @@ import cv2
 import numpy as np
 
 from .. import homog
-from .. import render_vid as RV  # colours, clock
+from .. import render_review_video as RV  # colours, clock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
