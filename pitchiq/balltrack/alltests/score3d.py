@@ -4,7 +4,7 @@
 
   air    Air Lab (vid1, score_ball3d_air.py): air frames P/R/F, true flights hit, false runs
   fl     Flight Lab (vid1, score_dev_clips.py --holdout): dev + holdout halves, median in-flight position error (SB)
-  fl2    Flight Lab 2 (vid2, vscorev2.py): air P/R/F, flights hit, false runs, spot and track error
+  fl2    Flight Lab 2 (vid2, score_flight_lab2.py): air P/R/F, flights hit, false runs, spot and track error
   fix    Fix Lab (vid3): share of the kicked-off-screen span (p173199) claimed air; SB error at
          the two map points the user placed (171312 save, 173742 still ball); claimed air runs
          inside the 'wrong' spans (each one a false flight on a known bad ring)
@@ -124,7 +124,7 @@ def score(ver):
             r['fl_hold'] = nums(ln[-1], FL)
             r['fl_txt'] = ln[-2:]
         if os.path.exists(os.path.join(d, 'vid2_%s.npz' % stem)):
-            ln = sh(d, 'vscorev2', 'vid2_%s.npz' % stem)
+            ln = sh(d, 'score_flight_lab2', 'vid2_%s.npz' % stem)
             r['fl2'] = nums(ln[-1], FL2)
             r['fl2_txt'] = ln[-1]
         p = os.path.join(d, 'vid3_%s.npz' % stem)
