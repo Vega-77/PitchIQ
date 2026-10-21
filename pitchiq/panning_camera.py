@@ -38,7 +38,7 @@ TRACKER = Path(__file__).resolve().parent / 'balltrack'
 # landmarks and converted from radii to metres.
 MAP_FIT_ERROR = CalibrationError(mean_m=0.28, max_m=2.07, p90_m=0.84)
 
-# Hybrid 90's per-frame source codes (`alltests/hybrid.py`): 1 a tracked
+# Hybrid 90's per-frame source codes (`evaluation/hybrid.py`): 1 a tracked
 # detector pick, 2 a detector pick filling a gap, 3 a TAPNext bridge.
 OBSERVED_SOURCES = (1, 2)
 
@@ -134,7 +134,7 @@ class PannedCamera:
         paths = (
             TRACKER / f'h3d_{version}' / f'{tag}_smooth2.npz',
             TRACKER / f'h3d_{version}' / f'{tag}_ball3dd.npz',
-            TRACKER / 'alltests' / 'p2d' / version / f'{tag}.npz',
+            TRACKER / 'evaluation' / 'p2d' / version / f'{tag}.npz',
         )
         missing = [str(p) for p in paths if not p.exists()]
         if missing:

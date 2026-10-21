@@ -83,7 +83,7 @@ def ball(tag, lo, hi):
     tr = V.Track(tag)
     a0 = int(tr.abs[0])
     B = np.load(os.path.join(HG, '%s_ball3dd.npz' % tag))
-    P = np.load(os.path.join(HERE, 'alltests', 'p2d', 'hyb90', '%s.npz' % tag))
+    P = np.load(os.path.join(HERE, 'evaluation', 'p2d', 'hyb90', '%s.npz' % tag))
     air = (B['state'] == 'air') & np.isfinite(B['x'])
     flash = short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
     flash |= ballgate.lost(

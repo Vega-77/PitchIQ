@@ -2,7 +2,7 @@
 
 cls_B is ball_tracker.track_ball + gap_fill.
 
-    python -m pitchiq.balltrack.alltests.mkpicks_one <tag>
+    python -m pitchiq.balltrack.evaluation.mkpicks_one <tag>
 
 src 1 = tracker pick, 2 = gap-fill pick, 0 = no ball.  This is what tn_engine.py bridges
 and hybrid.py start from.

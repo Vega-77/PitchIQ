@@ -27,7 +27,7 @@ cd homog && python -m pitchiq.balltrack.homog.register_frames <lo> <hi> <tag> 4
 ```
 
 The `homog/` scripts read and write their files in `homog/` unless
-`PIQ_HOMOG` names another folder; `alltests/mk3d.py` points it at
+`PIQ_HOMOG` names another folder; `evaluation/mk3d.py` points it at
 `h3d_<ver>/` (and sets `PIQ_P2D=<ver>`) to run the 3D chain on one 2D version.
 
 ## The chain
@@ -71,7 +71,7 @@ hybrid picks (flight_chain flights + smooth_ball ground). The output is
 in CR, and the state (ground or air) for every frame.
 
 Accepted after a never-used minute (75:39-76:39). Every version was tested
-against every lab; the full table is in `alltests/report.html`, built by
+against every lab; the full table is in `evaluation/report.html`, built by
 `score2d.py`, `score3d.py` and `build_report.py`.
 
 | | Ball Truth | wrong | Find the Ball | passes | Air Lab hit/false | Flight Lab 2 hit/false |
@@ -125,7 +125,7 @@ ball, and `match_video.py` before drawing it.
 | `tapnext/` | `tn_engine.py` (bridges), `hyb_video.py` (the review video) |
 | `reference/` | the one-candidate-at-a-time detector the shipping one was checked against (`blobs_per_candidate.py`, `single_process_run.py`, `temporal_from_sheets.py`); `python -m pitchiq.balltrack.reference.check_fast` compares them on real frames |
 | `archive/` | a README listing the scripts nothing runs any more (deleted 2026-10-21) and how to restore one from git |
-| `alltests/` | `mkpicks_one.py`, `hybrid.py`, `mk3d.py` (3D per 2D version in `h3d_<ver>/`), the 2D/3D test harness, Find the Ball / Fix Lab / pass labels, and the score tables in `alltests/results/` (`2d.json`, `3d.json`) |
+| `evaluation/` | `mkpicks_one.py`, `hybrid.py`, `mk3d.py` (3D per 2D version in `h3d_<ver>/`), the 2D/3D test harness, Find the Ball / Fix Lab / pass labels, and the score tables in `evaluation/results/` (`2d.json`, `3d.json`) |
 
 ### Generated, not in git
 
@@ -140,8 +140,8 @@ Built here, by the scripts that read them:
   `python -m pitchiq.balltrack.homog.venue_features`).
 - The per-window detector outputs: `<tag>.npz`, `<tag>pan.npz`,
   `<tag>ppl.npz`, `<tag>cls.npz` (`run.sh`).
-- The picks: `alltests/p2d/<version>/<tag>.npz` (`cls_B` shipped, `hyb90`
-  Hybrid 90), and the TAPNext-alone runs in `alltests/tn/`.
+- The picks: `evaluation/p2d/<version>/<tag>.npz` (`cls_B` shipped, `hyb90`
+  Hybrid 90), and the TAPNext-alone runs in `evaluation/tn/`.
 - The 3D chain: `h3d_<version>/<tag>_ball3dd.npz` and `_smooth2.npz` (what
   `pitchiq/panning_camera.py` reads), and `homog/<tag>_ball3dd.npz` for the shipped picks.
 - The ball on the pitch: `homog/<tag>_ballsb.npz` and `.csv` (`ball_on_pitch.py`).
@@ -181,8 +181,8 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   crop caches (`trNNcrops.npz`), which are not committed. Rebuild them with
   `run.sh` over the training clip windows, then `pseudolab.py` and `candidate_crops.py`.
 - Every lab's answers are packed one set to a file: `labdb5/crops.jsonl`,
-  `alltests/findball/labels.jsonl`, `alltests/fixlab/fixes.jsonl`,
-  `alltests/passbench/truth.jsonl`, and in `homog/` the `airlabels/clips`,
+  `evaluation/findball/labels.jsonl`, `evaluation/fixlab/fixes.jsonl`,
+  `evaluation/passbench/truth.jsonl`, and in `homog/` the `airlabels/clips`,
   `flightlabels/flights` and `fl2db/flights` sets. Each line is
   `["<name>.json", doc]`, the document exactly as the lab's database gave it.
   A fresh download comes down as one file per document; pack it with

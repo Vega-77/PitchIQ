@@ -7,7 +7,7 @@ and found their inputs relative to their own folder, so none of them ran from
 here anyway.
 
 Nothing kept imports, runs or names any of them (`run.sh`, `hybrid.sh`,
-`half.py`, `retrain.sh`, `homog/default_ball_path.sh`, the `alltests/` shell scripts,
+`half.py`, `retrain.sh`, `homog/default_ball_path.sh`, the `evaluation/` shell scripts,
 the scorers the README documents, and everything under `pitchiq/` outside
 `balltrack/`). `hybrid.sh` gave byte-identical outputs on a one-minute window
 before and after each step.
@@ -23,7 +23,7 @@ that had it, then fix its imports to the package layout:
 | what | scripts |
 |---|---|
 | earlier Crop Lab rounds: sheets and hints (their labels are in `labdb5/crops.jsonl`) | `lab_sheets2.py`, `lab_sheets3.py`, `lab_sheets4.py` |
-| every 2D version over the labelled windows, and the queue that fed them to the 3D chain (`alltests/mkpicks_one.py` makes the shipped version for one window) | `alltests/mkpicks.py`, `alltests/q3d.py` |
+| every 2D version over the labelled windows, and the queue that fed them to the 3D chain (`evaluation/mkpicks_one.py` makes the shipped version for one window) | `evaluation/mkpicks.py`, `evaluation/q3d.py` |
 | media for the Air, Flight and Fix Labs, all answered (their labels stay; `score_air_labels.py`, which turns the Air Lab's into `airtruth.npz`, stays too) | `homog/vairclips.py`, `homog/vflightlab.py`, `homog/vfixclips.py` |
 | flight-gate tuning and diagnostics from before the label-free chain (`homog/flight_chain.py`) | `homog/vfltune.py`, `homog/vflapply.py`, `homog/vflfix.py`, `homog/vflfp.py`, `homog/vairwhy.py`, `homog/vfl1.py`, `homog/vfl2.py`, `homog/vfl3.py` |
 | review videos and the venue-map image | `homog/vflvideo.py`, `homog/vflvideo2.py`, `homog/vflvideo3.py`, `homog/vfullvideo.py`, `homog/vphonevideo.py`, `homog/vrender.py` |

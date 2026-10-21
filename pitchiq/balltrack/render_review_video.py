@@ -38,13 +38,13 @@ GREY = (170, 170, 170)
 
 
 def saved_picks(ver, tag):
-    """The picks 2D version `ver` saved (alltests/p2d/<ver>/<tag>.npz), keyed by abs frame.
+    """The picks 2D version `ver` saved (evaluation/p2d/<ver>/<tag>.npz), keyed by abs frame.
 
     A frame with a ball is {src: 'track' | 'fill', x, y, p: 0.0}; one without is {}.
     TAPNext bridge frames (src 3) count as 'fill' unless BRIDGE_TRACK=1.
     """
     bridge_track = os.environ.get('BRIDGE_TRACK') == '1'
-    z = np.load(os.path.join(S2, 'alltests', 'p2d', ver, '%s.npz' % tag))
+    z = np.load(os.path.join(S2, 'evaluation', 'p2d', ver, '%s.npz' % tag))
     by = {}
     for f, x, y, s in zip(z['abs'], z['x'], z['y'], z['src']):
         rec = {}
@@ -58,7 +58,7 @@ def saved_picks(ver, tag):
 def picks_for(tag):
     """The tracker's ball per abs frame: {top: (x, y, p), src, x, y, p}, src 'track' | 'fill'.
 
-    With PIQ_P2D=<ver> set (alltests/mk3d.py sets it), saved_picks(ver, tag) instead.
+    With PIQ_P2D=<ver> set (evaluation/mk3d.py sets it), saved_picks(ver, tag) instead.
     """
     if os.environ.get('PIQ_P2D'):
         return saved_picks(os.environ['PIQ_P2D'], tag)

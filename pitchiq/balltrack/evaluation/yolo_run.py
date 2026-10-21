@@ -1,7 +1,7 @@
 """The old shipped ball detector, COCO YOLOv8n (class 32), at the repo defaults
 (imgsz 1280, conf 0.08), over labelled windows.
 
-    python -m pitchiq.balltrack.alltests.yolo_run <tag> [<tag> ...]   -> yolo/<tag>.npz (f, x, y, conf: every detection)
+    python -m pitchiq.balltrack.evaluation.yolo_run <tag> [<tag> ...]   -> yolo/<tag>.npz (f, x, y, conf: every detection)
                                               p2d/yolo_raw/<tag>.npz   its top detection each frame
                                               p2d/yolo_trk/<tag>.npz   the repo's pitchiq/ball.py build_trajectory
                                                                        (DP + static drop + interpolation),

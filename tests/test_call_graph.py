@@ -133,7 +133,7 @@ PENDING_BY_DESIGN = {
 def _local_only(p: Path) -> bool:
     """Gitignored trees a checkout may hold that are not this project's code:
     the TAPNext clone (google-deepmind/tapnet) and the `h3d_<ver>/` data folders that
-    `pitchiq/balltrack/alltests/mk3d.py` writes, where older runs also copied the chain's scripts.
+    `pitchiq/balltrack/evaluation/mk3d.py` writes, where older runs also copied the chain's scripts.
     """
     return any(part == 'tapnet' or part.startswith('h3d_') for part in p.parts)
 

@@ -1,6 +1,6 @@
 """score_candidates.py with its output redirected.
 
-python -m pitchiq.balltrack.alltests.clsrun <model.pt> <outdir> <tag> [<tag> ...]
+python -m pitchiq.balltrack.evaluation.clsrun <model.pt> <outdir> <tag> [<tag> ...]
 """
 
 import os

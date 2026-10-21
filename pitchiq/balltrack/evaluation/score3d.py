@@ -1,6 +1,6 @@
 """Every 3D output of every version (S2/h3d_<ver>/) against the flight labs.
 
-    python -m pitchiq.balltrack.alltests.score3d           -> results/3d.json + a table
+    python -m pitchiq.balltrack.evaluation.score3d           -> results/3d.json + a table
 
   air    Air Lab (vid1, score_ball3d_air.py): air frames P/R/F, true flights hit, false runs
   fl     Flight Lab (vid1, score_dev_clips.py --holdout): dev + holdout halves, median in-flight position error (SB)

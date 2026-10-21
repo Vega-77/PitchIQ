@@ -53,7 +53,7 @@ def rings(MV, tag, frames):
     tr = MV.V.Track(tag)
     a0 = int(tr.abs[0])
     B = np.load(os.path.join(MV.HG, '%s_ball3dd.npz' % tag))
-    P = np.load(os.path.join(MV.HERE, 'alltests', 'p2d', 'hyb90', '%s.npz' % tag))
+    P = np.load(os.path.join(MV.HERE, 'evaluation', 'p2d', 'hyb90', '%s.npz' % tag))
     air = (B['state'] == 'air') & np.isfinite(B['x'])
     flash = MV.short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
     flash |= MV.ballgate.lost(tag, a0, (P['src'] > 0) & np.isfinite(P['x']))
@@ -99,7 +99,7 @@ def main():
         for _, a, _ in by[tag]:
             vals[a['v']] += 1
         row = dict(answered=len(by[tag]), values=dict(vals))
-        if not os.path.exists(os.path.join(BT, 'alltests', 'p2d', 'hyb90', tag + '.npz')):
+        if not os.path.exists(os.path.join(BT, 'evaluation', 'p2d', 'hyb90', tag + '.npz')):
             row['waiting'] = 'no pass yet'
             out[tag] = row
             print(

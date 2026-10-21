@@ -71,7 +71,7 @@ def per_frame():
     A0 = int(tr.abs[0])
     Hs = np.load(os.path.join(HG, '%s_smooth2.npz' % TAG))['H']
     B = np.load(os.path.join(HG, '%s_ball3dd.npz' % TAG))
-    P = np.load(os.path.join(S2, 'alltests', 'p2d', 'hyb90', '%s.npz' % TAG))
+    P = np.load(os.path.join(S2, 'evaluation', 'p2d', 'hyb90', '%s.npz' % TAG))
     assert int(P['abs'][0]) == A0 and int(B['abs'][0]) == A0
     n = HI - LO
     img = np.full((n, 2), np.nan)

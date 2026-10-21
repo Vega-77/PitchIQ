@@ -16,8 +16,8 @@ __pycache__/
 *.png
 *.ckpt
 h3d_*/
-alltests/p2d/
-alltests/tn/
+evaluation/p2d/
+evaluation/tn/
 tapnext/tapnet/
 homog/*_ballsb.csv
 homog/*_ball3d*.csv

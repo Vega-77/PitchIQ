@@ -6,10 +6,10 @@
 #
 #   1 run.sh           detector + people + cls_B classifier        -> <tag>.npz, <tag>cls.npz ...
 #   2 homog/register_frames.py    pitch registration every 15 frames          -> homog/<tag>_reg.npz
-#   3 shipped picks    cls_B tracker (track_ball + gap_fill)       -> alltests/p2d/cls_B/<tag>.npz
+#   3 shipped picks    cls_B tracker (track_ball + gap_fill)       -> evaluation/p2d/cls_B/<tag>.npz
 #   4 shipped 3D       flights of the shipped picks: the air gate  -> homog/<tag>_ball3dd.npz
-#   5 tn_engine        TAPNext++ fwd + bwd over gaps <= 90 frames  -> alltests/tn/bridges_<tag>.npy
-#   6 hybrid.py        accept bridges (20 px anchors, 24 px agree) -> alltests/p2d/hyb90/<tag>.npz
+#   5 tn_engine        TAPNext++ fwd + bwd over gaps <= 90 frames  -> evaluation/tn/bridges_<tag>.npy
+#   6 hybrid.py        accept bridges (20 px anchors, 24 px agree) -> evaluation/p2d/hyb90/<tag>.npz
 #   7 mk3d.py          default 3D chain on the hybrid picks        -> h3d_hyb90/<tag>_ball3dd.npz
 #
 # The result: h3d_hyb90/<tag>_ball3dd.npz  (abs, x, y, z in StatsBomb 120x80 / CR, state ground|air)
@@ -27,7 +27,7 @@ if [ ! -f "homog/${T}_reg.npz" ]; then
 fi
 
 echo "=== shipped picks $(date +%T)"
-"$PY" -W ignore -m $M.alltests.mkpicks_one "$T"
+"$PY" -W ignore -m $M.evaluation.mkpicks_one "$T"
 
 echo "=== shipped 3D $(date +%T)"
 cd homog
@@ -44,14 +44,14 @@ cd "$B/tapnext"
 "$PY" -u -W ignore -m $M.tapnext.tn_engine bridges "$T" 2>&1 | grep -v Warning | tail -3
 
 echo "=== hybrid $(date +%T)"
-cd "$B/alltests"
-"$PY" -W ignore -m $M.alltests.hybrid "$T"
+cd "$B/evaluation"
+"$PY" -W ignore -m $M.evaluation.hybrid "$T"
 mkdir -p "$B/h3d_hyb90"
 cp "$B/homog/${T}_reg.npz" "$B/h3d_hyb90/"
 [ ! -f "$B/homog/${T}_venue.npz" ] || cp "$B/homog/${T}_venue.npz" "$B/h3d_hyb90/"
 
 echo "=== hybrid 3D $(date +%T)"
-"$PY" -W ignore -m $M.alltests.mk3d hyb90 "$T"
+"$PY" -W ignore -m $M.evaluation.mk3d hyb90 "$T"
 echo "-> h3d_hyb90/${T}_ball3dd.npz"
 
 if [ -n "$RENDER" ]; then

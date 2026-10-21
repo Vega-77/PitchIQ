@@ -19,8 +19,8 @@ reboot redoes only unfinished stages (detect_candidates and the player pieces ke
 own 5-minute parts).
 
 Outputs, as hybrid.sh writes them for a window:
-  alltests/p2d/cls_B/<tag>.npz, homog/<tag>_ball3dd.npz        shipped picks + 3D
-  alltests/p2d/hyb90/<tag>.npz, h3d_hyb90/<tag>_ball3dd.npz    Hybrid 90 + 3D
+  evaluation/p2d/cls_B/<tag>.npz, homog/<tag>_ball3dd.npz        shipped picks + 3D
+  evaluation/p2d/hyb90/<tag>.npz, h3d_hyb90/<tag>_ball3dd.npz    Hybrid 90 + 3D
   plab/out/<tag>_dets.npz, <tag>_feat.npz                      players
   half/<tag>/seams.json, log.txt
 """
@@ -41,7 +41,7 @@ from . import config, detect_candidates, script
 S2 = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(S2))
 HOM = os.path.join(S2, 'homog')
-AT = os.path.join(S2, 'alltests')
+AT = os.path.join(S2, 'evaluation')
 TNX = os.path.join(S2, 'tapnext')
 H3D = os.path.join(S2, 'h3d_hyb90')
 PY = sys.executable
@@ -223,7 +223,7 @@ class Half:
     def shipped(self, p):
         P = p['ptag']
         log = os.path.join(HOM, '%s_chain.log' % P)
-        self.run(AT, 'alltests.mkpicks_one', P, log=log, env=ONE_THREAD)
+        self.run(AT, 'evaluation.mkpicks_one', P, log=log, env=ONE_THREAD)
         for cmd in (
             ('homog.ball_on_pitch', P),
             ('homog.image_track', P),
@@ -262,13 +262,13 @@ class Half:
 
     def hybrid(self, p):
         P = p['ptag']
-        self.run(AT, 'alltests.hybrid', P, env=ONE_THREAD)
+        self.run(AT, 'evaluation.hybrid', P, env=ONE_THREAD)
         os.makedirs(H3D, exist_ok=True)
         for kind in ('reg', 'venue'):
             src = os.path.join(HOM, '%s_%s.npz' % (P, kind))
             if os.path.exists(src):
                 shutil.copy2(src, H3D)
-        self.run(AT, 'alltests.mk3d', 'hyb90', P, env=ONE_THREAD)
+        self.run(AT, 'evaluation.mk3d', 'hyb90', P, env=ONE_THREAD)
 
     # ---- the queues ----------------------------------------------------------------------
     # Four kinds of lane. The players' detector spends four fifths of its time on
