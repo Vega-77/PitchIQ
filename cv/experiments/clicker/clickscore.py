@@ -1,4 +1,6 @@
-"""Score the pipeline's ball rings against the Ball Clicker answers: the step-7 grid's two ball rows.
+"""Score the pipeline's ball rings against the Ball Clicker answers.
+
+These are the step-7 grid's two ball rows.
 
 Each answered item is one frame of one half. The ring there is the one the videos draw
 (match_video.ball's steps, at the answered frames only: Hybrid 90 + 3D air ball, short flashes and

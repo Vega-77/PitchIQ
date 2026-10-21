@@ -1,4 +1,6 @@
-"""The shipped tracker's picks (cls_B: viterbi7 + gapfill) for one window -> p2d/cls_B/<tag>.npz.
+"""The shipped tracker's picks for one window -> p2d/cls_B/<tag>.npz.
+
+cls_B is viterbi7 + gapfill.
 
     python mkpicks_one.py <tag>
 

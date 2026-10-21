@@ -1,4 +1,7 @@
-"""Baseline code-clarity metrics for PitchIQ. Run from the repo root: python tools/audit_metrics.py"""
+"""Baseline code-clarity metrics for PitchIQ.
+
+Run from the repo root:  python tools/audit_metrics.py
+"""
 
 import ast
 import collections

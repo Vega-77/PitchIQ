@@ -1,4 +1,4 @@
-"""The top-down map: everyone on the pitch, every frame, smooth, and honest about who is unseen.
+"""Top-down map: everyone on the pitch, every frame, smooth, honest about who is unseen.
 
 `cv/linking.py` says who each box is. This module says where each person
 stands, in metres, for every frame of the window, including the frames the

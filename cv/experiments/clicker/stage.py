@@ -1,4 +1,6 @@
-"""Stage the Ball Clicker site for publishing: the page, batches.json, and the live batches' media.
+"""Stage the Ball Clicker site for publishing.
+
+The page, batches.json, and the live batches' media.
 
     python stage.py <site dir> b1 [b2 ...]     -> <site>/index.html, batches.json, batches/<b>/...
 

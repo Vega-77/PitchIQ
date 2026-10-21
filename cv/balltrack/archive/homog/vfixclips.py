@@ -1,4 +1,6 @@
-"""Fix Lab data: the default model (ball3dd) on a new window, for the user to mark what is wrong.
+"""Fix Lab data: the default model (ball3dd) on a new window.
+
+For the user to mark what is wrong.
 
 fixlab/clips/<abs>.webm  15 s pieces at 10 fps: the clean camera (768x432) and a
                          256 px close-up around the model's ball, no overlay baked in

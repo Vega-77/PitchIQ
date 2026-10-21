@@ -1,4 +1,7 @@
-"""clsscore.py with its output redirected:  python clsrun.py <model.pt> <outdir> <tag> [<tag> ...]"""
+"""clsscore.py with its output redirected.
+
+python clsrun.py <model.pt> <outdir> <tag> [<tag> ...]
+"""
 
 import os
 import sys
