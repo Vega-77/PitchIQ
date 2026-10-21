@@ -13,7 +13,7 @@ from multiprocessing import Pool
 import numpy as np
 from scipy.optimize import least_squares
 
-from . import vflight as V
+from . import flight_model as V
 from . import vdrag as D
 from . import vflscan as S1
 

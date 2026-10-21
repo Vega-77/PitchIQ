@@ -22,9 +22,9 @@ from .. import render_review_video as RV  # colours, clock
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
 HG = os.path.join(S2, 'h3d_hyb90')
-homog.WORK = HG  # vflight reads the hybrid 3D chain's files (run from h3d_hyb90/)
+homog.WORK = HG  # flight_model reads the hybrid 3D chain's files (run from h3d_hyb90/)
 from ..homog import vovl  # noqa: E402
-from ..homog import vflight as V  # noqa: E402
+from ..homog import flight_model as V  # noqa: E402
 
 TAG, LO, HI = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 PART = sys.argv[4] if len(sys.argv) > 4 else ''

@@ -2,7 +2,7 @@
 Linear in (uv0, v) for fixed k, so k is scanned."""
 
 import numpy as np
-from . import vflight as V
+from . import flight_model as V
 
 KS = np.linspace(0, 1.5, 16)
 

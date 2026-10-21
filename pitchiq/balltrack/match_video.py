@@ -28,9 +28,9 @@ from . import render_review_video as RV  # clock
 HERE = os.path.dirname(os.path.abspath(__file__))
 HG = os.path.join(HERE, 'h3d_hyb90')
 os.chdir(HG)  # vovl reads its maps from the working folder
-homog.WORK = HG  # and vflight from its work folder
+homog.WORK = HG  # and flight_model from its work folder
 from .homog import vovl  # noqa: E402
-from .homog import vflight as V  # noqa: E402
+from .homog import flight_model as V  # noqa: E402
 
 WD = 720
 CW, CH = 720, 405

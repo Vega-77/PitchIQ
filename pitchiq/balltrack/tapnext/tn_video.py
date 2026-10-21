@@ -17,7 +17,7 @@ import numpy as np
 
 from .. import render_review_video as RV
 from ..homog import vovl
-from ..homog import vflight as V
+from ..homog import flight_model as V
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)

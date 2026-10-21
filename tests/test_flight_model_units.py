@@ -1,4 +1,4 @@
-"""Flight units per camera: vflight works in camera heights, so gravity and the
+"""Flight units per camera: flight_model works in camera heights, so gravity and the
 centre circle must follow the camera that filmed the flight."""
 
 from __future__ import annotations
@@ -7,7 +7,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pitchiq.balltrack.homog import vflight as V
+from pitchiq.balltrack.homog import flight_model as V
 
 
 @pytest.fixture(autouse=True)

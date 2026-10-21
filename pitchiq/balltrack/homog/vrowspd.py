@@ -11,7 +11,7 @@ from multiprocessing import Pool
 
 import numpy as np
 
-from . import vflight as V
+from . import flight_model as V
 from . import vroll as R
 
 _TR = None
