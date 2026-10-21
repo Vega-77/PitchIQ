@@ -124,6 +124,28 @@ class TestCalibration:
             analyse_match(tmp_path / 'x.mp4', calibration_path='x.json', panned=camera([0], [0.0]))
 
 
+class TestFromTracker:
+    """The tracker's files are generated, not in git: a fresh checkout has none."""
+
+    def test_a_tag_never_tracked_names_its_files_and_the_command(self, tmp_path, monkeypatch):
+        monkeypatch.setattr('cv.panned.TRACKER', tmp_path)
+        with pytest.raises(FileNotFoundError) as e:
+            PannedCamera.from_tracker('nb9')
+        msg = str(e.value)
+        for name in ('nb9_smooth2.npz', 'nb9_ball3dd.npz', 'nb9.npz'):
+            assert name in msg
+        assert 'sh hybrid.sh <lo> <hi> nb9' in msg
+
+    def test_only_the_missing_ones_are_named(self, tmp_path, monkeypatch):
+        monkeypatch.setattr('cv.panned.TRACKER', tmp_path)
+        (tmp_path / 'h3d_hyb90').mkdir()
+        np.savez(tmp_path / 'h3d_hyb90' / 'nb9_smooth2.npz', abs=np.arange(3))
+        with pytest.raises(FileNotFoundError) as e:
+            PannedCamera.from_tracker('nb9')
+        assert 'smooth2' not in str(e.value)
+        assert 'nb9_ball3dd.npz' in str(e.value)
+
+
 # ---------------------------------------------------------------- end to end
 
 import test_pipeline_end_to_end as e2e  # noqa: E402  (a `tests` package in the venv shadows ours)

@@ -152,11 +152,30 @@ class PannedCamera:
 
     @classmethod
     def from_tracker(cls, tag: str, version: str = 'hyb90') -> 'PannedCamera':
-        """Load what `cv/balltrack/hybrid.sh <lo> <hi> <tag>` left behind."""
+        """Load what `cv/balltrack/hybrid.sh <lo> <hi> <tag>` left behind.
+
+        Those files are generated, not in git. The chain that makes them:
+        the camera's registration (`python -m cv.experiments.autocal_run`,
+        which writes `homog/<tag>_reg.npz` and `<tag>_venue.npz`; hybrid.sh
+        falls back to `homog/vreg.py` on the scrimmage's venue map), then
+        `hybrid.sh` for a window or `half.py` for a half, with PIQ_VIDEO set
+        to the match. See `cv/balltrack/README.md`.
+        """
         homog = TRACKER / 'homog'
-        smooth = np.load(TRACKER / f'h3d_{version}' / f'{tag}_smooth2.npz')
-        ball = np.load(TRACKER / f'h3d_{version}' / f'{tag}_ball3dd.npz')
-        picks = np.load(TRACKER / 'alltests' / 'p2d' / version / f'{tag}.npz')
+        paths = (
+            TRACKER / f'h3d_{version}' / f'{tag}_smooth2.npz',
+            TRACKER / f'h3d_{version}' / f'{tag}_ball3dd.npz',
+            TRACKER / 'alltests' / 'p2d' / version / f'{tag}.npz',
+        )
+        missing = [str(p) for p in paths if not p.exists()]
+        if missing:
+            raise FileNotFoundError(
+                f"{tag}: the ball tracker has not been run for this tag; missing "
+                f"{', '.join(missing)}. Make them with `sh hybrid.sh <lo> <hi> {tag}` "
+                f"in cv/balltrack (a window) or `python half.py {tag} <lo> <hi>` "
+                "(a half), with PIQ_VIDEO set to the match; cv/balltrack/README.md "
+                "has the steps before that.")
+        smooth, ball, picks = (np.load(p) for p in paths)
         frames = smooth['abs']
         if not (np.array_equal(ball['abs'], frames) and np.array_equal(picks['abs'], frames)):
             raise ValueError(f'{tag}: tracker outputs cover different frames')
