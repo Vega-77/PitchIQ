@@ -7,7 +7,7 @@ import os
 import sys
 
 from .. import score_candidates
-from ..train_cls import load_model
+from ..train_ball_classifier import load_model
 
 
 out = sys.argv[2]

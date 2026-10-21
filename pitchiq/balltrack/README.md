@@ -175,7 +175,7 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   otherball, other, unsure). These come from the human labelling rounds.
   `croplab/index.html` is the labelling page. Label `near` ("Beside the
   ball", added in round 6) marks a crop within a ball-width or two of the
-  real ball. `train_cls.py` skips it, because it counts as a right position
+  real ball. `train_ball_classifier.py` skips it, because it counts as a right position
   but not a clean ball crop.
 - `retrain.sh` trains `cls_A`/`cls_B` from those labels. It needs the training
   crop caches (`trNNcrops.npz`), which are not committed. Rebuild them with

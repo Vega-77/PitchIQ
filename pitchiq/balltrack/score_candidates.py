@@ -88,7 +88,7 @@ def run(model, tag):
 
 
 def main():
-    from .train_cls import load_model
+    from .train_ball_classifier import load_model
 
     model = load_model(sys.argv[1])
     for tag in sys.argv[2:]:

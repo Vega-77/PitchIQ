@@ -61,10 +61,10 @@ human line is the one to believe; the other is there because early on it
 may be the only one with enough frames to say anything.  Folds run a fixed epoch count and report the
 last epoch - no picking the best epoch on val.
 
-    python -m pitchiq.balltrack.train_cls train --tags tr00,tr01,tr02 [--epochs 30] [--out cls.pt]
-    python -m pitchiq.balltrack.train_cls score tr00 --model cls.pt       # -> tr00cls.npz
+    python -m pitchiq.balltrack.train_ball_classifier train --tags tr00,tr01,tr02 [--epochs 30] [--out cls.pt]
+    python -m pitchiq.balltrack.train_ball_classifier score tr00 --model cls.pt       # -> tr00cls.npz
 
-    from train_cls import load_model
+    from train_ball_classifier import load_model
     m = load_model('cls.pt'); p = m.score(crops_uint8, ctx)   # log-odds
 """
 

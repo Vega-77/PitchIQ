@@ -16,8 +16,8 @@ json.dump(P+H,open('labels_A.json','w'))
 json.dump([r for r in P if r['label']!='ball']+H,open('labels_B.json','w'))
 print('human',len(H),'pseudo',len(P))
 " || exit 1
-"$PY" -m $M.train_cls train --tags $TAGS --labels labels_A.json --out cls_A.pt > train_A.log 2>&1 &
-"$PY" -m $M.train_cls train --tags $TAGS --labels labels_B.json --out cls_B.pt > train_B.log 2>&1 &
+"$PY" -m $M.train_ball_classifier train --tags $TAGS --labels labels_A.json --out cls_A.pt > train_A.log 2>&1 &
+"$PY" -m $M.train_ball_classifier train --tags $TAGS --labels labels_B.json --out cls_B.pt > train_B.log 2>&1 &
 wait
 for v in A B; do
   [ -f cls_$v.pt ] || { echo "no cls_$v.pt"; continue; }
