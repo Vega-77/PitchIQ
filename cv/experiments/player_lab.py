@@ -47,7 +47,7 @@ from cv.pitchtrack import (
 
 PLAB = Path(__file__).resolve().parents[1] / 'balltrack' / 'plab'
 VIDEO = os.environ.get(
-    'PIQ_VIDEO', 'C:/Users/alexv/Downloads/8-26-26 Scrimmage v Gov Livingston - Tactical.mp4')
+    'PIQ_VIDEO', str(Path.home() / 'Downloads' / '8-26-26 Scrimmage v Gov Livingston - Tactical.mp4'))
 LO, N = 136170, 600
 
 

@@ -1,7 +1,7 @@
 """Run the whole pipeline over a clip and print the report.
 
     PitchIQHelper/.venv/Scripts/python.exe -m cv.experiments.match_report \
-        --video "C:/Users/alexv/Videos/clip.mp4" --start 30 --end 50
+        --video clips/clip.mp4 --start 30 --end 50
 
 This is the only entry point that exercises analyse_match end to end, which is
 otherwise reachable only from Python. Without --calibration it still runs, and

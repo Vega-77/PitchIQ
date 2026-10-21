@@ -21,7 +21,10 @@ import cv2
 import numpy as np
 from PIL import Image
 
-DL = 'C:/Users/alexv/Downloads/'
+DL = os.path.join(os.path.expanduser('~'), 'Downloads', '')
+# PIQ_DATA: the data folder beside the repo, as cv/experiments/autocal_run.py has it.
+DATA = os.environ.get('PIQ_DATA', os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))), 'PitchIQ-data'))
 VID = {
     'nb': DL + "North Brunswick vs South Brunswick High School Boys' Varsity Soccer - Tactical.mp4",
     'ww': DL + 'Home v West Windsor South 9-19-2026 - Tactical.mp4',
@@ -93,7 +96,7 @@ def render(job):
 
 
 def main():
-    root = sys.argv[1] if len(sys.argv) > 1 else 'C:/Users/alexv/Desktop/Repos/PitchIQ-data/clicker'
+    root = sys.argv[1] if len(sys.argv) > 1 else os.path.join(DATA, 'clicker')
     items = plan()
     for b in range(1, BATCHES + 1):
         os.makedirs(os.path.join(root, 'b%d' % b), exist_ok=True)

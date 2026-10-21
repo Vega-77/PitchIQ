@@ -41,3 +41,8 @@ match_stats*.json
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+
+# Machine-local: session handoff notes and the preview servers' config,
+# both full of this machine's paths. They stay on disk, out of git.
+/HANDOFF*.md
+/.claude/launch.json

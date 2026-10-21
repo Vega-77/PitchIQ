@@ -11,7 +11,7 @@ from multiprocessing import Pool
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = 'C:/Users/alexv/Desktop/Repos/PitchIQ'
+REPO = os.environ.get('PIQ_REPO', os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
 STEP = 15
 MIN_INL = 30
 

@@ -1,5 +1,5 @@
-import sys, cv2, numpy as np, vfeats
-sys.path.insert(0, 'C:/Users/alexv/Desktop/Repos/PitchIQ')
+import os, sys, cv2, numpy as np, vfeats
+sys.path.insert(0, os.environ.get('PIQ_REPO', os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))))
 from cv import lines as L
 z = np.load('vmap.npz'); t = np.load('vtop.npz')
 B, K, T, size = t['B'], t['K'], t['T'], tuple(int(v) for v in t['size'])

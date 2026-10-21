@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, 'C:/Users/alexv/Desktop/Repos/PitchIQ')
+sys.path.insert(0, os.environ.get('PIQ_REPO', os.path.dirname(os.path.dirname(os.path.dirname(HERE)))))
 from cv import lines as L                          # noqa: E402
 import vfeats                                      # noqa: E402
 

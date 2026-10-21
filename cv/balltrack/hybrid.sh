@@ -15,7 +15,9 @@
 # The result: h3d_hyb90/<tag>_ball3dd.npz  (abs, x, y, z in StatsBomb 120x80 / CR, state ground|air)
 # Speed: step 5 costs ~1 min of GPU per match minute (384 px window + early stop); TNS=512 was ~3.
 set -e
-PY="${PY:-C:/Users/alexv/Desktop/Repos/PitchIQ/PitchIQHelper/.venv/Scripts/python.exe}"
+R="$(cd "$(dirname "$0")/../.." && pwd)"
+V="$R/PitchIQHelper/.venv/Scripts/python.exe"; [ -x "$V" ] || V=python
+PY="${PY:-$V}"
 cd "$(dirname "$0")"
 B=$(pwd -W 2>/dev/null || pwd)
 LO=$1; HI=$2; T=$3

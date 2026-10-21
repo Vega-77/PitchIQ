@@ -93,7 +93,7 @@ Some files are not in git:
 - The lab clip media.
 
 All of these exist in this checkout and in the full backup at
-`Desktop/Repos/PitchIQ-data/scratch-2026-10-03`. The layout keeps every
+`PitchIQ-data/scratch-2026-10-03` beside the repo. The layout keeps every
 script's `S2 = dirname(HERE)` pointing here, so no path was edited in the move.
 
 ## How good it is
@@ -130,7 +130,8 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   some of them. About 20 of 68 missed test balls were never proposed by the
   detector at all.
 - Cleats are the classifier's most confident false ball.
-- `feat4.py`, `feat_t4.py` and `dtrack2.py` still name an old scratchpad for
-  the first labelling round's data. Only the legacy training paths read it;
-  `run.sh` does not.
+- `feat4.py`, `feat_t4.py` and `dtrack2.py` read the first labelling round's
+  data from an old scratchpad that no longer exists; set `PIQ_LEGACY_SP` to a
+  copy to rerun them. Only the legacy training paths read it; `run.sh` does
+  not.
 - Positions are image pixels. Mapping them onto the pitch is the next step.

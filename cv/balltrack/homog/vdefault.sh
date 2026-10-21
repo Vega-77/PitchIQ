@@ -6,10 +6,12 @@
 #
 #   sh vdefault.sh vid2        (needs <tag>_scan2.npz from vflscan2.py)
 cd "$(dirname "$0")"
-PY=C:/Users/alexv/Desktop/Repos/PitchIQ/PitchIQHelper/.venv/Scripts/python.exe
+R="$(cd ../../.. && pwd)"
+V="$R/PitchIQHelper/.venv/Scripts/python.exe"; [ -x "$V" ] || V=python
+PY="${PY:-$V}"
 set -e
 tag=${1:-vid1}
-$PY vflchain2.py $tag
-VS_B3=${tag}_ball3d2.npz $PY vsmooth.py $tag
-$PY _mk.py ${tag}_ball3d2.npz ${tag}_smooth.npz ${tag}_ball3dd.npz
+"$PY" vflchain2.py $tag
+VS_B3=${tag}_ball3d2.npz "$PY" vsmooth.py $tag
+"$PY" _mk.py ${tag}_ball3d2.npz ${tag}_smooth.npz ${tag}_ball3dd.npz
 echo "-> ${tag}_ball3dd.npz"

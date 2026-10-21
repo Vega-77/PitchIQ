@@ -1,7 +1,7 @@
 """Run the event chain over a clip and print what it found, timestamped.
 
     PitchIQHelper/.venv/Scripts/python.exe -m cv.experiments.event_report \
-        --video "C:/Users/alexv/Videos/clip.mp4" --start 90 --end 105
+        --video clips/clip.mp4 --start 90 --end 105
 
 This exists to be checked against the video, not to be believed on its own.
 Every threshold in cv/touches.py and cv/events.py is a guess that has never

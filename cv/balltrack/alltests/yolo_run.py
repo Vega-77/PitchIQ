@@ -16,7 +16,7 @@ import cv2
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__)); S2 = os.path.dirname(HERE)
-REPO = 'C:/Users/alexv/Desktop/Repos/PitchIQ'
+REPO = os.environ.get('PIQ_REPO', os.path.dirname(os.path.dirname(S2)))
 sys.path.insert(0, S2); sys.path.insert(0, REPO)
 from cv.ball import BallCandidate, build_trajectory   # noqa: E402
 

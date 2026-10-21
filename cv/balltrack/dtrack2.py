@@ -42,10 +42,10 @@ import os
 
 import numpy as np
 
-SP = ('C:/Users/alexv/AppData/Local/Temp/claude/'
-      'C--Users-alexv-Desktop-Repos-PitchIQ/'
-      '7f31f241-b244-4121-aa07-4ef3b9736b2a/scratchpad')
 S2 = os.path.dirname(os.path.abspath(__file__))
+# The first labelling round's scratchpad (label/manifest.json, clips/). The
+# temp folder it lived in is gone; point PIQ_LEGACY_SP at a copy to rerun this.
+SP = os.environ.get('PIQ_LEGACY_SP', os.path.join(S2, 'legacy_sp'))
 
 TOL = 60.0
 SPEED = 1100.0

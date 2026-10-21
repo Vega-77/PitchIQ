@@ -10,7 +10,7 @@ __pycache__/
 !cls_B.pt
 *_timing.json
 
-# Hybrid 90: run outputs and big local inputs (full backup: Desktop/Repos/PitchIQ-data/scratch-2026-10-03)
+# Hybrid 90: run outputs and big local inputs (full backup: PitchIQ-data/scratch-2026-10-03, beside the repo)
 *.npy
 *.webm
 *.png

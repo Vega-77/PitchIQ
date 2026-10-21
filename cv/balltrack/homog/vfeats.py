@@ -15,9 +15,9 @@ from multiprocessing import Pool
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = 'C:/Users/alexv/Desktop/Repos/PitchIQ'
-VIDEO = os.environ.get('PIQ_VIDEO', 'C:/Users/alexv/Downloads/'
-                       '8-26-26 Scrimmage v Gov Livingston - Tactical.mp4')
+REPO = os.environ.get('PIQ_REPO', os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
+VIDEO = os.environ.get('PIQ_VIDEO', os.path.join(os.path.expanduser('~'), 'Downloads',
+                                                 '8-26-26 Scrimmage v Gov Livingston - Tactical.mp4'))
 STEP = 150
 PERIODS = [(32400, 108000), (127350, 201150)]
 NFEAT = 1500

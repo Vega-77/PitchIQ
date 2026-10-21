@@ -1,8 +1,8 @@
 """Long straight paint segments (any colour) from every 2nd keyframe, in
 reference-plane coordinates.  -> vsegs.npz (k, p0, p1 in ref plane, len_px)"""
-import sys
+import os, sys
 import cv2, numpy as np
-sys.path.insert(0, 'C:/Users/alexv/Desktop/Repos/PitchIQ')
+sys.path.insert(0, os.environ.get('PIQ_REPO', os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))))
 from cv import lines as L
 import vfeats
 z = np.load('vmap.npz')

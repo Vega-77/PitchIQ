@@ -56,12 +56,12 @@ import time
 import cv2
 import numpy as np
 
-SP = ('C:/Users/alexv/AppData/Local/Temp/claude/'
-      'C--Users-alexv-Desktop-Repos-PitchIQ/'
-      '7f31f241-b244-4121-aa07-4ef3b9736b2a/scratchpad')
 S2 = os.path.dirname(os.path.abspath(__file__))
-VIDEO = os.environ.get('PIQ_VIDEO', 'C:/Users/alexv/Downloads/'
-                       '8-26-26 Scrimmage v Gov Livingston - Tactical.mp4')
+# The first labelling round's scratchpad (label/manifest.json, clips/). The
+# temp folder it lived in is gone; point PIQ_LEGACY_SP at a copy to rerun this.
+SP = os.environ.get('PIQ_LEGACY_SP', os.path.join(S2, 'legacy_sp'))
+VIDEO = os.environ.get('PIQ_VIDEO', os.path.join(os.path.expanduser('~'), 'Downloads',
+                                                 '8-26-26 Scrimmage v Gov Livingston - Tactical.mp4'))
 OUT = os.path.join(S2, 'still4.npz')
 
 POS_TOL = 8.0

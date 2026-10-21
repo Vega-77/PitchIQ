@@ -14,7 +14,10 @@ import shutil
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = 'C:/Users/alexv/Desktop/Repos/PitchIQ-data/clicker'
+# PIQ_DATA: the data folder beside the repo, as cv/experiments/autocal_run.py has it.
+DATA = os.environ.get('PIQ_DATA', os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))), 'PitchIQ-data'))
+ROOT = os.path.join(DATA, 'clicker')
 
 site, live = sys.argv[1], sys.argv[2:]
 os.makedirs(os.path.join(site, 'batches'), exist_ok=True)

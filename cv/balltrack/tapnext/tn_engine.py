@@ -23,7 +23,6 @@ import torch
 
 HERE = os.path.dirname(os.path.abspath(__file__)); S2 = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(HERE, 'tapnet')); sys.path.insert(0, S2)
-sys.path.append('C:/Users/alexv/Desktop/Repos/PitchIQ/cv/balltrack')   # feat4 (video path) now lives in the repo
 from tapnet.tapnextpp.votsp2026.model import TAPNextPP   # noqa: E402
 sys.path.insert(0, os.path.join(S2, 'alltests'))
 from hybrid import AGR, ANC, air_mask   # noqa: E402
