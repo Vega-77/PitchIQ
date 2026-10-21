@@ -434,7 +434,7 @@ def periods_from_log(entries) -> PeriodTable:
     """
     usable = []
     for entry in entries or ():
-        clock = _clock_of(entry)
+        clock = clock_of(entry)
         kind = entry.get('type') if hasattr(entry, 'get') else None
         if clock is None or not isinstance(kind, str):
             continue
@@ -468,7 +468,12 @@ def periods_from_log(entries) -> PeriodTable:
     return PeriodTable(spans=spans)
 
 
-def _clock_of(entry) -> float | None:
+def clock_of(entry) -> float | None:
+    """A log entry's `matchClockS` as a float, or None when it has no usable one.
+
+    Booleans are refused even though Python counts them as ints: a `true` in
+    the clock field is a corrupt entry, not second 1.
+    """
     value = entry.get('matchClockS') if hasattr(entry, 'get') else None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
@@ -489,7 +494,7 @@ def phases_from_log(
     """
     usable = []
     for entry in entries or ():
-        clock = _clock_of(entry)
+        clock = clock_of(entry)
         kind = entry.get('type') if hasattr(entry, 'get') else None
         if clock is None or not isinstance(kind, str):
             continue

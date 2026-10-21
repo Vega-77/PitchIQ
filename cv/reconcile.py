@@ -41,7 +41,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from . import zones
-from .phases import VideoClock
+from .phases import VideoClock, clock_of
 
 # A tagger taps a goal after the ball crosses the line, usually after watching
 # the celebration start. Fifteen seconds is generous on purpose: matching a real
@@ -160,13 +160,6 @@ def _round(value, places: int = 3):
     return None if value is None else round(float(value), places)
 
 
-def _clock_of(entry) -> float | None:
-    value = entry.get('matchClockS') if hasattr(entry, 'get') else None
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    return float(value)
-
-
 def tagged_times(entries, types, clock: VideoClock | None = None) -> list[float]:
     """When the tagger recorded each of `types`, in video seconds.
 
@@ -185,7 +178,7 @@ def tagged_times(entries, types, clock: VideoClock | None = None) -> list[float]
     out = []
     for entry in entries or ():
         kind = entry.get('type') if hasattr(entry, 'get') else None
-        clock_s = _clock_of(entry)
+        clock_s = clock_of(entry)
         if clock_s is None or kind not in wanted:
             continue
         out.append(clock.to_video(clock_s))

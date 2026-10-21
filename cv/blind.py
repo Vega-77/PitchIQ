@@ -66,7 +66,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .phases import VideoClock
+from .phases import VideoClock, clock_of
 
 # How far outside an unseen stretch a tagged event may sit and still account
 # for it. Wide enough to cover `phases.TAG_SLOP_S` at both ends plus a thumb
@@ -192,13 +192,6 @@ def _round(value, places: int = 1):
     return None if value is None else round(float(value), places)
 
 
-def _clock_of(entry) -> float | None:
-    value = entry.get('matchClockS') if hasattr(entry, 'get') else None
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    return float(value)
-
-
 def tagged_moments(entries, clock: VideoClock | None = None):
     """Every tagged entry as `(video_s, type)`, in order.
 
@@ -211,7 +204,7 @@ def tagged_moments(entries, clock: VideoClock | None = None):
     out = []
     for entry in entries or ():
         kind = entry.get('type') if hasattr(entry, 'get') else None
-        clock_s = _clock_of(entry)
+        clock_s = clock_of(entry)
         if clock_s is None or not kind:
             continue
         out.append((clock.to_video(clock_s), str(kind)))
