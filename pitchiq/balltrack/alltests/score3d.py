@@ -2,7 +2,7 @@
 
     python -m pitchiq.balltrack.alltests.score3d           -> results/3d.json + a table
 
-  air    Air Lab (vid1, vscore2.py): air frames P/R/F, true flights hit, false runs
+  air    Air Lab (vid1, score_ball3d_air.py): air frames P/R/F, true flights hit, false runs
   fl     Flight Lab (vid1, score_dev_clips.py --holdout): dev + holdout halves, median in-flight position error (SB)
   fl2    Flight Lab 2 (vid2, vscorev2.py): air P/R/F, flights hit, false runs, spot and track error
   fix    Fix Lab (vid3): share of the kicked-off-screen span (p173199) claimed air; SB error at
@@ -116,7 +116,7 @@ def score(ver):
     for k, stem in FILES.items():
         r = {}
         if os.path.exists(os.path.join(d, 'vid1_%s.npz' % stem)):
-            ln = sh(d, 'vscore2', 'vid1_%s.npz' % stem)
+            ln = sh(d, 'score_ball3d_air', 'vid1_%s.npz' % stem)
             r['air'] = nums(ln[-1], AIR)
             r['air_txt'] = ln[-1]
             ln = sh(d, 'score_dev_clips', '--holdout', 'vid1_%s.npz' % stem)
