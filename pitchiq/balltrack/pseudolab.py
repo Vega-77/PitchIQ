@@ -17,7 +17,7 @@ Frames the path does not commit on give nothing: "no pick" means not sure,
 not "no ball", and a ball there would become a negative.
 
 2 in 48 is still ~4% of positives wrong, so these carry weight W_PSEUDO
-and Alex's clicks (croplab) override them.
+and Alex's clicks (crop_labeler) override them.
 
     python -m pitchiq.balltrack.pseudolab tr00 tr01 ...    # -> pseudo_labels.json,
                                          #    <tag>frames.json (for candidate_crops.py)

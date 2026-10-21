@@ -173,7 +173,7 @@ Treat a wrong pick as worse than a missing one when changing anything here.
 
 - `crop_labels/crops.jsonl` holds 1520 Crop Lab labels (ball, cleat, head,
   otherball, other, unsure). These come from the human labelling rounds.
-  `croplab/index.html` is the labelling page. Label `near` ("Beside the
+  `crop_labeler/index.html` is the labelling page. Label `near` ("Beside the
   ball", added in round 6) marks a crop within a ball-width or two of the
   real ball. `train_ball_classifier.py` skips it, because it counts as a right position
   but not a clean ball crop.

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Two label sets from the croplab db dump in crop_labels/, trained side by side,
+# Two label sets from the crop_labeler db dump in crop_labels/, trained side by side,
 # then each scored on the wm test clips in turn (score_candidates overwrites
 # wmNNcls.npz, so the scoring is sequential).
 #   A  pseudo-labels (ball + notball) + human
