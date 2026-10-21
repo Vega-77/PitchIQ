@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ._util import round_or_none
 from .phases import VideoClock, clock_of
 
 # How far outside an unseen stretch a tagged event may sit and still account
@@ -133,17 +134,15 @@ class Blindness:
         return {
             'total_s': round(self.total_s, 1),
             'checked': self.checked,
-            'dead_s': _round(self.seconds(DEAD)) if self.checked else None,
-            'accounted_s': _round(self.seconds(ACCOUNTED)) if self.checked else None,
-            'unexplained_s': (_round(self.seconds(UNEXPLAINED)) if self.checked else None),
+            'dead_s': round_or_none(self.seconds(DEAD), 1) if self.checked else None,
+            'accounted_s': round_or_none(self.seconds(ACCOUNTED), 1) if self.checked else None,
+            'unexplained_s': (
+                round_or_none(self.seconds(UNEXPLAINED), 1) if self.checked else None
+            ),
             # The list is only ever the ones nothing accounted for. The others
             # are a number; these are a place to send someone looking.
             'worst': [s.to_json() for s in self.named()[:5]],
         }
-
-
-def _round(value, places: int = 1):
-    return None if value is None else round(float(value), places)
 
 
 def tagged_moments(entries, clock: VideoClock | None = None):

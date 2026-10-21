@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ._util import round_or_none
 from . import zones
 from .phases import VideoClock, clock_of
 
@@ -122,8 +123,8 @@ class Reconciliation:
 
     def to_json(self) -> dict:
         return {
-            'goal_agreement': _round(self.rate(GOAL)),
-            'exit_agreement': _round(self.rate('exit')),
+            'goal_agreement': round_or_none(self.rate(GOAL), 3),
+            'exit_agreement': round_or_none(self.rate('exit'), 3),
             'goals': self.counts(GOAL),
             'exits': self.counts('exit') if self.exits_checked else None,
             'exits_checked': self.exits_checked,
@@ -132,10 +133,6 @@ class Reconciliation:
             # throw-ins and nobody is scrubbing to each one.
             'disagreements': [e.to_json() for e in self.disagreements(GOAL)],
         }
-
-
-def _round(value, places: int = 3):
-    return None if value is None else round(float(value), places)
 
 
 def tagged_times(entries, types, clock: VideoClock | None = None) -> list[float]:

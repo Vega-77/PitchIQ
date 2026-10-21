@@ -15,6 +15,8 @@ Design notes, measurements and history: `docs/design/run_timing.md`.
 
 from __future__ import annotations
 
+from ._util import round_or_none
+
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -203,19 +205,15 @@ class Timings:
             'fixed_s': round(self.fixed_s, 3),
             'scaling_s': round(self.scaling_s, 3),
             'footage_s': round(footage_s, 1) if footage_s else None,
-            'realtime_factor': _round(self.realtime_factor(footage_s), 3),
+            'realtime_factor': round_or_none(self.realtime_factor(footage_s), 3),
             'keeps_up': self.keeps_up(footage_s),
-            'lag_s': _round(self.lag_s(footage_s, half_s), 1),
-            'projected_half_s': _round(self.project_s(footage_s, half_s), 1),
+            'lag_s': round_or_none(self.lag_s(footage_s, half_s), 1),
+            'projected_half_s': round_or_none(self.project_s(footage_s, half_s), 1),
             'half_s': round(half_s, 1),
             # True means `lag_s` is a floor. A consumer that prints it as a
             # flat number is printing the best case.
             'optimistic': self.optimistic(),
         }
-
-
-def _round(value, digits):
-    return None if value is None else round(value, digits)
 
 
 # Worst first: a name covering several kinds of work grows like the worst of
