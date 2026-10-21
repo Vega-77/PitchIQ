@@ -108,7 +108,7 @@ MAX_QUIET_EXCLUSIONS = 12
 class PlayerReport:
     """One tracked player. Identity is a track id, not a name.
 
-    Mapping a track to a real player is a human job (ROADMAP Phase 11), and at
+    Mapping a track to a real player is a human job (ROADMAP archive, Phase 11), and at
     the fragmentation currently measured a single player spans several tracks —
     so these are fragments of players until a reviewer merges them.
 

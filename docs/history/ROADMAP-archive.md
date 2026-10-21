@@ -1,5 +1,26 @@
 # PitchIQ — Camera-Only Stats Roadmap
 
+> **Archived on 2026-10-20.** This is the roadmap as it grew from July to
+> October 2026, kept whole for its measurements and the reasons behind each
+> decision. It is history, not a plan: open work and the current status are in
+> [ROADMAP.md](../../ROADMAP.md). Phase numbers cited in the code ("Phase 11")
+> refer to the sections below.
+>
+> Read it knowing what changed after it was written:
+> - **The camera.** It requires a fixed camera and calls panning footage
+>   unusable. The team's Hudl footage pans, and since October it runs end to
+>   end (`cv/panned.py`, `cv/autocal.py`, `cv/balltrack/`).
+> - **`backend/`** was a FastAPI + SQLite server. Firestore replaced it and it
+>   was deleted; the Tech Stack section's FastAPI, SQLite and REST lines are the
+>   plan it started from.
+> - **`calibrate/`.** The page it describes (clicking landmarks on a frame) was
+>   taken off the site on 2026-10-07. The `calibrate/` there now (2026-10-20) is
+>   a pin page: landmark pins on a fixed frame, fitted and checked live, or on a
+>   panorama for the pin solve.
+> - **`xg-sandbox/`** left the site on 2026-10-07, and with it the browser's copy
+>   of the xG model and `tests/test_xg_parity.py`. xG is computed in Python by
+>   `cv/xg_bridge.py`.
+
 Goal: go from "type in shot geometry manually" to "point a camera at a high school
 match and get player/team stats out the other end." Primary use case: give the coach
 things at halftime they genuinely can't see with their own eyes (fatigue, shape,
@@ -23,52 +44,6 @@ human is intentionally in the loop instead of asking the CV to be perfect:
 
 Both are cheaper and more reliable than teaching the CV to classify fouls or read
 jersey numbers robustly in month 1.
-
----
-
-## Status (2026-10-20): the panning camera works
-
-The status block below (2026-08-17) was written when the only usable footage
-was a fixed camera and a panning one was called unusable. That has changed:
-the team's Hudl footage, which follows the play, now runs end to end.
-
-- **Calibration per frame.** `cv/autocal.py` calibrates the camera from the
-  match itself (paint and SIFT, no clicks; `python -m cv.experiments.autocal_run`),
-  and `cv/balltrack/homog/vreg.py` registers every frame to it. One camera
-  position per game; each half solves its own aim.
-- **The ball.** The Hybrid 90 tracker in `cv/balltrack/` (accepted 2026-10-03):
-  a detector + classifier tracker that owns every confident pick, with
-  TAPNext++ bridging gaps of 90 frames or fewer, then a 3D chain that tells
-  ground from air. `half.py` runs a whole half; `ballgate.py` blanks the
-  stretches where the classifier is lost.
-- **Into the pipeline.** `cv/panned.py` (`PannedCamera.from_tracker(tag)`)
-  moves every player box into one still reference view and hands
-  `analyse_match` the tracker's ball, so the fixed-camera pipeline runs
-  unchanged. `event_report` and `match_report` take `--panned <tag>`.
-- **Pins.** `calibrate/` is back in the site: landmark pins for a fixed frame
-  (fitted and checked live) or a panorama (for the pin solve).
-
-How good the ball is, from `cv/balltrack/README.md`:
-
-| | Ball Truth | wrong picks | Find the Ball | passes |
-|---|---|---|---|---|
-| Hybrid 90 + default 3D | 78 % | 6 | 36/47 | 14/16 |
-| cls_B tracker alone | 72 % | 4 | 34/47 | 14/16 |
-
-On the 18 held-out truth clips (269 hand marks, a pick right within 60 px):
-74 % on the first half's clips and 70 % on the second's, with 4 and 0 wrong
-picks. Almost every miss is an abstention, which is the intended failure: a
-wrong ball is worse than no ball.
-
-Open, in rough order:
-- The top-down map (players and ball on one pitch drawing) is the next
-  priority.
-- Night games: the floodlit second half loses the ball at every stage
-  (detector, ranker, classifier).
-- The pin solve (`pin_cal.py`) and the panorama builder live outside the repo.
-- A half takes hours of GPU on the RTX 4060 (`cv/balltrack/README.md`, speed).
-
-How to run it: `FOOTAGE_DAY.md`, "Fixed or panning", and the root `README.md`.
 
 ---
 

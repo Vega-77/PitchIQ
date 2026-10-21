@@ -34,7 +34,7 @@ not tuning. Around three cells is where a box becomes comfortable, which puts
 the usable floor near 24 px and a marginal band below it.
 
 The repo's two real measurements are consistent with that and are the only
-empirical check available (`ROADMAP.md`, the detection spike):
+empirical check available (`docs/history/ROADMAP-archive.md`, the detection spike):
 
 | clip (both 720p screen recordings) | players | ball |
 |---|---|---|

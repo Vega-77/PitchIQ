@@ -21,7 +21,7 @@ exist yet.
 Deliberately absent: offside. It needs the complete and accurate positions of
 every defender at the exact moment of release. We have neither complete
 positions (players leave frame) nor an accurate release moment (the ball is
-detected in about 60% of frames). It stays human-tagged; see ROADMAP Phase 10.
+detected in about 60% of frames). It stays human-tagged; see the ROADMAP archive, Phase 10.
 """
 
 from __future__ import annotations

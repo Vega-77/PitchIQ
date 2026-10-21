@@ -518,7 +518,8 @@ def validate_against_noise(
 
 # One session per process. Loading a model per call is slow, and the project
 # has already paid once for putting several models in one process — see the
-# benchmark note in ROADMAP.md that produced figures wrong by 10x.
+# benchmark note in docs/history/ROADMAP-archive.md that produced figures
+# wrong by 10x.
 _SESSION = None
 
 

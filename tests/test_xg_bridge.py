@@ -5,8 +5,8 @@ between the features produced here and the features the model was trained on.
 That kind of mistake does not raise. It returns a plausible number that is
 quietly wrong, which is far worse than a crash.
 
-The pipeline itself cannot be tested end to end until there is footage from a
-camera that holds still — see ROADMAP.md Phase 4.
+The pipeline now runs end to end on real (panning) footage, but its shots have
+not been checked against a match anyone watched; see cv/pipeline.py's status.
 """
 
 from __future__ import annotations
