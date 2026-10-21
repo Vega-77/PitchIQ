@@ -107,12 +107,6 @@ class BallTrajectory:
                 return p
         return None
 
-    def as_arrays(self) -> tuple[np.ndarray, np.ndarray]:
-        """Times (n,) in seconds and positions (n, 2), in point order."""
-        times = np.array([p.timestamp_s for p in self.points])
-        xy = np.array([p.xy for p in self.points])
-        return times, xy
-
 
 def candidates_from_detections(
     detections_by_frame: dict[int, list],

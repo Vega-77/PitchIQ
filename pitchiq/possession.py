@@ -55,6 +55,8 @@ MIN_POSSESSION_SPELL_S = 0.6
 @dataclass(frozen=True)
 class FrameState:
     timestamp_s: float
+    # holder_track and distance_px are read only by the tests, which pin who
+    # held the ball and how close; kept as that contract.
     holder_track: int | None
     team: str
     distance_px: float | None

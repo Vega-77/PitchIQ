@@ -47,10 +47,6 @@ class Stage:
     seconds: float = 0.0
     scaling: str = LINEAR
 
-    @property
-    def linear(self) -> bool:
-        return self.scaling == LINEAR
-
     def to_json(self) -> dict:
         """This stage as a JSON-ready dict, time in seconds."""
         return {

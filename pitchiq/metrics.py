@@ -243,7 +243,6 @@ class MovementStats:
     track_id: int
     distance_m: float = 0.0
     top_speed_ms: float = 0.0
-    mean_speed_ms: float = 0.0
     sprint_count: int = 0
     sprint_distance_m: float = 0.0
     # None, not zero, when the track is shorter than one burst window: a
@@ -253,11 +252,9 @@ class MovementStats:
     # How much the raw position wobbled. None when nobody measured it.
     position_noise_m: float | None = None
     minutes_tracked: float = 0.0
+    # Read only by the tests, which pin that implausible jumps are dropped;
+    # kept as that contract.
     discarded_frames: int = 0
-
-    @property
-    def distance_km(self) -> float:
-        return self.distance_m / 1000.0
 
     @property
     def top_speed_kmh(self) -> float:
@@ -454,7 +451,6 @@ def movement_stats(
 
     stats.distance_m = float(np.sum(good_steps))
     stats.top_speed_ms = float(np.max(good_speeds))
-    stats.mean_speed_ms = float(np.average(good_speeds, weights=good_dt))
     stats.minutes_tracked = float((series.timestamps_s[-1] - series.timestamps_s[0]) / 60.0)
 
     sprints, sprint_distance = _find_sprints(good_speeds, good_dt, good_steps, sprint_threshold_ms)

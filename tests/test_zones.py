@@ -40,7 +40,6 @@ from pitchiq.zones import (
     is_progressive,
     is_switch,
     leaves_play,
-    opposite,
     progressive_distance,
     third,
     third_boundaries,
@@ -74,10 +73,6 @@ class TestEndValidation:
     def test_rejects_a_nonsense_end(self, call):
         with pytest.raises(ValueError):
             call('north')
-
-    def test_opposite_flips(self):
-        assert opposite('left') == 'right'
-        assert opposite('right') == 'left'
 
 
 class TestThirds:

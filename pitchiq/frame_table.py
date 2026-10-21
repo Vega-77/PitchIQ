@@ -83,7 +83,6 @@ class FrameRecord:
     players: np.ndarray  # (N, 6): track_id, x1, y1, x2, y2, conf
     ball_xy: tuple[float, float] | None = None
     ball_observed: bool = False
-    ball_confidence: float = 0.0
 
     def __len__(self) -> int:
         return int(self.players.shape[0])
@@ -475,4 +474,3 @@ def attach_trajectory(table: FrameTable, trajectory) -> None:
             continue
         record.ball_xy = point.xy
         record.ball_observed = point.observed
-        record.ball_confidence = point.confidence

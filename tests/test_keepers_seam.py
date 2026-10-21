@@ -302,7 +302,7 @@ class TestTheScannerActuallyScans:
         assert 'end_known' not in made
         # Belongs to KeeperDistribution, the class above. Its arrival means the
         # split ran past the closing brace.
-        assert 'hold_duration_s' not in made
+        assert 'completed' not in made
 
     def test_the_scan_found_the_two_functions_that_read_the_block(self, seen):
         # Everything that reads a keeper figure lives in shared/report.js:

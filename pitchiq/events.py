@@ -195,7 +195,6 @@ class EventBase:
     team: str
     track_id: int | None
     start_xy_px: tuple[float, float]
-    end_xy_px: tuple[float, float] | None = None
     start_m: tuple[float, float] | None = None
     end_m: tuple[float, float] | None = None
     confidence: float = 0.0
@@ -772,7 +771,6 @@ def _between(
             team=current.team,
             track_id=current.track_id,
             start_xy_px=current.ball_xy,
-            end_xy_px=following.ball_xy,
             start_m=current.ball_m,
             end_m=following.ball_m,
             confidence=confidence,
@@ -906,7 +904,6 @@ def _carries(
                 team=first.team,
                 track_id=first.track_id,
                 start_xy_px=first.ball_xy,
-                end_xy_px=last.ball_xy,
                 start_m=first.ball_m,
                 end_m=last.ball_m,
                 confidence=min(t.confidence for t in run),
@@ -978,7 +975,6 @@ def _as_shot(
         team=touch.team,
         track_id=touch.track_id,
         start_xy_px=touch.ball_xy,
-        end_xy_px=None,
         start_m=touch.ball_m,
         end_m=end_m,
         confidence=touch.confidence,

@@ -51,11 +51,6 @@ def _check_end(end: str) -> str:
     return end
 
 
-def opposite(end: str) -> str:
-    """The other end. A team defends the goal it is not attacking."""
-    return 'left' if _check_end(end) == 'right' else 'right'
-
-
 # ---------------------------------------------------------------- thirds
 
 

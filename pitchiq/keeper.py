@@ -72,10 +72,8 @@ class KeeperAssignment:
 class KeeperDistribution:
     timestamp_s: float
     kind: str  # 'throw' | 'kick' | 'punt' | 'unknown'
-    hold_duration_s: float
     distance_m: float
     completed: bool
-    end_third: str | None
 
 
 @dataclass
@@ -242,7 +240,7 @@ def keeper_reports(
         if end is not None:
             report.end_known = True
             _count_positional(log, report, pitch, tracks, end)
-            _collect_distribution(log, report, pitch, tracks, team, end)
+            _collect_distribution(log, report, tracks)
 
         reports.append(report)
 
@@ -293,14 +291,7 @@ def _count_positional(
             report.claims += 1
 
 
-def _collect_distribution(
-    log: EventLog,
-    report: KeeperReport,
-    pitch: Pitch,
-    tracks: set[int],
-    team: str,
-    end: str,
-) -> None:
+def _collect_distribution(log: EventLog, report: KeeperReport, tracks: set[int]) -> None:
     """Throws, kicks and punts, and whether they found a teammate."""
     holds = {e.timestamp_s: e for e in log.by_type(CARRY) if e.track_id in tracks}
 
@@ -320,10 +311,8 @@ def _collect_distribution(
             KeeperDistribution(
                 timestamp_s=event.timestamp_s,
                 kind=_distribution_kind(distance, hold),
-                hold_duration_s=hold,
                 distance_m=distance,
                 completed=event.outcome == 'completed',
-                end_third=zones.third(pitch, event.end_m[0], zones.opposite(end)),
             )
         )
 

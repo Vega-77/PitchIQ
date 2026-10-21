@@ -220,7 +220,7 @@ class TestReport:
 
     def test_accuracy_is_none_for_a_kind_never_attempted(self):
         report = KeeperReport(team=TEAM_A)
-        report.distributions.append(KeeperDistribution(1.0, 'kick', 0.0, 35.0, True, 'middle'))
+        report.distributions.append(KeeperDistribution(1.0, 'kick', 35.0, True))
         assert report.accuracy('kick') == 1.0
         assert report.accuracy('punt') is None
         assert report.mean_distance_m('punt') is None

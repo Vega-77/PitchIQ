@@ -163,10 +163,6 @@ class Touch:
     def confidence(self) -> float:
         return self.components.score
 
-    @property
-    def speed_gain_ph_s(self) -> float:
-        return self.speed_after_ph_s - self.speed_before_ph_s
-
 
 @dataclass
 class TouchSequence:
