@@ -54,7 +54,7 @@ In the video:
 
 ```
 sh hybrid.sh <lo> <hi> <tag>              # runs run.sh first if <tag>cls.npz is missing
-RENDER=1 sh hybrid.sh 136170 137970 fr00  # + tapnext/hyb90_fr00_136170.mp4
+RENDER=1 sh hybrid.sh 136170 137970 fr00  # + tapnext_bridge/hyb90_fr00_136170.mp4
 ```
 
 The tracker above owns every confident pick, kick and flight. TAPNext++ (Google
@@ -122,7 +122,7 @@ ball, and `match_video.py` before drawing it.
 | dir | what |
 |---|---|
 | `homog/` | venue map (`venue_map.py` -> `vmap.npz`), pitch registration (`register_frames.py` -> `<tag>_reg.npz`), 3D flight chain, Air/Flight/Fix lab labels and scorers |
-| `tapnext/` | `tn_engine.py` (bridges), `hyb_video.py` (the review video) |
+| `tapnext_bridge/` | `tn_engine.py` (bridges), `hyb_video.py` (the review video) |
 | `reference/` | the one-candidate-at-a-time detector the shipping one was checked against (`blobs_per_candidate.py`, `single_process_run.py`, `temporal_from_sheets.py`); `python -m pitchiq.balltrack.reference.check_fast` compares them on real frames |
 | `archive/` | a README listing the scripts nothing runs any more (deleted 2026-10-21) and how to restore one from git |
 | `evaluation/` | `mkpicks_one.py`, `hybrid.py`, `mk3d.py` (3D per 2D version in `h3d_<ver>/`), the 2D/3D test harness, Find the Ball / Fix Lab / pass labels, and the score tables in `evaluation/results/` (`2d.json`, `3d.json`) |
@@ -131,8 +131,8 @@ ball, and `match_video.py` before drawing it.
 
 Downloaded inputs (`requirements-balltrack.txt` at the repo root says how to
 get them):
-- The TAPNext++ checkpoint `tapnext/tapnextpp_512.ckpt` (2.4 GB).
-- The tapnet code, cloned at `tapnext/tapnet` from google-deepmind/tapnet at
+- The TAPNext++ checkpoint `tapnext_bridge/tapnextpp_512.ckpt` (2.4 GB).
+- The tapnet code, cloned at `tapnext_bridge/tapnet` from google-deepmind/tapnet at
   commit 730cda1.
 
 Built here, by the scripts that read them:

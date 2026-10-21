@@ -1,7 +1,7 @@
 #!/bin/sh
 # Hybrid 90 + default flight chain over one window, end to end (accepted 2026-10-03).
 #   sh hybrid.sh <lo> <hi> <tag>          abs frame numbers, 30 fps
-#   RENDER=1 sh hybrid.sh ...             also write tapnext/hyb90_<tag>_<lo>.mp4
+#   RENDER=1 sh hybrid.sh ...             also write tapnext_bridge/hyb90_<tag>_<lo>.mp4
 # Steps already done for the tag are skipped (detector outputs, registration).
 #
 #   1 run.sh           detector + people + cls_B classifier        -> <tag>.npz, <tag>cls.npz ...
@@ -40,8 +40,8 @@ VS_B3="${T}_ball3d2.npz" "$PY" -W ignore -m $M.homog.smooth_ball "$T" >> "${T}_c
 "$PY" -W ignore -m $M.homog.merge_air_and_ground "${T}_ball3d2.npz" "${T}_smooth.npz" "${T}_ball3dd.npz" >> "${T}_chain.log" 2>&1
 
 echo "=== TAPNext bridges $(date +%T)"
-cd "$B/tapnext"
-"$PY" -u -W ignore -m $M.tapnext.tn_engine bridges "$T" 2>&1 | grep -v Warning | tail -3
+cd "$B/tapnext_bridge"
+"$PY" -u -W ignore -m $M.tapnext_bridge.tn_engine bridges "$T" 2>&1 | grep -v Warning | tail -3
 
 echo "=== hybrid $(date +%T)"
 cd "$B/evaluation"
@@ -57,6 +57,6 @@ echo "-> h3d_hyb90/${T}_ball3dd.npz"
 if [ -n "$RENDER" ]; then
     echo "=== render $(date +%T)"
     cd "$B/h3d_hyb90"
-    "$PY" -W ignore -m $M.tapnext.hyb_video "$T" "$LO" "$HI"
+    "$PY" -W ignore -m $M.tapnext_bridge.hyb_video "$T" "$LO" "$HI"
 fi
 echo "HYBRID DONE $(date +%T)"

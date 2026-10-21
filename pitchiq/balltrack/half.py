@@ -42,7 +42,7 @@ S2 = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(S2))
 HOM = os.path.join(S2, 'homog')
 AT = os.path.join(S2, 'evaluation')
-TNX = os.path.join(S2, 'tapnext')
+TNX = os.path.join(S2, 'tapnext_bridge')
 H3D = os.path.join(S2, 'h3d_hyb90')
 PY = sys.executable
 
@@ -254,7 +254,7 @@ class Half:
         ]
         self.run(
             TNX,
-            'tapnext.tn_engine',
+            'tapnext_bridge.tn_engine',
             'bridges',
             p['ptag'],
             env=dict(TN_NEAR=','.join(near), PYTHONUNBUFFERED='1'),

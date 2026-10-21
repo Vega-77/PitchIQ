@@ -4,8 +4,8 @@ camera    ring on the ball + the last 1 s of its path (carried with the camera p
 close-up  4x around the method's ball, so you can see whether it is on the ball
 map       last 2 s of the path on the pitch
 
-  python -m pitchiq.balltrack.tapnext.tn_video tag lo hi ours            -> cmp_ours_<lo>.mp4
-  python -m pitchiq.balltrack.tapnext.tn_video tag lo hi tn <tn npz>     -> cmp_tn_<lo>.mp4
+  python -m pitchiq.balltrack.tapnext_bridge.tn_video tag lo hi ours            -> cmp_ours_<lo>.mp4
+  python -m pitchiq.balltrack.tapnext_bridge.tn_video tag lo hi tn <tn npz>     -> cmp_tn_<lo>.mp4
 """
 
 import os

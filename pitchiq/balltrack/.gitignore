@@ -18,7 +18,7 @@ __pycache__/
 h3d_*/
 evaluation/p2d/
 evaluation/tn/
-tapnext/tapnet/
+tapnext_bridge/tapnet/
 homog/*_ballsb.csv
 homog/*_ball3d*.csv
 # ...except the small inputs the homography and the 3D labs need

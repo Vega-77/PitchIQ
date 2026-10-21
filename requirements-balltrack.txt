@@ -19,15 +19,15 @@ pillow==12.2.0
 einops==0.8.2
 
 # Two things pip cannot install, both needed only by the TAPNext++ bridges
-# (tapnext/tn_engine.py, step 5 of hybrid.sh):
+# (tapnext_bridge/tn_engine.py, step 5 of hybrid.sh):
 #
-# 1. The tapnet code, cloned into pitchiq/balltrack/tapnext/tapnet at the commit
+# 1. The tapnet code, cloned into pitchiq/balltrack/tapnext_bridge/tapnet at the commit
 #    every bridge was made with:
 #
-#      git clone https://github.com/google-deepmind/tapnet pitchiq/balltrack/tapnext/tapnet
-#      git -C pitchiq/balltrack/tapnext/tapnet checkout 730cda1
+#      git clone https://github.com/google-deepmind/tapnet pitchiq/balltrack/tapnext_bridge/tapnet
+#      git -C pitchiq/balltrack/tapnext_bridge/tapnet checkout 730cda1
 #
 # 2. The TAPNext++ checkpoint, 2.4 GB (Apache 2.0), at
-#    pitchiq/balltrack/tapnext/tapnextpp_512.ckpt:
+#    pitchiq/balltrack/tapnext_bridge/tapnextpp_512.ckpt:
 #
-#      curl -L -o pitchiq/balltrack/tapnext/tapnextpp_512.ckpt https://storage.googleapis.com/gresearch/tapnextpp/tapnextpp_512.ckpt
+#      curl -L -o pitchiq/balltrack/tapnext_bridge/tapnextpp_512.ckpt https://storage.googleapis.com/gresearch/tapnextpp/tapnextpp_512.ckpt

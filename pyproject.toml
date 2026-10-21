@@ -75,7 +75,7 @@ pythonpath = ["."]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["node_modules", "pitchiq/balltrack/tapnext/tapnet"]
+extend-exclude = ["node_modules", "pitchiq/balltrack/tapnext_bridge/tapnet"]
 
 [tool.ruff.format]
 quote-style = "single"

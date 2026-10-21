@@ -6,7 +6,7 @@ camera    ring on the ball + the last 1 s of its path (carried with the camera p
 close-up  4x around the ball
 map       last 2 s of the path on the pitch
 
-  python -m pitchiq.balltrack.tapnext.hyb_video tag lo hi [part]     -> hyb90_<tag>_<lo>.mp4   (hi exclusive)
+  python -m pitchiq.balltrack.tapnext_bridge.hyb_video tag lo hi [part]     -> hyb90_<tag>_<lo>.mp4   (hi exclusive)
 """
 
 import os

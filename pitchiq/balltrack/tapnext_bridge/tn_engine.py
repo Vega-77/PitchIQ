@@ -1,7 +1,7 @@
 """TAPNext++ in batches, for the all-tests comparison.
 
-    python -m pitchiq.balltrack.tapnext.tn_engine bridges <tag> [<tag> ...]   -> ../evaluation/tn/bridges_<tag>.npz
-    python -m pitchiq.balltrack.tapnext.tn_engine alone <tag> [<tag> ...]     -> ../evaluation/tn/alone_<tag>.npz
+    python -m pitchiq.balltrack.tapnext_bridge.tn_engine bridges <tag> [<tag> ...]   -> ../evaluation/tn/bridges_<tag>.npz
+    python -m pitchiq.balltrack.tapnext_bridge.tn_engine alone <tag> [<tag> ...]     -> ../evaluation/tn/alone_<tag>.npz
 
 bridges  every gap between two confident picks of the shipped tracker (cls_B), up to MAXGAP
          frames: TAPNext seeded on the pick before the gap and run forward to the pick after,
