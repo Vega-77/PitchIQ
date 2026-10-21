@@ -108,16 +108,18 @@ class TestFindingTheStretches:
     def test_the_stretches_add_up_to_what_possession_calls_no_ball_time(self):
         """The two figures have to agree or one of them is wrong on the page.
 
-        `summarise` takes the span times the unseen share; this takes the
+        `summarise_possession` takes the span times the unseen share; this takes the
         intervals directly. They are the same arithmetic seen from two sides,
         and a drift between them would show up as a split that does not fit
         inside the total it is a split of.
         """
-        from pitchiq.possession import summarise
+        from pitchiq.possession import summarise_possession
 
         frames = states([1] * 10 + [0] * 30 + [1] * 10 + [0] * 20 + [1] * 30)
         total = sum(b - a for a, b in unseen_stretches(frames))
-        assert total == pytest.approx(summarise(frames, smooth_window=0).no_ball_s, abs=0.15)
+        assert total == pytest.approx(
+            summarise_possession(frames, smooth_window=0).no_ball_s, abs=0.15
+        )
 
     def test_no_states_at_all_is_no_stretches_rather_than_a_crash(self):
         assert unseen_stretches([]) == []

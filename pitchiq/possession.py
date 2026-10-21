@@ -74,7 +74,7 @@ class PossessionSummary:
     team_a_s: float = 0.0
     team_b_s: float = 0.0
     contested_s: float = 0.0
-    # A slice of contested_s rather than a bucket beside it — see summarise().
+    # A slice of contested_s rather than a bucket beside it — see summarise_possession().
     no_ball_s: float = 0.0
     # Time the tagged log says the ball was out of play. Zero when no log was
     # supplied, which means "nobody told us" and not "there were no stoppages".
@@ -330,7 +330,7 @@ def prepare_states(
     return states
 
 
-def summarise(
+def summarise_possession(
     states: list[FrameState],
     min_spell_s: float = MIN_POSSESSION_SPELL_S,
     smooth_window: int = 15,

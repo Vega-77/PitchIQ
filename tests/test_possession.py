@@ -19,7 +19,7 @@ from pitchiq.possession import (
     FrameState,
     frame_holder,
     median_player_height,
-    summarise,
+    summarise_possession,
 )
 from pitchiq.teams import (
     TEAM_A,
@@ -675,14 +675,14 @@ class TestSummary:
     def test_splits_time_between_the_teams(self):
         # 4 seconds A, then 2 seconds B.
         sequence = [TEAM_A] * int(4 * FPS) + [TEAM_B] * int(2 * FPS)
-        summary = summarise(states(sequence))
+        summary = summarise_possession(states(sequence))
 
         assert summary.share(TEAM_A) == pytest.approx(2 / 3, abs=0.05)
         assert summary.share(TEAM_B) == pytest.approx(1 / 3, abs=0.05)
 
     def test_counts_turnovers(self):
         sequence = [TEAM_A] * int(2 * FPS) + [TEAM_B] * int(2 * FPS) + [TEAM_A] * int(2 * FPS)
-        assert summarise(states(sequence)).turnovers == 2
+        assert summarise_possession(states(sequence)).turnovers == 2
 
     def test_ignores_flicker(self):
         """Two opponents contesting the ball swap nearest-player constantly;
@@ -691,13 +691,13 @@ class TestSummary:
         for i in range(int(6 * FPS)):
             sequence.append(TEAM_A if (i // 2) % 2 == 0 else TEAM_B)
 
-        summary = summarise(states(sequence))
+        summary = summarise_possession(states(sequence))
         assert summary.turnovers == 0, 'rapid alternation is not a turnover'
 
     def test_a_brief_touch_does_not_break_a_spell(self):
         # A long A spell with a three-frame B deflection in the middle.
         sequence = [TEAM_A] * int(3 * FPS) + [TEAM_B] * 3 + [TEAM_A] * int(3 * FPS)
-        summary = summarise(states(sequence))
+        summary = summarise_possession(states(sequence))
 
         assert summary.turnovers == 0
         assert summary.share(TEAM_A) > 0.95
@@ -714,8 +714,8 @@ class TestDeadBall:
         # 4s of A, then 4s where A is standing over the ball out of play.
         sequence = [TEAM_A] * int(8 * FPS)
 
-        without = summarise(states(sequence))
-        with_log = summarise(states(sequence), phases=self.phases(4.0, 8.0))
+        without = summarise_possession(states(sequence))
+        with_log = summarise_possession(states(sequence), phases=self.phases(4.0, 8.0))
 
         assert without.dead_ball_s == 0.0
         assert with_log.dead_ball_s == pytest.approx(4.0, abs=0.2)
@@ -723,19 +723,19 @@ class TestDeadBall:
 
     def test_the_split_itself_is_unchanged_when_both_teams_lose_the_same_time(self):
         sequence = [TEAM_A] * int(4 * FPS) + [TEAM_B] * int(4 * FPS)
-        summary = summarise(states(sequence), phases=self.phases(3.5, 4.5))
+        summary = summarise_possession(states(sequence), phases=self.phases(3.5, 4.5))
 
         assert summary.share(TEAM_A) == pytest.approx(0.5, abs=0.05)
 
     def test_a_dead_stretch_does_not_count_as_a_turnover(self):
         sequence = [TEAM_A] * int(3 * FPS) + [TEAM_A] * int(2 * FPS) + [TEAM_B] * int(3 * FPS)
-        summary = summarise(states(sequence), phases=self.phases(3.0, 5.0))
+        summary = summarise_possession(states(sequence), phases=self.phases(3.0, 5.0))
 
         assert summary.turnovers == 1, 'A to B, through a stoppage'
 
     def test_no_log_means_no_dead_time_recorded(self):
         """Zero because nobody told us, which the report has to say elsewhere."""
-        summary = summarise(states([TEAM_A] * int(4 * FPS)))
+        summary = summarise_possession(states([TEAM_A] * int(4 * FPS)))
         assert summary.dead_ball_s == 0.0
 
     def test_dead_time_is_not_eroded_by_the_smoothing(self):
@@ -746,7 +746,7 @@ class TestDeadBall:
         two-second stoppage arrives as a second and a half.
         """
         sequence = [TEAM_A] * int(8 * FPS)
-        summary = summarise(states(sequence), phases=self.phases(3.0, 5.0))
+        summary = summarise_possession(states(sequence), phases=self.phases(3.0, 5.0))
 
         assert summary.dead_ball_s == pytest.approx(2.0, abs=0.15)
 
@@ -767,11 +767,11 @@ class TestBallMissing:
                 ball_seen=False,
             )
 
-        summary = summarise(seen + unseen)
+        summary = summarise_possession(seen + unseen)
         assert summary.no_ball_s == pytest.approx(2.0, abs=0.15)
 
     def test_is_zero_when_the_ball_was_always_there(self):
-        assert summarise(states([TEAM_A] * int(4 * FPS))).no_ball_s == 0.0
+        assert summarise_possession(states([TEAM_A] * int(4 * FPS))).no_ball_s == 0.0
 
     def test_is_a_slice_of_contested_not_a_bucket_beside_it(self):
         """Documented as a diagnostic. If it ever starts double-counting, the
@@ -786,30 +786,30 @@ class TestBallMissing:
             )
             for i in range(int(3 * FPS))
         ]
-        summary = summarise(unseen)
+        summary = summarise_possession(unseen)
 
         assert summary.no_ball_s > 0
         assert summary.contested_s >= summary.no_ball_s
 
     def test_a_real_change_still_registers(self):
         sequence = [TEAM_A] * int(3 * FPS) + [TEAM_B] * int(3 * FPS)
-        assert summarise(states(sequence)).turnovers == 1
+        assert summarise_possession(states(sequence)).turnovers == 1
 
     def test_contested_time_is_excluded_from_the_share(self):
         sequence = [TEAM_A] * int(3 * FPS) + [UNKNOWN] * int(3 * FPS) + [TEAM_B] * int(3 * FPS)
-        summary = summarise(states(sequence))
+        summary = summarise_possession(states(sequence))
 
         assert summary.contested_s == pytest.approx(3, abs=0.3)
         # Shares are of contested-free time, so an even split stays even.
         assert summary.share(TEAM_A) == pytest.approx(0.5, abs=0.05)
 
     def test_empty_input(self):
-        assert summarise([]).live_s == 0
-        assert summarise(states([TEAM_A])).live_s == 0
+        assert summarise_possession([]).live_s == 0
+        assert summarise_possession(states([TEAM_A])).live_s == 0
 
     def test_summary_line_reads_sensibly(self):
         sequence = [TEAM_A] * int(6 * FPS) + [TEAM_B] * int(2 * FPS)
-        line = summarise(states(sequence)).summary_line('SB', 'Linden')
+        line = summarise_possession(states(sequence)).summary_line('SB', 'Linden')
 
         assert 'SB 75%' in line
         assert 'Linden 25%' in line

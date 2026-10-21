@@ -169,7 +169,7 @@ def unseen_stretches(states) -> list[tuple[float, float]]:
 
     A run of frames owns the intervals that begin at each of them, which is why
     it ends at the timestamp of the *next* state rather than of its own last
-    one. `possession.summarise` reasons about `no_ball_s` the same way and for
+    one. `possession.summarise_possession` reasons about `no_ball_s` the same way and for
     the same reason: there is one fewer interval than there are frames, and
     measuring frames instead of intervals puts the total a frame above the
     window it is supposed to fit inside.

@@ -75,7 +75,7 @@ from .possession import (
     PossessionSummary,
     build_states,
     prepare_states,
-    summarise,
+    summarise_possession,
 )
 from .reconcile import Reconciliation, reconcile, warnings_for
 from .teams import TEAM_A, TEAM_B, assign_teams, separation
@@ -751,7 +751,7 @@ def analyse_match(
         # from, and territory has to agree with that split rather than describe a
         # slightly different match.
         states = prepare_states(states, phases=report.phases)
-        report.possession = summarise(states, smooth_window=0)
+        report.possession = summarise_possession(states, smooth_window=0)
 
     # ---- what was missed, and whether that was anyone's fault ----
     #

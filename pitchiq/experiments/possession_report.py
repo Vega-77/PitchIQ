@@ -19,7 +19,7 @@ import numpy as np
 
 from pitchiq.ball import build_trajectory, candidates_from_detections
 from pitchiq.detector import PersonBallDetector
-from pitchiq.possession import build_states, summarise
+from pitchiq.possession import build_states, summarise_possession
 from pitchiq.teams import (
     TEAM_A,
     TEAM_B,
@@ -168,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
         assignment.team_of,
         timestamps,
     )
-    summary = summarise(states)
+    summary = summarise_possession(states)
 
     elapsed = time.perf_counter() - started
 
