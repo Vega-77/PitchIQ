@@ -38,6 +38,7 @@ class PitchProjector:
     """
 
     def __init__(self, homographies: dict[int, np.ndarray], width: int, height: int) -> None:
+        """Keep each frame homography and its inverse, plus dense copies for many-frame questions."""
         self.H = {int(f): np.asarray(h, dtype=np.float64) for f, h in homographies.items()}
         self.Hinv = {f: np.linalg.inv(h) for f, h in self.H.items()}
         self.width = int(width)
@@ -281,6 +282,7 @@ class Detections:
     feat: np.ndarray | None = None  # (N, d) unit appearance vectors, for the linker
 
     def __post_init__(self) -> None:
+        """Coerce every column to its array type and refuse detections not sorted by frame."""
         self.frame = np.asarray(self.frame, dtype=np.int64)
         self.box = np.asarray(self.box, dtype=np.float64).reshape(-1, 4)
         self.conf = np.asarray(self.conf, dtype=np.float64)
@@ -378,6 +380,8 @@ def drop_clipped(det: Detections, height: int, margin_px: float = 3.0) -> Detect
 
 @dataclass
 class TrackerSettings:
+    """Gates, noise and confirmation rules for the pitch-space Kalman tracker."""
+
     fps: float = 30.0
     high_conf: float = 0.35  # may start a track
     low_conf: float = 0.10  # may only continue one
@@ -403,6 +407,8 @@ class TrackerSettings:
 
 @dataclass
 class _Track:
+    """One live track: Kalman state and covariance, its detection rows, and its kit votes."""
+
     tid: int
     x: np.ndarray  # [x, y, vx, vy]
     P: np.ndarray
@@ -429,6 +435,8 @@ class _Track:
 
 @dataclass
 class Tracklet:
+    """A finished track: its detection rows, and why it started and ended."""
+
     tid: int
     rows: np.ndarray  # detection rows, in frame order
     end_reason: str  # 'left view', 'lost', 'cut', 'window end'
@@ -439,6 +447,7 @@ class PitchTracker:
     """Online tracking in metres; produces tracklets for `pitchiq/linking.py`."""
 
     def __init__(self, projector: PitchProjector, settings: TrackerSettings | None = None) -> None:
+        """Build the constant-velocity model: transition, process noise and the position-only measurement."""
         self.proj = projector
         self.s = settings or TrackerSettings()
         dt = 1.0 / self.s.fps
@@ -492,7 +501,8 @@ class PitchTracker:
             high = np.flatnonzero(conf >= s.high_conf)
             low = np.flatnonzero((conf >= s.low_conf) & (conf < s.high_conf))
 
-            def cost_matrix(tracks, cand, gate):
+            def cost_matrix(tracks, cand, gate) -> np.ndarray:
+                """Gated Mahalanobis cost of each track against each candidate detection, inf where it cannot be."""
                 c = np.full((len(tracks), len(cand)), np.inf)
                 for a, t in enumerate(tracks):
                     hp = self.Hm @ t.x
@@ -652,6 +662,7 @@ class PitchTracker:
         return out
 
     def _birth(self, tid, z, R, rows, j, det, scale) -> _Track:
+        """Start a track at detection `j`, velocity unknown."""
         x = np.r_[z[j], 0.0, 0.0]
         P = np.zeros((4, 4))
         P[:2, :2] = R[j] + np.eye(2) * 0.05
@@ -663,6 +674,7 @@ class PitchTracker:
         return t
 
     def _update(self, t: _Track, zj, Rj, row, det, scale) -> None:
+        """Kalman update with one detection, then absorb its appearance and kit."""
         y = zj - self.Hm @ t.x
         S = self.Hm @ t.P @ self.Hm.T + Rj
         K = t.P @ self.Hm.T @ np.linalg.inv(S)
@@ -674,6 +686,7 @@ class PitchTracker:
 
     @staticmethod
     def _absorb(t: _Track, row: int, det: Detections) -> None:
+        """Blend a detection's appearance into the track and count its kit vote."""
         d = det.desc[row]
         if t.desc is None:
             t.desc = d.copy()

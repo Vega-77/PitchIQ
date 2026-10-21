@@ -924,6 +924,7 @@ def _typical_smoothing(report) -> float | None:
 
 
 def _median_noise(report) -> float | None:
+    """The median position noise over players that measured one, or None."""
     measured = [
         p.movement.position_noise_m
         for p in report.players

@@ -37,6 +37,8 @@ SPOT_D = 1.2
 
 @dataclass(frozen=True)
 class PitchModel:
+    """The pitch as the fit sees it: length and width in centre-circle radii (R)."""
+
     L: float = 12.31  # length in R (the scrimmage venue's fit)
     W: float = 7.74  # width in R
 
@@ -44,12 +46,12 @@ class PitchModel:
         """The painted lines as polylines of ground points (n, 2), every `step` R."""
         L, W, c = self.L, self.W, self.W / 2
 
-        def seg(a, b):
+        def seg(a, b) -> np.ndarray:
             a, b = np.asarray(a, float), np.asarray(b, float)
             n = max(2, int(np.ceil(np.hypot(*(b - a)) / step)) + 1)
             return a + np.linspace(0, 1, n)[:, None] * (b - a)
 
-        def arc(cx, cy, r, a0, a1):
+        def arc(cx, cy, r, a0, a1) -> np.ndarray:
             n = max(2, int(np.ceil(r * abs(a1 - a0) / step)) + 1)
             a = np.linspace(a0, a1, n)
             return np.c_[cx + r * np.cos(a), cy + r * np.sin(a)]
@@ -246,6 +248,7 @@ class Model:
     """The pitch's painted lines as points, with each point's neighbour for spacing."""
 
     def __init__(self, pitch: PitchModel, step: float = 0.1):
+        """Sample the lines every `step` R and note, per point, the next point on the same line or -1."""
         lines = pitch.lines(step)
         self.pitch = pitch
         self.pts = np.concatenate(lines)
@@ -375,6 +378,7 @@ class Primitives:
     """The model's lines as segments and arcs, for exact nearest-point queries."""
 
     def __init__(self, pitch: PitchModel):
+        """Every painted line as a straight segment or an arc, for nearest-line lookups."""
         L, W, c = pitch.L, pitch.W, pitch.W / 2
         segs = [
             ((0, 0), (L, 0)),
@@ -508,7 +512,8 @@ def fit_sample(
     sin0 = np.sin(np.radians(dep0))
     x0 = np.zeros(4) if x0 is None else np.asarray(x0, float)
 
-    def proj(x):
+    def proj(x) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Project the paint for pose `x`: (pixel error per point, which points counted, nearest line ids)."""
         Rk = rodrigues(x[None, :3])[0] @ R
         fk = f * np.exp(x[3])
         d = rays(xy, fk) @ Rk  # world directions
@@ -522,10 +527,10 @@ def fit_sample(
         e[~ok] = 0
         return e, ok, ids
 
-    def res(x):
+    def res(x) -> np.ndarray:
         return proj(x)[0].ravel()
 
-    def good(x):
+    def good(x) -> int:
         # paint on the lines, counted only when it lies on two independent lines:
         # eb1 91200-91800 saw one near line, and fitting it tilted the far box off
         e, ok, ids = proj(x)
@@ -620,7 +625,7 @@ def anchor_chain(
 def relative_rotation(xi, xj, fi: float) -> tuple[np.ndarray, float]:
     """Rotation and focal length taking frame i (focal fi) to frame j."""
 
-    def res(p):
+    def res(p) -> np.ndarray:
         R = rodrigues(p[:3])[0]
         return (to_px(rays(xi, fi) @ R.T, np.exp(p[3])) - xj).ravel()
 
@@ -854,14 +859,15 @@ def refine_pano(
     D = np.c_[np.sin(az) * np.cos(el), np.sin(el), np.cos(az) * np.cos(el)]
     sin0 = np.sin(np.radians(dep0))
 
-    def unpack(x):
+    def unpack(x) -> tuple[np.ndarray, np.ndarray, PitchModel]:
         R = rodrigues(x[None, 3:6])[0] @ R0
         L = pitch.L * np.exp(x[7]) if free_L else pitch.L
         W = pitch.W * np.exp(x[6]) if free_W else pitch.W
         C_ = np.asarray(C, float) if fix_C else x[:3] if fix_h is None else np.r_[x[:2], fix_h]
         return C_, R, PitchModel(L=L, W=W)
 
-    def res(x):
+    def res(x) -> np.ndarray:
+        """Pixel error of every paint point for the packed pose and pitch size `x`, flattened."""
         C_, R, pm = unpack(x)
         prim = Primitives(pm)
         d = D @ R  # world directions
@@ -945,7 +951,7 @@ def halfway_candidates(
     for _, (x0, y0, x1, y1) in found:
         d = np.array([x1 - x0, y1 - y0], float) / np.hypot(x1 - x0, y1 - y0)
 
-        def off(p):
+        def off(p) -> float:
             return abs(d[0] * (p[1] - y0) - d[1] * (p[0] - x0))
 
         if any(off(q[:2]) < 12 and off(q[2:]) < 12 for q in lines):
@@ -1063,9 +1069,10 @@ def calibrate_pano(
 def _pose_from_circle(
     pano, el, line, L, W0, log
 ) -> tuple[np.ndarray, np.ndarray, PitchModel, dict] | None:
+    """A first camera pose from the centre circle alone: its width gives distance, its squash gives height."""
     cx, cy, a, asp, _ = el
 
-    def pdir(x, y):
+    def pdir(x, y) -> np.ndarray:
         az, up = (x - pano.cx) / pano.F, (y - pano.cy) / pano.F
         return np.array([np.sin(az) * np.cos(up), np.sin(up), np.cos(az) * np.cos(up)])
 
@@ -1122,7 +1129,7 @@ def aim_from_circle(pano: Panorama, el, line, C, pitch: PitchModel) -> np.ndarra
     pitch's centre, the halfway line runs across the pitch."""
     cx, cy = el[:2]
 
-    def pdir(x, y):
+    def pdir(x, y) -> np.ndarray:
         az, up = (x - pano.cx) / pano.F, (y - pano.cy) / pano.F
         return np.array([np.sin(az) * np.cos(up), np.sin(up), np.cos(az) * np.cos(up)])
 

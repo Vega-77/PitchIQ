@@ -53,6 +53,8 @@ TAG_SLOP_S = 2.0
 
 @dataclass(frozen=True)
 class DeadSpan:
+    """A stretch of dead ball, with what opened it and what closed it."""
+
     start_s: float
     end_s: float
     opened_by: str
@@ -185,6 +187,8 @@ PERIOD_STARTS = {'kickoff_1st': FIRST_HALF, 'kickoff_2nd': SECOND_HALF}
 
 @dataclass(frozen=True)
 class PeriodSpan:
+    """One period of the match on the match clock, open-ended when the log never closed it."""
+
     period: str
     start_s: float
     # None means the log never closed it — no `halftime` tap, or the log simply
@@ -491,6 +495,7 @@ def phases_from_log(
     open_by = ''
 
     def close(at: float, by: str | None) -> None:
+        """Close the open dead span at `at`, capped and shrunk by the tagging slop."""
         nonlocal open_at, open_by
         cap = DEAD_CAP_S.get(open_by, max_dead_s)
         limit = open_at + cap

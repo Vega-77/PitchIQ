@@ -188,6 +188,8 @@ def _other(team: str) -> str:
 
 @dataclass(frozen=True)
 class EventBase:
+    """What every event carries: who, when, where it started and ended, and how sure."""
+
     event_id: str
     type: str
     timestamp_s: float
@@ -227,6 +229,8 @@ class EventBase:
 
 @dataclass(frozen=True)
 class Pass(EventBase):
+    """A pass: its receiver, outcome, length and direction."""
+
     receiver_track_id: int | None = None
     outcome: str = UNKNOWN_OUTCOME
     length_m: float | None = None
@@ -249,6 +253,8 @@ class Pass(EventBase):
 
 @dataclass(frozen=True)
 class Carry(EventBase):
+    """A carry: one player moving the ball over several touches."""
+
     touches: int = 0
     distance_m: float | None = None
 
@@ -262,6 +268,8 @@ class Carry(EventBase):
 
 @dataclass(frozen=True)
 class Shot(EventBase):
+    """A shot: outcome, distance and angle to goal, pressure, and its xG as a foot or a header."""
+
     outcome: str = UNKNOWN_OUTCOME
     on_target: bool = False
     distance_to_goal_m: float | None = None
@@ -317,6 +325,8 @@ class DefensiveAction(EventBase):
 
 @dataclass
 class EventLog:
+    """Every derived event in time order, with the touches they were built from."""
+
     events: list[EventBase] = field(default_factory=list)
     touches: TouchSequence | None = None
 
@@ -542,6 +552,7 @@ def derive_events(
     calibrated = table.calibration is not None
 
     def attacking_end(team: str) -> str | None:
+        """The end `team` attacks in this period, or None when nothing says."""
         return attacking_end_for(
             orientation,
             side_of_team,
@@ -891,6 +902,7 @@ def _carries(
     run: list[Touch] = []
 
     def flush() -> None:
+        """Close the current run of same-player touches as a Carry when it has two or more."""
         if len(run) < 2:
             return
         first, last = run[0], run[-1]

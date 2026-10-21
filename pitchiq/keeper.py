@@ -45,6 +45,8 @@ PUNT_MIN_M = 40.0
 
 @dataclass
 class KeeperAssignment:
+    """Each team's keeper track ids, with the score that picked them and how."""
+
     by_team: dict[str, set[int]] = field(default_factory=dict)
     scores: dict[int, float] = field(default_factory=dict)
     method: str = 'unavailable'  # 'colour+position' | 'manual' | 'unavailable'
@@ -59,6 +61,8 @@ class KeeperAssignment:
 
 @dataclass
 class KeeperDistribution:
+    """One keeper distribution: when, how, how far, and whether it reached a teammate."""
+
     timestamp_s: float
     kind: str  # 'throw' | 'kick' | 'punt' | 'unknown'
     distance_m: float
@@ -67,6 +71,8 @@ class KeeperDistribution:
 
 @dataclass
 class KeeperReport:
+    """One team's keeper numbers: shots faced, saves, claims, sweeping and distribution."""
+
     team: str
     track_ids: list[int] = field(default_factory=list)
     shots_faced: int = 0
@@ -237,6 +243,7 @@ def keeper_reports(
 
 
 def _count_shots(log: EventLog, report: KeeperReport, team: str, tracks: set[int]) -> None:
+    """Count the opponents' shots this keeper faced, and how each ended."""
     for shot in log.shots():
         if shot.team == team:
             continue  # our own keeper does not face our shots

@@ -99,7 +99,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class PublishError(RuntimeError):
-    pass
+    """Publishing could not start: no project, no key, or a refused write."""
 
 
 def _check_key(path: str | None) -> Path:

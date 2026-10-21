@@ -225,6 +225,7 @@ def crowding(
 
 
 def _crowding_dots(td, length, width, roles, min_alpha) -> dict:
+    """Per frame, the most dots one team has on the pitch for `roles`, and where that peaks."""
     count: dict = {}
     for t, dots in enumerate(td.dots):
         for d in dots:

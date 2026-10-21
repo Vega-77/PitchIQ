@@ -66,6 +66,8 @@ STATIC_MIN_HITS = 25
 
 @dataclass(frozen=True)
 class BallCandidate:
+    """One ball detection in one frame: pixel centre and detector confidence."""
+
     frame_index: int
     timestamp_s: float
     xy: tuple[float, float]
@@ -74,6 +76,8 @@ class BallCandidate:
 
 @dataclass(frozen=True)
 class BallPoint:
+    """The ball on one frame of the trajectory, seen or filled in across a gap."""
+
     frame_index: int
     timestamp_s: float
     xy: tuple[float, float]
@@ -83,6 +87,8 @@ class BallPoint:
 
 @dataclass
 class BallTrajectory:
+    """The chosen ball position frame by frame, gaps filled where they are short."""
+
     points: list[BallPoint] = field(default_factory=list)
 
     def __len__(self) -> int:

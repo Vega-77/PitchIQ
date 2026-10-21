@@ -45,6 +45,8 @@ GATE_MIN_PX = 12.0
 
 @dataclass
 class TruthEntry:
+    """One labelled person on a keyframe: feet in pixels, box height and label."""
+
     x: float  # feet, pixels
     y: float
     h: float  # box height in pixels (estimated for added points)
@@ -54,6 +56,8 @@ class TruthEntry:
 
 @dataclass
 class Truth:
+    """The hand labels: which keyframes were scored and who stood where on each."""
+
     frames: list[int]  # keyframe frames scored
     entries: dict[int, list[TruthEntry]]
     confirmed: list[int]
@@ -150,6 +154,8 @@ def build_truth(sheets: dict, docs: dict[int, dict], include_partial: bool = Tru
 
 @dataclass
 class Pred:
+    """One predicted person on a keyframe: identity, box, team and role."""
+
     pid: object
     box: np.ndarray  # x1 y1 x2 y2
     team: str  # team_a / team_b / unknown
@@ -168,6 +174,8 @@ def _label_team(label: str) -> str | None:
 
 @dataclass
 class Score:
+    """How a run scored against the labels: matches, false claims and identity counts."""
+
     name: str
     keyframes: int
     gt_players: int
@@ -253,7 +261,8 @@ def _match_frame(
     """(entry index, pred index) pairs: scored truth first, then ignore regions."""
     feet = np.array([[(p.box[0] + p.box[2]) / 2, p.box[3]] for p in preds]).reshape(-1, 2)
 
-    def cost(idx):
+    def cost(idx) -> np.ndarray:
+        """Distance from each labelled foot to each prediction, as a share of its gate; inf beyond it."""
         c = np.full((len(idx), len(preds)), np.inf)
         for a, i in enumerate(idx):
             e = entries[i]

@@ -106,6 +106,8 @@ class ParticipantVerdict:
 
 @dataclass
 class ParticipantReport:
+    """The verdict on every track: player, official, spectator or too little to say."""
+
     by_track: dict[int, ParticipantVerdict] = field(default_factory=dict)
 
     @property
@@ -188,13 +190,15 @@ def _travel_ph_per_min(acc: _Accumulator) -> float:
 
 
 def _verdict(track_id, acc, kit_known) -> ParticipantVerdict:
+    """Judge one track from its screen time, spread, travel, edge share and kit."""
     screen_time = acc.times[-1] - acc.times[0]
     spread = _spread_ph(acc)
     travel = _travel_ph_per_min(acc)
     edge_share = acc.edge_hits / len(acc.times)
     off_pitch = acc.off_pitch_hits / acc.pitch_tests if acc.pitch_tests else None
 
-    def made(role, reason):
+    def made(role, reason) -> ParticipantVerdict:
+        """The verdict for this track with `role`, carrying the evidence it was judged on."""
         return ParticipantVerdict(
             track_id=int(track_id),
             role=role,

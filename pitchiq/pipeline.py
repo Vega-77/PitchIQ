@@ -125,6 +125,8 @@ class PlayerReport:
 
 @dataclass
 class MatchReport:
+    """Everything one run found, ready for `report_export` to turn into the report JSON."""
+
     source: str
     duration_s: float
     processing_s: float
@@ -377,6 +379,7 @@ def _hardest_burst(report) -> float | None:
 
 
 def _touch_line(touches: TouchSequence) -> str:
+    """One log line on the touches: how many, their confidence, and the unseen spans."""
     if not touches.touches:
         return '0 found'
     return (
@@ -404,6 +407,7 @@ def _blind_line(seen: Blindness) -> str:
 
 
 def _event_line(events: EventLog) -> str:
+    """One log line on the events: passes, shots, defensive actions and carries."""
     if not len(events):
         return '0 derived'
     from .events import CARRY, DUEL, INTERCEPTION, RECOVERY, TACKLE

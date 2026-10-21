@@ -84,6 +84,7 @@ class PlayerTracker:
         # pitchiq/experiments/track_report.py for the comparison.
         tracker: str = 'botsort.yaml',
     ) -> None:
+        """Load the YOLO weights and pick the tracker; tracks build up across calls."""
         from ultralytics import YOLO
 
         self.model = YOLO(str(weights))
@@ -138,6 +139,7 @@ class PlayerTracker:
             cap.release()
 
     def _ingest(self, frame, frame_index: int, timestamp_s: float, tracks: dict) -> None:
+        """Track one frame and add its person and ball boxes to `tracks`."""
         results = self.model.track(
             frame,
             classes=[CLASS_PERSON, CLASS_BALL],

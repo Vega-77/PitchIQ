@@ -133,6 +133,7 @@ def sequences(
 
 
 def _build(events: list, pitch: Pitch, attacking_ends: dict) -> Sequence | None:
+    """One sequence from one team's consecutive events: the third it reached and how it ended."""
     team = events[0].team
     end = attacking_ends.get(team)
     if end is None:

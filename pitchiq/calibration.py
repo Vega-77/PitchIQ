@@ -176,6 +176,7 @@ class Calibration:
         image_size: tuple[int, int] | None = None,
         lens: DistortionModel | None = None,
     ) -> None:
+        """Check the homography is 3x3, keep its inverse, and keep what it was fitted from."""
         self.H = np.asarray(homography, dtype=np.float64)
         if self.H.shape != (3, 3):
             raise ValueError(f'homography must be 3x3, got {self.H.shape}')

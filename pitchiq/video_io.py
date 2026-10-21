@@ -12,6 +12,8 @@ import numpy as np
 
 @dataclass(frozen=True)
 class VideoInfo:
+    """Size, frame rate and frame count of one video file."""
+
     path: Path
     width: int
     height: int
@@ -25,6 +27,8 @@ class VideoInfo:
 
 @dataclass(frozen=True)
 class SampledFrame:
+    """One decoded frame with its index and timestamp."""
+
     index: int
     timestamp_s: float
     image: np.ndarray

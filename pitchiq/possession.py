@@ -54,6 +54,8 @@ MIN_POSSESSION_SPELL_S = 0.6
 
 @dataclass(frozen=True)
 class FrameState:
+    """Who had the ball on one frame, and whether the ball was seen at all."""
+
     timestamp_s: float
     # holder_track and distance_px are read only by the tests, which pin who
     # held the ball and how close; kept as that contract.
@@ -73,6 +75,8 @@ class FrameState:
 
 @dataclass
 class PossessionSummary:
+    """Seconds of each team's possession, contested and dead time, turnovers and spells."""
+
     team_a_s: float = 0.0
     team_b_s: float = 0.0
     contested_s: float = 0.0

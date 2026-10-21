@@ -240,6 +240,8 @@ class PositionSeries:
 
 @dataclass
 class MovementStats:
+    """One player's distance, speeds, sprints and accelerations, from the smoothed path."""
+
     track_id: int
     distance_m: float = 0.0
     top_speed_ms: float = 0.0
@@ -850,10 +852,10 @@ def shape_drift(
     if len(early_idx) < min_samples or len(late_idx) < min_samples:
         return None
 
-    def mean_of(values, indices):
+    def mean_of(values, indices) -> float:
         return float(np.mean([values[i] for i in indices]))
 
-    def side(indices):
+    def side(indices) -> dict[str, float]:
         return {
             'width_m': mean_of(widths, indices),
             'depth_m': mean_of(depths, indices),

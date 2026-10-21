@@ -31,6 +31,8 @@ from .pitchtrack import FOOT_SIGMA_FLOOR_PX, FOOT_SIGMA_H, FOOT_SIGMA_W, PitchPr
 
 @dataclass
 class MapSettings:
+    """Foot noise, smoothing and slot settings for the top-down map."""
+
     fps: float = 30.0
     # feet
     foot_sigma_w: float = FOOT_SIGMA_W  # pixel noise across, share of box width
@@ -66,6 +68,8 @@ class MapSettings:
 
 @dataclass
 class Dot:
+    """One dot on the map for one frame: where, how sure, and which colour."""
+
     x: float  # metres
     y: float
     seen: bool  # a box (or the linker's short fill) this frame
@@ -82,6 +86,8 @@ class Dot:
 
 @dataclass
 class TopDown:
+    """The map for frames lo..hi: dots per frame and the paths behind them."""
+
     lo: int
     hi: int
     dots: list  # per frame (lo..hi-1): [Dot]
@@ -139,6 +145,7 @@ def feet(res: LinkResult, projector: PitchProjector, s: MapSettings, person_px=N
 
 
 def _model(s: MapSettings) -> tuple[np.ndarray, np.ndarray]:
+    """Transition and process noise for a run whose speed fades to its team drift."""
     dt = 1.0 / s.fps
     phi = np.exp(-dt / s.tau_s)
     a = s.tau_s * (1.0 - phi)
@@ -237,7 +244,8 @@ def view_polygon(
     h = projector.H[int(frame)]
     sgn = np.sign((h @ [W / 2, Hh - 1, 1.0])[2])
 
-    def top(u):
+    def top(u) -> int:
+        """The highest picture row in column `u` that still lands near the pitch."""
         best = Hh - 1
         for v in range(Hh - 1, -1, -step_px):
             q = h @ [u, v, 1.0]
@@ -466,7 +474,7 @@ def build(
                 cur.append(b)
         segs.append((n, g, cur))
 
-    def rows(v):
+    def rows(v) -> np.ndarray:
         fs = obs[v.pid][0]
         return (fs >= v.first) & (fs <= v.last)
 
@@ -607,7 +615,7 @@ def cap_teams(dots: list, res, frame: int, outfield: int) -> list:
     frame: the least evidence), and only then the boxes the linker kept. A
     greyed dot is drawn without a team rather than with a wrong one."""
 
-    def boxed(d):
+    def boxed(d) -> bool:
         fs = d.ident.frames
         k = np.searchsorted(fs, frame)
         return k < len(fs) and fs[k] == frame

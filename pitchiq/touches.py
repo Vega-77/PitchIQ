@@ -145,6 +145,8 @@ class TouchConfidence:
 
 @dataclass(frozen=True)
 class Touch:
+    """One player touching the ball: who, where, and the change in ball motion that made it one."""
+
     frame_index: int
     timestamp_s: float
     track_id: int
@@ -439,6 +441,7 @@ def segment_touches(
     radius = max(1, int(round(t.min_separation_s * fps / 2)))
 
     def build_touch(i, motion, turn_deg, speed_before, speed_after) -> Touch:
+        """The Touch at record `i`, with its confidence from the motion change and the margin to the next player."""
         record = records[i]
         distance = float(nearest_ph[i])
         window = observed[max(0, i - t.velocity_window) : i + t.velocity_window + 1]

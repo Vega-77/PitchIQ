@@ -47,6 +47,8 @@ OTHER = 'other'
 
 @dataclass
 class LinkSettings:
+    """Speed limits, gates and costs for joining tracklets into people."""
+
     fps: float = 30.0
     max_speed: float = 8.5  # m/s, sustained, over a gap
     reach_slack_m: float = 2.0
@@ -210,6 +212,8 @@ class Identity:
 
 @dataclass
 class LinkResult:
+    """The people the linker settled on, the joins it made and refused, and which team defends x=0."""
+
     identities: list
     joins: list  # (stage, end piece, start piece, cost)
     refused: list  # (stage, end piece, start piece, cost, why)
@@ -297,6 +301,8 @@ def _end_fit(
 
 
 class Linker:
+    """Joins tracklets into identities across gaps, in stages of growing time window."""
+
     def __init__(
         self,
         projector: PitchProjector,
@@ -304,6 +310,7 @@ class Linker:
         pitch_width: float,
         settings: LinkSettings | None = None,
     ) -> None:
+        """Keep the projector, the pitch size and the settings; nothing is computed yet."""
         self.proj = projector
         self.L = float(pitch_length)
         self.W = float(pitch_width)
@@ -311,6 +318,7 @@ class Linker:
 
     # ---- summaries
     def _pieces(self, tracklets: list[Tracklet], det: Detections) -> list[_Piece]:
+        """Each tracklet as a piece: its frames, foot positions in metres and their uncertainty."""
         s = self.s
         out = []
         for i, tr in enumerate(tracklets):
@@ -354,6 +362,7 @@ class Linker:
         return out
 
     def _kits(self, pieces: list[_Piece], det: Detections) -> None:
+        """Give each piece a kit: from the kit samples when there are any, else by team votes."""
         if det.kit is None:
             for p in pieces:
                 votes = det.team[p.rows]
@@ -646,7 +655,7 @@ class Linker:
         big[n:, :n] = new[:, None]  # somebody new
         big[n:, n:] = 0.0
 
-        def solve(m):
+        def solve(m) -> tuple[list, float]:
             pairs = min_cost_assignment(m)
             return pairs, float(sum(m[i, j] for i, j in pairs))
 
@@ -666,6 +675,7 @@ class Linker:
 
     @staticmethod
     def _group_kit(members, pieces) -> str:
+        """The kit with the most frames across `members`, or unknown on a tie or no votes."""
         n = {TEAM_A: 0, TEAM_B: 0, OTHER: 0}
         for m in members:
             if pieces[m].kit in n:
@@ -745,14 +755,15 @@ class Linker:
 
         alias: dict[int, int] = {}
 
-        def root(g):
+        def root(g) -> int:
             while g in alias:
                 g = alias[g]
             return g
 
-        def apply(keep, stage):
+        def apply(keep, stage) -> None:
             # one round may chain a->b and b->c; joins are end-to-start and
             # strictly later in time, so members stay in time order
+            """Merge each kept join into its group, end to start, and record it."""
             for ge, gs, c in keep:
                 joins.append((stage, pieces[groups[root(ge)][-1]].idx, gs, c))
                 r = root(ge)
@@ -879,6 +890,7 @@ class Linker:
         return {g: end for end, (g, _) in best.items()}
 
     def _identities(self, groups, pieces, det, joins, refused) -> LinkResult:
+        """Turn the joined groups into identities with kit, role and number, and settle which team defends x=0."""
         s = self.s
         # which team keeps which goal: the team whose players stand nearer x=0
         xs = {TEAM_A: [], TEAM_B: []}

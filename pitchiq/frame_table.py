@@ -247,6 +247,7 @@ class TrackedFramePass:
         # `detector` and `tracker_factory` exist so the assembly below can be
         # tested without a GPU: everything this class does with a frame is
         # bookkeeping, and bookkeeping is exactly the part worth pinning.
+        """Settings for one decode-and-track pass; the detector and tracker can be swapped in for tests."""
         self.detector = detector or PersonBallDetector(
             weights=weights, conf=ball_conf, imgsz=imgsz, device=device
         )
@@ -432,6 +433,7 @@ class TrackedFramePass:
                 del thumbs[track_id]
 
     def _ball_candidates(self, balls, absolute: int, timestamp: float) -> list[BallCandidate]:
+        """Ball boxes at or above `ball_conf` as candidates at their centres."""
         out: list[BallCandidate] = []
         for xyxy, score in zip(balls.xyxy, balls.conf):
             if float(score) < self.ball_conf:

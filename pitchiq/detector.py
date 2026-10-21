@@ -33,6 +33,8 @@ DEFAULT_WEIGHTS = Path(__file__).parent / 'weights' / 'yolov8n.pt'
 
 @dataclass(frozen=True)
 class Detection:
+    """One detected box: its label, confidence and pixel corners."""
+
     label: str
     confidence: float
     xyxy: tuple[float, float, float, float]
@@ -63,6 +65,7 @@ class PersonBallDetector:
         imgsz: int = 960,
         device: str | int | None = None,
     ) -> None:
+        """Load the YOLO weights once; `conf` and `imgsz` apply to every call."""
         from ultralytics import YOLO
 
         self.model = YOLO(str(weights))

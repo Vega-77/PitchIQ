@@ -88,6 +88,8 @@ class Disagreement:
 
 @dataclass
 class Reconciliation:
+    """Where the tagged log and the pipeline disagree, by kind."""
+
     entries: list[Disagreement] = field(default_factory=list)
 
     # False means ball exits were never attempted — no calibration, so there is
