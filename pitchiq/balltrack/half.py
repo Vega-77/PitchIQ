@@ -232,7 +232,9 @@ class Half:
             ('homog.flight_chain', P),
         ):
             self.run(HOM, *cmd, log=log, env=ONE_THREAD)
-        self.run(HOM, 'homog.vsmooth', P, env=dict(ONE_THREAD, VS_B3='%s_ball3d2.npz' % P), log=log)
+        self.run(
+            HOM, 'homog.smooth_ball', P, env=dict(ONE_THREAD, VS_B3='%s_ball3d2.npz' % P), log=log
+        )
         self.run(
             HOM,
             'homog._mk',

@@ -17,7 +17,7 @@ import sys
 
 import numpy as np
 
-from .vsmooth import runs_of
+from .smooth_ball import runs_of
 
 P = dict(min_seen=8, seen_frac=0.6, margin=2.0, out_frac=0.5, min_len=8, edge=2, start_n=1)
 for k_ in P:

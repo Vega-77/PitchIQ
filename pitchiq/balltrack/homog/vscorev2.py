@@ -19,7 +19,7 @@ import sys
 
 import numpy as np
 
-from .vsmooth import runs_of
+from .smooth_ball import runs_of
 
 TOL = 3
 L = json.load(open('flightlab2_labels.json'))['flights']

@@ -14,7 +14,7 @@ import sys
 import numpy as np
 
 from . import vflscore as S
-from .vsmooth import runs_of
+from .smooth_ball import runs_of
 
 A0 = 86475
 man = json.load(open('airlab/manifest.json'))['clips']

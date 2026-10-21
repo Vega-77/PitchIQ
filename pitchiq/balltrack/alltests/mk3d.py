@@ -6,8 +6,8 @@ folder so the shipped outputs are never touched.
   work   S2/h3d_<ver>/  (labels, registrations): the homog scripts run there with
          PIQ_HOMOG pointing at it and PIQ_P2D=<ver>, so render_review_video.picks_for serves
          alltests/p2d/<ver>/<tag>.npz
-  chain  ball_on_pitch -> vfl0 -> flight_scan 16 -> vrowspd -> vdefault (flight_chain + vsmooth) -> <tag>_ball3dd.npz
-  --variants  also vflscan 8 (v1), vflchain3 (3, 3k), vstrict (x1), vsmooth on x1 -> sx
+  chain  ball_on_pitch -> vfl0 -> flight_scan 16 -> vrowspd -> vdefault (flight_chain + smooth_ball) -> <tag>_ball3dd.npz
+  --variants  also vflscan 8 (v1), vflchain3 (3, 3k), vstrict (x1), smooth_ball on x1 -> sx
 TAPNext bridge frames (src 3) go in as 'fill' unless BRIDGE_TRACK=1.
 """
 
@@ -94,7 +94,7 @@ def chain(ver, tag, variants):
             run(d, ver, log, 'flight_scan', tag, '16')
             run(d, ver, log, 'vrowspd', tag)
             run(d, ver, log, 'flight_chain', tag)
-            run(d, ver, log, 'vsmooth', tag, env=dict(VS_B3='%s_ball3d2.npz' % tag))
+            run(d, ver, log, 'smooth_ball', tag, env=dict(VS_B3='%s_ball3d2.npz' % tag))
             run(
                 d,
                 ver,
@@ -112,7 +112,7 @@ def chain(ver, tag, variants):
             run(d, ver, log, 'vflchain3', tag, '3')
             run(d, ver, log, 'vflchain3', tag, '3k', env=dict(V3_ERR='4', V3_FAST_ERR='5'))
             run(d, ver, log, 'vstrict', '%s_ball3d3k.npz' % tag, '%s_ball3dx1.npz' % tag, tag)
-            run(d, ver, log, 'vsmooth', tag, env=dict(VS_B3='%s_ball3dx1.npz' % tag))
+            run(d, ver, log, 'smooth_ball', tag, env=dict(VS_B3='%s_ball3dx1.npz' % tag))
             run(
                 d,
                 ver,

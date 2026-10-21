@@ -10,7 +10,7 @@ rts        Kalman + RTS smoother, constant velocity in SB units. Measurement
            unseen hops. Big innovations: a kick (the next frames agree with the
            jump -> velocity reset) or an outlier (dropped).
 
-  python -m pitchiq.balltrack.homog.vsmooth [tag]   -> <tag>_smooth.npz (abs, x, y, has, H)
+  python -m pitchiq.balltrack.homog.smooth_ball [tag]   -> <tag>_smooth.npz (abs, x, y, has, H)
 """
 
 import os

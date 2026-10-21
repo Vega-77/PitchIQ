@@ -66,7 +66,7 @@ pick after and run backward. A bridge is accepted only when:
 - the gap touches no frame the 3D chain calls air.
 
 Rejected gaps keep the shipped gap-fill. The default 3D chain then runs on the
-hybrid picks (flight_chain flights + vsmooth ground). The output is
+hybrid picks (flight_chain flights + smooth_ball ground). The output is
 `h3d_hyb90/<tag>_ball3dd.npz`, which holds StatsBomb 120x80 positions, height
 in CR, and the state (ground or air) for every frame.
 
