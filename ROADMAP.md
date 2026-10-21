@@ -25,16 +25,16 @@ The archive was written before any match footage existed, when a camera that
 holds still looked necessary and a panning one was called unusable. That has
 changed: the team's Hudl footage, which follows the play, now runs end to end.
 
-- **Calibration per frame.** `cv/autocal.py` calibrates the camera from the
-  match itself (paint and SIFT, no clicks; `python -m cv.experiments.autocal_run`),
-  and `cv/balltrack/homog/vreg.py` registers every frame to it. One camera
+- **Calibration per frame.** `pitchiq/autocal.py` calibrates the camera from the
+  match itself (paint and SIFT, no clicks; `python -m pitchiq.experiments.autocal_run`),
+  and `pitchiq/balltrack/homog/vreg.py` registers every frame to it. One camera
   position per game; each half solves its own aim.
-- **The ball.** The Hybrid 90 tracker in `cv/balltrack/` (accepted 2026-10-03):
+- **The ball.** The Hybrid 90 tracker in `pitchiq/balltrack/` (accepted 2026-10-03):
   a detector + classifier tracker that owns every confident pick, with
   TAPNext++ bridging gaps of 90 frames or fewer, then a 3D chain that tells
   ground from air. `half.py` runs a whole half; `ballgate.py` blanks the
   stretches where the classifier is lost.
-- **Into the pipeline.** `cv/panned.py` (`PannedCamera.from_tracker(tag)`)
+- **Into the pipeline.** `pitchiq/panned.py` (`PannedCamera.from_tracker(tag)`)
   moves every player box into one still reference view and hands
   `analyse_match` the tracker's ball, so the fixed-camera pipeline runs
   unchanged. `event_report` and `match_report` take `--panned <tag>`.
@@ -44,7 +44,7 @@ changed: the team's Hudl footage, which follows the play, now runs end to end.
   `halftime/` run on Firestore with Google sign-in; `firestore.rules` is the
   whole security boundary. There is no server of our own.
 
-How good the ball is, from `cv/balltrack/README.md`:
+How good the ball is, from `pitchiq/balltrack/README.md`:
 
 | | Ball Truth | wrong picks | Find the Ball | passes |
 |---|---|---|---|---|
@@ -57,12 +57,12 @@ picks. Almost every miss is an abstention, which is the intended failure: a
 wrong ball is worse than no ball.
 
 What is checked and what is not, in more detail: the status block at the top
-of `cv/pipeline.py`. How to run it: `FOOTAGE_DAY.md`, "Fixed or panning", and
+of `pitchiq/pipeline.py`. How to run it: `FOOTAGE_DAY.md`, "Fixed or panning", and
 the root `README.md`. For one window of a panned game:
 
 ```bash
-python -m cv.experiments.autocal_run nb1 7200 9000
-python -m cv.experiments.event_report --video clips/first-half.mp4 --panned nb1
+python -m pitchiq.experiments.autocal_run nb1 7200 9000
+python -m pitchiq.experiments.event_report --video clips/first-half.mp4 --panned nb1
 ```
 
 ---
@@ -86,11 +86,11 @@ it, **[Stretch]** for later.
       weather check.
 - [ ] **Bring the pin solve into the repo.** `pin_cal.py` and the panorama
       builder (`lc/`, with `lc/pano_rgb.py`) still live in the data folder
-      beside the repo, not in `cv/`.
+      beside the repo, not in `pitchiq/`.
 - [ ] **Possession, on a second annotated window.** The one hand-counted window
       agreed, but on 12 s of live ball, and half its frames change answer if the
       ball moves 20 px. Report `live_s` beside any split until then.
-- [ ] **Shots on real footage.** xG is computed in `cv/xg_bridge.py` and the
+- [ ] **Shots on real footage.** xG is computed in `pitchiq/xg_bridge.py` and the
       model is measured; whether a shot is spotted, and whether the shooter,
       keeper and defenders handed to it are the right people, has not been
       checked against a match anyone watched.
@@ -103,12 +103,12 @@ it, **[Stretch]** for later.
       the ball gates replace a single confidence threshold). People are still
       found by the stock YOLOv8n weights.
 - [ ] **Re-identification** after a player is hidden or leaves the frame.
-      Partly done: `cv/identity.py` rejoins fragments seconds apart, and the
+      Partly done: `pitchiq/identity.py` rejoins fragments seconds apart, and the
       coach's picker suggests the rest. Anyone gone for longer stays split.
 - [ ] **[MVP] Speed, for half-time.** A half takes about 2.2 hours of GPU on the
-      RTX 4060 (`cv/balltrack/README.md`, speed), so nothing yet reaches the
+      RTX 4060 (`pitchiq/balltrack/README.md`, speed), so nothing yet reaches the
       break. Processing the first half incrementally during play needs a much
-      faster tracker first; `cv.experiments.speed_report` measures the rest.
+      faster tracker first; `pitchiq.experiments.speed_report` measures the rest.
 - [ ] **[Stretch]** Multiple cameras, a drone, or pan-tilt-zoom coverage.
 - [ ] **[Stretch]** Jersey-number OCR, only as a suggestion for the mapping.
 - [ ] **[Stretch]** Offside detection. It stays human-marked.
@@ -146,7 +146,7 @@ were closed or merged:
 | archive item | outcome |
 |---|---|
 | [Demo] a single fixed camera, a hard requirement (Phase 1) | superseded: panning footage runs end to end |
-| [Stretch] support moving, auto-tracking cameras (Phase 1) | done: `cv/autocal.py`, `vreg.py`, `cv/panned.py` |
+| [Stretch] support moving, auto-tracking cameras (Phase 1) | done: `pitchiq/autocal.py`, `vreg.py`, `pitchiq/panned.py` |
 | [Demo] a native-resolution export, not a screen recording (Phase 1) | met: every game since is a downloaded export |
 | [Demo] record to a file, process afterwards (Phase 1) | done: how every run works |
 | [MVP] process the first half incrementally (Phase 1) | merged into "Speed, for half-time" |
@@ -173,8 +173,8 @@ PitchIQ/
 ├── calibrate/           landmark pins: a fixed frame, or a panorama for the pin solve
 ├── firestore.rules      the security boundary (with firestore.indexes.json)
 ├── tests/               Python tests, JS tests and the Firestore emulator suites
-├── cv/                  the video pipeline: detection, tracking, calibration, events, xG
-│   ├── experiments/        the command-line entry points (python -m cv.experiments.<name>)
+├── pitchiq/                  the video pipeline: detection, tracking, calibration, events, xG
+│   ├── experiments/        the command-line entry points (python -m pitchiq.experiments.<name>)
 │   └── balltrack/          the ball tracker (Hybrid 90) and its labs
 ├── baselines/           report JSONs a person checked against the match
 ├── xg_training/         xG model training (main.py)

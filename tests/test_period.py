@@ -15,8 +15,8 @@ Run:  .venv/Scripts/python.exe -m pytest tests/test_period.py -q
 
 from __future__ import annotations
 
-from cv.phases import VideoClock, periods_from_log
-from cv.pipeline import MatchReport, _resolve_period
+from pitchiq.phases import VideoClock, periods_from_log
+from pitchiq.pipeline import MatchReport, _resolve_period
 
 
 def entry(kind, clock_s):

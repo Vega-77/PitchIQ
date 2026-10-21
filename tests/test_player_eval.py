@@ -2,7 +2,7 @@ import json
 
 import numpy as np
 
-from cv.player_eval import Pred, build_truth, load_docs, score
+from pitchiq.player_eval import Pred, build_truth, load_docs, score
 
 
 def sheet(k, f, feet):

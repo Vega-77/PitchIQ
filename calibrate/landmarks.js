@@ -2,23 +2,23 @@
 //
 // Two calibrators read the pins, and they name the same points differently:
 //
-//   cv/pitch.py `Pitch.landmarks()`    corner_bottom_left, pen_left_top_corner, ...
-//                                      read by `python -m cv.experiments.calibrate`
+//   pitchiq/pitch.py `Pitch.landmarks()`    corner_bottom_left, pen_left_top_corner, ...
+//                                      read by `python -m pitchiq.experiments.calibrate`
 //                                      (a fixed camera: one frame, one homography)
 //   the pin solve (`pin_cal.py`)       'left corner near', 'left box far', ...
 //                                      (a panning camera: pins on its panorama)
 //
 // Each row carries both names, so one set of clicks feeds either. "Left" is the
-// goal on the left of the picture. "Near", or "bottom" in cv/pitch.py, is the
+// goal on the left of the picture. "Near", or "bottom" in pitchiq/pitch.py, is the
 // touchline on the camera's side. The goalposts have no pin-solve name; it
 // ignores them.
 //
-// tests/test_calibrate_landmarks.py holds the names to cv/pitch.py and the
+// tests/test_calibrate_landmarks.py holds the names to pitchiq/pitch.py and the
 // positions to `Pitch.landmarks()`.
 
-import { MARKINGS_M } from '../assets/pitch-backdrop.js?v=136';
+import { MARKINGS_M } from '../assets/pitch-backdrop.js?v=137';
 
-// [cv/pitch.py name, pin-solve name or null, label, suggested]
+// [pitchiq/pitch.py name, pin-solve name or null, label, suggested]
 // Suggested: the spread the solve does best with when only a few can be placed.
 export const GROUPS = [
     ['Halfway', [

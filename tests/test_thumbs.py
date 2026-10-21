@@ -20,8 +20,8 @@ import base64
 import numpy as np
 import pytest
 
-from cv.identity import PlayerCluster
-from cv.thumbs import (
+from pitchiq.identity import PlayerCluster
+from pitchiq.thumbs import (
     MAX_THUMB_H,
     MIN_THUMB_H,
     Thumb,

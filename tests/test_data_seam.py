@@ -466,7 +466,7 @@ class TestVocabulary(unittest.TestCase):
     def test_every_event_the_app_knows_has_a_button(self):
         # Bar one, by name. Out of bounds is never tagged now -- the restart
         # that follows says where the ball went -- but the tags already in
-        # the log still have to read, and cv/ still reads them.
+        # the log still have to read, and pitchiq/ still reads them.
         unreachable = sorted(set(EVENTS) - set(BUTTONS) - RETIRED)
         self.assertEqual(
             unreachable,

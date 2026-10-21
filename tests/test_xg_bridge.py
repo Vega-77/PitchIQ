@@ -6,7 +6,7 @@ That kind of mistake does not raise. It returns a plausible number that is
 quietly wrong, which is far worse than a crash.
 
 The pipeline now runs end to end on real (panning) footage, but its shots have
-not been checked against a match anyone watched; see cv/pipeline.py's status.
+not been checked against a match anyone watched; see pitchiq/pipeline.py's status.
 """
 
 from __future__ import annotations
@@ -17,9 +17,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from cv.calibration import Calibration
-from cv.pitch import STATSBOMB_LENGTH, STATSBOMB_WIDTH, MatchOrientation, Pitch
-from cv.xg_bridge import (
+from pitchiq.calibration import Calibration
+from pitchiq.pitch import STATSBOMB_LENGTH, STATSBOMB_WIDTH, MatchOrientation, Pitch
+from pitchiq.xg_bridge import (
     FEATURE_ORDER,
     ShotContext,
     build_features,
@@ -348,7 +348,7 @@ class TestKeeperGuess:
     def test_naming_the_keeper_beats_guessing(self, pitch):
         """A named keeper is used even when he is nowhere sensible.
 
-        The point is that the caller's answer wins outright — `cv/keeper.py` and
+        The point is that the caller's answer wins outright — `pitchiq/keeper.py` and
         a human both know things this geometry does not.
         """
         context = self.context(
@@ -384,7 +384,7 @@ class TestTheRealModel:
         return (sx / STATSBOMB_LENGTH * pitch.length_m, sy / STATSBOMB_WIDTH * pitch.width_m)
 
     def test_the_model_file_is_where_the_bridge_looks(self):
-        from cv.xg_bridge import MODEL_PATH
+        from pitchiq.xg_bridge import MODEL_PATH
 
         assert MODEL_PATH.exists(), f'missing model: {MODEL_PATH}'
 
@@ -392,7 +392,7 @@ class TestTheRealModel:
         """The vector the bridge builds is one the real model accepts, and what
         comes back is a probability rather than a class label."""
         pytest.importorskip('onnxruntime')
-        from cv.xg_bridge import _predict, load_session
+        from pitchiq.xg_bridge import _predict, load_session
 
         session = load_session()
         context = ShotContext(shooter_m=self.metres(108.0, 40.0))
@@ -408,7 +408,7 @@ class TestTheRealModel:
         would break while every individual number still looked plausible.
         """
         pytest.importorskip('onnxruntime')
-        from cv.xg_bridge import _predict, load_session
+        from pitchiq.xg_bridge import _predict, load_session
 
         session = load_session()
 

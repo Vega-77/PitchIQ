@@ -31,8 +31,8 @@ import cv2
 import numpy as np
 import pytest
 
-from cv.calibration import Calibration, Correspondence
-from cv.lines import (
+from pitchiq.calibration import Calibration, Correspondence
+from pitchiq.lines import (
     LineFit,
     _is_improvement,
     Segment,
@@ -43,7 +43,7 @@ from cv.lines import (
     pitch_line_segments,
     refine,
 )
-from cv.pitch import Pitch
+from pitchiq.pitch import Pitch
 
 FRAME_W, FRAME_H = 1280, 720
 GRASS_BGR = (45, 125, 45)

@@ -483,7 +483,7 @@ describe('calibrationNote', () => {
 
 // ------------------------------------------------------------- the shot map
 //
-// The mirroring happens in Python (cv/report_json.py::shot_marks) so no
+// The mirroring happens in Python (pitchiq/report_json.py::shot_marks) so no
 // renderer can forget it, which leaves two things worth pinning here: the size
 // scale, and the totals printed under the map.
 
@@ -675,7 +675,7 @@ describe('xgTrust', () => {
 describe('a shot with nowhere to go', () => {
   // `Number(null) || 0` put a positionless shot at (0, 0) — the corner flag —
   // and the dot that came out was indistinguishable from a real one. Nothing
-  // produces this today, because shot_marks in cv/report_json.py drops
+  // produces this today, because shot_marks in pitchiq/report_json.py drops
   // positionless shots, but a picture a coach reads as measurement should not
   // be able to invent a point at all.
   test('a mark with no position is not placeable', () => {

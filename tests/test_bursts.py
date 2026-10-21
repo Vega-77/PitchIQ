@@ -18,7 +18,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cv.metrics import (
+from pitchiq.metrics import (
     ACCEL_SMOOTH_S,
     MAX_ACCEL_NOISE_M,
     PositionSeries,

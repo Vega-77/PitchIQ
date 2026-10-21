@@ -14,14 +14,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from cv.phases import DeadSpan, PhaseTable
-from cv.possession import (
+from pitchiq.phases import DeadSpan, PhaseTable
+from pitchiq.possession import (
     FrameState,
     frame_holder,
     median_player_height,
     summarise,
 )
-from cv.teams import (
+from pitchiq.teams import (
     TEAM_A,
     TEAM_B,
     UNKNOWN,
@@ -425,7 +425,7 @@ class TestTrainingBibs:
         """The fixture fails without the tint, or the next test proves nothing.
         Lightness split by tracks, that is: split by frames it already hands fr00's
         bibs to white (0.84), though fm01 stays near a coin toss (0.60)."""
-        from cv import teams
+        from pitchiq import teams
 
         monkeypatch.setattr(teams, '_discriminant_refit', lambda *a: None)
         monkeypatch.setattr(
@@ -438,7 +438,7 @@ class TestTrainingBibs:
     def test_bibs_go_with_their_team_and_nobody_else_moves(self, tag, bibs, monkeypatch):
         rows, assignment = self.split(tag)
         after = self.shares(rows, assignment)
-        from cv import teams
+        from pitchiq import teams
 
         monkeypatch.setattr(teams, '_discriminant_refit', lambda *a: None)
         before = self.shares(*self.split(tag))

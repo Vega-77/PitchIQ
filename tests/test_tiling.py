@@ -13,7 +13,7 @@ import unittest
 
 import numpy as np
 
-from cv.detector import Detection, TiledDetector, merge_detections, tile_windows
+from pitchiq.detector import Detection, TiledDetector, merge_detections, tile_windows
 
 
 def box(x1, y1, x2, y2, label='person', conf=0.6):

@@ -364,7 +364,7 @@ describe('turning a grid into a place on the pitch', () => {
 
   test('attacking left mirrors both axes, not just the one', () => {
     // Flip only x and a player who lived on the left wing in the second half
-    // comes out on the right — the same reason cv/report_json.py::shot_marks
+    // comes out on the right — the same reason pitchiq/report_json.py::shot_marks
     // mirrors both.
     const out = heatmap.orientedCentroid(grid(12, 8, [1, 1]), 'left');
     assert.ok(Math.abs(out.forwardM - (105 - 13.125)) < 0.001);

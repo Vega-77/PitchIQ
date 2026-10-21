@@ -63,7 +63,7 @@ const MAXED = ['top_speed_kmh', 'position_noise_m', 'top_acceleration_ms2'];
  * Roll the video's tracked figures up into the players a coach named them as.
  *
  * A player can legitimately be several clusters. The tracker loses people when
- * they leave frame, and `cv/identity.py` only re-joins fragments separated by
+ * they leave frame, and `pitchiq/identity.py` only re-joins fragments separated by
  * a couple of seconds — anyone who went off and came back later stays split.
  * That is the safe failure: two clusters mapped to one player still sum
  * correctly, whereas a wrong automatic merge would credit one player with
@@ -158,7 +158,7 @@ export function cvStatsByPlayer(tracks, byCluster, options = {}) {
 // matters to anyone tempted to add them. Duels are published per team and not
 // per player, so there is no player figure here to move. Clearances are
 // published nowhere and the pipeline never produces one — see
-// `HUMAN_ONLY_TYPES` in `cv/events.py`. Either way a retype into one removes
+// `HUMAN_ONLY_TYPES` in `pitchiq/events.py`. Either way a retype into one removes
 // the original and adds nothing, which is the truth.
 const EVENT_COUNTERS = {
     pass: 'passes_attempted',
@@ -261,7 +261,7 @@ export function reviewedCorrections(events, review, clusters, byCluster) {
 }
 
 // Everything a player's report can hold from the video, including the four
-// fields `cv/publish.py` writes and this module does not. Used to blank them
+// fields `pitchiq/publish.py` writes and this module does not. Used to blank them
 // all when a player has no confirmed mapping.
 //
 // It has to be a list rather than "whatever this function returns", because the
@@ -300,7 +300,7 @@ const CV_REPORT_KEYS = [
  *
  * `coverage` is optional and comes from the roster rather than the pipeline —
  * Python has no sub log and cannot compute it, which is why those fields have
- * no twin in `cv/publish.py::player_report_fields`. Without it the report is
+ * no twin in `pitchiq/publish.py::player_report_fields`. Without it the report is
  * exactly what it was before, with the totals unqualified.
  *
  * `shotRows` is the coach's shot ledger. It is what carries a body-part tag
@@ -787,7 +787,7 @@ export function rankRosterForCluster(roster, cluster, options = {}) {
 
 // ----------------------------------------- the same person, tracked twice over
 //
-// `cv/identity.py` rejoins fragments that are seconds apart and deliberately
+// `pitchiq/identity.py` rejoins fragments that are seconds apart and deliberately
 // stops there: a player who goes off, or who leaves frame while the camera
 // pans and comes back a minute later, stays two figures. That is the right
 // failure — two figures named as one player still sum correctly, whereas a
@@ -823,12 +823,12 @@ export function rankRosterForCluster(roster, cluster, options = {}) {
 // underneath are only as good as the video offset, and hiding the poor fits
 // would hide the right answer on the day that number is wrong.
 
-// The longest gap `cv/identity.py` will bridge, and so the largest overlap two
+// The longest gap `pitchiq/identity.py` will bridge, and so the largest overlap two
 // intervals can show while still being one person seen either side of it.
 export const BRIDGE_S = 2.0;
 
 // Lab chroma distance beyond which two figures are wearing different shirts.
-// Mirrors MAX_CHROMA_DISTANCE in cv/identity.py, which is the source of truth;
+// Mirrors MAX_CHROMA_DISTANCE in pitchiq/identity.py, which is the source of truth;
 // it is looser than team assignment uses because this asks whether two
 // sightings are one player, and light changes across a pitch more than kits do.
 export const SAME_KIT_CHROMA = 30.0;
@@ -1294,7 +1294,7 @@ export function periodNote(period, source) {
 }
 
 /**
- * Where `cv/metrics.py` stops reporting bursts. Mirrored here only to word the
+ * Where `pitchiq/metrics.py` stops reporting bursts. Mirrored here only to word the
  * caveat; the pipeline is what actually withholds them, and a browser that
  * disagreed with it would caption a figure that is not on the page.
  */
@@ -1324,7 +1324,7 @@ export const PHANTOM_M_PER_MINUTE = 353;
  * A team average is not this player's track — the tracker holds a centre-back
  * standing in space far better than a winger crossing in front of the crowd —
  * and, more importantly, the decision it explains is made per track:
- * `cv/metrics.py` withholds the burst count when *that track's* noise passes
+ * `pitchiq/metrics.py` withholds the burst count when *that track's* noise passes
  * MAX_ACCEL_NOISE_M, so a player whose Bursts card is missing while the team
  * average sat under the ceiling would read the coach's note and conclude the
  * card was missing for some other reason.
@@ -1387,7 +1387,7 @@ export function blindSplit(quality) {
     // footage it starts. The same total lost as one blackout or as a hundred
     // flickers are different failures, and only the first takes a passage of
     // football with it — so the worst one travels beside the split rather than
-    // being averaged into it. Published longest-first by cv/blind.py.
+    // being averaged into it. Published longest-first by pitchiq/blind.py.
     const first = (blind.worst || [])[0] || null;
     const worst = first ? {
         startS: first.start_s ?? first.startS,
@@ -1653,7 +1653,7 @@ export function cvQualityNotes(quality, options = {}) {
     }
 
     // Only once there are keeping figures on screen to caveat, and only when
-    // nobody confirmed who they belong to. `cv/keeper.py` is blunt about the
+    // nobody confirmed who they belong to. `pitchiq/keeper.py` is blunt about the
     // stake — a wrong keeper poisons save percentage, distribution and every
     // keeper feature in the xG model at once — and the rows look identical
     // whether a person named the keeper or the pipeline worked them out from
@@ -2201,7 +2201,7 @@ export function groupByPosition(players, compare = null) {
 //
 // The pipeline records where somebody spent the match; the coach records which
 // line they were picked in. Those are two independent records of the same
-// thing, and this compares them — the way `cv/reconcile.py` compares the tagged
+// thing, and this compares them — the way `pitchiq/reconcile.py` compares the tagged
 // log against the detected events, and for the same reason. It does **not**
 // compare anybody against a template of where a defender ought to stand. There
 // is no such template that survives contact with a modern full-back or a false
@@ -3137,7 +3137,7 @@ export function shapeStatRows(shape, theirShape, calibrationErrorM) {
 /**
  * The goalkeeper's half of the match, for both goalkeepers.
  *
- * `cv/keeper.py` has computed this block since the pipeline's second month and
+ * `pitchiq/keeper.py` has computed this block since the pipeline's second month and
  * until today no page drew a single figure of it. It reached the browser the
  * whole time — `readCvStats` spreads the summary document, so it has been
  * sitting on `state.match.cv.keepers` unread.
@@ -3467,7 +3467,7 @@ export const NEARBY_TAG_S = 6.0;
 /**
  * How far from a tagged goal a candidate shot may sit and still be that goal.
  *
- * Mirrors `GOAL_WINDOW_S` in `cv/reconcile.py`, for the same reason: a tagger
+ * Mirrors `GOAL_WINDOW_S` in `pitchiq/reconcile.py`, for the same reason: a tagger
  * taps a goal after the ball crosses the line and usually after the celebration
  * has started. The two numbers have to agree, or the browser would offer to
  * record a miss for a goal the pipeline's own reconciliation counted as found.
@@ -3484,7 +3484,7 @@ const PERIOD_KIND = 'period';
  *
  * `events` are in **video** seconds and the log in **match clock** seconds, so
  * `clock` does the conversion once here rather than at every comparison — the
- * same rule `cv/phases.py` keeps, and it matters more than usual because the
+ * same rule `pitchiq/phases.py` keeps, and it matters more than usual because the
  * windows above are seconds wide and a half-time interval is fifty times that.
  *
  * Period markers are left out. `halftime` and `kickoff_2nd` share a clock
@@ -3606,7 +3606,7 @@ export const hasVerdict = (decision) => Boolean(decision?.status);
 /**
  * The answers that still have a question attached.
  *
- * A CV event id is `frame:track:kind` (`cv/events.py`) and a cluster id is the
+ * A CV event id is `frame:track:kind` (`pitchiq/events.py`) and a cluster id is the
  * clusterer's own integer label. Both are handed out fresh on every pipeline
  * run, and nothing clears `cvReview` or `cvMapping` when a new run lands — so
  * after a re-publish an answer map holds keys naming events and figures that no
@@ -4287,7 +4287,7 @@ export function safeToClose(state) {
 // minutes and then sat off has the same match figure as one that pressed evenly
 // throughout, and those are different teams playing differently.
 //
-// `cv/events.py::pressing_segments` does the counting and decides which blocks
+// `pitchiq/events.py::pressing_segments` does the counting and decides which blocks
 // have a denominator worth a ratio; nothing here second-guesses it. A block
 // arrives with `ppda: null` for one of two reasons and the difference is the
 // whole reading — `actions: 0` is a spell in which nobody was challenged, which
@@ -4437,7 +4437,7 @@ export function pressingNote(trend) {
 // clear of ordinary.
 const PINNED_BACK_SHARE = 0.45;
 
-// Metres a shape figure has to move. Matches MIN_DRIFT_M in cv/metrics.py, and
+// Metres a shape figure has to move. Matches MIN_DRIFT_M in pitchiq/metrics.py, and
 // is about a player's worth of spacing.
 const SHAPE_MOVE_M = 3.0;
 

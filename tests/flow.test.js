@@ -395,7 +395,7 @@ describe('publishing and the player portal', () => {
     /**
      * The write order the app actually uses, and the bug it used to hide.
      *
-     * A coach publishes first, which creates the document. `cv/publish.py` then
+     * A coach publishes first, which creates the document. `pitchiq/publish.py` then
      * fills in the heatmap, the shot map's attacking end and the calibration
      * error — it updates, never creates, precisely because a report exists
      * because a coach made one. Then the coach goes back, corrects something,
@@ -419,7 +419,7 @@ describe('publishing and the player portal', () => {
 
         await assertSucceeds(setDoc(ref, base));
 
-        // The pipeline's pass, exactly as cv/publish.py does it.
+        // The pipeline's pass, exactly as pitchiq/publish.py does it.
         await assertSucceeds(updateDoc(ref, {
             cvHeatmap: { cols: 2, rows: 2, values: [0.1, 0.2, 0.3, 0.4] },
             cvAttackingEnd: 'right',

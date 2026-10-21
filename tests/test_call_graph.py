@@ -1,6 +1,6 @@
-"""Nothing under `cv/` is finished, tested, and connected to nothing.
+"""Nothing under `pitchiq/` is finished, tested, and connected to nothing.
 
-The audit that produced this file found `cv/publish.py` — the last mile of the
+The audit that produced this file found `pitchiq/publish.py` — the last mile of the
 whole project, the code that puts numbers on a coach's screen — fully written,
 fully guarded and fully tested, with no way to run it. No `main`, no
 `__main__`, no caller outside `tests/`. The suite was green the entire time,
@@ -9,16 +9,16 @@ per function cannot see that shape, because the shape is the absence of an edge
 between two functions that each pass their own tests.
 
 So this walks the call graph instead of the coverage, and fails when a public
-name defined at the top level of a `cv/` module is unreachable from anything
+name defined at the top level of a `pitchiq/` module is unreachable from anything
 that actually runs. Reachable means: reachable from module-level code, from a
-`main()` in `cv/experiments/`, or from `analyse_match`. Tests are deliberately
+`main()` in `pitchiq/experiments/`, or from `analyse_match`. Tests are deliberately
 not roots — "called only by its own test" is precisely the thing being looked
 for, so counting a test as a caller would hide every finding.
 
     What this check is, and what it is not.
 
 It is conservative on purpose. Names propagate by bare match: anything calling
-`run` marks every `run` in `cv/` reachable, because resolving attributes back to
+`run` marks every `run` in `pitchiq/` reachable, because resolving attributes back to
 types would need a type checker and would start being wrong in ways nobody
 could audit. So it over-approximates what is reachable, and therefore
 under-reports what is dead. A failure here is strong evidence — that name has
@@ -57,9 +57,9 @@ import ast
 import itertools
 from pathlib import Path
 
-CV = Path(__file__).resolve().parent.parent / 'cv'
+CV = Path(__file__).resolve().parent.parent / 'pitchiq'
 
-# Every public top-level name under `cv/` with no caller, and the reason it has
+# Every public top-level name under `pitchiq/` with no caller, and the reason it has
 # none yet. Written the day the audit ran, so that the next audit does not have
 # to work out any of this a second time.
 #
@@ -81,7 +81,7 @@ PENDING_BY_DESIGN = {
     'a zone-by-zone table that has not been designed.',
     # --- tracking and shape primitives
     'nearest_player': 'Closest tracked figure to the ball, in pixels. '
-    '`cv/touches.py` runs its own search because it also '
+    '`pitchiq/touches.py` runs its own search because it also '
     'needs the runner-up distance to know whether the '
     'assignment was a coin flip; this returns the winner '
     'alone, which is what a one-off question wants.',
@@ -98,7 +98,7 @@ PENDING_BY_DESIGN = {
     # --- conversions whose whole job is to be the one written-down copy
     'player_height_px': 'How tall a standing player is, from how wide. '
     'The pipeline never needs it -- every threshold in '
-    '`cv/framing.py` is already a height. But the one '
+    '`pitchiq/framing.py` is already a height. But the one '
     'empirical measurement behind those thresholds was '
     'recorded in widths, so this is the single step '
     'between the evidence and the numbers it justifies, '
@@ -122,7 +122,7 @@ PENDING_BY_DESIGN = {
 def _local_only(p: Path) -> bool:
     """Gitignored trees a checkout may hold that are not this project's code:
     the TAPNext clone (google-deepmind/tapnet) and the per-version copies of
-    the 3D chain that `cv/balltrack/alltests/mk3d.py` writes as `h3d_<ver>/`.
+    the 3D chain that `pitchiq/balltrack/alltests/mk3d.py` writes as `h3d_<ver>/`.
     """
     return any(part == 'tapnet' or part.startswith('h3d_') for part in p.parts)
 
@@ -271,7 +271,7 @@ class TestNothingIsOrphaned:
             f'  {name}  ({found[name].relative_to(CV.parent)})' for name in unrecorded
         )
         assert not unrecorded, (
-            'public names under cv/ that nothing calls:\n'
+            'public names under pitchiq/ that nothing calls:\n'
             + detail
             + '\n\nWire it up, delete it, or record why it is waiting in '
             'PENDING_BY_DESIGN.'
@@ -300,7 +300,7 @@ class TestTheGraphItself:
 
     def test_the_last_mile_would_have_been_caught(self):
         """`publish` is the function whose orphaning started all of this. It
-        has a caller now, in `cv/experiments/publish_report.py`, and this
+        has a caller now, in `pitchiq/experiments/publish_report.py`, and this
         asserts the walk actually finds it — otherwise the check would have
         missed the one case it was built for."""
         assert 'publish' in reachable_names()

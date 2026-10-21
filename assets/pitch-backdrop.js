@@ -2,18 +2,18 @@
 //
 // Chosen over a gradient or a noise texture because it is the one ornament that
 // is actually about the subject: real markings at real proportions, drawn from
-// the same dimensions cv/pitch.py uses. It sits at low opacity and is
+// the same dimensions pitchiq/pitch.py uses. It sits at low opacity and is
 // aria-hidden, so nothing here is announced or read aloud.
 //
 // The drawing is decoration. The numbers are not: shot-map.js, heatmap.js
 // and pass-map.js import L and W below and use them as the coordinate frame
 // they plot real event positions in metres into, so a wrong L here would put
 // every shot in the wrong place under a diagram that still looked right.
-// tests/test_pitch_dimensions.py holds them to cv/pitch.py.
+// tests/test_pitch_dimensions.py holds them to pitchiq/pitch.py.
 
-import { svgEl as el } from './svg.js?v=136';
+import { svgEl as el } from './svg.js?v=137';
 
-// Metres, matching the defaults in cv/pitch.py.
+// Metres, matching the defaults in pitchiq/pitch.py.
 const L = 105;
 const W = 68;
 const PEN_LEN = 16.5;
@@ -25,7 +25,7 @@ const SPOT = 11;
 const GOAL_W = 7.32;
 
 // The pitch, in metres, so anything drawn on top can be positioned in the same
-// units cv/ measures in and nothing has to convert.
+// units pitchiq/ measures in and nothing has to convert.
 export const PITCH_LENGTH_M = L;
 export const PITCH_WIDTH_M = W;
 export const PITCH_VIEWBOX = `-2 -2 ${L + 4} ${W + 4}`;

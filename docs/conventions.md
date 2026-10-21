@@ -42,14 +42,14 @@ docstring. The first line says what the function returns or does.
 
 ## Types
 
-Every function in `cv/` is annotated, including its return type
+Every function in `pitchiq/` is annotated, including its return type
 (`-> None` included). Arrays carry their shape and units in the docstring,
 for example `(n, 2) float, pixels`.
 
 ## Code shape
 
 - One implementation per job. A helper needed by two modules lives in one of
-  them, or in `cv/_util.py`, and is imported by the other. The duplicate-body
+  them, or in `pitchiq/_util.py`, and is imported by the other. The duplicate-body
   tests fail on two functions with the same body.
 - A function longer than about 80 lines, or with more than about 10
   parameters, is a candidate for splitting. Group related options into a
@@ -62,4 +62,4 @@ for example `(n, 2) float, pixels`.
 One change per commit. Behaviour changes and refactors never share a commit.
 A refactor proves it changes nothing: the same test results, the same
 `report.to_json()`, and byte-identical ball-tracker outputs where it touches
-`cv/balltrack/`.
+`pitchiq/balltrack/`.

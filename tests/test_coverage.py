@@ -12,8 +12,8 @@ Run:  python -m pytest tests/test_coverage.py -q
 import numpy as np
 import pytest
 
-from cv.calibration import Calibration
-from cv.coverage import (
+from pitchiq.calibration import Calibration
+from pitchiq.coverage import (
     GOALMOUTH_SEEN,
     _orientation,
     _project,
@@ -21,7 +21,7 @@ from cv.coverage import (
     coverage_warnings,
     pitch_coverage,
 )
-from cv.pitch import Pitch
+from pitchiq.pitch import Pitch
 
 
 PITCH = Pitch()

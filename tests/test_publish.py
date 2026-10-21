@@ -1,6 +1,6 @@
 """The guards on the one credential that bypasses every security rule.
 
-cv/publish.py authenticates with a Firebase service account, which means the
+pitchiq/publish.py authenticates with a Firebase service account, which means the
 Firestore rules — the entire security boundary of an app holding minors' names
 and email addresses — simply do not apply to it. Nothing it does is checked by
 anything except this file.
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import pytest
 
-from cv.publish import (
+from pitchiq.publish import (
     CV_FIELD_PREFIX,
     PublishError,
     _check_key,
@@ -142,7 +142,7 @@ class TestKeyLocation:
         here is full read and write access to every team's data, for anyone who
         clones it, and nothing downstream would notice.
         """
-        from cv.publish import REPO_ROOT
+        from pitchiq.publish import REPO_ROOT
 
         key = REPO_ROOT / 'accidentally-here.sa.json'
         key.write_text('{}', encoding='utf-8')
@@ -420,7 +420,7 @@ class TestPerPlayerGate:
 class TestOnePlayerSeveralFigures:
     """A student tracked as two figures is one student.
 
-    The tracker loses people when they leave frame and `cv/identity.py` only
+    The tracker loses people when they leave frame and `pitchiq/identity.py` only
     rejoins fragments a couple of seconds apart, so anyone who went off and came
     back stays split. The cluster picker lets a coach map both figures to the
     same player on purpose — `cvStatsByPlayer` in assets/report.js says so in
@@ -613,7 +613,7 @@ class TestPayloads:
         It travels in `thumbs` now rather than inside `identity`, so that a
         coach can delete the photographs of their players without destroying
         every statistic in the same document. See TestThePicturesAreKeptApart
-        below, and THUMBS_DOC in cv/publish.py for why.
+        below, and THUMBS_DOC in pitchiq/publish.py for why.
         """
         report = a_report(
             clusters=[

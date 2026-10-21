@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from cv import topdown as TD
-from cv.linking import PLAYER
+from pitchiq import topdown as TD
+from pitchiq.linking import PLAYER
 
 S = TD.MapSettings()
 FPS = int(S.fps)

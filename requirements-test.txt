@@ -1,6 +1,6 @@
 # What the test suite needs, which is much less than the pipeline needs.
 #
-# `cv/detector.py` imports ultralytics inside its constructor rather than at
+# `pitchiq/detector.py` imports ultralytics inside its constructor rather than at
 # module scope, so nothing under test ever pulls in torch — the pipeline takes a
 # detector by injection and every test supplies a fake. That turns a two-gigabyte
 # CI install into a small one, and it is why this file can exist at all.
@@ -11,9 +11,9 @@
 opencv-python==5.0.0.93
 numpy==2.4.4
 onnxruntime==1.28.0
-# cv/autocal.py imports it at module scope, and five test modules import that.
+# pitchiq/autocal.py imports it at module scope, and five test modules import that.
 scipy==1.18.0
-# cv/topdown.py imports it inside its linker; tests/test_topdown.py runs that.
+# pitchiq/topdown.py imports it inside its linker; tests/test_topdown.py runs that.
 networkx==3.6.1
 
 # Not in requirements.txt: only the tests and the pre-commit check use these.

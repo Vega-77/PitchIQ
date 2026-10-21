@@ -613,7 +613,7 @@ service cloud.firestore {
 
         // ---- cvStats: what the video pipeline derived ----
         //
-        // Written only by cv/publish.py through the Admin SDK, which bypasses
+        // Written only by pitchiq/publish.py through the Admin SDK, which bypasses
         // these rules entirely. So the write rule here is not what protects the
         // data — it is what stops anyone else forging it. A coach reading a
         // stat line has no way to tell a figure the pipeline produced from one
@@ -699,7 +699,7 @@ service cloud.firestore {
             // Unlike the other two, the far end here is not a browser. The
             // publisher bypasses rules entirely; what it caps is the number
             // of events this map answers, one decision each.
-            // Client guard: cv/publish.py
+            // Client guard: pitchiq/publish.py
             && request.resource.data.byEvent.size() <= 1500
             && request.resource.data.missed is list
             // Client guard: coach/review.js
@@ -725,7 +725,7 @@ service cloud.firestore {
           //
           // **No `keys().hasOnly()`.** This document is written with
           // `merge: true`, so `request.resource.data` is the *merged result*
-          // — including the twenty cv-prefixed fields `cv/publish.py` wrote
+          // — including the twenty cv-prefixed fields `pitchiq/publish.py` wrote
           // through the Admin SDK, which bypasses these rules and so never had
           // to be listed anywhere. An allowlist here would reject a coach
           // re-publishing a match the pipeline had already enriched, and it

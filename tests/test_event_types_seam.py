@@ -1,6 +1,6 @@
 """One set of event types, written out three times, agreed on by nothing.
 
-`cv/events.py` declares eight of them. `coach/review.js:57` offers a reviewer
+`pitchiq/events.py` declares eight of them. `coach/review.js:57` offers a reviewer
 eight words to retype an event into. They are the same eight words, typed out
 twice in two languages, and nothing held them to each other -- so a ninth type
 learned by the classifier would reach a coach's screen with no legal thing to
@@ -21,7 +21,7 @@ collect. Until now the only record of that was its absence, which reads exactly
 like an oversight, and `DefensiveAction`'s docstring actively said otherwise:
 it listed clearances among the things the classifier produces.
 
-`cv/events.py` now carries `EVENT_TYPES` and `HUMAN_ONLY_TYPES`, and this file
+`pitchiq/events.py` now carries `EVENT_TYPES` and `HUMAN_ONLY_TYPES`, and this file
 holds all three vocabularies to each other in both directions. Both directions,
 because both go wrong quietly. A type the pipeline emits and nobody declared is
 an event a reviewer cannot judge. A type declared and never emitted is either a
@@ -31,7 +31,7 @@ produce it turns a real detection into a permanent excuse.
 
 Two more vocabularies for the same thing sit downstream, and the defensive four
 are the ones that go stale silently: `DefensiveAction`'s docstring, and the team
-counter loop in `cv/report_json.py:373`. A fifth defensive kind added to
+counter loop in `pitchiq/report_json.py:373`. A fifth defensive kind added to
 `_defensive_action` reaches neither on its own, and a team that made twelve of
 them would be published as having made none.
 """
@@ -40,8 +40,8 @@ import inspect
 import re
 from pathlib import Path
 
-from cv import events, report_json
-from cv.events import (
+from pitchiq import events, report_json
+from pitchiq.events import (
     EVENT_TYPES,
     HUMAN_ONLY_TYPES,
     DefensiveAction,
@@ -51,7 +51,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # `type=SHOT,` in a constructor and `kind = TACKLE` in the defensive classifier
 # are the only two shapes that put a type on an event. Both sit alone on an
-# indented line. `type=kind,` at `cv/events.py:642` is the classifier handing
+# indented line. `type=kind,` at `pitchiq/events.py:642` is the classifier handing
 # its answer on, not a type of its own, and is correctly missed by `[A-Z_]+`.
 EMITTED = re.compile(r'^\s+(?:type|kind)\s*=\s*([A-Z_]+),?$', re.M)
 
@@ -67,7 +67,7 @@ QUOTED = re.compile(r"'([a-z_]+)'")
 
 
 def named(source, pattern):
-    """The type *values* a pattern finds names for, in `cv/events.py`.
+    """The type *values* a pattern finds names for, in `pitchiq/events.py`.
 
     A name that is not a constant on the module falls back to the name itself,
     which can never be a type value -- so a scan that finds a stranger fails the
@@ -135,7 +135,7 @@ class TestTheDeclaredVocabulary:
 
 
 class TestWhatTheReviewerIsOffered:
-    """`coach/review.js` against `cv/events.py`, across the language boundary.
+    """`coach/review.js` against `pitchiq/events.py`, across the language boundary.
 
     These two lists are the same list. They are written twice because one is
     read by Python and the other by a browser, and there is no build step to
@@ -166,7 +166,7 @@ class TestTheDefensiveFour:
 
         `DefensiveAction`'s summary line said "a tackle, interception, recovery,
         clearance or duel" while `_defensive_action` had no clearance branch and
-        never would. It is the first thing a reader of `cv/events.py` sees about
+        never would. It is the first thing a reader of `pitchiq/events.py` sees about
         the type, and it was wrong in the one direction that matters: it made a
         deliberate human-only word look like something the pipeline produces.
 

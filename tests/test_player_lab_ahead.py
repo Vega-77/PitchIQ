@@ -1,11 +1,11 @@
-"""cv/experiments/player_lab.py's read-ahead: same items, same order, errors kept."""
+"""pitchiq/experiments/player_lab.py's read-ahead: same items, same order, errors kept."""
 
 import threading
 
 import numpy as np
 import pytest
 
-from cv.experiments import player_lab as L
+from pitchiq.experiments import player_lab as L
 
 
 class Cap:
@@ -39,7 +39,7 @@ def test_stopping_early_ends_the_thread():
 
 def test_float16_features_link_exactly_as_float32():
     """load_detections keeps features float16; the linker's float64 mean must not notice."""
-    from cv.linking import _unit_mean
+    from pitchiq.linking import _unit_mean
 
     rng = np.random.default_rng(0)
     f16 = rng.normal(size=(500, 1024)).astype(np.float16)

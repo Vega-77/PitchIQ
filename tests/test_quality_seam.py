@@ -4,7 +4,7 @@
 one some page reads. It does that over the top-level keys of the five payload
 builders, and for one of those keys the check is empty:
 
-    'quality': report_json.get('quality') or {},   # cv/publish.py
+    'quality': report_json.get('quality') or {},   # pitchiq/publish.py
 
 One name, one reader, gate satisfied — and twenty-nine figures inside it that
 nothing has ever looked at, in either direction. That is not a hypothetical.
@@ -12,7 +12,7 @@ nothing has ever looked at, in either direction. That is not a hypothetical.
 apart and *four new quality fields ended up reaching neither*, which is the same
 failure this file exists to catch, found the slow way.
 
-So this reads both ends as text. `_quality` in `cv/report_json.py` says what is
+So this reads both ends as text. `_quality` in `pitchiq/report_json.py` says what is
 produced; the JavaScript under the module directories says what is read. The two
 have to agree, and a key that is deliberately not rendered has to be listed here
 with a reason somebody can argue with.
@@ -80,7 +80,7 @@ UNREAD_BY_DESIGN = {
 
 def produced() -> list[str]:
     """Every key `_quality` puts in the block."""
-    text = (ROOT / 'cv' / 'report_json.py').read_text(encoding='utf-8')
+    text = (ROOT / 'pitchiq' / 'report_json.py').read_text(encoding='utf-8')
     body = text.split('def _quality(')[1].split('\ndef ')[0]
     return sorted(set(re.findall(r"^ {8}'([a-z_0-9]+)':", body, re.M)))
 
@@ -150,7 +150,7 @@ class TestForwarded:
         # If this stops being true — if summary_payload starts naming the
         # figures individually — then tests/smoke.test.js covers them and this
         # file is duplicated work rather than the only thing looking.
-        text = (ROOT / 'cv' / 'publish.py').read_text(encoding='utf-8')
+        text = (ROOT / 'pitchiq' / 'publish.py').read_text(encoding='utf-8')
         assert "'quality': report_json.get('quality')" in text
 
 
@@ -158,7 +158,7 @@ class TestEveryFigureLands:
     def test_every_produced_key_is_rendered_or_excused(self, made, seen):
         orphans = sorted(k for k in made if not readers(k, seen) and k not in UNREAD_BY_DESIGN)
         assert not orphans, (
-            'cv/report_json.py produces %s and no page reads it. Render it, or '
+            'pitchiq/report_json.py produces %s and no page reads it. Render it, or '
             'add it to UNREAD_BY_DESIGN with the reason.' % ', '.join(orphans)
         )
 

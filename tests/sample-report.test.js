@@ -203,7 +203,7 @@ describe('the sample breakdowns add up', () => {
         });
 
         test(`${key} withholds a ratio exactly where the pipeline would`, () => {
-            // MIN_PRESSING_ACTIONS in cv/events.py. A fixture that scored a
+            // MIN_PRESSING_ACTIONS in pitchiq/events.py. A fixture that scored a
             // three-challenge block would preview a page the pipeline cannot
             // produce.
             for (const s of sample.sampleCvSummary().teams[key].pressing_segments) {

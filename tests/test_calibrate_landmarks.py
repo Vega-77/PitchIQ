@@ -1,14 +1,14 @@
 """The calibrate page's landmarks, against the two calibrators that read its pins.
 
-`calibrate/landmarks.js` names every landmark twice: once as `cv/pitch.py`
-does (what `python -m cv.experiments.calibrate` fits a fixed camera from) and
+`calibrate/landmarks.js` names every landmark twice: once as `pitchiq/pitch.py`
+does (what `python -m pitchiq.experiments.calibrate` fits a fixed camera from) and
 once as the panning camera's pin solve does. A name the reader does not know
 is a pin it silently drops, and a position that disagrees with
 `Pitch.landmarks()` is a homography the page checks against one pitch and
 Python fits to another. Both are held here.
 
 The pin solve measures in centre-circle radii with the box sizes in
-`cv/autocal.py` (rounded to a tenth of a radius), so its names are held to the
+`pitchiq/autocal.py` (rounded to a tenth of a radius), so its names are held to the
 same points to within that rounding.
 """
 
@@ -20,8 +20,8 @@ from pathlib import Path
 
 import pytest
 
-from cv import autocal as A
-from cv.pitch import CENTRE_CIRCLE_RADIUS_M, Pitch
+from pitchiq import autocal as A
+from pitchiq.pitch import CENTRE_CIRCLE_RADIUS_M, Pitch
 
 ROOT = Path(__file__).resolve().parents[1]
 LANDMARKS_JS = ROOT / 'calibrate' / 'landmarks.js'
@@ -106,7 +106,7 @@ def test_the_saved_points_load_into_a_calibration(tmp_path):
     """Pins at a known homography's pixels, saved the page's way, fit back to it."""
     import numpy as np
 
-    from cv.calibration import Calibration
+    from pitchiq.calibration import Calibration
 
     pitch = Pitch(length_m=100.0, width_m=64.0)
     H = np.array([[11.0, 2.0, 300.0], [0.4, -5.5, 800.0], [0.0003, 0.002, 1.0]])

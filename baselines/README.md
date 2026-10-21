@@ -6,8 +6,8 @@ plausible in passing — one where a person opened the video, checked a handful 
 the events against what happened, and decided the output was a fair description
 of the match.
 
-That distinction is the whole point. Every threshold in `cv/touches.py`,
-`cv/participants.py` and `cv/phases.py` is a guess. The unit tests pin what those
+That distinction is the whole point. Every threshold in `pitchiq/touches.py`,
+`pitchiq/participants.py` and `pitchiq/phases.py` is a guess. The unit tests pin what those
 guesses *are*; nothing pins what they *do* to a real match. Change one and every
 test still passes. A baseline is the only thing that notices.
 
@@ -27,7 +27,7 @@ Never one from a held-out half. See `FOOTAGE_DAY.md`.
 ## Making one
 
 ```bash
-python -m cv.experiments.event_report \
+python -m pitchiq.experiments.event_report \
     --video clips/2026-08-15-first-half.mp4 \
     --calibration clips/2026-08-15.calib.json \
     --tag-log clips/2026-08-15.log.json \
@@ -36,10 +36,10 @@ python -m cv.experiments.event_report \
 ```
 
 From the panning camera, after the ball tracker has run on that window
-(`cv/balltrack/README.md`):
+(`pitchiq/balltrack/README.md`):
 
 ```bash
-python -m cv.experiments.event_report --video clips/first-half.mp4 \
+python -m pitchiq.experiments.event_report --video clips/first-half.mp4 \
     --panned nb1 --json baselines/nb1-first-half.json
 ```
 
@@ -51,7 +51,7 @@ directions.
 ## Checking against one
 
 ```bash
-python -m cv.experiments.compare_reports \
+python -m pitchiq.experiments.compare_reports \
     baselines/2026-08-15-first-half.json runs/today.json
 ```
 
@@ -72,7 +72,7 @@ Two flags worth knowing:
 ## Baselines are tied to a schema version
 
 Record the `schema_version` of every baseline in the table below (the
-current one is `SCHEMA_VERSION` in `cv/report_json.py`, 15 on 2026-10-20). A report from
+current one is `SCHEMA_VERSION` in `pitchiq/report_json.py`, 15 on 2026-10-20). A report from
 an older schema does not merely have fewer keys — a version bump can mean the
 same footage now produces different numbers, and the diff will be real rather
 than cosmetic.

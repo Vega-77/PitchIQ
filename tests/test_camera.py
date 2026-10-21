@@ -17,8 +17,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cv.camera import CameraMotion, Shift, camera_warnings, detect_camera_shift
-from cv.frames import FrameRecord, FrameTable
+from pitchiq.camera import CameraMotion, Shift, camera_warnings, detect_camera_shift
+from pitchiq.frames import FrameRecord, FrameTable
 
 FPS = 30.0
 HEIGHT_PX = 60.0  # one player height, the unit everything is measured in
@@ -338,8 +338,8 @@ class TestItReachesTheReport:
     """
 
     def report_for(self, frames):
-        from cv.pipeline import MatchReport
-        from cv.report_json import build_report_json
+        from pitchiq.pipeline import MatchReport
+        from pitchiq.report_json import build_report_json
 
         motion = detect_camera_shift(table(frames))
         report = MatchReport(source='clip.mp4', duration_s=8.0, processing_s=1.0)

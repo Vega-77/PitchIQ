@@ -87,7 +87,7 @@ const SHOT_TRACKS = [10, 9, 11, 10, 8];
 function shots(startS) {
     // Spread across the half at a rate a real match produces, and deliberately
     // uneven: two from the same figure, one from a player the fixture's roster
-    // has no name for. `xgHeader` is the second reading `cv/xg_bridge.py` sends
+    // has no name for. `xgHeader` is the second reading `pitchiq/xg_bridge.py` sends
     // for every shot, and the ledger picks between them when a coach says a
     // shot was headed.
     return SHOT_TRACKS.map((trackId, index) => ({
@@ -127,7 +127,7 @@ function clusters() {
         sightings,
         colour: team === 'team_a' ? [0.1, 0.3, 0.8] : [0.9, 0.2, 0.2],
         heatmap: null,
-        // No pictures. `cv/thumbs.py` writes those to a separate document
+        // No pictures. `pitchiq/thumbs.py` writes those to a separate document
         // precisely so a coach can delete them, and a fixture that always has
         // them would never load the picker's no-picture path — which is the one
         // every run without `--thumbs` takes.
@@ -295,7 +295,7 @@ export function fixture() {
             minutesPlayed: 0, minutesKnown: false, goals: 0, assists: 0,
             fouls: 0, matchDate: '2026-08-07', opponentName: 'Westbrook',
             scoreUs: 2, scoreThem: 2,
-            // Past MAX_ACCEL_NOISE_M in cv/metrics.py, which is why this
+            // Past MAX_ACCEL_NOISE_M in pitchiq/metrics.py, which is why this
             // report has no `cvAccelerations` beside it. The pair is the
             // state the player page has to explain: a Bursts card that is
             // missing, and the one sentence on the page saying why.

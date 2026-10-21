@@ -10,12 +10,12 @@ Run:  .venv/Scripts/python.exe -m pytest tests/test_reconcile.py -q
 import numpy as np
 import pytest
 
-from cv.ball import BallPoint, BallTrajectory
-from cv.calibration import Calibration
-from cv.events import Shot
-from cv.phases import VideoClock
-from cv.pitch import Pitch
-from cv.reconcile import (
+from pitchiq.ball import BallPoint, BallTrajectory
+from pitchiq.calibration import Calibration
+from pitchiq.events import Shot
+from pitchiq.phases import VideoClock
+from pitchiq.pitch import Pitch
+from pitchiq.reconcile import (
     AGREED,
     CV_ONLY,
     GOAL,
@@ -28,7 +28,7 @@ from cv.reconcile import (
     tagged_times,
     warnings_for,
 )
-from cv.teams import TEAM_A
+from pitchiq.teams import TEAM_A
 
 PITCH = Pitch()
 SCALE = 20.0

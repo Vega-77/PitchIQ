@@ -10,16 +10,16 @@
 // The saved file carries the pins under both calibrators' names (see
 // landmarks.js), so the same file feeds either:
 //
-//   points, image_size, pitch   `python -m cv.experiments.calibrate <file>`
+//   points, image_size, pitch   `python -m pitchiq.experiments.calibrate <file>`
 //   pins, w, h                  the pin solve, as `lc/<tag>/pins.json`
 //
 // Pins are kept in full-resolution image pixels. A draft is kept in this
 // browser per picture, so a reload does not lose an hour of clicking.
 
-import { byId, toast, showOnly } from '../assets/ui.js?v=136';
-import { PITCH_LENGTH_M, PITCH_WIDTH_M } from '../assets/pitch-backdrop.js?v=136';
-import { GROUPS, LANDMARKS, positions, lines } from './landmarks.js?v=136';
-import { assess, apply, depth } from './homography.js?v=136';
+import { byId, toast, showOnly } from '../assets/ui.js?v=137';
+import { PITCH_LENGTH_M, PITCH_WIDTH_M } from '../assets/pitch-backdrop.js?v=137';
+import { GROUPS, LANDMARKS, positions, lines } from './landmarks.js?v=137';
+import { assess, apply, depth } from './homography.js?v=137';
 
 const VIEWS = ['view-intro', 'view-work'];
 const ENOUGH = 6;
@@ -34,7 +34,7 @@ const state = {
     kind: 'fixed',
     file: null,            // {name, w, h}
     img: null,
-    pins: {},              // cv/pitch.py name -> [x, y] image px
+    pins: {},              // pitchiq/pitch.py name -> [x, y] image px
     active: null,
     view: null,            // {s, x, y, fitted}: screen = (image - (x, y)) * s
     length: PITCH_LENGTH_M,

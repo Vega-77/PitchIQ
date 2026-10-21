@@ -17,7 +17,7 @@ import cv2
 import numpy as np
 import pytest
 
-from cv.pipeline import BATCH_FRAMES, _stream_batches
+from pitchiq.pipeline import BATCH_FRAMES, _stream_batches
 
 FPS = 30.0
 WIDTH, HEIGHT = 64, 48

@@ -9,11 +9,11 @@ Run:  .venv/Scripts/python.exe -m pytest tests/test_territory.py -q
 
 import pytest
 
-from cv.pitch import Pitch
-from cv.possession import DEAD, FrameState, prepare_states
-from cv.teams import TEAM_A, TEAM_B, UNKNOWN
-from cv.territory import TerritorySplit, pinned_back, territory
-from cv.zones import ATTACKING_THIRD, DEFENSIVE_THIRD, MIDDLE_THIRD
+from pitchiq.pitch import Pitch
+from pitchiq.possession import DEAD, FrameState, prepare_states
+from pitchiq.teams import TEAM_A, TEAM_B, UNKNOWN
+from pitchiq.territory import TerritorySplit, pinned_back, territory
+from pitchiq.zones import ATTACKING_THIRD, DEFENSIVE_THIRD, MIDDLE_THIRD
 
 PITCH = Pitch()
 L, W = PITCH.length_m, PITCH.width_m

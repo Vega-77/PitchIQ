@@ -1,6 +1,6 @@
 """The step that had no way to be typed.
 
-`cv/publish.py` has been guarded and tested since the pipeline started
+`pitchiq/publish.py` has been guarded and tested since the pipeline started
 producing reports, and had no entry point: no `main`, no `__main__`, and no
 caller anywhere outside `tests/`. Every piece worked and nothing called them,
 which is a shape a unit test cannot see by construction — the audit that found
@@ -21,7 +21,7 @@ import json
 
 import pytest
 
-from cv.experiments.publish_report import (
+from pitchiq.experiments.publish_report import (
     DryRunClient,
     build_parser,
     describe,
@@ -200,7 +200,7 @@ class TestDryRun:
 
     def test_the_cvstats_documents_are_all_accounted_for(self, report_path):
         client = DryRunClient()
-        from cv.publish import publish
+        from pitchiq.publish import publish
 
         publish(json.loads(report_path.read_text(encoding='utf-8')), 't', 'm', client=client)
         paths = [path for _, path, _ in client.writes]

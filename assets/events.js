@@ -55,8 +55,8 @@ export const EVENTS = {
     },
     // No button since 2026-10-12: every ball that goes out comes back as a
     // throw-in, a corner or a goal kick, and each of those has its own key.
-    // Kept so the tags already recorded still read, and because cv/phases.py
-    // and cv/reconcile.py still take one as the ball going dead.
+    // Kept so the tags already recorded still read, and because pitchiq/phases.py
+    // and pitchiq/reconcile.py still take one as the ball going dead.
     out_of_bounds: {
         label: 'Out of bounds',
         sideMeans: 'Restart to',

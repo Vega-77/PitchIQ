@@ -1,8 +1,8 @@
 import numpy as np
 
-from cv.linking import KEEPER, OFF, PLAYER, REFEREE, LinkSettings, Linker
-from cv.teams import UNKNOWN
-from cv.pitchtrack import Detections, PitchProjector, Tracklet
+from pitchiq.linking import KEEPER, OFF, PLAYER, REFEREE, LinkSettings, Linker
+from pitchiq.teams import UNKNOWN
+from pitchiq.pitchtrack import Detections, PitchProjector, Tracklet
 
 W, H = 1920, 1080
 PX_PER_M = 20.0  # the picture shows 96 x 54 m

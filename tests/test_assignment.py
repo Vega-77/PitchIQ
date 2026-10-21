@@ -2,7 +2,7 @@ import itertools
 
 import numpy as np
 
-from cv.assignment import min_cost_assignment, min_cost_matching
+from pitchiq.assignment import min_cost_assignment, min_cost_matching
 
 
 def _brute_assignment(c):

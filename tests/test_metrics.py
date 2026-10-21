@@ -14,7 +14,7 @@ import statistics
 import numpy as np
 import pytest
 
-from cv.metrics import (
+from pitchiq.metrics import (
     MAX_PLAUSIBLE_SPEED_MS,
     MIN_LINE_OUTFIELDERS,
     PositionSeries,
@@ -28,8 +28,8 @@ from cv.metrics import (
     shape_samples,
     team_shape,
 )
-from cv.pitch import Pitch
-from cv.zones import defensive_line_m
+from pitchiq.pitch import Pitch
+from pitchiq.zones import defensive_line_m
 
 
 def series(points, fps: float = 25.0, track_id: int = 1) -> PositionSeries:

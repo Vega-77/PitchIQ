@@ -1,6 +1,6 @@
 """Pitch geography, and the mirroring that makes it dangerous.
 
-Almost every function in cv/zones.py takes an end to measure against, and the
+Almost every function in pitchiq/zones.py takes an end to measure against, and the
 failure mode when that end is wrong is silence: a clearance out of defence
 reads as a final-third entry, a shot from your own box reads as a tap-in. The
 numbers stay plausible. So the bulk of this file is the same assertion made
@@ -17,8 +17,8 @@ from __future__ import annotations
 
 import pytest
 
-from cv.pitch import GOAL_WIDTH_M, PENALTY_AREA_LENGTH_M, Pitch
-from cv.zones import (
+from pitchiq.pitch import GOAL_WIDTH_M, PENALTY_AREA_LENGTH_M, Pitch
+from pitchiq.zones import (
     ATTACKING_THIRD,
     DEFENSIVE_THIRD,
     MIDDLE_THIRD,

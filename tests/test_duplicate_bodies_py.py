@@ -1,9 +1,9 @@
-"""No two functions in the pipeline core (`cv/*.py`) share a body.
+"""No two functions in the pipeline core (`pitchiq/*.py`) share a body.
 
 The Python twin of `tests/test_duplicate_bodies.py`, which makes the case for
 the JS side. The finding that motivated this one: `_clock_of`, five lines that
-read a log entry's match clock, existed byte-identically in `cv/blind.py`,
-`cv/phases.py` and `cv/reconcile.py`. A fix to one (say, accepting a string
+read a log entry's match clock, existed byte-identically in `pitchiq/blind.py`,
+`pitchiq/phases.py` and `pitchiq/reconcile.py`. A fix to one (say, accepting a string
 clock) would have reached a third of the callers. It is now `phases.clock_of`,
 imported by the other two.
 
@@ -12,8 +12,8 @@ finding, and a list of kept duplicates is a graveyard.
 
 Scope, so the number is not over-trusted:
 
-* Every function and method in `cv/*.py`, nested ones included. The
-  subpackages (`cv/balltrack/`, `cv/experiments/`, ...) are out: they are
+* Every function and method in `pitchiq/*.py`, nested ones included. The
+  subpackages (`pitchiq/balltrack/`, `pitchiq/experiments/`, ...) are out: they are
   scripts with their own cleanup, and the core is what the report depends on.
 * Bodies of at least five lines and three statements, so one-line accessors
   and `return None if x is None else round(x)` helpers do not swamp it.
@@ -30,7 +30,7 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CORE = sorted((ROOT / 'cv').glob('*.py'))
+CORE = sorted((ROOT / 'pitchiq').glob('*.py'))
 
 MIN_LINES = 5
 MIN_STATEMENTS = 3
@@ -69,7 +69,7 @@ def compared():
                 continue
             if node.end_lineno - node.lineno + 1 < MIN_LINES or len(node.body) < MIN_STATEMENTS:
                 continue
-            out.append(('cv/%s:%d:%s' % (path.name, node.lineno, node.name), shape(node)))
+            out.append(('pitchiq/%s:%d:%s' % (path.name, node.lineno, node.name), shape(node)))
     return out
 
 

@@ -8,7 +8,7 @@ first real footage lands, in the dark, with no time to fix it and no second clip
 for another week.
 
 So this file reads the Markdown the way a person does: it pulls every
-`python -m cv.experiments.*` invocation out of the docs, tokenises it, and hands
+`python -m pitchiq.experiments.*` invocation out of the docs, tokenises it, and hands
 the arguments to the parser of the module it names. A flag that no longer exists
 fails here instead of there.
 
@@ -29,10 +29,10 @@ import shlex
 import unittest
 from pathlib import Path
 
-import cv.experiments
+import pitchiq.experiments
 
 REPO = Path(__file__).resolve().parent.parent
-PREFIX = 'python -m cv.experiments.'
+PREFIX = 'python -m pitchiq.experiments.'
 
 # Every Markdown file that is allowed to teach somebody a command. Kept explicit
 # rather than globbed: a stray README in a scratch directory should not become
@@ -41,10 +41,10 @@ DOCS = ['FOOTAGE_DAY.md', 'ROADMAP.md', 'baselines/README.md']
 
 
 def module_names() -> list[str]:
-    """Every command under `cv/experiments/`, in the order a listing shows them."""
+    """Every command under `pitchiq/experiments/`, in the order a listing shows them."""
     return sorted(
         info.name
-        for info in pkgutil.iter_modules(cv.experiments.__path__)
+        for info in pkgutil.iter_modules(pitchiq.experiments.__path__)
         if not info.name.startswith('_')
     )
 
@@ -78,7 +78,7 @@ def _commands_in_prose(text: str) -> list[str]:
     return out
 
 
-# `python -m cv.experiments.*` and `python -m cv.experiments.<name>` are how
+# `python -m pitchiq.experiments.*` and `python -m pitchiq.experiments.<name>` are how
 # prose names the set of commands rather than one of them. Only this exact
 # placeholder syntax is skipped: a module name that is merely wrong still fails.
 PLACEHOLDER = re.compile(re.escape(PREFIX) + r'(\*|<[^>]*>)')
@@ -108,20 +108,20 @@ def split(command: str) -> tuple[str, list[str]]:
 
 
 SHAPES = """\
-Prose first, mentioning `python -m cv.experiments.spike_detect` with no
+Prose first, mentioning `python -m pitchiq.experiments.spike_detect` with no
 arguments at all.
 
 ```bash
-python -m cv.experiments.grab_frame clips/x.mp4 --at 60
+python -m pitchiq.experiments.grab_frame clips/x.mp4 --at 60
 ```
 
-The set as a whole is `python -m cv.experiments.*`, which names no module.
+The set as a whole is `python -m pitchiq.experiments.*`, which names no module.
 
-A wrapped span: run `python -m cv.experiments.calibrate
+A wrapped span: run `python -m pitchiq.experiments.calibrate
 points.json --frame frame.png` and look at the error.
 
 ```bash
-python -m cv.experiments.spike_detect clips/x.mp4 \\
+python -m pitchiq.experiments.spike_detect clips/x.mp4 \\
     --conf 0.08 --tiles 2
 ```
 """
@@ -155,7 +155,7 @@ class TestTheExtractorReadsMarkdownTheWayAPersonDoes(unittest.TestCase):
 
     def test_a_glob_naming_the_whole_set_is_not_read_as_a_command(self):
         # Writing about these commands in the docs should not break the check on
-        # them, and `cv.experiments.*` is the natural way to write about them.
+        # them, and `pitchiq.experiments.*` is the natural way to write about them.
         self.assertFalse([c for c in self.found() if '.*' in c])
         self.assertTrue(PLACEHOLDER.match(PREFIX + '<name> --conf 0.08'))
         self.assertFalse(PLACEHOLDER.match(PREFIX + 'spike_detect'))
@@ -192,7 +192,7 @@ class TestEveryCommandIsAModule(unittest.TestCase):
         # Catches a stale import in a command nobody has run for a month, which
         # is otherwise invisible until the moment it is needed.
         for name in module_names():
-            importlib.import_module(f'cv.experiments.{name}')
+            importlib.import_module(f'pitchiq.experiments.{name}')
 
 
 class TestEveryCommandParses(unittest.TestCase):
@@ -201,7 +201,7 @@ class TestEveryCommandParses(unittest.TestCase):
             module, args = split(command)
             if not args:
                 continue  # `see \`python -m ...spike_detect\`` is prose, not a command
-            parser = importlib.import_module(f'cv.experiments.{module}').build_parser()
+            parser = importlib.import_module(f'pitchiq.experiments.{module}').build_parser()
             with self.subTest(source=source, command=command):
                 try:
                     with contextlib.redirect_stderr(io.StringIO()) as complaint:
@@ -217,7 +217,8 @@ class TestEveryCommandParses(unittest.TestCase):
 class TestEveryCommandHasTheSameShape(unittest.TestCase):
     def modules(self):
         return [
-            (name, importlib.import_module(f'cv.experiments.{name}')) for name in module_names()
+            (name, importlib.import_module(f'pitchiq.experiments.{name}'))
+            for name in module_names()
         ]
 
     def test_each_one_exposes_a_parser_and_an_entry_point(self):

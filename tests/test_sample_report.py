@@ -12,7 +12,7 @@ Python test dependency — and checks that every key a published report can carr
 is set somewhere in the fixture. Crude, and right for the failure it is
 guarding: a field added on one side and forgotten on the other.
 
-*Both* writers, which took a second pass to get right. `cv/publish.py` writes 21
+*Both* writers, which took a second pass to get right. `pitchiq/publish.py` writes 21
 of the 26 `cv` fields; the coach's page adds the last five in `cvReportFields`
 on the way to Firestore, onto the same document, and for a long time this file
 compared against the Python half alone and read as though it covered the whole
@@ -30,9 +30,9 @@ from pathlib import Path
 
 import pytest
 
-from cv.keeper import KeeperReport
-from cv.publish import player_report_fields, summary_payload
-from cv.report_json import TeamStats
+from pitchiq.keeper import KeeperReport
+from pitchiq.publish import player_report_fields, summary_payload
+from pitchiq.report_json import TeamStats
 from test_free_names import blank
 
 SAMPLE_JS = Path(__file__).resolve().parents[1] / 'assets' / 'sample-report.js'
@@ -90,7 +90,7 @@ def _quality_keys() -> list[str]:
     possible without footage, so the names are read out of the source — crude in
     the same way `missing` is, and aimed at the same failure.
     """
-    text = (Path(__file__).resolve().parents[1] / 'cv' / 'report_json.py').read_text(
+    text = (Path(__file__).resolve().parents[1] / 'pitchiq' / 'report_json.py').read_text(
         encoding='utf-8'
     )
     body = text.split('def _quality(')[1].split('\ndef ')[0]

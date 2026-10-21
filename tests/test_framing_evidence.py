@@ -1,6 +1,6 @@
 """One measurement, five copies, and the constant that was supposed to read it.
 
-Every threshold in `cv/framing.py` rests on a single observation: the wide
+Every threshold in `pitchiq/framing.py` rests on a single observation: the wide
 stadium panorama from the detection spike, where players were 4-8 pixels
 **across** and the detector found nothing on the pitch across 300 frames. Two
 data points do not make a calibration curve and the module says so; this is the
@@ -42,8 +42,8 @@ import inspect
 import re
 from pathlib import Path
 
-from cv import framing
-from cv.framing import (
+from pitchiq import framing
+from pitchiq.framing import (
     PLAYER_ASPECT,
     WIDE_CLIP_WIDTHS_PX,
     assess_framing,

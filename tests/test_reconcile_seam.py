@@ -4,7 +4,7 @@
 that some page reads each one. For four of those keys the check is empty, because
 the key is a whole block forwarded whole:
 
-    'reconciliation': report_json.get('reconciliation'),   # cv/publish.py
+    'reconciliation': report_json.get('reconciliation'),   # pitchiq/publish.py
 
 One name, one reader, gate satisfied. `tests/test_quality_seam.py`,
 `tests/test_teams_seam.py` and `tests/test_keepers_seam.py` are this file for the
@@ -14,7 +14,7 @@ found three published figures on no screen at all: `exit_agreement`, `exits` and
 and rendered nowhere.
 
 So this reads both ends as text. `Reconciliation.to_json` and
-`Disagreement.to_json` in `cv/reconcile.py` say what is produced; the JavaScript
+`Disagreement.to_json` in `pitchiq/reconcile.py` say what is produced; the JavaScript
 under the module directories says what is read. A field that is deliberately not
 rendered has to be listed here with a reason somebody can argue with.
 
@@ -125,7 +125,7 @@ def produced() -> dict[str, str]:
     read off the constant line rather than off `counts()`, which builds them in
     a comprehension — the names only exist as those three literals.
     """
-    text = (ROOT / 'cv' / 'reconcile.py').read_text(encoding='utf-8')
+    text = (ROOT / 'pitchiq' / 'reconcile.py').read_text(encoding='utf-8')
     made = {}
     for key in _dict_keys(text, 'Reconciliation'):
         made[key] = 'Reconciliation.to_json'
@@ -259,7 +259,7 @@ class TestForwarded:
         # If this stops being true — if summary_payload starts naming the
         # figures individually — then tests/smoke.test.js covers them and this
         # file is duplicated work rather than the only thing looking.
-        text = (ROOT / 'cv' / 'publish.py').read_text(encoding='utf-8')
+        text = (ROOT / 'pitchiq' / 'publish.py').read_text(encoding='utf-8')
         assert "'reconciliation': report_json.get('reconciliation')" in text
 
 
@@ -275,7 +275,7 @@ class TestEveryFigureLands:
         known = set(made) | {camel(k) for k in made}
         ghosts = sorted(k for k in seen if k not in known)
         assert not ghosts, (
-            'a page reads reconciliation.%s, which cv/reconcile.py never '
+            'a page reads reconciliation.%s, which pitchiq/reconcile.py never '
             'writes — it will be undefined on every real match' % ', reconciliation.'.join(ghosts)
         )
 

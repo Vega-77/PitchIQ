@@ -250,7 +250,7 @@ class TestAPointerIsOnlyANameIfItLands:
 class TestTheScanReportsSomething:
     def test_it_reads_every_page_the_site_has(self):
         pages = sorted(p.relative_to(ROOT).as_posix() for p in ROOT.glob('*/index.html'))
-        pages = [p for p in pages if not p.startswith(('node_modules', 'cv'))]
+        pages = [p for p in pages if not p.startswith(('node_modules', 'pitchiq'))]
         assert set(pages) | {'index.html'} == set(PAGES), pages
         for rel in PAGES:
             assert (ROOT / rel).is_file(), rel

@@ -1,4 +1,4 @@
-"""cv/balltrack/half.py's lanes: every stage once, never before what it reads."""
+"""pitchiq/balltrack/half.py's lanes: every stage once, never before what it reads."""
 
 import os
 import sys
@@ -8,7 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
-S2 = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'cv', 'balltrack')
+S2 = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'pitchiq', 'balltrack'
+)
 sys.path.insert(0, S2)
 import half  # noqa: E402
 
@@ -34,7 +36,7 @@ def run(tmp_path, monkeypatch):
             feats.append((a, first_row))
             return None, 10
 
-    from cv.experiments import player_lab as L
+    from pitchiq.experiments import player_lab as L
 
     monkeypatch.setattr(L, 'Extractor', Ex)
     monkeypatch.setattr(L, '_part', lambda tag, kind, a, b: tmp_path / ('%s_%d' % (kind, a)))
@@ -88,7 +90,7 @@ def test_features_number_their_rows_in_chunk_order(run):
 
 def test_a_player_lane_that_exits_is_reported(tmp_path, monkeypatch):
     """player_lab raises SystemExit past the video's end; the lane must not die silently."""
-    from cv.experiments import player_lab as L
+    from pitchiq.experiments import player_lab as L
 
     class Ex:
         def dets_part(self, tag, a, b):

@@ -13,10 +13,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'cv' / 'balltrack'))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'pitchiq' / 'balltrack'))
 import drun  # noqa: E402
 
-from cv.experiments import autocal_run as R  # noqa: E402
+from pitchiq.experiments import autocal_run as R  # noqa: E402
 
 
 # ---- drun chunks ---------------------------------------------------------------------
@@ -155,14 +155,14 @@ def test_no_video_no_run(monkeypatch):
 
 
 def test_player_lab_pieces_match_drun_chunks():
-    from cv.experiments import player_lab as L
+    from pitchiq.experiments import player_lab as L
 
     for lo, hi in ((7200, 79200), (40500, 42299), (8999, 9000)):
         assert L._chunks(lo, hi) == drun.chunk_edges(lo, hi)
 
 
 def test_player_lab_saves_leave_no_half_written_file(tmp_path):
-    from cv.experiments import player_lab as L
+    from pitchiq.experiments import player_lab as L
 
     L._save_atomic(tmp_path / 'a.npz', x=np.arange(3))
     assert sorted(os.listdir(tmp_path)) == ['a.npz']

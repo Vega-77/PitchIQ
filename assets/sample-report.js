@@ -11,7 +11,7 @@
 //
 //     It is a fixture, not a demo.
 //
-// The shapes below are copied from `cv/publish.py` — `summary_payload` and
+// The shapes below are copied from `pitchiq/publish.py` — `summary_payload` and
 // `player_report_fields` — key for key. That is the whole point: when the first
 // real run lands, nothing needs to change for it to render, and if something
 // does, this file was wrong and the tests that read it should have said so.
@@ -64,7 +64,7 @@ const ROWS = 8;
 // A cell in metres. Written out rather than imported from `pitch-backdrop.js`
 // because this module has no imports and the tests that read it rely on that —
 // same reason COLS and ROWS are literals here rather than read from
-// `cv/metrics.py`. The pitch is the one `Pitch` defaults to; a fixture built on
+// `pitchiq/metrics.py`. The pitch is the one `Pitch` defaults to; a fixture built on
 // a different pitch would place every player somewhere they never stood.
 const CELL_LENGTH_M = 105 / COLS;
 const CELL_WIDTH_M = 68 / ROWS;
@@ -109,7 +109,7 @@ export function sampleHeatmap(
             const v = blob(x, y, cx, cy, spread)
                 + weight2 * blob(x, y, cx2, cy2, spread * 0.85);
             // Column-major: values[x * rows + y]. Matching the np.histogram2d
-            // layout in cv/metrics.py, which is the only layout in the system.
+            // layout in pitchiq/metrics.py, which is the only layout in the system.
             values[x * ROWS + y] = v;
             total += v;
         }
@@ -125,7 +125,7 @@ export function sampleHeatmap(
 // -------------------------------------------------------------- the shots
 //
 // Positions are in metres on a 105x68 pitch, already mirrored to attack right,
-// which is what `cv/report_json.py::shot_marks` guarantees to every renderer.
+// which is what `pitchiq/report_json.py::shot_marks` guarantees to every renderer.
 //
 //     The xG figures came out of the model. They are not invented.
 //
@@ -134,7 +134,7 @@ export function sampleHeatmap(
 // output is the thing to check rather than the output. Each shot below now has
 // a freeze frame behind it — where the keeper was standing, who was between the
 // ball and the goal — written down in tests/test_sample_xg.py, and each `xg` is
-// what `cv/xg_bridge.predict_xg` returns for that frame against the real
+// what `pitchiq/xg_bridge.predict_xg` returns for that frame against the real
 // xg_model8.onnx. That test re-runs the model and fails if a figure here drifts
 // from what the model says, so this is a fixture that cannot quietly become
 // fiction.
@@ -170,7 +170,7 @@ const totalXg = (shots) =>
 
 // ------------------------------------------------------- the team document
 //
-// Key for key with `cv/publish.py::summary_payload`. A key that exists there and
+// Key for key with `pitchiq/publish.py::summary_payload`. A key that exists there and
 // not here is a block this preview silently cannot check.
 
 /**
@@ -187,7 +187,7 @@ export function sampleCvSummary() {
     return {
         isSample: true,
         // Provenance only — nothing in the browser branches on it. Kept in
-        // step with cv/report_json.py::SCHEMA_VERSION so a sample summary
+        // step with pitchiq/report_json.py::SCHEMA_VERSION so a sample summary
         // never claims to be older than the pipeline that would write it.
         schemaVersion: 15,
         // Which half, and what decided it. `log` is the good case on purpose:
@@ -232,7 +232,7 @@ export function sampleCvSummary() {
             // — that is what a well-tagged half looks like from a camera, and
             // showing it is the point: 95s of live football nobody could see
             // is a very different report from 459s of blindness, and the two
-            // were the same number until cv/blind.py split them.
+            // were the same number until pitchiq/blind.py split them.
             //
             // The three add to the total, and the worst single stretch is
             // under the threshold that would have raised a warning, which is
@@ -289,10 +289,10 @@ export function sampleCvSummary() {
             // preview should not carry a lateness warning for a machine
             // nobody's footage has met yet.
             realtime_factor: 0.62,
-            // Kept, never dropped — see cv/participants.py. Two figures the
+            // Kept, never dropped — see pitchiq/participants.py. Two figures the
             // classifier could not rule out are inside the counts above.
             flagged_officials: 2,
-            // 3.4 was the measured figure after cv/identity.py merges. Above
+            // 3.4 was the measured figure after pitchiq/identity.py merges. Above
             // the threshold that adds the "broke each player into pieces" note,
             // which is correct: it is true today and will be true on day one.
             tracks_per_cluster: 3.4,
@@ -303,7 +303,7 @@ export function sampleCvSummary() {
             position_noise_m: 0.14,
             // The window that wobble earns, and what it still costs. Both come
             // from the pipeline rather than being re-derived here; see
-            // SMOOTH_BANDS in cv/metrics.py for the fit and `phantom_m_per_minute`
+            // SMOOTH_BANDS in pitchiq/metrics.py for the fit and `phantom_m_per_minute`
             // for the arithmetic. 0.14m lands in the middle band.
             smoothing_s: 0.7,
             phantom_m_per_minute: 21.3,
@@ -322,7 +322,7 @@ export function sampleCvSummary() {
                 passes_attempted: 341,
                 passes_completed: 246,
                 pass_accuracy: 0.721,
-                // Buckets named by cv/events.py::_bucket and ::_direction. They
+                // Buckets named by pitchiq/events.py::_bucket and ::_direction. They
                 // sum to passes_attempted, which is the check worth having: a
                 // breakdown that does not add up to its own total is the kind of
                 // thing a preview should never model as acceptable.
@@ -529,7 +529,7 @@ export function sampleCvSummary() {
 
 // ------------------------------------------------------ the player document
 //
-// Key for key with `cv/publish.py::player_report_fields`.
+// Key for key with `pitchiq/publish.py::player_report_fields`.
 
 // ------------------------------------------------------ the passing network
 //

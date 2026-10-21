@@ -14,10 +14,10 @@ from dataclasses import replace
 
 import pytest
 
-from cv import zones
-from cv.events import COMPLETED, INCOMPLETE, EventLog, Pass, Shot, DefensiveAction
-from cv.pitch import Pitch
-from cv.sequences import (
+from pitchiq import zones
+from pitchiq.events import COMPLETED, INCOMPLETE, EventLog, Pass, Shot, DefensiveAction
+from pitchiq.pitch import Pitch
+from pitchiq.sequences import (
     ENDED_LOST,
     ENDED_SHOT,
     ENDED_STOPPED,
@@ -25,7 +25,7 @@ from cv.sequences import (
     phase_of_play,
     sequences,
 )
-from cv.teams import TEAM_A, TEAM_B
+from pitchiq.teams import TEAM_A, TEAM_B
 
 PITCH = Pitch()
 ENDS = {TEAM_A: 'right', TEAM_B: 'left'}

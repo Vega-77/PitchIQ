@@ -1,9 +1,9 @@
-"""Spot-check lab media helpers (cv/experiments/spotlab.py)."""
+"""Spot-check lab media helpers (pitchiq/experiments/spotlab.py)."""
 
 import numpy as np
 import pytest
 
-from cv.experiments import spotlab as S
+from pitchiq.experiments import spotlab as S
 
 
 def test_crop_rect_is_16_by_9_and_inside_the_frame():

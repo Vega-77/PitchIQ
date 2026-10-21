@@ -50,7 +50,7 @@ NOT_BROWSER = {
     '__pycache__',
     '.venv',
     'xg_training',
-    'cv',
+    'pitchiq',
     'tests',
     'baselines',
     'runs',

@@ -852,7 +852,7 @@ describe('cvStats', () => {
   });
 
   it('nobody can write it, not even a coach', async () => {
-    // These documents come from cv/publish.py through the Admin SDK, which
+    // These documents come from pitchiq/publish.py through the Admin SDK, which
     // bypasses these rules entirely. So this rule is not what protects the
     // data — it is what keeps "the pipeline produced this" a true statement.
     // A coach reading a stat line has no way to tell a derived figure from one
@@ -1063,7 +1063,7 @@ describe('cvStats', () => {
   });
 
   it('a player report still accepts the prefixed CV fields', async () => {
-    // playerReports has no keys().hasOnly(), so cv/publish.py can add its
+    // playerReports has no keys().hasOnly(), so pitchiq/publish.py can add its
     // fields without a rules change. Pinned because that is load-bearing and
     // invisible — a later tightening of this rule would break publishing with
     // no other warning.

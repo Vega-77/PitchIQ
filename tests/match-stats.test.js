@@ -346,7 +346,7 @@ describe('teamStatRows', () => {
 
 // ---------------------------------------------------------- the goalkeepers
 //
-// `cv/keeper.py` computed this block for months and no page drew a figure of
+// `pitchiq/keeper.py` computed this block for months and no page drew a figure of
 // it. What these cover is the two ways it could arrive wrong: a figure that is
 // missing being drawn as a nought, and one keeper's absence taking the other
 // keeper's numbers down with it.

@@ -1,4 +1,4 @@
-"""Every Laws-of-the-Game dimension typed into the browser, against cv/pitch.py.
+"""Every Laws-of-the-Game dimension typed into the browser, against pitchiq/pitch.py.
 
 The site writes the pitch down in four files.
 
@@ -18,7 +18,7 @@ its own header comment, and it is not: `assets/shot-map.js`, `assets/heatmap.js`
 and `assets/pass-map.js` all import `PITCH_LENGTH_M` and `PITCH_WIDTH_M` from it
 and use them as the coordinate frame that real event positions in metres are
 plotted into. `heatmap.js:164` sizes an occupancy cell as `PITCH_LENGTH_M /
-grid.cols`, where the grid came out of `cv/metrics.py` on a `Pitch`. If the two
+grid.cols`, where the grid came out of `pitchiq/metrics.py` on a `Pitch`. If the two
 lengths disagreed, every cell would be the wrong size and every blob would be
 drawn somewhere the player never stood, under a plot that is otherwise correct
 and gives no sign that anything is wrong.
@@ -34,7 +34,7 @@ The irony is that `pitchMarkings` already argues this case against itself:
 
 There were eight copies, and until this file nothing counted them.
 
-**Both directions, as always.** A literal that drifts from `cv/pitch.py` is a
+**Both directions, as always.** A literal that drifts from `pitchiq/pitch.py` is a
 finding. A pattern here that no longer matches its file is a stale entry to
 delete, not a test to loosen -- so every pattern must match exactly once. And
 `test_no_unlisted_laws_literal` closes the loop the other way: a new copy,
@@ -56,7 +56,7 @@ from pathlib import Path
 
 import pytest
 
-from cv.pitch import Pitch
+from pitchiq.pitch import Pitch
 
 from test_free_names import blank
 
@@ -194,7 +194,7 @@ def test_every_literal_matches_the_python_default(sources):
                     % (rel, label, '' if len(got) == 1 else ' #%d' % (i + 1), a, b)
                 )
     assert not wrong, (
-        'pitch dimensions in the browser disagree with cv/pitch.py:\n  ' + '\n  '.join(wrong)
+        'pitch dimensions in the browser disagree with pitchiq/pitch.py:\n  ' + '\n  '.join(wrong)
     )
 
 
@@ -243,7 +243,7 @@ def test_no_unlisted_laws_literal():
                 stray.append('%s:%d  %s' % (rel, code[: m.start()].count('\n') + 1, value))
     assert not stray, (
         'pitch dimensions written down somewhere this file does not check.\n'
-        'Add a row to SITES so the number is held to cv/pitch.py:\n  ' + '\n  '.join(stray)
+        'Add a row to SITES so the number is held to pitchiq/pitch.py:\n  ' + '\n  '.join(stray)
     )
 
 
@@ -342,7 +342,7 @@ def test_every_distinctive_number_is_one_the_laws_specify(value):
     known = [getattr(PITCH, f.name) for f in fields(Pitch)]
     known.append(PITCH.length_m / 2)
     assert any(float(value) == pytest.approx(k, abs=1e-9) for k in known), (
-        '%s is in DISTINCTIVE but is not a dimension cv/pitch.py has' % value
+        '%s is in DISTINCTIVE but is not a dimension pitchiq/pitch.py has' % value
     )
 
 

@@ -9,7 +9,7 @@
 //
 //     Everything attacks right.
 //
-// The mirroring happens in `cv/report_json.py::shot_marks`, not here, so a
+// The mirroring happens in `pitchiq/report_json.py::shot_marks`, not here, so a
 // second-half shot cannot end up plotted at the wrong end by a renderer that
 // forgot. By the time a mark reaches this module, `x_m`/`y_m` already mean
 // "position as if attacking the right-hand goal".
@@ -31,8 +31,8 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, pitchMarkings,
-} from './pitch-backdrop.js?v=136';
-import { svgEl as el } from './svg.js?v=136';
+} from './pitch-backdrop.js?v=137';
+import { svgEl as el } from './svg.js?v=137';
 
 // Only the attacking half is drawn. A shot from inside your own half is worth
 // about 0.005 xG and happens twice a season; giving it half the picture costs
@@ -182,7 +182,7 @@ export function shotMapSvg(marks, { onPick = null, xgTrust = 'shot' } = {}) {
         // A shot with no position at all is not a shot at the corner flag.
         // `Number(null) || 0` gave it one, and the dot that came out was
         // indistinguishable from a real shot from the goal line. `shot_marks`
-        // in cv/report_json.py drops positionless shots before they get here,
+        // in pitchiq/report_json.py drops positionless shots before they get here,
         // so nothing produces this today — but the failure mode is an invented
         // data point on a picture a coach reads as measurement, which is the
         // kind of thing that should be impossible rather than merely unused.

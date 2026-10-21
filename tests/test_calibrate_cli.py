@@ -27,9 +27,9 @@ import cv2
 import numpy as np
 import pytest
 
-from cv.calibration import Calibration
-from cv.experiments.calibrate import main
-from cv.pitch import Pitch
+from pitchiq.calibration import Calibration
+from pitchiq.experiments.calibrate import main
+from pitchiq.pitch import Pitch
 from test_distortion import grid_error_m, perfect_clicks, render_through
 from test_lines import (
     FRAME_H,

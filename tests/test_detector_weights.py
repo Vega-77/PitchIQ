@@ -1,6 +1,6 @@
-"""cv/detector.py's weights: not in git, and a clone still gets the right file.
+"""pitchiq/detector.py's weights: not in git, and a clone still gets the right file.
 
-`*.pt` is ignored, so a fresh clone has no `cv/weights/yolov8n.pt`. What
+`*.pt` is ignored, so a fresh clone has no `pitchiq/weights/yolov8n.pt`. What
 fills the gap is Ultralytics itself: handed a path that does not exist whose
 name is one of its release assets, it downloads that asset to that path. The
 file it fetches (release v8.4.0) was compared byte for byte with the one every
@@ -17,7 +17,7 @@ import hashlib
 
 import pytest
 
-from cv.detector import DEFAULT_WEIGHTS
+from pitchiq.detector import DEFAULT_WEIGHTS
 
 SHA256 = 'f59b3d833e2ff32e194b5bb8e08d211dc7c5bdf144b90d2c8412c47ccfc83b36'
 

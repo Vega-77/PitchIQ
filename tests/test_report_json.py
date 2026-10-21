@@ -22,22 +22,22 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from cv.events import COMPLETED, EventLog, Pass, Shot
-from cv.identity import PlayerCluster
-from cv.metrics import MovementStats
-from cv.participants import (
+from pitchiq.events import COMPLETED, EventLog, Pass, Shot
+from pitchiq.identity import PlayerCluster
+from pitchiq.metrics import MovementStats
+from pitchiq.participants import (
     ROLE_OFFFIELD,
     ROLE_OFFICIAL,
     ParticipantReport,
     ParticipantVerdict,
 )
-from cv.pipeline import MatchReport, PlayerReport
-from cv.possession import PossessionSummary
-from cv.pitch import Pitch
-from cv.report_json import SCHEMA_VERSION, shot_marks, team_stats
-from cv.timing import FIXED, Timings
-from cv.teams import TEAM_A, TEAM_B
-from cv.touches import Touch, TouchConfidence, TouchSequence
+from pitchiq.pipeline import MatchReport, PlayerReport
+from pitchiq.possession import PossessionSummary
+from pitchiq.pitch import Pitch
+from pitchiq.report_json import SCHEMA_VERSION, shot_marks, team_stats
+from pitchiq.timing import FIXED, Timings
+from pitchiq.teams import TEAM_A, TEAM_B
+from pitchiq.touches import Touch, TouchConfidence, TouchSequence
 
 
 def a_pass(track, team, outcome=COMPLETED, tags=(), bucket='short', direction=None):
@@ -271,7 +271,7 @@ class TestBallHonesty:
     """
 
     def report_with(self, observed, interpolated, duration_s=10.0):
-        from cv.ball import BallPoint, BallTrajectory
+        from pitchiq.ball import BallPoint, BallTrajectory
 
         report = a_report()
         report.duration_s = duration_s
@@ -313,8 +313,8 @@ class TestNoTouchesReason:
     """
 
     def reason(self, seen, holder):
-        from cv.ball import BallPoint, BallTrajectory
-        from cv.pipeline import _no_touches_reason
+        from pitchiq.ball import BallPoint, BallTrajectory
+        from pitchiq.pipeline import _no_touches_reason
 
         report = a_report()
         report.duration_s = 10.0
@@ -412,7 +412,7 @@ class TestPositionalFieldsReachTheJson:
     """
 
     def a_positional_report(self):
-        from cv.pitch import Pitch
+        from pitchiq.pitch import Pitch
 
         report = a_report(calibrated=True)
         report.pitch = Pitch()
@@ -435,7 +435,7 @@ class TestPositionalFieldsReachTheJson:
     def test_each_team_is_given_the_other_team_direction_for_pressing(self):
         """PPDA is measured in the zone the *opponent* is building out of, so
         handing both teams the same end would measure the wrong half."""
-        from cv.report_json import team_stats
+        from pitchiq.report_json import team_stats
 
         ends = {TEAM_A: 'right', TEAM_B: 'left'}
         for team in (TEAM_A, TEAM_B):
@@ -523,7 +523,7 @@ class TestWhatWasNeverSeen:
     """
 
     def a_blindness(self, **kwargs):
-        from cv.blind import ACCOUNTED, DEAD, UNEXPLAINED, Blindness, BlindSpell
+        from pitchiq.blind import ACCOUNTED, DEAD, UNEXPLAINED, Blindness, BlindSpell
 
         return Blindness(
             spells=[
@@ -548,7 +548,7 @@ class TestWhatWasNeverSeen:
     def test_an_unchecked_run_withholds_the_parts_and_keeps_the_total(self):
         """Three zeroes would read as a clean bill of health for a run
         where no check was possible at all."""
-        from cv.blind import UNCHECKED, Blindness, BlindSpell
+        from pitchiq.blind import UNCHECKED, Blindness, BlindSpell
 
         unchecked = Blindness(spells=[BlindSpell(0.0, 40.0, UNCHECKED)])
         published = a_report(blindness=unchecked).to_json()['quality']['blind']
@@ -578,7 +578,7 @@ class TestReconciliation:
     """
 
     def a_reconciliation(self, **kwargs):
-        from cv.reconcile import Disagreement, Reconciliation
+        from pitchiq.reconcile import Disagreement, Reconciliation
 
         return Reconciliation(
             entries=[
@@ -792,7 +792,7 @@ class TestShotMarks:
 class TestTiming:
     """Whether the run would have fitted inside a live half.
 
-    The arithmetic lives in cv/timing.py and is tested there. What matters here
+    The arithmetic lives in pitchiq/timing.py and is tested there. What matters here
     is that it reaches a reader at all, and that an un-instrumented report says
     so with nulls rather than with zeroes — a report assembled by hand, or one
     written before this existed, did not achieve real time in no seconds.

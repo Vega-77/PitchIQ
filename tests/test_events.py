@@ -18,8 +18,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cv.calibration import Calibration
-from cv.events import (
+from pitchiq.calibration import Calibration
+from pitchiq.events import (
     BLOCKED,
     CARRY,
     COMPLETED,
@@ -41,11 +41,11 @@ from cv.events import (
     pressing_segments,
     turnovers_by_third,
 )
-from cv.frames import FrameRecord, FrameTable
-from cv.phases import DeadSpan, PhaseTable
-from cv.pitch import MatchOrientation, Pitch
-from cv.teams import TEAM_A, TEAM_B
-from cv.touches import Touch, TouchConfidence, TouchSequence
+from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.phases import DeadSpan, PhaseTable
+from pitchiq.pitch import MatchOrientation, Pitch
+from pitchiq.teams import TEAM_A, TEAM_B
+from pitchiq.touches import Touch, TouchConfidence, TouchSequence
 
 FPS = 30.0
 PITCH = Pitch()
@@ -54,7 +54,7 @@ MID_Y = W / 2
 
 # Fixture scale, kept physically coherent: 20 pixels to the metre, and a player
 # 1.8m tall is therefore 36 pixels. Speeds below are in player heights per
-# second, so an incoherent pair here would make every threshold in cv/events.py
+# second, so an incoherent pair here would make every threshold in pitchiq/events.py
 # mean something different in the tests than it does in a match.
 PX_PER_M = 20.0
 SCALE = 36.0
@@ -66,7 +66,7 @@ def touch(t, track, team, xy_px=None, m=None, confidence=1.0, speed_after=0.0):
         # steady 120px a second — three and a bit player heights, so a pair a
         # second apart is a body-length pass. Parking every unpositioned touch
         # on the same point instead would make each of these fixtures a sequence
-        # of balls that never moved, which cv/events.py is right to refuse to
+        # of balls that never moved, which pitchiq/events.py is right to refuse to
         # call passes.
         xy_px = (100.0 + t * 120.0, MID_Y * PX_PER_M)
     return Touch(
@@ -861,7 +861,7 @@ class TestWhoCountsAsOnePlayer:
     front of them. Read literally that is a ball changing hands, and on real
     footage it is the single largest source of invented passes: one run down
     the wing arrives as a chain of strangers exchanging the ball without it
-    going anywhere. `cv/identity.py` has already worked out which fragments are
+    going anywhere. `pitchiq/identity.py` has already worked out which fragments are
     one person by the time events are derived, so these tests pin the promise
     that the answer is used.
     """
@@ -963,7 +963,7 @@ class TestOneClaimPerTransfer:
     less than two player heights.
 
     Identity cannot help here, which is why this is a separate rule rather than
-    more work for `cv/identity.py`. The fragments of one contact are exactly
+    more work for `pitchiq/identity.py`. The fragments of one contact are exactly
     the ones the clusterer also splits, so they sit in different clusters and
     asking who they are returns different answers. Time and place need no such
     answer.
@@ -987,7 +987,7 @@ class TestOneClaimPerTransfer:
         assert len(derive(self._burst()).passes()) == 1
 
     def test_the_survivor_is_the_surest_claim_not_the_first(self):
-        """Same rule `cv/touches.py` uses a layer down, for the same reason.
+        """Same rule `pitchiq/touches.py` uses a layer down, for the same reason.
 
         Within a burst, the detection the ball was actually seen on is the one
         worth keeping, and confidence is what carries that. Here the first

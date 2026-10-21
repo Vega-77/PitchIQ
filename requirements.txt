@@ -1,4 +1,4 @@
-# PitchIQ Python dependencies (cv/ and xg_training/ share one venv, .venv at the repo root).
+# PitchIQ Python dependencies (pitchiq/ and xg_training/ share one venv, .venv at the repo root).
 #
 # GPU note: `pip install -r requirements.txt` alone installs the CPU-only build of
 # torch. For CUDA, install torch/torchvision first from the matching PyTorch index,
@@ -10,18 +10,18 @@
 # Pick the cuXXX tag matching your driver (`nvidia-smi`); cu130 is what this project
 # was developed against on an RTX 4060.
 
-# --- computer vision (cv/) ---
+# --- computer vision (pitchiq/) ---
 opencv-python==5.0.0.93
 ultralytics==8.4.108
 torch==2.13.0
 torchvision==0.28.0
 numpy==2.4.4
-# cv/autocal.py's pose solve (least_squares), and the ball tracker's 3D chain.
+# pitchiq/autocal.py's pose solve (least_squares), and the ball tracker's 3D chain.
 scipy==1.18.0
-# Runs the trained xG model (cv/xg_model8.onnx). xG is computed here, in Python,
-# by cv/xg_bridge.py when the pipeline runs; the site only shows stored figures.
+# Runs the trained xG model (pitchiq/xg_model8.onnx). xG is computed here, in Python,
+# by pitchiq/xg_bridge.py when the pipeline runs; the site only shows stored figures.
 onnxruntime==1.28.0
-# cv/topdown.py's track linker (min-cost flow). torch pulls it in too, but the
+# pitchiq/topdown.py's track linker (min-cost flow). torch pulls it in too, but the
 # test install has no torch.
 networkx==3.6.1
 
@@ -31,7 +31,7 @@ networkx==3.6.1
 # backend/; Firestore replaced it, and it was deleted once a full match had been
 # tagged without it.
 
-# The ball tracker (cv/balltrack/) needs a little more: requirements-balltrack.txt.
+# The ball tracker (pitchiq/balltrack/) needs a little more: requirements-balltrack.txt.
 
 # --- xG model training (xg_training/main.py) ---
 # Not needed to run the app; only to retrain the xG model from StatsBomb data.

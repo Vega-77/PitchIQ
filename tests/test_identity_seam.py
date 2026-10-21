@@ -486,7 +486,7 @@ def scan(
 
 
 def payload_keys():
-    text = (ROOT / 'cv' / 'publish.py').read_text(encoding='utf-8')
+    text = (ROOT / 'pitchiq' / 'publish.py').read_text(encoding='utf-8')
     body = text.split('def identity_payload(', 1)[1].split('\ndef ', 1)[0]
     return re.findall(r"^ {8}'(\w+)':", body, re.M)
 
@@ -506,7 +506,7 @@ def _stripped(*tuples):
     one of those tuples cannot leave this probe measuring a document the seam
     stopped publishing.
     """
-    pub = (ROOT / 'cv' / 'publish.py').read_text(encoding='utf-8')
+    pub = (ROOT / 'pitchiq' / 'publish.py').read_text(encoding='utf-8')
     out = set()
     for name in tuples:
         body = re.search(r'%s = \(([^)]*)\)' % name, pub).group(1)
@@ -515,13 +515,13 @@ def _stripped(*tuples):
 
 
 def track_keys():
-    keys = _to_json_keys('cv/report_json.py', 'TrackStats')
+    keys = _to_json_keys('pitchiq/report_json.py', 'TrackStats')
     gone = _stripped('DROPPED_TRACK_FIELDS')
     return [k for k in keys if k not in gone]
 
 
 def cluster_keys():
-    keys = _to_json_keys('cv/identity.py', 'PlayerCluster')
+    keys = _to_json_keys('pitchiq/identity.py', 'PlayerCluster')
     gone = _stripped('THUMB_FIELDS', 'DROPPED_CLUSTER_FIELDS')
     return [k for k in keys if k not in gone]
 
@@ -605,7 +605,7 @@ def seen_clusters():
 
 @pytest.fixture(scope='module')
 def publish_source():
-    return (ROOT / 'cv' / 'publish.py').read_text(encoding='utf-8')
+    return (ROOT / 'pitchiq' / 'publish.py').read_text(encoding='utf-8')
 
 
 class TestEveryPublishedFigureReachesAPage:

@@ -1,8 +1,8 @@
-"""The camera-height cue in cv/autocal: people seen from a known camera."""
+"""The camera-height cue in pitchiq/autocal: people seen from a known camera."""
 
 import numpy as np
 
-from cv import autocal as A
+from pitchiq import autocal as A
 
 
 def _look_at(C, target):

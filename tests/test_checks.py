@@ -1,7 +1,7 @@
 import numpy as np
 
-from cv import checks as C
-from cv.topdown import TopDown
+from pitchiq import checks as C
+from pitchiq.topdown import TopDown
 
 L, W, FPS = 105.0, 68.0, 30.0
 

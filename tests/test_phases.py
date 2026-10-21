@@ -15,8 +15,8 @@ import json
 
 import pytest
 
-from cv.experiments.event_report import load_tag_log, load_video_timing
-from cv.phases import (
+from pitchiq.experiments.event_report import load_tag_log, load_video_timing
+from pitchiq.phases import (
     DEAD_CAP_S,
     MAX_DEAD_S,
     TAG_SLOP_S,

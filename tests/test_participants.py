@@ -16,9 +16,9 @@ import math
 
 import numpy as np
 
-from cv.calibration import Calibration
-from cv.frames import FrameRecord, FrameTable
-from cv.participants import (
+from pitchiq.calibration import Calibration
+from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.participants import (
     MIN_SCREEN_TIME_S,
     ROLE_OFFFIELD,
     ROLE_OFFICIAL,
@@ -26,8 +26,8 @@ from cv.participants import (
     ROLE_UNSURE,
     classify_participants,
 )
-from cv.pitch import Pitch
-from cv.teams import TEAM_A, TEAM_B, UNKNOWN
+from pitchiq.pitch import Pitch
+from pitchiq.teams import TEAM_A, TEAM_B, UNKNOWN
 
 FPS = 10.0
 PLAYER_H = 60.0

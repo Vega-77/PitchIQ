@@ -10,8 +10,8 @@ import re
 
 import pytest
 
-from cv import blind
-from cv.blind import (
+from pitchiq import blind
+from pitchiq.blind import (
     ACCOUNTED,
     DEAD,
     EXPLAIN_WINDOW_S,
@@ -26,9 +26,9 @@ from cv.blind import (
     tagged_moments,
     unseen_stretches,
 )
-from cv.phases import DeadSpan, PhaseTable, VideoClock
-from cv.possession import FrameState
-from cv.teams import UNKNOWN
+from pitchiq.phases import DeadSpan, PhaseTable, VideoClock
+from pitchiq.possession import FrameState
+from pitchiq.teams import UNKNOWN
 
 FPS = 10.0
 
@@ -113,7 +113,7 @@ class TestFindingTheStretches:
         and a drift between them would show up as a split that does not fit
         inside the total it is a split of.
         """
-        from cv.possession import summarise
+        from pitchiq.possession import summarise
 
         frames = states([1] * 10 + [0] * 30 + [1] * 10 + [0] * 20 + [1] * 30)
         total = sum(b - a for a, b in unseen_stretches(frames))
@@ -500,7 +500,7 @@ class TestTheTerminalSummary:
     """
 
     def report_with(self, seen: Blindness):
-        from cv.pipeline import MatchReport
+        from pitchiq.pipeline import MatchReport
 
         report = MatchReport(source='clip.mp4', duration_s=120.0, processing_s=1.0)
         report.blindness = seen

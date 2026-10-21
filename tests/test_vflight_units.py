@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'cv' / 'balltrack' / 'homog'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'pitchiq' / 'balltrack' / 'homog'))
 import vflight as V  # noqa: E402
 
 

@@ -16,9 +16,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cv.frames import FrameRecord, FrameTable
-from cv.teams import TEAM_A, TEAM_B
-from cv.touches import (
+from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.teams import TEAM_A, TEAM_B
+from pitchiq.touches import (
     MAX_GAP_FRAMES,
     TouchConfidence,
     find_gaps,
@@ -389,7 +389,7 @@ class TestSequence:
         sequence = segment_touches(table)
         sequence.gaps = find_gaps(table)
 
-        from cv.touches import Touch
+        from pitchiq.touches import Touch
 
         def fake(t):
             return Touch(

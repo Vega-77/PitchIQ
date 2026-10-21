@@ -54,7 +54,7 @@ const mean = (values) => values.reduce((a, b) => a + b, 0) / values.length;
  *
  * `events` is `cvStats/events`'s list. `byTrack` is `playersByTrack`'s Map.
  * `attackingEnd` mirrors the whole picture so the named team plays left to
- * right, the same flip `cv/report_json.py::shot_marks` does for shot maps and
+ * right, the same flip `pitchiq/report_json.py::shot_marks` does for shot maps and
  * for the same reason: a diagram is only readable if everyone attacks one way.
  *
  * Returns nodes with a position and counts, edges with a count per direction,

@@ -12,7 +12,7 @@ import math
 
 import pytest
 
-from cv.ball import (
+from pitchiq.ball import (
     BallCandidate,
     build_trajectory,
     drop_static_candidates,

@@ -39,8 +39,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cv.frame_sampler import effective_fps, stride_for_fps
-from cv.metrics import (
+from pitchiq.frame_sampler import effective_fps, stride_for_fps
+from pitchiq.metrics import (
     MIN_SAMPLES_IN_WINDOW,
     SMOOTH_BANDS,
     PositionSeries,

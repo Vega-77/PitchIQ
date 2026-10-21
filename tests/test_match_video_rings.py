@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 
 _cwd = os.getcwd()
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'cv' / 'balltrack'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'pitchiq' / 'balltrack'))
 try:
     import match_video as M  # noqa: E402  (chdirs on import)
 finally:

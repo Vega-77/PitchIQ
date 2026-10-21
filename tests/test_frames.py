@@ -1,6 +1,6 @@
 """The single pass that finally lets one frame know all three of its facts.
 
-Before cv/frames.py the pipeline ran the model twice over two identity spaces
+Before pitchiq/frames.py the pipeline ran the model twice over two identity spaces
 that could not see each other: a detection pass that knew the ball and the
 shirt colours but numbered players per-detection, and a tracking pass that gave
 players persistent ids but discarded the ball. An event needs the ball, a
@@ -20,16 +20,16 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cv.detector import CLASS_BALL, CLASS_PERSON
-from cv.frames import (
+from pitchiq.detector import CLASS_BALL, CLASS_PERSON
+from pitchiq.frames import (
     COL_CONF,
     FrameRecord,
     FrameTable,
     TrackedFramePass,
     attach_trajectory,
 )
-from cv.possession import median_player_height
-from cv.teams import TEAM_A, UNKNOWN
+from pitchiq.possession import median_player_height
+from pitchiq.teams import TEAM_A, UNKNOWN
 
 FPS = 30.0
 WIDTH, HEIGHT = 640, 480
@@ -566,11 +566,11 @@ class TestAttachTrajectory:
     def test_solved_points_land_on_their_frames(self):
         """The ball is solved over the window, so it arrives after the records.
 
-        cv/ball.py picks a path by dynamic programming over every candidate at
+        pitchiq/ball.py picks a path by dynamic programming over every candidate at
         once — it cannot answer frame by frame, so the records exist first and
         the ball is written back onto them.
         """
-        from cv.ball import BallPoint, BallTrajectory
+        from pitchiq.ball import BallPoint, BallTrajectory
 
         table = FrameTable(
             fps=FPS,

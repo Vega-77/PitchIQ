@@ -4,14 +4,14 @@
 checks that some page reads each one. For four of those keys the check is
 empty, because the key is a whole block forwarded whole:
 
-    'keepers': report_json.get('keepers') or [],   # cv/publish.py
+    'keepers': report_json.get('keepers') or [],   # pitchiq/publish.py
 
 One name, one reader, gate satisfied — and sixteen figures inside it that
 nothing has ever looked at in either direction. `tests/test_quality_seam.py`
 and `tests/test_teams_seam.py` are this file for the other two blocks that have
 been closed so far.
 
-So this reads both ends as text. `KeeperReport.to_json` in `cv/keeper.py` says
+So this reads both ends as text. `KeeperReport.to_json` in `pitchiq/keeper.py` says
 what is produced; the JavaScript under the module directories says what is read.
 A field that is deliberately not rendered has to be listed here with a reason
 somebody can argue with.
@@ -94,7 +94,7 @@ UNREAD_BY_DESIGN = {
 
 def produced() -> list[str]:
     """Every key `KeeperReport.to_json` puts on one keeper."""
-    text = (ROOT / 'cv' / 'keeper.py').read_text(encoding='utf-8')
+    text = (ROOT / 'pitchiq' / 'keeper.py').read_text(encoding='utf-8')
     body = text.split('class KeeperReport:', 1)[1]
     body = body.split('def to_json(self) -> dict:', 1)[1]
     # Bounded at the closing brace: without it the split runs on into the rest
@@ -223,7 +223,7 @@ class TestForwarded:
         # If this stops being true — if summary_payload starts naming the
         # figures individually — then tests/smoke.test.js covers them and this
         # file is duplicated work rather than the only thing looking.
-        text = (ROOT / 'cv' / 'publish.py').read_text(encoding='utf-8')
+        text = (ROOT / 'pitchiq' / 'publish.py').read_text(encoding='utf-8')
         assert "'keepers': report_json.get('keepers')" in text
 
 

@@ -1,6 +1,6 @@
 import numpy as np
 
-from cv.pitchtrack import (
+from pitchiq.pitchtrack import (
     Detections,
     PitchProjector,
     PitchTracker,

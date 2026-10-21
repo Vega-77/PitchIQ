@@ -17,8 +17,8 @@ import math
 import numpy as np
 import pytest
 
-from cv.calibration import Calibration, Correspondence
-from cv.pitch import (
+from pitchiq.calibration import Calibration, Correspondence
+from pitchiq.pitch import (
     STATSBOMB_LENGTH,
     STATSBOMB_WIDTH,
     MatchOrientation,

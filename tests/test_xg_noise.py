@@ -18,7 +18,7 @@ centimetres at best.
 
 The honest reading: **half a metre of position error moves a shot's xG by about
 0.030 on average, and by 0.095 at the 95th percentile** — half the quantity.
-A calibration inside the 0.5 m band `cv/calibrate.py` treats as good therefore
+A calibration inside the 0.5 m band `pitchiq/calibrate.py` treats as good therefore
 still leaves per-shot xG meaningfully uncertain: good enough for "that was a
 decent chance", not for comparing two shots that differ by 0.1. **At one metre
 the tail is 89% of the number, and at two it exceeds it.**
@@ -48,8 +48,8 @@ Run:  .venv/Scripts/python.exe -m pytest tests/test_xg_noise.py -q
 
 import pytest
 
-from cv.pitch import Pitch
-from cv.xg_bridge import load_session, validate_against_noise
+from pitchiq.pitch import Pitch
+from pitchiq.xg_bridge import load_session, validate_against_noise
 
 TRIALS = 400
 
@@ -102,7 +102,7 @@ class TestSensitivity:
     def test_a_good_calibration_still_costs_about_a_sixth_of_the_answer(self, session):
         """The headline figure, pinned so a model swap cannot quietly change it.
 
-        0.5 m is the error `cv/calibrate.py` accepts as good. Half a metre of it
+        0.5 m is the error `pitchiq/calibrate.py` accepts as good. Half a metre of it
         moves a typical shot's xG by ~0.030 on a 0.188 baseline — about a sixth,
         with a tail at half. The bounds are loose on purpose: this pins the
         order of magnitude, not the digits, so it fails on a real regression

@@ -1,6 +1,6 @@
 """Two figures, one student: both sides have to add them up the same way.
 
-The tracker loses people when they leave frame, and `cv/identity.py` only
+The tracker loses people when they leave frame, and `pitchiq/identity.py` only
 rejoins fragments a couple of seconds apart. Anyone who went off and came back
 stays split, so the cluster picker lets a coach map several tracked figures to
 one player deliberately — a wrong automatic merge would credit one student with
@@ -9,7 +9,7 @@ another's work and could not be undone.
 That makes the merge arithmetic real, and it exists twice:
 
     assets/report.js   cvStatsByPlayer()  — the coach's match view
-    cv/publish.py      merge_tracks()     — the student's own report
+    pitchiq/publish.py      merge_tracks()     — the student's own report
 
 Neither reads the other. They are the same player's afternoon rendered on two
 screens, and until 2026-08-17 the Python side did not merge at all: it wrote one
@@ -36,7 +36,7 @@ from pathlib import Path
 
 import pytest
 
-from cv.publish import merge_tracks, player_report_fields
+from pitchiq.publish import merge_tracks, player_report_fields
 
 REPO = Path(__file__).resolve().parents[1]
 JS_REPORT = REPO / 'assets' / 'report.js'

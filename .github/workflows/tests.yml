@@ -2,7 +2,7 @@
 # Python.
 #
 # The Python half installs requirements-test.txt rather than requirements.txt —
-# `cv/detector.py` imports ultralytics lazily, so nothing under test pulls in
+# `pitchiq/detector.py` imports ultralytics lazily, so nothing under test pulls in
 # torch, and the install is seconds rather than minutes. See that file for why.
 #
 # The emulator suite needs a JVM, which `firebase emulators:exec` starts for
@@ -40,7 +40,7 @@ jobs:
       - run: pip install -r requirements-test.txt
 
       # opencv-python needs libGL, which the runner image does not carry.
-      # cv2 is imported by cv/pipeline.py, so this is not optional.
+      # cv2 is imported by pitchiq/pipeline.py, so this is not optional.
       - name: Install the OpenCV runtime libraries
         run: sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0
 
@@ -48,13 +48,13 @@ jobs:
 
       # Not a linter for style — pyflakes only reports things that are wrong,
       # which makes it worth failing a build over.
-      - run: python -m pyflakes cv/ tests/
+      - run: python -m pyflakes pitchiq/ tests/
 
       # ruff's formatter output is the house style (docs/conventions.md), so
       # any diff from it fails; the lint rules are the classic pyflakes and
       # pycodestyle errors, pinned in pyproject.toml.
-      - run: python -m ruff format --check cv tests tools xg_training
-      - run: python -m ruff check cv tests tools xg_training
+      - run: python -m ruff format --check pitchiq tests tools xg_training
+      - run: python -m ruff check pitchiq tests tools xg_training
 
   javascript:
     name: JavaScript

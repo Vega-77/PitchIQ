@@ -8,7 +8,7 @@ the figures — which is the opposite of what it is for.
 So each shot in the sample now has a **freeze frame** behind it: where the
 keeper was standing, and who was between the ball and the goal. Those frames are
 below, and they are the record of how each figure was produced. This test rebuilds
-them, runs the real `cv/xg_model8.onnx`, and asserts the fixture carries
+them, runs the real `pitchiq/xg_model8.onnx`, and asserts the fixture carries
 what came back.
 
 Which makes it two guards at once:
@@ -38,15 +38,15 @@ from pathlib import Path
 
 import pytest
 
-from cv.pitch import Pitch
-from cv.xg_bridge import ShotContext, load_session, predict_xg
+from pitchiq.pitch import Pitch
+from pitchiq.xg_bridge import ShotContext, load_session, predict_xg
 
 SAMPLE_JS = Path(__file__).resolve().parents[1] / 'assets' / 'sample-report.js'
 
 PITCH = Pitch()
 GOAL = (PITCH.length_m, PITCH.width_m / 2)
 
-# Where the shots are published rounded to, in cv/report_json.py::shot_marks.
+# Where the shots are published rounded to, in pitchiq/report_json.py::shot_marks.
 PLACES = 3
 
 
@@ -181,7 +181,7 @@ class TestTheFramesSayWhatTheFixtureSays:
         wide of the line does not count. A fixture calling a shot blocked with
         nobody in the cone would be scoring an open shot and labelling it a
         block."""
-        from cv.xg_bridge import build_features
+        from pitchiq.xg_bridge import build_features
 
         blocked = next(f for f in FRAMES if f[0] == 1204.2)
         _, shooter, keeper, defenders, pressure = blocked

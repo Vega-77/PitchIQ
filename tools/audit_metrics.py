@@ -11,8 +11,8 @@ import subprocess
 from pathlib import Path
 
 FILES = subprocess.check_output(['git', 'ls-files', '*.py']).decode().split()
-CORE = [f for f in FILES if re.fullmatch(r'cv/[a-z_0-9]+\.py', f)]
-BALLTRACK = [f for f in FILES if f.startswith('cv/balltrack/')]
+CORE = [f for f in FILES if re.fullmatch(r'pitchiq/[a-z_0-9]+\.py', f)]
+BALLTRACK = [f for f in FILES if f.startswith('pitchiq/balltrack/')]
 KEEP_ALIASES = {'np', 'pd', 'mp', 'plt', 'cv2'}
 
 
@@ -75,24 +75,24 @@ def main():
     core_funcs = list(functions(CORE))
     public = [(p, n) for p, n in core_funcs if not n.name.startswith('_')]
     print(
-        'cv core: files',
+        'core: files',
         len(CORE),
         '| non-code share (docstrings+comments):',
         f'{sum(non_code_share(f) for f in CORE) / len(CORE):.0%} mean, worst:',
         sorted(((round(non_code_share(f), 2), f) for f in CORE), reverse=True)[:3],
     )
     print(
-        'cv core: public functions/methods without docstring:',
+        'core: public functions/methods without docstring:',
         sum(1 for _, n in public if not ast.get_docstring(n)),
         'of',
         len(public),
     )
     print(
-        'cv core: functions without return annotation:',
+        'core: functions without return annotation:',
         sum(1 for _, n in core_funcs if n.returns is None and n.name != '__init__'),
     )
     print(
-        'cv core: functions > 80 lines:',
+        'core: functions > 80 lines:',
         sorted(
             (
                 (n.end_lineno - n.lineno + 1, f'{p}:{n.name}')
@@ -103,7 +103,7 @@ def main():
         )[:5],
     )
     print(
-        'cv core: functions with >= 12 params:',
+        'core: functions with >= 12 params:',
         [f'{p}:{n.name}' for p, n in core_funcs if len(n.args.args) + len(n.args.kwonlyargs) >= 12],
     )
     print(
@@ -118,10 +118,10 @@ def main():
         'total:',
         sum(short_aliases(FILES).values()),
     )
-    print('duplicate function bodies in cv/*.py:', duplicate_bodies(CORE))
-    print('duplicate function bodies in cv/balltrack:', len(duplicate_bodies(BALLTRACK)))
+    print('duplicate function bodies in pitchiq/*.py:', duplicate_bodies(CORE))
+    print('duplicate function bodies in pitchiq/balltrack:', len(duplicate_bodies(BALLTRACK)))
     print(
-        'sys.path.insert hacks in cv/balltrack:',
+        'sys.path.insert hacks in pitchiq/balltrack:',
         sum(
             Path(f).read_text(encoding='utf-8', errors='ignore').count('sys.path.insert')
             for f in BALLTRACK
@@ -129,7 +129,8 @@ def main():
     )
     text = '\n'.join(Path(f).read_text(encoding='utf-8', errors='ignore') for f in CORE + BALLTRACK)
     print(
-        'personal names / local paths in cv/:', len(re.findall(r'\bAlex\b|C:/Users/|alexv', text))
+        'personal names / local paths in pitchiq/:',
+        len(re.findall(r'\bAlex\b|C:/Users/|alexv', text)),
     )
 
 

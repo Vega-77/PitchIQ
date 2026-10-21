@@ -2,7 +2,7 @@
 
 The roadmap closed this item on 2026-08-12 for a stated reason: correcting for
 a lens needs a per-camera calibration nobody could produce before there was a
-camera, so the code would have had no caller. What reopened it is `cv/lines.py`
+camera, so the code would have had no caller. What reopened it is `pitchiq/lines.py`
 -- painted lines are straight by the Laws of the Game, so a painted line is
 straight *in the image* only if the lens is rectilinear. That makes the single
 calibration frame a coach already grabs into a lens target, and it makes
@@ -39,8 +39,8 @@ import cv2
 import numpy as np
 import pytest
 
-from cv.calibration import Calibration, Correspondence
-from cv.distortion import (
+from pitchiq.calibration import Calibration, Correspondence
+from pitchiq.distortion import (
     Chain,
     DistortionModel,
     MAX_K1,
@@ -48,8 +48,8 @@ from cv.distortion import (
     lens_for_frame,
     trace_chains,
 )
-from cv.lines import pitch_line_segments
-from cv.pitch import Pitch
+from pitchiq.lines import pitch_line_segments
+from pitchiq.pitch import Pitch
 from test_lines import FRAME_H, FRAME_W, GRASS_BGR, PAINT_BGR, camera, to_px
 
 # Every drawn line is subdivided this many times before the lens is applied.

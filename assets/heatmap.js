@@ -1,6 +1,6 @@
 // Where a player actually spent the match, drawn on a pitch.
 //
-// `cv/metrics.py::heatmap` has produced an occupancy grid per tracked figure
+// `pitchiq/metrics.py::heatmap` has produced an occupancy grid per tracked figure
 // since the day it was written. Nothing ever drew one, and it turned out
 // nothing ever finished computing one either: the grid was built per *track*
 // and `track_stats` never carried it across to the cluster, so `TrackStats.
@@ -18,7 +18,7 @@
 //     Why the merge is not a sum.
 //
 // A player is often several clusters: the tracker loses people when they leave
-// frame, and `cv/identity.py` only rejoins fragments seconds apart. Each grid
+// frame, and `pitchiq/identity.py` only rejoins fragments seconds apart. Each grid
 // is normalised to sum to 1, so adding them raw gives an eight-second fragment
 // the same weight as a half — and a player tracked cleanly throughout plus once
 // more at the edge of frame would show a hotspot at the edge of frame.
@@ -32,8 +32,8 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, PITCH_VIEWBOX, pitchMarkings,
-} from './pitch-backdrop.js?v=136';
-import { svgEl as el } from './svg.js?v=136';
+} from './pitch-backdrop.js?v=137';
+import { svgEl as el } from './svg.js?v=137';
 
 // Anything below this share of the busiest cell is left blank rather than drawn
 // at 2% opacity. A wash of near-invisible colour over the whole pitch reads as
@@ -244,7 +244,7 @@ export function gridSpread(grid) {
  *
  * `{ forwardM, lateralM }` — metres up the pitch from the goal this player was
  * defending, and metres across it from the right touchline as they faced it.
- * Null without an attacking end, matching `cv/report_json.py::shot_marks`,
+ * Null without an attacking end, matching `pitchiq/report_json.py::shot_marks`,
  * which returns None for the same reason and mirrors through the centre on
  * both axes for the same one: flip only `x` and a player who lived on the left
  * wing in the second half appears on the right.

@@ -11,7 +11,7 @@ bearing and each has its own tests below:
     paid once and `merge_tracks` grows faster than the footage, so the three
     kinds of stage project three different ways. This is not a refinement:
     measured cold, the pipeline reads 1.48x and "impossible"; the same run once
-    warm reads 0.33x and "comfortably live". See cv/timing.py for the figures.
+    warm reads 0.33x and "comfortably live". See pitchiq/timing.py for the figures.
 
 Run:  .venv/Scripts/python.exe -m pytest tests/test_timing.py -q
 """
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import pytest
 
-from cv.timing import (
+from pitchiq.timing import (
     FIXED,
     HALF_S,
     SUPERLINEAR,

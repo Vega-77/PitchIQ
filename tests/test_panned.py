@@ -1,4 +1,4 @@
-"""cv/panned.py: a camera that follows the play, held still for the pipeline.
+"""pitchiq/panned.py: a camera that follows the play, held still for the pipeline.
 
 The first half of these are about the transform on its own: a box seen in a
 panned frame must land where the same box would have appeared in the reference
@@ -20,11 +20,11 @@ import cv2
 import numpy as np
 import pytest
 
-from cv.calibration import CalibrationError
-from cv.frames import FrameRecord, FrameTable
-from cv.panned import MAP_FIT_ERROR, PannedCamera
-from cv.pipeline import analyse_match
-from cv.pitch import Pitch, STATSBOMB_LENGTH, STATSBOMB_WIDTH
+from pitchiq.calibration import CalibrationError
+from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.panned import MAP_FIT_ERROR, PannedCamera
+from pitchiq.pipeline import analyse_match
+from pitchiq.pitch import Pitch, STATSBOMB_LENGTH, STATSBOMB_WIDTH
 
 PITCH = Pitch(length_m=112.7, width_m=70.8)
 # Reference view: 10 px per StatsBomb unit, y down, no perspective. Simple on
@@ -159,7 +159,7 @@ class TestFromTracker:
     """The tracker's files are generated, not in git: a fresh checkout has none."""
 
     def test_a_tag_never_tracked_names_its_files_and_the_command(self, tmp_path, monkeypatch):
-        monkeypatch.setattr('cv.panned.TRACKER', tmp_path)
+        monkeypatch.setattr('pitchiq.panned.TRACKER', tmp_path)
         with pytest.raises(FileNotFoundError) as e:
             PannedCamera.from_tracker('nb9')
         msg = str(e.value)
@@ -168,7 +168,7 @@ class TestFromTracker:
         assert 'sh hybrid.sh <lo> <hi> nb9' in msg
 
     def test_only_the_missing_ones_are_named(self, tmp_path, monkeypatch):
-        monkeypatch.setattr('cv.panned.TRACKER', tmp_path)
+        monkeypatch.setattr('pitchiq.panned.TRACKER', tmp_path)
         (tmp_path / 'h3d_hyb90').mkdir()
         np.savez(tmp_path / 'h3d_hyb90' / 'nb9_smooth2.npz', abs=np.arange(3))
         with pytest.raises(FileNotFoundError) as e:

@@ -15,15 +15,15 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cv.frames import FrameRecord, FrameTable
-from cv.identity import (
+from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.identity import (
     MAX_BRIDGE_S,
     cluster_of_track,
     fragmentation,
     merge_tracks,
     track_spans,
 )
-from cv.teams import TEAM_A, TEAM_B, UNKNOWN
+from pitchiq.teams import TEAM_A, TEAM_B, UNKNOWN
 
 FPS = 30.0
 SCALE = 60.0  # player height in pixels

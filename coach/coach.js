@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=136';
+} from '../assets/auth.js?v=137';
 import {
     createTeam, updateTeamKit, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../assets/db.js?v=136';
-import { nowIndex } from '../assets/timeline.js?v=136';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=136';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=136';
+} from '../assets/db.js?v=137';
+import { nowIndex } from '../assets/timeline.js?v=137';
+import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=137';
+import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=137';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=136';
+} from '../assets/sample-report.js?v=137';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=136';
-import { renderPassMap } from '../assets/pass-map.js?v=136';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=136';
+} from '../assets/passing.js?v=137';
+import { renderPassMap } from '../assets/pass-map.js?v=137';
+import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=137';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=136';
-import { renderForms } from '../assets/form-chart.js?v=136';
+} from '../assets/season.js?v=137';
+import { renderForms } from '../assets/form-chart.js?v=137';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, hasVerdict, currentAnswers, xgTrust,
@@ -44,26 +44,26 @@ import {
     minutesNote, FROM_LAST_TAG, FULL_MATCH_MIN, matchBrief, cvReads,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=136';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=136';
-import { mountRail } from '../assets/rail.js?v=136';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=136';
-import { startMotion } from '../assets/motion.js?v=136';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=136';
-import { videoKind } from '../assets/video.js?v=136';
+} from '../assets/report.js?v=137';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=137';
+import { mountRail } from '../assets/rail.js?v=137';
+import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=137';
+import { startMotion } from '../assets/motion.js?v=137';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=137';
+import { videoKind } from '../assets/video.js?v=137';
 import {
     byId, setText, toast, clockText, signed, plural, localDate,
     statCard, statGroup, fillStatGroup, figure, cardChips, timelineRow,
     minutesChart, stackBar, coverageStrip, kitPicker,
-} from '../assets/ui.js?v=136';
+} from '../assets/ui.js?v=137';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=136';
+} from './shell.js?v=137';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=136';
+} from './review.js?v=137';
 
 // ---------------------------------------------------------------- team setup
 
@@ -1355,7 +1355,7 @@ function taggedStatRows(stats, log) {
  * Each map is mirrored so that team attacks right, which is what makes them
  * comparable: two maps facing each other would be a diagram of the pitch, and
  * the question a coach has is "how good were the chances", not "which end".
- * The mirroring is done in cv/report_json.py so no renderer can forget it.
+ * The mirroring is done in pitchiq/report_json.py so no renderer can forget it.
  *
  * Clicking a shot seeks the match video, which is the whole reason to place
  * them rather than count them.
@@ -2309,7 +2309,7 @@ function redrawCvNote() {
  *
  * `report_json` has published a `warnings` list since the pipeline existed and
  * **nothing has ever drawn it**. `trustworthy` is defined as `not warnings`
- * (cv/report_json.py), so every one of them was a judgement the pipeline made
+ * (pitchiq/report_json.py), so every one of them was a judgement the pipeline made
  * about its own output that no coach could see — which also means the rule
  * "a warning is only ever about data quality, never a cosmetic limit" was being
  * enforced against a reader who did not exist.
@@ -2715,14 +2715,14 @@ function playerTableRow(player, fullMinutes) {
  *
  * The tracker cannot tell one player from another — it loses people behind
  * opponents and when the camera pans, and gives each reappearance a new
- * identity. cv/identity.py stitches those fragments into clusters, but which
+ * identity. pitchiq/identity.py stitches those fragments into clusters, but which
  * cluster is which teenager is not something footage at this distance can
  * answer: shirt numbers are a few pixels tall.
  *
  * So this is the step that turns tracked motion into a player's stats, and
  * nothing per-player is written until it is done. Read-only here: confirming a
  * mapping writes to cvStats, which every client is denied — the coach's choices
- * go back through cv/publish.py. What this view does is make the mapping
+ * go back through pitchiq/publish.py. What this view does is make the mapping
  * possible to work out.
  */
 function renderClusterMapping() {
@@ -2776,7 +2776,7 @@ function restoreFocus() {
 }
 
 // A crop below this many pixels tall in the original footage has no face, no
-// number and no hair in it. Matching cv/thumbs.py's own floor for storing one
+// number and no hair in it. Matching pitchiq/thumbs.py's own floor for storing one
 // at all; this second, higher line is about how much to believe what you see.
 const FAINT_THUMB_PX = 40;
 
@@ -2878,7 +2878,7 @@ function clusterRow(cluster, mapping) {
     //
     // Every rostered player stays pickable however many times they have been
     // used. A player who left the frame and came back is genuinely several
-    // figures; cv/identity.py only rejoins fragments seconds apart.
+    // figures; pitchiq/identity.py only rejoins fragments seconds apart.
     const ranked = rankRosterForCluster(state.match.roster, cluster, {
         clock,
         matchEndS: state.match.stats?.matchEndS ?? 0,
@@ -2935,7 +2935,7 @@ function clusterRow(cluster, mapping) {
 
 // ------------------------------------------------ the same player, seen twice
 //
-// `cv/identity.py` will not bridge an absence longer than two seconds, so a
+// `pitchiq/identity.py` will not bridge an absence longer than two seconds, so a
 // player who goes off, or who leaves frame while the camera pans, comes back as
 // a second figure. Naming both is already the whole fix — the picker is
 // many-to-one and `cvStatsByPlayer` sums across every cluster mapped to a name.
@@ -3126,7 +3126,7 @@ function updateMappingNote() {
 
 // ------------------------------------------------- the pictures, and dropping them
 //
-// `cv/thumbs.py` cuts a crop of each tracked figure out of the footage so a
+// `pitchiq/thumbs.py` cuts a crop of each tracked figure out of the footage so a
 // coach can look at a row and say which of their players it is. They are
 // photographs of children, and they exist for that one job.
 //
@@ -3484,7 +3484,7 @@ function leaveMatchVideo() {
 //
 // The detector finds people, not players. A referee, a substitute warming up
 // and somebody's dad on a folding chair all arrive as tracks, and
-// cv/participants.py drops or flags them before any number above is counted.
+// pitchiq/participants.py drops or flags them before any number above is counted.
 //
 // That correction is invisible in the stats it corrects — a possession figure
 // looks the same whether nine spectators were removed from it or none were. So
@@ -3761,7 +3761,7 @@ async function doSaveVideo() {
  * Hand the tagged log to the video pipeline, as a file.
  *
  * A file rather than the pipeline reading Firestore itself. The service account
- * cv/publish.py uses bypasses every security rule, so the less it is allowed to
+ * pitchiq/publish.py uses bypasses every security rule, so the less it is allowed to
  * touch the better — it writes CV stats and nothing else, and giving it a read
  * path into a match would widen that for no gain. This runs as the coach, under
  * the rules, and the pipeline gets a plain list of events.

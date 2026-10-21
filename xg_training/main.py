@@ -24,12 +24,12 @@ CACHE_FILE = 'xg_raw_shots_cache.pkl'
 # away the calibration step; 7 -> 8 the same day, dropping shot_height. See the
 # note above the ONNX export, and the one above FEATURES.
 #
-# Written straight to cv/, where cv/xg_bridge.py loads it: one copy, so the
+# Written straight to pitchiq/, where pitchiq/xg_bridge.py loads it: one copy, so the
 # model trained here and the model the pipeline runs cannot drift apart. A
 # retrain that changes the model bumps the number, as 6 -> 7 -> 8 did, and
 # MODEL_PATH in xg_bridge.py with it. The plots go to docs/xg/.
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ONNX_FILE = os.path.join(_REPO, 'cv', 'xg_model8.onnx')
+ONNX_FILE = os.path.join(_REPO, 'pitchiq', 'xg_model8.onnx')
 PLOT_DIR = os.path.join(_REPO, 'docs', 'xg')
 
 
@@ -256,7 +256,7 @@ def load_data(offline=False):
 #
 # Order matters. The model takes a bare 12-wide float array with no names
 # attached, so this list is mirrored by hand in one other place — FEATURE_ORDER
-# in cv/xg_bridge.py — and a reordering here is silent there. Nothing can check
+# in pitchiq/xg_bridge.py — and a reordering here is silent there. Nothing can check
 # the two against each other but a person.
 FEATURES = [
     'distance_to_goal',
@@ -282,7 +282,7 @@ FEATURES = [
 # bar and the model can see it.
 #
 # A single fixed camera plus a homography cannot measure the z axis at all, so
-# cv/xg_bridge.py could only ever substitute a constant — and scored that way
+# pitchiq/xg_bridge.py could only ever substitute a constant — and scored that way
 # the 12-feature model predicted 9,213 goals against the 6,014 actually scored,
 # because the constant sits in the band where most shots on target live. The
 # feature was not free information; it was a leak that made the training numbers
@@ -421,7 +421,7 @@ def main(offline=False, show_plots=True, cross_validate=True):
     # presumably how it happened. Registering the XGBoost converter with
     # skl2onnx lets convert_sklearn walk the whole estimator and emit the
     # isotonic step with it. zipmap=False keeps `probabilities` a plain float
-    # tensor: the shape cv/xg_bridge.py reads, and the only one onnxruntime-web
+    # tensor: the shape pitchiq/xg_bridge.py reads, and the only one onnxruntime-web
     # could when the browser ran the model (it no longer does).
     from skl2onnx import convert_sklearn, update_registered_converter
     from skl2onnx.common.data_types import FloatTensorType as SklFloatTensorType

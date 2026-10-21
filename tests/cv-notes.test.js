@@ -326,7 +326,7 @@ describe('cvQualityNotes', () => {
 
     // ---- who the keeping figures belong to ----
     //
-    // `cv/keeper.py` names the stake itself: a wrong keeper poisons save
+    // `pitchiq/keeper.py` names the stake itself: a wrong keeper poisons save
     // percentage, distribution and every keeper feature in the xG model at
     // once. The rows on screen look the same either way, so the line that
     // separates a confirmed keeper from a worked-out one has to be written.
@@ -604,7 +604,7 @@ describe('the worst stretch the run lost', () => {
 
     test('the longest one comes back, since that is the order it arrives in', () => {
         // A hundred flickers and one blackout lose the same minutes and are
-        // not the same failure. cv/blind.py sorts longest-first.
+        // not the same failure. pitchiq/blind.py sorts longest-first.
         const split = withWorst([
             { start_s: 1284, duration_s: 28, kind: 'unexplained' },
             { start_s: 402, duration_s: 19, kind: 'unexplained' },

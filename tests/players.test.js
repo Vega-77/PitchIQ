@@ -487,7 +487,7 @@ describe('playerWobbleNote', () => {
     });
 
     test('the ceiling matches the pipeline, boundary included', () => {
-        // `cv/metrics.py` withholds bursts on `noise_m > MAX_ACCEL_NOISE_M`,
+        // `pitchiq/metrics.py` withholds bursts on `noise_m > MAX_ACCEL_NOISE_M`,
         // so a track sitting exactly on the ceiling still has a burst count.
         // Saying it does not would caption a card that is on the page.
         assert.doesNotMatch(report.playerWobbleNote(CEILING), /burst/);
@@ -637,7 +637,7 @@ describe('the other figures that could be the same person', () => {
     });
 
     test('an overlap inside one bridge is not an exclusion', () => {
-        // Two seconds is what cv/identity.py will bridge, so an overlap that
+        // Two seconds is what pitchiq/identity.py will bridge, so an overlap that
         // small is the rounding at the seam of one player, not two people.
         // tests/test_identity.py asserts the invariant this rests on.
         const near = [figure(0, 0, 120), figure(1, 119, 240)];
@@ -780,7 +780,7 @@ describe('cvReportFields', () => {
 
     test('the nulls reach the fields only the pipeline writes', () => {
         // The heatmap, the attacking end and the calibration error are written
-        // by cv/publish.py after this document exists. Under a merge, nothing
+        // by pitchiq/publish.py after this document exists. Under a merge, nothing
         // else would ever clear them.
         const fields = report.cvReportFields(undefined);
         for (const key of ['cvHeatmap', 'cvAttackingEnd', 'cvCalibrationErrorM',
@@ -885,7 +885,7 @@ describe('cvReportFields', () => {
 /**
  * Bursts and the wobble, on the browser side of the seam.
  *
- * The arithmetic lives in cv/metrics.py and is tested there. What can go wrong
+ * The arithmetic lives in pitchiq/metrics.py and is tested there. What can go wrong
  * here is the joining: a null that becomes a zero on the way through, or a
  * figure summed that should have been taken at its worst.
  */

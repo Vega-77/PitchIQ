@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """The browser's export seam: every exported name has somebody who wants it.
 
-`tests/test_call_graph.py` asks this question of `cv/` and has never asked it of
+`tests/test_call_graph.py` asks this question of `pitchiq/` and has never asked it of
 the frontend. So a browser helper can be written, exported, covered by its own
 tests, and called by nothing, and no gate says a word -- which is exactly the
 shape that audit went looking for on the Python side.

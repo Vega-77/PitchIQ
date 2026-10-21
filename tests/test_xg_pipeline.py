@@ -1,12 +1,12 @@
 """The whole chain from a detected shot to a number, minus the detecting.
 
-`cv/xg_bridge.py` was checked against the browser model long before anything
+`pitchiq/xg_bridge.py` was checked against the browser model long before anything
 called it, so what these tests cover is the part nobody had: a `Shot` coming out
 of `derive_events`, the other players read out of the frame it happened in, and a
 probability landing on the event and summing into the team total.
 
 Everything here is synthetic except the model, which is the real
-`cv/xg_model8.onnx`. That leaves exactly one link untested — whether the
+`pitchiq/xg_model8.onnx`. That leaves exactly one link untested — whether the
 shot was a shot — and that one needs footage.
 
 Run:  .venv/Scripts/python.exe -m pytest tests/test_xg_pipeline.py -q
@@ -15,15 +15,15 @@ Run:  .venv/Scripts/python.exe -m pytest tests/test_xg_pipeline.py -q
 import numpy as np
 import pytest
 
-from cv.calibration import Calibration
-from cv.events import GOAL, attach_xg, derive_events
-from cv.frames import FrameRecord, FrameTable
-from cv.keeper import KeeperAssignment
-from cv.pipeline import MatchReport
-from cv.pitch import MatchOrientation, Pitch
-from cv.teams import TEAM_A, TEAM_B
-from cv.touches import Touch, TouchConfidence, TouchSequence
-from cv.xg_bridge import xg_for_shots
+from pitchiq.calibration import Calibration
+from pitchiq.events import GOAL, attach_xg, derive_events
+from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.keeper import KeeperAssignment
+from pitchiq.pipeline import MatchReport
+from pitchiq.pitch import MatchOrientation, Pitch
+from pitchiq.teams import TEAM_A, TEAM_B
+from pitchiq.touches import Touch, TouchConfidence, TouchSequence
+from pitchiq.xg_bridge import xg_for_shots
 
 FPS = 30.0
 PITCH = Pitch()
@@ -85,7 +85,7 @@ def strike(x_m=95.0, y_m=MID_Y, others=(), teams=None):
         distance_ph=0.5,
         speed_before_ph_s=0.0,
         # Twenty player heights a second is a struck ball, not a roll — the
-        # threshold cv/events.py uses to tell those apart.
+        # threshold pitchiq/events.py uses to tell those apart.
         speed_after_ph_s=20.0,
         turn_deg=45.0,
         observed=True,
@@ -211,7 +211,7 @@ class TestAgainstTheRealModel:
         # Straight to `shot_marks`: the report's own shot map needs an attacking
         # end resolved from an orientation this fixture has no reason to build,
         # and what is being pinned here is the serialisation, not that.
-        from cv.report_json import shot_marks
+        from pitchiq.report_json import shot_marks
 
         mark = shot_marks(log.shots(), 'right')[0]
         assert mark['xg_header'] < mark['xg']
@@ -272,7 +272,7 @@ class TestAgainstTheRealModel:
         shot at. Here that is a covering centre-back who has dropped onto the
         line, and the actual keeper has come three metres off it — the exact
         case `shot_context_from_tracking` calls occasionally catastrophic. So
-        this pins that `cv/keeper.py`'s answer is reaching the model and
+        this pins that `pitchiq/keeper.py`'s answer is reaching the model and
         changing it, rather than being accepted and ignored.
         """
         pytest.importorskip('onnxruntime')

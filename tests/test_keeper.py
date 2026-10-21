@@ -14,9 +14,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cv.calibration import Calibration
-from cv.events import EventLog
-from cv.keeper import (
+from pitchiq.calibration import Calibration
+from pitchiq.events import EventLog
+from pitchiq.keeper import (
     KeeperAssignment,
     KeeperDistribution,
     KeeperReport,
@@ -25,9 +25,9 @@ from cv.keeper import (
     identify_keepers,
     keeper_reports,
 )
-from cv.frames import FrameRecord, FrameTable
-from cv.pitch import Pitch
-from cv.teams import TEAM_A, TEAM_B
+from pitchiq.frames import FrameRecord, FrameTable
+from pitchiq.pitch import Pitch
+from pitchiq.teams import TEAM_A, TEAM_B
 
 FPS = 30.0
 PITCH = Pitch()

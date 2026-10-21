@@ -32,13 +32,13 @@ import cv2
 import numpy as np
 import pytest
 
-from cv.calibration import Calibration, Correspondence
-from cv.detector import CLASS_BALL, CLASS_PERSON
-from cv.events import SHOT_SPEED_PH_S
-from cv.pipeline import analyse_match
-from cv.pitch import MatchOrientation, Pitch
-from cv.report_json import build_report_json
-from cv.teams import TEAM_A, TEAM_B
+from pitchiq.calibration import Calibration, Correspondence
+from pitchiq.detector import CLASS_BALL, CLASS_PERSON
+from pitchiq.events import SHOT_SPEED_PH_S
+from pitchiq.pipeline import analyse_match
+from pitchiq.pitch import MatchOrientation, Pitch
+from pitchiq.report_json import build_report_json
+from pitchiq.teams import TEAM_A, TEAM_B
 
 # 14 pixels to the metre puts the whole pitch in a 1470x952 frame and makes a
 # 1.8m player 25 pixels tall — small, but above the 6-pixel floor `torso_patch`
@@ -100,7 +100,7 @@ def px(x_m, y_m):
 def wander(home, i, t, sign):
     """A slow orbit, at a different phase and heading for every player.
 
-    Not decoration. `cv/camera.py` calls the camera moved when the *median*
+    Not decoration. `pitchiq/camera.py` calls the camera moved when the *median*
     per-track displacement passes 0.75 player heights with 70% of tracks
     agreeing on the direction, so two teams drifting steadily produce a
     confident false positive — which is exactly what the first version of this
