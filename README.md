@@ -119,6 +119,9 @@ python -m ruff check pitchiq tests tools xg_training
 npm test                 # JS suites + Firestore rules (needs Node and a JVM)
 ```
 
+[tests/README.md](tests/README.md) says which tests are unit, seam and
+repo-wide hygiene checks, and what each hygiene check guards.
+
 Before committing a change to any frontend file, run
 `python stamp_version.py <n+1>`, where `n` is the `?v=` that `index.html`
 carries now (see `shared/README.md`).
