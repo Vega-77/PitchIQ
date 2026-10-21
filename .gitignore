@@ -46,3 +46,6 @@ ui-debug.log
 # both full of this machine's paths. They stay on disk, out of git.
 /HANDOFF*.md
 /.claude/launch.json
+
+# IDE project files (PyCharm and friends): per-machine, not part of the project
+.idea/
