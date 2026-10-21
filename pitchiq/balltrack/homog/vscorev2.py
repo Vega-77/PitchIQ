@@ -19,6 +19,8 @@ import sys
 
 import numpy as np
 
+from .vsmooth import runs_of
+
 TOL = 3
 L = json.load(open('flightlab2_labels.json'))['flights']
 Z = np.load('vid2_ballsb.npz')
@@ -32,21 +34,6 @@ for f in L:
     a, b = f['f0'] - A0, f['f1'] - A0
     truth[a : b + 1] = True
     near_t[max(0, a - TOL) : b + TOL + 1] = True
-
-
-def runs(m):
-    r = []
-    i = 0
-    while i < len(m):
-        if m[i]:
-            j = i
-            while j + 1 < len(m) and m[j + 1]:
-                j += 1
-            r.append((i, j))
-            i = j + 1
-        else:
-            i += 1
-    return r
 
 
 def near(xy, ok, i, r=2):
@@ -76,7 +63,7 @@ def score(p):
     R = (air & truth).sum() / truth.sum()
     hit = sum(air[f['f0'] - A0 : f['f1'] - A0 + 1].mean() >= 0.5 for f in L)
     anyh = sum(air[f['f0'] - A0 : f['f1'] - A0 + 1].any() for f in L)
-    fr = [(a, b) for a, b in runs(air) if not near_t[a : b + 1].any()]
+    fr = [(a, b) for a, b in runs_of(air) if not near_t[a : b + 1].any()]
     S = []
     for f in L:
         for fr_, q, k in ((f['f0'], f.get('p0'), f['k0']), (f['f1'], f.get('p1'), f['k1'])):

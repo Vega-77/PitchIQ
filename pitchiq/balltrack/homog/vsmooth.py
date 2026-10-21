@@ -254,7 +254,7 @@ def straighten(xy, z, R, use):
     (weighted by their covariance), and put the ball on it. Short stretches go."""
     out = np.full_like(xy, np.nan)
     ok = np.isfinite(xy[:, 0])
-    for a, b in [(a, b) for a, b in _runs(ok)]:
+    for a, b in [(a, b) for a, b in runs_of(ok)]:
         if b - a + 1 < P['min_frag']:
             continue
         p = xy[a : b + 1]
@@ -281,7 +281,8 @@ def straighten(xy, z, R, use):
     return out
 
 
-def _runs(m):
+def runs_of(m):
+    """(first, last) index pairs of each run of True in m, inclusive."""
     r = []
     i = 0
     while i < len(m):

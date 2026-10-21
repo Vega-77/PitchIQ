@@ -17,25 +17,12 @@ import sys
 
 import numpy as np
 
+from .vsmooth import runs_of
+
 P = dict(min_seen=8, seen_frac=0.6, margin=2.0, out_frac=0.5, min_len=8, edge=2, start_n=1)
 for k_ in P:
     if 'VX_' + k_.upper() in os.environ:
         P[k_] = float(os.environ['VX_' + k_.upper()])
-
-
-def runs(m):
-    r = []
-    i = 0
-    while i < len(m):
-        if m[i]:
-            j = i
-            while j + 1 < len(m) and m[j + 1]:
-                j += 1
-            r.append((i, j))
-            i = j + 1
-        else:
-            i += 1
-    return r
 
 
 def outside(x, y, mg):
@@ -46,7 +33,7 @@ def strict(B, has):
     st = B['state'].copy()
     x, y = B['x'], B['y']
     why = {'unseen': 0, 'out': 0, 'short': 0, 'kept': 0}
-    for a, b in runs(st == 'air'):
+    for a, b in runs_of(st == 'air'):
         s = np.where(has[a : b + 1])[0] + a
         if len(s) == 0:
             st[a : b + 1] = 'none'

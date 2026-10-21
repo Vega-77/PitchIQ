@@ -14,6 +14,7 @@ import sys
 import numpy as np
 
 from . import vflscore as S
+from .vsmooth import runs_of
 
 A0 = 86475
 man = json.load(open('airlab/manifest.json'))['clips']
@@ -33,21 +34,6 @@ for l_ in open(os.path.join('flightlabels', 'flights.jsonl')):
     f_ = json.loads(l_)[1]
     if f_.get('deleted'):
         lab[f_['f0'] - A0 : f_['f1'] - A0 + 1] = 'x'
-
-
-def runs_of(m):
-    r = []
-    i = 0
-    while i < len(m):
-        if m[i]:
-            j = i
-            while j + 1 < len(m) and m[j + 1]:
-                j += 1
-            r.append((i, j))
-            i = j + 1
-        else:
-            i += 1
-    return r
 
 
 def score(p, par):
