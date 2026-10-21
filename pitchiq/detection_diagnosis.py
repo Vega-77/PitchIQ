@@ -130,7 +130,7 @@ def player_height_px(width_px: float) -> float:
     Exactly one conversion stands between the only empirical measurement this
     repo has and the thresholds it is supposed to justify, and it used to be
     performed in prose in four places and by no code at all — twice here, once
-    in `tests/test_framing.py`, once as a bare `/ 3.0` in the helper that builds
+    in `tests/test_detection_diagnosis.py`, once as a bare `/ 3.0` in the helper that builds
     every synthetic player in that suite. `PLAYER_ASPECT` sat above them all
     saying it was what did the reading, and nothing read it.
 

@@ -98,13 +98,13 @@ PENDING_BY_DESIGN = {
     # --- conversions whose whole job is to be the one written-down copy
     'player_height_px': 'How tall a standing player is, from how wide. '
     'The pipeline never needs it -- every threshold in '
-    '`pitchiq/framing.py` is already a height. But the one '
+    '`pitchiq/detection_diagnosis.py` is already a height. But the one '
     'empirical measurement behind those thresholds was '
     'recorded in widths, so this is the single step '
     'between the evidence and the numbers it justifies, '
     'and its callers are the checks that hold five '
     'prose copies of that step to it '
-    '(`tests/test_framing_evidence.py`). Inlining it '
+    '(`tests/test_detection_diagnosis_evidence.py`). Inlining it '
     'would put the arithmetic back where it was.',
     # --- xG, deliberately not on the pipeline path
     'predict_xg': 'The single-shot entry point. The pipeline calls '

@@ -1,6 +1,6 @@
 """One measurement, five copies, and the constant that was supposed to read it.
 
-Every threshold in `pitchiq/framing.py` rests on a single observation: the wide
+Every threshold in `pitchiq/detection_diagnosis.py` rests on a single observation: the wide
 stadium panorama from the detection spike, where players were 4-8 pixels
 **across** and the detector found nothing on the pitch across 300 frames. Two
 data points do not make a calibration curve and the module says so; this is the
@@ -14,7 +14,7 @@ all:
 * the module docstring's table, `players 4-8 px wide`
 * the module docstring's sentence, `12-24 px tall`, and again `9-18 px at
   inference`
-* `tests/test_framing.py`'s docstring, `roughly 18 px tall`
+* `tests/test_detection_diagnosis.py`'s docstring, `roughly 18 px tall`
 * the same file's `person()` helper, building every synthetic player in the
   suite with a bare `/ 3.0`
 * `FOOTAGE_DAY.md`, telling somebody at the side of a field `4-8 pixels across`
@@ -42,8 +42,8 @@ import inspect
 import re
 from pathlib import Path
 
-from pitchiq import framing
-from pitchiq.framing import (
+from pitchiq import detection_diagnosis
+from pitchiq.detection_diagnosis import (
     PLAYER_ASPECT,
     WIDE_CLIP_WIDTHS_PX,
     assess_framing,
@@ -99,7 +99,7 @@ class TestTheMeasurementItself:
         `WIDE_CLIP_WIDTHS_PX` -- a band edited in one and not the other is the
         module arguing from two different clips in consecutive paragraphs.
         """
-        found = pairs(WIDTHS, inspect.getdoc(framing))
+        found = pairs(WIDTHS, inspect.getdoc(detection_diagnosis))
 
         assert found, 'no width measurement found in the module docstring'
         assert set(found) == {recorded()}
@@ -128,7 +128,7 @@ class TestTheConversion:
         and the sentence that justifies `PLAYER_FLOOR_PX` either moves with it
         or fails here, which are the only two honest outcomes.
         """
-        found = pairs(HEIGHTS, inspect.getdoc(framing))
+        found = pairs(HEIGHTS, inspect.getdoc(detection_diagnosis))
         lo, hi = recorded()
 
         assert found, 'no height conversion found in the module docstring'
@@ -142,7 +142,7 @@ class TestTheConversion:
         `PLAYER_FLOOR_PX`. The docstring carries it down by hand, so it is held
         to `FramingVerdict.scale` rather than to a second written-out ratio.
         """
-        found = pairs(INFERENCE, inspect.getdoc(framing))
+        found = pairs(INFERENCE, inspect.getdoc(detection_diagnosis))
         lo, hi = recorded()
         scale = spike_scale()
 
@@ -162,7 +162,7 @@ class TestTheReadersStillRead:
         check asserts `found` first, and why this restates it in one place that
         fails loudly if the docstring is ever restructured.
         """
-        doc = inspect.getdoc(framing)
+        doc = inspect.getdoc(detection_diagnosis)
         guide = (ROOT / 'FOOTAGE_DAY.md').read_text(encoding='utf-8')
 
         assert len(pairs(WIDTHS, doc)) >= 2

@@ -16,7 +16,7 @@ suite would keep passing unchanged if the aspect ratio were ever corrected.
 import unittest
 
 from pitchiq.detector import Detection
-from pitchiq.framing import (
+from pitchiq.detection_diagnosis import (
     BALL_TO_PLAYER,
     GOOD,
     LIMIT_FRAMING,
