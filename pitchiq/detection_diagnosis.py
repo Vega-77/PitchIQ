@@ -59,10 +59,10 @@ PLAYER_ASPECT = 3.0
 #: and a datum quietly converted is a datum you can no longer check.
 WIDE_CLIP_WIDTHS_PX = (4.0, 8.0)
 
-GOOD = 'good'
-MARGINAL = 'marginal'
-UNUSABLE = 'unusable'
-UNKNOWN = 'unknown'
+STATUS_GOOD = 'good'
+STATUS_MARGINAL = 'marginal'
+STATUS_UNUSABLE = 'unusable'
+STATUS_UNKNOWN = 'unknown'
 
 #: What is holding the run back. 'framing' cannot be fixed here; 'resolution'
 #: can, and that is the entire reason this module exists.
@@ -217,7 +217,7 @@ class FramingVerdict:
                 )
             else:
                 out.append('  Re-run with a larger --imgsz.')
-        elif self.status == GOOD:
+        elif self.status == STATUS_GOOD:
             out.append('  VERDICT: usable. Players are comfortably resolved.')
             if not self.ball_reachable:
                 out.append('  The ball is still under its floor even at native scale, so expect')
@@ -282,13 +282,13 @@ def assess_framing(
     inference_px = None if player_px is None else player_px * scale
 
     if player_px is None:
-        status, limit = UNKNOWN, LIMIT_UNKNOWN
+        status, limit = STATUS_UNKNOWN, LIMIT_UNKNOWN
     elif inference_px >= PLAYER_GOOD_PX:
-        status, limit = GOOD, LIMIT_NONE
+        status, limit = STATUS_GOOD, LIMIT_NONE
     else:
         # The one branch this module exists for. Ask what the file holds before
         # blaming the camera: if native clears the bar the downscale is ours.
-        status = MARGINAL if inference_px >= PLAYER_FLOOR_PX else UNUSABLE
+        status = STATUS_MARGINAL if inference_px >= PLAYER_FLOOR_PX else STATUS_UNUSABLE
         limit = LIMIT_RESOLUTION if player_px >= PLAYER_GOOD_PX else LIMIT_FRAMING
 
     return FramingVerdict(

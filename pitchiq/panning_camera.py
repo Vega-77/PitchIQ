@@ -30,13 +30,9 @@ from .ball import BallPoint, BallTrajectory
 from .balltrack import ballgate
 from .calibration import Calibration, CalibrationError
 from .frame_table import COL_X1, COL_X2, COL_Y1, COL_Y2, FrameTable
-from .pitch import STATSBOMB_LENGTH, STATSBOMB_WIDTH, Pitch
+from .pitch import CENTRE_CIRCLE_RADIUS_M, STATSBOMB_LENGTH, STATSBOMB_WIDTH, Pitch
 
 TRACKER = Path(__file__).resolve().parent / 'balltrack'
-
-# The one length the laws of the game fix, and the unit the venue map measures
-# the pitch in. See `homog/vpitch.py`.
-CENTRE_CIRCLE_RADIUS_M = 9.15
 
 # The venue map's fit to the pitch, measured by `homog/vpitch.py` on 40
 # landmarks and converted from radii to metres.
@@ -170,6 +166,8 @@ class PannedCamera:
             # The venue map's reference keyframe -> StatsBomb; `homog/vovl.py`'s
             # frame_to_sb for the keyframe whose own map homography is identity.
             reference_to_sb = venue['P'] @ top['T'] @ top['B'] @ np.linalg.inv(top['K'])
+        # The venue map measures the pitch in centre-circle radii, the one
+        # length the laws of the game fix. See `homog/vpitch.py`.
         pitch = Pitch(
             length_m=round(float(venue['L']) * CENTRE_CIRCLE_RADIUS_M, 1),
             width_m=round(float(venue['W']) * CENTRE_CIRCLE_RADIUS_M, 1),

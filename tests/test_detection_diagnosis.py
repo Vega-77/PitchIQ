@@ -18,16 +18,16 @@ import unittest
 from pitchiq.detector import Detection
 from pitchiq.detection_diagnosis import (
     BALL_TO_PLAYER,
-    GOOD,
+    STATUS_GOOD,
     LIMIT_FRAMING,
     LIMIT_NONE,
     LIMIT_RESOLUTION,
     LIMIT_UNKNOWN,
-    MARGINAL,
+    STATUS_MARGINAL,
     PLAYER_ASPECT,
     PLAYER_GOOD_PX,
-    UNKNOWN,
-    UNUSABLE,
+    STATUS_UNKNOWN,
+    STATUS_UNUSABLE,
     WIDE_CLIP_WIDTHS_PX,
     assess_framing,
     player_height_px,
@@ -71,7 +71,7 @@ class TestTheCameraWasTheProblem(unittest.TestCase):
         # could change here.
         verdict = assess_framing(frames([WIDE_MID] * 6), **SPIKE)
 
-        self.assertEqual(verdict.status, UNUSABLE)
+        self.assertEqual(verdict.status, STATUS_UNUSABLE)
         self.assertEqual(verdict.limit, LIMIT_FRAMING)
         self.assertAlmostEqual(verdict.player_px, WIDE_MID)
         self.assertAlmostEqual(verdict.inference_px, WIDE_MID * 960 / 1280)
@@ -95,7 +95,7 @@ class TestTheCameraWasTheProblem(unittest.TestCase):
         `PLAYER_FLOOR_PX`, so the three cases above would keep passing while the
         module said something else about every other player on that clip. The
         top of the band is 24 px in the file and 18 at inference, which clears
-        the floor and is reported as `MARGINAL` — the softer word, for the clip
+        the floor and is reported as `STATUS_MARGINAL` — the softer word, for the clip
         we measured detecting nothing at all across 300 frames.
 
         That gap between the stride argument and the one observation is real and
@@ -108,7 +108,7 @@ class TestTheCameraWasTheProblem(unittest.TestCase):
                 verdict = assess_framing(frames([height] * 6), **SPIKE)
 
                 self.assertEqual(verdict.limit, LIMIT_FRAMING)
-                self.assertNotEqual(verdict.status, GOOD)
+                self.assertNotEqual(verdict.status, STATUS_GOOD)
                 self.assertIsNone(verdict.tiles_needed())
                 self.assertIn('camera', ' '.join(verdict.lines()))
 
@@ -124,7 +124,7 @@ class TestWeThrewThePixelsAway(unittest.TestCase):
 
         self.assertAlmostEqual(verdict.player_px, 60.0)
         self.assertAlmostEqual(verdict.inference_px, 20.0)
-        self.assertEqual(verdict.status, MARGINAL)
+        self.assertEqual(verdict.status, STATUS_MARGINAL)
         self.assertEqual(verdict.limit, LIMIT_RESOLUTION)
 
     def test_it_says_how_many_tiles(self):
@@ -151,7 +151,7 @@ class TestGoodFraming(unittest.TestCase):
     def test_a_tight_clip_at_full_size_passes(self):
         verdict = assess_framing(frames([90.0] * 9), 1280, 720, imgsz=1280)
 
-        self.assertEqual(verdict.status, GOOD)
+        self.assertEqual(verdict.status, STATUS_GOOD)
         self.assertEqual(verdict.limit, LIMIT_NONE)
         self.assertIn('usable', ' '.join(verdict.lines()))
 
@@ -161,7 +161,7 @@ class TestGoodFraming(unittest.TestCase):
         # verdict has to say so rather than read good and stop there.
         verdict = assess_framing(frames([60.0] * 9), 1280, 720, imgsz=1280)
 
-        self.assertEqual(verdict.status, GOOD)
+        self.assertEqual(verdict.status, STATUS_GOOD)
         self.assertFalse(verdict.ball_reachable)
         self.assertIn('under its floor', ' '.join(verdict.lines()))
 
@@ -184,12 +184,12 @@ class TestMeasurement(unittest.TestCase):
         verdict = assess_framing(rubbish, 1280, 720, imgsz=1280)
 
         self.assertIsNone(verdict.player_px)
-        self.assertEqual(verdict.status, UNKNOWN)
+        self.assertEqual(verdict.status, STATUS_UNKNOWN)
 
     def test_nothing_detected_is_unknown_not_unusable(self):
         verdict = assess_framing([[], [], []], 1280, 720, imgsz=1280)
 
-        self.assertEqual(verdict.status, UNKNOWN)
+        self.assertEqual(verdict.status, STATUS_UNKNOWN)
         self.assertEqual(verdict.limit, LIMIT_UNKNOWN)
         self.assertIsNone(verdict.inference_px)
         self.assertIsNone(verdict.predicted_ball_px)
@@ -217,7 +217,7 @@ class TestJson(unittest.TestCase):
         verdict = assess_framing(frames([60.0] * 8), 3840, 1080, imgsz=1280)
         payload = verdict.to_json()
 
-        self.assertEqual(payload['status'], MARGINAL)
+        self.assertEqual(payload['status'], STATUS_MARGINAL)
         self.assertEqual(payload['limit'], LIMIT_RESOLUTION)
         self.assertEqual(payload['tiles_needed'], 2)
         self.assertAlmostEqual(payload['inference_px'], 20.0)

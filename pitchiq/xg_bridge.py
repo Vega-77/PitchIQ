@@ -44,7 +44,7 @@ FEATURE_ORDER = [
 ]
 
 # StatsBomb goal geometry, matching main.py.
-GOAL = np.array([STATSBOMB_LENGTH, STATSBOMB_WIDTH / 2])
+GOAL_CENTRE_SB = np.array([STATSBOMB_LENGTH, STATSBOMB_WIDTH / 2])
 POST_L = np.array([STATSBOMB_LENGTH, 36.0])
 POST_R = np.array([STATSBOMB_LENGTH, 44.0])
 
@@ -113,12 +113,12 @@ def build_features(context: ShotContext, pitch: Pitch) -> dict[str, float]:
     """Metres -> the 11 features, expressed in StatsBomb space."""
     ball = np.array(pitch.to_statsbomb(*context.shooter_m, context.attacking_end))
 
-    distance = float(np.linalg.norm(ball - GOAL))
+    distance = float(np.linalg.norm(ball - GOAL_CENTRE_SB))
     angle = shot_angle(ball)
 
     if context.keeper_m is not None:
         keeper = np.array(pitch.to_statsbomb(*context.keeper_m, context.attacking_end))
-        keeper_distance = float(np.linalg.norm(keeper - GOAL))
+        keeper_distance = float(np.linalg.norm(keeper - GOAL_CENTRE_SB))
         keeper_angle = shot_angle(keeper)
         keeper_off_line = 1.0 if keeper_distance > 3.0 else 0.0
     else:
