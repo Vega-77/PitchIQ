@@ -4,7 +4,7 @@ air     Air Lab frames: precision / recall / F, true flights hit, false runs
 pos     Flight Lab: median in-flight error (SB) with the flat reading where
         no air is claimed, and the error on claimed air frames only
 
-  python -m pitchiq.balltrack.homog.vdev [--holdout] a.npz b.npz ...
+  python -m pitchiq.balltrack.homog.score_dev_clips [--holdout] a.npz b.npz ...
 """
 
 import json
