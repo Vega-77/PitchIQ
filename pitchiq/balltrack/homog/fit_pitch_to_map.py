@@ -2,7 +2,7 @@
 
 Landmarks were read from the map (circle, halfway, near touchline) and from
 single keyframes (goalposts, the bottom penalty box), all in top-down crop
-pixels (vtop canvas, y - 350).  Pitch-internal units: centre-circle radii
+pixels (top_down_map canvas, y - 350).  Pitch-internal units: centre-circle radii
 (R), so the law-of-the-game ratios fix the shape without any metres output.
 Unknowns: map->pitch homography P (8) + pitch length Lr and width Wr (in R).
     -> vpitch.npz: P (canvas px -> StatsBomb 120x80), Lr, Wr, landmark resid
@@ -68,7 +68,7 @@ print('landmark resid (map px): median %.1f  max %.1f' % (np.median(e), e.max())
 for (xy, f, w), ee in zip(obs, e):
     if ee > 6:
         print('  ', np.round(xy, 1), round(ee, 1))
-# canvas px (uncropped vtop canvas) -> StatsBomb 120x80
+# canvas px (uncropped top_down_map canvas) -> StatsBomb 120x80
 C = np.array([[1, 0, 0], [0, 1, -350], [0, 0, 1]])
 S = np.diag([120 / L, 80 / W, 1])
 P = S.dot(Hof(sol.x)).dot(C)

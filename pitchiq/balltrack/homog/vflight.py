@@ -1,8 +1,8 @@
 """The ball in 3D: ground rolls and ballistic flights from one camera.
 
-Geometry.  The venue map's top-down plane (vtop) is in camera heights: the
+Geometry.  The venue map's top-down plane (top_down_map) is in camera heights: the
 camera sits at height 1 above the ground, and for frame f the matrix
-M_f = inv(A) . Hsb_f  (A = fit_pitch_to_map.P . vtop.T) sends an image pixel to the
+M_f = inv(A) . Hsb_f  (A = fit_pitch_to_map.P . top_down_map.T) sends an image pixel to the
 ray (u, v, w) in the world basis (e1, e2, -n).  A point at ground position
 (u, v) and height z lies on the ray (u, v, 1 - z), so
 
