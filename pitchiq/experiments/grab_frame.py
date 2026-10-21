@@ -11,7 +11,7 @@ from pathlib import Path
 
 import cv2
 
-from pitchiq.frame_sampler import sample_frames, video_info
+from pitchiq.video_io import sample_frames, video_info
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -39,7 +39,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pitchiq.frame_sampler import effective_fps, stride_for_fps
+from pitchiq.video_io import effective_fps, stride_for_fps
 from pitchiq.metrics import (
     MIN_SAMPLES_IN_WINDOW,
     SMOOTH_BANDS,

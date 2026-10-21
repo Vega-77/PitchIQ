@@ -23,7 +23,7 @@ from pathlib import Path
 import cv2
 
 from pitchiq.detector import PersonBallDetector, TiledDetector, tile_windows
-from pitchiq.frame_sampler import sample_frames, video_info
+from pitchiq.video_io import sample_frames, video_info
 from pitchiq.framing import assess_framing
 
 OUTPUT_ROOT = Path('scratch_frames')

@@ -54,7 +54,7 @@ from .camera import CameraMotion, camera_warnings, detect_camera_shift
 from .coverage import PitchCoverage, coverage_warnings, pitch_coverage
 from .events import EventLog, attach_xg, attacking_end_for, derive_events
 from .frames import FrameTable, TrackedFramePass, attach_trajectory
-from .frame_sampler import effective_fps, stride_for_fps, video_info
+from .video_io import effective_fps, stride_for_fps, video_info
 from .identity import PlayerCluster, cluster_of_track, merge_tracks
 from .keeper import KeeperAssignment, identify_keepers, keeper_reports
 from .touches import TouchSequence, segment_touches
