@@ -13,10 +13,10 @@ either side is invisible to every tool that works by matching text.
 Four places have to agree about these names, and no two of them can see each
 other:
 
-    pitchiq/publish_to_firestore.py    player_report_fields()   21 fields, prefix + suffix
-    shared/report.js cvReportFields(stats)    23 fields, written out in full
-    shared/report.js CV_REPORT_KEYS           26 names, the clearing list
-    the pages        report.cvTopSpeedKmh     26 names, read off a document
+    pitchiq/publish_to_firestore.py  player_report_fields()  21 fields, prefix + suffix
+    shared/report-player.js          cvReportFields(stats)   23 fields, written out in full
+    shared/report-player.js          CV_REPORT_KEYS          26 names, the clearing list
+    the pages                        report.cvTopSpeedKmh    26 names, read off a document
 
 The document in the middle is `teams/{t}/matches/{m}/playerReports/{p}`, and
 it is the one document in the app with **no field allowlist** — `firestore.rules`

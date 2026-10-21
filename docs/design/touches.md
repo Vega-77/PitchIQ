@@ -52,4 +52,5 @@ false positives. This becomes meaningful at higher ball recall from a camera
 that holds still.
 
 **No touch count should be shown to anyone before it has been checked against
-scrubbed video.** `pitchiq/experiments/touch_report.py` exists to make that cheap.
+scrubbed video.** `python -m pitchiq event_report --video <file> --touches` lists every
+touch with its timestamp and confidence, which makes that cheap.

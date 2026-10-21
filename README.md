@@ -132,6 +132,12 @@ carries now (see `shared/README.md`).
   good it is, and what it needs.
 - [ROADMAP.md](ROADMAP.md): where things stand and what is next. The full
   history is in [docs/history/ROADMAP-archive.md](docs/history/ROADMAP-archive.md).
+- [docs/architecture.md](docs/architecture.md): how a video becomes a report,
+  one paragraph per module, fixed against panning camera.
+- [docs/glossary.md](docs/glossary.md): the project's terms (_ph, tag log, dead
+  ball, venue map, Hybrid 90, ...).
+- [docs/report-schema.md](docs/report-schema.md): the report JSON and Firestore
+  documents the browser reads.
 - [docs/conventions.md](docs/conventions.md): how the Python is written
   (formatting, names, docstrings, types).
 - [shared/README.md](shared/README.md): frontend conventions and cache busting.
