@@ -9,7 +9,7 @@
          the two map points the user placed (171312 save, 173742 still ball); claimed air runs
          inside the 'wrong' spans (each one a false flight on a known bad ring)
 Files: dd = default (chain2 + smooth_ball), 2 = chain2 alone, and with --variants also
-v1 = vflscan, 3 = chain3, 3k, x1 = strict, sx = strict + smooth_ball.
+v1 = flight_scan_ballistic, 3 = chain3, 3k, x1 = strict, sx = strict + smooth_ball.
 """
 
 import glob

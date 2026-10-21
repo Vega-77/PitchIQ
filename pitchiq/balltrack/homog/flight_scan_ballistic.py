@@ -2,7 +2,7 @@
 window, keep the ones a flight explains and a ground roll does not, pick a
 non-overlapping set, and write every frame's ball in 3D.
 
-    python -m pitchiq.balltrack.homog.vflscan <tag> [procs]
+    python -m pitchiq.balltrack.homog.flight_scan_ballistic <tag> [procs]
         -> <tag>_scan.npz     every window's fit
            <tag>_flights.npz  the chosen flights
            <tag>_ball3d.npz / .csv  per frame: SB x, y, height, state

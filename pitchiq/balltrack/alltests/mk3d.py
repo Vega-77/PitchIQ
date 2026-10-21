@@ -7,7 +7,7 @@ folder so the shipped outputs are never touched.
          PIQ_HOMOG pointing at it and PIQ_P2D=<ver>, so render_review_video.picks_for serves
          alltests/p2d/<ver>/<tag>.npz
   chain  ball_on_pitch -> image_track -> flight_scan 16 -> vrowspd -> vdefault (flight_chain + smooth_ball) -> <tag>_ball3dd.npz
-  --variants  also vflscan 8 (v1), flight_chain_fast (3, 3k), vstrict (x1), smooth_ball on x1 -> sx
+  --variants  also flight_scan_ballistic 8 (v1), flight_chain_fast (3, 3k), vstrict (x1), smooth_ball on x1 -> sx
 TAPNext bridge frames (src 3) go in as 'fill' unless BRIDGE_TRACK=1.
 """
 
@@ -108,7 +108,7 @@ def chain(ver, tag, variants):
                 os.path.join(d, '%s_smooth.npz' % tag), os.path.join(d, '%s_smooth2.npz' % tag)
             )
         if variants and not os.path.exists(os.path.join(d, '%s_ball3dsx.npz' % tag)):
-            run(d, ver, log, 'vflscan', tag, '8')
+            run(d, ver, log, 'flight_scan_ballistic', tag, '8')
             run(d, ver, log, 'flight_chain_fast', tag, '3')
             run(d, ver, log, 'flight_chain_fast', tag, '3k', env=dict(V3_ERR='4', V3_FAST_ERR='5'))
             run(d, ver, log, 'vstrict', '%s_ball3d3k.npz' % tag, '%s_ball3dx1.npz' % tag, tag)
