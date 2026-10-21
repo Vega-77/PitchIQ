@@ -9,7 +9,7 @@ browser's copy of the feature code, which this once agreed with to three
 decimal places, left with the xG sandbox on 2026-10-07; the site only shows
 the stored figures. `xg_for_shots` connects that to the pipeline, which
 until 2026-08-02 nothing did — `attach_xg` had no caller, so every xG figure
-from the report JSON to a player's phone was null. What remains unverified is
+from the report JSON to a player's phone was null. What remains unverified (still, 2026-10-20) is
 upstream of here: whether a shot can be spotted in footage at all, and whether
 the shooter, keeper and defenders handed to `ShotContext` are the right ones.
 

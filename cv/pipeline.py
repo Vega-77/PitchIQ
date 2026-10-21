@@ -1,16 +1,31 @@
 """The whole pipeline in one place: video in, match report out.
 
-    STATUS — WRITTEN BUT NOT VERIFIED ON REAL FOOTAGE.
+    STATUS (2026-10-20) — RUNS ON REAL MATCHES; PARTLY VERIFIED.
 
 Every component below is individually tested, and the joins between them are
-tested against synthetic data. What has never happened is a run end to end on a
-real match, because that needs a calibration, and calibration needs footage from
-a camera that holds still. See ROADMAP.md Phase 4.
+tested against synthetic data. Since October it also runs end to end on real
+matches: the team's Hudl footage, which pans and zooms, goes in through
+`cv/panned.py` (`--panned <tag>` on event_report and match_report), with the
+ball from the tracker in cv/balltrack.
 
-So treat this as the shape of the answer rather than the answer. The parts most
-likely to need work once real footage exists are flagged inline with UNVERIFIED.
-Nothing here should be shown to a coach until it has produced numbers somebody
-has sanity-checked against a match they actually watched.
+What has been checked against people who watched the footage:
+- The ball tracker: 70-74 % of 269 hand marks on 18 held-out clips, with few
+  wrong picks (cv/balltrack/README.md). At night it loses the ball almost
+  everywhere, and `ballgate.py` blanks those stretches rather than guess.
+- Registration, roles, team split and missed players: yes/no spot checks on
+  every dev half and on the held-out halves. On the clean held-out game
+  (Piscataway, 2026-10-15) the drawn pitch lines sat on the paint in 29 of 30
+  checks and the team split was right in 14 of 17.
+
+What has not:
+- Possession. The one hand-counted window agreed, but on 12 s of live ball,
+  and half its frames change answer if the ball moves 20 px.
+- The fixed-camera path. No real match has been filmed from a still camera
+  yet, so `calibration_path` has only met synthetic and lab frames.
+- Anything at night beyond the lines: the ball, and so everything built on it.
+
+So numbers that depend on the ball (possession, events, xG) are not ready to
+show a coach as fact. ROADMAP.md, "Status (2026-10-20)", has the open items.
 
     from cv.pipeline import analyse_match
     report = analyse_match('match.mp4', calibration_path='home.calib.json')
