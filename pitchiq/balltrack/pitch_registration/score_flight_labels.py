@@ -19,7 +19,10 @@ from . import WORK as HERE
 
 
 def load_truth():
-    F = [json.loads(line)[1] for line in open(os.path.join(HERE, 'flightlabels', 'flights.jsonl'))]
+    F = [
+        json.loads(line)[1]
+        for line in open(os.path.join(HERE, 'labeling', 'flight_labels', 'flights.jsonl'))
+    ]
     return [f for f in F if not f.get('deleted')]
 
 

@@ -182,8 +182,8 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   `run.sh` over the training clip windows, then `pseudolab.py` and `candidate_crops.py`.
 - Every lab's answers are packed one set to a file: `crop_labels/crops.jsonl`,
   `evaluation/findball/labels.jsonl`, `evaluation/fixlab/fixes.jsonl`,
-  `evaluation/passbench/truth.jsonl`, and in `pitch_registration/` the `airlabels/clips`,
-  `flightlabels/flights` and `fl2db/flights` sets. Each line is
+  `evaluation/passbench/truth.jsonl`, and in `pitch_registration/labeling/` the `air_labels/clips`,
+  `flight_labels/flights` and `flight_lab2_labels/flights` sets. Each line is
   `["<name>.json", doc]`, the document exactly as the lab's database gave it.
   A fresh download comes down as one file per document; pack it with
   `python -m pitchiq.balltrack.labels_pack <dir>` and delete the directory.

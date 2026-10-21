@@ -17,7 +17,7 @@ from . import score_flight_labels as S
 from .smooth_ball import runs_of
 
 A0 = 86475
-man = json.load(open('airlab/manifest.json'))['clips']
+man = json.load(open('labeling/air_lab/manifest.json'))['clips']
 T = np.load('airtruth.npz')
 tt = dict(zip(T['abs'].tolist(), T['truth'].tolist()))
 z = np.load('vid1_ballsb.npz')
@@ -30,7 +30,7 @@ for i, c in enumerate(man):
 lab = np.array([tt.get(a + A0, '') for a in range(n)])
 FL = S.load_truth()
 # flights you deleted in the Flight Lab: your later call, so their frames are not scored
-for l_ in open(os.path.join('flightlabels', 'flights.jsonl')):
+for l_ in open(os.path.join('labeling', 'flight_labels', 'flights.jsonl')):
     f_ = json.loads(l_)[1]
     if f_.get('deleted'):
         lab[f_['f0'] - A0 : f_['f1'] - A0 + 1] = 'x'

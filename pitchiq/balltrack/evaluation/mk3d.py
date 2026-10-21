@@ -43,8 +43,9 @@ def setup(ver):
     for p in glob.glob(os.path.join(HOM, '*')):
         b = os.path.basename(p)
         if os.path.isdir(p):
-            if b in ('airlabels', 'flightlabels', 'fl2db'):
-                shutil.copytree(p, os.path.join(d, b))
+            if b == 'labeling':
+                for lab in ('air_labels', 'flight_labels', 'flight_lab2_labels'):
+                    shutil.copytree(os.path.join(p, lab), os.path.join(d, b, lab))
             continue
         if (
             b.endswith('.json')
@@ -60,8 +61,11 @@ def setup(ver):
             # map inputs only: a window's own chain outputs in pitch_registration are the SHIPPED picks' 3D,
             # and copying e.g. <tag>_ball3dd.npz would make chain() think this version is done
             shutil.copy2(p, d)
-    os.makedirs(os.path.join(d, 'airlab'), exist_ok=True)
-    shutil.copy2(os.path.join(HOM, 'airlab', 'manifest.json'), os.path.join(d, 'airlab'))
+    os.makedirs(os.path.join(d, 'labeling', 'air_lab'), exist_ok=True)
+    shutil.copy2(
+        os.path.join(HOM, 'labeling', 'air_lab', 'manifest.json'),
+        os.path.join(d, 'labeling', 'air_lab'),
+    )
     open(os.path.join(d, READY), 'w').close()
     return d
 
