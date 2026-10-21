@@ -12,7 +12,7 @@ from multiprocessing import Pool
 import numpy as np
 
 from . import flight_model as V
-from . import vroll as R
+from . import drag_roll as R
 
 _TR = None
 

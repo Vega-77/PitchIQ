@@ -26,7 +26,7 @@ from scipy.optimize import least_squares
 from . import flight_model as V
 from . import drag_flight as D
 from . import flight_chain as Ch
-from . import vroll as R
+from . import drag_roll as R
 from .flight_chain import is_air, rise_px, sb_per_ch
 
 tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
