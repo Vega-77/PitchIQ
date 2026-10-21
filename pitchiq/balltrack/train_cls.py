@@ -306,19 +306,6 @@ class Scorer:
             out[a : a + batch] = ball_logodds(self.net(x, k)).float().cpu().numpy()
         return out
 
-    @torch.no_grad()
-    def probs(self, crops_uint8, ctx, ctx_names=None, batch=2048):
-        """-> N x len(CLASSES) float32 softmax, same inputs as score()."""
-        if ctx_names is not None:
-            ctx = reorder_ctx(np.asarray(ctx), ctx_names, self.ctx_names)
-        c = ctx_norm(np.asarray(ctx), self.mu, self.sd)
-        out = np.empty((len(crops_uint8), len(CLASSES)), np.float32)
-        for a in range(0, len(crops_uint8), batch):
-            x = to_input(np.ascontiguousarray(crops_uint8[a : a + batch]), self.dev)
-            k = torch.as_tensor(c[a : a + batch], device=self.dev)
-            out[a : a + batch] = torch.softmax(self.net(x, k), 1).float().cpu().numpy()
-        return out
-
 
 def load_model(path, dev=None):
     dev = dev or device()

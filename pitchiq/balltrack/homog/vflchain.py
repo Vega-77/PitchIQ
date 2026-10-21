@@ -83,11 +83,6 @@ def chain_eval(tr, x, m, frames):
     return out
 
 
-def ray_point(tr, i, z):
-    r = tr.M[i].dot([tr.px[i, 0], tr.px[i, 1], 1.0])
-    return r[:2] / r[2] * (1 - z)
-
-
 def fit_chain(tr, lo_f, hi_f, t_init, t_lo, t_hi, inits):
     """inits: list of (nodes (m+1, 3), ks (m,)) starting points."""
     m = len(t_init) - 1

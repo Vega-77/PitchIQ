@@ -106,7 +106,7 @@ ball, and `match_video.py` before drawing it.
 |---|---|
 | `homog/` | venue map (`vmap*`), pitch registration (`vreg.py` -> `<tag>_reg.npz`), 3D flight chain, Air/Flight/Fix lab labels and scorers |
 | `tapnext/` | `tn_engine.py` (bridges), `hyb_video.py` (the review video) |
-| `archive/` | scripts nothing runs any more, moved 2026-10-20; its README says what each was |
+| `archive/` | a README listing the scripts nothing runs any more (deleted 2026-10-21) and how to restore one from git |
 | `alltests/` | `mkpicks_one.py`, `hybrid.py`, `mk3d.py` (3D per 2D version in `h3d_<ver>/`), the 2D/3D test harness, Find the Ball / Fix Lab / pass labels, and the score tables in `alltests/results/` (`2d.json`, `3d.json`) |
 
 ### Generated, not in git

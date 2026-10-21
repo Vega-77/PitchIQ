@@ -1,18 +1,24 @@
 # Archived ball-tracker scripts
 
-Scripts that nothing in the shipping chain runs any more, moved here on
-2026-10-20 so the live ones are easier to find. Nothing was deleted, and `git
-log --follow` still has each file's history.
+Scripts that nothing in the shipping chain runs any more. They were moved here
+on 2026-10-20 so the live ones were easier to find, and deleted on 2026-10-21
+when the tracker became a package: they imported their siblings by bare name
+and found their inputs relative to their own folder, so none of them ran from
+here anyway.
 
-Before the move, no kept script imported any of these, ran them, or named them
-(`run.sh`, `hybrid.sh`, `half.py`, `retrain.sh`, `homog/vdefault.sh`, the
-`alltests/` shell scripts, the scorers the README documents, and everything
-under `pitchiq/` outside `balltrack/`). `hybrid.sh` gave byte-identical outputs on a
-one-minute window before and after.
+Nothing kept imports, runs or names any of them (`run.sh`, `hybrid.sh`,
+`half.py`, `retrain.sh`, `homog/vdefault.sh`, the `alltests/` shell scripts,
+the scorers the README documents, and everything under `pitchiq/` outside
+`balltrack/`). `hybrid.sh` gave byte-identical outputs on a one-minute window
+before and after each step.
 
-They kept their folder layout (`archive/homog/`, `archive/alltests/`) but they
-will not run from here as they are: each finds its inputs relative to its own
-folder (`HERE`, `S2`). To rerun one, `git mv` it back first.
+Git still has every one. To read or rerun one, restore it from the last commit
+that had it, then fix its imports to the package layout:
+
+    git log --oneline -1 -- pitchiq/balltrack/archive/homog/vfltune.py
+    git restore --source <that commit>~1 -- pitchiq/balltrack/archive/homog/vfltune.py
+
+`git log --follow` on the restored file shows its history from before the move.
 
 | what | scripts |
 |---|---|
