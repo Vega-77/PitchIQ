@@ -223,6 +223,7 @@ class TeamStats:
         return self.passes_completed / self.passes_attempted
 
     def to_json(self) -> dict:
+        """This team's stats as a JSON-ready dict."""
         return {
             'team': self.team,
             'possession_pct': round_or_none(self.possession_pct, 3),
@@ -304,13 +305,11 @@ class TrackStats:
 
     heatmap: list[list[float]] | None = None
 
-    @property
-    def pass_accuracy(self) -> float | None:
-        if not self.passes_attempted:
-            return None
-        return self.passes_completed / self.passes_attempted
+    # The team's rule, not a copy of it: a player's completed share is the same sum.
+    pass_accuracy = TeamStats.pass_accuracy
 
     def to_json(self) -> dict:
+        """This player's stats as a JSON-ready dict."""
         return {
             'cluster_id': self.cluster_id,
             'team': self.team,

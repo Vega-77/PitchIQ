@@ -355,10 +355,12 @@ def rodrigues(w):
 
 
 def rays(xy, f):
+    """Pixels (n, 2) at focal length `f` -> camera rays (n, 3) with z = 1."""
     return np.c_[(xy - CENTRE) / f, np.ones(len(xy))]
 
 
 def to_px(v, f):
+    """Camera rays (n, 3) at focal length `f` -> pixels (n, 2); the inverse of `rays`."""
     return v[:, :2] / v[:, 2:3] * f + CENTRE
 
 
@@ -464,6 +466,7 @@ class Rig:
     f: np.ndarray  # (n,)
 
     def ground_to_image(self, k: int) -> np.ndarray:
+        """The 3x3 homography taking ground metres to pixels in sample `k`."""
         K = np.array([[self.f[k], 0, CENTRE[0]], [0, self.f[k], CENTRE[1]], [0, 0, 1]])
         M = np.array([[1.0, 0, -self.C[0]], [0, 1.0, -self.C[1]], [0, 0, -self.C[2]]])
         return K @ self.R[k] @ M
@@ -708,6 +711,7 @@ class Panorama:
         return np.stack([self.F * az + self.cx, self.F * el + self.cy], -1)
 
     def directions(self):
+        """The camera-0 unit direction (h, w, 3) of every panorama pixel."""
         h, w = self.paint.shape
         az = (np.arange(w) - self.cx) / self.F
         el = (np.arange(h) - self.cy) / self.F

@@ -212,6 +212,7 @@ class Score:
 
     @property
     def ids_per_player(self) -> float:
+        """The mean number of track ids per labelled player; NaN with none."""
         return (
             float(np.mean([len(v) for v in self.fragments.values()]))
             if self.fragments
@@ -219,6 +220,7 @@ class Score:
         )
 
     def row(self) -> dict:
+        """This score as one table row."""
         err = np.asarray(self.pos_err_m)
         return {
             'name': self.name,
@@ -389,6 +391,7 @@ def score(name: str, truth: Truth, predict, projector=None, clear_only: bool = F
 
 
 def format_table(rows: list[dict]) -> str:
+    """The rows as a plain aligned text table."""
     if not rows:
         return '(nothing scored)'
     keys = list(rows[0])

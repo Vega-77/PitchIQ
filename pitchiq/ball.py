@@ -97,15 +97,18 @@ class BallTrajectory:
         return len(self.points) - self.observed_count
 
     def coverage(self, total_frames: int) -> float:
+        """The share of `total_frames` with a ball point, 0..1."""
         return len(self.points) / total_frames if total_frames else 0.0
 
     def at_frame(self, frame_index: int) -> BallPoint | None:
+        """The ball point at `frame_index`, or None if there is none."""
         for p in self.points:
             if p.frame_index == frame_index:
                 return p
         return None
 
     def as_arrays(self) -> tuple[np.ndarray, np.ndarray]:
+        """Times (n,) in seconds and positions (n, 2), in point order."""
         times = np.array([p.timestamp_s for p in self.points])
         xy = np.array([p.xy for p in self.points])
         return times, xy

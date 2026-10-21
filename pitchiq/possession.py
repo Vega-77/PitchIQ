@@ -88,12 +88,14 @@ class PossessionSummary:
         return self.team_a_s + self.team_b_s
 
     def share(self, team: str) -> float:
+        """`team`'s share of live time, 0..1."""
         if self.live_s <= 0:
             return 0.0
         held = self.team_a_s if team == TEAM_A else self.team_b_s
         return held / self.live_s
 
     def summary_line(self, name_a: str = 'Team A', name_b: str = 'Team B') -> str:
+        """One line: both shares and the live, contested and dead seconds."""
         if self.live_s <= 0:
             return 'no possession established'
         dead = f', {self.dead_ball_s:.0f}s dead' if self.dead_ball_s else ''

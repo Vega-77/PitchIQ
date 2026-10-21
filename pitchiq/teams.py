@@ -175,6 +175,7 @@ class TeamAssignment:
     projection: np.ndarray | None = None
 
     def team_of(self, track_id: int) -> str:
+        """The team of `track_id`, or UNKNOWN."""
         return self.by_track.get(track_id, UNKNOWN)
 
     def axis_values(self, samples: np.ndarray) -> np.ndarray:

@@ -126,6 +126,7 @@ class Pitch:
         return (self.length_m, self.width_m / 2)
 
     def goal_centre(self, end: str) -> tuple[float, float]:
+        """The centre of the goal line at `end` ('left' or 'right'), in metres."""
         if end == 'left':
             return self.left_goal_centre
         if end == 'right':
@@ -133,6 +134,7 @@ class Pitch:
         raise ValueError(f"end must be 'left' or 'right', got {end!r}")
 
     def goal_posts(self, end: str) -> tuple[tuple[float, float], tuple[float, float]]:
+        """The two posts at `end`, in metres."""
         x, cy = self.goal_centre(end)
         half = self.goal_width_m / 2
         return ((x, cy - half), (x, cy + half))
@@ -191,6 +193,7 @@ class Pitch:
         }
 
     def landmark(self, name: str) -> tuple[float, float]:
+        """The named landmark in metres; raises KeyError for an unknown name."""
         try:
             return self.landmarks()[name]
         except KeyError:
@@ -222,6 +225,7 @@ class Pitch:
     def from_statsbomb(
         self, x_sb: float, y_sb: float, attacking_end: str = 'right'
     ) -> tuple[float, float]:
+        """StatsBomb (120 x 80) coordinates -> metres on this pitch, for a side attacking `attacking_end`."""
         x_m = x_sb / STATSBOMB_LENGTH * self.length_m
         y_m = y_sb / STATSBOMB_WIDTH * self.width_m
 
@@ -231,6 +235,7 @@ class Pitch:
         return (x_m, y_m)
 
     def contains(self, x_m: float, y_m: float, margin_m: float = 0.0) -> bool:
+        """True if (x_m, y_m) is on the pitch, or within `margin_m` of it."""
         return (
             -margin_m <= x_m <= self.length_m + margin_m
             and -margin_m <= y_m <= self.width_m + margin_m
@@ -258,6 +263,7 @@ class MatchOrientation:
     home_attacks_first_half: str = 'right'
 
     def attacking_end(self, side: str, period: str) -> str:
+        """The end `side` ('us' or 'them') attacks in `period`."""
         if side not in ('us', 'them'):
             raise ValueError(f"side must be 'us' or 'them', got {side!r}")
 
@@ -269,6 +275,7 @@ class MatchOrientation:
         return end
 
     def defending_end(self, side: str, period: str) -> str:
+        """The end `side` defends in `period`."""
         return _flip(self.attacking_end(side, period))
 
 

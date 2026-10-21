@@ -58,9 +58,11 @@ class PannedCalibration(Calibration):
         self._error = error
 
     def error(self) -> CalibrationError:
+        """The reference frame's fit error."""
         return self._error
 
     def holdout_error(self) -> CalibrationError | None:
+        """None: a panned calibration has no leave-one-out error of its own."""
         return None
 
 

@@ -62,6 +62,7 @@ def effective_fps(source_fps: float, stride: int) -> float:
 
 
 def video_info(video_path: str | Path) -> VideoInfo:
+    """Size, frame rate, frame count and duration of the video; raises if it will not open."""
     path = Path(video_path)
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():

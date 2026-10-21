@@ -54,10 +54,12 @@ class Correspondence:
     pixel: tuple[float, float]
 
     def to_json(self) -> dict:
+        """This click as a JSON-ready dict."""
         return {'landmark': self.landmark, 'pixel': list(self.pixel)}
 
     @staticmethod
     def from_json(data: dict) -> 'Correspondence':
+        """The click `to_json` wrote."""
         return Correspondence(data['landmark'], tuple(data['pixel']))
 
 
@@ -75,6 +77,7 @@ class CalibrationError:
 
     @classmethod
     def from_per_landmark(cls, per: dict[str, float]) -> 'CalibrationError':
+        """Mean, max and 90th percentile of per-landmark errors in metres."""
         values = sorted(per.values())
         return cls(
             mean_m=float(np.mean(values)),
@@ -143,6 +146,7 @@ class CalibrationError:
         return ()
 
     def summary(self) -> str:
+        """One line: the errors in metres and what the fit is good for."""
         if self.is_usable:
             verdict = 'usable'
         elif self.good_for:
@@ -191,6 +195,7 @@ class Calibration:
         image_size: tuple[int, int] | None = None,
         lens: DistortionModel | None = None,
     ) -> 'Calibration':
+        """Fit the homography to four or more clicks (RANSAC from five); raises on too few or repeats."""
         if len(correspondences) < 4:
             raise ValueError(f'need at least 4 correspondences, got {len(correspondences)}')
 
@@ -371,6 +376,7 @@ class Calibration:
     # ---------------------------------------------------------------- io
 
     def to_json(self) -> dict:
+        """This calibration as a JSON-ready dict, pitch markings included."""
         return {
             'homography': self.H.tolist(),
             # The whole pitch, markings included. Writing only the size here
@@ -385,10 +391,12 @@ class Calibration:
         }
 
     def save(self, path: str | Path) -> None:
+        """Write `to_json` to `path`."""
         Path(path).write_text(json.dumps(self.to_json(), indent=2), encoding='utf-8')
 
     @classmethod
     def load(cls, path: str | Path) -> 'Calibration':
+        """The calibration `save` wrote to `path`."""
         data = json.loads(Path(path).read_text(encoding='utf-8'))
         pitch = Pitch.from_mapping(data['pitch'])
         size = tuple(data['image_size']) if data.get('image_size') else None

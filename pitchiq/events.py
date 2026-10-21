@@ -209,6 +209,7 @@ class EventBase:
     in_play: bool = True
 
     def to_json(self) -> dict:
+        """The fields every event shares, as a JSON-ready dict."""
         return {
             'event_id': self.event_id,
             'type': self.type,
@@ -235,6 +236,7 @@ class Pass(EventBase):
     crossed_gap: bool = False
 
     def to_json(self) -> dict:
+        """This pass as a JSON-ready dict, lengths in metres."""
         return super().to_json() | {
             'receiver_track_id': self.receiver_track_id,
             'outcome': self.outcome,
@@ -251,6 +253,7 @@ class Carry(EventBase):
     distance_m: float | None = None
 
     def to_json(self) -> dict:
+        """This carry as a JSON-ready dict, distance in metres."""
         return super().to_json() | {
             'touches': self.touches,
             'distance_m': self.distance_m,
@@ -279,6 +282,7 @@ class Shot(EventBase):
     is_header: bool = False
 
     def to_json(self) -> dict:
+        """This shot as a JSON-ready dict, distance in metres and angle in radians."""
         return super().to_json() | {
             'outcome': self.outcome,
             'on_target': self.on_target,
@@ -304,6 +308,7 @@ class DefensiveAction(EventBase):
     opponent_track_id: int | None = None
 
     def to_json(self) -> dict:
+        """This defensive action as a JSON-ready dict."""
         return super().to_json() | {
             'won': self.won,
             'opponent_track_id': self.opponent_track_id,
@@ -322,24 +327,30 @@ class EventLog:
         return iter(self.events)
 
     def by_type(self, *types: str) -> list[EventBase]:
+        """Events of any of `types`, in time order."""
         wanted = set(types)
         return [e for e in self.events if e.type in wanted]
 
     def by_team(self, team: str) -> list[EventBase]:
+        """`team`'s events, in time order."""
         return [e for e in self.events if e.team == team]
 
     def by_track(self, track_id: int) -> list[EventBase]:
+        """Events by track `track_id`, in time order."""
         return [e for e in self.events if e.track_id == track_id]
 
     def passes(self, team: str | None = None) -> list[Pass]:
+        """Passes, all or only `team`'s, in time order."""
         out = [e for e in self.events if isinstance(e, Pass)]
         return [e for e in out if team is None or e.team == team]
 
     def shots(self, team: str | None = None) -> list[Shot]:
+        """Shots, all or only `team`'s, in time order."""
         out = [e for e in self.events if isinstance(e, Shot)]
         return [e for e in out if team is None or e.team == team]
 
     def to_json(self, include_touches: bool = False) -> dict:
+        """The events, and the touches if asked, as a JSON-ready dict."""
         data: dict = {'events': [e.to_json() for e in self.events]}
         if include_touches and self.touches:
             data['touches'] = [

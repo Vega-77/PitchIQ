@@ -201,6 +201,7 @@ class Identity:
     pieces: list = field(default_factory=list)
 
     def box_at(self, frame: int):
+        """The box (x1, y1, x2, y2) at `frame`, or None if unseen then."""
         i = np.searchsorted(self.frames, frame)
         if i < len(self.frames) and self.frames[i] == frame:
             return self.boxes[i]
@@ -229,6 +230,7 @@ class LinkResult:
         return UNKNOWN if ident.pid in self.unsure.get(frame, ()) else ident.team
 
     def at(self, frame: int) -> list[tuple[Identity, np.ndarray]]:
+        """Each identity seen at `frame`, with its box there."""
         out = []
         for ident in self.identities:
             b = ident.box_at(frame)
@@ -697,6 +699,7 @@ class Linker:
 
     # ---- main
     def link(self, tracklets: list[Tracklet], det: Detections) -> LinkResult:
+        """Join `tracklets` into one identity per person."""
         s = self.s
         self.scale = descriptor_scale(det.desc)
         self.margin = (

@@ -85,6 +85,7 @@ def third(pitch: Pitch, x_m: float, attacking_end: str) -> str:
 
 
 def in_final_third(pitch: Pitch, x_m: float, attacking_end: str) -> bool:
+    """True if `x_m` is in the third nearest the goal being attacked."""
     return third(pitch, x_m, attacking_end) == ATTACKING_THIRD
 
 

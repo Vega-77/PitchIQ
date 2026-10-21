@@ -106,6 +106,7 @@ class Segment:
         return math.hypot(x - (self.x1 + t * dx), y - (self.y1 + t * dy))
 
     def closest_point(self, x: float, y: float) -> tuple[float, float]:
+        """The point on this segment nearest (x, y), in the same pixels."""
         dx, dy = self.x2 - self.x1, self.y2 - self.y1
         denom = dx * dx + dy * dy
         if denom < 1e-12:
@@ -115,6 +116,7 @@ class Segment:
         return (self.x1 + t * dx, self.y1 + t * dy)
 
     def to_json(self) -> dict:
+        """This segment as a JSON-ready dict."""
         return {'x1': self.x1, 'y1': self.y1, 'x2': self.x2, 'y2': self.y2}
 
 
@@ -464,6 +466,7 @@ class LineFit:
         return self.coverage >= 0.5 and self.median_m <= 0.5 and self.p90_m <= 1.5
 
     def summary(self) -> str:
+        """One line: how far the drawn lines sit from the paint, in metres."""
         if not self.sampled:
             return 'no line pixels to check against'
         if not self.matched:
@@ -475,6 +478,7 @@ class LineFit:
         )
 
     def to_json(self) -> dict:
+        """The fit as a JSON-ready dict, errors in metres; NaN is None."""
         return {
             'median_m': None if math.isnan(self.median_m) else round(self.median_m, 4),
             'p90_m': None if math.isnan(self.p90_m) else round(self.p90_m, 4),

@@ -161,6 +161,7 @@ class FramingVerdict:
         return max(1, math.ceil(needed))
 
     def to_json(self) -> dict:
+        """The framing verdict as a JSON-ready dict, sizes in pixels."""
         return {
             'width': self.width,
             'height': self.height,

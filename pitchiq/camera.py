@@ -71,6 +71,7 @@ class Shift:
     agreement: float
 
     def to_json(self) -> dict:
+        """This shift as a JSON-ready dict, moves in player heights."""
         return {
             'frame_index': self.frame_index,
             'timestamp_s': round(self.timestamp_s, 2),
@@ -102,6 +103,7 @@ class CameraMotion:
         return self.shifts[0].timestamp_s if self.shifts else None
 
     def to_json(self) -> dict:
+        """The motion check as a JSON-ready dict."""
         return {
             'checked': self.checked,
             'moved': self.moved,

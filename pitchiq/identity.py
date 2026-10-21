@@ -84,6 +84,7 @@ class PlayerCluster:
         return max(0.0, self.last_seen_s - self.first_seen_s) / 60.0
 
     def to_json(self) -> dict:
+        """This cluster as a JSON-ready dict, times in seconds and minutes."""
         return {
             'cluster_id': self.cluster_id,
             'track_ids': sorted(self.track_ids),

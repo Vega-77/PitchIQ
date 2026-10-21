@@ -94,6 +94,7 @@ class TopDown:
     group: list | None = None  # per track: (team, role) it is drawn as
 
     def at(self, frame: int) -> list:
+        """The dots at `frame`."""
         return self.dots[frame - self.lo]
 
 
@@ -417,6 +418,7 @@ def build(
     settings: MapSettings | None = None,
     person_px=None,
 ) -> TopDown:
+    """The top-down map for frames [lo, hi): one dot per identity per frame, gaps filled."""
     s = settings or MapSettings()
     T = hi - lo
     ident = {i.pid: i for i in res.identities}

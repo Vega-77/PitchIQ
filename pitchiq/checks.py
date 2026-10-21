@@ -270,6 +270,7 @@ def still_outside(
 
 
 def map_report(td, length: float, width: float, fps: float = 30.0) -> dict:
+    """Speeds, crowding and still-outside checks on a top-down map, as one dict."""
     return dict(
         speeds=speeds(td, fps),
         crowding=crowding(td, length, width),

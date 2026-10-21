@@ -75,6 +75,7 @@ class BlindSpell:
         return max(0.0, self.end_s - self.start_s)
 
     def to_json(self) -> dict:
+        """This spell as a JSON-ready dict, times in seconds."""
         return {
             'start_s': round(float(self.start_s), 1),
             'end_s': round(float(self.end_s), 1),

@@ -70,6 +70,7 @@ class DeadSpan:
         return self.closed_by is None
 
     def to_json(self) -> dict:
+        """This stoppage as a JSON-ready dict, times in seconds."""
         return {
             'start_s': round(float(self.start_s), 2),
             'end_s': round(float(self.end_s), 2),
@@ -103,6 +104,7 @@ class PhaseTable:
         return sum(1 for s in self.spans if s.timed_out)
 
     def is_live(self, clock_s: float) -> bool:
+        """True if the ball is in play at `clock_s`."""
         i = bisect_right(self._starts, clock_s) - 1
         if i < 0:
             return True
@@ -120,6 +122,7 @@ class PhaseTable:
         return max(0.0, total)
 
     def live_share(self, start_s: float, end_s: float) -> float:
+        """The share of [start_s, end_s) with the ball in play, 0..1."""
         window = end_s - start_s
         if window <= 0:
             return 0.0
@@ -145,6 +148,7 @@ class PhaseTable:
         )
 
     def to_json(self) -> dict:
+        """The stoppages as a JSON-ready dict, times in seconds."""
         return {
             'dead_s': round(self.dead_s, 1),
             'spans': [s.to_json() for s in self.spans],
@@ -189,9 +193,11 @@ class PeriodSpan:
     end_s: float | None = None
 
     def covers(self, clock_s: float) -> bool:
+        """True if `clock_s` falls in this period."""
         return clock_s >= self.start_s and (self.end_s is None or clock_s < self.end_s)
 
     def to_json(self) -> dict:
+        """This period as a JSON-ready dict, times in seconds."""
         return {
             'period': self.period,
             'start_s': round(float(self.start_s), 2),
@@ -279,6 +285,7 @@ class PeriodTable:
         )
 
     def to_json(self) -> dict:
+        """The periods as a JSON-ready dict."""
         return {'spans': [s.to_json() for s in self.spans]}
 
 
@@ -323,6 +330,7 @@ class VideoClock:
 
     @property
     def knows_break(self) -> bool:
+        """True if the half-time break is known and not negative."""
         if self.second_half_video_s is None or self.second_half_clock_s is None:
             return False
         if self.second_half_clock_s <= 0:

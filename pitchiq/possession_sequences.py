@@ -210,6 +210,7 @@ class PhaseOfPlay:
         return self.reached.get(third, 0) / self.total
 
     def accuracy_in(self, third: str) -> float | None:
+        """The completed share of passes in `third`, 0..1, or None if there were none."""
         attempted = self.passes.get(third, 0)
         if not attempted:
             return None
@@ -229,6 +230,7 @@ class PhaseOfPlay:
         return (started, self.escaped_defence)
 
     def to_json(self) -> dict:
+        """The phase-of-play counts as a JSON-ready dict."""
         return {
             'total': self.total,
             'started': dict(self.started),

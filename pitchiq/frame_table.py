@@ -100,6 +100,7 @@ class FrameRecord:
         ]
 
     def player_boxes(self) -> list[PlayerBox]:
+        """This frame's players as `PlayerBox`es."""
         return [
             PlayerBox(
                 track_id=int(row[COL_TRACK_ID]),
@@ -115,6 +116,7 @@ class FrameRecord:
         ]
 
     def track_ids(self) -> list[int]:
+        """The track ids in this frame, in row order."""
         return [int(v) for v in self.players[:, COL_TRACK_ID]]
 
     @property
@@ -154,11 +156,13 @@ class FrameTable:
 
     @property
     def duration_s(self) -> float:
+        """Seconds from the first record to the last; 0 with fewer than two."""
         if len(self.records) < 2:
             return 0.0
         return self.records[-1].timestamp_s - self.records[0].timestamp_s
 
     def team_of(self, track_id: int) -> str:
+        """The team of `track_id`, or UNKNOWN."""
         return self.team_by_track.get(int(track_id), UNKNOWN)
 
     def at(self, frame_index: int) -> FrameRecord | None:
@@ -169,9 +173,11 @@ class FrameTable:
         return self.records[position] if position is not None else None
 
     def window(self, start_s: float, end_s: float) -> list[FrameRecord]:
+        """Records with timestamps in [start_s, end_s]."""
         return [r for r in self.records if start_s <= r.timestamp_s <= end_s]
 
     def track_ids(self) -> set[int]:
+        """Every track id seen in any frame."""
         ids: set[int] = set()
         for record in self.records:
             ids.update(record.track_ids())

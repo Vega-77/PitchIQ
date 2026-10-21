@@ -51,6 +51,7 @@ class Stage:
         return self.scaling == LINEAR
 
     def to_json(self) -> dict:
+        """This stage as a JSON-ready dict, time in seconds."""
         return {
             'name': self.name,
             'seconds': round(self.seconds, 3),
@@ -71,6 +72,7 @@ class Timings:
     total_s: float = 0.0
 
     def add(self, name: str, seconds: float, *, scaling: str = LINEAR) -> None:
+        """Add `seconds` to stage `name`, keeping the worse of its scalings."""
         for stage in self.stages:
             if stage.name == name:
                 stage.seconds += seconds
@@ -193,6 +195,7 @@ class Timings:
         )
 
     def to_json(self, footage_s: float | None = None, half_s: float = HALF_S) -> dict:
+        """The stages, ranked, with the unaccounted time and how the run scales to a half."""
         return {
             'total_s': round(self.total_s, 3),
             'stages': [stage.to_json() for stage in self.ranked()],

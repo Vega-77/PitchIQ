@@ -29,6 +29,7 @@ class TerritorySplit:
     seconds: dict[str, dict[str, float]] = field(default_factory=dict)
 
     def total_s(self, team: str) -> float:
+        """Seconds `team` held the ball, all thirds."""
         return sum((self.seconds.get(team) or {}).values())
 
     def share(self, team: str, third: str) -> float | None:
@@ -44,6 +45,7 @@ class TerritorySplit:
         return (self.seconds.get(team) or {}).get(third, 0.0) / total
 
     def to_json(self) -> dict:
+        """Each team's share by third, 0..1, or None for a team never in possession."""
         out = {}
         for team in (TEAM_A, TEAM_B):
             if self.total_s(team) <= 0:

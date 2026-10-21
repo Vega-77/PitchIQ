@@ -132,6 +132,7 @@ class TouchConfidence:
 
     @property
     def score(self) -> float:
+        """The weighted sum of the four components, 0..1."""
         wp, wm, wo, ws = self.WEIGHTS
         return (
             wp * self.proximity
@@ -180,15 +181,19 @@ class TouchSequence:
         return iter(self.touches)
 
     def between(self, start_s: float, end_s: float) -> list[Touch]:
+        """Touches with timestamps in [start_s, end_s]."""
         return [t for t in self.touches if start_s <= t.timestamp_s <= end_s]
 
     def by_track(self, track_id: int) -> list[Touch]:
+        """Touches by track `track_id`, in time order."""
         return [t for t in self.touches if t.track_id == track_id]
 
     def by_team(self, team: str) -> list[Touch]:
+        """`team`'s touches, in time order."""
         return [t for t in self.touches if t.team == team]
 
     def counts_by_track(self) -> dict[int, int]:
+        """How many touches each track made."""
         counts: dict[int, int] = {}
         for touch in self.touches:
             counts[touch.track_id] = counts.get(touch.track_id, 0) + 1
@@ -205,6 +210,7 @@ class TouchSequence:
         return any(start < hi and end > lo for start, end in self.gaps)
 
     def confidence_percentile(self, percentile: float) -> float:
+        """The given percentile of touch confidence; 0 with no touches."""
         if not self.touches:
             return 0.0
         return float(np.percentile([t.confidence for t in self.touches], percentile))

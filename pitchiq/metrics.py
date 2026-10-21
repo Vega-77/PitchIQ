@@ -804,6 +804,7 @@ class ShapeDrift:
         return self.late[key] - self.early[key]
 
     def to_json(self) -> dict:
+        """Early, late and the change between them, as a JSON-ready dict in metres."""
         return {
             'early': {k: round(v, 1) for k, v in self.early.items()},
             'late': {k: round(v, 1) for k, v in self.late.items()},

@@ -59,10 +59,12 @@ class PitchProjector:
 
     @classmethod
     def from_panned(cls, camera, width: int, height: int) -> 'PitchProjector':
+        """A projector from a panned camera's per-frame homographies."""
         cal = camera.calibration.H
         return cls({f: cal @ m for f, m in camera.to_reference.items()}, width, height)
 
     def has(self, frame: int) -> bool:
+        """True if there is a homography for `frame`."""
         return int(frame) in self.H
 
     @staticmethod
@@ -72,9 +74,11 @@ class PitchProjector:
         return q[:, :2] / q[:, 2:3], q[:, 2]
 
     def to_m(self, frame: int, pts) -> np.ndarray:
+        """Pixels (n, 2) in `frame` -> pitch metres (n, 2)."""
         return self._apply(self.H[int(frame)], pts)[0]
 
     def to_px(self, frame: int, pts) -> np.ndarray:
+        """Pitch metres (n, 2) -> pixels (n, 2) in `frame`."""
         return self._apply(self.Hinv[int(frame)], pts)[0]
 
     def jacobian(self, frame: int, u: float, v: float) -> np.ndarray:
@@ -122,6 +126,7 @@ class PitchProjector:
 
 
 def foot_points(boxes: np.ndarray) -> np.ndarray:
+    """The bottom-centre pixel (n, 2) of each box (n, 4)."""
     b = np.asarray(boxes, dtype=np.float64).reshape(-1, 4)
     return np.c_[(b[:, 0] + b[:, 2]) / 2, b[:, 3]]
 
@@ -289,6 +294,7 @@ class Detections:
         return len(self.frame)
 
     def rows_by_frame(self) -> dict[int, np.ndarray]:
+        """Row indices of each frame's detections; rows are frame-sorted."""
         out: dict[int, np.ndarray] = {}
         if not len(self.frame):
             return out
@@ -410,6 +416,7 @@ class _Track:
     team_votes: np.ndarray = field(default_factory=lambda: np.zeros(2))
 
     def team(self) -> int:
+        """The team the votes settle on (a 2:1 majority of two or more), else -1."""
         t = self.team_votes
         if t.sum() < 2:
             return -1
@@ -451,6 +458,7 @@ class PitchTracker:
             out.append(Tracklet(t.tid, np.array(t.rows), reason, starts.get(t.tid, 'new')))
 
     def run(self, det: Detections) -> list[Tracklet]:
+        """Track every frame of `det`; returns the tracklets."""
         s = self.s
         by_frame = det.rows_by_frame()
         if not by_frame:

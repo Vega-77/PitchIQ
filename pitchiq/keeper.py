@@ -50,15 +50,18 @@ class KeeperAssignment:
     method: str = 'unavailable'  # 'colour+position' | 'manual' | 'unavailable'
 
     def is_keeper(self, track_id: int) -> bool:
+        """True if `track_id` is either team's keeper."""
         return any(track_id in ids for ids in self.by_team.values())
 
     def team_of_keeper(self, track_id: int) -> str | None:
+        """The team `track_id` keeps goal for, or None if it is not a keeper."""
         for team, ids in self.by_team.items():
             if track_id in ids:
                 return team
         return None
 
     def all_tracks(self) -> set[int]:
+        """Every keeper track id, both teams."""
         out: set[int] = set()
         for ids in self.by_team.values():
             out |= ids
@@ -104,18 +107,21 @@ class KeeperReport:
         return [d for d in self.distributions if d.kind == kind]
 
     def accuracy(self, kind: str) -> float | None:
+        """The completed share of distributions of `kind`, 0..1, or None if there were none."""
         held = self._of_kind(kind)
         if not held:
             return None
         return sum(1 for d in held if d.completed) / len(held)
 
     def mean_distance_m(self, kind: str) -> float | None:
+        """The mean length in metres of distributions of `kind`, or None if there were none."""
         held = self._of_kind(kind)
         if not held:
             return None
         return sum(d.distance_m for d in held) / len(held)
 
     def to_json(self) -> dict:
+        """This keeper's report as a JSON-ready dict."""
         return {
             'team': self.team,
             'track_ids': sorted(self.track_ids),

@@ -87,6 +87,7 @@ class ParticipantVerdict:
         return self.role == ROLE_OFFFIELD
 
     def to_json(self) -> dict:
+        """This verdict as a JSON-ready dict."""
         return {
             'track_id': int(self.track_id),
             'role': self.role,
@@ -113,6 +114,7 @@ class ParticipantReport:
 
     @property
     def officials(self) -> frozenset[int]:
+        """The track ids judged to be officials."""
         return frozenset(
             track_id for track_id, v in self.by_track.items() if v.role == ROLE_OFFICIAL
         )
@@ -128,12 +130,14 @@ class ParticipantReport:
         return verdict is None or not verdict.excluded
 
     def counts(self) -> dict[str, int]:
+        """How many tracks got each role."""
         out: dict[str, int] = {}
         for verdict in self.by_track.values():
             out[verdict.role] = out.get(verdict.role, 0) + 1
         return out
 
     def to_json(self) -> list[dict]:
+        """Every verdict as a JSON-ready dict, by track id."""
         return [v.to_json() for v in sorted(self.by_track.values(), key=lambda v: v.track_id)]
 
 

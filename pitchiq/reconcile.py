@@ -75,6 +75,7 @@ class Disagreement:
         return self.cv_s if self.cv_s is not None else (self.tag_s or 0.0)
 
     def to_json(self) -> dict:
+        """This entry as a JSON-ready dict, times in seconds."""
         return {
             'kind': self.kind,
             'status': self.status,
@@ -94,9 +95,11 @@ class Reconciliation:
     exits_checked: bool = False
 
     def of_kind(self, kind: str) -> list[Disagreement]:
+        """The entries of `kind`."""
         return [e for e in self.entries if e.kind == kind]
 
     def counts(self, kind: str) -> dict[str, int]:
+        """How many entries of `kind` are agreed, video-only and tag-only."""
         entries = self.of_kind(kind)
         return {
             status: sum(1 for e in entries if e.status == status)
@@ -122,6 +125,7 @@ class Reconciliation:
         return [e for e in self.entries if e.status != AGREED and (kind is None or e.kind == kind)]
 
     def to_json(self) -> dict:
+        """Agreement rates, counts and the disagreements, as a JSON-ready dict."""
         return {
             'goal_agreement': round_or_none(self.rate(GOAL), 3),
             'exit_agreement': round_or_none(self.rate('exit'), 3),

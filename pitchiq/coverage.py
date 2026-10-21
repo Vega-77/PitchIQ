@@ -71,12 +71,15 @@ class PitchCoverage:
         raise ValueError(f"end must be 'left' or 'right', got {end!r}")
 
     def goalmouth_share(self, end: str) -> float:
+        """The share of the goalmouth at `end` the camera sees, 0..1."""
         return self.left_goalmouth if zones._check_end(end) == 'left' else self.right_goalmouth
 
     def sees_goal(self, end: str) -> bool:
+        """True if enough of the goalmouth at `end` is in view to judge shots there."""
         return self.goalmouth_share(end) >= GOALMOUTH_SEEN
 
     def to_json(self) -> dict:
+        """The coverage as a JSON-ready dict of shares, 0..1."""
         return {
             'visible_share': round(self.visible_share, 3),
             'thirds': {

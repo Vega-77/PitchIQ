@@ -127,6 +127,7 @@ class DistortionModel:
 
     @staticmethod
     def for_image(image_size, k1: float = 0.0) -> 'DistortionModel':
+        """A model centred on an image of `image_size` (width, height), scaled by its half-diagonal."""
         width, height = float(image_size[0]), float(image_size[1])
         return DistortionModel(
             k1=float(k1),
@@ -175,10 +176,12 @@ class DistortionModel:
         return np.array(self.centre) + offset * ratio[:, None]
 
     def to_json(self) -> dict:
+        """This model as a JSON-ready dict."""
         return {'k1': self.k1, 'centre': list(self.centre), 'scale': self.scale}
 
     @staticmethod
     def from_json(data: dict | None) -> 'DistortionModel | None':
+        """The model `to_json` wrote, or None for no lens."""
         if not data:
             return None
         return DistortionModel(
@@ -205,10 +208,12 @@ class Chain:
         return float(np.linalg.norm(self.points[-1] - self.points[0]))
 
     def residuals(self, model: DistortionModel | None = None) -> np.ndarray:
+        """Each point's distance in pixels from the chain's straight line, undistorted by `model` first."""
         pts = model.undistort(self.points) if model else self.points
         return _residuals(pts)
 
     def rms(self, model: DistortionModel | None = None) -> float:
+        """The root-mean-square of `residuals`, in pixels."""
         r = self.residuals(model)
         return float(np.sqrt(np.mean(r * r)))
 
@@ -499,6 +504,7 @@ class DistortionFit:
         return self.spread <= max(0.02, SPREAD_FRACTION * abs(self.k1))
 
     def summary(self) -> str:
+        """One line: k1, how much the lines bow and straighten, and the verdict."""
         if self.chains == 0:
             return 'no runs of paint long enough to measure'
         verdict = 'confident' if self.confident else 'not confident'

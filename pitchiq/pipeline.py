@@ -258,6 +258,7 @@ class MatchReport:
         return build_report_json(self, window=window, include_touches=include_touches)
 
     def summary(self) -> str:
+        """A few lines for a console summarising the run."""
         lines = [
             f'{self.source}  {self.duration_s:.0f}s',
             f'  players tracked   {len(self.players)}',
