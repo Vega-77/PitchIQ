@@ -25,7 +25,14 @@ CACHE_FILE = "xg_raw_shots_cache.pkl"
 # xg_model6 -> 7 on 2026-08-06, when the export below was found to be throwing
 # away the calibration step; 7 -> 8 the same day, dropping shot_height. See the
 # note above the ONNX export, and the one above FEATURES.
-ONNX_FILE  = "xg_model8.onnx"
+#
+# Written straight to cv/, where cv/xg_bridge.py loads it: one copy, so the
+# model trained here and the model the pipeline runs cannot drift apart. A
+# retrain that changes the model bumps the number, as 6 -> 7 -> 8 did, and
+# MODEL_PATH in xg_bridge.py with it. The plots go to docs/xg/.
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ONNX_FILE  = os.path.join(_REPO, "cv", "xg_model8.onnx")
+PLOT_DIR   = os.path.join(_REPO, "docs", "xg")
 
 # ---------------------------------------------------------------------------
 # Geometry helpers
@@ -343,7 +350,7 @@ def main(offline=False, show_plots=True, cross_validate=True):
     plt.title("Calibration Curve")
     plt.legend()
     plt.tight_layout()
-    plt.savefig("calibration_curve.png", dpi=150)
+    plt.savefig(os.path.join(PLOT_DIR, "calibration_curve.png"), dpi=150)
     if show_plots:
         plt.show()
 
@@ -362,7 +369,7 @@ def main(offline=False, show_plots=True, cross_validate=True):
                     max_num_features=len(FEATURES),
                     title="XGBoost Feature Importance", show_values=False)
     plt.tight_layout()
-    plt.savefig("feature_importance.png", dpi=150)
+    plt.savefig(os.path.join(PLOT_DIR, "feature_importance.png"), dpi=150)
     if show_plots:
         plt.show()
 
