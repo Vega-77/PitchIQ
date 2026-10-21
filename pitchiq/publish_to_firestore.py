@@ -587,12 +587,12 @@ def merge_tracks(tracks: list[dict]) -> dict:
     merged['touch_times_s'] = sorted(touches)
     merged['shot_map'] = sorted(shots, key=lambda s: s.get('video_s') or 0)
 
-    merged['heatmap'] = _merge_heatmaps([t.get('heatmap') for t in ordered])
+    merged['heatmap'] = _sum_occupancy_grids([t.get('heatmap') for t in ordered])
     merged['cluster_ids'] = sorted(t.get('cluster_id') for t in ordered)
     return merged
 
 
-def _merge_heatmaps(grids) -> list[list[float]] | None:
+def _sum_occupancy_grids(grids) -> list[list[float]] | None:
     """Occupancy grids added cell by cell, or None if nobody had one.
 
     Cell-wise because a heatmap counts time spent, and where a player stood

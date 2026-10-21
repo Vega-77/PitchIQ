@@ -518,7 +518,7 @@ def drawn(point, pitch=None) -> tuple[float, float]:
     )
 
 
-def _merge_heatmaps(pairs) -> list[list[float]] | None:
+def _time_weighted_heatmap(pairs) -> list[list[float]] | None:
     """Several tracks' occupancy grids into one, weighted by time tracked.
 
     `pairs` is `[(grid, minutes)]`. Each grid is already normalised to sum to 1,
@@ -659,7 +659,7 @@ def track_stats(
             # in the pipeline and was never carried across to the cluster, so
             # `TrackStats.heatmap` serialised as null on every run — declared,
             # published, and never once filled in.
-            stats.heatmap = _merge_heatmaps(
+            stats.heatmap = _time_weighted_heatmap(
                 [
                     (players_by_track.get(t).heatmap, players_by_track[t].minutes_tracked)
                     for t in cluster.track_ids
