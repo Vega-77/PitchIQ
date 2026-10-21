@@ -16,7 +16,7 @@
 // tests/test_calibrate_landmarks.py holds the names to cv/pitch.py and the
 // positions to `Pitch.landmarks()`.
 
-import { MARKINGS_M } from '../assets/pitch-backdrop.js?v=135';
+import { MARKINGS_M } from '../assets/pitch-backdrop.js?v=136';
 
 // [cv/pitch.py name, pin-solve name or null, label, suggested]
 // Suggested: the spread the solve does best with when only a few can be placed.

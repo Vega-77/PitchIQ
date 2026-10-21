@@ -1,7 +1,7 @@
 // Load every page the site serves, and check it came up.
 //
-// This is the suite the other two could not be. `tests/video.test.js` covers
-// pure functions and cannot import a module that touches the DOM;
+// This is the suite the other two kinds could not be. The pure suites
+// (`npm run test:unit`) cannot import a module that touches the DOM;
 // `tests/rules.test.js` and `tests/flow.test.js` drive the real emulator and
 // never load a page. Between them sat the entire user interface, and two bugs
 // walked through the gap in two days: a `ReferenceError` on the second
@@ -686,7 +686,7 @@ test('the sample summary carries the keys a published one does', async () => {
 /**
  * The shot map's marks, as controls.
  *
- * There is no other suite this can live in. `tests/video.test.js` covers pure
+ * There is no other suite this can live in. The pure suites cover pure
  * functions and cannot import a module that calls `createElementNS`; the
  * emulator suites never build an element. So the one renderer in the repo that
  * puts interactive controls inside an `<svg>` had no test of any kind until the

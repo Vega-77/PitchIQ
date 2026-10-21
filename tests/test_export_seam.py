@@ -13,7 +13,7 @@ Six knobs, every one measured before it was pinned:
 2. `dynamic` -- `const { shotMapSvg } = await import('...')`. One name, one
    caller: `tests/smoke.test.js`.
 3. `namespace` -- `import * as report from '../assets/report.js'` followed by
-   `report.someName(...)`. `tests/video.test.js` reaches 37 names this way.
+   `report.someName(...)`. The pure JS suites reach 37 names this way.
 4. `local` -- the name used again inside its own file. Not a use site but a
    classifier: it separates "nobody wants this" from "exported wider than it
    needs to be".
@@ -237,7 +237,7 @@ def test_nothing_is_exported_that_nobody_reads():
 
 
 # `onPitchAt` (assets/report.js) answers "who was on the pitch at this second"
-# from a roster's stints. It has about ten cases in tests/video.test.js and no
+# from a roster's stints. It has about ten cases in tests/players.test.js and no
 # caller in the site: every screen that wants the eleven at a moment goes
 # through `substitutionChanges`, which walks the same stints and returns the
 # moments rather than a set.
@@ -273,7 +273,7 @@ def test_plenty_of_exports_are_reached_only_by_tests_and_that_is_fine():
 # that found a reader and should stop being listed here.
 LOCAL_ONLY = {
     # Tuning constants that sit beside the code they tune. `assets/report.js`
-    # exports nearly everything it declares so `tests/video.test.js` can reach
+    # exports nearly everything it declares so the pure JS suites can reach
     # in; these are the ones no test asked for either.
     'report.js tuning constants': {
         'BRIDGE_S', 'CHANGE_GROUP_S', 'CHANGE_WINDOW_S', 'COVERAGE_MARGIN_M',
@@ -396,7 +396,7 @@ def test_dynamic_imports_are_load_bearing():
 
 
 def test_namespace_imports_are_load_bearing():
-    # `tests/video.test.js` imports nine modules wholesale and reaches names off
+    # The pure JS suites import eleven modules wholesale and reach names off
     # the namespace object. Miss this and a third of the seam looks unwanted.
     assert dead_without('namespace') == PRODUCT_DEAD
     assert len(local_only_without('namespace')) >= 30

@@ -448,7 +448,7 @@ export function whistleFrom(log) {
 /**
  * How many minutes a player was on the pitch, or null when nobody can say.
  *
- * Lived in `db.js` until 2026-08-15, where `tests/video.test.js` could not
+ * Lived in `db.js` until 2026-08-15, where the pure test suites could not
  * reach it — so `tests/flow.test.js` carried a hand-copied second version under
  * a comment reading "mirrors minutesFrom() in assets/db.js", and four tests
  * pinned the copy. Moved here for the same reason `playerTimeline` is here.
@@ -1939,7 +1939,7 @@ export function seasonGroups(reports, totals, options = {}) {
 // waiting to be done.
 //
 // Both are arithmetic over the match list and the roster, so both live here
-// rather than in coach.js, and both are covered in tests/video.test.js. The
+// rather than in coach.js, and both are covered in tests/season.test.js. The
 // second one especially: "what is outstanding" is a claim that a coach will act
 // on, and a job that appears when it should not — or worse, does not appear
 // when it should — is the kind of thing a browser check would never catch.
@@ -2721,7 +2721,7 @@ export function comparePair(us, them, kind = COUNT) {
  *
  * Lives here rather than in the renderer because it is a judgement and not a
  * layout: it decides whether a coach sees a green number, which is the closest
- * thing these pages have to an opinion. `tests/video.test.js` can only load
+ * thing these pages have to an opinion. The pure test suites can only load
  * modules that import nothing, and a rule about when to state a verdict is
  * exactly the kind that should not go untested for want of a DOM.
  *
@@ -5112,8 +5112,8 @@ export function substitutionNote(result) {
 // alone; it is not a good reason to pretend it was deleted, so the coach is told.
 
 // `ui.js` has a `plural`, and this module imports nothing on purpose so that
-// tests/video.test.js can load it. Two words is a cheaper duplication than an
-// import that would take the whole test file's reason for existing with it.
+// the pure test suites can load it. Two words is a cheaper duplication than an
+// import that would take those suites' reason for existing with it.
 const count = (n, word, plural = `${word}s`) => `${n} ${n === 1 ? word : plural}`;
 
 /**

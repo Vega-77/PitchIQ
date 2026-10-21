@@ -7,18 +7,18 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=135';
-import { EVENT_TYPES } from './events.js?v=135';
+import { db } from './firebase-init.js?v=136';
+import { EVENT_TYPES } from './events.js?v=136';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
     mappingWithout, positionOf, whistleFrom, minutesFrom, knownMinutes,
-} from './report.js?v=135';
+} from './report.js?v=136';
 
 export {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
-    // Both moved out of this file so `tests/video.test.js` can reach them.
+    // Both moved out of this file so the pure suites (`npm run test:unit`) can reach them.
     // `minutesFrom` is still exported from here because three pages import it
     // by that name, and `tests/flow.test.js` used to carry a hand-copied
     // duplicate of it precisely because it could not be imported.

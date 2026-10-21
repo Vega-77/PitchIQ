@@ -128,7 +128,7 @@ beforeEach(async () => {
 // whether it touches the database or not — and `minutesFrom` used to sit here
 // as a hand-copied duplicate under a comment reading "mirrors minutesFrom() in
 // assets/db.js", pinning the copy rather than the code. It moved into the
-// zero-import `assets/report.js` and its tests moved to `tests/video.test.js`,
+// zero-import `assets/report.js` and its tests moved to `tests/tagged-log.test.js`,
 // alongside `whistleFrom` and the rest of the minutes arithmetic.
 
 // ---------------------------------------------------------------- round trip
@@ -536,7 +536,7 @@ describe('adding a second coach', () => {
  * These drive a real client through a real disconnection, because the property
  * being tested is Firestore's snapshot metadata and nothing else can produce
  * it. The arithmetic over that metadata is pure and lives in
- * assets/report.js::syncState, covered without an emulator in video.test.js.
+ * assets/report.js::syncState, covered without an emulator in tagged-log.test.js.
  */
 describe('knowing what has reached the server', () => {
     const logPath = (db, id) =>

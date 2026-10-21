@@ -63,10 +63,10 @@ jobs:
           # imports, and that landed in 22.15.0.
           node-version: "22.15"
 
-      # The pure suite imports only dependency-free modules, so it needs no
-      # install at all — which is the property that keeps it fast enough to run
-      # on every save locally.
-      - run: node --test tests/video.test.js tests/kit.test.js
+      # The pure suites import only dependency-free modules, so they need no
+      # install at all — which is the property that keeps them fast enough to run
+      # on every save locally. The list lives in package.json.
+      - run: npm run test:unit
 
       # And the page suites, which need no install either — the DOM and the
       # Firebase SDK they run against are both in tests/, for the same reason.

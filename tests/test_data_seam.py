@@ -106,7 +106,7 @@ of a fixed set, and that set is written out four times: eight buttons in
 kept everything else), the `EVENTS` map in `assets/events.js`, the
 `request.resource.data.type` allowlist in `firestore.rules`, and -- for the
 period markers only -- a second copy in `assets/report.js`, which has no
-imports by design so that `tests/video.test.js` can cover it.
+imports by design so that the pure JS suites (`npm run test:unit`) can cover it.
 
 `assets/events.js` names the duplication in its own comment and calls it
 unavoidable, because rules are a separate language and the server has to

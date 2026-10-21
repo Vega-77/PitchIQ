@@ -5,7 +5,7 @@
 // actually travelled between, and which pairs never connected at all. A table
 // of pass counts cannot say that, however many columns it has.
 //
-// Zero imports, like report.js and for the same reason — `tests/video.test.js`
+// Zero imports, like report.js and for the same reason — `tests/passing.test.js`
 // loads it straight off disk and can cover every rule below without a DOM, a
 // Firestore connection or a fixture file.
 //

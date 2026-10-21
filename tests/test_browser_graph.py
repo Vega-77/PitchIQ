@@ -9,7 +9,7 @@ AST is going to find."* This is that walk.
 
 It is a coarser question than the Python one, and deliberately so. Asking which
 *exports* are dead would be noise here: `assets/report.js` has no imports by
-design so `tests/video.test.js` can cover it, and roughly ninety internals across
+design so the pure JS suites can cover it, and roughly ninety internals across
 the frontend are exported purely so a namespace-importing test can reach them.
 Those are a documented pattern, not a finding. Asking which *modules* are dead is
 a tight question with no false positives — an ES import names its source file

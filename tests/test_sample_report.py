@@ -104,7 +104,7 @@ class TestItExists:
     def test_it_imports_nothing(self, source):
         """Same rule as report.js, for the same reason.
 
-        tests/video.test.js loads these modules straight off disk with no
+        The pure JS suites load these modules straight off disk with no
         bundler and no DOM. One import of db.js would open a Firestore
         connection at module scope and take the whole pure suite with it.
         """

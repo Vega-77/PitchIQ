@@ -4,8 +4,8 @@
 // called a function a previous commit had deleted and was dead for eight days,
 // and three section rails closed over the first subject opened and went on
 // showing it. Both were found by opening the page in a browser, because
-// `tests/video.test.js` cannot import a module that touches the DOM and the
-// emulator suites drive Firestore without ever loading one.
+// the pure suites (`npm run test:unit`) cannot import a module that touches
+// the DOM and the emulator suites drive Firestore without ever loading one.
 //
 // The roadmap said closing that gap needed a headless browser or a DOM shim and
 // that "both are dependencies this repo does not have". Half of that was wrong.
