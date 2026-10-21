@@ -26,7 +26,7 @@ def work(args):
     from pitchiq import lines as L
     from . import venue_features
     from . import venue_map
-    from . import vovl
+    from . import draw_pitch_overlay
 
     K = venue_map.load()
     z = np.load(os.path.join(HERE, 'vmap.npz'))
@@ -53,7 +53,7 @@ def work(args):
         for i in near:
             r = venue_map.match(K[i], F)  # F px -> keyframe px
             if r is not None and len(r[1]) > best[0]:
-                best = (len(r[1]), vovl.frame_to_sb(i).dot(r[0]))
+                best = (len(r[1]), draw_pitch_overlay.frame_to_sb(i).dot(r[0]))
         if prev is not None and prev[0] >= MIN_INL:  # chain from last sample
             r = venue_map.match(prev[2], F)
             if r is not None and len(r[1]) > best[0] * 1.5:

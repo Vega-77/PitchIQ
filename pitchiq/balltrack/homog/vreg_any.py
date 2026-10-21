@@ -37,12 +37,12 @@ def work(args):
     from pitchiq import lines as L
     from . import venue_features
     from . import venue_map
-    from . import vovl
+    from . import draw_pitch_overlay
 
     K = venue_map.load()
     ok = np.load(os.path.join(HERE, 'vmap.npz'))['ok']
     ids = np.flatnonzero(ok)
-    to_sb = {i: vovl.frame_to_sb(i) for i in ids}
+    to_sb = {i: draw_pitch_overlay.frame_to_sb(i) for i in ids}
     cen = np.array([_centre(to_sb[i]) for i in ids])
     sift = cv2.SIFT_create(nfeatures=venue_features.NFEAT)
     cap = cv2.VideoCapture(venue_features.VIDEO)

@@ -165,7 +165,7 @@ class PannedCamera:
         else:
             venue = np.load(homog / 'vpitch.npz')
             top = np.load(homog / 'vtop.npz')
-            # The venue map's reference keyframe -> StatsBomb; `homog/vovl.py`'s
+            # The venue map's reference keyframe -> StatsBomb; `homog/draw_pitch_overlay.py`'s
             # frame_to_sb for the keyframe whose own map homography is identity.
             reference_to_sb = venue['P'] @ top['T'] @ top['B'] @ np.linalg.inv(top['K'])
         # The venue map measures the pitch in centre-circle radii, the one

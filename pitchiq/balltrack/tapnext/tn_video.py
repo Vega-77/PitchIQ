@@ -16,7 +16,7 @@ import cv2
 import numpy as np
 
 from .. import render_review_video as RV
-from ..homog import vovl
+from ..homog import draw_pitch_overlay
 from ..homog import flight_model as V
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -109,7 +109,7 @@ def main():
     from .. import config
 
     A0, Hs, img, sb, kind, gnd, hgt = per_frame()
-    lines = vovl.polylines()
+    lines = draw_pitch_overlay.polylines()
     base = np.zeros((HT, WD, 3), np.uint8)
     base[:] = (24, 20, 16)
     p0, p1 = mm(-3, 83), mm(123, -3)

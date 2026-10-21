@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 
 from .. import render_review_video as RV
-from . import vovl
+from . import draw_pitch_overlay
 
 from . import WORK as HERE
 
@@ -121,7 +121,7 @@ def render(tag, Hf, by):
     sc = 2 / 3.0
     Wd, Ht = 1280, 720
     S = np.diag([sc, sc, 1])
-    lines = vovl.polylines()
+    lines = draw_pitch_overlay.polylines()
     ms, mx0, my0 = 3.0, Wd - 12 - 360, 12  # minimap 360x240
 
     def mm(p):

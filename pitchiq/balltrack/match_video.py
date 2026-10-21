@@ -27,9 +27,9 @@ from . import render_review_video as RV  # clock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HG = os.path.join(HERE, 'h3d_hyb90')
-os.chdir(HG)  # vovl reads its maps from the working folder
+os.chdir(HG)  # draw_pitch_overlay reads its maps from the working folder
 homog.WORK = HG  # and flight_model from its work folder
-from .homog import vovl  # noqa: E402
+from .homog import draw_pitch_overlay  # noqa: E402
 from .homog import flight_model as V  # noqa: E402
 
 WD = 720
@@ -255,7 +255,7 @@ def main():
     base = np.zeros((HT, WD, 3), np.uint8)
     base[:] = (24, 20, 16)
     cv2.rectangle(base, mm(-3, 83), mm(123, -3), (45, 105, 50), -1)
-    for pl in vovl.polylines():
+    for pl in draw_pitch_overlay.polylines():
         cv2.polylines(
             base, [np.int32([mm(x, y) for x, y in pl])], False, (225, 235, 225), 1, cv2.LINE_AA
         )
