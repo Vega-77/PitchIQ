@@ -1,6 +1,6 @@
 """Air Lab labels -> per-frame truth, and the flight detector scored on it.
 
-python -m pitchiq.balltrack.homog.vairscore [tag]      (default vid1)
+python -m pitchiq.balltrack.homog.score_air_labels [tag]      (default vid1)
 -> airtruth.npz  abs, truth ('ground'|'air'|'hidden'|'none'), flight id (-1 = none)
 """
 

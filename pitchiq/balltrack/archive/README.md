@@ -24,7 +24,7 @@ that had it, then fix its imports to the package layout:
 |---|---|
 | earlier Crop Lab rounds: sheets and hints (their labels are in `labdb5/crops.jsonl`) | `lab_sheets2.py`, `lab_sheets3.py`, `lab_sheets4.py` |
 | every 2D version over the labelled windows, and the queue that fed them to the 3D chain (`alltests/mkpicks_one.py` makes the shipped version for one window) | `alltests/mkpicks.py`, `alltests/q3d.py` |
-| media for the Air, Flight and Fix Labs, all answered (their labels stay; `vairscore.py`, which turns the Air Lab's into `airtruth.npz`, stays too) | `homog/vairclips.py`, `homog/vflightlab.py`, `homog/vfixclips.py` |
+| media for the Air, Flight and Fix Labs, all answered (their labels stay; `score_air_labels.py`, which turns the Air Lab's into `airtruth.npz`, stays too) | `homog/vairclips.py`, `homog/vflightlab.py`, `homog/vfixclips.py` |
 | flight-gate tuning and diagnostics from before the label-free chain (`homog/flight_chain.py`) | `homog/vfltune.py`, `homog/vflapply.py`, `homog/vflfix.py`, `homog/vflfp.py`, `homog/vairwhy.py`, `homog/vfl1.py`, `homog/vfl2.py`, `homog/vfl3.py` |
 | review videos and the venue-map image | `homog/vflvideo.py`, `homog/vflvideo2.py`, `homog/vflvideo3.py`, `homog/vfullvideo.py`, `homog/vphonevideo.py`, `homog/vrender.py` |
 | venue-map, paint and registration diagnostics | `homog/vbox.py`, `homog/vchk.py`, `homog/vdbg.py`, `homog/vdense_t.py`, `homog/vend2.py`, `homog/vendacc.py`, `homog/vends.py`, `homog/vmeas.py`, `homog/vpt.py`, `homog/vraw.py`, `homog/vsheet.py`, `homog/vtilt.py`, `homog/vy2.py`, `homog/vyellow.py` |
