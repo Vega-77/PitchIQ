@@ -1387,7 +1387,7 @@ export function blindSplit(quality) {
     // footage it starts. The same total lost as one blackout or as a hundred
     // flickers are different failures, and only the first takes a passage of
     // football with it — so the worst one travels beside the split rather than
-    // being averaged into it. Published longest-first by pitchiq/blind.py.
+    // being averaged into it. Published longest-first by pitchiq/ball_visibility.py.
     const first = (blind.worst || [])[0] || null;
     const worst = first ? {
         startS: first.start_s ?? first.startS,

@@ -523,7 +523,7 @@ class TestWhatWasNeverSeen:
     """
 
     def a_blindness(self, **kwargs):
-        from pitchiq.blind import ACCOUNTED, DEAD, UNEXPLAINED, Blindness, BlindSpell
+        from pitchiq.ball_visibility import ACCOUNTED, DEAD, UNEXPLAINED, Blindness, BlindSpell
 
         return Blindness(
             spells=[
@@ -548,7 +548,7 @@ class TestWhatWasNeverSeen:
     def test_an_unchecked_run_withholds_the_parts_and_keeps_the_total(self):
         """Three zeroes would read as a clean bill of health for a run
         where no check was possible at all."""
-        from pitchiq.blind import UNCHECKED, Blindness, BlindSpell
+        from pitchiq.ball_visibility import UNCHECKED, Blindness, BlindSpell
 
         unchecked = Blindness(spells=[BlindSpell(0.0, 40.0, UNCHECKED)])
         published = a_report(blindness=unchecked).to_json()['quality']['blind']

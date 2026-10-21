@@ -232,7 +232,7 @@ export function sampleCvSummary() {
             // — that is what a well-tagged half looks like from a camera, and
             // showing it is the point: 95s of live football nobody could see
             // is a very different report from 459s of blindness, and the two
-            // were the same number until pitchiq/blind.py split them.
+            // were the same number until pitchiq/ball_visibility.py split them.
             //
             // The three add to the total, and the worst single stretch is
             // under the threshold that would have raised a warning, which is

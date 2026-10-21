@@ -2,7 +2,7 @@
 
 The Python twin of `tests/test_duplicate_bodies.py`, which makes the case for
 the JS side. The finding that motivated this one: `_clock_of`, five lines that
-read a log entry's match clock, existed byte-identically in `pitchiq/blind.py`,
+read a log entry's match clock, existed byte-identically in `pitchiq/ball_visibility.py`,
 `pitchiq/phases.py` and `pitchiq/reconcile.py`. A fix to one (say, accepting a string
 clock) would have reached a third of the callers. It is now `phases.clock_of`,
 imported by the other two.

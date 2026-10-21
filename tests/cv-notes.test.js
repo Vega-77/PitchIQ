@@ -604,7 +604,7 @@ describe('the worst stretch the run lost', () => {
 
     test('the longest one comes back, since that is the order it arrives in', () => {
         // A hundred flickers and one blackout lose the same minutes and are
-        // not the same failure. pitchiq/blind.py sorts longest-first.
+        // not the same failure. pitchiq/ball_visibility.py sorts longest-first.
         const split = withWorst([
             { start_s: 1284, duration_s: 28, kind: 'unexplained' },
             { start_s: 402, duration_s: 19, kind: 'unexplained' },

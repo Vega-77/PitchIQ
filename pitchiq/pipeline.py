@@ -41,7 +41,7 @@ import cv2
 import numpy as np
 
 from .ball import BallTrajectory, build_trajectory
-from .blind import (
+from .ball_visibility import (
     ACCOUNTED,
     DEAD,
     UNEXPLAINED,

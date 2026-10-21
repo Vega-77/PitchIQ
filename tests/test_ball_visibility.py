@@ -10,8 +10,8 @@ import re
 
 import pytest
 
-from pitchiq import blind
-from pitchiq.blind import (
+from pitchiq import ball_visibility
+from pitchiq.ball_visibility import (
     ACCOUNTED,
     DEAD,
     EXPLAIN_WINDOW_S,
@@ -299,9 +299,9 @@ class TestTheVocabularyOfKinds:
 
     def emitted(self):
         """Every kind `blindness()` can put on a spell, read off the sorter."""
-        source = inspect.getsource(blind.blindness)
+        source = inspect.getsource(ball_visibility.blindness)
         return {
-            getattr(blind, name, name)
+            getattr(ball_visibility, name, name)
             for name in re.findall(r'BlindSpell\(\w+, \w+, ([A-Z_]+)', source)
         }
 
@@ -328,7 +328,8 @@ class TestTheVocabularyOfKinds:
         """
         source = inspect.getsource(Blindness.to_json)
         published = {
-            getattr(blind, name, name) for name in re.findall(r'self\.seconds\((\w+)\)', source)
+            getattr(ball_visibility, name, name)
+            for name in re.findall(r'self\.seconds\((\w+)\)', source)
         }
         assert published == set(KINDS) - {UNCHECKED}
 

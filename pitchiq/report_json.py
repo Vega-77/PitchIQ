@@ -74,7 +74,7 @@ from .teams import TEAM_A, TEAM_B
 #    already there rather than a new measurement: `no_ball_s` has always been
 #    one number covering both "the ball was off the pitch during a throw-in"
 #    and "we lost twenty seconds of live football", which are not remotely the
-#    same problem. See pitchiq/blind.py.
+#    same problem. See pitchiq/ball_visibility.py.
 # 9: `source_fps` and `sample_fps` in the quality block. Additive, and the
 #    first fields that say how the run was *performed* rather than what it
 #    found — every figure in metres belongs to a particular sample rate, and
