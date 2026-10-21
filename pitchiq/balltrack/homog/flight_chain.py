@@ -20,7 +20,7 @@ import numpy as np
 from scipy.optimize import least_squares
 
 from . import flight_model as V
-from . import vdrag as D
+from . import drag_flight as D
 from . import vroll as R
 
 tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'

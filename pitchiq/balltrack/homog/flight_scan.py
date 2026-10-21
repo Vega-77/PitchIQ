@@ -14,7 +14,7 @@ import numpy as np
 from scipy.optimize import least_squares
 
 from . import flight_model as V
-from . import vdrag as D
+from . import drag_flight as D
 from . import vflscan as S1
 
 LENS = tuple(range(6, 76, 3))
@@ -43,7 +43,7 @@ def roll(tr, a, b):
 
 
 def dfit(tr, a, b, kmax=1.5):
-    """Drag fit, 2 starts (cheaper than vdrag.fit's 6)."""
+    """Drag fit, 2 starts (cheaper than drag_flight.fit's 6)."""
     idx = np.arange(a, b + 1)
     idx = idx[tr.has[idx]]
     t = (idx - a) / V.FPS

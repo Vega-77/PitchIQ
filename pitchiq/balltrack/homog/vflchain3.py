@@ -24,7 +24,7 @@ import numpy as np
 from scipy.optimize import least_squares
 
 from . import flight_model as V
-from . import vdrag as D
+from . import drag_flight as D
 from . import flight_chain as Ch
 from . import vroll as R
 from .flight_chain import is_air, rise_px, sb_per_ch

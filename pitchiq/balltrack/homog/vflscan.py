@@ -17,7 +17,7 @@ import numpy as np
 from scipy.optimize import least_squares
 
 from . import flight_model as V
-from . import vdrag as D
+from . import drag_flight as D
 
 LENS = tuple(range(9, 76, 3))
 STEP = 2
