@@ -18,8 +18,8 @@ torchvision==0.28.0
 numpy==2.4.4
 # cv/autocal.py's pose solve (least_squares), and the ball tracker's 3D chain.
 scipy==1.18.0
-# Runs the trained xG model from Python, so cv/xg_bridge.py can be checked
-# against the copy the browser loads. The browser uses onnxruntime-web instead.
+# Runs the trained xG model (cv/xg_model8.onnx). xG is computed here, in Python,
+# by cv/xg_bridge.py when the pipeline runs; the site only shows stored figures.
 onnxruntime==1.28.0
 
 # The app itself needs no Python at all. Data and auth are Firestore, the

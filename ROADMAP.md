@@ -82,7 +82,9 @@ How to run it: `FOOTAGE_DAY.md`, "Fixed or panning", and the root `README.md`.
 - **`index.html` / `coach/` / `player/`** — landing, coach dashboard, player portal
   (Phase 15, done for [Demo])
 - `live-tagging/` — the tablet tool, now on Firestore with offline queueing (Phase 3)
-- `xg-sandbox/` — the manual xG sandbox, moved off the site root
+- ~~`xg-sandbox/`~~ — the manual xG sandbox left the site on 2026-10-07. xG is
+  computed in Python (`cv/xg_bridge.py`) when the pipeline runs; the site shows
+  the stored figures.
 - `halftime/` — the three-minute touchline read, from tagged data alone (Phase 15)
 
 **The live-tagging tool was dead from 2026-08-07 to 2026-08-15** and is
@@ -233,7 +235,8 @@ Still open:
 is in the venv, `_predict` has run against the real model, and Python agrees
 with the browser to three decimals on the same shot — the sandbox's default
 position reads 0.068 in both. tests/test_xg_parity.py pins twelve scenarios
-across the two languages plus the feature order.
+across the two languages plus the feature order. (That test went with the
+sandbox on 2026-10-07; the model checks live on in tests/test_xg_bridge.py.)
 
 Two real defects came out of writing it:
 
@@ -428,7 +431,7 @@ onto StatsBomb's **full** 120-unit length. A shot the Distance slider called
 20 m arrived at the model as 45.7 units — 40 m — with the goalmouth subtending
 10° instead of 20°, and the halfway line landing on the opposite goal line.
 
-`tests/test_xg_parity.py` could not catch it and was never going to: it builds a
+`tests/test_xg_parity.py` (since retired with the sandbox) could not catch it and was never going to: it builds a
 scenario in StatsBomb space and converts it into each side's convention, so it
 proves Python and JavaScript agree about a point without ever asking whether the
 point is where the page says it is — and its own inverse carried the identical
@@ -753,7 +756,8 @@ Applies across every phase below — how we know each piece actually works, not 
      (**built**: `reviewScore` in `assets/report.js`, shown as a scorecard in the
      review tool. Detection mAP and tracking IDF1 remain unbuilt — both need
      per-frame labels, which nothing produces)
-3. **Feature-parity test (specific to this codebase).** `main.py`'s `parse()` and
+3. **Feature-parity test (specific to this codebase; retired with the xG sandbox on
+   2026-10-07, its model checks kept in tests/test_xg_bridge.py).** `main.py`'s `parse()` and
    `xg-sandbox/xg-model.js`'s feature calc must produce identical 12-feature vectors for the
    same synthetic scenario. Write a small harness that feeds known synthetic
    player/ball positions through both and diffs the output — this is pure, already-written
@@ -1771,11 +1775,10 @@ own sake:
   somewhere shared.** Both are boring, well-understood choices — no need for a
   specialized time-series database at the data volume estimated in Phase 2.
 - **Model interchange: ONNX**, exactly like the existing `xg_model8.onnx` — train in
-  Python, run inference in the browser via `onnxruntime-web`, already proven in this
-  codebase. Any future detector could follow the same pattern if in-browser inference
-  is ever wanted, though server-side Python inference is simpler for month 1.
-- **Frontend (all the surfaces above): JavaScript, matching `xg-sandbox/sandbox.js`/`geometry.js`
-  today.** Stay vanilla for the simpler surfaces (halftime view, player portal). The
+  Python, run inference in Python (`onnxruntime`, `cv/xg_bridge.py`). The browser
+  ran it too, via `onnxruntime-web`, until the xG sandbox left on 2026-10-07.
+- **Frontend (all the surfaces above): JavaScript, plain ES modules, as the site
+  is today.** Stay vanilla for the simpler surfaces (halftime view, player portal). The
   Review & Annotation Tool is the one surface complex enough (synced video, timeline,
   forms, thumbnail crops) that a lightweight component framework could save real time
   — pick one (e.g. Svelte or React) and use it only there, rather than introducing a
@@ -1797,7 +1800,6 @@ PitchIQ/
 ├── coach/               dashboard: roster, matches, stats, publish
 ├── player/              portal: own reports only
 ├── live-tagging/        the match-day tablet tool
-├── xg-sandbox/          the manual xG sandbox (moved off the root)
 ├── firestore.rules      the security boundary
 ├── tests/               emulator suites — rules.test.js + flow.test.js
 ├── PitchIQHelper/       xG model training (main.py) + the shared .venv
@@ -3931,7 +3933,7 @@ scratch.
       been checked, and captioned with the denominator.
 
 ## 12. Shot Feature Extraction → Existing xG Model
-Where the CV pipeline plugs into what already works (`xg-sandbox/` / `xg_model8.onnx`).
+Where the CV pipeline plugs into what already works (`cv/xg_bridge.py` / `cv/xg_model8.onnx`).
 - [x] **[Demo]** At shot detection/confirmation, extract the same 12 features
       the model expects, using the correct attacking-goal direction for the half
       (Phase 4) — `xg_for_shots`, called from `cv/pipeline.py`. The direction

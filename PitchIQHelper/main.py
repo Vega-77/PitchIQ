@@ -389,7 +389,8 @@ def main(offline=False, show_plots=True, cross_validate=True):
     # presumably how it happened. Registering the XGBoost converter with
     # skl2onnx lets convert_sklearn walk the whole estimator and emit the
     # isotonic step with it. zipmap=False keeps `probabilities` a plain float
-    # tensor, which is the only shape onnxruntime-web can read in the browser.
+    # tensor: the shape cv/xg_bridge.py reads, and the only one onnxruntime-web
+    # could when the browser ran the model (it no longer does).
     from skl2onnx import convert_sklearn, update_registered_converter
     from skl2onnx.common.data_types import FloatTensorType as SklFloatTensorType
     from skl2onnx.common.shape_calculator import (

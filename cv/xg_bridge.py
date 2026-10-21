@@ -3,8 +3,11 @@
     STATUS — the model half is verified; the shot-detection half is not.
 
 `build_features`, `feature_vector` and `_predict` now run against the real model
-and agree with the browser to three decimal places on the same shot; see
-tests/test_xg_parity.py. `xg_for_shots` connects that to the pipeline, which
+(tests/test_xg_bridge.py, `TestTheRealModel`). This is the only place xG is
+computed: in Python, when the pipeline runs, and stored with the report. The
+browser's copy of the feature code, which this once agreed with to three
+decimal places, left with the xG sandbox on 2026-10-07; the site only shows
+the stored figures. `xg_for_shots` connects that to the pipeline, which
 until 2026-08-02 nothing did — `attach_xg` had no caller, so every xG figure
 from the report JSON to a player's phone was null. What remains unverified is
 upstream of here: whether a shot can be spotted in footage at all, and whether
@@ -136,9 +139,9 @@ POST_R = np.array([STATSBOMB_LENGTH, 44.0])
 # about the shot — so feeding a constant was feeding the model a claim about the
 # outcome, and a wrong one. See the module docstring.
 
-# The model the browser loads, and therefore the model behind every xG number
-# anyone has actually looked at. Naming one file here means the pipeline and
-# the sandbox cannot quietly end up on different models.
+# The model behind every xG number anyone has actually looked at. The browser
+# loaded the same file until the xG sandbox left the site on 2026-10-07; naming
+# one file here was what kept the pipeline and the sandbox on one model.
 #
 # Two predecessors were retired on 2026-08-06.
 #
