@@ -222,6 +222,21 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
 
+    print_event_report(report, show_touches=args.touches, min_confidence=args.min_confidence)
+
+    if args.json_path:
+        window = {'start_s': args.start, 'end_s': args.end}
+        Path(args.json_path).write_text(
+            json.dumps(report.to_json(window=window), indent=2), encoding='utf-8'
+        )
+        print()
+        print(f'  wrote {args.json_path}')
+
+    return 0
+
+
+def print_event_report(report, *, show_touches: bool, min_confidence: float) -> None:
+    """The report for a person at a console: stoppages, the two records, events."""
     print()
     print(report.summary())
     print()
@@ -237,31 +252,9 @@ def main(argv: list[str] | None = None) -> int:
         print()
 
     if report.reconciliation is not None:
-        rec = report.reconciliation
-        goals = rec.counts('goal')
-        print(
-            f'  goals: {goals["agreed"]} agreed, {goals["cv_only"]} found '
-            f'but never tagged, {goals["tag_only"]} tagged but never found'
-        )
+        _print_reconciliation(report.reconciliation)
 
-        if rec.exits_checked:
-            exits = rec.counts('exit')
-            rate = rec.rate('exit')
-            print(
-                f'  ball out of play: {exits["agreed"]} agreed, '
-                f'{exits["cv_only"]} unseen by the tagger, '
-                f'{exits["tag_only"]} unseen here'
-                + (f'  ({rate:.0%} agreement)' if rate is not None else '')
-            )
-        else:
-            print('  ball out of play: not checked (needs a calibration)')
-
-        for entry in rec.disagreements('goal'):
-            side = 'video only' if entry.status == 'cv_only' else 'tag only '
-            print(f'  disagreement  {clock(entry.at_s)}  {side}')
-        print()
-
-    if args.touches and report.touches:
+    if show_touches and report.touches:
         print('  touches')
         print('  time      track  team      dist  prox  motn  obs   sep   score')
         for t in report.touches:
@@ -274,7 +267,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         print()
 
-    events = [e for e in (report.events or []) if e.confidence >= args.min_confidence]
+    events = [e for e in (report.events or []) if e.confidence >= min_confidence]
 
     if not events:
         print('  no events above the confidence floor')
@@ -298,15 +291,31 @@ def main(argv: list[str] | None = None) -> int:
                 f'{cluster.sightings:5d} sightings'
             )
 
-    if args.json_path:
-        window = {'start_s': args.start, 'end_s': args.end}
-        Path(args.json_path).write_text(
-            json.dumps(report.to_json(window=window), indent=2), encoding='utf-8'
-        )
-        print()
-        print(f'  wrote {args.json_path}')
 
-    return 0
+def _print_reconciliation(rec) -> None:
+    """Goals and the ball leaving play, as the tagger and the pipeline saw them."""
+    goals = rec.counts('goal')
+    print(
+        f'  goals: {goals["agreed"]} agreed, {goals["cv_only"]} found '
+        f'but never tagged, {goals["tag_only"]} tagged but never found'
+    )
+
+    if rec.exits_checked:
+        exits = rec.counts('exit')
+        rate = rec.rate('exit')
+        print(
+            f'  ball out of play: {exits["agreed"]} agreed, '
+            f'{exits["cv_only"]} unseen by the tagger, '
+            f'{exits["tag_only"]} unseen here'
+            + (f'  ({rate:.0%} agreement)' if rate is not None else '')
+        )
+    else:
+        print('  ball out of play: not checked (needs a calibration)')
+
+    for entry in rec.disagreements('goal'):
+        side = 'video only' if entry.status == 'cv_only' else 'tag only '
+        print(f'  disagreement  {clock(entry.at_s)}  {side}')
+    print()
 
 
 def _detail(event) -> str:

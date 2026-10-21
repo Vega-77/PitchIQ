@@ -83,25 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f'error: {args.frame} not found')
         return 1
 
-    pitch = None
-    if args.length or args.width:
-        # Overriding the size must not throw away the markings. A file whose
-        # picker measured a 15m box carries that measurement in the same block
-        # as the length, and building a fresh `Pitch` here would quietly put
-        # the Laws back — refitting the same clicks against a field that does
-        # not exist, from a command that only meant to correct the length.
-        from pitchiq.pitch import Pitch
-
-        try:
-            dims = json.loads(args.points.read_text(encoding='utf-8')).get('pitch') or {}
-        except (OSError, ValueError):
-            dims = {}
-        pitch = replace(
-            Pitch.from_mapping(dims),
-            length_m=args.length or float(dims.get('length_m', 105.0)),
-            width_m=args.width or float(dims.get('width_m', 68.0)),
-        )
-
+    pitch = pitch_with_overrides(args.points, args.length, args.width)
     lens = _estimate_lens(args) if args.lens else None
 
     try:
@@ -110,6 +92,50 @@ def main(argv: list[str] | None = None) -> int:
         print(f'error: {err}')
         return 1
 
+    fit_err, holdout = _print_fit(calib)
+
+    if args.frame is not None:
+        calib, code = _check_against_paint(calib, args)
+        if code is not None:
+            return code
+        fit_err = calib.error()
+        holdout = calib.holdout_error()
+
+    good = _print_verdict(calib, fit_err, holdout)
+
+    out = args.out or Path('pitchiq/calibrations') / f'{args.points.stem}.calib.json'
+    out.parent.mkdir(parents=True, exist_ok=True)
+    calib.save(out)
+    print(f'\nsaved -> {out}')
+    return 0 if good else 2
+
+
+def pitch_with_overrides(points: Path, length: float | None, width: float | None):
+    """The export's pitch with `length` and/or `width` replaced, or None if neither.
+
+    Overriding the size must not throw away the markings. A file whose picker
+    measured a 15m box carries that measurement in the same block as the
+    length, and building a fresh `Pitch` here would quietly put the Laws back —
+    refitting the same clicks against a field that does not exist, from a
+    command that only meant to correct the length.
+    """
+    if not (length or width):
+        return None
+    from pitchiq.pitch import Pitch
+
+    try:
+        dims = json.loads(points.read_text(encoding='utf-8')).get('pitch') or {}
+    except (OSError, ValueError):
+        dims = {}
+    return replace(
+        Pitch.from_mapping(dims),
+        length_m=length or float(dims.get('length_m', 105.0)),
+        width_m=width or float(dims.get('width_m', 68.0)),
+    )
+
+
+def _print_fit(calib: Calibration):
+    """What was fitted and how well; returns the fit and leave-one-out errors."""
     print(f'\npitch      {calib.pitch.length_m:.1f} x {calib.pitch.width_m:.1f} m')
     if not calib.pitch.markings_are_standard:
         # Said out loud because it changes what every number below means. These
@@ -137,14 +163,11 @@ def main(argv: list[str] | None = None) -> int:
         )
     else:
         print(f'leave-one-out {holdout.summary()}')
+    return fit_err, holdout
 
-    if args.frame is not None:
-        calib, code = _check_against_paint(calib, args)
-        if code is not None:
-            return code
-        fit_err = calib.error()
-        holdout = calib.holdout_error()
 
+def _print_verdict(calib: Calibration, fit_err, holdout) -> bool:
+    """Problems, the most suspect points, and OK or NEEDS WORK; True if OK."""
     problems = calib.sanity_check()
     if problems:
         print('\nproblems:')
@@ -186,12 +209,7 @@ def main(argv: list[str] | None = None) -> int:
             '    in calibrate/, which fits the markings to the clicks and\n'
             '    offers what it measured. This tool fits what the file says.'
         )
-
-    out = args.out or Path('pitchiq/calibrations') / f'{args.points.stem}.calib.json'
-    out.parent.mkdir(parents=True, exist_ok=True)
-    calib.save(out)
-    print(f'\nsaved -> {out}')
-    return 0 if good else 2
+    return good
 
 
 def _non_standard_marks(pitch):

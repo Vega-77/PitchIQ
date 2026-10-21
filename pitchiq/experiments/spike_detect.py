@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import statistics
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import cv2
@@ -139,6 +140,101 @@ def longest_gap(hits: list[tuple[float, bool]]) -> tuple[float, float] | None:
     return best
 
 
+@dataclass
+class SpikeRun:
+    """What the detector found on each sampled frame, tallied."""
+
+    total: int = 0
+    person_hits: int = 0
+    ball_hits: int = 0
+    person_confs: list[float] = field(default_factory=list)
+    ball_confs: list[float] = field(default_factory=list)
+    ball_timeline: list[tuple[float, bool]] = field(default_factory=list)
+    # Kept for the framing verdict. Boxes, not images: a couple of hundred
+    # dataclasses per frame, so the whole run costs less than one frame does.
+    per_frame: list[list] = field(default_factory=list)
+    # What the detector was handed, which is the cropped and upscaled frame
+    # rather than whatever the file says it is.
+    seen_size: tuple[int, int] | None = None
+
+
+def detect_sampled(frames, detector, batch_size: int, annotate_to: Path | None = None) -> SpikeRun:
+    """Run `detector` over sampled `frames` in batches and tally what it found.
+
+    With `annotate_to`, every frame is also written there with its boxes drawn.
+    """
+    run = SpikeRun()
+    pending: list = []
+
+    def flush(batch: list) -> None:
+        if not batch:
+            return
+        for frame, detections in zip(batch, detector.detect_batch([f.image for f in batch])):
+            run.total += 1
+            run.per_frame.append(detections)
+            if run.seen_size is None:
+                height, width = frame.image.shape[:2]
+                run.seen_size = (width, height)
+            people = [d for d in detections if d.label == 'person']
+            balls = [d for d in detections if d.label == 'ball']
+
+            if people:
+                run.person_hits += 1
+                run.person_confs.extend(d.confidence for d in people)
+            if balls:
+                run.ball_hits += 1
+                run.ball_confs.extend(d.confidence for d in balls)
+            run.ball_timeline.append((frame.timestamp_s, bool(balls)))
+
+            if annotate_to is not None:
+                path = annotate_to / f'{frame.timestamp_s:07.1f}s.jpg'
+                cv2.imwrite(str(path), annotate(frame.image, detections))
+        batch.clear()
+
+    for frame in frames:
+        pending.append(frame)
+        if len(pending) >= batch_size:
+            flush(pending)
+    flush(pending)
+    return run
+
+
+def print_spike(run: SpikeRun, args, elapsed: float, out_dir: Path) -> None:
+    """Hit rates, the framing verdict, the longest ball gap and the speed."""
+    print(
+        f'\n  sampled {run.total} frames every {args.interval}s at conf>={args.conf}, imgsz={args.imgsz}'
+    )
+    print(summarize('person', run.person_hits, run.total, run.person_confs))
+    print(summarize('ball', run.ball_hits, run.total, run.ball_confs))
+
+    if run.seen_size is not None:
+        width, height = run.seen_size
+        if args.tiles > 1:
+            # The model sees a tile, not the frame, so the letterbox that
+            # matters is the tile's. Boxes come back in frame coordinates
+            # either way, so only the denominator changes.
+            x1, y1, x2, y2 = tile_windows(width, height, args.tiles)[0]
+            width, height = x2 - x1, y2 - y1
+        print()
+        for line in assess_framing(run.per_frame, width, height, imgsz=args.imgsz).lines():
+            print(f'  {line}')
+
+    gap = longest_gap(run.ball_timeline)
+    if gap and gap[1] - gap[0] > args.interval:
+        print(f'\n  longest ball gap: {gap[0]:.0f}s -> {gap[1]:.0f}s ({gap[1] - gap[0]:.0f}s)')
+
+    print(f'\n  {run.total / elapsed:.1f} frames/sec ({elapsed:.1f}s total)')
+    if args.save_annotated:
+        print(f'  annotated frames -> {out_dir}')
+
+    if args.timeline:
+        print()
+        for timestamp, hit in run.ball_timeline:
+            print(f'  {timestamp:6.0f}s  {"ball" if hit else "."}')
+
+    print()
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -157,51 +253,12 @@ def main(argv: list[str] | None = None) -> int:
         detector = TiledDetector(detector, tiles=args.tiles)
         print(f'  tiling into {args.tiles} along the long edge')
 
-    person_hits = ball_hits = total = 0
-    person_confs: list[float] = []
-    ball_confs: list[float] = []
-    ball_timeline: list[tuple[float, bool]] = []
-    # Kept for the framing verdict. Boxes, not images: a couple of hundred
-    # dataclasses per frame, so the whole run costs less than one frame does.
-    per_frame: list[list] = []
-    seen_size: tuple[int, int] | None = None
-
     out_dir = OUTPUT_ROOT / args.video.stem
     if args.save_annotated:
         out_dir.mkdir(parents=True, exist_ok=True)
 
     started = time.perf_counter()
-    pending: list = []
-
-    def flush(batch: list) -> None:
-        nonlocal person_hits, ball_hits, total, seen_size
-        if not batch:
-            return
-        for frame, detections in zip(batch, detector.detect_batch([f.image for f in batch])):
-            total += 1
-            per_frame.append(detections)
-            if seen_size is None:
-                # What the detector was handed, which is the cropped and
-                # upscaled frame rather than whatever the file says it is.
-                height, width = frame.image.shape[:2]
-                seen_size = (width, height)
-            people = [d for d in detections if d.label == 'person']
-            balls = [d for d in detections if d.label == 'ball']
-
-            if people:
-                person_hits += 1
-                person_confs.extend(d.confidence for d in people)
-            if balls:
-                ball_hits += 1
-                ball_confs.extend(d.confidence for d in balls)
-            ball_timeline.append((frame.timestamp_s, bool(balls)))
-
-            if args.save_annotated:
-                path = out_dir / f'{frame.timestamp_s:07.1f}s.jpg'
-                cv2.imwrite(str(path), annotate(frame.image, detections))
-        batch.clear()
-
-    for frame in sample_frames(
+    frames = sample_frames(
         args.video,
         interval_s=args.interval,
         max_frames=args.max_frames,
@@ -209,50 +266,15 @@ def main(argv: list[str] | None = None) -> int:
         end_s=args.end,
         crop=args.crop,
         upscale=args.upscale,
-    ):
-        pending.append(frame)
-        if len(pending) >= args.batch:
-            flush(pending)
-    flush(pending)
-
+    )
+    run = detect_sampled(frames, detector, args.batch, out_dir if args.save_annotated else None)
     elapsed = time.perf_counter() - started
 
-    if total == 0:
+    if run.total == 0:
         print('\n  no frames sampled — check --start/--end/--interval\n')
         return 1
 
-    print(
-        f'\n  sampled {total} frames every {args.interval}s at conf>={args.conf}, imgsz={args.imgsz}'
-    )
-    print(summarize('person', person_hits, total, person_confs))
-    print(summarize('ball', ball_hits, total, ball_confs))
-
-    if seen_size is not None:
-        width, height = seen_size
-        if args.tiles > 1:
-            # The model sees a tile, not the frame, so the letterbox that
-            # matters is the tile's. Boxes come back in frame coordinates
-            # either way, so only the denominator changes.
-            x1, y1, x2, y2 = tile_windows(width, height, args.tiles)[0]
-            width, height = x2 - x1, y2 - y1
-        print()
-        for line in assess_framing(per_frame, width, height, imgsz=args.imgsz).lines():
-            print(f'  {line}')
-
-    gap = longest_gap(ball_timeline)
-    if gap and gap[1] - gap[0] > args.interval:
-        print(f'\n  longest ball gap: {gap[0]:.0f}s -> {gap[1]:.0f}s ({gap[1] - gap[0]:.0f}s)')
-
-    print(f'\n  {total / elapsed:.1f} frames/sec ({elapsed:.1f}s total)')
-    if args.save_annotated:
-        print(f'  annotated frames -> {out_dir}')
-
-    if args.timeline:
-        print()
-        for timestamp, hit in ball_timeline:
-            print(f'  {timestamp:6.0f}s  {"ball" if hit else "."}')
-
-    print()
+    print_spike(run, args, elapsed, out_dir)
     return 0
 
 
