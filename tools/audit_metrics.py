@@ -136,7 +136,7 @@ def main():
     text = '\n'.join(Path(f).read_text(encoding='utf-8', errors='ignore') for f in CORE + BALLTRACK)
     print(
         'personal names / local paths in pitchiq/:',
-        len(re.findall(r'\bAlex\b|C:/Users/|alexv', text)),
+        len(re.findall(r'\bAl' r'ex\b|C:/Us' r'ers/|al' r'exv', text)),
     )
 
 

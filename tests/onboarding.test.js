@@ -20,7 +20,7 @@ import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 const COACH = { uid: 'coach1', email: 'coach@school.org' };
-const PLAYER = { uid: 'alex1', email: 'alex@school.org' };
+const PLAYER = { uid: 'amir1', email: 'amir@school.org' };
 const STRANGER = { uid: 'rando', email: 'rando@gmail.com' };
 
 const TEAM = 'team1';
@@ -136,7 +136,7 @@ describe('first run', () => {
                 archived: false, createdBy: COACH.uid,
             });
             await setDoc(doc(admin, 'teams', TEAM, 'players', 'p1'), {
-                name: 'Alex Vega', jerseyNumber: 9,
+                name: 'Amir Vance', jerseyNumber: 9,
                 emailLower: PLAYER.email, linkedUid: null, active: true,
             });
             await setDoc(doc(admin, 'invites', PLAYER.email, 'from', TEAM), {

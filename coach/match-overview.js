@@ -3,20 +3,20 @@
 //
 // One of the coach page's modules; `coach.js` loads them and wires the page up.
 
-import { cvConfidence, cvStatsByPlayer, cvReportFields } from '../shared/db.js?v=148';
-import { isSample } from '../shared/sample-report.js?v=148';
+import { cvConfidence, cvStatsByPlayer, cvReportFields } from '../shared/db.js?v=149';
+import { isSample } from '../shared/sample-report.js?v=149';
 import {
     cvQualityNotes, roughDuration, hasVerdict, currentAnswers, groupStats, teamStatRows,
     taggedTeamRows, taggedCount, trackedCoverage, metresPerMinute, TRACKED_SHARE_FLOOR,
     shotLedger, headerCorrection, clockFromMatch, blindSplit, isKeeper, groupByPosition,
     minutesNote, FROM_LAST_TAG, matchBrief, cvReads,
-} from '../shared/report.js?v=148';
-import { CARD_COLOURS } from '../shared/events.js?v=148';
-import { mountRail } from '../shared/rail.js?v=148';
+} from '../shared/report.js?v=149';
+import { CARD_COLOURS } from '../shared/events.js?v=149';
+import { mountRail } from '../shared/rail.js?v=149';
 import {
     byId, setText, clockText, plural, statGroup, cardChips, stackBar,
-} from '../shared/ui.js?v=148';
-import { activeCv, state, teamLabels } from './shell.js?v=148';
+} from '../shared/ui.js?v=149';
+import { activeCv, state, teamLabels } from './shell.js?v=149';
 
 /**
  * The whole match as boxes, sorted into the questions they answer.

@@ -202,7 +202,7 @@ describe('the review reaches the numbers a player sees', () => {
         { cluster_id: 0, track_ids: [3, 4] },
         { cluster_id: 1, track_ids: [9] },
     ];
-    const mapping = { 0: 'alex', 1: 'sam' };
+    const mapping = { 0: 'amir', 1: 'sam' };
     const tracks = [
         { cluster_id: 0, passes_attempted: 10, passes_completed: 8, carries: 4,
           tackles: 2, interceptions: 1, recoveries: 1, touches: 40,
@@ -220,8 +220,8 @@ describe('the review reaches the numbers a player sees', () => {
 
     test('with no review the figures are the pipeline\'s own', () => {
         const plain = report.cvStatsByPlayer(tracks, mapping);
-        assert.equal(plain.alex.passes_attempted, 10);
-        assert.equal(plain.alex.reviewed, undefined);
+        assert.equal(plain.amir.passes_attempted, 10);
+        assert.equal(plain.amir.reviewed, undefined);
     });
 
     test('a rejected pass leaves both halves of the accuracy', () => {
@@ -229,9 +229,9 @@ describe('the review reaches the numbers a player sees', () => {
             [ev('e1', 'pass', 3, { outcome: 'completed' })],
             { e1: { status: 'rejected' } },
         );
-        assert.equal(out.alex.passes_attempted, 9);
-        assert.equal(out.alex.passes_completed, 7);
-        assert.equal(out.alex.passAccuracy, 7 / 9);
+        assert.equal(out.amir.passes_attempted, 9);
+        assert.equal(out.amir.passes_completed, 7);
+        assert.equal(out.amir.passAccuracy, 7 / 9);
     });
 
     test('an incomplete pass rejected takes only the attempt', () => {
@@ -239,13 +239,13 @@ describe('the review reaches the numbers a player sees', () => {
             [ev('e1', 'pass', 3, { outcome: 'incomplete' })],
             { e1: { status: 'rejected' } },
         );
-        assert.equal(out.alex.passes_attempted, 9);
-        assert.equal(out.alex.passes_completed, 8);
+        assert.equal(out.amir.passes_attempted, 9);
+        assert.equal(out.amir.passes_completed, 8);
     });
 
     test('a confirmed event changes nothing', () => {
         const out = stats([ev('e1', 'pass', 3)], { e1: { status: 'confirmed' } });
-        assert.equal(out.alex.passes_attempted, 10);
+        assert.equal(out.amir.passes_attempted, 10);
     });
 
     test('an unreviewed event stays counted', () => {
@@ -253,15 +253,15 @@ describe('the review reaches the numbers a player sees', () => {
         // human confirmed would wipe out the match.
         const out = stats([ev('e1', 'pass', 3), ev('e2', 'pass', 3)],
             { e1: { status: 'rejected' } });
-        assert.equal(out.alex.passes_attempted, 9);
+        assert.equal(out.amir.passes_attempted, 9);
     });
 
     test('a retyped event moves from one counter to the other', () => {
         const out = stats([ev('e1', 'pass', 3, { outcome: 'completed' })],
             { e1: { status: 'edited', type: 'tackle' } });
-        assert.equal(out.alex.passes_attempted, 9);
-        assert.equal(out.alex.passes_completed, 7);
-        assert.equal(out.alex.tackles, 3);
+        assert.equal(out.amir.passes_attempted, 9);
+        assert.equal(out.amir.passes_completed, 7);
+        assert.equal(out.amir.tackles, 3);
     });
 
     test('an event reassigned to another player moves whole', () => {
@@ -269,28 +269,28 @@ describe('the review reaches the numbers a player sees', () => {
         // the cluster mapping got wrong, without redoing the mapping.
         const out = stats([ev('e1', 'tackle', 3)],
             { e1: { status: 'edited', playerId: 'sam' } });
-        assert.equal(out.alex.tackles, 1);
+        assert.equal(out.amir.tackles, 1);
         assert.equal(out.sam.tackles, 1);
     });
 
     test('retyped and reassigned at once lands under both corrections', () => {
         const out = stats([ev('e1', 'pass', 3)],
             { e1: { status: 'edited', type: 'carry', playerId: 'sam' } });
-        assert.equal(out.alex.passes_attempted, 9);
+        assert.equal(out.amir.passes_attempted, 9);
         assert.equal(out.sam.carries, 2);
     });
 
     test('an edit that only renames the player it already was does nothing', () => {
         const out = stats([ev('e1', 'tackle', 3)],
-            { e1: { status: 'edited', playerId: 'alex' } });
-        assert.equal(out.alex.tackles, 2);
+            { e1: { status: 'edited', playerId: 'amir' } });
+        assert.equal(out.amir.tackles, 2);
     });
 
     test('a retype into something nothing publishes just removes the original', () => {
         const out = stats([ev('e1', 'pass', 3)],
             { e1: { status: 'edited', type: 'duel' } });
-        assert.equal(out.alex.passes_attempted, 9);
-        assert.equal(out.alex.duels, undefined);
+        assert.equal(out.amir.passes_attempted, 9);
+        assert.equal(out.amir.duels, undefined);
     });
 
     test('distance, speed and touches are untouched by any verdict', () => {
@@ -301,10 +301,10 @@ describe('the review reaches the numbers a player sees', () => {
             { e1: { status: 'rejected' }, e2: { status: 'rejected' },
               e3: { status: 'rejected' } },
         );
-        assert.equal(out.alex.distance_m, 8000);
-        assert.equal(out.alex.top_speed_kmh, 27);
-        assert.equal(out.alex.sprint_count, 12);
-        assert.equal(out.alex.touches, 40);
+        assert.equal(out.amir.distance_m, 8000);
+        assert.equal(out.amir.top_speed_kmh, 27);
+        assert.equal(out.amir.sprint_count, 12);
+        assert.equal(out.amir.touches, 40);
     });
 
     test('a counter cannot be driven below zero', () => {
@@ -314,25 +314,25 @@ describe('the review reaches the numbers a player sees', () => {
             events.push(ev(`e${i}`, 'tackle', 3));
             rejected[`e${i}`] = { status: 'rejected' };
         }
-        assert.equal(stats(events, rejected).alex.tackles, 0);
+        assert.equal(stats(events, rejected).amir.tackles, 0);
     });
 
     test('a shot is left to the ledger rather than counted twice', () => {
         // `correctedShotMarks` already decides a shot's fate. A second
         // subtraction here would take it off the total twice.
         const out = stats([ev('e1', 'shot', 3)], { e1: { status: 'rejected' } });
-        assert.equal(out.alex.shots, undefined);
+        assert.equal(out.amir.shots, undefined);
     });
 
     test('a correction for an unmapped figure is dropped, not invented', () => {
         const out = stats([ev('e1', 'pass', 77)], { e1: { status: 'rejected' } });
-        assert.equal(out.alex.passes_attempted, 10);
+        assert.equal(out.amir.passes_attempted, 10);
     });
 
     test('a corrected player is marked as corrected', () => {
         // A number that silently moved between two visits looks like a bug.
         const out = stats([ev('e1', 'pass', 3)], { e1: { status: 'rejected' } });
-        assert.equal(out.alex.reviewed, true);
+        assert.equal(out.amir.reviewed, true);
         assert.equal(out.sam.reviewed, undefined);
     });
 });

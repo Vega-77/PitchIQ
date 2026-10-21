@@ -806,19 +806,19 @@ test('opening a second player replaces the first one, rail included', async () =
         row.click();
     };
 
-    open('Alex Vega');
+    open('Amir Vance');
     await settle();
-    assert.equal(text('pv-name'), 'Alex Vega');
-    const alex = text('pv-rail');
-    assert.match(alex, /2 matches|Matches/, 'the rail carries no facts at all');
-    assert.match(alex, /152/, "Alex's minutes are missing from the rail");
+    assert.equal(text('pv-name'), 'Amir Vance');
+    const amir = text('pv-rail');
+    assert.match(amir, /2 matches|Matches/, 'the rail carries no facts at all');
+    assert.match(amir, /152/, "Amir's minutes are missing from the rail");
 
     open('Rae Nkemelu');
     await settle();
     assert.equal(text('pv-name'), 'Rae Nkemelu');
     const rae = text('pv-rail');
-    assert.notEqual(rae, alex, 'the rail beside the second player is the first');
-    assert.doesNotMatch(rae, /152/, "the rail still shows Alex's minutes");
+    assert.notEqual(rae, amir, 'the rail beside the second player is the first');
+    assert.doesNotMatch(rae, /152/, "the rail still shows Amir's minutes");
     assert.match(rae, /without a clock/, 'a season with no measured minutes reads as measured');
 });
 
@@ -1090,14 +1090,14 @@ test('publishing says so on the page the coach is looking at', async () => {
             .map((path) => { const r = snapshotOf(path); return [r.playerName, r]; }),
     );
     assert.deepEqual(Object.keys(written).sort(),
-        ['Alex Vega', 'Rae Nkemelu', 'Sam Okonjo']);
-    assert.equal(written['Alex Vega'].minutesPlayed, 30, 'came off on 30');
+        ['Amir Vance', 'Rae Nkemelu', 'Sam Okonjo']);
+    assert.equal(written['Amir Vance'].minutesPlayed, 30, 'came off on 30');
     assert.equal(written['Sam Okonjo'].minutesPlayed, 60, 'came on on 30');
     assert.equal(written['Rae Nkemelu'].minutesPlayed, 90, 'was on throughout');
     // Only the student who has signed in gets a uid on their report; the rest
     // are claimed when they do.
     assert.equal(written['Rae Nkemelu'].linkedUid, STUDENT.uid);
-    assert.equal(written['Alex Vega'].linkedUid, null);
+    assert.equal(written['Amir Vance'].linkedUid, null);
 });
 
 test('the player portal opens a season for the student it belongs to', async () => {
@@ -1229,7 +1229,7 @@ test('a match can be tagged from the first tap to the second half', async () => 
     const picks = live.document.querySelectorAll('#roster-list .pick');
     assert.equal(picks.length, 3, 'the squad did not reach the lineup picker');
     picks.find((p) => p.textContent.includes('Rae')).click();
-    picks.find((p) => p.textContent.includes('Alex')).click();
+    picks.find((p) => p.textContent.includes('Amir')).click();
     await settle();
     assert.equal(text('starter-count'), '2');
 
@@ -1365,7 +1365,7 @@ test('a tagger who had to restart lands back in the match, not in the lineup', a
     el('btn-sub').click();
     await settle();
     const back = live.document.querySelectorAll('#sub-on-list .pick')
-        .find((p) => p.textContent.includes('Alex Vega'));
+        .find((p) => p.textContent.includes('Amir Vance'));
     assert.ok(back, 'a substituted player cannot come back on');
     assert.match(back.textContent, /been on/);
 });
@@ -1387,7 +1387,7 @@ test('a lineup saved before kick-off survives a reload of the tablet', async () 
     };
     roster('p-rae', 'Rae Nkemelu', 7, true);
     roster('p-sam', 'Sam Okonjo', 14, true);
-    roster('p-alex', 'Alex Vega', 9, false);
+    roster('p-amir', 'Amir Vance', 9, false);
 
     await openPage({
         html: 'live-tagging/index.html',
@@ -1428,7 +1428,7 @@ test('a lineup saved before kick-off survives a reload of the tablet', async () 
     const pick = (name) => live.document.querySelectorAll('#roster-list .pick')
         .find((row) => row.textContent.includes(name));
     pick('Sam').click();
-    pick('Alex').click();
+    pick('Amir').click();
     await settle();
     assert.equal(text('starter-count'), '2');
 
@@ -1437,7 +1437,7 @@ test('a lineup saved before kick-off survives a reload of the tablet', async () 
     assert.match(activeView(), /view-kickoff/, 'the correction did not save');
 
     const lineup = stints('match-2');
-    assert.deepEqual(lineup['Alex Vega'],
+    assert.deepEqual(lineup['Amir Vance'],
         { on: true, v: 1, stints: [{ inS: 0, outS: null }] });
     // Dropped, and dropped all the way: a player who no longer starts has no
     // stint at all, not one of zero length.
@@ -1446,7 +1446,7 @@ test('a lineup saved before kick-off survives a reload of the tablet', async () 
 
     const saved = (id) =>
         snapshotOf(`teams/${TEAM_ID}/matches/match-2/roster/${id}`).isStarter;
-    assert.deepEqual([saved('p-rae'), saved('p-alex'), saved('p-sam')],
+    assert.deepEqual([saved('p-rae'), saved('p-amir'), saved('p-sam')],
         [true, true, false], 'the corrected lineup is not what was picked');
 });
 
@@ -1557,21 +1557,21 @@ test('a refused undo leaves the roster the way the record has it', async () => {
     await settle();
     const logged = entries(MATCH_ID).length;
 
-    // Rae off, Alex on — the only two the fixture allows, and it puts them on
+    // Rae off, Amir on — the only two the fixture allows, and it puts them on
     // opposite sides of the sheet.
     el('btn-sub').click();
     await settle();
     live.document.querySelectorAll('#sub-off-list .pick')
         .find((p) => p.textContent.includes('Rae')).click();
     live.document.querySelectorAll('#sub-on-list .pick')
-        .find((p) => p.textContent.includes('Alex')).click();
+        .find((p) => p.textContent.includes('Amir')).click();
     await settle();
     el('btn-sub-confirm').click();
     await settle();
 
     assert.equal(entries(MATCH_ID).length, logged + 1, 'the substitution was not logged');
     assert.equal(stints(MATCH_ID)['Rae Nkemelu'].on, false, 'Rae did not come off');
-    assert.equal(stints(MATCH_ID)['Alex Vega'].on, true, 'Alex did not come on');
+    assert.equal(stints(MATCH_ID)['Amir Vance'].on, true, 'Amir did not come on');
 
     refuseWrites('permission denied');
     el('btn-undo').click();
@@ -1583,12 +1583,12 @@ test('a refused undo leaves the roster the way the record has it', async () => {
         'the refused undo deleted the entry anyway');
     assert.equal(stints(MATCH_ID)['Rae Nkemelu'].on, false,
         'the refused undo put Rae back in the record');
-    assert.equal(stints(MATCH_ID)['Alex Vega'].on, true,
-        'the refused undo took Alex out of the record');
+    assert.equal(stints(MATCH_ID)['Amir Vance'].on, true,
+        'the refused undo took Amir out of the record');
 
     // And the screen agrees with it. This is the assertion that failed before:
     // the roster was left reverted, so the goal sheet offered Rae — who the
-    // record has on the bench — and not Alex, who is on the field.
+    // record has on the bench — and not Amir, who is on the field.
     live.document.querySelectorAll('.ev')
         .find((b) => b.dataset.event === 'goal').click();
     await settle();
@@ -1597,7 +1597,7 @@ test('a refused undo leaves the roster the way the record has it', async () => {
 
     const offered = live.document.querySelectorAll('#player-choices .pick')
         .map((p) => p.textContent).join(' / ');
-    assert.ok(offered.includes('Alex'),
+    assert.ok(offered.includes('Amir'),
         `a goal cannot be given to the player who is on: ${offered}`);
     assert.ok(!offered.includes('Rae'),
         `a goal can be given to a player the record has on the bench: ${offered}`);
@@ -1833,7 +1833,7 @@ test('a student whose season has not started is not shown somebody else\'s', asy
     assert.ok(!shown('loading'));
     const body = live.document.body.textContent;
     assert.doesNotMatch(body, /NaN|undefined|Infinity/);
-    assert.doesNotMatch(body, /Alex Vega/, "another player's season is on screen");
+    assert.doesNotMatch(body, /Amir Vance/, "another player's season is on screen");
 });
 
 
@@ -1863,7 +1863,7 @@ test('where each player played is drawn from the coach\'s own mapping', async ()
     assert.equal(rows.length, 2, 'a bar was drawn for a figure nobody has named');
 
     const names = rows.map((r) => r.querySelector('.shape-name').textContent);
-    assert.deepEqual(names, ['Rae Nkemelu', 'Alex Vega'],
+    assert.deepEqual(names, ['Rae Nkemelu', 'Amir Vance'],
         'the bars are not in order of how far up the pitch they averaged');
 
     // The figure beside the bar, and the bar itself, have to be the same

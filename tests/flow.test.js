@@ -26,7 +26,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 const COACH = { uid: 'coach1', email: 'coach@school.org' };
 const ASSISTANT = { uid: 'assist1', email: 'assistant@school.org' };
-const PLAYER = { uid: 'alex1', email: 'alex@school.org' };
+const PLAYER = { uid: 'amir1', email: 'amir@school.org' };
 
 const TEAM = 'team1';
 const MATCH = 'match1';
@@ -109,7 +109,7 @@ beforeEach(async () => {
             archived: false, createdBy: COACH.uid,
         });
         await setDoc(doc(db, 'teams', TEAM, 'players', 'p1'), {
-            name: 'Alex Vega', jerseyNumber: 9,
+            name: 'Amir Vance', jerseyNumber: 9,
             emailLower: PLAYER.email, linkedUid: PLAYER.uid, active: true,
         });
         await setDoc(doc(db, 'teams', TEAM, 'players', 'p2'), {
@@ -228,7 +228,7 @@ describe('substitutions', () => {
         const db = as(COACH);
         const batch = writeBatch(db);
         batch.set(rosterPath(db, 'p1'), {
-            playerName: 'Alex Vega', jerseyNumber: 9, isStarter: true,
+            playerName: 'Amir Vance', jerseyNumber: 9, isStarter: true,
             isActive: true, stints: [{ inS: 0, outS: null }], version: 0,
         });
         batch.set(rosterPath(db, 'p2'), {
@@ -361,12 +361,12 @@ describe('publishing and the player portal', () => {
 
         const batch = writeBatch(coachDb);
         batch.set(doc(coachDb, 'teams', TEAM, 'matches', 'match1', 'playerReports', 'p1'), {
-            linkedUid: PLAYER.uid, published: true, playerName: 'Alex Vega',
+            linkedUid: PLAYER.uid, published: true, playerName: 'Amir Vance',
             jerseyNumber: 9, minutesPlayed: 90, goals: 1, stints: [],
             matchDate: '2026-07-01', opponentName: 'Linden', teamName: 'South Brunswick',
         });
         batch.set(doc(coachDb, 'teams', TEAM, 'matches', 'match2', 'playerReports', 'p1'), {
-            linkedUid: PLAYER.uid, published: true, playerName: 'Alex Vega',
+            linkedUid: PLAYER.uid, published: true, playerName: 'Amir Vance',
             jerseyNumber: 9, minutesPlayed: 45, goals: 0, stints: [],
             matchDate: '2026-07-08', opponentName: 'Edison', teamName: 'South Brunswick',
         });
@@ -412,7 +412,7 @@ describe('publishing and the player portal', () => {
         const coachDb = as(COACH);
         const ref = doc(coachDb, 'teams', TEAM, 'matches', 'match1', 'playerReports', 'p1');
         const base = {
-            linkedUid: PLAYER.uid, published: true, playerName: 'Alex Vega',
+            linkedUid: PLAYER.uid, published: true, playerName: 'Amir Vance',
             jerseyNumber: 9, minutesPlayed: 90, goals: 1, stints: [],
             matchDate: '2026-07-01', opponentName: 'Linden', teamName: 'South Brunswick',
         };
@@ -726,7 +726,7 @@ describe('erasing a player', () => {
     beforeEach(async () => {
         await testEnv.withSecurityRulesDisabled(async (ctx) => {
             const db = ctx.firestore();
-            for (const [id, name, number] of [['p1', 'Alex Vega', 9], ['p2', 'Bench Guy', 15]]) {
+            for (const [id, name, number] of [['p1', 'Amir Vance', 9], ['p2', 'Bench Guy', 15]]) {
                 await setDoc(doc(db, 'teams', TEAM, 'matches', MATCH, 'roster', id), {
                     playerName: name, jerseyNumber: number,
                     isStarter: true, isActive: true,
@@ -828,7 +828,7 @@ describe('erasing a player', () => {
         // Pseudonymous, and that is the point: what is left is an id that now
         // resolves to nobody.
         assert.equal(entry.data().subOutId, 'p1');
-        assert.ok(!JSON.stringify(entry.data()).includes('Alex'));
+        assert.ok(!JSON.stringify(entry.data()).includes('Amir'));
     });
 
     it('removes the invitation, which is where the email address lived', async () => {

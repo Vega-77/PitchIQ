@@ -27,7 +27,7 @@
 // figure from twelve tracked minutes and one from seventy are not the same kind
 // of evidence, and nothing else on the chart says which is which.
 
-import { svgEl as el } from './svg.js?v=148';
+import { svgEl as el } from './svg.js?v=149';
 
 const W = 100;
 const H = 32;

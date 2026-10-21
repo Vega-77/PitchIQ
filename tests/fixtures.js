@@ -163,7 +163,7 @@ export async function filmed() {
     // untested.
     //
     // Assigned so the two *mapped* figures agree with the roster they are
-    // mapped to: cluster 0 is p-rae, a midfielder, and cluster 3 is p-alex, a
+    // mapped to: cluster 0 is p-rae, a midfielder, and cluster 3 is p-amir, a
     // forward. A fixture that put the forward behind the midfielder would make
     // the block's out-of-line remark fire on a fixture nobody designed to
     // produce one, and every later test would then be written against it.
@@ -191,7 +191,7 @@ export async function filmed() {
         // and the per-player video stats draw at all. The other four are the
         // work still in front of the coach.
         [`${base}/cvMapping/players`]: {
-            byCluster: { 0: 'p-rae', 3: 'p-alex' },
+            byCluster: { 0: 'p-rae', 3: 'p-amir' },
             updatedBy: COACH.uid,
         },
         [`${base}/cvStats/events`]: {
@@ -231,8 +231,8 @@ export function fixture() {
             name: 'Rae Nkemelu', jerseyNumber: 7, emailLower: STUDENT.email,
             position: 'mid', linkedUid: STUDENT.uid, active: true,
         }],
-        [`teams/${TEAM_ID}/players/p-alex`, {
-            name: 'Alex Vega', jerseyNumber: 9, emailLower: '',
+        [`teams/${TEAM_ID}/players/p-amir`, {
+            name: 'Amir Vance', jerseyNumber: 9, emailLower: '',
             position: 'fwd', linkedUid: null, active: true,
         }],
         [`teams/${TEAM_ID}/players/p-sam`, {
@@ -257,8 +257,8 @@ export function fixture() {
             playerName: 'Rae Nkemelu', jerseyNumber: 7, isStarter: true,
             isActive: true, stints: [{ inS: 0, outS: null }], version: 0,
         }],
-        [`teams/${TEAM_ID}/matches/${MATCH_ID}/roster/p-alex`, {
-            playerName: 'Alex Vega', jerseyNumber: 9, isStarter: true,
+        [`teams/${TEAM_ID}/matches/${MATCH_ID}/roster/p-amir`, {
+            playerName: 'Amir Vance', jerseyNumber: 9, isStarter: true,
             isActive: false, stints: [{ inS: 0, outS: 1800 }], version: 1,
         }],
         [`teams/${TEAM_ID}/matches/${MATCH_ID}/roster/p-sam`, {
@@ -276,15 +276,15 @@ export function fixture() {
             finalized: true, scoreUs: 0, scoreThem: 3, createdBy: COACH.uid,
         }],
 
-        report('match-0', 'p-alex', {
-            playerName: 'Alex Vega', jerseyNumber: 9, minutesPlayed: 90,
+        report('match-0', 'p-amir', {
+            playerName: 'Amir Vance', jerseyNumber: 9, minutesPlayed: 90,
             goals: 2, assists: 1, fouls: 3, matchDate: '2026-08-07',
             opponentName: 'Westbrook', scoreUs: 2, scoreThem: 2,
             cvTouches: 54, cvPassesAttempted: 41, cvPassesCompleted: 31,
             cvDistanceM: 9200,
         }),
-        report('match-00', 'p-alex', {
-            playerName: 'Alex Vega', jerseyNumber: 9, minutesPlayed: 62,
+        report('match-00', 'p-amir', {
+            playerName: 'Amir Vance', jerseyNumber: 9, minutesPlayed: 62,
             goals: 0, assists: 0, fouls: 1, matchDate: '2026-07-31',
             opponentName: 'Southbank', scoreUs: 0, scoreThem: 3,
         }),
@@ -305,7 +305,7 @@ export function fixture() {
         log('dev-a_000001', { kind: 'period', type: 'kickoff_1st', side: null, seq: 1 }),
         log('dev-a_000002', { type: 'corner', matchClockS: 320, seq: 2 }),
         log('dev-a_000003', {
-            type: 'goal', matchClockS: 940, playerId: 'p-alex',
+            type: 'goal', matchClockS: 940, playerId: 'p-amir',
             assistPlayerId: 'p-rae', seq: 3,
         }),
         log('dev-a_000004', {
@@ -315,7 +315,7 @@ export function fixture() {
         log('dev-a_000005', { type: 'foul', matchClockS: 1500, side: 'us', seq: 5 }),
         log('dev-a_000006', {
             kind: 'sub', type: 'sub', matchClockS: 1800, side: 'us',
-            subOutId: 'p-alex', subInId: 'p-sam', seq: 6,
+            subOutId: 'p-amir', subInId: 'p-sam', seq: 6,
         }),
         log('dev-a_000007', { type: 'corner', matchClockS: 2100, side: 'them', seq: 7 }),
         log('dev-a_000008', {

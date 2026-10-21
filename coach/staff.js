@@ -3,11 +3,11 @@
 //
 // One of the coach page's modules; `coach.js` loads them and wires the page up.
 
-import { updateTeamKit, getTeam, listStaff, inviteCoach, removeCoach } from '../shared/db.js?v=148';
-import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=148';
-import { byId, toast, kitPicker } from '../shared/ui.js?v=148';
-import { state } from './shell.js?v=148';
-import { renderHero } from './season.js?v=148';
+import { updateTeamKit, getTeam, listStaff, inviteCoach, removeCoach } from '../shared/db.js?v=149';
+import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=149';
+import { byId, toast, kitPicker } from '../shared/ui.js?v=149';
+import { state } from './shell.js?v=149';
+import { renderHero } from './season.js?v=149';
 
 // ---------------------------------------------------------------- staff
 

@@ -875,7 +875,7 @@ shim was filed as a dependency when it is a file in `tests/`.
 **Every test here was checked the only way a test can be.** Each historic bug
 was reinstated in the working tree and the suite re-run: it fails with
 `ReferenceError: updateOnlineIndicator is not defined`, with *"the rail still
-shows Alex's minutes"*, and — once the fake Firestore could go offline — on the
+shows Amir's minutes"*, and — once the fake Firestore could go offline — on the
 `await`-then-render that left the tablet dead at a field with no signal. A suite
 that passes on fixed code has proved nothing until it has failed on the broken
 code.
@@ -3790,7 +3790,7 @@ scratch.
 
       So naming a figure now opens a shortlist under it: **the other figures
       that could be this same person**, each with a picture, and one press to
-      say so. Press it again to undo. The row's own line becomes "Alex Vega is
+      say so. Press it again to undo. The row's own line becomes "Amir Vance is
       2 figures · change", which is also the first time the app has said out
       loud that a player was assembled from more than one.
 
@@ -7435,7 +7435,7 @@ than the workaround, which matters given the data class.
       **Half of that sentence was wrong, and it was closed the next day.** A
       headless browser is a dependency; a DOM shim is a file in `tests/`. See
       Testing Strategy: reinstating this bug now fails `tests/smoke.test.js`
-      with *"the rail still shows Alex's minutes"*.
+      with *"the rail still shows Amir's minutes"*.
 
 - [x] **A coach and a player now read one season, not two shapes of it**
       (2026-08-15). Giving the player portal grouped sections and a rail left

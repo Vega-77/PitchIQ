@@ -31,7 +31,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const COACH = { uid: 'coach1', email: 'coach@school.org' };
 const ASSISTANT = { uid: 'assist1', email: 'assistant@school.org' };
 const TAGGER = { uid: 'tagger1', email: 'tagger@school.org' };
-const PLAYER = { uid: 'player1', email: 'alex@school.org' };
+const PLAYER = { uid: 'player1', email: 'amir@school.org' };
 const OTHER = { uid: 'player2', email: 'jordan@school.org' };
 const STRANGER = { uid: 'rando', email: 'rando@gmail.com' };
 
@@ -111,7 +111,7 @@ beforeEach(async () => {
 
     // Unclaimed roster slot for PLAYER, plus a claimed one for OTHER.
     await setDoc(doc(db, 'teams', TEAM, 'players', 'p1'), {
-      name: 'Alex Vega', jerseyNumber: 9,
+      name: 'Amir Vance', jerseyNumber: 9,
       emailLower: PLAYER.email, linkedUid: null, active: true,
     });
     await setDoc(doc(db, 'teams', TEAM, 'players', 'p2'), {
@@ -132,7 +132,7 @@ beforeEach(async () => {
     });
 
     await setDoc(doc(db, 'teams', TEAM, 'matches', MATCH, 'roster', 'p1'), {
-      playerName: 'Alex Vega', jerseyNumber: 9,
+      playerName: 'Amir Vance', jerseyNumber: 9,
       isStarter: true, isActive: true, stints: [{ inS: 0, outS: null }], version: 0,
     });
 
@@ -1116,7 +1116,7 @@ describe('claiming a roster slot', () => {
   it('works for a mixed-case Google Workspace address', async () => {
     // Workspace returns John.Smith@school.org where Gmail returns lowercase.
     // This is the case that passes local testing and fails in production.
-    const db = as({ uid: PLAYER.uid, email: 'Alex@School.org' });
+    const db = as({ uid: PLAYER.uid, email: 'Amir@School.org' });
     await assertSucceeds(updateDoc(slot(db), { linkedUid: PLAYER.uid }));
   });
 
@@ -1366,7 +1366,7 @@ describe('write validation', () => {
     await assertFails(updateDoc(ref, { name: '' }));
     await assertFails(updateDoc(ref, { jerseyNumber: 4000 }));
     await assertFails(updateDoc(ref, { jerseyNumber: 'nine' }));
-    await assertSucceeds(updateDoc(ref, { name: 'Alexander Vega', jerseyNumber: 10 }));
+    await assertSucceeds(updateDoc(ref, { name: 'Amir R. Vance', jerseyNumber: 10 }));
   });
 
   it('bounds the match-day copy of a name the same way as the original', async () => {
@@ -1395,7 +1395,7 @@ describe('write validation', () => {
     const base = { emailLower: PLAYER.email, teamIds: [] };
     await assertFails(setDoc(ref, { ...base, displayName: 'x'.repeat(500) }));
     await assertFails(setDoc(ref, { ...base, lastPlayerRef: 'x'.repeat(500) }));
-    await assertSucceeds(setDoc(ref, { ...base, displayName: 'Alex' }));
+    await assertSucceeds(setDoc(ref, { ...base, displayName: 'Amir' }));
   });
 });
 

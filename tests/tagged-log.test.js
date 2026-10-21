@@ -287,11 +287,11 @@ describe('what a printed sheet says about itself', () => {
         // The three things a page loses the moment it leaves the browser, and
         // the three somebody will ask of it in three months.
         const stamp = report.printStamp({
-            subject: 'Alex Vega',
+            subject: 'Amir Vance',
             matchLine: 'vs Linden · 2 May 2026',
             printedAt: day,
         });
-        assert.match(stamp, /Alex Vega/);
+        assert.match(stamp, /Amir Vance/);
         assert.match(stamp, /vs Linden/);
         assert.match(stamp, /printed/);
     });
@@ -323,19 +323,19 @@ describe('what a printed sheet says about itself', () => {
     test('an estimated report says so on the same line', () => {
         // The quality banner travels onto the page, but a page can be read out
         // loud from across a room without it. This line is on every sheet.
-        const stamp = report.printStamp({ subject: 'Alex Vega', estimated: true });
+        const stamp = report.printStamp({ subject: 'Amir Vance', estimated: true });
         assert.match(stamp, /estimated from video/);
         // And what the marks beside those figures are. On screen they carry a
         // title attribute; on paper three bare dots read as a reference to a
         // footnote that is not there.
         assert.match(stamp, /marked ···/);
-        assert.doesNotMatch(report.printStamp({ subject: 'Alex Vega' }),
+        assert.doesNotMatch(report.printStamp({ subject: 'Amir Vance' }),
             /estimated from video/);
     });
 
     test('an unusable date is dropped rather than printed as nonsense', () => {
-        const stamp = report.printStamp({ subject: 'Alex Vega', printedAt: 'not a date' });
-        assert.equal(stamp, 'Alex Vega');
+        const stamp = report.printStamp({ subject: 'Amir Vance', printedAt: 'not a date' });
+        assert.equal(stamp, 'Amir Vance');
         assert.doesNotMatch(stamp, /Invalid/);
     });
 

@@ -47,7 +47,7 @@ describe('seasonMoments', () => {
 });
 
 describe('matchBrief', () => {
-    const roster = [{ id: 'p1', playerName: 'Alex Vega' }, { id: 'p2', playerName: 'Rae Nkemelu' }];
+    const roster = [{ id: 'p1', playerName: 'Amir Vance' }, { id: 'p2', playerName: 'Rae Nkemelu' }];
     const counts = (us, them) => ({ us: { goal: us }, them: { goal: them } });
     const goal = (side, s, playerId) => ({ kind: 'event', type: 'goal', side, matchClockS: s, playerId });
     const row = (label, usN, themN, better = 'high', extra = {}) => ({
@@ -60,7 +60,7 @@ describe('matchBrief', () => {
             roster, counts: counts(2, 1), status: 'full_time',
         });
         assert.equal(first.title, 'Won 2–1');
-        assert.equal(first.detail, 'Scored by Alex Vega 16′, Alex Vega 51′.');
+        assert.equal(first.detail, 'Scored by Amir Vance 16′, Amir Vance 51′.');
         assert.equal(first.tone, 'good');
     });
 

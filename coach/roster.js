@@ -6,11 +6,11 @@
 import {
     listPlayers, addPlayer, invitePlayer, setPlayerActive, setPlayerPosition, playerFootprint,
     erasePlayer,
-} from '../shared/db.js?v=148';
-import { erasureNote, POSITIONS, positionOf } from '../shared/report.js?v=148';
-import { byId, toast } from '../shared/ui.js?v=148';
-import { state } from './shell.js?v=148';
-import { openPlayer } from './player-view.js?v=148';
+} from '../shared/db.js?v=149';
+import { erasureNote, POSITIONS, positionOf } from '../shared/report.js?v=149';
+import { byId, toast } from '../shared/ui.js?v=149';
+import { state } from './shell.js?v=149';
+import { openPlayer } from './player-view.js?v=149';
 
 // ---------------------------------------------------------------- roster
 

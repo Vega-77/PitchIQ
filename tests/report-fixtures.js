@@ -6,7 +6,7 @@ export const ME = 'p1';
 export const MATE = 'p2';
 
 export const roster = [
-    { id: ME, playerName: 'Alex Vega' },
+    { id: ME, playerName: 'Amir Vance' },
     { id: MATE, playerName: 'Jordan Cho' },
 ];
 
