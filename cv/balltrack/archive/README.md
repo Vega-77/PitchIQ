@@ -16,7 +16,7 @@ folder (`HERE`, `S2`). To rerun one, `git mv` it back first.
 
 | what | scripts |
 |---|---|
-| earlier Crop Lab rounds: sheets and hints (their labels are in `labdb5/crops/`) | `lab_sheets2.py`, `lab_sheets3.py`, `lab_sheets4.py` |
+| earlier Crop Lab rounds: sheets and hints (their labels are in `labdb5/crops.jsonl`) | `lab_sheets2.py`, `lab_sheets3.py`, `lab_sheets4.py` |
 | every 2D version over the labelled windows, and the queue that fed them to the 3D chain (`alltests/mkpicks_one.py` makes the shipped version for one window) | `alltests/mkpicks.py`, `alltests/q3d.py` |
 | media for the Air, Flight and Fix Labs, all answered (their labels stay; `vairscore.py`, which turns the Air Lab's into `airtruth.npz`, stays too) | `homog/vairclips.py`, `homog/vflightlab.py`, `homog/vfixclips.py` |
 | flight-gate tuning and diagnostics from before the label-free chain (`vflchain2.py`) | `homog/vfltune.py`, `homog/vflapply.py`, `homog/vflfix.py`, `homog/vflfp.py`, `homog/vairwhy.py`, `homog/vfl1.py`, `homog/vfl2.py`, `homog/vfl3.py` |

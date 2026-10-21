@@ -153,8 +153,8 @@ Treat a wrong pick as worse than a missing one when changing anything here.
 
 ## Labels and retraining
 
-- `labdb5/crops/` holds 1520 Crop Lab labels (ball, cleat, head, otherball,
-  other, unsure). These come from the human labelling rounds.
+- `labdb5/crops.jsonl` holds 1520 Crop Lab labels (ball, cleat, head,
+  otherball, other, unsure). These come from the human labelling rounds.
   `croplab/index.html` is the labelling page. Label `near` ("Beside the
   ball", added in round 6) marks a crop within a ball-width or two of the
   real ball. `train_cls.py` skips it, because it counts as a right position
@@ -162,7 +162,15 @@ Treat a wrong pick as worse than a missing one when changing anything here.
 - `retrain.sh` trains `cls_A`/`cls_B` from those labels. It needs the training
   crop caches (`trNNcrops.npz`), which are not committed. Rebuild them with
   `run.sh` over the training clip windows, then `pseudolab.py` and `crops.py`.
-- Never train on `truthdb/`; it is the test set.
+- Every lab's answers are packed one set to a file: `labdb5/crops.jsonl`,
+  `alltests/findball/labels.jsonl`, `alltests/fixlab/fixes.jsonl`,
+  `alltests/passbench/truth.jsonl`, and in `homog/` the `airlabels/clips`,
+  `flightlabels/flights` and `fl2db/flights` sets. Each line is
+  `["<name>.json", doc]`, the document exactly as the lab's database gave it.
+  A fresh download comes down as one file per document; pack it with
+  `python labels_pack.py <dir>` and delete the directory.
+- Never train on `truthdb/`; it is the test set. It stays one file per mark,
+  and `labels_pack.py` refuses to pack it.
 
 ## Known limits
 

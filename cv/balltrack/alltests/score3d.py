@@ -23,7 +23,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__)); S2 = os.path.dirname(HERE)
 PY = sys.executable
 FILES = dict(dd='ball3dd', c2='ball3d2', v1='ball3d', c3='ball3d3', c3k='ball3d3k', x1='ball3dx1', sx='ball3dsx')
-FIX = [json.load(open(p)) for p in glob.glob(os.path.join(HERE, 'fixlab', 'fixes', '*.json'))]
+FIX = [json.loads(l)[1] for l in open(os.path.join(HERE, 'fixlab', 'fixes.jsonl'))]
 
 
 def sh(d, *a):

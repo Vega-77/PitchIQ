@@ -26,9 +26,9 @@ for i, c in enumerate(man):
 lab = np.array([tt.get(a + A0, '') for a in range(n)])
 FL = S.load_truth()
 # flights you deleted in the Flight Lab: your later call, so their frames are not scored
-import glob, os
-for p_ in glob.glob(os.path.join('flightlabels', 'flights', '*.json')):
-    f_ = json.load(open(p_))
+import os
+for l_ in open(os.path.join('flightlabels', 'flights.jsonl')):
+    f_ = json.loads(l_)[1]
     if f_.get('deleted'):
         lab[f_['f0'] - A0:f_['f1'] - A0 + 1] = 'x'
 

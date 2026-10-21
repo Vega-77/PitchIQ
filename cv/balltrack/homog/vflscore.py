@@ -9,7 +9,6 @@ spot, any points under the ball, and the landing spot, linear in time.
                3D chains and the older label-tuned 3D output
   direction    angle between your take-off->landing and each method's
 """
-import glob
 import json
 import os
 
@@ -19,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def load_truth():
-    F = [json.load(open(p)) for p in glob.glob(os.path.join(HERE, 'flightlabels', 'flights', '*.json'))]
+    F = [json.loads(l)[1] for l in open(os.path.join(HERE, 'flightlabels', 'flights.jsonl'))]
     return [f for f in F if not f.get('deleted')]
 
 

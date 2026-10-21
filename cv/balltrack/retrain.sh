@@ -14,7 +14,7 @@ WM=$(ls wm[0-9][0-9].npz | sed 's/\.npz//' | tr '\n' ' ')
 "$PY" -c "
 import json,glob
 P=json.load(open('pseudo_labels.json'))
-H=[dict(tag=d['tag'],f=d['f'],j=d['j'],label=d['label']) for d in (json.load(open(p)) for p in glob.glob('labdb5/crops/*.json')) if d['label']!='unsure']
+H=[dict(tag=d['tag'],f=d['f'],j=d['j'],label=d['label']) for d in (json.loads(l)[1] for l in open('labdb5/crops.jsonl')) if d['label']!='unsure']
 json.dump(P+H,open('labels_A.json','w'))
 json.dump([r for r in P if r['label']!='ball']+H,open('labels_B.json','w'))
 print('human',len(H),'pseudo',len(P))
