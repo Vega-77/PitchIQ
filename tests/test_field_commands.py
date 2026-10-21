@@ -37,7 +37,7 @@ PREFIX = 'python -m cv.experiments.'
 # Every Markdown file that is allowed to teach somebody a command. Kept explicit
 # rather than globbed: a stray README in a scratch directory should not become
 # something the test suite defends.
-DOCS = ['FOOTAGE_DAY.md', 'docs/history/ROADMAP-archive.md', 'baselines/README.md']
+DOCS = ['FOOTAGE_DAY.md', 'ROADMAP.md', 'baselines/README.md']
 
 
 def module_names() -> list[str]:
