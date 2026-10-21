@@ -5,7 +5,7 @@ where the shape is decided, so they are mostly about the definition rather than
 the arithmetic: what counts as one possession, what "reached the final third"
 means, and which of the several plausible denominators each figure uses.
 
-Run:  .venv/Scripts/python.exe -m pytest tests/test_sequences.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_possession_sequences.py -q
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import pytest
 from pitchiq import zones
 from pitchiq.events import COMPLETED, INCOMPLETE, EventLog, Pass, Shot, DefensiveAction
 from pitchiq.pitch import Pitch
-from pitchiq.sequences import (
+from pitchiq.possession_sequences import (
     ENDED_LOST,
     ENDED_SHOT,
     ENDED_STOPPED,

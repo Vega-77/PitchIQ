@@ -83,7 +83,7 @@ from .phases import (
     phases_from_log,
 )
 from .pitch import MatchOrientation, Pitch
-from .sequences import PhaseOfPlay, Sequence, phase_of_play, sequences
+from .possession_sequences import PhaseOfPlay, Sequence, phase_of_play, sequences
 from .possession import (
     PossessionSummary,
     build_states,
