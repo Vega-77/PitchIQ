@@ -13,7 +13,7 @@ import sys
 
 import numpy as np
 
-from . import vflscore as S
+from . import score_flight_labels as S
 from .smooth_ball import runs_of
 
 A0 = 86475
