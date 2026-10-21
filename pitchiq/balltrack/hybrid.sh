@@ -6,7 +6,7 @@
 #
 #   1 run.sh           detector + people + cls_B classifier        -> <tag>.npz, <tag>cls.npz ...
 #   2 homog/vreg.py    pitch registration every 15 frames          -> homog/<tag>_reg.npz
-#   3 shipped picks    cls_B tracker (track_ball + gapfill)       -> alltests/p2d/cls_B/<tag>.npz
+#   3 shipped picks    cls_B tracker (track_ball + gap_fill)       -> alltests/p2d/cls_B/<tag>.npz
 #   4 shipped 3D       flights of the shipped picks: the air gate  -> homog/<tag>_ball3dd.npz
 #   5 tn_engine        TAPNext++ fwd + bwd over gaps <= 90 frames  -> alltests/tn/bridges_<tag>.npy
 #   6 hybrid.py        accept bridges (20 px anchors, 24 px agree) -> alltests/p2d/hyb90/<tag>.npz

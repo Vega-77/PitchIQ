@@ -2,10 +2,10 @@
 
 The full chain as it stands: detector candidates (detect_candidates), classifier
 log-odds on every candidate (cls_B), ball_tracker.track_ball on 0.75*p + 0.25*s0, then
-gapfill.fill.  Each output frame shows
+gap_fill.fill.  Each output frame shows
 
   green ring    the tracker's ball, classifier agrees (track_ball pick)
-  orange ring   the ball motion filled in across a gap (gapfill pick)
+  orange ring   the ball motion filled in across a gap (gap_fill pick)
   grey ring     no ball chosen; the classifier's best candidate, if its
                 log-odds is above 0, shown thin so you can see what the
                 tracker declined
@@ -23,7 +23,7 @@ import time
 import numpy as np
 
 from . import ball_tracker
-from . import gapfill as G
+from . import gap_fill as G
 from . import wm_cls as C
 
 S2 = os.path.dirname(os.path.abspath(__file__))

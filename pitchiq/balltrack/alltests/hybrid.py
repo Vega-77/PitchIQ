@@ -2,7 +2,7 @@
 
     python -m pitchiq.balltrack.alltests.hybrid <tag> [<tag> ...]
 
-Our tracker (cls_B: track_ball + gapfill) owns every confident pick, every kick and every
+Our tracker (cls_B: track_ball + gap_fill) owns every confident pick, every kick and every
 flight.  TAPNext only crosses the gaps between two confident picks a..b: seeded on a and run
 forward, seeded on b and run backward (tn_engine.py bridges).  A bridge is accepted only when
   - the forward track lands within ANC px of our pick at b,
@@ -12,7 +12,7 @@ forward, seeded on b and run backward (tn_engine.py bridges).  A bridge is accep
 An accepted gap takes the two tracks blended by distance from their seeds (src 3).
 Thresholds were fixed before scoring; no label was used to set them.
 
-  hyb32    bridges on gaps <= 32 frames (the gapfill's own reach), else shipped
+  hyb32    bridges on gaps <= 32 frames (the gap_fill's own reach), else shipped
   hyb90    bridges on gaps <= 90 frames, else shipped
   hyb90s   as hyb90, but a gap whose bridge is rejected is left EMPTY (shipped fill dropped):
            a wrong ring is worse than a missing one

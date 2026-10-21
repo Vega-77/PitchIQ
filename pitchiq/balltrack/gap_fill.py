@@ -22,7 +22,7 @@ anchors, whatever the classifier thinks of its crop.
 
 The ON segments come from ball_tracker.track_ball on classifier emission, unchanged.
 
-    python -m pitchiq.balltrack.gapfill           # grid, split-half tuned, needs wmNNcls.npz
+    python -m pitchiq.balltrack.gap_fill           # grid, split-half tuned, needs wmNNcls.npz
 """
 
 import itertools

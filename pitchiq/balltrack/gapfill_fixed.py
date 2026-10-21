@@ -1,4 +1,4 @@
-"""A handful of fixed gapfill settings, each scored on both halves - no
+"""A handful of fixed gap_fill settings, each scored on both halves - no
 tuning, so no split to overfit.  Wrong picks are split into those the
 fill added and those the tracker already made.
 
@@ -6,7 +6,7 @@ fill added and those the tracker already made.
 """
 
 from . import ball_tracker
-from . import gapfill as G
+from . import gap_fill as G
 from . import wm_cls as C
 from . import wm_tune as U
 
