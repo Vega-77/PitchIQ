@@ -1,0 +1,480 @@
+/* The page frame: reset and base elements, guidance notes, the top bar, one
+ * section at a time, the backdrop, the shirt and the type scale.
+ *
+ * One part of the shared stylesheet; `shared/app.css` imports the parts in
+ * cascade order, so moving a rule to another part can change what wins.
+ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; min-height: 100%; }
+
+/* Base size is 17px, not the 15px a developer would reach for by default.
+   The audience is coaches in their forties and fifties reading outdoors and on
+   phones, and presbyopia starts around then — small type is the single most
+   common reason software feels hostile to people over about forty. Everything
+   below is sized in rem so the whole interface scales with it, and so a
+   browser's own text-size setting is honoured. */
+html { font-size: 17px; }
+
+/* The ground is a mown pitch seen from the stand: broad bands a shade apart,
+   too faint to read as a pattern until you look for it, under a wash of the
+   team's colour that falls in from the top corner. Neither is fixed to the
+   viewport, which looks lovely on a laptop and stutters on a phone. */
+body {
+    background:
+        radial-gradient(1100px 520px at 88% -120px,
+            color-mix(in srgb, var(--kit) 11%, transparent), transparent 72%),
+        radial-gradient(900px 420px at -10% 0,
+            color-mix(in srgb, var(--kit-2) 10%, transparent), transparent 70%),
+        repeating-linear-gradient(90deg,
+            rgba(20, 24, 32, .016) 0 84px, transparent 84px 168px),
+        var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 1rem;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+a { color: var(--accent); text-decoration: none; }
+@media (hover: hover) {
+    a:hover { color: var(--accent-hi); }
+}
+
+::selection { background: var(--kit-2); color: var(--kit-2-on); }
+
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+.hidden { display: none !important; }
+/* Secondary text stays at 0.88rem (~15px) rather than the 12-13px that is
+   conventional — it is still readable, which "small print" usually is not. */
+.muted { color: var(--text-dim); font-size: 0.88rem; }
+.grow { flex: 1; min-width: 0; }
+
+/* ---------------------------------------------------------------- guidance */
+
+/* A short instruction attached to a control, in plain language. Used wherever
+   a coach might reasonably wonder "what do I do here". */
+.help {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 12px 16px;
+    margin: 12px 0;
+}
+.help strong { color: var(--text); font-weight: 600; }
+
+/* Numbered "do this next" list for first-time setup. */
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.steps li {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+}
+.steps li:last-child { border-bottom: none; }
+.steps li::before {
+    counter-increment: step;
+    content: counter(step);
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    border: 1px solid color-mix(in srgb, var(--accent) 48%, transparent);
+    color: var(--accent);
+    font-size: 0.8rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.steps li.done::before {
+    content: '✓';
+    background: var(--good-dim);
+    border-color: color-mix(in srgb, var(--good) 48%, transparent);
+    color: var(--good);
+}
+.steps .step-body { flex: 1; }
+.steps .step-title { font-weight: 600; color: var(--text); }
+.steps .step-note { color: var(--text-faint); font-size: 0.86rem; margin-top: 2px; }
+
+/* ---------------------------------------------------------------- chrome */
+
+/* The top bar is the shirt: the team's colour edge to edge, a band of the
+   trim along the bottom, and two sleeve stripes at the far end. The contents
+   still line up with the column beneath — the padding is whatever puts them
+   there — so the colour runs the width of the window and the brand does not.
+   `--bar` is that column's width; the match report widens it.
+
+   The stripes are their own background layer, only as wide as the margin
+   outside the column, so they can never run under a button: on a window too
+   narrow to have a margin the layer is zero wide and they are simply not
+   there. */
+.topbar {
+    --bar: var(--shell);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px max(24px, calc((100% - var(--bar)) / 2 + 24px));
+    /* Pinned rather than left to the contents. Most pages put a .btn.small in
+       here, whose 40px min-height was silently setting the bar's height; a
+       page with only text links up there came out shorter, so the brand
+       jumped when you navigated to it. */
+    min-height: 70px;
+    flex-wrap: wrap;
+    color: var(--kit-on);
+    border-bottom: 4px solid var(--kit-2);
+    background:
+        linear-gradient(105deg,
+            transparent calc(100% - 92px),
+            var(--kit-2) calc(100% - 92px) calc(100% - 72px),
+            transparent calc(100% - 72px) calc(100% - 56px),
+            var(--kit-2) calc(100% - 56px) calc(100% - 36px),
+            transparent calc(100% - 36px))
+            right / max(0px, calc((100% - var(--bar)) / 2 + 8px)) 100% no-repeat,
+        var(--kit);
+    transition: background-color .4s ease;
+}
+
+/* The crest: a shield in the trim colour, the shape every school badge
+   starts from. Drawn, not an image, so it takes the team's colours. */
+.topbar .brand::before {
+    content: '';
+    width: 22px;
+    height: 26px;
+    align-self: center;
+    background: var(--kit-2);
+    clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%);
+    transition: transform .35s var(--ease-out);
+}
+@media (hover: hover) {
+    .topbar a.brand:hover::before { transform: rotate(-8deg) scale(1.08); }
+}
+
+.brand {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 10px;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 1.45rem;
+    line-height: 1;
+    letter-spacing: .01em;
+    text-transform: uppercase;
+    color: var(--text);
+}
+.topbar .brand,
+.topbar a.brand:hover { color: var(--kit-on); }
+.brand span {
+    font-family: var(--display);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--kit-2-on);
+    background: var(--kit-2);
+    padding: 3px 7px 2px;
+    border-radius: 3px;
+    align-self: center;
+}
+
+.topbar-user {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.86rem;
+}
+
+/* Bare text links in the top bar were 22px tall — a fine mouse target and a
+   poor thumb one, on a bar that is mostly used from a phone or a tablet on a
+   touchline. Padded to the same 40px the buttons beside them already use. */
+.topbar-user > a:not(.btn) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 4px;
+}
+
+/* Buttons on the shirt. The plain one becomes an outline in the shirt's own
+   ink, the primary one takes the trim, and a ghost is just lettering. */
+.topbar .btn {
+    background: transparent;
+    border-color: color-mix(in srgb, var(--kit-on) 45%, transparent);
+    color: var(--kit-on);
+}
+.topbar .btn.primary {
+    background: var(--kit-2);
+    border-color: var(--kit-2);
+    color: var(--kit-2-on);
+}
+.topbar .btn.ghost { border-color: transparent; color: var(--kit-on); }
+@media (hover: hover) {
+    .topbar .btn:hover {
+        background: color-mix(in srgb, var(--kit-on) 14%, var(--kit));
+        border-color: var(--kit-on);
+        color: var(--kit-on);
+    }
+    .topbar .btn.primary:hover {
+        background: var(--kit-2);
+        border-color: var(--kit-on);
+        color: var(--kit-2-on);
+    }
+}
+.topbar .muted { color: var(--kit-on); opacity: .88; }
+
+.shell { max-width: var(--shell); margin: 0 auto; padding: 0 24px 72px; }
+
+/* A large monitor. Prose is capped at 62ch by `.lede` independently of this, so
+   the extra width goes to the things that actually want it — rosters, the
+   player table, the review list — rather than to line length. Below this the
+   shell stays at 1120px, which is where the reading measure was tuned.
+
+   The match report is the exception and opts out of this entirely — see
+   `#view-match` below. */
+@media (min-width: 1500px) {
+    :root { --shell: 1280px; }
+}
+
+/* ------------------------------------------------- one section at a time
+ *
+ * The rail loads a section in rather than scrolling to it, so the report is the
+ * height of what you are reading instead of the height of everything. Set by
+ * `showSection` in shared/rail.js; the rule lives here so the two places it must not
+ * happen get it for free.
+ *
+ * **`screen` is load-bearing, not decoration.** On paper every section has to
+ * print, whichever one was on screen when Print was pressed — the rail is a way
+ * of reading, not an edit to the report. Tried it as a print override first and
+ * it was wrong: `.hidden` is `display: none !important` at one class of
+ * specificity, and any `display: block !important` written here outranks it, so
+ * the override would have revealed the blocks a match has no data for. Keeping
+ * print out of the query means there is nothing to override.
+ *
+ * Below 1180px there is no rail either, and a phone showing one section with no
+ * way to reach the rest would be a page with most of itself missing.
+ *
+ * Nothing here is `!important`, so `.hidden` still wins on screen too: a
+ * section the data says is absent cannot be revealed by being chosen.
+ */
+@media screen and (min-width: 1180px) {
+    .report-body.is-sectioned > .block,
+    .report-body.is-sectioned > .block-stack { display: none; }
+
+    /* Alone in the content area, a section takes the width — including the ones
+       that ask for half while they are sharing. Content that caps itself (the
+       pitch maps) still caps; nothing is stretched to fill. */
+    .report-body.is-sectioned > .is-showing {
+        display: block;
+        grid-column: span 2;
+    }
+}
+
+/* ---------------------------------------------------------------- backdrop */
+
+/* Pitch markings behind a header, drawn in the header's own ink so they sit
+   on the shirt colour as chalk does on grass. Masked so they dissolve rather
+   than ending on a hard edge, and pinned behind content.
+
+   The lines draw themselves once when the page arrives, and then the whole
+   drawing leans a few pixels toward the pointer (`--px`/`--py`, written by
+   shared/motion.js). Both are ornament on ornament, so the reduced-motion
+   rule switches them off and leaves the finished drawing. */
+.pitch-backdrop {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    color: inherit;
+    z-index: 0;
+    -webkit-mask-image: radial-gradient(130% 120% at 78% 10%, #000 0%, transparent 74%);
+    mask-image: radial-gradient(130% 120% at 78% 10%, #000 0%, transparent 74%);
+}
+.pitch-backdrop svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    transform: translate3d(calc(var(--px, 0) * 14px), calc(var(--py, 0) * 10px), 0) scale(1.06);
+    transition: transform .6s var(--ease-out);
+}
+.pitch-backdrop [pathLength] {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: chalk 2.2s var(--ease-out) .15s forwards;
+}
+@keyframes chalk { to { stroke-dashoffset: 0; } }
+
+/* Light falling across the markings, slowly, the way a cloud's shadow
+   crosses a pitch. */
+.pitch-backdrop::after {
+    content: '';
+    position: absolute;
+    inset: -40% -30%;
+    background: radial-gradient(
+        closest-side,
+        rgba(255, 255, 255, .14),
+        rgba(255, 255, 255, .04) 55%,
+        transparent 75%
+    );
+    animation: floodlight 30s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes floodlight {
+    0%, 100% { transform: translate3d(-18%, 4%, 0) scale(1); }
+    50%      { transform: translate3d(18%, -4%, 0) scale(1.12); }
+}
+
+/* Anything sharing a box with the backdrop needs to sit above it. */
+.has-backdrop { position: relative; }
+.has-backdrop > *:not(.pitch-backdrop) { position: relative; z-index: 1; }
+
+/* ---------------------------------------------------------------- the shirt
+ *
+ * A header painted in the team's colour: the landing hero, the welcome, a
+ * squad's season header and a player's. White lettering on the shirt, the
+ * trim for the words that matter, and the sleeve stripes in the far corner.
+ * Every one of them is a `.has-backdrop`, so the chalk lines come with it.
+ */
+.on-kit {
+    background:
+        linear-gradient(110deg,
+            transparent calc(100% - 168px),
+            var(--kit-2) calc(100% - 168px) calc(100% - 140px),
+            transparent calc(100% - 140px) calc(100% - 118px),
+            var(--kit-2) calc(100% - 118px) calc(100% - 90px),
+            transparent calc(100% - 90px)),
+        radial-gradient(120% 140% at 100% 0%, var(--kit-hi), transparent 60%),
+        var(--kit);
+    color: var(--kit-on);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lift);
+    overflow: hidden;
+}
+/* On a phone the panel is narrower than the stripes are wide, and they would
+   run through the headline. The trim becomes the hem instead. */
+@media (max-width: 720px) {
+    .on-kit {
+        background:
+            radial-gradient(120% 140% at 100% 0%, var(--kit-hi), transparent 60%),
+            var(--kit);
+        box-shadow: inset 0 -7px 0 var(--kit-2), var(--shadow-lift);
+    }
+}
+.on-kit .lede,
+.on-kit .muted,
+.on-kit .record-key { color: var(--kit-on); opacity: .86; }
+.on-kit em { font-style: normal; color: var(--kit-2-ink); }
+.on-kit .eyebrow-mini { color: var(--kit-2-ink); }
+.on-kit .btn.primary {
+    background: var(--kit-2);
+    border-color: var(--kit-2);
+    color: var(--kit-2-on);
+}
+.on-kit .btn:not(.primary) {
+    background: transparent;
+    border-color: color-mix(in srgb, var(--kit-on) 55%, transparent);
+    color: var(--kit-on);
+}
+@media (hover: hover) {
+    .on-kit .btn.primary:hover {
+        background: var(--kit-2);
+        border-color: var(--kit-on);
+        color: var(--kit-2-on);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--kit-2) 40%, transparent);
+    }
+    .on-kit .btn:not(.primary):hover {
+        background: color-mix(in srgb, var(--kit-on) 14%, var(--kit));
+        border-color: var(--kit-on);
+        color: var(--kit-on);
+    }
+}
+
+/* ---------------------------------------------------------------- type */
+
+h1 {
+    font-family: var(--display);
+    font-size: clamp(30px, 4.4vw, 44px);
+    font-weight: 800;
+    letter-spacing: -0.005em;
+    line-height: 1.02;
+    margin: 0 0 10px;
+    text-wrap: balance;
+}
+
+h2 {
+    font-family: var(--display);
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 0.005em;
+    line-height: 1.15;
+    margin: 0 0 14px;
+}
+
+/* Section heading. This is the heading on every section in the app: there is
+   no h2 tier, so pages go h1 to h3 by design. Condensed capitals behind a
+   slanted tab of the team's colour, the way a kit's number panel is set. Larger than body text on
+   purpose: uppercase letter-spaced text is harder to read than sentence case
+   at the same size, so a label this important gets more size, not less. */
+h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--display);
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--text-dim);
+    margin: 0 0 14px;
+}
+h3::before {
+    content: '';
+    flex: none;
+    width: 7px;
+    height: 18px;
+    background: var(--accent);
+    transform: skewX(-16deg);
+    border-radius: 1px;
+}
+h3::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+}
+
+h4 { font-family: var(--display); }
+
+.lede {
+    font-size: 1.08rem;
+    line-height: 1.6;
+    color: var(--text-dim);
+    max-width: 62ch;
+    margin: 0 0 26px;
+}
+
+section.block { margin-top: 46px; }
+
+/* Prose inside a block keeps a reading measure.
+ *
+ * `.lede` has capped itself at 62ch since the design system was written, and
+ * the notes under headings never did — which did not matter while every block
+ * was a column in a 1120px shell. A section showing alone on a monitor is
+ * 1300px, and the caveat under a chart was running to about 190 characters a
+ * line. The cap is a shade wider than the lede's because these are captions
+ * rather than opening paragraphs, and they sit under something. */
+section.block > p.muted { max-width: 74ch; }

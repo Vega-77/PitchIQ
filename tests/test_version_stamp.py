@@ -61,6 +61,7 @@ NOT_BROWSER = {
 # the stamper can see minus what is actually there is the drift this catches.
 LOOSE_ASSET = re.compile(r'(?:href|src)\s*=\s*(["\'])([^"\']+)\1')
 LOOSE_SPEC = re.compile(r'(?:from|import)\s*\(?\s*(["\'])(\.{1,2}/[^"\']+\.js(?:\?v=\d+)?)\1')
+LOOSE_CSS_IMPORT = re.compile(r'@import\s+(?:url\(\s*)?(["\'])([^"\']+)\1')
 
 STAMP = re.compile(r'\?v=(\d+)$')
 
@@ -87,6 +88,13 @@ def module_paths() -> list[Path]:
     return out
 
 
+def sheet_paths() -> list[Path]:
+    out: list[Path] = []
+    for directory in stamp_version.MODULE_DIRS:
+        out.extend(sorted((REPO / directory).rglob('*.css')))
+    return out
+
+
 def browser_dirs_on_disk() -> set[str]:
     """Top-level directories that hold a page or a module, found by looking."""
     found = set()
@@ -109,9 +117,9 @@ def pages_on_disk() -> set[str]:
 def references() -> list[tuple[str, str]]:
     """(file, reference) for every local asset reference in the frontend.
 
-    Both halves of the job in one list — attributes in the pages and relative
-    specifiers in the modules — because the whole point is that they have to
-    agree with each other, not merely each with itself.
+    All of the job in one list — attributes in the pages, relative specifiers
+    in the modules and imports in the stylesheets — because the whole point
+    is that they have to agree with each other, not merely each with itself.
     """
     out = []
     for path in page_paths():
@@ -123,6 +131,11 @@ def references() -> list[tuple[str, str]]:
         rel = path.relative_to(REPO).as_posix()
         for _quote, value in LOOSE_SPEC.findall(_read(path)):
             out.append((rel, value))
+    for path in sheet_paths():
+        rel = path.relative_to(REPO).as_posix()
+        for _quote, value in LOOSE_CSS_IMPORT.findall(_read(path)):
+            if _is_local_asset(value):
+                out.append((rel, value))
     return out
 
 
@@ -165,6 +178,9 @@ class TestEveryReferenceIsStamped(unittest.TestCase):
         ]
         self.assertEqual(len(found), 1, 'coach.js -> auth.js was not seen')
         self.assertTrue(STAMP.search(found[0]), found[0])
+        # And the stylesheet edge: the shared entry importing its parts.
+        parts = [ref for where, ref in references() if where == 'shared/app.css']
+        self.assertGreaterEqual(len(parts), 10, 'app.css -> styles/ was not seen')
 
 
 class TestTheStamperStillReachesEverything(unittest.TestCase):
@@ -204,6 +220,20 @@ class TestTheStamperStillReachesEverything(unittest.TestCase):
             rel = path.relative_to(REPO).as_posix()
             loose = {value.split('?')[0] for _q, value in LOOSE_SPEC.findall(text)}
             seen = {m.group(2) for m in stamp_version.IMPORT_SPEC.finditer(text)}
+            self.assertEqual(loose - seen, set(), f'{rel}: stamper blind spot')
+
+    def test_the_stamper_sees_every_import_the_stylesheets_make(self):
+        # CSS_IMPORT matches single-quoted url() only; a double-quoted or
+        # bare-string @import is valid CSS and would never be stamped.
+        for path in sheet_paths():
+            text = _read(path)
+            rel = path.relative_to(REPO).as_posix()
+            loose = {
+                value.split('?')[0]
+                for _q, value in LOOSE_CSS_IMPORT.findall(text)
+                if _is_local_asset(value)
+            }
+            seen = {m.group(2) for m in stamp_version.CSS_IMPORT.finditer(text)}
             self.assertEqual(loose - seen, set(), f'{rel}: stamper blind spot')
 
     def test_no_page_imports_from_an_inline_module_script(self):
@@ -248,6 +278,15 @@ class TestTheStamperItself(unittest.TestCase):
         once = stamp_version.IMPORT_SPEC.sub(r'\1\2?v=42\3', spec)
         self.assertEqual(once, "import { getTeam } from '../shared/db.js?v=42';")
         self.assertEqual(stamp_version.IMPORT_SPEC.sub(r'\1\2?v=42\3', once), once)
+
+    def test_a_stylesheet_import_is_restamped_and_a_double_quoted_one_escapes(self):
+        sheet = "@import url('styles/tokens.css?v=41');"
+        once = stamp_version.CSS_IMPORT.sub(r'\1\2?v=42\3', sheet)
+        self.assertEqual(once, "@import url('styles/tokens.css?v=42');")
+        self.assertEqual(stamp_version.CSS_IMPORT.sub(r'\1\2?v=42\3', once), once)
+        loose = '@import url("styles/tokens.css");'
+        self.assertEqual(list(stamp_version.CSS_IMPORT.finditer(loose)), [])
+        self.assertEqual([v for _q, v in LOOSE_CSS_IMPORT.findall(loose)], ['styles/tokens.css'])
 
     def test_a_remote_url_is_left_alone(self):
         text = '<link href="https://fonts.googleapis.com/css2?family=X">'

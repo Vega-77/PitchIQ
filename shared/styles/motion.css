@@ -1,0 +1,319 @@
+/* Motion and response: what the page does on arrival, and how it answers a
+ * pointer.
+ *
+ * One part of the shared stylesheet; `shared/app.css` imports the parts in
+ * cascade order, so moving a rule to another part can change what wins.
+ */
+
+/* ---------------------------------------------------------------- motion
+ *
+ * Two rules decide what moves here.
+ *
+ * **A length draws itself.** Every bar in this product is an argument about a
+ * quantity — 12 goals against 7, 74 tracked minutes out of 90 — and a bar that
+ * grows from nothing makes the eye follow the length rather than read the
+ * number at the end of it.
+ *
+ * **Things arrive in reading order, once, and fast.** On the pages read at a
+ * desk — the home page, the squad, a player's season — cards rise a few
+ * pixels into place as they scroll into view and figures count up to their
+ * value (shared/motion.js does both). Every movement is upward, under half a
+ * second, and finished before anyone could want to click on it. The pages
+ * used on the touchline and at half-time do not load motion.js at all: a
+ * tagger mid-match is waiting for nothing.
+ *
+ * `scaleX` rather than `width`: the widths are inline styles computed from the
+ * data, and animating from a keyframe would need a second copy of every number
+ * in the stylesheet. The transform costs no layout, and the transition on
+ * `width` that several of these already carry still handles the case that
+ * matters more — a bar whose value changes while you are looking at it.
+ *
+ * The reduced-motion block below turns all of it off. It was already here and
+ * already `!important`, which is why everything above can be added without a
+ * second thought for the people who have asked not to see it.
+ */
+
+@keyframes bar-grow {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+}
+
+.goal-bar,
+.coverage-bar,
+.press-bar > span,
+.sub-bar > span,
+.m-fill,
+.shape-fill,
+td.bar-cell .cell-bar {
+    transform-origin: left center;
+    animation: bar-grow .42s cubic-bezier(.2, .7, .3, 1) both;
+}
+
+/* Two lengths on the same track are deliberately not in that list.
+   `.shape-band` is how firmly the average is pinned down — an interval, not a
+   quantity measured from zero — and growing it from nothing would animate a
+   player's uncertainty shrinking into place, which is the opposite of what the
+   band says. `.shape-pin` is a position, and positions do not have lengths to
+   draw. */
+
+/* The two halves of a comparison grow outward from the line between them,
+   which is the thing being compared — not from the left edge of the screen. */
+.t-half.us > i { transform-origin: right center; }
+.t-half.them > i { transform-origin: left center; }
+.t-half > i { animation: bar-grow .42s cubic-bezier(.2, .7, .3, 1) both; }
+
+/* A section arriving in the middle of the page when the rail is used.
+ *
+ * The rail replaces what is on screen rather than scrolling to it, and an
+ * instant swap between two blocks of numbers reads as the page having been
+ * wrong a moment ago. Short and small — 10px and 200ms — because it is
+ * punctuation, not an entrance.
+ *
+ * Only fires when the section actually changes: `classList.toggle` on an
+ * element that already has the class is a no-op, so re-rendering the same
+ * section does not replay it. */
+@keyframes section-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+@media screen and (min-width: 1180px) {
+    .report-body.is-sectioned > .is-showing {
+        animation: section-in .2s ease-out both;
+    }
+}
+
+/* Rising into view. `.reveal` is only ever added by shared/motion.js, after
+   it has set up the observer that adds `.is-in`, so without the script
+   nothing here is hidden. Siblings are staggered by `--reveal-i`. */
+.reveal {
+    opacity: 0;
+    transform: translateY(14px);
+}
+.reveal.is-in {
+    opacity: 1;
+    transform: none;
+    transition:
+        opacity .45s ease calc(var(--reveal-i, 0) * 55ms),
+        transform .55s var(--ease-out) calc(var(--reveal-i, 0) * 55ms);
+}
+
+/* Light under the pointer on anything that is a box you can read or press.
+   `--mx` / `--my` come from motion.js; until they do, the light sits off the
+   box entirely. On the shirt the light is the shirt's own ink. */
+:root { --spot: color-mix(in srgb, var(--accent) 7%, transparent); }
+.on-kit { --spot: color-mix(in srgb, var(--kit-on) 9%, transparent); }
+@media (hover: hover) and (pointer: fine) {
+    .card:hover,
+    .team-card:hover,
+    .stat:hover,
+    .quick-link:hover,
+    .list-item:hover,
+    .flow-step:hover {
+        background-image: radial-gradient(
+            260px circle at var(--mx, -999px) var(--my, -999px),
+            var(--spot),
+            transparent 70%
+        );
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .reveal { opacity: 1; transform: none; }
+}
+
+/* ---------------------------------------------------------------- response
+ *
+ * The section above governs **arrival** — what the page does on its own, at
+ * you, before you have asked for anything. Its answer is: almost nothing, and
+ * that argument stands.
+ *
+ * This section governs the opposite thing: **response** — what the page does
+ * because you pointed at it. None of it happens unless a person moves a
+ * pointer or a focus ring onto something, none of it moves anything a reader
+ * is trying to read, and all of it is reversible by moving away. That is why
+ * it is allowed where an entrance is not.
+ *
+ * The rule underneath every rule here: **the feedback says what the thing is.**
+ * Something that navigates gets a directional mark. Something inert gets a
+ * lift and nothing else. Something that is one of several gets its siblings
+ * out of the way. A control that does not respond and a control that responds
+ * the same way as everything else are both lying about what they do.
+ *
+ * This is the rule for the whole product, not for this section. Every
+ * top-level `:hover` in every stylesheet here — app, landing, coach,
+ * player, half-time, live tagging — sits inside the same guard, and the
+ * per-page sheets carry a one-line pointer back to this paragraph rather than
+ * re-arguing it. A policy that holds in one file and not the next is not a
+ * policy; it is a file somebody remembered.
+ *
+ * `@media (hover: hover)` is not decoration and not caution — it is the
+ * whole thing working on the device this product is actually used on. The
+ * primary surface is a tablet on a touchline. On touch, `:hover` latches after
+ * a tap and stays latched until you tap somewhere else, so a tapped stat box
+ * would sit there lit up reading as *selected* for the rest of the half. Every
+ * pointer rule below is inside the guard. Every `:focus-visible` twin is
+ * outside it, because a keyboard user gets the same information either way,
+ * and so is every `:active` rule — a press lasts exactly as long as the
+ * finger is down, which is what a press is.
+ */
+
+@media (hover: hover) {
+
+    /* -- a figure ------------------------------------------------------- */
+
+    /* The most repeated element on the site, and until now the most inert:
+       several dozen per page on the coach view, none of them acknowledging a
+       pointer at all. What moves is the broadcast spine, not the number — the
+       number is the thing being read, and a figure that shifts under the
+       cursor is a figure you have to re-find. The spine widens and comes up to
+       full strength; the box lifts a single pixel off the ground.
+
+       Only `width` and `opacity` on the spine, never `background`, so
+       `.is-good`, `.is-warn` and `.is-muted` keep their own colour and a
+       hovered warning does not turn cyan and stop being a warning. */
+    .stat:hover {
+        border-color: var(--line-hi);
+        transform: translateY(-1px);
+    }
+    .stat:hover::before { width: 3px; opacity: 1; }
+
+    /* -- something that goes somewhere ----------------------------------- */
+
+    /* A match, a player, a team. These are the site's navigation, and a plain
+       background change says "noticed" where the truthful thing to say is
+       "this leads somewhere". The accent edge wipes in from the left, which is
+       a direction; the row moves with it. */
+    button.list-item:hover, a.list-item:hover { transform: translateX(2px); }
+    button.list-item:hover::after, a.list-item:hover::after { transform: scaleY(1); }
+
+    /* -- a comparison ---------------------------------------------------- */
+
+    /* Both figures in a tally sit dimmed unless one side earned a colour, so a
+       column of them reads as bars first and numbers second — which is
+       correct for scanning and wrong the moment somebody stops on one row.
+       Hovering the row is that stopping, and it brings both numbers up to full
+       text without touching the colour a verdict already assigned. */
+    .tally:hover .num { color: var(--text); }
+    .tally.ours-good:hover .t-us,
+    .tally.ours-bad:hover .t-them { color: var(--good); }
+    .tally:hover .t-label { color: var(--text-dim); }
+
+    /* -- one piece of a whole -------------------------------------------- */
+
+    /* A stack bar is three or four unlabelled lengths with a key underneath,
+       and reading it means holding a colour in your head while you look down.
+       Pointing at a piece dims the others instead: the one under the cursor is
+       the only lit thing on the track, and it carries a `title` naming itself
+       and its figure (set in `stackBar`) so the key is not needed at all.
+
+       `:has()` rather than a class toggled in script — this is a hover state
+       and hover states belong in the stylesheet, not in a listener that has to
+       be attached by every one of the four pages that draws one of these. */
+    .s-bar:has(.s-seg:hover) .s-seg { opacity: .3; }
+    .s-bar .s-seg:hover { opacity: 1; }
+
+    /* -- and what deliberately gets nothing -------------------------------
+
+       `.card` is the most repeated box on the site and the most tempting thing
+       to make lift under a pointer, and it must not. A card is a fence around
+       a group of figures — it does not open, does not navigate, does not
+       select. Lifting it would put the loudest response on the page on the one
+       element that does nothing when you press it, and every real control here
+       would then be answering more quietly than the furniture.
+
+       Same for `.tl-row` that is not `.is-seek`: a timeline row you cannot
+       click into the video is a record of a minute that has already happened.
+       The rows that do seek already light their text, and the difference
+       between the two is the information. */
+
+    /* -- controls -------------------------------------------------------- */
+
+    /* The underline arrives from the middle rather than appearing whole, so a
+       tab that is merely under the cursor cannot be mistaken at a glance for
+       the tab that is selected — which is drawn in accent and does not
+       animate. */
+    .tab:not(.active):hover::after { transform: scaleX(1); }
+}
+
+/* Keyboard twins, outside the guard: the same information, arrived at by tab
+   rather than by pointer. `:focus-visible` alone, never `:focus`, so clicking
+   a button does not leave it wearing a keyboard affordance. */
+.stat:focus-visible::before { width: 3px; opacity: 1; }
+button.list-item:focus-visible::after, a.list-item:focus-visible::after { transform: scaleY(1); }
+.tally:focus-within .num { color: var(--text); }
+
+/* The transitions the states above ride on, and the pieces they need to exist
+   before they can move. All of it is switched off wholesale by the
+   reduced-motion block above, which is `!important` and does not care that it
+   comes first. */
+
+.stat { transition: border-color .14s ease, transform .14s ease; }
+.stat::before { transition: width .14s ease, opacity .14s ease; }
+
+/* Inset from the ends and rounded, rather than a full-height edge clipped by
+   `overflow: hidden` on the row. Clipping here would have been the expensive
+   kind: the rows carry focusable children, `:focus-visible` draws its outline
+   two pixels *outside* the element, and a hidden overflow would have shaved
+   that ring off every control sitting near a row's edge. A tick that never
+   reaches the corners needs no clipping at all. */
+.list-item { position: relative; transition: background .13s ease, border-color .13s ease, transform .14s ease; }
+button.list-item::after, a.list-item::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 10px; bottom: 10px;
+    width: 2px;
+    border-radius: 0 2px 2px 0;
+    background: var(--accent);
+    transform: scaleY(0);
+    transform-origin: center;
+    transition: transform .16s cubic-bezier(.2, .7, .3, 1);
+}
+
+.tally .num { transition: color .13s ease; }
+.tally .t-label { transition: color .13s ease; }
+
+.s-seg { transition: opacity .13s ease; }
+
+/* The hover underline, and it is `--mark-quiet` rather than `--line-hi` for a
+   reason worth writing down. It sits at `bottom: -1px`, directly on top of the
+   `.tabs` border — so the colour it is actually seen against is `--line`, not
+   the page. `--line-hi` on `--line` is 1.28:1, and against the lightest surface
+   only 1.49:1. That is a hover affordance that cannot be perceived, which is
+   the same as not having one. `--mark-quiet` was added for exactly this class
+   of thing: a mark meant to stay quiet that still clears the 3.0 floor WCAG
+   1.4.11 puts on a control's states. */
+.tab { position: relative; }
+.tab::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 2px;
+    background: var(--mark-quiet);
+    transform: scaleX(0);
+    transition: transform .16s cubic-bezier(.2, .7, .3, 1);
+}
+
+/* Press. A pointer press is already covered by `.btn:active`; these are the
+   two controls that had no press at all, and both are tapped with a thumb on a
+   tablet where the visual confirmation is the only confirmation there is. */
+.chip { transition: border-color .13s ease, background .13s ease, transform .08s ease; }
+.chip:active { transform: scale(.96); }
+.tab:active { transform: translateY(1px); }
+
+@media (hover: hover) {
+    .chip:hover { background: var(--surface-hi); }
+}
+
+@media (max-width: 640px) {
+    .shell { padding: 0 16px 56px; }
+    .topbar { padding: 10px 16px; }
+    .stat .value { font-size: 1.55rem; }
+    .tl-row { grid-template-columns: 48px 20px 1fr; }
+    .tl-side { display: none; }
+    .player-head { gap: 14px; }
+    .player-badge { width: 58px; height: 58px; font-size: 1.55rem; }
+    .figures { gap: 12px; }
+    .figure { min-width: 38px; }
+}

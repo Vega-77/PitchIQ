@@ -8,7 +8,7 @@
 
 /* ---------------------------------------------------------------- hero */
 
-/* The squad's shirt (`.on-kit` in app.css), with the player's number on a
+/* The squad's shirt (`.on-kit` in shared/styles/layout.css), with the player's number on a
    shirt of the trim colour beside their name. */
 .player-hero {
     display: flex;
@@ -72,7 +72,7 @@
    than an omission. The one thing on this page a finger goes to is the match
    row, and `player.js` builds it as a `.list-item` — so it already gets the
    accent edge and the nudge that every navigating row on the site gets, from
-   app.css under `response`. The previews above are examples of a report that
+   shared/styles/motion.css under `response`. The previews above are examples of a report that
    does not exist yet; a preview that lit up under the cursor would be offering
    something there is nothing behind. */
 
@@ -162,7 +162,7 @@
     background: var(--good);
 }
 .moment-row.is-assist .moment-mark { background: var(--accent); }
-/* A card is the card's colour and shape, as `.card-chip` in app.css is: the
+/* A card is the card's colour and shape, as `.card-chip` in shared/styles/components.css is: the
    shape set apart from the colour, the yellow ringed so it holds on white. */
 .moment-row.is-card .moment-mark { border-radius: 2px; width: 10px; height: 14px; }
 .moment-row.is-card .moment-mark {

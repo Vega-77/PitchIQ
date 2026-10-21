@@ -85,6 +85,7 @@ import re
 from pathlib import Path
 
 import pytest
+from stylesheets import read_text
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -137,7 +138,8 @@ def harness_js_files():
 
 
 def read(rel):
-    return (ROOT / rel).read_text(encoding='utf-8')
+    """A frontend file; a stylesheet comes back with its parts inlined."""
+    return read_text(rel)
 
 
 def uncomment(src, *, line=False):

@@ -5,9 +5,9 @@
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
-import { comparePair, verdict, COUNT, knownMinutes, FULL_MATCH_MIN } from './report.js?v=147';
-import { svgEl } from './svg.js?v=147';
-import { HOUSE_KIT, KIT_PRESETS, kitWarnings, normaliseHex } from './kit.js?v=147';
+import { comparePair, verdict, COUNT, knownMinutes, FULL_MATCH_MIN } from './report.js?v=148';
+import { svgEl } from './svg.js?v=148';
+import { HOUSE_KIT, KIT_PRESETS, kitWarnings, normaliseHex } from './kit.js?v=148';
 
 export const byId = (id) => document.getElementById(id);
 
@@ -90,7 +90,7 @@ export function plural(count, singular, pluralForm = `${singular}s`) {
 
 /**
  * A headline figure in a bordered box, for the stat grids. `tone` is one of the
- * `.stat` modifiers in app.css: is-good, is-warn, is-muted.
+ * `.stat` modifiers in shared/styles/components.css: is-good, is-warn, is-muted.
  *
  * `confidence` marks a figure the video pipeline estimated rather than one a
  * human tapped. Numbers from tagging and numbers from footage sit in the same

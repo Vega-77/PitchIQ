@@ -53,6 +53,7 @@ from test_contrast_floor import (
     read,
     theme,
 )
+from stylesheets import files_of
 
 SUPPRESS = re.compile(
     r'outline\s*:\s*(?:none|0)\b'
@@ -273,8 +274,13 @@ class TestTheScanCouldBeLying:
         assert [s for _, s, _ in suppressions(rules_of(css))] == ['.x:focus']
 
     def test_it_reads_every_stylesheet_the_site_ships(self):
-        on_disk = sorted(p.relative_to(ROOT).as_posix() for p in ROOT.glob('*/*.css'))
-        assert on_disk == sorted(SHEETS), on_disk
+        # A part under shared/styles/ is read through the sheet that imports
+        # it, so the files on disk are the linked sheets and their parts.
+        dirs = sorted({rel.split('/')[0] for rel in SHEETS})
+        on_disk = sorted(
+            p.relative_to(ROOT).as_posix() for d in dirs for p in (ROOT / d).rglob('*.css')
+        )
+        assert on_disk == sorted(f for rel in SHEETS for f in files_of(rel)), on_disk
 
     def test_it_finds_rules_at_all(self):
         assert len(ALL) >= 1000, len(ALL)

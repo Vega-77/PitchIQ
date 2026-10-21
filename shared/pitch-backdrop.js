@@ -11,7 +11,7 @@
 // every shot in the wrong place under a diagram that still looked right.
 // tests/test_pitch_dimensions.py holds them to pitchiq/pitch.py.
 
-import { svgEl as el } from './svg.js?v=147';
+import { svgEl as el } from './svg.js?v=148';
 
 // Metres, matching the defaults in pitchiq/pitch.py.
 const L = 105;
@@ -101,7 +101,7 @@ export function mountPitchBackdrop(container, options = {}) {
     wrap.setAttribute('aria-hidden', 'true');
     const svg = pitchSvg(options);
     // Every stroke measured as one unit long, so a single dash pattern in
-    // app.css can draw all of them in from nothing at the same pace. Only
+    // shared/styles/layout.css can draw all of them in from nothing at the same pace. Only
     // here: the same markings under a shot map are a reference, not a show.
     for (const group of svg.children) {
         for (const line of group.children) {

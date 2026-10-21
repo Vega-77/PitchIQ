@@ -1,0 +1,119 @@
+/* The design system's tokens: the house kit, the neutrals, three inks, the
+ * state colours and the tagging keys.
+ *
+ * One part of the shared stylesheet; `shared/app.css` imports the parts in
+ * cascade order, so moving a rule to another part can change what wins.
+ */
+
+/* PitchIQ design system: School Colours.
+ *
+ * Every squad wears its own kit. A coach picks two colours for a team, and
+ * every page for that team takes them on: the top bar and the page header
+ * are painted in the first, the sleeve stripes and the highlights in the
+ * second, and squad numbers are set in block varsity numerals the way they
+ * are on a shirt. Pages nobody's team owns yet (the front page, sign-in) wear
+ * the house kit, navy and gold.
+ *
+ * The rest of the page is deliberately plain: a cool light grey ground, white
+ * cards, near-black ink. The kit is loud, so everything around it is quiet,
+ * and a light ground is the one that survives a phone in the sun.
+ *
+ * The values in `:root` are the house kit. `shared/kit.js` overwrites the
+ * eight `--kit*` / `--accent*` tokens at runtime for a real team, and it does
+ * the contrast arithmetic itself, because the scan in tests/ can only see the
+ * colours written here.
+ */
+
+:root {
+    /* The kit. --kit is the shirt, --kit-2 the trim. Each carries the ink
+       that is legible on it: white on navy is 14.5, navy on gold 7.96.
+       --kit-2-ink is the trim used as lettering on the shirt colour (the
+       highlighted words in a header), which a real team's colours may not
+       be able to do; kit.js swaps it for --kit-on when they cannot. */
+    --kit: #13294b;
+    --kit-hi: #1d3e71;
+    --kit-on: #ffffff;
+    --kit-2: #f2b632;
+    --kit-2-on: #13294b;
+    --kit-2-ink: #f2b632;
+
+    /* Neutrals, a few degrees cool so white cards lift off them. */
+    --bg: #f2f3f5;
+    --bg-raised: #f8f9fa;
+    --surface: #ffffff;
+    --surface-hi: #e9ecf0;
+    --line: #dfe3e8;
+    --line-hi: #c3c9d2;
+
+    /* Three steps of ink, each scored against the darkest ground above
+       (--surface-hi): 15.0, 7.41 and 5.25. --text-faint is the most-used ink
+       on the site, every caption and unit, so it keeps a full point of
+       headroom over the 4.5 that normal text is owed. */
+    --text: #141820;
+    --text-dim: #434b5a;
+    --text-faint: #596172;
+
+    /* The team's colour as ink and as a mark on the light ground: links,
+       live figures, the bars that matter. For the house kit it is the shirt
+       itself (12.25 on --surface-hi). A team whose shirt is pale gets a
+       darkened copy from kit.js, so a yellow squad still has legible links. */
+    --accent: #13294b;
+    --accent-hi: #344764;
+    --accent-dim: rgba(19, 41, 75, 0.08);
+    --on-accent: #ffffff;
+
+    /* A mark that carries data and is deliberately the quiet one: the
+       opponent's half of a possession bar, dead-ball time in a stacked bar, a
+       touch on the timeline, the lines painted on a pitch. WCAG puts a
+       graphical object's floor at 3.0 against its own background, and this
+       clears it on every ground (3.46 on --surface-hi, 4.10 on white) while
+       staying well short of --accent, so the loud half of a comparison is
+       still the loud one. */
+    --mark-quiet: #767e8b;
+
+    /* State colours, darkened for a light ground, each with the tint it is
+       set on in a chip. Every ink clears 4.5 on its own tint composited over
+       the darkest page ground. */
+    --good: #14653a;
+    --good-dim: rgba(20, 101, 58, 0.10);
+    --warn: #8a4f00;
+    --warn-dim: rgba(242, 182, 50, 0.20);
+    --danger: #b3261e;
+    --danger-dim: rgba(179, 38, 30, 0.08);
+    --card-yellow: #fbbf24;
+    --card-red: #dc2626;
+
+    /* The live-tagging keys, one colour per event, so a tagger finds a key by
+       its colour without reading it. Hues as far apart as seven allow and the
+       lightness spread too, so no two neighbours differ in hue alone. --ev-on
+       is the lettering on the six dark ones, each 5.18 or better. --ev-out
+       has no key: out of bounds lost its button, and this marks the tags
+       already recorded where the page names one. The goal is --text itself and
+       the card is --card-yellow, so neither needs a token of its own. These
+       do not follow the team: the kit is chosen per squad and could land on
+       any of them. */
+    --ev-throw: #1f5bd6;
+    --ev-foul: #c2410c;
+    --ev-free: #9b2c74;
+    --ev-goal-kick: #1f7a3a;
+    --ev-corner: #0b7285;
+    --ev-offside: #4b5563;
+    --ev-out: #dfe3e8;
+    --ev-on: #ffffff;
+
+    --radius: 8px;
+    --radius-lg: 12px;
+    --shell: 1120px;
+
+    /* Saira for reading, its condensed cut for headings and labels (a lot of
+       words in a narrow column, the way a scoreboard sets them), and Graduate,
+       a block varsity face, for squad numbers and the big figures. */
+    --font: 'Saira', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Saira Condensed', 'Arial Narrow', 'Segoe UI', sans-serif;
+    --numeral: 'Graduate', 'Saira Condensed', Georgia, serif;
+    --mono: ui-monospace, 'SF Mono', Consolas, 'Cascadia Mono', monospace;
+
+    --shadow: 0 1px 2px rgba(20, 24, 32, .06), 0 8px 24px rgba(20, 24, 32, .07);
+    --shadow-lift: 0 2px 6px rgba(20, 24, 32, .08), 0 18px 40px rgba(20, 24, 32, .13);
+    --ease-out: cubic-bezier(.2, .7, .3, 1);
+}

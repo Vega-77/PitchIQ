@@ -68,6 +68,7 @@ from test_contrast_floor import (  # noqa: E402
     values,
     without_print,
 )
+from stylesheets import files_of  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 LINK = re.compile(r'<link[^>]+rel="stylesheet"[^>]*>')
@@ -171,8 +172,10 @@ class TestInsetIsNotASize:
 
     def uses(self):
         out = []
-        for rel in SHEETS:
-            for i, line in enumerate(read(rel).splitlines(), 1):
+        # Per file on disk rather than per assembled sheet, so a line
+        # number is one somebody can open.
+        for rel in [f for sheet in SHEETS for f in files_of(sheet)]:
+            for i, line in enumerate((ROOT / rel).read_text(encoding='utf-8').splitlines(), 1):
                 m = INSET.search(line)
                 if m:
                     out.append(('%s:%d' % (rel, i), m.group(1).strip()))
@@ -180,9 +183,9 @@ class TestInsetIsNotASize:
 
     def test_all_four_uses_position_rather_than_size(self):
         assert self.uses() == [
-            ('shared/app.css:404', '0'),
-            ('shared/app.css:431', '-40% -30%'),
-            ('shared/app.css:1848', 'auto 0 0 0'),
+            ('shared/styles/layout.css:298', '0'),
+            ('shared/styles/layout.css:325', '-40% -30%'),
+            ('shared/styles/panels.css:157', 'auto 0 0 0'),
             ('live-tagging/tagging.css:702', '0'),
         ], self.uses()
 

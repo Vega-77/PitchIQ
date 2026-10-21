@@ -1,0 +1,822 @@
+/* The match view: video, checking what CV found, estimated figures and
+ * sample data.
+ *
+ * One part of the shared stylesheet; `shared/app.css` imports the parts in
+ * cascade order, so moving a rule to another part can change what wins.
+ */
+
+/* ---------------------------------------------------------- match video */
+
+/* 16:9 without the padding-top trick, and capped so a monitor does not turn
+   the video into the entire page. */
+.video-frame {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    max-height: 62vh;
+    background: #000;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.video-frame:empty { display: none; }
+/* Footage we will not embed, offered as a link. Sized to the link rather than
+   to the video it stands in for — a button alone in a 16:9 black box reads as a
+   player that failed, which is the opposite of what happened. */
+.video-frame.is-link {
+    aspect-ratio: auto;
+    max-height: none;
+    padding: 16px;
+    background: var(--surface);
+    justify-content: flex-start;
+}
+.match-video { width: 100%; height: 100%; border: 0; display: block; }
+
+/* The match as a strip, with a tick wherever this player did something. The
+   whole point is not scrubbing 90 minutes to find twelve seconds. */
+.scrubber {
+    position: relative;
+    height: 34px;
+    margin: 16px 0 8px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+}
+.scrubber:empty { display: none; }
+
+.tick {
+    position: absolute;
+    top: 50%;
+    width: 10px;
+    height: 18px;
+    margin-left: -5px;
+    padding: 0;
+    transform: translateY(-50%);
+    border: 0;
+    border-radius: 3px;
+    background: var(--text-faint);
+    cursor: pointer;
+    transition: transform .12s ease, background .12s ease;
+}
+@media (hover: hover) {
+    .tick:hover { transform: translateY(-50%) scaleY(1.35); }
+}
+.tick:focus-visible { transform: translateY(-50%) scaleY(1.35); }
+.tick.is-goal { background: var(--good); }
+.tick.is-card { background: var(--card-yellow); }
+.tick.is-sub { background: var(--accent); }
+/* Touches are the many; they sit thinner so a goal still reads at a glance. */
+.tick.is-touch { width: 3px; margin-left: -1.5px; height: 11px; background: var(--mark-quiet); }
+
+/* Events found in the footage, on the coach's review strip. Three weights, not
+   eight colours: a strip where every type is its own hue is a strip nobody can
+   read at a glance, which is the only thing a strip is for.
+
+   Passes and carries are the many and sit thin. Defensive actions are the ones
+   a coach scans for. A shot is rare and is the loudest thing on the bar. */
+.tick.is-pass,
+.tick.is-carry { width: 3px; margin-left: -1.5px; height: 11px; background: var(--mark-quiet); }
+
+.tick.is-tackle,
+.tick.is-interception,
+.tick.is-recovery,
+.tick.is-clearance,
+.tick.is-duel { width: 6px; margin-left: -3px; background: var(--accent); opacity: .75; }
+
+.tick.is-shot { background: var(--warn); height: 22px; }
+
+.tick-half {
+    position: absolute;
+    top: 6px; bottom: 6px;
+    width: 1px;
+    background: var(--mark-quiet);
+    pointer-events: none;
+}
+
+/* Where the video actually is. Full height and drawn under the marks, so it
+   reads as a position on the bar rather than as one more thing on it — the
+   marks are what you tap, and a playhead that competed with them for attention
+   would make the strip harder to use, not easier. */
+.tick-now {
+    position: absolute;
+    top: -1px; bottom: -1px;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent);
+    pointer-events: none;
+    transition: left .25s linear;
+}
+/* The mark the video is inside. */
+.tick.is-now {
+    transform: translateY(-50%) scaleY(1.45);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.moment-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+
+.moment {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 11px 14px;
+    text-align: left;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--text-dim);
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: background .12s ease, border-color .12s ease;
+}
+@media (hover: hover) {
+    .moment:hover { background: var(--surface-hi); border-color: var(--line-hi); }
+}
+.moment .m-clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--text-faint);
+    min-width: 52px;
+}
+.moment.is-goal { border-left: 3px solid var(--good); }
+.moment.is-goal .m-label { color: var(--text); font-weight: 600; }
+.moment.is-card { border-left: 3px solid var(--card-yellow); }
+.moment.is-touch .m-label { color: var(--text-faint); }
+/* Whichever one is playing. */
+.moment.is-now {
+    border-color: var(--accent);
+    background: var(--surface-hi);
+    color: var(--text);
+}
+.moment.is-now .m-clock { color: var(--accent); }
+
+/* What the video's position reads as on the match clock, under the strip. The
+   conversion is the point: a coach reading "18:42" off YouTube is not reading
+   the match clock, and every field in this app that takes a time wants the
+   clock. */
+.now-read {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+    color: var(--text-faint);
+}
+.now-read .now-clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--accent);
+}
+.now-read:empty { display: none; }
+
+/* ------------------------------------------------- checking what CV found */
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+
+/* Order is not a filter. The chips beside it all hide rows; this pair only
+   changes which comes first, so it is fenced off with a label rather than
+   sitting as one more thing in a row of things that take events away. Pushed to
+   the end of the line where there is room for it. */
+.chip-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    padding-left: 12px;
+    border-left: 1px solid var(--line);
+}
+.chip-group-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-faint);
+}
+/* On a narrow one the rule and the auto margin both read as damage — the group
+   simply starts a new line. */
+@media (max-width: 640px) {
+    .chip-group { margin-left: 0; padding-left: 0; border-left: 0; }
+}
+
+.chip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    cursor: pointer;
+    min-height: 34px;
+}
+@media (hover: hover) {
+    .chip:hover { border-color: var(--line-hi); }
+}
+.chip.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+    font-weight: 600;
+}
+
+.btn.tiny {
+    min-height: 32px;
+    min-width: 34px;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    border-radius: 8px;
+}
+.btn.tiny.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+.review-list { max-height: 620px; overflow-y: auto; }
+
+/* Same grid discipline as .cluster-row: named areas, and min-width:0 on the
+   text cell so a long label shortens instead of forcing the row wider than the
+   phone it is being read on. */
+.review-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+        "seek mark acts"
+        "edit edit edit";
+    align-items: center;
+    gap: 10px;
+}
+.review-row .review-seek { grid-area: seek; min-width: 0; }
+.review-row .review-mark { grid-area: mark; }
+.review-row .review-acts { grid-area: acts; display: flex; gap: 6px; }
+.review-row .review-edit { grid-area: edit; }
+
+.review-seek {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.88rem;
+}
+.review-clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--text-faint);
+    min-width: 52px;
+}
+.review-what { color: var(--text); font-weight: 600; }
+/* A stoppage marker, not a verdict — it says where the candidate came from, so
+   it stays quiet next to the confirm/reject colours that mean a human decided
+   something. */
+.review-dead {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    border: 1px solid var(--line-hi);
+    border-radius: 5px;
+    padding: 1px 5px;
+    white-space: nowrap;
+}
+.review-who { font-size: 0.8rem; min-width: 0; overflow-wrap: anywhere; }
+
+/* What a human tapped near this candidate. Quiet, and in the accent rather than
+   a verdict colour: it is evidence for the decision, not the decision. */
+.review-near {
+    font-size: 0.76rem;
+    color: var(--accent);
+    white-space: nowrap;
+    opacity: 0.85;
+}
+
+/* A row from the tagged log rather than from the video. Dashed, because it is
+   the other record: nothing here was claimed by the pipeline, nothing here is
+   scored, and it must not read as one more candidate waiting to be checked. */
+.review-row.is-tagged {
+    border-style: dashed;
+    background: none;
+}
+.review-row.is-tagged .review-what { font-weight: 500; color: var(--text-dim); }
+.review-row.is-tagged .review-clock { color: var(--text-faint); }
+/* The one place the log has something to tell the pipeline: a goal it recorded
+   that no candidate stands near. */
+.review-row.is-missed-goal { border-left: 3px solid var(--warn); }
+
+/* The verdict, as a left edge. Legible in a long scrolling list in a way a
+   changed background colour is not. */
+.review-row.is-confirmed { border-left: 3px solid var(--good); }
+.review-row.is-rejected { border-left: 3px solid var(--danger); }
+.review-row.is-rejected .review-what { text-decoration: line-through; }
+.review-row.is-edited { border-left: 3px solid var(--warn); }
+
+.review-edit {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding-top: 10px;
+    margin-top: 4px;
+    border-top: 1px solid var(--line);
+}
+.review-edit .field { margin: 0; }
+
+.review-missed {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+.review-missed .field { margin: 0; }
+
+/* Where the tagged log and the video contradict each other. Given the loudest
+   treatment in this block on purpose: two independent records disagreeing about
+   a goal is a stronger signal than anything the pipeline's own confidence can
+   produce, and it is settled by twenty seconds of watching. */
+.conflicts {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border: 1px solid var(--warn);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--warn) 8%, transparent);
+}
+.conflicts-head {
+    margin: 0 0 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--warn);
+}
+.conflict-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    width: 100%;
+    padding: 6px 0;
+    background: none;
+    border: 0;
+    color: var(--text);
+    text-align: left;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.conflict-row + .conflict-row { border-top: 1px solid var(--line); }
+.conflict-clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    min-width: 52px;
+    flex: none;
+}
+
+/* Precision and recall, per event type. Same grid discipline as .review-row:
+   named columns and a text cell that shortens rather than forcing the table
+   wider than the phone reading it. */
+/* The grid lives on the container and the rows are `display: contents`, so
+   every row shares one set of column widths. With the grid on each row instead,
+   an `auto` column sizes to that row's own content and the percentages land at
+   a different x on every line — which is exactly as unreadable as it sounds in
+   a table whose entire purpose is comparing numbers down a column. */
+.scorecard {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    margin-bottom: 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+}
+.scorecard-row { display: contents; }
+.scorecard-row > * {
+    padding: 7px 8px;
+    text-align: right;
+    align-self: baseline;
+}
+.scorecard-row > :first-child {
+    padding-left: 12px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: left;
+}
+.scorecard-row > :last-child { padding-right: 12px; }
+.scorecard-row:not(.is-head) > * { border-top: 1px solid var(--line); }
+.scorecard-row.is-head > * {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    background: var(--surface-hi);
+}
+.scorecard-row.is-total > * { font-weight: 700; background: var(--surface-hi); }
+/* Not a footnote. A percentage with no denominator beside it is the single
+   easiest thing on this page to over-read. */
+.scorecard-note {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 8px 12px;
+    border-top: 1px solid var(--line);
+    font-size: 0.8rem;
+    color: var(--text-faint);
+}
+/* The sampling caveat, which is a stronger claim than the caption above it —
+   it says the numbers are a floor rather than an average. */
+.scorecard-note.is-warn {
+    color: var(--warn);
+}
+
+/* The shot log: one row per detected shot, five answers on each. Same grid
+   discipline as .review-row — named areas and min-width:0 on the text cell, so
+   a long opponent name shortens instead of forcing the row wider than the phone
+   it is being marked on. */
+.shot-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "seek results part";
+    align-items: center;
+    gap: 10px;
+}
+/* Separated from the five outcome buttons by a rule, because it answers a
+   different question — what the shot was struck with, not what it did — and
+   six buttons in one strip would read as one six-way choice. */
+.shot-row .shot-part {
+    grid-area: part;
+    padding-left: 10px;
+    border-left: 1px solid var(--line);
+}
+.shot-row .shot-seek {
+    grid-area: seek;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.88rem;
+}
+.shot-row .shot-results {
+    grid-area: results;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.shot-clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--text-faint);
+    min-width: 52px;
+}
+.shot-side { font-weight: 600; }
+.shot-xg { font-variant-numeric: tabular-nums; color: var(--text-faint); }
+.shot-guess { font-size: 0.8rem; min-width: 0; overflow-wrap: anywhere; }
+
+/* Rejected below, so it counts for nothing here. Struck through rather than
+   removed: the tally moved and this is the only thing that says why. */
+.shot-row.is-out { opacity: 0.55; }
+.shot-row.is-out .shot-side, .shot-row.is-out .shot-xg {
+    text-decoration: line-through;
+}
+
+/* A tagged header carries a corrected number, so the row says so at a glance
+   rather than only in the line underneath. Marked on the left edge in the same
+   idiom the review rows use for a verdict — this is a human's judgement sitting
+   on top of a measurement, which is exactly what that edge means everywhere
+   else on this page. */
+.shot-row.is-header { border-left: 3px solid var(--accent); }
+.shot-row.is-header .shot-xg { color: var(--text); font-weight: 600; }
+
+/* The one place a prediction meets what happened. Tinted by verdict, but the
+   two "no difference found" states are deliberately NOT both green: one of them
+   means the model agrees, and the other means the sample is too small to have
+   noticed if it did not. */
+.xg-check {
+    margin-bottom: 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--line-hi);
+    border-radius: 10px;
+    background: var(--surface-hi);
+}
+.xg-check.is-consistent { border-left-color: var(--good); }
+.xg-check.is-inconclusive { border-left-color: var(--line-hi); }
+.xg-check.is-model_low, .xg-check.is-model_high { border-left-color: var(--warn); }
+
+.xg-check-figures {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 28px;
+    margin-bottom: 10px;
+}
+.xg-check-figures > div { display: flex; align-items: baseline; gap: 7px; }
+.xg-check-figures b {
+    font-size: 1.25rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+}
+.xg-check-figures span { font-size: 0.8rem; color: var(--text-faint); }
+/* The band is context for the other two, not a third measurement. */
+.xg-check-figures > div:last-child b {
+    font-size: 1rem;
+    color: var(--text-faint);
+}
+.xg-check-note { margin: 0; font-size: 0.85rem; color: var(--text-dim); }
+
+@container reportblock (max-width: 640px) {
+    /* The answers get their own row rather than five buttons squeezed beside a
+       clock — the mistake the review rows made at 375px. */
+    .shot-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "seek seek"
+            "results part";
+        row-gap: 8px;
+        align-items: start;
+    }
+    .shot-row .shot-seek .shot-guess { flex-basis: 100%; }
+    /* Still to the right of the outcome buttons, and still fenced off from
+       them, but no longer holding a column open on a 375px row. */
+    .shot-row .shot-part { padding-left: 8px; }
+}
+
+@container reportblock (max-width: 640px) {
+    /* "Checked" is the column to lose first — it is a raw count, and the two
+       rates are what the table is for. */
+    .scorecard { grid-template-columns: minmax(0, 1fr) auto auto; }
+    .scorecard-row > :nth-child(4) { display: none; }
+    .scorecard-row > :nth-child(3) { padding-right: 12px; }
+    .conflict-row { flex-wrap: wrap; gap: 2px 12px; }
+}
+
+@container reportblock (max-width: 640px) {
+    /* The actions get their own row rather than squeezing the label to one
+       letter per line — the mistake the cluster rows made at 375px. */
+    .review-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "seek mark"
+            "acts acts"
+            "edit edit";
+        row-gap: 8px;
+    }
+    .review-row .review-acts { justify-content: flex-start; }
+    /* Clock and type stay on one line and the name wraps under them. Stacking
+       all three costs 30px a row, and a review session is hundreds of rows. */
+    .review-seek { flex-wrap: wrap; gap: 4px 10px; }
+    .review-seek .review-clock { min-width: 46px; }
+    .review-seek .review-who { flex-basis: 100%; }
+    .review-missed .field, .review-edit .field { flex: 1 1 100%; }
+}
+
+/* What we made of the pasted video link, said as it is typed. The warn case is
+   the one that matters — a Drive share link is a good link to footage that we
+   will not embed, and without this the coach finds out by opening a player's
+   report and seeing a bare button. */
+.video-hint {
+    margin: -6px 0 16px;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--text-faint);
+}
+.video-hint.is-good { color: var(--good); }
+.video-hint.is-warn { color: var(--warn); }
+.video-hint:empty { margin: 0; }
+
+/* Who the pipeline ruled out. Two kinds of row and they are not the same news:
+   one figure was removed from the counts, the other is still inside them and
+   might be a goalkeeper. The badge carries that difference in words, and the
+   left edge repeats it in colour, so neither has to be inferred from the tone
+   of a sentence. */
+.excluded-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+}
+/* min-width:0 for the same reason it is on .cluster-row and .review-row: the
+   reason strings are long sentences, and without it the grid refuses to shrink
+   the cell and the row grows wider than the phone. */
+.excluded-row .grow { min-width: 0; }
+.excluded-row.is-offfield { border-left: 3px solid var(--line-hi); }
+.excluded-row.is-official { border-left: 3px solid var(--warn); }
+
+.excluded-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--surface-hi);
+    color: var(--text-faint);
+}
+.excluded-row.is-official .excluded-badge {
+    background: var(--warn-dim);
+    color: var(--warn);
+}
+
+@media (max-width: 640px) {
+    /* The badge takes the full width above the text rather than eating half the
+       row: "Kept, but unsure" beside a two-line sentence leaves the sentence
+       four characters wide. */
+    .excluded-row {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 8px;
+    }
+    .excluded-badge { justify-self: start; }
+}
+
+/* The header of a single match, score pulled out to the right. */
+.match-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    margin: 28px 0 8px;
+    flex-wrap: wrap;
+}
+.md-score {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 2.4rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -1px;
+}
+.md-score .md-dash { color: var(--text-faint); font-weight: 400; }
+
+/* ------------------------------------------------------- estimated figures */
+
+/* Three pips saying "a machine worked this out, and this well". Deliberately
+   not a percentage: the uncertainty behind these numbers is not calibrated
+   well enough to justify one, and a figure like "67% confident" would claim a
+   precision the pipeline does not have. */
+.cv-mark {
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
+    vertical-align: middle;
+    cursor: help;
+}
+.cv-mark i {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--mark-quiet);
+}
+.cv-mark i.on { background: var(--text-faint); }
+.cv-mark.is-high i.on { background: var(--good); }
+.cv-mark.is-medium i.on { background: var(--warn); }
+.cv-mark.is-low i.on { background: var(--text-faint); }
+
+.stat { position: relative; }
+.stat .cv-mark { position: absolute; top: 10px; right: 10px; }
+
+/* A banner over any block of estimated stats. The pips mark individual
+   figures; this says the whole section came from footage. */
+.cv-note {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 11px 13px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--line-hi);
+    border-radius: 8px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--text-faint);
+    margin-bottom: 16px;
+}
+.cv-note strong { color: var(--text-dim); font-weight: 650; }
+
+/* The banner is a flex row of a label and a paragraph; the bar is neither, and
+   belongs on its own line under both. A rule above it because the sentence
+   ends and a picture begins — without one the key reads as a continuation of
+   the prose. */
+.cv-note .stack {
+    flex-basis: 100%;
+    min-width: 0;
+    margin-top: 4px;
+    padding-top: 11px;
+    border-top: 1px solid var(--line);
+}
+
+/* What the pipeline flagged about this particular run.
+   Amber and above the note, because the two are different kinds of statement:
+   the note is what every figure below rests on and is always true, this is a
+   list of things that went wrong once and may be fixable. `trustworthy` is
+   `not warnings`, so anything in here is also the reason a run is not. */
+.cv-warnings {
+    padding: 11px 13px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--warn);
+    border-radius: 8px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+}
+.cv-warnings strong {
+    display: block;
+    color: var(--text-dim);
+    font-weight: 650;
+    margin-bottom: 6px;
+}
+.cv-warnings ul { margin: 0; padding-left: 18px; }
+.cv-warnings li { margin-bottom: 4px; overflow-wrap: anywhere; }
+.cv-warnings li:last-child { margin-bottom: 0; }
+
+/* ------------------------------------------------------------ sample data */
+/*
+   Invented numbers in the real layout, so the video-derived blocks can be
+   looked at before there is footage to fill them.
+
+   Marked in amber rather than the accent, which is reserved for live data — the
+   comment on --accent says so and this is the exact case it was reserved
+   against. Amber is already the site's "read this before believing the thing
+   next to it" colour, which is precisely the job.
+
+   The dashes are load-bearing. A screenshot of this page will end up in a chat
+   or a slide deck with no banner text visible around it, and a dashed edge
+   survives that crop where a sentence does not.
+*/
+.sample-toggle {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 13px 15px;
+    margin-bottom: 16px;
+    border: 1px dashed var(--line-hi);
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-faint);
+}
+.sample-toggle .grow { min-width: 220px; }
+.sample-toggle strong {
+    display: block;
+    color: var(--text-dim);
+    font-weight: 650;
+    margin-bottom: 2px;
+}
+.sample-toggle.is-on {
+    border-color: var(--warn);
+    background: var(--warn-dim);
+}
+.sample-toggle.is-on strong { color: var(--warn); }
+
+.cv-note.is-sample {
+    border-style: dashed;
+    border-left: 3px solid var(--warn);
+    background: var(--warn-dim);
+}
+.cv-note.is-sample strong { color: var(--warn); }
+
+/* Anything drawn from the fixture, so a plot cropped out of the page still
+   carries the mark. `.heatmap` and `.shot-map` are the two that get screenshotted. */
+.is-sample-plot {
+    border: 1px dashed var(--warn);
+    border-radius: var(--radius);
+    padding: 6px;
+}
+
+/* A heatmap beside a shot map, which are not the same shape: a heatmap is the
+   whole 105x68 pitch and a shot map is half of it, so at equal widths the shot
+   map renders about twice as tall and the two bottom edges miss each other by a
+   couple of hundred pixels. Given twice the width, the heatmap comes out the
+   same height as its neighbour.
+
+   Below 620px they stack, which is where equal-width columns would have become
+   too narrow to read either plot. */
+.sample-pair {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    align-items: start;
+}
+@media (min-width: 620px) {
+    .sample-pair { grid-template-columns: 2fr 1fr; }
+}
+.sample-pair figure { margin: 0; min-width: 0; }
+.sample-pair figcaption {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+}

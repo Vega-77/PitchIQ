@@ -170,7 +170,7 @@ body { background: var(--surface); }
     line-height: 1.45;
 }
 
-/* Tally rows moved to shared/app.css when the coach's match view started
+/* Tally rows moved to the shared sheet (now shared/styles/panels.css) when the coach's match view started
    using them too. */
 
 /* ---------------------------------------------------------------- minutes */
@@ -221,7 +221,7 @@ body { background: var(--surface); }
 
    So stopping on a row undoes exactly those two dimmings and nothing else. No
    background, no lift, no border — this row is not a button and must not
-   claim to be one. It is the same move `.tally:hover .num` makes in app.css,
+   claim to be one. It is the same move `.tally:hover .num` makes in shared/styles/motion.css,
    for the same reason, and it sits behind the same guard for the reason argued
    there under `response`. */
 .minute-row .m-fill,

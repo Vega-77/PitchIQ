@@ -570,7 +570,7 @@ html, body {
     transition: filter .1s ease, transform .07s ease;
 }
 
-/* Each key: where it sits, and its colour from the theme (app.css says why
+/* Each key: where it sits, and its colour from the theme (shared/styles/tokens.css says why
    these colours). The goal is black, the one fill no team colour or event hue
    can sit next to and resemble, because it is the key that must never be
    mistaken for another. The card is card yellow. Written out per key, fill

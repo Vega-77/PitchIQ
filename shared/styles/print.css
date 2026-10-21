@@ -1,0 +1,326 @@
+/* Paper: the report as it prints.
+ *
+ * One part of the shared stylesheet; `shared/app.css` imports the parts in
+ * cascade order, so moving a rule to another part can change what wins.
+ */
+
+/* ------------------------------------------------------------------ paper
+ *
+ * A report that leaves the app.
+ *
+ * Three things change on paper and each is a claim rather than a preference.
+ *
+ * 1. The palette inverts. This design is a near-black pushed toward turf, and
+ *    printing it either empties a cartridge or comes out as a grey rectangle
+ *    with numbers hidden in it. Every colour below is a variable, so the whole
+ *    inversion is one block — and the pitch drawings and heatmaps follow it for
+ *    free, because they are drawn in `currentColor`.
+ *
+ * 2. The chrome goes. Nothing on a sheet of paper can be signed out of,
+ *    filtered, scrubbed or played, and a printed button is a small lie about
+ *    what the reader can do.
+ *
+ * 3. **The caveats stay, and stay attached.** This is the one that matters. On
+ *    screen the quality banner sits above the figures and a reader who forgets
+ *    it can scroll back; on paper they cannot, and a page of confident-looking
+ *    numbers with the "measured from video, treat as estimates" line two sheets
+ *    earlier is a worse artifact than no printout at all. So the banner is
+ *    never hidden, and it is glued to whatever follows it.
+ */
+@media print {
+    /* The screen is already ink on light grounds, so paper only loses the
+       tints: every ground goes white and the hairlines darken a step so a
+       table still has its rules without a backlight. The inks, the kit and
+       its accent are the screen's own. The accent is already scored at 4.5
+       on the darkest ground it is set on, and a team's colours applied by
+       kit.js sit on the root element, where they would outrank this block
+       anyway. */
+    :root {
+        --bg: #ffffff;
+        --bg-raised: #ffffff;
+        --surface: #ffffff;
+        --surface-hi: #f2f3f5;
+        --line: #c3c9d2;
+        --line-hi: #9aa2ae;
+    }
+
+    @page { margin: 14mm; }
+
+    /* A yellow card is yellow, on paper as on screen, so --card-yellow is one
+       of the few tokens the block above deliberately leaves alone: darkening it
+       to survive white paper would print brown, and brown is not a card. The
+       cost is that #fbbf24 on white is 1.67, which for an 11×15 chip whose
+       entire content is its fill means the printed disciplinary record quietly
+       drops every yellow while keeping every red (3.76). So the fill stays
+       literal and the shape gets an edge: the chip is legible because it is
+       outlined, not because it was recoloured. It also keeps a second yellow
+       distinguishable from a straight red, which is the whole reason the two
+       are drawn as a split square rather than a count. */
+    .card-chip {
+        border: 1px solid var(--text);
+        width: 12px;
+        height: 16px;
+    }
+
+    body {
+        background: #fff;
+        color: var(--text);
+    }
+
+    /* Bars, swatches and fills are the figure, not decoration — a bar that
+       prints as bare paper says the opposite of what it measures. */
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Things a sheet of paper cannot do. */
+    .topbar,
+    .site-foot,
+    .toast,
+    .btn,
+    .chips,
+    .video-frame,
+    .scrubber,
+    .tabs,
+    .review-list,
+    .review-missed,
+    #cv-review-block,
+    #config-slot,
+    .action-card,
+    .save-state,
+    /* Four things to do once, on a sheet handed to somebody else. Its step
+       counters used to be the one printed thing under AA on white, which is
+       no longer true — the paper accent was darkened for two chips that
+       really do print and these came up with them. The reason to drop the
+       section was never the number anyway: setup instructions are not match
+       report, and they would not belong here at any contrast. */
+    #getting-started,
+    input, select, textarea, label.field,
+    /* A way of reaching content you are already holding. It is also the one
+       rule on the site whose colours fail on paper -- the primary button's
+       ink is 2.86 against the printed accent -- and the contrast scan reads
+       this list to know what it may stop scoring. Both facts have the same
+       cause, so they get the same line. */
+    .skip-link,
+    .no-print { display: none !important; }
+
+    /* Blocks keep their edges but lose the raised-card look, which on paper
+       reads as a smudge rather than as depth. */
+    .block,
+    .stat,
+    .list-item {
+        box-shadow: none;
+        border: 1px solid var(--line);
+        background: #fff;
+    }
+
+    .shell { max-width: none; padding: 0; }
+
+    /* Paper is one column. The desktop grid is keyed off a screen width that
+       no sheet reaches, so this is belt and braces rather than a fix — but the
+       rail is a jump list, and a jump list printed on paper is a list of words
+       that do nothing. */
+    .report-layout, .report-body, .block-stack { display: block !important; }
+    .report-body > .block { margin-top: 42px; }
+    .wide-report { width: auto; margin-inline: 0; }
+
+    /* Paper has no horizontal scroll, so `overflow-x: auto` is not a way out of
+       a table that is too wide — it is a guillotine. `.table-wrap` earns that
+       rule on screen, where the players table is 898px wide and a phone is 390.
+       On a Letter sheet the printable width is 710px (215.9mm less two 14mm
+       margins, at 96dpi), and measuring the real report on 2026-08-17 found
+       `Passes`, `Tackles` and `m/min` simply gone — cut off under a group
+       header that still promised four columns of video stats. Three of the four
+       numbers the video exists to produce, missing from the printed report,
+       with nothing on the page to say so.
+
+       Three changes bring it back: let the wrap overflow visibly, trade screen
+       padding for ink, and let names wrap. `overflow-wrap: anywhere` is what
+       makes the width independent of the roster — without it one long surname
+       pushes the table back over the edge. Min-content goes 898px -> 599px,
+       which clears Letter (710px) and A4 (688px) both. Figures keep `nowrap`:
+       a wrapped number reads as two numbers. */
+    .table-wrap { overflow: visible; }
+    th, td { padding: 5px 7px; white-space: normal; overflow-wrap: anywhere; }
+    th.num, td.num { white-space: nowrap; overflow-wrap: normal; }
+    .col-groups th { padding: 5px 7px 4px; }
+    .pos-head th { padding: 5px 7px; }
+
+    /* A sticky header has nothing to stick to on paper, and a sticky `thead` is
+       not repeated at the top of each sheet the way a static one is — which is
+       the only reason the column names survive the fold at all. */
+    thead th, .col-groups th { position: static; }
+
+    /* Nothing readable is worth splitting across a fold. A stat cut in half is
+       not half a stat, it is a misprint. */
+    .block,
+    .stat,
+    .tally,
+    .stack,
+    .figure,
+    .list-item,
+    .stat-group { break-inside: avoid; page-break-inside: avoid; }
+
+    /* The caveat and the numbers it qualifies are one thing. */
+    .cv-note,
+    .cv-warnings {
+        display: flex !important;
+        break-inside: avoid;
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+    .cv-warnings { display: block !important; }
+    h3, h4, .group-head { break-after: avoid; page-break-after: avoid; }
+
+    /* What this sheet is, who it is about and when it was made. Hidden on
+       screen, where the page itself answers all three. */
+    .print-stamp {
+        display: block !important;
+        margin: 0 0 18px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--text);
+        font-size: 0.78rem;
+        color: var(--text-dim);
+    }
+    .print-stamp b { color: var(--text); font-weight: 750; }
+}
+
+/* Off screen entirely — see the print block above for what it is for. */
+.print-stamp { display: none; }
+
+/* A pair of small buttons on one line — back out, or take it with you. */
+.row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Where each player actually played.
+
+   One axis, eleven bars, grouped by the line the coach picked them in — so the
+   comparison a coach came here to make is the one the layout makes for them,
+   and a defender whose bar ends past the midfield block is visible before any
+   sentence about it.
+
+   Every bar shares the same track, drawn full width from the goal they were
+   defending to the goal they were attacking. That is the whole reason the block
+   works: bars measured from the deepest player instead would put somebody at
+   zero on every team sheet ever written. */
+.shape-rows { display: grid; gap: 10px; max-width: 640px; }
+
+/* The scale, once, above the bars rather than repeated under each. The labels
+   sit at their own positions, so the first and last are pulled inside the track
+   instead of hanging off its ends. */
+.shape-scale {
+    position: relative;
+    height: 1.1rem;
+    /* Left of the track sits the name column, right of it the value column,
+       so a ruler that stops at the container instead of at the bar is a
+       ruler that lies: measured at 1280 it put 'Halfway' 28.8 px right of
+       the track's midpoint and 'Their goal' 57.6 px past the bar's end.
+       Both margins mirror the row's own grid. */
+    margin: 0 calc(2.8rem + 10px) 2px calc(5.6rem + 10px);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+}
+.shape-scale > span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.shape-scale > span:first-child { transform: none; }
+.shape-scale > span:last-child { transform: translateX(-100%); }
+
+.shape-line {
+    margin: 12px 0 2px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+.shape-rows > .shape-line:first-of-type { margin-top: 4px; }
+
+.shape-row {
+    display: grid;
+    grid-template-columns: 5.6rem minmax(0, 1fr) 2.8rem;
+    grid-template-areas: 'name track value' '. sub sub';
+    align-items: center;
+    gap: 3px 10px;
+}
+.shape-name {
+    grid-area: name;
+    font-size: 0.84rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.shape-track {
+    grid-area: track;
+    position: relative;
+    height: 14px;
+    border-radius: 7px;
+    background: var(--line);
+    min-width: 0;
+}
+.shape-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    border-radius: 7px;
+    background: var(--accent);
+}
+/* How firmly the average is pinned down, over the fill rather than beside it.
+   Two bands that overlap are two players who cannot be told apart, and that
+   only reads at a glance if both are on the same line. */
+.shape-band {
+    position: absolute;
+    top: -2px;
+    height: 18px;
+    border-radius: 4px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-dim);
+}
+/* The average itself, kept on top so a wide band cannot swallow the one figure
+   the row is actually reporting. */
+.shape-pin {
+    position: absolute;
+    top: -3px;
+    width: 2px;
+    height: 20px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--accent-hi);
+}
+.shape-value {
+    grid-area: value;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 0.88rem;
+}
+.shape-sub {
+    grid-area: sub;
+    font-size: 0.74rem;
+    color: var(--text-dim);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+/* A player the remarks below have something to say about. Warned rather than
+   accented: the row is not better or worse, it is the one being pointed at. */
+.shape-row.is-flagged .shape-fill { background: var(--warn); }
+.shape-row.is-flagged .shape-pin { background: var(--warn); }
+.shape-row.is-flagged .shape-name { font-weight: 700; }
+
+.shape-remarks {
+    margin: 14px 0 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 6px;
+    font-size: 0.86rem;
+}
+.shape-remarks li::marker { color: var(--warn); }
+
+/* The name column costs more than it is worth on a phone, where the bars are
+   already short. Stacked, the name gets the full width and the bar keeps it. */
+@media (max-width: 560px) {
+    .shape-scale { margin-left: 0; margin-right: 0; }
+    .shape-row {
+        grid-template-columns: minmax(0, 1fr) 2.8rem;
+        grid-template-areas: 'name value' 'track track' 'sub sub';
+        gap: 4px 10px;
+    }
+}

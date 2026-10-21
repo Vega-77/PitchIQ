@@ -1,0 +1,434 @@
+/* The pitch charts: heatmap and shot map.
+ *
+ * One part of the shared stylesheet; `shared/app.css` imports the parts in
+ * cascade order, so moving a rule to another part can change what wins.
+ */
+
+/* ---------------------------------------------------------------- heatmap */
+/*
+   A pitch with the busy squares shaded. The markings are drawn on top of the
+   cells rather than under them, so a hot square never swallows the penalty box
+   that makes it readable.
+*/
+.heatmap {
+    /* The pitch is 105x68, and the viewBox carries a 2m margin either side. */
+    aspect-ratio: 109 / 72;
+    width: 100%;
+    /* Capped, because the aspect ratio means width buys height: at the full
+       1120px shell this would be a 740px-tall block and everything else on the
+       page would be below the fold. A pitch does not get more readable past
+       about this size — the cells are already 50px across. */
+    max-width: 620px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 10px;
+    color: var(--mark-quiet);
+}
+.heatmap-svg { width: 100%; height: 100%; display: block; }
+
+/* One colour at varying opacity rather than a rainbow ramp. A blue-to-red
+   scale implies a scale somebody could read values off, and this is an
+   occupancy share nobody should be reading to two figures. */
+.heatmap-cells rect { fill: var(--accent); }
+
+/* Which way they were playing. Brighter than the markings, which is the other
+   way round from how this comment used to read and from what anyone would guess:
+   the arrow is a solid glyph and the markings are 0.4-wide hairlines, so equal
+   ink would leave the arrow shouting. It is a label and gets label legibility
+   (4.97); the pitch is the subject and gets structure legibility (4.14).
+   Those are only 1.20 apart, which is closer than it reads — the markings had
+   to come up to clear the graphical floor on --line as well as on --surface,
+   and that pushed them most of the way to the label. What still separates the
+   two is the weight, not the colour. */
+.heatmap-arrow { color: var(--text-faint); }
+
+/* --------------------------------------------------------------- shot map */
+/*
+   Half a pitch — the attacking half — with a dot per shot, sized by area so a
+   0.4 chance looks four times a 0.1 one rather than sixteen.
+*/
+.shot-map {
+    /* Half the length, full width, plus the viewBox's 2m margin. */
+    aspect-ratio: 56.5 / 72;
+    width: 100%;
+    max-width: 380px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 10px;
+    color: var(--mark-quiet);
+}
+.shot-map-svg { width: 100%; height: 100%; display: block; }
+.shot-map.is-empty { display: none; }
+
+/* Outcome as colour, and only three of them. A goal, one the keeper had to
+   deal with, and one that never troubled anybody — any finer distinction is
+   beyond what the pipeline can honestly claim about a shot. */
+.shot-mark { fill: var(--text-faint); fill-opacity: 0.5; stroke: none; }
+.shot-mark.is-on-target { fill: var(--accent); fill-opacity: 0.65; }
+.shot-mark.is-goal {
+    fill: var(--good);
+    fill-opacity: 0.9;
+    stroke: var(--good);
+    stroke-width: 0.4;
+}
+.shot-mark.is-pickable { cursor: pointer; }
+@media (hover: hover) {
+    .shot-mark.is-pickable:hover { fill-opacity: 1; }
+}
+/* Focus, drawn on the shape instead of around it. The global `:focus-visible`
+   outline does land on an SVG element, but it is a rectangle around the
+   bounding box of a circle whose radius encodes xG — on the smallest marks
+   that is a few pixels of ring in a crowded goalmouth.
+
+   Not `var(--accent)`, which is what this rule said first and what the rest of
+   the app focuses with. `.shot-mark.is-on-target` is *filled* with `--accent`,
+   so a focused on-target shot was an accent ring on an accent disc: measured in
+   the browser it changed nothing but the mark's apparent radius, which reads as
+   a slightly bigger dot rather than as focus. `--good` fills the goals and sits
+   next to it. `--text` is the one token here that no mark can be, and against
+   the pitch backdrop it carries about 16:1.
+
+   `paint-order: stroke` keeps the ring wholly outside the disc. Without it half
+   the stroke width eats into a mark that is 27 px across at its smallest, and
+   the fill colour is the thing saying whether the shot went in. */
+.shot-mark.is-pickable:focus-visible {
+    outline: none;
+    fill-opacity: 1;
+    stroke: var(--text);
+    stroke-width: 0.55;
+    paint-order: stroke;
+}
+
+/* The passing network. A whole pitch, not the attacking half — the question is
+   shape, and half of it lives in the defensive end. Wider than the shot maps
+   for the same reason: two players three metres apart have to stay two legible
+   dots, and a network squeezed to phone width is a smudge. */
+.pass-map {
+    /* Full pitch, plus the viewBox's 2m margin on each side. */
+    aspect-ratio: 109 / 72;
+    width: 100%;
+    max-width: 620px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 10px;
+    color: var(--mark-quiet);
+}
+.pass-map-svg { width: 100%; height: 100%; display: block; }
+.pass-map:empty { display: none; }
+
+/* Lines under, dots over. The width already carries the count, so the colour
+   stays flat — two claims on one mark and neither can be read. */
+.pass-edge {
+    stroke: var(--accent);
+    stroke-opacity: 0.42;
+    stroke-linecap: round;
+}
+.pass-dot {
+    fill: var(--accent);
+    fill-opacity: 0.9;
+    stroke: var(--surface);
+    stroke-width: 0.5;
+    transition: fill-opacity .12s ease, stroke .12s ease;
+}
+/* The group is the hover target, not the circle. The <title> that names the
+   player lives on the group, and the smallest dots on this map are under two
+   pitch-metres across — small enough that hunting for the tooltip with a mouse
+   is a game rather than a reading. */
+@media (hover: hover) {
+    .pass-node:hover .pass-dot {
+        fill-opacity: 1;
+        stroke: var(--accent-hi);
+    }
+}
+
+/* A season, as a row of small traces.
+   Small multiples rather than one chart with a picker: four measures side by
+   side is the comparison worth making, and a selector hides three quarters of
+   the data behind a click nobody makes. `minmax(0, 1fr)` rather than `1fr`
+   because an SVG in a grid track refuses to shrink below its intrinsic width
+   otherwise, which is how a row of charts pushes a phone sideways. */
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+    gap: 18px;
+}
+/* A trace sits under the total it is the shape of, so it needs the gap a
+   separate block would have had. Empty when the season is too short to draw
+   one, and `:empty` keeps the gap from opening under nothing. */
+.stat-grid + .form-row:not(:empty) { margin-top: 22px; }
+
+/* How much of each match the tracker followed. One row per match, oldest at
+   the top, the bar against 90 minutes rather than against the player's own —
+   a substitute followed for all twenty of their twenty minutes has been
+   measured completely, and a full bar beside a starter's would say the two
+   had the same evidence behind them. */
+.coverage-strip { display: grid; gap: 2px; }
+
+.coverage-row {
+    display: grid;
+    grid-template-columns: minmax(0, 8em) minmax(60px, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 5px 0;
+    font-size: 0.82rem;
+}
+
+.coverage-opp {
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.coverage-track {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--surface-hi);
+    overflow: hidden;
+}
+.coverage-bar {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--accent);
+    transition: width .3s cubic-bezier(.2, .7, .3, 1);
+}
+/* Filmed, and followed for too few minutes to be a point on any of the lines
+   above. Not a failure and not a full measurement either — the warning colour
+   is what the rest of this app uses for a hole in the record. */
+.coverage-bar.is-thin { background: var(--warn); }
+
+.coverage-value {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+.coverage-value.is-faint { color: var(--text-faint); }
+.form-card {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 12px 14px 10px;
+    min-width: 0;
+}
+.form-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.form-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+/* The season figure, in the position a headline number goes. It is the pooled
+   one — see shared/season.js — and the line in the chart below is drawn at the
+   same value, so the two cannot disagree. */
+.form-mean-v {
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+/* Matches the viewBox in shared/form-chart.js exactly, so uniform scaling fills
+   the box rather than letterboxing inside it. The chart draws circles and a
+   stretched circle is an oval, which is the one thing a mark sized by area
+   cannot afford to be. */
+.form-plot { aspect-ratio: 100 / 32; }
+.form-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+/* The two ends of the axis, printed because the axis does not start at zero. */
+.form-foot {
+    margin-top: 6px;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.form-mean {
+    stroke: var(--mark-quiet);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+}
+.form-link { stroke: var(--accent); stroke-width: 1.5; stroke-opacity: 0.55; }
+.form-dot { fill: var(--accent); stroke: var(--surface); stroke-width: 0.4; }
+/* A match that happened and could not be measured. On the floor, faint, and
+   never the same shape as a value — a gap that looked like a low reading would
+   be the worst possible way to draw one. */
+.form-gap { fill: var(--mark-quiet); fill-opacity: 0.85; }
+.form-gap.is-thin { fill: var(--warn); fill-opacity: 0.7; }
+
+/* The press, quarter-hour by quarter-hour.
+   Horizontal bars rather than an SVG chart: there are three to six of them, each
+   needs a time range and two raw counts printed beside it, and text inside an
+   SVG at 375px is the one thing that has never survived a phone here.
+   A longer bar is a *softer* press — see the block's comment in coach/index.html
+   for why the number is not inverted to fix that. */
+.press-trend { display: grid; gap: 12px; max-width: 620px; }
+.press-row {
+    display: grid;
+    grid-template-columns: 4.2rem 1fr 2.6rem;
+    grid-template-areas: 'when bar value' '. counts counts';
+    align-items: center;
+    gap: 4px 10px;
+}
+.press-when {
+    grid-area: when;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+}
+/* The track is drawn full width so the bars share one baseline at zero. A bar
+   measured from the shortest instead would make an ordinary quarter-hour look
+   like a collapse. */
+.press-bar {
+    grid-area: bar;
+    height: 14px;
+    border-radius: 7px;
+    background: var(--line);
+    overflow: hidden;
+    min-width: 0;
+}
+.press-bar > span {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 7px;
+}
+.press-value {
+    grid-area: value;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.press-counts {
+    grid-area: counts;
+    font-size: 0.76rem;
+    color: var(--text-dim);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+/* No bar, and the reason in its place. Kept the height of a bar so the rows
+   stay on one rhythm and a missing ratio does not read as a missing block. */
+.press-none {
+    grid-area: bar;
+    font-size: 0.76rem;
+    line-height: 14px;
+    color: var(--text-dim);
+    font-style: italic;
+}
+/* A spell in which nobody was challenged at all. Accented rather than greyed:
+   it is the strongest finding the chart can carry, and it is the one that looks
+   most like missing data. */
+.press-row.is-unchallenged .press-none { color: var(--warn); font-style: normal; }
+
+/* The football either side of each substitution.
+
+   Two bars stacked rather than side by side, sharing one left edge: the reading
+   is "did this grow or shrink", and two bars that start at the same place
+   answer it at a glance where two side by side make it a subtraction. */
+.sub-list { display: grid; gap: 18px; max-width: 620px; }
+.sub-row {
+    display: grid;
+    grid-template-columns: 3.6rem minmax(0, 1fr);
+    gap: 4px 12px;
+    align-items: baseline;
+}
+.sub-when {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+}
+.sub-who { font-size: 0.9rem; font-weight: 600; min-width: 0; }
+/* A change with nothing measurable either side of it — no shots, or not enough
+   match around it to compare. The row stays, because the substitution really
+   happened and a timeline with holes in it is worse than a quiet row. But it
+   should not compete with the rows that carry two bars: those are the ones with
+   an answer in them, and this is the one saying it does not know. */
+.sub-row.is-bare .sub-when,
+.sub-row.is-bare .sub-who { color: var(--text-faint); font-weight: 500; }
+.sub-legs { grid-column: 2; display: grid; gap: 6px; margin-top: 6px; }
+.sub-leg {
+    display: grid;
+    grid-template-columns: 3.4rem minmax(0, 1fr) 2.6rem;
+    grid-template-areas: 'k bar v' '. n n';
+    align-items: center;
+    gap: 2px 10px;
+}
+.sub-leg-k { grid-area: k; font-size: 0.76rem; color: var(--text-dim); }
+.sub-bar {
+    grid-area: bar;
+    height: 12px;
+    border-radius: 6px;
+    background: var(--line);
+    overflow: hidden;
+    min-width: 0;
+}
+.sub-bar > span {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 6px;
+}
+.sub-leg-v {
+    grid-area: v;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 0.86rem;
+}
+.sub-leg-n {
+    grid-area: n;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    min-width: 0;
+}
+.sub-meta {
+    grid-column: 2;
+    margin-top: 6px;
+    font-size: 0.74rem;
+    color: var(--text-dim);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+/* A change with no figures beside it. Not dimmed away: that it happened is
+   worth seeing even where what followed cannot be measured. */
+.sub-why {
+    grid-column: 2;
+    margin-top: 2px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    font-style: italic;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* A row is narrow, not a screen — a half-width column on a monitor hits this
+   before a phone does. See the container-query note above .cluster-row. */
+@container reportblock (max-width: 400px) {
+    .sub-row { grid-template-columns: minmax(0, 1fr); }
+    .sub-legs, .sub-meta, .sub-why { grid-column: 1; }
+    .sub-leg { grid-template-columns: 3.4rem minmax(0, 1fr) 2.6rem; }
+}
+
+/* Two maps side by side on the coach's view, stacked on a phone. */
+.shot-maps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+.shot-maps figure { margin: 0; flex: 1 1 260px; min-width: 0; }
+.shot-maps figcaption {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    overflow-wrap: anywhere;
+}

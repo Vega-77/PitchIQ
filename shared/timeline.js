@@ -11,7 +11,7 @@
 //     { clockS, type, label, id? }
 //
 // `type` becomes a class — `is-goal`, `is-touch`, `is-pass` — which is how the
-// colours are chosen; see `.tick` and `.moment` in app.css. `id` is optional
+// colours are chosen; see `.tick` and `.moment` in shared/styles/match.css. `id` is optional
 // and only the review tool uses it, to find the row a mark belongs to.
 //
 // No imports on purpose, same as report.js: this builds DOM and does nothing

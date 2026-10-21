@@ -1,0 +1,661 @@
+/* Controls, surfaces, stat blocks, the kit picker, season charts, pills and
+ * tables.
+ *
+ * One part of the shared stylesheet; `shared/app.css` imports the parts in
+ * cascade order, so moving a rule to another part can change what wins.
+ */
+
+/* ---------------------------------------------------------------- controls */
+
+/* Condensed capitals, like the lettering on a bench jacket. Every button
+   lifts a little under a pointer and settles when pressed, so a tap on a
+   tablet has something to feel like even without a click. */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: var(--display);
+    font-size: 0.98rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    line-height: 1.1;
+    color: var(--text);
+    background: var(--surface);
+    border: 1.5px solid var(--line-hi);
+    border-radius: 6px;
+    padding: 11px 20px;
+    min-height: 50px;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, color .15s ease,
+                transform .15s var(--ease-out), box-shadow .2s ease;
+}
+@media (hover: hover) {
+    .btn:hover {
+        background: var(--surface);
+        border-color: var(--accent);
+        color: var(--accent);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow);
+    }
+}
+.btn:active { transform: translateY(1px) scale(.98); box-shadow: none; }
+.btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+.btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+}
+@media (hover: hover) {
+    .btn.primary:hover {
+        background: var(--accent-hi);
+        border-color: var(--accent-hi);
+        color: var(--on-accent);
+        box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 30%, transparent);
+    }
+}
+
+.btn.ghost { background: transparent; border-color: transparent; color: var(--text-dim); }
+@media (hover: hover) {
+    .btn.ghost:hover { background: var(--accent-dim); color: var(--accent); box-shadow: none; }
+}
+.btn.danger { background: transparent; border-color: color-mix(in srgb, var(--danger) 43%, transparent); color: var(--danger); }
+@media (hover: hover) {
+    .btn.danger:hover { background: var(--danger-dim); border-color: var(--danger); }
+}
+.btn.block { width: 100%; }
+.btn.small { min-height: 40px; padding: 6px 14px; font-size: 0.88rem; border-radius: 5px; }
+
+input, select, textarea {
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--surface);
+    border: 1.5px solid var(--line-hi);
+    border-radius: 6px;
+    padding: 11px 13px;
+    min-height: 50px;
+    width: 100%;
+    transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+}
+@media (hover: hover) {
+    input:hover, select:hover { border-color: var(--line-hi); }
+}
+input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    background: var(--surface);
+    box-shadow: 0 0 0 4px var(--accent-dim);
+}
+input::placeholder { color: var(--text-faint); }
+
+/* The rule above is written for text boxes, and a checkbox inherits all of it:
+   full width, 50px tall, 13px of padding. The first checkbox on the site came
+   out as a white slab the width of its label. Ticks and radios opt out. */
+input[type="checkbox"], input[type="radio"] {
+    width: auto;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    accent-color: var(--accent);
+    inline-size: 1.05rem;
+    block-size: 1.05rem;
+}
+
+label.field { display: block; margin-bottom: 16px; }
+label.field > span {
+    display: block;
+    font-family: var(--display);
+    font-size: 0.92rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-faint);
+    margin-bottom: 7px;
+}
+
+.row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.row > * { flex: 1; min-width: 0; }
+.row > .btn { flex: 0 0 auto; }
+
+/* ---------------------------------------------------------------- surfaces */
+
+/* A card wears the team's colour along its top edge, like the collar of a
+   shirt laid flat. */
+.card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--kit);
+    border-radius: var(--radius);
+    padding: 22px;
+    box-shadow: var(--shadow);
+}
+
+.card-list { display: flex; flex-direction: column; gap: 8px; }
+
+/* The same idea as .card-list, and it went years without a rule: every list on
+   the match view stacked its bordered rows flush, so adjacent 1px borders met
+   as one 2px seam and a list of twenty shots read as a single ruled block. The
+   gap is smaller than .card-list's because these rows are denser and there are
+   many more of them — eight pixels of nothing between each of twenty rows is
+   its own kind of noise. */
+.list { display: flex; flex-direction: column; gap: 6px; }
+
+.list-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 13px 16px;
+    color: inherit;
+    text-align: left;
+    font-family: inherit;
+    font-size: 0.95rem;
+    width: 100%;
+    box-shadow: 0 1px 2px rgba(20, 24, 32, .04);
+    transition: background .15s ease, border-color .15s ease,
+                transform .18s var(--ease-out), box-shadow .18s ease;
+}
+button.list-item, a.list-item { cursor: pointer; }
+@media (hover: hover) {
+    button.list-item:hover, a.list-item:hover {
+        background: var(--surface);
+        border-color: var(--accent);
+        transform: translateX(3px);
+        box-shadow: -3px 0 0 var(--accent), var(--shadow);
+    }
+}
+.list-item .title { font-weight: 600; }
+.list-item .sub { font-size: 0.82rem; color: var(--text-faint); }
+
+/* Jersey numbers, set in the varsity block face the shirt itself uses. */
+.jersey {
+    font-family: var(--numeral);
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+    font-size: 1.05rem;
+    color: var(--accent);
+    min-width: 32px;
+    text-align: center;
+}
+
+/* ---------------------------------------------------------------- stats */
+
+/* Groups of boxes, one per question a coach is asking. The gap between groups
+   is a good deal larger than the gap inside one — that spacing is the whole
+   mechanism, and a uniform gap would put twenty-five boxes back in one pile
+   with some headings scattered through it. */
+.stat-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+}
+
+.group-head {
+    margin-bottom: 10px;
+}
+.group-head h4 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--text-dim);
+    margin: 0;
+}
+/* auto-fill, not auto-fit, once the grid is one of several stacked ones.
+   auto-fit collapses the empty tracks, so a group of three boxes stretches each
+   to twice the width of the six above it — which reads as a claim that those
+   three matter more, and this project's whole line on shot maps is that a size
+   difference is a claim. */
+.stat-group .stat-grid {
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+}
+
+/* What the figures underneath are a share of. Said once above the group
+   instead of six times inside the labels. */
+.group-head .group-note {
+    font-size: 0.78rem;
+    color: var(--text-faint);
+    margin: 3px 0 0;
+}
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+    gap: 10px;
+}
+
+.stat {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 18px 14px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(20, 24, 32, .05);
+    transition: transform .2s var(--ease-out), box-shadow .2s ease;
+}
+/* The collar again, on every figure: a band of the team's colour across the
+   top of the box. */
+.stat::before {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 4px;
+    background: var(--accent);
+}
+.stat.is-muted::before { background: var(--mark-quiet); }
+.stat.is-good::before { background: var(--good); }
+.stat.is-warn::before { background: var(--warn); }
+
+.stat .value {
+    font-family: var(--numeral);
+    font-size: 1.95rem;
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+}
+.stat .label {
+    font-family: var(--display);
+    font-size: 0.86rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-faint);
+    margin-top: 6px;
+}
+
+/* Figures printed on the shirt itself rather than on a card laid over it:
+   the box is a slightly lighter panel of the kit, lettered in the kit's ink,
+   and the collar band turns to the trim. */
+.on-kit .stat {
+    background: color-mix(in srgb, var(--kit-on) 9%, var(--kit));
+    border-color: color-mix(in srgb, var(--kit-on) 20%, transparent);
+    box-shadow: none;
+}
+.on-kit .stat::before { background: var(--kit-2); }
+.on-kit .stat .value,
+.on-kit .stat .label { color: var(--kit-on); }
+.on-kit .stat .label { opacity: .86; }
+
+/* A compact figure that lives inside a row rather than in its own box: the
+   per-match numbers on a player's season, the record on a team card. Three
+   pages had their own copy of this under three different names (.figure,
+   .pv-figure, .tcs) with identical rules. */
+.figures { display: flex; gap: 20px; text-align: right; }
+
+.figure { min-width: 46px; }
+.figure .n {
+    font-family: var(--numeral);
+    font-size: 1.1rem;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+/* Zeroes recede so the numbers that matter carry the eye down the column. */
+.figure .n.zero { color: var(--text-faint); font-weight: 400; }
+.figure .n.pos { color: var(--good); }
+.figure .n.neg { color: var(--danger); }
+.figure .n.dim { color: var(--text-faint); }
+.figure .k {
+    font-family: var(--display);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-faint);
+    margin-top: 2px;
+}
+
+/* Squad number set like a shirt back. Used by both the player portal and the
+   coach's view of one player. */
+.player-head {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+/* The badge is the shirt itself: cut to a jersey's outline, in the team's
+   colour, with the number in the trim. On a header that is already the
+   shirt colour it swaps, so it does not vanish into what it sits on. */
+.player-badge {
+    display: grid;
+    place-items: center;
+    width: 82px;
+    height: 78px;
+    flex-shrink: 0;
+    padding-top: 14px;
+    background: var(--kit);
+    clip-path: polygon(30% 0, 70% 0, 100% 17%, 91% 42%, 81% 36%, 81% 100%,
+                       19% 100%, 19% 36%, 9% 42%, 0 17%);
+    font-family: var(--numeral);
+    font-size: 1.9rem;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    color: var(--kit-2-ink);
+}
+.on-kit .player-badge { background: var(--kit-2); color: var(--kit-2-on); }
+
+/* ---------------------------------------------------------------- kit picker
+ *
+ * A squad's two colours (ui.js, `kitPicker`). Each common pairing is a disc
+ * split on the diagonal, the way a scarf is; the chosen one gets a ring. Under
+ * them, a shirt in the pair as picked, and a colour well for each half.
+ */
+.kit-field { margin-bottom: 18px; }
+.kit-field-label {
+    display: block;
+    font-family: var(--display);
+    font-size: 0.92rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-faint);
+    margin-bottom: 9px;
+}
+.kit-picker { margin-bottom: 14px; }
+.kit-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.kit-swatch {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 3px solid var(--surface);
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--sw-a) 50%, var(--sw-b) 50%);
+    box-shadow: 0 0 0 1.5px var(--line-hi);
+    cursor: pointer;
+    transition: transform .18s var(--ease-out), box-shadow .18s ease;
+}
+.kit-swatch[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--text); }
+@media (hover: hover) {
+    .kit-swatch:hover { transform: scale(1.1) rotate(-12deg); }
+}
+.kit-wells { display: flex; align-items: center; gap: 16px; }
+.kit-shirt {
+    width: 62px;
+    height: 58px;
+    padding-top: 10px;
+    font-size: 1.35rem;
+    transition: background-color .3s ease, color .3s ease;
+}
+.kit-well {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--display);
+    font-size: 0.86rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+.kit-well input[type="color"] {
+    width: 52px;
+    height: 40px;
+    padding: 3px;
+    border: 1.5px solid var(--line-hi);
+    border-radius: 6px;
+    background: var(--surface);
+    cursor: pointer;
+}
+.kit-warning { margin: 10px 0 0; font-size: 0.86rem; color: var(--warn); }
+.kit-warning:empty { display: none; }
+
+/* Small accent label above a heading, e.g. "Season". Was 0.62rem, which is
+   10.5px — comfortably into the range this project's own type scale exists to
+   avoid. */
+.eyebrow-mini {
+    font-family: var(--display);
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--accent);
+    margin-bottom: 8px;
+}
+
+/* Score line, e.g. 2 – 1 */
+.scoreline {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 12px;
+    font-family: var(--numeral);
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+    font-size: 2.4rem;
+    letter-spacing: 0;
+}
+.scoreline .dash { color: var(--text-faint); font-weight: 400; font-size: 1.55rem; }
+
+/* ---------------------------------------------------------------- charts */
+
+/* A season as a shape. Used by the player portal and by the coach's view of one
+   player, so it lives here rather than in either page's stylesheet.
+
+   Fixed height rather than an aspect ratio: a wider screen should make the bars
+   wider, not taller. */
+.chart {
+    height: 120px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+}
+.chart svg { width: 100%; height: 100%; display: block; }
+
+.chart-bar { fill: var(--mark-quiet); transition: fill .15s ease; }
+/* Matches with a goal or an assist — the thing anyone scans this for. */
+.chart-bar.scored { fill: var(--accent); }
+@media (hover: hover) {
+    .chart:hover .chart-bar { fill: var(--text-faint); }
+    .chart:hover .chart-bar.scored { fill: var(--accent-hi); }
+}
+/* A match nobody kept the clock for. It has to be visibly not a short bar —
+   a stub in the accent colour would read as a substitute appearance — so it is
+   the floor height in the warning colour, which is what the rest of this app
+   uses for a hole in the record rather than for a low number. */
+.chart-bar.unknown,
+.chart-bar.unknown.scored { fill: var(--warn); }
+/* And it survives the hover, which otherwise repaints every bar in the chart.
+   A hole in the record is not a bar you get to light up. */
+@media (hover: hover) {
+    .chart:hover .chart-bar.unknown { fill: var(--warn); }
+}
+
+.chart-full-line { stroke: var(--mark-quiet); stroke-width: 1; stroke-dasharray: 3 3; }
+
+@media (min-width: 1100px) {
+    /* Room to be read as a graph rather than glanced at as a sparkline. */
+    .chart { height: 160px; }
+}
+@media (max-width: 640px) {
+    .chart { height: 96px; padding: 12px; }
+}
+
+/* ---------------------------------------------------------------- pills */
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--display);
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    padding: 3px 9px 2px;
+    border-radius: 4px;
+    background: var(--surface-hi);
+    color: var(--text-dim);
+    border: 1px solid var(--line);
+    white-space: nowrap;
+}
+.pill.done { background: var(--good-dim); border-color: color-mix(in srgb, var(--good) 43%, transparent); color: var(--good); }
+.pill.warn { background: var(--warn-dim); border-color: color-mix(in srgb, var(--warn) 43%, transparent); color: var(--warn); }
+
+/* Live: a quiet pulse, because it means something is happening now. */
+.pill.live {
+    background: var(--danger-dim);
+    border-color: color-mix(in srgb, var(--danger) 48%, transparent);
+    color: var(--danger);
+}
+.pill.live::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--danger);
+    animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
+
+/* Card chips carry the actual colour — a yellow and a red should never look alike. */
+.card-chip {
+    display: inline-block;
+    width: 11px;
+    height: 15px;
+    border-radius: 2px;
+    vertical-align: -2px;
+}
+.card-chip.yellow { background: var(--card-yellow); }
+.card-chip.red { background: var(--card-red); }
+.card-chip.second_yellow {
+    background: linear-gradient(135deg, var(--card-yellow) 50%, var(--card-red) 50%);
+}
+
+/* ---------------------------------------------------------------- tables */
+
+.table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+}
+
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+
+th, td { text-align: left; padding: 12px 16px; white-space: nowrap; }
+
+thead th {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+    background: var(--bg-raised);
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+}
+
+tbody tr { border-bottom: 1px solid var(--line); }
+tbody tr:last-child { border-bottom: none; }
+@media (hover: hover) {
+    tbody tr:hover { background: var(--surface-hi); }
+}
+
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.num { font-weight: 600; }
+/* Zeroes recede so the numbers that matter stand out. */
+td.num.zero { color: var(--text-faint); font-weight: 400; }
+
+/* Estimated columns. A left rule where they begin, so the eye registers the
+   boundary between what a person tapped and what a machine worked out —
+   without needing a second table or a second scroll. */
+th.cv, td.cv { color: var(--text-faint); }
+th.cv { font-style: italic; }
+
+/* The divider needs its own class rather than :first-of-type. That pseudo-class
+   counts siblings of the same *element* type, so `td.cv:first-of-type` means
+   "the first td, if it happens to be a cv one" — which is the jersey number,
+   and the rule never fires. */
+th.cv-first, td.cv-first { border-left: 1px solid var(--line); }
+
+/* The band above the column names that says where the numbers under it came
+   from. Centred and quieter than the names themselves: it labels a region, and
+   read at the same weight it would compete with the headings it is grouping.
+
+   `top: 0` on the row above and `top: 30px` on the row below, because two
+   sticky header rows both pinned at zero land on top of each other. */
+.col-groups th {
+    text-align: center;
+    font-size: 0.64rem;
+    letter-spacing: 1.6px;
+    font-style: normal;
+    padding: 8px 16px 6px;
+    border-bottom: 1px solid var(--line);
+    color: var(--text-faint);
+    top: 0;
+}
+thead .col-groups + tr th { top: 30px; }
+
+/* A line of the team, across the table. Set in the body rather than as a second
+   header so it scrolls with the rows it heads — it is a divider between groups
+   of players, not a column label, and a sticky one would stack up behind the
+   two that are already pinned. */
+.pos-head th {
+    position: static;
+    text-align: left;
+    font-size: 0.66rem;
+    letter-spacing: 1.6px;
+    font-style: normal;
+    color: var(--text-faint);
+    background: var(--bg-raised);
+    padding: 7px 16px;
+    border-bottom: 1px solid var(--line);
+}
+/* No rule above the very first one — the column headings are directly above it
+   and two lines 7px apart read as a mistake. */
+thead + tbody .pos-head:first-child th { border-top: none; }
+tbody .pos-head th { border-top: 1px solid var(--line); }
+@media (hover: hover) {
+    tbody tr.pos-head:hover { background: var(--bg-raised); }
+}
+
+/* The roster's position picker. Narrow on purpose: four words and a blank, next
+   to a name and two buttons that both matter more. */
+.pos-pick select {
+    min-height: 36px;
+    font-size: 0.8rem;
+    min-width: 108px;
+}
+
+/* Minutes, as a length as well as a number. The table is sorted by goals and
+   assists, so who actually played the match is not something the row order
+   says — and eleven columns of digits is exactly the place a bar earns its
+   keep. The share is of the match's own length, not of the longest shift, so a
+   squad nobody rotated does not draw itself as though somebody did. */
+td.bar-cell { position: relative; }
+td.bar-cell .cell-bar {
+    position: absolute;
+    left: 0;
+    bottom: 4px;
+    height: 3px;
+    width: calc(var(--w, 0) * 100%);
+    background: var(--mark-quiet);
+    border-radius: 0 2px 2px 0;
+    pointer-events: none;
+}
+@media (hover: hover) {
+    tbody tr:hover td.bar-cell .cell-bar { background: var(--accent); }
+}
+/* Nobody's bar, rather than a 3px stub that reads as "barely played". */
+td.bar-cell.zero .cell-bar { display: none; }
+
+/* A figure the video measured over a minority of the player's filmed minutes.
+   Underlined rather than dimmed: `td.num.zero` already spends dimming on
+   "this is nothing", and "this is real but partial" is a different claim that
+   would be unreadable as a second shade of grey. The names are also spelled out
+   in the note under the table, because a dotted underline is not something a
+   phone can hover over. */
+td.num.cv-partial {
+    text-decoration: underline dotted var(--text-faint);
+    text-underline-offset: 3px;
+}

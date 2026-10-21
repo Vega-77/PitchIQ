@@ -56,7 +56,9 @@ Shared code lives in `shared/` and is imported by path.
 
 ```
 shared/            shared by every page
-  app.css            design system: tokens, type scale, components
+  app.css            design system entry: imports styles/ in cascade order
+  styles/            its parts: tokens, layout, report, components, panels,
+                     match, motion, charts, footer, print, jump-bar
   firebase-init.js   SDK setup   <- your Firebase config goes here
   auth.js            sign-in, roster claim, role resolution
   db.js              every Firestore read and write

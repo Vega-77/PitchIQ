@@ -1,0 +1,462 @@
+/* The match report laid out on a monitor, and the outstanding-work and
+ * next-game panels.
+ *
+ * One part of the shared stylesheet; `shared/app.css` imports the parts in
+ * cascade order, so moving a rule to another part can change what wins.
+ */
+
+/* -------------------------------------------------- the report, on a monitor
+ *
+ * A match report is around fifteen blocks, and stacked one to a row it was
+ * roughly ten screens of scrolling on a laptop — which is where this page is
+ * actually read. Phones get the stack, because a phone has one column and
+ * scrolling is how you use it. Anything wide enough gets a rail and two
+ * columns.
+ *
+ * Deliberately a grid laid over the existing markup rather than a second set of
+ * it. There is one match report in the DOM, in one order, and the desktop
+ * arrangement is a stylesheet's opinion about it — so a block that appears only
+ * when a match was filmed needs no layout code, and neither does print.
+ *
+ * Two columns and not three. A third would have to come out of the middle one,
+ * and the widest thing on the page — the player table, eleven columns of it —
+ * is already the constraint.
+ */
+
+.report-layout { display: block; }
+.report-body { display: block; }
+
+/* Every block measures itself.
+ *
+ * The cluster rows, the review rows and the shot rows all had a narrow layout
+ * already — written for a phone, keyed to `@media (max-width: 640px)`, with
+ * comments about "the mistake the cluster rows made at 375px". Putting two
+ * blocks side by side reproduced that mistake at 1440px: the same row in a
+ * 420px column, with the screen nowhere near 640px, stacked its label one
+ * letter per line.
+ *
+ * The rule those rows actually want has never been about the screen. It is
+ * "this row is narrow", and a container query is how you say that. Declared at
+ * every width rather than only inside the desktop grid, so a phone and a
+ * half-width column reach the identical rule instead of two that have to be
+ * kept in step.
+ */
+.report-body > .block { container: reportblock / inline-size; }
+
+/* Rail hidden below the breakpoint: on one column the page order *is* the
+   navigation, and a jump list would be a second way to do what scrolling
+   already does. */
+.section-rail { display: none; }
+
+@media (min-width: 1180px) {
+    /* A report takes the monitor.
+     *
+     * `--shell` is 1120px because that is a reading measure, tuned on prose.
+     * These pages are not prose — they are dashboards, and the widest thing on
+     * the coach's is a table of eleven columns that needs 897px. Halving the
+     * shell for two columns left it 33px short and put a horizontal scrollbar
+     * under the one table a coach reads most, while 450px of screen sat unused
+     * either side.
+     *
+     * A class the view opts into, not an id. This began as `#view-match` — and
+     * `player/index.html` has a `#view-match` too, a single column of blocks
+     * that got stretched to 1500px and looked worse for it. A width that only
+     * makes sense with columns under it has to be asked for by the views that
+     * have them.
+     *
+     * On the whole view rather than on the grid alone, so a scoreline or a
+     * player's name above stays in line with the columns beneath. The negative
+     * margin is symmetric arithmetic on the shell's own width, so it cannot
+     * drift; 64px of inset rather than 48 leaves room for a scrollbar, which
+     * `100vw` counts and the viewport does not. */
+    .wide-report {
+        --report: min(100vw - 64px, 1500px);
+        width: var(--report);
+        margin-inline: calc((100% - var(--report)) / 2);
+    }
+
+    /* And the bar goes with it. A header inset 80px from the content beneath it
+       reads as a mistake, and the brand no longer lining up with "All matches"
+       is the first thing the eye catches. Scoped to a view that is actually
+       wide rather than widened everywhere: on the squad and roster screens the
+       bar still lines up with a 1120px column, because that is what is under
+       it there. */
+    body:has(.wide-report:not(.hidden)) .topbar {
+        --bar: min(100vw - 64px, 1500px);
+    }
+
+    .report-layout {
+        display: grid;
+        grid-template-columns: 168px minmax(0, 1fr);
+        gap: 40px;
+        align-items: start;
+    }
+
+    .report-body {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        /* Larger down the page than across it. Two blocks side by side are read
+           as a pair and want to look like one; two rows apart are separate
+           subjects. A uniform gap makes a grid of sixteen equal things. */
+        gap: 40px 30px;
+        align-items: start;
+    }
+
+    /* Full width unless a block asks for half. The default is the safe way
+       round: a block that is too wide is merely roomy, one that is too narrow
+       breaks its own contents. */
+    .report-body > .block,
+    .report-body > .block-stack { grid-column: span 2; }
+    .report-body > .col-half { grid-column: span 1; }
+
+    /* The gap does the spacing now. Leaving the 42px margin on as well would
+       put it above the first row too, and double it between rows. */
+    .report-body > .block { margin-top: 0; }
+
+
+    /* A season of matches, two abreast.
+       Eight cards down a 1376px block is eight rows of one card and a great
+       deal of nothing beside each; in pairs it is four, and a season read
+       left-to-right two at a time is still a season in order. Scoped to a
+       full-width block inside a report grid — a card list in a half column has
+       no room to split, and the roster and staff lists elsewhere on the coach
+       page are not seasons. */
+    .report-body > .block:not(.col-half) .card-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+    }
+
+    .block-stack > .block:first-child { margin-top: 0; }
+
+    .section-rail {
+        display: block;
+        position: sticky;
+        /* Clear of nothing in particular — the top bar scrolls away with the
+           page — but a rail flush against the viewport edge reads as stuck
+           rather than as placed. */
+        top: 20px;
+        align-self: start;
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+        /* The rail is chrome, not content, and should not take a tab stop
+           before every block heading it points at. */
+        scrollbar-width: thin;
+    }
+}
+
+/* The figures that stay put while the middle of the page changes.
+ *
+ * The rail was navigation and nothing else, which made 168px of a 1500px screen
+ * a column of eight words. These are the things a reader wants without going to
+ * find them — the scoreline, how many minutes, how much of the season was
+ * filmed — and the point of standing them here is that switching sections never
+ * takes them away. */
+.rail-facts {
+    display: grid;
+    gap: 2px;
+    margin: 0 0 24px;
+    padding: 4px 14px 10px;
+    background: linear-gradient(168deg, var(--surface-hi) 0%, var(--surface) 55%, var(--bg-raised) 100%);
+    border: 1px solid var(--line-hi);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    /* A floodlit edge along the top, the same one that marks live data
+       everywhere else. It is what tells the eye this column is a readout and
+       not a menu with a box drawn round it. */
+    border-top: 2px solid var(--accent);
+}
+.rail-facts[hidden] { display: none; }
+
+.rail-fact { display: grid; padding: 9px 0; }
+.rail-fact + .rail-fact { border-top: 1px solid var(--line); }
+
+.rail-fact-k {
+    font-size: 0.64rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--text-faint);
+}
+.rail-fact-v {
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.25;
+    color: var(--text);
+}
+/* The one figure the reader came for, at the size a scoreboard would set it. */
+.rail-fact.is-big .rail-fact-v { font-size: 1.6rem; letter-spacing: -0.5px; }
+.rail-fact.is-good .rail-fact-v { color: var(--good); }
+.rail-fact-n { font-size: 0.72rem; color: var(--text-faint); line-height: 1.4; }
+
+.rail-head {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--text-faint);
+    margin: 0 0 10px 11px;
+}
+
+/* No gap, and that is the rule rather than an omission: each link draws its
+   own 2px left border, and stacked flush they add up to one continuous rail
+   line down the side of the page. Any gap here breaks that line into dashes. */
+.rail-links { display: grid; gap: 0; }
+
+.rail-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    /* A button, not an anchor: this scrolls the page it is already on, and an
+       href would put a fragment in the history for every glance at the rail. */
+    background: none;
+    border: 0;
+    border-left: 2px solid var(--line);
+    border-radius: 0;
+    font: inherit;
+    font-size: 0.82rem;
+    color: var(--text-faint);
+    text-align: left;
+    padding: 7px 8px 7px 12px;
+    cursor: pointer;
+    transition: color .12s ease, border-color .12s ease, transform .08s ease;
+}
+/* The label moves, the border does not, and the split is the whole point. This
+   button navigates — it scrolls the page to the block it names — so under the
+   rule in `response` it owes the reader a direction, the same 2px nudge every
+   other navigating row on the site gives. But the border on the left edge is
+   already spoken for: at `--accent` it means *you are here*, and a mark that
+   slides is a mark you have to read twice. So the text leans toward the
+   section and the edge stays pinned to the column. */
+.rail-label { transition: transform .14s cubic-bezier(.2, .7, .3, 1); }
+
+@media (hover: hover) {
+    .rail-link:hover { color: var(--text-dim); border-left-color: var(--line-hi); }
+    .rail-link:hover .rail-label { transform: translateX(2px); }
+}
+.rail-link:focus-visible .rail-label { transform: translateX(2px); }
+
+/* And a press, which it had none of. The rail is a column of thumb-sized
+   targets on a tablet held at the touchline, and the tap that scrolls the page
+   is indistinguishable — until the page moves — from a tap that missed. This
+   is the same omission `.chip` and `.tab` were fixed for, in the same words:
+   the visual confirmation is the only confirmation there is. */
+.rail-link:active { transform: scale(.985); }
+
+/* Where you are. More than one can be lit at once and that is correct — two
+   blocks share a row on this layout, so "the current section" is genuinely two
+   sections. Highlighting one of them would be picking a winner between two
+   things the eye is looking at together. */
+.rail-link.is-here {
+    color: var(--text);
+    border-left-color: var(--accent);
+    font-weight: 600;
+}
+
+/* A count where a block has one worth carrying — how many figures are still
+   unnamed, how many events are still unchecked. The rail is the only place on
+   the page where those are visible without scrolling to them. */
+.rail-tag {
+    margin-left: auto;
+    font-size: 0.68rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--bg);
+    background: var(--accent);
+    border-radius: 999px;
+    padding: 1px 6px;
+}
+.rail-link.is-here .rail-tag { background: var(--accent-hi); }
+
+/* A chart or a picture inside a block that is mostly numbers, with a caption
+   that reads as a caption rather than as a second heading. Used where a figure
+   belongs to the group above it — a minutes chart under the season totals it is
+   the shape of — instead of standing as a section of its own. */
+.block-figure { margin: 26px 0 0; }
+
+/* Two things inside one section, once the section is wide enough for both.
+ *
+ * Keyed to the block's own width rather than the screen's, which is the same
+ * rule `.report-body > .block` established: a half-width column on a monitor is
+ * narrow, and a section showing alone on that monitor is very wide. Stacked
+ * below the threshold, which is what a phone gets and also what the same
+ * section gets when it is sharing a row. */
+.block-split { display: grid; gap: 26px; }
+
+@container reportblock (min-width: 860px) {
+    .block-split {
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+        gap: 34px;
+        align-items: start;
+    }
+    /* The gap is the spacing now, and the caption should sit level with the
+       first row of boxes beside it rather than a chart's height lower. */
+    .block-split > .block-figure { margin-top: 0; }
+}
+
+.block-figure > figcaption {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+}
+
+/* ------------------------------------------------------ outstanding work
+ *
+ * "Still to do" and the form guide, shared by the squad page's sidebar and the
+ * signed-in home page. They were coach-only until the home page needed to
+ * answer the same question — and two copies of a panel that says what is
+ * outstanding is exactly the pair that drifts into disagreeing about it.
+ */
+
+/* One outstanding job. A button, because pressing it takes you to the tab the
+   work is on — a to-do list that names a job and leaves you to find it is half
+   a feature. */
+.job-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: 100%;
+    background: none;
+    border: 0;
+    border-radius: 8px;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    padding: 10px;
+    margin: -10px -10px 0;
+    width: calc(100% + 20px);
+    cursor: pointer;
+    transition: background .12s ease;
+}
+@media (hover: hover) {
+    .job-row:hover { background: var(--surface-hi); }
+}
+.job-row + .job-row { border-top: 1px solid var(--line); margin-top: 4px; }
+
+.job-count {
+    flex-shrink: 0;
+    min-width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--accent-dim);
+    border: 1px solid color-mix(in srgb, var(--accent) 48%, transparent);
+    color: var(--accent);
+    font-size: 0.8rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.job-title { display: block; font-size: 0.9rem; font-weight: 600; }
+.job-note {
+    display: block;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--text-faint);
+    margin-top: 2px;
+}
+.job-go { color: var(--text-faint); font-size: 18px; line-height: 1.2; }
+@media (hover: hover) {
+    .job-row:hover .job-go { color: var(--accent); }
+}
+
+/* The last five results, oldest on the left, the way every form guide is read.
+   The hero above says the record — three wins and two defeats summed into two
+   numbers — and this is the same season with the shape left in. */
+.form-guide { display: flex; gap: 6px; }
+
+.form-pill {
+    /* Grows to fill a 330px sidebar and stops there. On the home page the same
+       strip sits inside a 1100px card, where five pills stretched to 200px each
+       stop reading as results and start reading as buttons. */
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 58px;
+    display: grid;
+    place-items: center;
+    height: 34px;
+    border-radius: 7px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border: 1px solid var(--line-hi);
+    background: var(--surface-hi);
+    color: var(--text-dim);
+    cursor: default;
+}
+.form-pill.is-w {
+    background: var(--good-dim);
+    border-color: color-mix(in srgb, var(--good) 53%, transparent);
+    color: var(--good);
+}
+.form-pill.is-l {
+    background: var(--danger-dim);
+    border-color: color-mix(in srgb, var(--danger) 50%, transparent);
+    color: var(--danger);
+}
+
+/* ------------------------------------------------------------- the next game
+ *
+ * On the signed-in home page, above the team cards. This page is opened on the
+ * morning of a match more often than on any other day, and until it had this
+ * the most useful thing it could say was the name of the team.
+ *
+ * A link straight to the tagging tool with the squad already chosen, because
+ * that is the only thing anyone wants from this card. */
+.next-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 20px 24px;
+    background: linear-gradient(140deg, var(--surface-hi), var(--bg-raised) 70%);
+    border: 1px solid var(--line-hi);
+    border-radius: var(--radius-lg);
+    color: inherit;
+    transition: border-color .13s, transform .1s, background .13s;
+}
+@media (hover: hover) {
+    .next-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-1px);
+        color: inherit;
+    }
+}
+
+/* Today or tomorrow. Anything a week out is a diary entry and should not be
+   lit like a thing that is happening. */
+.next-card.is-soon {
+    border-color: color-mix(in srgb, var(--accent) 53%, transparent);
+    background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 22%, transparent), var(--surface) 62%);
+}
+
+.next-when {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-faint);
+}
+.next-card.is-soon .next-when { color: var(--accent); }
+
+.next-opp {
+    font-size: 1.45rem;
+    font-weight: 750;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+    margin-top: 3px;
+}
+.next-team { font-size: 0.85rem; color: var(--text-dim); margin-top: 3px; }
+
+.next-go {
+    font-size: 0.88rem;
+    font-weight: 650;
+    color: var(--accent);
+    white-space: nowrap;
+}

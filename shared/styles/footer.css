@@ -1,0 +1,195 @@
+/* The site footer.
+ *
+ * One part of the shared stylesheet; `shared/app.css` imports the parts in
+ * cascade order, so moving a rule to another part can change what wins.
+ */
+
+/* ---------------------------------------------------------------- footer */
+/*
+   Every page ended by running out of content into several hundred pixels of
+   empty background, which reads as a page that failed to finish rendering
+   rather than as a page that finished. A footer is the cheapest thing that
+   says "this is the end", and it carries the two links people actually hunt
+   for — the other surfaces, and what state the project is in.
+*/
+.site-foot {
+    max-width: var(--shell);
+    margin: 56px auto 0;
+    padding: 22px 24px 40px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 24px;
+    font-size: 0.82rem;
+    color: var(--text-faint);
+}
+.site-foot nav { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.site-foot a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    color: var(--text-dim);
+}
+@media (hover: hover) {
+    .site-foot a:hover { color: var(--accent); }
+}
+.site-foot .foot-note { margin-left: auto; }
+
+@media (max-width: 640px) {
+    .site-foot { margin-top: 36px; padding-bottom: 32px; }
+    .site-foot .foot-note { margin-left: 0; flex-basis: 100%; }
+}
+
+/* A native file input renders as a light system button, which on a dark page
+   looks like a piece of another application. Styled to match the rest of the
+   form controls, with the button part given the same treatment as .btn. */
+input[type="file"] {
+    padding: 9px 12px;
+    cursor: pointer;
+}
+input[type="file"]::file-selector-button {
+    margin: -2px 12px -2px -4px;
+    padding: 8px 14px;
+    border: 1px solid var(--line-hi);
+    border-radius: 7px;
+    background: var(--surface-hi);
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.86rem;
+    cursor: pointer;
+}
+@media (hover: hover) {
+    input[type="file"]::file-selector-button:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+}
+
+/* The two timing fields, drawn to scale.
+   
+   Two numbers in two boxes are two numbers. The same two drawn as a recording
+   with a lead-in, a half and a break are a thing a coach can check at a glance:
+   a break taking three quarters of the bar is a typo nobody has to read a
+   sentence to catch.
+   
+   Only the known part is drawn. The second half runs to the end of the footage
+   and nothing here knows where that is, so it is an open segment with a fixed
+   share rather than one sized by a guess at how long a half lasts — and it is
+   striped, so "we do not know how long this is" is visible rather than implied. */
+.clock-map {
+    display: flex;
+    align-items: stretch;
+    gap: 3px;
+    height: 46px;
+    margin: 4px 0 0;
+}
+.cm-part {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    padding: 0 8px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--line);
+    /* --text-dim, not --text-faint, and the two tints below are lighter than
+       they were. A segment name is 0.7rem — 11.9px — so it needs 4.5, and
+       `section.block` paints no background of its own, which means these tints
+       composite over the page rather than over the --line above: faint on the
+       first-half tint measured 2.99 and on the break tint 3.10. Dropping both
+       tints to 24% and lifting the ink one step puts the worst of the four
+       grounds at 4.84. --cm-time keeps --text so the reading still outranks the
+       name it sits under. */
+    color: var(--text-dim);
+}
+.cm-part.is-first { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+.cm-part.is-break { background: color-mix(in srgb, var(--warn) 24%, transparent); }
+.cm-part.is-second {
+    /* Fixed share, not a measurement: the footage's length is not known here. */
+    flex: 0 0 22%;
+    background: repeating-linear-gradient(
+        135deg,
+        var(--line) 0 6px,
+        transparent 6px 12px
+    );
+}
+.cm-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cm-time {
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+}
+/* Two floors, because a segment can be narrow and it can be a sliver.
+   A two-minute lead-in beside a forty-six minute half is a sliver, and at 375px
+   it is twenty-four pixels wide — enough to show "0" of "02:00", which reads as
+   a rendering fault rather than as a short segment. So the label goes first and
+   the reading goes second, leaving a bare band of colour. The title attribute
+   carries both the whole way down, and the proportion is what the strip is
+   for. */
+.cm-part { container-type: inline-size; }
+@container (max-width: 54px) {
+    .cm-label { display: none; }
+}
+@container (max-width: 34px) {
+    .cm-time { display: none; }
+}
+/* Class-scoped, not `#clock-map-note` — an id selector here would have tied the
+   only visible signal on this block to one element on one page. */
+.clock-note.is-good { color: var(--good); }
+.clock-note.is-warn { color: var(--warn); }
+
+/* Which colour is which side, once and at the top, rather than on every bar.
+   Repeating two team names down twenty rows is noise; not saying them at all
+   leaves every bar as two anonymous lengths. */
+.tally-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin: 0 0 18px;
+}
+.tk-side {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    font-size: 0.78rem;
+    font-weight: 650;
+    color: var(--text-dim);
+}
+.tk-side > i {
+    flex: none;
+    width: 14px;
+    height: 9px;
+    border-radius: 3px;
+}
+.tk-side.us > i { background: var(--accent); }
+.tk-side.them > i { background: var(--mark-quiet); }
+.tk-side > b {
+    font-weight: 650;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* A count whose lead is inside the noise — see `insideNoise` in report.js.
+   Hollow, not hidden: the split is still the best estimate available, and
+   removing the bar would be its own kind of claim. What it must not do is look
+   as solid as a lead that was actually measured, because a bar is read before
+   the two small numbers beside it. */
+.tally.is-tentative .t-half > i {
+    background: transparent;
+    border: 1px solid var(--line-hi);
+}
+.tally.is-tentative .t-half.us > i { border-color: var(--accent); opacity: 0.55; }
+.tally.is-tentative .num { color: var(--text-faint); }

@@ -41,11 +41,12 @@ import re
 from pathlib import Path
 
 import pytest
+from stylesheets import assembled
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / 'shared' / 'report-review.js'
 REVIEW = ROOT / 'coach' / 'review.js'
-SHEET = ROOT / 'shared' / 'app.css'
+SHEET = 'shared/app.css'
 
 #: `export const CONFIRMED_STATUS = 'confirmed';`
 DECLARED = re.compile(r"^export const ([A-Z]+_STATUS) = '([a-z]+)';$", re.M)
@@ -179,7 +180,7 @@ class TestTheStyling:
         must be right — while the state it was written for renders with no
         colour at all.
         """
-        styled = set(STYLED.findall(SHEET.read_text(encoding='utf-8')))
+        styled = set(STYLED.findall(assembled(SHEET)))
         assert styled, 'no .review-row.is-* rules found — did the scan break?'
         assert not styled - producible(review, verdicts)
 
@@ -193,7 +194,7 @@ class TestTheStyling:
         """
         reachable = producible(review, verdicts)
         assert len(reachable) >= 4, 'the class scan found almost nothing'
-        styled = set(STYLED.findall(SHEET.read_text(encoding='utf-8')))
+        styled = set(STYLED.findall(assembled(SHEET)))
         assert not reachable - styled
 
 

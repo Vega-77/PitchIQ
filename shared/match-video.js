@@ -16,9 +16,9 @@
 // dropping it silently would lose the coach's footage rather than declining to
 // frame it.
 
-import { mount, videoKind } from './video.js?v=147';
-import { renderStrip, renderMomentList, timelineEnd } from './timeline.js?v=147';
-import { matchClockMap } from './report.js?v=147';
+import { mount, videoKind } from './video.js?v=148';
+import { renderStrip, renderMomentList, timelineEnd } from './timeline.js?v=148';
+import { matchClockMap } from './report.js?v=148';
 
 /**
  * What we can do with a link: 'embed', 'link' or 'none'.
@@ -166,7 +166,7 @@ export function teamMarks(log, describe) {
             marks.push({
                 clockS,
                 // 'sub' and 'card' are the class names the strip and the list
-                // already colour; see `.tick` and `.moment` in app.css.
+                // already colour; see `.tick` and `.moment` in shared/styles/match.css.
                 type: entry.kind === 'sub' ? 'sub' : entry.type,
                 label: describe(entry),
             });

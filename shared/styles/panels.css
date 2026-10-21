@@ -1,0 +1,580 @@
+/* Tracked-figure rows, the timeline, empty and loading states, tabs and
+ * tallies.
+ *
+ * One part of the shared stylesheet; `shared/app.css` imports the parts in
+ * cascade order, so moving a rule to another part can change what wins.
+ */
+
+/* ------------------------------------------------------ tracked figures */
+
+/* Four things per row: a picture of the figure, who it is, how much of it was
+   seen, and the picker. A grid rather than the flex .list-item default,
+   because the picker is wide enough that on a phone it has to drop to its own
+   line instead of crushing the name beside it. */
+.cluster-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "face info frames picker";
+    align-items: center;
+    gap: 12px;
+}
+/* Placed by name rather than left to auto-placement, like its three siblings
+   below. The thumbnail happens to be first in the DOM today, so auto-placement
+   lands it here anyway — which is exactly the kind of agreement that holds
+   until somebody reorders the template and cannot see why the row broke. */
+.cluster-row .cluster-thumb { grid-area: face; }
+/* min-width: 0 is load-bearing. Without it this cell refuses to shrink below
+   its content, gets squeezed to zero width by the picker, and the name renders
+   one letter per line — a 280px row instead of 76px. */
+.cluster-row .grow { grid-area: info; min-width: 0; }
+.cluster-row .figures { grid-area: frames; }
+.cluster-row .cluster-pick { grid-area: picker; }
+/* Placed implicitly rather than as a named area in the template above, and
+   that is deliberate. A declared row is a row whether or not anything lands in
+   it, so every one of the fifteen unnamed figures would have paid a 12px gap
+   for a strip it does not have. An implicit row only exists once something is
+   in it. */
+.cluster-row .same-as { grid-column: 1 / -1; min-width: 0; margin-top: 2px; }
+
+/* The other figures that might be this same player.
+
+   Folded away behind one line by default. A named row is a finished row, and
+   fifteen open shortlists under fifteen finished rows would bury the unnamed
+   ones that still need the coach — which are the whole point of the list. */
+.same-as-toggle {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-size: 12px;
+    color: var(--accent);
+    cursor: pointer;
+    text-align: left;
+}
+@media (hover: hover) {
+    .same-as-toggle:hover { text-decoration: underline; }
+}
+
+/* Wraps rather than scrolling sideways. A sideways strip reads well until the
+   last card is half off the edge, and half a face is exactly the thing this
+   control asks the coach to look at. There are rarely more than a handful. */
+.same-as-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 0 2px;
+}
+.same-as-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+    padding: 6px 10px 6px 6px;
+    border: 1px solid var(--line-hi);
+    border-radius: 10px;
+    background: var(--surface-hi);
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+@media (hover: hover) {
+    .same-as-card:hover { border-color: var(--accent); }
+}
+/* The picture is the control here as much as it is in the row above, but at
+   half the size: this is "is that the same kid?", asked of a face you have
+   already looked at once. */
+.same-as-card .cluster-thumb { width: 26px; height: 50px; }
+.same-as-text { display: flex; flex-direction: column; gap: 2px; max-width: 190px; }
+.same-as-text strong { font-size: 12px; font-weight: 600; }
+.same-as-text small { font-size: 11px; color: var(--text-faint); line-height: 1.25; }
+.same-as-verb {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+}
+
+.same-as-card.joined { border-color: var(--accent); background: var(--accent-dim); }
+
+/* Shown, not hidden. Only one thing in this list is a certainty — two figures
+   on screen together are two people — and a coach who wonders why Figure 12 is
+   not offered deserves the reason on screen rather than an absence. Dimmed and
+   last, with the objection written on the card. */
+.same-as-card.ruled-out { opacity: 0.55; cursor: not-allowed; }
+@media (hover: hover) {
+    .same-as-card.ruled-out:hover { border-color: var(--line-hi); }
+}
+.same-as-card.ruled-out .same-as-verb { display: none; }
+
+.same-as-note {
+    margin: 6px 0 2px;
+    max-width: 62ch;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--text-faint);
+}
+
+/* The figure itself, cut out of the footage. This is the control that actually
+   answers "which teenager is this", so it gets the room: a swatch says which
+   side, a picture says who.
+
+   Portrait-shaped and fixed, with the kit swatch demoted to a strip down the
+   side — so a row still reads as team A or team B at a glance when the crop is
+   too small to tell, which on a wide shot it often is. */
+/* Roughly the shape of a standing person, so `contain` has almost nothing to
+   letterbox. A detector box around a player seen from the touchline runs about
+   0.35 wide-over-tall; this is 0.51, which leaves a little room either side for
+   a stride without wasting the panel. */
+.cluster-thumb {
+    grid-area: swatch;
+    width: 40px;
+    height: 78px;
+    border-radius: 7px;
+    border: 1px solid var(--line-hi);
+    background: var(--surface-hi);
+    overflow: hidden;
+    position: relative;
+    flex: none;
+}
+.cluster-thumb img {
+    width: 100%;
+    height: 100%;
+    /* Contain, and this is not a stylistic preference. `cover` scales to fill
+       the narrower axis and crops the rest, which on a 35x104 crop in this box
+       throws away 40% of the height — the head and the feet, which is most of
+       what makes a teenager recognisable at this distance. Empty space either
+       side costs nothing; a decapitated portrait costs the whole feature. */
+    object-fit: contain;
+    display: block;
+    /* Every crop is stored at the height the footage had, so most of them get
+       upscaled here. Smooth rather than blocky: a nearest-neighbour mosaic
+       reads as a decoding fault rather than as a distant player. */
+    image-rendering: auto;
+}
+.cluster-thumb .kit {
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 5px;
+    border-top: 1px solid var(--line-hi);
+}
+
+/* Said out loud rather than left as an empty box, because "no picture" and
+   "picture still loading" look identical otherwise, and the first is a fact
+   about the tracking worth knowing before you name the row. */
+.cluster-thumb.none {
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    line-height: 1.15;
+    text-align: center;
+    color: var(--text-faint);
+    padding: 4px;
+}
+
+/* Under about 40px tall in the footage there is no face and no number, so the
+   picker says so instead of letting a coach squint at a smudge and guess. */
+.cluster-thumb.faint img { opacity: 0.75; }
+
+/* An unnamed figure is the thing standing between the coach and their
+   players' stats, so it reads as unfinished rather than as a result. */
+.cluster-row.unmatched .title { color: var(--text-faint); font-weight: 500; }
+
+.cluster-pick select {
+    min-width: 150px;
+    max-width: 200px;
+    /* A coach works through fifteen of these on a tablet, so the control has
+       to be a comfortable target rather than a default-height dropdown. */
+    min-height: 40px;
+}
+
+@container reportblock (max-width: 640px) {
+    /* The picker takes its own line. Fifteen figures at a phone width is a lot
+       of scrolling either way, so the row has to stay near two lines rather
+       than sprawling. Fires on a narrow column as readily as on a narrow
+       screen — see `.report-body > .block` for why that is the same question. */
+    .cluster-row {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas:
+            "swatch info   frames"
+            "picker picker picker";
+        row-gap: 10px;
+    }
+    .cluster-pick select { width: 100%; max-width: none; }
+}
+
+/* Visible only to screen readers — the select's own label. Each row has a
+   picker and they all need naming, but a repeated visible "Who is this?"
+   fifteen times down the page would be noise. */
+.sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* The first thing in the tab order, and invisible until it is reached.
+   Six of the seven pages repeat the same topbar — brand, a link or two,
+   sign out — ahead of their content, so without this a keyboard walks
+   through all of it again on every navigation (SC 2.4.1, Bypass Blocks).
+   `live-tagging` deliberately has none: its <main> is the first thing in
+   <body>, with nothing before it to skip.
+
+   Not `.sr-only` with a reveal bolted on. This one has to be genuinely
+   visible once it has the caret, and loud about it, because the person it
+   is for is the person who cannot see where the caret went — so it borrows
+   the primary button's exact colours rather than inventing quieter ones.
+   The transform is undone wholesale by the reduced-motion rule below. */
+.skip-link {
+    position: fixed;
+    top: 8px; left: 8px;
+    z-index: 100;
+    padding: 11px 18px;
+    border-radius: var(--radius);
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transform: translateY(-250%);
+    transition: transform .16s ease;
+}
+.skip-link:focus { transform: translateY(0); }
+
+/* Quiet "Saving…"/"Saved" beside the heading. Saving happens on its own after
+   a change, so it has to be visible without being an announcement. */
+.save-state {
+    margin-left: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+    vertical-align: middle;
+}
+
+/* ---------------------------------------------------------------- timeline */
+
+.timeline { display: flex; flex-direction: column; }
+
+.tl-row {
+    display: grid;
+    grid-template-columns: 58px 22px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 4px;
+    border-bottom: 1px solid var(--line);
+}
+.tl-row:last-child { border-bottom: none; }
+
+/* Rows that seek the video. The rail runs down the middle of the list, so
+   these cannot take a border or a background on hover without breaking the
+   line — the affordance is the text lifting instead. */
+button.tl-row {
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    background: none;
+    border-width: 0 0 1px 0;
+    border-style: solid;
+    border-color: var(--line);
+    text-align: left;
+    cursor: pointer;
+}
+@media (hover: hover) {
+    .tl-row.is-seek:hover .tl-text { color: var(--accent); }
+}
+.tl-row.is-seek:focus-visible .tl-text { color: var(--accent); }
+.tl-row.is-now .tl-text { color: var(--accent); font-weight: 600; }
+.tl-row.is-now .tl-clock { color: var(--accent); }
+
+.tl-clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+    font-size: 0.82rem;
+    color: var(--text-faint);
+}
+
+/* The rail: a dot on a vertical line running down the timeline. */
+.tl-marker {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.tl-marker::before {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 1px;
+    background: var(--line);
+}
+.tl-dot {
+    position: relative;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--text-faint);
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 0 1px var(--line);
+}
+.tl-dot.good { background: var(--good); box-shadow: 0 0 0 1px color-mix(in srgb, var(--good) 58%, transparent); }
+.tl-dot.warn { background: var(--warn); box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 58%, transparent); }
+.tl-dot.period { background: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 58%, transparent); }
+
+.tl-text { font-size: 0.85rem; }
+.tl-text .who { color: var(--text-dim); }
+.tl-side { font-size: 0.78rem; font-weight: 650; text-transform: uppercase; letter-spacing: .8px; color: var(--text-faint); }
+
+/* ---------------------------------------------------------------- states */
+
+.empty {
+    padding: 34px 24px;
+    text-align: center;
+    color: var(--text-faint);
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-lg);
+    font-size: 0.85rem;
+}
+
+.loading { padding: 48px; text-align: center; color: var(--text-faint); }
+.loading::after {
+    content: '';
+    display: block;
+    width: 22px; height: 22px;
+    margin: 14px auto 0;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg) } }
+
+.banner {
+    display: flex;
+    gap: 14px;
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--accent);
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 15px 18px;
+    margin-bottom: 22px;
+}
+.banner.warn { border-left-color: var(--warn); }
+.banner h3 { margin: 0 0 3px; color: var(--text); }
+.banner h3::after { display: none; }
+.banner p { margin: 0; }
+
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 28px;
+    transform: translateX(-50%) translateY(14px);
+    background: var(--kit);
+    color: var(--kit-on);
+    border: 1px solid var(--kit);
+    border-bottom: 3px solid var(--kit-2);
+    padding: 13px 22px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lift);
+    font-size: 0.9rem;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+    z-index: 100;
+    max-width: 90vw;
+    text-align: center;
+    box-shadow: var(--shadow);
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.error { background: var(--danger); border-color: var(--danger); color: #ffffff; }
+
+/* ---------------------------------------------------------------- tabs */
+
+/* The active tab's underline slides to whichever tab was chosen rather than
+   blinking from one to the next: shared/motion.js measures the tab and
+   writes `--tab-x` / `--tab-w`. Until it has, the underline sits under the
+   tab itself, so the page is right without the script. */
+.tabs {
+    position: relative;
+    display: flex;
+    gap: 4px;
+    margin: 28px 0 6px;
+    border-bottom: 1px solid var(--line);
+}
+.tabs.has-glider .tab.active { border-bottom-color: transparent; }
+.tabs.has-glider::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    width: var(--tab-w, 0);
+    height: 3px;
+    background: var(--accent);
+    border-radius: 3px 3px 0 0;
+    transform: translateX(var(--tab-x, 0));
+    transition: transform .32s var(--ease-out), width .32s var(--ease-out);
+}
+
+.tab {
+    font-family: var(--display);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 10px 14px;
+    cursor: pointer;
+    margin-bottom: -1px;
+    transition: color .15s ease, border-color .15s ease;
+}
+@media (hover: hover) {
+    .tab:hover { color: var(--text); }
+}
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ---------------------------------------------------------------- tallies */
+
+.tally-list { display: flex; flex-direction: column; gap: 14px; }
+
+/* Headings inside a column of bars. Extra room above and none below, so a
+   heading reads as attached to what follows it rather than floating between
+   two groups — the one thing that would make the grouping worse than none. */
+.tally-list .group-head {
+    margin: 8px 0 -2px;
+}
+.tally-list .group-head:first-child { margin-top: 0; }
+
+/* Numbers flank a split bar, so the gap registers before either figure is
+   actually read. */
+/* The number columns size to their content with a floor, rather than being
+   fixed. They used to hold bare counts; they now hold '58%', '0.80' and '41m',
+   and a fixed 2.2rem clipped every one of those on a phone. The floor is what
+   keeps the bars starting at the same place down a column. */
+.tally {
+    display: grid;
+    grid-template-columns: minmax(2.9rem, auto) minmax(0, 1fr) minmax(2.9rem, auto);
+    align-items: center;
+    gap: 10px;
+}
+
+.tally .num {
+    font-size: 1.15rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+}
+.tally .t-us { text-align: right; }
+.tally .t-them { text-align: left; }
+
+.tally.ours-good .t-us { color: var(--good); }
+.tally.ours-bad .t-them { color: var(--good); }
+
+/* Two geometries in one row, because the bar's length is a claim and three
+   different claims live in the same list. See `tally` in ui.js.
+
+   is-split   the halves themselves are sized and each is full, so the boundary
+              between them moves. Only correct when their figure is the rest of
+              ours.
+   is-opposed the halves are equal and each grows from the centre outward, so a
+              count keeps its magnitude and a rate keeps its own scale. The
+              track behind each side stays visible, which is what says "this is
+              a length out of a possible length" rather than "this is a share".
+*/
+.t-bar { display: flex; gap: 3px; height: 9px; }
+.t-half { display: flex; min-width: 0; }
+.t-half > i {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    transition: width .2s ease;
+}
+.t-half.us { justify-content: flex-end; }
+.t-half.us > i { background: var(--accent); }
+.t-half.them > i { background: var(--mark-quiet); }
+
+/* Split: each half is exactly as wide as its share and filled completely. */
+.t-bar.is-split .t-half { flex-basis: 0; min-width: 3px; }
+.t-bar.is-split .t-half > i { width: 100%; }
+
+/* Opposed: equal halves, with the unfilled part left showing as a track. */
+.t-bar.is-opposed .t-half {
+    flex: 1 1 0;
+    background: var(--line);
+    border-radius: 3px;
+}
+
+/* A row whose pair could not be drawn keeps its numbers and loses its bar, so
+   the space closes up rather than leaving an empty track that reads as two
+   zeroes. */
+.tally.is-flat { grid-template-columns: auto auto; justify-content: center; }
+
+.t-label {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    text-align: center;
+    font-size: 0.7rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+    margin-top: -6px;
+}
+
+/* One quantity cut into named pieces — see `stackBar` in ui.js. Not a tally:
+   there are no two sides here, only a whole and what it turned out to be made
+   of, so the track is filled end to end and the key does the naming.
+
+   The colours are the claim. Dead-ball time is drawn in the dimmest thing on
+   the page because it is not a problem; the unaccounted-for stretch is the only
+   one that gets a warning colour, because it is the only part of the bar that
+   is a hole in the report. */
+.stack { display: flex; flex-direction: column; gap: 8px; }
+
+.s-label {
+    font-size: 0.7rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+}
+
+.s-bar {
+    display: flex;
+    gap: 2px;
+    height: 10px;
+    border-radius: 3px;
+    overflow: hidden;
+}
+/* A sliver rather than nothing for a piece worth a second or two: the key names
+   a real figure beside it, and an entry with no mark against it reads as a
+   category that was measured at zero. */
+.s-seg { flex-basis: 0; min-width: 4px; border-radius: 2px; }
+
+.s-seg.is-dead, .s-key i.is-dead { background: var(--mark-quiet); }
+.s-seg.is-accounted, .s-key i.is-accounted { background: var(--accent); }
+.s-seg.is-unexplained, .s-key i.is-unexplained { background: var(--warn); }
+
+.s-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+}
+.s-key li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.s-key i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.s-key b { font-variant-numeric: tabular-nums; color: var(--text); }

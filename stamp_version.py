@@ -11,8 +11,10 @@ missing export, and it has cost real debugging time more than once.
 
 This walks the whole frontend and stamps both:
 
-  * href/src attributes in the HTML pages, and
-  * relative import specifiers inside the ES modules themselves.
+  * href/src attributes in the HTML pages,
+  * relative import specifiers inside the ES modules themselves, and
+  * `@import url('...')` inside the stylesheets (shared/app.css imports its
+    parts from shared/styles/, and the same rule applies to a sheet).
 
 Run it before committing a frontend change; bump the number every time.
 """
@@ -35,19 +37,23 @@ PAGES = [
 ]
 
 MODULE_DIRS = [
-    'shared', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate',
+    'shared',
+    'coach',
+    'player',
+    'live-tagging',
+    'halftime',
+    'calibrate',
 ]
 
 # href="shared/app.css?v=3" / src="coach.js?v=3" — local files only, so a CDN
 # or Google Fonts URL is left alone.
-ASSET_REF = re.compile(
-    r'((?:href|src)=")(?!https?:|//)([^"?]+\.(?:css|js))(?:\?v=\d+)?(")'
-)
+ASSET_REF = re.compile(r'((?:href|src)=")(?!https?:|//)([^"?]+\.(?:css|js))(?:\?v=\d+)?(")')
 
 # import ... from './x.js'  /  import('./x.js')  — relative specifiers only.
-IMPORT_SPEC = re.compile(
-    r"((?:from|import)\s*\(?\s*')(\.{1,2}/[^']+\.js)(?:\?v=\d+)?(')"
-)
+IMPORT_SPEC = re.compile(r"((?:from|import)\s*\(?\s*')(\.{1,2}/[^']+\.js)(?:\?v=\d+)?(')")
+
+# @import url('styles/tokens.css')  — single-quoted, local stylesheets only.
+CSS_IMPORT = re.compile(r"(@import\s+url\(\s*')(?!https?:|//)([^'?]+\.css)(?:\?v=\d+)?(')")
 
 
 def stamp(version: int) -> int:
@@ -65,6 +71,12 @@ def stamp(version: int) -> int:
         for path in sorted((ROOT / directory).glob('*.js')):
             text = path.read_text(encoding='utf-8')
             stamped = IMPORT_SPEC.sub(rf'\1\2?v={version}\3', text)
+            if stamped != text:
+                path.write_text(stamped, encoding='utf-8')
+                changed += 1
+        for path in sorted((ROOT / directory).rglob('*.css')):
+            text = path.read_text(encoding='utf-8')
+            stamped = CSS_IMPORT.sub(rf'\1\2?v={version}\3', text)
             if stamped != text:
                 path.write_text(stamped, encoding='utf-8')
                 changed += 1
