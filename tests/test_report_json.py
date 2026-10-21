@@ -35,7 +35,7 @@ from pitchiq.pipeline import MatchReport, PlayerReport
 from pitchiq.possession import PossessionSummary
 from pitchiq.pitch import Pitch
 from pitchiq.report_json import SCHEMA_VERSION, shot_marks, team_stats
-from pitchiq.timing import FIXED, Timings
+from pitchiq.run_timing import FIXED, Timings
 from pitchiq.teams import TEAM_A, TEAM_B
 from pitchiq.touches import Touch, TouchConfidence, TouchSequence
 
@@ -792,7 +792,7 @@ class TestShotMarks:
 class TestTiming:
     """Whether the run would have fitted inside a live half.
 
-    The arithmetic lives in pitchiq/timing.py and is tested there. What matters here
+    The arithmetic lives in pitchiq/run_timing.py and is tested there. What matters here
     is that it reaches a reader at all, and that an un-instrumented report says
     so with nulls rather than with zeroes — a report assembled by hand, or one
     written before this existed, did not achieve real time in no seconds.

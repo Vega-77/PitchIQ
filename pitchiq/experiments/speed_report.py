@@ -23,7 +23,7 @@ will actually be at the side of the field.
 
     Measure over a minute, not a few seconds.
 
-Loading the model and the first inference are one-time costs. `pitchiq/timing.py`
+Loading the model and the first inference are one-time costs. `pitchiq/run_timing.py`
 keeps the load out of the rate, but the warm-up hiding inside the first
 detection pass cannot be separated out — measured on a six-second clip it was
 most of the run, and the same pipeline once warm was four times faster. A short
@@ -32,7 +32,7 @@ not a useful one. Sixty seconds is the shortest window worth quoting.
 
 The lag is still a floor: `identity.merge_tracks` is quadratic in the tracks and
 the tracks grow with the footage, so a run containing a meaningful one says *at
-least* this late. See pitchiq/timing.py.
+least* this late. See pitchiq/run_timing.py.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ import argparse
 from pathlib import Path
 
 from pitchiq.pipeline import analyse_match
-from pitchiq.timing import FIXED, HALF_S, SUPERLINEAR, fastest_rate_that_fits
+from pitchiq.run_timing import FIXED, HALF_S, SUPERLINEAR, fastest_rate_that_fits
 
 # The rates worth asking about. 30 is a phone export run at full rate, 15 a
 # camcorder at full rate, and 6 is `metrics.min_sample_hz()` — the floor below

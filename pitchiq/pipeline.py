@@ -93,7 +93,7 @@ from .possession import (
 from .reconcile import Reconciliation, reconcile, warnings_for
 from .teams import TEAM_A, TEAM_B, assign_teams, separation
 from .territory import TerritorySplit, territory
-from .timing import FIXED, SUPERLINEAR, Timings
+from .run_timing import FIXED, SUPERLINEAR, Timings
 from .thumbs import attach_thumbs, fit_budget
 from .xg_bridge import xg_for_shots
 

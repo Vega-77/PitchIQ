@@ -86,7 +86,7 @@ from .teams import TEAM_A, TEAM_B
 #     performed rather than what it found. `processing_s` was already here and
 #     answers a different question: it is the bill, and this is the itemisation
 #     plus whether the bill would have fitted inside a live half. See
-#     pitchiq/timing.py — in particular why `lag_s` is a floor and not an estimate.
+#     pitchiq/run_timing.py — in particular why `lag_s` is a floor and not an estimate.
 # 11: `camera` in the quality block. Additive, and the first field that says
 #     whether the homography every metre goes through was still describing the
 #     right pitch by the end of the window. A version 10 report is not a report
