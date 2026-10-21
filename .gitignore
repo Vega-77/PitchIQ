@@ -49,3 +49,7 @@ ui-debug.log
 
 # IDE project files (PyCharm and friends): per-machine, not part of the project
 .idea/
+
+# pip install -e . metadata
+*.egg-info/
+build/

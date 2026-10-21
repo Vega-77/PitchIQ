@@ -21,6 +21,9 @@ scipy==1.18.0
 # Runs the trained xG model (cv/xg_model8.onnx). xG is computed here, in Python,
 # by cv/xg_bridge.py when the pipeline runs; the site only shows stored figures.
 onnxruntime==1.28.0
+# cv/topdown.py's track linker (min-cost flow). torch pulls it in too, but the
+# test install has no torch.
+networkx==3.6.1
 
 # The app itself needs no Python at all. Data and auth are Firestore, the
 # frontend is plain ES modules on GitHub Pages, and the only Python left is the

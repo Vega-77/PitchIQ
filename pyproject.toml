@@ -1,0 +1,82 @@
+# PitchIQ's Python side: the match-video pipeline (cv/), the ball tracker
+# (cv/balltrack/) and the xG training script. The website needs no Python.
+#
+#   pip install -e .[test]                  what the test suite needs (no torch)
+#   pip install -e .[detect]                the full pipeline, with the detector
+#   pip install -e .[balltrack]             the ball tracker on top of that
+#
+# The pins mirror requirements.txt, requirements-test.txt and
+# requirements-balltrack.txt, and tests/test_requirements.py fails if any of
+# them drift apart. For a CUDA build of torch, follow the note at the top of
+# requirements.txt before installing the `detect` extra.
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pitchiq"
+version = "0.1.0"
+description = "Match statistics from a single sideline video of a youth football game."
+readme = "README.md"
+requires-python = ">=3.12"
+# All rights reserved (see README.md); this keeps it off package indexes.
+classifiers = ["Private :: Do Not Upload"]
+dependencies = [
+    "opencv-python==5.0.0.93",
+    "numpy==2.4.4",
+    "scipy==1.18.0",
+    "onnxruntime==1.28.0",
+    "networkx==3.6.1",
+]
+
+[project.optional-dependencies]
+# The person/ball detector. cv/detector.py imports it only when a detector is built.
+detect = [
+    "ultralytics==8.4.108",
+    "torch==2.13.0",
+    "torchvision==0.28.0",
+]
+test = [
+    "pytest==9.1.1",
+    "pyflakes==3.4.0",
+    "ruff==0.17.1",
+]
+balltrack = [
+    "pitchiq[detect]",
+    "xgboost==3.4.0",
+    "matplotlib==3.11.1",
+    "pillow==12.2.0",
+    "einops==0.8.2",
+]
+# Retraining the xG model only; never needed to run the pipeline.
+xg-training = [
+    "xgboost==3.4.0",
+    "matplotlib==3.11.1",
+    "statsbombpy",
+    "scikit-learn",
+    "pandas",
+    "onnxmltools",
+]
+
+[tool.setuptools.packages.find]
+include = ["cv", "cv.*"]
+
+[tool.setuptools.package-data]
+cv = ["*.onnx"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["node_modules", "cv/balltrack/tapnext/tapnet"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+# The classic default set, pinned so a ruff upgrade cannot change what fails.
+select = ["E4", "E7", "E9", "F"]

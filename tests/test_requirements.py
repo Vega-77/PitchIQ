@@ -68,7 +68,7 @@ class TestPinsAgree:
     def test_everything_the_tests_import_is_pinned_somewhere(self):
         """Guards the other direction: a new third-party import with no pin
         passes locally, where it is already installed, and fails only in CI."""
-        for package in ('numpy', 'opencv-python', 'onnxruntime', 'scipy'):
+        for package in ('numpy', 'opencv-python', 'onnxruntime', 'scipy', 'networkx'):
             assert package in pins(TEST), package
 
 
@@ -92,3 +92,54 @@ class TestBalltrack:
         text = BALL.read_text(encoding='utf-8')
         assert 'checkout 730cda1' in text
         assert 'tapnextpp_512.ckpt' in text
+
+
+class TestPyproject:
+    """`pip install -e .[extra]` installs the same versions as the three files.
+
+    pyproject.toml is a fourth copy of the pins, so it gets the same rule: every
+    package it pins agrees with every file that pins it, and each tier keeps the
+    shape the files give it.
+    """
+
+    @staticmethod
+    def project() -> dict:
+        import tomllib
+        return tomllib.loads((REPO / 'pyproject.toml').read_text(encoding='utf-8'))['project']
+
+    @staticmethod
+    def specs(lines: list[str]) -> dict[str, str]:
+        """{package: version} for the `name==version` entries of a dependency list."""
+        out = {}
+        for spec in lines:
+            if '==' in spec:
+                name, version = spec.split('==', 1)
+                out[name.strip().lower()] = version.strip()
+        return out
+
+    def test_no_pin_disagrees_with_any_requirements_file(self):
+        project = self.project()
+        pinned = self.specs(project['dependencies'])
+        for extra in project['optional-dependencies'].values():
+            pinned.update(self.specs(extra))
+        for path in (MAIN, TEST, BALL):
+            other = pins(path)
+            clash = {n: (pinned[n], other[n]) for n in set(pinned) & set(other) if pinned[n] != other[n]}
+            assert not clash, (path.name, clash)
+
+    def test_the_base_and_test_tiers_are_the_test_install(self):
+        project = self.project()
+        light = self.specs(project['dependencies']) | self.specs(project['optional-dependencies']['test'])
+        assert light == pins(TEST)
+
+    def test_the_detector_is_an_extra_not_a_dependency(self):
+        project = self.project()
+        base = self.specs(project['dependencies'])
+        assert 'torch' not in base and 'ultralytics' not in base
+        assert self.specs(project['optional-dependencies']['detect']).keys() == (
+            pins(MAIN).keys() - base.keys())
+
+    def test_the_balltrack_extra_is_the_balltrack_file(self):
+        extra = self.project()['optional-dependencies']['balltrack']
+        assert 'pitchiq[detect]' in extra
+        assert self.specs(extra) == pins(BALL)

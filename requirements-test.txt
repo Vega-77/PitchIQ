@@ -13,7 +13,10 @@ numpy==2.4.4
 onnxruntime==1.28.0
 # cv/autocal.py imports it at module scope, and five test modules import that.
 scipy==1.18.0
+# cv/topdown.py imports it inside its linker; tests/test_topdown.py runs that.
+networkx==3.6.1
 
 # Not in requirements.txt: only the tests and the pre-commit check use these.
 pytest==9.1.1
 pyflakes==3.4.0
+ruff==0.17.1
