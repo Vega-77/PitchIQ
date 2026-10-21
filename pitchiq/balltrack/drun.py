@@ -1,6 +1,6 @@
 """The detector, run for real over an arbitrary window, at the shipping speed.
 
-dense.py is the reference implementation and it is single process, writes
+reference/single_process_run.py is the reference implementation and it is single process, writes
 once at the very end, and reads its range from module constants.  None of
 those are usable for a production pass:
 
@@ -8,13 +8,13 @@ those are usable for a production pass:
   * a single write at the end means a crash at minute 90 leaves nothing;
   * LO/HI are not to be edited.
 
-So this is dense.main's loop, unchanged in what it computes, wrapped in the
-operating point dpar8 confirmed - 16 processes x 1 thread, bfast2 blobs and
-the rfast2 registrar with the batched GPU matcher - and cut into contiguous
+So this is single_process_run.main's loop, unchanged in what it computes, wrapped in the
+operating point dpar8 confirmed - 16 processes x 1 thread, blob_candidates.blobs and
+the pan_registration registrar with the batched GPU matcher - and cut into contiguous
 chunks of anchors, one per worker.  LO/HI are never touched: the window is
 an argument and each worker carries its own.
 
-Two things are different from dense.main, and only two:
+Two things are different from single_process_run.main, and only two:
 
   * each worker flushes a part file every FLUSH anchors, so the work that
     survives a crash is bounded by FLUSH frames rather than by the run;
@@ -26,7 +26,7 @@ Two things are different from dense.main, and only two:
     four minutes.
 
 Everything else - the blob pass, the feature rows, the two boosters, the
-top-KEEP write - is dense's, and bfast2/rfast2 were checked bit-identical
+top-KEEP write - is single_process_run's, and blob_candidates/pan_registration were checked bit-identical
 against it before any of this.
 
 The window is also cut into 5-minute chunks (CHUNK frames, on absolute
@@ -52,7 +52,7 @@ CHUNK = int(os.environ.get('DRUN_CHUNK', 9000))  # 5 min of video: a finished ch
 CPU_MATCH = os.environ.get('DRUN_CPU_MATCH') == '1'  # match on the CPU: no torch, no CUDA context
 SHARED = (
     os.environ.get('DRUN_SHARED_MATCH', '1') == '1'
-)  # one GPU matcher for the pool (mshare.py); '0' = one per worker
+)  # one GPU matcher for the pool (shared_matcher.py); '0' = one per worker
 PROCS = config.WORKERS
 
 
@@ -64,13 +64,12 @@ def worker(args):
     import numpy as np
     import xgboost as xgb
 
-    from . import bfast2
-    from . import dense as D
-    from . import tfast
-    from . import rfast2
+    from . import blob_candidates
+    from . import candidate_features
+    from . import temporal_features
+    from . import pan_registration
 
     cv2.setNumThreads(1)
-    D.LO, D.HI = alo, ahi  # set at runtime; dense.py is not edited
 
     log = io.open(os.path.join(S2, '%s_w%02d.log' % (tag, wid)), 'w', encoding='utf-8')
 
@@ -83,16 +82,16 @@ def worker(args):
     # same; the worker just commits no CUDA context, host or device.
     M = None
     if SHARED:
-        from . import mshare
+        from . import shared_matcher
 
-        M = mshare.proxy()
+        M = shared_matcher.proxy()
     elif not CPU_MATCH:
-        from . import gmatch2
+        from . import gpu_matcher
         import torch
 
         torch.set_num_threads(1)
-        M = gmatch2.Matcher()
-    reg = rfast2.Registrar(cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True), M)
+        M = gpu_matcher.Matcher()
+    reg = pan_registration.Registrar(cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True), M)
     if M is not None and not SHARED:
         # burn the CUDA context in before the clock starts, on junk descriptors,
         # so the first real anchor is not paying for cuBLAS handle creation
@@ -109,8 +108,8 @@ def worker(args):
     bst = xgb.Booster()
     bst.load_model(os.path.join(S2, 'rank6.model.json'))
 
-    first, last = alo + D.OFFS[0], ahi + D.OFFS[-1]
-    cap = cv2.VideoCapture(D.VIDEO)
+    first, last = alo + candidate_features.OFFS[0], ahi + candidate_features.OFFS[-1]
+    cap = cv2.VideoCapture(config.VIDEO)
     assert cap.isOpened(), 'cannot open video'
     cap.set(cv2.CAP_PROP_POS_FRAMES, first)
 
@@ -129,7 +128,7 @@ def worker(args):
             s=np.array(SC, np.float32),
             frames=fr,
             ncand=np.array([NC[int(i)] for i in fr], np.int32),
-            how=np.array([HOW.get(int(i), [0] * D.NOFF) for i in fr], np.int8),
+            how=np.array([HOW.get(int(i), [0] * candidate_features.NOFF) for i in fr], np.int8),
             hstep=np.array([HST.get(int(i), np.eye(3)) for i in fr], np.float64),
         )
         parts.append(name)
@@ -159,38 +158,38 @@ def worker(args):
         PT['orb'] += clock() - t1
         bgrs.append(img)
         fids.append(ab)
-        if len(bgrs) > D.NOFF:
+        if len(bgrs) > candidate_features.NOFF:
             bgrs.pop(0)
             kds.pop(0)
             fids.pop(0)
-        if len(bgrs) < D.NOFF:
+        if len(bgrs) < candidate_features.NOFF:
             continue
 
-        anchor = ab + D.OFFS[0]
+        anchor = ab + candidate_features.OFFS[0]
         t = clock()
-        bs, _ = bfast2.blobs(bgrs[D.CZERO], cmaj)
+        bs, _ = blob_candidates.blobs(bgrs[candidate_features.CZERO], cmaj)
         t1 = clock()
         PT['blobs'] += t1 - t
         NC[anchor] = len(bs)
         if bs:
-            Xs, pts = D.still_rows(bs, cmaj, cara)
+            Xs, pts = candidate_features.still_rows(bs, cmaj, cara)
             t = clock()
             PT['still'] += t - t1
-            mats, how = reg.transforms(kds, fids, D.CZERO)
+            mats, how = reg.transforms(kds, fids, candidate_features.CZERO)
             t1 = clock()
             PT['register'] += t1 - t
             HOW[anchor] = how
-            if mats[D.CZERO + 1] is not None:
-                HST[anchor] = mats[D.CZERO + 1]
-            tiles = D.tiles_for(bgrs, mats, fids, small)
+            if mats[candidate_features.CZERO + 1] is not None:
+                HST[anchor] = mats[candidate_features.CZERO + 1]
+            tiles = candidate_features.tiles_for(bgrs, mats, fids, small)
             t = clock()
             PT['tiles'] += t - t1
-            Tt = tfast.temporal_rows(tiles, pts)
+            Tt = temporal_features.temporal_rows(tiles, pts)
             t1 = clock()
             PT['temporal'] += t1 - t
             s2 = bst.predict(xgb.DMatrix(np.hstack([Xs, Tt])))
             PT['rank'] += clock() - t1
-            for j in np.argsort(-s2)[: D.KEEP]:
+            for j in np.argsort(-s2)[: candidate_features.KEEP]:
                 FI.append(anchor)
                 CX.append(float(pts[j][0]))
                 CY.append(float(pts[j][1]))
@@ -231,7 +230,7 @@ def worker(args):
 
 
 def reg_detect(cv2, g):
-    """ORB exactly as dense.py:283 creates it, one detector per process."""
+    """ORB exactly as reference/single_process_run.py creates it, one detector per process."""
     global _ORB
     try:
         orb = _ORB
@@ -367,7 +366,10 @@ def main():
             if edges[i + 1] > edges[i]
         ]
     print('DETECTOR over abs %d..%d  (%d frames, %.1f s of video)' % (lo, hi, n, n / 30.0))
-    print('  %d processes x 1 thread, bfast2 blobs + rfast2/gmatch2 registrar' % procs)
+    print(
+        '  %d processes x 1 thread, blob_candidates.blobs + pan_registration/gpu_matcher registrar'
+        % procs
+    )
     print(
         '  %d chunks of <= %d frames, %d already done; part file every %d'
         % (len(chunks), CHUNK, len(chunks) - len({j[3] for j in todo}), FLUSH)
@@ -386,10 +388,10 @@ def main():
     got_c = {k: [] for k in pending}
     if todo:
         if SHARED:
-            from . import mshare
+            from . import shared_matcher
 
-            server, req, init = mshare.start(procs)
-            pool_args = dict(initializer=mshare.init_worker, initargs=init)
+            server, req, init = shared_matcher.start(procs)
+            pool_args = dict(initializer=shared_matcher.init_worker, initargs=init)
         else:
             pool_args = {}
         with mp.Pool(procs, **pool_args) as pool:
@@ -413,7 +415,7 @@ def main():
                     res.extend(got_c[ct])
                     print('  chunk %s done  [%.0f s]' % (ct, time.time() - t0), flush=True)
         if SHARED:
-            mshare.stop(server, req)
+            shared_matcher.stop(server, req)
     wall = max(time.time() - t0, 1e-9)
 
     got = sum(r['done'] for r in res)

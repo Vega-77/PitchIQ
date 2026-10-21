@@ -1,6 +1,6 @@
 """temporal_rows, with the per-candidate Python loop taken out.
 
-dense.py spends 39.8% of every frame in temporal_rows.  cProfile says the
+reference/single_process_run.py spends 39.8% of every frame in temporal_rows.  cProfile says the
 arithmetic is not the problem: 5901 candidates cost 1.93 MILLION function
 calls, 327 per candidate, and they are all reductions over 21-element and
 25-element arrays.  np.median on 21 floats is ~60 us of dispatch around
@@ -27,15 +27,53 @@ Two implementation notes, because both change results if done carelessly:
     float32, this accumulates in float64.  Agreement is ~1e-6 relative,
     which is checked rather than assumed - see tcheck.py.
 
-Drop-in: tfast.temporal_rows(tiles, pts) for dense.temporal_rows(tiles, pts).
+Drop-in: temporal_features.temporal_rows(tiles, pts) for single_process_run.temporal_rows(tiles, pts).
 """
 
 import cv2
 import numpy as np
 
-from . import feat_t4 as TT
+from .candidate_features import CZERO, NOFF, SCALE, TH, TW
 
-RP, RW, FG = TT.RP, TT.RW, TT.FG
+RP = 2  # patch radius in tile pixels (~15 source px)
+RW = 6  # search radius for the moving-peak track
+FG = 25  # a pixel this far above the background plate is
+# something that was not there a moment ago
+
+TNAMES = [
+    't_v0',
+    't_med',
+    't_min',
+    't_blink',
+    't_dip',
+    't_std',
+    't_nbright',
+    't_persist',
+    't_run0',
+    't_fg0',
+    't_fgmean',
+    't_fgratio',
+    't_bgmax',
+    't_left',
+    't_right',
+    't_asym',
+    't_slope',
+    't_mad',
+    't_nfg',
+    't_speed',
+    't_straight',
+    't_disp',
+    # the same questions asked of a 3x3 tile patch (~9 source px), so
+    # that two candidates 15 px apart stop sharing one answer
+    't1_v0',
+    't1_med',
+    't1_blink',
+    't1_persist',
+    't1_fg0',
+    't1_nfg',
+    't1_bgmax',
+    't1_mad',
+]
 
 
 def _gather(padded, iy, ix, r):
@@ -74,15 +112,11 @@ def _plate(tiles, pts, scale, H, W):
 
 
 def temporal_rows(tiles, pts):
-    """Vectorised twin of dense.temporal_rows.  Same inputs, same 30 columns."""
-    from . import dense as D  # late, to avoid a circular import
-
-    NOFF, CZERO, SCALE = D.NOFF, D.CZERO, D.SCALE
-    TH, TW = D.TH, D.TW
+    """Vectorised twin of single_process_run.temporal_rows.  Same inputs, same 30 columns."""
     H, W = TH, TW
 
     nc = len(pts)
-    ncol = len(TT.TNAMES)
+    ncol = len(TNAMES)
     T = np.zeros((nc, ncol), np.float32)
     if nc == 0:
         return T

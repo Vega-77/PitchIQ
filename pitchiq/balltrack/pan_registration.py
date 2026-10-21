@@ -7,7 +7,7 @@ second ask is served from store.  What is left is the other half - about ten
 twenty of these processes at once that half is the single largest block of
 CPU in the frame.
 
-gmatch2 does those ten on the card in one batch.  The batching is possible
+gpu_matcher does those ten on the card in one batch.  The batching is possible
 because of transforms' own shape: every direct fit is AGAINST THE CENTRE, so
 all ten share one train side and stack into a single matmul.  The chain
 fallbacks (k against k-1) do not share it, but they only run when a direct
@@ -24,19 +24,25 @@ no other work the card drops to 210 MHz between calls and every batch pays
 the ramp.  Under load it sits at 2760 MHz and the GPU number gets BETTER
 while the CPU number gets worse.
 
-Exactness is gmatch2's, unchanged - 120 / 120 pairs identical to bf.match as
+Exactness is gpu_matcher's, unchanged - 120 / 120 pairs identical to bf.match as
 a set and in list order - and the whole point of routing through _pre rather
 than replacing match() is that everything downstream of the index arrays is
 still rfast's code running on rfast's data.
 
-    reg = Registrar(bf, gmatch2.Matcher())     # matcher=None -> plain rfast
+    reg = Registrar(bf, gpu_matcher.Matcher())     # matcher=None -> plain rfast
     mats, how = reg.transforms(kds, fids, CZERO)
 """
 
 import cv2
 import numpy as np
 
-from . import dense as D
+MINMATCH, MININL = 12, 10  # clipbuild's guards, kept identical
+
+
+def homog(M):
+    H = np.eye(3)
+    H[:2] = M
+    return H
 
 
 class Registrar:
@@ -102,18 +108,18 @@ class Registrar:
         return q, t
 
     def fit_pair(self, kda, fa, kdb, fb):
-        """dense.fit_pair, same matrix, without re-matching or re-listing."""
+        """single_process_run.fit_pair, same matrix, without re-matching or re-listing."""
         ka, da = kda
         kb, db = kdb
-        if da is None or db is None or len(ka) < D.MINMATCH or len(kb) < D.MINMATCH:
+        if da is None or db is None or len(ka) < MINMATCH or len(kb) < MINMATCH:
             return None
         q, t = self.match(fa, da, fb, db)
-        if len(q) < D.MINMATCH:
+        if len(q) < MINMATCH:
             return None
         p = self.coords(fa, ka)[q].reshape(-1, 1, 2)
         d = self.coords(fb, kb)[t].reshape(-1, 1, 2)
         M, inl = cv2.estimateAffinePartial2D(p, d, method=cv2.RANSAC, ransacReprojThreshold=3.0)
-        if M is None or inl is None or inl.sum() < D.MININL:
+        if M is None or inl is None or inl.sum() < MININL:
             return None
         return M
 
@@ -128,7 +134,7 @@ class Registrar:
         if self.M is None:
             return
         kb, db = kds[c]
-        if db is None or len(kb) < D.MINMATCH:
+        if db is None or len(kb) < MINMATCH:
             return
         fb = fids[c]
         need = []
@@ -136,7 +142,7 @@ class Registrar:
             if k == c:
                 continue
             ka, da = kds[k]
-            if da is None or len(ka) < D.MINMATCH:
+            if da is None or len(ka) < MINMATCH:
                 continue
             fa = fids[k]
             if (fb, fa) in self._mm:  # the cache has this one
@@ -149,7 +155,7 @@ class Registrar:
 
     # -- the drop-in ------------------------------------------------------
     def transforms(self, kds, fids, c):
-        """dense.transforms, with the buffer's absolute frame ids alongside."""
+        """single_process_run.transforms, with the buffer's absolute frame ids alongside."""
         self.prefetch(kds, fids, c)
         n = len(kds)
         mats = [None] * n
@@ -161,19 +167,19 @@ class Registrar:
                 continue
             M = self.fit_pair(kds[k], fids[k], kds[c], fids[c])
             if M is not None:
-                mats[k] = D.homog(M)
+                mats[k] = homog(M)
                 how[k] = 2
 
         for k in range(c + 1, n):
             if mats[k] is None and mats[k - 1] is not None:
                 M = self.fit_pair(kds[k], fids[k], kds[k - 1], fids[k - 1])
                 if M is not None:
-                    mats[k] = mats[k - 1].dot(D.homog(M))
+                    mats[k] = mats[k - 1].dot(homog(M))
                     how[k] = 1
         for k in range(c - 1, -1, -1):
             if mats[k] is None and mats[k + 1] is not None:
                 M = self.fit_pair(kds[k], fids[k], kds[k + 1], fids[k + 1])
                 if M is not None:
-                    mats[k] = mats[k + 1].dot(D.homog(M))
+                    mats[k] = mats[k + 1].dot(homog(M))
                     how[k] = 1
         return mats, how

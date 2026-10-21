@@ -114,6 +114,8 @@ def test_scorable_frames_leave_the_detector_its_lookahead(tmp_path):
     vw.release()
     assert half.scorable(path) == (10, 19)
     offs = re.search(
-        r'^OFFS = list\(range\((-?\d+), (\d+)\)\)', open(os.path.join(S2, 'dense.py')).read(), re.M
+        r'^OFFS = list\(range\((-?\d+), (\d+)\)\)',
+        open(os.path.join(S2, 'candidate_features.py')).read(),
+        re.M,
     )
     assert -int(offs.group(1)) == int(offs.group(2)) - 1 == half.LOOKAHEAD

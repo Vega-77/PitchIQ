@@ -47,9 +47,9 @@ MEMORY.  1676 frames x ~1600 candidates x 66 columns is ~700 MB before the
 ranker sees a row.  Nothing is materialised: one anchor at a time, and only
 the surviving top KEEP leave the loop.
 
-    python -m pitchiq.balltrack.dense --check          # composed vs direct, kept for the record
-    python -m pitchiq.balltrack.dense --n 40           # a short run, for timing
-    python -m pitchiq.balltrack.dense                  # -> dense.npz
+    python -m pitchiq.balltrack.reference.single_process_run --check          # composed vs direct, kept for the record
+    python -m pitchiq.balltrack.reference.single_process_run --n 40           # a short run, for timing
+    python -m pitchiq.balltrack.reference.single_process_run                  # -> dense.npz
 """
 
 import math
@@ -61,25 +61,27 @@ import cv2
 import numpy as np
 import xgboost as xgb
 
-from . import feat4 as F
-from . import feat_t4 as TT
+from . import blobs_per_candidate as F
+from . import temporal_from_sheets as TT
+from ..pan_registration import MININL, MINMATCH, homog
+from ..candidate_features import (
+    CZERO,
+    NOFF,
+    OFFS,
+    SCALE,
+    TH,
+    TW,
+    still_rows,
+    tiles_for,
+)
 
-S2 = os.path.dirname(os.path.abspath(__file__))
+S2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # data sits in balltrack/
 SP = F.SP
 VIDEO = F.VIDEO
 OUT = os.path.join(S2, 'dense.npz')
 
 LO, HI = 186600, 188275  # the test stretch, inclusive, absolute frames
-OFFS = list(range(-10, 11))
-NOFF = len(OFFS)
-CZERO = OFFS.index(0)
-TW, TH = 640, 360
-SCALE = 1920.0 / TW  # 3.0
-JPEGQ = 72  # clipbuild wrote the sheets at this quality, and
-# the model learnt on that noise; match it
 STAGE1 = 10**6  # no prune - see the header
-KEEP = 40  # candidates written out per frame (track.py's K)
-MINMATCH, MININL = 12, 10  # clipbuild's guards, kept identical
 
 
 def fit_pair(ka, da, kb, db, bf):
@@ -95,23 +97,6 @@ def fit_pair(ka, da, kb, db, bf):
     if M is None or inl is None or inl.sum() < MININL:
         return None
     return M
-
-
-def homog(M):
-    H = np.eye(3)
-    H[:2] = M
-    return H
-
-
-def F_scaled(M, s):
-    """clipbuild.scaled: the same affine, expressed in a picture resized by s."""
-    A = M[:, :2]
-    t = M[:, 2]
-    c = 0.5 * (s - 1.0)
-    out = np.zeros((2, 3), np.float64)
-    out[:, :2] = A
-    out[:, 2] = s * t + c - A.dot(np.array([c, c]))
-    return out
 
 
 def transforms(kds, bf, c):
@@ -155,82 +140,8 @@ def transforms(kds, bf, c):
     return mats, how
 
 
-def tiles_for(bgrs, mats, fids=None, cache=None):
-    """The 21 stabilised grey tiles, through the same JPEG the model saw.
-
-    `cache` (frame id -> its resized frame, with `fids` naming bgrs) saves
-    resizing each frame 21 times, once per anchor it serves; the warp and the
-    JPEG are per anchor and are not cached. The caller evicts old frames."""
-    out = np.empty((len(bgrs), TH, TW), np.float32)
-    for k in range(len(bgrs)):
-        small = None if cache is None else cache.get(fids[k])
-        if small is None:
-            small = cv2.resize(bgrs[k], (TW, TH), interpolation=cv2.INTER_AREA)
-            if cache is not None:
-                cache[fids[k]] = small
-        if mats[k] is not None:
-            small = cv2.warpAffine(
-                small,
-                F_scaled(mats[k][:2], 1.0 / SCALE),
-                (TW, TH),
-                flags=cv2.INTER_LINEAR,
-                borderMode=cv2.BORDER_REPLICATE,
-            )
-        enc = cv2.imencode('.jpg', small, [int(cv2.IMWRITE_JPEG_QUALITY), JPEGQ])[1]
-        small = cv2.imdecode(enc, cv2.IMREAD_COLOR)
-        out[k] = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY).astype(np.float32)
-    return out
-
-
-def still_rows(bs, cmaj, cara):
-    """feat4.main's row construction, lifted out so dense.py can reuse it."""
-    pts = np.array([[b['cx'], b['cy']] for b in bs], np.float32)
-    rows = []
-    for b in bs:
-        dxy = np.hypot(pts[:, 0] - b['cx'], pts[:, 1] - b['cy'])
-        nn = float(np.sort(dxy)[1]) if len(dxy) > 1 else 999.0
-        e_maj = max(1.0, cmaj[0] * b['cy'] + cmaj[1])
-        e_side = max(1.0, cara[0] * b['cy'] + cara[1])
-        rows.append(
-            [
-                b['minor'],
-                b['major'],
-                b['area'],
-                b['fill'],
-                b['elong'],
-                b['circ'],
-                b['extent'],
-                b['v_in'],
-                b['v_max'],
-                b['v_std'],
-                b['v_ring'],
-                b['v_ring_max'],
-                b['con'],
-                b['rel_con'],
-                b['s_in'],
-                b['s_ring'],
-                b['h_in'],
-                b['grass_ring'],
-                b['other_ring'],
-                b['white_far'],
-                b['lap'],
-                b['cx'] / 1920.0,
-                b['cy'] / 1080.0,
-                b['major'] / e_maj,
-                b['minor'] / e_maj,
-                math.sqrt(b['area']) / e_side,
-                nn,
-                float((dxy < 100).sum() - 1),
-                float(len(bs)),
-                b['split'],
-            ]
-            + b['th']
-        )
-    return np.array(rows, np.float32), pts
-
-
 def temporal_rows(tiles, pts):
-    """feat_t4.main's per-candidate block, for candidates given in SOURCE px."""
+    """temporal_from_sheets.main's per-candidate block, for candidates given in SOURCE px."""
     bg = np.median(tiles, axis=0)
     fgs = np.clip(tiles - bg, 0, None)
     cur = tiles[CZERO]

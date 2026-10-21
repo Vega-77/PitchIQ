@@ -13,7 +13,7 @@ Settings come from the environment, with defaults in `config.py`: `PIQ_VIDEO`
 (the match video; default the scrimmage file in Downloads), `PIQ_WORKERS`
 (detector processes for one window, default 8), `PIQ_HALF_WORKERS` (for a
 whole half, default 12) and `PIQ_LEGACY_SP` (the first labelling round, for the
-legacy training scripts only). The detector needs the CUDA GPU (gmatch2). Keep
+legacy training scripts only). The detector needs the CUDA GPU (gpu_matcher). Keep
 the workers near 8, not 16: each process holds about 388 MiB of VRAM for its
 CUDA context.
 
@@ -123,6 +123,7 @@ ball, and `match_video.py` before drawing it.
 |---|---|
 | `homog/` | venue map (`vmap*`), pitch registration (`vreg.py` -> `<tag>_reg.npz`), 3D flight chain, Air/Flight/Fix lab labels and scorers |
 | `tapnext/` | `tn_engine.py` (bridges), `hyb_video.py` (the review video) |
+| `reference/` | the one-candidate-at-a-time detector the shipping one was checked against (`blobs_per_candidate.py`, `single_process_run.py`, `temporal_from_sheets.py`); `python -m pitchiq.balltrack.reference.check_fast` compares them on real frames |
 | `archive/` | a README listing the scripts nothing runs any more (deleted 2026-10-21) and how to restore one from git |
 | `alltests/` | `mkpicks_one.py`, `hybrid.py`, `mk3d.py` (3D per 2D version in `h3d_<ver>/`), the 2D/3D test harness, Find the Ball / Fix Lab / pass labels, and the score tables in `alltests/results/` (`2d.json`, `3d.json`) |
 
@@ -195,7 +196,7 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   some of them. About 20 of 68 missed test balls were never proposed by the
   detector at all.
 - Cleats are the classifier's most confident false ball.
-- `feat4.py` and `feat_t4.py` read the first labelling round's
+- `reference/blobs_per_candidate.py` and `reference/temporal_from_sheets.py` read the first labelling round's
   data from an old scratchpad that no longer exists; set `PIQ_LEGACY_SP` to a
   copy to rerun them. Only the legacy training paths read it; `run.sh` does
   not.

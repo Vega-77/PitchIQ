@@ -14,7 +14,7 @@ No video decode: still4.npz already stores (frame, cx, cy) per row, so these
 features attach to the rows that exist, by index.  Sheet i//5, row i%5,
 column = offset index, tile 640x360, so source pixels divide by three.
 
-    python -m pitchiq.balltrack.feat_t4            # -> temporal4.npz
+    python -m pitchiq.balltrack.reference.temporal_from_sheets            # -> temporal4.npz
 """
 
 import io
@@ -26,9 +26,11 @@ import time
 import cv2
 import numpy as np
 
-from . import config
+from ..temporal_features import FG, RP, RW, TNAMES
 
-S2 = os.path.dirname(os.path.abspath(__file__))
+from .. import config
+
+S2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # data sits in balltrack/
 # The first labelling round's scratchpad (label/manifest.json, clips/). The
 # temp folder it lived in is gone; point PIQ_LEGACY_SP at a copy to rerun this.
 SP = config.LEGACY_SP
@@ -38,45 +40,6 @@ OUT = os.path.join(S2, 'temporal4.npz')
 
 TW, TH, PER = 640, 360, 5
 SCALE = 1920.0 / TW  # 3.0
-RP = 2  # patch radius in tile pixels (~15 source px)
-RW = 6  # search radius for the moving-peak track
-FG = 25  # a pixel this far above the background plate is
-# something that was not there a moment ago
-
-TNAMES = [
-    't_v0',
-    't_med',
-    't_min',
-    't_blink',
-    't_dip',
-    't_std',
-    't_nbright',
-    't_persist',
-    't_run0',
-    't_fg0',
-    't_fgmean',
-    't_fgratio',
-    't_bgmax',
-    't_left',
-    't_right',
-    't_asym',
-    't_slope',
-    't_mad',
-    't_nfg',
-    't_speed',
-    't_straight',
-    't_disp',
-    # the same questions asked of a 3x3 tile patch (~9 source px), so
-    # that two candidates 15 px apart stop sharing one answer
-    't1_v0',
-    't1_med',
-    't1_blink',
-    't1_persist',
-    't1_fg0',
-    't1_nfg',
-    't1_bgmax',
-    't1_mad',
-]
 
 
 def run_around(mask, c):

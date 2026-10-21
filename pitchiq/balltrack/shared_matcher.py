@@ -1,13 +1,13 @@
 """One GPU matcher for the whole drun pool, instead of one per worker.
 
-Every drun worker used to build its own gmatch2.Matcher, which costs each
+Every drun worker used to build its own gpu_matcher.Matcher, which costs each
 process a CUDA context: ~388 MiB of the card and ~1.4 GB of host commit
 (a worker commits 2.36 GB with it, 0.91 GB without).  The card is only a
 quarter busy (cuda-context notes), so the contexts, not the arithmetic, are
 what cap the worker count - 16 workers died of "bad allocation".
 
 Here one server process owns the only context and runs the same
-gmatch2.Matcher code; workers hold a Proxy that ships each match_many call
+gpu_matcher.Matcher code; workers hold a Proxy that ships each match_many call
 over a queue and waits for the answer.  The answer is a pure function of the
 descriptors sent, so it is the same arrays whichever process computes it.
 Each task gets a fresh Matcher on the server (`start`), exactly as each
@@ -20,7 +20,7 @@ import multiprocessing as mp
 
 def serve(req, resps):
     """Server loop: ('start', i) | ('match', i, queries, fb, db) | ('evict', i, oldest) | None."""
-    from . import gmatch2
+    from . import gpu_matcher
     import torch
 
     torch.set_num_threads(1)
@@ -28,7 +28,7 @@ def serve(req, resps):
     for msg in iter(req.get, None):
         op, i = msg[0], msg[1]
         if op == 'start':
-            ms[i] = gmatch2.Matcher()
+            ms[i] = gpu_matcher.Matcher()
         elif op == 'evict':
             ms[i].evict(msg[2])
         else:
@@ -39,7 +39,7 @@ def serve(req, resps):
 
 
 class Proxy:
-    """The two calls rfast2.Registrar makes on its matcher, answered by the server."""
+    """The two calls pan_registration.Registrar makes on its matcher, answered by the server."""
 
     def __init__(self, req, resp, i):
         self.req, self.resp, self.i = req, resp, i

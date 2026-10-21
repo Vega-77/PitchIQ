@@ -6,7 +6,7 @@ the card: a 2000x256x2000 matmul is far too small to fill an RTX 4060, so
 almost all of the measured time was launch overhead and the PCIe round trip,
 not arithmetic.
 
-The anchor's own shape fixes that.  dense.transforms fits every buffer frame
+The anchor's own shape fixes that.  single_process_run.transforms fits every buffer frame
 AGAINST THE CENTRE, so all twenty direct fits share one train side:
 
     fit_pair(kds[k], fids[k], kds[c], fids[c])      for every k != c
@@ -53,7 +53,7 @@ enough never to win an argmin and small enough that sentinel * 2048 stays
 inside int32; 30000 is both, with three orders of magnitude to spare on
 each side.
 
-    python -m pitchiq.balltrack.gmatch2 [n_anchors] [warm_s]
+    python -m pitchiq.balltrack.gpu_matcher [n_anchors] [warm_s]
 """
 
 import sys
@@ -63,7 +63,7 @@ import cv2
 import numpy as np
 import torch
 
-from . import dense as D
+from . import candidate_features, config
 
 DEV = 'cuda' if torch.cuda.is_available() else 'cpu'
 PAD = 30000  # sentinel distance for padded query rows
@@ -186,11 +186,13 @@ def main():
     assert DEV == 'cuda', 'no CUDA, nothing to measure'
     print('torch %s on %s' % (torch.__version__, torch.cuda.get_device_name(0)))
 
-    nbuf = len(D.OFFS)
-    cap = cv2.VideoCapture(D.VIDEO)
+    from .reference.single_process_run import LO  # the labelled test stretch
+
+    nbuf = len(candidate_features.OFFS)
+    cap = cv2.VideoCapture(config.VIDEO)
     assert cap.isOpened()
-    cap.set(cv2.CAP_PROP_POS_FRAMES, D.LO)
-    orb = cv2.ORB_create(2000)  # dense.py:283
+    cap.set(cv2.CAP_PROP_POS_FRAMES, LO)
+    orb = cv2.ORB_create(2000)  # reference/single_process_run.py
     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
     need = nbuf + n_anchor - 1
@@ -218,8 +220,8 @@ def main():
     npair = 0
     t_cpu = t_gpu = 0.0
     for a in range(n_anchor):
-        c = a + D.CZERO
-        qs = [(a + k, descs[a + k]) for k in range(nbuf) if k != D.CZERO]
+        c = a + candidate_features.CZERO
+        qs = [(a + k, descs[a + k]) for k in range(nbuf) if k != candidate_features.CZERO]
 
         t = time.time()
         cpu = []

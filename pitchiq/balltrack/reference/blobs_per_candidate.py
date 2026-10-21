@@ -45,7 +45,7 @@ One thing fixed in passing: feat2.py fits size-vs-row on every ball label,
 test pool included.  Two parameters is a small leak but a free one to remove,
 so the fit here is train-only.
 
-    python -m pitchiq.balltrack.feat4            # -> still4.npz
+    python -m pitchiq.balltrack.reference.blobs_per_candidate            # -> still4.npz
 """
 
 import io
@@ -57,35 +57,37 @@ import time
 import cv2
 import numpy as np
 
-from . import config
+from ..blob_candidates import (  # noqa: F401  (the reference reads them)
+    CON,
+    DIRS,
+    FILL,
+    IR,
+    K2,
+    MAJOR,
+    MINOR,
+    NMS,
+    OVER,
+    PAD,
+    PERCOMP,
+    SAT,
+    SCALES,
+    THR,
+    TR,
+    WIN,
+)
 
-S2 = os.path.dirname(os.path.abspath(__file__))
+from .. import config
+
+S2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # data sits in balltrack/
 SP = config.LEGACY_SP  # the first labelling round (label/manifest.json, clips/)
 VIDEO = config.VIDEO
 OUT = os.path.join(S2, 'still4.npz')
 
 POS_TOL = 8.0
 AMB_TOL = 20.0
-PAD = 4
 CROP = 32
 NEG_CROP_KEEP = 0.03
 
-SAT = 60  # white is v>150 and s<SAT.  satsweep.py measured
-# this against 40/45/50/55/60/65/70: the shipped
-# 70 admits sun-washed turf, which carries the
-# SAME hue as grass (46.1 vs 46.8) and so cannot
-# be excluded by hue at all.  60 beats 70 on both
-# pools at once - train 109/116 vs 106, test
-# 42/47 vs 38 - and costs 684 candidates a frame
-# instead of 855.  Tighter is not free: 45 breaks
-# every flood but drops train to 102.
-MINOR, MAJOR, FILL, CON = 2, 60, 0.30, 10.0
-SCALES = (9, 17)  # top-hat structuring elements: a far ball and a near one
-NMS = 4  # peak suppression radius, source pixels
-THR = 25  # minimum top-hat response
-OVER = 1.3  # a component this many times the expected ball is merged
-PERCOMP = 12  # at most this many peaks from one merged component
-WIN = 12  # half-window for re-thresholding a split candidate
 
 NAMES = [
     'minor',
@@ -125,13 +127,6 @@ NAMES = [
     'th_iso',
     'th_frac',
 ]
-
-K2 = np.ones((2, 2), np.uint8)
-
-
-DIRS = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
-TR = 12  # half-window for the shared top-hat readings
-IR = 4  # radius at which the response falloff is sampled
 
 
 def tophat_stats(resp, cx, cy, e_maj):

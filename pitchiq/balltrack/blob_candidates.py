@@ -75,12 +75,92 @@ import time
 import cv2
 import numpy as np
 
-from . import feat4 as F
-from .bfast import tophat_batch, box_mean  # unchanged, already exact
+# The generator's thresholds (shared with blobs_per_candidate.blobs, the per-candidate reference).
+PAD = 4
+SAT = 60  # white is v>150 and s<SAT.  satsweep.py measured
+# this against 40/45/50/55/60/65/70: the shipped
+# 70 admits sun-washed turf, which carries the
+# SAME hue as grass (46.1 vs 46.8) and so cannot
+# be excluded by hue at all.  60 beats 70 on both
+# pools at once - train 109/116 vs 106, test
+# 42/47 vs 38 - and costs 684 candidates a frame
+# instead of 855.  Tighter is not free: 45 breaks
+# every flood but drops train to 102.
+MINOR, MAJOR, FILL, CON = 2, 60, 0.30, 10.0
+SCALES = (9, 17)  # top-hat structuring elements: a far ball and a near one
+NMS = 4  # peak suppression radius, source pixels
+THR = 25  # minimum top-hat response
+OVER = 1.3  # a component this many times the expected ball is merged
+PERCOMP = 12  # at most this many peaks from one merged component
+WIN = 12  # half-window for re-thresholding a split candidate
+K2 = np.ones((2, 2), np.uint8)
+
+DIRS = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
+TR = 12  # half-window for the shared top-hat readings
+IR = 4  # radius at which the response falloff is sampled
+CR = 6  # half-width of the core window, from tophat_stats
+
+_DX = np.array([p[0] for p in DIRS], np.int64)
+_DY = np.array([p[1] for p in DIRS], np.int64)
+
+
+def tophat_batch(resp, cx, cy, e_maj):
+    """blobs_per_candidate.tophat_stats for every candidate at once, as (n, 6) float64."""
+    nc = len(cx)
+    out = np.zeros((nc, 6), np.float64)
+    if resp is None or nc == 0:
+        return out
+    H, W = resp.shape
+    ix = np.clip(np.round(np.asarray(cx, np.float64)), 0, W - 1).astype(np.int64)
+    iy = np.clip(np.round(np.asarray(cy, np.float64)), 0, H - 1).astype(np.int64)
+    pk = resp[iy, ix].astype(np.float64)
+    thr = 0.5 * np.maximum(1.0, pk)
+
+    # One padded gather of the 25x25 window for every candidate.  The core
+    # is the middle 13x13 of the same block, so it costs nothing extra.
+    pr = np.pad(resp, ((TR, TR), (TR, TR)))
+    d = np.arange(-TR, TR + 1)
+    yy = (iy[:, None] + TR) + d[None, :]
+    xx = (ix[:, None] + TR) + d[None, :]
+    win = pr[yy[:, :, None], xx[:, None, :]]  # (nc, 25, 25)
+
+    # The original clips the window at the image edge, so the divisor is the
+    # clipped area - not 25*25, and not the padded area.
+    wy0, wy1 = np.maximum(0, iy - TR), np.minimum(H, iy + TR + 1)
+    wx0, wx1 = np.maximum(0, ix - TR), np.minimum(W, ix + TR + 1)
+    warea = ((wy1 - wy0) * (wx1 - wx0)).astype(np.float64)
+
+    wmean = win.reshape(nc, -1).sum(axis=1, dtype=np.int64) / warea
+    bw = win >= thr[:, None, None]
+    bwmean = bw.reshape(nc, -1).sum(axis=1, dtype=np.int64) / warea
+    core = bw[:, TR - CR : TR + CR + 1, TR - CR : TR + CR + 1]
+    csum = core.reshape(nc, -1).sum(axis=1, dtype=np.int64)
+    rr = np.sqrt(np.maximum(1, csum) / math.pi)
+
+    # The falloff samples clamp to the border rather than reading padding.
+    ay = np.clip(iy[:, None] + _DY[None, :] * IR, 0, H - 1)
+    ax = np.clip(ix[:, None] + _DX[None, :] * IR, 0, W - 1)
+    astd = resp[ay, ax].astype(np.float64).std(axis=1)
+
+    em = np.asarray(e_maj, np.float64)
+    out[:, 0] = pk
+    out[:, 1] = pk / np.maximum(1.0, wmean)
+    out[:, 2] = rr
+    out[:, 3] = rr / np.maximum(0.5, 0.5 * em)
+    out[:, 4] = astd / np.maximum(1.0, pk)
+    out[:, 5] = bwmean
+    return out
+
+
+def box_mean(integ, y0, y1, x0, x1):
+    """Mean of the integrated binary image over each [y0:y1, x0:x1] box."""
+    s = integ[y1, x1].astype(np.float64) - integ[y0, x1] - integ[y1, x0] + integ[y0, x0]
+    return s / ((y1 - y0) * (x1 - x0)).astype(np.float64)
+
 
 BUCKETS = (14, 20, 28, 44, 68)  # padded sizes for the component gather
 LAPMIN = 3  # batch a lap group only if it has this many
-GATE_EPS = 1e-3  # recheck rows this close to F.CON by hand
+GATE_EPS = 1e-3  # recheck rows this close to CON by hand
 EXACT_STD = False  # True = per-candidate v_std, bit for bit
 
 # Set to a dict to accumulate per-phase seconds in place.  The timing is
@@ -155,7 +235,7 @@ def _reduce(M, R, V, S, Hh, G):
 
 
 def blobs(img, cmaj=None):
-    """feat4.blobs, same candidates in the same order, pass 2 batched too."""
+    """blobs_per_candidate.blobs, same candidates in the same order, pass 2 batched too."""
 
     def tick(t0, name):
         if PROF is None:
@@ -167,8 +247,8 @@ def blobs(img, cmaj=None):
     _t = time.perf_counter() if PROF is not None else 0.0
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
-    white = ((v > 150) & (s < F.SAT)).astype(np.uint8) * 255
-    white = cv2.morphologyEx(white, cv2.MORPH_OPEN, F.K2)
+    white = ((v > 150) & (s < SAT)).astype(np.uint8) * 255
+    white = cv2.morphologyEx(white, cv2.MORPH_OPEN, K2)
     grass = (h > 30) & (h < 95) & (s > 60)
     n, lab, st, cent = cv2.connectedComponentsWithStats(white, 8)
     H, W = v.shape
@@ -178,12 +258,12 @@ def blobs(img, cmaj=None):
 
     resp = None
     if cmaj is not None:
-        for k in F.SCALES:
+        for k in SCALES:
             se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
             th = cv2.morphologyEx(v, cv2.MORPH_TOPHAT, se)
             resp = th if resp is None else np.maximum(resp, th)
-        d = cv2.dilate(resp, np.ones((2 * F.NMS + 1, 2 * F.NMS + 1), np.uint8))
-        ispeak = (resp == d) & (resp >= F.THR) & (v > 150) & (s < F.SAT)
+        d = cv2.dilate(resp, np.ones((2 * NMS + 1, 2 * NMS + 1), np.uint8))
+        ispeak = (resp == d) & (resp >= THR) & (v > 150) & (s < SAT)
     _t = tick(_t, 'tophat')
 
     # --- pass 1: geometry only, and no masks built for component rows -----
@@ -194,26 +274,26 @@ def blobs(img, cmaj=None):
     for i in range(1, n):
         x, y, w, hh, area = st[i]
         mn, mj = min(w, hh), max(w, hh)
-        if mn >= F.MINOR and mj <= F.MAJOR and area >= F.FILL * w * hh:
-            y0, y1 = max(0, y - F.PAD), min(H, y + hh + F.PAD)
-            x0, x1 = max(0, x - F.PAD), min(W, x + w + F.PAD)
+        if mn >= MINOR and mj <= MAJOR and area >= FILL * w * hh:
+            y0, y1 = max(0, y - PAD), min(H, y + hh + PAD)
+            x0, x1 = max(0, x - PAD), min(W, x + w + PAD)
             jobs.append((y0, y1, x0, x1, cent[i][0], cent[i][1], mn, mj, area, w, hh, 0.0))
             gate.append(True)
             ident.append(i)
         if cmaj is None:
             continue
         e_maj = max(1.0, cmaj[0] * cent[i][1] + cmaj[1])
-        if mj <= F.OVER * e_maj:
+        if mj <= OVER * e_maj:
             continue
         pk = ispeak[y : y + hh, x : x + w] & (lab[y : y + hh, x : x + w] == i)
         py, px = np.where(pk)
         if not len(px):
             continue
-        order = np.argsort(-resp[py + y, px + x])[: F.PERCOMP]
+        order = np.argsort(-resp[py + y, px + x])[:PERCOMP]
         for j in order:
             cx, cy = int(px[j]) + x, int(py[j]) + y
-            wy0, wy1 = max(0, cy - F.WIN), min(H, cy + F.WIN + 1)
-            wx0, wx1 = max(0, cx - F.WIN), min(W, cx + F.WIN + 1)
+            wy0, wy1 = max(0, cy - WIN), min(H, cy + WIN + 1)
+            wx0, wx1 = max(0, cx - WIN), min(W, cx + WIN + 1)
             win = resp[wy0:wy1, wx0:wx1]
             bw = (win >= 0.5 * float(resp[cy, cx])).astype(np.uint8)
             n2, l2 = cv2.connectedComponents(bw, 8)
@@ -330,7 +410,7 @@ def blobs(img, cmaj=None):
     # so the kept/dropped decision is the original's decision, not a batched
     # approximation of it.  In practice this fires for no rows at all.
     con = VIN - VRING
-    near = idx[(~isplit) & (np.abs(con - F.CON) < GATE_EPS)]
+    near = idx[(~isplit) & (np.abs(con - CON) < GATE_EPS)]
     if len(near):
         vf = v.astype(np.float32)
         for k in near:
@@ -349,7 +429,7 @@ def blobs(img, cmaj=None):
         (_, _, _, _, _, _, mn, mj, area, w, hh, split) = jobs[k]
         v_in, v_ring = float(VIN[k]), float(VRING[k])
         c = v_in - v_ring
-        if gate[k] and c < F.CON:
+        if gate[k] and c < CON:
             continue
         out.append(
             dict(

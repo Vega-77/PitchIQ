@@ -53,7 +53,7 @@ TOL2, TOL3 = 1.0, 0.5  # agreement: px in 2D, StatsBomb units in 3D
 ONE_THREAD = dict(OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', MKL_NUM_THREADS='1')
 MIN_CORE = drun.CHUNK // 5  # a minute: a shorter end chunk joins its neighbour
 LANES = 2  # the ball's CPU jobs at a time
-LOOKAHEAD = 10  # dense.OFFS: the ball detector reads 10 frames each side
+LOOKAHEAD = 10  # candidate_features.OFFS: the ball detector reads 10 frames each side
 
 
 def scorable(video):
