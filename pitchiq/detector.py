@@ -70,10 +70,6 @@ class PersonBallDetector:
         self.imgsz = imgsz
         self.device = device
 
-    def detect(self, image: np.ndarray) -> list[Detection]:
-        """People and balls in one image."""
-        return self.detect_batch([image])[0]
-
     def detect_batch(self, images: list[np.ndarray]) -> list[list[Detection]]:
         """People and balls in each image, one list per image."""
         batch: list[list[Detection]] = []
@@ -260,10 +256,6 @@ class TiledDetector:
         self.detector = detector
         self.tiles = max(1, int(tiles))
         self.overlap = overlap
-
-    def detect(self, image: np.ndarray) -> list[Detection]:
-        """People and balls in one image, found tile by tile."""
-        return self.detect_batch([image])[0]
 
     def detect_batch(self, images: list[np.ndarray]) -> list[list[Detection]]:
         """People and balls in each image, found tile by tile and merged in frame pixels."""

@@ -272,13 +272,6 @@ class TestShape:
         assert set(data['thirds']) == {'left', 'middle', 'right'}
         assert data['complete'] is True
 
-    def test_asking_for_a_third_by_end_matches_the_field(self):
-        cov = pitch_coverage(overhead(0, PITCH.length_m * 0.6, 0, PITCH.width_m))
-        assert cov.third_share('left') == cov.left_third
-        assert cov.third_share('right') == cov.right_third
-        with pytest.raises(ValueError):
-            cov.third_share('middle')
-
     def test_the_goalmouth_threshold_is_the_one_documented(self):
         cov = PitchCoverage(
             visible_share=0.9,

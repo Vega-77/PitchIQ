@@ -237,14 +237,6 @@ class TestFrameTable:
         """
         assert self.table(range(3)).to_pitch((10.0, 10.0)) is None
 
-    def test_ball_coverage_separates_seen_from_filled_in(self):
-        table = self.table(range(4))
-        table.records[0].ball_xy = (1.0, 1.0)
-        table.records[0].ball_observed = True
-        table.records[1].ball_xy = (2.0, 2.0)  # interpolated
-        assert table.ball_coverage() == 0.5
-        assert table.ball_observed_share() == 0.25
-
 
 # ------------------------------------------------------------------ the pass
 

@@ -186,8 +186,7 @@ class TestRefusals:
         table = table_with({1: fixed(52.5, MID_Y)})
         keepers = identify_keepers(table, ENDS, manual={TEAM_A: [1]})
         assert keepers.method == 'manual'
-        assert keepers.is_keeper(1)
-        assert keepers.team_of_keeper(1) == TEAM_A
+        assert keepers.by_team[TEAM_A] == {1}
 
 
 class TestDistributionKind:

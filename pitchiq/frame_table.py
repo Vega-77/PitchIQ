@@ -197,18 +197,6 @@ class FrameTable:
             return None
         return self.calibration.to_pitch(xy_px[0], xy_px[1])
 
-    def ball_coverage(self) -> float:
-        """Share of frames with a ball position, observed or interpolated."""
-        if not self.records:
-            return 0.0
-        return sum(1 for r in self.records if r.ball_xy is not None) / len(self.records)
-
-    def ball_observed_share(self) -> float:
-        """Share of frames where the ball was actually detected, not filled in."""
-        if not self.records:
-            return 0.0
-        return sum(1 for r in self.records if r.ball_observed) / len(self.records)
-
 
 def _empty_players() -> np.ndarray:
     return np.empty((0, PLAYER_COLUMNS), dtype=np.float32)

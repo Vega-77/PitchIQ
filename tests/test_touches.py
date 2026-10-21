@@ -282,7 +282,7 @@ class TestGaps:
         sequence = segment_touches(table)
         assert sequence.gaps
         start, end = sequence.gaps[0]
-        assert not sequence.between(start, end)
+        assert not [t for t in sequence if start <= t.timestamp_s <= end]
 
 
 class TestConfidence:
@@ -414,12 +414,12 @@ class TestSequence:
         assert sequence.gap_between(fake(start - 0.1), fake(end + 0.1))
         assert not sequence.gap_between(fake(end + 0.1), fake(end + 0.2))
 
-    def test_counts_by_track(self):
+    def test_one_touch_by_the_one_player(self):
         frames = []
         for i in range(40):
             bx = 100.0 + i * 12.0 if i <= 20 else 100.0 + (40 - i) * 12.0
             frames.append(((bx, 400.0), True, [player(7, 340.0, 400.0)]))
-        assert segment_touches(build(frames)).counts_by_track() == {7: 1}
+        assert [t.track_id for t in segment_touches(build(frames))] == [7]
 
     def test_an_empty_table_is_not_an_error(self):
         table = FrameTable(fps=FPS, frame_width=1280, frame_height=720)
@@ -464,9 +464,8 @@ class TestTurnSpeedFloor:
             bx = 100.0 + (i * 12.0 if i <= 20 else (40 - i) * 12.0)
             frames.append(((bx, 400.0), True, [player(7, 340.0, 400.0)]))
         table = build(frames)
-        assert segment_touches(
-            table, thresholds=TouchThresholds(min_turn_speed_ph_s=1.0)
-        ).counts_by_track() == {7: 1}
+        touches = segment_touches(table, thresholds=TouchThresholds(min_turn_speed_ph_s=1.0))
+        assert [t.track_id for t in touches] == [7]
 
     def test_the_floor_is_on_by_default(self):
         """The old behaviour is still reachable, and is no longer the default."""

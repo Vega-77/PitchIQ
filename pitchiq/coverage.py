@@ -62,14 +62,6 @@ class PitchCoverage:
     def complete(self) -> bool:
         return self.visible_share >= COMPLETE_SHARE
 
-    def third_share(self, end: str) -> float:
-        """The visible share of the third at `end`, or of the middle."""
-        if end == 'left':
-            return self.left_third
-        if end == 'right':
-            return self.right_third
-        raise ValueError(f"end must be 'left' or 'right', got {end!r}")
-
     def goalmouth_share(self, end: str) -> float:
         """The share of the goalmouth at `end` the camera sees, 0..1."""
         return self.left_goalmouth if zones._check_end(end) == 'left' else self.right_goalmouth

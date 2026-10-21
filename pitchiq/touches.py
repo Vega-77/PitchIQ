@@ -177,10 +177,6 @@ class TouchSequence:
     def __iter__(self) -> Iterator[Touch]:
         return iter(self.touches)
 
-    def between(self, start_s: float, end_s: float) -> list[Touch]:
-        """Touches with timestamps in [start_s, end_s]."""
-        return [t for t in self.touches if start_s <= t.timestamp_s <= end_s]
-
     def by_track(self, track_id: int) -> list[Touch]:
         """Touches by track `track_id`, in time order."""
         return [t for t in self.touches if t.track_id == track_id]
@@ -188,13 +184,6 @@ class TouchSequence:
     def by_team(self, team: str) -> list[Touch]:
         """`team`'s touches, in time order."""
         return [t for t in self.touches if t.team == team]
-
-    def counts_by_track(self) -> dict[int, int]:
-        """How many touches each track made."""
-        counts: dict[int, int] = {}
-        for touch in self.touches:
-            counts[touch.track_id] = counts.get(touch.track_id, 0) + 1
-        return counts
 
     def gap_between(self, a: Touch, b: Touch) -> bool:
         """Whether an unseen span sits between two touches.

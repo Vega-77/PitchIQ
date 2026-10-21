@@ -49,17 +49,6 @@ class KeeperAssignment:
     scores: dict[int, float] = field(default_factory=dict)
     method: str = 'unavailable'  # 'colour+position' | 'manual' | 'unavailable'
 
-    def is_keeper(self, track_id: int) -> bool:
-        """True if `track_id` is either team's keeper."""
-        return any(track_id in ids for ids in self.by_team.values())
-
-    def team_of_keeper(self, track_id: int) -> str | None:
-        """The team `track_id` keeps goal for, or None if it is not a keeper."""
-        for team, ids in self.by_team.items():
-            if track_id in ids:
-                return team
-        return None
-
     def all_tracks(self) -> set[int]:
         """Every keeper track id, both teams."""
         out: set[int] = set()

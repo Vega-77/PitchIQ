@@ -19,6 +19,12 @@ from pitchiq.ball import (
     nearest_player,
 )
 
+
+def point_at(traj, frame_index):
+    """The trajectory point at `frame_index`, or None."""
+    return next((p for p in traj.points if p.frame_index == frame_index), None)
+
+
 FPS = 30.0
 FRAME_W = 1280
 
@@ -75,7 +81,7 @@ class TestGapFilling:
         keep = {0, 1, 2, 8, 9, 10}
         traj = build_trajectory(by_frame(straight_path(11, keep=keep)), FRAME_W)
 
-        mid = traj.at_frame(5)
+        mid = point_at(traj, 5)
         assert mid is not None and not mid.observed
         # Straight-line motion at dx=8 from x0=100 puts frame 5 at x=140.
         assert mid.xy[0] == pytest.approx(140.0, abs=1.0)
@@ -107,7 +113,7 @@ class TestRobustness:
 
         traj = build_trajectory(by_frame(candidates), FRAME_W)
 
-        point = traj.at_frame(5)
+        point = point_at(traj, 5)
         assert point is not None
         assert point.xy[0] < 400, 'the outlier should not have been chosen'
 
@@ -123,7 +129,7 @@ class TestRobustness:
         traj = build_trajectory(by_frame(candidates), FRAME_W)
 
         assert len(traj) >= 20, 'should follow the long chain, not the lone spike'
-        point = traj.at_frame(12)
+        point = point_at(traj, 12)
         assert point.xy[0] < 400
 
     def test_picks_between_same_frame_alternatives(self):
@@ -133,7 +139,7 @@ class TestRobustness:
 
         traj = build_trajectory(by_frame(candidates), FRAME_W)
 
-        point = traj.at_frame(10)
+        point = point_at(traj, 10)
         assert point.xy == pytest.approx((180.0, 400.0), abs=1.0)
 
     def test_survives_positional_noise(self):

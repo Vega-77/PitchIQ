@@ -100,13 +100,6 @@ class BallTrajectory:
         """The share of `total_frames` with a ball point, 0..1."""
         return len(self.points) / total_frames if total_frames else 0.0
 
-    def at_frame(self, frame_index: int) -> BallPoint | None:
-        """The ball point at `frame_index`, or None if there is none."""
-        for p in self.points:
-            if p.frame_index == frame_index:
-                return p
-        return None
-
 
 def candidates_from_detections(
     detections_by_frame: dict[int, list],

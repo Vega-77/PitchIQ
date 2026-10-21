@@ -154,7 +154,7 @@ class TestDetector(unittest.TestCase):
         stub = Stub()
         tiled = TiledDetector(stub, tiles=3, overlap=0.0)
 
-        detections = tiled.detect(self.frame())
+        detections = tiled.detect_batch([self.frame()])[0]
 
         self.assertEqual(len(detections), 3)
         centres = sorted(round(d.center[0]) for d in detections)
@@ -162,13 +162,13 @@ class TestDetector(unittest.TestCase):
 
     def test_the_detector_sees_native_sized_crops(self):
         stub = Stub()
-        TiledDetector(stub, tiles=3, overlap=0.0).detect(self.frame())
+        TiledDetector(stub, tiles=3, overlap=0.0).detect_batch([self.frame()])
 
         self.assertEqual(stub.sizes, [(1280, 1080)] * 3)
 
     def test_one_tile_is_the_untiled_frame(self):
         stub = Stub()
-        TiledDetector(stub, tiles=1).detect(self.frame())
+        TiledDetector(stub, tiles=1).detect_batch([self.frame()])
 
         self.assertEqual(stub.sizes, [(3840, 1080)])
 
@@ -195,11 +195,11 @@ class TestDetector(unittest.TestCase):
         stub = Stub(per_crop=[box(0, 0, 30, 90, conf=0.8)])
         tiled = TiledDetector(stub, tiles=2, overlap=0.0)
 
-        detections = tiled.detect(self.frame(200, 100))
+        detections = tiled.detect_batch([self.frame(200, 100)])[0]
         self.assertEqual(len(detections), 2)  # far apart: both real
 
         tiled_overlapping = TiledDetector(stub, tiles=2, overlap=0.9)
-        overlapping = tiled_overlapping.detect(self.frame(200, 100))
+        overlapping = tiled_overlapping.detect_batch([self.frame(200, 100)])[0]
         self.assertLessEqual(len(overlapping), 2)
 
     def test_an_empty_batch_asks_the_detector_nothing(self):
