@@ -65,6 +65,7 @@ in git"). Accuracy figures for the tracker are in that README too, and
 | `tests/` | Python (pytest) and JavaScript (`node --test`, Firestore emulator) suites |
 | `docs/` | architecture, glossary, report schema, conventions, per-module design notes, history and generated figures |
 | `tools/` | repo maintenance (`audit_metrics.py`) |
+| `.github/workflows/` | CI: `tests.yml` (pytest, pyflakes, ruff, the JS suites, the rules emulator) and `static.yml` (deploys the site to GitHub Pages from main) |
 
 ## Setup
 
@@ -93,7 +94,7 @@ a machine that will be offline at the field:
 
 ```bash
 mkdir -p pitchiq/weights
-curl -L -o pitchiq/weights/yolov8n.pt https://github.com/ultralytics/shared/releases/download/v8.4.0/yolov8n.pt
+curl -L -o pitchiq/weights/yolov8n.pt https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8n.pt
 ```
 
 Either way it is the same file every measurement here used: sha256
