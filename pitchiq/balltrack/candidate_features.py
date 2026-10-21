@@ -16,13 +16,13 @@ NOFF = len(OFFS)
 CZERO = OFFS.index(0)
 TW, TH = 640, 360
 SCALE = 1920.0 / TW  # 3.0
-JPEGQ = 72  # clipbuild wrote the sheets at this quality, and
+JPEGQ = 72  # the labelling sheets were written at this quality, and
 # the model learnt on that noise; match it
 KEEP = 40  # candidates written out per frame (track.py's K)
 
 
 def F_scaled(M, s):
-    """clipbuild.scaled: the same affine, expressed in a picture resized by s."""
+    """The same affine, expressed in a picture resized by s."""
     A = M[:, :2]
     t = M[:, 2]
     c = 0.5 * (s - 1.0)

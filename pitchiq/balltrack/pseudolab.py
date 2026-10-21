@@ -1,6 +1,6 @@
 """Labels for the crop classifier that no human had to click.
 
-Scored against Alex's 269 whole-match labels, the tracker without returns at the precision end
+Scored against the 269 human whole-match labels, the tracker without returns at the precision end
 (skip 4, off 0, leave 6, enter 12) names a ball on 48 frames and is
 right on 46.  Run over the TRAINING clips (tr_plan.json - none of them
 within 60 s of a test clip), that path is a source of ball crops, and the
@@ -17,7 +17,7 @@ Frames the path does not commit on give nothing: "no pick" means not sure,
 not "no ball", and a ball there would become a negative.
 
 2 in 48 is still ~4% of positives wrong, so these carry weight W_PSEUDO
-and Alex's clicks (crop_labeler) override them.
+and manual clicks (the crop labeler) override them.
 
     python -m pitchiq.balltrack.pseudolab tr00 tr01 ...    # -> pseudo_labels.json,
                                          #    <tag>frames.json (for candidate_crops.py)

@@ -1,7 +1,7 @@
-"""bfast.blobs with pass 2 batched as well - the last 113 ms of the 180.
+"""Ball-candidate blobs for one frame, with the per-candidate statistics batched.
 
-bprof2 put 62.7% of blobs inside the `_row` loop, and bprof3 split that
-loop into what it actually spends:
+Profiled one candidate at a time, 62.7% of blobs went inside its `_row`
+loop, spent like this:
 
     maskred  44.1 ms   v_in / v_max / v_std / s_in / h_in over the mask
     ringred  29.7 ms   v_ring / v_ring_max / grass_ring / s_ring over the ring
@@ -9,8 +9,8 @@ loop into what it actually spends:
     dict      8.8 ms   the 24-key dict
     ringany   2.3 ms   ring.any()
 
-The lever is the one bfast already found - dispatch, not bytes.  bshape.py
-measured why the obvious alternative is wrong: all 2317 boxes together touch
+The lever is dispatch, not bytes (pass 1 is batched for the same reason).
+A measurement showed why the obvious alternative is wrong: all 2317 boxes together touch
 0.98 Mpx, less than half a 1920x1080 frame, so ANY whole-image precompute
 (an integral image, a bincount over the label image) costs more than the
 per-candidate work it would replace.  Only collapsing the loop can pay.
@@ -45,11 +45,11 @@ legitimate rather than merely fast:
     numpy's own .mean() would have used: float32 for v (a float32 array),
     float64 for s/h/grass (integer arrays promote).  Same two values, same
     IEEE division, same answer.
-  * lap is bit-exact and measured to be: lapprobe.py found numpy's
+  * lap is bit-exact and measured to be: a probe found numpy's
     reflect-padded 4-neighbour kernel identical to cv2.Laplacian on 400
-    random boxes, and varprobe.py found a batched .var(axis=1) identical to
+    random boxes, and another found a batched .var(axis=1) identical to
     the per-row one on 300 random stacks.  A whole-image Laplacian would
-    NOT have been - see bfast's own docstring - but a stack of real boxes
+    NOT have been - its border at a box edge differs - but a stack of real boxes
     is just the same convolution done n times at once.
 
   * v_std is the one number that cannot come back bit for bit.  It is a sum
@@ -57,8 +57,8 @@ legitimate rather than merely fast:
     order move it in the last float32 ulp.  It is computed by the same
     float32 algorithm numpy uses (subtract the same float32 mean, square,
     sum, sqrt), so the drift is ~1e-7 relative, and it feeds no gate.
-    Set EXACT_STD to fall back to the per-candidate gather if bcheck ever
-    shows that moving the top-200.
+    Set EXACT_STD to fall back to the per-candidate gather if
+    reference/check_fast.py ever shows that moving the top-200.
 
 The one place a last-ulp difference could change the OUTPUT rather than a
 feature is the component branch's `con >= CON` gate, where a candidate
@@ -164,7 +164,7 @@ GATE_EPS = 1e-3  # recheck rows this close to CON by hand
 EXACT_STD = False  # True = per-candidate v_std, bit for bit
 
 # Set to a dict to accumulate per-phase seconds in place.  The timing is
-# eight perf_counter pairs per FRAME, not per candidate, so unlike bprof3 it
+# eight perf_counter pairs per FRAME, not per candidate, so unlike an outside profiler it
 # costs nothing measurable and can profile the real function rather than a
 # copy of it that might drift from it.
 PROF = None
@@ -323,7 +323,7 @@ def blobs(img, cmaj=None):
     hs = np.array([j[10] for j in jobs], np.int64)
     isplit = np.array([j[11] == 1.0 for j in jobs], bool)
 
-    # --- the stages bfast already batched, unchanged ----------------------
+    # --- the first-pass stages, batched per frame ------------------------
     em = np.maximum(1.0, cmaj[0] * cys + cmaj[1]) if cmaj is not None else np.ones(nc)
     TH = tophat_batch(resp, cxs, cys, em)
     integ = cv2.integral(wf.view(np.uint8))

@@ -1,6 +1,6 @@
 """One matmul per anchor instead of twenty bf.match calls.
 
-gmatch.py showed a single 2000x2000 crossCheck Hamming match reproduces
+A probe showed a single 2000x2000 crossCheck Hamming match reproduces
 bf.match exactly on the GPU.  It matched one pair at a time, which wastes
 the card: a 2000x256x2000 matmul is far too small to fill an RTX 4060, so
 almost all of the measured time was launch overhead and the PCIe round trip,
@@ -34,7 +34,7 @@ The batching machinery is kept because it is what makes CHUNK a dial at
 all, and because memory is the harder constraint: twenty workers share one
 8 GB card, and chunk 6 wanted 11 GB of it.
 
-Three things carry over from gmatch.py unchanged, because they are what
+Three things carry over from that probe unchanged, because they are what
 make the result bf.match's result and not merely a similar one:
 
   * hamming(a, b) = popcount(a) + popcount(b) - 2 * (a . b), with the dots
@@ -79,7 +79,7 @@ class Matcher:
 
     A frame's descriptors are unpacked to bits once and kept, because a
     frame sits in the sliding buffer for 21 anchors and would otherwise be
-    unpacked 21 times.  evict() mirrors rfast.Registrar.evict.
+    unpacked 21 times.  evict() mirrors pan_registration.Registrar.evict.
     """
 
     def __init__(self, chunk=CHUNK):

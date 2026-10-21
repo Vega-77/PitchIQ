@@ -1,4 +1,4 @@
-"""Does the crop classifier help the tracker?  Scored on Alex's 269 labels.
+"""Does the crop classifier help the tracker?  Scored on the 269 human labels.
 
 Two measurements, in this order, because the second is only worth reading
 if the first moved:

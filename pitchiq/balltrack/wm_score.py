@@ -1,4 +1,4 @@
-"""Score the tracker against Alex's whole-match labels (Ball Truth artifact).
+"""Score the tracker against the human whole-match labels (Ball Truth artifact).
 
     python -m pitchiq.balltrack.wm_score [suffix]     # reads wmNN<suffix>picks.json, default ''
 

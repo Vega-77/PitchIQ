@@ -9,7 +9,7 @@ those are usable for a production pass:
   * LO/HI are not to be edited.
 
 So this is single_process_run.main's loop, unchanged in what it computes, wrapped in the
-operating point dpar8 confirmed - 16 processes x 1 thread, blob_candidates.blobs and
+operating point measured on this machine - 16 processes x 1 thread, blob_candidates.blobs and
 the pan_registration registrar with the batched GPU matcher - and cut into contiguous
 chunks of anchors, one per worker.  LO/HI are never touched: the window is
 an argument and each worker carries its own.
@@ -19,8 +19,8 @@ Two things are different from single_process_run.main, and only two:
   * each worker flushes a part file every FLUSH anchors, so the work that
     survives a crash is bounded by FLUSH frames rather than by the run;
   * every anchor also keeps mats[CZERO + 1], the affine that maps the next
-    frame onto this one.  pan.py computes exactly that affine, with the same
-    fit_pair on the same ORB features, as a separate 9000-frame pass.  It is
+    frame onto this one.  A separate pass over the video would compute exactly
+    that affine, with the same fit_pair on the same ORB features.  It is
     already sitting in the buffer here, so the stabilised coordinates the
     tracker needs come out of this run for free instead of costing another
     four minutes.
@@ -317,8 +317,8 @@ def merge(tag, lo, hi, res):
         stage1=10**6,
     )
 
-    # pan.npz's own shape: cum[k] maps frame lo+k onto frame lo.  pan.py
-    # builds it as acc = acc.dot(H) over consecutive fits and carries the
+    # <tag>pan.npz's shape: cum[k] maps frame lo+k onto frame lo, built
+    # as acc = acc.dot(H) over consecutive fits and carries the
     # last transform forward when a fit fails; an identity step is exactly
     # that carry-forward.
     hs = np.concatenate(HS)[o]
@@ -335,7 +335,7 @@ def merge(tag, lo, hi, res):
         if np.allclose(H, np.eye(3)):
             nfail += 1
         elif k + 1 < n:
-            # pan.py's convention: step[k] is the motion INTO frame lo+k
+            # the pan file's convention: step[k] is the motion INTO frame lo+k
             p = np.array([960.0, 540.0, 1.0]).dot(H[:2].T)
             step[k + 1] = float(np.hypot(p[0] - 960.0, p[1] - 540.0))
         acc = acc.dot(H)

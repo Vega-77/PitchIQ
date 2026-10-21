@@ -1,6 +1,6 @@
-"""rfast.Registrar with the surviving half of its matches moved to the GPU.
+"""Frame-to-frame pan registration, with its direct-fit matches batched on the GPU.
 
-rfast removed the redundant half of bf.match by caching: OFFS is symmetric,
+Registrar removes the redundant half of bf.match by caching: OFFS is symmetric,
 so every unordered pair is asked for twice over a sequential run and the
 second ask is served from store.  What is left is the other half - about ten
 2000x2000 crossCheck Hamming matches per anchor - and on a machine running
@@ -14,7 +14,7 @@ fallbacks (k against k-1) do not share it, but they only run when a direct
 fit failed, so they stay on the CPU one at a time.
 
 Measured under nineteen single-threaded CPU burners, which is the operating
-point dpar4 runs at, one anchor's twenty pairs cost:
+point the detector runs at, one anchor's twenty pairs cost:
 
     bf.match x20      237.0 ms
     match_many         26.2 ms      9.05x
@@ -27,16 +27,16 @@ while the CPU number gets worse.
 Exactness is gpu_matcher's, unchanged - 120 / 120 pairs identical to bf.match as
 a set and in list order - and the whole point of routing through _pre rather
 than replacing match() is that everything downstream of the index arrays is
-still rfast's code running on rfast's data.
+the same CPU code running on the same data.
 
-    reg = Registrar(bf, gpu_matcher.Matcher())     # matcher=None -> plain rfast
+    reg = Registrar(bf, gpu_matcher.Matcher())     # matcher=None -> CPU bf.match only
     mats, how = reg.transforms(kds, fids, CZERO)
 """
 
 import cv2
 import numpy as np
 
-MINMATCH, MININL = 12, 10  # clipbuild's guards, kept identical
+MINMATCH, MININL = 12, 10  # fewest matches / inliers a fit may rest on
 
 
 def homog(M):
@@ -46,7 +46,7 @@ def homog(M):
 
 
 class Registrar:
-    """rfast.Registrar, plus an optional batched matcher for the direct fits."""
+    """Affines between buffered frames, with an optional batched matcher for the direct fits."""
 
     def __init__(self, bf, matcher=None):
         self.bf = bf

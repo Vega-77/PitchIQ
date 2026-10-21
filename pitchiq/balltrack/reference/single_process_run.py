@@ -1,6 +1,6 @@
 """The detector run on EVERY frame, because that is what continuity needs.
 
-Alex's instruction was: a frame we are sure about tells us where the ball is
+The idea behind it: a frame we are sure about tells us where the ball is
 in the next frame, because it must be close.  That is right, and the reason it
 has not paid off yet is arithmetic, not principle.  The labelled test frames
 are a median 23 frames apart:
@@ -28,12 +28,12 @@ was to fit each CONSECUTIVE pair once and compose, since the composition is
 algebraically the same transform.  regcheck.py then scored the chain against
 the direct fits on correspondences neither was fitted to: the chain lands a
 median 1.79 and worst 6.56 source px from where the matches say it should,
-against a patch half-width of 7.5 source px.  Marginal - and clipbuild built
-the TRAINING sheets with direct fits, so the chain would also have been a
+against a patch half-width of 7.5 source px.  Marginal - and the sheet builder
+built the TRAINING sheets with direct fits, so the chain would also have been a
 train/serve skew.  Then the direct fits were timed: 110 ms for all 20, because
 each frame's keypoints are already computed once in the rolling buffer and
 only bf.match and RANSAC repeat.  About 3 minutes over the whole run.  So the
-saving was never worth having.  Direct fits, the same ones clipbuild made; the
+saving was never worth having.  Direct fits, the same ones the training sheets used; the
 chain survives only as the fallback for a direct fit that will not converge.
 
 PRUNING.  rank6.py measured how deep a still-only ranking can be cut before it
@@ -106,9 +106,9 @@ def transforms(kds, bf, c):
     the fallback and a tile not registered at all are different kinds of wrong,
     and the run should be able to say how much of each it did:
 
-        2  direct fit - what clipbuild did at training time
+        2  direct fit - what the training sheets used
         1  the consecutive chain, where the direct fit would not converge
-        0  neither, so the tile goes in unwarped: clipbuild's flag-2 case
+        0  neither, so the tile goes in unwarped: the training sheets' flag-2 case
     """
     n = len(kds)
     mats = [None] * n
