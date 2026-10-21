@@ -9,7 +9,7 @@ set now lives in one file beside where its directory was: `labdb5/crops.jsonl`,
 name and the document exactly as it was, in file-name order (the order every
 reader used to glob them in), so nothing is lost and no reader's input moves.
 
-Pack a fresh download with this, then delete the directory. `truthdb/` stays
+Pack a fresh download with this, then delete the directory. `ground_truth/` stays
 as it is: it is the test set, and nothing here touches it.
 """
 
@@ -23,8 +23,8 @@ def pack(dirn):
     files = sorted(glob.glob(os.path.join(dirn, '*.json')))
     if not files:
         sys.exit('%s: no .json files' % dirn)
-    if 'truthdb' in os.path.abspath(dirn).replace(os.sep, '/').split('/'):
-        sys.exit('truthdb is the test set; it is not packed')
+    if 'ground_truth' in os.path.abspath(dirn).replace(os.sep, '/').split('/'):
+        sys.exit('ground_truth is the test set; it is not packed')
     out = os.path.normpath(dirn) + '.jsonl'
     with open(out, 'w', encoding='utf-8', newline='\n') as f:
         for p in files:

@@ -153,7 +153,7 @@ were closed or merged:
 | tune the detector's confidence on real footage (Phase 5) | ball: done by the gates; people: merged into the detector item |
 | [MVP] fine-tune detectors (Phases 5 and 6, twice) | merged into one detector item |
 | re-measure tracking on native-resolution footage (Phase 6) | superseded by the player labs on the team's footage |
-| [Demo] ground truth on a labelled clip before a full game (Phase 16) | done another way: `truthdb/` (269 marks), the Spot Check Lab and the Ball Clicker |
+| [Demo] ground truth on a labelled clip before a full game (Phase 16) | done another way: `ground_truth/` (269 marks), the Spot Check Lab and the Ball Clicker |
 | lighting and weather robustness (Phase 16) | merged into "Night games" (sun glare measured) |
 | [Demo] a dry run on the team's real footage (Phase 16) | pipeline half done; the rest is "The whole path under a real clock" |
 | [MVP] the half-time path under a real clock (Phase 16) | merged into the same item |

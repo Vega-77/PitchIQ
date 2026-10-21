@@ -56,7 +56,7 @@ def hit(P, f, px, py, slack=0):
 
 
 def marks(dirn):
-    """A label set: packed as <dirn>.jsonl (labels_pack.py), or truthdb's one file per mark."""
+    """A label set: packed as <dirn>.jsonl (labels_pack.py), or ground_truth's one file per mark."""
     if os.path.exists(dirn + '.jsonl'):
         recs = [json.loads(line)[1] for line in open(dirn + '.jsonl')]
     else:
@@ -64,7 +64,7 @@ def marks(dirn):
     return [t.get('data', t) for t in recs]
 
 
-TRUTH = marks(os.path.join(S2, 'truthdb', 'truth'))
+TRUTH = marks(os.path.join(S2, 'ground_truth', 'truth'))
 FIND = [
     m
     for m in marks(os.path.join(HERE, 'findball', 'labels'))

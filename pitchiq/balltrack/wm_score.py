@@ -2,7 +2,7 @@
 
     python -m pitchiq.balltrack.wm_score [suffix]     # reads wmNN<suffix>picks.json, default ''
 
-Truth is truthdb/truth/fNNN.json (ArtifactData list with out_dir).  Kinds:
+Truth is ground_truth/truth/fNNN.json (ArtifactData list with out_dir).  Kinds:
 ball (x, y in source pixels, optional air), off, hidden, skip.
 
 Per stratum:
@@ -27,7 +27,7 @@ TOL = 60.0
 
 def truth():
     out = []
-    for f in sorted(glob.glob(os.path.join(S2, 'truthdb', 'truth', '*.json'))):
+    for f in sorted(glob.glob(os.path.join(S2, 'ground_truth', 'truth', '*.json'))):
         t = json.load(open(f))
         out.append(t.get('data', t))
     return out

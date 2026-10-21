@@ -156,7 +156,7 @@ script's `S2 = dirname(HERE)` pointing here, so no path was edited in the move.
 
 ## How good it is
 
-The held-out test set is 18 clips of 1200 frames. `truthdb/` holds 269 human
+The held-out test set is 18 clips of 1200 frames. `ground_truth/` holds 269 human
 marks (ball / off-screen). Score with `python -m pitchiq.balltrack.gap_fill_settings`. A pick counts
 as right if it is within 60 px of the mark.
 
@@ -187,7 +187,7 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   `["<name>.json", doc]`, the document exactly as the lab's database gave it.
   A fresh download comes down as one file per document; pack it with
   `python -m pitchiq.balltrack.labels_pack <dir>` and delete the directory.
-- Never train on `truthdb/`; it is the test set. It stays one file per mark,
+- Never train on `ground_truth/`; it is the test set. It stays one file per mark,
   and `labels_pack.py` refuses to pack it.
 
 ## Known limits
