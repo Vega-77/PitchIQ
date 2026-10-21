@@ -476,6 +476,21 @@ def attacking_end_for(
     return orientation.attacking_end(side, period)
 
 
+@dataclass(frozen=True)
+class EventThresholds:
+    """The guards against a noisy ball, defaulting to the constants above.
+
+    None of them needs to know who anyone is: see `MIN_PASS_LENGTH_PH`,
+    `MAX_PASS_SPEED_PH_S` and `_one_claim_per_transfer`. Zero turns any of them
+    off.
+    """
+
+    min_pass_length_ph: float = MIN_PASS_LENGTH_PH
+    max_pass_speed_ph_s: float = MAX_PASS_SPEED_PH_S
+    same_transfer_s: float = SAME_TRANSFER_S
+    same_transfer_ph: float = SAME_TRANSFER_PH
+
+
 def derive_events(
     touches: TouchSequence,
     table: FrameTable,
@@ -485,11 +500,8 @@ def derive_events(
     side_of_team: dict[str, str] | None = None,
     keeper_tracks: set[int] | None = None,
     phases=None,
-    min_pass_length_ph: float = MIN_PASS_LENGTH_PH,
     identity: dict[int, int] | None = None,
-    max_pass_speed_ph_s: float = MAX_PASS_SPEED_PH_S,
-    same_transfer_s: float = SAME_TRANSFER_S,
-    same_transfer_ph: float = SAME_TRANSFER_PH,
+    thresholds: EventThresholds | None = None,
 ) -> EventLog:
     """Turn a touch sequence into events.
 
@@ -507,10 +519,10 @@ def derive_events(
     counts as the same player — see `_same_person`. Without it every pair of
     touches the tracker labelled differently reads as a ball changing hands.
 
-    The two speed and transfer arguments are the guards against a noisy ball
-    rather than a noisy tracker, and neither needs to know who anyone is — see
-    `MAX_PASS_SPEED_PH_S` and `_one_claim_per_transfer`. Zero turns either off.
+    `thresholds` are the guards against a noisy ball rather than a noisy
+    tracker (`EventThresholds`).
     """
+    thresholds = thresholds or EventThresholds()
     pitch = pitch or (table.calibration.pitch if table.calibration else Pitch())
     orientation = orientation or MatchOrientation()
     keeper_tracks = keeper_tracks or set()
@@ -559,9 +571,8 @@ def derive_events(
             attacking_end(current.team),
             index,
             ordered,
-            min_pass_length_ph,
             identity,
-            max_pass_speed_ph_s,
+            thresholds,
         )
         if any(event.type == PASS for event in produced):
             transfers.append((current, produced))
@@ -571,8 +582,8 @@ def derive_events(
     log.events.extend(
         _one_claim_per_transfer(
             transfers,
-            same_transfer_s,
-            same_transfer_ph,
+            thresholds.same_transfer_s,
+            thresholds.same_transfer_ph,
         )
     )
     log.events.extend(_carries(ordered, table, pitch, identity))
@@ -671,9 +682,8 @@ def _between(
     attacking_end: str | None,
     index: int,
     ordered: list[Touch],
-    min_pass_length_ph: float = 0.0,
-    identity: dict[int, int] | None = None,
-    max_pass_speed_ph_s: float = 0.0,
+    identity: dict[int, int] | None,
+    thresholds: EventThresholds,
 ) -> list[EventBase]:
     """Classify one adjacent pair of touches."""
     if _same_person(current, following, identity):
@@ -691,7 +701,7 @@ def _between(
 
     length_ph = _pixel_distance_ph(current, following)
 
-    if 0 < max_pass_speed_ph_s < _speed_between(current, following):
+    if 0 < thresholds.max_pass_speed_ph_s < _speed_between(current, following):
         # The ball cannot have covered that ground in that time, so these two
         # touches are not the two ends of one kick: the detector lost the ball
         # somewhere between them and picked up something else. Nothing here is
@@ -712,7 +722,7 @@ def _between(
     else:
         outcome = UNKNOWN_OUTCOME
 
-    if length_ph < min_pass_length_ph:
+    if length_ph < thresholds.min_pass_length_ph:
         # The ball did not go anywhere, so nobody passed it: two touch
         # detections a stride apart are one player seen twice far more often
         # than they are a real exchange.

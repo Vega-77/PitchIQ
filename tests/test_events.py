@@ -20,6 +20,7 @@ import pytest
 
 from pitchiq.calibration import Calibration
 from pitchiq.events import (
+    EventThresholds,
     BLOCKED,
     CARRY,
     COMPLETED,
@@ -818,10 +819,13 @@ class TestMinimumPassLength:
 
     def test_a_pass_that_went_nowhere_is_dropped(self):
         # Ten pixels against a 36-pixel player is under a third of a body.
-        assert derive(self._pair(10.0), min_pass_length_ph=1.0).passes() == []
+        assert (
+            derive(self._pair(10.0), thresholds=EventThresholds(min_pass_length_ph=1.0)).passes()
+            == []
+        )
 
     def test_a_pass_that_travelled_survives(self):
-        log = derive(self._pair(400.0), min_pass_length_ph=1.0)
+        log = derive(self._pair(400.0), thresholds=EventThresholds(min_pass_length_ph=1.0))
         assert len(log.passes()) == 1
         assert log.passes()[0].outcome == COMPLETED
 
@@ -836,21 +840,28 @@ class TestMinimumPassLength:
             touch(0.0, 1, TEAM_A, xy_px=(0.0, 0.0)),
             touch(0.5, 9, TEAM_B, xy_px=(10.0, 0.0)),
         ]
-        log = derive(pair, min_pass_length_ph=1.0)
+        log = derive(pair, thresholds=EventThresholds(min_pass_length_ph=1.0))
         assert log.passes() == []
         assert log.by_type(TACKLE, INTERCEPTION, RECOVERY, DUEL)
 
     def test_a_short_pair_in_one_kit_is_dropped_whole(self):
         """Same shirt, no distance: the pair is the noise the floor is for."""
-        log = derive(self._pair(10.0), min_pass_length_ph=1.0)
+        log = derive(self._pair(10.0), thresholds=EventThresholds(min_pass_length_ph=1.0))
         assert log.events == []
 
     def test_the_floor_is_on_by_default(self):
         assert derive(self._pair(10.0)).passes() == []
-        assert len(derive(self._pair(10.0), min_pass_length_ph=0.0).passes()) == 1
+        assert (
+            len(
+                derive(
+                    self._pair(10.0), thresholds=EventThresholds(min_pass_length_ph=0.0)
+                ).passes()
+            )
+            == 1
+        )
 
     def test_length_ph_is_still_reported(self):
-        log = derive(self._pair(360.0), min_pass_length_ph=1.0)
+        log = derive(self._pair(360.0), thresholds=EventThresholds(min_pass_length_ph=1.0))
         assert log.passes()[0].length_ph == pytest.approx(10.0)
 
 
@@ -949,7 +960,14 @@ class TestABallThatCouldNotHaveTravelled:
         assert log.events == []
 
     def test_zero_turns_the_cap_off(self):
-        assert len(derive(self._pair(300.0, 0.05), max_pass_speed_ph_s=0.0).passes()) == 1
+        assert (
+            len(
+                derive(
+                    self._pair(300.0, 0.05), thresholds=EventThresholds(max_pass_speed_ph_s=0.0)
+                ).passes()
+            )
+            == 1
+        )
 
 
 class TestOneClaimPerTransfer:
@@ -1006,8 +1024,14 @@ class TestOneClaimPerTransfer:
         assert len(derive(touches).passes()) == 2
 
     def test_zero_turns_the_collapse_off(self):
-        assert len(derive(self._burst(), same_transfer_s=0.0).passes()) == 2
-        assert len(derive(self._burst(), same_transfer_ph=0.0).passes()) == 2
+        assert (
+            len(derive(self._burst(), thresholds=EventThresholds(same_transfer_s=0.0)).passes())
+            == 2
+        )
+        assert (
+            len(derive(self._burst(), thresholds=EventThresholds(same_transfer_ph=0.0)).passes())
+            == 2
+        )
 
     def test_a_rapid_one_two_is_merged_and_that_is_a_known_cost(self):
         """Two real passes, lost to the rule that removes the invented ones.
