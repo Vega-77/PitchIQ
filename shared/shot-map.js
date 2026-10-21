@@ -24,15 +24,15 @@
 //     Unless the number cannot carry it.
 //
 // Sizing is a claim that two dots differ by the amount they look like they
-// differ. `xgTrust` (assets/report.js) decides whether the calibration supports
+// differ. `xgTrust` (shared/report.js) decides whether the calibration supports
 // that claim, and hands down `'shot'`, `'total'` or `'none'`; anything but
 // `'shot'` flattens every radius here. A map drawn to a precision the positions
 // do not have is worse than a map with no sizes, because it is legible.
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, pitchMarkings,
-} from './pitch-backdrop.js?v=142';
-import { svgEl as el } from './svg.js?v=142';
+} from './pitch-backdrop.js?v=143';
+import { svgEl as el } from './svg.js?v=143';
 
 // Only the attacking half is drawn. A shot from inside your own half is worth
 // about 0.005 xG and happens twice a season; giving it half the picture costs
@@ -149,7 +149,7 @@ export function shotSummary(marks, trust = 'shot') {
  * gives none of. This paragraph read *"makes each shot a button"* until
  * 2026-08-18 while the code built a bare `<circle>` with a click listener on it
  * — `cursor: pointer` and a hover state, nothing focusable, nothing announced.
- * `assets/timeline.js` sets the standard for its own marks, *"real buttons
+ * `shared/timeline.js` sets the standard for its own marks, *"real buttons
  * rather than styled spans, so the whole thing is reachable from a keyboard"*,
  * and these are the same moments plotted on a different axis.
  *

@@ -126,7 +126,7 @@ class TestPrintRulesAreNotScoredTwice:
     `@media print` comes back looking exactly like one outside it."""
 
     def test_the_print_theme_is_cut_out_of_the_screen_source(self):
-        app = read('assets/app.css')
+        app = read('shared/app.css')
         assert '@media print {' in app
         assert '@media print {' not in without_print(app)
 
@@ -134,8 +134,8 @@ class TestPrintRulesAreNotScoredTwice:
         # `background: #fff` appears twice, both times inside the print
         # block. Scored against the dark screen theme it read 1.17 -- a
         # defect in a medium where the rule does not exist.
-        assert 'background: #fff' in read('assets/app.css')
-        assert 'background: #fff' not in without_print(read('assets/app.css'))
+        assert 'background: #fff' in read('shared/app.css')
+        assert 'background: #fff' not in without_print(read('shared/app.css'))
 
     def test_a_sheet_with_no_print_block_is_untouched(self):
         # Six of the seven have no print theme, and the cut must be a
@@ -157,7 +157,7 @@ class TestPrintRulesAreNotScoredTwice:
         # of scoring a rule against a medium it never renders in. Leaving the
         # print theme in adds exactly three rows, one of them that failure.
         _, rows = scored(SHEETS, printed=False)
-        here = [r for r in rows if r[4].startswith('assets/app.css')]
+        here = [r for r in rows if r[4].startswith('shared/app.css')]
         assert not [r for r in here if '.print-stamp' in r[4]], here
         assert not [r for r in here if r[3] in ('#fff', '#ffffff')], here
         assert failures(SHEETS, printed=False) == []
@@ -180,9 +180,9 @@ class TestInsetIsNotASize:
 
     def test_all_four_uses_position_rather_than_size(self):
         assert self.uses() == [
-            ('assets/app.css:404', '0'),
-            ('assets/app.css:431', '-40% -30%'),
-            ('assets/app.css:1848', 'auto 0 0 0'),
+            ('shared/app.css:404', '0'),
+            ('shared/app.css:431', '-40% -30%'),
+            ('shared/app.css:1848', 'auto 0 0 0'),
             ('live-tagging/tagging.css:702', '0'),
         ], self.uses()
 
@@ -210,7 +210,7 @@ class TestLiteralColoursAreVisible:
         # with the team.
         inks = [(rel, head, v) for kind, rel, head, v in literals() if kind == 'ink']
         assert inks == [
-            ('assets/app.css', '.toast.error', '#ffffff'),
+            ('shared/app.css', '.toast.error', '#ffffff'),
         ], inks
         t = theme(False)
         assert ratio(parse('#ffffff'), parse(t['--danger'])) >= TEXT_FLOOR
@@ -221,13 +221,13 @@ class TestLiteralColoursAreVisible:
         # the touchline pad.
         grounds = sorted((rel, head, v) for kind, rel, head, v in literals() if kind == 'ground')
         assert grounds == [
-            ('assets/app.css', '.list-item', '#fff'),
-            ('assets/app.css', '.video-frame', '#000'),
-            ('assets/app.css', 'body', '#fff'),
             # The dark stage the calibrate page's picture sits on: no text,
             # only the picture and the buttons, which bring their own ground.
             ('calibrate/calibrate.css', '.cal-stage', '#10150f'),
             ('live-tagging/tagging.css', '.overlay', 'rgba(11, 13, 18, .72)'),
+            ('shared/app.css', '.list-item', '#fff'),
+            ('shared/app.css', '.video-frame', '#000'),
+            ('shared/app.css', 'body', '#fff'),
         ], grounds
 
     def test_a_second_yellow_is_the_two_card_colours(self):
@@ -293,7 +293,7 @@ class TestAGroundCanComeFromAnAncestor:
 
         coach = rules_of('coach/coach.css')
         assert ancestor_ground(coach, '.on-kit .record-gd.pos') is None
-        both = {**rules_of('assets/app.css'), **coach}
+        both = {**rules_of('shared/app.css'), **coach}
         assert ancestor_ground(both, '.on-kit .record-gd.pos') == '--kit'
 
     def test_and_that_is_the_difference_between_1_54_and_7_96(self):

@@ -165,7 +165,7 @@ were closed or merged:
 ```
 PitchIQ/
 ├── index.html           landing page and sign-in
-├── assets/              shared frontend modules (app.css, auth.js, db.js, report.js, ...)
+├── shared/              shared frontend modules (app.css, auth.js, db.js, report.js, ...)
 ├── coach/               the coach's dashboard: roster, matches, stats, publish, track mapping
 ├── player/              the player's portal: their own reports only
 ├── live-tagging/        the match-day tablet tool

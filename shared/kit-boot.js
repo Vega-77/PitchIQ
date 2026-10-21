@@ -1,6 +1,6 @@
 // The last team's colours, applied before the page first draws.
 //
-// assets/kit.js paints a team's pages and keeps the result in this browser.
+// shared/kit.js paints a team's pages and keeps the result in this browser.
 // Modules run after the first paint, so without this every one of that
 // team's pages would open in the house navy and then change colour. A plain
 // script in <head> runs before anything is drawn. It only ever sets the

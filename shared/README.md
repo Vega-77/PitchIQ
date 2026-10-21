@@ -21,22 +21,22 @@ is scripted rather than left to memory.
 The script stamps **two** things, and the second is the one that matters:
 
 ```html
-<link rel="stylesheet" href="../assets/app.css?v=5">
+<link rel="stylesheet" href="../shared/app.css?v=5">
 <script type="module" src="coach.js?v=5"></script>
 ```
 
 ```js
-import { byId, toast } from '../assets/ui.js?v=5';
+import { byId, toast } from '../shared/ui.js?v=5';
 ```
 
 Versioning only the page's `<link>` and `<script>` tags is half a fix, because a
 versioned entry point does **not** version what it imports: `coach.js?v=5` loads
-fresh and then pulls `../assets/auth.js` (its import, relative to `coach/`)
+fresh and then pulls `../shared/auth.js` (its import, relative to `coach/`)
 straight from cache. That failure mode
 is genuinely misleading — it surfaces as
 
 ```
-SyntaxError: The requested module '../assets/auth.js'
+SyntaxError: The requested module '../shared/auth.js'
 does not provide an export named 'saveStaffProfile'
 ```
 
@@ -44,7 +44,7 @@ which reads like a missing export in code that is actually correct on disk. It
 cost debugging time twice before the imports were versioned too.
 
 One consequence worth knowing: if you poke at the app from the browser console,
-`import('/assets/firebase-init.js')` and `import('/assets/firebase-init.js?v=5')`
+`import('/shared/firebase-init.js')` and `import('/shared/firebase-init.js?v=5')`
 are **different module instances**, and the second one to initialise Firebase
 throws. Use the same specifier the page used.
 
@@ -52,10 +52,10 @@ throws. Use the same specifier the page used.
 
 Each page directory is named after what it is, and its files are named after
 the directory — `coach/coach.js`, `player/player.js`, `live-tagging/tagging.js`.
-Shared code lives in `assets/` and is imported by path.
+Shared code lives in `shared/` and is imported by path.
 
 ```
-assets/            shared by every page
+shared/            shared by every page
   app.css            design system: tokens, type scale, components
   firebase-init.js   SDK setup   <- your Firebase config goes here
   auth.js            sign-in, roster claim, role resolution
@@ -74,10 +74,10 @@ halftime/          the three-minute read for the touchline
 
 Three rules worth keeping:
 
-- **`assets/ui.js` before a private helper.** Toasts, `byId`, view switching and
+- **`shared/ui.js` before a private helper.** Toasts, `byId`, view switching and
   the stat/figure builders each used to exist as a private copy in four or five
   page scripts. If you need one of those again, import it.
-- **`assets/events.js` owns what an event means.** `EVENTS` is the map of
+- **`shared/events.js` owns what an event means.** `EVENTS` is the map of
   specs; `EVENT_TYPES` is its key list. `db.js` used to declare a second,
   unrelated `EVENT_TYPES`, so the same name meant two different things
   depending on which module you had imported.

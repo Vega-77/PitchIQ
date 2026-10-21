@@ -8,11 +8,11 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import * as report from '../assets/report.js';
-import * as sample from '../assets/sample-report.js';
-import * as season from '../assets/season.js';
+import * as report from '../shared/report.js';
+import * as sample from '../shared/sample-report.js';
+import * as season from '../shared/season.js';
 // Same split again: the scale and the radius are pure, the rest builds nodes.
-import * as formMod from '../assets/form-chart.js';
+import * as formMod from '../shared/form-chart.js';
 
 describe('seasonGroups', () => {
     const totals = (extra = {}) => ({

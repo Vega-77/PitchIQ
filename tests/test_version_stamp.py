@@ -4,7 +4,7 @@
 hash in its filename, so a browser will happily serve yesterday's JavaScript. Its
 own docstring says what happens when the stamping is only half done — *"a
 versioned entry point does not version what it imports, so `coach.js?v=4` loads
-fresh and then pulls `../assets/auth.js` straight from cache. That failure looks
+fresh and then pulls `../shared/auth.js` straight from cache. That failure looks
 exactly like a missing export, and it has cost real debugging time more than
 once."*
 
@@ -223,18 +223,18 @@ class TestTheStamperItself(unittest.TestCase):
     """The detectors above are only worth having if they can fail."""
 
     def test_an_unstamped_reference_is_reported(self):
-        self.assertIsNone(STAMP.search('assets/app.css'))
-        self.assertTrue(STAMP.search('assets/app.css?v=7'))
+        self.assertIsNone(STAMP.search('shared/app.css'))
+        self.assertTrue(STAMP.search('shared/app.css?v=7'))
 
     def test_a_single_quoted_attribute_escapes_the_stamper(self):
-        text = '<link rel="stylesheet" href=\'assets/app.css\'>'
+        text = '<link rel="stylesheet" href=\'shared/app.css\'>'
         self.assertEqual(list(stamp_version.ASSET_REF.finditer(text)), [])
-        self.assertEqual([v for _q, v in LOOSE_ASSET.findall(text)], ['assets/app.css'])
+        self.assertEqual([v for _q, v in LOOSE_ASSET.findall(text)], ['shared/app.css'])
 
     def test_a_double_quoted_specifier_escapes_the_stamper(self):
-        text = 'import { onUser } from "../assets/auth.js";'
+        text = 'import { onUser } from "../shared/auth.js";'
         self.assertEqual(list(stamp_version.IMPORT_SPEC.finditer(text)), [])
-        self.assertEqual([v for _q, v in LOOSE_SPEC.findall(text)], ['../assets/auth.js'])
+        self.assertEqual([v for _q, v in LOOSE_SPEC.findall(text)], ['../shared/auth.js'])
 
     def test_restamping_replaces_rather_than_appends(self):
         # The bump is run over already-stamped files every time, so the regex
@@ -244,9 +244,9 @@ class TestTheStamperItself(unittest.TestCase):
         self.assertEqual(once, '<script type="module" src="coach.js?v=42"></script>')
         self.assertEqual(stamp_version.ASSET_REF.sub(r'\1\2?v=42\3', once), once)
 
-        spec = "import { getTeam } from '../assets/db.js?v=41';"
+        spec = "import { getTeam } from '../shared/db.js?v=41';"
         once = stamp_version.IMPORT_SPEC.sub(r'\1\2?v=42\3', spec)
-        self.assertEqual(once, "import { getTeam } from '../assets/db.js?v=42';")
+        self.assertEqual(once, "import { getTeam } from '../shared/db.js?v=42';")
         self.assertEqual(stamp_version.IMPORT_SPEC.sub(r'\1\2?v=42\3', once), once)
 
     def test_a_remote_url_is_left_alone(self):

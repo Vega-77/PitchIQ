@@ -34,7 +34,7 @@ const google = (u) => ({
 
 const as = (u) => testEnv.authenticatedContext(u.uid, google(u)).firestore();
 
-/** Mirrors resolveAccess() in assets/auth.js. */
+/** Mirrors resolveAccess() in shared/auth.js. */
 async function resolveAccess(db, user) {
     const hint = await getDoc(doc(db, 'users', user.uid)).catch(() => null);
     const teamIds = hint?.exists() ? (hint.data().teamIds || []) : [];

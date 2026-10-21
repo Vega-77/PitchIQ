@@ -142,7 +142,7 @@ service cloud.firestore {
       return s is string && s.size() > 0 && s.size() <= 80;
     }
 
-    // A team's colours: two lowercase hex codes, or none. assets/kit.js
+    // A team's colours: two lowercase hex codes, or none. shared/kit.js
     // paints them into every page the team owns, through style properties,
     // so they are held to the one shape it reads — a string that was not a
     // colour would be a string in a style attribute.
@@ -281,7 +281,7 @@ service cloud.firestore {
              ['displayName', 'emailLower', 'teamIds', 'lastPlayerRef', 'updatedAt'])
         && request.resource.data.emailLower == email()
         && request.resource.data.teamIds is list
-        // Client guard: assets/auth.js
+        // Client guard: shared/auth.js
         && request.resource.data.teamIds.size() <= 10
         // Self-written and read by nobody else, so these are bounds against
         // bloat rather than against forgery — there is nothing here to forge.

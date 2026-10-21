@@ -15,8 +15,8 @@ import assert from 'node:assert/strict';
 // report.js imports nothing, so Node can load it straight from disk. That is
 // the reason playerTimeline lives there rather than in db.js, which opens a
 // Firestore connection the moment it is imported.
-import * as report from '../assets/report.js';
-import * as sample from '../assets/sample-report.js';
+import * as report from '../shared/report.js';
+import * as sample from '../shared/sample-report.js';
 import { ME, MATE, roster, ev, track, STINTS, squad } from './report-fixtures.js';
 
 // The timeline used to live in db.js, and its cases still read it that way.

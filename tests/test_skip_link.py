@@ -42,7 +42,7 @@ from test_contrast_floor import HTML, SHEETS, read, strip_comments
 # The sheet the link is styled in, and the sheets that can paint over it. The
 # tagging page's own sheet is not among them: it is the one page with no link,
 # so what it stacks is not this gate's business.
-RING = 'assets/app.css'
+RING = 'shared/app.css'
 OVER = [s for s in SHEETS if s != 'live-tagging/tagging.css']
 
 # The link, exactly as it is written on all six pages.

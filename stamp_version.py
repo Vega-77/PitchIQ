@@ -6,7 +6,7 @@ There is no build step, so nothing gets a content hash in its filename and
 browsers will happily serve yesterday's JavaScript. Adding `?v=N` by hand to the
 <link> and <script> tags is only half a fix: a versioned entry point does *not*
 version what it imports, so `coach.js?v=4` loads fresh and then pulls
-`../assets/auth.js` straight from cache. That failure looks exactly like a
+`../shared/auth.js` straight from cache. That failure looks exactly like a
 missing export, and it has cost real debugging time more than once.
 
 This walks the whole frontend and stamps both:
@@ -35,10 +35,10 @@ PAGES = [
 ]
 
 MODULE_DIRS = [
-    'assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate',
+    'shared', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate',
 ]
 
-# href="assets/app.css?v=3" / src="coach.js?v=3" — local files only, so a CDN
+# href="shared/app.css?v=3" / src="coach.js?v=3" — local files only, so a CDN
 # or Google Fonts URL is left alone.
 ASSET_REF = re.compile(
     r'((?:href|src)=")(?!https?:|//)([^"?]+\.(?:css|js))(?:\?v=\d+)?(")'

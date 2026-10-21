@@ -102,8 +102,8 @@ after(() => live?.restore());
 // Both were caught by eye. This is the check that means the next one is not.
 
 test('the fixture only contains values the app recognises', async () => {
-    const { POSITIONS, cvReportFields } = await import('../assets/report.js');
-    const { EVENT_TYPES, PERIOD_LABELS } = await import('../assets/events.js');
+    const { POSITIONS, cvReportFields } = await import('../shared/report.js');
+    const { EVENT_TYPES, PERIOD_LABELS } = await import('../shared/events.js');
 
     const ids = new Set(POSITIONS.map((p) => p.id));
     const types = new Set(EVENT_TYPES);
@@ -255,7 +255,7 @@ test('every match field the match pages read is one something writes', () => {
     const coachPage = coach + read('coach/review.js') + read('coach/shell.js');
     const halftime = read('halftime/halftime.js');
     const rules = read('firestore.rules');
-    const db = read('assets/db.js');
+    const db = read('shared/db.js');
 
     // The rules are the writer of record for the document itself: a field not
     // named in a create or an update list cannot reach Firestore at all.
@@ -529,7 +529,7 @@ test('every figure the pipeline publishes is one some page reads', () => {
  *
  * The limit is the same one the test above states: this cannot tell which
  * object a `.key` was read off. `source` and `detail` are called dead in
- * `assets/db.js`'s own docstring and pass here, because the rules constrain
+ * `shared/db.js`'s own docstring and pass here, because the rules constrain
  * both values. Short generic names are effectively unchecked. What survives
  * that is the failure worth catching: a field no line anywhere mentions.
  */
@@ -609,7 +609,7 @@ test('every field the rules let a client write is one something reads', () => {
         'the reader scan found no served source');
 
     // One field is stored for nobody, and the reason is already written down
-    // twice — in `baseEntry`'s docstring in assets/db.js, and in the roadmap.
+    // twice — in `baseEntry`'s docstring in shared/db.js, and in the roadmap.
     // This is where that claim stops being a comment nobody rechecks.
     const unread = {
         // The only record of when the tap happened rather than when the write
@@ -668,7 +668,7 @@ test('every field the rules let a client write is one something reads', () => {
  * written from real footage.
  */
 test('the sample summary carries the keys a published one does', async () => {
-    const { sampleCvSummary } = await import('../assets/sample-report.js');
+    const { sampleCvSummary } = await import('../shared/sample-report.js');
     const payload = read('pitchiq/publish_to_firestore.py');
     const from = payload.indexOf('def summary_payload(');
     const body = payload.slice(from, payload.indexOf('\ndef ', from + 1));
@@ -706,7 +706,7 @@ test('a shot mark you can activate is one a keyboard can reach', async () => {
     live = installDom('<main></main>', { url: 'http://localhost:5000/coach/' });
 
     const { shotMapSvg, markLabel } = await import(
-        new URL('assets/shot-map.js', root).href
+        new URL('shared/shot-map.js', root).href
     );
 
     const marks = [
@@ -767,7 +767,7 @@ test('a shot mark you can activate is one a keyboard can reach', async () => {
 test('the landing page greets a signed-in coach with their squads', async () => {
     await openPage({
         html: 'index.html',
-        entry: 'assets/landing.js',
+        entry: 'shared/landing.js',
         url: 'http://localhost:5000/',
     });
 

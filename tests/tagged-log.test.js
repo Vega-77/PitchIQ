@@ -8,7 +8,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import * as report from '../assets/report.js';
+import * as report from '../shared/report.js';
 
 // ------------------------------------- what has actually reached the server
 //

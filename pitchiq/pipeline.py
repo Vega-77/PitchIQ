@@ -456,7 +456,7 @@ def analyse_match(
     tracks themselves, which need only pixels. With one it adds everything
     expressed in metres.
 
-    `tag_log` is the hand-tagged match log, as `assets/db.js::listLog` returns
+    `tag_log` is the hand-tagged match log, as `shared/db.js::listLog` returns
     it. It is what tells this pipeline when the ball was out of play; without it
     every stoppage counts as possession for whoever was standing over the ball.
     `video_offset_s` relates the two clocks, and is the same number the coach

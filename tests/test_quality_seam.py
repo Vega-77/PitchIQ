@@ -8,7 +8,7 @@ builders, and for one of those keys the check is empty:
 
 One name, one reader, gate satisfied — and twenty-nine figures inside it that
 nothing has ever looked at, in either direction. That is not a hypothetical.
-`assets/report.js` carries a comment about how the coach and player pages drifted
+`shared/report.js` carries a comment about how the coach and player pages drifted
 apart and *four new quality fields ended up reaching neither*, which is the same
 failure this file exists to catch, found the slow way.
 
@@ -61,13 +61,13 @@ UNREAD_BY_DESIGN = {
     'they actually render',
     'dead_ball_s': 'live_share is the rendered form of the same measurement, and it is the '
     'share rather than the raw seconds that a coach can read',
-    'exit_agreement': 'the reconciliation block carries the same rate, and assets/report.js '
+    'exit_agreement': 'the reconciliation block carries the same rate, and shared/report.js '
     'reads it from there, next to the disagreements it belongs with',
-    'goal_agreement': 'the reconciliation block carries the same rate, and assets/report.js '
+    'goal_agreement': 'the reconciliation block carries the same rate, and shared/report.js '
     'reads it from there, next to the disagreements it belongs with',
     'kit_separation': 'already reaches the coach as a pipeline warning when it falls below '
     'MIN_KIT_SEPARATION, which is the only value at which it means anything',
-    'touch_confidence_p10': 'the median is what assets/db.js renders; the tenth percentile is the '
+    'touch_confidence_p10': 'the median is what shared/db.js renders; the tenth percentile is the '
     'tail, kept for tuning rather than for a match page',
     'touches': 'a count of what the pipeline built; the pages count the touches they '
     'actually render',
@@ -208,7 +208,7 @@ class TestTheScannerActuallyScans:
         # match report and the half-time view. If either drops out of this map,
         # the scanner broke, not the pages.
         where = readers('live_share', seen)
-        assert 'assets/report.js' in where
+        assert 'shared/report.js' in where
         assert 'halftime/halftime.js' in where
 
     def test_a_figure_reached_only_through_an_alias_is_seen(self, seen):
@@ -216,14 +216,14 @@ class TestTheScannerActuallyScans:
         # `q.no_ball_s`, where q came from `const q = quality || {}`. A scanner
         # that only followed the literal name would report it as an orphan and
         # somebody would 'fix' that by deleting a figure the note depends on.
-        assert readers('no_ball_s', seen) == {'assets/report.js'}
+        assert readers('no_ball_s', seen) == {'shared/report.js'}
 
     def test_the_scan_reaches_past_the_shared_module(self, seen):
-        # assets/report.js is where most of these are read. If the walk quietly
+        # shared/report.js is where most of these are read. If the walk quietly
         # stopped there, the coach and player pages could drift again exactly as
         # they did before, so pin a read from each of the other directories.
         assert 'coach/coach.js' in readers('excluded_tracks', seen)
-        assert 'assets/db.js' in readers('clear_holder_share', seen)
+        assert 'shared/db.js' in readers('clear_holder_share', seen)
 
     def test_the_ghost_check_is_capable_of_failing(self, made):
         # The other direction is the one that has never yet found anything, and

@@ -243,7 +243,7 @@ class TestSolidInterval:
     """A cluster's interval has no hole in it longer than `MAX_BRIDGE_S`.
 
     This is asserted here because something in the *other* language leans on
-    it. `sameFigureCandidates` in assets/report.js offers the coach the other
+    it. `sameFigureCandidates` in shared/report.js offers the coach the other
     figures that might be the same person, and the one thing it rules out with
     certainty is a figure that was on screen at the same time. The browser only
     has `first_seen_s` and `last_seen_s` — the frame sets never leave Python —

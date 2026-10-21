@@ -7,14 +7,14 @@ import {
     query, where, orderBy, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { db } from './firebase-init.js?v=142';
-import { EVENT_TYPES } from './events.js?v=142';
+import { db } from './firebase-init.js?v=143';
+import { EVENT_TYPES } from './events.js?v=143';
 // Kept in its own dependency-free module so the rules about what a player may
 // see can be tested without opening a Firestore connection. See report.js.
 import {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
     mappingWithout, positionOf, whistleFrom, minutesFrom, knownMinutes,
-} from './report.js?v=142';
+} from './report.js?v=143';
 
 export {
     playerTimeline, cvStatsByPlayer, cvReportFields, trackedCoverage, clockFromMatch,
@@ -39,7 +39,7 @@ export async function createTeam(user, name, kit = null) {
     await setDoc(ref, {
         name,
         // Two hex codes, or null: every page the team owns is painted in
-        // them (assets/kit.js), and a team without them wears the house kit.
+        // them (shared/kit.js), and a team without them wears the house kit.
         kit: kit ? { primary: kit.primary, secondary: kit.secondary } : null,
         coachUids: [user.uid],
         // Neither of the next two is read by any page, and both are
@@ -807,7 +807,7 @@ export async function publishReports(teamId, matchId, match, team, players, scor
                 // for a while and read by nothing, which was lucky: a yellow
                 // and a red mean completely different things, so a total of
                 // the two is a number with no meaning. See the rule this
-                // breaks at assets/ui.js::cardChips.
+                // breaks at shared/ui.js::cardChips.
                 yellowCards: player.yellowCards ?? 0,
                 redCards: player.redCards ?? 0,
                 fouls: player.fouls ?? 0,

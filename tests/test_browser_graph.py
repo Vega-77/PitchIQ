@@ -8,7 +8,7 @@ is reached from `<script type=\"module\">` and from event handlers that no Pytho
 AST is going to find."* This is that walk.
 
 It is a coarser question than the Python one, and deliberately so. Asking which
-*exports* are dead would be noise here: `assets/report.js` has no imports by
+*exports* are dead would be noise here: `shared/report.js` has no imports by
 design so the pure JS suites can cover it, and roughly ninety internals across
 the frontend are exported purely so a namespace-importing test can reach them.
 Those are a documented pattern, not a finding. Asking which *modules* are dead is
@@ -58,7 +58,7 @@ STRANDED_BY_DESIGN: dict[str, str] = {}
 
 SPEC = re.compile(r"""(?:from|import)\s*\(?\s*(['"])(\.{1,2}/[^'"]+\.js)(?:\?v=\d+)?\1""")
 ENTRY = re.compile(r"""<script[^>]*\btype=(['"])module\1[^>]*\bsrc=(['"])([^'"]+)\2""", re.I)
-# A classic script in the head: `assets/kit-boot.js`, which paints the team's
+# A classic script in the head: `shared/kit-boot.js`, which paints the team's
 # colours before the first frame so a page does not flash navy and then turn
 # maroon. It is not an entry point (it imports nothing and is imported by
 # nothing), but it is loaded, so it is not stranded either.
@@ -177,7 +177,7 @@ class TestTheGraphItself(unittest.TestCase):
         self.assertNotIn(review, entry_points(), 'no page loads review.js')
         self.assertIn(review, found, 'review.js was not reached via coach.js')
 
-        auth = (REPO / 'assets' / 'auth.js').resolve()
+        auth = (REPO / 'shared' / 'auth.js').resolve()
         coach = (REPO / 'coach' / 'coach.js').resolve()
         self.assertIn(auth, imports_of(coach, modules()[coach]))
 

@@ -2,11 +2,11 @@
 
 The site writes the pitch down in four files.
 
-    assets/pitch-backdrop.js     L, W, PEN_LEN, PEN_W, SIX_LEN, SIX_W, CIRCLE_R,
+    shared/pitch-backdrop.js     L, W, PEN_LEN, PEN_W, SIX_LEN, SIX_W, CIRCLE_R,
                                  SPOT, GOAL_W (calibrate/landmarks.js imports
                                  them as MARKINGS_M)
-    assets/passing.js            pitchLengthM, pitchWidthM (default arguments)
-    assets/sample-report.js      105 / COLS, 68 / ROWS
+    shared/passing.js            pitchLengthM, pitchWidthM (default arguments)
+    shared/sample-report.js      105 / COLS, 68 / ROWS
     coach/coach.js               the 'Halfway' and 'Their goal' axis ticks
 
 There were eight until the calibrate page and the xG sandbox left the site
@@ -14,8 +14,8 @@ There were eight until the calibrate page and the xG sandbox left the site
 (2026-10-20) without a copy of its own: it reads `MARKINGS_M`.
 
 Only one of those is a diagram. `pitch-backdrop.js` calls itself decoration in
-its own header comment, and it is not: `assets/shot-map.js`, `assets/heatmap.js`
-and `assets/pass-map.js` all import `PITCH_LENGTH_M` and `PITCH_WIDTH_M` from it
+its own header comment, and it is not: `shared/shot-map.js`, `shared/heatmap.js`
+and `shared/pass-map.js` all import `PITCH_LENGTH_M` and `PITCH_WIDTH_M` from it
 and use them as the coordinate frame that real event positions in metres are
 plotted into. `heatmap.js:164` sizes an occupancy cell as `PITCH_LENGTH_M /
 grid.cols`, where the grid came out of `pitchiq/metrics.py` on a `Pitch`. If the two
@@ -23,7 +23,7 @@ lengths disagreed, every cell would be the wrong size and every blob would be
 drawn somewhere the player never stood, under a plot that is otherwise correct
 and gives no sign that anything is wrong.
 
-`assets/passing.js` is worse still, because its 105 and 68 look like fallbacks
+`shared/passing.js` is worse still, because its 105 and 68 look like fallbacks
 and are not: `coach/coach.js:1580` is the only caller and it passes neither, so
 those two defaults are the pitch every published pass map is drawn on.
 
@@ -62,7 +62,7 @@ from test_free_names import blank
 
 ROOT = Path(__file__).resolve().parents[1]
 
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
+JS_DIRS = ['shared', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
 PITCH = Pitch()
 
@@ -86,53 +86,53 @@ def _lit(value):
 # than pass quietly. The sweep at the bottom is the one that has to be careful
 # about prose, and it runs over `blank`ed source instead.
 SITES = [
-    # --- assets/pitch-backdrop.js: the frame the maps plot into -----------
-    ('assets/pitch-backdrop.js', 'L', r'\bconst L = ' + NUMBER, lambda p: p.length_m),
-    ('assets/pitch-backdrop.js', 'W', r'\bconst W = ' + NUMBER, lambda p: p.width_m),
+    # --- shared/pitch-backdrop.js: the frame the maps plot into -----------
+    ('shared/pitch-backdrop.js', 'L', r'\bconst L = ' + NUMBER, lambda p: p.length_m),
+    ('shared/pitch-backdrop.js', 'W', r'\bconst W = ' + NUMBER, lambda p: p.width_m),
     (
-        'assets/pitch-backdrop.js',
+        'shared/pitch-backdrop.js',
         'PEN_LEN',
         r'\bconst PEN_LEN = ' + NUMBER,
         lambda p: p.penalty_area_length_m,
     ),
     (
-        'assets/pitch-backdrop.js',
+        'shared/pitch-backdrop.js',
         'PEN_W',
         r'\bconst PEN_W = ' + NUMBER,
         lambda p: p.penalty_area_width_m,
     ),
     (
-        'assets/pitch-backdrop.js',
+        'shared/pitch-backdrop.js',
         'SIX_LEN',
         r'\bconst SIX_LEN = ' + NUMBER,
         lambda p: p.goal_area_length_m,
     ),
     (
-        'assets/pitch-backdrop.js',
+        'shared/pitch-backdrop.js',
         'SIX_W',
         r'\bconst SIX_W = ' + NUMBER,
         lambda p: p.goal_area_width_m,
     ),
     (
-        'assets/pitch-backdrop.js',
+        'shared/pitch-backdrop.js',
         'CIRCLE_R',
         r'\bconst CIRCLE_R = ' + NUMBER,
         lambda p: p.centre_circle_radius_m,
     ),
-    ('assets/pitch-backdrop.js', 'SPOT', r'\bconst SPOT = ' + NUMBER, lambda p: p.penalty_spot_m),
-    ('assets/pitch-backdrop.js', 'GOAL_W', r'\bconst GOAL_W = ' + NUMBER, lambda p: p.goal_width_m),
-    # --- assets/passing.js: not fallbacks, the actual pitch ---------------
-    ('assets/passing.js', 'pitchLengthM', r'pitchLengthM = ' + NUMBER, lambda p: p.length_m),
-    ('assets/passing.js', 'pitchWidthM', r'pitchWidthM = ' + NUMBER, lambda p: p.width_m),
-    # --- assets/sample-report.js: the preview heatmap's cell size ---------
+    ('shared/pitch-backdrop.js', 'SPOT', r'\bconst SPOT = ' + NUMBER, lambda p: p.penalty_spot_m),
+    ('shared/pitch-backdrop.js', 'GOAL_W', r'\bconst GOAL_W = ' + NUMBER, lambda p: p.goal_width_m),
+    # --- shared/passing.js: not fallbacks, the actual pitch ---------------
+    ('shared/passing.js', 'pitchLengthM', r'pitchLengthM = ' + NUMBER, lambda p: p.length_m),
+    ('shared/passing.js', 'pitchWidthM', r'pitchWidthM = ' + NUMBER, lambda p: p.width_m),
+    # --- shared/sample-report.js: the preview heatmap's cell size ---------
     (
-        'assets/sample-report.js',
+        'shared/sample-report.js',
         'CELL_LENGTH_M',
         r'\bconst CELL_LENGTH_M = ' + NUMBER + r' / COLS',
         lambda p: p.length_m,
     ),
     (
-        'assets/sample-report.js',
+        'shared/sample-report.js',
         'CELL_WIDTH_M',
         r'\bconst CELL_WIDTH_M = ' + NUMBER + r' / ROWS',
         lambda p: p.width_m,

@@ -61,7 +61,7 @@ VIEWS = {
 
 # Pages whose view set is a literal array in one module, and where it lives.
 ARRAYS = {
-    'index.html': 'assets/landing.js',
+    'index.html': 'shared/landing.js',
     'coach/index.html': 'coach/shell.js',
     'player/index.html': 'player/player.js',
     'halftime/index.html': 'halftime/halftime.js',
@@ -294,7 +294,7 @@ class TestTheHouseStyleIsDeliberate:
         skip becomes real, so this must be revisited rather than silently
         still passing.
         """
-        css = ' '.join(read('assets/app.css').split())
+        css = ' '.join(read('shared/app.css').split())
         assert 'This is the heading on every section in the app' in css
         # Both directions, by naming the exceptions rather than counting
         # the rule: twelve views go h1 -> h3, and the five that do not are
@@ -364,7 +364,7 @@ class TestTheHouseStyleIsDeliberate:
             'halftime/index.html',
             'live-tagging/index.html',
         ], hidden
-        assert '.sr-only' in read('assets/app.css')
+        assert '.sr-only' in read('shared/app.css')
 
 
 # --- the ways this scan could be lying --------------------------------------

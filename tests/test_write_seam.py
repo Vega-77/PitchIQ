@@ -2,11 +2,11 @@
 
 `firestore.rules` is the whole backend. Eleven `keys().hasOnly([...])` sets and
 eight `changed([...])` allowlists name, exactly, what each document may carry;
-anything else is denied. `assets/db.js` and `assets/auth.js` are what actually
+anything else is denied. `shared/db.js` and `shared/auth.js` are what actually
 writes those documents.
 
 `tests/flow.test.js` already runs the legitimate path against the real
-emulator — and it imports nothing from `assets/`. Every document it sends is
+emulator — and it imports nothing from `shared/`. Every document it sends is
 hand-typed at the call site: `name: 'South Brunswick', coachUids: [COACH.uid]`
 and twenty more like it. So each field set exists in three copies, the rules,
 the client, and the mimic, and only the mimic is checked. Add a field to
@@ -56,7 +56,7 @@ from test_free_names import blank
 
 ROOT = Path(__file__).resolve().parent.parent
 RULES = ROOT / 'firestore.rules'
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
+JS_DIRS = ['shared', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
 # setDoc/batch.set may land on a document that already exists, but every one of
 # those paths grants `create, update` together, so the distinction costs
@@ -92,13 +92,13 @@ UNWRITTEN = {
         'teams/{}',
         'update',
         'taggerUids',
-    ): 'nothing populates it on create either — assets/db.js:44-50 says why: '
+    ): 'nothing populates it on create either — shared/db.js:44-50 says why: '
     'the tagger-versus-coach split is an open question about people',
     (
         'teams/{}',
         'update',
         'archived',
-    ): 'the seat a team-hiding switch will sit in, per assets/db.js:49',
+    ): 'the seat a team-hiding switch will sit in, per shared/db.js:49',
     (
         'teams/{}/players/{}',
         'update',
@@ -142,7 +142,7 @@ UNWRITTEN = {
 # a key on either side alone is a field the rule silently rejects, or a rule
 # clause guarding a key nobody sends.
 NESTED = {
-    'validXgCheck': ('assets/report.js', 'xgTally'),
+    'validXgCheck': ('shared/report.js', 'xgTally'),
 }
 
 
@@ -855,9 +855,9 @@ NO_STATS = re.compile(
 
 def cv_branches(all_src):
     """(nulled-when-absent, written-when-present) for `cvReportFields`."""
-    src = all_src['assets/report.js']
+    src = all_src['shared/report.js']
     m = CV_KEYS.search(src.code)
-    assert m, 'CV_REPORT_KEYS is gone from assets/report.js'
+    assert m, 'CV_REPORT_KEYS is gone from shared/report.js'
     lb = src.code.index('[', m.end() - 1)
     # Read the names off the raw text — `blank` empties string interiors — but
     # only the quoted runs, so the comment inside the array stays out of it.
@@ -866,7 +866,7 @@ def cv_branches(all_src):
         nulled.update(re.findall(r"'([^'\n]+)'", src.raw[s:e]))
 
     body = function_body(all_src, 'cvReportFields')
-    assert body, 'cvReportFields is gone from assets/report.js'
+    assert body, 'cvReportFields is gone from shared/report.js'
     body_src, start, end = body
     assert NO_STATS.search(' '.join(body_src.code[start:end].split())), (
         'the no-stats branch of cvReportFields no longer nulls every '
@@ -885,7 +885,7 @@ def test_the_cleared_cv_fields_cover_the_written_ones(all_src):
     `publishReports` writes the player report with `merge: true`. A field in
     the with-stats branch that `CV_REPORT_KEYS` does not list survives a coach
     un-mapping the cluster it came from — the player goes on being shown last
-    week's numbers under this week's match. `assets/db.js:836-845` records
+    week's numbers under this week's match. `shared/db.js:836-845` records
     being bitten by exactly this once already, and nothing has checked it
     since.
     """
@@ -954,7 +954,7 @@ def test_the_forward_check_can_fail(sites, rules):
 
 
 def test_the_path_resolver_can_fail():
-    src = Source('assets/db.js')
+    src = Source('shared/db.js')
     assert ref_path(src, 0, 0) is None
     assert ref_parts_of_name(src, 'noSuchReference', len(src.code)) is None
 

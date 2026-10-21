@@ -1,6 +1,6 @@
 import {
     onUser, signOut, resolveAccess, rememberTeam, saveStaffProfile, configWarning,
-} from '../assets/auth.js?v=142';
+} from '../shared/auth.js?v=143';
 import {
     createTeam, updateTeamKit, getTeam, listPlayers, addPlayer, invitePlayer,
     setPlayerActive, setPlayerPosition, playerFootprint, erasePlayer, clearThumbs,
@@ -10,24 +10,24 @@ import {
     listStaff, inviteCoach, removeCoach, readCvStats, cvConfidence,
     readCvMapping, saveCvMapping, cvStatsByPlayer, cvReportFields,
     readCvEvents, readCvReview, pushVideoToReports,
-} from '../assets/db.js?v=142';
-import { nowIndex } from '../assets/timeline.js?v=142';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=142';
-import { renderMatchVideo, teamMarks } from '../assets/match-video.js?v=142';
+} from '../shared/db.js?v=143';
+import { nowIndex } from '../shared/timeline.js?v=143';
+import { renderShotMap, shotSummary } from '../shared/shot-map.js?v=143';
+import { renderMatchVideo, teamMarks } from '../shared/match-video.js?v=143';
 import {
     SAMPLE_NOTICE, isSample,
     samplePassEvents, samplePassMapping, sampleShapeGrids,
     sampleSubRoster, sampleSubEvents, sampleSubClock,
-} from '../assets/sample-report.js?v=142';
+} from '../shared/sample-report.js?v=143';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../assets/passing.js?v=142';
-import { renderPassMap } from '../assets/pass-map.js?v=142';
-import { mergeHeatmaps, orientedCentroid } from '../assets/heatmap.js?v=142';
+} from '../shared/passing.js?v=143';
+import { renderPassMap } from '../shared/pass-map.js?v=143';
+import { mergeHeatmaps, orientedCentroid } from '../shared/heatmap.js?v=143';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=142';
-import { renderForms } from '../assets/form-chart.js?v=142';
+} from '../shared/season.js?v=143';
+import { renderForms } from '../shared/form-chart.js?v=143';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA,
     cvQualityNotes, roughDuration, hasVerdict, currentAnswers, xgTrust,
@@ -44,26 +44,26 @@ import {
     minutesNote, FROM_LAST_TAG, FULL_MATCH_MIN, matchBrief, cvReads,
     formGuide, seasonJobs, seasonGroups,
     positionalPlay, MAX_BAND_M,
-} from '../assets/report.js?v=142';
-import { CARD_COLOURS, describeEvent, timelineTone } from '../assets/events.js?v=142';
-import { mountRail } from '../assets/rail.js?v=142';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=142';
-import { startMotion } from '../assets/motion.js?v=142';
-import { mountPitchBackdrop, PITCH_LENGTH_M } from '../assets/pitch-backdrop.js?v=142';
-import { videoKind } from '../assets/video.js?v=142';
+} from '../shared/report.js?v=143';
+import { CARD_COLOURS, describeEvent, timelineTone } from '../shared/events.js?v=143';
+import { mountRail } from '../shared/rail.js?v=143';
+import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=143';
+import { startMotion } from '../shared/motion.js?v=143';
+import { mountPitchBackdrop, PITCH_LENGTH_M } from '../shared/pitch-backdrop.js?v=143';
+import { videoKind } from '../shared/video.js?v=143';
 import {
     byId, setText, toast, clockText, signed, plural, localDate,
     statCard, statGroup, fillStatGroup, figure, cardChips, timelineRow,
     minutesChart, stackBar, coverageStrip, kitPicker,
-} from '../assets/ui.js?v=142';
+} from '../shared/ui.js?v=143';
 import {
     activeCv, download, matchXgTally, show, state, teamLabels,
-} from './shell.js?v=142';
+} from './shell.js?v=143';
 import {
     REVIEW_TYPES, clockAt, clockMap, doDownloadLabels, doRecordMiss,
     leaveReview, onReviewChange, queueReviewSave, renderReview, toMatchClock,
     useVideoPosition,
-} from './review.js?v=142';
+} from './review.js?v=143';
 
 // ---------------------------------------------------------------- team setup
 
@@ -1427,8 +1427,8 @@ function renderShots() {
 // defender "should" stand — the claim is only ever that two records disagree
 // by more than the measurement could explain.
 //
-// The arithmetic lives in `positionalPlay` (assets/report.js) and the
-// orientation in `orientedCentroid` (assets/heatmap.js), which owns the pitch
+// The arithmetic lives in `positionalPlay` (shared/report.js) and the
+// orientation in `orientedCentroid` (shared/heatmap.js), which owns the pitch
 // dimensions. What is left here is layout, and the layout is the feature: one
 // shared axis, eleven bars, grouped by the line each player was picked in. A
 // defender whose bar ends past the whole midfield block is visible before any
@@ -1726,7 +1726,7 @@ function renderPassing() {
 // that hides the most: pressing is exhausting, so the question is never whether
 // a side pressed but how long they managed it for.
 //
-// The arithmetic and every refusal in it are in assets/report.js; the pipeline
+// The arithmetic and every refusal in it are in shared/report.js; the pipeline
 // has already decided which blocks have a denominator worth dividing by. What
 // this does is lay them out so the two kinds of silence stay distinguishable —
 // a block where nobody challenged at all is the loudest thing the chart can
@@ -1910,7 +1910,7 @@ function renderSubs() {
 // transfers is an empirical question nobody has asked.
 //
 // So a coach says what each detected shot did, and the arithmetic in
-// assets/report.js compares that to what the model said. The two design rules
+// shared/report.js compares that to what the model said. The two design rules
 // live there; what matters here is the second one, because it decides the
 // layout: on a dozen shots the answer is always "cannot tell", and a card that
 // only ever says that would be switched off. Hence the season line on the
@@ -2187,7 +2187,7 @@ function renderSampleToggle() {
 // ten screens on a laptop, which is where this page is actually read — a coach
 // opens it at a desk the evening after the game, not on the touchline.
 //
-// The rail itself is `assets/rail.js`, shared with the player portal. What
+// The rail itself is `shared/rail.js`, shared with the player portal. What
 // belongs here is the two things only this page can answer: which figures are
 // worth standing at the top of the rail, and what is still outstanding in each
 // section.

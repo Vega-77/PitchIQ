@@ -127,8 +127,8 @@ beforeEach(async () => {
 // scope, so every test here pays for a `clearFirestore` round trip and a reseed
 // whether it touches the database or not — and `minutesFrom` used to sit here
 // as a hand-copied duplicate under a comment reading "mirrors minutesFrom() in
-// assets/db.js", pinning the copy rather than the code. It moved into the
-// zero-import `assets/report.js` and its tests moved to `tests/tagged-log.test.js`,
+// shared/db.js", pinning the copy rather than the code. It moved into the
+// zero-import `shared/report.js` and its tests moved to `tests/tagged-log.test.js`,
 // alongside `whistleFrom` and the rest of the minutes arithmetic.
 
 // ---------------------------------------------------------------- round trip
@@ -426,7 +426,7 @@ describe('publishing and the player portal', () => {
             cvCalibrationErrorM: 0.42,
         }));
 
-        // The coach publishes again, the way assets/db.js now writes it.
+        // The coach publishes again, the way shared/db.js now writes it.
         await assertSucceeds(setDoc(
             ref, { ...base, goals: 2 }, { merge: true },
         ));
@@ -536,7 +536,7 @@ describe('adding a second coach', () => {
  * These drive a real client through a real disconnection, because the property
  * being tested is Firestore's snapshot metadata and nothing else can produce
  * it. The arithmetic over that metadata is pure and lives in
- * assets/report.js::syncState, covered without an emulator in tagged-log.test.js.
+ * shared/report.js::syncState, covered without an emulator in tagged-log.test.js.
  */
 describe('knowing what has reached the server', () => {
     const logPath = (db, id) =>
@@ -676,7 +676,7 @@ describe('erasing a player', () => {
      * failure from one that merely survives.
      */
 
-    /** What the browser does, mirrored: see erasePlayer() in assets/db.js. */
+    /** What the browser does, mirrored: see erasePlayer() in shared/db.js. */
     async function erase(db, teamId, playerId, uid) {
         const matches = await getDocs(collection(db, 'teams', teamId, 'matches'));
 

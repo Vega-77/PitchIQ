@@ -8,7 +8,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import * as report from '../assets/report.js';
+import * as report from '../shared/report.js';
 import { ev } from './report-fixtures.js';
 
 // ------------------------------------------------- scoring the review tool

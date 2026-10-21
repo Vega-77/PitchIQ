@@ -423,7 +423,7 @@ class TestOnePlayerSeveralFigures:
     The tracker loses people when they leave frame and `pitchiq/identity.py` only
     rejoins fragments a couple of seconds apart, so anyone who went off and came
     back stays split. The cluster picker lets a coach map both figures to the
-    same player on purpose — `cvStatsByPlayer` in assets/report.js says so in
+    same player on purpose — `cvStatsByPlayer` in shared/report.js says so in
     its docstring, and sums them.
 
     This side wrote one document per cluster, so the second write replaced the

@@ -508,7 +508,7 @@ def _dims(pitch) -> tuple[float, float]:
 def drawn(point, pitch=None) -> tuple[float, float]:
     """A position on `pitch`, placed proportionally on the standard drawing.
 
-    Every page plots into one 105x68 diagram (`assets/pitch-backdrop.js`),
+    Every page plots into one 105x68 diagram (`shared/pitch-backdrop.js`),
     and a real venue is rarely that size. Proportional keeps a shot from the
     spot on the spot and a touchline on the touchline; what it does not keep is
     a distance measured off the diagram, which is why every figure in metres is

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 
 import {
     HOUSE_KIT, KIT_PRESETS, applyKit, clearKit, contrast, kitTokens, kitWarnings, normaliseHex,
-} from '../assets/kit.js';
+} from '../shared/kit.js';
 
 // The page grounds from app.css that accent-coloured text sits on.
 const GROUNDS = ['#f2f3f5', '#f8f9fa', '#ffffff', '#e9ecf0'];
@@ -61,7 +61,7 @@ for (const kit of KITS) {
 
 test('the house kit is the one app.css is written in', async () => {
     const { readFile } = await import('node:fs/promises');
-    const css = await readFile(new URL('../assets/app.css', import.meta.url), 'utf8');
+    const css = await readFile(new URL('../shared/app.css', import.meta.url), 'utf8');
     const root = css.slice(css.indexOf(':root {'), css.indexOf('}', css.indexOf(':root {')));
     for (const [name, value] of Object.entries(kitTokens(HOUSE_KIT))) {
         const m = root.match(new RegExp(`\\s${name}:\\s*([^;]+);`));

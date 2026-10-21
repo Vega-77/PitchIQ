@@ -280,7 +280,7 @@ def reconcile(
 ) -> Reconciliation:
     """Compare what the pipeline derived against what somebody tagged.
 
-    `log` is an `EventLog`, `tag_entries` the log as `assets/db.js::listLog`
+    `log` is an `EventLog`, `tag_entries` the log as `shared/db.js::listLog`
     returns it. Both halves degrade independently: no calibration means no ball
     exits and the goals are still compared; no tagged log at all means there is
     nothing to compare and the result is empty rather than wrong.

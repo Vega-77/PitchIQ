@@ -18,7 +18,7 @@ somebody can argue with.
 
 **This block is read through a callback, and that is the whole scanner.** The
 keepers block is an array, not a pair of named sides, so nothing aliases a
-keeper directly. `assets/report.js` binds one instead, one hop back:
+keeper directly. `shared/report.js` binds one instead, one hop back:
 
     const forTeam = (team) => (keepers || []).find((k) => k && k.team === team);
     ...
@@ -107,7 +107,7 @@ def _code(text: str, strip: bool = True) -> str:
     """The file with its prose removed.
 
     A field named only in a comment must not count as rendered — an orphan
-    explained away by the sentence explaining it. `assets/heatmap.js` names
+    explained away by the sentence explaining it. `shared/heatmap.js` names
     `keepers` in prose alone and nowhere in code, which is the shape this is
     watching for, though it happens to seed nothing today.
     """
@@ -305,13 +305,13 @@ class TestTheScannerActuallyScans:
         assert 'hold_duration_s' not in made
 
     def test_the_scan_found_the_two_functions_that_read_the_block(self, seen):
-        # Everything that reads a keeper figure lives in assets/report.js:
+        # Everything that reads a keeper figure lives in shared/report.js:
         # `keeperStatRows` builds the eleven rendered rows, and `keeperOfTrack`
         # is the only reader of `track_ids`. Pin one field from each, because a
         # scanner that lost either would look exactly like a repo that had
         # stopped rendering half the block.
-        assert 'assets/report.js' in readers('saves', seen)
-        assert 'assets/report.js' in readers('track_ids', seen)
+        assert 'shared/report.js' in readers('saves', seen)
+        assert 'shared/report.js' in readers('track_ids', seen)
 
     def test_the_callback_parameter_step_is_load_bearing(self, made, seen):
         # `(k) => k.saves` is how twelve of the thirteen rendered figures are

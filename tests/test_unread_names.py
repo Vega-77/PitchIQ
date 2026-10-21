@@ -45,7 +45,7 @@ from test_free_names import blank
 #:
 #: Anchored at column zero, which is the whole definition of "top-level" here
 #: and is why `export` ones fall out for free. `let toastTimer;` carries no
-#: initialiser and still counts — `assets/ui.js` has one, and the xG sandbox
+#: initialiser and still counts — `shared/ui.js` has one, and the xG sandbox
 #: had four more before it left.
 DECLARED = re.compile(
     r'^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*[=;]'
@@ -71,7 +71,7 @@ def imported_names(code: str) -> list[str]:
     """Every binding an import statement introduces.
 
     `{ a, b }` is almost all of them. `{ a as b }` appears once on the whole
-    site — `signOut as fbSignOut` in `assets/auth.js`, renamed around the
+    site — `signOut as fbSignOut` in `shared/auth.js`, renamed around the
     wrapper of the same name it exports — and the local name is the one that
     has to be used, so it is the last word of the clause that counts. `* as NS`
     appears nowhere and is handled anyway, because the cost of it is one line
@@ -188,7 +188,7 @@ class TestTheScanWorks:
         assert unread(source)['imported'] == ['alpha']
 
     def test_an_aliased_import_binds_the_local_name(self):
-        """`assets/auth.js` is the only place this happens, and it is the worst
+        """`shared/auth.js` is the only place this happens, and it is the worst
         possible place to get it wrong.
 
         It imports `signOut as fbSignOut` and exports a wrapper of its own

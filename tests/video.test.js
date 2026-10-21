@@ -14,13 +14,13 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import * as video from '../assets/video.js';
-import * as report from '../assets/report.js';
-import * as matchVideo from '../assets/match-video.js';
+import * as video from '../shared/video.js';
+import * as report from '../shared/report.js';
+import * as matchVideo from '../shared/match-video.js';
 // Only `nowIndex` is exercised here; the two renderers build DOM. It is in that
 // module rather than in the callers because "which mark is the video inside"
 // is arithmetic, and both the strip and the list have to answer it the same way.
-import * as timeline from '../assets/timeline.js';
+import * as timeline from '../shared/timeline.js';
 import { roster } from './report-fixtures.js';
 
 // ---------------------------------------------------------------- video URLs

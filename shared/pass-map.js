@@ -31,9 +31,9 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, PITCH_VIEWBOX, pitchMarkings,
-} from './pitch-backdrop.js?v=142';
-import { foldEdges } from './passing.js?v=142';
-import { svgEl as el } from './svg.js?v=142';
+} from './pitch-backdrop.js?v=143';
+import { foldEdges } from './passing.js?v=143';
+import { svgEl as el } from './svg.js?v=143';
 
 // A pair has to have exchanged this many passes before it is a line. See above.
 export const MIN_EDGE = 2;
@@ -83,7 +83,7 @@ export function edgeWidth(count, busiest) {
  * with real counts and they belong in the note underneath, which is where
  * `networkNote` puts them.
  *
- * There was an `onPick` here until 2026-08-18, built the way `assets/shot-map.js`
+ * There was an `onPick` here until 2026-08-18, built the way `shared/shot-map.js`
  * built its own: a click listener on the `<g>`, plus `cursor: pointer`, on
  * something with no tabindex and no role, under an `<svg role="img">` that hid
  * the whole subtree from a screen reader anyway. No caller ever passed one, so

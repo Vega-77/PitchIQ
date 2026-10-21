@@ -1,6 +1,6 @@
 """The sample match's xG figures are the model's answers, and stay that way.
 
-`assets/sample-report.js` used to carry hand-picked xG values, chosen so the
+`shared/sample-report.js` used to carry hand-picked xG values, chosen so the
 shot map would look about right. That is a fixture whose numbers are decoration,
 and a decorated fixture teaches whoever reads it to check the layout rather than
 the figures — which is the opposite of what it is for.
@@ -41,7 +41,7 @@ import pytest
 from pitchiq.pitch import Pitch
 from pitchiq.xg_bridge import ShotContext, load_session, predict_xg
 
-SAMPLE_JS = Path(__file__).resolve().parents[1] / 'assets' / 'sample-report.js'
+SAMPLE_JS = Path(__file__).resolve().parents[1] / 'shared' / 'sample-report.js'
 
 PITCH = Pitch()
 GOAL = (PITCH.length_m, PITCH.width_m / 2)

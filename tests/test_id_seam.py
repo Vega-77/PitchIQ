@@ -25,7 +25,7 @@ that does not exist.
 The first draft found sixteen references for three hundred and ninety-five ids,
 which is the lesson the stylesheet scan taught one level up.
 `document.getElementById` appears exactly **once** in the whole frontend, at
-`assets/ui.js:10`; every other lookup goes through the `byId` it exports, or
+`shared/ui.js:10`; every other lookup goes through the `byId` it exports, or
 through `setText`, `showOnly`, `openSheet` and `closeSheet`, which take an id as
 their first argument and call `byId` themselves. Scanning for the raw DOM call
 would have found one use and condemned three hundred and eighty-nine ids.
@@ -41,7 +41,7 @@ a plain literal in a call:
    every declared id starting with it counts as reachable. Five ids are
    reachable *only* this way;
 3. an id read off the **element**, never written in a call at all:
-   `assets/rail.js` takes `block.dataset.railGroup || block.id` for anything
+   `shared/rail.js` takes `block.dataset.railGroup || block.id` for anything
    carrying `data-rail`. Provable from markup alone, with no JavaScript parsed.
    Nine ids are reachable only this way;
 4. a bare string threaded through a wrapper -- `fillPlayerGroup('pv-ball-block',
@@ -103,7 +103,7 @@ from test_css_seam import CSS, HTML, JS_DIRS, literals, selectors
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Which page each module directory belongs to. `assets/` is shared by all of
+# Which page each module directory belongs to. `shared/` is shared by all of
 # them and so has no entry -- a lookup there cannot be checked against one
 # page's markup.
 PAGE_OF_DIR = {
@@ -150,7 +150,7 @@ HELPERS = (
 BY_ID = re.compile(HELPERS + r'\(\s*["\'`](' + ID + r')["\'`]')
 HOLE_ARG = re.compile(HELPERS + r'\(\s*`([^`$]*)\$\{')
 
-# `assets/rail.js`: `const RAILED = 'section.block[data-rail], ...'` picks these
+# `shared/rail.js`: `const RAILED = 'section.block[data-rail], ...'` picks these
 # out of the page, and `groupOf` reads `block.dataset.railGroup || block.id`.
 RAILED = re.compile(r'<[^>]*\bdata-rail(?:-group)?[=\s>][^>]*>')
 
@@ -339,7 +339,7 @@ def scan(*, drop=()):
                         note(n, rel + ' (hole ' + prefix + '...)')
 
     # A page-specific module may only look up ids that exist on its own page.
-    # `assets/` is excluded: those modules are shared and legitimately reach for
+    # `shared/` is excluded: those modules are shared and legitimately reach for
     # elements that only some pages carry.
     for rel in js_files():
         page = PAGE_OF_DIR.get(rel.split('/')[0])
@@ -490,7 +490,7 @@ def test_every_raw_dom_lookup_is_one_this_scan_can_see_past():
     assert names == {'byId'}
     for name in names:
         assert re.fullmatch(HELPERS, name), name
-    # One wrapper, written once, in `assets/ui.js` for everybody. The xG
+    # One wrapper, written once, in `shared/ui.js` for everybody. The xG
     # sandbox kept a second copy, and the one raw call on a literal, until it
     # left the site on 2026-10-07.
     assert wrapped == 1
@@ -635,7 +635,7 @@ def test_attribute_site_is_load_bearing():
 
 def test_rail_site_is_load_bearing():
     # The largest markup site: nine section ids read off the DOM by
-    # `assets/rail.js` and never written in a call.
+    # `shared/rail.js` and never written in a call.
     assert dead_without('rail') == ONLY_BY_RAIL
 
 

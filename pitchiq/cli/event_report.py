@@ -128,7 +128,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def load_tag_log(path: str | None):
-    """The log as `assets/db.js::listLog` returns it: a list of entries.
+    """The log as `shared/db.js::listLog` returns it: a list of entries.
 
     Also accepts the whole object the coach page downloads, which wraps that
     list in `{'entries': [...]}` alongside the ids it came from — so a file can

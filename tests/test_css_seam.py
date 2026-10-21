@@ -104,8 +104,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 CSS = [
-    'assets/app.css',
-    'assets/landing.css',
+    'shared/app.css',
+    'shared/landing.css',
     'coach/coach.css',
     'player/player.css',
     'live-tagging/tagging.css',
@@ -120,7 +120,7 @@ HTML = [
     'halftime/index.html',
     'calibrate/index.html',
 ]
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
+JS_DIRS = ['shared', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
 HOLE = '\x00'  # one `${...}` stands here
 NAME = r'-?[A-Za-z_][A-Za-z0-9_-]*'

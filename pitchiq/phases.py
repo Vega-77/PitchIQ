@@ -488,7 +488,7 @@ def phases_from_log(
 ) -> PhaseTable:
     """Turn a tagged match log into the stretches where the ball was dead.
 
-    `entries` is the log as `assets/db.js::listLog` returns it — dicts with a
+    `entries` is the log as `shared/db.js::listLog` returns it — dicts with a
     `type` and a `matchClockS`. Anything without both is skipped rather than
     guessed at.
     """

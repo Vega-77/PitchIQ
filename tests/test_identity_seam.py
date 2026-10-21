@@ -50,7 +50,7 @@ new, and without them seventeen of the twenty-two track figures look dead:
     for (const c of [...clusters].sort(byMinutes)) c.team;  # 8 a peel
 
 Shape seven is the reason the smoke gate could never have caught this. Its
-reader set is property accesses, and `assets/report.js` reads fifteen of these
+reader set is property accesses, and `shared/report.js` reads fifteen of these
 figures through `track[key]` over a module-level array of names. No `.field`
 appears anywhere.
 
@@ -88,7 +88,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 Q3 = chr(34) * 3
 
-SERVED = ['assets', 'coach', 'player', 'halftime', 'live-tagging']
+SERVED = ['shared', 'coach', 'player', 'halftime', 'live-tagging']
 SKIP = {'sample-report.js'}
 
 BUILTIN = {
@@ -557,7 +557,7 @@ UNREAD_BY_DESIGN = {
 # the way in. A page reading `cluster.thumb` is reading a real field of a real
 # cluster -- just one that arrived by the other door.
 READ_ELSEWHERE = {
-    'thumb': 'rejoined from the thumbs document by assets/db.js::withThumbs',
+    'thumb': 'rejoined from the thumbs document by shared/db.js::withThumbs',
     'thumb_height_px': 'ditto -- it travels with the picture it describes',
 }
 
@@ -710,7 +710,7 @@ class TestThePremiseHolds:
         assert 'document(IDENTITY_DOC).set(identity_payload(' in publish_source
 
     def test_the_browser_binds_that_document_to_the_handle(self):
-        db = (ROOT / 'assets' / 'db.js').read_text(encoding='utf-8')
+        db = (ROOT / 'shared' / 'db.js').read_text(encoding='utf-8')
         assert 'export async function readCvStats' in db
         assert "getDoc(doc(db, ...base, 'identity'))" in db
         assert 'identity: data ?' in db
@@ -755,7 +755,7 @@ class TestThePremiseHolds:
 
     def test_the_scan_found_the_readers_it_should_have(self, seen_tracks, seen_clusters):
         where = {w for v in seen_tracks.values() for w in v}
-        assert any(w.startswith('assets/report.js') for w in where), (
+        assert any(w.startswith('shared/report.js') for w in where), (
             'cvStatsByPlayer is the only reader of the track rows in the repo. '
             'If the scan cannot see it, it can see nothing.'
         )

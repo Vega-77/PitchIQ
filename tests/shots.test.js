@@ -8,8 +8,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import * as report from '../assets/report.js';
-import * as markMod from '../assets/shot-map.js';
+import * as report from '../shared/report.js';
+import * as markMod from '../shared/shot-map.js';
 
 // ------------------------------------------ marking the model's predictions
 //

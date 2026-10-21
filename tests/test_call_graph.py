@@ -93,7 +93,7 @@ PENDING_BY_DESIGN = {
     # --- diagnostics that print rather than publish
     'drift_notes': 'English sentences for whichever shape figures actually '
     'moved. The pipeline publishes `shape_drift` as numbers and '
-    '`assets/report.js` writes its own wording from them, so '
+    '`shared/report.js` writes its own wording from them, so '
     'these are the sentences a Python-side diagnostic would '
     'print if one existed.',
     # --- conversions whose whole job is to be the one written-down copy

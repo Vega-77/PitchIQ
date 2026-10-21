@@ -74,8 +74,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # both sibling gates carried it, so the front page -- the one page a stranger
 # is guaranteed to see -- was scored by no contrast test at all.
 SHEETS = [
-    'assets/app.css',
-    'assets/landing.css',
+    'shared/app.css',
+    'shared/landing.css',
     'coach/coach.css',
     'player/player.css',
     'live-tagging/tagging.css',
@@ -85,7 +85,7 @@ SHEETS = [
 # Only the coach and player views ever call window.print(). A page nobody
 # prints cannot have a paper defect, and scoring one is how a scanner invents
 # work for somebody.
-PRINTABLE = ['assets/app.css', 'coach/coach.css', 'player/player.css']
+PRINTABLE = ['shared/app.css', 'coach/coach.css', 'player/player.css']
 HTML = [
     'index.html',
     'coach/index.html',
@@ -100,7 +100,7 @@ HTML = [
 # topbar on both of these and outside it on the tagging page, so widening
 # the universe by five files turned a hidden class into a false defect.
 PRINTS = ['coach/index.html', 'player/index.html']
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
+JS_DIRS = ['shared', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
 # The four colours a block can land on. Anything that sets no background of its
 # own inherits one of these, and is scored against the worst.
@@ -182,7 +182,7 @@ def blocks(src):
 
 def theme(printed=False):
     """The token table as the browser would resolve it, screen or paper."""
-    app = read('assets/app.css')
+    app = read('shared/app.css')
     head = strip_comments(app[app.index(':root {') : app.index('*, *::before')])
     t = {m.group(1): m.group(2).strip() for m in DECL.finditer(head)}
     if printed:
@@ -250,7 +250,7 @@ def extent(src, i):
 
 
 def print_block():
-    app = strip_comments(read('assets/app.css'))
+    app = strip_comments(read('shared/app.css'))
     i = app.index('@media print {')
     return app[i : extent(app, i)]
 
@@ -452,7 +452,7 @@ def scored(sheets, *, printed, exempt=True):
             found.setdefault(sel.splitlines()[-1].strip(), body)
         return src, found
 
-    _, shared = own_rules('assets/app.css')
+    _, shared = own_rules('shared/app.css')
     for rel in sheets:
         src, mine = own_rules(rel)
         rules = {**shared, **mine}
@@ -533,7 +533,7 @@ class TestTheHaloIsASeparatorNotAMark:
     """A stroke in a page ground exists to have no contrast."""
 
     def test_both_haloed_dots_are_still_stroked_in_the_ground(self):
-        app = strip_comments(read('assets/app.css'))
+        app = strip_comments(read('shared/app.css'))
         found = {
             sel.strip()
             for sel, body in blocks(app)
@@ -557,7 +557,7 @@ class TestTheHaloIsASeparatorNotAMark:
         # stops being a real mark, the whole justification goes with it.
         for sel in ('.pass-dot', '.form-dot'):
             body = [
-                b for s, b in blocks(strip_comments(read('assets/app.css'))) if s.strip() == sel
+                b for s, b in blocks(strip_comments(read('shared/app.css'))) if s.strip() == sel
             ][0]
             fills = [
                 tok
@@ -728,7 +728,7 @@ class TestPaperOnlyScoresWhatReachesPaper:
 
 class TestTheMapsPaintWithCurrentColor:
     def test_each_map_still_sets_a_colour_and_owns_an_svg(self):
-        app = strip_comments(read('assets/app.css'))
+        app = strip_comments(read('shared/app.css'))
         rules = {sel.strip(): body for sel, body in blocks(app)}
         for sel in CURRENT_COLOR:
             assert sel in rules, sel
@@ -739,7 +739,7 @@ class TestTheMapsPaintWithCurrentColor:
         # If a fourth map is added, it arrives with the same two marks -- a
         # `color:` and a companion `-svg` rule -- and this fails until somebody
         # decides on purpose whether it is text or paint.
-        app = strip_comments(read('assets/app.css'))
+        app = strip_comments(read('shared/app.css'))
         rules = {sel.strip(): body for sel, body in blocks(app)}
         shaped = sorted(s for s, b in rules.items() if COLOR.search(b) and s + '-svg' in rules)
         assert shaped == sorted(CURRENT_COLOR), shaped
@@ -755,7 +755,7 @@ class TestTheMapsPaintWithCurrentColor:
             for rel in [str(p.relative_to(ROOT)).replace('\\', '/')]
             if 'currentColor' in p.read_text(encoding='utf-8')
         ]
-        assert sorted(users) == ['assets/heatmap.js', 'assets/pitch-backdrop.js'], users
+        assert sorted(users) == ['shared/heatmap.js', 'shared/pitch-backdrop.js'], users
 
     def test_the_exemption_changes_a_verdict(self):
         # 4.10 passes 3.0 and fails 4.5. Which floor applies is the whole

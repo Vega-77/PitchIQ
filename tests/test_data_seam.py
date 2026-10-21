@@ -10,7 +10,7 @@ Nothing checked that the halves still meet, and both directions can rot:
   * Written and never read. The attribute costs a few bytes and nothing else,
     so it survives every rename around it. `data-mark-id` was written onto
     every tick and every moment button the timeline builds -- two lines in
-    `assets/timeline.js` -- and read by nothing, in no file of any type, at any
+    `shared/timeline.js` -- and read by nothing, in no file of any type, at any
     point in the history. The click handler on the very next line already
     closes over the whole mark, which is how every other dynamically built
     element here carries its behaviour. Both writes are gone.
@@ -79,7 +79,7 @@ Not overlooked -- measured, found to scan nothing at all, and left out, since
 a site with no input is machinery rather than safety:
 
   * Comment stripping. The only mentions of a data attribute inside a comment
-    are in `assets/rail.js`, in backticks, which no site here matches.
+    are in `shared/rail.js`, in backticks, which no site here matches.
 
 The harness site is inert today and stays anyway
 ------------------------------------------------
@@ -103,12 +103,12 @@ The vocabulary, and its four copies
 `data-event` is the one attribute whose value is not free text. It is a member
 of a fixed set, and that set is written out four times: eight buttons in
 `live-tagging/index.html` (out of bounds lost its button on 2026-10-12 and
-kept everything else), the `EVENTS` map in `assets/events.js`, the
+kept everything else), the `EVENTS` map in `shared/events.js`, the
 `request.resource.data.type` allowlist in `firestore.rules`, and -- for the
-period markers only -- a second copy in `assets/report.js`, which has no
+period markers only -- a second copy in `shared/report.js`, which has no
 imports by design so that the pure JS suites (`npm run test:unit`) can cover it.
 
-`assets/events.js` names the duplication in its own comment and calls it
+`shared/events.js` names the duplication in its own comment and calls it
 unavoidable, because rules are a separate language and the server has to
 validate independently. Unavoidable is not the same as unchecked. A button
 whose type the rules reject writes nothing, and it fails at the side of a
@@ -123,8 +123,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 CSS = [
-    'assets/app.css',
-    'assets/landing.css',
+    'shared/app.css',
+    'shared/landing.css',
     'coach/coach.css',
     'player/player.css',
     'live-tagging/tagging.css',
@@ -139,7 +139,7 @@ HTML = [
     'halftime/index.html',
     'calibrate/index.html',
 ]
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
+JS_DIRS = ['shared', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
 # Every place `scan()` looks, and the whole vocabulary `drop` accepts. Kept in
 # step with the scan itself by `test_every_site_it_names_is_a_site_it_reads` --
@@ -155,25 +155,25 @@ DATASET_SET = re.compile(r'\.dataset\.([A-Za-z][A-Za-z0-9]*)\s*=(?!=)')
 DATASET_ANY = re.compile(r'\.dataset\.([A-Za-z][A-Za-z0-9]*)')
 SELECTOR = re.compile(r'\[data-([a-z][a-z0-9-]*)[\]=]')
 
-# Types the client writes that are not a key of any map in `assets/events.js`,
+# Types the client writes that are not a key of any map in `shared/events.js`,
 # with the reason and the write site. `test_pinned_extra_types_are_still
 # _written` holds each one to it, so a pin cannot outlive the code it excuses.
 #
-# The file is part of the pin, not decoration on it. `assets/db.js` is the only
+# The file is part of the pin, not decoration on it. `shared/db.js` is the only
 # file that writes to the log collection at all, and `type: 'sub'` also appears
-# in `assets/report.js`, where it labels a mark the report *derives* from a
+# in `shared/report.js`, where it labels a mark the report *derives* from a
 # substitution rather than one anybody sends. A pin satisfied by a lookalike in
 # another file is a pin that keeps passing after the writer it names is gone.
 EXTRA_CLIENT_TYPES = {
     'sub': (
-        'assets/db.js',
+        'shared/db.js',
         'written as `kind: sub, type: sub` for a substitution; it is not '
         'a tap-able event and has no entry in EVENTS',
     ),
 }
 
 # `source` is the field where the rules are deliberately wider than the client.
-# `assets/db.js` says so in its own docstring: the log is written with
+# `shared/db.js` says so in its own docstring: the log is written with
 # `live_tag` today, and the rule already admits the two values the pipeline
 # will use on the day it is allowed to append.
 FUTURE_SOURCES = {'cv_candidate', 'reviewer_confirmed'}
@@ -270,7 +270,7 @@ class TestAttributeSeam(unittest.TestCase):
             (
                 'these data attributes are written and read by nothing: %s. '
                 'Either something stopped reading them, or they were never read '
-                '-- `data-mark-id` in assets/timeline.js was the latter, on every '
+                '-- `data-mark-id` in shared/timeline.js was the latter, on every '
                 'tick and every moment button, for its whole life.'
                 % ', '.join(
                     'data-' + n + ' (' + ', '.join(sorted(set(WRITTEN[n]))) + ')' for n in dead
@@ -440,7 +440,7 @@ def rules_list(field):
     return quoted(hits[0])
 
 
-EVENTS_JS = read('assets/events.js')
+EVENTS_JS = read('shared/events.js')
 EVENTS = object_keys(EVENTS_JS, 'export const EVENTS = {')
 PERIODS = object_keys(EVENTS_JS, 'export const PERIOD_LABELS = {')
 CARDS = object_keys(EVENTS_JS, 'export const CARD_COLOURS = {')
@@ -458,7 +458,7 @@ class TestVocabulary(unittest.TestCase):
             [],
             (
                 'live-tagging/index.html has a button for %s, and EVENTS in '
-                'assets/events.js has no entry for it -- the sheet opens with no '
+                'shared/events.js has no entry for it -- the sheet opens with no '
                 'label, no side wording and no player prompt.' % unknown
             ),
         )
@@ -521,13 +521,13 @@ class TestVocabulary(unittest.TestCase):
         self.assertEqual(sorted(CARDS), sorted(rules_list('cardColor')), 'CARD_COLOURS: %s' % CARDS)
 
     def test_the_kinds_db_writes_are_exactly_the_kinds_allowed(self):
-        kinds = sorted(set(re.findall(r"kind: '([a-z_]+)'", read('assets/db.js'))))
+        kinds = sorted(set(re.findall(r"kind: '([a-z_]+)'", read('shared/db.js'))))
         self.assertEqual(kinds, sorted(rules_list('kind')), kinds)
 
     def test_the_only_source_written_is_live_tag(self):
         """The one place the rules are deliberately wider than the client,
-        and `assets/db.js` says why in its own docstring."""
-        db = read('assets/db.js')
+        and `shared/db.js` says why in its own docstring."""
+        db = read('shared/db.js')
         written = sorted(set(re.findall(r"source: '([a-z_]+)'", db)))
         self.assertEqual(written, ['live_tag'], written)
         allowed = set(rules_list('source'))
@@ -537,15 +537,15 @@ class TestVocabulary(unittest.TestCase):
                 name,
                 db,
                 (
-                    '%s is allowed by the rules and assets/db.js no longer '
+                    '%s is allowed by the rules and shared/db.js no longer '
                     'explains why it is not written.' % name
                 ),
             )
 
     def test_the_period_labels_report_js_keeps_its_own_copy_of_still_match(self):
-        """`assets/report.js` imports nothing by design, so it carries a
+        """`shared/report.js` imports nothing by design, so it carries a
         second copy of the period names. Unavoidable is not unchecked."""
-        report = read('assets/report.js')
+        report = read('shared/report.js')
         text = object_keys(report, 'const PERIOD_TEXT = {')
         self.assertEqual(text, PERIODS, text)
         for key in PERIODS:

@@ -8,8 +8,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import * as report from '../assets/report.js';
-import * as heatmap from '../assets/heatmap.js';
+import * as report from '../shared/report.js';
+import * as heatmap from '../shared/heatmap.js';
 import { squad } from './report-fixtures.js';
 
 // ------------------------------------------------------------- the heatmap
@@ -225,7 +225,7 @@ describe('what binning the pitch into cells costs', () => {
   // of the error it introduces is not a detail; it decides whether any of it
   // can be reported in metres at all.
   //
-  // These numbers are the ones written into `assets/heatmap.js`. They are here
+  // These numbers are the ones written into `shared/heatmap.js`. They are here
   // so that a change to the binning, the correction, or the grid's default
   // shape fails a test rather than quietly widening the error under a docstring
   // that still claims the old one.

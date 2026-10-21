@@ -77,10 +77,10 @@ EXEMPT = {
     # a rectangle around the bounding box of a circle whose radius encodes xG,
     # which on the smallest marks is a few pixels of ring in a crowded
     # goalmouth. Still an indicator, just not that one.
-    '.shot-mark.is-pickable:focus-visible': ('assets/app.css', 'replaced'),
+    '.shot-mark.is-pickable:focus-visible': ('shared/app.css', 'replaced'),
 }
 
-RING = 'assets/app.css'
+RING = 'shared/app.css'
 
 
 def rules(rel):

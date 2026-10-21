@@ -8,7 +8,7 @@ another's work and could not be undone.
 
 That makes the merge arithmetic real, and it exists twice:
 
-    assets/report.js   cvStatsByPlayer()  — the coach's match view
+    shared/report.js   cvStatsByPlayer()  — the coach's match view
     pitchiq/publish_to_firestore.py      merge_tracks()     — the student's own report
 
 Neither reads the other. They are the same player's afternoon rendered on two
@@ -39,7 +39,7 @@ import pytest
 from pitchiq.publish_to_firestore import merge_tracks, player_report_fields
 
 REPO = Path(__file__).resolve().parents[1]
-JS_REPORT = REPO / 'assets' / 'report.js'
+JS_REPORT = REPO / 'shared' / 'report.js'
 
 pytestmark = pytest.mark.skipif(shutil.which('node') is None, reason='Node is not installed')
 

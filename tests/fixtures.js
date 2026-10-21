@@ -58,7 +58,7 @@ const report = (matchId, playerId, fields) => [
  * A filmed match: the summary the pipeline publishes, plus the candidate events
  * the review tool works through.
  *
- * Built from `assets/sample-report.js` rather than invented again here, so the
+ * Built from `shared/sample-report.js` rather than invented again here, so the
  * one place that describes what a run looks like stays the one place. The
  * caller passes it in — most pages are opened against a match nobody filmed,
  * because most matches are.
@@ -66,7 +66,7 @@ const report = (matchId, playerId, fields) => [
 /**
  * A handful of shots, and the tracked figures the coach has to name.
  *
- * Neither comes from `assets/sample-report.js`, and both would have if they
+ * Neither comes from `shared/sample-report.js`, and both would have if they
  * could. That module's event list is the **preview** a coach sees before there
  * is any footage, and its docstring says why it holds no shots: the review tool
  * and the shot ledger write back to Firestore, and a verdict tapped against an
@@ -143,7 +143,7 @@ export async function filmed() {
     // and it would go stale silently rather than fail. sample-report.js imports
     // nothing, so a second instance of it costs nothing either.
     const { sampleCvSummary, samplePassEvents, sampleShapeGrids } =
-        await import('../assets/sample-report.js');
+        await import('../shared/sample-report.js');
     const cv = sampleCvSummary();
     const base = `teams/${TEAM_ID}/matches/${MATCH_ID}`;
 

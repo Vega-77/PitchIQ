@@ -17,7 +17,7 @@ So each half names the other, in prose, in its own comment syntax:
 
     pitchiq/publish_to_firestore.py     # Fits under `byEvent.size() <= 1500` in firestore.rules.
     coach/review.js   // Mirrors `missed.size() <= 300` in firestore.rules.
-    assets/auth.js    // Mirrors `teamIds.size() <= 10` in firestore.rules.
+    shared/auth.js    // Mirrors `teamIds.size() <= 10` in firestore.rules.
     firestore.rules   // Client guard: <path>
 
 and this holds the two to each other three ways: the expression the client
@@ -244,7 +244,7 @@ class TestThePairsAgree:
         assert found == {
             ('pitchiq/publish_to_firestore.py', 'Fits under', 'byEvent.size() <= 1500'),
             ('coach/review.js', 'Mirrors', 'missed.size() <= 300'),
-            ('assets/auth.js', 'Mirrors', 'teamIds.size() <= 10'),
+            ('shared/auth.js', 'Mirrors', 'teamIds.size() <= 10'),
         }
 
 

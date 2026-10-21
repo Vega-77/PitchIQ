@@ -14,8 +14,8 @@ Four places have to agree about these names, and no two of them can see each
 other:
 
     pitchiq/publish_to_firestore.py    player_report_fields()   21 fields, prefix + suffix
-    assets/report.js cvReportFields(stats)    23 fields, written out in full
-    assets/report.js CV_REPORT_KEYS           26 names, the clearing list
+    shared/report.js cvReportFields(stats)    23 fields, written out in full
+    shared/report.js CV_REPORT_KEYS           26 names, the clearing list
     the pages        report.cvTopSpeedKmh     26 names, read off a document
 
 The document in the middle is `teams/{t}/matches/{m}/playerReports/{p}`, and
@@ -83,7 +83,7 @@ from test_free_names import blank
 
 REPO = Path(__file__).resolve().parents[1]
 
-JS_REPORT = REPO / 'assets' / 'report.js'
+JS_REPORT = REPO / 'shared' / 'report.js'
 
 pytestmark = pytest.mark.skipif(
     shutil.which('node') is None,
@@ -92,7 +92,7 @@ pytestmark = pytest.mark.skipif(
 
 # Every directory of served JavaScript. `pitchiq/` is the writing side and is
 # imported directly; there is nothing to scan there.
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
+JS_DIRS = ['shared', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
 # `cv`-prefixed properties that are not fields of a player's match report.
 # Each one is read off a different object entirely, and the reason matters more
@@ -168,7 +168,7 @@ def bracket_reads(raw, code):
 
 
 def node_keys(expression):
-    """Keys of an object `assets/report.js` builds, as that module builds it."""
+    """Keys of an object `shared/report.js` builds, as that module builds it."""
     script = 'import { cvReportFields } from %s;console.log(JSON.stringify(Object.keys(%s)));' % (
         json.dumps(JS_REPORT.as_uri()),
         expression,

@@ -7,11 +7,11 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import * as sample from '../assets/sample-report.js';
-import * as passing from '../assets/passing.js';
+import * as sample from '../shared/sample-report.js';
+import * as passing from '../shared/passing.js';
 // Only the sizing rules are exercised here; everything else in the module
 // touches the DOM, and these suites deliberately have none.
-import * as passMod from '../assets/pass-map.js';
+import * as passMod from '../shared/pass-map.js';
 
 // -------------------------------------------------------- the passing network
 //

@@ -13,21 +13,21 @@
 // Ordering never uses createdAt: serverTimestamp() reads as null locally until
 // acknowledged and then resolves to sync time, not tap time.
 
-import { onUser, signIn, resolveAccess, configWarning } from '../assets/auth.js?v=142';
+import { onUser, signIn, resolveAccess, configWarning } from '../shared/auth.js?v=143';
 import {
     listMatches, getMatch, listPlayers, setLineup, listMatchRoster, listLog,
     writeEvent, writePeriod, writeSubstitution, undoEntry, watchSync,
     logId, PERIOD_STATUS,
-} from '../assets/db.js?v=142';
+} from '../shared/db.js?v=143';
 import {
     EVENTS, CARD_COLOURS, describeEvent, timelineTone, PERIOD_LABELS,
-} from '../assets/events.js?v=142';
-import { syncState, safeToClose } from '../assets/report.js?v=142';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=142';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=142';
+} from '../shared/events.js?v=143';
+import { syncState, safeToClose } from '../shared/report.js?v=143';
+import { mountPitchBackdrop } from '../shared/pitch-backdrop.js?v=143';
+import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=143';
 import { byId, toast, clockText, timelineRow, tally, groupHead }
-    from '../assets/ui.js?v=142';
-import { openSheet, closeSheet, mountSheets } from './sheet.js?v=142';
+    from '../shared/ui.js?v=143';
+import { openSheet, closeSheet, mountSheets } from './sheet.js?v=143';
 
 /** Stable per-device id, so two taggers cannot collide on log document ids. */
 function deviceId() {
@@ -543,7 +543,7 @@ function backToMatchPicker() {
  * A real `<button>` inside the `<li>`, not a click handler on the `<li>`. Every
  * one of these lists was a styled list item with a listener on it: not
  * focusable, not reachable from a keyboard, and announced by a screen reader as
- * a line of text rather than as something you can press. `assets/timeline.js`
+ * a line of text rather than as something you can press. `shared/timeline.js`
  * states the opposite standard for its own marks — "real buttons rather than
  * styled spans, so the whole thing is reachable from a keyboard" — and the tool
  * every number in this system comes from was the one place that did not follow

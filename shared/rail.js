@@ -29,7 +29,7 @@
 // `entries()` as the rail so the two can never list different sections, and
 // hidden by CSS at desktop width, where the rail does the job.
 
-import { railTarget } from './report.js?v=142';
+import { railTarget } from './report.js?v=143';
 
 /**
  * Wire a rail to a report body.

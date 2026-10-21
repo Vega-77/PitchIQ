@@ -1,7 +1,7 @@
 // Firestore and Auth, in memory, in one file.
 //
 // The pages under test reach the network through exactly three CDN modules
-// (`assets/db.js`, `assets/auth.js` and `assets/firebase-init.js` are the only
+// (`shared/db.js`, `shared/auth.js` and `shared/firebase-init.js` are the only
 // files in the repo that import from gstatic). Replacing those three is what
 // lets a page be loaded in `node --test` at all.
 //

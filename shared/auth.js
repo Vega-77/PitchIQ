@@ -10,7 +10,7 @@ import {
     doc, getDoc, setDoc, updateDoc, collection, getDocs, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { auth, db, isConfigured } from './firebase-init.js?v=142';
+import { auth, db, isConfigured } from './firebase-init.js?v=143';
 
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: 'select_account' });
@@ -206,7 +206,7 @@ export function configWarning() {
     el.className = 'banner warn';
     el.innerHTML =
         '<h3>Firebase not configured</h3>' +
-        '<p class="muted">Add your project config to <code>assets/firebase-init.js</code>. ' +
+        '<p class="muted">Add your project config to <code>shared/firebase-init.js</code>. ' +
         'See <code>FIREBASE_SETUP.md</code> for the console steps.</p>';
     return el;
 }

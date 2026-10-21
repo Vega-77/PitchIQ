@@ -12,13 +12,13 @@ Six knobs, every one measured before it was pinned:
    Carries 87 names on its own, more than the other sites put together.
 2. `dynamic` -- `const { shotMapSvg } = await import('...')`. One name, one
    caller: `tests/smoke.test.js`.
-3. `namespace` -- `import * as report from '../assets/report.js'` followed by
+3. `namespace` -- `import * as report from '../shared/report.js'` followed by
    `report.someName(...)`. The pure JS suites reach 37 names this way.
 4. `local` -- the name used again inside its own file. Not a use site but a
    classifier: it separates "nobody wants this" from "exported wider than it
    needs to be".
 5. `comments` -- strip `//` and `/* ... */` first. Load-bearing by luck rather
-   than by design: `assets/db.js` carries a four-line comment inside its
+   than by design: `shared/db.js` carries a four-line comment inside its
    `export { ... }` list, and without the stripper the word `and` is read as an
    exported name.
 6. `harness` -- whether `tests/*.js` count as readers at all.
@@ -238,7 +238,7 @@ def test_nothing_is_exported_that_nobody_reads():
     assert SEAM.dead == []
 
 
-# `onPitchAt` (assets/report.js) answers "who was on the pitch at this second"
+# `onPitchAt` (shared/report.js) answers "who was on the pitch at this second"
 # from a roster's stints. It has about ten cases in tests/players.test.js and no
 # caller in the site: every screen that wants the eleven at a moment goes
 # through `substitutionChanges`, which walks the same stints and returns the
@@ -274,7 +274,7 @@ def test_plenty_of_exports_are_reached_only_by_tests_and_that_is_fine():
 # a name that grew a keyword it does not need, and a departing one is a name
 # that found a reader and should stop being listed here.
 LOCAL_ONLY = {
-    # Tuning constants that sit beside the code they tune. `assets/report.js`
+    # Tuning constants that sit beside the code they tune. `shared/report.js`
     # exports nearly everything it declares so the pure JS suites can reach
     # in; these are the ones no test asked for either.
     'report.js tuning constants': {
@@ -337,13 +337,13 @@ def test_the_local_only_groups_do_not_overlap():
 
 def test_each_local_only_name_really_does_live_where_its_group_says():
     where = {
-        'report.js tuning constants': 'assets/report.js',
-        'report.js private helpers': 'assets/report.js',
-        'season.js measure table': 'assets/season.js',
-        'ui.js wording': 'assets/ui.js',
-        'auth.js internals': 'assets/auth.js',
-        'db.js internals': 'assets/db.js',
-        'firebase-init.js handles': 'assets/firebase-init.js',
+        'report.js tuning constants': 'shared/report.js',
+        'report.js private helpers': 'shared/report.js',
+        'season.js measure table': 'shared/season.js',
+        'ui.js wording': 'shared/ui.js',
+        'auth.js internals': 'shared/auth.js',
+        'db.js internals': 'shared/db.js',
+        'firebase-init.js handles': 'shared/firebase-init.js',
         'shell.js view list': 'coach/shell.js',
     }
     for label, names in LOCAL_ONLY.items():
@@ -427,7 +427,7 @@ def test_namespace_imports_are_load_bearing():
 
 
 def test_stripping_comments_is_load_bearing():
-    # `assets/db.js` explains inside its own `export { ... }` list why two names
+    # `shared/db.js` explains inside its own `export { ... }` list why two names
     # moved out of the file. Read that comment as code and the word `and`
     # becomes an export -- a name declared nowhere, reachable by nobody, and
     # reported for the rest of time.

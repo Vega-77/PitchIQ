@@ -35,7 +35,7 @@ Recalibrating the outputs barely moved the ratios. Removing a feature moved them
 a lot, and for a plain reason: with eleven features instead of twelve, distance
 and angle carry more of the answer, so moving a player moves the answer further.
 **A more honest model is a more position-sensitive one**, and the per-shot
-display band in assets/report.js tightened from 1.0 m to 0.5 m to match.
+display band in shared/report.js tightened from 1.0 m to 0.5 m to match.
 
 Two things it does not say. It measures *sensitivity*, not *calibration*: a
 model can shift a lot under noise and still be right on average, which is what

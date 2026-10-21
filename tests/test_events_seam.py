@@ -75,7 +75,7 @@ HANDLE = 'cvEvents'
 
 # The served JavaScript. `sample-report.js` is a fixture of hand-written
 # numbers for the demo page, not a reader of anything published.
-SERVED = ['assets', 'coach', 'player', 'halftime', 'live-tagging']
+SERVED = ['shared', 'coach', 'player', 'halftime', 'live-tagging']
 SKIP = {'sample-report.js'}
 
 # Array methods, so `events.length` does not arrive as a figure the pipeline
@@ -522,7 +522,7 @@ class TestThePremiseHolds:
         assert 'events_payload(report_json)' in text
 
     def test_the_browser_binds_that_document_to_the_handle(self):
-        db = (ROOT / 'assets' / 'db.js').read_text(encoding='utf-8')
+        db = (ROOT / 'shared' / 'db.js').read_text(encoding='utf-8')
         assert 'export async function readCvEvents(' in db
         assert "'cvStats', 'events'" in db
         coach = (ROOT / 'coach' / 'coach.js').read_text(encoding='utf-8')
@@ -540,7 +540,7 @@ class TestThePremiseHolds:
         # Four files, and each one matters: coach.js holds the handle,
         # report.js the shot log and the label export, passing.js the only
         # reader of `startM`, review.js the filter chips.
-        for name in ('coach/coach.js', 'assets/report.js', 'assets/passing.js', 'coach/review.js'):
+        for name in ('coach/coach.js', 'shared/report.js', 'shared/passing.js', 'coach/review.js'):
             assert name in where, '%s read nothing: %s' % (name, sorted(where))
 
 
@@ -607,7 +607,7 @@ class TestTheScannerCannotPassVacuously:
         # only reader of these two in the repo, and it is reached only
         # through the bag.
         for key in ('startM', 'receiverTrackId'):
-            assert readers(key, seen) == {'assets/passing.js::passingNetwork'}
+            assert readers(key, seen) == {'shared/passing.js::passingNetwork'}
 
     def test_the_callback_binding_is_load_bearing(self, seen):
         # `(events || []).map((event) => ...)` in the label export.
@@ -628,7 +628,7 @@ class TestTheScannerCannotPassVacuously:
         # It is also what makes the cross-function step possible: without it
         # there are no callees to seed, so the interprocedural half of the
         # scan stops at the file it started in. What it loses is precisely the
-        # five figures that only `assets/report.js` and `assets/passing.js`
+        # five figures that only `shared/report.js` and `shared/passing.js`
         # read -- neither file ever names the handle, and both are reached
         # only by seeding from a call in `coach/coach.js`.
         #

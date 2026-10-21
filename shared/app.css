@@ -11,7 +11,7 @@
  * cards, near-black ink. The kit is loud, so everything around it is quiet,
  * and a light ground is the one that survives a phone in the sun.
  *
- * The values in `:root` are the house kit. `assets/kit.js` overwrites the
+ * The values in `:root` are the house kit. `shared/kit.js` overwrites the
  * eight `--kit*` / `--accent*` tokens at runtime for a real team, and it does
  * the contrast arithmetic itself, because the scan in tests/ can only see the
  * colours written here.
@@ -397,7 +397,7 @@ a { color: var(--accent); text-decoration: none; }
 
    The lines draw themselves once when the page arrives, and then the whole
    drawing leans a few pixels toward the pointer (`--px`/`--py`, written by
-   assets/motion.js). Both are ornament on ornament, so the reduced-motion
+   shared/motion.js). Both are ornament on ornament, so the reduced-motion
    rule switches them off and leaves the finished drawing. */
 .pitch-backdrop {
     position: absolute;
@@ -2087,7 +2087,7 @@ button.tl-row {
 /* ---------------------------------------------------------------- tabs */
 
 /* The active tab's underline slides to whichever tab was chosen rather than
-   blinking from one to the next: assets/motion.js measures the tab and
+   blinking from one to the next: shared/motion.js measures the tab and
    writes `--tab-x` / `--tab-w`. Until it has, the underline sits under the
    tab itself, so the page is right without the script. */
 .tabs {
@@ -3098,7 +3098,7 @@ button.tl-row {
  * **Things arrive in reading order, once, and fast.** On the pages read at a
  * desk — the home page, the squad, a player's season — cards rise a few
  * pixels into place as they scroll into view and figures count up to their
- * value (assets/motion.js does both). Every movement is upward, under half a
+ * value (shared/motion.js does both). Every movement is upward, under half a
  * second, and finished before anyone could want to click on it. The pages
  * used on the touchline and at half-time do not load motion.js at all: a
  * tagger mid-match is waiting for nothing.
@@ -3164,7 +3164,7 @@ td.bar-cell .cell-bar {
     }
 }
 
-/* Rising into view. `.reveal` is only ever added by assets/motion.js, after
+/* Rising into view. `.reveal` is only ever added by shared/motion.js, after
    it has set up the observer that adds `.is-in`, so without the script
    nothing here is hidden. Siblings are staggered by `--reveal-i`. */
 .reveal {
@@ -3624,7 +3624,7 @@ button.list-item::after, a.list-item::after {
     overflow-wrap: anywhere;
 }
 /* The season figure, in the position a headline number goes. It is the pooled
-   one — see assets/season.js — and the line in the chart below is drawn at the
+   one — see shared/season.js — and the line in the chart below is drawn at the
    same value, so the two cannot disagree. */
 .form-mean-v {
     font-size: 1.05rem;
@@ -3632,7 +3632,7 @@ button.list-item::after, a.list-item::after {
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
-/* Matches the viewBox in assets/form-chart.js exactly, so uniform scaling fills
+/* Matches the viewBox in shared/form-chart.js exactly, so uniform scaling fills
    the box rather than letterboxing inside it. The chart draws circles and a
    stretched circle is an oval, which is the one thing a mark sized by area
    cannot afford to be. */

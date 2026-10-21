@@ -64,7 +64,7 @@ dead, and a session deleted their ids on its word. A false "dead" verdict from
 an audit tool costs more than no tool, because it gets acted on.
 
 `comments` is the other direction, the silent one, and the single hit is almost
-too good: the comment above `.shot-mark:focus-visible` in `assets/app.css` reads
+too good: the comment above `.shot-mark:focus-visible` in `shared/app.css` reads
 "Not `var(--accent)`, which is what this rule said first". A scanner that does
 not strip comments counts the sentence explaining a token's *absence* as
 evidence of its presence. It cost nothing here because `--accent` has a hundred
@@ -89,8 +89,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 CSS = [
-    'assets/app.css',
-    'assets/landing.css',
+    'shared/app.css',
+    'shared/landing.css',
     'coach/coach.css',
     'player/player.css',
     'live-tagging/tagging.css',
@@ -105,7 +105,7 @@ HTML = [
     'halftime/index.html',
     'calibrate/index.html',
 ]
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
+JS_DIRS = ['shared', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
 SITES = frozenset({'css-decl', 'css-use', 'js-setprop', 'js-use', 'comments'})
 
@@ -295,7 +295,7 @@ class TestEachScanSiteIsLoadBearing:
             for chunk in BLOCK_COMMENT.findall(read(rel)):
                 phantom += [(rel, m.group(1)) for m in USE.finditer(chunk)]
                 phantom += [(rel, m.group(1)) for m in DECL.finditer(chunk)]
-        assert phantom == [('assets/app.css', '--accent')], phantom
+        assert phantom == [('shared/app.css', '--accent')], phantom
         assert ghost(off={'comments'}) == ghost()
 
     def test_the_site_list_is_the_one_the_scanner_reads(self):

@@ -47,7 +47,7 @@ the rules in this repo replace the defaults in step 6.
 ## 5. Register the web app and paste the config
 
 **Project settings → Your apps → Web (`</>`)**, then copy the `firebaseConfig`
-object into `assets/firebase-init.js`, replacing the `REPLACE_ME` placeholders.
+object into `shared/firebase-init.js`, replacing the `REPLACE_ME` placeholders.
 
 That file is committed and served publicly, which is correct — a web API key is
 a project identifier, not a secret. The rules are what protect the data.
@@ -104,7 +104,7 @@ Then serve the site from the repo root on any static server, e.g.
 python -m http.server 8080
 ```
 
-`assets/firebase-init.js` auto-detects `localhost` / `127.0.0.1` and connects to
+`shared/firebase-init.js` auto-detects `localhost` / `127.0.0.1` and connects to
 the emulators, so local development never touches production data.
 
 ## Running the tests

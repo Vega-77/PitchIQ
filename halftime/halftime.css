@@ -170,7 +170,7 @@ body { background: var(--surface); }
     line-height: 1.45;
 }
 
-/* Tally rows moved to assets/app.css when the coach's match view started
+/* Tally rows moved to shared/app.css when the coach's match view started
    using them too. */
 
 /* ---------------------------------------------------------------- minutes */

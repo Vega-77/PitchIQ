@@ -106,7 +106,7 @@ CV_FIELD_PREFIX = 'cv'
 # well before that.
 MAX_TOUCH_TIMES = 400
 
-# Kept in step with NOT_A_PLAYER in assets/report.js, which is where it is
+# Kept in step with NOT_A_PLAYER in shared/report.js, which is where it is
 # explained. Duplicated rather than shared because there is no build step and
 # nothing carries a constant across the two languages.
 NOT_A_PLAYER = '__not_a_player'
@@ -536,7 +536,7 @@ def _flat_heatmap(grid) -> dict | None:
 
 
 # How each figure's numbers combine when a coach names two of them as the same
-# person. Kept identical to `SUMMED` and `MAXED` in assets/report.js — the two
+# person. Kept identical to `SUMMED` and `MAXED` in shared/report.js — the two
 # sides publish the same player's match to two different screens, and a stat
 # that adds on one and replaces on the other is one match told two ways.
 SUMMED_FIELDS = (
@@ -700,7 +700,7 @@ def publish(
         # The coach's way of saying a tracked figure is nobody — a referee, or
         # somebody on the bench. It shares the map with real player ids because
         # the cvMapping rules pin that document to three keys; see NOT_A_PLAYER
-        # in assets/report.js. Both readers of the map have to skip it, and this
+        # in shared/report.js. Both readers of the map have to skip it, and this
         # is the second.
         if player_id == NOT_A_PLAYER:
             continue

@@ -9,34 +9,34 @@
 // publish time. There is no live match data on this page by design; see the
 // note on collection-group rules in firestore.rules.
 
-import { onUser, signOut, configWarning } from '../assets/auth.js?v=142';
+import { onUser, signOut, configWarning } from '../shared/auth.js?v=143';
 import {
     myReports, seasonTotals, cvPlayerConfidence, knownMinutes,
-} from '../assets/db.js?v=142';
-import { CARD_COLOURS } from '../assets/events.js?v=142';
-import { mountRail } from '../assets/rail.js?v=142';
-import { mountPitchBackdrop } from '../assets/pitch-backdrop.js?v=142';
-import { HOUSE_KIT, applyKit } from '../assets/kit.js?v=142';
-import { startMotion } from '../assets/motion.js?v=142';
-import { renderHeatmap } from '../assets/heatmap.js?v=142';
-import { renderShotMap, shotSummary } from '../assets/shot-map.js?v=142';
+} from '../shared/db.js?v=143';
+import { CARD_COLOURS } from '../shared/events.js?v=143';
+import { mountRail } from '../shared/rail.js?v=143';
+import { mountPitchBackdrop } from '../shared/pitch-backdrop.js?v=143';
+import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=143';
+import { startMotion } from '../shared/motion.js?v=143';
+import { renderHeatmap } from '../shared/heatmap.js?v=143';
+import { renderShotMap, shotSummary } from '../shared/shot-map.js?v=143';
 import {
     xgTrust, metresPerMinute, coverageNote, clockFromMatch, printStamp,
     playerWobbleNote,
     minutesNote, seasonGroups, matchLine, FULL_MATCH_MIN, seasonMoments,
-} from '../assets/report.js?v=142';
+} from '../shared/report.js?v=143';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../assets/season.js?v=142';
-import { renderForms } from '../assets/form-chart.js?v=142';
+} from '../shared/season.js?v=143';
+import { renderForms } from '../shared/form-chart.js?v=143';
 import {
     samplePlayerReport, sampleSeason, SAMPLE_NOTICE,
-} from '../assets/sample-report.js?v=142';
-import { renderMatchVideo } from '../assets/match-video.js?v=142';
+} from '../shared/sample-report.js?v=143';
+import { renderMatchVideo } from '../shared/match-video.js?v=143';
 import {
     byId, setText, toast, showOnly, clockText, statCard, fillStatGroup,
     figure, cardChips, plural, minutesChart, tally, coverageStrip,
-} from '../assets/ui.js?v=142';
+} from '../shared/ui.js?v=143';
 
 const VIEWS = ['view-empty', 'view-reports', 'view-match'];
 
@@ -145,7 +145,7 @@ const FORM_GROUPS = [
  * right. For anything you would compare — is she covering more ground than she
  * was — a sum is the wrong shape: it hides which matches it came from, and it
  * treats a match tracked for six minutes as equal evidence to one tracked for
- * seventy. Every arithmetic decision behind this is in assets/season.js.
+ * seventy. Every arithmetic decision behind this is in shared/season.js.
  *
  * Hidden entirely below three placed matches. Two dots with a line through them
  * is a much stronger claim than the two numbers it is made of.
@@ -695,7 +695,7 @@ async function loadReports(user) {
 // ------------------------------------------------------------------- the rails
 //
 // Both views get one, and it is the same component the coach's match report
-// uses — see assets/rail.js for why that matters more than it looks like it
+// uses — see shared/rail.js for why that matters more than it looks like it
 // should. The facts are the difference: a coach's rail stands the scoreline and
 // how much of the match was tagged; a player's stands their own season.
 

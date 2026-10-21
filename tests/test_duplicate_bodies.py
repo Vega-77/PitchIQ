@@ -1,7 +1,7 @@
 """No two top-level functions in the site JS share a body.
 
 The finding this was written for: a four-line SVG element factory existed six
-times over -- `svgEl` in `assets/ui.js` and a private `el` in form-chart.js,
+times over -- `svgEl` in `shared/ui.js` and a private `el` in form-chart.js,
 heatmap.js, pass-map.js, pitch-backdrop.js and shot-map.js -- and a stat-group
 filler existed twice, as `coach/coach.js::fillPlayerGroup` and
 `player/player.js::fillGroup`. Seven copies, byte-identical bodies.
@@ -9,7 +9,7 @@ filler existed twice, as `coach/coach.js::fillPlayerGroup` and
 Identical bodies are not the harm on their own. The harm is what happens next.
 Three of the six factories took `attrs` with no default, so `el('title')` threw
 on them and three call sites had to pass `{}` to a helper whose entire job was
-to save them that typing. `assets/form-chart.js` records the other half in its
+to save them that typing. `shared/form-chart.js` records the other half in its
 own docstring: the same copy-paste spread a broken `node.append(el(...))` chain
 through every chart in the repo, and exactly one of them kept the bug. Copies
 drift, and they drift silently, because nothing is comparing them.
@@ -19,7 +19,7 @@ So this counts them, and the count is zero.
 **There is no allowlist, on purpose.** `tests/test_data_seam.py` makes the
 argument: a gate written over a mess only records the mess, and the moment to
 pin a seam is when both directions are already at zero. They are -- the seven
-copies were consolidated into `assets/svg.js` and `assets/ui.js::fillStatGroup`
+copies were consolidated into `shared/svg.js` and `shared/ui.js::fillStatGroup`
 before this file was written. An allowlist here would be a list of duplicates
 somebody had decided to keep, which is the graveyard `tests/test_call_graph.py`
 warns about. A duplicate is a finding; there is nowhere to write one down.
@@ -27,7 +27,7 @@ warns about. A duplicate is a finding; there is nowhere to write one down.
 Scope, stated plainly so the next reader does not over-trust the number:
 
 * Top-level `function` declarations only. Arrow-function consts, class methods
-  and nested closures are out. `assets/form-chart.js::titled` would not be seen
+  and nested closures are out. `shared/form-chart.js::titled` would not be seen
   by a scan of any shape here, because it exists once.
 * Byte-identical bodies after whitespace normalisation. Two functions that
   differ by one renamed local are not duplicates to this test, and a determined
@@ -221,23 +221,23 @@ def test_the_scan_can_still_see_a_duplicate():
 
 
 def test_one_place_makes_an_svg_element():
-    """`document.createElementNS` exists once, in assets/svg.js."""
+    """`document.createElementNS` exists once, in shared/svg.js."""
     holders = sorted(rel for rel, src in SOURCES.items() if 'createElementNS' in blank(src))
-    assert holders == ['assets/svg.js'], (
+    assert holders == ['shared/svg.js'], (
         'the SVG element factory is back in more than one file: %s' % ', '.join(holders)
     )
 
 
 def test_everyone_who_uses_the_factory_imports_it():
     users = sorted(
-        rel for rel, src in SOURCES.items() if 'svgEl' in blank(src) and rel != 'assets/svg.js'
+        rel for rel, src in SOURCES.items() if 'svgEl' in blank(src) and rel != 'shared/svg.js'
     )
     missing = [
         rel
         for rel in users
         if not re.search(
             r'import \{[^}]*svgEl[^}]*\} from '
-            r"'\.\./?assets?/?svg\.js",
+            r"'\.\./?shared/svg\.js",
             SOURCES[rel],
         )
         and not re.search(
@@ -247,7 +247,7 @@ def test_everyone_who_uses_the_factory_imports_it():
         )
     ]
     assert users, 'nothing imports the SVG factory, which cannot be right'
-    assert not missing, '%s names svgEl without importing it from assets/svg.js' % ', '.join(
+    assert not missing, '%s names svgEl without importing it from shared/svg.js' % ', '.join(
         missing
     )
 
@@ -255,7 +255,7 @@ def test_everyone_who_uses_the_factory_imports_it():
 def test_one_place_reads_todays_date():
     """`localDate` had been written twice; `getFullYear` says whether it is."""
     holders = sorted(rel for rel, src in SOURCES.items() if 'getFullYear' in blank(src))
-    assert holders == ['assets/ui.js'], (
+    assert holders == ['shared/ui.js'], (
         "today's date is being formatted in more than one file: %s" % ', '.join(holders)
     )
 

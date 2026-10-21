@@ -180,7 +180,7 @@ const STORE = 'piq-kit';
 
 /**
  * Paint the page in a kit. `remember` keeps it for the next page load, which
- * assets/kit-boot.js applies before anything draws, so a team's pages do not
+ * shared/kit-boot.js applies before anything draws, so a team's pages do not
  * open in navy and then change colour.
  */
 export function applyKit(kit, { root = globalThis.document?.documentElement, remember = true } = {}) {

@@ -229,7 +229,7 @@ class TestWhatTheWobbleCosts:
         #
         # Not proportional to the noise any more, which is the point: the
         # window moves with sigma, so doubling the wobble does not double the
-        # phantom. That is why assets/report.js can no longer hold one constant
+        # phantom. That is why shared/report.js can no longer hold one constant
         # and reads a published figure instead.
         for jitter_m, expected in ((0.05, 10.7), (0.10, 15.3), (0.20, 22.3)):
             phantom = np.mean(

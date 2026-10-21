@@ -83,7 +83,7 @@ Two things are known to be unresolved rather than merely untested:
   in hindsight obviously: with eleven features instead of twelve, distance and
   angle carry more of the answer, so moving a player moves the answer further.
   The p95 at half a metre went from a third of the number to half of it, and the
-  per-shot display band in assets/report.js tightened from 1 m to 0.5 m to
+  per-shot display band in shared/report.js tightened from 1 m to 0.5 m to
   match. A more honest model is a fussier one about where its inputs came from.
 
   Summing helps, and by a measured amount rather than a hoped-for one: simulated

@@ -1,6 +1,6 @@
 """The sample fixture has to stay the same shape as a real published run.
 
-`assets/sample-report.js` exists so the CV blocks on the coach, player and
+`shared/sample-report.js` exists so the CV blocks on the coach, player and
 half-time pages can be looked at before there is any footage. That is only worth
 anything while it is an honest stand-in: the moment Python starts publishing a
 field the sample does not carry, the preview quietly stops covering whatever
@@ -35,7 +35,7 @@ from pitchiq.publish_to_firestore import player_report_fields, summary_payload
 from pitchiq.report_export import TeamStats
 from test_free_names import blank
 
-SAMPLE_JS = Path(__file__).resolve().parents[1] / 'assets' / 'sample-report.js'
+SAMPLE_JS = Path(__file__).resolve().parents[1] / 'shared' / 'sample-report.js'
 
 
 @pytest.fixture(scope='module')
@@ -65,7 +65,7 @@ def missing(keys, source: str) -> list[str]:
 def _report_keys() -> list[str]:
     """Every `cv` field a published report can carry, off the browser's list.
 
-    `CV_REPORT_KEYS` in `assets/report.js` is the union of what the pipeline
+    `CV_REPORT_KEYS` in `shared/report.js` is the union of what the pipeline
     writes and what the coach's page adds on publish, and it is the list that
     nulls a report when a cluster is un-mapped. Taking it as the union is not an
     assumption made here: `tests/test_cv_field_seam.py` and
@@ -75,7 +75,7 @@ def _report_keys() -> list[str]:
     Parsed as text for the same reason everything else in this file is — no
     build step, and no JS runtime among the Python test dependencies.
     """
-    text = (Path(__file__).resolve().parents[1] / 'assets' / 'report.js').read_text(
+    text = (Path(__file__).resolve().parents[1] / 'shared' / 'report.js').read_text(
         encoding='utf-8'
     )
     body = text.split('const CV_REPORT_KEYS = [')[1].split(']')[0]

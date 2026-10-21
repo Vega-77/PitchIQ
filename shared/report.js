@@ -450,7 +450,7 @@ export function whistleFrom(log) {
  *
  * Lived in `db.js` until 2026-08-15, where the pure test suites could not
  * reach it — so `tests/flow.test.js` carried a hand-copied second version under
- * a comment reading "mirrors minutesFrom() in assets/db.js", and four tests
+ * a comment reading "mirrors minutesFrom() in shared/db.js", and four tests
  * pinned the copy. Moved here for the same reason `playerTimeline` is here.
  *
  * **A closed stint is still knowable without a whistle.** A player who came off
@@ -1729,7 +1729,7 @@ export function cvQualityNotes(quality, options = {}) {
 
 // ---------------------------------------------------------- the section rail
 //
-// The rail itself is `assets/rail.js`, which needs a DOM. This is the one
+// The rail itself is `shared/rail.js`, which needs a DOM. This is the one
 // decision in it that does not: which section a rail should be showing.
 
 /**
@@ -2233,7 +2233,7 @@ export function groupByPosition(players, compare = null) {
 // conservative for a 105 m pitch — would have reported pure sampling noise as a
 // defender playing ahead of the midfield, on every thinly tracked match. That
 // error dwarfs the two smaller ones already measured: the 8.75 m bins cost
-// 0.36 m at worst (`gridSpread` in `assets/heatmap.js`), and an uneven camera
+// 0.36 m at worst (`gridSpread` in `shared/heatmap.js`), and an uneven camera
 // biases a deep player up by 1.2 m at the coverage gate below.
 
 /**
@@ -2366,7 +2366,7 @@ const WITHHELD_NOTES = {
  *
  * `rows` are already oriented — `{ playerId, name, position, forwardM,
  * lateralM, spreadM, minutesTracked }`, forwardM measured up the pitch from the
- * goal they were defending. Orientation happens in `assets/heatmap.js`, which
+ * goal they were defending. Orientation happens in `shared/heatmap.js`, which
  * owns the pitch dimensions; this module has none and takes metres as given.
  *
  * Returns `{ rows, remarks, withheld, note }`. **The rows are always there and

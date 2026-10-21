@@ -8,10 +8,10 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import * as report from '../assets/report.js';
-import * as heatmap from '../assets/heatmap.js';
-import * as markMod from '../assets/shot-map.js';
-import * as sample from '../assets/sample-report.js';
+import * as report from '../shared/report.js';
+import * as heatmap from '../shared/heatmap.js';
+import * as markMod from '../shared/shot-map.js';
+import * as sample from '../shared/sample-report.js';
 
 // ------------------------------------------------------------ sample data
 //

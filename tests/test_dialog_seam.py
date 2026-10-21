@@ -48,7 +48,7 @@ IMPL = 'live-tagging/sheet.js'
 
 #: Every directory `stamp_version.py` treats as holding modules. The seam claim
 #: below is about the whole site, so the whole site has to be read.
-JS_DIRS = ['assets', 'coach', 'halftime', 'live-tagging', 'player']
+JS_DIRS = ['shared', 'coach', 'halftime', 'live-tagging', 'player']
 
 #: The five, in document order. Read off the page everywhere else; written out
 #: once here so that a scan which quietly stops finding overlays fails instead
@@ -350,12 +350,12 @@ class TestTheScanCouldBeLying:
         # 27 today. The number is here so that a glob which quietly matches
         # nothing -- a renamed directory, a move to subfolders -- fails
         # loudly instead of proving the seam intact across no files at all.
-        # It moves when a file is genuinely added: assets/svg.js was the
+        # It moves when a file is genuinely added: shared/svg.js was the
         # thirty-third, split out of six copies of one SVG element factory.
         # It fell to 27 when the calibrate page and the xG sandbox left
         # (2026-10-07), and rose to 30 the same day with the team colours
-        # (assets/kit.js, and assets/kit-boot.js which paints them before the
-        # first frame) and assets/motion.js.
+        # (shared/kit.js, and shared/kit-boot.js which paints them before the
+        # first frame) and shared/motion.js.
         seen = js()
         assert len(seen) == 30
         assert IMPL in seen and 'live-tagging/tagging.js' in seen
