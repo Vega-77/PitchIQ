@@ -11,9 +11,9 @@
 
 # the candidate ranker (rank6.model.json), in drun.py and dense.py
 xgboost==3.4.0
-# plots: homog/vpathplot.py, cv/experiments/halves.py
+# plots: cv/experiments/halves.py
 matplotlib==3.11.1
-# images: lab_sheets2.py, the clicker's frames (cv/experiments/clicker)
+# images: the clicker's frames (cv/experiments/clicker)
 pillow==12.2.0
 # TAPNext++'s model code
 einops==0.8.2

@@ -88,7 +88,8 @@ and the person detector on the GPU meanwhile. The pieces are stitched where
 neighbours agree on the ball. It needs `homog/<tag>_reg.npz` and
 `<tag>_venue.npz` first, from `python -m cv.experiments.autocal_run <tag> ...
 --homog`. Every stage leaves a marker in `half/<tag>/`, so a rerun after a
-crash redoes only what did not finish.
+crash redoes only what did not finish. `rereg.py` reruns a finished half's
+ball stages when only its registration has changed, without detecting again.
 
 `ballgate.py` decides where not to draw a ball at all. Wrong rings came in
 stretches minutes long, not one at a time, so per-ring thresholds did not
@@ -105,6 +106,7 @@ ball, and `match_video.py` before drawing it.
 |---|---|
 | `homog/` | venue map (`vmap*`), pitch registration (`vreg.py` -> `<tag>_reg.npz`), 3D flight chain, Air/Flight/Fix lab labels and scorers |
 | `tapnext/` | `tn_engine.py` (bridges), `hyb_video.py` (the review video) |
+| `archive/` | scripts nothing runs any more, moved 2026-10-20; its README says what each was |
 | `alltests/` | `mkpicks_one.py`, `hybrid.py`, `mk3d.py` (3D per 2D version in `h3d_<ver>/`), the 2D/3D test harness, Find the Ball / Fix Lab / pass labels, and the score tables in `alltests/results/` (`2d.json`, `3d.json`) |
 
 ### Generated, not in git
