@@ -350,22 +350,20 @@ def team_stats(
     log: EventLog,
     team: str,
     calibrated: bool,
-    possession_pct: float | None = None,
-    shape: dict | None = None,
-    opponent_attacking_end: str | None = None,
+    *,
     pitch=None,
-    territory: dict | None = None,
-    phase_of_play: dict | None = None,
-    shape_drift: dict | None = None,
     attacking_end: str | None = None,
+    opponent_attacking_end: str | None = None,
     span_s: tuple[float, float] | None = None,
 ) -> TeamStats:
     """Aggregate one team's events.
 
     `calibrated` decides whether the positional counts are numbers or nulls.
-    Without metres they are not zero — nobody counted them.
+    Without metres they are not zero — nobody counted them. The blocks measured
+    from tracking rather than events (possession, shape, territory, phase of
+    play, drift) are attached by `build_report_json`, not counted here.
     """
-    stats = TeamStats(team=team, possession_pct=possession_pct)
+    stats = TeamStats(team=team)
     passes = log.passes(team)
 
     stats.passes_attempted = len(passes)
@@ -428,10 +426,6 @@ def team_stats(
                 )
 
     stats.attacking_end = attacking_end
-    stats.shape = shape or {}
-    stats.territory = territory
-    stats.phase_of_play = phase_of_play
-    stats.shape_drift = shape_drift
     return stats
 
 
@@ -717,20 +711,21 @@ def build_report_json(
     teams = {}
     for team in (TEAM_A, TEAM_B):
         other = TEAM_B if team == TEAM_A else TEAM_A
-        teams[team] = team_stats(
+        stats = team_stats(
             log,
             team,
             calibrated=calibrated,
-            possession_pct=possession.share(team) if possession else None,
-            shape=(report.shape or {}).get(team) or {},
-            territory=territory_json.get(team),
-            phase_of_play=_phase_json(report, team),
-            shape_drift=_drift_json(report, team),
             pitch=pitch,
             attacking_end=ends.get(team),
             opponent_attacking_end=ends.get(other),
             span_s=span,
-        ).to_json()
+        )
+        stats.possession_pct = possession.share(team) if possession else None
+        stats.shape = (report.shape or {}).get(team) or {}
+        stats.territory = territory_json.get(team)
+        stats.phase_of_play = _phase_json(report, team)
+        stats.shape_drift = _drift_json(report, team)
+        teams[team] = stats.to_json()
 
     tracks = track_stats(
         report.clusters,
