@@ -53,8 +53,9 @@ class Pitch:
     pitch pays for it — including the ones nobody clicked. Worse, the picker
     reports the resulting residual as the coach's clicking, and no amount of
     re-clicking can move it. Measuring the box and putting the real number here
-    is the fix; the calibrate page that once sat in the site measured it from
-    the clicks themselves.
+    is the fix; the calibrate page that sat in the site until 2026-10-07
+    measured it from the clicks themselves. The one in `calibrate/` now does
+    not: it takes the measured length and width, and the Laws markings.
 
     One set of markings serves both ends. The two boxes on a real field are
     marked by the same person with the same tape on the same morning, so they

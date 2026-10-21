@@ -74,20 +74,20 @@ ROOT = Path(__file__).resolve().parents[1]
 # is guaranteed to see -- was scored by no contrast test at all.
 SHEETS = ['assets/app.css', 'assets/landing.css', 'coach/coach.css',
           'player/player.css', 'live-tagging/tagging.css',
-          'halftime/halftime.css']
+          'halftime/halftime.css', 'calibrate/calibrate.css']
 # Only the coach and player views ever call window.print(). A page nobody
 # prints cannot have a paper defect, and scoring one is how a scanner invents
 # work for somebody.
 PRINTABLE = ['assets/app.css', 'coach/coach.css', 'player/player.css']
 HTML = ['index.html', 'coach/index.html', 'player/index.html',
-        'live-tagging/index.html', 'halftime/index.html']
+        'live-tagging/index.html', 'halftime/index.html', 'calibrate/index.html']
 # The only two pages that call window.print(). A paper question asked of
 # any other page is a question about a medium that page never reaches --
 # and asking it wrongly is not harmless: `.brand` sits inside the hidden
 # topbar on both of these and outside it on the tagging page, so widening
 # the universe by five files turned a hidden class into a false defect.
 PRINTS = ['coach/index.html', 'player/index.html']
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime']
+JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
 # The four colours a block can land on. Anything that sets no background of its
 # own inherits one of these, and is scored against the worst.

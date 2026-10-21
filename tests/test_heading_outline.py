@@ -57,6 +57,7 @@ VIEWS = {
     'player/index.html': ['view-empty', 'view-reports', 'view-match'],
     'live-tagging/index.html': ['view-setup', 'view-kickoff', 'view-live'],
     'halftime/index.html': ['view-error', 'view-report'],
+    'calibrate/index.html': ['view-intro', 'view-work'],
 }
 
 # Pages whose view set is a literal array in one module, and where it lives.
@@ -65,6 +66,7 @@ ARRAYS = {
     'coach/index.html': 'coach/shell.js',
     'player/index.html': 'player/player.js',
     'halftime/index.html': 'halftime/halftime.js',
+    'calibrate/index.html': 'calibrate/calibrate.js',
 }
 
 # Every h2 on the site outside a dialog, and why each is not the start of an
@@ -296,11 +298,15 @@ class TestTheHouseStyleIsDeliberate:
         css = ' '.join(read('assets/app.css').split())
         assert 'This is the heading on every section in the app' in css
         # Both directions, by naming the exceptions rather than counting
-        # the rule: twelve views go h1 -> h3, and the three that do not are
-        # the three with no sections at all.
+        # the rule: twelve views go h1 -> h3, and the five that do not are
+        # the five with no sections at all. The calibrate page's two are
+        # among them: the intro is one form, and the work view's h3s are the
+        # landmark groups, which calibrate.js writes.
         kept = sorted((rel, view) for rel, view, o in every_view()
                       if [h[0] for h in o][:2] != [1, 3])
         assert kept == [
+            ('calibrate/index.html', 'view-intro'),
+            ('calibrate/index.html', 'view-work'),
             ('coach/index.html', 'view-noteam'),
             ('halftime/index.html', 'view-error'),
             ('live-tagging/index.html', 'view-live'),
@@ -336,7 +342,7 @@ class TestTheHouseStyleIsDeliberate:
             assert ids[target][0] == 2, (target, ids[target])
 
     def test_an_sr_only_h1_is_still_an_h1(self):
-        """Two of them, and both are load-bearing.
+        """Three of them, and all are load-bearing.
 
         A scan reading visible text reports these as two missing titles,
         which is the fix reported as the defect.
@@ -344,7 +350,8 @@ class TestTheHouseStyleIsDeliberate:
         hidden = sorted({(rel, words) for rel, _, o in every_view()
                          for level, sr, words in o if level == 1 and sr})
         assert [rel for rel, _ in hidden] == [
-            'halftime/index.html', 'live-tagging/index.html'], hidden
+            'calibrate/index.html', 'halftime/index.html',
+            'live-tagging/index.html'], hidden
         assert '.sr-only' in read('assets/app.css')
 
 
@@ -408,7 +415,7 @@ class TestTheScanCouldBeLying:
         a scan that returns nothing satisfies all of them."""
         total = sum(len(o) for _, _, o in every_view())
         assert total >= 80, total
-        assert len(list(every_view())) == 15
+        assert len(list(every_view())) == 17
         for rel in HTML:
             assert any(o for r, _, o in every_view() if r == rel), rel
 

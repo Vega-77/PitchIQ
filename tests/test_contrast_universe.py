@@ -91,8 +91,9 @@ class TestEverySheetIsScored:
         stale = set(SHEETS) - linked()
         assert stale == set(), stale
 
-    def test_there_are_six_of_them(self):
-        assert len(SHEETS) == 6, SHEETS
+    def test_there_are_seven_of_them(self):
+        # Seven since the calibrate page came back (2026-10-20).
+        assert len(SHEETS) == 7, SHEETS
 
 
 class TestPrintRulesAreNotScoredTwice:
@@ -112,7 +113,7 @@ class TestPrintRulesAreNotScoredTwice:
         assert 'background: #fff' not in without_print(read('assets/app.css'))
 
     def test_a_sheet_with_no_print_block_is_untouched(self):
-        # Five of the six have no print theme, and the cut must be a
+        # Six of the seven have no print theme, and the cut must be a
         # no-op on them rather than merely harmless.
         n = 0
         for rel in SHEETS:
@@ -120,7 +121,7 @@ class TestPrintRulesAreNotScoredTwice:
             if '@media print {' not in src:
                 assert without_print(src) == strip_comments(src), rel
                 n += 1
-        assert n == 5, n
+        assert n == 6, n
 
     def test_a_print_only_selector_produces_no_screen_row(self):
         # `.print-stamp` is the line naming the match at the top of a printed
@@ -200,6 +201,9 @@ class TestLiteralColoursAreVisible:
             ('assets/app.css', '.list-item', '#fff'),
             ('assets/app.css', '.video-frame', '#000'),
             ('assets/app.css', 'body', '#fff'),
+            # The dark stage the calibrate page's picture sits on: no text,
+            # only the picture and the buttons, which bring their own ground.
+            ('calibrate/calibrate.css', '.cal-stage', '#10150f'),
             ('live-tagging/tagging.css', '.overlay', 'rgba(11, 13, 18, .72)'),
         ], grounds
 

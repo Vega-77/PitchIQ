@@ -91,7 +91,7 @@ pytestmark = pytest.mark.skipif(
 
 # Every directory of served JavaScript. `cv/` is the writing side and is
 # imported directly; there is nothing to scan there.
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime']
+JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
 # `cv`-prefixed properties that are not fields of a player's match report.
 # Each one is read off a different object entirely, and the reason matters more

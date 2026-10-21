@@ -1203,7 +1203,8 @@ export function roughDuration(seconds) {
  * The bands are the old calibrate page's own, kept when it left the site on
  * 2026-10-07 — its `renderQuality` called a fit good at 0.5m mean error, and
  * a second standard for the same number would mean a coach could be told the
- * fit is good in one place and doubted in another.
+ * fit is good in one place and doubted in another. The calibrate page that
+ * came back (`calibrate/calibrate.js`, GOOD_M and POOR_M) keeps the same two.
  */
 export function shapeConfidence(calibrationErrorM) {
     if (calibrationErrorM == null) return 'low';

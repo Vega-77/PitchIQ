@@ -122,10 +122,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 CSS = ['assets/app.css', 'assets/landing.css', 'coach/coach.css',
-       'player/player.css', 'live-tagging/tagging.css', 'halftime/halftime.css']
+       'player/player.css', 'live-tagging/tagging.css', 'halftime/halftime.css', 'calibrate/calibrate.css']
 HTML = ['index.html', 'coach/index.html', 'player/index.html',
-        'live-tagging/index.html', 'halftime/index.html']
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime']
+        'live-tagging/index.html', 'halftime/index.html', 'calibrate/index.html']
+JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
 # Every place `scan()` looks, and the whole vocabulary `drop` accepts. Kept in
 # step with the scan itself by `test_every_site_it_names_is_a_site_it_reads` --

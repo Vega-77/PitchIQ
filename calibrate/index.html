@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PitchIQ — Calibrate</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Saira+Condensed:wght@600;700;800&family=Saira:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/app.css?v=135">
+    <script src="../assets/kit-boot.js?v=135"></script>
+    <link rel="stylesheet" href="calibrate.css?v=135">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to the main content</a>
+
+<header class="topbar">
+    <a class="brand" href="../">PitchIQ <span>calibrate</span></a>
+    <div class="topbar-user">
+        <span id="pin-count" class="muted">0 pins</span>
+        <button id="btn-save" class="btn small primary" disabled>Save pins</button>
+    </div>
+</header>
+
+<main id="main" class="shell">
+
+    <section id="view-intro">
+        <h1>Pin the pitch</h1>
+        <p class="lede">
+            The software needs to know which part of the picture is which part
+            of the field before it can measure anything in metres. You show it by
+            pinning landmarks it already knows: corners, the halfway line, the
+            penalty boxes. Nothing leaves this computer; the pins are saved to
+            a file.
+        </p>
+
+        <div class="card cal-start">
+            <fieldset class="cal-kind">
+                <legend>What are you pinning?</legend>
+                <label><input type="radio" name="kind" value="fixed" checked>
+                    <span><strong>One frame from a fixed camera.</strong>
+                    A tripod, locked off. Grab it with
+                    <code>python -m cv.experiments.grab_frame match.mp4 --at 60</code>.</span></label>
+                <label><input type="radio" name="kind" value="panned">
+                    <span><strong>The panorama of a panning camera.</strong>
+                    The Hudl camera's whole view, stitched from the match
+                    (<code>pano_rgb.jpg</code>). Pin once per camera position.</span></label>
+            </fieldset>
+            <label class="field">
+                <span>Picture of the pitch</span>
+                <input id="input-image" type="file" accept="image/*">
+            </label>
+            <label class="field">
+                <span>Pins saved earlier (optional)</span>
+                <input id="input-pins" type="file" accept=".json,application/json">
+            </label>
+        </div>
+
+        <div class="help">
+            <span><strong>Spread the pins out.</strong> Four pins bunched in one
+            corner can look perfect and still be wrong everywhere else. Aim for
+            six or more, over both halves, and skip any you can't see clearly.</span>
+        </div>
+        <div class="help">
+            <span><strong>Click the paint, not the player near it.</strong> Zoom in
+            (mouse wheel, pinch, or the + button) and put the pin where the two
+            painted lines cross.</span>
+        </div>
+    </section>
+
+    <section id="view-work" class="hidden">
+        <h1 class="sr-only">Pinning the pitch</h1>
+        <div class="cal-work">
+            <aside class="cal-side" aria-label="Landmarks">
+                <p id="prompt" class="cal-prompt" aria-live="polite"></p>
+                <div id="dims" class="cal-dims">
+                    <label class="field"><span>Length (m)</span>
+                        <input id="input-length" type="number" min="45" max="130" step="0.1" inputmode="decimal"></label>
+                    <label class="field"><span>Width (m)</span>
+                        <input id="input-width" type="number" min="25" max="100" step="0.1" inputmode="decimal"></label>
+                </div>
+                <div id="fit" class="cal-fit" aria-live="polite"></div>
+                <svg id="mini" class="cal-mini" aria-hidden="true"></svg>
+                <div id="list" class="cal-list"></div>
+            </aside>
+            <div class="cal-stage">
+                <canvas id="canvas" aria-label="The picture, with the pins placed so far"></canvas>
+                <div class="cal-tools">
+                    <button class="btn small" id="btn-zoom-in" type="button">+<span class="sr-only"> Zoom in</span></button>
+                    <button class="btn small" id="btn-zoom-out" type="button">&minus;<span class="sr-only"> Zoom out</span></button>
+                    <button class="btn small" id="btn-fit" type="button">Fit</button>
+                    <button class="btn small" id="btn-outline" type="button" aria-pressed="true">Outline</button>
+                    <button class="btn small" id="btn-remove" type="button">Remove pin</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<div id="toast" class="toast"></div>
+
+<footer class="site-foot">
+    <nav aria-label="Site">
+        <a href="../">Home</a>
+        <a href="../coach/">Coach</a>
+        <a href="../player/">Player</a>
+    </nav>
+    <span class="foot-note">PitchIQ &middot; beta, built for one high school season</span>
+</footer>
+
+<script type="module" src="calibrate.js?v=135"></script>
+</body>
+</html>

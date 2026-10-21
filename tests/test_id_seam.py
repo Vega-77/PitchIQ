@@ -501,12 +501,12 @@ def test_every_fragment_link_lands_on_its_own_page():
     """
     links = [(rel, m.group(1))
              for rel in HTML for m in FRAGMENT.finditer(read(rel))]
-    # The vacuum guard. Four pages carry a skip link; `live-tagging` is the
-    # fifth and deliberately has none, because its <main> is the first
+    # The vacuum guard. Five pages carry a skip link; `live-tagging` is the
+    # sixth and deliberately has none, because its <main> is the first
     # thing in its <body> and there is nothing in front of it to skip. The
-    # fifth link is the landing hero's "See it in your colours", which jumps
+    # sixth link is the landing hero's "See it in your colours", which jumps
     # to the colour picker further down the same page.
-    assert len(links) == 5
+    assert len(links) == 6
     dangling = [(rel, name) for rel, name in links
                 if name not in set(SEAM.per_page[rel])]
     assert dangling == []

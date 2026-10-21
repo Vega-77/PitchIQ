@@ -2,13 +2,16 @@
 
 The site writes the pitch down in four files.
 
-    assets/pitch-backdrop.js     L, W, PEN_LEN, PEN_W, SIX_LEN, SIX_W, CIRCLE_R
+    assets/pitch-backdrop.js     L, W, PEN_LEN, PEN_W, SIX_LEN, SIX_W, CIRCLE_R,
+                                 SPOT, GOAL_W (calibrate/landmarks.js imports
+                                 them as MARKINGS_M)
     assets/passing.js            pitchLengthM, pitchWidthM (default arguments)
     assets/sample-report.js      105 / COLS, 68 / ROWS
     coach/coach.js               the 'Halfway' and 'Their goal' axis ticks
 
 There were eight until the calibrate page and the xG sandbox left the site
-(2026-10-07); those two carried the rest.
+(2026-10-07); those two carried the rest. The calibrate page came back
+(2026-10-20) without a copy of its own: it reads `MARKINGS_M`.
 
 Only one of those is a diagram. `pitch-backdrop.js` calls itself decoration in
 its own header comment, and it is not: `assets/shot-map.js`, `assets/heatmap.js`
@@ -58,7 +61,7 @@ from test_free_names import blank
 
 ROOT = Path(__file__).resolve().parents[1]
 
-JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime']
+JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
 PITCH = Pitch()
 
@@ -97,10 +100,10 @@ SITES = [
      lambda p: p.goal_area_width_m),
     ('assets/pitch-backdrop.js', 'CIRCLE_R', r'\bconst CIRCLE_R = ' + NUMBER,
      lambda p: p.centre_circle_radius_m),
-    # The penalty spots, written inline at both ends of the same ternary.
-    ('assets/pitch-backdrop.js', 'the penalty spots',
-     r'cx: side \? L - ' + NUMBER + r' : ' + NUMBER,
+    ('assets/pitch-backdrop.js', 'SPOT', r'\bconst SPOT = ' + NUMBER,
      lambda p: p.penalty_spot_m),
+    ('assets/pitch-backdrop.js', 'GOAL_W', r'\bconst GOAL_W = ' + NUMBER,
+     lambda p: p.goal_width_m),
 
     # --- assets/passing.js: not fallbacks, the actual pitch ---------------
     ('assets/passing.js', 'pitchLengthM', r'pitchLengthM = ' + NUMBER,
@@ -229,12 +232,9 @@ def test_no_unlisted_laws_literal():
 
 
 # Fields of `Pitch` the browser has no copy of, and why.
-NOT_IN_THE_BROWSER = {
-    # Only the calibrate picker and the xG sandbox drew the goal mouth, and
-    # both left the site on 2026-10-07. The backdrop draws the boxes and the
-    # circle, not the goal.
-    'goal_width_m': 'only the removed calibrate page and xG sandbox drew it',
-}
+# Empty since the calibrate page came back (2026-10-20) and pinned the goalposts:
+# `GOAL_W` in the backdrop is the goal mouth's copy.
+NOT_IN_THE_BROWSER = {}
 
 
 def test_every_pitch_field_is_mirrored_somewhere():

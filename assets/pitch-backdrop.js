@@ -11,7 +11,7 @@
 // every shot in the wrong place under a diagram that still looked right.
 // tests/test_pitch_dimensions.py holds them to cv/pitch.py.
 
-import { svgEl as el } from './svg.js?v=134';
+import { svgEl as el } from './svg.js?v=135';
 
 // Metres, matching the defaults in cv/pitch.py.
 const L = 105;
@@ -21,12 +21,21 @@ const PEN_W = 40.32;
 const SIX_LEN = 5.5;
 const SIX_W = 18.32;
 const CIRCLE_R = 9.15;
+const SPOT = 11;
+const GOAL_W = 7.32;
 
 // The pitch, in metres, so anything drawn on top can be positioned in the same
 // units cv/ measures in and nothing has to convert.
 export const PITCH_LENGTH_M = L;
 export const PITCH_WIDTH_M = W;
 export const PITCH_VIEWBOX = `-2 -2 ${L + 4} ${W + 4}`;
+
+// The Laws markings, for the calibrate page's landmarks (calibrate/landmarks.js).
+export const MARKINGS_M = {
+    penaltyAreaLength: PEN_LEN, penaltyAreaWidth: PEN_W,
+    goalAreaLength: SIX_LEN, goalAreaWidth: SIX_W,
+    centreCircleRadius: CIRCLE_R, penaltySpot: SPOT, goalWidth: GOAL_W,
+};
 
 /**
  * The markings as a `<g>`, in metres.
@@ -59,7 +68,7 @@ export function pitchMarkings({ width = 0.35 } = {}) {
             x: sx, y: cy - SIX_W / 2, width: SIX_LEN, height: SIX_W, ...stroke,
         }));
         group.appendChild(el('circle', {
-            cx: side ? L - 11 : 11, cy, r: 0.6, fill: 'currentColor', stroke: 'none',
+            cx: side ? L - SPOT : SPOT, cy, r: 0.6, fill: 'currentColor', stroke: 'none',
         }));
     }
 

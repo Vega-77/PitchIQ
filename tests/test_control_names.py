@@ -40,7 +40,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 PAGES = ('index.html', 'coach/index.html', 'player/index.html',
-         'live-tagging/index.html', 'halftime/index.html')
+         'live-tagging/index.html', 'halftime/index.html',
+         'calibrate/index.html')
 
 CONTROL = re.compile(r'<(button|a|input|select|textarea)\b([^>]*)>', re.I)
 LABEL = re.compile(r'<label\b([^>]*)>', re.I)
@@ -177,7 +178,8 @@ class TestAWrappingLabelIsAName:
         # it loses the only one that form controls here actually have.
         assert not [c for c in ALL if 'label-for' in c[4]]
         wrapped = [c for c in ALL if 'label-wrap' in c[4]]
-        assert len(wrapped) == 14, len(wrapped)
+        # Twenty since the calibrate page's six: two radios, two files, two sizes.
+        assert len(wrapped) == 20, len(wrapped)
         assert not [c for c in wrapped if set(c[4]) - {'label-wrap'}]
 
     def test_no_label_on_the_site_is_empty(self):
@@ -272,5 +274,7 @@ class TestTheScanReportsSomething:
         # the tagging pad lost its out-of-bounds key (2026-10-12), and a
         # hundred again when the player page got its "Latest match" button the
         # same day. `live-tagging` wants no skip link: its <main> is the first
-        # thing in its <body>.
-        assert counted == {'text': 100, 'title': 3, 'label-wrap': 14}, counted
+        # thing in its <body>. A hundred and eleven when the calibrate page
+        # came back (2026-10-20): its skip link, save, five stage tools and
+        # three footer links, and the topbar's home link.
+        assert counted == {'text': 111, 'title': 3, 'label-wrap': 20}, counted
