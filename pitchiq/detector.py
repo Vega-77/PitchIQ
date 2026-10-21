@@ -8,6 +8,11 @@ supplies a fake, and `import pitchiq.pipeline` on a machine that only wanted to 
 a report JSON should not require a GPU stack. The cost of getting this wrong is
 paid at import time by everyone, and the cost of getting it right is one import
 statement in the one place that actually builds a model.
+
+`tile_windows`, `merge_detections` and `TiledDetector` are experimental: only
+`pitchiq/experiments/spike_detect.py` and `tests/test_tiling.py` use them, and
+the tracking pass cannot (see `TiledDetector`). The pipeline uses
+`PersonBallDetector` alone.
 """
 
 from __future__ import annotations

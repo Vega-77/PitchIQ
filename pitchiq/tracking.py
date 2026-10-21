@@ -11,6 +11,12 @@ tracker is a large amount of work to arrive somewhere worse.
 Track IDs are internally consistent only. Nothing here knows a player's name;
 that mapping is a human job in the review tool, narrowed down by the
 substitution log.
+
+This is the legacy comparison path, not the pipeline's. `analyse_match` detects
+and tracks in one pass with `frame_table.TrackedFramePass`; `PlayerTracker`
+(Ultralytics' standalone `model.track()`) is kept for
+`pitchiq/experiments/track_report.py`, which compares tracker settings, and for
+`pitchiq/balltrack/plab/plab_make.py`, which built the player-lab sheets with it.
 """
 
 from __future__ import annotations
