@@ -2,7 +2,7 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { count } from './report-format.js?v=144';
+import { count } from './report-format.js?v=145';
 
 // ------------------------------------------------------- taking a player off
 //

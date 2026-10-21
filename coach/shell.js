@@ -9,11 +9,11 @@
  * renderer happened to define them first.
  */
 
-import { xgTally, xgTrust, shotLedger } from '../shared/report.js?v=144';
-import { sampleCvSummary } from '../shared/sample-report.js?v=144';
-import { showOnly } from '../shared/ui.js?v=144';
+import { xgTally, xgTrust, shotLedger } from '../shared/report.js?v=145';
+import { sampleCvSummary } from '../shared/sample-report.js?v=145';
+import { showOnly } from '../shared/ui.js?v=145';
 
-export const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
+const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
 export const state = {
     user: null,

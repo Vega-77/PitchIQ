@@ -2,10 +2,10 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { count } from './report-format.js?v=144';
-import { knownMinutes } from './report-clock.js?v=144';
-import { CONFIRMED_STATUS, REJECTED_STATUS, EDITED_STATUS } from './report-review.js?v=144';
-import { correctedShotMarks } from './report-shots.js?v=144';
+import { count } from './report-format.js?v=145';
+import { knownMinutes } from './report-clock.js?v=145';
+import { CONFIRMED_STATUS, REJECTED_STATUS, EDITED_STATUS } from './report-review.js?v=145';
+import { correctedShotMarks } from './report-shots.js?v=145';
 
 // What a player is allowed to see of a match they played in.
 //
@@ -29,7 +29,7 @@ import { correctedShotMarks } from './report-shots.js?v=144';
 // match produces a few dozen; the cap exists so a runaway log cannot push a
 // document towards Firestore's 1MB limit and fail the whole publish batch —
 // which would block every player's report, not just one.
-export const MAX_TIMELINE = 120;
+const MAX_TIMELINE = 120;
 
 // Touch timestamps kept per player. A full match is thousands; both the
 // document size limit and the readability of a timeline strip run out long
@@ -211,7 +211,7 @@ const EVENT_COUNTERS = {
  * confirmed. The other way round, a coach who checked ten events would wipe out
  * the match.
  */
-export function reviewedCorrections(events, review, clusters, byCluster) {
+function reviewedCorrections(events, review, clusters, byCluster) {
     const byEvent = review?.byEvent || {};
     if (!events?.length || !Object.keys(byEvent).length) return {};
 

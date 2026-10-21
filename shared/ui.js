@@ -5,9 +5,9 @@
 // five `$` shorthands, three "big number over a small label" builders. Having
 // one copy means a change to how the app talks (or looks) happens once.
 
-import { comparePair, verdict, COUNT, knownMinutes, FULL_MATCH_MIN } from './report.js?v=144';
-import { svgEl } from './svg.js?v=144';
-import { HOUSE_KIT, KIT_PRESETS, kitWarnings, normaliseHex } from './kit.js?v=144';
+import { comparePair, verdict, COUNT, knownMinutes, FULL_MATCH_MIN } from './report.js?v=145';
+import { svgEl } from './svg.js?v=145';
+import { HOUSE_KIT, KIT_PRESETS, kitWarnings, normaliseHex } from './kit.js?v=145';
 
 export const byId = (id) => document.getElementById(id);
 
@@ -240,7 +240,7 @@ export function fillStatGroup(blockId, gridId, group, noteId = null) {
 }
 
 /** Confidence levels, worst first, so a caller can compare them. */
-export const CONFIDENCE_LEVELS = ['low', 'medium', 'high'];
+const CONFIDENCE_LEVELS = ['low', 'medium', 'high'];
 
 const CONFIDENCE_TEXT = {
     high: 'Estimated from video. Good coverage — treat as reliable.',

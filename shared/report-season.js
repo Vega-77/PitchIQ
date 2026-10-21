@@ -2,9 +2,9 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { num, count } from './report-format.js?v=144';
-import { knownMinutes } from './report-clock.js?v=144';
-import { positionOf } from './report-positions.js?v=144';
+import { num, count } from './report-format.js?v=145';
+import { knownMinutes } from './report-clock.js?v=145';
+import { positionOf } from './report-positions.js?v=145';
 
 // ------------------------------------------------ a player's season, grouped
 //
@@ -179,7 +179,7 @@ export function seasonGroups(reports, totals, options = {}) {
 // when it should — is the kind of thing a browser check would never catch.
 
 /** A finalized match, read as a result. Null when it was never played. */
-export function resultOf(match) {
+function resultOf(match) {
     if (!match?.finalized) return null;
     const us = num(match.scoreUs) ?? 0;
     const them = num(match.scoreThem) ?? 0;

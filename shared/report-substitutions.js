@@ -2,8 +2,8 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { num, count } from './report-format.js?v=144';
-import { FIRST_HALF, HALF_TIME, matchClockMap } from './report-clock.js?v=144';
+import { num, count } from './report-format.js?v=145';
+import { FIRST_HALF, HALF_TIME, matchClockMap } from './report-clock.js?v=145';
 
 // ------------------------------------------------ the football either side of
 //                                                   a substitution
@@ -69,10 +69,10 @@ import { FIRST_HALF, HALF_TIME, matchClockMap } from './report-clock.js?v=144';
 const whistle = (value) => (num(value) > 0 ? num(value) : null);
 
 /** How far apart two roster moves can be and still be one decision. */
-export const CHANGE_GROUP_S = 90;
+const CHANGE_GROUP_S = 90;
 
 /** How much football either side of a change, before anything clips it. */
-export const CHANGE_WINDOW_S = 600;
+const CHANGE_WINDOW_S = 600;
 
 /**
  * The shortest window worth counting.
@@ -82,7 +82,7 @@ export const CHANGE_WINDOW_S = 600;
  * near the floor at which `insideNoise` will ever answer anything but "cannot
  * tell". Below it the honest output is a blank, not a percentage.
  */
-export const MIN_CHANGE_WINDOW_S = 240;
+const MIN_CHANGE_WINDOW_S = 240;
 
 /**
  * Did our share of the ball really move, or is this the sample size talking?

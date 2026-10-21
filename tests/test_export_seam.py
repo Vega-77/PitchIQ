@@ -34,7 +34,6 @@ than no scanner at all, because a scanner gets believed.
 
 import inspect
 import re
-from fnmatch import fnmatch
 
 from test_css_seam import ROOT, js_files, read
 
@@ -191,8 +190,9 @@ def test_it_finds_exports_at_all():
     # seam, and a clean seam and a broken scan look identical from here.
     assert len(SEAM.owners) >= 280
     assert len(SEAM.used) >= 240
-    # 150 until the calibrate page and the xG sandbox left (2026-10-07).
-    assert len(SEAM.local) >= 130
+    # 150 until the calibrate page and the xG sandbox left (2026-10-07); 111
+    # since the 31 local-only names lost their `export` (deep clean, E-4).
+    assert len(SEAM.local) >= 100
 
 
 def test_no_two_files_export_the_same_name():
@@ -269,100 +269,15 @@ def test_plenty_of_exports_are_reached_only_by_tests_and_that_is_fine():
 # Exported wider than they are used
 # ---------------------------------------------------------------------------
 
-# Names carrying `export` that nothing outside their own file ever reads. None
-# of these is a bug; together they are a map of where the module boundaries are
-# drawn looser than they need to be. Pinned in both directions: a new entry is
-# a name that grew a keyword it does not need, and a departing one is a name
-# that found a reader and should stop being listed here.
-LOCAL_ONLY = {
-    # Tuning constants that sit beside the code they tune. The report modules
-    # (`shared/report-*.js`) export nearly everything they declare so the pure
-    # JS suites can reach in; these are the ones no test asked for either.
-    'report.js tuning constants': {
-        'BRIDGE_S',
-        'CHANGE_GROUP_S',
-        'CHANGE_WINDOW_S',
-        'COVERAGE_MARGIN_M',
-        'COVERAGE_SPREAD_MAX',
-        'LEVEL',
-        'MAX_TIMELINE',
-        'MIN_CHANGE_WINDOW_S',
-        'NEARBY_TAG_S',
-        'PERIOD_WORDS',
-        'PHANTOM_M_PER_MINUTE',
-        'POSITION_FLOOR_M',
-        'POSITION_SIGMAS',
-        'WANDER_TAU_S',
-    },
-    # Two helpers called once each, by a neighbour a few hundred lines away.
-    'report.js private helpers': {'resultOf', 'reviewedCorrections'},
-    # The season page's own measure table and its floor.
-    'season.js measure table': {
-        'FORM_MEASURES',
-        'MEASURE_BY_KEY',
-        'MIN_POINT_ATTEMPTS',
-    },
-    # The wording behind the confidence chips, used by the chip builder itself.
-    'ui.js wording': {'CONFIDENCE_LEVELS'},
-    # Read and write halves of the same two internal conveniences.
-    'auth.js internals': {'emailOf', 'saveHint'},
-    'db.js internals': {'cancelInvite'},
-    # The initialised app and the config it was built from. Everything else
-    # imports the services, not these.
-    'firebase-init.js handles': {'app', 'firebaseConfig'},
-    # Each of these draws a chart and is called only by the mount function
-    # directly below it, which finds the element and puts the markup in.
-    'renderers with a sibling mount': {
-        'formCard',
-        'formSparkline',
-        'heatmapSvg',
-        'passMapSvg',
-        'pitchSvg',
-    },
-    'shell.js view list': {'VIEWS'},
-}
 
-LOCAL_ONLY_NAMES = {n for group in LOCAL_ONLY.values() for n in group}
-
-
-def test_the_local_only_exports_are_the_ones_written_down():
-    assert set(SEAM.local_only) == LOCAL_ONLY_NAMES
-
-
-def test_the_local_only_groups_do_not_overlap():
-    # Otherwise the union above hides a name written down twice and the count
-    # stops meaning anything.
-    total = sum(len(group) for group in LOCAL_ONLY.values())
-    assert total == len(LOCAL_ONLY_NAMES) == 31
-
-
-def test_each_local_only_name_really_does_live_where_its_group_says():
-    where = {
-        'report.js tuning constants': 'shared/report-*.js',
-        'report.js private helpers': 'shared/report-*.js',
-        'season.js measure table': 'shared/season.js',
-        'ui.js wording': 'shared/ui.js',
-        'auth.js internals': 'shared/auth.js',
-        'db.js internals': 'shared/db.js',
-        'firebase-init.js handles': 'shared/firebase-init.js',
-        'shell.js view list': 'coach/shell.js',
-    }
-    for label, names in LOCAL_ONLY.items():
-        if label not in where:
-            continue
-        for name in names:
-            homes = SEAM.owners[name]
-            assert len(homes) == 1 and fnmatch(homes[0], where[label]), (label, name)
-
-
-def test_the_renderers_and_their_mounts_share_a_file():
-    # The one group whose members live in five different files. What makes them
-    # a group is the shape, not the address: a renderer that returns markup and
-    # a mount beside it that places the markup.
-    for name in LOCAL_ONLY['renderers with a sibling mount']:
-        homes = SEAM.owners[name]
-        assert len(homes) == 1, name
-        assert homes[0].endswith('.js'), name
+# Names carrying `export` that nothing outside their own file ever reads. There
+# were 31, each used only by a neighbour in the same file: tuning constants
+# beside the code they tune, renderers called by the mount below them, a
+# module's own config. The deep clean (E-4) dropped the keyword from all of
+# them. A new one is a name that grew an `export` it does not need: drop the
+# keyword, not the declaration.
+def test_nothing_is_exported_that_only_its_own_file_reads():
+    assert SEAM.local_only == []
 
 
 # ---------------------------------------------------------------------------
@@ -445,10 +360,14 @@ def test_the_test_harness_is_load_bearing():
 
 
 def test_local_use_is_what_separates_dead_from_merely_broad():
-    # Not a use site -- a classifier. Switch it off and every name in the
-    # local-only list is reported dead, which is the honest reading of "nothing
-    # outside this file wants it" and a useless one to act on.
-    assert set(scan(drop=('local',)).dead) == set(SEAM.dead) | LOCAL_ONLY_NAMES
+    # Not a use site -- a classifier. Nothing is local-only today, so it is
+    # shown on the names that become local-only once the namespace site is
+    # switched off: with `local` off too, every one of them is reported dead,
+    # which is the honest reading of "nothing outside this file wants it" and a
+    # useless one to act on.
+    broad = local_only_without('namespace')
+    assert broad
+    assert broad <= set(scan(drop=('namespace', 'local')).dead)
 
 
 def test_switching_everything_off_leaves_nothing_standing():

@@ -128,10 +128,10 @@ export function groupByPosition(players, compare = null) {
  * the other way invents findings. That is why this sits at the pessimistic end
  * of plausible rather than the middle.
  */
-export const WANDER_TAU_S = 60;
+const WANDER_TAU_S = 60;
 
 /** Two standard deviations, so a remark survives one match's worth of luck. */
-export const POSITION_SIGMAS = 2;
+const POSITION_SIGMAS = 2;
 
 /**
  * The widest a player's own uncertainty can get before they are unjudgeable.
@@ -152,7 +152,7 @@ export const MAX_BAND_M = 8;
  * tau above, one camera, a pitch measured with a tape — are doing more work
  * than the data. Five metres is a stride and a half of a real difference.
  */
-export const POSITION_FLOOR_M = 5;
+const POSITION_FLOOR_M = 5;
 
 /**
  * Added to every threshold to cover the camera's own pull on a deep player.
@@ -163,7 +163,7 @@ export const POSITION_FLOOR_M = 5;
  * would fake a "your defender played ahead of your midfield" finding. Measured
  * at the gate below.
  */
-export const COVERAGE_MARGIN_M = 1.25;
+const COVERAGE_MARGIN_M = 1.25;
 
 /**
  * How uneven the camera may be before no verdict is offered at all.
@@ -179,7 +179,7 @@ export const COVERAGE_MARGIN_M = 1.25;
  * grows faster than any constant can absorb, and a camera that lost a whole end
  * puts a defender 9.5 m up the pitch on its own — a finding made of nothing.
  */
-export const COVERAGE_SPREAD_MAX = 0.2;
+const COVERAGE_SPREAD_MAX = 0.2;
 
 /**
  * How firmly one player's average position is pinned down, in metres either way.

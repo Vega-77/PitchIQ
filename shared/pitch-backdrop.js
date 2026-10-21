@@ -11,7 +11,7 @@
 // every shot in the wrong place under a diagram that still looked right.
 // tests/test_pitch_dimensions.py holds them to pitchiq/pitch.py.
 
-import { svgEl as el } from './svg.js?v=144';
+import { svgEl as el } from './svg.js?v=145';
 
 // Metres, matching the defaults in pitchiq/pitch.py.
 const L = 105;
@@ -76,7 +76,7 @@ export function pitchMarkings({ width = 0.35 } = {}) {
 }
 
 /** Build the markings as an <svg>, viewBox in metres so nothing needs scaling. */
-export function pitchSvg({ opacity = 0.5 } = {}) {
+function pitchSvg({ opacity = 0.5 } = {}) {
     const svg = el('svg', {
         viewBox: PITCH_VIEWBOX,
         preserveAspectRatio: 'xMidYMid slice',

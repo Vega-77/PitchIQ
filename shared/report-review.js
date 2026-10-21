@@ -3,7 +3,7 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { matchClockMap } from './report-clock.js?v=144';
+import { matchClockMap } from './report-clock.js?v=145';
 
 // ------------------------------------------------------ scoring the reviewer
 //
@@ -118,7 +118,7 @@ export function orderCaveat(order, checked = 0) {
  * by; narrower and the throw-in itself — the case this exists for, because it
  * is the touch the detector gets wrong most — stops being labelled.
  */
-export const NEARBY_TAG_S = 6.0;
+const NEARBY_TAG_S = 6.0;
 
 /**
  * How far from a tagged goal a candidate shot may sit and still be that goal.

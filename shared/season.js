@@ -44,7 +44,7 @@
 export const MIN_POINT_MINUTES = 10;
 
 // The same idea for a ratio whose denominator is a count rather than a clock.
-export const MIN_POINT_ATTEMPTS = 10;
+const MIN_POINT_ATTEMPTS = 10;
 
 const num = (value) => (typeof value === 'number' && isFinite(value) ? value : null);
 
@@ -55,7 +55,7 @@ const num = (value) => (typeof value === 'number' && isFinite(value) ? value : n
  * the minutes in every case including the ones divided by something else.
  * `floor` is in the units of `per`.
  */
-export const FORM_MEASURES = [
+const FORM_MEASURES = [
     {
         key: 'distancePerMin',
         label: 'Metres per minute',
@@ -102,7 +102,7 @@ export const FORM_MEASURES = [
     },
 ];
 
-export const MEASURE_BY_KEY = new Map(FORM_MEASURES.map((m) => [m.key, m]));
+const MEASURE_BY_KEY = new Map(FORM_MEASURES.map((m) => [m.key, m]));
 
 /**
  * One measure across a season, oldest match first.

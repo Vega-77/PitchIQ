@@ -10,7 +10,7 @@ import {
     doc, getDoc, setDoc, updateDoc, collection, getDocs, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-import { auth, db, isConfigured } from './firebase-init.js?v=144';
+import { auth, db, isConfigured } from './firebase-init.js?v=145';
 
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: 'select_account' });
@@ -36,7 +36,7 @@ export function onUser(callback) {
     return onAuthStateChanged(auth, callback);
 }
 
-export const emailOf = (user) => (user?.email || '').toLowerCase();
+const emailOf = (user) => (user?.email || '').toLowerCase();
 
 /**
  * Work out what this account can actually do, by reading authoritative
@@ -173,7 +173,7 @@ export async function saveStaffProfile(user, teamId, role = 'coach') {
 }
 
 /** users/{uid} is a convenience cache with no authority. */
-export async function saveHint(user, patch) {
+async function saveHint(user, patch) {
     const ref = doc(db, 'users', user.uid);
     const existing = await getDoc(ref).catch(() => null);
     const current = existing?.exists() ? existing.data() : {};

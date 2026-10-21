@@ -20,7 +20,7 @@ import {
     connectFirestoreEmulator,
 } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
-export const firebaseConfig = {
+const firebaseConfig = {
   apiKey: "AIzaSyCHY0t-88OPFzPgUut3Wbx7ui51YkaDEZ4",
   authDomain: "pitchiq-884db.firebaseapp.com",
   projectId: "pitchiq-884db",
@@ -51,7 +51,7 @@ if (isLocal && forceProd) {
     console.warn('[PitchIQ] Using the LIVE Firebase project. Add ?emu=1 to go back to emulators.');
 }
 
-export const app = initializeApp(
+const app = initializeApp(
     isConfigured ? firebaseConfig : { ...firebaseConfig, projectId: 'demo-pitchiq' }
 );
 

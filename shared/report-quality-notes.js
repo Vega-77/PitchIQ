@@ -2,7 +2,7 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { count } from './report-format.js?v=144';
+import { count } from './report-format.js?v=145';
 
 // ------------------------------------------------- what the figures rest on
 //
@@ -164,7 +164,7 @@ export function xgTrust(calibrationErrorM) {
  * what the possession figure above was divided by.
  */
 /** How a half reads in a sentence. */
-export const PERIOD_WORDS = {
+const PERIOD_WORDS = {
     first_half: 'the first half',
     second_half: 'the second half',
 };
@@ -209,7 +209,7 @@ export const ACCEL_NOISE_CEILING_M = 0.3;
  * was true of it — 353σ was measured against the smoothing that produced those
  * numbers, and it still describes them.
  */
-export const PHANTOM_M_PER_MINUTE = 353;
+const PHANTOM_M_PER_MINUTE = 353;
 
 /**
  * What the wobble on one player's own track cost them, in a sentence.

@@ -32,8 +32,8 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, PITCH_VIEWBOX, pitchMarkings,
-} from './pitch-backdrop.js?v=144';
-import { svgEl as el } from './svg.js?v=144';
+} from './pitch-backdrop.js?v=145';
+import { svgEl as el } from './svg.js?v=145';
 
 // Anything below this share of the busiest cell is left blank rather than drawn
 // at 2% opacity. A wash of near-invisible colour over the whole pitch reads as
@@ -270,7 +270,7 @@ export function orientedCentroid(grid, attackingEnd) {
 }
 
 /** The grid as an `<svg>` over pitch markings. */
-export function heatmapSvg(grid, { attackingEnd = null } = {}) {
+function heatmapSvg(grid, { attackingEnd = null } = {}) {
     const svg = el('svg', {
         viewBox: PITCH_VIEWBOX,
         preserveAspectRatio: 'xMidYMid meet',

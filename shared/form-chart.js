@@ -27,7 +27,7 @@
 // figure from twelve tracked minutes and one from seventy are not the same kind
 // of evidence, and nothing else on the chart says which is which.
 
-import { svgEl as el } from './svg.js?v=144';
+import { svgEl as el } from './svg.js?v=145';
 
 const W = 100;
 const H = 32;
@@ -108,7 +108,7 @@ export function slotX(index, count) {
  * the horizontal axis stays a run of matches instead of a run of the matches
  * that happened to work.
  */
-export function formSparkline(form) {
+function formSparkline(form) {
     const scale = formScale(form);
     // Uniform scaling, unlike the minutes chart next door — that one draws
     // rectangles, which stretch without saying anything untrue, and this one
@@ -186,7 +186,7 @@ export function formSparkline(form) {
  * The two ends of the axis are printed because the axis does not start at zero.
  * A chart that rescales silently makes every season look equally dramatic.
  */
-export function formCard(form) {
+function formCard(form) {
     const card = document.createElement('div');
     card.className = 'form-card';
 

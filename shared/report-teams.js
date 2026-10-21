@@ -2,8 +2,8 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { num, share } from './report-format.js?v=144';
-import { possessionIsInPlay, shapeConfidence, xgTrust } from './report-quality-notes.js?v=144';
+import { num, share } from './report-format.js?v=145';
+import { possessionIsInPlay, shapeConfidence, xgTrust } from './report-quality-notes.js?v=145';
 
 // ------------------------------------------------- comparing the two sides
 //
@@ -49,7 +49,7 @@ export const COUNT = 'count';
 /** Each figure is a percentage of its own denominator, on a 0-100 scale. */
 export const RATE = 'rate';
 /** A magnitude with no denominator — metres, or passes per defensive action. */
-export const LEVEL = 'level';
+const LEVEL = 'level';
 
 /**
  * How much of the track each side's bar fills, and whether to believe it.
