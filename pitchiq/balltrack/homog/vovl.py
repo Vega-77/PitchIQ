@@ -6,7 +6,7 @@ python -m pitchiq.balltrack.homog.vovl abs1 abs2 ...
 import sys
 import cv2
 import numpy as np
-from . import vfeats
+from . import venue_features
 
 z = np.load('vmap.npz')
 t = np.load('vtop.npz')
@@ -47,7 +47,7 @@ def frame_to_sb(k):
 
 
 if __name__ == '__main__':
-    cap = cv2.VideoCapture(vfeats.VIDEO)
+    cap = cv2.VideoCapture(venue_features.VIDEO)
     out = []
     for ab in map(int, sys.argv[1:]):
         k = int(np.argmin(abs(z['abs'] - ab)))

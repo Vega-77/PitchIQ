@@ -137,7 +137,7 @@ get them):
 
 Built here, by the scripts that read them:
 - `homog/vfeats.npz` (102 MB, over GitHub's limit; rebuild with
-  `python -m pitchiq.balltrack.homog.vfeats`).
+  `python -m pitchiq.balltrack.homog.venue_features`).
 - The per-window detector outputs: `<tag>.npz`, `<tag>pan.npz`,
   `<tag>ppl.npz`, `<tag>cls.npz` (`run.sh`).
 - The picks: `alltests/p2d/<version>/<tag>.npz` (`cls_B` shipped, `hyb90`

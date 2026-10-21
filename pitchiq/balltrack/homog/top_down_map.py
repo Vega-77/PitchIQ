@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 from pitchiq import lines as L
-from . import vfeats
+from . import venue_features
 
 z = np.load('vmap.npz')
 V = np.load('vvp.npz')
@@ -45,7 +45,7 @@ print(
 )
 acc = np.zeros(size[::-1] + (3,), np.float32)
 ws = np.zeros(size[::-1], np.float32)
-cap = cv2.VideoCapture(vfeats.VIDEO)
+cap = cv2.VideoCapture(venue_features.VIDEO)
 for k in sorted(G)[::every]:
     cap.set(cv2.CAP_PROP_POS_FRAMES, int(z['abs'][k]))
     ok, im = cap.read()

@@ -1,7 +1,7 @@
 """Ground features for the venue map: SIFT on the grass of one frame every
 STEP frames across both play periods.
 
-    python -m pitchiq.balltrack.homog.vfeats [procs]      -> vfeats.npz  (per keyframe: abs, xy, desc)
+    python -m pitchiq.balltrack.homog.venue_features [procs]      -> vfeats.npz  (per keyframe: abs, xy, desc)
 
 Features are masked to the field (pitchiq.lines.field_mask, eroded so the fence
 edge and crowd are out) - everything on the ground plane is a valid match

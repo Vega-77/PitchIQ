@@ -24,7 +24,7 @@ def work(args):
     import cv2
 
     from pitchiq import lines as L
-    from . import vfeats
+    from . import venue_features
     from . import venue_map
     from . import vovl
 
@@ -32,8 +32,8 @@ def work(args):
     z = np.load(os.path.join(HERE, 'vmap.npz'))
     kab = np.array([k['abs'] for k in K])
     ok = z['ok']
-    sift = cv2.SIFT_create(nfeatures=vfeats.NFEAT)
-    cap = cv2.VideoCapture(vfeats.VIDEO)
+    sift = cv2.SIFT_create(nfeatures=venue_features.NFEAT)
+    cap = cv2.VideoCapture(venue_features.VIDEO)
     out = []
     prev = None
     for ab in frames:

@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 from pitchiq import lines as L
-from . import vfeats
+from . import venue_features
 
 z = np.load('vmap.npz')
 
@@ -15,7 +15,7 @@ def apply(H, p):
     return q[:, :2] / q[:, 2:3]
 
 
-cap = cv2.VideoCapture(vfeats.VIDEO)
+cap = cv2.VideoCapture(venue_features.VIDEO)
 K, A, B, N = [], [], [], []
 for k in range(0, len(z['abs']), 2):
     if not z['ok'][k]:

@@ -35,7 +35,7 @@ def work(args):
     import cv2
 
     from pitchiq import lines as L
-    from . import vfeats
+    from . import venue_features
     from . import venue_map
     from . import vovl
 
@@ -44,8 +44,8 @@ def work(args):
     ids = np.flatnonzero(ok)
     to_sb = {i: vovl.frame_to_sb(i) for i in ids}
     cen = np.array([_centre(to_sb[i]) for i in ids])
-    sift = cv2.SIFT_create(nfeatures=vfeats.NFEAT)
-    cap = cv2.VideoCapture(vfeats.VIDEO)
+    sift = cv2.SIFT_create(nfeatures=venue_features.NFEAT)
+    cap = cv2.VideoCapture(venue_features.VIDEO)
 
     def best_of(cands, F):
         best = (0, None, None)
