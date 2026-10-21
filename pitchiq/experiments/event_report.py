@@ -33,7 +33,7 @@ import sys
 from pathlib import Path
 
 from pitchiq.events import CARRY, PASS, SHOT
-from pitchiq.panned import PannedCamera
+from pitchiq.panning_camera import PannedCamera
 from pitchiq.pipeline import analyse_match
 from pitchiq.teams import TEAM_A, TEAM_B
 

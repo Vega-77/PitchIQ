@@ -16,7 +16,7 @@ Treat this as a check that the chain executes, not as a measurement.
 
 Unless --panned is given: then every frame is registered to the venue map by
 the ball tracker (pitchiq/balltrack/hybrid.sh), the boxes are held in one view, and
-the ball is the tracker's. See pitchiq/panned.py.
+the ball is the tracker's. See pitchiq/panning_camera.py.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from pitchiq.panned import PannedCamera
+from pitchiq.panning_camera import PannedCamera
 from pitchiq.pipeline import analyse_match
 
 

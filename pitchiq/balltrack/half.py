@@ -460,7 +460,7 @@ class Half:
             np.savez(
                 os.path.join(HOM if ver == 'cls_B' else H3D, '%s_ball3dd.npz' % self.tag), **three
             )
-        # the smoothed camera (H per frame) that match_video, spotlab and panned draw with,
+        # the smoothed camera (H per frame) that match_video, spotlab and panning_camera draw with,
         # and the ball track (per-frame H + image point) that vflight.Track reads
         for name in ('smooth2', 'ballsb', 'img'):
             sm = {}

@@ -8,7 +8,7 @@ depths overlap on screen while being metres apart on the grass. The tracker
 answers by cutting tracks: 165 ids for about 22 people in twenty seconds.
 
 Every frame of the match already has its own homography to the pitch (the ball
-tracker's venue registration, `pitchiq/panned.py`), so this tracker works in metres:
+tracker's venue registration, `pitchiq/panning_camera.py`), so this tracker works in metres:
 
 * **A constant-velocity Kalman filter per player, in metres.** A pan moves no
   one, because the camera's motion is already inside each frame's homography.

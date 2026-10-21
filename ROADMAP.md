@@ -34,7 +34,7 @@ changed: the team's Hudl footage, which follows the play, now runs end to end.
   TAPNext++ bridging gaps of 90 frames or fewer, then a 3D chain that tells
   ground from air. `half.py` runs a whole half; `ballgate.py` blanks the
   stretches where the classifier is lost.
-- **Into the pipeline.** `pitchiq/panned.py` (`PannedCamera.from_tracker(tag)`)
+- **Into the pipeline.** `pitchiq/panning_camera.py` (`PannedCamera.from_tracker(tag)`)
   moves every player box into one still reference view and hands
   `analyse_match` the tracker's ball, so the fixed-camera pipeline runs
   unchanged. `event_report` and `match_report` take `--panned <tag>`.
@@ -146,7 +146,7 @@ were closed or merged:
 | archive item | outcome |
 |---|---|
 | [Demo] a single fixed camera, a hard requirement (Phase 1) | superseded: panning footage runs end to end |
-| [Stretch] support moving, auto-tracking cameras (Phase 1) | done: `pitchiq/autocal.py`, `vreg.py`, `pitchiq/panned.py` |
+| [Stretch] support moving, auto-tracking cameras (Phase 1) | done: `pitchiq/autocal.py`, `vreg.py`, `pitchiq/panning_camera.py` |
 | [Demo] a native-resolution export, not a screen recording (Phase 1) | met: every game since is a downloaded export |
 | [Demo] record to a file, process afterwards (Phase 1) | done: how every run works |
 | [MVP] process the first half incrementally (Phase 1) | merged into "Speed, for half-time" |

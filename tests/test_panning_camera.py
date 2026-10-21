@@ -1,4 +1,4 @@
-"""pitchiq/panned.py: a camera that follows the play, held still for the pipeline.
+"""pitchiq/panning_camera.py: a camera that follows the play, held still for the pipeline.
 
 The first half of these are about the transform on its own: a box seen in a
 panned frame must land where the same box would have appeared in the reference
@@ -11,7 +11,7 @@ The second half runs `analyse_match` end to end on the rectangle clip from
 `PannedCamera` instead of a still calibration, and checks that the metre-based
 stages run and agree with the still-camera run.
 
-Run:  .venv/Scripts/python.exe -m pytest tests/test_panned.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_panning_camera.py -q
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ import pytest
 
 from pitchiq.calibration import CalibrationError
 from pitchiq.frame_table import FrameRecord, FrameTable
-from pitchiq.panned import MAP_FIT_ERROR, PannedCamera
+from pitchiq.panning_camera import MAP_FIT_ERROR, PannedCamera
 from pitchiq.pipeline import analyse_match
 from pitchiq.pitch import Pitch, STATSBOMB_LENGTH, STATSBOMB_WIDTH
 
@@ -159,7 +159,7 @@ class TestFromTracker:
     """The tracker's files are generated, not in git: a fresh checkout has none."""
 
     def test_a_tag_never_tracked_names_its_files_and_the_command(self, tmp_path, monkeypatch):
-        monkeypatch.setattr('pitchiq.panned.TRACKER', tmp_path)
+        monkeypatch.setattr('pitchiq.panning_camera.TRACKER', tmp_path)
         with pytest.raises(FileNotFoundError) as e:
             PannedCamera.from_tracker('nb9')
         msg = str(e.value)
@@ -168,7 +168,7 @@ class TestFromTracker:
         assert 'sh hybrid.sh <lo> <hi> nb9' in msg
 
     def test_only_the_missing_ones_are_named(self, tmp_path, monkeypatch):
-        monkeypatch.setattr('pitchiq.panned.TRACKER', tmp_path)
+        monkeypatch.setattr('pitchiq.panning_camera.TRACKER', tmp_path)
         (tmp_path / 'h3d_hyb90').mkdir()
         np.savez(tmp_path / 'h3d_hyb90' / 'nb9_smooth2.npz', abs=np.arange(3))
         with pytest.raises(FileNotFoundError) as e:

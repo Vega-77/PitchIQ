@@ -482,7 +482,7 @@ def load_detections(tag: str, dedupe: bool = True, with_features: bool = True):
 
 
 def projector(tag: str, w: int, h: int) -> tuple[PitchProjector, object]:
-    from pitchiq.panned import PannedCamera
+    from pitchiq.panning_camera import PannedCamera
 
     cam = PannedCamera.from_tracker(tag)
     return PitchProjector.from_panned(cam, w, h), cam.pitch
@@ -494,7 +494,7 @@ def projector(tag: str, w: int, h: int) -> tuple[PitchProjector, object]:
 def baseline(tag: str, lo: int, n: int, imgsz: int) -> None:
     from pitchiq.frame_table import TrackedFramePass
     from pitchiq.identity import cluster_of_track, merge_tracks
-    from pitchiq.panned import PannedCamera
+    from pitchiq.panning_camera import PannedCamera
     from pitchiq.participants import classify_participants
     from pitchiq.pipeline import _stream_batches
     from pitchiq.teams import assign_teams

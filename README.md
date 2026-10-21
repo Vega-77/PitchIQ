@@ -17,7 +17,7 @@ maps pixels to metres. It is fitted once from landmarks clicked on a single
 frame. This is the pipeline `FOOTAGE_DAY.md` was first written for. A tripod,
 a locked-off shot, and that is all it needs.
 
-**Panning camera** (`pitchiq/panned.py` + `pitchiq/balltrack/`). The footage the team
+**Panning camera** (`pitchiq/panning_camera.py` + `pitchiq/balltrack/`). The footage the team
 actually has is from a Hudl camera that follows the play. Every frame gets its
 own frame-to-pitch homography:
 - `pitchiq/autocal.py` calibrates the camera from the match itself, using the
@@ -32,7 +32,7 @@ The ball comes from the Hybrid 90 tracker in `pitchiq/balltrack/`, and
 `pitchiq/pipeline.py` runs unchanged:
 
 ```python
-from pitchiq.panned import PannedCamera
+from pitchiq.panning_camera import PannedCamera
 from pitchiq.pipeline import analyse_match
 
 camera = PannedCamera.from_tracker('fr00')   # needs hybrid.sh outputs, see below

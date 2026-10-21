@@ -97,7 +97,7 @@ carry from one game to the next. What did is how sure the classifier is around
 the ring for minutes on end: where the rolling median of the best classifier
 score sits below 2.0, the stretch is blanked (`lost(tag, abs0, on)`). It blanks
 almost all of a night half and of East Brunswick, and almost none of the
-daytime dev games. `pitchiq/panned.py` applies it before the pipeline sees the
+daytime dev games. `pitchiq/panning_camera.py` applies it before the pipeline sees the
 ball, and `match_video.py` before drawing it.
 
 ### Layout
@@ -125,7 +125,7 @@ Built here, by the scripts that read them:
 - The picks: `alltests/p2d/<version>/<tag>.npz` (`cls_B` shipped, `hyb90`
   Hybrid 90), and the TAPNext-alone runs in `alltests/tn/`.
 - The 3D chain: `h3d_<version>/<tag>_ball3dd.npz` and `_smooth2.npz` (what
-  `pitchiq/panned.py` reads), and `homog/<tag>_ball3dd.npz` for the shipped picks.
+  `pitchiq/panning_camera.py` reads), and `homog/<tag>_ball3dd.npz` for the shipped picks.
 - The ball on the pitch: `homog/<tag>_ballsb.npz` and `.csv` (`vballsb.py`).
 - A half's working state: `half/<tag>/` (stage markers, seams, log) and
   drun's `*_kNNN.json` chunk manifests; the players in `plab/out/`.
@@ -184,6 +184,6 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   not.
 - The tracker works in image pixels. `homog/vreg.py` registers each frame to
   the venue map and `vballsb.py` and the 3D chain carry the ball onto the
-  pitch (StatsBomb 120x80); `pitchiq/panned.py` does the same for the players. The
+  pitch (StatsBomb 120x80); `pitchiq/panning_camera.py` does the same for the players. The
   pitch position is only as good as the registration, which is checked by
   hand on every dev half (the Spot Check Lab's line questions).

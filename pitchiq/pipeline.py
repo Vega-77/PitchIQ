@@ -5,7 +5,7 @@
 Every component below is individually tested, and the joins between them are
 tested against synthetic data. Since October it also runs end to end on real
 matches: the team's Hudl footage, which pans and zooms, goes in through
-`pitchiq/panned.py` (`--panned <tag>` on event_report and match_report), with the
+`pitchiq/panning_camera.py` (`--panned <tag>` on event_report and match_report), with the
 ball from the tracker in pitchiq/balltrack.
 
 What has been checked against people who watched the footage:
@@ -541,7 +541,7 @@ def analyse_match(
     out. Passing them through costs two arguments and makes the assembly of
     twenty-odd subsystems something a test can run.
 
-    `panned` is a `pitchiq.panned.PannedCamera`, for footage from a camera that
+    `panned` is a `pitchiq.panning_camera.PannedCamera`, for footage from a camera that
     follows the play. It replaces `calibration_path`: every box is moved into
     one reference view before anything is measured, and the ball comes from
     the tracker in `pitchiq/balltrack` instead of this pass's own detections.

@@ -46,7 +46,7 @@ one minute where it was checked against the 3D chain, ground balls projected
 through each frame's homography agreed with it to a median 0.36 and a 90th
 percentile 1.46 StatsBomb units (about 0.3 m and 1.3 m).
 
-    from pitchiq.panned import PannedCamera
+    from pitchiq.panning_camera import PannedCamera
     camera = PannedCamera.from_tracker('fr00')
     report = analyse_match(video, panned=camera, start_s=..., end_s=...)
 """
