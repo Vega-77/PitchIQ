@@ -96,6 +96,11 @@ PENDING_BY_DESIGN = {
     '`shared/report.js` writes its own wording from them, so '
     'these are the sentences a Python-side diagnostic would '
     'print if one existed.',
+    'summarise_touches': 'One console line for a TouchSequence, caveat first. '
+    'Written for a touch report that would put touches in '
+    'front of someone with the video open; that report has '
+    'not been written, and the pipeline publishes the '
+    'touches themselves rather than this line.',
     # --- conversions whose whole job is to be the one written-down copy
     'player_height_px': 'How tall a standing player is, from how wide. '
     'The pipeline never needs it -- every threshold in '
