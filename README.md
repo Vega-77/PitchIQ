@@ -63,7 +63,8 @@ in git"). Accuracy figures for the tracker are in that README too, and
 | `xg_training/` | xG model training (`main.py`, StatsBomb open data -> ONNX) |
 | `baselines/` | committed report JSONs that `compare_reports` checks changes against |
 | `tests/` | Python (pytest) and JavaScript (`node --test`, Firestore emulator) suites |
-| `docs/` | conventions, history and generated figures |
+| `docs/` | architecture, glossary, report schema, conventions, per-module design notes, history and generated figures |
+| `tools/` | repo maintenance (`audit_metrics.py`) |
 
 ## Setup
 
