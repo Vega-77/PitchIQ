@@ -31,7 +31,7 @@ echo "=== shipped picks $(date +%T)"
 
 echo "=== shipped 3D $(date +%T)"
 cd homog
-"$PY" -W ignore -m $M.homog.vballsb "$T" > "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.homog.ball_on_pitch "$T" > "${T}_chain.log" 2>&1
 "$PY" -W ignore -m $M.homog.vfl0 "$T" >> "${T}_chain.log" 2>&1
 "$PY" -W ignore -m $M.homog.flight_scan "$T" 16 >> "${T}_chain.log" 2>&1
 "$PY" -W ignore -m $M.homog.vrowspd "$T" >> "${T}_chain.log" 2>&1

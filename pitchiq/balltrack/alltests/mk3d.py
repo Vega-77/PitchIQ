@@ -6,7 +6,7 @@ folder so the shipped outputs are never touched.
   work   S2/h3d_<ver>/  (labels, registrations): the homog scripts run there with
          PIQ_HOMOG pointing at it and PIQ_P2D=<ver>, so render_review_video.picks_for serves
          alltests/p2d/<ver>/<tag>.npz
-  chain  vballsb -> vfl0 -> flight_scan 16 -> vrowspd -> vdefault (flight_chain + vsmooth) -> <tag>_ball3dd.npz
+  chain  ball_on_pitch -> vfl0 -> flight_scan 16 -> vrowspd -> vdefault (flight_chain + vsmooth) -> <tag>_ball3dd.npz
   --variants  also vflscan 8 (v1), vflchain3 (3, 3k), vstrict (x1), vsmooth on x1 -> sx
 TAPNext bridge frames (src 3) go in as 'fill' unless BRIDGE_TRACK=1.
 """
@@ -89,7 +89,7 @@ def chain(ver, tag, variants):
     t0 = time.time()
     with open(os.path.join(d, 'chain_%s.log' % tag), 'a') as log:
         if not os.path.exists(os.path.join(d, '%s_ball3dd.npz' % tag)):
-            run(d, ver, log, 'vballsb', tag)
+            run(d, ver, log, 'ball_on_pitch', tag)
             run(d, ver, log, 'vfl0', tag)
             run(d, ver, log, 'flight_scan', tag, '16')
             run(d, ver, log, 'vrowspd', tag)

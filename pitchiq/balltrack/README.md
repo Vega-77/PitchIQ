@@ -144,7 +144,7 @@ Built here, by the scripts that read them:
   Hybrid 90), and the TAPNext-alone runs in `alltests/tn/`.
 - The 3D chain: `h3d_<version>/<tag>_ball3dd.npz` and `_smooth2.npz` (what
   `pitchiq/panning_camera.py` reads), and `homog/<tag>_ball3dd.npz` for the shipped picks.
-- The ball on the pitch: `homog/<tag>_ballsb.npz` and `.csv` (`vballsb.py`).
+- The ball on the pitch: `homog/<tag>_ballsb.npz` and `.csv` (`ball_on_pitch.py`).
 - A half's working state: `half/<tag>/` (stage markers, seams, log) and
   detect_candidates's `*_kNNN.json` chunk manifests; the players in `plab/out/`.
 - Every video (`*.mp4`, `*.webm`), image and log, and the lab clip media.
@@ -201,7 +201,7 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   copy to rerun them. Only the legacy training paths read it; `run.sh` does
   not.
 - The tracker works in image pixels. `homog/register_frames.py` registers each frame to
-  the venue map and `vballsb.py` and the 3D chain carry the ball onto the
+  the venue map and `ball_on_pitch.py` and the 3D chain carry the ball onto the
   pitch (StatsBomb 120x80); `pitchiq/panning_camera.py` does the same for the players. The
   pitch position is only as good as the registration, which is checked by
   hand on every dev half (the Spot Check Lab's line questions).

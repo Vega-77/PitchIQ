@@ -2,7 +2,7 @@
 registrations carried by the detect_candidates pan and blended), the tracker's ball
 mapped through it, and a review video.
 
-    python -m pitchiq.balltrack.homog.vballsb <tag> [video]  -> <tag>_ballsb.npz, <tag>_ballsb.csv,
+    python -m pitchiq.balltrack.homog.ball_on_pitch <tag> [video]  -> <tag>_ballsb.npz, <tag>_ballsb.csv,
                                         [<tag>_pitch.mp4]
 """
 

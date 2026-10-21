@@ -3,7 +3,7 @@
 smooth_H   every frame's pixel -> StatsBomb homography from ALL half-second
            registrations within +-K, each carried to the frame by the pan
            (frame-to-frame, accurate) and averaged robustly (Gaussian in time,
-           outlying registrations dropped). vballsb uses only the two nearest.
+           outlying registrations dropped). ball_on_pitch uses only the two nearest.
 jac        d(SB)/d(pixel) at a point: far side = big, along the view ray = biggest
 rts        Kalman + RTS smoother, constant velocity in SB units. Measurement
            noise = J (pixel noise) J^T, plus extra image-vertical noise for small

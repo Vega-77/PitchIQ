@@ -119,7 +119,7 @@ class Half:
         open(os.path.join(self.dir, '%s.%s.done' % (ptag, stage)), 'w').close()
 
     def run(self, cwd, *cmd, env=None, log=None):
-        """Tracker script cmd[0] ('homog.vballsb') with args cmd[1:], from folder cwd."""
+        """Tracker script cmd[0] ('homog.ball_on_pitch') with args cmd[1:], from folder cwd."""
         e = dict(self.env, **(env or {}))
         proc = subprocess.Popen(
             [PY, '-W', 'ignore'] + script(cmd[0]) + list(cmd[1:]),
@@ -225,7 +225,7 @@ class Half:
         log = os.path.join(HOM, '%s_chain.log' % P)
         self.run(AT, 'alltests.mkpicks_one', P, log=log, env=ONE_THREAD)
         for cmd in (
-            ('homog.vballsb', P),
+            ('homog.ball_on_pitch', P),
             ('homog.vfl0', P),
             ('homog.flight_scan', P, '16'),
             ('homog.vrowspd', P),
