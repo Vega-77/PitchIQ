@@ -339,7 +339,7 @@ class TestItReachesTheReport:
 
     def report_for(self, frames):
         from pitchiq.pipeline import MatchReport
-        from pitchiq.report_json import build_report_json
+        from pitchiq.report_export import build_report_json
 
         motion = detect_camera_shift(table(frames))
         report = MatchReport(source='clip.mp4', duration_s=8.0, processing_s=1.0)

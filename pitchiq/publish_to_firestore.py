@@ -41,7 +41,7 @@ import os
 from pathlib import Path
 
 from .pitch import Pitch
-from .report_json import drawn
+from .report_export import drawn
 
 # Everything this module is allowed to write, as a path shape. Anything else is
 # a bug, and `_check_path` turns it into an exception rather than a silent
@@ -197,7 +197,7 @@ def summary_payload(report_json: dict) -> dict:
         # No page branches on the version, and none should — a client that
         # renders differently per version is two clients. It is here so a
         # document found in the console can be dated against
-        # `pitchiq/report_json.py::SCHEMA_VERSION`, which is the only way to know
+        # `pitchiq/report_export.py::SCHEMA_VERSION`, which is the only way to know
         # which pipeline wrote a number that looks wrong.
         'schemaVersion': report_json.get('schema_version'),
         'source': report_json.get('source'),
@@ -297,7 +297,7 @@ def events_payload(report_json: dict, limit: int = MAX_EVENTS) -> dict:
     events = report_json.get('events') or []
     floor = None
     # Positions go out on the standard drawing the pages plot into; see
-    # `report_json.drawn`. A report with no `pitch` was measured on the
+    # `report_export.drawn`. A report with no `pitch` was measured on the
     # default one, where the two frames are the same.
     measured = report_json.get('pitch')
     pitch = Pitch(measured['length_m'], measured['width_m']) if measured else None
@@ -410,7 +410,7 @@ THUMB_FIELDS = ('thumb', 'thumb_height_px')
 # Track-row figures the report JSON carries and this document does not.
 #
 # `team` and `track_ids` are not merely similar to the cluster row's — they are
-# the same values. `report_json.track_stats` seeds every `TrackStats` straight
+# the same values. `report_export.track_stats` seeds every `TrackStats` straight
 # off its `PlayerCluster`, and neither is touched again, so publishing both put
 # each team name and each fragment list on the wire twice in one document. The
 # copies that are read live on the cluster row: `coach.js::clusterRow`,

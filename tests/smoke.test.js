@@ -437,11 +437,11 @@ test('every figure the pipeline publishes is one some page reads', () => {
         // Provenance, and `summary_payload` says so itself: "No page branches
         // on the version, and none should — a client that renders differently
         // per version is two clients." It exists so a document found in the
-        // console can be dated against pitchiq/report_json.py::SCHEMA_VERSION.
+        // console can be dated against pitchiq/report_export.py::SCHEMA_VERSION.
         'summary_payload.schemaVersion': 'provenance — nothing may branch on it',
         'events_payload.schemaVersion': 'provenance — nothing may branch on it',
         // Derived, and its input is already fully on the screen.
-        // `trustworthy` is `not warnings` (pitchiq/report_json.py), and
+        // `trustworthy` is `not warnings` (pitchiq/report_export.py), and
         // `cvWarnings` in coach/coach.js draws every warning in full. A page
         // rendering the boolean as well would be telling a coach this run
         // cannot be trusted directly above the list of what was wrong with it.

@@ -264,8 +264,8 @@ class MatchReport:
         return not self.warnings
 
     def to_json(self, window: dict | None = None, include_touches: bool = False) -> dict:
-        """The whole report as JSON-safe data. See pitchiq/report_json.py."""
-        from .report_json import build_report_json
+        """The whole report as JSON-safe data. See pitchiq/report_export.py."""
+        from .report_export import build_report_json
 
         return build_report_json(self, window=window, include_touches=include_touches)
 
@@ -816,7 +816,7 @@ def analyse_match(
     # person split five ways is one row in the picker and not five.
     #
     # Deliberately not warned about when the budget bites. `trustworthy` is
-    # `not warnings` (pitchiq/report_json.py), and a run whose briefest figures went
+    # `not warnings` (pitchiq/report_export.py), and a run whose briefest figures went
     # without a picture is not a run whose numbers are worse — it is the same
     # run with a smaller convenience. The picker says which rows have no
     # thumbnail, which is both the only place it matters and the only place

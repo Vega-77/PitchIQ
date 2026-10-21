@@ -32,7 +32,7 @@ import pytest
 
 from pitchiq.keeper import KeeperReport
 from pitchiq.publish_to_firestore import player_report_fields, summary_payload
-from pitchiq.report_json import TeamStats
+from pitchiq.report_export import TeamStats
 from test_free_names import blank
 
 SAMPLE_JS = Path(__file__).resolve().parents[1] / 'assets' / 'sample-report.js'
@@ -90,7 +90,7 @@ def _quality_keys() -> list[str]:
     possible without footage, so the names are read out of the source — crude in
     the same way `missing` is, and aimed at the same failure.
     """
-    text = (Path(__file__).resolve().parents[1] / 'pitchiq' / 'report_json.py').read_text(
+    text = (Path(__file__).resolve().parents[1] / 'pitchiq' / 'report_export.py').read_text(
         encoding='utf-8'
     )
     body = text.split('def _quality(')[1].split('\ndef ')[0]

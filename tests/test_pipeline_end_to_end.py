@@ -37,7 +37,7 @@ from pitchiq.detector import CLASS_BALL, CLASS_PERSON
 from pitchiq.events import SHOT_SPEED_PH_S
 from pitchiq.pipeline import analyse_match
 from pitchiq.pitch import MatchOrientation, Pitch
-from pitchiq.report_json import build_report_json
+from pitchiq.report_export import build_report_json
 from pitchiq.teams import TEAM_A, TEAM_B
 
 # 14 pixels to the metre puts the whole pitch in a 1470x952 frame and makes a

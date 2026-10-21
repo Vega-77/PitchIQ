@@ -31,7 +31,7 @@ produce it turns a real detection into a permanent excuse.
 
 Two more vocabularies for the same thing sit downstream, and the defensive four
 are the ones that go stale silently: `DefensiveAction`'s docstring, and the team
-counter loop in `pitchiq/report_json.py:373`. A fifth defensive kind added to
+counter loop in `pitchiq/report_export.py:373`. A fifth defensive kind added to
 `_defensive_action` reaches neither on its own, and a team that made twelve of
 them would be published as having made none.
 """
@@ -40,7 +40,7 @@ import inspect
 import re
 from pathlib import Path
 
-from pitchiq import events, report_json
+from pitchiq import events, report_export
 from pitchiq.events import (
     EVENT_TYPES,
     HUMAN_ONLY_TYPES,
@@ -184,7 +184,7 @@ class TestTheDefensiveFour:
         log, published on the event list -- and the team totals say the team did
         it zero times, which is a number, and wrong, rather than an absence.
         """
-        source = inspect.getsource(report_json.team_stats)
+        source = inspect.getsource(report_export.team_stats)
         assert named(source, COUNTER) == defensive_kinds()
 
     def test_the_defensive_kinds_are_a_real_part_of_the_whole(self):

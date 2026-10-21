@@ -11,7 +11,7 @@ serialises as 0 tells a reader the thing was measured and came out zero. It was
 not measured at all. `analyse_match` already learned this once, which is why
 `movement_available` exists.
 
-Run:  .venv/Scripts/python.exe -m pytest tests/test_report_json.py -q
+Run:  .venv/Scripts/python.exe -m pytest tests/test_report_export.py -q
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ from pitchiq.participants import (
 from pitchiq.pipeline import MatchReport, PlayerReport
 from pitchiq.possession import PossessionSummary
 from pitchiq.pitch import Pitch
-from pitchiq.report_json import SCHEMA_VERSION, shot_marks, team_stats
+from pitchiq.report_export import SCHEMA_VERSION, shot_marks, team_stats
 from pitchiq.run_timing import FIXED, Timings
 from pitchiq.teams import TEAM_A, TEAM_B
 from pitchiq.touches import Touch, TouchConfidence, TouchSequence
@@ -435,7 +435,7 @@ class TestPositionalFieldsReachTheJson:
     def test_each_team_is_given_the_other_team_direction_for_pressing(self):
         """PPDA is measured in the zone the *opponent* is building out of, so
         handing both teams the same end would measure the wrong half."""
-        from pitchiq.report_json import team_stats
+        from pitchiq.report_export import team_stats
 
         ends = {TEAM_A: 'right', TEAM_B: 'left'}
         for team in (TEAM_A, TEAM_B):

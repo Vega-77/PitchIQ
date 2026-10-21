@@ -20,7 +20,7 @@ length. In order of how badly each one would have aged:
     person to fill it in would have broken the entire publish, not one column.
     Deleted at the source.
   * `minutes_tracked` on the cluster row and `team` and `track_ids` on the track
-    row are the same values twice in one document -- `report_json.track_stats`
+    row are the same values twice in one document -- `report_export.track_stats`
     seeds every `TrackStats` straight off its `PlayerCluster` and neither is
     touched again. The copies pages actually read are on the other row.
   * `pass_accuracy` is a quotient of two fields published beside it, and
@@ -515,7 +515,7 @@ def _stripped(*tuples):
 
 
 def track_keys():
-    keys = _to_json_keys('pitchiq/report_json.py', 'TrackStats')
+    keys = _to_json_keys('pitchiq/report_export.py', 'TrackStats')
     gone = _stripped('DROPPED_TRACK_FIELDS')
     return [k for k in keys if k not in gone]
 

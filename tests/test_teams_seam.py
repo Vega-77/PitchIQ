@@ -13,7 +13,7 @@ and `assets/report.js` carries a comment about how the coach and player pages
 once drifted apart and *four new quality fields ended up reaching neither*. This
 is that failure waiting to happen in the larger block.
 
-So this reads both ends as text. `TeamStats.to_json` in `pitchiq/report_json.py` says
+So this reads both ends as text. `TeamStats.to_json` in `pitchiq/report_export.py` says
 what is produced; the JavaScript under the module directories says what is read.
 A field that is deliberately not rendered has to be listed here with a reason
 somebody can argue with.
@@ -78,7 +78,7 @@ BLOCK_COMMENT = re.compile(r'/\*.*?\*/', re.S)
 # Produced and deliberately not rendered. The reason is the point: it has to say
 # where the figure went instead, or why a coach is better off without it.
 UNREAD_BY_DESIGN = {
-    'team': 'the dict key repeated inside its own value — pitchiq/report_json.py builds '
+    'team': 'the dict key repeated inside its own value — pitchiq/report_export.py builds '
     'teams[team] = team_stats(...) with TeamStats(team=team), so a page '
     'holding cv.teams.team_a already knows which side it holds',
 }
@@ -86,7 +86,7 @@ UNREAD_BY_DESIGN = {
 
 def produced() -> list[str]:
     """Every key `TeamStats.to_json` puts in one side of the block."""
-    text = (ROOT / 'pitchiq' / 'report_json.py').read_text(encoding='utf-8')
+    text = (ROOT / 'pitchiq' / 'report_export.py').read_text(encoding='utf-8')
     body = text.split('class TeamStats:', 1)[1]
     body = body.split('def to_json(self) -> dict:', 1)[1]
     # Bounded at the closing brace: without it the split runs on into the next

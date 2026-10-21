@@ -98,7 +98,7 @@ class PlayerCluster:
     # which is the copy every page reads. It was also a loaded gun: Firestore
     # refuses nested arrays outright, and `identity_payload` flattens the track
     # copy but never flattened this one, so the day anybody filled it in the
-    # whole publish would have failed. See `pitchiq/report_json.py::track_stats`.
+    # whole publish would have failed. See `pitchiq/report_export.py::track_stats`.
     # A `data:` URI cut from the footage by pitchiq/player_thumbnails.py, so a coach can match a
     # figure to a teenager by looking at it rather than by reading a time span.
     # None whenever the tracker never saw this person cleanly and whole, which

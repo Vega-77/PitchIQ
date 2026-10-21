@@ -72,7 +72,7 @@ Two flags worth knowing:
 ## Baselines are tied to a schema version
 
 Record the `schema_version` of every baseline in the table below (the
-current one is `SCHEMA_VERSION` in `pitchiq/report_json.py`, 15 on 2026-10-20). A report from
+current one is `SCHEMA_VERSION` in `pitchiq/report_export.py`, 15 on 2026-10-20). A report from
 an older schema does not merely have fewer keys — a version bump can mean the
 same footage now produces different numbers, and the diff will be real rather
 than cosmetic.

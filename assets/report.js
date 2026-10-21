@@ -2604,7 +2604,7 @@ const share = (value) => (value == null ? null : `${Math.round(value * 100)}%`);
 
 // ------------------------------------------------- comparing the two sides
 //
-// The pipeline has always measured both teams — `report_json.build_report_json`
+// The pipeline has always measured both teams — `report_export.build_report_json`
 // runs `team_stats` over TEAM_A and TEAM_B and publishes each — and until now
 // the coach's report read only its own side. Twenty-five figures about the
 // opposition, computed, published, and rendered nowhere. A possession of 58%

@@ -211,7 +211,7 @@ class TestAgainstTheRealModel:
         # Straight to `shot_marks`: the report's own shot map needs an attacking
         # end resolved from an orientation this fixture has no reason to build,
         # and what is being pinned here is the serialisation, not that.
-        from pitchiq.report_json import shot_marks
+        from pitchiq.report_export import shot_marks
 
         mark = shot_marks(log.shots(), 'right')[0]
         assert mark['xg_header'] < mark['xg']

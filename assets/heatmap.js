@@ -32,8 +32,8 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, PITCH_VIEWBOX, pitchMarkings,
-} from './pitch-backdrop.js?v=140';
-import { svgEl as el } from './svg.js?v=140';
+} from './pitch-backdrop.js?v=141';
+import { svgEl as el } from './svg.js?v=141';
 
 // Anything below this share of the busiest cell is left blank rather than drawn
 // at 2% opacity. A wash of near-invisible colour over the whole pitch reads as
@@ -244,7 +244,7 @@ export function gridSpread(grid) {
  *
  * `{ forwardM, lateralM }` — metres up the pitch from the goal this player was
  * defending, and metres across it from the right touchline as they faced it.
- * Null without an attacking end, matching `pitchiq/report_json.py::shot_marks`,
+ * Null without an attacking end, matching `pitchiq/report_export.py::shot_marks`,
  * which returns None for the same reason and mirrors through the centre on
  * both axes for the same one: flip only `x` and a player who lived on the left
  * wing in the second half appears on the right.

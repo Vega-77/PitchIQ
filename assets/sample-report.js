@@ -125,7 +125,7 @@ export function sampleHeatmap(
 // -------------------------------------------------------------- the shots
 //
 // Positions are in metres on a 105x68 pitch, already mirrored to attack right,
-// which is what `pitchiq/report_json.py::shot_marks` guarantees to every renderer.
+// which is what `pitchiq/report_export.py::shot_marks` guarantees to every renderer.
 //
 //     The xG figures came out of the model. They are not invented.
 //
@@ -187,7 +187,7 @@ export function sampleCvSummary() {
     return {
         isSample: true,
         // Provenance only — nothing in the browser branches on it. Kept in
-        // step with pitchiq/report_json.py::SCHEMA_VERSION so a sample summary
+        // step with pitchiq/report_export.py::SCHEMA_VERSION so a sample summary
         // never claims to be older than the pipeline that would write it.
         schemaVersion: 15,
         // Which half, and what decided it. `log` is the good case on purpose:

@@ -46,7 +46,7 @@ SAMPLE_JS = Path(__file__).resolve().parents[1] / 'assets' / 'sample-report.js'
 PITCH = Pitch()
 GOAL = (PITCH.length_m, PITCH.width_m / 2)
 
-# Where the shots are published rounded to, in pitchiq/report_json.py::shot_marks.
+# Where the shots are published rounded to, in pitchiq/report_export.py::shot_marks.
 PLACES = 3
 
 
