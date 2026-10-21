@@ -6,7 +6,7 @@ folder so the shipped outputs are never touched.
   work   S2/h3d_<ver>/  (labels, registrations): the homog scripts run there with
          PIQ_HOMOG pointing at it and PIQ_P2D=<ver>, so render_review_video.picks_for serves
          alltests/p2d/<ver>/<tag>.npz
-  chain  ball_on_pitch -> image_track -> flight_scan 16 -> roll_speed_cache -> vdefault (flight_chain + smooth_ball) -> <tag>_ball3dd.npz
+  chain  ball_on_pitch -> image_track -> flight_scan 16 -> roll_speed_cache -> default_ball_path (flight_chain + smooth_ball) -> <tag>_ball3dd.npz
   --variants  also flight_scan_ballistic 8 (v1), flight_chain_fast (3, 3k), strict_flights (x1), smooth_ball on x1 -> sx
 TAPNext bridge frames (src 3) go in as 'fill' unless BRIDGE_TRACK=1.
 """
