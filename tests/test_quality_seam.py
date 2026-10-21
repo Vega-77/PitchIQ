@@ -208,7 +208,7 @@ class TestTheScannerActuallyScans:
         # match report and the half-time view. If either drops out of this map,
         # the scanner broke, not the pages.
         where = readers('live_share', seen)
-        assert 'shared/report.js' in where
+        assert 'shared/report-quality-notes.js' in where
         assert 'halftime/halftime.js' in where
 
     def test_a_figure_reached_only_through_an_alias_is_seen(self, seen):
@@ -216,10 +216,10 @@ class TestTheScannerActuallyScans:
         # `q.no_ball_s`, where q came from `const q = quality || {}`. A scanner
         # that only followed the literal name would report it as an orphan and
         # somebody would 'fix' that by deleting a figure the note depends on.
-        assert readers('no_ball_s', seen) == {'shared/report.js'}
+        assert readers('no_ball_s', seen) == {'shared/report-quality-notes.js'}
 
     def test_the_scan_reaches_past_the_shared_module(self, seen):
-        # shared/report.js is where most of these are read. If the walk quietly
+        # shared/report-*.js is where most of these are read. If the walk quietly
         # stopped there, the coach and player pages could drift again exactly as
         # they did before, so pin a read from each of the other directories.
         assert 'coach/coach.js' in readers('excluded_tracks', seen)

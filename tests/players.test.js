@@ -12,7 +12,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-// report.js imports nothing, so Node can load it straight from disk. That is
+// report.js and its parts import nothing but each other, so Node can load it
+// straight from disk. That is
 // the reason playerTimeline lives there rather than in db.js, which opens a
 // Firestore connection the moment it is imported.
 import * as report from '../shared/report.js';

@@ -142,7 +142,7 @@ UNWRITTEN = {
 # a key on either side alone is a field the rule silently rejects, or a rule
 # clause guarding a key nobody sends.
 NESTED = {
-    'validXgCheck': ('shared/report.js', 'xgTally'),
+    'validXgCheck': ('shared/report-shots.js', 'xgTally'),
 }
 
 
@@ -855,9 +855,9 @@ NO_STATS = re.compile(
 
 def cv_branches(all_src):
     """(nulled-when-absent, written-when-present) for `cvReportFields`."""
-    src = all_src['shared/report.js']
+    src = all_src['shared/report-player.js']
     m = CV_KEYS.search(src.code)
-    assert m, 'CV_REPORT_KEYS is gone from shared/report.js'
+    assert m, 'CV_REPORT_KEYS is gone from shared/report-player.js'
     lb = src.code.index('[', m.end() - 1)
     # Read the names off the raw text — `blank` empties string interiors — but
     # only the quoted runs, so the comment inside the array stays out of it.
@@ -866,7 +866,7 @@ def cv_branches(all_src):
         nulled.update(re.findall(r"'([^'\n]+)'", src.raw[s:e]))
 
     body = function_body(all_src, 'cvReportFields')
-    assert body, 'cvReportFields is gone from shared/report.js'
+    assert body, 'cvReportFields is gone from shared/report-player.js'
     body_src, start, end = body
     assert NO_STATS.search(' '.join(body_src.code[start:end].split())), (
         'the no-stats branch of cvReportFields no longer nulls every '

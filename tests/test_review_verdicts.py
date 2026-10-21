@@ -4,7 +4,7 @@ A verdict is what a coach says about one thing the pipeline claimed to see:
 `confirmed`, `rejected` or `edited`. It is written by exactly one thing — the
 button `coach/review.js` renders, whose `data-act` attribute `decide` sends
 straight to Firestore — and read by three others that cannot see it: the
-scorecard arithmetic in `shared/report.js`, the coloured bar down the side of a
+scorecard arithmetic in `shared/report-review.js`, the coloured bar down the side of a
 reviewed row in `shared/app.css`, and the progress line above the list.
 
 `firestore.rules` is not one of the four. It says so itself, at the `cvReview`
@@ -21,7 +21,7 @@ candidates a coach threw half of away comes back reporting near-perfect
 precision. Nothing raises. Nothing logs. The one number the review tool exists
 to produce is confidently wrong.
 
-So the words are declared once, in `shared/report.js`, and everything else
+So the words are declared once, in `shared/report-review.js`, and everything else
 either imports them or is checked here against them. That leaves the CSS, which
 cannot import anything, and this file pins it in both directions: a state the
 tool can reach has to be styled, and a state that is styled has to be one the
@@ -42,7 +42,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-REPORT = ROOT / 'shared' / 'report.js'
+REPORT = ROOT / 'shared' / 'report-review.js'
 REVIEW = ROOT / 'coach' / 'review.js'
 SHEET = ROOT / 'shared' / 'app.css'
 

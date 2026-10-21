@@ -105,8 +105,9 @@ of a fixed set, and that set is written out four times: eight buttons in
 `live-tagging/index.html` (out of bounds lost its button on 2026-10-12 and
 kept everything else), the `EVENTS` map in `shared/events.js`, the
 `request.resource.data.type` allowlist in `firestore.rules`, and -- for the
-period markers only -- a second copy in `shared/report.js`, which has no
-imports by design so that the pure JS suites (`npm run test:unit`) can cover it.
+period markers only -- a second copy in `shared/report-player.js`, which imports
+nothing outside `shared/report*.js` by design so that the pure JS suites
+(`npm run test:unit`) can cover it.
 
 `shared/events.js` names the duplication in its own comment and calls it
 unavoidable, because rules are a separate language and the server has to
@@ -161,7 +162,7 @@ SELECTOR = re.compile(r'\[data-([a-z][a-z0-9-]*)[\]=]')
 #
 # The file is part of the pin, not decoration on it. `shared/db.js` is the only
 # file that writes to the log collection at all, and `type: 'sub'` also appears
-# in `shared/report.js`, where it labels a mark the report *derives* from a
+# in `shared/report-player.js`, where it labels a mark the report *derives* from a
 # substitution rather than one anybody sends. A pin satisfied by a lookalike in
 # another file is a pin that keeps passing after the writer it names is gone.
 EXTRA_CLIENT_TYPES = {
@@ -543,9 +544,10 @@ class TestVocabulary(unittest.TestCase):
             )
 
     def test_the_period_labels_report_js_keeps_its_own_copy_of_still_match(self):
-        """`shared/report.js` imports nothing by design, so it carries a
-        second copy of the period names. Unavoidable is not unchecked."""
-        report = read('shared/report.js')
+        """`shared/report-player.js` imports nothing outside the report modules
+        by design, so it carries a second copy of the period names.
+        Unavoidable is not unchecked."""
+        report = read('shared/report-player.js')
         text = object_keys(report, 'const PERIOD_TEXT = {')
         self.assertEqual(text, PERIODS, text)
         for key in PERIODS:

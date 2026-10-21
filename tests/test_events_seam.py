@@ -537,10 +537,16 @@ class TestThePremiseHolds:
 
     def test_the_scan_found_the_files_that_read_the_list(self, seen):
         where = {place.split('::')[0] for places in seen.values() for place in places}
-        # Four files, and each one matters: coach.js holds the handle,
-        # report.js the shot log and the label export, passing.js the only
-        # reader of `startM`, review.js the filter chips.
-        for name in ('coach/coach.js', 'shared/report.js', 'shared/passing.js', 'coach/review.js'):
+        # Five files, and each one matters: coach.js holds the handle,
+        # report-shots.js the shot log, report-review.js the label export,
+        # passing.js the only reader of `startM`, review.js the filter chips.
+        for name in (
+            'coach/coach.js',
+            'shared/report-shots.js',
+            'shared/report-review.js',
+            'shared/passing.js',
+            'coach/review.js',
+        ):
             assert name in where, '%s read nothing: %s' % (name, sorted(where))
 
 

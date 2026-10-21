@@ -128,7 +128,7 @@ beforeEach(async () => {
 // whether it touches the database or not — and `minutesFrom` used to sit here
 // as a hand-copied duplicate under a comment reading "mirrors minutesFrom() in
 // shared/db.js", pinning the copy rather than the code. It moved into the
-// zero-import `shared/report.js` and its tests moved to `tests/tagged-log.test.js`,
+// DOM-free `shared/report.js` and its tests moved to `tests/tagged-log.test.js`,
 // alongside `whistleFrom` and the rest of the minutes arithmetic.
 
 // ---------------------------------------------------------------- round trip

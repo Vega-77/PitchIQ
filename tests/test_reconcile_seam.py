@@ -338,11 +338,11 @@ class TestTheScannerActuallyScans:
 
     def test_the_scan_found_both_pages_that_read_the_block(self, seen):
         # Two readers, and they read different halves: `cvQualityNotes` in
-        # shared/report.js turns the rates and counts into a sentence, and
+        # shared/report-quality-notes.js turns the rates and counts into a sentence, and
         # `renderConflicts` in coach/review.js draws the rows. A scanner that
         # lost either would look exactly like a repo that had stopped
         # rendering half the block.
-        assert 'shared/report.js' in readers('goal_agreement', seen)
+        assert 'shared/report-quality-notes.js' in readers('goal_agreement', seen)
         assert 'coach/review.js' in readers('disagreements', seen)
 
     def test_the_second_hop_is_load_bearing(self, seen):

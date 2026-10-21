@@ -291,10 +291,10 @@ class TestTheScannerActuallyScans:
         assert 'heatmap' not in made
 
     def test_the_scan_reaches_past_the_shared_module(self, seen):
-        # shared/report.js builds most of these rows. If the walk quietly
+        # shared/report-teams.js builds most of these rows. If the walk quietly
         # stopped there, the other pages could drift exactly as the coach and
         # player pages already did once, so pin a read from each.
-        assert 'shared/report.js' in readers('turnovers_by_third', seen)
+        assert 'shared/report-teams.js' in readers('turnovers_by_third', seen)
         assert 'halftime/halftime.js' in readers('interceptions', seen)
         assert 'coach/coach.js' in readers('pressing_segments', seen)
 
@@ -304,7 +304,7 @@ class TestTheScannerActuallyScans:
         # would call it an orphan and somebody would 'fix' that by deleting the
         # row.
         assert not readers('ppda', named)
-        assert 'shared/report.js' in readers('ppda', seen)
+        assert 'shared/report-teams.js' in readers('ppda', seen)
 
     def test_the_inline_chain_step_is_load_bearing(self, seen):
         # shot_map is read as cv?.teams?.[key]?.shot_map — a computed side and

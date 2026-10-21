@@ -8,8 +8,9 @@ is reached from `<script type=\"module\">` and from event handlers that no Pytho
 AST is going to find."* This is that walk.
 
 It is a coarser question than the Python one, and deliberately so. Asking which
-*exports* are dead would be noise here: `shared/report.js` has no imports by
-design so the pure JS suites can cover it, and roughly ninety internals across
+*exports* are dead would be noise here: `shared/report.js` and its parts import
+only each other by design so the pure JS suites can cover them, and roughly
+ninety internals across
 the frontend are exported purely so a namespace-importing test can reach them.
 Those are a documented pattern, not a finding. Asking which *modules* are dead is
 a tight question with no false positives — an ES import names its source file

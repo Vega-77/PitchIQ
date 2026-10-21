@@ -755,7 +755,7 @@ class TestThePremiseHolds:
 
     def test_the_scan_found_the_readers_it_should_have(self, seen_tracks, seen_clusters):
         where = {w for v in seen_tracks.values() for w in v}
-        assert any(w.startswith('shared/report.js') for w in where), (
+        assert any(w.startswith('shared/report-player.js') for w in where), (
             'cvStatsByPlayer is the only reader of the track rows in the repo. '
             'If the scan cannot see it, it can see nothing.'
         )

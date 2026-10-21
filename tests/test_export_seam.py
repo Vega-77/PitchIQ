@@ -34,6 +34,7 @@ than no scanner at all, because a scanner gets believed.
 
 import inspect
 import re
+from fnmatch import fnmatch
 
 from test_css_seam import ROOT, js_files, read
 
@@ -274,9 +275,9 @@ def test_plenty_of_exports_are_reached_only_by_tests_and_that_is_fine():
 # a name that grew a keyword it does not need, and a departing one is a name
 # that found a reader and should stop being listed here.
 LOCAL_ONLY = {
-    # Tuning constants that sit beside the code they tune. `shared/report.js`
-    # exports nearly everything it declares so the pure JS suites can reach
-    # in; these are the ones no test asked for either.
+    # Tuning constants that sit beside the code they tune. The report modules
+    # (`shared/report-*.js`) export nearly everything they declare so the pure
+    # JS suites can reach in; these are the ones no test asked for either.
     'report.js tuning constants': {
         'BRIDGE_S',
         'CHANGE_GROUP_S',
@@ -337,8 +338,8 @@ def test_the_local_only_groups_do_not_overlap():
 
 def test_each_local_only_name_really_does_live_where_its_group_says():
     where = {
-        'report.js tuning constants': 'shared/report.js',
-        'report.js private helpers': 'shared/report.js',
+        'report.js tuning constants': 'shared/report-*.js',
+        'report.js private helpers': 'shared/report-*.js',
         'season.js measure table': 'shared/season.js',
         'ui.js wording': 'shared/ui.js',
         'auth.js internals': 'shared/auth.js',
@@ -350,7 +351,8 @@ def test_each_local_only_name_really_does_live_where_its_group_says():
         if label not in where:
             continue
         for name in names:
-            assert SEAM.owners[name] == [where[label]], (label, name)
+            homes = SEAM.owners[name]
+            assert len(homes) == 1 and fnmatch(homes[0], where[label]), (label, name)
 
 
 def test_the_renderers_and_their_mounts_share_a_file():

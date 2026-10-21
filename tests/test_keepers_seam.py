@@ -305,13 +305,13 @@ class TestTheScannerActuallyScans:
         assert 'completed' not in made
 
     def test_the_scan_found_the_two_functions_that_read_the_block(self, seen):
-        # Everything that reads a keeper figure lives in shared/report.js:
+        # Everything that reads a keeper figure lives in shared/report-teams.js:
         # `keeperStatRows` builds the eleven rendered rows, and `keeperOfTrack`
         # is the only reader of `track_ids`. Pin one field from each, because a
         # scanner that lost either would look exactly like a repo that had
         # stopped rendering half the block.
-        assert 'shared/report.js' in readers('saves', seen)
-        assert 'shared/report.js' in readers('track_ids', seen)
+        assert 'shared/report-teams.js' in readers('saves', seen)
+        assert 'shared/report-teams.js' in readers('track_ids', seen)
 
     def test_the_callback_parameter_step_is_load_bearing(self, made, seen):
         # `(k) => k.saves` is how twelve of the thirteen rendered figures are
