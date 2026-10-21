@@ -1,12 +1,12 @@
-"""vreg.py for any video shot at this venue, not just the one the map was built from.
+"""register_frames.py for any video at this venue, not just the one the map was built from.
 
-vreg.py tries the venue-map keyframes nearest in frame number, which only
+register_frames.py tries the venue-map keyframes nearest in frame number, which only
 means something in the video the map was built from. Here the candidates are
 picked by where the camera is pointing: once a sample is registered, the next
 one tries the keyframes whose view centre on the pitch is nearest the last
 sample's; a sample with nothing to go on (the first, or after a failure)
 searches every fourth keyframe, then the neighbours of the best. Matching,
-inlier threshold and the output are vreg.py's.
+inlier threshold and the output are register_frames.py's.
 
     python -m pitchiq.balltrack.homog.vreg_any lo hi tag [procs]   -> <tag>_reg.npz (abs, Hsb, ninl, ok)
 """
@@ -18,7 +18,7 @@ from multiprocessing import Pool
 
 import numpy as np
 
-from .vreg import HERE, MIN_INL, STEP
+from .register_frames import HERE, MIN_INL, STEP
 
 CENTRE = np.array([960.0, 800.0])  # a point on the ground in the lower middle of the picture
 NEAR = 6  # keyframes tried when the view is known
@@ -83,7 +83,7 @@ def work(args):
                     best_of(nearest(cen[np.searchsorted(ids, best[2])], NEAR), F),
                     key=lambda b: b[0],
                 )
-        if prev is not None and prev[0] >= MIN_INL:  # chain from last sample, as vreg.py
+        if prev is not None and prev[0] >= MIN_INL:  # chain from last sample, as register_frames.py
             r = venue_map.match(prev[2], F)
             if r is not None and len(r[1]) > best[0] * 1.5:
                 best = (len(r[1]), prev[1].dot(r[0]), None)

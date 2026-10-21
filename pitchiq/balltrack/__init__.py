@@ -3,7 +3,7 @@
 Every script runs as a module, from the folder it reads and writes, with the
 repo root on PYTHONPATH (the shell scripts source pyenv.sh, which sets it):
 
-    cd pitchiq/balltrack/homog && python -m pitchiq.balltrack.homog.vreg <lo> <hi> <tag> 4
+    cd pitchiq/balltrack/homog && python -m pitchiq.balltrack.homog.register_frames <lo> <hi> <tag> 4
 
 README.md says what each script does and in what order the shipping chain runs them.
 """

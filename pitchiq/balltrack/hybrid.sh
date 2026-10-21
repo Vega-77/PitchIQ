@@ -5,7 +5,7 @@
 # Steps already done for the tag are skipped (detector outputs, registration).
 #
 #   1 run.sh           detector + people + cls_B classifier        -> <tag>.npz, <tag>cls.npz ...
-#   2 homog/vreg.py    pitch registration every 15 frames          -> homog/<tag>_reg.npz
+#   2 homog/register_frames.py    pitch registration every 15 frames          -> homog/<tag>_reg.npz
 #   3 shipped picks    cls_B tracker (track_ball + gap_fill)       -> alltests/p2d/cls_B/<tag>.npz
 #   4 shipped 3D       flights of the shipped picks: the air gate  -> homog/<tag>_ball3dd.npz
 #   5 tn_engine        TAPNext++ fwd + bwd over gaps <= 90 frames  -> alltests/tn/bridges_<tag>.npy
@@ -23,7 +23,7 @@ LO=$1; HI=$2; T=$3
 
 [ -f "${T}cls.npz" ] || sh run.sh "$LO" "$HI" "$T"
 if [ ! -f "homog/${T}_reg.npz" ]; then
-    echo "=== registration $(date +%T)"; (cd homog && "$PY" -W ignore -m $M.homog.vreg "$LO" "$HI" "$T" 4)
+    echo "=== registration $(date +%T)"; (cd homog && "$PY" -W ignore -m $M.homog.register_frames "$LO" "$HI" "$T" 4)
 fi
 
 echo "=== shipped picks $(date +%T)"

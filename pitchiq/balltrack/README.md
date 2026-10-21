@@ -23,7 +23,7 @@ The tracker is a package, `pitchiq.balltrack`. The shell scripts source
 and run it as a module from the folder it reads and writes:
 
 ```
-cd homog && python -m pitchiq.balltrack.homog.vreg <lo> <hi> <tag> 4
+cd homog && python -m pitchiq.balltrack.homog.register_frames <lo> <hi> <tag> 4
 ```
 
 The `homog/` scripts read and write their files in `homog/` unless
@@ -121,7 +121,7 @@ ball, and `match_video.py` before drawing it.
 
 | dir | what |
 |---|---|
-| `homog/` | venue map (`venue_map.py` -> `vmap.npz`), pitch registration (`vreg.py` -> `<tag>_reg.npz`), 3D flight chain, Air/Flight/Fix lab labels and scorers |
+| `homog/` | venue map (`venue_map.py` -> `vmap.npz`), pitch registration (`register_frames.py` -> `<tag>_reg.npz`), 3D flight chain, Air/Flight/Fix lab labels and scorers |
 | `tapnext/` | `tn_engine.py` (bridges), `hyb_video.py` (the review video) |
 | `reference/` | the one-candidate-at-a-time detector the shipping one was checked against (`blobs_per_candidate.py`, `single_process_run.py`, `temporal_from_sheets.py`); `python -m pitchiq.balltrack.reference.check_fast` compares them on real frames |
 | `archive/` | a README listing the scripts nothing runs any more (deleted 2026-10-21) and how to restore one from git |
@@ -200,7 +200,7 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   data from an old scratchpad that no longer exists; set `PIQ_LEGACY_SP` to a
   copy to rerun them. Only the legacy training paths read it; `run.sh` does
   not.
-- The tracker works in image pixels. `homog/vreg.py` registers each frame to
+- The tracker works in image pixels. `homog/register_frames.py` registers each frame to
   the venue map and `vballsb.py` and the 3D chain carry the ball onto the
   pitch (StatsBomb 120x80); `pitchiq/panning_camera.py` does the same for the players. The
   pitch position is only as good as the registration, which is checked by

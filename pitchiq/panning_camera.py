@@ -126,7 +126,7 @@ class PannedCamera:
         Those files are generated, not in git. The chain that makes them:
         the camera's registration (`python -m pitchiq.experiments.autocal_run`,
         which writes `homog/<tag>_reg.npz` and `<tag>_venue.npz`; hybrid.sh
-        falls back to `homog/vreg.py` on the scrimmage's venue map), then
+        falls back to `homog/register_frames.py` on the scrimmage's venue map), then
         `hybrid.sh` for a window or `half.py` for a half, with PIQ_VIDEO set
         to the match. See `pitchiq/balltrack/README.md`.
         """

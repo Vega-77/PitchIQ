@@ -22,7 +22,7 @@ actually has is from a Hudl camera that follows the play. Every frame gets its
 own frame-to-pitch homography:
 - `pitchiq/autocal.py` calibrates the camera from the match itself, using the
   paint plus SIFT between frames;
-- `pitchiq/balltrack/homog/vreg.py` registers frames to a venue map;
+- `pitchiq/balltrack/homog/register_frames.py` registers frames to a venue map;
 - landmark pins clicked on the camera's panorama on the calibrate page can
   place the pitch instead (the pin solve that reads them, `pin_cal.py`, is not
   in the repo yet).
