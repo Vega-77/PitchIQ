@@ -237,7 +237,7 @@ class Half:
         )
         self.run(
             HOM,
-            'homog._mk',
+            'homog.merge_air_and_ground',
             '%s_ball3d2.npz' % P,
             '%s_smooth.npz' % P,
             '%s_ball3dd.npz' % P,

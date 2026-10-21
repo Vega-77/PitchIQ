@@ -11,5 +11,5 @@ set -e
 tag=${1:-vid1}
 "$PY" -m $M.homog.flight_chain $tag
 VS_B3=${tag}_ball3d2.npz "$PY" -m $M.homog.smooth_ball $tag
-"$PY" -m $M.homog._mk ${tag}_ball3d2.npz ${tag}_smooth.npz ${tag}_ball3dd.npz
+"$PY" -m $M.homog.merge_air_and_ground ${tag}_ball3d2.npz ${tag}_smooth.npz ${tag}_ball3dd.npz
 echo "-> ${tag}_ball3dd.npz"
