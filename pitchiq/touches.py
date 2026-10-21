@@ -2,7 +2,7 @@
 
 `segment_touches` finds the moments the ball changed what it was doing **and** a
 specific player was close enough to have caused it, and returns a
-`TouchSequence` of `Touch`es with a `TouchConfidence`; `summarise` counts them.
+`TouchSequence` of `Touch`es with a `TouchConfidence`; `summarise_touches` counts them.
 Proximity alone fires constantly and motion change alone fires on bounces, so a
 touch needs both. Radii are in player heights and speeds in player heights per
 second, at a *local* scale (`local_scale_px`, the players nearest the ball),
@@ -629,7 +629,7 @@ def _suppress(candidates: list[Touch], min_separation_s: float) -> list[Touch]:
     return kept
 
 
-def summarise(sequence: TouchSequence) -> str:
+def summarise_touches(sequence: TouchSequence) -> str:
     """A line for the console. Leads with the caveat rather than burying it."""
     if not sequence.touches:
         return 'no touches found'
