@@ -1,6 +1,6 @@
 """The crop classifier over EVERY candidate of a clip, streamed from video.
 
-crops.py stores pixels for a sample of frames, which is what training needs.
+candidate_crops.py stores pixels for a sample of frames, which is what training needs.
 Tracking needs a classifier score on every candidate of every frame, and
 storing 48x48 crops for 1200 frames x 40 candidates is ~330 MB a clip for
 numbers that are used once.  So this cuts the same crops (crops.cut, the
@@ -16,7 +16,7 @@ import time
 
 import numpy as np
 
-from . import crops as CR
+from . import candidate_crops as CR
 from . import ball_tracker
 
 S2 = os.path.dirname(os.path.abspath(__file__))

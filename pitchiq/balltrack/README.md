@@ -179,7 +179,7 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   but not a clean ball crop.
 - `retrain.sh` trains `cls_A`/`cls_B` from those labels. It needs the training
   crop caches (`trNNcrops.npz`), which are not committed. Rebuild them with
-  `run.sh` over the training clip windows, then `pseudolab.py` and `crops.py`.
+  `run.sh` over the training clip windows, then `pseudolab.py` and `candidate_crops.py`.
 - Every lab's answers are packed one set to a file: `labdb5/crops.jsonl`,
   `alltests/findball/labels.jsonl`, `alltests/fixlab/fixes.jsonl`,
   `alltests/passbench/truth.jsonl`, and in `homog/` the `airlabels/clips`,

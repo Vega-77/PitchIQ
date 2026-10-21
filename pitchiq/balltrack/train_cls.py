@@ -8,7 +8,7 @@ is never shown first.  So each candidate is looked at again, alone, by a
 model whose only job is "is THIS blob the ball", and that verdict replaces
 (or joins) s as the emission the tracker reads.
 
-INPUT.  crops.py writes, per clip, `<tag>crops.npz`: a 48x48 BGR crop at
+INPUT.  candidate_crops.py writes, per clip, `<tag>crops.npz`: a 48x48 BGR crop at
 native resolution centred on every candidate, plus a context vector (ctx)
 of where it sits - people nearby, inside the pitch, distance to the nearest
 player, the old score s and its rank.  Pixels alone cannot tell the match

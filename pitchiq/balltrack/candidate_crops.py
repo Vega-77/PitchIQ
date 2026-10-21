@@ -34,8 +34,8 @@ Candidate order is ball_tracker.load_frames', taken from load_frames itself: ind
 frame here is index j in the frame dict the tracker picked from, so a crop
 joins to a pick on (f, j) with no coordinate matching.
 
-    python -m pitchiq.balltrack.crops <tag> [--every N] [--frames file.json] [--size 48]
-    python -m pitchiq.balltrack.crops selftest        # synthetic numpy check, no video
+    python -m pitchiq.balltrack.candidate_crops <tag> [--every N] [--frames file.json] [--size 48]
+    python -m pitchiq.balltrack.candidate_crops selftest        # synthetic numpy check, no video
 """
 
 import io

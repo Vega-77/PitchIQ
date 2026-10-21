@@ -20,7 +20,7 @@ not "no ball", and a ball there would become a negative.
 and Alex's clicks (croplab) override them.
 
     python -m pitchiq.balltrack.pseudolab tr00 tr01 ...    # -> pseudo_labels.json,
-                                         #    <tag>frames.json (for crops.py)
+                                         #    <tag>frames.json (for candidate_crops.py)
 """
 
 import json
