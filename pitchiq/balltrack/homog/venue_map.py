@@ -12,7 +12,7 @@ plane (extended beyond the reference frame's edges).
   4. solve   least squares over all H_k (reference fixed) on the inlier
              point pairs, error measured in each keyframe's own pixels
 
-    python -m pitchiq.balltrack.homog.vmap        -> vmap.npz (abs, H, ok), vmap_edges.npz, vmap.log
+    python -m pitchiq.balltrack.homog.venue_map        -> vmap.npz (abs, H, ok), vmap_edges.npz, vmap.log
 """
 
 import collections

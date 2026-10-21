@@ -121,7 +121,7 @@ ball, and `match_video.py` before drawing it.
 
 | dir | what |
 |---|---|
-| `homog/` | venue map (`vmap*`), pitch registration (`vreg.py` -> `<tag>_reg.npz`), 3D flight chain, Air/Flight/Fix lab labels and scorers |
+| `homog/` | venue map (`venue_map.py` -> `vmap.npz`), pitch registration (`vreg.py` -> `<tag>_reg.npz`), 3D flight chain, Air/Flight/Fix lab labels and scorers |
 | `tapnext/` | `tn_engine.py` (bridges), `hyb_video.py` (the review video) |
 | `reference/` | the one-candidate-at-a-time detector the shipping one was checked against (`blobs_per_candidate.py`, `single_process_run.py`, `temporal_from_sheets.py`); `python -m pitchiq.balltrack.reference.check_fast` compares them on real frames |
 | `archive/` | a README listing the scripts nothing runs any more (deleted 2026-10-21) and how to restore one from git |

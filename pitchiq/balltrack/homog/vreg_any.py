@@ -36,10 +36,10 @@ def work(args):
 
     from pitchiq import lines as L
     from . import vfeats
-    from . import vmap
+    from . import venue_map
     from . import vovl
 
-    K = vmap.load()
+    K = venue_map.load()
     ok = np.load(os.path.join(HERE, 'vmap.npz'))['ok']
     ids = np.flatnonzero(ok)
     to_sb = {i: vovl.frame_to_sb(i) for i in ids}
@@ -50,7 +50,7 @@ def work(args):
     def best_of(cands, F):
         best = (0, None, None)
         for i in cands:
-            r = vmap.match(K[i], F)  # F px -> keyframe px
+            r = venue_map.match(K[i], F)  # F px -> keyframe px
             if r is not None and len(r[1]) > best[0]:
                 best = (len(r[1]), to_sb[i].dot(r[0]), i)
         return best
@@ -84,7 +84,7 @@ def work(args):
                     key=lambda b: b[0],
                 )
         if prev is not None and prev[0] >= MIN_INL:  # chain from last sample, as vreg.py
-            r = vmap.match(prev[2], F)
+            r = venue_map.match(prev[2], F)
             if r is not None and len(r[1]) > best[0] * 1.5:
                 best = (len(r[1]), prev[1].dot(r[0]), None)
         H = best[1] / best[1][2, 2] if best[1] is not None else np.full((3, 3), np.nan)
