@@ -33,10 +33,10 @@ The `homog/` scripts read and write their files in `homog/` unless
 | candidates: blob detector + xgboost ranker (`rank6.model.json`), about 40 per frame, plus camera pan | `drun.py` | `<tag>.npz`, `<tag>pan.npz` |
 | person boxes (the repo's YOLOv8n, via `pitchiq.detector`), used only as classifier context | `ppl.py` | `<tag>ppl.npz` |
 | crop classifier log-odds on every candidate | `clsscore.py cls_B.pt` | `<tag>cls.npz` |
-| tracker: `dtrack6.viterbi7` on `0.75*p + 0.25*rank`, then `gapfill.fill` | `render_vid.py` | `<tag>.mp4` |
+| tracker: `ball_tracker.track_ball` on `0.75*p + 0.25*rank`, then `gapfill.fill` | `render_vid.py` | `<tag>.mp4` |
 
-Tracker settings (these produced the accepted video): viterbi7 `e_off=-0.5,
-c_enter=12, c_near=6, skip=4, drift=12, gate=2`. Gap-fill `maxgap=32, rad0=20,
+Tracker settings (these produced the accepted video): `track_ball(off_score=-0.5,
+enter_cost=12, return_cost=6, skip_cost=4, return_drift=12, return_gate=2)`. Gap-fill `maxgap=32, rad0=20,
 rgrow=5`, with synth off. Gap-fill interpolates across a gap of up to 32
 frames in pan-stabilised coordinates and takes the nearest candidate to that
 line. It never invents a point.
@@ -191,7 +191,7 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   some of them. About 20 of 68 missed test balls were never proposed by the
   detector at all.
 - Cleats are the classifier's most confident false ball.
-- `feat4.py`, `feat_t4.py` and `dtrack2.py` read the first labelling round's
+- `feat4.py` and `feat_t4.py` read the first labelling round's
   data from an old scratchpad that no longer exists; set `PIQ_LEGACY_SP` to a
   copy to rerun them. Only the legacy training paths read it; `run.sh` does
   not.

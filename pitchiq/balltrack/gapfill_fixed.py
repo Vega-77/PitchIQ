@@ -1,16 +1,16 @@
 """A handful of fixed gapfill settings, each scored on both halves - no
 tuning, so no split to overfit.  Wrong picks are split into those the
-fill added and those viterbi7 already made.
+fill added and those the tracker already made.
 
     python -m pitchiq.balltrack.gapfill_fixed
 """
 
-from . import dtrack6 as D6
+from . import ball_tracker
 from . import gapfill as G
 from . import wm_cls as C
 from . import wm_tune as U
 
-BASE = dict(e_off=-0.5, c_enter=12.0, c_near=6.0, skip=4.0)
+BASE = dict(off_score=-0.5, enter_cost=12.0, return_cost=6.0, skip_cost=4.0)
 A = 0.75
 FILLS = [
     ('none', None),
@@ -32,7 +32,10 @@ def main():
         G.attach_pan(F[tag], tag)
         for fr in F[tag]:
             fr['s'] = A * fr['p'] + (1 - A) * fr['s0']
-    base = {tag: D6.viterbi7(F[tag], drift=12.0, gate=2.0, **BASE) for tag in tags}
+    base = {
+        tag: ball_tracker.track_ball(F[tag], return_drift=12.0, return_gate=2.0, **BASE)
+        for tag in tags
+    }
     halves = {'H1': {t for t in tags if int(t[2:]) < 9}, 'H2': {t for t in tags if int(t[2:]) >= 9}}
     for name, fc in FILLS:
         p = base if fc is None else {t: G.fill(F[t], base[t], **fc) for t in tags}

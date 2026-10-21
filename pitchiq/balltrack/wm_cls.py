@@ -7,7 +7,7 @@ if the first moved:
          rank of the best such candidate by the detector score s and by the
          classifier log-odds p.  No tracker involved - is the ball nearer the
          top of the list?
-  TRACK  viterbi7 with each candidate's emission replaced by
+  TRACK  track_ball with each candidate's emission replaced by
          a * p + (1 - a) * s, over a small grid, tuned on one match half and
          reported on the other (wm_tune.py's split).
 
@@ -19,7 +19,7 @@ import os
 
 import numpy as np
 
-from . import dtrack6 as D6
+from . import ball_tracker
 from . import wm_score as W
 from . import wm_tune as U
 
@@ -78,10 +78,10 @@ def main():
     halves = {'H1': {t for t in tags if int(t[2:]) < 9}, 'H2': {t for t in tags if int(t[2:]) >= 9}}
     grid = dict(
         a=[0.0, 0.5, 0.75, 1.0],
-        e_off=[-1.0, -0.5, 0.0, 0.5],
-        c_enter=[12.0, 20.0],
-        c_near=[2.0, 6.0],
-        skip=[4.0, 8.0],
+        off_score=[-1.0, -0.5, 0.0, 0.5],
+        enter_cost=[12.0, 20.0],
+        return_cost=[2.0, 6.0],
+        skip_cost=[4.0, 8.0],
     )
     keys = list(grid)
     res = []
@@ -91,7 +91,10 @@ def main():
         for tag in tags:
             for fr in F[tag]:
                 fr['s'] = a * fr['p'] + (1 - a) * fr['s0']
-        p = {tag: D6.viterbi7(F[tag], drift=12.0, gate=2.0, **cfg) for tag in tags}
+        p = {
+            tag: ball_tracker.track_ball(F[tag], return_drift=12.0, return_gate=2.0, **cfg)
+            for tag in tags
+        }
         cfg['a'] = a
         res.append(
             (

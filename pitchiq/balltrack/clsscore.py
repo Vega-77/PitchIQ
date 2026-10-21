@@ -17,7 +17,7 @@ import time
 import numpy as np
 
 from . import crops as CR
-from . import dfree
+from . import ball_tracker
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 
@@ -30,7 +30,7 @@ def run(model, tag):
     from . import feat4
 
     t0 = time.time()
-    frames = dfree.load(tag)
+    frames = ball_tracker.load_frames(tag)
     ppl = CR.load_ppl(tag)
     has = ppl is not None
     N = sum(len(fr['s']) for fr in frames)

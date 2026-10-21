@@ -1,7 +1,7 @@
 """Labels for the crop classifier that no human had to click.
 
-Scored against Alex's 269 whole-match labels, viterbi6 at the precision end
-(skip 4, e_off 0, c_leave 6, c_enter 12) names a ball on 48 frames and is
+Scored against Alex's 269 whole-match labels, the tracker without returns at the precision end
+(skip 4, off 0, leave 6, enter 12) names a ball on 48 frames and is
 right on 46.  Run over the TRAINING clips (tr_plan.json - none of them
 within 60 s of a test clip), that path is a source of ball crops, and the
 continuity is the point: it carries the label through frames where the
@@ -29,11 +29,10 @@ import sys
 
 import numpy as np
 
-from . import dfree
-from . import dtrack6 as D6
+from . import ball_tracker
 
 S2 = os.path.dirname(os.path.abspath(__file__))
-PREC = dict(skip=4.0, kmax=4, e_off=0.0, c_leave=6.0, c_enter=12.0, A=2.3, ab=0.0)
+PREC = dict(skip_cost=4.0, max_step=4, off_score=0.0, leave_cost=6.0, enter_cost=12.0, remembered=0)
 NEAR, FAR = 20.0, 60.0
 EVERY = 3  # crop every 3rd committed frame: neighbours are near-copies
 BACKGROUND = 15  # plus every 15th frame regardless, for the classifier's
@@ -45,8 +44,8 @@ def main():
     tags = sys.argv[1:]
     out = []
     for tag in tags:
-        frames = dfree.load(tag)
-        pick = D6.viterbi6(frames, **PREC)
+        frames = ball_tracker.load_frames(tag)
+        pick = ball_tracker.track_ball(frames, **PREC)
         com = [k for k, j in enumerate(pick) if j is not None]
         use = set(com[::EVERY])
         npos = nneg = 0

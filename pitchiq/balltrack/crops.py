@@ -30,7 +30,7 @@ else the box whose edge is nearest.  With no boxes in the frame (or no ppl
 file) inside/u/v/box_h are 0 and dist_px/dist_rel take the "nobody near"
 values below, so the vector is never NaN.
 
-Candidate order is dfree.load's, taken from dfree.load itself: index j in a
+Candidate order is ball_tracker.load_frames', taken from load_frames itself: index j in a
 frame here is index j in the frame dict the tracker picked from, so a crop
 joins to a pick on (f, j) with no coordinate matching.
 
@@ -46,7 +46,7 @@ import time
 
 import numpy as np
 
-from . import dfree
+from . import ball_tracker
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 
@@ -155,7 +155,7 @@ def run(tag, every, fjson, size):
     from . import feat4  # only cv2 / numpy
 
     t0 = time.time()
-    frames = choose(dfree.load(tag), every, fjson)
+    frames = choose(ball_tracker.load_frames(tag), every, fjson)
     assert frames, 'no frames chosen'
     ppl = load_ppl(tag)
     has_ppl = ppl is not None

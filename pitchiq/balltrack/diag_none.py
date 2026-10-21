@@ -19,12 +19,12 @@ import collections
 
 import numpy as np
 
-from . import dtrack6 as D6
+from . import ball_tracker
 from . import wm_cls as C
 from . import wm_score as W
 from . import wm_tune as U
 
-CFG = dict(e_off=-0.5, c_enter=12.0, c_near=6.0, skip=4.0)
+CFG = dict(off_score=-0.5, enter_cost=12.0, return_cost=6.0, skip_cost=4.0)
 
 
 def main():
@@ -33,7 +33,10 @@ def main():
         C.attach(F[tag], tag)
         for fr in F[tag]:
             fr['s'] = fr['p']
-    picks = {tag: D6.viterbi7(F[tag], drift=12.0, gate=2.0, **CFG) for tag in tags}
+    picks = {
+        tag: ball_tracker.track_ball(F[tag], return_drift=12.0, return_gate=2.0, **CFG)
+        for tag in tags
+    }
     cat = collections.Counter()
     ps = collections.defaultdict(list)
     for t in T:

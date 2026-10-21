@@ -20,7 +20,7 @@ anchors, whatever the classifier thinks of its crop.
           frame's pan (a pick is then ('syn', x, y), not an index).  The
           20 balls the detector never proposed can only be had this way.
 
-The ON segments come from viterbi7 on classifier emission, unchanged.
+The ON segments come from ball_tracker.track_ball on classifier emission, unchanged.
 
     python -m pitchiq.balltrack.gapfill           # grid, split-half tuned, needs wmNNcls.npz
 """
@@ -29,7 +29,7 @@ import itertools
 
 import numpy as np
 
-from . import dtrack6 as D6
+from . import ball_tracker
 from . import wm_cls as C
 from . import wm_tune as U
 
@@ -151,7 +151,11 @@ def main():
         attach_pan(F[tag], tag)
     halves = {'H1': {t for t in tags if int(t[2:]) < 9}, 'H2': {t for t in tags if int(t[2:]) >= 9}}
     base_grid = dict(
-        a=[0.75, 1.0], e_off=[-1.0, -0.5, 0.0], c_enter=[12.0, 20.0], c_near=[2.0, 6.0], skip=[4.0]
+        a=[0.75, 1.0],
+        off_score=[-1.0, -0.5, 0.0],
+        enter_cost=[12.0, 20.0],
+        return_cost=[2.0, 6.0],
+        skip_cost=[4.0],
     )
     fill_grid = dict(
         maxgap=[0, 32, 64, 128, 100000],
@@ -170,7 +174,10 @@ def main():
         for tag in tags:
             for fr in F[tag]:
                 fr['s'] = a * fr['p'] + (1 - a) * fr['s0']
-        base = {tag: D6.viterbi7(F[tag], drift=12.0, gate=2.0, **bc) for tag in tags}
+        base = {
+            tag: ball_tracker.track_ball(F[tag], return_drift=12.0, return_gate=2.0, **bc)
+            for tag in tags
+        }
         bc['a'] = a
         seen = set()
         for fv in itertools.product(*(fill_grid[k] for k in fk)):
@@ -192,7 +199,7 @@ def main():
     nofill = [z for z in res if z[0]['maxgap'] == 0 and z[0]['ext'] == 0]
     nosyn = [z for z in res if not z[0]['synth']]
     for name, pool in (
-        ('viterbi7 alone', nofill),
+        ('tracker alone', nofill),
         ('fill, candidates only', nosyn),
         ('fill + synth', res),
     ):

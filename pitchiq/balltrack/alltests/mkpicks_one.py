@@ -1,6 +1,6 @@
 """The shipped tracker's picks for one window -> p2d/cls_B/<tag>.npz.
 
-cls_B is viterbi7 + gapfill.
+cls_B is ball_tracker.track_ball + gapfill.
 
     python -m pitchiq.balltrack.alltests.mkpicks_one <tag>
 

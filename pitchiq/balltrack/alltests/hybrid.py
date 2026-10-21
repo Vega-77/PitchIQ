@@ -2,7 +2,7 @@
 
     python -m pitchiq.balltrack.alltests.hybrid <tag> [<tag> ...]
 
-Our tracker (cls_B: viterbi7 + gapfill) owns every confident pick, every kick and every
+Our tracker (cls_B: track_ball + gapfill) owns every confident pick, every kick and every
 flight.  TAPNext only crosses the gaps between two confident picks a..b: seeded on a and run
 forward, seeded on b and run backward (tn_engine.py bridges).  A bridge is accepted only when
   - the forward track lands within ANC px of our pick at b,

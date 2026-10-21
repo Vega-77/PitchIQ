@@ -1,10 +1,10 @@
 """What the ball tracker thinks, drawn on the match video.
 
 The full chain as it stands: detector candidates (drun), classifier
-log-odds on every candidate (cls_B), viterbi7 on 0.75*p + 0.25*s0, then
+log-odds on every candidate (cls_B), ball_tracker.track_ball on 0.75*p + 0.25*s0, then
 gapfill.fill.  Each output frame shows
 
-  green ring    the tracker's ball, classifier agrees (viterbi7 pick)
+  green ring    the tracker's ball, classifier agrees (track_ball pick)
   orange ring   the ball motion filled in across a gap (gapfill pick)
   grey ring     no ball chosen; the classifier's best candidate, if its
                 log-odds is above 0, shown thin so you can see what the
@@ -22,14 +22,13 @@ import time
 
 import numpy as np
 
-from . import dfree
-from . import dtrack6 as D6
+from . import ball_tracker
 from . import gapfill as G
 from . import wm_cls as C
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 
-BASE = dict(e_off=-0.5, c_enter=12.0, c_near=6.0, skip=4.0)
+BASE = dict(off_score=-0.5, enter_cost=12.0, return_cost=6.0, skip_cost=4.0)
 A = 0.75
 FPS = 30
 HIST = 300  # graph width in frames (10 s)
@@ -63,12 +62,12 @@ def picks_for(tag):
     """
     if os.environ.get('PIQ_P2D'):
         return saved_picks(os.environ['PIQ_P2D'], tag)
-    F = dfree.load(tag)
+    F = ball_tracker.load_frames(tag)
     C.attach(F, tag)
     G.attach_pan(F, tag)
     for fr in F:
         fr['s'] = A * fr['p'] + (1 - A) * fr['s0']
-    base = D6.viterbi7(F, drift=12.0, gate=2.0, **BASE)
+    base = ball_tracker.track_ball(F, return_drift=12.0, return_gate=2.0, **BASE)
     out = G.fill(F, base)
     by = {}
     for fr, b, o in zip(F, base, out):
