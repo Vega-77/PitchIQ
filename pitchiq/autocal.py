@@ -14,7 +14,7 @@ plus a pan, tilt, roll and focal length per frame. Two things pin those down:
   view inherits its pose from its neighbours.
 
 Lengths are in centre-circle radii (R), the one length the laws fix, as in the
-venue map (`balltrack/homog/vpitch.py`); outputs are StatsBomb 120 x 80.
+venue map (`balltrack/homog/fit_pitch_to_map.py`); outputs are StatsBomb 120 x 80.
 u runs along the pitch (0 .. L), v across it from the near touchline (0 .. W),
 z up. The camera stands behind the near touchline, so its v is negative.
 """

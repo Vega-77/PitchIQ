@@ -2,7 +2,7 @@
 
 Geometry.  The venue map's top-down plane (vtop) is in camera heights: the
 camera sits at height 1 above the ground, and for frame f the matrix
-M_f = inv(A) . Hsb_f  (A = vpitch.P . vtop.T) sends an image pixel to the
+M_f = inv(A) . Hsb_f  (A = fit_pitch_to_map.P . vtop.T) sends an image pixel to the
 ray (u, v, w) in the world basis (e1, e2, -n).  A point at ground position
 (u, v) and height z lies on the ray (u, v, 1 - z), so
 
