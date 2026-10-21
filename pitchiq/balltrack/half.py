@@ -225,9 +225,9 @@ class Half:
         for cmd in (
             ('homog.vballsb', P),
             ('homog.vfl0', P),
-            ('homog.vflscan2', P, '16'),
+            ('homog.flight_scan', P, '16'),
             ('homog.vrowspd', P),
-            ('homog.vflchain2', P),
+            ('homog.flight_chain', P),
         ):
             self.run(HOM, *cmd, log=log, env=ONE_THREAD)
         self.run(HOM, 'homog.vsmooth', P, env=dict(ONE_THREAD, VS_B3='%s_ball3d2.npz' % P), log=log)

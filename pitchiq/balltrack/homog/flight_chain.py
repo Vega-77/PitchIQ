@@ -10,7 +10,7 @@ gates   the pre-label limits (fit error 3 px, apex 0.08 CH, roll 2.5x / 4 px)
         lose some speed but not turn or speed up much
 4 cap   horizontal speed above VMAX is penalised
 
-  python -m pitchiq.balltrack.homog.vflchain2 [tag] -> <tag>_chains2.npy, <tag>_ball3d2.npz
+  python -m pitchiq.balltrack.homog.flight_chain [tag] -> <tag>_chains2.npy, <tag>_ball3d2.npz
 """
 
 import os
@@ -21,7 +21,6 @@ from scipy.optimize import least_squares
 
 from . import vflight as V
 from . import vdrag as D
-from . import vflchain as Ch
 from . import vroll as R
 
 tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
@@ -35,6 +34,78 @@ BOUNCE_KEEP = (0.5, 1.1)  # outgoing / incoming horizontal speed at a bounce
 BOUNCE_TURN = np.radians(30)
 EXT = 1.5
 LOST = 6  # frames unseen beyond an end: the ball is lost there
+
+
+G = V.G
+
+
+def E(k, s):
+    return (1 - np.exp(-k * s)) / k
+
+
+def seg_pos(P0, P1, T, k, s):
+    """Position at time s in a segment from node P0 to node P1 (u, v, z) taking T."""
+    k = max(k, 1e-4)
+    f = E(k, s) / E(k, T)
+    vz = (P1[2] - P0[2] + G * T / k) / E(k, T) - G / k
+    z = P0[2] + (vz + G / k) * E(k, s) - G * s / k
+    return np.c_[P0[0] + (P1[0] - P0[0]) * f, P0[1] + (P1[1] - P0[1]) * f, z]
+
+
+def seg_vel(P0, P1, T, k, s):
+    k = max(k, 1e-4)
+    e = np.exp(-k * s)
+    vz = (P1[2] - P0[2] + G * T / k) / E(k, T) - G / k
+    return np.r_[(P1[:2] - P0[:2]) / E(k, T) * e, (vz + G / k) * e - G / k]
+
+
+def unpack(x, m):
+    nodes = x[: 3 * (m + 1)].reshape(m + 1, 3)
+    ts = x[3 * (m + 1) : 4 * (m + 1)]
+    ks = x[4 * (m + 1) :]
+    return nodes, ts, ks
+
+
+def chain_eval(tr, x, m, frames):
+    """Positions at track frames; node times ts are in track frames.  Before the
+    first node / after the last the ball rolls on at the end speed."""
+    nodes, ts, ks = unpack(x, m)
+    out = np.zeros((len(frames), 3))
+    tf = np.asarray(frames, float)
+    for j in range(m):
+        T = max((ts[j + 1] - ts[j]) / V.FPS, 1e-3)
+        sel = (tf >= ts[j]) & (tf <= ts[j + 1])
+        if sel.any():
+            out[sel] = seg_pos(nodes[j], nodes[j + 1], T, ks[j], (tf[sel] - ts[j]) / V.FPS)
+    T0 = max((ts[1] - ts[0]) / V.FPS, 1e-3)
+    Tm = max((ts[m] - ts[m - 1]) / V.FPS, 1e-3)
+    b = tf < ts[0]
+    if b.any():
+        v = seg_vel(nodes[0], nodes[1], T0, ks[0], 0.0)
+        out[b] = np.c_[
+            nodes[0, 0] + v[0] * (tf[b] - ts[0]) / V.FPS,
+            nodes[0, 1] + v[1] * (tf[b] - ts[0]) / V.FPS,
+            np.full(b.sum(), nodes[0, 2]),
+        ]
+    b = tf > ts[m]
+    if b.any():
+        v = seg_vel(nodes[m - 1], nodes[m], Tm, ks[m - 1], Tm)
+        out[b] = np.c_[
+            nodes[m, 0] + v[0] * (tf[b] - ts[m]) / V.FPS,
+            nodes[m, 1] + v[1] * (tf[b] - ts[m]) / V.FPS,
+            np.full(b.sum(), nodes[m, 2]),
+        ]
+    return out
+
+
+def ground_hit(P, v, direction):
+    """Run the (drag-free, short) arc from P with velocity v to z = 0,
+    backwards (direction -1) or forwards (+1).  Returns (time s >= 0, uv)."""
+    z, vz = P[2], v[2] * direction
+    # z + vz s - G s^2 / 2 = 0 (backwards: velocity reversed, gravity same sign)
+    s = (vz + np.sqrt(max(vz * vz + 2 * G * z, 0))) / G
+    s = min(s, EXT)
+    return s, P[:2] + v[:2] * direction * s
 
 
 def is_air(arc_e, roll_e):
@@ -94,7 +165,7 @@ def bend_px(tr, P, frame):
 
 def rise_px(tr, P0, P1, T, k, t0):
     s = np.linspace(0, T, 21)
-    return bend_px(tr, Ch.seg_pos(P0, P1, T, k, s), t0 + T * V.FPS / 2)
+    return bend_px(tr, seg_pos(P0, P1, T, k, s), t0 + T * V.FPS / 2)
 
 
 class Chain:
@@ -141,14 +212,14 @@ class Chain:
 
     def residuals(self, x, free):
         tr, m = self.tr, self.m
-        r = ((tr.project(self.idx, Ch.chain_eval(tr, x, m, self.idx)) - self.obs) / SIG).ravel()
-        nodes, ts, ks = Ch.unpack(x, m)
+        r = ((tr.project(self.idx, chain_eval(tr, x, m, self.idx)) - self.obs) / SIG).ravel()
+        nodes, ts, ks = unpack(x, m)
         extra = [10 * np.maximum(0, 3 - np.diff(ts))]
         vs = []
         for j in range(m):
             T = max((ts[j + 1] - ts[j]) / V.FPS, 1e-3)
-            v0 = Ch.seg_vel(nodes[j], nodes[j + 1], T, ks[j], 0.0)
-            v1 = Ch.seg_vel(nodes[j], nodes[j + 1], T, ks[j], T)
+            v0 = seg_vel(nodes[j], nodes[j + 1], T, ks[j], 0.0)
+            v1 = seg_vel(nodes[j], nodes[j + 1], T, ks[j], T)
             vs.append((v0, v1))
             sp = np.hypot(*v0[:2]) * self.vmax[1]  # SB units / s
             extra.append([np.maximum(0, sp - self.vmax[0]) / 2.0])
@@ -214,7 +285,7 @@ class Chain:
         return best
 
     def rises(self, x):
-        nodes, ts, ks = Ch.unpack(x, self.m)
+        nodes, ts, ks = unpack(x, self.m)
         return [
             rise_px(self.tr, nodes[j], nodes[j + 1], (ts[j + 1] - ts[j]) / V.FPS, ks[j], ts[j])
             for j in range(self.m)
@@ -293,17 +364,17 @@ def main():
     for cf in chains:
         c, s, free = fit_chain(tr, cf, vmax)
         x = s.x
-        nodes, ts, ks = Ch.unpack(x, c.m)
-        e = np.hypot(*(tr.project(c.idx, Ch.chain_eval(tr, x, c.m, c.idx)) - c.obs).T)
+        nodes, ts, ks = unpack(x, c.m)
+        e = np.hypot(*(tr.project(c.idx, chain_eval(tr, x, c.m, c.idx)) - c.obs).T)
         ends = []
         if free[0] and nodes[0, 2] > 0.02:
-            v = Ch.seg_vel(nodes[0], nodes[1], (ts[1] - ts[0]) / V.FPS, ks[0], 0.0)
-            s_, uv = Ch.ground_hit(nodes[0], v, -1)
+            v = seg_vel(nodes[0], nodes[1], (ts[1] - ts[0]) / V.FPS, ks[0], 0.0)
+            s_, uv = ground_hit(nodes[0], v, -1)
             ends.append(('take-off', ts[0] - s_ * V.FPS, tr.to_sb(uv[None])[0]))
         if free[-1] and nodes[-1, 2] > 0.02:
             Tm = (ts[-1] - ts[-2]) / V.FPS
-            v = Ch.seg_vel(nodes[-2], nodes[-1], Tm, ks[-1], Tm)
-            s_, uv = Ch.ground_hit(nodes[-1], v, +1)
+            v = seg_vel(nodes[-2], nodes[-1], Tm, ks[-1], Tm)
+            s_, uv = ground_hit(nodes[-1], v, +1)
             ends.append(('landing', ts[-1] + s_ * V.FPS, tr.to_sb(uv[None])[0]))
         seg_air = []
         for j in range(c.m):
@@ -313,7 +384,7 @@ def main():
             if len(ii) < 4:
                 seg_air.append(bool(free[j] or free[j + 1]))
                 continue  # unseen: trust the chain
-            ea = R.trim(np.hypot(*(tr.project(ii, Ch.chain_eval(tr, x, c.m, ii)) - tr.px[ii]).T))
+            ea = R.trim(np.hypot(*(tr.project(ii, chain_eval(tr, x, c.m, ii)) - tr.px[ii]).T))
             seg_air.append(is_air(ea, R.droll(tr, a_, b_)[0]))
         out.append(
             dict(
@@ -352,12 +423,12 @@ def main():
     xyz[:, :2] = np.where(np.isfinite(g), g, np.nan)
     xyz[tr.has, 2] = 0
     for c in out:
-        nodes, ts, ks = Ch.unpack(c['x'], c['m'])
+        nodes, ts, ks = unpack(c['x'], c['m'])
         for j in range(c['m']):
             if not c['seg_air'][j]:
                 continue
             fr = np.arange(max(0, int(np.ceil(ts[j]))), min(n, int(np.floor(ts[j + 1])) + 1))
-            xyz[fr] = Ch.chain_eval(tr, c['x'], c['m'], fr)
+            xyz[fr] = chain_eval(tr, c['x'], c['m'], fr)
             state[fr] = 'air'
         for w, t, _ in c['ends']:  # inferred parts
             if not c['seg_air'][0 if w == 'take-off' else -1]:

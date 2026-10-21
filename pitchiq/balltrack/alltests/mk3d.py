@@ -1,12 +1,12 @@
-"""The default 3D chain (and the other flight models) for one 2D version, in its own copy of
-homog so the shipped outputs are never touched.
+"""The default 3D chain (and the other flight models) for one 2D version, in its own work
+folder so the shipped outputs are never touched.
 
     python -m pitchiq.balltrack.alltests.mk3d <ver> <tag> [<tag> ...] [--variants]
 
   work   S2/h3d_<ver>/  (labels, registrations): the homog scripts run there with
          PIQ_HOMOG pointing at it and PIQ_P2D=<ver>, so render_vid.picks_for serves
          alltests/p2d/<ver>/<tag>.npz
-  chain  vballsb -> vfl0 -> vflscan2 16 -> vrowspd -> vdefault (chain2 + vsmooth) -> <tag>_ball3dd.npz
+  chain  vballsb -> vfl0 -> flight_scan 16 -> vrowspd -> vdefault (flight_chain + vsmooth) -> <tag>_ball3dd.npz
   --variants  also vflscan 8 (v1), vflchain3 (3, 3k), vstrict (x1), vsmooth on x1 -> sx
 TAPNext bridge frames (src 3) go in as 'fill' unless BRIDGE_TRACK=1.
 """
@@ -91,9 +91,9 @@ def chain(ver, tag, variants):
         if not os.path.exists(os.path.join(d, '%s_ball3dd.npz' % tag)):
             run(d, ver, log, 'vballsb', tag)
             run(d, ver, log, 'vfl0', tag)
-            run(d, ver, log, 'vflscan2', tag, '16')
+            run(d, ver, log, 'flight_scan', tag, '16')
             run(d, ver, log, 'vrowspd', tag)
-            run(d, ver, log, 'vflchain2', tag)
+            run(d, ver, log, 'flight_chain', tag)
             run(d, ver, log, 'vsmooth', tag, env=dict(VS_B3='%s_ball3d2.npz' % tag))
             run(
                 d,

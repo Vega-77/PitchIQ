@@ -25,8 +25,9 @@ from scipy.optimize import least_squares
 
 from . import vflight as V
 from . import vdrag as D
-from . import vflchain as Ch
+from . import flight_chain as Ch
 from . import vroll as R
+from .flight_chain import is_air, rise_px, sb_per_ch
 
 tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
 OUT = sys.argv[2] if len(sys.argv) > 2 else '3'
@@ -60,19 +61,6 @@ BOUNCE_TURN = np.radians(30)
 EXT = 1.5
 LOST = 6  # frames unseen beyond an end: the ball is lost there
 KPHYS = 0.0133 * 9.15 / V.R_CH  # football quadratic drag as linear k (1/s) per unit speed (CH/s)
-
-
-def is_air(arc_e, roll_e):
-    """The arc must beat a slowing roll by 2.5x AND by 2 sigma (pre-label gate)."""
-    return roll_e >= max(GATE['roll_ratio'] * arc_e, arc_e + 2 * SIG)
-
-
-def sb_per_ch(tr):
-    """SB units per camera height near the pitch centre (for the speed cap)."""
-    c = np.linalg.solve(tr.A, [60, 40, 1])
-    c = c[:2] / c[2]
-    d = tr.to_sb(np.array([c, c + [0.01, 0]]))
-    return np.linalg.norm(d[1] - d[0]) / 0.01
 
 
 def roll_speed(tr, a, b):
@@ -122,24 +110,6 @@ def select_flights(S, C, onpitch, spd):
             ch.append(idx[j - 1])
             j = p[j - 1]
     return ch[::-1]
-
-
-def bend_px(tr, P, frame):
-    """How far the image path bends off the straight line between its ends
-    (camera held at one frame): a rolling ball's path is straight, so this is
-    the visible height of the arc, however far along the ray it sits."""
-    fr = int(np.clip(round(frame), 0, len(tr.abs) - 1))
-    q = tr.project(np.full(len(P), fr), P)
-    d = q[-1] - q[0]
-    L = np.hypot(*d)
-    if L < 1e-6:
-        return float(np.max(np.hypot(*(q - q[0]).T)))
-    return float(np.max(np.abs(d[0] * (q[:, 1] - q[0, 1]) - d[1] * (q[:, 0] - q[0, 0])) / L))
-
-
-def rise_px(tr, P0, P1, T, k, t0):
-    s = np.linspace(0, T, 21)
-    return bend_px(tr, Ch.seg_pos(P0, P1, T, k, s), t0 + T * V.FPS / 2)
 
 
 class Chain:

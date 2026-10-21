@@ -33,9 +33,9 @@ echo "=== shipped 3D $(date +%T)"
 cd homog
 "$PY" -W ignore -m $M.homog.vballsb "$T" > "${T}_chain.log" 2>&1
 "$PY" -W ignore -m $M.homog.vfl0 "$T" >> "${T}_chain.log" 2>&1
-"$PY" -W ignore -m $M.homog.vflscan2 "$T" 16 >> "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.homog.flight_scan "$T" 16 >> "${T}_chain.log" 2>&1
 "$PY" -W ignore -m $M.homog.vrowspd "$T" >> "${T}_chain.log" 2>&1
-"$PY" -W ignore -m $M.homog.vflchain2 "$T" >> "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.homog.flight_chain "$T" >> "${T}_chain.log" 2>&1
 VS_B3="${T}_ball3d2.npz" "$PY" -W ignore -m $M.homog.vsmooth "$T" >> "${T}_chain.log" 2>&1
 "$PY" -W ignore -m $M.homog._mk "${T}_ball3d2.npz" "${T}_smooth.npz" "${T}_ball3dd.npz" >> "${T}_chain.log" 2>&1
 

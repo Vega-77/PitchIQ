@@ -1,7 +1,7 @@
 """Scan every (start, length) window with the plain arc AND the drag model,
 keeping outlier-proof (trimmed) errors, so the gates can be tuned offline.
 
-    python -m pitchiq.balltrack.homog.vflscan2 <tag> [procs] [limit_starts]
+    python -m pitchiq.balltrack.homog.flight_scan <tag> [procs] [limit_starts]
         -> <tag>_scan2.npz  S: one row per window, COLS below
 """
 
