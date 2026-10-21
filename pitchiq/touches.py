@@ -375,19 +375,31 @@ def _motion_change(
     return max(turn_score, gain_score), turn_deg, speed_before, speed_after
 
 
+@dataclass(frozen=True)
+class TouchThresholds:
+    """Every threshold a touch is judged by, defaulting to the constants above.
+
+    Radii are in player heights and speeds in player heights per second; each
+    constant's comment says what it is and why it has the value it has.
+    """
+
+    touch_radius_ph: float = TOUCH_RADIUS_PH
+    loose_radius_ph: float = LOOSE_RADIUS_PH
+    min_motion_close: float = MIN_MOTION_CLOSE
+    min_motion_loose: float = MIN_MOTION_LOOSE
+    turn_threshold_deg: float = TURN_THRESHOLD_DEG
+    accel_threshold_ph_s: float = ACCEL_THRESHOLD_PH_S
+    min_turn_speed_ph_s: float = MIN_TURN_SPEED_PH_S
+    min_strike_speed_ph_s: float = MIN_STRIKE_SPEED_PH_S
+    velocity_window: int = VELOCITY_WINDOW
+    min_separation_s: float = MIN_SEPARATION_S
+    max_gap_frames: int = MAX_GAP_FRAMES
+
+
 def segment_touches(
     table: FrameTable,
-    touch_radius_ph: float = TOUCH_RADIUS_PH,
-    loose_radius_ph: float = LOOSE_RADIUS_PH,
-    min_motion_close: float = MIN_MOTION_CLOSE,
-    min_motion_loose: float = MIN_MOTION_LOOSE,
-    turn_threshold_deg: float = TURN_THRESHOLD_DEG,
-    accel_threshold_ph_s: float = ACCEL_THRESHOLD_PH_S,
-    min_turn_speed_ph_s: float = MIN_TURN_SPEED_PH_S,
-    min_strike_speed_ph_s: float = MIN_STRIKE_SPEED_PH_S,
-    velocity_window: int = VELOCITY_WINDOW,
-    min_separation_s: float = MIN_SEPARATION_S,
-    max_gap_frames: int = MAX_GAP_FRAMES,
+    *,
+    thresholds: TouchThresholds | None = None,
     is_player=None,
 ) -> TouchSequence:
     """Find the moments somebody touched the ball.
@@ -399,8 +411,9 @@ def segment_touches(
     more here than almost anywhere: a touch is credited to the nearest figure,
     and a referee trailing play is regularly the nearest figure to the ball.
     """
+    t = thresholds or TouchThresholds()
     records, times, points, observed = _ball_series(table)
-    sequence = TouchSequence(gaps=find_gaps(table, max_gap_frames))
+    sequence = TouchSequence(gaps=find_gaps(table, t.max_gap_frames))
 
     if len(records) < 3:
         return sequence
@@ -424,19 +437,19 @@ def segment_touches(
             nearest_ph[i] = best_px / scale
             second_ph[i] = second_px / scale
 
-    v_before, v_after = _velocities(times, points, scales, velocity_window)
+    v_before, v_after = _velocities(times, points, scales, t.velocity_window)
 
     # A local minimum is the smallest distance within a window as wide as the
     # suppression interval. Defining it that way rather than as "smaller than
     # its two neighbours" means detector jitter cannot manufacture a minimum
     # every third frame.
     fps = table.fps or 30.0
-    radius = max(1, int(round(min_separation_s * fps / 2)))
+    radius = max(1, int(round(t.min_separation_s * fps / 2)))
 
     def build_touch(i, motion, turn_deg, speed_before, speed_after) -> Touch:
         record = records[i]
         distance = float(nearest_ph[i])
-        window = observed[max(0, i - velocity_window) : i + velocity_window + 1]
+        window = observed[max(0, i - t.velocity_window) : i + t.velocity_window + 1]
         margin = second_ph[i] - distance if np.isfinite(second_ph[i]) else 1.0
         return Touch(
             frame_index=record.frame_index,
@@ -454,7 +467,7 @@ def segment_touches(
             turn_deg=turn_deg,
             observed=bool(observed[i]),
             components=TouchConfidence(
-                proximity=max(0.0, min(1.0, 1.0 - distance / touch_radius_ph)),
+                proximity=max(0.0, min(1.0, 1.0 - distance / t.touch_radius_ph)),
                 motion_change=motion,
                 observation=float(window.mean()) if len(window) else 0.0,
                 separation=max(0.0, min(1.0, margin)),
@@ -477,18 +490,18 @@ def segment_touches(
         motion, turn_deg, speed_before, speed_after = _motion_change(
             v_before[i],
             v_after[i],
-            turn_threshold_deg,
-            accel_threshold_ph_s,
-            min_turn_speed_ph_s,
-            min_strike_speed_ph_s,
+            t.turn_threshold_deg,
+            t.accel_threshold_ph_s,
+            t.min_turn_speed_ph_s,
+            t.min_strike_speed_ph_s,
         )
 
         # The conjunction. Being close is not enough on its own, and neither is
         # the ball having changed — a touch is both, with the tight radius
         # buying a lower motion bar rather than none.
         distance = float(nearest_ph[i])
-        close_enough = distance <= touch_radius_ph and motion >= min_motion_close
-        loose_but_moving = distance <= loose_radius_ph and motion >= min_motion_loose
+        close_enough = distance <= t.touch_radius_ph and motion >= t.min_motion_close
+        loose_but_moving = distance <= t.loose_radius_ph and motion >= t.min_motion_loose
         if not (close_enough or loose_but_moving):
             continue
 
@@ -504,17 +517,11 @@ def segment_touches(
             v_before,
             v_after,
             build_touch=build_touch,
-            max_gap_frames=max_gap_frames,
-            touch_radius_ph=touch_radius_ph,
-            min_motion=min_motion_loose,
-            turn_threshold_deg=turn_threshold_deg,
-            accel_threshold_ph_s=accel_threshold_ph_s,
-            min_turn_speed_ph_s=min_turn_speed_ph_s,
-            min_strike_speed_ph_s=min_strike_speed_ph_s,
+            thresholds=t,
         )
     )
 
-    sequence.touches = _suppress(candidates, min_separation_s)
+    sequence.touches = _suppress(candidates, t.min_separation_s)
     return sequence
 
 
@@ -543,13 +550,7 @@ def _gap_touches(
     v_after,
     *,
     build_touch,
-    max_gap_frames,
-    touch_radius_ph,
-    min_motion,
-    turn_threshold_deg,
-    accel_threshold_ph_s,
-    min_turn_speed_ph_s=0.0,
-    min_strike_speed_ph_s=0.0,
+    thresholds: TouchThresholds,
 ):
     """At most one touch per interpolated span, and only if the ball changed.
 
@@ -570,10 +571,11 @@ def _gap_touches(
     than inference; those become TouchSequence.gaps instead, which is how the
     event layer knows not to join across them.
     """
+    t = thresholds
     out: list[Touch] = []
 
     for start, end in _unobserved_runs(observed):
-        if end - start + 1 > max_gap_frames:
+        if end - start + 1 > t.max_gap_frames:
             continue
         if start == 0 or end == len(records) - 1:
             continue  # no before or no after to compare
@@ -581,18 +583,18 @@ def _gap_touches(
         motion, turn_deg, speed_before, speed_after = _motion_change(
             v_before[start - 1],
             v_after[end + 1],
-            turn_threshold_deg,
-            accel_threshold_ph_s,
-            min_turn_speed_ph_s,
-            min_strike_speed_ph_s,
+            t.turn_threshold_deg,
+            t.accel_threshold_ph_s,
+            t.min_turn_speed_ph_s,
+            t.min_strike_speed_ph_s,
         )
-        if motion < min_motion:
+        if motion < t.min_motion_loose:
             continue  # the ball carried on doing what it was doing
 
         inside = [
             i
             for i in range(start, end + 1)
-            if holders[i] is not None and nearest_ph[i] <= touch_radius_ph
+            if holders[i] is not None and nearest_ph[i] <= t.touch_radius_ph
         ]
         if not inside:
             continue

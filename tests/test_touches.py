@@ -23,6 +23,7 @@ from pitchiq.touches import (
     TouchConfidence,
     find_gaps,
     local_scale_px,
+    TouchThresholds,
     segment_touches,
 )
 
@@ -451,11 +452,11 @@ class TestTurnSpeedFloor:
 
     def test_a_creeping_reversal_is_a_touch_when_no_floor_is_set(self):
         table = self._creeping_reversal()
-        assert len(segment_touches(table, min_turn_speed_ph_s=0.0)) > 0
+        assert len(segment_touches(table, thresholds=TouchThresholds(min_turn_speed_ph_s=0.0))) > 0
 
     def test_the_floor_rejects_it(self):
         table = self._creeping_reversal()
-        assert len(segment_touches(table, min_turn_speed_ph_s=1.0)) == 0
+        assert len(segment_touches(table, thresholds=TouchThresholds(min_turn_speed_ph_s=1.0))) == 0
 
     def test_a_struck_ball_still_registers_through_the_floor(self):
         frames = []
@@ -463,10 +464,12 @@ class TestTurnSpeedFloor:
             bx = 100.0 + (i * 12.0 if i <= 20 else (40 - i) * 12.0)
             frames.append(((bx, 400.0), True, [player(7, 340.0, 400.0)]))
         table = build(frames)
-        assert segment_touches(table, min_turn_speed_ph_s=1.0).counts_by_track() == {7: 1}
+        assert segment_touches(
+            table, thresholds=TouchThresholds(min_turn_speed_ph_s=1.0)
+        ).counts_by_track() == {7: 1}
 
     def test_the_floor_is_on_by_default(self):
         """The old behaviour is still reachable, and is no longer the default."""
         table = self._creeping_reversal()
         assert len(segment_touches(table)) == 0
-        assert len(segment_touches(table, min_turn_speed_ph_s=0.0)) > 0
+        assert len(segment_touches(table, thresholds=TouchThresholds(min_turn_speed_ph_s=0.0))) > 0
