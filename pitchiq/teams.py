@@ -464,7 +464,9 @@ def _weighted_balance(labels: np.ndarray, weights: np.ndarray) -> float:
     return min(float(weights[labels == 0].sum()), float(weights[labels == 1].sum())) / total
 
 
-def _discriminant_refit(rows: np.ndarray, weights: np.ndarray, labels: np.ndarray):
+def _discriminant_refit(
+    rows: np.ndarray, weights: np.ndarray, labels: np.ndarray
+) -> tuple[np.ndarray, np.ndarray] | None:
     """Refit a lightness split on lightness and tint together; see DISCRIMINANT_HUBER.
 
     `rows` are per-track median kit samples (all finite), `labels` the

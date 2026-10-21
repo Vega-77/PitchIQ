@@ -19,9 +19,13 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .pitch import Pitch
 from .report_export import drawn
+
+if TYPE_CHECKING:
+    from google.cloud.firestore import Client as FirestoreClient
 
 # Everything this module is allowed to write, as a path shape. Anything else is
 # a bug, and `_check_path` turns it into an exception rather than a silent
@@ -125,7 +129,7 @@ def _check_key(path: str | None) -> Path:
     )
 
 
-def _client(key_path: str | None = None):
+def _client(key_path: str | None = None) -> FirestoreClient:
     """A Firestore client from the service account, imported lazily.
 
     Lazily because `firebase-admin` is a publishing dependency, and importing

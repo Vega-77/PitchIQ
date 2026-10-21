@@ -119,7 +119,9 @@ def _orientation(calibration, width_px: float, height_px: float) -> float:
     return -1.0 if w < 0 else 1.0
 
 
-def _project(homography_inv: np.ndarray, xs: np.ndarray, ys: np.ndarray, sign: float = 1.0):
+def _project(
+    homography_inv: np.ndarray, xs: np.ndarray, ys: np.ndarray, sign: float = 1.0
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Pitch metres -> pixels, with the points behind the camera marked.
 
     Done by hand rather than through `cv2.perspectiveTransform`, which divides

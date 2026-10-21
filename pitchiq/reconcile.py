@@ -164,7 +164,9 @@ def tagged_times(entries, types, clock: VideoClock | None = None) -> list[float]
     return sorted(out)
 
 
-def pair_up(cv_times, tag_times, window_s: float):
+def pair_up(
+    cv_times, tag_times, window_s: float
+) -> tuple[list[tuple[float, float]], list[float], list[float]]:
     """Match two sorted lists of moments, nearest first.
 
     Greedy on the smallest gap, which for a handful of goals is both optimal

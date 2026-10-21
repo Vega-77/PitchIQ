@@ -93,7 +93,7 @@ def territory(states, pitch, attacking_ends: dict[str, str]) -> TerritorySplit:
     return split
 
 
-def pinned_back(split: TerritorySplit, team: str, threshold: float = 0.45):
+def pinned_back(split: TerritorySplit, team: str, threshold: float = 0.45) -> str | None:
     """A plain sentence when a team's possession was mostly in its own third.
 
     Returns None when there is nothing to say, which is the common case. The

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -25,6 +26,10 @@ import numpy as np
 # No marking constants: `pitch_line_segments` reads them off the `Pitch` so the
 # model it builds is the paint on this field, not the paint on a regulation one.
 from .pitch import Pitch
+
+if TYPE_CHECKING:
+    # Imported inside `refine` at run time: calibration imports this module.
+    from .calibration import Calibration
 
 # How far a projected pixel may land from the nearest painted line and still be
 # counted as that line. Wide on purpose: this is the capture radius of the
@@ -489,7 +494,9 @@ class LineFit:
         }
 
 
-def _match_distances(calibration, segments, model, radius_m):
+def _match_distances(
+    calibration, segments, model, radius_m
+) -> tuple[list[float], list[tuple[tuple[float, float], tuple[float, float]]], int]:
     """Project sampled pixels to metres and pair each with the nearest line.
 
     Returns the matched distances, the (pixel, target metre) pairs refinement
@@ -561,7 +568,7 @@ def refine(
     *,
     iterations: int = 6,
     radius_m: float = MATCH_RADIUS_M,
-):
+) -> tuple[Calibration, LineFit, LineFit]:
     """Nudge a calibration onto the paint. Returns (calibration, before, after).
 
     Iterated closest point, in the one form the problem allows: a detected

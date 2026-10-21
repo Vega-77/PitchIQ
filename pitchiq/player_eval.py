@@ -247,7 +247,9 @@ class Score:
         }
 
 
-def _match_frame(entries: list[TruthEntry], preds: list[Pred]):
+def _match_frame(
+    entries: list[TruthEntry], preds: list[Pred]
+) -> tuple[list[tuple[int, int]], set[int]]:
     """(entry index, pred index) pairs: scored truth first, then ignore regions."""
     feet = np.array([[(p.box[0] + p.box[2]) / 2, p.box[3]] for p in preds]).reshape(-1, 2)
 

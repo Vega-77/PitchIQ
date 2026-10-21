@@ -105,7 +105,7 @@ class Blindness:
         wanted = (kind,) if isinstance(kind, str) else tuple(kind)
         return sum(s.duration_s for s in self.spells if s.kind in wanted)
 
-    def named(self, kind=UNRESOLVED, min_s: float = MIN_NAMED_S):
+    def named(self, kind=UNRESOLVED, min_s: float = MIN_NAMED_S) -> list[BlindSpell]:
         """The stretches long enough to be worth listing, longest first."""
         wanted = (kind,) if isinstance(kind, str) else tuple(kind)
         return sorted(
@@ -146,7 +146,7 @@ class Blindness:
         }
 
 
-def tagged_moments(entries, clock: VideoClock | None = None):
+def tagged_moments(entries, clock: VideoClock | None = None) -> list[tuple[float, str]]:
     """Every tagged entry as `(video_s, type)`, in order.
 
     Converted once, here, for the same reason `reconcile.tagged_times` does it
@@ -196,7 +196,7 @@ def unseen_stretches(states) -> list[tuple[float, float]]:
     return [(a, b) for a, b in out if b > a]
 
 
-def _cut_against_dead(start_s, end_s, spans):
+def _cut_against_dead(start_s, end_s, spans) -> list[tuple[tuple[float, float], bool]]:
     """Split one interval into `(piece, is_dead)` against the dead spans.
 
     Splitting rather than voting. A twenty-second gap that covers a
@@ -223,7 +223,7 @@ def _cut_against_dead(start_s, end_s, spans):
     return [(p, dead) for p, dead in pieces if p[1] > p[0]]
 
 
-def _explaining(start_s, end_s, moments, window_s):
+def _explaining(start_s, end_s, moments, window_s) -> tuple[str, ...]:
     """Tagged types near an interval, nearest to the middle first."""
     lo, hi = start_s - window_s, end_s + window_s
     middle = (start_s + end_s) / 2.0

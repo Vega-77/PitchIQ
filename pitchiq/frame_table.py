@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -28,6 +29,9 @@ from .detector import CLASS_BALL, CLASS_PERSON, DEFAULT_WEIGHTS, PersonBallDetec
 from .possession import median_player_height
 from .teams import UNKNOWN, kit_sample
 from .player_thumbnails import Thumb, consider
+
+if TYPE_CHECKING:
+    from ultralytics.trackers import BOTSORT, BYTETracker
 
 # Columns of FrameRecord.players.
 COL_TRACK_ID, COL_X1, COL_Y1, COL_X2, COL_Y2, COL_CONF = range(6)
@@ -211,7 +215,9 @@ def _empty_players() -> np.ndarray:
     return np.empty((0, PLAYER_COLUMNS), dtype=np.float32)
 
 
-def build_tracker(tracker: str = 'botsort.yaml', device: str | int | None = None):
+def build_tracker(
+    tracker: str = 'botsort.yaml', device: str | int | None = None
+) -> BOTSORT | BYTETracker:
     """Construct a standalone ultralytics tracker.
 
     Mirrors what `trackers.track.on_predict_start` does, because that is the

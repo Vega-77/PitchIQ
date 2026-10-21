@@ -687,7 +687,7 @@ class PitchTracker:
             t.team_votes[k] += 1
 
 
-def _close_pairs(matches, tracks, radius_m):
+def _close_pairs(matches, tracks, radius_m) -> list[tuple]:
     """Pairs of matches whose tracks' predicted positions are within radius."""
     out = []
     for i in range(len(matches)):

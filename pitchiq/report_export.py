@@ -133,7 +133,7 @@ PITCH_LENGTH_M = Pitch().length_m
 PITCH_WIDTH_M = Pitch().width_m
 
 
-def _num(value):
+def _num(value) -> int | float | None:
     """A JSON-safe number, or None.
 
     numpy scalars pass `isinstance(x, float)` in some versions and fail

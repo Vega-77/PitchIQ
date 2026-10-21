@@ -92,7 +92,9 @@ def in_final_third(pitch: Pitch, x_m: float, attacking_end: str) -> bool:
 # ---------------------------------------------------------------- boxes
 
 
-def _box(pitch: Pitch, end: str, length_m: float, width_m: float):
+def _box(
+    pitch: Pitch, end: str, length_m: float, width_m: float
+) -> tuple[float, float, float, float]:
     """The rectangle of a goal-end box, as (x_min, x_max, y_min, y_max)."""
     _check_end(end)
     centre_y = pitch.width_m / 2
@@ -108,7 +110,7 @@ def in_penalty_area(pitch: Pitch, x_m: float, y_m: float, end: str) -> bool:
     return x0 <= x_m <= x1 and y0 <= y_m <= y1
 
 
-def goal_area(pitch: Pitch, end: str):
+def goal_area(pitch: Pitch, end: str) -> tuple[float, float, float, float]:
     """The six-yard box as (x_min, x_max, y_min, y_max).
 
     Public because a caller can want the region itself and not only a

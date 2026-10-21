@@ -22,11 +22,15 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .calibration import Calibration
 from .pitch import STATSBOMB_LENGTH, STATSBOMB_WIDTH, MatchOrientation, Pitch
+
+if TYPE_CHECKING:
+    import onnxruntime as ort
 
 # Order matters and must mirror FEATURES in xg_training/main.py.
 FEATURE_ORDER = [
@@ -60,7 +64,7 @@ POST_R = np.array([STATSBOMB_LENGTH, 44.0])
 MODEL_PATH = Path(__file__).resolve().parent / 'xg_model8.onnx'
 
 
-def load_session(model_path: str | Path | None = None):
+def load_session(model_path: str | Path | None = None) -> ort.InferenceSession:
     """An onnxruntime session for the xG model.
 
     Kept here rather than left to each caller so there is one answer to "which
@@ -266,6 +270,9 @@ def xg_for_shots(
     if session is None:
         try:
             session = load_session()
+        # Broad on purpose. Besides ImportError, onnxruntime raises its own
+        # NoSuchFile, InvalidProtobuf and Fail, which derive straight from
+        # Exception, and any of them should cost the report its xG, not the run.
         except Exception as error:  # noqa: BLE001
             return {}, [f'expected goals unavailable: {error}']
 
@@ -331,6 +338,8 @@ def xg_for_shots(
                 feature_vector(replace(context, is_header=True), pitch),
             )
             xg_by_event[shot.event_id] = (foot, header)
+        # Broad for the same reason as `load_session` above: a model that fails
+        # mid-match (onnxruntime's Fail, InvalidArgument) keeps what it scored.
         except Exception as error:  # noqa: BLE001
             return xg_by_event, [f'expected goals stopped early: {error}']
 

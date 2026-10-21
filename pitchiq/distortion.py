@@ -307,7 +307,7 @@ def trace_chains(
     return chains
 
 
-def _clean_start(mask, seed, direction, band_px):
+def _clean_start(mask, seed, direction, band_px) -> np.ndarray | None:
     """A point on the seed where the paint can be centred. Midpoint first."""
     for fraction in (0.5, 0.35, 0.65, 0.2, 0.8, 0.1, 0.9):
         along = np.array(
@@ -383,7 +383,7 @@ def _angle_deg(a: np.ndarray, b: np.ndarray) -> float:
     return math.degrees(math.acos(max(-1.0, min(1.0, float(np.dot(a, b))))))
 
 
-def _centre_of_paint(mask, around, heading, band_px):
+def _centre_of_paint(mask, around, heading, band_px) -> tuple[np.ndarray, bool] | None:
     """Centroid of the painted run crossing `around`, perpendicular to heading.
 
     Returns `(point, clean)`, or None when there is no paint in the slice at
@@ -565,7 +565,9 @@ def estimate(
     )
 
 
-def lens_for_frame(image: np.ndarray, *, max_k1: float = MAX_K1):
+def lens_for_frame(
+    image: np.ndarray, *, max_k1: float = MAX_K1
+) -> tuple[DistortionModel | None, DistortionFit]:
     """The model this frame supports, or None. Returns (model, fit).
 
     The only function here worth wiring into anything. `None` is a real answer

@@ -203,7 +203,7 @@ def paint_mask(
 # ---- the camera -----------------------------------------------------------------
 
 
-def rotation(pan, tilt, roll):
+def rotation(pan, tilt, roll) -> np.ndarray:
     """World -> camera rotation(s). pan 0 looks across the pitch (+v), positive
     pan turns towards +u; tilt is down from level; roll turns the picture.
     Broadcasts over arrays of angles: returns (..., 3, 3)."""
@@ -217,7 +217,7 @@ def rotation(pan, tilt, roll):
     return np.stack([r, dn, d], -2)
 
 
-def ground_to_image(C, pan, tilt, roll, f, size=(1920, 1080)):
+def ground_to_image(C, pan, tilt, roll, f, size=(1920, 1080)) -> np.ndarray:
     """Homography(s) from ground (u, v, 1) to pixels, for a camera at C = (u, v, h)."""
     R = rotation(pan, tilt, roll)
     f = np.asarray(f, float)
@@ -260,7 +260,9 @@ class Model:
         self.h = np.c_[self.pts, np.ones(len(self.pts))]
 
 
-def score(G: np.ndarray, model: Model, paint: Paint, sigma: float = 2.0, miss: float = 0.3):
+def score(
+    G: np.ndarray, model: Model, paint: Paint, sigma: float = 2.0, miss: float = 0.3
+) -> np.ndarray:
     """How well guesses G (..., 3, 3) put the model on the paint.
 
     Model line length (in paint-image pixels) that lands on paint, less `miss`
@@ -293,7 +295,9 @@ def score(G: np.ndarray, model: Model, paint: Paint, sigma: float = 2.0, miss: f
 CENTRE = np.array([960.0, 540.0])
 
 
-def frame_features(image: np.ndarray, sift=None, scale: float = 0.5):
+def frame_features(
+    image: np.ndarray, sift=None, scale: float = 0.5
+) -> tuple[np.ndarray, np.ndarray]:
     """SIFT over the whole picture (grass, stands and trees all move together
     when the camera turns), in full-frame pixel coordinates."""
     sift = sift or cv2.SIFT_create(nfeatures=3000)
@@ -306,13 +310,13 @@ def frame_features(image: np.ndarray, sift=None, scale: float = 0.5):
     return xy, (np.zeros((0, 128), np.float32) if d is None else d)
 
 
-def link(a, b, max_pairs: int = 80, rng=None):
+def link(a, b, max_pairs: int = 80, rng=None) -> tuple[np.ndarray, np.ndarray] | None:
     """Matched points between two frames' features that agree on one homography
     (players running are the outliers). Returns (xa, xb) or None."""
     return thin_link(link_inliers(a, b), max_pairs, rng)
 
 
-def link_inliers(a, b):
+def link_inliers(a, b) -> tuple[np.ndarray, np.ndarray] | None:
     """`link` before the thinning: every inlier pair, (xa, xb) or None. It draws
     no random numbers, so pairs can be matched in any order or process."""
     (xa, da), (xb, db) = a, b
@@ -331,7 +335,7 @@ def link_inliers(a, b):
     return pa[k], pb[k]
 
 
-def thin_link(pairs, max_pairs: int = 80, rng=None):
+def thin_link(pairs, max_pairs: int = 80, rng=None) -> tuple[np.ndarray, np.ndarray] | None:
     """At most max_pairs of `link_inliers`' pairs, drawn from rng."""
     if pairs is None:
         return None
@@ -343,7 +347,7 @@ def thin_link(pairs, max_pairs: int = 80, rng=None):
     return pa[k].astype(float), pb[k].astype(float)
 
 
-def rodrigues(w):
+def rodrigues(w) -> np.ndarray:
     """Rotation matrices from rotation vectors (n, 3)."""
     w = np.atleast_2d(w)
     th = np.linalg.norm(w, axis=1)[:, None, None]
@@ -354,12 +358,12 @@ def rodrigues(w):
     return np.eye(3) + np.sin(th) * Kx + (1 - np.cos(th)) * Kx @ Kx
 
 
-def rays(xy, f):
+def rays(xy, f) -> np.ndarray:
     """Pixels (n, 2) at focal length `f` -> camera rays (n, 3) with z = 1."""
     return np.c_[(xy - CENTRE) / f, np.ones(len(xy))]
 
 
-def to_px(v, f):
+def to_px(v, f) -> np.ndarray:
     """Camera rays (n, 3) at focal length `f` -> pixels (n, 2); the inverse of `rays`."""
     return v[:, :2] / v[:, 2:3] * f + CENTRE
 
@@ -399,7 +403,9 @@ class Primitives:
         )
         self.centre = np.array([L / 2, c])
 
-    def nearest(self, p: np.ndarray, with_id: bool = False):
+    def nearest(
+        self, p: np.ndarray, with_id: bool = False
+    ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
         """The nearest point on any line to each ground point p (n, 2); with
         `with_id` also which line (segments first, then arcs)."""
         ab = self.b - self.a
@@ -454,7 +460,7 @@ def paint_points(paint: Paint, n: int = 400, rng=None) -> np.ndarray:
 
 # ---- the camera of a whole stretch -------------------------------------------------
 
-from scipy.optimize import least_squares  # noqa: E402
+from scipy.optimize import OptimizeResult, least_squares  # noqa: E402
 
 
 @dataclass
@@ -490,7 +496,7 @@ def fit_sample(
     tol: float = 4.0,
     step: float = 2.0,
     zoom: float = 0.1,
-):
+) -> tuple[np.ndarray, int, int]:
     """One sample's correction to its chained pose, from its own paint: a small
     rotation (vector, applied as rodrigues(x) @ R) and log focal change pulling
     the paint pixels xy (full frame) onto the nearest model line, measured in the
@@ -542,7 +548,7 @@ def fit_sample(
 
 def anchor_chain(
     paint: dict, R, f, C, R0, pitch: PitchModel, min_good: int = 40, half: int = 10, log=None
-):
+) -> tuple[np.ndarray, np.ndarray, dict]:
     """Tie a long stretch's chained rotations back to the pitch, sample by sample.
 
     The chain walks forward along SIFT links with nothing to stop it wandering:
@@ -611,7 +617,7 @@ def anchor_chain(
     return R2, f2, info
 
 
-def relative_rotation(xi, xj, fi: float):
+def relative_rotation(xi, xj, fi: float) -> tuple[np.ndarray, float]:
     """Rotation and focal length taking frame i (focal fi) to frame j."""
 
     def res(p):
@@ -622,7 +628,7 @@ def relative_rotation(xi, xj, fi: float):
     return rodrigues(sol.x[:3])[0], float(np.exp(sol.x[3]))
 
 
-def chain_rotations(links, n: int, f0: float):
+def chain_rotations(links, n: int, f0: float) -> tuple[np.ndarray, np.ndarray]:
     """A starting guess: walk forward along the shortest links."""
     best = {}
     for i, j, xi, xj in links:
@@ -640,7 +646,7 @@ def chain_rotations(links, n: int, f0: float):
     return R, f
 
 
-def best_focal(links, n: int, lo: float = 600.0, hi: float = 9000.0, pool=None):
+def best_focal(links, n: int, lo: float = 600.0, hi: float = 9000.0, pool=None) -> float:
     """Sample 0's focal length: the one under which all the links agree best.
 
     With the wrong focal length the rotations chained along short links do not
@@ -704,13 +710,13 @@ class Panorama:
     cx: float
     cy: float
 
-    def to_px(self, v):
+    def to_px(self, v) -> np.ndarray:
         """Camera-0 directions (..., 3) -> panorama pixels (..., 2)."""
         az = np.arctan2(v[..., 0], v[..., 2])
         el = np.arctan2(v[..., 1], np.hypot(v[..., 0], v[..., 2]))
         return np.stack([self.F * az + self.cx, self.F * el + self.cy], -1)
 
-    def directions(self):
+    def directions(self) -> np.ndarray:
         """The camera-0 unit direction (h, w, 3) of every panorama pixel."""
         h, w = self.paint.shape
         az = (np.arange(w) - self.cx) / self.F
@@ -770,7 +776,9 @@ _OUTLINE = np.concatenate(
 )
 
 
-def _footprint(pano: Panorama, R, f: float, h: int, w: int, pad: int = 12):
+def _footprint(
+    pano: Panorama, R, f: float, h: int, w: int, pad: int = 12
+) -> tuple[int, int, int, int]:
     """Rows y0..y1 and columns x0..x1 of the panorama holding every cell a frame
     (rotation R from sample 0's camera, focal f) sees: its outline, a few pixels
     wide of the frame, sampled every 8 px and padded. The whole panorama when
@@ -792,7 +800,7 @@ def explained_paint(
     thresh: float = 0.25,
     step: float = 0.02,
     dep0: float = 2.0,
-):
+) -> tuple[int, int]:
     """How much of the stitched paint (in pixels, below 2*dep0 degrees under the
     horizon) lies within `tol` panorama pixels of the pitch's lines under this pose."""
     paint = pano.paint >= thresh
@@ -828,7 +836,7 @@ def refine_pano(
     rng=None,
     fix_h: float = None,
     fix_C: bool = False,
-):
+) -> tuple[np.ndarray, np.ndarray, PitchModel, OptimizeResult]:
     """Least-squares polish in the panorama: every stitched paint pixel well below
     the horizon is pulled to the nearest model line (Cauchy loss, so the other
     sports' lines and the club logo give up rather than drag). Free: the camera
@@ -917,7 +925,9 @@ def clean_pano(pano: Panorama, thresh: float = 0.25, noisy: float = 2.0) -> Pano
 # ---- a starting pose with no clicks: the halfway line and the centre circle ---------------
 
 
-def halfway_candidates(paint: np.ndarray, top: int = 6, max_tilt: float = 35.0):
+def halfway_candidates(
+    paint: np.ndarray, top: int = 6, max_tilt: float = 35.0
+) -> list[tuple[float, float, float, float]]:
     """Long straight paint runs within `max_tilt` degrees of vertical in a panorama
     mask, longest first, one per line, as (x0, y0, x1, y1) with y0 < y1. Seen from
     the side, the halfway line is the one that stands up."""
@@ -948,7 +958,7 @@ def halfway_candidates(paint: np.ndarray, top: int = 6, max_tilt: float = 35.0):
 
 def circles_on_line(
     paint: np.ndarray, line, n_pts: int = 160, tol: float = 4.0, top: int = 3, ring: float = 10.0
-):
+) -> list[tuple[float, tuple]]:
     """Ellipses centred on `line` whose outlines lie on paint (the line's own pixels
     excluded), best first, as [(score, (cx, cy, a, aspect, tilt))], no two alike.
     Score: the semi-major times the worst quarter's share on paint -- a long
@@ -1015,7 +1025,7 @@ def circles_on_line(
     return keep
 
 
-def _kabsch(world, cam):
+def _kabsch(world, cam) -> np.ndarray:
     U, _, Vt = np.linalg.svd(cam.T @ world)
     return U @ np.diag([1, 1, np.sign(np.linalg.det(U @ Vt))]) @ Vt
 
@@ -1027,7 +1037,7 @@ def calibrate_pano(
     thresh: float = 0.25,
     circles: int = 6,
     log=None,
-):
+) -> tuple[np.ndarray, np.ndarray, PitchModel, dict] | None:
     """The whole pose from the stitched paint, no clicks: find the halfway line and
     the centre circle; the circle's size gives the camera's distance and its
     squash (minor / major = sine of the depression) its height; aim along the
@@ -1050,7 +1060,9 @@ def calibrate_pano(
     return best
 
 
-def _pose_from_circle(pano, el, line, L, W0, log):
+def _pose_from_circle(
+    pano, el, line, L, W0, log
+) -> tuple[np.ndarray, np.ndarray, PitchModel, dict] | None:
     cx, cy, a, asp, _ = el
 
     def pdir(x, y):
@@ -1105,7 +1117,7 @@ def _pose_from_circle(pano, el, line, L, W0, log):
     return best
 
 
-def aim_from_circle(pano: Panorama, el, line, C, pitch: PitchModel):
+def aim_from_circle(pano: Panorama, el, line, C, pitch: PitchModel) -> np.ndarray:
     """Sample 0's rotation from a known camera position: the circle's centre is the
     pitch's centre, the halfway line runs across the pitch."""
     cx, cy = el[:2]
@@ -1126,7 +1138,9 @@ def aim_from_circle(pano: Panorama, el, line, C, pitch: PitchModel):
     )
 
 
-def best_roll(pano: Panorama, C, R0, pitch: PitchModel, span: float = 24.0, step: float = 2.0):
+def best_roll(
+    pano: Panorama, C, R0, pitch: PitchModel, span: float = 24.0, step: float = 2.0
+) -> np.ndarray:
     """Turn about the line of sight to the centre spot: the halfway line's direction
     near the circle is a few degrees out, and a start that far off settles in the
     wrong place. Keeps the turn that explains the most paint."""
@@ -1141,7 +1155,7 @@ def best_roll(pano: Panorama, C, R0, pitch: PitchModel, span: float = 24.0, step
 
 def calibrate_rotation(
     pano: Panorama, C, pitch: PitchModel, thresh: float = 0.25, circles: int = 6, log=None
-):
+) -> tuple[np.ndarray, np.ndarray, PitchModel, dict] | None:
     """The camera and the pitch already known (another stretch of the same match):
     only where it points. Each of the best few circles gives a start; the rotation
     alone is refined; the one explaining the most paint wins. Returns (C, R0,
@@ -1179,7 +1193,7 @@ def calibrate_rotation(
 FAR_NEAR = 0.988  # far-quartile / near-quartile median player height at the true camera height (fm01 0.564, fr00 0.578)
 
 
-def far_near_ratio(R_chain, f, C, R0, pitch: PitchModel, boxes: dict):
+def far_near_ratio(R_chain, f, C, R0, pitch: PitchModel, boxes: dict) -> tuple[float, float]:
     """Median standing height of detected people in the farthest quarter of the
     pitch over that of the nearest quarter, and the overall median in R. Guess the
     camera too low and far people come out too tall; too high, too short. `boxes`: sample index ->
@@ -1216,7 +1230,7 @@ def height_from_people(
     step: float = 0.03,
     n: int = 9,
     log=None,
-):
+) -> tuple[np.ndarray, np.ndarray, PitchModel, list[tuple]]:
     """Re-fit the pose at a ladder of fixed camera heights around the current one
     (each from the last good answer), and keep the height where the players' far /
     near size ratio crosses `target`, interpolated. Returns (C, R0, pitch, rows),

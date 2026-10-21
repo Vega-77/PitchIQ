@@ -21,6 +21,7 @@ Design notes, measurements and history: `docs/design/pipeline.md`.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -709,7 +710,7 @@ def _split_teams(
         )
 
 
-def _find_participants(report: MatchReport, table: FrameTable):
+def _find_participants(report: MatchReport, table: FrameTable) -> Callable[[int], bool]:
     """Who is actually playing; returns the `is_player` test every count uses.
 
     Before any statistic is taken. The detector returns people, and a touchline
@@ -1283,7 +1284,7 @@ def _stream_batches(
     fps: float,
     start_s: float,
     end_s: float | None,
-):
+) -> Iterator[tuple[int, list[np.ndarray]]]:
     """Yield (absolute_frame_index, frames), letting each batch go out of scope.
 
     Indices are absolute frame numbers in the source video, not offsets into the

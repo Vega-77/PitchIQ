@@ -57,7 +57,9 @@ def feet_on_pitch(Hsb: np.ndarray, feet_px: list, margin: float = MARGIN_SB) -> 
     return dict(feet=n, on_pitch=on / n if n else float('nan'))
 
 
-def _to_metres(H: np.ndarray, px: np.ndarray, length: float, width: float):
+def _to_metres(
+    H: np.ndarray, px: np.ndarray, length: float, width: float
+) -> tuple[np.ndarray, np.ndarray]:
     """Pixels through a px -> StatsBomb homography to metres on an L x W pitch, and
     which of them land in front of the camera (H's overall sign is arbitrary, so the
     majority side is taken as the front)."""
@@ -71,7 +73,9 @@ def _to_metres(H: np.ndarray, px: np.ndarray, length: float, width: float):
 _DIST = {}
 
 
-def _line_distance(length: float, width: float, res: float = 0.1, pad: float = 15.0):
+def _line_distance(
+    length: float, width: float, res: float = 0.1, pad: float = 15.0
+) -> tuple[np.ndarray, float, float]:
     """Distance in metres to the nearest painted line, on a res-metre grid over the
     pitch and pad metres around it."""
     key = (round(length, 2), round(width, 2), res, pad)

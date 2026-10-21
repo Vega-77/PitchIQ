@@ -18,11 +18,12 @@ Design notes, measurements and history: `docs/design/touches.md`.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 import numpy as np
 
-from .frame_table import FrameTable
+from .frame_table import FrameRecord, FrameTable
 from .possession import median_player_height
 from .teams import UNKNOWN
 
@@ -177,7 +178,7 @@ class TouchSequence:
     def __len__(self) -> int:
         return len(self.touches)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Touch]:
         return iter(self.touches)
 
     def between(self, start_s: float, end_s: float) -> list[Touch]:
@@ -278,7 +279,7 @@ def _two_nearest(
 # ---------------------------------------------------------------- the pass
 
 
-def _ball_series(table: FrameTable):
+def _ball_series(table: FrameTable) -> tuple[list[FrameRecord], np.ndarray, np.ndarray, np.ndarray]:
     """Frames that have a ball, as parallel arrays."""
     records = [r for r in table.records if r.ball_xy is not None]
     return (
@@ -289,7 +290,7 @@ def _ball_series(table: FrameTable):
     )
 
 
-def find_gaps(table: FrameTable, max_gap_frames: int = MAX_GAP_FRAMES):
+def find_gaps(table: FrameTable, max_gap_frames: int = MAX_GAP_FRAMES) -> list[tuple[float, float]]:
     """Spans of time where the ball was not actually seen.
 
     Counts both a missing ball and an interpolated one, because they are the
@@ -321,7 +322,7 @@ def find_gaps(table: FrameTable, max_gap_frames: int = MAX_GAP_FRAMES):
     return spans
 
 
-def _velocities(times, points, scales, window: int):
+def _velocities(times, points, scales, window: int) -> tuple[np.ndarray, np.ndarray]:
     """Ball velocity just before and just after each sample, in player heights/s.
 
     Two one-sided windows rather than one centred derivative. A centred
@@ -355,7 +356,7 @@ def _motion_change(
     accel_threshold: float,
     min_turn_speed: float = 0.0,
     min_strike_speed: float = 0.0,
-):
+) -> tuple[float, float, float, float]:
     """How much the ball's motion changed, as (score in 0..1, turn in degrees)."""
     speed_before = float(np.hypot(*v_before))
     speed_after = float(np.hypot(*v_after))
@@ -531,7 +532,7 @@ def segment_touches(
     return sequence
 
 
-def _unobserved_runs(observed):
+def _unobserved_runs(observed) -> list[tuple[int, int]]:
     """Maximal runs of consecutive frames where the ball was not really seen."""
     runs: list[tuple[int, int]] = []
     start: int | None = None
@@ -557,7 +558,7 @@ def _gap_touches(
     *,
     build_touch,
     thresholds: TouchThresholds,
-):
+) -> list[Touch]:
     """At most one touch per interpolated span, and only if the ball changed.
 
     Roughly 40% of frames have no real ball detection, so refusing to look

@@ -684,7 +684,7 @@ def shape_samples(
     defending_end: str | None = None,
     pitch: Pitch | None = None,
     keeper_tracks: set[int] | None = None,
-):
+) -> tuple[list[float], list[float], list[float], list[float], list[float]]:
     """Per-instant width, depth, spread and line height, with their times.
 
     Split out of `team_shape` because averaging is only one of the questions
@@ -892,7 +892,7 @@ DRIFT_TEXT = {
 }
 
 
-def drift_notes(drift: ShapeDrift | None, min_change_m: float = MIN_DRIFT_M):
+def drift_notes(drift: ShapeDrift | None, min_change_m: float = MIN_DRIFT_M) -> list[str]:
     """Plain sentences for whichever figures actually moved.
 
     Empty when nothing moved much, which should be the common case. A flag that

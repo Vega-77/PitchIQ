@@ -19,6 +19,7 @@ Design notes, measurements and history: `docs/design/events.md`.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterator
 from dataclasses import dataclass, field, replace
 
 from .frame_table import FrameTable
@@ -323,7 +324,7 @@ class EventLog:
     def __len__(self) -> int:
         return len(self.events)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[EventBase]:
         return iter(self.events)
 
     def by_type(self, *types: str) -> list[EventBase]:
@@ -997,7 +998,7 @@ def _as_shot(
     )
 
 
-def _ball_after(table: FrameTable, touch: Touch, window_s: float):
+def _ball_after(table: FrameTable, touch: Touch, window_s: float) -> tuple[float, float] | None:
     """Where the ball was last seen within `window_s` of a touch, in metres."""
     if table.calibration is None:
         return None

@@ -138,7 +138,7 @@ def feet(res: LinkResult, projector: PitchProjector, s: MapSettings, person_px=N
 # ---- the smoother --------------------------------------------------------------------
 
 
-def _model(s: MapSettings):
+def _model(s: MapSettings) -> tuple[np.ndarray, np.ndarray]:
     dt = 1.0 / s.fps
     phi = np.exp(-dt / s.tau_s)
     a = s.tau_s * (1.0 - phi)
@@ -155,7 +155,9 @@ def _model(s: MapSettings):
     return F, Q
 
 
-def smooth(z: np.ndarray, R: np.ndarray, mask: np.ndarray, s: MapSettings, drift=None):
+def smooth(
+    z: np.ndarray, R: np.ndarray, mask: np.ndarray, s: MapSettings, drift=None
+) -> tuple[np.ndarray, np.ndarray]:
     """Robust RTS smoother over N tracks on one timeline.
 
     z (N, T, 2) metres, R (N, T, 2, 2), mask (N, T): which entries are
@@ -211,7 +213,7 @@ def smooth(z: np.ndarray, R: np.ndarray, mask: np.ndarray, s: MapSettings, drift
     return xs, Ps
 
 
-def _timeline(tracks, lo: int, T: int):
+def _timeline(tracks, lo: int, T: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Stack per-track (frames, xy, R) onto one window timeline."""
     N = len(tracks)
     z = np.zeros((N, T, 2))
@@ -229,7 +231,7 @@ def _timeline(tracks, lo: int, T: int):
 
 def view_polygon(
     projector: PitchProjector, frame: int, length_m: float, width_m: float, step_px: int = 20
-):
+) -> np.ndarray:
     """The ground the picture shows, in metres: up each side edge as far as it stays near the pitch."""
     W, Hh = projector.width, projector.height
     h = projector.H[int(frame)]
@@ -297,7 +299,9 @@ def _bridge(a: _Visit, b: _Visit, s: MapSettings, in_view_s: float) -> float | N
     return 0.5 * (r @ r) / var + np.log(var / s.bridge_sigma_m**2) + s.view_cost * in_view_s
 
 
-def chain(visits: list, polys: list, lo: int, hi: int, k: int, s: MapSettings):
+def chain(
+    visits: list, polys: list, lo: int, hi: int, k: int, s: MapSettings
+) -> tuple[list[list], list]:
     """Chain one group's visits into at most k slots by min-cost flow.
 
     Every visit wants a slot (worth `value` plus `value_per_s` a second seen);
@@ -650,7 +654,7 @@ def handover_share(a: int, b: int, T: int, p_end: int | None, n_start: int | Non
     return out
 
 
-def ghost_alpha(sd_m):
+def ghost_alpha(sd_m) -> np.ndarray:
     """How strongly to draw an unseen dot whose position is uncertain by sd_m metres."""
     return np.clip(0.9 * np.exp(-np.maximum(np.asarray(sd_m) - 0.5, 0.0) / 8.0), 0.4, 0.9)
 

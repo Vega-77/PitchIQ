@@ -200,7 +200,7 @@ class Identity:
     rows: np.ndarray  # detection row, -1 when interpolated
     pieces: list = field(default_factory=list)
 
-    def box_at(self, frame: int):
+    def box_at(self, frame: int) -> np.ndarray | None:
         """The box (x1, y1, x2, y2) at `frame`, or None if unseen then."""
         i = np.searchsorted(self.frames, frame)
         if i < len(self.frames) and self.frames[i] == frame:
@@ -280,7 +280,9 @@ def _unit_mean(feat: np.ndarray | None, rows: np.ndarray) -> np.ndarray | None:
     return m / norm if norm > 0 else None
 
 
-def _end_fit(frames: np.ndarray, pos: np.ndarray, fps: float, max_speed: float):
+def _end_fit(
+    frames: np.ndarray, pos: np.ndarray, fps: float, max_speed: float
+) -> tuple[np.ndarray, np.ndarray]:
     """Position and velocity at the last observation, by least squares."""
     if len(frames) < 3:
         return pos[-1].copy(), np.zeros(2)
@@ -576,7 +578,9 @@ class Linker:
                 C[i, j] = self._cache[key]
         return C
 
-    def _round(self, groups, pieces, occupancy, window_s, threshold, only_kit=None):
+    def _round(
+        self, groups, pieces, occupancy, window_s, threshold, only_kit=None
+    ) -> tuple[list[tuple], list[tuple]]:
         """One optimal round of joins between group ends and group starts."""
         heads = sorted(groups)  # group id -> list of piece idx
         ends = [
@@ -605,7 +609,9 @@ class Linker:
                 keep.append((ends[i], starts[j], float(c)))
         return keep, refused
 
-    def _roster_round(self, groups, pieces, occupancy, kit, window_s):
+    def _roster_round(
+        self, groups, pieces, occupancy, kit, window_s
+    ) -> tuple[list[tuple], list[tuple]]:
         """One matching of a kit's groups in which the team has `team_cap` people.
 
         The square problem: rows are group ends and "somebody new" rows,

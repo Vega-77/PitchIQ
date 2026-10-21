@@ -18,6 +18,7 @@ from __future__ import annotations
 from ._util import round_or_none
 
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
@@ -83,7 +84,7 @@ class Timings:
         self.stages.append(Stage(name=name, seconds=seconds, scaling=scaling))
 
     @contextmanager
-    def stage(self, name: str, *, scaling: str = LINEAR):
+    def stage(self, name: str, *, scaling: str = LINEAR) -> Iterator[None]:
         """Time a block. Records the elapsed time even if the block raises.
 
         Deliberately: a run that fell over after eight minutes of detection
@@ -228,7 +229,7 @@ def _worst(a: str, b: str) -> str:
     return a if _SEVERITY.get(a, 1) >= _SEVERITY.get(b, 1) else b
 
 
-def fastest_rate_that_fits(measured: dict[float, float], budget: float = 1.0):
+def fastest_rate_that_fits(measured: dict[float, float], budget: float = 1.0) -> float | None:
     """The highest sample rate whose real-time factor stays inside the budget.
 
     `measured` is `{sample_fps: realtime_factor}`. Returns the rate, or `None`
