@@ -13,7 +13,7 @@ gates   the pre-label limits (fit error 3 px, apex 0.08 CH, roll 2.5x / 4 px)
 5 fast   (v3) a window no slowing roll can explain below VMAX SB/s is in the
         air even when a roll fits its pixels as well as an arc does
 
-  python vflchain3.py [tag] [out] -> <tag>_chains<out>.npy, <tag>_ball3d<out>.npz
+  python -m pitchiq.balltrack.homog.vflchain3 [tag] [out] -> <tag>_chains<out>.npy, <tag>_ball3d<out>.npz
   options from the environment, see OPT
 """
 
@@ -23,10 +23,10 @@ import sys
 import numpy as np
 from scipy.optimize import least_squares
 
-import vflight as V
-import vdrag as D
-import vflchain as Ch
-import vroll as R
+from . import vflight as V
+from . import vdrag as D
+from . import vflchain as Ch
+from . import vroll as R
 
 tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
 OUT = sys.argv[2] if len(sys.argv) > 2 else '3'

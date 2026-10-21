@@ -9,8 +9,8 @@ its best grid point, which is then scored on the OTHER half.
 Objective: frame accuracy over ball + off frames (right position, or
 correctly saying "not on screen").  Hidden frames are not scored.
 
-    python wm_tune.py            # viterbi6
-    python wm_tune.py 7          # viterbi7, GRID7
+    python -m pitchiq.balltrack.wm_tune            # viterbi6
+    python -m pitchiq.balltrack.wm_tune 7          # viterbi7, GRID7
 """
 
 import collections
@@ -21,10 +21,10 @@ import sys
 
 import numpy as np
 
-import dfree
-import dtrack5 as D5
-import dtrack6 as D6
-import wm_score as W
+from . import dfree
+from . import dtrack5 as D5
+from . import dtrack6 as D6
+from . import wm_score as W
 
 TOL = W.TOL
 

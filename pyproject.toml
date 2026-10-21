@@ -83,8 +83,3 @@ quote-style = "single"
 [tool.ruff.lint]
 # The classic default set, pinned so a ruff upgrade cannot change what fails.
 select = ["E4", "E7", "E9", "F"]
-
-[tool.ruff.lint.per-file-ignores]
-# The ball tracker's scripts put their folder on sys.path before importing their
-# neighbours. Packaging pitchiq/balltrack removes those inserts, and this line with them.
-"pitchiq/balltrack/**" = ["E402"]

@@ -7,16 +7,12 @@ worth anything if a rerun trusts exactly the finished work and nothing else.
 
 import json
 import os
-import sys
-from pathlib import Path
 
 import numpy as np
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'pitchiq' / 'balltrack'))
-import drun  # noqa: E402
-
-from pitchiq.experiments import autocal_run as R  # noqa: E402
+from pitchiq.balltrack import drun
+from pitchiq.experiments import autocal_run as R
 
 
 # ---- drun chunks ---------------------------------------------------------------------

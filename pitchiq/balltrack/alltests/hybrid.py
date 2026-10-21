@@ -1,6 +1,6 @@
 """Our tracker + TAPNext++ bridges -> p2d/<ver>/<tag>.npz, and TAPNext alone -> p2d/tn_alone.
 
-    python hybrid.py <tag> [<tag> ...]
+    python -m pitchiq.balltrack.alltests.hybrid <tag> [<tag> ...]
 
 Our tracker (cls_B: viterbi7 + gapfill) owns every confident pick, every kick and every
 flight.  TAPNext only crosses the gaps between two confident picks a..b: seeded on a and run

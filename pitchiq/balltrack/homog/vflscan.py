@@ -2,7 +2,7 @@
 window, keep the ones a flight explains and a ground roll does not, pick a
 non-overlapping set, and write every frame's ball in 3D.
 
-    python vflscan.py <tag> [procs]
+    python -m pitchiq.balltrack.homog.vflscan <tag> [procs]
         -> <tag>_scan.npz     every window's fit
            <tag>_flights.npz  the chosen flights
            <tag>_ball3d.npz / .csv  per frame: SB x, y, height, state
@@ -16,8 +16,8 @@ from multiprocessing import Pool
 import numpy as np
 from scipy.optimize import least_squares
 
-import vflight as V
-import vdrag as D
+from . import vflight as V
+from . import vdrag as D
 
 LENS = tuple(range(9, 76, 3))
 STEP = 2

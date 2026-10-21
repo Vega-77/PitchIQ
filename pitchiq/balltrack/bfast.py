@@ -44,7 +44,7 @@ import math
 import cv2
 import numpy as np
 
-import feat4 as F
+from . import feat4 as F
 
 DIRS = F.DIRS
 TR = F.TR

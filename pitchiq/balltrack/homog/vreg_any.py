@@ -8,7 +8,7 @@ sample's; a sample with nothing to go on (the first, or after a failure)
 searches every fourth keyframe, then the neighbours of the best. Matching,
 inlier threshold and the output are vreg.py's.
 
-    python vreg_any.py lo hi tag [procs]   -> <tag>_reg.npz (abs, Hsb, ninl, ok)
+    python -m pitchiq.balltrack.homog.vreg_any lo hi tag [procs]   -> <tag>_reg.npz (abs, Hsb, ninl, ok)
 """
 
 import os
@@ -18,7 +18,7 @@ from multiprocessing import Pool
 
 import numpy as np
 
-from vreg import HERE, MIN_INL, REPO, STEP
+from .vreg import HERE, MIN_INL, STEP
 
 CENTRE = np.array([960.0, 800.0])  # a point on the ground in the lower middle of the picture
 NEAR = 6  # keyframes tried when the view is known
@@ -34,12 +34,10 @@ def work(args):
     (frames,) = args
     import cv2
 
-    sys.path.insert(0, REPO)
-    sys.path.insert(0, HERE)
     from pitchiq import lines as L
-    import vfeats
-    import vmap
-    import vovl
+    from . import vfeats
+    from . import vmap
+    from . import vovl
 
     K = vmap.load()
     ok = np.load(os.path.join(HERE, 'vmap.npz'))['ok']

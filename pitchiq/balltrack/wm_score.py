@@ -1,6 +1,6 @@
 """Score the tracker against Alex's whole-match labels (Ball Truth artifact).
 
-    python wm_score.py [suffix]     # reads wmNN<suffix>picks.json, default ''
+    python -m pitchiq.balltrack.wm_score [suffix]     # reads wmNN<suffix>picks.json, default ''
 
 Truth is truthdb/truth/fNNN.json (ArtifactData list with out_dir).  Kinds:
 ball (x, y in source pixels, optional air), off, hidden, skip.

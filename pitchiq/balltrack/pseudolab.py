@@ -19,7 +19,7 @@ not "no ball", and a ball there would become a negative.
 2 in 48 is still ~4% of positives wrong, so these carry weight W_PSEUDO
 and Alex's clicks (croplab) override them.
 
-    python pseudolab.py tr00 tr01 ...    # -> pseudo_labels.json,
+    python -m pitchiq.balltrack.pseudolab tr00 tr01 ...    # -> pseudo_labels.json,
                                          #    <tag>frames.json (for crops.py)
 """
 
@@ -29,8 +29,8 @@ import sys
 
 import numpy as np
 
-import dfree
-import dtrack6 as D6
+from . import dfree
+from . import dtrack6 as D6
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 PREC = dict(skip=4.0, kmax=4, e_off=0.0, c_leave=6.0, c_enter=12.0, A=2.3, ab=0.0)

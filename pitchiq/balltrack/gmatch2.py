@@ -53,10 +53,9 @@ enough never to win an argmin and small enough that sentinel * 2048 stays
 inside int32; 30000 is both, with three orders of magnitude to spare on
 each side.
 
-    python gmatch2.py [n_anchors] [warm_s]
+    python -m pitchiq.balltrack.gmatch2 [n_anchors] [warm_s]
 """
 
-import os
 import sys
 import time
 
@@ -64,9 +63,8 @@ import cv2
 import numpy as np
 import torch
 
-import dense as D
+from . import dense as D
 
-S2 = os.path.dirname(os.path.abspath(__file__))
 DEV = 'cuda' if torch.cuda.is_available() else 'cpu'
 PAD = 30000  # sentinel distance for padded query rows
 CHUNK = 1  # query sets per matmul; see the docstring - 1 wins

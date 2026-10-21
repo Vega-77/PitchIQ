@@ -15,7 +15,7 @@ import os
 
 import numpy as np
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+from . import WORK as HERE
 
 
 def load_truth():

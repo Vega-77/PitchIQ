@@ -14,7 +14,7 @@ Gravity in these units comes from the centre circle (its radius is 1.78
 camera heights on the map and 10 yd on the pitch), so no length ever leaves
 this file in metres.
 
-    python vflight.py <tag>        -> <tag>_flights.npz, <tag>_ball3d.csv
+    python -m pitchiq.balltrack.homog.vflight <tag>        -> <tag>_flights.npz, <tag>_ball3d.csv
 """
 
 import os
@@ -23,7 +23,8 @@ import sys
 import numpy as np
 from scipy.optimize import least_squares
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+from . import WORK as HERE
+
 FPS = 30.0
 R_CH = 71.2 / 40.0  # centre-circle radius in camera heights (the scrimmage camera)
 G = 9.81 * R_CH / 9.15  # gravity, camera heights / s^2

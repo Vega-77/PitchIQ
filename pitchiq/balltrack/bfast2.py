@@ -75,8 +75,8 @@ import time
 import cv2
 import numpy as np
 
-import feat4 as F
-from bfast import tophat_batch, box_mean  # unchanged, already exact
+from . import feat4 as F
+from .bfast import tophat_batch, box_mean  # unchanged, already exact
 
 BUCKETS = (14, 20, 28, 44, 68)  # padded sizes for the component gather
 LAPMIN = 3  # batch a lap group only if it has this many

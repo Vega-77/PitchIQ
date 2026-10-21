@@ -31,8 +31,8 @@ ON -> OFF -> ON.
 
 import numpy as np
 
-from dtrack2 import FPS, SPEED
-from dtrack4 import NEG
+from .dtrack2 import FPS, SPEED
+from .dtrack4 import NEG
 
 
 def viterbi6(

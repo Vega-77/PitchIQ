@@ -6,7 +6,7 @@ camera    ring on the ball + the last 1 s of its path (carried with the camera p
 close-up  4x around the ball
 map       last 2 s of the path on the pitch
 
-  python hyb_video.py tag lo hi [part]     -> hyb90_<tag>_<lo>.mp4   (hi exclusive)
+  python -m pitchiq.balltrack.tapnext.hyb_video tag lo hi [part]     -> hyb90_<tag>_<lo>.mp4   (hi exclusive)
 """
 
 import os
@@ -16,14 +16,15 @@ import time
 import cv2
 import numpy as np
 
+from .. import homog
+from .. import render_vid as RV  # colours, clock
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
 HG = os.path.join(S2, 'h3d_hyb90')
-sys.path.insert(0, S2)
-sys.path.insert(0, HG)
-import render_vid as RV  # noqa: E402  (colours, clock)
-import vovl  # noqa: E402
-import vflight as V  # noqa: E402
+homog.WORK = HG  # vflight reads the hybrid 3D chain's files (run from h3d_hyb90/)
+from ..homog import vovl  # noqa: E402
+from ..homog import vflight as V  # noqa: E402
 
 TAG, LO, HI = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 PART = sys.argv[4] if len(sys.argv) > 4 else ''
@@ -95,7 +96,7 @@ def per_frame():
 
 
 def main():
-    import feat4
+    from .. import feat4
 
     A0, Hs, img, sb, kind, gnd, hgt = per_frame()
     base = np.zeros((HT, WD, 3), np.uint8)

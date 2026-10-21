@@ -14,7 +14,7 @@ No video decode: still4.npz already stores (frame, cx, cy) per row, so these
 features attach to the rows that exist, by index.  Sheet i//5, row i%5,
 column = offset index, tile 640x360, so source pixels divide by three.
 
-    python feat_t4.py            # -> temporal4.npz
+    python -m pitchiq.balltrack.feat_t4            # -> temporal4.npz
 """
 
 import io

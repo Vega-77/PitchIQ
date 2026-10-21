@@ -5,7 +5,7 @@ over the same frames drun.py scored, so each ball candidate can be placed
 relative to the nearest player: on a head, at the feet, or clear of anyone.
 This is the first stage of player tracking and nothing more - boxes, no ids.
 
-    python ppl.py <tag> [<tag> ...]     # lo/hi from tag.npz -> tagppl.npz
+    python -m pitchiq.balltrack.ppl <tag> [<tag> ...]     # lo/hi from tag.npz -> tagppl.npz
 
 When the player lab has already detected people over the window
 (plab/out/<tag>_dets.npz, the same YOLOv8n at 1280 down to conf 0.05), its
@@ -23,14 +23,11 @@ import time
 import cv2
 import numpy as np
 
-S2 = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.dirname(os.path.dirname(S2))
-sys.path.insert(0, REPO)
-sys.path.insert(0, S2)
+from . import feat4  # VIDEO path
+from .drun import chunk_edges
+from pitchiq.detector import PersonBallDetector
 
-import feat4  # noqa: E402  (VIDEO path)
-from drun import chunk_edges  # noqa: E402
-from pitchiq.detector import PersonBallDetector  # noqa: E402
+S2 = os.path.dirname(os.path.abspath(__file__))
 
 IMGSZ = 1280
 CONF = 0.25

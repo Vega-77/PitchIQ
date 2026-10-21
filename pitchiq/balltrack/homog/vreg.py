@@ -4,7 +4,7 @@ Each sampled frame is SIFT-matched against the nearest venue-map keyframes
 (and the previous sample); the best RANSAC fit gives frame -> keyframe, and
 the keyframe's own map placement gives frame -> StatsBomb 120x80.
 
-    python vreg.py lo hi tag [procs]   -> <tag>_reg.npz (abs, Hsb, ninl, ok)
+    python -m pitchiq.balltrack.homog.vreg lo hi tag [procs]   -> <tag>_reg.npz (abs, Hsb, ninl, ok)
 """
 
 import os
@@ -13,8 +13,8 @@ import time
 from multiprocessing import Pool
 import numpy as np
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.environ.get('PIQ_REPO', os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
+from . import WORK as HERE
+
 STEP = 15
 MIN_INL = 30
 
@@ -23,12 +23,10 @@ def work(args):
     (frames,) = args
     import cv2
 
-    sys.path.insert(0, REPO)
-    sys.path.insert(0, HERE)
     from pitchiq import lines as L
-    import vfeats
-    import vmap
-    import vovl
+    from . import vfeats
+    from . import vmap
+    from . import vovl
 
     K = vmap.load()
     z = np.load(os.path.join(HERE, 'vmap.npz'))

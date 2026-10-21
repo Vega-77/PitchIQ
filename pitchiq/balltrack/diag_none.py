@@ -12,17 +12,17 @@ and print the ball candidate's log-odds p, so we can see whether a
 breakdown for the frames the tracker gets right, and the p of the top
 candidate on 'off' frames (what a threshold would wrongly take).
 
-    python diag_none.py
+    python -m pitchiq.balltrack.diag_none
 """
 
 import collections
 
 import numpy as np
 
-import dtrack6 as D6
-import wm_cls as C
-import wm_score as W
-import wm_tune as U
+from . import dtrack6 as D6
+from . import wm_cls as C
+from . import wm_score as W
+from . import wm_tune as U
 
 CFG = dict(e_off=-0.5, c_enter=12.0, c_near=6.0, skip=4.0)
 

@@ -34,8 +34,8 @@ Candidate order is dfree.load's, taken from dfree.load itself: index j in a
 frame here is index j in the frame dict the tracker picked from, so a crop
 joins to a pick on (f, j) with no coordinate matching.
 
-    python crops.py <tag> [--every N] [--frames file.json] [--size 48]
-    python crops.py selftest        # synthetic numpy check, no video
+    python -m pitchiq.balltrack.crops <tag> [--every N] [--frames file.json] [--size 48]
+    python -m pitchiq.balltrack.crops selftest        # synthetic numpy check, no video
 """
 
 import io
@@ -46,10 +46,9 @@ import time
 
 import numpy as np
 
-S2 = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, S2)
+from . import dfree
 
-import dfree  # noqa: E402
+S2 = os.path.dirname(os.path.abspath(__file__))
 
 W, H = 1920, 1080
 MINCONF = 0.25
@@ -153,7 +152,7 @@ def choose(frames, every, fjson):
 
 def run(tag, every, fjson, size):
     import cv2
-    import feat4  # only cv2 / numpy
+    from . import feat4  # only cv2 / numpy
 
     t0 = time.time()
     frames = choose(dfree.load(tag), every, fjson)

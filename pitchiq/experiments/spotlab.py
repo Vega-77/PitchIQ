@@ -56,11 +56,8 @@ YELLOW, GREEN, ORANGE, MAGENTA, WHITE, BLACK = (
 
 
 def _mv():
-    """pitchiq/balltrack/match_video (not a package: imported by path, as the tracker's own scripts do)."""
-    here = str(Path(__file__).resolve().parents[1] / 'balltrack')
-    if here not in sys.path:
-        sys.path.insert(0, here)
-    import match_video
+    """pitchiq/balltrack/match_video, imported late: it changes directory on import."""
+    from pitchiq.balltrack import match_video
 
     return match_video
 

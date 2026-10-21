@@ -45,7 +45,7 @@ One thing fixed in passing: feat2.py fits size-vs-row on every ball label,
 test pool included.  Two parameters is a small leak but a free one to remove,
 so the fit here is train-only.
 
-    python feat4.py            # -> still4.npz
+    python -m pitchiq.balltrack.feat4            # -> still4.npz
 """
 
 import io

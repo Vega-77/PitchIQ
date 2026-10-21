@@ -1,6 +1,6 @@
 """Every 2D version (p2d/<ver>/<tag>.npz) against every labelled 2D test.
 
-    python score2d.py [ver ...]      -> results/2d.json + a table
+    python -m pitchiq.balltrack.alltests.score2d [ver ...]      -> results/2d.json + a table
 
 Tests (all labels are the user's, none used in training):
   truth   Ball Truth db, wm00-17: 'ball' marks right (<= 60 px) / wrong (ring elsewhere) /

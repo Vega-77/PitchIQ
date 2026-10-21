@@ -3,14 +3,11 @@ centre circle must follow the camera that filmed the flight."""
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 
 import numpy as np
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'pitchiq' / 'balltrack' / 'homog'))
-import vflight as V  # noqa: E402
+from pitchiq.balltrack.homog import vflight as V
 
 
 @pytest.fixture(autouse=True)

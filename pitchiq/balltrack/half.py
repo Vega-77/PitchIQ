@@ -1,6 +1,6 @@
 """Ball (Hybrid 90 + 3D) and player detections over a whole half, pipelined.
 
-    PIQ_VIDEO=<video> python half.py <tag> <lo> <hi> [--workers 12] [--overlap 300]
+    PIQ_VIDEO=<video> python -m pitchiq.balltrack.half <tag> <lo> <hi> [--workers 12] [--overlap 300]
 
 Needs homog/<tag>_reg.npz (and <tag>_venue.npz) from
 `python -m pitchiq.experiments.autocal_run <tag> ... --homog`.
@@ -36,6 +36,8 @@ import time
 
 import numpy as np
 
+from . import drun, script
+
 S2 = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(S2))
 HOM = os.path.join(S2, 'homog')
@@ -43,10 +45,6 @@ AT = os.path.join(S2, 'alltests')
 TNX = os.path.join(S2, 'tapnext')
 H3D = os.path.join(S2, 'h3d_hyb90')
 PY = sys.executable
-sys.path.insert(0, S2)
-sys.path.insert(0, REPO)
-
-import drun  # noqa: E402
 
 AGREE = 5  # frames each side of a cut that must agree
 TOL2, TOL3 = 1.0, 0.5  # agreement: px in 2D, StatsBomb units in 3D
@@ -121,9 +119,10 @@ class Half:
         open(os.path.join(self.dir, '%s.%s.done' % (ptag, stage)), 'w').close()
 
     def run(self, cwd, *cmd, env=None, log=None):
+        """Tracker script cmd[0] ('homog.vballsb') with args cmd[1:], from folder cwd."""
         e = dict(self.env, **(env or {}))
         proc = subprocess.Popen(
-            [PY, '-W', 'ignore'] + list(cmd),
+            [PY, '-W', 'ignore'] + script(cmd[0]) + list(cmd[1:]),
             cwd=cwd,
             env=e,
             stdout=subprocess.PIPE,
@@ -217,24 +216,24 @@ class Half:
             shutil.copy2(venue, os.path.join(HOM, '%s_venue.npz' % P))
 
     def classify(self, p):
-        self.run(S2, 'clsscore.py', 'cls_B.pt', p['ptag'])
+        self.run(S2, 'clsscore', 'cls_B.pt', p['ptag'])
 
     def shipped(self, p):
         P = p['ptag']
         log = os.path.join(HOM, '%s_chain.log' % P)
-        self.run(AT, 'mkpicks_one.py', P, log=log, env=ONE_THREAD)
+        self.run(AT, 'alltests.mkpicks_one', P, log=log, env=ONE_THREAD)
         for cmd in (
-            ('vballsb.py', P),
-            ('vfl0.py', P),
-            ('vflscan2.py', P, '16'),
-            ('vrowspd.py', P),
-            ('vflchain2.py', P),
+            ('homog.vballsb', P),
+            ('homog.vfl0', P),
+            ('homog.vflscan2', P, '16'),
+            ('homog.vrowspd', P),
+            ('homog.vflchain2', P),
         ):
             self.run(HOM, *cmd, log=log, env=ONE_THREAD)
-        self.run(HOM, 'vsmooth.py', P, env=dict(ONE_THREAD, VS_B3='%s_ball3d2.npz' % P), log=log)
+        self.run(HOM, 'homog.vsmooth', P, env=dict(ONE_THREAD, VS_B3='%s_ball3d2.npz' % P), log=log)
         self.run(
             HOM,
-            '_mk.py',
+            'homog._mk',
             '%s_ball3d2.npz' % P,
             '%s_smooth.npz' % P,
             '%s_ball3dd.npz' % P,
@@ -249,17 +248,23 @@ class Half:
             for q in self.pieces
             if abs(q['k'] - p['k']) == 1 and self.done(q['ptag'], 'bridges')
         ]
-        self.run(TNX, '-u', 'tn_engine.py', 'bridges', p['ptag'], env=dict(TN_NEAR=','.join(near)))
+        self.run(
+            TNX,
+            'tapnext.tn_engine',
+            'bridges',
+            p['ptag'],
+            env=dict(TN_NEAR=','.join(near), PYTHONUNBUFFERED='1'),
+        )
 
     def hybrid(self, p):
         P = p['ptag']
-        self.run(AT, 'hybrid.py', P, env=ONE_THREAD)
+        self.run(AT, 'alltests.hybrid', P, env=ONE_THREAD)
         os.makedirs(H3D, exist_ok=True)
         for kind in ('reg', 'venue'):
             src = os.path.join(HOM, '%s_%s.npz' % (P, kind))
             if os.path.exists(src):
                 shutil.copy2(src, H3D)
-        self.run(AT, 'mk3d.py', 'hyb90', P, env=ONE_THREAD)
+        self.run(AT, 'alltests.mk3d', 'hyb90', P, env=ONE_THREAD)
 
     # ---- the queues ----------------------------------------------------------------------
     # Four kinds of lane. The players' detector spends four fifths of its time on
@@ -511,7 +516,7 @@ class Half:
                 PY,
                 '-W',
                 'ignore',
-                'drun.py',
+                *script('drun'),
                 str(self.lo),
                 str(self.hi),
                 str(self.workers),

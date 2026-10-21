@@ -7,7 +7,7 @@ numbers that are used once.  So this cuts the same crops (crops.cut, the
 same context vector from crops.context) and scores them in batches as the
 video goes past, keeping only (f, j, p).
 
-    python clsscore.py <model.pt> <tag> [<tag> ...]    # -> <tag>cls.npz
+    python -m pitchiq.balltrack.clsscore <model.pt> <tag> [<tag> ...]    # -> <tag>cls.npz
 """
 
 import os
@@ -16,11 +16,10 @@ import time
 
 import numpy as np
 
-S2 = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, S2)
+from . import crops as CR
+from . import dfree
 
-import crops as CR  # noqa: E402
-import dfree  # noqa: E402
+S2 = os.path.dirname(os.path.abspath(__file__))
 
 SIZE = 48
 BATCH_FRAMES = 32
@@ -28,7 +27,7 @@ BATCH_FRAMES = 32
 
 def run(model, tag):
     import cv2
-    import feat4
+    from . import feat4
 
     t0 = time.time()
     frames = dfree.load(tag)
@@ -89,7 +88,7 @@ def run(model, tag):
 
 
 def main():
-    from train_cls import load_model
+    from .train_cls import load_model
 
     model = load_model(sys.argv[1])
     for tag in sys.argv[2:]:

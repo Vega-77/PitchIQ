@@ -1,7 +1,7 @@
 """Scan every (start, length) window with the plain arc AND the drag model,
 keeping outlier-proof (trimmed) errors, so the gates can be tuned offline.
 
-    python vflscan2.py <tag> [procs] [limit_starts]
+    python -m pitchiq.balltrack.homog.vflscan2 <tag> [procs] [limit_starts]
         -> <tag>_scan2.npz  S: one row per window, COLS below
 """
 
@@ -13,9 +13,9 @@ from multiprocessing import Pool
 import numpy as np
 from scipy.optimize import least_squares
 
-import vflight as V
-import vdrag as D
-import vflscan as S1
+from . import vflight as V
+from . import vdrag as D
+from . import vflscan as S1
 
 LENS = tuple(range(6, 76, 3))
 STEP = 2

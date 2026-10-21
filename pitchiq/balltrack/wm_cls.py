@@ -11,7 +11,7 @@ if the first moved:
          a * p + (1 - a) * s, over a small grid, tuned on one match half and
          reported on the other (wm_tune.py's split).
 
-    python wm_cls.py          # needs wmNNcls.npz from clsscore.py
+    python -m pitchiq.balltrack.wm_cls          # needs wmNNcls.npz from clsscore.py
 """
 
 import itertools
@@ -19,9 +19,9 @@ import os
 
 import numpy as np
 
-import dtrack6 as D6
-import wm_score as W
-import wm_tune as U
+from . import dtrack6 as D6
+from . import wm_score as W
+from . import wm_tune as U
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 

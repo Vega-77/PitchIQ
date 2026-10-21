@@ -5,13 +5,11 @@
 # vstrict is left out: on chain2 it lowered precision on 2 of 3 test sets and cost flights.
 #
 #   sh vdefault.sh vid2        (needs <tag>_scan2.npz from vflscan2.py)
-cd "$(dirname "$0")"
-R="$(cd ../../.. && pwd)"
-V="$R/.venv/Scripts/python.exe"; [ -x "$V" ] || V="$R/.venv/bin/python"; [ -x "$V" ] || V=python
-PY="${PY:-$V}"
+BT="$(cd "$(dirname "$0")/.." && pwd)"; . "$BT/pyenv.sh"
+cd "$BT/homog"
 set -e
 tag=${1:-vid1}
-"$PY" vflchain2.py $tag
-VS_B3=${tag}_ball3d2.npz "$PY" vsmooth.py $tag
-"$PY" _mk.py ${tag}_ball3d2.npz ${tag}_smooth.npz ${tag}_ball3dd.npz
+"$PY" -m $M.homog.vflchain2 $tag
+VS_B3=${tag}_ball3d2.npz "$PY" -m $M.homog.vsmooth $tag
+"$PY" -m $M.homog._mk ${tag}_ball3d2.npz ${tag}_smooth.npz ${tag}_ball3dd.npz
 echo "-> ${tag}_ball3dd.npz"

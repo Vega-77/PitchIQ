@@ -15,51 +15,48 @@
 # The result: h3d_hyb90/<tag>_ball3dd.npz  (abs, x, y, z in StatsBomb 120x80 / CR, state ground|air)
 # Speed: step 5 costs ~1 min of GPU per match minute (384 px window + early stop); TNS=512 was ~3.
 set -e
-R="$(cd "$(dirname "$0")/../.." && pwd)"
-V="$R/.venv/Scripts/python.exe"; [ -x "$V" ] || V="$R/.venv/bin/python"; [ -x "$V" ] || V=python
-PY="${PY:-$V}"
-cd "$(dirname "$0")"
+BT="$(cd "$(dirname "$0")" && pwd)"; . "$BT/pyenv.sh"
+cd "$BT"
 B=$(pwd -W 2>/dev/null || pwd)
 LO=$1; HI=$2; T=$3
 [ -n "$T" ] || { echo "usage: sh hybrid.sh <lo> <hi> <tag>"; exit 2; }
-export PYTHONPATH="$B/../..${PYTHONPATH:+;$PYTHONPATH}"
 
 [ -f "${T}cls.npz" ] || sh run.sh "$LO" "$HI" "$T"
 if [ ! -f "homog/${T}_reg.npz" ]; then
-    echo "=== registration $(date +%T)"; (cd homog && "$PY" -W ignore vreg.py "$LO" "$HI" "$T" 4)
+    echo "=== registration $(date +%T)"; (cd homog && "$PY" -W ignore -m $M.homog.vreg "$LO" "$HI" "$T" 4)
 fi
 
 echo "=== shipped picks $(date +%T)"
-"$PY" -W ignore alltests/mkpicks_one.py "$T"
+"$PY" -W ignore -m $M.alltests.mkpicks_one "$T"
 
 echo "=== shipped 3D $(date +%T)"
 cd homog
-"$PY" -W ignore vballsb.py "$T" > "${T}_chain.log" 2>&1
-"$PY" -W ignore vfl0.py "$T" >> "${T}_chain.log" 2>&1
-"$PY" -W ignore vflscan2.py "$T" 16 >> "${T}_chain.log" 2>&1
-"$PY" -W ignore vrowspd.py "$T" >> "${T}_chain.log" 2>&1
-"$PY" -W ignore vflchain2.py "$T" >> "${T}_chain.log" 2>&1
-VS_B3="${T}_ball3d2.npz" "$PY" -W ignore vsmooth.py "$T" >> "${T}_chain.log" 2>&1
-"$PY" -W ignore _mk.py "${T}_ball3d2.npz" "${T}_smooth.npz" "${T}_ball3dd.npz" >> "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.homog.vballsb "$T" > "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.homog.vfl0 "$T" >> "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.homog.vflscan2 "$T" 16 >> "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.homog.vrowspd "$T" >> "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.homog.vflchain2 "$T" >> "${T}_chain.log" 2>&1
+VS_B3="${T}_ball3d2.npz" "$PY" -W ignore -m $M.homog.vsmooth "$T" >> "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.homog._mk "${T}_ball3d2.npz" "${T}_smooth.npz" "${T}_ball3dd.npz" >> "${T}_chain.log" 2>&1
 
 echo "=== TAPNext bridges $(date +%T)"
 cd "$B/tapnext"
-"$PY" -u -W ignore tn_engine.py bridges "$T" 2>&1 | grep -v Warning | tail -3
+"$PY" -u -W ignore -m $M.tapnext.tn_engine bridges "$T" 2>&1 | grep -v Warning | tail -3
 
 echo "=== hybrid $(date +%T)"
 cd "$B/alltests"
-"$PY" -W ignore hybrid.py "$T"
+"$PY" -W ignore -m $M.alltests.hybrid "$T"
 mkdir -p "$B/h3d_hyb90"
 cp "$B/homog/${T}_reg.npz" "$B/h3d_hyb90/"
 [ ! -f "$B/homog/${T}_venue.npz" ] || cp "$B/homog/${T}_venue.npz" "$B/h3d_hyb90/"
 
 echo "=== hybrid 3D $(date +%T)"
-"$PY" -W ignore mk3d.py hyb90 "$T"
+"$PY" -W ignore -m $M.alltests.mk3d hyb90 "$T"
 echo "-> h3d_hyb90/${T}_ball3dd.npz"
 
 if [ -n "$RENDER" ]; then
     echo "=== render $(date +%T)"
     cd "$B/h3d_hyb90"
-    "$PY" -W ignore ../tapnext/hyb_video.py "$T" "$LO" "$HI"
+    "$PY" -W ignore -m $M.tapnext.hyb_video "$T" "$LO" "$HI"
 fi
 echo "HYBRID DONE $(date +%T)"

@@ -91,8 +91,7 @@ def main():
     by = defaultdict(list)
     for k, a in A.items():
         by[items[k]['half']].append((items[k]['f'], a, k))
-    sys.path.insert(0, os.path.abspath(BT))
-    import match_video as MV
+    from pitchiq.balltrack import match_video as MV
 
     out = {}
     for tag in sorted(by):

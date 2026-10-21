@@ -2,7 +2,7 @@
 
 cls_B is viterbi7 + gapfill.
 
-    python mkpicks_one.py <tag>
+    python -m pitchiq.balltrack.alltests.mkpicks_one <tag>
 
 src 1 = tracker pick, 2 = gap-fill pick, 0 = no ball.  This is what tn_engine.py bridges
 and hybrid.py start from.
@@ -13,10 +13,10 @@ import sys
 
 import numpy as np
 
+from .. import render_vid as RV
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
-sys.path.insert(0, S2)
-import render_vid as RV  # noqa: E402
 
 tag = sys.argv[1]
 os.chdir(S2)

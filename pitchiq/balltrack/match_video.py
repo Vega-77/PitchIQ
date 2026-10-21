@@ -12,7 +12,7 @@ with Windows' own transcoder, no ffmpeg needed:
 
     powershell -File shrink.ps1 -In match_<tag>_<lo>.mp4 -Out small.mp4 -Bitrate 3300000
 
-    python match_video.py tag lo hi            -> match_<tag>_<lo>.mp4   (hi exclusive)
+    python -m pitchiq.balltrack.match_video tag lo hi            -> match_<tag>_<lo>.mp4   (hi exclusive)
 """
 
 import os
@@ -22,15 +22,15 @@ import time
 import cv2
 import numpy as np
 
+from . import ballgate, homog
+from . import render_vid as RV  # clock
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 HG = os.path.join(HERE, 'h3d_hyb90')
-sys.path.insert(0, HERE)
-sys.path.insert(0, HG)
-os.chdir(HG)  # vovl and vflight read their maps from here
-import render_vid as RV  # noqa: E402  (clock)
-import vovl  # noqa: E402
-import vflight as V  # noqa: E402
-import ballgate  # noqa: E402
+os.chdir(HG)  # vovl reads its maps from the working folder
+homog.WORK = HG  # and vflight from its work folder
+from .homog import vovl  # noqa: E402
+from .homog import vflight as V  # noqa: E402
 
 WD = 720
 CW, CH = 720, 405
@@ -240,7 +240,7 @@ def blend_dot(im, p, r, c, a, ring=False):
 
 
 def main():
-    import feat4
+    from . import feat4
 
     tag, lo, hi = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
     a0, bimg, bsb, bgnd, bkind = ball(tag, lo, hi)

@@ -6,7 +6,7 @@ nodes the ball follows a drag arc
 or ends in the air, its arc is run on to the ground: the inferred take-off
 or landing.
 
-    python vflchain.py [tag]  -> <tag>_chains.npy
+    python -m pitchiq.balltrack.homog.vflchain [tag]  -> <tag>_chains.npy
 """
 
 import os
@@ -15,8 +15,8 @@ import sys
 import numpy as np
 from scipy.optimize import least_squares
 
-import vflight as V
-import vdrag as D
+from . import vflight as V
+from . import vdrag as D
 
 tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
 HERE = V.HERE

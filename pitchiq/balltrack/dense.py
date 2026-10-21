@@ -47,9 +47,9 @@ MEMORY.  1676 frames x ~1600 candidates x 66 columns is ~700 MB before the
 ranker sees a row.  Nothing is materialised: one anchor at a time, and only
 the surviving top KEEP leave the loop.
 
-    python dense.py --check          # composed vs direct, kept for the record
-    python dense.py --n 40           # a short run, for timing
-    python dense.py                  # -> dense.npz
+    python -m pitchiq.balltrack.dense --check          # composed vs direct, kept for the record
+    python -m pitchiq.balltrack.dense --n 40           # a short run, for timing
+    python -m pitchiq.balltrack.dense                  # -> dense.npz
 """
 
 import math
@@ -61,8 +61,8 @@ import cv2
 import numpy as np
 import xgboost as xgb
 
-import feat4 as F
-import feat_t4 as TT
+from . import feat4 as F
+from . import feat_t4 as TT
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 SP = F.SP

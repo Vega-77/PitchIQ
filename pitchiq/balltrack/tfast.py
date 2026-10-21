@@ -33,7 +33,7 @@ Drop-in: tfast.temporal_rows(tiles, pts) for dense.temporal_rows(tiles, pts).
 import cv2
 import numpy as np
 
-import feat_t4 as TT
+from . import feat_t4 as TT
 
 RP, RW, FG = TT.RP, TT.RW, TT.FG
 
@@ -75,7 +75,7 @@ def _plate(tiles, pts, scale, H, W):
 
 def temporal_rows(tiles, pts):
     """Vectorised twin of dense.temporal_rows.  Same inputs, same 30 columns."""
-    import dense as D  # late, to avoid a circular import
+    from . import dense as D  # late, to avoid a circular import
 
     NOFF, CZERO, SCALE = D.NOFF, D.CZERO, D.SCALE
     TH, TW = D.TH, D.TW

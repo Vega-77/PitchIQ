@@ -1,9 +1,12 @@
-"""Draw the fitted pitch back onto keyframes.  python vovl.py abs1 abs2 ..."""
+"""Draw the fitted pitch back onto keyframes.
+
+python -m pitchiq.balltrack.homog.vovl abs1 abs2 ...
+"""
 
 import sys
 import cv2
 import numpy as np
-import vfeats
+from . import vfeats
 
 z = np.load('vmap.npz')
 t = np.load('vtop.npz')

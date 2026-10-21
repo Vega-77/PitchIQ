@@ -1,6 +1,6 @@
 """Air Lab labels -> per-frame truth, and the flight detector scored on it.
 
-python vairscore.py [tag]      (default vid1)
+python -m pitchiq.balltrack.homog.vairscore [tag]      (default vid1)
 -> airtruth.npz  abs, truth ('ground'|'air'|'hidden'|'none'), flight id (-1 = none)
 """
 
@@ -10,7 +10,8 @@ import sys
 
 import numpy as np
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+from . import WORK as HERE
+
 tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
 
 recs = sorted(

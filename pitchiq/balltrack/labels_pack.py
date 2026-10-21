@@ -1,6 +1,6 @@
 """Pack a lab's label download (one JSON file per answer) into one JSONL file.
 
-    python labels_pack.py <dir> [<dir> ...]     -> <dir>.jsonl, one ["<name>.json", doc] per line
+    python -m pitchiq.balltrack.labels_pack <dir> [<dir> ...]     -> <dir>.jsonl, one ["<name>.json", doc] per line
 
 The labs' answers come down from their artifact databases as one file per
 document, and in that form 2,100 small files made up most of the repo. Each

@@ -36,7 +36,7 @@ still rfast's code running on rfast's data.
 import cv2
 import numpy as np
 
-import dense as D
+from . import dense as D
 
 
 class Registrar:

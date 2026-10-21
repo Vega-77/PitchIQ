@@ -4,15 +4,12 @@ labelled ball points every such flash was a wrong ring."""
 from __future__ import annotations
 
 import os
-import sys
-from pathlib import Path
 
 import numpy as np
 
 _cwd = os.getcwd()
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'pitchiq' / 'balltrack'))
 try:
-    import match_video as M  # noqa: E402  (chdirs on import)
+    from pitchiq.balltrack import match_video as M  # chdirs on import
 finally:
     os.chdir(_cwd)
 

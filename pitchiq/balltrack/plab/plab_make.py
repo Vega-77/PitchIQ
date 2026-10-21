@@ -5,7 +5,7 @@ of the dev window so its ids are what the pipeline would really produce, then
 keeps every 15th frame as a keyframe. Each box carries the tracker id and a
 team guess from assign_teams, so the lab can prefill "same id -> same label".
 
-    python plab_make.py OUTDIR [lo] [n] [step]
+    python -m pitchiq.balltrack.plab.plab_make OUTDIR [lo] [n] [step]
 """
 
 import json
@@ -15,14 +15,11 @@ import sys
 import cv2
 import numpy as np
 
-S2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-REPO = os.path.dirname(os.path.dirname(S2))
-sys.path.insert(0, REPO)
-sys.path.insert(0, S2)
+from .. import feat4
+from pitchiq.tracking import PlayerTracker
+from pitchiq.teams import assign_teams, kit_sample
 
-import feat4  # noqa: E402
-from pitchiq.tracking import PlayerTracker  # noqa: E402
-from pitchiq.teams import assign_teams, kit_sample  # noqa: E402
+S2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 OUT = sys.argv[1]
 LO = int(sys.argv[2]) if len(sys.argv) > 2 else 136170

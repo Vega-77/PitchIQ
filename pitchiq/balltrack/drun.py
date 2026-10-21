@@ -34,7 +34,7 @@ boundaries).  When a chunk's last worker returns, <tag>_k<chunk>.json records
 its part files; a rerun of the same command skips every chunk with a complete
 manifest, so a crash or a reboot costs at most the chunks in flight.
 
-    python drun.py <lo> <hi> [procs] [tag]
+    python -m pitchiq.balltrack.drun <lo> <hi> [procs] [tag]
 """
 
 import io
@@ -62,11 +62,10 @@ def worker(args):
     import numpy as np
     import xgboost as xgb
 
-    sys.path.insert(0, S2)
-    import bfast2
-    import dense as D
-    import tfast
-    import rfast2
+    from . import bfast2
+    from . import dense as D
+    from . import tfast
+    from . import rfast2
 
     cv2.setNumThreads(1)
     D.LO, D.HI = alo, ahi  # set at runtime; dense.py is not edited
@@ -82,11 +81,11 @@ def worker(args):
     # same; the worker just commits no CUDA context, host or device.
     M = None
     if SHARED:
-        import mshare
+        from . import mshare
 
         M = mshare.proxy()
     elif not CPU_MATCH:
-        import gmatch2
+        from . import gmatch2
         import torch
 
         torch.set_num_threads(1)
@@ -385,7 +384,7 @@ def main():
     got_c = {k: [] for k in pending}
     if todo:
         if SHARED:
-            import mshare
+            from . import mshare
 
             server, req, init = mshare.start(procs)
             pool_args = dict(initializer=mshare.init_worker, initargs=init)

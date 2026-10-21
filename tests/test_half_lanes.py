@@ -1,18 +1,15 @@
 """pitchiq/balltrack/half.py's lanes: every stage once, never before what it reads."""
 
 import os
-import sys
 import threading
 import time
 from types import SimpleNamespace
 
 import pytest
 
-S2 = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'pitchiq', 'balltrack'
-)
-sys.path.insert(0, S2)
-import half  # noqa: E402
+from pitchiq.balltrack import half
+
+S2 = os.path.dirname(os.path.abspath(half.__file__))
 
 
 @pytest.fixture

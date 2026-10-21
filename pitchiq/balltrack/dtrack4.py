@@ -51,7 +51,7 @@ Coverage is reported alongside hits, because a frame the path stepped over
 is a frame with no detection, and a predicted position is not a detection -
 it must never be counted as one.
 
-    python dtrack4.py
+    python -m pitchiq.balltrack.dtrack4
 """
 
 import io
@@ -60,7 +60,7 @@ import os
 
 import numpy as np
 
-import dtrack2 as D2
+from . import dtrack2 as D2
 
 S2 = D2.S2
 TOL, SPEED, FPS = D2.TOL, D2.SPEED, D2.FPS

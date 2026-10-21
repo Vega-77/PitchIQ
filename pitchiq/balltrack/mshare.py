@@ -16,16 +16,11 @@ the same queue as the matches it must precede.
 """
 
 import multiprocessing as mp
-import os
-import sys
-
-S2 = os.path.dirname(os.path.abspath(__file__))
 
 
 def serve(req, resps):
     """Server loop: ('start', i) | ('match', i, queries, fb, db) | ('evict', i, oldest) | None."""
-    sys.path.insert(0, S2)
-    import gmatch2
+    from . import gmatch2
     import torch
 
     torch.set_num_threads(1)

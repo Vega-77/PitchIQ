@@ -2,7 +2,7 @@
 registrations carried by the drun pan and blended), the tracker's ball
 mapped through it, and a review video.
 
-    python vballsb.py <tag> [video]  -> <tag>_ballsb.npz, <tag>_ballsb.csv,
+    python -m pitchiq.balltrack.homog.vballsb <tag> [video]  -> <tag>_ballsb.npz, <tag>_ballsb.csv,
                                         [<tag>_pitch.mp4]
 """
 
@@ -12,12 +12,12 @@ import time
 import cv2
 import numpy as np
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-S2 = os.path.dirname(HERE)
-sys.path.insert(0, S2)
-sys.path.insert(0, HERE)
-import render_vid as RV
-import vovl
+from .. import render_vid as RV
+from . import vovl
+
+from . import WORK as HERE
+
+S2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MARGIN = 3.0
 Q = np.float32([[200, 500], [1720, 500], [1720, 1000], [200, 1000]])
@@ -116,7 +116,7 @@ def main():
 
 
 def render(tag, Hf, by):
-    import feat4
+    from .. import feat4
 
     sc = 2 / 3.0
     Wd, Ht = 1280, 720

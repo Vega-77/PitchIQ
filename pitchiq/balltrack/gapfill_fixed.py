@@ -2,13 +2,13 @@
 tuning, so no split to overfit.  Wrong picks are split into those the
 fill added and those viterbi7 already made.
 
-    python gapfill_fixed.py
+    python -m pitchiq.balltrack.gapfill_fixed
 """
 
-import dtrack6 as D6
-import gapfill as G
-import wm_cls as C
-import wm_tune as U
+from . import dtrack6 as D6
+from . import gapfill as G
+from . import wm_cls as C
+from . import wm_tune as U
 
 BASE = dict(e_off=-0.5, c_enter=12.0, c_near=6.0, skip=4.0)
 A = 0.75

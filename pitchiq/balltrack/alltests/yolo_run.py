@@ -1,7 +1,7 @@
 """The old shipped ball detector, COCO YOLOv8n (class 32), at the repo defaults
 (imgsz 1280, conf 0.08), over labelled windows.
 
-    python yolo_run.py <tag> [<tag> ...]   -> yolo/<tag>.npz (f, x, y, conf: every detection)
+    python -m pitchiq.balltrack.alltests.yolo_run <tag> [<tag> ...]   -> yolo/<tag>.npz (f, x, y, conf: every detection)
                                               p2d/yolo_raw/<tag>.npz   its top detection each frame
                                               p2d/yolo_trk/<tag>.npz   the repo's pitchiq/ball.py build_trajectory
                                                                        (DP + static drop + interpolation),
@@ -16,12 +16,11 @@ import time
 import cv2
 import numpy as np
 
+from pitchiq.ball import BallCandidate, build_trajectory
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
 REPO = os.environ.get('PIQ_REPO', os.path.dirname(os.path.dirname(S2)))
-sys.path.insert(0, S2)
-sys.path.insert(0, REPO)
-from pitchiq.ball import BallCandidate, build_trajectory  # noqa: E402
 
 FPS = 30.0
 CHUNK = 1200
@@ -36,7 +35,7 @@ def detect(tag):
     p = os.path.join(HERE, 'yolo', '%s.npz' % tag)
     if os.path.exists(p):
         return np.load(p)
-    import feat4
+    from .. import feat4
     from ultralytics import YOLO
 
     m = YOLO(os.path.join(REPO, 'pitchiq', 'weights', 'yolov8n.pt'))

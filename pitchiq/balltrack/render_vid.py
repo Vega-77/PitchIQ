@@ -13,7 +13,7 @@ gapfill.fill.  Each output frame shows
                 (sigmoid of log-odds), share of frames with a ball so far,
                 and the last 10 s of confidence as bars
 
-    python render_vid.py <tag> [out.mp4] [scale]     (scale 0.6667 -> 1280x720)
+    python -m pitchiq.balltrack.render_vid <tag> [out.mp4] [scale]     (scale 0.6667 -> 1280x720)
 """
 
 import os
@@ -22,12 +22,12 @@ import time
 
 import numpy as np
 
+from . import dfree
+from . import dtrack6 as D6
+from . import gapfill as G
+from . import wm_cls as C
+
 S2 = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, S2)
-import dfree  # noqa: E402
-import dtrack6 as D6  # noqa: E402
-import gapfill as G  # noqa: E402
-import wm_cls as C  # noqa: E402
 
 BASE = dict(e_off=-0.5, c_enter=12.0, c_near=6.0, skip=4.0)
 A = 0.75
@@ -38,7 +38,31 @@ ORANGE = (0, 165, 255)
 GREY = (170, 170, 170)
 
 
+def saved_picks(ver, tag):
+    """The picks 2D version `ver` saved (alltests/p2d/<ver>/<tag>.npz), keyed by abs frame.
+
+    A frame with a ball is {src: 'track' | 'fill', x, y, p: 0.0}; one without is {}.
+    TAPNext bridge frames (src 3) count as 'fill' unless BRIDGE_TRACK=1.
+    """
+    bridge_track = os.environ.get('BRIDGE_TRACK') == '1'
+    z = np.load(os.path.join(S2, 'alltests', 'p2d', ver, '%s.npz' % tag))
+    by = {}
+    for f, x, y, s in zip(z['abs'], z['x'], z['y'], z['src']):
+        rec = {}
+        if s > 0 and np.isfinite(x):
+            src = 'track' if s == 1 or (s == 3 and bridge_track) else 'fill'
+            rec = dict(src=src, x=float(x), y=float(y), p=0.0)
+        by[int(f)] = rec
+    return by
+
+
 def picks_for(tag):
+    """The tracker's ball per abs frame: {top: (x, y, p), src, x, y, p}, src 'track' | 'fill'.
+
+    With PIQ_P2D=<ver> set (alltests/mk3d.py sets it), saved_picks(ver, tag) instead.
+    """
+    if os.environ.get('PIQ_P2D'):
+        return saved_picks(os.environ['PIQ_P2D'], tag)
     F = dfree.load(tag)
     C.attach(F, tag)
     G.attach_pan(F, tag)
@@ -68,7 +92,7 @@ def clock(ab):
 
 def main():
     import cv2
-    import feat4
+    from . import feat4
 
     tag = sys.argv[1]
     out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(S2, tag + '.mp4')

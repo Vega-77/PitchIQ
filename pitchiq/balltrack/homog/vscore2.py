@@ -1,6 +1,6 @@
 """Test score of a ball3d file against the Air Lab truth (report only).
 
-python vscore2.py <ball3d npz> [<ball3d npz> ...]
+python -m pitchiq.balltrack.homog.vscore2 <ball3d npz> [<ball3d npz> ...]
 """
 
 import sys

@@ -1,6 +1,6 @@
 """Every 3D output of every version (S2/h3d_<ver>/) against the flight labs.
 
-    python score3d.py           -> results/3d.json + a table
+    python -m pitchiq.balltrack.alltests.score3d           -> results/3d.json + a table
 
   air    Air Lab (vid1, vscore2.py): air frames P/R/F, true flights hit, false runs
   fl     Flight Lab (vid1, vdev.py --holdout): dev + holdout halves, median in-flight position error (SB)
@@ -21,6 +21,8 @@ import sys
 
 import numpy as np
 
+from .. import script
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
 PY = sys.executable
@@ -36,10 +38,12 @@ FILES = dict(
 FIX = [json.loads(line)[1] for line in open(os.path.join(HERE, 'fixlab', 'fixes.jsonl'))]
 
 
-def sh(d, *a):
+def sh(d, name, *a):
+    """homog script `name` with args a, in work folder d -> its output lines."""
     r = subprocess.run(
-        [PY, '-W', 'ignore'] + list(a),
+        [PY, '-W', 'ignore'] + script('homog.' + name) + list(a),
         cwd=d,
+        env=dict(os.environ, PIQ_HOMOG=d),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -112,15 +116,15 @@ def score(ver):
     for k, stem in FILES.items():
         r = {}
         if os.path.exists(os.path.join(d, 'vid1_%s.npz' % stem)):
-            ln = sh(d, 'vscore2.py', 'vid1_%s.npz' % stem)
+            ln = sh(d, 'vscore2', 'vid1_%s.npz' % stem)
             r['air'] = nums(ln[-1], AIR)
             r['air_txt'] = ln[-1]
-            ln = sh(d, 'vdev.py', '--holdout', 'vid1_%s.npz' % stem)
+            ln = sh(d, 'vdev', '--holdout', 'vid1_%s.npz' % stem)
             r['fl_dev'] = nums(ln[-2], FL)
             r['fl_hold'] = nums(ln[-1], FL)
             r['fl_txt'] = ln[-2:]
         if os.path.exists(os.path.join(d, 'vid2_%s.npz' % stem)):
-            ln = sh(d, 'vscorev2.py', 'vid2_%s.npz' % stem)
+            ln = sh(d, 'vscorev2', 'vid2_%s.npz' % stem)
             r['fl2'] = nums(ln[-1], FL2)
             r['fl2_txt'] = ln[-1]
         p = os.path.join(d, 'vid3_%s.npz' % stem)

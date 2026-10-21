@@ -1,7 +1,7 @@
 """Ground features for the venue map: SIFT on the grass of one frame every
 STEP frames across both play periods.
 
-    python vfeats.py [procs]      -> vfeats.npz  (per keyframe: abs, xy, desc)
+    python -m pitchiq.balltrack.homog.vfeats [procs]      -> vfeats.npz  (per keyframe: abs, xy, desc)
 
 Features are masked to the field (pitchiq.lines.field_mask, eroded so the fence
 edge and crowd are out) - everything on the ground plane is a valid match
@@ -15,8 +15,8 @@ from multiprocessing import Pool
 
 import numpy as np
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.environ.get('PIQ_REPO', os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
+from . import WORK as HERE
+
 VIDEO = os.environ.get(
     'PIQ_VIDEO',
     os.path.join(
@@ -31,7 +31,6 @@ NFEAT = 1500
 def work(frames):
     import cv2
 
-    sys.path.insert(0, REPO)
     from pitchiq import lines as L
 
     sift = cv2.SIFT_create(nfeatures=NFEAT)

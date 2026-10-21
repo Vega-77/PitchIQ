@@ -10,7 +10,7 @@ rts        Kalman + RTS smoother, constant velocity in SB units. Measurement
            unseen hops. Big innovations: a kick (the next frames agree with the
            jump -> velocity reset) or an outlier (dropped).
 
-  python vsmooth.py [tag]   -> <tag>_smooth.npz (abs, x, y, has, H)
+  python -m pitchiq.balltrack.homog.vsmooth [tag]   -> <tag>_smooth.npz (abs, x, y, has, H)
 """
 
 import os
@@ -19,10 +19,9 @@ import sys
 import cv2
 import numpy as np
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-S2 = os.path.dirname(HERE)
-sys.path.insert(0, S2)
-sys.path.insert(0, HERE)
+from . import WORK as HERE
+
+S2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 Q = np.float32([[200, 500], [1720, 500], [1720, 1000], [200, 1000]])
 P = dict(
@@ -299,7 +298,7 @@ def _runs(m):
 
 def main():
     tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
-    import render_vid as RV
+    from .. import render_vid as RV
 
     Z = np.load(os.path.join(HERE, '%s_ballsb.npz' % tag))
     ab = Z['abs']

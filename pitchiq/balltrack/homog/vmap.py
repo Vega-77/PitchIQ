@@ -12,7 +12,7 @@ plane (extended beyond the reference frame's edges).
   4. solve   least squares over all H_k (reference fixed) on the inlier
              point pairs, error measured in each keyframe's own pixels
 
-    python vmap.py        -> vmap.npz (abs, H, ok), vmap_edges.npz, vmap.log
+    python -m pitchiq.balltrack.homog.vmap        -> vmap.npz (abs, H, ok), vmap_edges.npz, vmap.log
 """
 
 import collections
@@ -24,7 +24,8 @@ import numpy as np
 from scipy.optimize import least_squares
 from scipy.sparse import lil_matrix
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+from . import WORK as HERE
+
 MIN_INL = 40
 NPTS = 25  # point pairs per edge in the solve
 REF_ABS = 40050  # a wide midfield view

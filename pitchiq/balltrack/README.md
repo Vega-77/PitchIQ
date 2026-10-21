@@ -13,6 +13,19 @@ Set `PIQ_VIDEO` to point at another video. The default is the scrimmage file
 in Downloads. The detector needs the CUDA GPU (gmatch2). Use 8 workers, not
 16: each process holds about 388 MiB of VRAM for its CUDA context.
 
+The tracker is a package, `pitchiq.balltrack`. The shell scripts source
+`pyenv.sh`, which picks the repo's venv python and puts the repo root on
+`PYTHONPATH`. To run one script by hand, do the same (or `pip install -e .`)
+and run it as a module from the folder it reads and writes:
+
+```
+cd homog && python -m pitchiq.balltrack.homog.vreg <lo> <hi> <tag> 4
+```
+
+The `homog/` scripts read and write their files in `homog/` unless
+`PIQ_HOMOG` names another folder; `alltests/mk3d.py` points it at
+`h3d_<ver>/` (and sets `PIQ_P2D=<ver>`) to run the 3D chain on one 2D version.
+
 ## The chain
 
 | step | script | writes |
@@ -78,7 +91,7 @@ say it is no worse.
 ## A whole half: `half.py` and the ball gate
 
 ```
-PIQ_VIDEO=<video> python half.py <tag> <lo> <hi> [--workers 12]
+PIQ_VIDEO=<video> python -m pitchiq.balltrack.half <tag> <lo> <hi> [--workers 12]
 ```
 
 `half.py` runs the chain `hybrid.sh` runs on a window over a whole half: drun
@@ -119,7 +132,7 @@ get them):
 
 Built here, by the scripts that read them:
 - `homog/vfeats.npz` (102 MB, over GitHub's limit; rebuild with
-  `python vfeats.py`).
+  `python -m pitchiq.balltrack.homog.vfeats`).
 - The per-window detector outputs: `<tag>.npz`, `<tag>pan.npz`,
   `<tag>ppl.npz`, `<tag>cls.npz` (`run.sh`).
 - The picks: `alltests/p2d/<version>/<tag>.npz` (`cls_B` shipped, `hyb90`
@@ -139,7 +152,7 @@ script's `S2 = dirname(HERE)` pointing here, so no path was edited in the move.
 ## How good it is
 
 The held-out test set is 18 clips of 1200 frames. `truthdb/` holds 269 human
-marks (ball / off-screen). Score with `python gapfill_fixed.py`. A pick counts
+marks (ball / off-screen). Score with `python -m pitchiq.balltrack.gapfill_fixed`. A pick counts
 as right if it is within 60 px of the mark.
 
 | | accuracy over all marks | wrong picks |
@@ -168,7 +181,7 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   `flightlabels/flights` and `fl2db/flights` sets. Each line is
   `["<name>.json", doc]`, the document exactly as the lab's database gave it.
   A fresh download comes down as one file per document; pack it with
-  `python labels_pack.py <dir>` and delete the directory.
+  `python -m pitchiq.balltrack.labels_pack <dir>` and delete the directory.
 - Never train on `truthdb/`; it is the test set. It stays one file per mark,
   and `labels_pack.py` refuses to pack it.
 

@@ -1,6 +1,6 @@
 """A finished half's ball stages again, after only its registration changed.
 
-    PIQ_VIDEO=<video> python rereg.py <tag> <lo> <hi> [--lanes 3] [--prev DIR]
+    PIQ_VIDEO=<video> python -m pitchiq.balltrack.rereg <tag> <lo> <hi> [--lanes 3] [--prev DIR]
 
 half.py from scratch would also redo drun, the classifier and the players (their chunk parts
 are merged and gone, so it detects every frame again), none of which reads the registration.
@@ -19,7 +19,7 @@ import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-import half as H
+from . import half as H
 
 DATA = os.path.join(os.path.dirname(H.REPO), 'PitchIQ-data', 'tnprev')
 

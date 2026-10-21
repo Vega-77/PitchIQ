@@ -1,16 +1,14 @@
 """clsscore.py with its output redirected.
 
-python clsrun.py <model.pt> <outdir> <tag> [<tag> ...]
+python -m pitchiq.balltrack.alltests.clsrun <model.pt> <outdir> <tag> [<tag> ...]
 """
 
 import os
 import sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-S2 = os.path.dirname(HERE)
-sys.path.insert(0, S2)
-import clsscore
-from train_cls import load_model
+from .. import clsscore
+from ..train_cls import load_model
+
 
 out = sys.argv[2]
 os.makedirs(out, exist_ok=True)

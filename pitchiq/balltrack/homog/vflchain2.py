@@ -10,7 +10,7 @@ gates   the pre-label limits (fit error 3 px, apex 0.08 CH, roll 2.5x / 4 px)
         lose some speed but not turn or speed up much
 4 cap   horizontal speed above VMAX is penalised
 
-  python vflchain2.py [tag] -> <tag>_chains2.npy, <tag>_ball3d2.npz
+  python -m pitchiq.balltrack.homog.vflchain2 [tag] -> <tag>_chains2.npy, <tag>_ball3d2.npz
 """
 
 import os
@@ -19,10 +19,10 @@ import sys
 import numpy as np
 from scipy.optimize import least_squares
 
-import vflight as V
-import vdrag as D
-import vflchain as Ch
-import vroll as R
+from . import vflight as V
+from . import vdrag as D
+from . import vflchain as Ch
+from . import vroll as R
 
 tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
 HERE = V.HERE

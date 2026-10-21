@@ -33,7 +33,7 @@ source pixels the hand marks were made in.
 Both are printed as separate columns, because a fix that only works
 alongside another fix is worth knowing about.
 
-    python dtrack2.py
+    python -m pitchiq.balltrack.dtrack2
 """
 
 import io

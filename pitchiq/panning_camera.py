@@ -141,7 +141,7 @@ class PannedCamera:
             raise FileNotFoundError(
                 f'{tag}: the ball tracker has not been run for this tag; missing '
                 f'{", ".join(missing)}. Make them with `sh hybrid.sh <lo> <hi> {tag}` '
-                f'in pitchiq/balltrack (a window) or `python half.py {tag} <lo> <hi>` '
+                f'in pitchiq/balltrack (a window) or `python -m pitchiq.balltrack.half {tag} <lo> <hi>` '
                 '(a half), with PIQ_VIDEO set to the match; pitchiq/balltrack/README.md '
                 'has the steps before that.'
             )

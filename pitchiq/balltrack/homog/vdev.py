@@ -4,15 +4,16 @@ air     Air Lab frames: precision / recall / F, true flights hit, false runs
 pos     Flight Lab: median in-flight error (SB) with the flat reading where
         no air is claimed, and the error on claimed air frames only
 
-  python vdev.py [--holdout] a.npz b.npz ...
+  python -m pitchiq.balltrack.homog.vdev [--holdout] a.npz b.npz ...
 """
 
 import json
+import os
 import sys
 
 import numpy as np
 
-import vflscore as S
+from . import vflscore as S
 
 A0 = 86475
 man = json.load(open('airlab/manifest.json'))['clips']
@@ -28,8 +29,6 @@ for i, c in enumerate(man):
 lab = np.array([tt.get(a + A0, '') for a in range(n)])
 FL = S.load_truth()
 # flights you deleted in the Flight Lab: your later call, so their frames are not scored
-import os
-
 for l_ in open(os.path.join('flightlabels', 'flights.jsonl')):
     f_ = json.loads(l_)[1]
     if f_.get('deleted'):

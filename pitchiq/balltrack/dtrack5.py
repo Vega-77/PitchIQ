@@ -47,16 +47,16 @@ so field coordinates need another video pass.  If a widening circle in image
 space helps, that is a floor on what the same idea does in field space, not
 a ceiling.
 
-    PIQ_DENSE=dense200.npz python dtrack5.py
+    PIQ_DENSE=dense200.npz python -m pitchiq.balltrack.dtrack5
 """
 
 import os
 
 import numpy as np
 
-import dtrack2 as D2
-from dtrack2 import FPS, SPEED
-from dtrack4 import NEG
+from . import dtrack2 as D2
+from .dtrack2 import FPS, SPEED
+from .dtrack4 import NEG
 
 RESTK = 8  # restart sources carried forward
 

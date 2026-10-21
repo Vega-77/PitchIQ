@@ -2,7 +2,7 @@
 
 import numpy as np
 from scipy.optimize import least_squares
-import vflight as V
+from . import vflight as V
 
 
 def drag(th, t):

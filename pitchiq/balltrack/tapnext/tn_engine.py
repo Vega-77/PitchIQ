@@ -1,7 +1,7 @@
 """TAPNext++ in batches, for the all-tests comparison.
 
-    python tn_engine.py bridges <tag> [<tag> ...]   -> ../alltests/tn/bridges_<tag>.npz
-    python tn_engine.py alone <tag> [<tag> ...]     -> ../alltests/tn/alone_<tag>.npz
+    python -m pitchiq.balltrack.tapnext.tn_engine bridges <tag> [<tag> ...]   -> ../alltests/tn/bridges_<tag>.npz
+    python -m pitchiq.balltrack.tapnext.tn_engine alone <tag> [<tag> ...]     -> ../alltests/tn/alone_<tag>.npz
 
 bridges  every gap between two confident picks of the shipped tracker (cls_B), up to MAXGAP
          frames: TAPNext seeded on the pick before the gap and run forward to the pick after,
@@ -22,14 +22,13 @@ import cv2
 import numpy as np
 import torch
 
+from ..alltests.hybrid import AGR, ANC, air_mask
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
+# tapnet/ is a checkout of the TAPNext++ repo (not a package of ours, not on PyPI)
 sys.path.insert(0, os.path.join(HERE, 'tapnet'))
-sys.path.insert(0, S2)
 from tapnet.tapnextpp.votsp2026.model import TAPNextPP  # noqa: E402
-
-sys.path.insert(0, os.path.join(S2, 'alltests'))
-from hybrid import AGR, ANC, air_mask  # noqa: E402
 
 AT = os.path.join(S2, 'alltests')
 OUT = os.path.join(AT, os.environ.get('TN_DIR', 'tn'))  # TN_DIR: a trial's own bridges
@@ -127,7 +126,7 @@ def read_range(cap, lo, hi, need):
 
 
 def bridges(net, tag):
-    import feat4
+    from .. import feat4
 
     z = np.load(os.path.join(AT, 'p2d', 'cls_B', '%s.npz' % tag))
     ab, px, py, src = z['abs'], z['x'], z['y'], z['src']
@@ -310,7 +309,7 @@ def prev_tracks(tag, where):
 
 
 def alone(net, tags):
-    import feat4
+    from .. import feat4
 
     caps, seeds, spans = [], [], []
     for tag in tags:

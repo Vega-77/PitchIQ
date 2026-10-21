@@ -18,7 +18,7 @@ deliberately different: `hits` is null, not a number.  There is nothing
 to be right or wrong against in this window, and writing a 0 or a
 plausible-looking count there would be inventing a score.
 
-    python dfree.py drun            # drun.npz + drunpan.npz -> drunpicks.json
+    python -m pitchiq.balltrack.dfree drun            # drun.npz + drunpan.npz -> drunpicks.json
 """
 
 import io
@@ -29,7 +29,7 @@ import time
 
 import numpy as np
 
-import dtrack5 as D5
+from . import dtrack5 as D5
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 

@@ -22,16 +22,16 @@ anchors, whatever the classifier thinks of its crop.
 
 The ON segments come from viterbi7 on classifier emission, unchanged.
 
-    python gapfill.py           # grid, split-half tuned, needs wmNNcls.npz
+    python -m pitchiq.balltrack.gapfill           # grid, split-half tuned, needs wmNNcls.npz
 """
 
 import itertools
 
 import numpy as np
 
-import dtrack6 as D6
-import wm_cls as C
-import wm_tune as U
+from . import dtrack6 as D6
+from . import wm_cls as C
+from . import wm_tune as U
 
 KX, KY = 'sx', 'sy'
 

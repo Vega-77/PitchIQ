@@ -4,8 +4,8 @@ camera    ring on the ball + the last 1 s of its path (carried with the camera p
 close-up  4x around the method's ball, so you can see whether it is on the ball
 map       last 2 s of the path on the pitch
 
-  python tn_video.py tag lo hi ours            -> cmp_ours_<lo>.mp4
-  python tn_video.py tag lo hi tn <tn npz>     -> cmp_tn_<lo>.mp4
+  python -m pitchiq.balltrack.tapnext.tn_video tag lo hi ours            -> cmp_ours_<lo>.mp4
+  python -m pitchiq.balltrack.tapnext.tn_video tag lo hi tn <tn npz>     -> cmp_tn_<lo>.mp4
 """
 
 import os
@@ -15,14 +15,13 @@ import time
 import cv2
 import numpy as np
 
+from .. import render_vid as RV
+from ..homog import vovl
+from ..homog import vflight as V
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
 HG = os.path.join(S2, 'homog')
-sys.path.insert(0, S2)
-sys.path.insert(0, HG)
-import render_vid as RV
-import vovl
-import vflight as V
 
 TAG, LO, HI, WHO = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
 WD = 720
@@ -107,7 +106,7 @@ def per_frame():
 
 
 def main():
-    import feat4
+    from .. import feat4
 
     A0, Hs, img, sb, kind, gnd, hgt = per_frame()
     lines = vovl.polylines()
