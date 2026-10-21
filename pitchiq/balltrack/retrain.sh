@@ -1,5 +1,5 @@
 #!/bin/sh
-# Two label sets from the croplab db dump in labdb5/, trained side by side,
+# Two label sets from the croplab db dump in crop_labels/, trained side by side,
 # then each scored on the wm test clips in turn (score_candidates overwrites
 # wmNNcls.npz, so the scoring is sequential).
 #   A  pseudo-labels (ball + notball) + human
@@ -11,7 +11,7 @@ WM=$(ls wm[0-9][0-9].npz | sed 's/\.npz//' | tr '\n' ' ')
 "$PY" -c "
 import json,glob
 P=json.load(open('pseudo_labels.json'))
-H=[dict(tag=d['tag'],f=d['f'],j=d['j'],label=d['label']) for d in (json.loads(l)[1] for l in open('labdb5/crops.jsonl')) if d['label']!='unsure']
+H=[dict(tag=d['tag'],f=d['f'],j=d['j'],label=d['label']) for d in (json.loads(l)[1] for l in open('crop_labels/crops.jsonl')) if d['label']!='unsure']
 json.dump(P+H,open('labels_A.json','w'))
 json.dump([r for r in P if r['label']!='ball']+H,open('labels_B.json','w'))
 print('human',len(H),'pseudo',len(P))

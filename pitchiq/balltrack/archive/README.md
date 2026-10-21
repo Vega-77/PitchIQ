@@ -22,7 +22,7 @@ that had it, then fix its imports to the package layout:
 
 | what | scripts |
 |---|---|
-| earlier Crop Lab rounds: sheets and hints (their labels are in `labdb5/crops.jsonl`) | `lab_sheets2.py`, `lab_sheets3.py`, `lab_sheets4.py` |
+| earlier Crop Lab rounds: sheets and hints (their labels are in `crop_labels/crops.jsonl`) | `lab_sheets2.py`, `lab_sheets3.py`, `lab_sheets4.py` |
 | every 2D version over the labelled windows, and the queue that fed them to the 3D chain (`evaluation/mkpicks_one.py` makes the shipped version for one window) | `evaluation/mkpicks.py`, `evaluation/q3d.py` |
 | media for the Air, Flight and Fix Labs, all answered (their labels stay; `score_air_labels.py`, which turns the Air Lab's into `airtruth.npz`, stays too) | `homog/vairclips.py`, `homog/vflightlab.py`, `homog/vfixclips.py` |
 | flight-gate tuning and diagnostics from before the label-free chain (`homog/flight_chain.py`) | `homog/vfltune.py`, `homog/vflapply.py`, `homog/vflfix.py`, `homog/vflfp.py`, `homog/vairwhy.py`, `homog/vfl1.py`, `homog/vfl2.py`, `homog/vfl3.py` |

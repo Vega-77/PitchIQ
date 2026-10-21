@@ -171,7 +171,7 @@ Treat a wrong pick as worse than a missing one when changing anything here.
 
 ## Labels and retraining
 
-- `labdb5/crops.jsonl` holds 1520 Crop Lab labels (ball, cleat, head,
+- `crop_labels/crops.jsonl` holds 1520 Crop Lab labels (ball, cleat, head,
   otherball, other, unsure). These come from the human labelling rounds.
   `croplab/index.html` is the labelling page. Label `near` ("Beside the
   ball", added in round 6) marks a crop within a ball-width or two of the
@@ -180,7 +180,7 @@ Treat a wrong pick as worse than a missing one when changing anything here.
 - `retrain.sh` trains `cls_A`/`cls_B` from those labels. It needs the training
   crop caches (`trNNcrops.npz`), which are not committed. Rebuild them with
   `run.sh` over the training clip windows, then `pseudolab.py` and `candidate_crops.py`.
-- Every lab's answers are packed one set to a file: `labdb5/crops.jsonl`,
+- Every lab's answers are packed one set to a file: `crop_labels/crops.jsonl`,
   `evaluation/findball/labels.jsonl`, `evaluation/fixlab/fixes.jsonl`,
   `evaluation/passbench/truth.jsonl`, and in `homog/` the `airlabels/clips`,
   `flightlabels/flights` and `fl2db/flights` sets. Each line is
