@@ -35,8 +35,12 @@ def make_dets(rows):
     """rows: (frame, box, conf, team)"""
     rows = sorted(rows, key=lambda r: r[0])
     return Detections(
-        frame=[r[0] for r in rows], box=[r[1] for r in rows], conf=[r[2] for r in rows],
-        team=[r[3] for r in rows], desc=np.full((len(rows), 6), np.nan))
+        frame=[r[0] for r in rows],
+        box=[r[1] for r in rows],
+        conf=[r[2] for r in rows],
+        team=[r[3] for r in rows],
+        desc=np.full((len(rows), 6), np.nan),
+    )
 
 
 def people_of(tracklet, owner):
@@ -67,7 +71,7 @@ def test_in_view_and_behind_the_camera():
     behind = np.array([[48.0, -500.0]])
     px = p.to_px(0, behind)[0]
     assert not p.in_view(0, behind)[0], px
-    assert not p.in_view(5, inside)[0]          # unregistered frame
+    assert not p.in_view(5, inside)[0]  # unregistered frame
     many = p.in_view_many([0, 1, 7], np.vstack([inside, inside, inside]))
     assert many.tolist() == [True, True, False]
 
@@ -83,7 +87,7 @@ def test_far_side_noise_is_long_along_the_ray():
 
 def test_panning_camera_keeps_one_track_per_still_player():
     frames = range(60)
-    proj = flat_projector(frames, pan=lambda f: 0.15 * f)    # camera pans 9 m
+    proj = flat_projector(frames, pan=lambda f: 0.15 * f)  # camera pans 9 m
     rows, owner = [], {}
     for f in frames:
         for pid, xy in enumerate([(40.0, 20.0), (55.0, 30.0)]):
@@ -148,28 +152,31 @@ def test_crossing_teammates_are_never_swapped():
 
 def test_body_descriptor_ignores_grass():
     img = np.zeros((200, 100, 3), np.uint8)
-    img[:] = (40, 160, 40)                      # grass (BGR)
-    img[40:100, 35:65] = (30, 30, 200)          # red shirt
+    img[:] = (40, 160, 40)  # grass (BGR)
+    img[40:100, 35:65] = (30, 30, 200)  # red shirt
     d = body_descriptor(img, [20, 10, 80, 190])
     assert np.isfinite(d[:3]).all()
-    assert d[1] > 150                            # Lab a: strongly red
+    assert d[1] > 150  # Lab a: strongly red
     assert np.isnan(body_descriptor(img, [0, 0, 2, 2])).all()
 
 
 def test_a_neon_shirt_at_the_grass_hue_is_not_grass():
     import cv2
+
     rng = np.random.default_rng(0)
     hsv = np.zeros((400, 400, 3), np.uint8)
-    hsv[..., 0] = 47 + rng.integers(-3, 4, (400, 400))          # grass, as on the dev window
+    hsv[..., 0] = 47 + rng.integers(-3, 4, (400, 400))  # grass, as on the dev window
     hsv[..., 1] = 70 + rng.integers(-15, 16, (400, 400))
     hsv[..., 2] = 140 + rng.integers(-20, 21, (400, 400))
-    hsv[120:220, 180:220] = (47, 195, 192)                       # the referee close up: same hue
+    hsv[120:220, 180:220] = (47, 195, 192)  # the referee close up: same hue
     img = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
     grass = grass_hue(img)
     assert abs(grass[0] - 47) <= 3 and grass[2] < 195
     d = body_descriptor(img, [170, 100, 230, 300], grass)
     assert np.isfinite(d[:3]).all() and d[1] < 110 and d[2] > 160  # Lab: green and yellow
-    assert np.isnan(body_descriptor(img, [170, 100, 230, 300], grass[:2])[:3]).all()  # hue alone eats it
+    assert np.isnan(
+        body_descriptor(img, [170, 100, 230, 300], grass[:2])[:3]
+    ).all()  # hue alone eats it
 
 
 def test_tracker_settings_are_plain():

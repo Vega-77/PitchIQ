@@ -76,7 +76,7 @@ class PlayerTracker:
         # holds identity longer than plain ByteTrack on this footage (40% vs
         # 32% window coverage) at roughly twice the compute. See
         # cv/experiments/track_report.py for the comparison.
-        tracker: str = "botsort.yaml",
+        tracker: str = 'botsort.yaml',
     ) -> None:
         from ultralytics import YOLO
 
@@ -103,7 +103,7 @@ class PlayerTracker:
 
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
-            raise FileNotFoundError(f"Could not open video: {video_path}")
+            raise FileNotFoundError(f'Could not open video: {video_path}')
 
         try:
             fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
@@ -123,9 +123,7 @@ class PlayerTracker:
                     break
 
                 if (frame_index - start_frame) % stride == 0:
-                    self._ingest(
-                        frame, frame_index, frame_index / fps, tracks
-                    )
+                    self._ingest(frame, frame_index, frame_index / fps, tracks)
 
                 frame_index += 1
 
@@ -150,9 +148,7 @@ class PlayerTracker:
             if boxes is None or boxes.id is None:
                 continue  # nothing tracked in this frame
 
-            for tid, cls, score, xyxy in zip(
-                boxes.id, boxes.cls, boxes.conf, boxes.xyxy
-            ):
+            for tid, cls, score, xyxy in zip(boxes.id, boxes.cls, boxes.conf, boxes.xyxy):
                 track_id = int(tid)
                 label = LABELS[int(cls)]
 
@@ -181,6 +177,6 @@ def drop_short_tracks(tracks: dict[int, Track], min_frames: int = 5) -> dict[int
 
 def split_by_label(tracks: dict[int, Track]) -> tuple[dict[int, Track], dict[int, Track]]:
     """Separate people from the ball."""
-    people = {tid: t for tid, t in tracks.items() if t.label == "person"}
-    balls = {tid: t for tid, t in tracks.items() if t.label == "ball"}
+    people = {tid: t for tid, t in tracks.items() if t.label == 'person'}
+    balls = {tid: t for tid, t in tracks.items() if t.label == 'ball'}
     return people, balls

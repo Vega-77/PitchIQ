@@ -36,6 +36,7 @@ and `seekReview` were.
 So a clean run is not proof the modules are sound. A dirty run is proof they
 are not.
 """
+
 import io
 import re
 
@@ -44,17 +45,20 @@ import pytest
 from test_contrast_floor import JS_DIRS, ROOT
 
 # Words that are never a reference to a binding.
-KEYWORDS = set("""
+KEYWORDS = set(
+    """
 await break case catch class const continue debugger default delete do else
 export extends finally for function if import in instanceof let new of return
 static super switch this throw try typeof var void while with yield async get
 set true false null undefined arguments constructor from as
-""".split())
+""".split()
+)
 
 # What the browser hands every module. This describes the platform, not this
 # repo, so unlike every other allowlist here it is NOT checked backwards: a
 # module that stops calling `fetch` has not thereby made this list stale.
-GLOBALS = set("""
+GLOBALS = set(
+    """
 globalThis window document console navigator location history screen self top
 parent Math JSON Object Array Number String Boolean Symbol BigInt Function
 Promise Set Map WeakMap WeakSet Date RegExp Error TypeError RangeError Proxy
@@ -71,7 +75,8 @@ TextEncoder TextDecoder Uint8Array Uint8ClampedArray Int32Array Float32Array
 Float64Array ArrayBuffer DataView OffscreenCanvas Path2D CanvasGradient
 ImageData MediaRecorder ClipboardItem devicePixelRatio innerWidth innerHeight
 scrollY scrollX
-""".split())
+""".split()
+)
 
 # Globals a *page* puts there with a script tag, which is a fact about this
 # repo and is therefore checked in both directions: the name must still be
@@ -81,13 +86,44 @@ scrollY scrollX
 PAGE_GLOBALS = {}
 
 # `name(` after one of these opens a condition, not a parameter list.
-BLOCK_HEADS = {'if', 'while', 'for', 'switch', 'catch', 'return', 'typeof',
-               'else', 'do', 'function', 'new', 'delete', 'void', 'await',
-               'yield', 'in', 'of', 'instanceof'}
+BLOCK_HEADS = {
+    'if',
+    'while',
+    'for',
+    'switch',
+    'catch',
+    'return',
+    'typeof',
+    'else',
+    'do',
+    'function',
+    'new',
+    'delete',
+    'void',
+    'await',
+    'yield',
+    'in',
+    'of',
+    'instanceof',
+}
 
 # After one of these a `/` opens a regex; after a value it is division.
-REGEX_AFTER = {'return', 'typeof', 'case', 'in', 'of', 'do', 'else', 'new',
-               'delete', 'void', 'instanceof', 'yield', 'await', 'throw'}
+REGEX_AFTER = {
+    'return',
+    'typeof',
+    'case',
+    'in',
+    'of',
+    'do',
+    'else',
+    'new',
+    'delete',
+    'void',
+    'instanceof',
+    'yield',
+    'await',
+    'throw',
+}
 
 # The lookbehind matters: without it the `e` of `1e-9` reads as an identifier,
 # and every exponent in the repo becomes a finding.
@@ -106,7 +142,7 @@ def blank(src):
     """
     out = []
     i, n = 0, len(src)
-    stack = [['code', 0]]          # ['code', brace depth] | ['tpl']
+    stack = [['code', 0]]  # ['code', brace depth] | ['tpl']
     last, lastword = '', ''
 
     def hush(text):
@@ -118,9 +154,9 @@ def blank(src):
 
         if top[0] == 'tpl':
             if c == '\\':
-                out.append(hush(src[i:i + 2]))
+                out.append(hush(src[i : i + 2]))
                 i += 2
-            elif src[i:i + 2] == '${':
+            elif src[i : i + 2] == '${':
                 out.append('  ')
                 stack.append(['code', 0])
                 last, lastword = '(', ''
@@ -135,7 +171,7 @@ def blank(src):
                 i += 1
             continue
 
-        two = src[i:i + 2]
+        two = src[i : i + 2]
         if two == '//':
             j = src.find('\n', i)
             j = n if j < 0 else j
@@ -150,7 +186,7 @@ def blank(src):
             j = i + 1
             while j < n and src[j] != c and src[j] != '\n':
                 j += 2 if src[j] == '\\' else 1
-            out.append(hush(src[i:min(j + 1, n)]))
+            out.append(hush(src[i : min(j + 1, n)]))
             last, lastword = ')', ''
             i = min(j + 1, n)
         elif c == '`':
@@ -176,7 +212,7 @@ def blank(src):
             j += 1
             while j < n and src[j].isalpha():
                 j += 1
-            out.append(hush(src[i:min(j, n)]))
+            out.append(hush(src[i : min(j, n)]))
             last, lastword = ')', ''
             i = min(j, n)
         elif c.isalnum() or c in '_$':
@@ -239,8 +275,12 @@ def before_initialiser(chunk):
             depth += 1
         elif ch in ')]}':
             depth -= 1
-        elif (depth == 0 and ch == '=' and chunk[i + 1:i + 2] != '='
-                and (i == 0 or chunk[i - 1] not in '=!<>')):
+        elif (
+            depth == 0
+            and ch == '='
+            and chunk[i + 1 : i + 2] != '='
+            and (i == 0 or chunk[i - 1] not in '=!<>')
+        ):
             return chunk[:i]
     return chunk
 
@@ -295,21 +335,23 @@ def param_names(code):
                     break
     for m in re.finditer(r'(?<![.\w$])([A-Za-z_$][\w$]*)\s*=>', code):
         found.add(m.group(1))
-    for m in re.finditer(r'\b(?:function\s*\*?\s*([A-Za-z_$][\w$]*)?|'
-                         r'(?<![.\w$])([A-Za-z_$][\w$]*))\s*\(', code):
+    for m in re.finditer(
+        r'\b(?:function\s*\*?\s*([A-Za-z_$][\w$]*)?|'
+        r'(?<![.\w$])([A-Za-z_$][\w$]*))\s*\(',
+        code,
+    ):
         name = m.group(1) or m.group(2)
         if name in BLOCK_HEADS and not m.group(1):
             continue
         close = closer(code, m.end() - 1)
         if close < 0:
             continue
-        tail = code[close + 1:close + 40].lstrip()
-        if not (tail.startswith('{') or m.group(1) is not None
-                or tail.startswith('=>')):
+        tail = code[close + 1 : close + 40].lstrip()
+        if not (tail.startswith('{') or m.group(1) is not None or tail.startswith('=>')):
             continue
         if name:
             found.add(name)
-        found.update(WORD.findall(code[m.end():close]))
+        found.update(WORD.findall(code[m.end() : close]))
     for m in re.finditer(r'\bcatch\s*\(([^)]*)\)', code):
         found.update(WORD.findall(m.group(1)))
     return found
@@ -350,17 +392,17 @@ def references(code):
         while j >= 0 and code[j] in ' \t\r\n':
             j -= 1
         if j >= 0 and code[j] == '.':
-            continue                      # property access, or `?.`
+            continue  # property access, or `?.`
         end = j + 1
         while j >= 0 and (code[j].isalnum() or code[j] in '_$'):
             j -= 1
-        if code[j + 1:end] in ('break', 'continue'):
-            continue                      # a label, not a value
+        if code[j + 1 : end] in ('break', 'continue'):
+            continue  # a label, not a value
         k = m.end()
         while k < len(code) and code[k] in ' \t\r\n':
             k += 1
-        if code[k:k + 1] == ':' and code[k:k + 2] != '::':
-            continue                      # object key, or a label
+        if code[k : k + 1] == ':' and code[k : k + 2] != '::':
+            continue  # object key, or a label
         out.setdefault(m.group(0), line)
     return out
 
@@ -400,8 +442,8 @@ def test_no_free_identifiers():
             bad.append('%s:%d  %s' % (rel(path), line, name))
     assert not bad, (
         'these names are read but bound nowhere in their own file, and will '
-        'throw ReferenceError the moment the line runs:\n  '
-        + '\n  '.join(bad))
+        'throw ReferenceError the moment the line runs:\n  ' + '\n  '.join(bad)
+    )
 
 
 def test_page_globals_are_still_real():
@@ -417,14 +459,16 @@ def test_page_globals_are_still_real():
 
     stale = sorted(n for n in PAGE_GLOBALS if n not in used)
     assert not stale, (
-        'allowed as page globals but referenced by no module any more: %s'
-        % ', '.join(stale))
+        'allowed as page globals but referenced by no module any more: %s' % ', '.join(stale)
+    )
 
     for name, (page, marker) in sorted(PAGE_GLOBALS.items()):
         html = io.open(ROOT / page, encoding='utf-8', newline='').read()
-        assert marker in html, (
-            '%s is allowed because %s loads %s, and that script tag is gone'
-            % (name, page, marker))
+        assert marker in html, '%s is allowed because %s loads %s, and that script tag is gone' % (
+            name,
+            page,
+            marker,
+        )
 
 
 def test_the_scan_actually_scanned_something():
@@ -449,44 +493,54 @@ def test_a_planted_free_name_is_found():
 
 
 def test_the_shipped_bug_would_have_been_caught():
-    src = ('function drawPitchOverlay(ctx) {\n'
-           '    const poly = (pts) => pts.forEach((pt) => ctx.lineTo(...pt));\n'
-           '    poly([[0, 0], [L, 0], [L, W], [0, W]]);\n'
-           '}\n')
+    src = (
+        'function drawPitchOverlay(ctx) {\n'
+        '    const poly = (pts) => pts.forEach((pt) => ctx.lineTo(...pt));\n'
+        '    poly([[0, 0], [L, 0], [L, W], [0, W]]);\n'
+        '}\n'
+    )
     assert [n for n, _ in free_names(src)] == ['L', 'W']
 
-    src = ('function reviewSeek(s) { return s; }\n'
-           'row.addEventListener("click", () => seekReview(1));\n')
+    src = (
+        'function reviewSeek(s) { return s; }\n'
+        'row.addEventListener("click", () => seekReview(1));\n'
+    )
     assert [n for n, _ in free_names(src)] == ['row', 'seekReview']
 
 
 def test_prose_is_not_a_reference():
     """Comments, strings, regexes and template text are text, not code."""
-    src = '\n'.join([
-        '// The ghost in this comment is prose.',
-        '/* And the phantom in this one. */',
-        'const s = "a spectre in a string";',
-        "const t = 'a wraith in another';",
-        'const r = /^pen_(left|right)_corner$/;',
-        'const u = `a poltergeist in a template`;',
-        'const v = 1e-9 / 2;',
-    ])
+    src = '\n'.join(
+        [
+            '// The ghost in this comment is prose.',
+            '/* And the phantom in this one. */',
+            'const s = "a spectre in a string";',
+            "const t = 'a wraith in another';",
+            'const r = /^pen_(left|right)_corner$/;',
+            'const u = `a poltergeist in a template`;',
+            'const v = 1e-9 / 2;',
+        ]
+    )
     assert free_names(src) == []
 
 
 def test_nested_templates_do_not_leak_their_words():
     """A template built inside a `${...}` hole is still a template."""
-    src = ('const rows = [1];\n'
-           'const html = `<ul>${rows.map((x) => `<li>Your ${x} thing</li>`)'
-           '.join("")}</ul>`;\n')
+    src = (
+        'const rows = [1];\n'
+        'const html = `<ul>${rows.map((x) => `<li>Your ${x} thing</li>`)'
+        '.join("")}</ul>`;\n'
+    )
     assert free_names(src) == []
 
 
 def test_destructuring_defaults_bind_what_follows_them():
     """`const { a = 1, b } = opts` binds `b` too. Four option bags rely on it."""
-    src = ('const opts = {};\n'
-           'const { first = 1, second = null, third } = opts;\n'
-           'use(first, second, third);\n')
+    src = (
+        'const opts = {};\n'
+        'const { first = 1, second = null, third } = opts;\n'
+        'use(first, second, third);\n'
+    )
     assert [n for n, _ in free_names(src)] == ['use']
 
 
@@ -495,13 +549,16 @@ def test_import_aliases_bind_both_halves():
     assert free_names(src) == []
 
 
-@pytest.mark.parametrize('src', [
-    'const a = 1; label: for (;;) { break label; }',
-    'const o = { key: 1, other: 2 }; use(o.key, o.other);',
-    'try { risky(); } catch (err) { report(err); }',
-    'for (const [k, v] of Object.entries({})) use(k, v);',
-    'export function f(a, { b, c: renamed }) { return a + b + renamed; }',
-])
+@pytest.mark.parametrize(
+    'src',
+    [
+        'const a = 1; label: for (;;) { break label; }',
+        'const o = { key: 1, other: 2 }; use(o.key, o.other);',
+        'try { risky(); } catch (err) { report(err); }',
+        'for (const [k, v] of Object.entries({})) use(k, v);',
+        'export function f(a, { b, c: renamed }) { return a + b + renamed; }',
+    ],
+)
 def test_shapes_that_bind_without_looking_like_it(src):
     """Every construct here binds names. None of them may read as free."""
     allowed = {'use', 'risky', 'report'}

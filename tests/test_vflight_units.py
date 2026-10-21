@@ -21,7 +21,7 @@ def _restore():
 
 @pytest.mark.parametrize('h_m', [5.14, 6.04, 15.0])
 def test_gravity_is_9_81_in_metres_for_any_camera(h_m):
-    V.set_camera(9.15 / h_m)                    # the circle is 9.15 m, the camera h_m up
+    V.set_camera(9.15 / h_m)  # the circle is 9.15 m, the camera h_m up
     assert V.G / V.R_CH * 9.15 == pytest.approx(9.81)
 
 

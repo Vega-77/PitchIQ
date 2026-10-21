@@ -220,12 +220,9 @@ class FramingVerdict:
             'frames': self.frames,
             'scale': round(self.scale, 4),
             'player_px': None if self.player_px is None else round(self.player_px, 1),
-            'inference_px': (
-                None if self.inference_px is None else round(self.inference_px, 1)
-            ),
+            'inference_px': (None if self.inference_px is None else round(self.inference_px, 1)),
             'predicted_ball_px': (
-                None if self.predicted_ball_px is None
-                else round(self.predicted_ball_px, 2)
+                None if self.predicted_ball_px is None else round(self.predicted_ball_px, 2)
             ),
             'people_per_frame': round(self.people_per_frame, 1),
             'ball_share': round(self.ball_share, 3),
@@ -246,12 +243,9 @@ class FramingVerdict:
 
         out = [
             'framing: players are %.0f px tall in the file, %.0f px at '
-            'imgsz=%d (x%.2f).' % (
-                self.player_px, self.inference_px, self.imgsz, self.scale
-            ),
-            '  ball works out at about %.1f px, and wants %.0f.' % (
-                self.predicted_ball_px, BALL_FLOOR_PX
-            ),
+            'imgsz=%d (x%.2f).' % (self.player_px, self.inference_px, self.imgsz, self.scale),
+            '  ball works out at about %.1f px, and wants %.0f.'
+            % (self.predicted_ball_px, BALL_FLOOR_PX),
         ]
 
         if self.limit == LIMIT_FRAMING:
@@ -259,10 +253,7 @@ class FramingVerdict:
                 '  VERDICT: the camera. %.0f px is all the file holds, so no '
                 'setting here' % self.player_px
             )
-            out.append(
-                '  recovers it. Move the camera closer or zoom in, and check '
-                'jersey'
-            )
+            out.append('  recovers it. Move the camera closer or zoom in, and check jersey')
             out.append('  numbers are faintly legible before trusting the next one.')
         elif self.limit == LIMIT_RESOLUTION:
             tiles = self.tiles_needed()
@@ -281,18 +272,10 @@ class FramingVerdict:
         elif self.status == GOOD:
             out.append('  VERDICT: usable. Players are comfortably resolved.')
             if not self.ball_reachable:
-                out.append(
-                    '  The ball is still under its floor even at native scale, '
-                    'so expect'
-                )
-                out.append(
-                    '  patchy ball coverage and lean on the team-level figures.'
-                )
+                out.append('  The ball is still under its floor even at native scale, so expect')
+                out.append('  patchy ball coverage and lean on the team-level figures.')
         else:
-            out.append(
-                '  VERDICT: marginal. Players are near the floor, so expect '
-                'fragmented'
-            )
+            out.append('  VERDICT: marginal. Players are near the floor, so expect fragmented')
             out.append('  tracks and treat per-player figures as indicative.')
 
         return out
@@ -358,9 +341,7 @@ def assess_framing(
         # The one branch this module exists for. Ask what the file holds before
         # blaming the camera: if native clears the bar the downscale is ours.
         status = MARGINAL if inference_px >= PLAYER_FLOOR_PX else UNUSABLE
-        limit = (
-            LIMIT_RESOLUTION if player_px >= PLAYER_GOOD_PX else LIMIT_FRAMING
-        )
+        limit = LIMIT_RESOLUTION if player_px >= PLAYER_GOOD_PX else LIMIT_FRAMING
 
     return FramingVerdict(
         width=width,

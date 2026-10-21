@@ -1,8 +1,9 @@
 """Air Lab labels -> per-frame truth, and the flight detector scored on it.
 
-    python vairscore.py [tag]      (default vid1)
-    -> airtruth.npz  abs, truth ('ground'|'air'|'hidden'|'none'), flight id (-1 = none)
+python vairscore.py [tag]      (default vid1)
+-> airtruth.npz  abs, truth ('ground'|'air'|'hidden'|'none'), flight id (-1 = none)
 """
+
 import json
 import os
 import sys
@@ -12,8 +13,10 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 tag = sys.argv[1] if len(sys.argv) > 1 else 'vid1'
 
-recs = sorted((json.loads(l)[1] for l in open(os.path.join(HERE, 'airlabels', 'clips.jsonl'))),
-              key=lambda r: r['start'])
+recs = sorted(
+    (json.loads(l)[1] for l in open(os.path.join(HERE, 'airlabels', 'clips.jsonl'))),
+    key=lambda r: r['start'],
+)
 A0, A1 = recs[0]['start'], max(r['end'] for r in recs)
 n = A1 - A0 + 1
 truth = np.full(n, 'none', '<U6')
@@ -56,10 +59,16 @@ for k in range(flight + 1):
 d = np.array([(b - a + 1) / 30 for a, b, _, _ in fl])
 u, c = np.unique(truth, return_counts=True)
 print('frames:', dict(zip(u, c)))
-print('true flights %d: median %.1f s, max %.1f s; start after %s; end in %s' % (
-    len(fl), np.median(d), d.max(),
-    dict(zip(*np.unique([f[2] for f in fl], return_counts=True))),
-    dict(zip(*np.unique([f[3] for f in fl], return_counts=True)))))
+print(
+    'true flights %d: median %.1f s, max %.1f s; start after %s; end in %s'
+    % (
+        len(fl),
+        np.median(d),
+        d.max(),
+        dict(zip(*np.unique([f[2] for f in fl], return_counts=True))),
+        dict(zip(*np.unique([f[3] for f in fl], return_counts=True))),
+    )
+)
 
 # ---- detector
 B = np.load(os.path.join(HERE, '%s_ball3d.npz' % tag))
@@ -69,12 +78,20 @@ pred = np.array([st.get(A0 + i, 'none') for i in range(n)])
 vis = truth != 'hidden'
 T_air, P_air = (truth == 'air'), (pred == 'air')
 print('\nper frame (visible frames only, %d):' % vis.sum())
-print('  %-8s' % 'truth\\det' + ''.join('%8s' % s for s in ('air', 'ground', 'line', 'out', 'none')))
+print(
+    '  %-8s' % 'truth\\det' + ''.join('%8s' % s for s in ('air', 'ground', 'line', 'out', 'none'))
+)
 for t in ('air', 'ground'):
     m = vis & (truth == t)
-    print('  %-8s' % t + ''.join('%8d' % (m & (pred == s)).sum() for s in ('air', 'ground', 'line', 'out', 'none')))
+    print(
+        '  %-8s' % t
+        + ''.join('%8d' % (m & (pred == s)).sum() for s in ('air', 'ground', 'line', 'out', 'none'))
+    )
 tp = (T_air & P_air & vis).sum()
-print('  air precision %.2f  recall %.2f' % (tp / max(1, (P_air & vis).sum()), tp / max(1, (T_air & vis).sum())))
+print(
+    '  air precision %.2f  recall %.2f'
+    % (tp / max(1, (P_air & vis).sum()), tp / max(1, (T_air & vis).sum()))
+)
 
 # per true flight: covered by a detected flight?
 det = [(int(round(r[0])), int(round(r[1]))) for r in F]
@@ -92,8 +109,10 @@ print('detected flights overlapping no true flight: %d  %s' % (len(false), false
 for da, db in det:
     ov = [(a, b) for a, b, _, _ in fl if min(b, db) - max(a, da) > 0]
     if ov:
-        print('  det %d-%d (%.1fs): true %s  take err %+d, land err %+d frames' % (
-            da, db, (db - da) / 30, ov, da - ov[0][0], db - ov[-1][1]))
+        print(
+            '  det %d-%d (%.1fs): true %s  take err %+d, land err %+d frames'
+            % (da, db, (db - da) / 30, ov, da - ov[0][0], db - ov[-1][1])
+        )
 print('\ntrue flights (start end dur from->to cover):')
 for a, b, prv, nxt, cov, _ in rows:
     print('  %d-%d  %4.1fs  %-6s -> %-6s  %3.0f%%' % (a, b, (b - a + 1) / 30, prv, nxt, 100 * cov))

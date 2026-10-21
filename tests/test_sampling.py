@@ -100,12 +100,12 @@ def truth(points, fps: float = SOURCE_FPS):
     """Every figure at full rate, with no wobble and nothing smoothed away."""
     times = np.arange(len(points)) / fps
     return movement_stats(
-        PositionSeries(1, times, np.asarray(points, float)), noise_m=0.0,
+        PositionSeries(1, times, np.asarray(points, float)),
+        noise_m=0.0,
     )
 
 
-def analysed(points, sigma: float, stride: int, seed: int = 0,
-             fps: float = SOURCE_FPS):
+def analysed(points, sigma: float, stride: int, seed: int = 0, fps: float = SOURCE_FPS):
     """The same truth put through wobble, subsampling and the real fit."""
     noisy = points + np.random.default_rng(seed).normal(0, sigma, np.shape(points))
     keep = np.arange(0, len(points), stride)
@@ -183,8 +183,7 @@ class TestWobbleMattersMoreThanRate:
     def test_the_spread_across_rates_is_smaller_than_the_cost_of_wobble(self):
         clean = [across_seeds(s, 0.0)['top_speed_pct'] for s in (1, 2, 4, 6)]
         spread = max(clean) - min(clean)
-        wobble = abs(across_seeds(1, 0.15)['top_speed_pct']
-                     - across_seeds(1, 0.0)['top_speed_pct'])
+        wobble = abs(across_seeds(1, 0.15)['top_speed_pct'] - across_seeds(1, 0.0)['top_speed_pct'])
         assert spread < wobble
 
     def test_distance_survives_wobble_at_every_rate_because_the_window_fits_it(self):

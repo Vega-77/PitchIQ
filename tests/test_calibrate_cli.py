@@ -41,7 +41,7 @@ from test_lines import (
 )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def scene():
     pitch = Pitch()
     matrix = camera(pitch)
@@ -50,36 +50,37 @@ def scene():
 
 def write_points(path, clicks, pitch, size=(FRAME_W, FRAME_H)):
     """The browser picker's export format, which is what the CLI reads."""
-    path.write_text(json.dumps({
-        "pitch": {"length_m": pitch.length_m, "width_m": pitch.width_m},
-        "image_size": list(size) if size else None,
-        "points": [
-            {"landmark": c.landmark, "x": c.pixel[0], "y": c.pixel[1]}
-            for c in clicks
-        ],
-    }), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {
+                'pitch': {'length_m': pitch.length_m, 'width_m': pitch.width_m},
+                'image_size': list(size) if size else None,
+                'points': [
+                    {'landmark': c.landmark, 'x': c.pixel[0], 'y': c.pixel[1]} for c in clicks
+                ],
+            }
+        ),
+        encoding='utf-8',
+    )
     return path
 
 
 class TestFrameArgument:
     def test_it_grades_the_calibration_against_the_paint(self, scene, tmp_path, capsys):
         pitch, matrix, frame = scene
-        points = write_points(
-            tmp_path / "p.json", rough_clicks(pitch, matrix, 1.0, 0), pitch
-        )
-        image = tmp_path / "frame.png"
+        points = write_points(tmp_path / 'p.json', rough_clicks(pitch, matrix, 1.0, 0), pitch)
+        image = tmp_path / 'frame.png'
         cv2.imwrite(str(image), frame)
 
-        main([str(points), "--out", str(tmp_path / "c.json"),
-              "--frame", str(image)])
+        main([str(points), '--out', str(tmp_path / 'c.json'), '--frame', str(image)])
         out = capsys.readouterr().out
 
-        assert "line segments" in out
-        assert "against paint" in out
-        assert "% matched)" in out
+        assert 'line segments' in out
+        assert 'against paint' in out
+        assert '% matched)' in out
         # The order is the point: a coach who reads the metres first and the
         # coverage second can be fooled by a calibration that matched nothing.
-        assert out.index("against paint") < out.index("Read coverage before")
+        assert out.index('against paint') < out.index('Read coverage before')
 
     def test_a_frame_of_the_wrong_size_is_refused(self, scene, tmp_path, capsys):
         """Not a warning, and not silently rescaled.
@@ -89,42 +90,39 @@ class TestFrameArgument:
         ratio between them -- and wrong in the direction that looks fine.
         """
         pitch, matrix, frame = scene
-        points = write_points(
-            tmp_path / "p.json", rough_clicks(pitch, matrix, 1.0, 0), pitch
-        )
-        image = tmp_path / "half.png"
+        points = write_points(tmp_path / 'p.json', rough_clicks(pitch, matrix, 1.0, 0), pitch)
+        image = tmp_path / 'half.png'
         cv2.imwrite(str(image), cv2.resize(frame, (FRAME_W // 2, FRAME_H // 2)))
-        out_path = tmp_path / "c.json"
+        out_path = tmp_path / 'c.json'
 
-        assert main([str(points), "--out", str(out_path), "--frame", str(image)]) == 1
-        assert "but these points were clicked on" in capsys.readouterr().out
-        assert not out_path.exists(), "a refused run must not leave a file behind"
+        assert main([str(points), '--out', str(out_path), '--frame', str(image)]) == 1
+        assert 'but these points were clicked on' in capsys.readouterr().out
+        assert not out_path.exists(), 'a refused run must not leave a file behind'
 
     def test_an_export_with_no_frame_size_says_so(self, scene, tmp_path, capsys):
         """Older exports carry no size, so the check cannot run. Saying nothing
         would leave the reader thinking it had."""
         pitch, matrix, frame = scene
         points = write_points(
-            tmp_path / "p.json", rough_clicks(pitch, matrix, 1.0, 0), pitch, size=None
+            tmp_path / 'p.json', rough_clicks(pitch, matrix, 1.0, 0), pitch, size=None
         )
-        image = tmp_path / "frame.png"
+        image = tmp_path / 'frame.png'
         cv2.imwrite(str(image), frame)
 
-        main([str(points), "--out", str(tmp_path / "c.json"), "--frame", str(image)])
-        assert "taken on trust" in capsys.readouterr().out
+        main([str(points), '--out', str(tmp_path / 'c.json'), '--frame', str(image)])
+        assert 'taken on trust' in capsys.readouterr().out
 
     def test_a_mistyped_frame_path_stops_before_any_work(self, scene, tmp_path, capsys):
         """Checked up front, next to the points file, so a typo costs a second
         rather than a fitted-and-saved calibration nobody asked for."""
         pitch, matrix, _ = scene
-        points = write_points(
-            tmp_path / "p.json", rough_clicks(pitch, matrix, 1.0, 0), pitch
-        )
-        out_path = tmp_path / "c.json"
+        points = write_points(tmp_path / 'p.json', rough_clicks(pitch, matrix, 1.0, 0), pitch)
+        out_path = tmp_path / 'c.json'
 
-        assert main([str(points), "--out", str(out_path),
-                     "--frame", str(tmp_path / "typo.png")]) == 1
-        assert "typo.png not found" in capsys.readouterr().out
+        assert (
+            main([str(points), '--out', str(out_path), '--frame', str(tmp_path / 'typo.png')]) == 1
+        )
+        assert 'typo.png not found' in capsys.readouterr().out
         assert not out_path.exists()
 
     def test_a_frame_with_no_paint_costs_nothing(self, scene, tmp_path, capsys):
@@ -132,15 +130,13 @@ class TestFrameArgument:
         wrong half. The calibration is still saved, and the reader is told why
         there is no line fit rather than left to wonder."""
         pitch, matrix, _ = scene
-        points = write_points(
-            tmp_path / "p.json", rough_clicks(pitch, matrix, 1.0, 0), pitch
-        )
-        image = tmp_path / "blank.png"
+        points = write_points(tmp_path / 'p.json', rough_clicks(pitch, matrix, 1.0, 0), pitch)
+        image = tmp_path / 'blank.png'
         cv2.imwrite(str(image), render(pitch, matrix, paint=False))
-        out_path = tmp_path / "c.json"
+        out_path = tmp_path / 'c.json'
 
-        main([str(points), "--out", str(out_path), "--frame", str(image)])
-        assert "No paint at all" in capsys.readouterr().out
+        main([str(points), '--out', str(out_path), '--frame', str(image)])
+        assert 'No paint at all' in capsys.readouterr().out
         assert out_path.exists()
 
 
@@ -156,36 +152,33 @@ class TestRefine:
         """
         pitch, matrix, frame = scene
         clicks = rough_clicks(pitch, matrix, 3.0, 0)
-        points = write_points(tmp_path / "p.json", clicks, pitch)
-        image = tmp_path / "frame.png"
+        points = write_points(tmp_path / 'p.json', clicks, pitch)
+        image = tmp_path / 'frame.png'
         cv2.imwrite(str(image), frame)
-        out_path = tmp_path / "c.json"
+        out_path = tmp_path / 'c.json'
 
-        main([str(points), "--out", str(out_path),
-              "--frame", str(image), "--refine"])
+        main([str(points), '--out', str(out_path), '--frame', str(image), '--refine'])
 
         before = Calibration.fit(clicks, pitch, (FRAME_W, FRAME_H))
         saved = Calibration.load(out_path)
-        assert not np.allclose(saved.H, before.H), "the refined fit was not saved"
-        assert (landmark_error(saved, pitch, matrix)[1]
-                < landmark_error(before, pitch, matrix)[1])
-        assert "refined       median" in capsys.readouterr().out
+        assert not np.allclose(saved.H, before.H), 'the refined fit was not saved'
+        assert landmark_error(saved, pitch, matrix)[1] < landmark_error(before, pitch, matrix)[1]
+        assert 'refined       median' in capsys.readouterr().out
 
     def test_clicks_that_cannot_be_improved_are_left_alone(self, scene, tmp_path, capsys):
         """A refusal costs a coach nothing; a silent bad refinement costs them
         every number in the match report and gives them no way to find out."""
         pitch, matrix, frame = scene
         clicks = rough_clicks(pitch, matrix, 0.0, 0)
-        points = write_points(tmp_path / "p.json", clicks, pitch)
-        image = tmp_path / "frame.png"
+        points = write_points(tmp_path / 'p.json', clicks, pitch)
+        image = tmp_path / 'frame.png'
         cv2.imwrite(str(image), frame)
-        out_path = tmp_path / "c.json"
+        out_path = tmp_path / 'c.json'
 
-        main([str(points), "--out", str(out_path),
-              "--frame", str(image), "--refine"])
+        main([str(points), '--out', str(out_path), '--frame', str(image), '--refine'])
         out = capsys.readouterr().out
 
-        if "refined       no." in out:
+        if 'refined       no.' in out:
             assert np.allclose(
                 Calibration.load(out_path).H,
                 Calibration.fit(clicks, pitch, (FRAME_W, FRAME_H)).H,
@@ -193,14 +186,12 @@ class TestRefine:
         else:
             # Accepting is allowed -- rasterised paint has width and perfect
             # clicks do not -- but only if it really did land closer.
-            assert landmark_error(
-                Calibration.load(out_path), pitch, matrix
-            )[1] < 0.5
+            assert landmark_error(Calibration.load(out_path), pitch, matrix)[1] < 0.5
 
     def test_refine_needs_a_frame(self, tmp_path):
         """`--refine` alone is a typo, not a request. Argparse exits 2."""
         with pytest.raises(SystemExit) as err:
-            main([str(tmp_path / "p.json"), "--refine"])
+            main([str(tmp_path / 'p.json'), '--refine'])
         assert err.value.code == 2
 
 
@@ -210,21 +201,28 @@ class TestOverlay:
         the paint is right, and one that does not is wrong in a way a coach can
         point at without knowing what a homography is."""
         pitch, matrix, frame = scene
-        points = write_points(
-            tmp_path / "p.json", rough_clicks(pitch, matrix, 1.0, 0), pitch
-        )
-        image = tmp_path / "frame.png"
+        points = write_points(tmp_path / 'p.json', rough_clicks(pitch, matrix, 1.0, 0), pitch)
+        image = tmp_path / 'frame.png'
         cv2.imwrite(str(image), frame)
-        overlay = tmp_path / "sub" / "overlay.png"
+        overlay = tmp_path / 'sub' / 'overlay.png'
 
-        main([str(points), "--out", str(tmp_path / "c.json"),
-              "--frame", str(image), "--overlay", str(overlay)])
+        main(
+            [
+                str(points),
+                '--out',
+                str(tmp_path / 'c.json'),
+                '--frame',
+                str(image),
+                '--overlay',
+                str(overlay),
+            ]
+        )
 
-        assert overlay.exists(), "the parent directory should have been created"
+        assert overlay.exists(), 'the parent directory should have been created'
         drawn = cv2.imread(str(overlay))
         assert drawn.shape == frame.shape
-        assert not np.array_equal(drawn, frame), "nothing was drawn"
-        assert "overlay    ->" in capsys.readouterr().out
+        assert not np.array_equal(drawn, frame), 'nothing was drawn'
+        assert 'overlay    ->' in capsys.readouterr().out
 
 
 class TestLens:
@@ -237,9 +235,7 @@ class TestLens:
     the tool reports is the lens and only the lens.
     """
 
-    def test_a_bent_frame_is_unusable_until_the_lens_is_found(
-        self, scene, tmp_path, capsys
-    ):
+    def test_a_bent_frame_is_unusable_until_the_lens_is_found(self, scene, tmp_path, capsys):
         """The headline, end to end through the actual CLI.
 
         Same clicks, same frame, one flag apart: without it the tool says NEEDS
@@ -248,31 +244,29 @@ class TestLens:
         """
         pitch, matrix, _ = scene
         frame = render_through(pitch, matrix, -0.05)
-        image = tmp_path / "frame.png"
+        image = tmp_path / 'frame.png'
         cv2.imwrite(str(image), frame)
-        points = write_points(
-            tmp_path / "p.json", perfect_clicks(pitch, matrix, -0.05), pitch
+        points = write_points(tmp_path / 'p.json', perfect_clicks(pitch, matrix, -0.05), pitch)
+
+        blind = main([str(points), '--out', str(tmp_path / 'blind.json'), '--frame', str(image)])
+        assert blind == 2, 'perfect clicks through a wide lens should not pass'
+        assert 'NEEDS WORK' in capsys.readouterr().out
+
+        seeing = main(
+            [str(points), '--out', str(tmp_path / 'seeing.json'), '--frame', str(image), '--lens']
         )
-
-        blind = main([str(points), "--out", str(tmp_path / "blind.json"),
-                      "--frame", str(image)])
-        assert blind == 2, "perfect clicks through a wide lens should not pass"
-        assert "NEEDS WORK" in capsys.readouterr().out
-
-        seeing = main([str(points), "--out", str(tmp_path / "seeing.json"),
-                       "--frame", str(image), "--lens"])
         out = capsys.readouterr().out
         assert seeing == 0
-        assert "OK" in out
-        assert "(confident)" in out
-        assert "Applied." in out
+        assert 'OK' in out
+        assert '(confident)' in out
+        assert 'Applied.' in out
 
         # Scored on `grid_error_m`, not `landmark_error`: the latter feeds a
         # calibration the pixel an undistorted camera would have used, which is
         # not a pixel this frame contains. Grid points are also the honest place
         # to look -- the clicked landmarks are the eight the fit was handed.
-        before = Calibration.load(tmp_path / "blind.json")
-        after = Calibration.load(tmp_path / "seeing.json")
+        before = Calibration.load(tmp_path / 'blind.json')
+        after = Calibration.load(tmp_path / 'seeing.json')
         assert grid_error_m(before, pitch, matrix, -0.05)[1] > 1.0
         assert grid_error_m(after, pitch, matrix, -0.05)[1] < 0.1
 
@@ -280,16 +274,14 @@ class TestLens:
         """A coefficient that lives only in the terminal is a coefficient the
         pipeline will silently run without. It has to survive the file."""
         pitch, matrix, _ = scene
-        image = tmp_path / "frame.png"
+        image = tmp_path / 'frame.png'
         cv2.imwrite(str(image), render_through(pitch, matrix, -0.08))
-        points = write_points(
-            tmp_path / "p.json", perfect_clicks(pitch, matrix, -0.08), pitch
-        )
-        out = tmp_path / "c.json"
+        points = write_points(tmp_path / 'p.json', perfect_clicks(pitch, matrix, -0.08), pitch)
+        out = tmp_path / 'c.json'
 
-        main([str(points), "--frame", str(image), "--lens", "--out", str(out)])
+        main([str(points), '--frame', str(image), '--lens', '--out', str(out)])
 
-        assert json.loads(out.read_text())["lens"]["k1"] == pytest.approx(-0.08, abs=0.01)
+        assert json.loads(out.read_text())['lens']['k1'] == pytest.approx(-0.08, abs=0.01)
         reloaded = Calibration.load(out)
         assert reloaded.lens is not None
         assert grid_error_m(reloaded, pitch, matrix, -0.08)[1] < 0.15
@@ -303,36 +295,50 @@ class TestLens:
         answer, not the error case.
         """
         pitch, matrix, frame = scene
-        image = tmp_path / "frame.png"
+        image = tmp_path / 'frame.png'
         cv2.imwrite(str(image), frame)
-        points = write_points(
-            tmp_path / "p.json", rough_clicks(pitch, matrix, 1.0, 0), pitch
-        )
+        points = write_points(tmp_path / 'p.json', rough_clicks(pitch, matrix, 1.0, 0), pitch)
 
-        main([str(points), "--frame", str(image), "--lens",
-              "--out", str(tmp_path / "c.json")])
+        main([str(points), '--frame', str(image), '--lens', '--out', str(tmp_path / 'c.json')])
         out = capsys.readouterr().out
 
-        assert "Not applied." in out
-        assert Calibration.load(tmp_path / "c.json").lens is None
+        assert 'Not applied.' in out
+        assert Calibration.load(tmp_path / 'c.json').lens is None
 
     def test_a_refusal_costs_the_calibration_nothing(self, scene, tmp_path):
         """Passing `--lens` on a frame that cannot answer must produce exactly
         the calibration you would have got without it -- not merely a similar
         one. Otherwise nobody can afford to leave the flag on."""
         pitch, matrix, frame = scene
-        image = tmp_path / "frame.png"
+        image = tmp_path / 'frame.png'
         cv2.imwrite(str(image), frame)
         clicks = rough_clicks(pitch, matrix, 1.0, 0)
-        write_points(tmp_path / "p.json", clicks, pitch)
+        write_points(tmp_path / 'p.json', clicks, pitch)
 
-        main([str(tmp_path / "p.json"), "--frame", str(image),
-              "--out", str(tmp_path / "without.json")])
-        main([str(tmp_path / "p.json"), "--frame", str(image), "--lens",
-              "--out", str(tmp_path / "with.json")])
+        main(
+            [
+                str(tmp_path / 'p.json'),
+                '--frame',
+                str(image),
+                '--out',
+                str(tmp_path / 'without.json'),
+            ]
+        )
+        main(
+            [
+                str(tmp_path / 'p.json'),
+                '--frame',
+                str(image),
+                '--lens',
+                '--out',
+                str(tmp_path / 'with.json'),
+            ]
+        )
 
-        assert (json.loads((tmp_path / "without.json").read_text())["homography"]
-                == json.loads((tmp_path / "with.json").read_text())["homography"])
+        assert (
+            json.loads((tmp_path / 'without.json').read_text())['homography']
+            == json.loads((tmp_path / 'with.json').read_text())['homography']
+        )
 
     def test_refine_runs_through_the_lens(self, scene, tmp_path, capsys):
         """`--refine` fits a second homography to sampled paint pixels. Those
@@ -340,25 +346,22 @@ class TestLens:
         re-absorbs the curvature into the matrix and drops the model on the way
         out -- and the saved file is then wrong twice over, quietly."""
         pitch, matrix, _ = scene
-        image = tmp_path / "frame.png"
+        image = tmp_path / 'frame.png'
         cv2.imwrite(str(image), render_through(pitch, matrix, -0.06))
-        points = write_points(
-            tmp_path / "p.json", perfect_clicks(pitch, matrix, -0.06), pitch
-        )
-        out = tmp_path / "c.json"
+        points = write_points(tmp_path / 'p.json', perfect_clicks(pitch, matrix, -0.06), pitch)
+        out = tmp_path / 'c.json'
 
-        code = main([str(points), "--frame", str(image), "--lens", "--refine",
-                     "--out", str(out)])
+        code = main([str(points), '--frame', str(image), '--lens', '--refine', '--out', str(out)])
 
         assert code == 0
         saved = Calibration.load(out)
-        assert saved.lens is not None, "refinement dropped the lens"
+        assert saved.lens is not None, 'refinement dropped the lens'
         assert grid_error_m(saved, pitch, matrix, -0.06)[1] < 0.5
 
     def test_lens_needs_a_frame(self, tmp_path):
         """`--lens` alone is a typo, not a request. Argparse exits 2."""
         with pytest.raises(SystemExit) as err:
-            main([str(tmp_path / "p.json"), "--lens"])
+            main([str(tmp_path / 'p.json'), '--lens'])
         assert err.value.code == 2
 
 
@@ -382,36 +385,41 @@ class TestMarkings:
         from dataclasses import asdict
 
         matrix = camera(pitch)
-        path.write_text(json.dumps({
-            "pitch": asdict(pitch),
-            "image_size": [FRAME_W, FRAME_H],
-            "points": [
-                {"landmark": c.landmark, "x": c.pixel[0], "y": c.pixel[1]}
-                for c in rough_clicks(pitch, matrix, 0.0, 0)
-            ],
-        }), encoding="utf-8")
+        path.write_text(
+            json.dumps(
+                {
+                    'pitch': asdict(pitch),
+                    'image_size': [FRAME_W, FRAME_H],
+                    'points': [
+                        {'landmark': c.landmark, 'x': c.pixel[0], 'y': c.pixel[1]}
+                        for c in rough_clicks(pitch, matrix, 0.0, 0)
+                    ],
+                }
+            ),
+            encoding='utf-8',
+        )
         return path
 
     def test_it_says_the_pitch_is_not_to_the_laws(self, tmp_path, capsys):
         pitch = Pitch(**self.SCHOOL)
-        points = self.export(tmp_path / "school.json", pitch)
+        points = self.export(tmp_path / 'school.json', pitch)
 
-        assert main([str(points), "--out", str(tmp_path / "o.json")]) == 0
+        assert main([str(points), '--out', str(tmp_path / 'o.json')]) == 0
         out = capsys.readouterr().out
         # Said out loud, because it changes what every number under it means.
-        assert "not to the Laws" in out
-        assert "penalty area depth" in out
-        assert "15.00m" in out and "16.50m" in out
-        assert "penalty spot" in out
+        assert 'not to the Laws' in out
+        assert 'penalty area depth' in out
+        assert '15.00m' in out and '16.50m' in out
+        assert 'penalty spot' in out
 
     def test_a_regulation_pitch_says_nothing_about_markings(self, tmp_path, capsys):
         pitch = Pitch()
-        points = self.export(tmp_path / "laws.json", pitch)
+        points = self.export(tmp_path / 'laws.json', pitch)
 
-        assert main([str(points), "--out", str(tmp_path / "o.json")]) == 0
+        assert main([str(points), '--out', str(tmp_path / 'o.json')]) == 0
         # The boring case has to read like one — a tool that remarks on every
         # regulation pitch teaches people to skip the line that matters.
-        assert "not to the Laws" not in capsys.readouterr().out
+        assert 'not to the Laws' not in capsys.readouterr().out
 
     def test_correcting_the_length_keeps_the_markings(self, tmp_path):
         """The bug this exists to stop.
@@ -422,13 +430,13 @@ class TestMarkings:
         that meant to fix one number quietly breaking eight others.
         """
         pitch = Pitch(**self.SCHOOL)
-        points = self.export(tmp_path / "school.json", pitch)
-        out = tmp_path / "calib.json"
+        points = self.export(tmp_path / 'school.json', pitch)
+        out = tmp_path / 'calib.json'
 
         # 2, not 0: a 100m length really is wrong for these clicks and the
         # tool says so loudly. That is the size question. What matters here
         # is that the markings survived being asked about the size at all.
-        assert main([str(points), "--length", "100", "--out", str(out)]) == 2
+        assert main([str(points), '--length', '100', '--out', str(out)]) == 2
 
         saved = Calibration.load(out)
         assert saved.pitch.length_m == 100.0

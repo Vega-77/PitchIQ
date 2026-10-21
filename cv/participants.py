@@ -140,8 +140,7 @@ class ParticipantVerdict:
             'travel_ph_per_min': round(float(self.travel_ph_per_min), 2),
             'edge_share': round(float(self.edge_share), 3),
             'off_pitch_share': (
-                None if self.off_pitch_share is None
-                else round(float(self.off_pitch_share), 3)
+                None if self.off_pitch_share is None else round(float(self.off_pitch_share), 3)
             ),
             'kit_known': bool(self.kit_known),
         }
@@ -153,15 +152,12 @@ class ParticipantReport:
 
     @property
     def excluded(self) -> frozenset[int]:
-        return frozenset(
-            track_id for track_id, v in self.by_track.items() if v.excluded
-        )
+        return frozenset(track_id for track_id, v in self.by_track.items() if v.excluded)
 
     @property
     def officials(self) -> frozenset[int]:
         return frozenset(
-            track_id for track_id, v in self.by_track.items()
-            if v.role == ROLE_OFFICIAL
+            track_id for track_id, v in self.by_track.items() if v.role == ROLE_OFFICIAL
         )
 
     def is_player(self, track_id: int) -> bool:
@@ -181,8 +177,7 @@ class ParticipantReport:
         return out
 
     def to_json(self) -> list[dict]:
-        return [v.to_json() for v in sorted(self.by_track.values(),
-                                            key=lambda v: v.track_id)]
+        return [v.to_json() for v in sorted(self.by_track.values(), key=lambda v: v.track_id)]
 
 
 @dataclass
@@ -236,16 +231,19 @@ def _verdict(track_id, acc, kit_known) -> ParticipantVerdict:
     spread = _spread_ph(acc)
     travel = _travel_ph_per_min(acc)
     edge_share = acc.edge_hits / len(acc.times)
-    off_pitch = (
-        acc.off_pitch_hits / acc.pitch_tests if acc.pitch_tests else None
-    )
+    off_pitch = acc.off_pitch_hits / acc.pitch_tests if acc.pitch_tests else None
 
     def made(role, reason):
         return ParticipantVerdict(
-            track_id=int(track_id), role=role, reason=reason,
-            sightings=len(acc.times), screen_time_s=screen_time,
-            spread_ph=spread, travel_ph_per_min=travel,
-            edge_share=edge_share, off_pitch_share=off_pitch,
+            track_id=int(track_id),
+            role=role,
+            reason=reason,
+            sightings=len(acc.times),
+            screen_time_s=screen_time,
+            spread_ph=spread,
+            travel_ph_per_min=travel,
+            edge_share=edge_share,
+            off_pitch_share=off_pitch,
             kit_known=kit_known,
         )
 
@@ -311,9 +309,10 @@ def classify_participants(table: FrameTable, team_of=None) -> ParticipantReport:
             acc.heights.append(float(row[COL_Y2]) - float(row[COL_Y1]))
             acc.times.append(record.timestamp_s)
 
-            if width and height and (
-                x < x_edge or x > width - x_edge
-                or y < y_edge or y > height - y_edge
+            if (
+                width
+                and height
+                and (x < x_edge or x > width - x_edge or y < y_edge or y > height - y_edge)
             ):
                 acc.edge_hits += 1
 
@@ -327,6 +326,8 @@ def classify_participants(table: FrameTable, team_of=None) -> ParticipantReport:
     report = ParticipantReport()
     for track_id, acc in accumulators.items():
         report.by_track[track_id] = _verdict(
-            track_id, acc, kit_known=team_of(track_id) != UNKNOWN,
+            track_id,
+            acc,
+            kit_known=team_of(track_id) != UNKNOWN,
         )
     return report

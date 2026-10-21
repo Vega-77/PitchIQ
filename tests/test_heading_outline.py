@@ -52,8 +52,7 @@ from test_contrast_floor import HTML, ROOT, read
 # here, fails. An empty list means the page is a single view.
 VIEWS = {
     'index.html': ['view-marketing', 'view-nowhere', 'view-routes'],
-    'coach/index.html': ['view-noteam', 'view-main', 'view-match',
-                         'view-player'],
+    'coach/index.html': ['view-noteam', 'view-main', 'view-match', 'view-player'],
     'player/index.html': ['view-empty', 'view-reports', 'view-match'],
     'live-tagging/index.html': ['view-setup', 'view-kickoff', 'view-live'],
     'halftime/index.html': ['view-error', 'view-report'],
@@ -87,8 +86,7 @@ def decomment(src):
     style is long explanatory comments directly above the markup they
     describe, so the first one to quote a heading would be silently counted.
     """
-    return re.sub(r'<!--.*?-->', lambda m: '\n' * m.group(0).count('\n'), src,
-                  flags=re.S)
+    return re.sub(r'<!--.*?-->', lambda m: '\n' * m.group(0).count('\n'), src, flags=re.S)
 
 
 def spans(src, key):
@@ -133,6 +131,7 @@ def attr(name):
     def key(_tag, attrs):
         m = re.search(r'\b%s="([^"]*)"' % name, attrs)
         return m.group(1) if m else None
+
     return key
 
 
@@ -158,8 +157,7 @@ def scan(src, view, view_ids):
     lying-directions were proved against a scan that is not the one running.
     """
     src = decomment(src)
-    boxes = {k: (lo, hi) for k, lo, hi in spans(src, attr('id'))
-             if k in view_ids}
+    boxes = {k: (lo, hi) for k, lo, hi in spans(src, attr('id')) if k in view_ids}
     dialogs = [(lo, hi) for _, lo, hi in spans(src, modal)]
     seen = []
     for m in HEADING.finditer(src):
@@ -172,8 +170,7 @@ def scan(src, view, view_ids):
         # screen in all of them.
         if mine and mine[0] != view:
             continue
-        seen.append((int(m.group(1)), 'sr-only' in (m.group(2) or ''),
-                     text(m.group(3))))
+        seen.append((int(m.group(1)), 'sr-only' in (m.group(2) or ''), text(m.group(3))))
     return seen
 
 
@@ -185,18 +182,20 @@ def every_view():
     """(page, view, outline) for all eighteen. `None` where a page is one
     view, so the single-view pages are scanned rather than skipped."""
     for rel in HTML:
-        for view in (VIEWS[rel] or [None]):
+        for view in VIEWS[rel] or [None]:
             yield rel, view, outline(rel, view)
 
 
 # --- the finding ------------------------------------------------------------
 
-class TestEveryViewIntroducesItself:
 
+class TestEveryViewIntroducesItself:
     def test_each_one_has_exactly_one_h1(self):
-        bad = [(rel, view, [h[2] for h in o if h[0] == 1])
-               for rel, view, o in every_view()
-               if len([h for h in o if h[0] == 1]) != 1]
+        bad = [
+            (rel, view, [h[2] for h in o if h[0] == 1])
+            for rel, view, o in every_view()
+            if len([h for h in o if h[0] == 1]) != 1
+        ]
         assert bad == [], bad
 
     def test_the_h1_comes_first(self):
@@ -207,8 +206,7 @@ class TestEveryViewIntroducesItself:
         the obvious way to give a view an h1 is to put it where there is room
         for it.
         """
-        bad = [(rel, view, o[0]) for rel, view, o in every_view()
-               if o and o[0][0] != 1]
+        bad = [(rel, view, o[0]) for rel, view, o in every_view() if o and o[0][0] != 1]
         assert bad == [], bad
 
     def test_the_view_that_had_none_is_pinned(self):
@@ -219,12 +217,13 @@ class TestEveryViewIntroducesItself:
         the view has nowhere to put a visible title, which is how it ended up
         with no title at all.
         """
-        found = {(rel, view): [h for h in o if h[0] == 1][0]
-                 for rel, view, o in every_view()
-                 if (rel, view) == ('halftime/index.html', 'view-report')}
+        found = {
+            (rel, view): [h for h in o if h[0] == 1][0]
+            for rel, view, o in every_view()
+            if (rel, view) == ('halftime/index.html', 'view-report')
+        }
         assert found == {
-            ('halftime/index.html', 'view-report'):
-                (1, True, 'Half-time report'),
+            ('halftime/index.html', 'view-report'): (1, True, 'Half-time report'),
         }, found
 
     def test_a_heading_outside_every_view_belongs_to_all_of_them(self):
@@ -238,8 +237,7 @@ class TestEveryViewIntroducesItself:
         loose = {}
         for rel in HTML:
             src = decomment(read(rel))
-            boxes = {k: (lo, hi) for k, lo, hi in spans(src, attr('id'))
-                     if k in VIEWS[rel]}
+            boxes = {k: (lo, hi) for k, lo, hi in spans(src, attr('id')) if k in VIEWS[rel]}
             for m in HEADING.finditer(src):
                 if m.group(1) != '1':
                     continue
@@ -252,8 +250,8 @@ class TestEveryViewIntroducesItself:
 
 # --- the list has to be the code's list -------------------------------------
 
-class TestTheListIsTheOneTheCodeUses:
 
+class TestTheListIsTheOneTheCodeUses:
     def test_every_named_view_is_in_the_markup(self):
         for rel in HTML:
             ids = {k for k, _, _ in spans(decomment(read(rel)), attr('id'))}
@@ -275,17 +273,18 @@ class TestTheListIsTheOneTheCodeUses:
         assert got == VIEWS['live-tagging/index.html'], got
 
     def test_the_pages_are_the_pages_the_site_ships(self):
-        on_disk = sorted(p.relative_to(ROOT).as_posix()
-                         for p in list(ROOT.glob('*.html'))
-                         + list(ROOT.glob('*/index.html')))
+        on_disk = sorted(
+            p.relative_to(ROOT).as_posix()
+            for p in list(ROOT.glob('*.html')) + list(ROOT.glob('*/index.html'))
+        )
         assert on_disk == sorted(HTML), on_disk
         assert sorted(VIEWS) == sorted(HTML)
 
 
 # --- the convention, pinned rather than assumed -----------------------------
 
-class TestTheHouseStyleIsDeliberate:
 
+class TestTheHouseStyleIsDeliberate:
     def test_h3_is_the_section_heading_everywhere(self):
         """Why a no-skipped-levels scan would be wrong on every page.
 
@@ -302,8 +301,9 @@ class TestTheHouseStyleIsDeliberate:
         # the five with no sections at all. The calibrate page's two are
         # among them: the intro is one form, and the work view's h3s are the
         # landmark groups, which calibrate.js writes.
-        kept = sorted((rel, view) for rel, view, o in every_view()
-                      if [h[0] for h in o][:2] != [1, 3])
+        kept = sorted(
+            (rel, view) for rel, view, o in every_view() if [h[0] for h in o][:2] != [1, 3]
+        )
         assert kept == [
             ('calibrate/index.html', 'view-intro'),
             ('calibrate/index.html', 'view-work'),
@@ -334,8 +334,12 @@ class TestTheHouseStyleIsDeliberate:
             i = re.search(r'\bid="([^"]+)"', m.group(2) or '')
             if i:
                 ids[i.group(1)] = (int(m.group(1)), m.start())
-        labelled = re.findall(r'aria-modal="true"[^>]*?'
-                              r'aria-labelledby="([^"]+)"', src, re.S)
+        labelled = re.findall(
+            r'aria-modal="true"[^>]*?'
+            r'aria-labelledby="([^"]+)"',
+            src,
+            re.S,
+        )
         assert len(labelled) == 5, labelled
         for target in labelled:
             assert target in ids, target
@@ -347,52 +351,65 @@ class TestTheHouseStyleIsDeliberate:
         A scan reading visible text reports these as two missing titles,
         which is the fix reported as the defect.
         """
-        hidden = sorted({(rel, words) for rel, _, o in every_view()
-                         for level, sr, words in o if level == 1 and sr})
+        hidden = sorted(
+            {
+                (rel, words)
+                for rel, _, o in every_view()
+                for level, sr, words in o
+                if level == 1 and sr
+            }
+        )
         assert [rel for rel, _ in hidden] == [
-            'calibrate/index.html', 'halftime/index.html',
-            'live-tagging/index.html'], hidden
+            'calibrate/index.html',
+            'halftime/index.html',
+            'live-tagging/index.html',
+        ], hidden
         assert '.sr-only' in read('assets/app.css')
 
 
 # --- the ways this scan could be lying --------------------------------------
 
-class TestTheScanCouldBeLying:
 
+class TestTheScanCouldBeLying:
     def test_it_does_not_count_a_commented_out_heading(self):
-        src = ('<section id="v"><!-- <h1>ghost</h1> --><h1>real</h1>'
-               '</section>')
+        src = '<section id="v"><!-- <h1>ghost</h1> --><h1>real</h1></section>'
         assert marks(src, 'v', ['v']) == [(1, False, 'real')]
 
     def test_it_sees_an_h1_however_it_is_dressed(self):
-        for tag in ('<h1>', '<H1>', '<h1 class="sr-only">',
-                    '<h1\n    style="margin-top:44px">', '<h1 id="x">'):
+        for tag in (
+            '<h1>',
+            '<H1>',
+            '<h1 class="sr-only">',
+            '<h1\n    style="margin-top:44px">',
+            '<h1 id="x">',
+        ):
             src = '<section id="v">%stitle</h1></section>' % tag
             got = marks(src, 'v', ['v'])
             assert [g[0] for g in got] == [1], (tag, got)
             assert got[0][2] == 'title', (tag, got)
 
     def test_it_does_not_leak_between_sibling_views(self):
-        src = ('<section id="a"><h1>A</h1></section>'
-               '<section id="b"><h1>B</h1></section>')
+        src = '<section id="a"><h1>A</h1></section><section id="b"><h1>B</h1></section>'
         assert marks(src, 'a', ['a', 'b']) == [(1, False, 'A')]
         assert marks(src, 'b', ['a', 'b']) == [(1, False, 'B')]
 
     def test_a_heading_outside_the_views_shows_up_in_both(self):
-        src = ('<h1 class="sr-only">page</h1>'
-               '<section id="a"><h3>A</h3></section>'
-               '<section id="b"><h3>B</h3></section>')
-        assert marks(src, 'a', ['a', 'b']) == [(1, True, 'page'),
-                                               (3, False, 'A')]
-        assert marks(src, 'b', ['a', 'b']) == [(1, True, 'page'),
-                                               (3, False, 'B')]
+        src = (
+            '<h1 class="sr-only">page</h1>'
+            '<section id="a"><h3>A</h3></section>'
+            '<section id="b"><h3>B</h3></section>'
+        )
+        assert marks(src, 'a', ['a', 'b']) == [(1, True, 'page'), (3, False, 'A')]
+        assert marks(src, 'b', ['a', 'b']) == [(1, True, 'page'), (3, False, 'B')]
 
     def test_it_survives_a_view_nested_in_a_wrapper(self):
         """Every real page wraps its views in `<main class="shell">`, and
         `view-report` sits two divs deep before its first heading."""
-        src = ('<main><div class="shell"><section id="v">'
-               '<header><div><h1>deep</h1></div></header>'
-               '</section></div></main>')
+        src = (
+            '<main><div class="shell"><section id="v">'
+            '<header><div><h1>deep</h1></div></header>'
+            '</section></div></main>'
+        )
         assert marks(src, 'v', ['v']) == [(1, False, 'deep')]
 
     def test_an_unclosed_element_does_not_cost_a_view_its_box(self):
@@ -405,8 +422,9 @@ class TestTheScanCouldBeLying:
         single view could not have caught it: an earlier version of this
         case used one, and passed with the walk broken.
         """
-        src = ('<section id="a"><input id="x"><h1>A</h1></section>'
-               '<section id="b"><h1>B</h1></section>')
+        src = (
+            '<section id="a"><input id="x"><h1>A</h1></section><section id="b"><h1>B</h1></section>'
+        )
         assert marks(src, 'a', ['a', 'b']) == [(1, False, 'A')]
         assert marks(src, 'b', ['a', 'b']) == [(1, False, 'B')]
 

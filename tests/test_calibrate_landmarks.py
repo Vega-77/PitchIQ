@@ -11,6 +11,7 @@ The pin solve measures in centre-circle radii with the box sizes in
 `cv/autocal.py` (rounded to a tenth of a radius), so its names are held to the
 same points to within that rounding.
 """
+
 import json
 import re
 import shutil
@@ -34,8 +35,13 @@ def rows():
 def pin_solve_landmarks(L, W):
     """The pin solve's names and positions in radii (`lc/pins.py:landmarks`)."""
     c = W / 2
-    out = {'centre spot': (L / 2, c), 'halfway near': (L / 2, 0), 'halfway far': (L / 2, W),
-           'circle near': (L / 2, c - 1), 'circle far': (L / 2, c + 1)}
+    out = {
+        'centre spot': (L / 2, c),
+        'halfway near': (L / 2, 0),
+        'halfway far': (L / 2, W),
+        'circle near': (L / 2, c - 1),
+        'circle far': (L / 2, c + 1),
+    }
     for side, g, s in (('left', 0.0, 1.0), ('right', L, -1.0)):
         out[f'{side} corner near'] = (g, 0)
         out[f'{side} corner far'] = (g, W)
@@ -81,11 +87,12 @@ def test_both_names_of_a_row_are_the_same_point():
 @pytest.mark.parametrize('length, width', [(105.0, 68.0), (96.0, 59.5)])
 def test_the_page_puts_each_landmark_where_python_does(length, width):
     script = (
-        f"import {{ positions }} from {json.dumps(LANDMARKS_JS.as_uri())};"
-        f"console.log(JSON.stringify(positions({length}, {width})));"
+        f'import {{ positions }} from {json.dumps(LANDMARKS_JS.as_uri())};'
+        f'console.log(JSON.stringify(positions({length}, {width})));'
     )
-    result = subprocess.run(['node', '--input-type=module', '-e', script],
-                            capture_output=True, text=True, timeout=30)
+    result = subprocess.run(
+        ['node', '--input-type=module', '-e', script], capture_output=True, text=True, timeout=30
+    )
     assert result.returncode == 0, result.stderr
     page = json.loads(result.stdout)
     python = Pitch(length_m=length, width_m=width).landmarks()
@@ -104,10 +111,10 @@ def test_the_saved_points_load_into_a_calibration(tmp_path):
     pitch = Pitch(length_m=100.0, width_m=64.0)
     H = np.array([[11.0, 2.0, 300.0], [0.4, -5.5, 800.0], [0.0003, 0.002, 1.0]])
     script = (
-        f"import {{ assess }} from {json.dumps((ROOT / 'calibrate' / 'homography.js').as_uri())};"
-        "const pins = JSON.parse(process.argv[1]);"
-        "const f = assess(pins);"
-        "console.log(JSON.stringify({mean: f.mean, loo: f.looMean}));"
+        f'import {{ assess }} from {json.dumps((ROOT / "calibrate" / "homography.js").as_uri())};'
+        'const pins = JSON.parse(process.argv[1]);'
+        'const f = assess(pins);'
+        'console.log(JSON.stringify({mean: f.mean, loo: f.looMean}));'
     )
     points, pins = [], []
     for name, (x, y) in pitch.landmarks().items():
@@ -115,15 +122,26 @@ def test_the_saved_points_load_into_a_calibration(tmp_path):
         px = [q[0] / q[2], q[1] / q[2]]
         points.append({'landmark': name, 'x': px[0], 'y': px[1]})
         pins.append({'name': name, 'px': px, 'm': [x, y]})
-    result = subprocess.run(['node', '--input-type=module', '-e', script, json.dumps(pins)],
-                            capture_output=True, text=True, timeout=30)
+    result = subprocess.run(
+        ['node', '--input-type=module', '-e', script, json.dumps(pins)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
     assert result.returncode == 0, result.stderr
     fit = json.loads(result.stdout)
     assert fit['mean'] < 1e-6 and fit['loo'] < 1e-6
 
     path = tmp_path / 'calibration-points.json'
-    path.write_text(json.dumps({'points': points, 'image_size': [1920, 1080],
-                                'pitch': {'length_m': 100.0, 'width_m': 64.0}}))
+    path.write_text(
+        json.dumps(
+            {
+                'points': points,
+                'image_size': [1920, 1080],
+                'pitch': {'length_m': 100.0, 'width_m': 64.0},
+            }
+        )
+    )
     cal = Calibration.from_picker_export(path)
     assert cal.pitch.length_m == 100.0
     x, y = cal.to_pitch(points[0]['x'], points[0]['y'])

@@ -150,10 +150,10 @@ class TouchConfidence:
     with a debugger attached.
     """
 
-    proximity: float        # how close the player was, against TOUCH_RADIUS_PH
-    motion_change: float    # how much the ball's motion changed
-    observation: float      # how much of the evidence was seen rather than filled in
-    separation: float       # how much closer than the next-nearest player
+    proximity: float  # how close the player was, against TOUCH_RADIUS_PH
+    motion_change: float  # how much the ball's motion changed
+    observation: float  # how much of the evidence was seen rather than filled in
+    separation: float  # how much closer than the next-nearest player
 
     # Proximity and motion are the two halves of the definition, so they carry
     # the most. Separation carries as much as observation because in a crowded
@@ -179,9 +179,9 @@ class Touch:
     timestamp_s: float
     track_id: int
     team: str
-    ball_xy: tuple[float, float]                 # pixels, always present
-    ball_m: tuple[float, float] | None           # metres, only when calibrated
-    scale_px: float                              # one player height, in pixels
+    ball_xy: tuple[float, float]  # pixels, always present
+    ball_m: tuple[float, float] | None  # metres, only when calibrated
+    scale_px: float  # one player height, in pixels
     distance_ph: float
     speed_before_ph_s: float
     speed_after_ph_s: float
@@ -375,7 +375,10 @@ def _velocities(times, points, scales, window: int):
 
 
 def _motion_change(
-    v_before, v_after, turn_threshold_deg: float, accel_threshold: float,
+    v_before,
+    v_after,
+    turn_threshold_deg: float,
+    accel_threshold: float,
     min_turn_speed: float = 0.0,
     min_strike_speed: float = 0.0,
 ):
@@ -390,18 +393,17 @@ def _motion_change(
         turn_deg = math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
 
     if min(speed_before, speed_after) < min_turn_speed:
-        turn_deg = 0.0                   # too slow for the angle to mean anything
+        turn_deg = 0.0  # too slow for the angle to mean anything
 
     turn_score = min(1.0, turn_deg / turn_threshold_deg) if turn_threshold_deg else 0.0
     # Unsigned: a trap that kills the ball is as much a touch as a strike that
     # launches it.
     gain_score = (
-        min(1.0, abs(speed_after - speed_before) / accel_threshold)
-        if accel_threshold else 0.0
+        min(1.0, abs(speed_after - speed_before) / accel_threshold) if accel_threshold else 0.0
     )
 
     if max(speed_before, speed_after) < min_strike_speed:
-        gain_score = 0.0                 # nothing here was going anywhere
+        gain_score = 0.0  # nothing here was going anywhere
     return max(turn_score, gain_score), turn_deg, speed_before, speed_after
 
 
@@ -466,7 +468,7 @@ def segment_touches(
     def build_touch(i, motion, turn_deg, speed_before, speed_after) -> Touch:
         record = records[i]
         distance = float(nearest_ph[i])
-        window = observed[max(0, i - velocity_window):i + velocity_window + 1]
+        window = observed[max(0, i - velocity_window) : i + velocity_window + 1]
         margin = second_ph[i] - distance if np.isfinite(second_ph[i]) else 1.0
         return Touch(
             frame_index=record.frame_index,
@@ -505,8 +507,12 @@ def segment_touches(
             continue
 
         motion, turn_deg, speed_before, speed_after = _motion_change(
-            v_before[i], v_after[i], turn_threshold_deg, accel_threshold_ph_s,
-            min_turn_speed_ph_s, min_strike_speed_ph_s,
+            v_before[i],
+            v_after[i],
+            turn_threshold_deg,
+            accel_threshold_ph_s,
+            min_turn_speed_ph_s,
+            min_strike_speed_ph_s,
         )
 
         # The conjunction. Being close is not enough on its own, and neither is
@@ -521,17 +527,24 @@ def segment_touches(
         candidates.append(build_touch(i, motion, turn_deg, speed_before, speed_after))
 
     # ---- touches we can only infer ----
-    candidates.extend(_gap_touches(
-        records, observed, nearest_ph, holders, v_before, v_after,
-        build_touch=build_touch,
-        max_gap_frames=max_gap_frames,
-        touch_radius_ph=touch_radius_ph,
-        min_motion=min_motion_loose,
-        turn_threshold_deg=turn_threshold_deg,
-        accel_threshold_ph_s=accel_threshold_ph_s,
-        min_turn_speed_ph_s=min_turn_speed_ph_s,
-        min_strike_speed_ph_s=min_strike_speed_ph_s,
-    ))
+    candidates.extend(
+        _gap_touches(
+            records,
+            observed,
+            nearest_ph,
+            holders,
+            v_before,
+            v_after,
+            build_touch=build_touch,
+            max_gap_frames=max_gap_frames,
+            touch_radius_ph=touch_radius_ph,
+            min_motion=min_motion_loose,
+            turn_threshold_deg=turn_threshold_deg,
+            accel_threshold_ph_s=accel_threshold_ph_s,
+            min_turn_speed_ph_s=min_turn_speed_ph_s,
+            min_strike_speed_ph_s=min_strike_speed_ph_s,
+        )
+    )
 
     sequence.touches = _suppress(candidates, min_separation_s)
     return sequence
@@ -554,9 +567,20 @@ def _unobserved_runs(observed):
 
 
 def _gap_touches(
-    records, observed, nearest_ph, holders, v_before, v_after, *,
-    build_touch, max_gap_frames, touch_radius_ph, min_motion,
-    turn_threshold_deg, accel_threshold_ph_s, min_turn_speed_ph_s=0.0,
+    records,
+    observed,
+    nearest_ph,
+    holders,
+    v_before,
+    v_after,
+    *,
+    build_touch,
+    max_gap_frames,
+    touch_radius_ph,
+    min_motion,
+    turn_threshold_deg,
+    accel_threshold_ph_s,
+    min_turn_speed_ph_s=0.0,
     min_strike_speed_ph_s=0.0,
 ):
     """At most one touch per interpolated span, and only if the ball changed.
@@ -584,18 +608,22 @@ def _gap_touches(
         if end - start + 1 > max_gap_frames:
             continue
         if start == 0 or end == len(records) - 1:
-            continue                     # no before or no after to compare
+            continue  # no before or no after to compare
 
         motion, turn_deg, speed_before, speed_after = _motion_change(
-            v_before[start - 1], v_after[end + 1],
-            turn_threshold_deg, accel_threshold_ph_s, min_turn_speed_ph_s,
+            v_before[start - 1],
+            v_after[end + 1],
+            turn_threshold_deg,
+            accel_threshold_ph_s,
+            min_turn_speed_ph_s,
             min_strike_speed_ph_s,
         )
         if motion < min_motion:
-            continue                     # the ball carried on doing what it was doing
+            continue  # the ball carried on doing what it was doing
 
         inside = [
-            i for i in range(start, end + 1)
+            i
+            for i in range(start, end + 1)
             if holders[i] is not None and nearest_ph[i] <= touch_radius_ph
         ]
         if not inside:

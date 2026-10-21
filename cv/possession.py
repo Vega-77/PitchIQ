@@ -209,7 +209,8 @@ def frame_holder(
         # say nothing about which team has it, so they are not competition here.
         rival = next(
             (
-                ground_distance(entry) for entry in ordered[1:]
+                ground_distance(entry)
+                for entry in ordered[1:]
                 if team_of(entry[0]) not in (team, UNKNOWN)
             ),
             None,
@@ -222,7 +223,12 @@ def frame_holder(
 
 
 def build_states(
-    frames, ball_by_frame, boxes_by_frame, team_of, timestamps, is_player=None,
+    frames,
+    ball_by_frame,
+    boxes_by_frame,
+    team_of,
+    timestamps,
+    is_player=None,
     ball_m_by_frame=None,
     radius_player_heights: float = POSSESSION_RADIUS_PLAYER_HEIGHTS,
     margin_player_heights: float = HOLDER_MARGIN_PLAYER_HEIGHTS,
@@ -246,14 +252,16 @@ def build_states(
             margin_player_heights=margin_player_heights,
             scale_players=scale_players,
         )
-        states.append(FrameState(
-            timestamp_s=timestamps.get(frame_index, 0.0),
-            holder_track=holder,
-            team=team,
-            distance_px=distance,
-            ball_seen=ball_by_frame.get(frame_index) is not None,
-            ball_m=ball_m_by_frame.get(frame_index),
-        ))
+        states.append(
+            FrameState(
+                timestamp_s=timestamps.get(frame_index, 0.0),
+                holder_track=holder,
+                team=team,
+                distance_px=distance,
+                ball_seen=ball_by_frame.get(frame_index) is not None,
+                ball_m=ball_m_by_frame.get(frame_index),
+            )
+        )
     return states
 
 
@@ -316,8 +324,7 @@ def prepare_states(
 
     if phases is not None:
         states = [
-            state if phases.is_live(state.timestamp_s)
-            else replace(state, team=DEAD)
+            state if phases.is_live(state.timestamp_s) else replace(state, team=DEAD)
             for state in states
         ]
     return states
@@ -398,9 +405,7 @@ def summarise(
     # A turnover is possession passing directly from one team to the other.
     # Contested stretches between them are not counted twice.
     held = [s for s in merged if s[0] in (TEAM_A, TEAM_B)]
-    summary.turnovers = sum(
-        1 for a, b in zip(held, held[1:]) if a[0] != b[0]
-    )
+    summary.turnovers = sum(1 for a, b in zip(held, held[1:]) if a[0] != b[0])
 
     # How much of the window had no ball in it at all.
     #

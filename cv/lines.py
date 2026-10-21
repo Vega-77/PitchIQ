@@ -87,6 +87,7 @@ DRAW_STEPS = 16
 # Segments
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class Segment:
     """A straight run, in whatever units the caller is working in.
@@ -146,12 +147,13 @@ class Segment:
         return (self.x1 + t * dx, self.y1 + t * dy)
 
     def to_json(self) -> dict:
-        return {"x1": self.x1, "y1": self.y1, "x2": self.x2, "y2": self.y2}
+        return {'x1': self.x1, 'y1': self.y1, 'x2': self.x2, 'y2': self.y2}
 
 
 # ---------------------------------------------------------------------------
 # What is painted on a pitch
 # ---------------------------------------------------------------------------
+
 
 def pitch_line_segments(pitch: Pitch) -> list[Segment]:
     """Every painted line, in metres.
@@ -204,21 +206,20 @@ def pitch_line_segments(pitch: Pitch) -> list[Segment]:
     # the spot far enough behind the box line to drive it past -1, and acos
     # raises rather than degrading.
     spot = pitch.penalty_spot_m
-    half_angle = math.acos(
-        max(-1.0, min(1.0, (pitch.penalty_area_length_m - spot) / circle))
-    )
+    half_angle = math.acos(max(-1.0, min(1.0, (pitch.penalty_area_length_m - spot) / circle)))
     for spot_x, facing in ((spot, 0.0), (length - spot, math.pi)):
         segments += _arc(
-            spot_x, cy, circle,
-            facing - half_angle, facing + half_angle,
+            spot_x,
+            cy,
+            circle,
+            facing - half_angle,
+            facing + half_angle,
         )
 
     return segments
 
 
-def _arc(
-    cx: float, cy: float, radius: float, start: float, end: float
-) -> list[Segment]:
+def _arc(cx: float, cy: float, radius: float, start: float, end: float) -> list[Segment]:
     """A circle or part of one, as straight segments.
 
     The chord error of a 48-sided circle at 9.15m is under two centimetres,
@@ -227,8 +228,10 @@ def _arc(
     """
     sides = max(4, int(round(CIRCLE_SIDES * abs(end - start) / (2 * math.pi))))
     points = [
-        (cx + radius * math.cos(start + (end - start) * i / sides),
-         cy + radius * math.sin(start + (end - start) * i / sides))
+        (
+            cx + radius * math.cos(start + (end - start) * i / sides),
+            cy + radius * math.sin(start + (end - start) * i / sides),
+        )
         for i in range(sides + 1)
     ]
     return [Segment(a[0], a[1], b[0], b[1]) for a, b in zip(points, points[1:])]
@@ -287,6 +290,7 @@ def draw_pitch_lines(
 # ---------------------------------------------------------------------------
 # Finding the lines in a frame
 # ---------------------------------------------------------------------------
+
 
 def field_mask(image: np.ndarray) -> np.ndarray:
     """Where the grass is, with the paint filled back in.
@@ -350,8 +354,7 @@ def detect_segments(
         return []
 
     segments = [
-        Segment(float(a), float(b), float(c), float(d))
-        for a, b, c, d in found.reshape(-1, 4)
+        Segment(float(a), float(b), float(c), float(d)) for a, b, c, d in found.reshape(-1, 4)
     ]
     if merge:
         segments = merge_collinear(segments)
@@ -435,14 +438,17 @@ def _average_line(group: list[Segment]) -> Segment:
     ts = (pts - centre) @ np.array([ux, uy])
     lo, hi = float(ts.min()), float(ts.max())
     return Segment(
-        centre[0] + ux * lo, centre[1] + uy * lo,
-        centre[0] + ux * hi, centre[1] + uy * hi,
+        centre[0] + ux * lo,
+        centre[1] + uy * lo,
+        centre[0] + ux * hi,
+        centre[1] + uy * hi,
     )
 
 
 # ---------------------------------------------------------------------------
 # Scoring a calibration against them
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class LineFit:
@@ -491,23 +497,23 @@ class LineFit:
 
     def summary(self) -> str:
         if not self.sampled:
-            return "no line pixels to check against"
+            return 'no line pixels to check against'
         if not self.matched:
-            return f"nothing matched, over {self.sampled} sampled points"
+            return f'nothing matched, over {self.sampled} sampled points'
         return (
-            f"median {self.median_m:.2f}m, 90th {self.p90_m:.2f}m "
-            f"over {self.matched}/{self.sampled} sampled points "
-            f"({self.coverage * 100:.0f}% matched)"
+            f'median {self.median_m:.2f}m, 90th {self.p90_m:.2f}m '
+            f'over {self.matched}/{self.sampled} sampled points '
+            f'({self.coverage * 100:.0f}% matched)'
         )
 
     def to_json(self) -> dict:
         return {
-            "median_m": None if math.isnan(self.median_m) else round(self.median_m, 4),
-            "p90_m": None if math.isnan(self.p90_m) else round(self.p90_m, 4),
-            "sampled": self.sampled,
-            "matched": self.matched,
-            "coverage": round(self.coverage, 4),
-            "usable": self.is_usable,
+            'median_m': None if math.isnan(self.median_m) else round(self.median_m, 4),
+            'p90_m': None if math.isnan(self.p90_m) else round(self.p90_m, 4),
+            'sampled': self.sampled,
+            'matched': self.matched,
+            'coverage': round(self.coverage, 4),
+            'usable': self.is_usable,
         }
 
 
@@ -561,7 +567,7 @@ def fit_to_lines(
     model = pitch_line_segments(calibration.pitch)
     distances, _, sampled = _match_distances(calibration, segments, model, radius_m)
     if not distances:
-        return LineFit(float("nan"), float("nan"), sampled, 0)
+        return LineFit(float('nan'), float('nan'), sampled, 0)
 
     arr = np.array(distances)
     return LineFit(
@@ -575,6 +581,7 @@ def fit_to_lines(
 # ---------------------------------------------------------------------------
 # Pulling a calibration onto them
 # ---------------------------------------------------------------------------
+
 
 def refine(
     calibration,

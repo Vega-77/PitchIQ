@@ -44,12 +44,12 @@ def _gather(padded, iy, ix, r):
     padded is (n0, H2, W2) or (H2, W2); iy/ix are padded-space centres.
     """
     d = np.arange(-r, r + 1)
-    yy = iy[:, None] + d[None, :]                 # (nc, 2r+1)
+    yy = iy[:, None] + d[None, :]  # (nc, 2r+1)
     xx = ix[:, None] + d[None, :]
     if padded.ndim == 2:
-        out = padded[yy[:, :, None], xx[:, None, :]]          # (nc, k, k)
+        out = padded[yy[:, :, None], xx[:, None, :]]  # (nc, k, k)
         return out.reshape(len(iy), -1)
-    out = padded[:, yy[:, :, None], xx[:, None, :]]           # (n0, nc, k, k)
+    out = padded[:, yy[:, :, None], xx[:, None, :]]  # (n0, nc, k, k)
     return np.moveaxis(out, 0, 1).reshape(len(iy), padded.shape[0], -1)
 
 
@@ -75,7 +75,8 @@ def _plate(tiles, pts, scale, H, W):
 
 def temporal_rows(tiles, pts):
     """Vectorised twin of dense.temporal_rows.  Same inputs, same 30 columns."""
-    import dense as D                      # late, to avoid a circular import
+    import dense as D  # late, to avoid a circular import
+
     NOFF, CZERO, SCALE = D.NOFF, D.CZERO, D.SCALE
     TH, TW = D.TH, D.TW
     H, W = TH, TW
@@ -103,7 +104,7 @@ def temporal_rows(tiles, pts):
     y1 = np.minimum(H, iy + RP + 1)
     live = (x1 > x0) & (y1 > y0)
     area5 = ((x1 - x0) * (y1 - y0)).astype(np.float64)
-    area5[~live] = 1.0                      # avoid 0/0; masked out at the end
+    area5[~live] = 1.0  # avoid 0/0; masked out at the end
 
     qx0 = np.maximum(0, ix - 1)
     qx1 = np.minimum(W, ix + 2)
@@ -127,12 +128,12 @@ def temporal_rows(tiles, pts):
     pix = np.clip(ix + pad, RW, pW - 1 - RW)
 
     # ---- the RP patch (5x5): series, fg series, bg, mad -------------------
-    t5 = _gather(pt, piy, pix, RP)          # (nc, NOFF, 25)
+    t5 = _gather(pt, piy, pix, RP)  # (nc, NOFF, 25)
     f5 = _gather(pf, piy, pix, RP)
-    b5 = _gather(pb, piy, pix, RP)          # (nc, 25)
+    b5 = _gather(pb, piy, pix, RP)  # (nc, 25)
     c5 = _gather(pc, piy, pix, RP)
 
-    series = t5.max(axis=2)                 # (nc, NOFF)
+    series = t5.max(axis=2)  # (nc, NOFF)
     fgser = f5.max(axis=2)
     v0 = series[:, CZERO]
     t_med = np.median(series, axis=1)
@@ -148,20 +149,23 @@ def temporal_rows(tiles, pts):
     persist = series > (v0[:, None] - 25)
     persist_m = persist.mean(axis=1)
     left = series[:, :CZERO].mean(axis=1)
-    right = series[:, CZERO + 1:].mean(axis=1)
-    step = (series[:, min(NOFF - 1, CZERO + 1)]
-            - series[:, max(0, CZERO - 1)])
+    right = series[:, CZERO + 1 :].mean(axis=1)
+    step = series[:, min(NOFF - 1, CZERO + 1)] - series[:, max(0, CZERO - 1)]
 
     # run_around: the consecutive True run through CZERO, both directions.
-    runl = np.cumprod(persist[:, CZERO - 1::-1], axis=1).sum(axis=1) \
-        if CZERO > 0 else np.zeros(nc)
-    runr = np.cumprod(persist[:, CZERO + 1:], axis=1).sum(axis=1) \
-        if CZERO + 1 < NOFF else np.zeros(nc)
+    runl = (
+        np.cumprod(persist[:, CZERO - 1 :: -1], axis=1).sum(axis=1) if CZERO > 0 else np.zeros(nc)
+    )
+    runr = (
+        np.cumprod(persist[:, CZERO + 1 :], axis=1).sum(axis=1)
+        if CZERO + 1 < NOFF
+        else np.zeros(nc)
+    )
     runa = np.where(persist[:, CZERO], 1.0 + runl + runr, 0.0)
 
     # ---- the RW window (13x13): the moving-peak track ---------------------
     k = 2 * RW + 1
-    fw = _gather(pf, piy, pix, RW)          # (nc, NOFF, 169)
+    fw = _gather(pf, piy, pix, RW)  # (nc, NOFF, 169)
     am = fw.argmax(axis=2)
     mx = fw.max(axis=2)
     seen = mx > FG
@@ -187,8 +191,7 @@ def temporal_rows(tiles, pts):
 
     bx0, bx1 = _fit(px)
     by0, by1 = _fit(py)
-    res = np.hypot(px - (bx0[:, None] * t + bx1[:, None]),
-                   py - (by0[:, None] * t + by1[:, None]))
+    res = np.hypot(px - (bx0[:, None] * t + bx1[:, None]), py - (by0[:, None] * t + by1[:, None]))
     straight = (res * sm).sum(axis=1) / nn
     speed = np.hypot(bx0, by0)
 
@@ -202,29 +205,47 @@ def temporal_rows(tiles, pts):
     disp = np.where(ok, disp, 0.0)
 
     # ---- the 3x3 block: the centre of the 5x5 gather ----------------------
-    cen = np.array([6, 7, 8, 11, 12, 13, 16, 17, 18])   # 3x3 inside 5x5
+    cen = np.array([6, 7, 8, 11, 12, 13, 16, 17, 18])  # 3x3 inside 5x5
     q = t5[:, :, cen].max(axis=2)
     qf = f5[:, :, cen].max(axis=2)
     q0 = q[:, CZERO]
     qmed = np.median(q, axis=1)
     qbg = b5[:, cen].max(axis=1)
-    qmad = (np.abs(t5[:, :, cen] - c5[:, None, cen]).sum(axis=(1, 2))
-            / (NOFF * area3))
+    qmad = np.abs(t5[:, :, cen] - c5[:, None, cen]).sum(axis=(1, 2)) / (NOFF * area3)
 
-    cols = [v0, t_med, t_min, v0 - t_med, v0 - t_min, t_std,
-            bright, persist_m, runa,
-            fgser[:, CZERO],
-            fg_mean,
-            fgser[:, CZERO] / np.maximum(1.0, v0),
-            bgmax, left, right, np.abs(left - right),
-            step,
-            mad, (fgser > FG).sum(axis=1),
-            speed, straight, disp,
-            q0, qmed, q0 - qmed, (q > (q0[:, None] - 25)).mean(axis=1),
-            qf[:, CZERO], (qf > FG).sum(axis=1),
-            qbg, qmad]
-    assert len(cols) == ncol, 'column count drifted: %d vs %d' % (len(cols),
-                                                                 ncol)
+    cols = [
+        v0,
+        t_med,
+        t_min,
+        v0 - t_med,
+        v0 - t_min,
+        t_std,
+        bright,
+        persist_m,
+        runa,
+        fgser[:, CZERO],
+        fg_mean,
+        fgser[:, CZERO] / np.maximum(1.0, v0),
+        bgmax,
+        left,
+        right,
+        np.abs(left - right),
+        step,
+        mad,
+        (fgser > FG).sum(axis=1),
+        speed,
+        straight,
+        disp,
+        q0,
+        qmed,
+        q0 - qmed,
+        (q > (q0[:, None] - 25)).mean(axis=1),
+        qf[:, CZERO],
+        (qf > FG).sum(axis=1),
+        qbg,
+        qmad,
+    ]
+    assert len(cols) == ncol, 'column count drifted: %d vs %d' % (len(cols), ncol)
     out = np.stack([np.asarray(c, np.float32) for c in cols], axis=1)
     out[~live] = 0.0
     return np.ascontiguousarray(out, np.float32)

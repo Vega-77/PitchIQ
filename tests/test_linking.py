@@ -5,12 +5,16 @@ from cv.teams import UNKNOWN
 from cv.pitchtrack import Detections, PitchProjector, Tracklet
 
 W, H = 1920, 1080
-PX_PER_M = 20.0                       # the picture shows 96 x 54 m
-PITCH_L, PITCH_W = 80.0, 40.0          # so there is room beyond every line
+PX_PER_M = 20.0  # the picture shows 96 x 54 m
+PITCH_L, PITCH_W = 80.0, 40.0  # so there is room beyond every line
 
 DARK = dict(team=1, kit=[30.0, 128.0, 128.0, -100.0], desc=[30.0, 128.0, 128.0, 30.0, 128.0, 128.0])
-LIGHT = dict(team=0, kit=[240.0, 128.0, 128.0, 110.0], desc=[240.0, 128.0, 128.0, 60.0, 128.0, 128.0])
-NEON = dict(team=0, kit=[245.0, 111.0, 162.0, 115.0], desc=[245.0, 111.0, 162.0, 40.0, 116.0, 140.0])
+LIGHT = dict(
+    team=0, kit=[240.0, 128.0, 128.0, 110.0], desc=[240.0, 128.0, 128.0, 60.0, 128.0, 128.0]
+)
+NEON = dict(
+    team=0, kit=[245.0, 111.0, 162.0, 115.0], desc=[245.0, 111.0, 162.0, 40.0, 116.0, 140.0]
+)
 
 
 def projector(n):
@@ -28,8 +32,8 @@ class Scene:
 
     def __init__(self, n):
         self.n = n
-        self.rows = []                  # (frame, box, team, kit, desc, person)
-        self.runs = []                  # (person, [row indices before sorting])
+        self.rows = []  # (frame, box, team, kit, desc, person)
+        self.runs = []  # (person, [row indices before sorting])
 
     def person(self, where, look, frames, team=None):
         """where(f) -> (x, y); frames: iterable of the frames it is detected in."""
@@ -40,8 +44,16 @@ class Scene:
                 self.runs.append((pid, run))
                 run = []
             run.append(len(self.rows))
-            self.rows.append((f, box(where(f)), look['team'] if team is None else team,
-                              look['kit'], look['desc'], pid))
+            self.rows.append(
+                (
+                    f,
+                    box(where(f)),
+                    look['team'] if team is None else team,
+                    look['kit'],
+                    look['desc'],
+                    pid,
+                )
+            )
             last = f
         if run:
             self.runs.append((pid, run))
@@ -52,17 +64,25 @@ class Scene:
         new = {old: k for k, old in enumerate(order)}
         r = [self.rows[i] for i in order]
         det = Detections(
-            frame=[x[0] for x in r], box=[x[1] for x in r], conf=[0.9] * len(r),
-            team=[x[2] for x in r], desc=np.array([x[4] for x in r], dtype=np.float64),
-            kit=np.array([x[3] for x in r], dtype=np.float64) if with_kit else None)
-        tracklets = [Tracklet(i, np.array(sorted(new[k] for k in run)), 'lost', 'new')
-                     for i, (_, run) in enumerate(self.runs)]
+            frame=[x[0] for x in r],
+            box=[x[1] for x in r],
+            conf=[0.9] * len(r),
+            team=[x[2] for x in r],
+            desc=np.array([x[4] for x in r], dtype=np.float64),
+            kit=np.array([x[3] for x in r], dtype=np.float64) if with_kit else None,
+        )
+        tracklets = [
+            Tracklet(i, np.array(sorted(new[k] for k in run)), 'lost', 'new')
+            for i, (_, run) in enumerate(self.runs)
+        ]
         owner = [x[5] for x in r]
         return det, tracklets, owner
 
     def link(self, with_kit=False, **settings):
         det, tracklets, owner = self.build(with_kit)
-        res = Linker(projector(self.n), PITCH_L, PITCH_W, LinkSettings(**settings)).link(tracklets, det)
+        res = Linker(projector(self.n), PITCH_L, PITCH_W, LinkSettings(**settings)).link(
+            tracklets, det
+        )
         return res, owner
 
 
@@ -90,8 +110,10 @@ def test_occluded_player_is_joined_and_the_gap_filled():
     ident = mine[0]
     assert people_in(ident, owner) == {p}
     gap = (ident.frames >= 60) & (ident.frames < 75)
-    assert gap.sum() == 15                         # filled
-    assert ident.interp[gap].all() and (ident.conf[gap] == 0).all() and (ident.rows[gap] == -1).all()
+    assert gap.sum() == 15  # filled
+    assert (
+        ident.interp[gap].all() and (ident.conf[gap] == 0).all() and (ident.rows[gap] == -1).all()
+    )
     assert not ident.interp[~gap].any()
 
 
@@ -116,7 +138,7 @@ def test_tracklets_seen_together_are_two_people():
 def test_unreachable_gap_is_not_joined():
     s = Scene(150)
     s.person(walker(30.0, 20.0), DARK, range(0, 60))
-    s.person(walker(60.0, 20.0), DARK, range(75, 135))    # 30 m in half a second
+    s.person(walker(60.0, 20.0), DARK, range(75, 135))  # 30 m in half a second
     res, _ = s.link()
     assert len(res.identities) == 2
     assert not res.joins
@@ -142,7 +164,7 @@ def test_a_refused_return_is_shown_as_a_question_mark():
     res, owner = s.link()
     late = [i for i in res.identities if i.frames[0] == 50]
     assert len(late) == 2
-    assert [res.label(i) for i in late] == ['?', '?']           # a near tie names nobody
+    assert [res.label(i) for i in late] == ['?', '?']  # a near tie names nobody
     early = [i for i in res.identities if i.frames[0] == 0]
     assert all(res.label(i) == str(i.pid) for i in early)
 
@@ -151,11 +173,11 @@ def test_a_return_too_long_unseen_to_join_is_a_named_guess():
     s = Scene(400)
     background(s, range(400))
     p = s.person(walker(40.0, 20.0), DARK, range(0, 60))
-    s.person(walker(40.5, 20.0), DARK, range(270, 400))       # 7 s gap, in view and alone
+    s.person(walker(40.5, 20.0), DARK, range(270, 400))  # 7 s gap, in view and alone
     res, owner = s.link()
     gone = [i for i in res.identities if people_in(i, owner) == {p}]
     back = [i for i in res.identities if i.frames[0] == 270]
-    assert len(gone) == 1 and len(back) == 1                     # too costly to join
+    assert len(gone) == 1 and len(back) == 1  # too costly to join
     assert res.label(back[0]) == f'{gone[0].pid}?'
 
 
@@ -166,18 +188,21 @@ def test_detector_features_settle_a_join_that_could_go_either_way():
     s.person(walker(41.0, 19.95), DARK, range(50, 100))
     s.person(walker(41.0, 20.05), DARK, range(50, 100))
     det, tracklets, owner = s.build()
-    looks = np.eye(4)[[0, 1, 1, 0]]               # the far one at 21 m comes back nearer 19
+    looks = np.eye(4)[[0, 1, 1, 0]]  # the far one at 21 m comes back nearer 19
     det.feat = looks[owner]
-    res = Linker(projector(100), PITCH_L, PITCH_W, LinkSettings(feature_weight=2.0)).link(tracklets, det)
-    assert sorted(sorted(people_in(i, owner)) for i in res.identities
-                  if people_in(i, owner) & {0, 1, 2, 3}) == [[0, 3], [1, 2]]
+    res = Linker(projector(100), PITCH_L, PITCH_W, LinkSettings(feature_weight=2.0)).link(
+        tracklets, det
+    )
+    assert sorted(
+        sorted(people_in(i, owner)) for i in res.identities if people_in(i, owner) & {0, 1, 2, 3}
+    ) == [[0, 3], [1, 2]]
 
 
 def test_roles_off_pitch_keeper_and_referee():
     s = Scene(150)
     frames = range(150)
     background(s, frames)
-    off = s.person(walker(40.0, PITCH_W + 6.0), DARK, frames)          # beyond the far line
+    off = s.person(walker(40.0, PITCH_W + 6.0), DARK, frames)  # beyond the far line
     keeper = s.person(walker(3.0, PITCH_W / 2, vy=0.5), LIGHT, frames)  # in front of the left goal
     ref = s.person(walker(40.0, 15.0, vx=1.0), NEON, frames)
     res, owner = s.link(with_kit=True)
@@ -196,7 +221,7 @@ def test_the_referee_kit_is_never_joined_to_a_player():
     background(s, frames)
     w = walker(40.0, 15.0, vx=2.0)
     s.person(w, NEON, range(0, 60))
-    s.person(w, LIGHT, range(70, 160))           # where the referee was going, in white
+    s.person(w, LIGHT, range(70, 160))  # where the referee was going, in white
     res, owner = s.link(with_kit=True)
     assert all(len(people_in(i, owner)) == 1 for i in res.identities)
 
@@ -212,16 +237,21 @@ def test_without_fill_gaps_stay_empty():
 def test_a_coach_on_the_line_stays_off_and_alone():
     s = Scene(180)
     background(s, range(180))
-    short = s.person(walker(40.0, 6.0), DARK, range(0, 10))           # a third of a second, well inside
+    short = s.person(walker(40.0, 6.0), DARK, range(0, 10))  # a third of a second, well inside
     # still, then a few steps, then drifting along the line: each piece alone
     # is a still person on the line, the two together are not
-    coach = s.person(lambda f: (40.0, -0.7) if f < 105 else (37.0 - 0.04 * (f - 110), -0.7), DARK,
-                     [f for f in range(40, 180) if not 100 <= f < 110])
+    coach = s.person(
+        lambda f: (40.0, -0.7) if f < 105 else (37.0 - 0.04 * (f - 110), -0.7),
+        DARK,
+        [f for f in range(40, 180) if not 100 <= f < 110],
+    )
     res, owner = s.link()
     mine = [i for i in res.identities if coach in people_in(i, owner)]
     assert all(people_in(i, owner) == {coach} for i in mine)
     assert all(i.role == OFF for i in mine)
-    assert all(short not in people_in(i, owner) or people_in(i, owner) == {short} for i in res.identities)
+    assert all(
+        short not in people_in(i, owner) or people_in(i, owner) == {short} for i in res.identities
+    )
 
 
 def _one_tracklet(scene, with_kit=True):
@@ -247,11 +277,17 @@ def test_a_tracklet_that_changes_shirt_is_cut():
 
 def _white_neither_black():
     """One tracklet: a white shirt, then 40 rows that read neither kit, then a black shirt."""
-    neither = dict(team=-1, kit=[135.0, 128.0, 128.0, 5.0], desc=[135.0, 128.0, 128.0, 45.0, 128.0, 128.0])
+    neither = dict(
+        team=-1, kit=[135.0, 128.0, 128.0, 5.0], desc=[135.0, 128.0, 128.0, 45.0, 128.0, 128.0]
+    )
     s = Scene(160)
     background(s, range(160))
     w = walker(40.0, 20.0, vx=1.0)
-    ids = (s.person(w, LIGHT, range(0, 60)), s.person(w, neither, range(60, 100)), s.person(w, DARK, range(100, 160)))
+    ids = (
+        s.person(w, LIGHT, range(0, 60)),
+        s.person(w, neither, range(60, 100)),
+        s.person(w, DARK, range(100, 160)),
+    )
     det, tracklets, owner = s.build(True)
     last = tracklets[-3:]
     merged = Tracklet(last[0].tid, np.concatenate([t.rows for t in last]), 'lost', 'new')
@@ -260,7 +296,9 @@ def _white_neither_black():
 
 def test_a_kit_cut_gap_shorter_than_keep_rows_is_dropped():
     det, tracklets, owner, (white, gap, black) = _white_neither_black()
-    res = Linker(projector(160), PITCH_L, PITCH_W, LinkSettings(kit_cut_keep_rows=60)).link(tracklets, det)
+    res = Linker(projector(160), PITCH_L, PITCH_W, LinkSettings(kit_cut_keep_rows=60)).link(
+        tracklets, det
+    )
     assert not any(gap in people_in(i, owner) for i in res.identities)
     assert not any({white, black} <= people_in(i, owner) for i in res.identities)
 
@@ -290,7 +328,7 @@ def test_a_dark_shirt_washed_grey_by_the_sun_is_not_cut():
 def test_someone_walking_the_touchline_all_window_is_off():
     s = Scene(390)
     background(s, range(390))
-    linesman = s.person(walker(10.0, 0.5, vx=1.0), DARK, range(0, 390))       # 13 s on the line
+    linesman = s.person(walker(10.0, 0.5, vx=1.0), DARK, range(0, 390))  # 13 s on the line
     winger = s.person(walker(10.0, PITCH_W - 0.5, vx=2.0), LIGHT, range(0, 150))  # 5 s on it
     res, owner = s.link()
     role = {next(iter(people_in(i, owner))): i.role for i in res.identities}
@@ -302,7 +340,9 @@ def test_over_the_outfield_cap_the_least_sure_shirt_is_greyed_only_while_over():
     grey = dict(team=1, kit=[150.0, 128.0, 128.0, 50.0], desc=DARK['desc'])
     s = Scene(120)
     background(s, range(120))
-    late = s.person(walker(35.0, 30.0), grey, range(60, 120))       # a fourth dark shirt, half the window
+    late = s.person(
+        walker(35.0, 30.0), grey, range(60, 120)
+    )  # a fourth dark shirt, half the window
     res, owner = s.link(with_kit=True, outfield_cap=3)
     me = next(i for i in res.identities if people_in(i, owner) == {late})
     darks = [i for i in res.identities if i.team == me.team]

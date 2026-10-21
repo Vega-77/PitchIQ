@@ -12,6 +12,7 @@ reader used to glob them in), so nothing is lost and no reader's input moves.
 Pack a fresh download with this, then delete the directory. `truthdb/` stays
 as it is: it is the test set, and nothing here touches it.
 """
+
 import glob
 import json
 import os

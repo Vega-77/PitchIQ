@@ -38,6 +38,7 @@ Exactness, since a speedup that moves a feature is not a speedup:
 bcheck.py holds this to the standard tcheck.py set for tfast: per-column
 equality, then the xgboost score, then the top-200 ranked set.
 """
+
 import math
 
 import cv2
@@ -48,7 +49,7 @@ import feat4 as F
 DIRS = F.DIRS
 TR = F.TR
 IR = F.IR
-CR = 6                      # half-width of the core window, from tophat_stats
+CR = 6  # half-width of the core window, from tophat_stats
 
 _DX = np.array([p[0] for p in DIRS], np.int64)
 _DY = np.array([p[1] for p in DIRS], np.int64)
@@ -72,7 +73,7 @@ def tophat_batch(resp, cx, cy, e_maj):
     d = np.arange(-TR, TR + 1)
     yy = (iy[:, None] + TR) + d[None, :]
     xx = (ix[:, None] + TR) + d[None, :]
-    win = pr[yy[:, :, None], xx[:, None, :]]                  # (nc, 25, 25)
+    win = pr[yy[:, :, None], xx[:, None, :]]  # (nc, 25, 25)
 
     # The original clips the window at the image edge, so the divisor is the
     # clipped area - not 25*25, and not the padded area.
@@ -83,7 +84,7 @@ def tophat_batch(resp, cx, cy, e_maj):
     wmean = win.reshape(nc, -1).sum(axis=1, dtype=np.int64) / warea
     bw = win >= thr[:, None, None]
     bwmean = bw.reshape(nc, -1).sum(axis=1, dtype=np.int64) / warea
-    core = bw[:, TR - CR:TR + CR + 1, TR - CR:TR + CR + 1]
+    core = bw[:, TR - CR : TR + CR + 1, TR - CR : TR + CR + 1]
     csum = core.reshape(nc, -1).sum(axis=1, dtype=np.int64)
     rr = np.sqrt(np.maximum(1, csum) / math.pi)
 
@@ -104,8 +105,7 @@ def tophat_batch(resp, cx, cy, e_maj):
 
 def box_mean(integ, y0, y1, x0, x1):
     """Mean of the integrated binary image over each [y0:y1, x0:x1] box."""
-    s = (integ[y1, x1].astype(np.float64) - integ[y0, x1]
-         - integ[y1, x0] + integ[y0, x0])
+    s = integ[y1, x1].astype(np.float64) - integ[y0, x1] - integ[y1, x0] + integ[y0, x0]
     return s / ((y1 - y0) * (x1 - x0)).astype(np.float64)
 
 
@@ -113,7 +113,7 @@ def _row(job, vf, s, h, grass, grey, th, other_ring, white_far):
     """The 21 numbers, given the three that were already batched."""
     (m, y0, y1, x0, x1, ring, cx, cy, mn, mj, area, w, hh, split) = job
     vv = vf[y0:y1, x0:x1]
-    q = vv[m]                                   # gathered once, not three times
+    q = vv[m]  # gathered once, not three times
     v_in = float(q.mean())
     if ring.any():
         r = vv[ring]
@@ -125,20 +125,32 @@ def _row(job, vf, s, h, grass, grey, th, other_ring, white_far):
         g_ring = s_ring = 0.0
     con = v_in - v_ring
     return dict(
-        th=th, cx=float(cx), cy=float(cy),
-        minor=mn, major=mj, area=int(area), fill=area / float(max(1, w * hh)),
-        elong=mj / float(max(1, mn)), circ=area / (math.pi * (mj / 2.0) ** 2),
+        th=th,
+        cx=float(cx),
+        cy=float(cy),
+        minor=mn,
+        major=mj,
+        area=int(area),
+        fill=area / float(max(1, w * hh)),
+        elong=mj / float(max(1, mn)),
+        circ=area / (math.pi * (mj / 2.0) ** 2),
         extent=area / float(max(1, w * hh)),
-        v_in=v_in, v_max=float(q.max()), v_std=float(q.std()),
-        v_ring=v_ring, v_ring_max=v_ring_max, con=con,
+        v_in=v_in,
+        v_max=float(q.max()),
+        v_std=float(q.std()),
+        v_ring=v_ring,
+        v_ring_max=v_ring_max,
+        con=con,
         rel_con=con / max(1.0, v_ring),
-        s_in=float(s[y0:y1, x0:x1][m].mean()), s_ring=s_ring,
+        s_in=float(s[y0:y1, x0:x1][m].mean()),
+        s_ring=s_ring,
         h_in=float(h[y0:y1, x0:x1][m].mean()),
         grass_ring=g_ring,
         other_ring=other_ring,
         white_far=white_far,
         lap=float(cv2.Laplacian(grey[y0:y1, x0:x1], cv2.CV_32F).var()),
-        split=split)
+        split=split,
+    )
 
 
 def blobs(img, cmaj=None):
@@ -147,12 +159,12 @@ def blobs(img, cmaj=None):
     h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
     white = ((v > 150) & (s < F.SAT)).astype(np.uint8) * 255
     white = cv2.morphologyEx(white, cv2.MORPH_OPEN, F.K2)
-    grass = ((h > 30) & (h < 95) & (s > 60))
+    grass = (h > 30) & (h < 95) & (s > 60)
     n, lab, st, cent = cv2.connectedComponentsWithStats(white, 8)
     H, W = v.shape
     vf = v.astype(np.float32)
     grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    wf = (lab > 0)
+    wf = lab > 0
 
     resp = None
     if cmaj is not None:
@@ -176,19 +188,35 @@ def blobs(img, cmaj=None):
             y0, y1 = max(0, y - F.PAD), min(H, y + hh + F.PAD)
             x0, x1 = max(0, x - F.PAD), min(W, x + w + F.PAD)
             sub = lab[y0:y1, x0:x1]
-            jobs.append((sub == i, y0, y1, x0, x1, ~(sub > 0),
-                         cent[i][0], cent[i][1], mn, mj, area, w, hh, 0.0))
+            jobs.append(
+                (
+                    sub == i,
+                    y0,
+                    y1,
+                    x0,
+                    x1,
+                    ~(sub > 0),
+                    cent[i][0],
+                    cent[i][1],
+                    mn,
+                    mj,
+                    area,
+                    w,
+                    hh,
+                    0.0,
+                )
+            )
             gate.append(True)
         if cmaj is None:
             continue
         e_maj = max(1.0, cmaj[0] * cent[i][1] + cmaj[1])
         if mj <= F.OVER * e_maj:
             continue
-        pk = ispeak[y:y + hh, x:x + w] & (lab[y:y + hh, x:x + w] == i)
+        pk = ispeak[y : y + hh, x : x + w] & (lab[y : y + hh, x : x + w] == i)
         py, px = np.where(pk)
         if not len(px):
             continue
-        order = np.argsort(-resp[py + y, px + x])[:F.PERCOMP]
+        order = np.argsort(-resp[py + y, px + x])[: F.PERCOMP]
         for j in order:
             cx, cy = int(px[j]) + x, int(py[j]) + y
             wy0, wy1 = max(0, cy - F.WIN), min(H, cy + F.WIN + 1)
@@ -196,12 +224,28 @@ def blobs(img, cmaj=None):
             win = resp[wy0:wy1, wx0:wx1]
             bw = (win >= 0.5 * float(resp[cy, cx])).astype(np.uint8)
             n2, l2 = cv2.connectedComponents(bw, 8)
-            m = (l2 == l2[cy - wy0, cx - wx0])
+            m = l2 == l2[cy - wy0, cx - wx0]
             ys2, xs2 = np.where(m)
             sw = int(xs2.max() - xs2.min()) + 1
             sh = int(ys2.max() - ys2.min()) + 1
-            jobs.append((m, wy0, wy1, wx0, wx1, ~m, cx, cy,
-                         min(sw, sh), max(sw, sh), int(m.sum()), sw, sh, 1.0))
+            jobs.append(
+                (
+                    m,
+                    wy0,
+                    wy1,
+                    wx0,
+                    wx1,
+                    ~m,
+                    cx,
+                    cy,
+                    min(sw, sh),
+                    max(sw, sh),
+                    int(m.sum()),
+                    sw,
+                    sh,
+                    1.0,
+                )
+            )
             gate.append(False)
 
     if not jobs:
@@ -218,8 +262,7 @@ def blobs(img, cmaj=None):
     ws = np.array([j[11] for j in jobs], np.int64)
     hs = np.array([j[12] for j in jobs], np.int64)
 
-    em = np.maximum(1.0, cmaj[0] * cys + cmaj[1]) if cmaj is not None \
-        else np.ones(len(jobs))
+    em = np.maximum(1.0, cmaj[0] * cys + cmaj[1]) if cmaj is not None else np.ones(len(jobs))
     TH = tophat_batch(resp, cxs, cys, em)
 
     integ = cv2.integral(wf.view(np.uint8))

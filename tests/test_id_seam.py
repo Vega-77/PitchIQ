@@ -125,7 +125,8 @@ SET_ID = re.compile(r'\.id\s*=\s*["\'](' + ID + r')["\']')
 REF_ATTR = re.compile(
     r'\b(?:for|form|list|headers|aria-controls|aria-labelledby|'
     r'aria-describedby|aria-owns|aria-activedescendant)\s*=\s*'
-    r'["\']([^"\']+)["\']')
+    r'["\']([^"\']+)["\']'
+)
 
 # `href="#main"`. The one reference that is not a script, a stylesheet or
 # an attribute naming a partner element: a link whose entire job is to put
@@ -142,8 +143,10 @@ FRAGMENT = re.compile(r'\bhref\s*=\s*["\']#(' + ID + r')["\']')
 # wrap. Adding one of these and forgetting to list it here is not a harmless
 # omission: when `openSheet` was split out of `tagging.js`, five ids went from
 # proven to merely mentioned in the same commit, and only this scan noticed.
-HELPERS = (r'(?:document\.getElementById|byId|setText|showOnly'
-           r'|openSheet|closeSheet)')
+HELPERS = (
+    r'(?:document\.getElementById|byId|setText|showOnly'
+    r'|openSheet|closeSheet)'
+)
 BY_ID = re.compile(HELPERS + r'\(\s*["\'`](' + ID + r')["\'`]')
 HOLE_ARG = re.compile(HELPERS + r'\(\s*`([^`$]*)\$\{')
 
@@ -162,19 +165,19 @@ BARE = re.compile(r'["\'`](' + ID + r')["\'`]')
 RAW_LOOKUP = re.compile(r'document\.getElementById\(')
 RAW_WRAPPER = re.compile(
     r'(?:function\s+(\w+)\s*\(|const\s+(\w+)\s*=\s*\()'
-    r'[^;}]*?document\.getElementById\(\s*[A-Za-z_]', re.S)
+    r'[^;}]*?document\.getElementById\(\s*[A-Za-z_]',
+    re.S,
+)
 
 # The served markup has one reader that is not part of the frontend at all.
 HARNESS = 'tests/smoke.test.js'
-HARNESS_REF = re.compile(
-    r'\b(?:el|text|getElementById)\(\s*["\'`](' + ID + r')["\'`]')
+HARNESS_REF = re.compile(r'\b(?:el|text|getElementById)\(\s*["\'`](' + ID + r')["\'`]')
 
 # Every scan site, and the vocabulary `drop` accepts. Read by the test that
 # keeps the two in step -- a site added to `scan` and forgotten here is a
 # site nobody ever switches off, and a name left here after its site is gone
 # is a `drop` that silently drops nothing.
-SITES = ('attribute', 'rail', 'fragment', 'stylesheet', 'byId', 'query',
-         'array', 'hole', 'harness')
+SITES = ('attribute', 'rail', 'fragment', 'stylesheet', 'byId', 'query', 'array', 'hole', 'harness')
 
 
 def read(rel):
@@ -184,8 +187,7 @@ def read(rel):
 def js_files():
     out = []
     for d in JS_DIRS:
-        out += sorted(str(p.relative_to(ROOT)).replace('\\', '/')
-                      for p in (ROOT / d).glob('*.js'))
+        out += sorted(str(p.relative_to(ROOT)).replace('\\', '/') for p in (ROOT / d).glob('*.js'))
     return out
 
 
@@ -209,14 +211,12 @@ class Seam:
     @property
     def orphans(self):
         """Declared, and not so much as mentioned anywhere else."""
-        return sorted(n for n in self.declared
-                      if n not in self.used and n not in self.bare)
+        return sorted(n for n in self.declared if n not in self.used and n not in self.bare)
 
     @property
     def weak(self):
         """Declared and mentioned, but only as a bare string."""
-        return sorted(n for n in self.declared
-                      if n not in self.used and n in self.bare)
+        return sorted(n for n in self.declared if n not in self.used and n in self.bare)
 
     @property
     def dupes(self):
@@ -234,7 +234,7 @@ def scan(*, drop=()):
     """Walk the seam. `drop` switches off one scan site or guard, which is how
     each of them was shown to be load-bearing before its figure was pinned."""
     seam = Seam()
-    on = lambda site: site not in drop            # noqa: E731
+    on = lambda site: site not in drop  # noqa: E731
 
     def note(name, where):
         seam.used[name].append(where)
@@ -303,7 +303,7 @@ def scan(*, drop=()):
         lits = list(literals(src, comments=not keep_comments))
         if on('query'):
             for _q, text, _h, start, _end in lits:
-                if QUERY.search(src[max(0, start - 40):start]):
+                if QUERY.search(src[max(0, start - 40) : start]):
                     for m in IN_SELECTOR.finditer(text):
                         note(m.group(1), rel + ' (query)')
         if on('array'):
@@ -320,8 +320,7 @@ def scan(*, drop=()):
         # A declaration must not vouch for itself: the literal in
         # `btn.id = 'btn-apply-marks'` is the id being made, not evidence that
         # anything reads it.
-        spans = ([] if 'assigned' in drop
-                 else [m.span() for m in SET_ID.finditer(src)])
+        spans = [] if 'assigned' in drop else [m.span() for m in SET_ID.finditer(src)]
         for _q, text, _h, _s, _e in lits:
             if any(a <= _s <= b for a, b in spans):
                 continue
@@ -368,14 +367,19 @@ SEAM = scan()
 # safely remove, which is how an allowlist becomes a graveyard.
 # --------------------------------------------------------------------------
 
-_WRAPPER = ('positional argument to fillPlayerGroup/fillGroup, which calls '
-            'byId on it (coach/coach.js:806, player/player.js)')
-_HOST = ("the `host:` key of a stat-group descriptor, read back as "
-         '`byId(group.host)` (coach/coach.js:910, player/player.js:177)')
-_TUPLE = ('a column of the sides tuple table destructured in the shot-map loop '
-          '(coach/coach.js:1247)')
-_CHECKLIST = ('a *key* of the renderGettingStarted checklist, iterated as '
-              '`byId(id)` over Object.entries (coach/coach.js:346)')
+_WRAPPER = (
+    'positional argument to fillPlayerGroup/fillGroup, which calls '
+    'byId on it (coach/coach.js:806, player/player.js)'
+)
+_HOST = (
+    'the `host:` key of a stat-group descriptor, read back as '
+    '`byId(group.host)` (coach/coach.js:910, player/player.js:177)'
+)
+_TUPLE = 'a column of the sides tuple table destructured in the shot-map loop (coach/coach.js:1247)'
+_CHECKLIST = (
+    'a *key* of the renderGettingStarted checklist, iterated as '
+    '`byId(id)` over Object.entries (coach/coach.js:346)'
+)
 
 WEAK = {
     'ball-form': _HOST,
@@ -410,13 +414,27 @@ WEAK = {
 # Measured, one site switched off at a time. Every figure below came off the
 # repo rather than out of a guess -- an earlier gate in this project pinned eight
 # guessed numbers and got all eight wrong, one of them backwards.
-ONLY_BY_HOLE = {'tab-matches', 'tab-roster', 'tab-staff',
-                'view-kickoff', 'view-setup'}
-ONLY_BY_ATTRIBUTE = {'clock-explain', 'clock-title', 'cv-missed-help',
-                     'exit-explain', 'exit-title', 'log-title', 'sub-title'}
-ONLY_BY_RAIL = {'md-stats-block', 'md-team-block', 'pipeline-block',
-                'players-block', 'publish-block', 'pv-matches-block',
-                'season-matches-block', 'timeline-block', 'video-link-block'}
+ONLY_BY_HOLE = {'tab-matches', 'tab-roster', 'tab-staff', 'view-kickoff', 'view-setup'}
+ONLY_BY_ATTRIBUTE = {
+    'clock-explain',
+    'clock-title',
+    'cv-missed-help',
+    'exit-explain',
+    'exit-title',
+    'log-title',
+    'sub-title',
+}
+ONLY_BY_RAIL = {
+    'md-stats-block',
+    'md-team-block',
+    'pipeline-block',
+    'players-block',
+    'publish-block',
+    'pv-matches-block',
+    'season-matches-block',
+    'timeline-block',
+    'video-link-block',
+}
 ONLY_BY_FRAGMENT = {'main', 'try-colours'}
 PREFIXES = {'tab-', 'view-'}
 
@@ -432,6 +450,7 @@ def weak_without(site):
 
 
 # --- the scan is looking at something ------------------------------------
+
 
 def test_every_file_it_claims_to_read_exists():
     for rel in list(HTML) + list(CSS) + js_files():
@@ -480,6 +499,7 @@ def test_every_raw_dom_lookup_is_one_this_scan_can_see_past():
 
 # --- the two findings -----------------------------------------------------
 
+
 def test_no_id_is_looked_up_that_nothing_declares():
     # The silent direction: `byId` returns null, the caller guards it, and a
     # block of the page never renders without a word about it.
@@ -499,16 +519,14 @@ def test_every_fragment_link_lands_on_its_own_page():
     guess whether the key did anything. Nothing else on the page changes,
     so no other check here would ever notice.
     """
-    links = [(rel, m.group(1))
-             for rel in HTML for m in FRAGMENT.finditer(read(rel))]
+    links = [(rel, m.group(1)) for rel in HTML for m in FRAGMENT.finditer(read(rel))]
     # The vacuum guard. Five pages carry a skip link; `live-tagging` is the
     # sixth and deliberately has none, because its <main> is the first
     # thing in its <body> and there is nothing in front of it to skip. The
     # sixth link is the landing hero's "See it in your colours", which jumps
     # to the colour picker further down the same page.
     assert len(links) == 6
-    dangling = [(rel, name) for rel, name in links
-                if name not in set(SEAM.per_page[rel])]
+    dangling = [(rel, name) for rel, name in links if name not in set(SEAM.per_page[rel])]
     assert dangling == []
 
 
@@ -540,8 +558,7 @@ def test_no_id_is_built_in_javascript():
     be simpler written as markup that starts out hidden. If one is earned, it
     goes in `MADE_IN_JS` and the two tests below start meaning something again.
     """
-    made = {m.group(1): rel
-            for rel in js_files() for m in SET_ID.finditer(read(rel))}
+    made = {m.group(1): rel for rel in js_files() for m in SET_ID.finditer(read(rel))}
     assert made == MADE_IN_JS
 
 
@@ -580,6 +597,7 @@ def test_javascript_declarations_match_what_javascript_builds():
 
 # --- the weak list, checked for staleness in both directions --------------
 
+
 def test_weak_list_is_exactly_what_the_scan_finds():
     assert sorted(WEAK) == SEAM.weak
 
@@ -604,6 +622,7 @@ def test_the_weak_list_stays_small():
 
 
 # --- every site earns its place -------------------------------------------
+
 
 def test_attribute_site_is_load_bearing():
     # `for=`, `aria-labelledby=`, `aria-describedby=`. Seven ids exist only to
@@ -642,8 +661,7 @@ def test_every_site_it_names_is_a_site_it_reads():
     *filter* rather than a site, so switching one off adds evidence instead
     of removing it, and this test's arithmetic would read backwards.
     """
-    consulted = set(re.findall(r"on\('(" + ID + r")'\)",
-                               inspect.getsource(scan)))
+    consulted = set(re.findall(r"on\('(" + ID + r")'\)", inspect.getsource(scan)))
     assert consulted == set(SITES)
 
     total = sum(len(v) for v in SEAM.used.values())
@@ -682,9 +700,9 @@ def test_stylesheet_site_has_something_to_read():
     # It finds no *dead* id -- everything styled by name is also looked up by
     # name -- but it is the only site that would catch a rename that leaves a
     # rule behind, so it is kept and checked for input instead of for output.
-    seen = {m.group(1)
-            for rel in CSS for sel in selectors(read(rel))
-            for m in IN_SELECTOR.finditer(sel)}
+    seen = {
+        m.group(1) for rel in CSS for sel in selectors(read(rel)) for m in IN_SELECTOR.finditer(sel)
+    }
     # Measured at fourteen, then eleven once the calibrate page left
     # (2026-10-07). Pinned under that, so a rule or two moving out of a
     # stylesheet is not a failure but the site going blind is.
@@ -693,9 +711,11 @@ def test_stylesheet_site_has_something_to_read():
 
 
 def test_query_site_has_something_to_read():
-    hits = [(rel, m.group(1))
-            for rel in js_files()
-            for _q, text, _h, s, _e in literals(read(rel))
-            if QUERY.search(read(rel)[max(0, s - 40):s])
-            for m in IN_SELECTOR.finditer(text)]
+    hits = [
+        (rel, m.group(1))
+        for rel in js_files()
+        for _q, text, _h, s, _e in literals(read(rel))
+        if QUERY.search(read(rel)[max(0, s - 40) : s])
+        for m in IN_SELECTOR.finditer(text)
+    ]
     assert hits == [('live-tagging/tagging.js', 'sheet-question')]

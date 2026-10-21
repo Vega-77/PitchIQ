@@ -35,10 +35,12 @@ def entry(kind, clock_s):
 
 class TestOpeningAndClosing:
     def test_a_stoppage_and_its_restart_make_one_span(self):
-        table = phases_from_log([
-            entry('out_of_bounds', 100.0),
-            entry('throw_in', 120.0),
-        ])
+        table = phases_from_log(
+            [
+                entry('out_of_bounds', 100.0),
+                entry('throw_in', 120.0),
+            ]
+        )
 
         assert len(table.spans) == 1
         span = table.spans[0]
@@ -48,11 +50,13 @@ class TestOpeningAndClosing:
 
     def test_a_second_stoppage_while_already_dead_extends_nothing(self):
         """A foul and the card that follows it are one interruption."""
-        table = phases_from_log([
-            entry('foul', 100.0),
-            entry('card', 108.0),
-            entry('free_kick', 130.0),
-        ])
+        table = phases_from_log(
+            [
+                entry('foul', 100.0),
+                entry('card', 108.0),
+                entry('free_kick', 130.0),
+            ]
+        )
 
         assert len(table.spans) == 1
         assert table.spans[0].opened_by == 'foul'
@@ -64,17 +68,21 @@ class TestOpeningAndClosing:
         assert phases_from_log([entry('throw_in', 50.0)]).spans == []
 
     def test_entries_are_read_in_clock_order_not_file_order(self):
-        table = phases_from_log([
-            entry('throw_in', 120.0),
-            entry('out_of_bounds', 100.0),
-        ])
+        table = phases_from_log(
+            [
+                entry('throw_in', 120.0),
+                entry('out_of_bounds', 100.0),
+            ]
+        )
         assert len(table.spans) == 1
 
     def test_half_time_closes_whatever_is_open(self):
-        table = phases_from_log([
-            entry('foul', 2600.0),
-            entry('halftime', 2620.0),
-        ])
+        table = phases_from_log(
+            [
+                entry('foul', 2600.0),
+                entry('halftime', 2620.0),
+            ]
+        )
         assert table.spans[0].closed_by == 'halftime'
 
     def test_an_empty_log_leaves_everything_live(self):
@@ -89,10 +97,12 @@ class TestSlop:
     """Tags land when somebody notices, not when the whistle goes."""
 
     def test_a_span_is_shrunk_at_both_ends(self):
-        table = phases_from_log([
-            entry('out_of_bounds', 100.0),
-            entry('throw_in', 140.0),
-        ])
+        table = phases_from_log(
+            [
+                entry('out_of_bounds', 100.0),
+                entry('throw_in', 140.0),
+            ]
+        )
         span = table.spans[0]
 
         assert span.start_s == pytest.approx(100.0 + TAG_SLOP_S)
@@ -101,17 +111,21 @@ class TestSlop:
 
     def test_a_stoppage_shorter_than_the_slop_is_dropped(self):
         """Inside the tagger's reaction time there is nothing we can claim."""
-        table = phases_from_log([
-            entry('out_of_bounds', 100.0),
-            entry('throw_in', 100.0 + TAG_SLOP_S),
-        ])
+        table = phases_from_log(
+            [
+                entry('out_of_bounds', 100.0),
+                entry('throw_in', 100.0 + TAG_SLOP_S),
+            ]
+        )
         assert table.spans == []
 
     def test_the_moment_of_the_tag_itself_is_still_counted_live(self):
-        table = phases_from_log([
-            entry('out_of_bounds', 100.0),
-            entry('throw_in', 140.0),
-        ])
+        table = phases_from_log(
+            [
+                entry('out_of_bounds', 100.0),
+                entry('throw_in', 140.0),
+            ]
+        )
         assert table.is_live(100.0), 'the instant it was tapped'
         assert table.is_live(140.0)
         assert not table.is_live(120.0)
@@ -128,10 +142,12 @@ class TestTimeouts:
         assert span.end_s == pytest.approx(100.0 + MAX_DEAD_S - TAG_SLOP_S)
 
     def test_a_restart_beyond_the_cap_still_times_out(self):
-        table = phases_from_log([
-            entry('foul', 100.0),
-            entry('free_kick', 100.0 + MAX_DEAD_S + 60.0),
-        ])
+        table = phases_from_log(
+            [
+                entry('foul', 100.0),
+                entry('free_kick', 100.0 + MAX_DEAD_S + 60.0),
+            ]
+        )
         assert table.spans[0].timed_out
         assert table.spans[0].end_s == pytest.approx(100.0 + MAX_DEAD_S - TAG_SLOP_S)
 
@@ -146,21 +162,25 @@ class TestTimeouts:
         assert span.duration_s < MAX_DEAD_S
 
     def test_timeouts_are_countable(self):
-        table = phases_from_log([
-            entry('foul', 100.0),
-            entry('out_of_bounds', 400.0),
-            entry('throw_in', 420.0),
-        ])
+        table = phases_from_log(
+            [
+                entry('foul', 100.0),
+                entry('out_of_bounds', 400.0),
+                entry('throw_in', 420.0),
+            ]
+        )
         assert table.timed_out == 1
         assert len(table.spans) == 2
 
 
 class TestQueries:
     def table(self):
-        return PhaseTable(spans=[
-            DeadSpan(100.0, 120.0, 'out_of_bounds', 'throw_in'),
-            DeadSpan(200.0, 210.0, 'foul', 'free_kick'),
-        ])
+        return PhaseTable(
+            spans=[
+                DeadSpan(100.0, 120.0, 'out_of_bounds', 'throw_in'),
+                DeadSpan(200.0, 210.0, 'foul', 'free_kick'),
+            ]
+        )
 
     def test_dead_seconds_add_up(self):
         assert self.table().dead_s == pytest.approx(30.0)
@@ -225,10 +245,15 @@ class TestLoadingTheFile:
         return str(path)
 
     def test_reads_the_wrapper_the_coach_page_downloads(self, tmp_path):
-        path = self.write(tmp_path, {
-            'teamId': 't1', 'matchId': 'm1', 'videoOffsetS': 120,
-            'entries': [entry('foul', 100.0), entry('free_kick', 130.0)],
-        })
+        path = self.write(
+            tmp_path,
+            {
+                'teamId': 't1',
+                'matchId': 'm1',
+                'videoOffsetS': 120,
+                'entries': [entry('foul', 100.0), entry('free_kick', 130.0)],
+            },
+        )
         assert len(load_tag_log(path)) == 2
 
     def test_reads_a_bare_list_too(self, tmp_path):
@@ -246,21 +271,29 @@ class TestLoadingTheFile:
             load_tag_log(path)
 
     def test_the_loaded_file_drives_the_phases(self, tmp_path):
-        path = self.write(tmp_path, {
-            'entries': [entry('out_of_bounds', 100.0), entry('throw_in', 140.0)],
-        })
+        path = self.write(
+            tmp_path,
+            {
+                'entries': [entry('out_of_bounds', 100.0), entry('throw_in', 140.0)],
+            },
+        )
         assert len(phases_from_log(load_tag_log(path)).spans) == 1
 
     def test_the_timing_numbers_ride_along_in_the_same_file(self, tmp_path):
         # Both are typed into the coach's video form and both are needed to
         # place a second-half timestamp, so carrying them here beats asking
         # whoever runs the pipeline to remember two numbers from a browser tab.
-        path = self.write(tmp_path, {
-            'videoOffsetS': 120, 'secondHalfVideoS': 3660,
-            'entries': [entry('foul', 100.0)],
-        })
+        path = self.write(
+            tmp_path,
+            {
+                'videoOffsetS': 120,
+                'secondHalfVideoS': 3660,
+                'entries': [entry('foul', 100.0)],
+            },
+        )
         assert load_video_timing(path) == {
-            'videoOffsetS': 120.0, 'secondHalfVideoS': 3660.0,
+            'videoOffsetS': 120.0,
+            'secondHalfVideoS': 3660.0,
         }
 
     def test_a_bare_list_carries_no_timing_rather_than_zeroes(self, tmp_path):
@@ -271,10 +304,14 @@ class TestLoadingTheFile:
         assert load_video_timing(None) == {}
 
     def test_junk_in_those_fields_is_left_out(self, tmp_path):
-        path = self.write(tmp_path, {
-            'videoOffsetS': 'two minutes', 'secondHalfVideoS': True,
-            'entries': [],
-        })
+        path = self.write(
+            tmp_path,
+            {
+                'videoOffsetS': 'two minutes',
+                'secondHalfVideoS': True,
+                'entries': [],
+            },
+        )
         assert load_video_timing(path) == {}
 
 
@@ -321,26 +358,36 @@ class TestPeriodsFromLog:
         assert table.at(200.0) is None
 
     def test_a_kickoff_opens_a_half_that_halftime_closes(self):
-        table = periods_from_log([
-            entry('kickoff_1st', 0.0), entry('halftime', 2700.0),
-        ])
+        table = periods_from_log(
+            [
+                entry('kickoff_1st', 0.0),
+                entry('halftime', 2700.0),
+            ]
+        )
         assert table.spans == [PeriodSpan('first_half', 0.0, 2700.0)]
 
     def test_both_halves(self):
-        table = periods_from_log([
-            entry('kickoff_1st', 0.0), entry('halftime', 2700.0),
-            entry('kickoff_2nd', 3600.0), entry('full_time', 6300.0),
-        ])
+        table = periods_from_log(
+            [
+                entry('kickoff_1st', 0.0),
+                entry('halftime', 2700.0),
+                entry('kickoff_2nd', 3600.0),
+                entry('full_time', 6300.0),
+            ]
+        )
         assert [s.period for s in table.spans] == ['first_half', 'second_half']
         assert table.at(1000.0) == 'first_half'
         assert table.at(5000.0) == 'second_half'
 
     def test_the_break_belongs_to_neither_half(self):
         """Nobody is attacking anything while the sides are swapping over."""
-        table = periods_from_log([
-            entry('kickoff_1st', 0.0), entry('halftime', 2700.0),
-            entry('kickoff_2nd', 3600.0),
-        ])
+        table = periods_from_log(
+            [
+                entry('kickoff_1st', 0.0),
+                entry('halftime', 2700.0),
+                entry('kickoff_2nd', 3600.0),
+            ]
+        )
         assert table.at(3000.0) is None
 
     def test_before_the_first_kickoff_belongs_to_neither(self):
@@ -350,9 +397,12 @@ class TestPeriodsFromLog:
         assert table.at(200.0) == 'first_half'
 
     def test_a_missing_halftime_tap_is_closed_by_the_next_kickoff(self):
-        table = periods_from_log([
-            entry('kickoff_1st', 0.0), entry('kickoff_2nd', 3600.0),
-        ])
+        table = periods_from_log(
+            [
+                entry('kickoff_1st', 0.0),
+                entry('kickoff_2nd', 3600.0),
+            ]
+        )
         assert table.spans[0] == PeriodSpan('first_half', 0.0, 3600.0)
         assert table.spans[1].end_s is None
 
@@ -361,33 +411,44 @@ class TestPeriodsFromLog:
         assert periods_from_log([entry('kickoff_1st', 0.0)]).spans[0].end_s is None
 
     def test_a_double_tap_is_one_kickoff(self):
-        table = periods_from_log([
-            entry('kickoff_2nd', 3600.0), entry('kickoff_2nd', 3602.0),
-        ])
+        table = periods_from_log(
+            [
+                entry('kickoff_2nd', 3600.0),
+                entry('kickoff_2nd', 3602.0),
+            ]
+        )
         assert len(table.spans) == 1
         assert table.spans[0].start_s == 3600.0
 
     def test_the_offset_moves_it_onto_video_time(self):
-        table = periods_from_log([
-            entry('kickoff_2nd', 3600.0), entry('full_time', 6300.0),
-        ]).on_video(VideoClock(-3500.0))
+        table = periods_from_log(
+            [
+                entry('kickoff_2nd', 3600.0),
+                entry('full_time', 6300.0),
+            ]
+        ).on_video(VideoClock(-3500.0))
         assert table.at(200.0) == 'second_half'
         assert table.at(3600.0) is None
 
 
 class TestWhatAWindowCovers:
     def both_halves(self):
-        return periods_from_log([
-            entry('kickoff_1st', 0.0), entry('halftime', 2700.0),
-            entry('kickoff_2nd', 3600.0), entry('full_time', 6300.0),
-        ])
+        return periods_from_log(
+            [
+                entry('kickoff_1st', 0.0),
+                entry('halftime', 2700.0),
+                entry('kickoff_2nd', 3600.0),
+                entry('full_time', 6300.0),
+            ]
+        )
 
     def test_a_window_inside_one_half_covers_one(self):
         assert self.both_halves().covering(600.0, 1200.0) == ['first_half']
 
     def test_a_window_through_the_break_covers_both(self):
         assert self.both_halves().covering(2400.0, 3900.0) == [
-            'first_half', 'second_half',
+            'first_half',
+            'second_half',
         ]
 
     def test_a_window_entirely_in_the_break_covers_nothing(self):
@@ -437,9 +498,7 @@ class TestVideoClock:
         clock = self.clock()
         ten_minutes_in = self.FIRST_HALF_S + 600.0
 
-        assert clock.to_video(ten_minutes_in) == pytest.approx(
-            self.RESTART_VIDEO_S + 600.0
-        )
+        assert clock.to_video(ten_minutes_in) == pytest.approx(self.RESTART_VIDEO_S + 600.0)
         # And the size of what a single offset would have got wrong.
         naive = ten_minutes_in + self.OFFSET
         assert clock.to_video(ten_minutes_in) - naive == pytest.approx(self.BREAK_S)
@@ -457,9 +516,7 @@ class TestVideoClock:
     def test_the_restart_second_belongs_to_the_second_half(self):
         # `halftime` and `kickoff_2nd` share a reading, and the restart is the
         # position worth having.
-        assert self.clock().to_video(self.FIRST_HALF_S) == pytest.approx(
-            self.RESTART_VIDEO_S
-        )
+        assert self.clock().to_video(self.FIRST_HALF_S) == pytest.approx(self.RESTART_VIDEO_S)
 
     def test_with_one_anchor_it_is_the_old_behaviour(self):
         clock = VideoClock(video_offset_s=self.OFFSET)
@@ -490,10 +547,14 @@ class TestVideoClock:
     def test_from_periods_takes_the_restart_clock_out_of_the_log(self):
         # Half the answer is already tagged: the second-half span starts on the
         # reading the break froze at. Only the video position has to be given.
-        periods = periods_from_log([
-            entry('kickoff_1st', 0.0), entry('halftime', 2760.0),
-            entry('kickoff_2nd', 2760.0), entry('full_time', 5400.0),
-        ])
+        periods = periods_from_log(
+            [
+                entry('kickoff_1st', 0.0),
+                entry('halftime', 2760.0),
+                entry('kickoff_2nd', 2760.0),
+                entry('full_time', 5400.0),
+            ]
+        )
         clock = VideoClock.from_periods(periods, 120.0, 3660.0)
 
         assert clock.second_half_clock_s == pytest.approx(2760.0)
@@ -511,20 +572,22 @@ class TestVideoClock:
         # On a single-anchor clock the first half's video span swallowed the
         # interval, so a frame from the oranges was reported as first-half
         # football and drawn at whichever end that implies.
-        periods = periods_from_log([
-            entry('kickoff_1st', 0.0), entry('halftime', 2760.0),
-            entry('kickoff_2nd', 2760.0),
-        ])
+        periods = periods_from_log(
+            [
+                entry('kickoff_1st', 0.0),
+                entry('halftime', 2760.0),
+                entry('kickoff_2nd', 2760.0),
+            ]
+        )
         table = periods.on_video(VideoClock.from_periods(periods, 0.0, 3540.0))
 
         assert table.at(2000.0) == 'first_half'
-        assert table.at(3000.0) is None          # in the break
+        assert table.at(3000.0) is None  # in the break
         assert table.at(3600.0) == 'second_half'
 
     def test_dead_spans_move_with_it_too(self):
         table = PhaseTable(spans=[DeadSpan(3000.0, 3020.0, 'foul', 'free_kick')])
-        clock = VideoClock(0.0, second_half_video_s=3540.0,
-                           second_half_clock_s=2760.0)
+        clock = VideoClock(0.0, second_half_video_s=3540.0, second_half_clock_s=2760.0)
         moved = table.on_video(clock).spans[0]
 
         assert moved.start_s == pytest.approx(3780.0)

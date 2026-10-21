@@ -40,8 +40,14 @@ def tag(kind, clock_s):
 
 def shot(t, outcome=GOAL):
     return Shot(
-        event_id=f'shot-{t}', type='shot', timestamp_s=t, frame_index=int(t * 30),
-        team=TEAM_A, track_id=9, start_xy_px=(0.0, 0.0), outcome=outcome,
+        event_id=f'shot-{t}',
+        type='shot',
+        timestamp_s=t,
+        frame_index=int(t * 30),
+        team=TEAM_A,
+        track_id=9,
+        start_xy_px=(0.0, 0.0),
+        outcome=outcome,
     )
 
 
@@ -51,23 +57,30 @@ class _Log:
 
 
 def calibration(scale=SCALE):
-    homography = np.array([
-        [1 / scale, 0.0, 0.0],
-        [0.0, 1 / scale, 0.0],
-        [0.0, 0.0, 1.0],
-    ], dtype=np.float64)
+    homography = np.array(
+        [
+            [1 / scale, 0.0, 0.0],
+            [0.0, 1 / scale, 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
     return Calibration(homography, PITCH, image_size=(1920, 1080))
 
 
 def path(points, fps=30.0):
     """[(t, x_m, y_m, observed)] -> a BallTrajectory in pixels."""
-    return BallTrajectory(points=[
-        BallPoint(
-            frame_index=int(t * fps), timestamp_s=t,
-            xy=(x * SCALE, y * SCALE), observed=observed,
-        )
-        for t, x, y, observed in points
-    ])
+    return BallTrajectory(
+        points=[
+            BallPoint(
+                frame_index=int(t * fps),
+                timestamp_s=t,
+                xy=(x * SCALE, y * SCALE),
+                observed=observed,
+            )
+            for t, x, y, observed in points
+        ]
+    )
 
 
 class TestPairing:
@@ -105,8 +118,8 @@ class TestReadingTheLog:
 
     def test_junk_is_skipped_rather_than_placed_at_zero(self):
         entries = [
-            {'type': 'goal'},                       # no clock
-            {'matchClockS': 10.0},                  # no type
+            {'type': 'goal'},  # no clock
+            {'matchClockS': 10.0},  # no type
             {'type': 'goal', 'matchClockS': True},  # a bool is not a clock
             tag('goal', 50.0),
         ]
@@ -147,7 +160,9 @@ class TestGoals:
         """The log is on the match clock, the pipeline on video time. Without
         this every goal in a match with an offset reads as two disagreements."""
         result = reconcile(
-            _Log([shot(700.0)]), [tag('goal', 600.0)], clock=VideoClock(100.0),
+            _Log([shot(700.0)]),
+            [tag('goal', 600.0)],
+            clock=VideoClock(100.0),
         )
         assert result.rate(GOAL) == 1.0
 
@@ -178,39 +193,59 @@ class TestNothingToCompare:
 
 class TestBallExits:
     def test_a_ball_crossing_the_touchline_is_one_exit(self):
-        exits = ball_exits(path([
-            (0.0, 50.0, 10.0, True),
-            (1.0, 50.0, 2.0, True),
-            (2.0, 50.0, -3.0, True),
-        ]), calibration())
+        exits = ball_exits(
+            path(
+                [
+                    (0.0, 50.0, 10.0, True),
+                    (1.0, 50.0, 2.0, True),
+                    (2.0, 50.0, -3.0, True),
+                ]
+            ),
+            calibration(),
+        )
         assert len(exits) == 1
         assert exits[0].boundary == 'touchline'
         assert exits[0].timestamp_s == 2.0
 
     def test_crossing_the_byline_is_named_differently(self):
-        exits = ball_exits(path([
-            (0.0, 100.0, 34.0, True),
-            (1.0, 107.0, 34.0, True),
-        ]), calibration())
+        exits = ball_exits(
+            path(
+                [
+                    (0.0, 100.0, 34.0, True),
+                    (1.0, 107.0, 34.0, True),
+                ]
+            ),
+            calibration(),
+        )
         assert [e.boundary for e in exits] == ['byline']
 
     def test_a_ball_that_stays_out_is_still_one_exit(self):
         """Three sightings beyond the line is one ball out of play, not three."""
-        exits = ball_exits(path([
-            (0.0, 50.0, 10.0, True),
-            (1.0, 50.0, -2.0, True),
-            (2.0, 50.0, -4.0, True),
-            (3.0, 50.0, -6.0, True),
-        ]), calibration())
+        exits = ball_exits(
+            path(
+                [
+                    (0.0, 50.0, 10.0, True),
+                    (1.0, 50.0, -2.0, True),
+                    (2.0, 50.0, -4.0, True),
+                    (3.0, 50.0, -6.0, True),
+                ]
+            ),
+            calibration(),
+        )
         assert len(exits) == 1
 
     def test_coming_back_in_and_going_out_again_is_two(self):
-        exits = ball_exits(path([
-            (0.0, 50.0, 10.0, True),
-            (1.0, 50.0, -2.0, True),     # out
-            (10.0, 50.0, 20.0, True),    # back in
-            (20.0, 50.0, -2.0, True),    # out again
-        ]), calibration())
+        exits = ball_exits(
+            path(
+                [
+                    (0.0, 50.0, 10.0, True),
+                    (1.0, 50.0, -2.0, True),  # out
+                    (10.0, 50.0, 20.0, True),  # back in
+                    (20.0, 50.0, -2.0, True),  # out again
+                ]
+            ),
+            calibration(),
+        )
         assert len(exits) == 2
 
     def test_interpolated_points_never_prove_a_ball_went_out(self):
@@ -219,19 +254,29 @@ class TestBallExits:
         Letting one cross a boundary would invent stoppages precisely in the
         stretches where the pipeline saw least — the worst place to be sure.
         """
-        exits = ball_exits(path([
-            (0.0, 50.0, 10.0, True),
-            (1.0, 50.0, -5.0, False),    # drawn in, not seen
-            (2.0, 50.0, 10.0, True),
-        ]), calibration())
+        exits = ball_exits(
+            path(
+                [
+                    (0.0, 50.0, 10.0, True),
+                    (1.0, 50.0, -5.0, False),  # drawn in, not seen
+                    (2.0, 50.0, 10.0, True),
+                ]
+            ),
+            calibration(),
+        )
         assert exits == []
 
     def test_a_ball_that_never_leaves_produces_nothing(self):
-        exits = ball_exits(path([
-            (0.0, 20.0, 30.0, True),
-            (1.0, 60.0, 40.0, True),
-            (2.0, 90.0, 20.0, True),
-        ]), calibration())
+        exits = ball_exits(
+            path(
+                [
+                    (0.0, 20.0, 30.0, True),
+                    (1.0, 60.0, 40.0, True),
+                    (2.0, 90.0, 20.0, True),
+                ]
+            ),
+            calibration(),
+        )
         assert exits == []
 
     def test_no_trajectory_or_no_calibration_is_empty_not_an_error(self):
@@ -244,10 +289,12 @@ class TestExitsAgainstTheLog:
         return reconcile(
             _Log([]),
             [tag('throw_in', tag_clock)],
-            trajectory=path([
-                (10.0, 50.0, 10.0, True),
-                (12.0, 50.0, -3.0, True),
-            ]),
+            trajectory=path(
+                [
+                    (10.0, 50.0, 10.0, True),
+                    (12.0, 50.0, -3.0, True),
+                ]
+            ),
             calibration=calibration(),
         )
 
@@ -289,7 +336,8 @@ class TestWarnings:
     def test_only_goals_are_loud(self):
         """A disputed throw-in is a rounding error in a possession figure."""
         result = reconcile(
-            _Log([]), [tag('corner', 600.0)],
+            _Log([]),
+            [tag('corner', 600.0)],
             trajectory=path([(10.0, 50.0, 10.0, True), (12.0, 50.0, -3.0, True)]),
             calibration=calibration(),
         )
@@ -302,20 +350,23 @@ class TestSerialisation:
         import json
 
         result = reconcile(
-            _Log([shot(600.0)]), [tag('goal', 602.0), tag('goal', 900.0)],
+            _Log([shot(600.0)]),
+            [tag('goal', 602.0), tag('goal', 900.0)],
         )
         assert json.loads(json.dumps(result.to_json()))['goals'][AGREED] == 1
 
     def test_the_rate_is_rounded_not_raw(self):
         result = reconcile(
-            _Log([shot(10.0), shot(20.0), shot(30.0)]), [tag('goal', 10.0)],
+            _Log([shot(10.0), shot(20.0), shot(30.0)]),
+            [tag('goal', 10.0)],
         )
         assert result.to_json()['goal_agreement'] == pytest.approx(0.333, abs=1e-3)
 
     def test_disagreements_are_ordered_by_when_to_look(self):
         result = reconcile(_Log([shot(900.0)]), [tag('goal', 100.0)])
         assert [e['status'] for e in result.to_json()['disagreements']] == [
-            TAG_ONLY, CV_ONLY,
+            TAG_ONLY,
+            CV_ONLY,
         ]
 
     def test_an_entry_points_at_whichever_record_has_an_opinion(self):

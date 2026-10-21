@@ -96,18 +96,15 @@ MAX_HOPS = 3
 # reaches a page is a goal by construction, so all three of these are constants
 # in what actually ships.
 UNREAD_BY_DESIGN = {
-    'kind':
-        "'goal' in every row that travels — to_json sends disagreements(GOAL) "
-        'and nothing else, so rendering it would put the same word on every '
-        'line of a list that is already headed as goals',
-    'tag_type':
-        "'goal' or null on the rows that travel, which is status said twice: a "
-        'row with no tagged type is exactly a cv_only row, and status already '
-        'says that in the words the reviewer needs',
-    'detail':
-        "the boundary a ball crossed, 'touchline' or 'byline' — only ever set "
-        'on exit rows, and exit rows never travel, so this is null in every '
-        'payload ever published',
+    'kind': "'goal' in every row that travels — to_json sends disagreements(GOAL) "
+    'and nothing else, so rendering it would put the same word on every '
+    'line of a list that is already headed as goals',
+    'tag_type': "'goal' or null on the rows that travel, which is status said twice: a "
+    'row with no tagged type is exactly a cv_only row, and status already '
+    'says that in the words the reviewer needs',
+    'detail': "the boundary a ball crossed, 'touchline' or 'byline' — only ever set "
+    'on exit rows, and exit rows never travel, so this is null in every '
+    'payload ever published',
 }
 
 
@@ -186,12 +183,11 @@ def _seeded(chunk: str, block, hops: bool, loops: bool) -> set[str]:
 def _fields(chunk: str, names: set[str], skip_methods: bool) -> set[str]:
     keys = set()
     for name in names:
-        pattern = re.compile(
-            r'\b%s\s*\??\s*(?:\.\s*(\w+)|\[\s*\'(\w+)\'\s*\])' % re.escape(name))
+        pattern = re.compile(r'\b%s\s*\??\s*(?:\.\s*(\w+)|\[\s*\'(\w+)\'\s*\])' % re.escape(name))
         for match in pattern.finditer(chunk):
             # `(v) => v.toFixed(2)` is a formatter calling a method, not a page
             # reading a figure.
-            if skip_methods and chunk[match.end():match.end() + 1] == '(':
+            if skip_methods and chunk[match.end() : match.end() + 1] == '(':
                 continue
             key = match.group(1) or match.group(2)
             if key not in BUILTIN:
@@ -199,9 +195,15 @@ def _fields(chunk: str, names: set[str], skip_methods: bool) -> set[str]:
     return keys
 
 
-def read(*, hops: bool = True, loops: bool = True, skip_methods: bool = True,
-         strip: bool = True, chunked: bool = True,
-         block=BLOCK) -> dict[str, set[str]]:
+def read(
+    *,
+    hops: bool = True,
+    loops: bool = True,
+    skip_methods: bool = True,
+    strip: bool = True,
+    chunked: bool = True,
+    block=BLOCK,
+) -> dict[str, set[str]]:
     """{field: {files that read it}} across every page's JavaScript.
 
     Every keyword is a knob only so the last class can loosen it and prove that
@@ -215,7 +217,7 @@ def read(*, hops: bool = True, loops: bool = True, skip_methods: bool = True,
             text = _code(path.read_text(encoding='utf-8'), strip)
             if not block.search(text):
                 continue
-            for chunk in (CHUNK.split(text) if chunked else [text]):
+            for chunk in CHUNK.split(text) if chunked else [text]:
                 if not block.search(chunk):
                     continue
                 names = _seeded(chunk, block, hops, loops)
@@ -262,15 +264,11 @@ class TestForwarded:
 
 
 class TestEveryFigureLands:
-
     def test_every_produced_field_is_rendered_or_excused(self, made, seen):
-        orphans = sorted(
-            k for k in made if not readers(k, seen) and k not in UNREAD_BY_DESIGN
-        )
+        orphans = sorted(k for k in made if not readers(k, seen) and k not in UNREAD_BY_DESIGN)
         assert not orphans, (
             'the reconciliation block publishes %s and no page reads it. '
-            'Render it, or add it to UNREAD_BY_DESIGN with the reason.'
-            % ', '.join(orphans)
+            'Render it, or add it to UNREAD_BY_DESIGN with the reason.' % ', '.join(orphans)
         )
 
     def test_nothing_reads_a_field_the_pipeline_never_produces(self, made, seen):
@@ -278,8 +276,7 @@ class TestEveryFigureLands:
         ghosts = sorted(k for k in seen if k not in known)
         assert not ghosts, (
             'a page reads reconciliation.%s, which cv/reconcile.py never '
-            'writes — it will be undefined on every real match'
-            % ', reconciliation.'.join(ghosts)
+            'writes — it will be undefined on every real match' % ', reconciliation.'.join(ghosts)
         )
 
 
@@ -288,17 +285,15 @@ class TestTheExcuseList:
 
     def test_no_stale_entries(self, seen):
         rendered = sorted(k for k in UNREAD_BY_DESIGN if readers(k, seen))
-        assert not rendered, (
-            '%s is listed as unrendered but %s reads it now — delete the entry'
-            % (', '.join(rendered),
-               ', '.join(sorted(readers(rendered[0], seen))))
+        assert not rendered, '%s is listed as unrendered but %s reads it now — delete the entry' % (
+            ', '.join(rendered),
+            ', '.join(sorted(readers(rendered[0], seen))),
         )
 
     def test_no_entries_for_fields_that_do_not_exist(self, made):
         gone = sorted(set(UNREAD_BY_DESIGN) - set(made))
-        assert not gone, (
-            '%s is excused here and no longer produced — delete the entry'
-            % ', '.join(gone)
+        assert not gone, '%s is excused here and no longer produced — delete the entry' % ', '.join(
+            gone
         )
 
     def test_every_entry_gives_a_reason(self):

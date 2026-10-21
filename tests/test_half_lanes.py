@@ -1,4 +1,5 @@
 """cv/balltrack/half.py's lanes: every stage once, never before what it reads."""
+
 import os
 import sys
 import threading
@@ -34,10 +35,13 @@ def run(tmp_path, monkeypatch):
             return None, 10
 
     from cv.experiments import player_lab as L
+
     monkeypatch.setattr(L, 'Extractor', Ex)
     monkeypatch.setattr(L, '_part', lambda tag, kind, a, b: tmp_path / ('%s_%d' % (kind, a)))
     monkeypatch.setattr(half, 'S2', str(tmp_path))
-    monkeypatch.setattr(half, 'time', SimpleNamespace(time=time.time, sleep=lambda s: time.sleep(0.01)))
+    monkeypatch.setattr(
+        half, 'time', SimpleNamespace(time=time.time, sleep=lambda s: time.sleep(0.01))
+    )
     h = half.Half('t', 0, 4 * 9000 - 1, 6, 300)
     h.dir = str(tmp_path)
     h.say = lambda msg: None
@@ -47,9 +51,11 @@ def run(tmp_path, monkeypatch):
         monkeypatch.setattr(h, stage, lambda p, stage=stage: rec(stage, p['ptag']))
     monkeypatch.setattr(h, 'merge_players', lambda: rec('merge', None))
     # the lanes Half.run starts: players, two GPU stages each on its own lane, the CPU jobs
-    threads = [threading.Thread(target=h.players_loop),
-               threading.Thread(target=h.ball_gpu_loop, args=('bridges', 'shipped')),
-               threading.Thread(target=h.ball_gpu_loop, args=('classify', 'build'))]
+    threads = [
+        threading.Thread(target=h.players_loop),
+        threading.Thread(target=h.ball_gpu_loop, args=('bridges', 'shipped')),
+        threading.Thread(target=h.ball_gpu_loop, args=('classify', 'build')),
+    ]
     threads += [threading.Thread(target=h.cpu_loop) for _ in range(2)]
     for t in threads:
         t.start()
@@ -62,14 +68,16 @@ def run(tmp_path, monkeypatch):
 def test_every_stage_runs_once_after_what_it_reads(run):
     h, log, feats = run
     at = {k: i for i, k in enumerate(log)}
-    assert len(at) == len(log)                                   # nothing twice
+    assert len(at) == len(log)  # nothing twice
     for p in h.pieces:
         P = p['ptag']
         order = [at[(s, P)] for s in ('build', 'classify', 'shipped', 'bridges', 'hybrid')]
         assert order == sorted(order)
         a, b = p['win']
         assert all(at[('dets', c)] < at[('build', P)] for c, d in h.chunks if not (d < a or c > b))
-    assert at[('merge', None)] > max(at[('build', p['ptag'])] for p in h.pieces)   # players merge last
+    assert at[('merge', None)] > max(
+        at[('build', p['ptag'])] for p in h.pieces
+    )  # players merge last
     assert len(log) == 5 * len(h.pieces) + 2 * len(h.chunks) + 1
 
 
@@ -106,5 +114,7 @@ def test_scorable_frames_leave_the_detector_its_lookahead(tmp_path):
         vw.write(np.zeros((48, 64, 3), np.uint8))
     vw.release()
     assert half.scorable(path) == (10, 19)
-    offs = re.search(r'^OFFS = list\(range\((-?\d+), (\d+)\)\)', open(os.path.join(S2, 'dense.py')).read(), re.M)
+    offs = re.search(
+        r'^OFFS = list\(range\((-?\d+), (\d+)\)\)', open(os.path.join(S2, 'dense.py')).read(), re.M
+    )
     assert -int(offs.group(1)) == int(offs.group(2)) - 1 == half.LOOKAHEAD

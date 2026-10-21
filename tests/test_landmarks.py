@@ -40,6 +40,7 @@ The walk comes from `test_heading_outline` rather than being copied. That gate
 argues the point itself: two copies of a walk means the ways it can lie are
 proved against a scan that is not the one running.
 """
+
 import re
 import unittest
 
@@ -49,8 +50,7 @@ from test_heading_outline import VIEWS, decomment, spans
 # The one view that splits further. `coach/coach.js:3741` `showTab` hides two
 # of these three whenever it shows the other, independently of which view is
 # up, so `view-main` is three screens rather than one.
-TABS = {'coach/index.html': {'view-main': ['tab-matches', 'tab-roster',
-                                           'tab-staff']}}
+TABS = {'coach/index.html': {'view-main': ['tab-matches', 'tab-roster', 'tab-staff']}}
 
 # The full-bleed tool, which has no site chrome and correctly no banner.
 FULLSCREEN = 'live-tagging/index.html'
@@ -58,8 +58,7 @@ SHELLED = [rel for rel in HTML if rel != FULLSCREEN]
 
 IMPLICIT = {'main': 'main', 'nav': 'navigation', 'aside': 'complementary'}
 SECTIONING = ('article', 'aside', 'nav', 'section', 'main')
-ROLES = {'banner', 'navigation', 'main', 'complementary', 'contentinfo',
-         'region', 'form', 'search'}
+ROLES = {'banner', 'navigation', 'main', 'complementary', 'contentinfo', 'region', 'form', 'search'}
 
 # Unique per page, so there is nothing for a name to tell them apart from.
 # Naming these is noise a screen reader reads out on every page.
@@ -67,9 +66,14 @@ UNIQUE = ('main', 'banner', 'contentinfo')
 
 # What the scan finds today, so that a scan which quietly stops finding things
 # fails instead of passing everything.
-TOTALS = {'index.html': 5, 'coach/index.html': 10, 'player/index.html': 6,
-          'live-tagging/index.html': 2, 'halftime/index.html': 4,
-          'calibrate/index.html': 5}
+TOTALS = {
+    'index.html': 5,
+    'coach/index.html': 10,
+    'player/index.html': 6,
+    'live-tagging/index.html': 2,
+    'halftime/index.html': 4,
+    'calibrate/index.html': 5,
+}
 
 
 def whole(tag, attrs):
@@ -117,8 +121,9 @@ def landmarks(src):
     els = spans(src, whole)
     sect = [(lo, hi) for (tag, _), lo, hi in els if tag in SECTIONING]
     ids = set(re.findall(r'\bid="([^"]+)"', src))
-    out = [(role_of(tag, attrs, lo, sect), name_of(attrs, ids), lo, hi)
-           for (tag, attrs), lo, hi in els]
+    out = [
+        (role_of(tag, attrs, lo, sect), name_of(attrs, ids), lo, hi) for (tag, attrs), lo, hi in els
+    ]
     return sorted([r for r in out if r[0]], key=lambda r: r[2])
 
 
@@ -146,10 +151,14 @@ def on_screen(rel, src, showing):
     inside no box at all -- the shell, the site nav, the footer -- is on
     screen in every one of them.
     """
-    hidden = [(lo, hi) for k, lo, hi in spans(src, ident)
-              if k in switched(rel) and k not in showing]
-    return [(role, name) for role, name, lo, _ in landmarks(src)
-            if not any(lo_ <= lo < hi for lo_, hi in hidden)]
+    hidden = [
+        (lo, hi) for k, lo, hi in spans(src, ident) if k in switched(rel) and k not in showing
+    ]
+    return [
+        (role, name)
+        for role, name, lo, _ in landmarks(src)
+        if not any(lo_ <= lo < hi for lo_, hi in hidden)
+    ]
 
 
 def ident(_tag, attrs):
@@ -167,8 +176,9 @@ class TestEveryPageHasOneMain(unittest.TestCase):
     def test_every_page_has_exactly_one(self):
         for rel in HTML:
             roles = [r for r, _, _, _ in landmarks(page(rel))]
-            self.assertEqual(roles.count('main'), 1,
-                             '%s has %d <main>' % (rel, roles.count('main')))
+            self.assertEqual(
+                roles.count('main'), 1, '%s has %d <main>' % (rel, roles.count('main'))
+            )
 
     def test_the_fullscreen_tool_is_the_one_that_had_none(self):
         """It is full-bleed rather than shelled; that is the whole
@@ -197,8 +207,7 @@ class TestNoScreenIsAmbiguous(unittest.TestCase):
         for rel in HTML:
             for role, name, _, _ in landmarks(page(rel)):
                 if role in UNIQUE:
-                    self.assertIsNone(name, '%s %s named %r'
-                                      % (rel, role, name))
+                    self.assertIsNone(name, '%s %s named %r' % (rel, role, name))
 
     def test_the_coach_asides_are_one_per_tab_not_three_at_once(self):
         """The near miss. Per file they look like three unnamed landmarks
@@ -227,8 +236,7 @@ class TestTheTabsAreASecondLevelOfSwitching(unittest.TestCase):
         m = re.search(r'const TABS = \[([^\]]*)\]', js)
         self.assertIsNotNone(m, 'coach.js no longer declares TABS')
         named = re.findall(r"'([^']+)'", m.group(1))
-        self.assertEqual(['tab-%s' % n for n in named],
-                         TABS['coach/index.html']['view-main'])
+        self.assertEqual(['tab-%s' % n for n in named], TABS['coach/index.html']['view-main'])
 
     def test_it_hides_the_ones_it_is_not_showing(self):
         """Without this line the panels would all be on screen together and
@@ -238,8 +246,10 @@ class TestTheTabsAreASecondLevelOfSwitching(unittest.TestCase):
 
     def test_all_but_one_start_hidden(self):
         src = read('coach/index.html')
-        starts = [bool(re.search(r'id="%s"[^>]*\bclass="[^"]*hidden' % i, src))
-                  for i in TABS['coach/index.html']['view-main']]
+        starts = [
+            bool(re.search(r'id="%s"[^>]*\bclass="[^"]*hidden' % i, src))
+            for i in TABS['coach/index.html']['view-main']
+        ]
         self.assertEqual(starts.count(False), 1, starts)
 
 
@@ -289,10 +299,8 @@ class TestTheTopLevelPair(unittest.TestCase):
         tags = landmark = 0
         for rel in HTML:
             src = page(rel)
-            tags += len([1 for (tag, _), _, _ in spans(src, whole)
-                         if tag in ('header', 'footer')])
-            landmark += len([1 for r, _, _, _ in landmarks(src)
-                             if r in ('banner', 'contentinfo')])
+            tags += len([1 for (tag, _), _, _ in spans(src, whole) if tag in ('header', 'footer')])
+            landmark += len([1 for r, _, _, _ in landmarks(src) if r in ('banner', 'contentinfo')])
         self.assertGreater(tags, landmark, (tags, landmark))
 
 
@@ -305,8 +313,7 @@ class TestTheScanCouldBeLying(unittest.TestCase):
 
     def test_a_commented_out_landmark_does_not_count(self):
         src = '<body><!-- <nav aria-label="Old"></nav> --><main></main></body>'
-        self.assertEqual([r for r, _, _, _ in landmarks(decomment(src))],
-                         ['main'])
+        self.assertEqual([r for r, _, _, _ in landmarks(decomment(src))], ['main'])
 
     def test_the_real_pages_reach_the_scan_with_the_comments_gone(self):
         """The case above decomments by hand, so it stays green even if the

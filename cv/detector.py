@@ -21,9 +21,9 @@ import numpy as np
 CLASS_PERSON = 0
 CLASS_BALL = 32
 
-LABELS = {CLASS_PERSON: "person", CLASS_BALL: "ball"}
+LABELS = {CLASS_PERSON: 'person', CLASS_BALL: 'ball'}
 
-DEFAULT_WEIGHTS = Path(__file__).parent / "weights" / "yolov8n.pt"
+DEFAULT_WEIGHTS = Path(__file__).parent / 'weights' / 'yolov8n.pt'
 
 
 @dataclass(frozen=True)
@@ -71,14 +71,16 @@ class PersonBallDetector:
     def detect_batch(self, images: list[np.ndarray]) -> list[list[Detection]]:
         batch: list[list[Detection]] = []
         for boxes in self.detect_batch_raw(images):
-            batch.append([
-                Detection(
-                    label=LABELS[int(cls)],
-                    confidence=float(score),
-                    xyxy=tuple(float(v) for v in box),
-                )
-                for cls, score, box in zip(boxes.cls, boxes.conf, boxes.xyxy)
-            ])
+            batch.append(
+                [
+                    Detection(
+                        label=LABELS[int(cls)],
+                        confidence=float(score),
+                        xyxy=tuple(float(v) for v in box),
+                    )
+                    for cls, score, box in zip(boxes.cls, boxes.conf, boxes.xyxy)
+                ]
+            )
         return batch
 
     def detect_batch_raw(self, images: list[np.ndarray]) -> list:

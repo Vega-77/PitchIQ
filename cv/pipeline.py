@@ -42,7 +42,12 @@ import numpy as np
 
 from .ball import BallTrajectory, build_trajectory
 from .blind import (
-    ACCOUNTED, DEAD, UNEXPLAINED, Blindness, blindness, blindness_warnings,
+    ACCOUNTED,
+    DEAD,
+    UNEXPLAINED,
+    Blindness,
+    blindness,
+    blindness_warnings,
 )
 from .calibration import Calibration
 from .camera import CameraMotion, camera_warnings, detect_camera_shift
@@ -69,8 +74,13 @@ from .metrics import (
 )
 from .participants import ParticipantReport, classify_participants
 from .phases import (
-    FIRST_HALF, SECOND_HALF, PeriodTable, PhaseTable, VideoClock,
-    periods_from_log, phases_from_log,
+    FIRST_HALF,
+    SECOND_HALF,
+    PeriodTable,
+    PhaseTable,
+    VideoClock,
+    periods_from_log,
+    phases_from_log,
 )
 from .pitch import MatchOrientation, Pitch
 from .sequences import PhaseOfPlay, Sequence, phase_of_play, sequences
@@ -269,7 +279,8 @@ class MatchReport:
             # ball had been watched all match.
             f'  ball              {self.ball_seen_share:.0%} seen, '
             f'{self.ball_filled_share:.0%} filled in'
-            if self.ball else '  ball              n/a',
+            if self.ball
+            else '  ball              n/a',
         ]
         if not self.movement_available:
             lines.append('  movement          not measured (needs a calibration)')
@@ -353,7 +364,8 @@ def _median_noise_m(report) -> float | None:
     """The typical wobble across this run's tracks. Median, not mean: one
     fragment that caught a reflection should not speak for the run."""
     measured = sorted(
-        p.movement.position_noise_m for p in report.players
+        p.movement.position_noise_m
+        for p in report.players
         if p.movement is not None and p.movement.position_noise_m is not None
     )
     if not measured:
@@ -367,7 +379,8 @@ def _median_noise_m(report) -> float | None:
 def _hardest_burst(report) -> float | None:
     """The hardest acceleration anyone managed, or None if none was measurable."""
     measured = [
-        p.movement.top_acceleration_ms2 for p in report.players
+        p.movement.top_acceleration_ms2
+        for p in report.players
         if p.movement is not None and p.movement.top_acceleration_ms2 is not None
     ]
     return max(measured) if measured else None
@@ -396,10 +409,7 @@ def _blind_line(seen: Blindness) -> str:
         f'{seen.seconds(UNEXPLAINED):.0f}s not'
     )
     worst = seen.longest()
-    at = (
-        f'; worst {worst.duration_s:.0f}s from {worst.start_s:.0f}s'
-        if worst else ''
-    )
+    at = f'; worst {worst.duration_s:.0f}s from {worst.start_s:.0f}s' if worst else ''
     return f'{total} — {parts}{at}'
 
 
@@ -542,8 +552,11 @@ def analyse_match(
     if panned is not None and calibration_path:
         raise ValueError('a panned camera brings its own calibration; pass one or the other')
     calibration = (
-        panned.calibration if panned is not None
-        else Calibration.load(calibration_path) if calibration_path else None
+        panned.calibration
+        if panned is not None
+        else Calibration.load(calibration_path)
+        if calibration_path
+        else None
     )
     pitch = calibration.pitch if calibration else Pitch()
     orientation = orientation or MatchOrientation()
@@ -587,8 +600,13 @@ def analyse_match(
     # that scales would condemn a machine that comfortably keeps up.
     with timings.stage('load the detector', scaling=FIXED):
         single_pass = TrackedFramePass(
-            conf=conf, ball_conf=ball_conf, imgsz=imgsz, device=device, tracker=tracker,
-            detector=detector, tracker_factory=tracker_factory,
+            conf=conf,
+            ball_conf=ball_conf,
+            imgsz=imgsz,
+            device=device,
+            tracker=tracker,
+            detector=detector,
+            tracker_factory=tracker_factory,
         )
     with timings.stage('detect, track and sample colour'):
         table, colour_samples, ball_candidates = single_pass.run(
@@ -621,7 +639,8 @@ def analyse_match(
     # ---- ball ----
     with timings.stage('ball'):
         report.ball = (
-            panned.trajectory(table) if panned is not None
+            panned.trajectory(table)
+            if panned is not None
             else build_trajectory(ball_candidates, info.width)
         )
         attach_trajectory(table, report.ball)
@@ -688,7 +707,9 @@ def analyse_match(
     # — so only the video position has to be supplied.
     tagged_periods = periods_from_log(tag_log) if tag_log else PeriodTable()
     clock = VideoClock.from_periods(
-        tagged_periods, video_offset_s, second_half_video_s,
+        tagged_periods,
+        video_offset_s,
+        second_half_video_s,
     )
     has_second_half = any(s.period == SECOND_HALF for s in tagged_periods.spans)
     if has_second_half and not clock.knows_break:
@@ -702,9 +723,7 @@ def analyse_match(
     #
     # Put onto video time once, here, rather than converting every timestamp
     # that later meets it.
-    report.phases = (
-        phases_from_log(tag_log).on_video(clock) if tag_log else None
-    )
+    report.phases = phases_from_log(tag_log).on_video(clock) if tag_log else None
     if report.phases is None:
         report.warnings.append(
             'no tagged log supplied, so stoppages count as possession — a '
@@ -721,17 +740,13 @@ def analyse_match(
     period = _resolve_period(report, period, start_s, end_s)
 
     # ---- possession ----
-    ball_by_frame = {
-        r.frame_index: r.ball_xy for r in table.records if r.ball_xy is not None
-    }
+    ball_by_frame = {r.frame_index: r.ball_xy for r in table.records if r.ball_xy is not None}
     # Ball positions in metres, when there is a homography to make them. This is
     # what lets territory be taken from the same per-frame answers possession
     # came from, rather than reconstructed next to them and left to drift.
     ball_m_by_frame = {}
     if calibration is not None:
-        ball_m_by_frame = {
-            index: calibration.to_pitch(*xy) for index, xy in ball_by_frame.items()
-        }
+        ball_m_by_frame = {index: calibration.to_pitch(*xy) for index, xy in ball_by_frame.items()}
 
     with timings.stage('possession'):
         states = build_states(
@@ -744,10 +759,10 @@ def analyse_match(
             ball_m_by_frame=ball_m_by_frame,
         )
 
-    # Prepared once and shared. Smoothing and dead-ball marking are what turn
-    # noisy per-frame guesses into the labels the possession split is built
-    # from, and territory has to agree with that split rather than describe a
-    # slightly different match.
+        # Prepared once and shared. Smoothing and dead-ball marking are what turn
+        # noisy per-frame guesses into the labels the possession split is built
+        # from, and territory has to agree with that split rather than describe a
+        # slightly different match.
         states = prepare_states(states, phases=report.phases)
         report.possession = summarise(states, smooth_window=0)
 
@@ -757,7 +772,10 @@ def analyse_match(
     # `no_ball_s` reported beside it rather than a second count of the same
     # thing arrived at separately.
     report.blindness = blindness(
-        states, phases=report.phases, tag_log=tag_log, clock=clock,
+        states,
+        phases=report.phases,
+        tag_log=tag_log,
+        clock=clock,
     )
     report.warnings.extend(blindness_warnings(report.blindness))
 
@@ -776,8 +794,7 @@ def analyse_match(
 
     if report.clear_holder_share < MIN_CLEAR_HOLDER_SHARE:
         report.warnings.append(
-            f'a ball holder was identifiable in only '
-            f'{report.clear_holder_share:.0%} of frames'
+            f'a ball holder was identifiable in only {report.clear_holder_share:.0%} of frames'
         )
 
     # ---- identity ----
@@ -816,7 +833,8 @@ def analyse_match(
     with timings.stage('touches and events'):
         report.touches = segment_touches(table, is_player=is_player)
         report.events = derive_events(
-            report.touches, table,
+            report.touches,
+            table,
             pitch=pitch,
             orientation=orientation,
             period=period,
@@ -829,9 +847,7 @@ def analyse_match(
             identity=cluster_of_track(report.clusters),
         )
     if defending_ends and report.keepers.all_tracks():
-        report.keeper_stats = keeper_reports(
-            report.events, report.keepers, pitch, defending_ends
-        )
+        report.keeper_stats = keeper_reports(report.events, report.keepers, pitch, defending_ends)
 
     # ---- expected goals ----
     #
@@ -845,8 +861,13 @@ def analyse_match(
     if calibration is not None and report.events is not None:
         with timings.stage('expected goals'):
             xg_by_event, xg_warnings = xg_for_shots(
-                report.events, table, calibration, orientation, period,
-                side_of_team, report.keepers,
+                report.events,
+                table,
+                calibration,
+                orientation,
+                period,
+                side_of_team,
+                report.keepers,
             )
             attach_xg(report.events, xg_by_event)
         report.warnings.extend(xg_warnings)
@@ -861,7 +882,10 @@ def analyse_match(
         report.possessions = sequences(report.events, pitch, attacking_ends)
         for team in (TEAM_A, TEAM_B):
             funnel = phase_of_play(
-                report.possessions, report.events, pitch, team,
+                report.possessions,
+                report.events,
+                pitch,
+                team,
                 attacking_ends.get(team),
             )
             if funnel is not None:
@@ -878,7 +902,8 @@ def analyse_match(
     # presenting itself as reliable.
     if tag_log:
         report.reconciliation = reconcile(
-            report.events, tag_log,
+            report.events,
+            tag_log,
             trajectory=report.ball,
             calibration=calibration,
             clock=clock,
@@ -899,11 +924,13 @@ def analyse_match(
             'no calibration supplied, so distance, speed and shape are unavailable'
         )
         for track_id, (times, _) in sorted(sightings.items()):
-            report.players.append(PlayerReport(
-                track_id=track_id,
-                team=table.team_of(track_id),
-                minutes_tracked=(times[-1] - times[0]) / 60.0,
-            ))
+            report.players.append(
+                PlayerReport(
+                    track_id=track_id,
+                    team=table.team_of(track_id),
+                    minutes_tracked=(times[-1] - times[0]) / 60.0,
+                )
+            )
         _warn_on_fragmentation(report)
         report.processing_s = timings.total_s = time.perf_counter() - started
         return report
@@ -946,13 +973,15 @@ def analyse_match(
         series_by_track[track_id] = smoothed
 
         stats = movement_stats(smoothed, noise_m=noise_m)
-        report.players.append(PlayerReport(
-            track_id=track_id,
-            team=table.team_of(track_id),
-            movement=stats,
-            heatmap=heatmap(smoothed, pitch.length_m, pitch.width_m),
-            minutes_tracked=stats.minutes_tracked,
-        ))
+        report.players.append(
+            PlayerReport(
+                track_id=track_id,
+                team=table.team_of(track_id),
+                movement=stats,
+                heatmap=heatmap(smoothed, pitch.length_m, pitch.width_m),
+                minutes_tracked=stats.minutes_tracked,
+            )
+        )
 
     timings.add('movement', time.perf_counter() - movement_started)
 
@@ -971,16 +1000,19 @@ def analyse_match(
     keeper_tracks = report.keepers.all_tracks()
     for team in (TEAM_A, TEAM_B):
         own = {
-            track_id: series for track_id, series in series_by_track.items()
+            track_id: series
+            for track_id, series in series_by_track.items()
             if table.team_of(track_id) == team
         }
         end = defending_ends.get(team)
         report.shape[team] = team_shape(own, end, pitch, keeper_tracks) if own else {}
         # How it differed late in the window against early. None on a short
         # clip, where there is nothing either side of the split to average.
-        drift = shape_drift(
-            own, defending_end=end, pitch=pitch, keeper_tracks=keeper_tracks
-        ) if own else None
+        drift = (
+            shape_drift(own, defending_end=end, pitch=pitch, keeper_tracks=keeper_tracks)
+            if own
+            else None
+        )
         if drift is not None:
             report.shape_drift[team] = drift
 
@@ -993,9 +1025,11 @@ def analyse_match(
             continue
         impossible = [
             f'{shape["width_m"]:.0f}m wide on a {pitch.width_m:.0f}m pitch'
-            if shape['width_m'] > pitch.width_m * 1.1 else '',
+            if shape['width_m'] > pitch.width_m * 1.1
+            else '',
             f'{shape["depth_m"]:.0f}m deep on a {pitch.length_m:.0f}m pitch'
-            if shape['depth_m'] > pitch.length_m * 1.1 else '',
+            if shape['depth_m'] > pitch.length_m * 1.1
+            else '',
         ]
         impossible = [x for x in impossible if x]
         if impossible:
@@ -1030,10 +1064,7 @@ def _resolve_period(
     can see which of those happened rather than having to know the precedence.
     """
     begin = float(start_s or 0.0)
-    finish = (
-        float(end_s) if end_s is not None
-        else begin + float(report.duration_s or 0.0)
-    )
+    finish = float(end_s) if end_s is not None else begin + float(report.duration_s or 0.0)
     covered = report.periods.covering(begin, finish) if report.periods else []
 
     if len(covered) > 1:
@@ -1118,8 +1149,7 @@ def _no_touches_reason(report: MatchReport) -> str:
         return (
             f'no touches found — the ball was detected in '
             f'{report.ball_seen_share:.0%} of frames, but almost never near a '
-            'player, which usually means those detections are something else.'
-            + tail
+            'player, which usually means those detections are something else.' + tail
         )
     return (
         'no touches found despite usable ball and player coverage — worth '
@@ -1142,7 +1172,8 @@ def _warn_on_fragmentation(report: MatchReport) -> None:
 
 
 def _sightings_by_track(
-    table: FrameTable, is_player=None,
+    table: FrameTable,
+    is_player=None,
 ) -> dict[int, tuple[np.ndarray, np.ndarray]]:
     """Group the frame table into per-track (timestamps, ground points).
 

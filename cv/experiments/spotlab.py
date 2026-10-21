@@ -28,6 +28,7 @@ Writes <out>/questions.json, <out>/packs/p<k>.webm (10 two-second clips each,
 8 fps; the page seeks to slot * 2 s) and <out>/ctx/a<k>.jpg (5 x 5 atlases of
 the whole frame with the crop marked).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,12 +40,19 @@ from pathlib import Path
 import numpy as np
 
 TYPES = ('role', 'team', 'same', 'lines', 'missing', 'ballring', 'ballmiss')
-OFFS = np.arange(-32, 32, 4)                      # 16 frames around the question frame
+OFFS = np.arange(-32, 32, 4)  # 16 frames around the question frame
 CLIP_FPS, CLIP_S = 8, 2.0
 PER_PACK, ATLAS = 10, 5
 SIZES = {'S': (480, 270), 'M': (768, 432)}
 SIZE_OF = {'lines': 'M', 'ballmiss': 'M'}
-YELLOW, GREEN, ORANGE, MAGENTA, WHITE, BLACK = (0, 230, 255), (80, 230, 80), (40, 140, 255), (255, 0, 255), (255, 255, 255), (0, 0, 0)
+YELLOW, GREEN, ORANGE, MAGENTA, WHITE, BLACK = (
+    (0, 230, 255),
+    (80, 230, 80),
+    (40, 140, 255),
+    (255, 0, 255),
+    (255, 255, 255),
+    (0, 0, 0),
+)
 
 
 def _mv():
@@ -53,13 +61,22 @@ def _mv():
     if here not in sys.path:
         sys.path.insert(0, here)
     import match_video
+
     return match_video
 
 
 def _subset(det, m):
     from cv.pitchtrack import Detections
-    return Detections(frame=det.frame[m], box=det.box[m], conf=det.conf[m], team=det.team[m], desc=det.desc[m],
-                      kit=None if det.kit is None else det.kit[m], feat=None if det.feat is None else det.feat[m])
+
+    return Detections(
+        frame=det.frame[m],
+        box=det.box[m],
+        conf=det.conf[m],
+        team=det.team[m],
+        desc=det.desc[m],
+        kit=None if det.kit is None else det.kit[m],
+        feat=None if det.feat is None else det.feat[m],
+    )
 
 
 def _sb(H, p):
@@ -73,25 +90,31 @@ def _near_line(xy, d=5.0):
 
 
 def _crop_rect(cx, cy, ch, W=1920, H=1080):
-    ch = float(np.clip(ch, 120, H)); cw = ch * 16 / 9
-    x0 = float(np.clip(cx - cw / 2, 0, W - cw)); y0 = float(np.clip(cy - ch / 2, 0, H - ch))
+    ch = float(np.clip(ch, 120, H))
+    cw = ch * 16 / 9
+    x0 = float(np.clip(cx - cw / 2, 0, W - cw))
+    y0 = float(np.clip(cy - ch / 2, 0, H - ch))
     return x0, y0, cw, ch
 
 
-LINK_PROCS = int(os.environ.get('SPOTLAB_PROCS', 3))   # windows linked side by side
+LINK_PROCS = int(os.environ.get('SPOTLAB_PROCS', 3))  # windows linked side by side
 _LW = {}
 
 
 def _link_init(tag, meta):
     from cv.experiments import player_lab as L
+
     _LW['meta'] = meta
     _LW['proj'], _LW['pitch'] = L.projector(tag, meta['w'], meta['h'])
 
 
 def _link_one(job):
     from cv.experiments import player_lab as L
+
     lo, hi, dw = job
-    return L.run_variant('A+B+C', dw, dict(_LW['meta'], lo=lo, n=hi - lo), _LW['proj'], _LW['pitch'])[1]
+    return L.run_variant(
+        'A+B+C', dw, dict(_LW['meta'], lo=lo, n=hi - lo), _LW['proj'], _LW['pitch']
+    )[1]
 
 
 def linked(tag, det, meta, spans, procs=LINK_PROCS):
@@ -99,12 +122,15 @@ def linked(tag, det, meta, spans, procs=LINK_PROCS):
     `procs` spans at a time in their own processes: the linker draws nothing at
     random and each span is linked alone, so the results are the serial ones."""
     import multiprocessing as mp
+
     jobs = [(lo, hi, _subset(det, (det.frame >= lo) & (det.frame < hi))) for lo, hi in spans]
     if procs <= 1:
         _link_init(tag, meta)
         yield from map(_link_one, jobs)
         return
-    with mp.get_context('spawn').Pool(min(procs, len(jobs)), initializer=_link_init, initargs=(tag, meta)) as pool:
+    with mp.get_context('spawn').Pool(
+        min(procs, len(jobs)), initializer=_link_init, initargs=(tag, meta)
+    ) as pool:
         yield from pool.imap(_link_one, jobs)
 
 
@@ -114,6 +140,7 @@ class _Window:
     def __init__(self, tag, lo, hi, det, meta, proj, pitch, Hs, a0, rng, keep_gaps=0, res=None):
         MV = _mv()
         from cv.experiments import player_lab as L
+
         m = (det.frame >= lo) & (det.frame < hi)
         dw = _subset(det, m)
         mw = dict(meta, lo=lo, n=hi - lo)
@@ -138,15 +165,34 @@ class _Window:
         _, self.bimg, _, self.bgnd, self.bkind = MV.ball(tag, lo, hi)
         shirt = {}
         for t in ('team_a', 'team_b'):
-            rows = np.concatenate([i.rows[i.rows >= 0] for i in self.res.identities
-                                   if i.team == t and i.role == 'player'] or [[]]).astype(int)
+            rows = np.concatenate(
+                [
+                    i.rows[i.rows >= 0]
+                    for i in self.res.identities
+                    if i.team == t and i.role == 'player'
+                ]
+                or [[]]
+            ).astype(int)
             shirt[t] = np.nanmedian(dw.desc[rows, :3], axis=0) if len(rows) else np.full(3, np.nan)
-        self.kits = {t: dict(name=MV.kit_name(s) if np.isfinite(s).all() else t, lab=[float(v) for v in s], rgb=_rgb(s))
-                     for t, s in shirt.items()}
+        self.kits = {
+            t: dict(
+                name=MV.kit_name(s) if np.isfinite(s).all() else t,
+                lab=[float(v) for v in s],
+                rgb=_rgb(s),
+            )
+            for t, s in shirt.items()
+        }
         ka, kb = self.kits['team_a'], self.kits['team_b']
         ab = ka['lab'][0] >= kb['lab'][0]
-        if np.isfinite(ka['lab'][0]) and np.isfinite(kb['lab'][0]) and (
-                ka['name'] == kb['name'] or (ka['name'] == 'white') != ab and 'white' in (ka['name'], kb['name'])):
+        if (
+            np.isfinite(ka['lab'][0])
+            and np.isfinite(kb['lab'][0])
+            and (
+                ka['name'] == kb['name']
+                or (ka['name'] == 'white') != ab
+                and 'white' in (ka['name'], kb['name'])
+            )
+        ):
             # both kits read as one colour (glare: white looks grey), or 'white' is the darker swatch:
             # tell them apart by lightness
             ka['name'], kb['name'] = ('lighter', 'darker') if ab else ('darker', 'lighter')
@@ -184,7 +230,10 @@ class _Window:
                         continue
                     b = ident.boxes[k]
                     if kind == 'role':
-                        hard = _near_line(_sb(self.H(f), ((b[0] + b[2]) / 2, b[3]))) or ident.role == 'off'
+                        hard = (
+                            _near_line(_sb(self.H(f), ((b[0] + b[2]) / 2, b[3])))
+                            or ident.role == 'off'
+                        )
                     else:
                         hard = R.team_at(ident, f) != ident.team or self._mixed_kit(ident)
                     out.append((f, ident, bool(hard)))
@@ -208,7 +257,7 @@ class _Window:
                 if not self.fits(f):
                     continue
                 Hi = np.linalg.inv(self.H(f))
-                for _ in range(2):                      # random pitch points in view
+                for _ in range(2):  # random pitch points in view
                     q = Hi @ [self.rng.uniform(0, 120), self.rng.uniform(0, 80), 1.0]
                     if q[2] != 0 and 0 <= q[0] / q[2] < 1920 and 0 <= q[1] / q[2] < 1080:
                         out.append((f, (q[0] / q[2], q[1] / q[2]), False))
@@ -263,10 +312,18 @@ class _Window:
 
     def draw(self, kind, f0, payload, img, f, th):
         import cv2
+
         if kind in ('role', 'team'):
             b = payload.box_at(f)
             if b is not None:
-                cv2.rectangle(img, (int(b[0]) - 3, int(b[1]) - 3), (int(b[2]) + 3, int(b[3]) + 3), YELLOW, th, cv2.LINE_AA)
+                cv2.rectangle(
+                    img,
+                    (int(b[0]) - 3, int(b[1]) - 3),
+                    (int(b[2]) + 3, int(b[3]) + 3),
+                    YELLOW,
+                    th,
+                    cv2.LINE_AA,
+                )
         elif kind == 'same':
             b = payload.box_at(f)
             if b is not None:
@@ -277,7 +334,7 @@ class _Window:
             for ident, b in self.res.at(f):
                 if ident.role != 'off':
                     _feet_ring(img, b, WHITE, th)
-        elif kind in ('ballring', 'ballmiss'):      # the tracker's ring wherever it had one
+        elif kind in ('ballring', 'ballmiss'):  # the tracker's ring wherever it had one
             k = f - self.lo
             if self.bkind[k]:
                 p = self.bimg[k]
@@ -287,16 +344,25 @@ class _Window:
 
     def model_answer(self, kind, f, payload):
         if kind == 'role':
-            return {'player': 'player', 'keeper': 'player', 'referee': 'referee'}.get(payload.role, 'other')
+            return {'player': 'player', 'keeper': 'player', 'referee': 'referee'}.get(
+                payload.role, 'other'
+            )
         if kind == 'team':
             t = self.res.team_at(payload, f)
             return {'team_a': 'A', 'team_b': 'B'}.get(t, 'unsure')
-        return {'same': 'yes', 'lines': 'yes', 'missing': 'no', 'ballring': 'yes', 'ballmiss': 'no'}[kind]
+        return {
+            'same': 'yes',
+            'lines': 'yes',
+            'missing': 'no',
+            'ballring': 'yes',
+            'ballmiss': 'no',
+        }[kind]
 
 
 def _rgb(lab):
     """OpenCV 8-bit Lab to '#rrggbb' for the page's kit swatch."""
     import cv2
+
     if not np.isfinite(lab).all():
         return '#808080'
     b, g, r = cv2.cvtColor(np.uint8([[np.clip(np.round(lab), 0, 255)]]), cv2.COLOR_LAB2BGR)[0, 0]
@@ -304,16 +370,20 @@ def _rgb(lab):
 
 
 def _iou(a, b):
-    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0])); iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
     u = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - ix * iy
     return ix * iy / u if u > 0 else 0.0
 
 
 def _feet_ring(img, b, col, th):
     import cv2
+
     u, v = (b[0] + b[2]) / 2, b[3]
     w = max(10, (b[2] - b[0]) * 0.6)
-    cv2.ellipse(img, (int(u), int(v)), (int(w), int(w * 0.35)), 0, 0, 360, BLACK, th + 2, cv2.LINE_AA)
+    cv2.ellipse(
+        img, (int(u), int(v)), (int(w), int(w * 0.35)), 0, 0, 360, BLACK, th + 2, cv2.LINE_AA
+    )
     cv2.ellipse(img, (int(u), int(v)), (int(w), int(w * 0.35)), 0, 0, 360, col, th, cv2.LINE_AA)
 
 
@@ -324,6 +394,7 @@ def _draw_lines(img, H, th):
     import cv2
 
     from cv.experiments.cal_overlay import _densify, _lines
+
     global _LINES
     if _LINES is None:
         _LINES = [_densify(l) for l in _lines(*_PITCH)]
@@ -340,7 +411,8 @@ def _draw_lines(img, H, th):
             if good and -2000 < pt[0] < 4000 and -2000 < pt[1] < 3000:
                 run.append(pt)
             elif len(run) > 1:
-                cv2.polylines(img, [np.int32(run)], False, MAGENTA, th, cv2.LINE_AA); run = []
+                cv2.polylines(img, [np.int32(run)], False, MAGENTA, th, cv2.LINE_AA)
+                run = []
             else:
                 run = []
         if len(run) > 1:
@@ -355,39 +427,53 @@ class _Writer:
 
     def __init__(self, out: Path):
         self.out = out
-        (out / 'packs').mkdir(parents=True, exist_ok=True); (out / 'ctx').mkdir(exist_ok=True)
+        (out / 'packs').mkdir(parents=True, exist_ok=True)
+        (out / 'ctx').mkdir(exist_ok=True)
         self.packs, self.n_pack = {}, 0
         self.atlas, self.n_atlas, self.cells = None, 0, 0
 
     def clip(self, size, frames):
         import cv2
+
         cur = self.packs.get(size)
         if cur is None or cur[2] == PER_PACK:
             if cur is not None:
                 cur[1].release()
-            name = 'packs/p%03d.webm' % self.n_pack; self.n_pack += 1
-            vw = cv2.VideoWriter(str(self.out / name), cv2.VideoWriter_fourcc(*'VP80'), CLIP_FPS, SIZES[size])
+            name = 'packs/p%03d.webm' % self.n_pack
+            self.n_pack += 1
+            vw = cv2.VideoWriter(
+                str(self.out / name), cv2.VideoWriter_fourcc(*'VP80'), CLIP_FPS, SIZES[size]
+            )
             assert vw.isOpened(), 'no VP80 writer'
             cur = self.packs[size] = [name, vw, 0]
         for fr in frames:
             cur[1].write(fr)
-        slot = cur[2]; cur[2] += 1
+        slot = cur[2]
+        cur[2] += 1
         return cur[0], slot
 
     def context(self, thumb):
         if self.atlas is None:
-            self.atlas = np.zeros((270 * ATLAS, 480 * ATLAS, 3), np.uint8); self.cells = 0
+            self.atlas = np.zeros((270 * ATLAS, 480 * ATLAS, 3), np.uint8)
+            self.cells = 0
         r, c = divmod(self.cells, ATLAS)
-        self.atlas[r * 270:(r + 1) * 270, c * 480:(c + 1) * 480] = thumb
-        name = 'ctx/a%03d.jpg' % self.n_atlas; cell = self.cells; self.cells += 1
+        self.atlas[r * 270 : (r + 1) * 270, c * 480 : (c + 1) * 480] = thumb
+        name = 'ctx/a%03d.jpg' % self.n_atlas
+        cell = self.cells
+        self.cells += 1
         if self.cells == ATLAS * ATLAS:
             self.flush_atlas()
         return name, cell
 
     def flush_atlas(self):
         import cv2
+
         if self.atlas is not None and self.cells:
-            cv2.imwrite(str(self.out / ('ctx/a%03d.jpg' % self.n_atlas)), self.atlas, [cv2.IMWRITE_JPEG_QUALITY, 72])
+            cv2.imwrite(
+                str(self.out / ('ctx/a%03d.jpg' % self.n_atlas)),
+                self.atlas,
+                [cv2.IMWRITE_JPEG_QUALITY, 72],
+            )
             self.n_atlas += 1
         self.atlas = None
 
@@ -397,13 +483,23 @@ class _Writer:
         self.flush_atlas()
 
 
-def make(tag: str, out: Path, per_type: int = 100, windows: int = 6, win_s: float = 180.0,
-         hard: float = 0.3, seed: int = 0, types=TYPES, keep_gaps: int = 0,
-         play: tuple[int | None, int | None] = (None, None)) -> list[dict]:
+def make(
+    tag: str,
+    out: Path,
+    per_type: int = 100,
+    windows: int = 6,
+    win_s: float = 180.0,
+    hard: float = 0.3,
+    seed: int = 0,
+    types=TYPES,
+    keep_gaps: int = 0,
+    play: tuple[int | None, int | None] = (None, None),
+) -> list[dict]:
     import cv2
 
     MV = _mv()
     from cv.experiments import player_lab as L
+
     global _PITCH, _LINES
     rng = np.random.default_rng(seed)
     HG = Path(MV.HG)
@@ -413,7 +509,10 @@ def make(tag: str, out: Path, per_type: int = 100, windows: int = 6, win_s: floa
     det, meta = L.load_detections(tag)
     proj, pitch = L.projector(tag, meta['w'], meta['h'])
     _PITCH, _LINES = (pitch.length_m, pitch.width_m), None
-    lo_all, hi_all = max(a0, int(det.frame.min())), min(int(frames[-1]) + 1, int(det.frame.max()) + 1)
+    lo_all, hi_all = (
+        max(a0, int(det.frame.min())),
+        min(int(frames[-1]) + 1, int(det.frame.max()) + 1),
+    )
     # a pass range can run past play (walk-on before kickoff, walk-off after the whistle)
     lo_all, hi_all = max(lo_all, play[0] or lo_all), min(hi_all, play[1] or hi_all)
     win = int(win_s * meta['fps'])
@@ -449,11 +548,14 @@ def make(tag: str, out: Path, per_type: int = 100, windows: int = 6, win_s: floa
             q['frames'] = []
             for o in OFFS:
                 need.setdefault(q['f'] + int(o), []).append(q)
-        f = min(need); cap.set(cv2.CAP_PROP_POS_FRAMES, f)
+        f = min(need)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, f)
         last = max(need)
         while f <= last:
             if f not in need:
-                cap.grab(); f += 1; continue
+                cap.grab()
+                f += 1
+                continue
             ok, img = cap.read()
             if not ok:
                 break
@@ -463,44 +565,75 @@ def make(tag: str, out: Path, per_type: int = 100, windows: int = 6, win_s: floa
                 im = img.copy()
                 win_.draw(q['kind'], q['f'], q['payload'], im, f, th)
                 size = SIZE_OF.get(q['kind'], 'S')
-                crop = im[int(y0):int(y0 + ch), int(x0):int(x0 + cw)]
+                crop = im[int(y0) : int(y0 + ch), int(x0) : int(x0 + cw)]
                 q['frames'].append(cv2.resize(crop, SIZES[size], interpolation=cv2.INTER_AREA))
                 if f == q['f']:
                     t = cv2.resize(im, (480, 270), interpolation=cv2.INTER_AREA)
                     s = 480 / 1920
-                    cv2.rectangle(t, (int(x0 * s), int(y0 * s)), (int((x0 + cw) * s) - 1, int((y0 + ch) * s) - 1), YELLOW, 2)
+                    cv2.rectangle(
+                        t,
+                        (int(x0 * s), int(y0 * s)),
+                        (int((x0 + cw) * s) - 1, int((y0 + ch) * s) - 1),
+                        YELLOW,
+                        2,
+                    )
                     q['thumb'] = t
                 if len(q['frames']) == len(OFFS):
                     fr = q.pop('frames')
-                    if q['kind'] == 'lines':            # a still: the camera hardly moves in 2 s, and stills cost nothing
+                    if (
+                        q['kind'] == 'lines'
+                    ):  # a still: the camera hardly moves in 2 s, and stills cost nothing
                         fr = [fr[len(fr) // 2]] * len(fr)
                     pack, slot = W.clip(size, fr)
                     atlas, cell = W.context(q.pop('thumb'))
                     p = q.pop('payload')
-                    qs.append(dict(id='%s_%d_%s_%d' % (tag, q['f'], q['kind'], len(qs)), type=q['kind'], frame=q['f'],
-                                   window=w, sample=q['sample'], pack=pack, slot=slot, atlas=atlas, cell=cell,
-                                   model=win_.model_answer(q['kind'], q['f'], p),
-                                   pid=getattr(p, 'pid', None), kits=win_.kits if q['kind'] == 'team' else None,
-                                   rect=[round(float(v), 1) for v in q['rect']]))   # x0, y0, w, h of the clip in the frame
+                    qs.append(
+                        dict(
+                            id='%s_%d_%s_%d' % (tag, q['f'], q['kind'], len(qs)),
+                            type=q['kind'],
+                            frame=q['f'],
+                            window=w,
+                            sample=q['sample'],
+                            pack=pack,
+                            slot=slot,
+                            atlas=atlas,
+                            cell=cell,
+                            model=win_.model_answer(q['kind'], q['f'], p),
+                            pid=getattr(p, 'pid', None),
+                            kits=win_.kits if q['kind'] == 'team' else None,
+                            rect=[round(float(v), 1) for v in q['rect']],
+                        )
+                    )  # x0, y0, w, h of the clip in the frame
             f += 1
     W.close()
     order = rng.permutation(len(qs))
     qs = [qs[i] for i in order]
-    (out / 'questions.json').write_text(json.dumps(dict(tag=tag, clip_s=CLIP_S, fps=CLIP_FPS, questions=qs)))
+    (out / 'questions.json').write_text(
+        json.dumps(dict(tag=tag, clip_s=CLIP_S, fps=CLIP_FPS, questions=qs))
+    )
     return qs
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog='python -m cv.experiments.spotlab', description=__doc__.split('\n\n')[0])
+    p = argparse.ArgumentParser(
+        prog='python -m cv.experiments.spotlab', description=__doc__.split('\n\n')[0]
+    )
     p.add_argument('tag')
     p.add_argument('out', type=Path)
     p.add_argument('--per-type', type=int, default=100, help='questions per type')
     p.add_argument('--windows', type=int, default=6, help='stretches the linker runs on')
     p.add_argument('--win-s', type=float, default=180.0, help='seconds per stretch')
-    p.add_argument('--hard', type=float, default=0.3, help='share of each type taken from the unsure cases')
+    p.add_argument(
+        '--hard', type=float, default=0.3, help='share of each type taken from the unsure cases'
+    )
     p.add_argument('--seed', type=int, default=0)
     p.add_argument('--types', nargs='+', choices=TYPES, default=list(TYPES))
-    p.add_argument('--keep-gaps', type=int, default=0, help='link with kit_cut_keep_rows=N and ask about the stretches it keeps')
+    p.add_argument(
+        '--keep-gaps',
+        type=int,
+        default=0,
+        help='link with kit_cut_keep_rows=N and ask about the stretches it keeps',
+    )
     p.add_argument('--lo', type=int, help='first frame of play (default: the pass range)')
     p.add_argument('--hi', type=int, help='frame after play ends (default: the pass range)')
     return p
@@ -508,10 +641,23 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     a = build_parser().parse_args(argv)
-    qs = make(a.tag, a.out, a.per_type, a.windows, a.win_s, a.hard, a.seed, tuple(a.types), a.keep_gaps, (a.lo, a.hi))
+    qs = make(
+        a.tag,
+        a.out,
+        a.per_type,
+        a.windows,
+        a.win_s,
+        a.hard,
+        a.seed,
+        tuple(a.types),
+        a.keep_gaps,
+        (a.lo, a.hi),
+    )
     n = {t: sum(q['type'] == t for q in qs) for t in TYPES}
     print('questions:', len(qs), n)
-    print('size: %.1f MB' % (sum(f.stat().st_size for f in a.out.rglob('*') if f.is_file()) / 2 ** 20))
+    print(
+        'size: %.1f MB' % (sum(f.stat().st_size for f in a.out.rglob('*') if f.is_file()) / 2**20)
+    )
     return 0
 
 

@@ -96,8 +96,7 @@ class PitchCoverage:
         raise ValueError(f"end must be 'left' or 'right', got {end!r}")
 
     def goalmouth_share(self, end: str) -> float:
-        return self.left_goalmouth if zones._check_end(end) == 'left' \
-            else self.right_goalmouth
+        return self.left_goalmouth if zones._check_end(end) == 'left' else self.right_goalmouth
 
     def sees_goal(self, end: str) -> bool:
         return self.goalmouth_share(end) >= GOALMOUTH_SEEN
@@ -142,8 +141,7 @@ def _orientation(calibration, width_px: float, height_px: float) -> float:
     return -1.0 if w < 0 else 1.0
 
 
-def _project(homography_inv: np.ndarray, xs: np.ndarray, ys: np.ndarray,
-             sign: float = 1.0):
+def _project(homography_inv: np.ndarray, xs: np.ndarray, ys: np.ndarray, sign: float = 1.0):
     """Pitch metres -> pixels, with the points behind the camera marked.
 
     Done by hand rather than through `cv2.perspectiveTransform`, which divides
@@ -182,9 +180,7 @@ def _visible_share(calibration, xs, ys, width_px, height_px, sign) -> float:
     """The fraction of these pitch points that fall inside the frame."""
     if xs.size == 0:
         return 0.0
-    u, v, in_front = _project(
-        np.linalg.inv(calibration.H), xs.ravel(), ys.ravel(), sign
-    )
+    u, v, in_front = _project(np.linalg.inv(calibration.H), xs.ravel(), ys.ravel(), sign)
     inside = in_front & (u >= 0) & (u <= width_px) & (v >= 0) & (v <= height_px)
     return float(np.mean(inside))
 
@@ -266,9 +262,7 @@ def coverage_warnings(coverage: PitchCoverage | None) -> list[str]:
     out: list[str] = []
     pct = round(coverage.visible_share * 100)
 
-    blind_end = {
-        end for end in ('left', 'right') if not coverage.sees_goal(end)
-    }
+    blind_end = {end for end in ('left', 'right') if not coverage.sees_goal(end)}
     for end in sorted(blind_end):
         out.append(
             f'the {end} goalmouth was not in shot — shots at that end were not '
@@ -276,7 +270,8 @@ def coverage_warnings(coverage: PitchCoverage | None) -> list[str]:
         )
 
     thin = [
-        (name, share) for name, share in (
+        (name, share)
+        for name, share in (
             ('left', coverage.left_third),
             ('middle', coverage.middle_third),
             ('right', coverage.right_third),

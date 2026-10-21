@@ -113,9 +113,7 @@ def _box(pitch: Pitch, end: str, length_m: float, width_m: float):
 
 def in_penalty_area(pitch: Pitch, x_m: float, y_m: float, end: str) -> bool:
     """Inside the 18-yard box at the given end. The lines are part of the box."""
-    x0, x1, y0, y1 = _box(
-        pitch, end, pitch.penalty_area_length_m, pitch.penalty_area_width_m
-    )
+    x0, x1, y0, y1 = _box(pitch, end, pitch.penalty_area_length_m, pitch.penalty_area_width_m)
     return x0 <= x_m <= x1 and y0 <= y_m <= y1
 
 
@@ -295,6 +293,7 @@ def is_progressive(
         return False
 
     halfway = pitch.length_m / 2
+
     # Distance from own goal line, measured along the direction of attack.
     def forward(x: float) -> float:
         return x if attacking_end == 'right' else pitch.length_m - x
@@ -365,7 +364,7 @@ def defensive_line_m(
         x = point[0]
         return x if defending_end == 'left' else pitch.length_m - x
 
-    deepest = sorted(depth(p) for p in points)[:max(1, players)]
+    deepest = sorted(depth(p) for p in points)[: max(1, players)]
     return sum(deepest) / len(deepest)
 
 

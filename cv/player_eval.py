@@ -56,22 +56,22 @@ BAD = '-'
 CROWD_DX = 0.35
 CROWD_DY = 0.25
 
-GATE_FRACTION = 0.5     # feet within half a box height
+GATE_FRACTION = 0.5  # feet within half a box height
 GATE_MIN_PX = 12.0
 
 
 @dataclass
 class TruthEntry:
-    x: float               # feet, pixels
+    x: float  # feet, pixels
     y: float
-    h: float               # box height in pixels (estimated for added points)
+    h: float  # box height in pixels (estimated for added points)
     label: str
     crowded: bool = False  # another labelled person stands right here too
 
 
 @dataclass
 class Truth:
-    frames: list[int]                          # keyframe frames scored
+    frames: list[int]  # keyframe frames scored
     entries: dict[int, list[TruthEntry]]
     confirmed: list[int]
     partial: list[int]
@@ -116,7 +116,7 @@ def load_docs(labels_dir) -> dict[int, dict]:
 def _mark_crowded(entries: list[TruthEntry]) -> None:
     people = [e for e in entries if e.label not in ('', BAD)]
     for i, a in enumerate(people):
-        for b in people[i + 1:]:
+        for b in people[i + 1 :]:
             h = max(a.h, b.h)
             if abs(a.x - b.x) <= CROWD_DX * h and abs(a.y - b.y) <= CROWD_DY * h:
                 a.crowded = b.crowded = True
@@ -149,12 +149,14 @@ def build_truth(sheets: dict, docs: dict[int, dict], include_partial: bool = Tru
                 if done:
                     lab = ''
                 else:
-                    continue                    # a suggestion nobody checked
+                    continue  # a suggestion nobody checked
             x1, y1, x2, y2 = b['xyxy']
             out.append(TruthEntry((x1 + x2) / 2, y2, y2 - y1, str(lab)))
         for a in d.get('adds') or []:
             h = float(np.polyval(fit, a['y']))
-            out.append(TruthEntry(float(a['x']), float(a['y']), max(h, 20.0), str(a.get('label') or '')))
+            out.append(
+                TruthEntry(float(a['x']), float(a['y']), max(h, 20.0), str(a.get('label') or ''))
+            )
         if not out:
             continue
         _mark_crowded(out)
@@ -166,9 +168,9 @@ def build_truth(sheets: dict, docs: dict[int, dict], include_partial: bool = Tru
 @dataclass
 class Pred:
     pid: object
-    box: np.ndarray        # x1 y1 x2 y2
-    team: str              # team_a / team_b / unknown
-    role: str              # player / keeper / referee / off
+    box: np.ndarray  # x1 y1 x2 y2
+    team: str  # team_a / team_b / unknown
+    role: str  # player / keeper / referee / off
 
 
 def _is_player_label(label: str) -> bool:
@@ -194,8 +196,8 @@ class Score:
     idfp: int
     wrong_person: int
     named_matches: int
-    fragments: dict = field(default_factory=dict)       # gt label -> distinct pred ids
-    merges: dict = field(default_factory=dict)          # pred id -> distinct gt labels
+    fragments: dict = field(default_factory=dict)  # gt label -> distinct pred ids
+    merges: dict = field(default_factory=dict)  # pred id -> distinct gt labels
     switches: int = 0
     team_right: int = 0
     team_total: int = 0
@@ -227,7 +229,11 @@ class Score:
 
     @property
     def ids_per_player(self) -> float:
-        return float(np.mean([len(v) for v in self.fragments.values()])) if self.fragments else float('nan')
+        return (
+            float(np.mean([len(v) for v in self.fragments.values()]))
+            if self.fragments
+            else float('nan')
+        )
 
     def row(self) -> dict:
         err = np.asarray(self.pos_err_m)
@@ -244,9 +250,13 @@ class Score:
             'team_acc': round(self.team_right / max(self.team_total, 1), 3),
             'ref_ok': '%d/%d' % (self.ref_right, self.ref_total),
             'gk_ok': '%d/%d' % (self.keeper_right, self.keeper_total),
-            'ids_A/B': '%s/%s vs %s/%s' % (
-                self.pred_ids_by_team.get('A', 0), self.pred_ids_by_team.get('B', 0),
-                self.gt_ids_by_team.get('A', 0), self.gt_ids_by_team.get('B', 0)),
+            'ids_A/B': '%s/%s vs %s/%s'
+            % (
+                self.pred_ids_by_team.get('A', 0),
+                self.pred_ids_by_team.get('B', 0),
+                self.gt_ids_by_team.get('A', 0),
+                self.gt_ids_by_team.get('B', 0),
+            ),
             'pos_m_med': round(float(np.median(err)), 2) if len(err) else None,
             'pos_m_p90': round(float(np.percentile(err, 90)), 2) if len(err) else None,
         }
@@ -268,7 +278,11 @@ def _match_frame(entries: list[TruthEntry], preds: list[Pred]):
 
     scored = [i for i, e in enumerate(entries) if e.label not in ('', BAD)]
     ignore = [i for i, e in enumerate(entries) if e.label in ('', BAD)]
-    pairs = [(scored[a], b) for a, b in min_cost_matching(cost(scored), unmatched=1.0)] if scored and preds else []
+    pairs = (
+        [(scored[a], b) for a, b in min_cost_matching(cost(scored), unmatched=1.0)]
+        if scored and preds
+        else []
+    )
     used = {b for _, b in pairs}
     rest = [b for b in range(len(preds)) if b not in used]
     ignored = set()
@@ -286,10 +300,10 @@ def score(name: str, truth: Truth, predict, projector=None, clear_only: bool = F
     wrong person, switches, fragments); coverage and precision count them.
     """
     sc = Score(name, len(truth.frames), 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    co: dict[tuple, int] = {}                 # (gt label, pred id) -> appearances together
+    co: dict[tuple, int] = {}  # (gt label, pred id) -> appearances together
     gt_n: dict[str, int] = {}
     seq: dict[str, list] = {}
-    team_votes = np.zeros((2, 2))             # [gt A/B, pred team_a/team_b]
+    team_votes = np.zeros((2, 2))  # [gt A/B, pred team_a/team_b]
     pred_named_n: dict = {}
     pred_ids_team: dict[str, set] = {}
     claims_unmatched = 0
@@ -319,7 +333,7 @@ def score(name: str, truth: Truth, predict, projector=None, clear_only: bool = F
             if _is_player_label(e.label):
                 sc.matched_players += claims
             elif claims:
-                sc.false_claims += 1                 # a box on a coach or the referee
+                sc.false_claims += 1  # a box on a coach or the referee
                 claims_unmatched += 1
             if e.label == REF:
                 sc.ref_total += 1

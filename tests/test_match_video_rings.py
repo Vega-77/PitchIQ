@@ -20,8 +20,21 @@ finally:
 def test_short_runs_marks_only_runs_under_k():
     on = np.array([1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1], bool)
     got = M.short_runs(on, 5)
-    assert got.tolist() == [True, False, False, False, False, False, False, False, False,
-                            True, True, True, True]
+    assert got.tolist() == [
+        True,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        True,
+        True,
+        True,
+        True,
+    ]
 
 
 def test_short_runs_keeps_a_run_of_exactly_k():

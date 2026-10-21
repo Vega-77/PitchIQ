@@ -14,6 +14,7 @@ Each task gets a fresh Matcher on the server (`start`), exactly as each
 worker() call built a fresh one before, and evict() is forwarded in order on
 the same queue as the matches it must precede.
 """
+
 import multiprocessing as mp
 import os
 import sys
@@ -26,6 +27,7 @@ def serve(req, resps):
     sys.path.insert(0, S2)
     import gmatch2
     import torch
+
     torch.set_num_threads(1)
     ms = {}
     for msg in iter(req.get, None):
@@ -37,7 +39,7 @@ def serve(req, resps):
         else:
             try:
                 resps[i].put(('ok', ms[i].match_many(msg[2], msg[3], msg[4])))
-            except Exception as e:          # the worker raises it; the server lives on
+            except Exception as e:  # the worker raises it; the server lives on
                 resps[i].put(('err', repr(e)))
 
 

@@ -90,20 +90,20 @@ def print_run(row: dict, half_s: float) -> None:
     if factor is None:
         verdict = 'no footage to measure against'
     elif factor < 1.0:
-        verdict = f"keeps up, {1.0 - factor:.0%} in hand"
+        verdict = f'keeps up, {1.0 - factor:.0%} in hand'
     else:
         floor = 'at least ' if timings and timings.optimistic() else ''
-        verdict = f"{floor}{lag / 60.0:.0f} min late at the break"
+        verdict = f'{floor}{lag / 60.0:.0f} min late at the break'
 
     print(
-        f"  {row['ran']:>5.1f} Hz  {row['total_s']:>7.1f}s  {fixed:>5.1f}s"
-        f"  {factor if factor is not None else float('nan'):>7.2f}x  {verdict}"
+        f'  {row["ran"]:>5.1f} Hz  {row["total_s"]:>7.1f}s  {fixed:>5.1f}s'
+        f'  {factor if factor is not None else float("nan"):>7.2f}x  {verdict}'
     )
 
 
 def print_stages(timings, label: str) -> None:
-    print(f"\n  where the seconds went at {label}")
-    print("  " + "-" * 58)
+    print(f'\n  where the seconds went at {label}')
+    print('  ' + '-' * 58)
     total = timings.total_s or 1.0
     marks = {
         FIXED: '   (paid once, at any length)',
@@ -111,12 +111,12 @@ def print_stages(timings, label: str) -> None:
     }
     for stage in timings.ranked():
         mark = marks.get(stage.scaling, '')
-        print(f"  {stage.name:<32} {stage.seconds:>7.1f}s {stage.seconds / total:>6.0%}{mark}")
+        print(f'  {stage.name:<32} {stage.seconds:>7.1f}s {stage.seconds / total:>6.0%}{mark}')
     # Always printed, including at zero. A breakdown that omits its own gap
     # invites optimising the largest named stage while a third of the run sits
     # somewhere nobody wrapped.
     gap = timings.unaccounted_s
-    print(f"  {'everything else':<32} {gap:>7.1f}s {gap / total:>6.0%}")
+    print(f'  {"everything else":<32} {gap:>7.1f}s {gap / total:>6.0%}')
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -127,18 +127,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('video', type=Path)
     parser.add_argument('--calibration', type=Path, default=None)
     parser.add_argument(
-        '--seconds', type=float, default=60.0,
+        '--seconds',
+        type=float,
+        default=60.0,
         help='how much footage to measure over. Longer is a better projection, '
-             'because the quadratic stages have more to be quadratic about.',
+        'because the quadratic stages have more to be quadratic about.',
     )
     parser.add_argument('--rates', type=float, nargs='+', default=list(DEFAULT_RATES))
     parser.add_argument(
-        '--budget', type=float, default=DEFAULT_BUDGET,
+        '--budget',
+        type=float,
+        default=DEFAULT_BUDGET,
         help='the real-time factor to stay under. 1.0 finishes exactly at the '
-             'whistle with nothing in hand.',
+        'whistle with nothing in hand.',
     )
     parser.add_argument(
-        '--half-minutes', type=float, default=HALF_S / 60.0,
+        '--half-minutes',
+        type=float,
+        default=HALF_S / 60.0,
         help='the half this is projected onto. 45 for senior football.',
     )
     return parser
@@ -152,20 +158,20 @@ def main(argv: list[str] | None = None) -> int:
     # ASCII only from here down. This is run from a Windows terminal, where the
     # console codepage turns an em-dash into a replacement character — the first
     # run of this printed "clip70.mp4 <?> 60s of footage per run".
-    print(f"\n{args.video.name} - {args.seconds:.0f}s of footage per run")
+    print(f'\n{args.video.name} - {args.seconds:.0f}s of footage per run')
 
     # One throwaway pass before anything is measured, so every row below is
     # comparable. Without it whichever rate goes first pays the model load and
     # the first-inference warm-up and reads slow — the run that produced this
     # comment had 6 Hz at 0.42x and 15 Hz at 0.36x, which is backwards, and the
     # entire difference was warm-up. With it: 0.14x, 0.37x, 0.71x, in order.
-    print("  warming up...")
+    print('  warming up...')
     measure(args.video, min(args.rates), WARMUP_S, args.calibration)
 
     # `setup` is shown beside the total rather than folded into it, because it
     # is the number that decides whether a slow-looking run is actually slow.
-    print(f"\n  {'rate':>8}  {'took':>7}  {'setup':>6}  {'factor':>7}  verdict")
-    print("  " + "-" * 70)
+    print(f'\n  {"rate":>8}  {"took":>7}  {"setup":>6}  {"factor":>7}  verdict')
+    print('  ' + '-' * 70)
 
     rows = []
     for rate in sorted(args.rates):
@@ -176,23 +182,28 @@ def main(argv: list[str] | None = None) -> int:
     # Keyed on the rate that ran, not the one asked for: recommending 12 Hz when
     # the source can only give 15 would be advice nobody can follow.
     fits = fastest_rate_that_fits(
-        {row['ran']: row['factor'] for row in rows}, budget=args.budget,
+        {row['ran']: row['factor'] for row in rows},
+        budget=args.budget,
     )
     print()
     if fits is None:
         # Not "run at the lowest rate". Every rate measured was too slow, and
         # rounding that into a recommendation is how a coach ends up waiting.
-        print(f"  Nothing measured fits a {args.budget:.2f} budget — a live "
-              f"half-time report is not possible on this machine as configured.")
+        print(
+            f'  Nothing measured fits a {args.budget:.2f} budget — a live '
+            f'half-time report is not possible on this machine as configured.'
+        )
     else:
-        print(f"  Fastest rate inside a {args.budget:.2f} budget: {fits:.1f} Hz")
+        print(f'  Fastest rate inside a {args.budget:.2f} budget: {fits:.1f} Hz')
 
     slowest = max(rows, key=lambda r: r['total_s'])
     if slowest['timings']:
-        print_stages(slowest['timings'], f"{slowest['ran']:.1f} Hz")
+        print_stages(slowest['timings'], f'{slowest["ran"]:.1f} Hz')
 
-    print("\n  This machine, this footage, this model, today."
-          "\n  Run it on the one that will be at the side of the field.\n")
+    print(
+        '\n  This machine, this footage, this model, today.'
+        '\n  Run it on the one that will be at the side of the field.\n'
+    )
     return 0
 
 

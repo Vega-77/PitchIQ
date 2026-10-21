@@ -39,9 +39,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-PAGES = ('index.html', 'coach/index.html', 'player/index.html',
-         'live-tagging/index.html', 'halftime/index.html',
-         'calibrate/index.html')
+PAGES = (
+    'index.html',
+    'coach/index.html',
+    'player/index.html',
+    'live-tagging/index.html',
+    'halftime/index.html',
+    'calibrate/index.html',
+)
 
 CONTROL = re.compile(r'<(button|a|input|select|textarea)\b([^>]*)>', re.I)
 LABEL = re.compile(r'<label\b([^>]*)>', re.I)
@@ -78,7 +83,7 @@ def label_spans(src):
     for m in LABEL.finditer(src):
         close = src.find('</label>', m.end())
         assert close > 0, (m.start(), 'unclosed label')
-        body = src[m.end():close]
+        body = src[m.end() : close]
         assert '<label' not in body, (m.start(), 'nested label')
         out.append((m.end(), close, text_of(body)))
     return out
@@ -98,8 +103,7 @@ def controls_in(rel, src):
     """
     ids = set(re.findall(r'\bid="([^"]+)"', src))
     spans = label_spans(src)
-    for_ids = {a for a in (attrs(m.group(1)).get('for')
-                           for m in LABEL.finditer(src)) if a}
+    for_ids = {a for a in (attrs(m.group(1)).get('for') for m in LABEL.finditer(src)) if a}
     out = []
     for m in CONTROL.finditer(src):
         tag, a = m.group(1).lower(), attrs(m.group(2))
@@ -108,7 +112,7 @@ def controls_in(rel, src):
         why = []
         if tag not in ('input', 'select', 'textarea'):
             close = src.find('</' + tag, m.end())
-            if close > 0 and text_of(src[m.end():close]):
+            if close > 0 and text_of(src[m.end() : close]):
                 why.append('text')
         if a.get('aria-label'):
             why.append('aria-label')
@@ -122,11 +126,13 @@ def controls_in(rel, src):
             why.append('label-for')
         if any(lo <= m.start() < hi and txt for lo, hi, txt in spans):
             why.append('label-wrap')
-        if tag == 'input' and a.get('value') and a.get(
-                'type', '').lower() in ('submit', 'button', 'reset'):
+        if (
+            tag == 'input'
+            and a.get('value')
+            and a.get('type', '').lower() in ('submit', 'button', 'reset')
+        ):
             why.append('value')
-        out.append((rel, src[:m.start()].count('\n') + 1, tag,
-                    a.get('id', ''), tuple(why)))
+        out.append((rel, src[: m.start()].count('\n') + 1, tag, a.get('id', ''), tuple(why)))
     return out
 
 
@@ -143,11 +149,10 @@ def nameless():
 
 # --- the two findings ------------------------------------------------------
 
-class TestEveryControlIsAnnouncedAsSomething:
 
+class TestEveryControlIsAnnouncedAsSomething:
     def test_nothing_operable_is_nameless(self):
-        bare = [(rel, line, tag, i) for rel, line, tag, i, _ in nameless()
-                if i not in SCRIPT_NAMED]
+        bare = [(rel, line, tag, i) for rel, line, tag, i, _ in nameless() if i not in SCRIPT_NAMED]
         assert bare == [], bare
 
     def test_every_exemption_is_still_carrying_its_weight(self):
@@ -170,8 +175,8 @@ class TestEveryControlIsAnnouncedAsSomething:
 
 # --- universe: the ways this scan could be lying ---------------------------
 
-class TestAWrappingLabelIsAName:
 
+class TestAWrappingLabelIsAName:
     def test_a_for_only_scanner_would_invent_a_dozen_defects(self):
         # What the first version of this file did. Nothing on this site uses
         # `for=`, so dropping the wrapping case does not lose a mechanism --
@@ -207,7 +212,6 @@ class TestAWrappingLabelIsAName:
 
 
 class TestAPointerIsOnlyANameIfItLands:
-
     def test_every_labelledby_on_a_control_resolves(self):
         for rel in PAGES:
             ids = set(re.findall(r'\bid="([^"]+)"', read(rel)))
@@ -225,10 +229,12 @@ class TestAPointerIsOnlyANameIfItLands:
         this builds the case: two sliders named by visible spans, one of
         which loses its id.
         """
-        src = ('<span id="name-a">Distance</span>'
-               '<input type="range" id="a" aria-labelledby="name-a">'
-               '<span id="name-b">Angle</span>'
-               '<input type="range" id="b" aria-labelledby="name-b">')
+        src = (
+            '<span id="name-a">Distance</span>'
+            '<input type="range" id="a" aria-labelledby="name-a">'
+            '<span id="name-b">Angle</span>'
+            '<input type="range" id="b" aria-labelledby="name-b">'
+        )
         named = [c for c in controls_in('x', src) if 'labelledby' in c[4]]
         assert len(named) == 2, named
 
@@ -240,11 +246,10 @@ class TestAPointerIsOnlyANameIfItLands:
 
 # --- the scan is looking at something --------------------------------------
 
-class TestTheScanReportsSomething:
 
+class TestTheScanReportsSomething:
     def test_it_reads_every_page_the_site_has(self):
-        pages = sorted(p.relative_to(ROOT).as_posix()
-                       for p in ROOT.glob('*/index.html'))
+        pages = sorted(p.relative_to(ROOT).as_posix() for p in ROOT.glob('*/index.html'))
         pages = [p for p in pages if not p.startswith(('node_modules', 'cv'))]
         assert set(pages) | {'index.html'} == set(PAGES), pages
         for rel in PAGES:

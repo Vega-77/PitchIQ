@@ -71,55 +71,51 @@ CV = Path(__file__).resolve().parent.parent / 'cv'
 PENDING_BY_DESIGN = {
     # --- geometry primitives, built with the pitch model, waiting on features
     'in_goal_area': 'Six-yard box test. Built with the rest of the pitch '
-                    'geometry; the goalkeeper stats that would ask it are '
-                    'currently derived from distance to goal instead.',
+    'geometry; the goalkeeper stats that would ask it are '
+    'currently derived from distance to goal instead.',
     'channel': 'Which lateral channel a point is in, five by default. The '
-               'territory block splits the pitch by third, along the other '
-               'axis; this is the primitive a wing-play breakdown would need.',
+    'territory block splits the pitch by third, along the other '
+    'axis; this is the primitive a wing-play breakdown would need.',
     'zone_grid': 'The full grid of pitch zones. The heatmap bins positions '
-                 'itself because it needs its own resolution; this exists for '
-                 'a zone-by-zone table that has not been designed.',
-
+    'itself because it needs its own resolution; this exists for '
+    'a zone-by-zone table that has not been designed.',
     # --- tracking and shape primitives
     'nearest_player': 'Closest tracked figure to the ball, in pixels. '
-                      '`cv/touches.py` runs its own search because it also '
-                      'needs the runner-up distance to know whether the '
-                      'assignment was a coin flip; this returns the winner '
-                      'alone, which is what a one-off question wants.',
+    '`cv/touches.py` runs its own search because it also '
+    'needs the runner-up distance to know whether the '
+    'assignment was a coin flip; this returns the winner '
+    'alone, which is what a one-off question wants.',
     'pinned_back': 'Whether a team is camped in its own third. A phrase for a '
-                   'summary nobody writes yet — the territory numbers are '
-                   'shown raw, and turning them into words is a decision about '
-                   'tone, not code.',
-
+    'summary nobody writes yet — the territory numbers are '
+    'shown raw, and turning them into words is a decision about '
+    'tone, not code.',
     # --- diagnostics that print rather than publish
     'drift_notes': 'English sentences for whichever shape figures actually '
-                   'moved. The pipeline publishes `shape_drift` as numbers and '
-                   '`assets/report.js` writes its own wording from them, so '
-                   'these are the sentences a Python-side diagnostic would '
-                   'print if one existed.',
-
+    'moved. The pipeline publishes `shape_drift` as numbers and '
+    '`assets/report.js` writes its own wording from them, so '
+    'these are the sentences a Python-side diagnostic would '
+    'print if one existed.',
     # --- conversions whose whole job is to be the one written-down copy
     'player_height_px': 'How tall a standing player is, from how wide. '
-                        'The pipeline never needs it -- every threshold in '
-                        '`cv/framing.py` is already a height. But the one '
-                        'empirical measurement behind those thresholds was '
-                        'recorded in widths, so this is the single step '
-                        'between the evidence and the numbers it justifies, '
-                        'and its callers are the checks that hold five '
-                        'prose copies of that step to it '
-                        '(`tests/test_framing_evidence.py`). Inlining it '
-                        'would put the arithmetic back where it was.',
-
+    'The pipeline never needs it -- every threshold in '
+    '`cv/framing.py` is already a height. But the one '
+    'empirical measurement behind those thresholds was '
+    'recorded in widths, so this is the single step '
+    'between the evidence and the numbers it justifies, '
+    'and its callers are the checks that hold five '
+    'prose copies of that step to it '
+    '(`tests/test_framing_evidence.py`). Inlining it '
+    'would put the arithmetic back where it was.',
     # --- xG, deliberately not on the pipeline path
     'predict_xg': 'The single-shot entry point. The pipeline calls '
-                  '`xg_for_shots`, which batches; this is the one-shot version '
-                  'the browser sandbox mirrors and the tests exercise '
-                  'directly.',
+    '`xg_for_shots`, which batches; this is the one-shot version '
+    'the browser sandbox mirrors and the tests exercise '
+    'directly.',
     'validate_against_noise': 'Measures how xG degrades on noisy positions. '
-                              'Called by `tests/test_xg_noise.py`, which is '
-                              'the only place it makes sense to call it — the '
-                              'measurement is the deliverable, and it is '
-                              'pinned in the roadmap.',
+    'Called by `tests/test_xg_noise.py`, which is '
+    'the only place it makes sense to call it — the '
+    'measurement is the deliverable, and it is '
+    'pinned in the roadmap.',
 }
 
 
@@ -133,7 +129,8 @@ def _local_only(p: Path) -> bool:
 
 def _module_files() -> list[Path]:
     return sorted(
-        p for p in CV.rglob('*.py')
+        p
+        for p in CV.rglob('*.py')
         if '__pycache__' not in p.parts and not _local_only(p.relative_to(CV))
     )
 
@@ -171,8 +168,7 @@ def _shallow_uses(node: ast.AST) -> set[str]:
     while bodies:
         current = bodies.pop()
         for child in ast.iter_child_nodes(current):
-            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef,
-                                  ast.ClassDef)):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 continue
             used |= _names_used(child)
             bodies.append(child)
@@ -257,10 +253,7 @@ def reachable_names() -> set[str]:
 def orphans() -> dict[str, Path]:
     _uses, _name_of, _children, _by_name, top_level, _roots = build_graph()
     live = reachable_names()
-    return {
-        name: path for name, (_cid, path) in top_level.items()
-        if name not in live
-    }
+    return {name: path for name, (_cid, path) in top_level.items() if name not in live}
 
 
 class TestNothingIsOrphaned:
@@ -275,12 +268,12 @@ class TestNothingIsOrphaned:
         found = orphans()
         unrecorded = sorted(set(found) - set(PENDING_BY_DESIGN))
         detail = '\n'.join(
-            f'  {name}  ({found[name].relative_to(CV.parent)})'
-            for name in unrecorded
+            f'  {name}  ({found[name].relative_to(CV.parent)})' for name in unrecorded
         )
         assert not unrecorded, (
-            'public names under cv/ that nothing calls:\n' + detail +
-            '\n\nWire it up, delete it, or record why it is waiting in '
+            'public names under cv/ that nothing calls:\n'
+            + detail
+            + '\n\nWire it up, delete it, or record why it is waiting in '
             'PENDING_BY_DESIGN.'
         )
 

@@ -61,10 +61,8 @@ QUERY = re.compile(r'\bquery\s*\(')
 GROUP = re.compile(r"""\bcollectionGroup\s*\(\s*\w+\s*,\s*['"]([^'"]+)['"]""")
 PLAIN = re.compile(r"""\bcollection\s*\(([^()]*)\)""")
 LITERAL = re.compile(r"""['"]([^'"]+)['"]""")
-WHERE = re.compile(
-    r"""\bwhere\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]""")
-ORDER_BY = re.compile(
-    r"""\borderBy\s*\(\s*['"]([^'"]+)['"]\s*(?:,\s*['"](asc|desc)['"])?""")
+WHERE = re.compile(r"""\bwhere\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]""")
+ORDER_BY = re.compile(r"""\borderBy\s*\(\s*['"]([^'"]+)['"]\s*(?:,\s*['"](asc|desc)['"])?""")
 
 
 @dataclass(frozen=True)
@@ -81,8 +79,7 @@ class Query:
     @property
     def fields(self) -> tuple[str, ...]:
         seen = []
-        for field in self.equality + self.ranges + tuple(
-                f for f, _d in self.order):
+        for field in self.equality + self.ranges + tuple(f for f, _d in self.order):
             if field not in seen:
                 seen.append(field)
         return tuple(seen)
@@ -120,8 +117,7 @@ def call_bodies(source: str) -> list[tuple[int, str]]:
                 if depth == 0:
                     break
             i += 1
-        found.append((source.count('\n', 0, match.start()) + 1,
-                      source[match.end():i]))
+        found.append((source.count('\n', 0, match.start()) + 1, source[match.end() : i]))
     return found
 
 
@@ -145,8 +141,7 @@ def parse(body: str, site: str) -> Query | None:
     equality, ranges = [], []
     for field, op in WHERE.findall(body):
         (equality if op in EQUALITY_OPS else ranges).append(field)
-    order = tuple((field, direction or 'asc')
-                  for field, direction in ORDER_BY.findall(body))
+    order = tuple((field, direction or 'asc') for field, direction in ORDER_BY.findall(body))
     return Query(site, group, scope, tuple(equality), tuple(ranges), order)
 
 
@@ -197,36 +192,42 @@ class TestEveryCompoundQueryHasAnIndex(unittest.TestCase):
         uncovered = [
             f'{q.site} {q.scope} {q.group} {list(q.fields)}'
             for q in queries()
-            if q.needs_index and not any(covers(i, q) for i in declared())]
+            if q.needs_index and not any(covers(i, q) for i in declared())
+        ]
         self.assertEqual(
-            uncovered, [],
+            uncovered,
+            [],
             'this query constrains more than one field and no composite index '
             'in firestore.indexes.json matches it — the emulator will run it '
-            'and production will refuse it')
+            'and production will refuse it',
+        )
 
     def test_no_index_is_declared_for_a_query_nobody_writes(self):
         found = queries()
-        stale = [f"{i.get('queryScope')} {i.get('collectionGroup')} "
-                 f"{[f['fieldPath'] for f in i.get('fields', [])]}"
-                 for i in declared()
-                 if not any(covers(i, q) for q in found)]
+        stale = [
+            f'{i.get("queryScope")} {i.get("collectionGroup")} '
+            f'{[f["fieldPath"] for f in i.get("fields", [])]}'
+            for i in declared()
+            if not any(covers(i, q) for q in found)
+        ]
         self.assertEqual(
-            stale, [],
+            stale,
+            [],
             'no query uses this index — delete it, or the file stops being a '
-            'description of what the app does')
+            'description of what the app does',
+        )
 
     def test_a_disabled_field_is_one_nothing_queries(self):
         # An override with "indexes": [] turns indexing off for that field.
         # Querying it then fails, and only in production.
-        constrained = {(q.group, field) for q in queries()
-                       for field in q.fields}
+        constrained = {(q.group, field) for q in queries() for field in q.fields}
         for override in overrides():
             if override.get('indexes') != []:
                 continue
             key = (override['collectionGroup'], override['fieldPath'])
             self.assertNotIn(
-                key, constrained,
-                f'{key[0]}.{key[1]} has indexing disabled but is queried')
+                key, constrained, f'{key[0]}.{key[1]} has indexing disabled but is queried'
+            )
 
     def test_this_check_is_looking_at_something(self):
         # The anti-vacuum guard. A paren matcher that truncated, or a regex
@@ -234,8 +235,7 @@ class TestEveryCompoundQueryHasAnIndex(unittest.TestCase):
         # true. So pin the one compound query the app actually makes, by shape
         # and not just by count — the player portal's report list, which is the
         # reason the surviving index exists.
-        reports = [q for q in queries()
-                   if q.group == 'playerReports']
+        reports = [q for q in queries() if q.group == 'playerReports']
         self.assertEqual(len(reports), 1, 'myReports was not found')
         found = reports[0]
         self.assertEqual(found.scope, 'COLLECTION_GROUP')
@@ -253,8 +253,8 @@ class TestTheScannerReachesEverything(unittest.TestCase):
         source = _read(ADMIN)
         for construct in ('.where(', '.order_by(', 'collection_group('):
             self.assertNotIn(
-                construct, source,
-                f'{_rel(ADMIN)} builds queries now — teach this test to read it')
+                construct, source, f'{_rel(ADMIN)} builds queries now — teach this test to read it'
+            )
 
     def test_every_query_names_a_collection(self):
         # parse() returns None when it cannot find one, which would silently
@@ -269,14 +269,13 @@ class TestTheScannerReachesEverything(unittest.TestCase):
 
     def test_the_index_file_is_shaped_the_way_this_test_reads_it(self):
         for index in declared():
-            self.assertIn(index.get('queryScope'),
-                          ('COLLECTION', 'COLLECTION_GROUP'))
+            self.assertIn(index.get('queryScope'), ('COLLECTION', 'COLLECTION_GROUP'))
             self.assertTrue(index.get('collectionGroup'))
-            self.assertGreater(len(index.get('fields', [])), 1,
-                               'a single-field index is created automatically')
+            self.assertGreater(
+                len(index.get('fields', [])), 1, 'a single-field index is created automatically'
+            )
             for field in index['fields']:
-                self.assertIn(field.get('order'),
-                              ('ASCENDING', 'DESCENDING'), field)
+                self.assertIn(field.get('order'), ('ASCENDING', 'DESCENDING'), field)
 
 
 class TestTheRuleItself(unittest.TestCase):
@@ -289,68 +288,78 @@ class TestTheRuleItself(unittest.TestCase):
         return found
 
     def test_one_equality_filter_needs_nothing(self):
-        found = self._parse(
-            "collection(db, 'teams'), where('coachUid', '==', uid)")
+        found = self._parse("collection(db, 'teams'), where('coachUid', '==', uid)")
         self.assertEqual(found.fields, ('coachUid',))
         self.assertFalse(found.needs_index)
 
     def test_a_range_on_the_field_it_orders_by_needs_nothing(self):
         found = self._parse(
-            "collection(db, 'teams'), where('date', '>=', from), "
-            "orderBy('date', 'desc')")
+            "collection(db, 'teams'), where('date', '>=', from), orderBy('date', 'desc')"
+        )
         self.assertEqual(found.fields, ('date',))
         self.assertFalse(found.needs_index)
 
     def test_two_equality_filters_need_an_index(self):
-        found = self._parse(
-            "collection(db, 'teams'), where('a', '==', 1), where('b', '==', 2)")
+        found = self._parse("collection(db, 'teams'), where('a', '==', 1), where('b', '==', 2)")
         self.assertTrue(found.needs_index)
         self.assertEqual(declared_covering(found), [])
 
     def test_an_order_on_another_field_needs_an_index(self):
-        found = self._parse(
-            "collection(db, 'teams'), where('a', '==', 1), orderBy('b')")
+        found = self._parse("collection(db, 'teams'), where('a', '==', 1), orderBy('b')")
         self.assertTrue(found.needs_index)
         self.assertEqual(found.order, (('b', 'asc'),))
 
     def test_a_membership_filter_is_not_an_equality(self):
         # `in` matches several values, so Firestore cannot use it to pin the
         # field the way `==` does.
-        found = self._parse(
-            "collection(db, 'teams'), where('status', 'in', ['a', 'b'])")
+        found = self._parse("collection(db, 'teams'), where('status', 'in', ['a', 'b'])")
         self.assertEqual(found.equality, ())
         self.assertEqual(found.ranges, ('status',))
 
     def test_the_last_path_segment_is_the_collection(self):
         found = self._parse(
-            "collection(db, 'teams', teamId, 'matches', matchId, 'log'), "
-            "orderBy('seq')")
+            "collection(db, 'teams', teamId, 'matches', matchId, 'log'), orderBy('seq')"
+        )
         self.assertEqual(found.group, 'log')
         self.assertEqual(found.scope, 'COLLECTION')
 
     def test_direction_has_to_match(self):
-        index = {'collectionGroup': 'r', 'queryScope': 'COLLECTION',
-                 'fields': [{'fieldPath': 'a', 'order': 'ASCENDING'},
-                            {'fieldPath': 'b', 'order': 'ASCENDING'}]}
+        index = {
+            'collectionGroup': 'r',
+            'queryScope': 'COLLECTION',
+            'fields': [
+                {'fieldPath': 'a', 'order': 'ASCENDING'},
+                {'fieldPath': 'b', 'order': 'ASCENDING'},
+            ],
+        }
         ascending = Query('x', 'r', 'COLLECTION', ('a',), (), (('b', 'asc'),))
         descending = Query('x', 'r', 'COLLECTION', ('a',), (), (('b', 'desc'),))
         self.assertTrue(covers(index, ascending))
         self.assertFalse(covers(index, descending))
 
     def test_an_extra_field_in_the_index_does_not_cover_the_query(self):
-        index = {'collectionGroup': 'r', 'queryScope': 'COLLECTION',
-                 'fields': [{'fieldPath': 'a', 'order': 'ASCENDING'},
-                            {'fieldPath': 'c', 'order': 'ASCENDING'},
-                            {'fieldPath': 'b', 'order': 'ASCENDING'}]}
+        index = {
+            'collectionGroup': 'r',
+            'queryScope': 'COLLECTION',
+            'fields': [
+                {'fieldPath': 'a', 'order': 'ASCENDING'},
+                {'fieldPath': 'c', 'order': 'ASCENDING'},
+                {'fieldPath': 'b', 'order': 'ASCENDING'},
+            ],
+        }
         query = Query('x', 'r', 'COLLECTION', ('a',), (), (('b', 'asc'),))
         self.assertFalse(covers(index, query))
 
     def test_scope_has_to_match(self):
-        index = {'collectionGroup': 'r', 'queryScope': 'COLLECTION',
-                 'fields': [{'fieldPath': 'a', 'order': 'ASCENDING'},
-                            {'fieldPath': 'b', 'order': 'ASCENDING'}]}
-        query = Query('x', 'r', 'COLLECTION_GROUP', ('a',), (),
-                      (('b', 'asc'),))
+        index = {
+            'collectionGroup': 'r',
+            'queryScope': 'COLLECTION',
+            'fields': [
+                {'fieldPath': 'a', 'order': 'ASCENDING'},
+                {'fieldPath': 'b', 'order': 'ASCENDING'},
+            ],
+        }
+        query = Query('x', 'r', 'COLLECTION_GROUP', ('a',), (), (('b', 'asc'),))
         self.assertFalse(covers(index, query))
 
 

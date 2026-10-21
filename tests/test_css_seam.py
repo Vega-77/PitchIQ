@@ -95,6 +95,7 @@ with no element. Each literal is substituted back into its template and the
 result re-tokenised -- the same move the payload scanners make. Follow the
 value, not the thing holding it.
 """
+
 import re
 from pathlib import Path
 
@@ -102,16 +103,28 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
-CSS = ['assets/app.css', 'assets/landing.css', 'coach/coach.css',
-       'player/player.css', 'live-tagging/tagging.css', 'halftime/halftime.css', 'calibrate/calibrate.css']
-HTML = ['index.html', 'coach/index.html', 'player/index.html',
-        'live-tagging/index.html', 'halftime/index.html', 'calibrate/index.html']
+CSS = [
+    'assets/app.css',
+    'assets/landing.css',
+    'coach/coach.css',
+    'player/player.css',
+    'live-tagging/tagging.css',
+    'halftime/halftime.css',
+    'calibrate/calibrate.css',
+]
+HTML = [
+    'index.html',
+    'coach/index.html',
+    'player/index.html',
+    'live-tagging/index.html',
+    'halftime/index.html',
+    'calibrate/index.html',
+]
 JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
-HOLE = '\x00'                             # one `${...}` stands here
+HOLE = '\x00'  # one `${...}` stands here
 NAME = r'-?[A-Za-z_][A-Za-z0-9_-]*'
-SITES = frozenset(
-    {'markup', 'classname', 'classlist', 'query', 'bag', 'join'})
+SITES = frozenset({'markup', 'classname', 'classlist', 'query', 'bag', 'join'})
 
 # Names the scanner will not claim either way, and why. Past the six mechanical
 # shapes the question becomes real string-valued dataflow across a module
@@ -127,33 +140,31 @@ SITES = frozenset(
 WEAK = {
     # Both had a proven home on the calibrate page's figures until it left on
     # 2026-10-07; what is left is the bare-string kind.
-    'bad': "decision('bad', ...) in halftime.js -- a tone passed as an "
-           "argument, like est and info",
+    'bad': "decision('bad', ...) in halftime.js -- a tone passed as an argument, like est and info",
     'cm-label': "labelled('cm-label', label) in coach.js -- the class is a "
-                "positional argument to a helper that builds the element",
+    'positional argument to a helper that builds the element',
     'cm-time': "labelled('cm-time', clockText(s)), same helper",
     'dim': "figure(..., 'dim') in landing.js -- a tone passed as an argument",
     'est': "decision('est', ...) in halftime.js -- likewise",
-    'good': "an event tone in events.js, applied to the timeline dot after "
-            "travelling through timelineTone, the same shape as period",
+    'good': 'an event tone in events.js, applied to the timeline dot after '
+    'travelling through timelineTone, the same shape as period',
     'info': "decision('info', ...) in halftime.js",
-    'ours-bad': "report.js returns the string and a caller in another module "
-                "applies it; the docstring names both halves",
-    'ours-good': "the other arm of the same return",
-    'period': "an event tone in db.js, applied by classList.add(tone) after "
-              "travelling through a lookup table",
-    'red': "a card colour in db.js and ui.js, same shape",
-    'second_yellow': "a card colour in db.js; unlike red and yellow it has no "
-                     "second home in ui.js, so it is thinner evidence still",
-    'yellow': "a card colour in db.js and ui.js",
+    'ours-bad': 'report.js returns the string and a caller in another module '
+    'applies it; the docstring names both halves',
+    'ours-good': 'the other arm of the same return',
+    'period': 'an event tone in db.js, applied by classList.add(tone) after '
+    'travelling through a lookup table',
+    'red': 'a card colour in db.js and ui.js, same shape',
+    'second_yellow': 'a card colour in db.js; unlike red and yellow it has no '
+    'second home in ui.js, so it is thinner evidence still',
+    'yellow': 'a card colour in db.js and ui.js',
 }
 
 
 def js_files():
     out = []
     for d in JS_DIRS:
-        out += sorted(str(p.relative_to(ROOT)).replace('\\', '/')
-                      for p in (ROOT / d).glob('*.js'))
+        out += sorted(str(p.relative_to(ROOT)).replace('\\', '/') for p in (ROOT / d).glob('*.js'))
     return out
 
 
@@ -221,6 +232,7 @@ def all_declared(**kw):
 
 # --------------------------------------------------------- the served files
 
+
 def literals(src, *, comments=True):
     """Every string in `src`, as (quote, text, holes, start, end).
 
@@ -248,14 +260,14 @@ def literals(src, *, comments=True):
         while i < n:
             ch = src[i]
             if ch == '\\':
-                text.append(src[i:i + 2])
+                text.append(src[i : i + 2])
                 i += 2
                 continue
             if ch == quote:
                 i += 1
                 break
             if quote != '`' and ch == '\n':
-                break                  # unterminated: not a string at all
+                break  # unterminated: not a string at all
             if quote == '`' and ch == '$' and i + 1 < n and src[i + 1] == '{':
                 depth, j = 1, i + 2
                 while j < n and depth:
@@ -264,7 +276,7 @@ def literals(src, *, comments=True):
                     elif src[j] == '}':
                         depth -= 1
                     j += 1
-                holes.append(src[i + 2:j - 1])
+                holes.append(src[i + 2 : j - 1])
                 text.append(HOLE)
                 i = j
                 continue
@@ -293,9 +305,11 @@ def variants(text, holes, *, fill=True):
             # A splice, not a join. Putting the parts back together with HOLE
             # would drop the hole straight back into the gap that was just
             # resolved, turning the finished name into a prefix again.
-            out.append(HOLE.join(parts[:index]
-                                 + [parts[index] + option + parts[index + 1]]
-                                 + parts[index + 2:]))
+            out.append(
+                HOLE.join(
+                    parts[:index] + [parts[index] + option + parts[index + 1]] + parts[index + 2 :]
+                )
+            )
     return out
 
 
@@ -306,20 +320,20 @@ def _split(value):
         if HOLE not in tok:
             names.append(tok)
         else:
-            prefixes.append(tok.split(HOLE, 1)[0])   # '' means "any name"
+            prefixes.append(tok.split(HOLE, 1)[0])  # '' means "any name"
     return names, prefixes
 
 
 CLASS_ATTR = re.compile(r'class\s*=\s*(["\'])(.*?)\1', re.S)
 CLASS_IN_TEXT = re.compile(r'class\s*=\s*(["\'])([^"\']*)\1')
 CLASS_NAME_LHS = re.compile(r'className\s*\+?=\s*')
-CLASS_LIST_LHS = re.compile(
-    r'classList\s*\.\s*(add|remove|toggle|contains|replace)\s*\(')
+CLASS_LIST_LHS = re.compile(r'classList\s*\.\s*(add|remove|toggle|contains|replace)\s*\(')
 CLASS_KEY = re.compile(r'(?<![\w-])[\'"]?class[\'"]?\s*:\s*')
 JOINED = re.compile(r'\s*(' + NAME + r')\s*\.\s*join\s*\(')
 QUERY = re.compile(
     r'(?:querySelector|querySelectorAll|closest|matches|'
-    r'getElementsByClassName)\s*\(\s*')
+    r'getElementsByClassName)\s*\(\s*'
+)
 
 # `toggle(cls, force)` and `contains(cls)` take one class and then something
 # that is not one. Reading every argument turned the `'link'` in
@@ -430,9 +444,13 @@ def _array_parts(src, name, lits):
     are read here rather than guessed at.
     """
     out = []
-    pat = re.compile(r'(?:(?:const|let|var)\s+' + re.escape(name) +
-                     r'\s*=\s*\[)|(?:' + re.escape(name) +
-                     r'\s*\.\s*(?:push|unshift)\s*\()')
+    pat = re.compile(
+        r'(?:(?:const|let|var)\s+'
+        + re.escape(name)
+        + r'\s*=\s*\[)|(?:'
+        + re.escape(name)
+        + r'\s*\.\s*(?:push|unshift)\s*\()'
+    )
     for m in pat.finditer(src):
         end = _close(src, m.end(), lits)
         for _, text, holes, s, _e in lits:
@@ -470,8 +488,7 @@ def used(rel, *, sites=SITES, fill=True, first_arg_only=True, comments=True):
                 for _, body in CLASS_IN_TEXT.findall(text):
                     take(body, holes, why)
                 for hole in holes:
-                    walk_markup(literals(hole, comments=comments),
-                                why + ' in a hole')
+                    walk_markup(literals(hole, comments=comments), why + ' in a hole')
 
         walk_markup(lits, 'class=')
 
@@ -486,8 +503,7 @@ def used(rel, *, sites=SITES, fill=True, first_arg_only=True, comments=True):
                 take(text, holes, 'className')
                 # `'stat ' + kind` is a hole with no braces drawn around it.
                 if src[e:end].lstrip().startswith('+'):
-                    tail = ('' if not text or text[-1].isspace()
-                            else text.split()[-1])
+                    tail = '' if not text or text[-1].isspace() else text.split()[-1]
                     take(tail + HOLE, [], 'className concatenated')
 
     if 'classlist' in sites:
@@ -575,8 +591,7 @@ def hooks(names):
 
     The two are told apart by evidence rather than by how the name reads.
     """
-    return {n for n, where in names.items()
-            if any(w.endswith('(querySelector)') for w in where)}
+    return {n for n, where in names.items() if any(w.endswith('(querySelector)') for w in where)}
 
 
 @pytest.fixture(scope='module')
@@ -620,22 +635,17 @@ class TestTheScannerCanSeeTheRepo:
 
 
 class TestNoRuleIsDead:
-
     def test_every_declared_name_reaches_an_element(self, rules, uses, bare):
         orphans = sorted(n for n in unreached(rules, uses) if n not in bare)
-        assert not orphans, '\n'.join(
-            '%-24s %s' % (n, rules[n][0]) for n in orphans)
+        assert not orphans, '\n'.join('%-24s %s' % (n, rules[n][0]) for n in orphans)
 
 
 class TestNoElementIsUnstyled:
-
     def test_every_applied_name_has_a_rule(self, rules, uses):
         names, _prefixes = uses
         handles = hooks(names)
-        orphans = sorted(n for n in names
-                         if n not in rules and n not in handles)
-        assert not orphans, '\n'.join(
-            '%-24s %s' % (n, names[n][0]) for n in orphans)
+        orphans = sorted(n for n in names if n not in rules and n not in handles)
+        assert not orphans, '\n'.join('%-24s %s' % (n, names[n][0]) for n in orphans)
 
     def test_the_hooks_are_still_only_hooks(self, rules, uses):
         # The excuse is "JavaScript finds this element by name". Six today.
@@ -643,8 +653,14 @@ class TestNoElementIsUnstyled:
         # test above; a name that stops being queried stops being excused.
         names, _prefixes = uses
         handles = sorted(n for n in hooks(names) if n not in rules)
-        assert handles == ['edit-save', 'edit-type', 'edit-who', 'rc-detail',
-                           'shot-header-btn', 'team-card-body'], handles
+        assert handles == [
+            'edit-save',
+            'edit-type',
+            'edit-who',
+            'rc-detail',
+            'shot-header-btn',
+            'team-card-body',
+        ], handles
 
 
 class TestTheWeakListIsCurrent:
@@ -736,10 +752,15 @@ class TestEachScanSiteIsLoadBearing:
         # exists so that querySelector can find it again.
         assert not self._lost(rules, uses, sites=SITES - {'query'})
         names, _p = all_used(sites=SITES - {'query'})
-        blind = sorted(n for n in names
-                       if n not in rules and n not in hooks(names))
-        assert blind == ['edit-save', 'edit-type', 'edit-who', 'rc-detail',
-                         'shot-header-btn', 'team-card-body'], blind
+        blind = sorted(n for n in names if n not in rules and n not in hooks(names))
+        assert blind == [
+            'edit-save',
+            'edit-type',
+            'edit-who',
+            'rc-detail',
+            'shot-header-btn',
+            'team-card-body',
+        ], blind
 
     def test_filling_the_holes_is_load_bearing(self, rules, uses):
         # Three, and the small number is the interesting part. `is-${type}`
@@ -771,7 +792,8 @@ class TestEachGuardIsLoadBearing:
         names, _p = all_used(first_arg_only=False)
         live, _p2 = uses
         assert set(names) - set(live) == {'Everything', 'link', 'ok'}, sorted(
-            set(names) - set(live))
+            set(names) - set(live)
+        )
 
     def test_descending_into_media_blocks_is_load_bearing(self, rules):
         # The print stylesheet and every responsive override live inside
@@ -803,10 +825,8 @@ class TestEachGuardIsLoadBearing:
         # inside it is skipped. Four of the seven are the `area-*` names that
         # place the whole wide-screen report grid.
         uncommented = set(all_declared(comments=False))
-        assert len(set(rules) - uncommented) >= 5, sorted(
-            set(rules) - uncommented)
-        assert len(uncommented - set(rules)) >= 5, sorted(
-            uncommented - set(rules))
+        assert len(set(rules) - uncommented) >= 5, sorted(set(rules) - uncommented)
+        assert len(uncommented - set(rules)) >= 5, sorted(uncommented - set(rules))
 
     def test_stripping_javascript_comments_is_inert_today_and_stays(self, uses):
         # Kept deliberately without a test that it changes anything, because

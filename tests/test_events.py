@@ -93,11 +93,14 @@ def identity_calibration(scale=10.0):
     these tests are about events, not about calibration — that is what
     tests/test_calibration.py is for.
     """
-    homography = np.array([
-        [1 / scale, 0.0, 0.0],
-        [0.0, 1 / scale, 0.0],
-        [0.0, 0.0, 1.0],
-    ], dtype=np.float64)
+    homography = np.array(
+        [
+            [1 / scale, 0.0, 0.0],
+            [0.0, 1 / scale, 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
     return Calibration(homography, PITCH, image_size=(1920, 1080))
 
 
@@ -112,13 +115,17 @@ def table_for(touches, calibration=None, teams=None, extra_players=None):
                 x, y = t.ball_xy
                 rows.append([t.track_id, x - 10, y - SCALE, x + 10, y, 0.9])
         rows.extend(extra_players or [])
-        records.append(FrameRecord(
-            frame_index=index,
-            timestamp_s=index / FPS,
-            players=np.array(rows, dtype=np.float32).reshape(-1, 6),
-        ))
+        records.append(
+            FrameRecord(
+                frame_index=index,
+                timestamp_s=index / FPS,
+                players=np.array(rows, dtype=np.float32).reshape(-1, 6),
+            )
+        )
     return FrameTable(
-        fps=FPS, frame_width=1920, frame_height=1080,
+        fps=FPS,
+        frame_width=1920,
+        frame_height=1080,
         records=records,
         team_by_track=teams or {},
         calibration=calibration,
@@ -179,9 +186,7 @@ class TestGaps:
 
     def test_a_gapped_pass_is_marked_less_confident(self):
         clean = derive([touch(0.0, 1, TEAM_A), touch(2.0, 2, TEAM_A)])
-        gapped = derive(
-            [touch(0.0, 1, TEAM_A), touch(2.0, 2, TEAM_A)], gaps=[(0.5, 1.5)]
-        )
+        gapped = derive([touch(0.0, 1, TEAM_A), touch(2.0, 2, TEAM_A)], gaps=[(0.5, 1.5)])
         assert gapped.passes()[0].confidence < clean.passes()[0].confidence
 
     def test_a_gap_elsewhere_does_not_taint_a_clean_pass(self):
@@ -195,11 +200,13 @@ class TestGaps:
 class TestDefensiveActions:
     def test_taking_the_ball_off_a_player_in_control_is_a_tackle(self):
         """Controlled before, controlled after — somebody took it off them."""
-        log = derive([
-            touch(0.0, 1, TEAM_A, xy_px=(100.0, 400.0)),
-            touch(0.4, 1, TEAM_A, xy_px=(110.0, 400.0)),      # carrying, slow
-            touch(0.7, 9, TEAM_B, xy_px=(118.0, 400.0)),      # dispossessed
-        ])
+        log = derive(
+            [
+                touch(0.0, 1, TEAM_A, xy_px=(100.0, 400.0)),
+                touch(0.4, 1, TEAM_A, xy_px=(110.0, 400.0)),  # carrying, slow
+                touch(0.7, 9, TEAM_B, xy_px=(118.0, 400.0)),  # dispossessed
+            ]
+        )
         assert [e.type for e in log.by_type(TACKLE)] == [TACKLE]
 
     def test_reading_a_ball_in_flight_is_an_interception(self):
@@ -213,18 +220,22 @@ class TestDefensiveActions:
         `SAME_TRANSFER_S`, so the interception is judged on its own rather than
         folded into the pass before it.
         """
-        log = derive([
-            touch(0.0, 1, TEAM_A, xy_px=(100.0, 400.0)),
-            touch(0.8, 2, TEAM_A, xy_px=(300.0, 400.0)),
-            touch(1.6, 9, TEAM_B, xy_px=(500.0, 400.0)),
-        ])
+        log = derive(
+            [
+                touch(0.0, 1, TEAM_A, xy_px=(100.0, 400.0)),
+                touch(0.8, 2, TEAM_A, xy_px=(300.0, 400.0)),
+                touch(1.6, 9, TEAM_B, xy_px=(500.0, 400.0)),
+            ]
+        )
         assert log.by_type(INTERCEPTION)
 
     def test_a_ball_left_alone_is_recovered_not_won(self):
-        log = derive([
-            touch(0.0, 1, TEAM_A, xy_px=(100.0, 400.0)),
-            touch(3.0, 9, TEAM_B, xy_px=(300.0, 400.0)),
-        ])
+        log = derive(
+            [
+                touch(0.0, 1, TEAM_A, xy_px=(100.0, 400.0)),
+                touch(3.0, 9, TEAM_B, xy_px=(300.0, 400.0)),
+            ]
+        )
         assert log.by_type(RECOVERY)
 
     def test_two_opponents_on_the_same_ball_is_a_duel(self):
@@ -234,10 +245,12 @@ class TestDefensiveActions:
         height, so calling these plain "duels" would silently exclude every
         header from a number people expect to include them.
         """
-        log = derive([
-            touch(0.0, 1, TEAM_A, xy_px=(500.0, 400.0)),
-            touch(0.3, 9, TEAM_B, xy_px=(510.0, 400.0)),
-        ])
+        log = derive(
+            [
+                touch(0.0, 1, TEAM_A, xy_px=(500.0, 400.0)),
+                touch(0.3, 9, TEAM_B, xy_px=(510.0, 400.0)),
+            ]
+        )
         assert log.by_type(DUEL)
 
     def test_the_defensive_action_belongs_to_the_team_that_won_it(self):
@@ -299,78 +312,101 @@ class TestCalibrated:
         calibration = identity_calibration(self.SCALE_PX_PER_M)
         table = table_for(touches, calibration=calibration, teams=kwargs.pop('teams', None))
         return derive_events(
-            TouchSequence(touches=list(touches)), table,
-            pitch=PITCH, orientation=MatchOrientation(home_attacks_first_half='right'),
-            period='first_half', side_of_team={TEAM_A: 'us', TEAM_B: 'them'},
+            TouchSequence(touches=list(touches)),
+            table,
+            pitch=PITCH,
+            orientation=MatchOrientation(home_attacks_first_half='right'),
+            period='first_half',
+            side_of_team={TEAM_A: 'us', TEAM_B: 'them'},
             **kwargs,
         )
 
     def test_a_forward_pass_is_forward(self):
-        log = self.derive([
-            self.at(0.0, 1, TEAM_A, 20.0, MID_Y),
-            self.at(3.0, 2, TEAM_A, 60.0, MID_Y),
-        ])
+        log = self.derive(
+            [
+                self.at(0.0, 1, TEAM_A, 20.0, MID_Y),
+                self.at(3.0, 2, TEAM_A, 60.0, MID_Y),
+            ]
+        )
         assert log.passes()[0].direction == 'forward'
 
     def test_a_backward_pass_is_backward(self):
-        log = self.derive([
-            self.at(0.0, 1, TEAM_A, 60.0, MID_Y),
-            self.at(3.0, 2, TEAM_A, 20.0, MID_Y),
-        ])
+        log = self.derive(
+            [
+                self.at(0.0, 1, TEAM_A, 60.0, MID_Y),
+                self.at(3.0, 2, TEAM_A, 20.0, MID_Y),
+            ]
+        )
         assert log.passes()[0].direction == 'backward'
 
     def test_a_square_ball_is_sideways(self):
-        log = self.derive([
-            self.at(0.0, 1, TEAM_A, 50.0, 10.0),
-            self.at(3.0, 2, TEAM_A, 52.0, 55.0),
-        ])
+        log = self.derive(
+            [
+                self.at(0.0, 1, TEAM_A, 50.0, 10.0),
+                self.at(3.0, 2, TEAM_A, 52.0, 55.0),
+            ]
+        )
         assert log.passes()[0].direction == 'sideways'
 
     def test_length_buckets(self):
-        short = self.derive([
-            self.at(0.0, 1, TEAM_A, 50.0, MID_Y),
-            self.at(3.0, 2, TEAM_A, 58.0, MID_Y),
-        ])
-        long_ball = self.derive([
-            self.at(0.0, 1, TEAM_A, 20.0, MID_Y),
-            self.at(3.0, 2, TEAM_A, 75.0, MID_Y),
-        ])
+        short = self.derive(
+            [
+                self.at(0.0, 1, TEAM_A, 50.0, MID_Y),
+                self.at(3.0, 2, TEAM_A, 58.0, MID_Y),
+            ]
+        )
+        long_ball = self.derive(
+            [
+                self.at(0.0, 1, TEAM_A, 20.0, MID_Y),
+                self.at(3.0, 2, TEAM_A, 75.0, MID_Y),
+            ]
+        )
         assert short.passes()[0].length_bucket == 'short'
         assert long_ball.passes()[0].length_bucket == 'long'
 
     def test_a_long_forward_ball_is_tagged_progressive(self):
-        log = self.derive([
-            self.at(0.0, 1, TEAM_A, 10.0, MID_Y),
-            self.at(3.0, 2, TEAM_A, 45.0, MID_Y),
-        ])
+        log = self.derive(
+            [
+                self.at(0.0, 1, TEAM_A, 10.0, MID_Y),
+                self.at(3.0, 2, TEAM_A, 45.0, MID_Y),
+            ]
+        )
         assert 'progressive' in log.passes()[0].tags
 
     def test_entering_the_final_third_is_tagged_once(self):
-        log = self.derive([
-            self.at(0.0, 1, TEAM_A, 60.0, MID_Y),
-            self.at(3.0, 2, TEAM_A, 80.0, MID_Y),
-        ])
+        log = self.derive(
+            [
+                self.at(0.0, 1, TEAM_A, 60.0, MID_Y),
+                self.at(3.0, 2, TEAM_A, 80.0, MID_Y),
+            ]
+        )
         assert 'final_third_entry' in log.passes()[0].tags
 
     def test_a_ball_already_in_the_final_third_is_not_an_entry(self):
-        log = self.derive([
-            self.at(0.0, 1, TEAM_A, 75.0, MID_Y),
-            self.at(3.0, 2, TEAM_A, 85.0, MID_Y),
-        ])
+        log = self.derive(
+            [
+                self.at(0.0, 1, TEAM_A, 75.0, MID_Y),
+                self.at(3.0, 2, TEAM_A, 85.0, MID_Y),
+            ]
+        )
         assert 'final_third_entry' not in log.passes()[0].tags
 
     def test_a_wide_ball_into_the_box_is_tagged_a_cross(self):
-        log = self.derive([
-            self.at(0.0, 1, TEAM_A, 95.0, 3.0),
-            self.at(3.0, 2, TEAM_A, 100.0, MID_Y),
-        ])
+        log = self.derive(
+            [
+                self.at(0.0, 1, TEAM_A, 95.0, 3.0),
+                self.at(3.0, 2, TEAM_A, 100.0, MID_Y),
+            ]
+        )
         assert 'cross' in log.passes()[0].tags
 
     def test_a_wide_ball_is_tagged_a_switch(self):
-        log = self.derive([
-            self.at(0.0, 1, TEAM_A, 50.0, 5.0),
-            self.at(3.0, 2, TEAM_A, 55.0, 60.0),
-        ])
+        log = self.derive(
+            [
+                self.at(0.0, 1, TEAM_A, 50.0, 5.0),
+                self.at(3.0, 2, TEAM_A, 55.0, 60.0),
+            ]
+        )
         assert 'switch' in log.passes()[0].tags
 
 
@@ -391,22 +427,27 @@ class TestShots(TestCalibrated):
         for step in range(1, 20):
             t = step / FPS
             x = x_m + (L + 1.0 - x_m) * step / 12.0
-            table.records.append(FrameRecord(
-                frame_index=int(t * FPS) + 1,
-                timestamp_s=t,
-                players=np.empty((0, 6), dtype=np.float32),
-                ball_xy=self.px(min(x, L + 1.0), y_m),
-                ball_observed=True,
-            ))
+            table.records.append(
+                FrameRecord(
+                    frame_index=int(t * FPS) + 1,
+                    timestamp_s=t,
+                    players=np.empty((0, 6), dtype=np.float32),
+                    ball_xy=self.px(min(x, L + 1.0), y_m),
+                    ball_observed=True,
+                )
+            )
         table.records.sort(key=lambda r: r.frame_index)
         table._index = None
         return touches, table
 
     def run(self, touches, table, **kwargs):
         return derive_events(
-            TouchSequence(touches=list(touches)), table,
-            pitch=PITCH, orientation=MatchOrientation(home_attacks_first_half='right'),
-            period='first_half', side_of_team={TEAM_A: 'us', TEAM_B: 'them'},
+            TouchSequence(touches=list(touches)),
+            table,
+            pitch=PITCH,
+            orientation=MatchOrientation(home_attacks_first_half='right'),
+            period='first_half',
+            side_of_team={TEAM_A: 'us', TEAM_B: 'them'},
             **kwargs,
         )
 
@@ -421,22 +462,16 @@ class TestShots(TestCalibrated):
         assert self.run(touches, table).shots()[0].outcome == GOAL
 
     def test_the_keeper_getting_to_it_is_a_save(self):
-        touches, table = self.strike(
-            then=[self.at(0.3, 30, TEAM_B, L - 1.0, MID_Y)]
-        )
+        touches, table = self.strike(then=[self.at(0.3, 30, TEAM_B, L - 1.0, MID_Y)])
         log = self.run(touches, table, keeper_tracks={30})
         assert log.shots()[0].outcome == SAVED
 
     def test_a_defender_close_to_the_shooter_blocks_it(self):
-        touches, table = self.strike(
-            then=[self.at(0.2, 20, TEAM_B, 97.0, MID_Y)]
-        )
+        touches, table = self.strike(then=[self.at(0.2, 20, TEAM_B, 97.0, MID_Y)])
         assert self.run(touches, table).shots()[0].outcome == BLOCKED
 
     def test_a_defender_far_away_did_not_block_it(self):
-        touches, table = self.strike(
-            then=[self.at(0.5, 20, TEAM_B, 60.0, MID_Y)]
-        )
+        touches, table = self.strike(then=[self.at(0.5, 20, TEAM_B, 60.0, MID_Y)])
         assert self.run(touches, table).shots()[0].outcome == OFF_TARGET
 
     def test_distance_and_angle_are_measured_from_the_attacked_goal(self):
@@ -478,16 +513,29 @@ OUT_OF_ZONE = (10.0, MID_Y)
 
 def a_pass(t, at=IN_ZONE, team=TEAM_B, outcome=COMPLETED, in_play=True):
     return Pass(
-        event_id=f'p{t}', type=PASS, timestamp_s=t, frame_index=int(t * FPS),
-        team=team, track_id=1, start_xy_px=(0.0, 0.0), start_m=at,
-        outcome=outcome, in_play=in_play,
+        event_id=f'p{t}',
+        type=PASS,
+        timestamp_s=t,
+        frame_index=int(t * FPS),
+        team=team,
+        track_id=1,
+        start_xy_px=(0.0, 0.0),
+        start_m=at,
+        outcome=outcome,
+        in_play=in_play,
     )
 
 
 def an_action(t, at=IN_ZONE, team=TEAM_A, kind=TACKLE, in_play=True):
     return DefensiveAction(
-        event_id=f'a{t}', type=kind, timestamp_s=t, frame_index=int(t * FPS),
-        team=team, track_id=2, start_xy_px=(0.0, 0.0), start_m=at,
+        event_id=f'a{t}',
+        type=kind,
+        timestamp_s=t,
+        frame_index=int(t * FPS),
+        team=team,
+        track_id=2,
+        start_xy_px=(0.0, 0.0),
+        start_m=at,
         in_play=in_play,
     )
 
@@ -501,8 +549,13 @@ class TestPressingSegments:
 
     def segments(self, events, start_s=0.0, end_s=1800.0, segment_s=900.0):
         return pressing_segments(
-            EventLog(events=events), PITCH, TEAM_A, 'right',
-            start_s, end_s, segment_s,
+            EventLog(events=events),
+            PITCH,
+            TEAM_A,
+            'right',
+            start_s,
+            end_s,
+            segment_s,
         )
 
     def test_a_window_too_short_for_two_blocks_has_no_trend(self):
@@ -510,9 +563,17 @@ class TestPressingSegments:
         assert self.segments([a_pass(10.0)], end_s=600.0) is None
 
     def test_it_is_none_without_a_direction_of_play(self):
-        assert pressing_segments(
-            EventLog(events=[a_pass(10.0)]), PITCH, TEAM_A, None, 0.0, 1800.0,
-        ) is None
+        assert (
+            pressing_segments(
+                EventLog(events=[a_pass(10.0)]),
+                PITCH,
+                TEAM_A,
+                None,
+                0.0,
+                1800.0,
+            )
+            is None
+        )
 
     def test_each_event_lands_in_exactly_one_block(self):
         """Boundaries are half-open, or an event on one is counted twice."""
@@ -556,10 +617,13 @@ class TestPressingSegments:
 
     def test_the_zone_and_the_restarts_are_the_same_ones_ppda_uses(self):
         events = [
-            a_pass(10.0), a_pass(20.0, at=OUT_OF_ZONE), a_pass(30.0, in_play=False),
+            a_pass(10.0),
+            a_pass(20.0, at=OUT_OF_ZONE),
+            a_pass(30.0, in_play=False),
         ]
         events += [
-            an_action(40.0), an_action(50.0, at=OUT_OF_ZONE),
+            an_action(40.0),
+            an_action(50.0, at=OUT_OF_ZONE),
             an_action(60.0, team=TEAM_B),
         ]
         first = self.segments(events)[0]
@@ -584,9 +648,11 @@ class TestInPlay:
     """A restart is still a real event; it is just not open play."""
 
     def phases(self, start_s, end_s):
-        return PhaseTable(spans=[
-            DeadSpan(start_s, end_s, 'out_of_bounds', 'throw_in'),
-        ])
+        return PhaseTable(
+            spans=[
+                DeadSpan(start_s, end_s, 'out_of_bounds', 'throw_in'),
+            ]
+        )
 
     def test_events_during_a_stoppage_are_flagged_not_dropped(self):
         # Positioned by hand rather than left to the default layout. Two
@@ -616,8 +682,7 @@ class TestInPlay:
         assert all(e.in_play for e in log)
 
     def test_the_flag_reaches_the_json(self):
-        log = derive([touch(0.0, 1, TEAM_A), touch(0.5, 2, TEAM_A)],
-                     phases=self.phases(0.0, 5.0))
+        log = derive([touch(0.0, 1, TEAM_A), touch(0.5, 2, TEAM_A)], phases=self.phases(0.0, 5.0))
         assert log.to_json()['events'][0]['in_play'] is False
 
 
@@ -625,9 +690,13 @@ class TestSerialisation:
     def test_events_round_trip_through_json(self):
         import json
 
-        log = derive([
-            touch(0.0, 1, TEAM_A), touch(0.5, 2, TEAM_A), touch(1.2, 9, TEAM_B),
-        ])
+        log = derive(
+            [
+                touch(0.0, 1, TEAM_A),
+                touch(0.5, 2, TEAM_A),
+                touch(1.2, 9, TEAM_B),
+            ]
+        )
         text = json.dumps(log.to_json())
         assert json.loads(text)['events']
 
@@ -718,7 +787,9 @@ class TestTurnoversByThird(TestCalibrated):
         """A team that lost the ball nowhere did play; zero is a measurement
         here, unlike the unknown-direction case above."""
         assert turnovers_by_third(derive([]), PITCH, TEAM_A, 'right') == {
-            'defensive': 0, 'middle': 0, 'attacking': 0,
+            'defensive': 0,
+            'middle': 0,
+            'attacking': 0,
         }
 
 
@@ -832,6 +903,8 @@ class TestWhoCountsAsOnePlayer:
     def test_an_empty_index_is_the_old_behaviour(self):
         """A run with no identity stage still derives events, unchanged."""
         assert len(derive(self._dribble(), identity={}).passes()) == 2
+
+
 class TestABallThatCouldNotHaveTravelled:
     """Two touches too far apart, too quickly, are not the ends of one kick.
 
@@ -867,10 +940,12 @@ class TestABallThatCouldNotHaveTravelled:
         turnover would turn every detector slip into a phantom tackle, which is
         the more expensive half of the mistake.
         """
-        log = derive([
-            touch(0.0, 1, TEAM_A, xy_px=(0.0, 0.0)),
-            touch(0.05, 9, TEAM_B, xy_px=(300.0, 0.0)),
-        ])
+        log = derive(
+            [
+                touch(0.0, 1, TEAM_A, xy_px=(0.0, 0.0)),
+                touch(0.05, 9, TEAM_B, xy_px=(300.0, 0.0)),
+            ]
+        )
         assert log.events == []
 
     def test_zero_turns_the_cap_off(self):

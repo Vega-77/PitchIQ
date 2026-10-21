@@ -290,12 +290,9 @@ def phase_of_play(
         report.ended[spell.ended] += 1
         # Cumulative: reaching the final third means having reached midfield.
         limit = _forward_index(spell.reached_third)
-        for third in FORWARD[:limit + 1]:
+        for third in FORWARD[: limit + 1]:
             report.reached[third] += 1
-        if (
-            spell.start_third == zones.DEFENSIVE_THIRD
-            and _forward_index(spell.reached_third) > 0
-        ):
+        if spell.start_third == zones.DEFENSIVE_THIRD and _forward_index(spell.reached_third) > 0:
             report.escaped_defence += 1
 
     if log is not None and pitch is not None and attacking_end is not None:

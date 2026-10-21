@@ -80,6 +80,7 @@ the same claim as a site: it says this surface is empty *and must stay empty*,
 so the day someone declares a token in a `style=` attribute the gate says to
 come back and write the site rather than silently missing it.
 """
+
 import re
 from pathlib import Path
 
@@ -87,10 +88,23 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
-CSS = ['assets/app.css', 'assets/landing.css', 'coach/coach.css',
-       'player/player.css', 'live-tagging/tagging.css', 'halftime/halftime.css', 'calibrate/calibrate.css']
-HTML = ['index.html', 'coach/index.html', 'player/index.html',
-        'live-tagging/index.html', 'halftime/index.html', 'calibrate/index.html']
+CSS = [
+    'assets/app.css',
+    'assets/landing.css',
+    'coach/coach.css',
+    'player/player.css',
+    'live-tagging/tagging.css',
+    'halftime/halftime.css',
+    'calibrate/calibrate.css',
+]
+HTML = [
+    'index.html',
+    'coach/index.html',
+    'player/index.html',
+    'live-tagging/index.html',
+    'halftime/index.html',
+    'calibrate/index.html',
+]
 JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
 SITES = frozenset({'css-decl', 'css-use', 'js-setprop', 'js-use', 'comments'})
@@ -112,14 +126,14 @@ LINE_COMMENT = re.compile(r'(?<![:\'"\\])//[^\n]*')
 def js_files():
     out = []
     for d in JS_DIRS:
-        out += sorted(str(p.relative_to(ROOT)).replace('\\', '/')
-                      for p in (ROOT / d).glob('*.js'))
+        out += sorted(str(p.relative_to(ROOT)).replace('\\', '/') for p in (ROOT / d).glob('*.js'))
     return out
 
 
 def harness_js_files():
-    return sorted(str(p.relative_to(ROOT)).replace('\\', '/')
-                  for p in (ROOT / 'tests').glob('*.js'))
+    return sorted(
+        str(p.relative_to(ROOT)).replace('\\', '/') for p in (ROOT / 'tests').glob('*.js')
+    )
 
 
 def read(rel):
@@ -133,6 +147,7 @@ def uncomment(src, *, line=False):
 
 # ------------------------------------------------------------------ the scan
 
+
 def declared(*, off=frozenset()):
     """{token: [where]} for every token this repo declares."""
     out = {}
@@ -143,8 +158,7 @@ def declared(*, off=frozenset()):
                 out.setdefault(m.group(1), []).append(rel)
     if 'js-setprop' not in off:
         for rel in js_files():
-            src = read(rel) if 'comments' in off else uncomment(read(rel),
-                                                                line=True)
+            src = read(rel) if 'comments' in off else uncomment(read(rel), line=True)
             for m in SETPROP.finditer(src):
                 out.setdefault(m.group(1), []).append(rel)
     return out
@@ -160,8 +174,7 @@ def used(*, off=frozenset()):
                 out.setdefault(m.group(1), []).append((rel, bool(m.group(2))))
     if 'js-use' not in off:
         for rel in js_files():
-            src = read(rel) if 'comments' in off else uncomment(read(rel),
-                                                                line=True)
+            src = read(rel) if 'comments' in off else uncomment(read(rel), line=True)
             for m in USE.finditer(src):
                 out.setdefault(m.group(1), []).append((rel, bool(m.group(2))))
     return out
@@ -178,8 +191,18 @@ def ghost(**kw):
 # ------------------------------------------------------------------ the seam
 
 # Written from script with `style.setProperty`, never declared in a sheet.
-JS_WRITTEN = {'--w', '--tab-x', '--tab-w', '--reveal-i', '--px', '--py',
-              '--mx', '--my', '--sw-a', '--sw-b'}
+JS_WRITTEN = {
+    '--w',
+    '--tab-x',
+    '--tab-w',
+    '--reveal-i',
+    '--px',
+    '--py',
+    '--mx',
+    '--my',
+    '--sw-a',
+    '--sw-b',
+}
 
 
 class TestTheSeamHoldsInBothDirections:
@@ -231,6 +254,7 @@ class TestAGhostWithAFallbackIsTheSilentOne:
 
 # ------------------------------------------------------- each site earns itself
 
+
 class TestEachScanSiteIsLoadBearing:
     """Five sites, and a guard that cannot fire is dead machinery.
 
@@ -257,11 +281,9 @@ class TestEachScanSiteIsLoadBearing:
         # kept because the thing it finds is a real use in a served file. Drop
         # the site and a token read only from JS reads as dead, which is the
         # direction that gets acted on.
-        hits = {t: w for t, w in used().items()
-                if any(rel.endswith('.js') for rel, _ in w)}
+        hits = {t: w for t, w in used().items() if any(rel.endswith('.js') for rel, _ in w)}
         assert set(hits) == {'--line'}
-        assert [rel for rel, _ in hits['--line'] if rel.endswith('.js')] \
-            == ['coach/coach.js']
+        assert [rel for rel, _ in hits['--line'] if rel.endswith('.js')] == ['coach/coach.js']
         assert dead(off={'js-use'}) == dead()
 
     def test_comments_are_stripped_before_anything_is_counted(self):
@@ -283,8 +305,7 @@ class TestEachScanSiteIsLoadBearing:
         for site in SITES:
             # `comments` is consulted the other way round -- it strips rather
             # than adds, so its branch reads `in off`, not `not in off`.
-            reads = (src.count("'%s' not in off" % site)
-                     + src.count("'%s' in off" % site))
+            reads = src.count("'%s' not in off" % site) + src.count("'%s' in off" % site)
             assert reads >= 1, site
 
 
@@ -299,26 +320,31 @@ class TestNothingScansTheseSurfaces:
     """
 
     def test_no_html_file_declares_a_custom_property(self):
-        found = [(rel, m.group(1)) for rel in HTML
-                 for m in DECL.finditer(read(rel))]
+        found = [(rel, m.group(1)) for rel in HTML for m in DECL.finditer(read(rel))]
         assert found == [], 'write the style-attr site: %r' % found
 
     def test_no_html_file_reads_a_custom_property(self):
-        found = [(rel, m.group(1)) for rel in HTML
-                 for m in USE.finditer(read(rel))]
+        found = [(rel, m.group(1)) for rel in HTML for m in USE.finditer(read(rel))]
         assert found == [], 'write the html-use site: %r' % found
 
     def test_no_js_file_declares_a_custom_property_outside_setproperty(self):
-        found = [(rel, m.group(1)) for rel in js_files()
-                 for m in DECL.finditer(uncomment(read(rel), line=True))]
+        found = [
+            (rel, m.group(1))
+            for rel in js_files()
+            for m in DECL.finditer(uncomment(read(rel), line=True))
+        ]
         assert found == [], 'write the js-template site: %r' % found
 
     def test_no_test_harness_touches_a_custom_property(self):
         # The id seam keeps its harness site because `tests/smoke.test.js`
         # genuinely reaches into the markup by id. Nothing in `tests/` reaches
         # into the theme, so here the same surface is a tripwire instead.
-        found = [(rel, m.group(1)) for rel in harness_js_files()
-                 for rx in (DECL, USE) for m in rx.finditer(read(rel))]
+        found = [
+            (rel, m.group(1))
+            for rel in harness_js_files()
+            for rx in (DECL, USE)
+            for m in rx.finditer(read(rel))
+        ]
         assert found == [], 'write the harness site: %r' % found
 
     def test_no_javascript_comment_mentions_a_custom_property(self):
@@ -327,12 +353,12 @@ class TestNothingScansTheseSurfaces:
         for rel in js_files():
             src = read(rel)
             for chunk in BLOCK_COMMENT.findall(src) + LINE_COMMENT.findall(src):
-                found += [(rel, m.group(1)) for rx in (DECL, USE)
-                          for m in rx.finditer(chunk)]
+                found += [(rel, m.group(1)) for rx in (DECL, USE) for m in rx.finditer(chunk)]
         assert found == [], found
 
 
 # ------------------------------------------------------------- anti-vacuum
+
 
 class TestTheScannerCanSeeTheRepo:
     """Every assertion above is either "this set is empty" or a count, and a

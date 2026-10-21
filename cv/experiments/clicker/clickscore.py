@@ -20,6 +20,7 @@ scores.py + build_page.py and a publish to https://claude.ai/artifact/JRfTwH2bYh
 
 A half with no pass yet (Piscataway H2) is listed as waiting and scores nothing.
 """
+
 import glob
 import json
 import os
@@ -29,11 +30,20 @@ from collections import defaultdict
 import numpy as np
 
 # PIQ_DATA: the data folder beside the repo, as cv/experiments/autocal_run.py has it.
-DATA = os.environ.get('PIQ_DATA', os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))), 'PitchIQ-data'))
+DATA = os.environ.get(
+    'PIQ_DATA',
+    os.path.join(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            )
+        ),
+        'PitchIQ-data',
+    ),
+)
 ROOT = os.path.join(DATA, 'clicker')
 BT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'balltrack')
-TOL = 15.0          # px at 1920x1080: the drawn ring's radius (14) plus one
+TOL = 15.0  # px at 1920x1080: the drawn ring's radius (14) plus one
 
 
 def rings(MV, tag, frames):
@@ -51,8 +61,11 @@ def rings(MV, tag, frames):
         if flash[i]:
             out[f] = (None, '')
         elif air[i]:
-            q = np.linalg.solve(tr.A, [B['x'][i], B['y'][i], 1.0]); uv = q[:2] / q[2]
-            b_, _ = tr.project(np.full(2, i), np.array([[uv[0], uv[1], B['z'][i]], [uv[0], uv[1], 0.0]]))
+            q = np.linalg.solve(tr.A, [B['x'][i], B['y'][i], 1.0])
+            uv = q[:2] / q[2]
+            b_, _ = tr.project(
+                np.full(2, i), np.array([[uv[0], uv[1], B['z'][i]], [uv[0], uv[1], 0.0]])
+            )
             out[f] = (b_, 'air')
         elif P['src'][i] > 0 and np.isfinite(P['x'][i]):
             out[f] = ((P['x'][i], P['y'][i]), 'ground')
@@ -78,6 +91,7 @@ def main():
         by[items[k]['half']].append((items[k]['f'], a, k))
     sys.path.insert(0, os.path.abspath(BT))
     import match_video as MV
+
     out = {}
     for tag in sorted(by):
         vals = defaultdict(int)
@@ -87,7 +101,9 @@ def main():
         if not os.path.exists(os.path.join(BT, 'alltests', 'p2d', 'hyb90', tag + '.npz')):
             row['waiting'] = 'no pass yet'
             out[tag] = row
-            print('%-8s %3d answered  %s  (no pass yet: not scored)' % (tag, len(by[tag]), dict(vals)))
+            print(
+                '%-8s %3d answered  %s  (no pass yet: not scored)' % (tag, len(by[tag]), dict(vals))
+            )
             continue
         at = rings(MV, tag, [f for f, _, _ in by[tag]])
         ring, miss, wrong = [0, 0], [0, 0], []
@@ -101,7 +117,14 @@ def main():
                 if d is not None and d <= TOL:
                     ring[0] += 1
                 else:
-                    wrong.append(dict(id=k, f=f, why='ring %s, %s' % (kind, 'not in frame' if d is None else '%.0f px off' % d)))
+                    wrong.append(
+                        dict(
+                            id=k,
+                            f=f,
+                            why='ring %s, %s'
+                            % (kind, 'not in frame' if d is None else '%.0f px off' % d),
+                        )
+                    )
             else:
                 miss[1] += 1
                 if a['v'] == 'out':
@@ -110,9 +133,15 @@ def main():
                     wrong.append(dict(id=k, f=f, why='no ring on a visible ball'))
         row.update(ballring=ring, ballmiss=miss, wrong=wrong)
         out[tag] = row
-        print('%-8s %3d answered  ring on ball %d/%d  no ball left %d/%d  %s'
-              % (tag, len(by[tag]), ring[0], ring[1], miss[0], miss[1], dict(vals)))
-    json.dump(out, open(os.path.join(os.path.dirname(os.path.abspath(adir)), 'clicks.json'), 'w'), indent=1)
+        print(
+            '%-8s %3d answered  ring on ball %d/%d  no ball left %d/%d  %s'
+            % (tag, len(by[tag]), ring[0], ring[1], miss[0], miss[1], dict(vals))
+        )
+    json.dump(
+        out,
+        open(os.path.join(os.path.dirname(os.path.abspath(adir)), 'clicks.json'), 'w'),
+        indent=1,
+    )
 
 
 if __name__ == '__main__':

@@ -11,7 +11,7 @@ not been checked against a match anyone watched; see cv/pipeline.py's status.
 
 from __future__ import annotations
 
-import re
+import ast
 from pathlib import Path
 
 import numpy as np
@@ -46,11 +46,16 @@ class TestFeatureParity:
         Hard-coding the expected list here would defeat the purpose: it would
         pass happily while main.py drifted away from it.
         """
-        source = TRAINING_SCRIPT.read_text(encoding='utf-8')
-        match = re.search(r'FEATURES\s*=\s*\[(.*?)\]', source, re.S)
-        assert match, 'could not find FEATURES in main.py'
+        tree = ast.parse(TRAINING_SCRIPT.read_text(encoding='utf-8'))
+        assigned = [
+            node.value
+            for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == 'FEATURES' for t in node.targets)
+        ]
+        assert assigned, 'could not find FEATURES in main.py'
 
-        trained = re.findall(r'"([a-z_]+)"', match.group(1))
+        trained = ast.literal_eval(assigned[0])
 
         assert trained == FEATURE_ORDER, (
             'feature order drifted from the trained model.\n'
@@ -93,10 +98,8 @@ class TestGeometry:
         prevent.
         """
         spot = (95.0, 34.0)
-        attacking_right = build_features(
-            ShotContext(shooter_m=spot, attacking_end='right'), pitch)
-        attacking_left = build_features(
-            ShotContext(shooter_m=spot, attacking_end='left'), pitch)
+        attacking_right = build_features(ShotContext(shooter_m=spot, attacking_end='right'), pitch)
+        attacking_left = build_features(ShotContext(shooter_m=spot, attacking_end='left'), pitch)
 
         assert attacking_right['distance_to_goal'] < 15
         assert attacking_left['distance_to_goal'] > 80
@@ -115,32 +118,46 @@ class TestGeometry:
 class TestDefenders:
     def test_a_defender_in_the_way_is_counted(self, pitch):
         # Directly between a central shooter and the goal.
-        blocked = build_features(ShotContext(
-            shooter_m=(90.0, 34.0), defenders_m=[(97.0, 34.0)],
-        ), pitch)
+        blocked = build_features(
+            ShotContext(
+                shooter_m=(90.0, 34.0),
+                defenders_m=[(97.0, 34.0)],
+            ),
+            pitch,
+        )
 
         assert blocked['defenders_in_cone'] == 1
         assert blocked['defender_pressure'] > 0
 
     def test_a_defender_behind_the_shooter_is_not(self, pitch):
-        behind = build_features(ShotContext(
-            shooter_m=(90.0, 34.0), defenders_m=[(80.0, 34.0)],
-        ), pitch)
+        behind = build_features(
+            ShotContext(
+                shooter_m=(90.0, 34.0),
+                defenders_m=[(80.0, 34.0)],
+            ),
+            pitch,
+        )
 
         assert behind['defenders_in_cone'] == 0
 
     def test_a_defender_out_wide_is_not(self, pitch):
-        wide = build_features(ShotContext(
-            shooter_m=(90.0, 34.0), defenders_m=[(95.0, 5.0)],
-        ), pitch)
+        wide = build_features(
+            ShotContext(
+                shooter_m=(90.0, 34.0),
+                defenders_m=[(95.0, 5.0)],
+            ),
+            pitch,
+        )
 
         assert wide['defenders_in_cone'] == 0
 
     def test_closer_defenders_apply_more_pressure(self, pitch):
-        close = build_features(ShotContext(
-            shooter_m=(90.0, 34.0), defenders_m=[(92.0, 34.0)]), pitch)
-        distant = build_features(ShotContext(
-            shooter_m=(90.0, 34.0), defenders_m=[(102.0, 34.0)]), pitch)
+        close = build_features(
+            ShotContext(shooter_m=(90.0, 34.0), defenders_m=[(92.0, 34.0)]), pitch
+        )
+        distant = build_features(
+            ShotContext(shooter_m=(90.0, 34.0), defenders_m=[(102.0, 34.0)]), pitch
+        )
 
         assert close['defender_pressure'] > distant['defender_pressure']
 
@@ -159,10 +176,8 @@ class TestKeeper:
         assert features['keeper_off_line'] == 0.0
 
     def test_a_keeper_off_their_line_is_flagged(self, pitch):
-        advanced = build_features(ShotContext(
-            shooter_m=(95.0, 34.0), keeper_m=(95.0, 34.0)), pitch)
-        on_line = build_features(ShotContext(
-            shooter_m=(95.0, 34.0), keeper_m=(104.5, 34.0)), pitch)
+        advanced = build_features(ShotContext(shooter_m=(95.0, 34.0), keeper_m=(95.0, 34.0)), pitch)
+        on_line = build_features(ShotContext(shooter_m=(95.0, 34.0), keeper_m=(104.5, 34.0)), pitch)
 
         assert advanced['keeper_off_line'] == 1.0
         assert on_line['keeper_off_line'] == 0.0
@@ -214,10 +229,8 @@ class TestPitchSizeSensitivity:
         small = Pitch(length_m=95.0, width_m=60.0)
         large = Pitch(length_m=110.0, width_m=70.0)
 
-        small_shot = build_features(
-            ShotContext(shooter_m=(95.0 - 11.0, 30.0)), small)
-        large_shot = build_features(
-            ShotContext(shooter_m=(110.0 - 11.0, 35.0)), large)
+        small_shot = build_features(ShotContext(shooter_m=(95.0 - 11.0, 30.0)), small)
+        large_shot = build_features(ShotContext(shooter_m=(110.0 - 11.0, 35.0)), large)
 
         assert small_shot['distance_to_goal'] == pytest.approx(13.9, abs=0.2)
         assert large_shot['distance_to_goal'] == pytest.approx(12.0, abs=0.2)
@@ -236,14 +249,20 @@ class TestOrientationIntegration:
         orientation = MatchOrientation(home_attacks_first_half='right')
         spot = (95.0, 34.0)
 
-        first = build_features(ShotContext(
-            shooter_m=spot,
-            attacking_end=orientation.attacking_end('us', 'first_half'),
-        ), pitch)
-        second = build_features(ShotContext(
-            shooter_m=spot,
-            attacking_end=orientation.attacking_end('us', 'kickoff_2nd'),
-        ), pitch)
+        first = build_features(
+            ShotContext(
+                shooter_m=spot,
+                attacking_end=orientation.attacking_end('us', 'first_half'),
+            ),
+            pitch,
+        )
+        second = build_features(
+            ShotContext(
+                shooter_m=spot,
+                attacking_end=orientation.attacking_end('us', 'kickoff_2nd'),
+            ),
+            pitch,
+        )
 
         assert first['distance_to_goal'] < second['distance_to_goal']
 
@@ -261,11 +280,14 @@ class TestKeeperGuess:
     SCALE = 20.0
 
     def calibration(self, pitch):
-        homography = np.array([
-            [1 / self.SCALE, 0.0, 0.0],
-            [0.0, 1 / self.SCALE, 0.0],
-            [0.0, 0.0, 1.0],
-        ], dtype=np.float64)
+        homography = np.array(
+            [
+                [1 / self.SCALE, 0.0, 0.0],
+                [0.0, 1 / self.SCALE, 0.0],
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=np.float64,
+        )
         return Calibration(homography, pitch, image_size=(1920, 1080))
 
     def box(self, x_m, y_m):
@@ -294,11 +316,14 @@ class TestKeeperGuess:
         dropped fifty metres the other way. Guessing the centre-back tells the
         model the goal is empty.
         """
-        context = self.context(pitch, [
-            (7, 'a', 95.0, 34.0),          # shooter
-            (30, 'b', 103.0, 34.0),        # keeper, on his line
-            (20, 'b', 40.0, 34.0),         # deepest opponent, nowhere near it
-        ])
+        context = self.context(
+            pitch,
+            [
+                (7, 'a', 95.0, 34.0),  # shooter
+                (30, 'b', 103.0, 34.0),  # keeper, on his line
+                (20, 'b', 40.0, 34.0),  # deepest opponent, nowhere near it
+            ],
+        )
         assert context.keeper_m == (103.0, 34.0)
         assert context.defenders_m == [(40.0, 34.0)]
 
@@ -326,11 +351,15 @@ class TestKeeperGuess:
         The point is that the caller's answer wins outright — `cv/keeper.py` and
         a human both know things this geometry does not.
         """
-        context = self.context(pitch, [
-            (7, 'a', 95.0, 34.0),
-            (30, 'b', 103.0, 34.0),
-            (20, 'b', 40.0, 34.0),
-        ], keeper_track=20)
+        context = self.context(
+            pitch,
+            [
+                (7, 'a', 95.0, 34.0),
+                (30, 'b', 103.0, 34.0),
+                (20, 'b', 40.0, 34.0),
+            ],
+            keeper_track=20,
+        )
         assert context.keeper_m == (40.0, 34.0)
         assert context.defenders_m == [(103.0, 34.0)]
 
@@ -352,11 +381,11 @@ class TestTheRealModel:
     @staticmethod
     def metres(sx: float, sy: float) -> tuple[float, float]:
         pitch = Pitch()
-        return (sx / STATSBOMB_LENGTH * pitch.length_m,
-                sy / STATSBOMB_WIDTH * pitch.width_m)
+        return (sx / STATSBOMB_LENGTH * pitch.length_m, sy / STATSBOMB_WIDTH * pitch.width_m)
 
     def test_the_model_file_is_where_the_bridge_looks(self):
         from cv.xg_bridge import MODEL_PATH
+
         assert MODEL_PATH.exists(), f'missing model: {MODEL_PATH}'
 
     def test_the_bridge_can_actually_run_the_model(self, pitch):
@@ -384,8 +413,7 @@ class TestTheRealModel:
         session = load_session()
 
         def xg_from(sx: float, sy: float) -> float:
-            context = ShotContext(shooter_m=self.metres(sx, sy),
-                                  keeper_m=self.metres(118.0, 40.0))
+            context = ShotContext(shooter_m=self.metres(sx, sy), keeper_m=self.metres(118.0, 40.0))
             return _predict(session, feature_vector(context, pitch))
 
         six_yards = xg_from(114.0, 40.0)

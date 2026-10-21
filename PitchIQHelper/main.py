@@ -13,14 +13,14 @@ import time
 # ---------------------------------------------------------------------------
 # Pitch constants  (StatsBomb coordinate system: 120x80)
 # ---------------------------------------------------------------------------
-GOAL   = np.array([120.0, 40.0])
+GOAL = np.array([120.0, 40.0])
 POST_L = np.array([120.0, 36.0])
 POST_R = np.array([120.0, 44.0])
 
 # ---------------------------------------------------------------------------
 # Data loading  (cached after first run)
 # ---------------------------------------------------------------------------
-CACHE_FILE = "xg_raw_shots_cache.pkl"
+CACHE_FILE = 'xg_raw_shots_cache.pkl'
 
 # xg_model6 -> 7 on 2026-08-06, when the export below was found to be throwing
 # away the calibration step; 7 -> 8 the same day, dropping shot_height. See the
@@ -31,8 +31,9 @@ CACHE_FILE = "xg_raw_shots_cache.pkl"
 # retrain that changes the model bumps the number, as 6 -> 7 -> 8 did, and
 # MODEL_PATH in xg_bridge.py with it. The plots go to docs/xg/.
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ONNX_FILE  = os.path.join(_REPO, "cv", "xg_model8.onnx")
-PLOT_DIR   = os.path.join(_REPO, "docs", "xg")
+ONNX_FILE = os.path.join(_REPO, 'cv', 'xg_model8.onnx')
+PLOT_DIR = os.path.join(_REPO, 'docs', 'xg')
+
 
 # ---------------------------------------------------------------------------
 # Geometry helpers
@@ -54,7 +55,7 @@ def in_shot_cone(p, ball):
     ball, p = np.array(ball), np.array(p)
     v0, v1, v2 = POST_R - ball, POST_L - ball, p - ball
     d00, d01, d02 = np.dot(v0, v0), np.dot(v0, v1), np.dot(v0, v2)
-    d11, d12      = np.dot(v1, v1), np.dot(v1, v2)
+    d11, d12 = np.dot(v1, v1), np.dot(v1, v2)
     inv = 1.0 / (d00 * d11 - d01 * d01 + 1e-9)
     u = (d11 * d02 - d01 * d12) * inv
     v = (d00 * d12 - d01 * d02) * inv
@@ -65,75 +66,72 @@ def in_shot_cone(p, ball):
 # Feature extraction
 # ---------------------------------------------------------------------------
 def parse(row):
-    shot = row["shot"]
-    loc  = np.array(row["location"])
-    freeze = shot.get("freeze_frame", [])
+    shot = row['shot']
+    loc = np.array(row['location'])
+    freeze = shot.get('freeze_frame', [])
 
     keeper = None
-    defenders_in_cone   = 0
-    defender_pressure   = 0.0   # weighted: closer defenders count more
+    defenders_in_cone = 0
+    defender_pressure = 0.0  # weighted: closer defenders count more
 
     for player in freeze:
-        if not player.get("location"):
+        if not player.get('location'):
             continue
-        p_loc = np.array(player["location"])
-        pos   = player.get("position", {}).get("name", "")
+        p_loc = np.array(player['location'])
+        pos = player.get('position', {}).get('name', '')
 
-        if pos == "Goalkeeper":
+        if pos == 'Goalkeeper':
             keeper = p_loc
             continue
 
-        if not player.get("teammate") and in_shot_cone(p_loc, loc):
+        if not player.get('teammate') and in_shot_cone(p_loc, loc):
             defenders_in_cone += 1
             defender_pressure += 1.0 / (dist(p_loc, loc) + 1e-9)
 
     # --- body part flags (3-way split, not 2-way) ---
-    body = shot.get("body_part", {}).get("name", "")
-    is_foot   = 1 if body in ("Right Foot", "Left Foot") else 0
-    is_header = 1 if body == "Head" else 0
+    body = shot.get('body_part', {}).get('name', '')
+    is_foot = 1 if body in ('Right Foot', 'Left Foot') else 0
+    is_header = 1 if body == 'Head' else 0
 
     # --- shot end height (z-axis when available) ---
-    end_loc      = shot.get("end_location", [])
-    shot_height  = float(end_loc[2]) if len(end_loc) > 2 else np.nan
+    end_loc = shot.get('end_location', [])
+    shot_height = float(end_loc[2]) if len(end_loc) > 2 else np.nan
 
     # --- goalkeeper features ---
     if keeper is not None:
         keeper_dist = dist(keeper)
-        keeper_ang  = shot_angle(keeper)
+        keeper_ang = shot_angle(keeper)
         keeper_off_line = 1 if keeper_dist > 3.0 else 0
     else:
-        keeper_dist     = 5.0
-        keeper_ang      = shot_angle([115.0, 40.0])
+        keeper_dist = 5.0
+        keeper_ang = shot_angle([115.0, 40.0])
         keeper_off_line = 0
 
     return {
         # location
-        "distance_to_goal"      : dist(loc),
-        "angle_to_goal"         : shot_angle(loc),
+        'distance_to_goal': dist(loc),
+        'angle_to_goal': shot_angle(loc),
         # body part
-        "is_foot"               : is_foot,
-        "is_header"             : is_header,
+        'is_foot': is_foot,
+        'is_header': is_header,
         # context
-        "under_pressure"        : 1 if row.get("under_pressure") else 0,
-        "is_freekick"           : 1 if shot.get("type", {}).get("name") == "Free Kick" else 0,
-        "is_open_play"          : 1 if shot.get("type", {}).get("name") == "Open Play" else 0,
+        'under_pressure': 1 if row.get('under_pressure') else 0,
+        'is_freekick': 1 if shot.get('type', {}).get('name') == 'Free Kick' else 0,
+        'is_open_play': 1 if shot.get('type', {}).get('name') == 'Open Play' else 0,
         # shot quality
-        "shot_height"           : shot_height,
+        'shot_height': shot_height,
         # goalkeeper
-        "keeper_distance_to_goal": keeper_dist,
-        "keeper_angle_coverage" : keeper_ang,
-        "keeper_off_line"       : keeper_off_line,
+        'keeper_distance_to_goal': keeper_dist,
+        'keeper_angle_coverage': keeper_ang,
+        'keeper_off_line': keeper_off_line,
         # defenders
-        "defenders_in_cone"     : defenders_in_cone,
-        "defender_pressure"     : defender_pressure,
+        'defenders_in_cone': defenders_in_cone,
+        'defender_pressure': defender_pressure,
         # data quality flag (used for weighting, not a feature)
-        "has_freeze_frame"      : 1 if len(freeze) > 0 else 0,
+        'has_freeze_frame': 1 if len(freeze) > 0 else 0,
         # label
-        "is_goal"               : 1 if shot.get("outcome", {}).get("name") == "Goal" else 0,
+        'is_goal': 1 if shot.get('outcome', {}).get('name') == 'Goal' else 0,
     }
-
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -147,41 +145,55 @@ def load_data(offline=False):
     # export bug a five-minute job rather than an afternoon.
     if offline:
         if not os.path.exists(CACHE_FILE):
-            raise SystemExit(f"No {CACHE_FILE} to work from — run without --offline once.")
+            raise SystemExit(f'No {CACHE_FILE} to work from — run without --offline once.')
         shots = pd.read_pickle(CACHE_FILE)
-        print(f"Offline: {len(shots)} cached shots from "
-              f"{shots['match_id'].nunique()} matches.")
-        print("Parsing features from raw data...")
+        print(f'Offline: {len(shots)} cached shots from {shots["match_id"].nunique()} matches.')
+        print('Parsing features from raw data...')
         return pd.DataFrame([parse(r) for _, r in shots.iterrows()])
 
     # Imported here rather than at the top so a machine that only wants to
     # re-export from the cache does not need the StatsBomb client installed.
     from statsbombpy import sb
 
-    print("Fetching match lists from StatsBomb (with safety delays)...")
+    print('Fetching match lists from StatsBomb (with safety delays)...')
 
     tournaments = [
         # --- Your Original 5 Seasons ---
-        (11, 90), (12, 27), (2, 27), (7, 235), (9, 281),
-
+        (11, 90),
+        (12, 27),
+        (2, 27),
+        (7, 235),
+        (9, 281),
         # --- The First Expansion (Internationals) ---
-        (43, 106), (43, 3), (55, 43), (16, 4), (72, 30),
-
+        (43, 106),
+        (43, 3),
+        (55, 43),
+        (16, 4),
+        (72, 30),
         # --- THE NEW MASSIVE EXPANSION ---
         # Historical La Liga (The Messi Data)
-        (11, 42), (11, 4), (11, 1), (11, 2), (11, 27), (11, 26), (11, 25), (11, 24),
-
+        (11, 42),
+        (11, 4),
+        (11, 1),
+        (11, 2),
+        (11, 27),
+        (11, 26),
+        (11, 25),
+        (11, 24),
         # FA Women's Super League
-        (37, 90), (37, 42), (37, 4),
-
+        (37, 90),
+        (37, 42),
+        (37, 4),
         # Historical Champions League
-        (16, 37), (16, 39), (16, 27), (16, 26), (16, 22),
-
+        (16, 37),
+        (16, 39),
+        (16, 27),
+        (16, 26),
+        (16, 22),
         # Premier League (Arsenal Invincibles 03/04)
         (2, 44),
-
         # Indian Super League (2021/2022)
-        (1238, 108)
+        (1238, 108),
     ]
 
     match_dfs = []
@@ -190,16 +202,16 @@ def load_data(offline=False):
             match_dfs.append(sb.matches(competition_id=comp_id, season_id=season_id))
             time.sleep(0.5)  # The magic anti-crash delay
         except Exception as e:
-            print(f"Skipping {comp_id}/{season_id}: {e}")
+            print(f'Skipping {comp_id}/{season_id}: {e}')
 
     matches = pd.concat(match_dfs, ignore_index=True)
-    all_match_ids = set(matches["match_id"])
+    all_match_ids = set(matches['match_id'])
 
     # 1. Load what we already have
     if os.path.exists(CACHE_FILE):
-        print("Loading existing cache to check for missing data...")
+        print('Loading existing cache to check for missing data...')
         shots = pd.read_pickle(CACHE_FILE)
-        cached_match_ids = set(shots["match_id"].unique())
+        cached_match_ids = set(shots['match_id'].unique())
     else:
         shots = pd.DataFrame()
         cached_match_ids = set()
@@ -209,16 +221,16 @@ def load_data(offline=False):
 
     # 3. Download only what's missing
     if missing_match_ids:
-        print(f"Found {len(missing_match_ids)} NEW matches to download. Skipping the rest!")
+        print(f'Found {len(missing_match_ids)} NEW matches to download. Skipping the rest!')
         new_shots_list = []
 
         for i, mid in enumerate(missing_match_ids):
             if i % 50 == 0:
-                print(f"  {i}/{len(missing_match_ids)} new matches downloaded...")
+                print(f'  {i}/{len(missing_match_ids)} new matches downloaded...')
             try:
                 events = sb.events(match_id=mid, split=True, flatten_attrs=False)
-                if "shots" in events:
-                    new_shots_list.append(events["shots"])
+                if 'shots' in events:
+                    new_shots_list.append(events['shots'])
                 time.sleep(0.5)  # Delay for the actual downloads too
             except:
                 pass
@@ -229,12 +241,12 @@ def load_data(offline=False):
 
         # Resave the updated master cache
         shots.to_pickle(CACHE_FILE)
-        print(f"Appended new data and updated cache → {CACHE_FILE}")
+        print(f'Appended new data and updated cache → {CACHE_FILE}')
     else:
-        print("Cache is already 100% up to date!")
+        print('Cache is already 100% up to date!')
 
     # 4. Parse features
-    print("Parsing features from raw data...")
+    print('Parsing features from raw data...')
     df = pd.DataFrame([parse(r) for _, r in shots.iterrows()])
 
     return df
@@ -249,11 +261,17 @@ def load_data(offline=False):
 # in cv/xg_bridge.py — and a reordering here is silent there. Nothing can check
 # the two against each other but a person.
 FEATURES = [
-    "distance_to_goal", "angle_to_goal",
-    "is_foot", "is_header",
-    "under_pressure", "is_open_play",
-    "keeper_distance_to_goal", "keeper_angle_coverage", "keeper_off_line",
-    "defenders_in_cone", "defender_pressure",
+    'distance_to_goal',
+    'angle_to_goal',
+    'is_foot',
+    'is_header',
+    'under_pressure',
+    'is_open_play',
+    'keeper_distance_to_goal',
+    'keeper_angle_coverage',
+    'keeper_off_line',
+    'defenders_in_cone',
+    'defender_pressure',
 ]
 
 # shot_height is deliberately not in that list, and parse() still computes it so
@@ -280,6 +298,7 @@ FEATURES = [
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main(offline=False, show_plots=True, cross_validate=True):
     df = load_data(offline=offline)
 
@@ -288,16 +307,16 @@ def main(offline=False, show_plots=True, cross_validate=True):
     # comment here used to say penalties were dropped too. They are not — a
     # penalty is type "Penalty", not "Free Kick", so it survives this line and
     # reaches the model with is_open_play = 0.
-    df = df[df["is_freekick"] == 0].copy()   # drop direct free-kick shots
-    df = df.dropna(subset=["distance_to_goal", "angle_to_goal"])
+    df = df[df['is_freekick'] == 0].copy()  # drop direct free-kick shots
+    df = df.dropna(subset=['distance_to_goal', 'angle_to_goal'])
 
     # Impute missing shot_height with median (z-axis not always present)
-    df["shot_height"] = df["shot_height"].fillna(df["shot_height"].median())
+    df['shot_height'] = df['shot_height'].fillna(df['shot_height'].median())
 
     X = df[FEATURES].values.astype(np.float32)
-    y = df["is_goal"].values
+    y = df['is_goal'].values
     # down-weight shots without freeze frames
-    sample_weight = np.where(df["has_freeze_frame"] == 1, 1.0, 0.7)
+    sample_weight = np.where(df['has_freeze_frame'] == 1, 1.0, 0.7)
 
     Xtr, Xte, ytr, yte, wtr, _ = train_test_split(
         X, y, sample_weight, test_size=0.15, random_state=50, stratify=y
@@ -313,44 +332,48 @@ def main(offline=False, show_plots=True, cross_validate=True):
         subsample=0.8,
         colsample_bytree=0.8,
         scale_pos_weight=(y == 0).sum() / (y == 1).sum(),
-        eval_metric="auc",
+        eval_metric='auc',
         random_state=50,
         verbosity=0,
     )
 
     # Isotonic calibration so predicted probabilities are meaningful as xG values
-    model = CalibratedClassifierCV(base_model, method="isotonic", cv=5)
+    model = CalibratedClassifierCV(base_model, method='isotonic', cv=5)
     model.fit(Xtr, ytr, sample_weight=wtr)
 
     preds = model.predict_proba(Xte)[:, 1]
-    print(f"\nTest  →  AUC: {roc_auc_score(yte, preds):.4f}   "
-          f"Brier: {brier_score_loss(yte, preds):.4f}")
+    print(
+        f'\nTest  →  AUC: {roc_auc_score(yte, preds):.4f}   '
+        f'Brier: {brier_score_loss(yte, preds):.4f}'
+    )
 
     # The one line that would have caught the export bug. A set of xG values
     # that does not add up to the goals actually scored is not xG, whatever
     # else it is, and this says so in one number.
-    print(f"Sum   →  predicted {preds.sum():.1f} goals over {len(yte)} shots, "
-          f"actual {yte.sum()}  (mean xG {preds.mean():.3f})")
+    print(
+        f'Sum   →  predicted {preds.sum():.1f} goals over {len(yte)} shots, '
+        f'actual {yte.sum()}  (mean xG {preds.mean():.3f})'
+    )
 
     if cross_validate:
         # 5-fold cross-validated AUC on full dataset
-        cv      = StratifiedKFold(n_splits=5, shuffle=True, random_state=50)
-        cv_aucs = cross_val_score(model, X, y, cv=cv, scoring="roc_auc")
-        print(f"CV    →  AUC: {cv_aucs.mean():.4f} ± {cv_aucs.std():.4f}")
+        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=50)
+        cv_aucs = cross_val_score(model, X, y, cv=cv, scoring='roc_auc')
+        print(f'CV    →  AUC: {cv_aucs.mean():.4f} ± {cv_aucs.std():.4f}')
 
     # -----------------------------------------------------------------------
     # Calibration curve
     # -----------------------------------------------------------------------
     prob_true, prob_pred = calibration_curve(yte, preds, n_bins=10)
     plt.figure(figsize=(6, 5))
-    plt.plot(prob_pred, prob_true, marker="o", label="Model")
-    plt.plot([0, 1], [0, 1], "--", color="gray", label="Perfect")
-    plt.xlabel("Predicted xG")
-    plt.ylabel("Actual conversion rate")
-    plt.title("Calibration Curve")
+    plt.plot(prob_pred, prob_true, marker='o', label='Model')
+    plt.plot([0, 1], [0, 1], '--', color='gray', label='Perfect')
+    plt.xlabel('Predicted xG')
+    plt.ylabel('Actual conversion rate')
+    plt.title('Calibration Curve')
     plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, "calibration_curve.png"), dpi=150)
+    plt.savefig(os.path.join(PLOT_DIR, 'calibration_curve.png'), dpi=150)
     if show_plots:
         plt.show()
 
@@ -365,11 +388,15 @@ def main(offline=False, show_plots=True, cross_validate=True):
     xgb_estimator.get_booster().feature_names = FEATURES
 
     plt.figure(figsize=(10, 6))
-    plot_importance(xgb_estimator, importance_type="weight",
-                    max_num_features=len(FEATURES),
-                    title="XGBoost Feature Importance", show_values=False)
+    plot_importance(
+        xgb_estimator,
+        importance_type='weight',
+        max_num_features=len(FEATURES),
+        title='XGBoost Feature Importance',
+        show_values=False,
+    )
     plt.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, "feature_importance.png"), dpi=150)
+    plt.savefig(os.path.join(PLOT_DIR, 'feature_importance.png'), dpi=150)
     if show_plots:
         plt.show()
 
@@ -408,20 +435,22 @@ def main(offline=False, show_plots=True, cross_validate=True):
     )
 
     update_registered_converter(
-        XGBClassifier, "XGBoostXGBClassifier",
-        calculate_linear_classifier_output_shapes, convert_xgboost_operator,
-        options={"nocl": [True, False], "zipmap": [True, False, "columns"]},
+        XGBClassifier,
+        'XGBoostXGBClassifier',
+        calculate_linear_classifier_output_shapes,
+        convert_xgboost_operator,
+        options={'nocl': [True, False], 'zipmap': [True, False, 'columns']},
     )
 
     onnx_model = convert_sklearn(
         model,
-        initial_types=[("float_input", SklFloatTensorType([None, len(FEATURES)]))],
-        options={id(model): {"zipmap": False}},
-        target_opset={"": 17, "ai.onnx.ml": 3},
+        initial_types=[('float_input', SklFloatTensorType([None, len(FEATURES)]))],
+        options={id(model): {'zipmap': False}},
+        target_opset={'': 17, 'ai.onnx.ml': 3},
     )
-    with open(ONNX_FILE, "wb") as f:
+    with open(ONNX_FILE, 'wb') as f:
         f.write(onnx_model.SerializeToString())
-    print(f"\nSaved ONNX model → {ONNX_FILE}")
+    print(f'\nSaved ONNX model → {ONNX_FILE}')
 
     # Check what was written, not what was fitted. The bug this replaces was
     # invisible precisely because nobody ever ran the exported file.
@@ -453,40 +482,42 @@ def verify_export(model, sample):
     try:
         import onnxruntime as ort
     except ImportError:
-        print("onnxruntime not installed — exported model NOT verified.")
+        print('onnxruntime not installed — exported model NOT verified.')
         return
 
-    session = ort.InferenceSession(ONNX_FILE, providers=["CPUExecutionProvider"])
-    outputs = session.run(None, {"float_input": sample.astype(np.float32)})
+    session = ort.InferenceSession(ONNX_FILE, providers=['CPUExecutionProvider'])
+    outputs = session.run(None, {'float_input': sample.astype(np.float32)})
     exported = next(
-        np.asarray(o)[:, 1] for o in outputs
+        np.asarray(o)[:, 1]
+        for o in outputs
         if np.asarray(o).ndim == 2 and np.asarray(o).shape[1] >= 2
     )
     fitted = model.predict_proba(sample)[:, 1]
     gap = np.abs(exported - fitted)
 
-    print(f"Export check → mean {gap.mean():.2e}, p99 {np.percentile(gap, 99):.2e}, "
-          f"worst {gap.max():.4f} over {len(gap)} shots")
-    print(f"              mean xG: file {exported.mean():.4f}, "
-          f"fitted {fitted.mean():.4f}")
+    print(
+        f'Export check → mean {gap.mean():.2e}, p99 {np.percentile(gap, 99):.2e}, '
+        f'worst {gap.max():.4f} over {len(gap)} shots'
+    )
+    print(f'              mean xG: file {exported.mean():.4f}, fitted {fitted.mean():.4f}')
 
     if gap.mean() > 1e-3 or gap.max() > 0.05:
-        raise SystemExit("The exported model does not match the fitted one.")
+        raise SystemExit('The exported model does not match the fitted one.')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     import sys
 
     # Every print below has an arrow in it, and a Windows console defaults to
     # cp1252, which cannot encode one. Without this the script trains for two
     # minutes and then dies on its first line of output.
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
     # --offline re-runs everything from the cached shots and touches no
     # network, which is what re-exporting after a bug fix needs.
-    offline = "--offline" in sys.argv
-    fast = "--fast" in sys.argv          # skip the 25-fit cross-validation
+    offline = '--offline' in sys.argv
+    fast = '--fast' in sys.argv  # skip the 25-fit cross-validation
     if offline:
-        plt.switch_backend("Agg")        # no window to block on a headless run
+        plt.switch_backend('Agg')  # no window to block on a headless run
 
     main(offline=offline, show_plots=not offline, cross_validate=not fast)

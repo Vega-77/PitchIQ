@@ -36,7 +36,7 @@ import numpy as np
 # stops above the shorts.
 TORSO_TOP = 0.22
 TORSO_BOTTOM = 0.55
-TORSO_INSET = 0.22          # trim the sides, which are mostly background
+TORSO_INSET = 0.22  # trim the sides, which are mostly background
 
 # How wide a strip of turf to read either side of a detection for the grass
 # reference, as a fraction of the box width. Wide enough to clear the player's
@@ -144,9 +144,9 @@ DISCRIMINANT_FLOOR = 1.0
 # kit-sample columns the discriminant reads: lightness against the grass, a, b
 DISCRIMINANT_COLUMNS = (3, 1, 2)
 
-TEAM_A = "team_a"
-TEAM_B = "team_b"
-UNKNOWN = "unknown"
+TEAM_A = 'team_a'
+TEAM_B = 'team_b'
+UNKNOWN = 'unknown'
 
 
 @dataclass
@@ -184,7 +184,7 @@ class TeamAssignment:
         if self.projection is not None:
             if samples.shape[1] < len(self.projection):
                 return np.full((len(samples), 1), np.nan)
-            return samples[:, :len(self.projection)] @ self.projection[:, None]
+            return samples[:, : len(self.projection)] @ self.projection[:, None]
         cols = AXIS_COLUMNS.get(self.axis)
         if cols is None or samples.shape[1] <= cols.start:
             return np.full((len(samples), 1), np.nan)
@@ -215,7 +215,8 @@ class TeamAssignment:
         self.by_track = {k: flip.get(v, v) for k, v in self.by_track.items()}
         if TEAM_A in self.centres and TEAM_B in self.centres:
             self.centres[TEAM_A], self.centres[TEAM_B] = (
-                self.centres[TEAM_B], self.centres[TEAM_A]
+                self.centres[TEAM_B],
+                self.centres[TEAM_A],
             )
         if self.axis_centres is not None:
             self.axis_centres = self.axis_centres[::-1].copy()
@@ -246,7 +247,7 @@ def torso_patch(frame: np.ndarray, xyxy) -> np.ndarray | None:
     height = y2 - y1
     width = x2 - x1
     if height < 6 or width < 3:
-        return None                      # too small to carry colour information
+        return None  # too small to carry colour information
 
     top = int(round(y1 + height * TORSO_TOP))
     bottom = int(round(y1 + height * TORSO_BOTTOM))
@@ -302,12 +303,12 @@ def surround_lightness(frame: np.ndarray, xyxy) -> float | None:
     inner_right = min(w, max(0, int(round(x2))))
 
     strips = [
-        frame[top:bottom, max(0, inner_left - band):inner_left],
-        frame[top:bottom, inner_right:min(w, inner_right + band)],
+        frame[top:bottom, max(0, inner_left - band) : inner_left],
+        frame[top:bottom, inner_right : min(w, inner_right + band)],
     ]
     turf = [s.reshape(-1, 3) for s in strips if s.size]
     if not turf:
-        return None                      # a box spanning the whole frame width
+        return None  # a box spanning the whole frame width
 
     stacked = np.vstack(turf).reshape(-1, 1, 3)
     lab = cv2.cvtColor(stacked, cv2.COLOR_BGR2Lab)
@@ -343,7 +344,7 @@ def _kmeans_two(samples: np.ndarray, iterations: int = 25) -> tuple[np.ndarray, 
     distant samples makes that far less likely.
     """
     if len(samples) < 2:
-        raise ValueError("need at least two samples")
+        raise ValueError('need at least two samples')
 
     # Farthest-first seeding.
     first = samples[0]
@@ -374,8 +375,9 @@ def _kmeans_two(samples: np.ndarray, iterations: int = 25) -> tuple[np.ndarray, 
     return centres, np.argmin(d, axis=1)
 
 
-def _weighted_two_means(samples: np.ndarray, weights: np.ndarray,
-                        iterations: int = 25) -> tuple[np.ndarray, np.ndarray]:
+def _weighted_two_means(
+    samples: np.ndarray, weights: np.ndarray, iterations: int = 25
+) -> tuple[np.ndarray, np.ndarray]:
     """Two-cluster means with every track counted by its frames, from the best single cut.
 
     Along one axis the cut is exact: of every place to divide the sorted tracks,
@@ -405,14 +407,18 @@ def _weighted_two_means(samples: np.ndarray, weights: np.ndarray,
         return _kmeans_two(samples)
     cut = int(np.argmax(np.where(distinct, between, -1.0)))
     labels = np.zeros(len(x), dtype=int)
-    labels[order[cut + 1:]] = 1
-    centres = np.array([(x[labels == k] * w[labels == k, None]).sum(0) / w[labels == k].sum() for k in (0, 1)])
+    labels[order[cut + 1 :]] = 1
+    centres = np.array(
+        [(x[labels == k] * w[labels == k, None]).sum(0) / w[labels == k].sum() for k in (0, 1)]
+    )
     for _ in range(iterations if x.shape[1] > 1 else 0):
         new = np.argmin(np.linalg.norm(x[:, None, :] - centres[None], axis=2), axis=1)
         if (new == labels).all() or len(set(new.tolist())) < 2:
             break
         labels = new
-        centres = np.array([(x[labels == k] * w[labels == k, None]).sum(0) / w[labels == k].sum() for k in (0, 1)])
+        centres = np.array(
+            [(x[labels == k] * w[labels == k, None]).sum(0) / w[labels == k].sum() for k in (0, 1)]
+        )
     # Name the clusters as `_kmeans_two` would: cluster 0 holds the sample
     # farthest from the first, so a split both agree on keeps its team names.
     if labels[int(np.argmax(np.linalg.norm(x - x[0], axis=1)))] == 1:
@@ -420,8 +426,9 @@ def _weighted_two_means(samples: np.ndarray, weights: np.ndarray,
     return centres, labels
 
 
-def _kmedians_two(samples: np.ndarray, centres: np.ndarray, weights: np.ndarray,
-                  iterations: int = 25) -> tuple[np.ndarray, np.ndarray]:
+def _kmedians_two(
+    samples: np.ndarray, centres: np.ndarray, weights: np.ndarray, iterations: int = 25
+) -> tuple[np.ndarray, np.ndarray]:
     """Two-cluster k-medians from given centres, each median weighted by frames.
 
     A sunlit tail of many short tracks can drag a mean, and can drag a plain
@@ -471,16 +478,24 @@ def _discriminant_refit(rows: np.ndarray, weights: np.ndarray, labels: np.ndarra
     for _ in range(DISCRIMINANT_ITERATIONS):
         if _weighted_balance(labels, weights) <= 0:
             return None
-        centres = np.array([[_weighted_median(x[labels == k, j], weights[labels == k])
-                             for j in range(dims)] for k in (0, 1)])
+        centres = np.array(
+            [
+                [_weighted_median(x[labels == k, j], weights[labels == k]) for j in range(dims)]
+                for k in (0, 1)
+            ]
+        )
         resid = x - centres[labels]
-        scale = np.array([max(1.4826 * _weighted_median(np.abs(resid[:, j]), weights), DISCRIMINANT_FLOOR)
-                          for j in range(dims)])
-        cov = np.diag(scale ** 2)
+        scale = np.array(
+            [
+                max(1.4826 * _weighted_median(np.abs(resid[:, j]), weights), DISCRIMINANT_FLOOR)
+                for j in range(dims)
+            ]
+        )
+        cov = np.diag(scale**2)
         for _ in range(5):
             dist = np.sqrt(np.einsum('ij,jk,ik->i', resid, np.linalg.inv(cov), resid))
             w = weights * np.minimum(1.0, DISCRIMINANT_HUBER / np.maximum(dist, 1e-9)) ** 2
-            cov = (resid * w[:, None]).T @ resid / w.sum() + np.eye(dims) * DISCRIMINANT_FLOOR ** 2
+            cov = (resid * w[:, None]).T @ resid / w.sum() + np.eye(dims) * DISCRIMINANT_FLOOR**2
         direction = np.linalg.solve(cov, centres[1] - centres[0])
         if direction[0] == 0:
             return None
@@ -525,7 +540,7 @@ def _separability(feature: np.ndarray, centres: np.ndarray, labels: np.ndarray) 
     for k in (0, 1):
         members = feature[labels == k]
         if len(members) == 0:
-            return 0.0                   # one cluster took everything
+            return 0.0  # one cluster took everything
         spread += float(np.mean(np.linalg.norm(members - centres[k], axis=1)))
     return gap / max(spread, MIN_CLUSTER_WIDTH)
 
@@ -689,15 +704,21 @@ def _assign(
                 projection, fit_labels = fit
                 new_labels = labels.copy()
                 new_labels[sub] = fit_labels
-                if _weighted_balance(new_labels, w) >= min(BALANCED_SHARE, _weighted_balance(labels, w)):
+                if _weighted_balance(new_labels, w) >= min(
+                    BALANCED_SHARE, _weighted_balance(labels, w)
+                ):
                     result.projection = projection
                     feature = np.full((len(full), 1), np.nan)
                     feature[tinted, 0] = full[tinted, :4] @ projection
                     known = tinted
                     labels = fit_labels
                     fw = w[sub]
-                    centres = np.array([[_weighted_median(feature[known][labels == k, 0], fw[labels == k])]
-                                        for k in (0, 1)])
+                    centres = np.array(
+                        [
+                            [_weighted_median(feature[known][labels == k, 0], fw[labels == k])]
+                            for k in (0, 1)
+                        ]
+                    )
                     score = _separability(feature[known], centres, labels)
     result.axis = axis
     result.score = score
@@ -710,8 +731,7 @@ def _assign(
     for name, k in ((TEAM_A, 0), (TEAM_B, 1)):
         members = seen[labels == k][:, :3]
         result.centres[name] = (
-            _nanmean(members) if len(members)
-            else np.full(3, np.nan, dtype=np.float64)
+            _nanmean(members) if len(members) else np.full(3, np.nan, dtype=np.float64)
         )
 
     gap = float(np.linalg.norm(centres[0] - centres[1]))
@@ -767,6 +787,4 @@ def separation(assignment: TeamAssignment) -> float:
         return float(assignment.gap)
     if TEAM_A not in assignment.centres or TEAM_B not in assignment.centres:
         return 0.0
-    return float(np.linalg.norm(
-        assignment.centres[TEAM_A][1:3] - assignment.centres[TEAM_B][1:3]
-    ))
+    return float(np.linalg.norm(assignment.centres[TEAM_A][1:3] - assignment.centres[TEAM_B][1:3]))

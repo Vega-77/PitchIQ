@@ -234,9 +234,7 @@ class TeamStats:
             'passes_completed': _num(self.passes_completed),
             'pass_accuracy': _round(self.pass_accuracy, 3),
             'passes_by_length': {k: _num(v) for k, v in self.passes_by_length.items()},
-            'passes_by_direction': {
-                k: _num(v) for k, v in self.passes_by_direction.items()
-            },
+            'passes_by_direction': {k: _num(v) for k, v in self.passes_by_direction.items()},
             'progressive_passes': _num(self.progressive_passes),
             'final_third_entries': _num(self.final_third_entries),
             'box_entries': _num(self.box_entries),
@@ -379,8 +377,10 @@ def team_stats(
     stats.carries = sum(1 for e in log.by_type(CARRY) if e.team == team)
 
     for name, kind in (
-        ('tackles', TACKLE), ('interceptions', INTERCEPTION),
-        ('recoveries', RECOVERY), ('duels', DUEL),
+        ('tackles', TACKLE),
+        ('interceptions', INTERCEPTION),
+        ('recoveries', RECOVERY),
+        ('duels', DUEL),
     ):
         setattr(stats, name, sum(1 for e in log.by_type(kind) if e.team == team))
 
@@ -395,6 +395,7 @@ def team_stats(
             )
 
     if calibrated:
+
         def tagged(tag: str) -> int:
             return sum(1 for p in passes if tag in p.tags)
 
@@ -415,11 +416,18 @@ def team_stats(
         if pitch is not None:
             stats.ppda = ppda(log, pitch, team, opponent_attacking_end)
             stats.turnovers_by_third = turnovers_by_third(
-                log, pitch, team, attacking_end,
+                log,
+                pitch,
+                team,
+                attacking_end,
             )
             if span_s is not None:
                 stats.pressing_segments = pressing_segments(
-                    log, pitch, team, opponent_attacking_end, *span_s,
+                    log,
+                    pitch,
+                    team,
+                    opponent_attacking_end,
+                    *span_s,
                 )
 
     stats.attacking_end = attacking_end
@@ -468,24 +476,26 @@ def shot_marks(shots, attacking_end: str | None, pitch=None) -> list[dict] | Non
             x, y = length_m - x, width_m - y
         x, y = drawn((x, y), pitch)
 
-        marks.append({
-            # The join key. Without it a browser holding a coach's per-shot
-            # corrections has only a rounded timestamp to match a mark against,
-            # and two shots in the same second would silently swap.
-            'event_id': shot.event_id,
-            'video_s': _round(shot.timestamp_s, 2),
-            'x_m': _round(x, 1),
-            'y_m': _round(y, 1),
-            'xg': _round(shot.xg, 3),
-            # The same shot scored as a header. Not an alternative estimate of
-            # the same quantity — it is the answer to a different question the
-            # camera cannot settle, and it only replaces `xg` once a human says
-            # which one this was.
-            'xg_header': _round(shot.xg_header, 3),
-            'outcome': shot.outcome,
-            'on_target': bool(shot.on_target),
-            'track_id': shot.track_id,
-        })
+        marks.append(
+            {
+                # The join key. Without it a browser holding a coach's per-shot
+                # corrections has only a rounded timestamp to match a mark against,
+                # and two shots in the same second would silently swap.
+                'event_id': shot.event_id,
+                'video_s': _round(shot.timestamp_s, 2),
+                'x_m': _round(x, 1),
+                'y_m': _round(y, 1),
+                'xg': _round(shot.xg, 3),
+                # The same shot scored as a header. Not an alternative estimate of
+                # the same quantity — it is the answer to a different question the
+                # camera cannot settle, and it only replaces `xg` once a human says
+                # which one this was.
+                'xg_header': _round(shot.xg_header, 3),
+                'outcome': shot.outcome,
+                'on_target': bool(shot.on_target),
+                'track_id': shot.track_id,
+            }
+        )
     return marks
 
 
@@ -646,20 +656,20 @@ def track_stats(
                 # Weighted by how long each fragment lasted: a two-second
                 # fragment's noise estimate is built from a handful of samples
                 # and should not outvote a two-minute one's.
-                stats.position_noise_m = sum(
-                    n * m for n, m in zip(noises, minutes)
-                ) / sum(minutes)
+                stats.position_noise_m = sum(n * m for n, m in zip(noises, minutes)) / sum(minutes)
 
             # Where the cluster spent its time. The grid is computed per track
             # in the pipeline and was never carried across to the cluster, so
             # `TrackStats.heatmap` serialised as null on every run — declared,
             # published, and never once filled in.
-            stats.heatmap = _merge_heatmaps([
-                (players_by_track.get(t).heatmap, players_by_track[t].minutes_tracked)
-                for t in cluster.track_ids
-                if players_by_track.get(t) is not None
-                and players_by_track[t].heatmap is not None
-            ])
+            stats.heatmap = _merge_heatmaps(
+                [
+                    (players_by_track.get(t).heatmap, players_by_track[t].minutes_tracked)
+                    for t in cluster.track_ids
+                    if players_by_track.get(t) is not None
+                    and players_by_track[t].heatmap is not None
+                ]
+            )
 
         out.append(stats)
 
@@ -706,15 +716,15 @@ def build_report_json(
     span_end = (window or {}).get('end_s')
     span = (
         span_start,
-        float(span_end) if span_end is not None
-        else span_start + float(report.duration_s or 0.0),
+        float(span_end) if span_end is not None else span_start + float(report.duration_s or 0.0),
     )
 
     teams = {}
     for team in (TEAM_A, TEAM_B):
         other = TEAM_B if team == TEAM_A else TEAM_A
         teams[team] = team_stats(
-            log, team,
+            log,
+            team,
             calibrated=calibrated,
             possession_pct=possession.share(team) if possession else None,
             shape=(report.shape or {}).get(team) or {},
@@ -728,8 +738,12 @@ def build_report_json(
         ).to_json()
 
     tracks = track_stats(
-        report.clusters, log, players_by_track, calibrated=calibrated,
-        attacking_ends=ends, pitch=pitch,
+        report.clusters,
+        log,
+        players_by_track,
+        calibrated=calibrated,
+        attacking_ends=ends,
+        pitch=pitch,
     )
 
     warnings = list(report.warnings)
@@ -750,7 +764,8 @@ def build_report_json(
         # measured, which is not the same as the default pitch.
         'pitch': (
             {'length_m': _round(pitch.length_m, 1), 'width_m': _round(pitch.width_m, 1)}
-            if pitch is not None else None
+            if pitch is not None
+            else None
         ),
         'window': window or {},
         'duration_s': _round(report.duration_s, 1),
@@ -759,9 +774,7 @@ def build_report_json(
         # live half. None when the run was not instrumented — an old report, or
         # one assembled by hand — which is a different thing from a run that
         # took no time.
-        'timing': (
-            report.timings.to_json(report.duration_s) if report.timings else None
-        ),
+        'timing': (report.timings.to_json(report.duration_s) if report.timings else None),
         'calibrated': calibrated,
         # Which half, and whether anything but a default said so. Both travel
         # because the period flips every pitch-relative figure in this file and
@@ -778,15 +791,12 @@ def build_report_json(
         'clusters': [c.to_json() for c in report.clusters],
         # Every verdict, including the ones that changed nothing. An exclusion
         # that cannot be audited is indistinguishable from a bug.
-        'participants': (
-            report.participants.to_json() if report.participants else []
-        ),
+        'participants': (report.participants.to_json() if report.participants else []),
         # None, not an empty comparison. Without a tagged log there was nothing
         # to check this run against, which is a different statement from the two
         # records having been checked and found to agree about nothing.
         'reconciliation': (
-            report.reconciliation.to_json()
-            if getattr(report, 'reconciliation', None) else None
+            report.reconciliation.to_json() if getattr(report, 'reconciliation', None) else None
         ),
     }
 
@@ -811,8 +821,7 @@ def _quality(report, log: EventLog) -> dict:
         # treating this as a defect would mark a perfectly good batch report
         # unreliable for taking its time.
         'realtime_factor': (
-            _round(report.timings.realtime_factor(report.duration_s), 3)
-            if report.timings else None
+            _round(report.timings.realtime_factor(report.duration_s), 3) if report.timings else None
         ),
         # Whether the camera held still, and when it did not. Every figure in
         # metres is fitted from one frame, so this is the precondition for all
@@ -838,27 +847,17 @@ def _quality(report, log: EventLog) -> dict:
         'clusters': len(report.clusters),
         'tracks_per_cluster': _round(fragmentation(report.clusters), 1),
         'touches': len(touches.touches) if touches else 0,
-        'touch_confidence_p50': (
-            _round(touches.confidence_percentile(50), 3) if touches else None
-        ),
-        'touch_confidence_p10': (
-            _round(touches.confidence_percentile(10), 3) if touches else None
-        ),
+        'touch_confidence_p50': (_round(touches.confidence_percentile(50), 3) if touches else None),
+        'touch_confidence_p10': (_round(touches.confidence_percentile(10), 3) if touches else None),
         'unseen_spans': len(touches.gaps) if touches else 0,
         'keeper_method': report.keepers.method if report.keepers else 'unavailable',
         # How many figures in the picture were left out of every number above,
         # and how many are being carried despite matching neither kit. Both
         # belong next to the stats rather than buried: they are the size of the
         # correction, and of the correction that could not be made.
-        'excluded_tracks': (
-            len(report.participants.excluded) if report.participants else 0
-        ),
-        'flagged_officials': (
-            len(report.participants.officials) if report.participants else 0
-        ),
-        'no_ball_s': _round(
-            report.possession.no_ball_s if report.possession else None, 1
-        ),
+        'excluded_tracks': (len(report.participants.excluded) if report.participants else 0),
+        'flagged_officials': (len(report.participants.officials) if report.participants else 0),
+        'no_ball_s': _round(report.possession.no_ball_s if report.possession else None, 1),
         # What that total was made of. A throw-in and a lost twenty seconds of
         # live football both land in `no_ball_s`, and only one of them is a
         # hole in the report — added together, the well-tagged half looks worse
@@ -868,12 +867,11 @@ def _quality(report, log: EventLog) -> dict:
         # None rather than zero when no tagged log was supplied. Zero would say
         # the ball was never out of play for the whole window, which is a
         # claim about the match rather than about what we were told.
-        'dead_ball_s': _round(
-            report.possession.dead_ball_s if report.phases else None, 1
-        ),
+        'dead_ball_s': _round(report.possession.dead_ball_s if report.phases else None, 1),
         'live_share': (
             _round(1.0 - report.phases.dead_s / report.duration_s, 3)
-            if report.phases and report.duration_s else None
+            if report.phases and report.duration_s
+            else None
         ),
         'stoppages': len(report.phases.spans) if report.phases else None,
         # How often this run and the person with the tablet described the same
@@ -905,9 +903,8 @@ def _quality(report, log: EventLog) -> dict:
         # exactly that constant, and this is what retires it.
         'smoothing_s': _round(_typical_smoothing(report), 2),
         'phantom_m_per_minute': _round(
-            phantom_m_per_minute(
-                _median_noise(report), _typical_smoothing(report) or 0.0
-            ), 1,
+            phantom_m_per_minute(_median_noise(report), _typical_smoothing(report) or 0.0),
+            1,
         ),
     }
 
@@ -930,7 +927,8 @@ def _typical_smoothing(report) -> float | None:
 
 def _median_noise(report) -> float | None:
     measured = [
-        p.movement.position_noise_m for p in report.players
+        p.movement.position_noise_m
+        for p in report.players
         if p.movement is not None and p.movement.position_noise_m is not None
     ]
     if not measured:

@@ -203,17 +203,13 @@ class TestMeasurement(unittest.TestCase):
         self.assertEqual(verdict.ball_share, 0.0)
 
     def test_ball_share_counts_frames_and_not_detections(self):
-        verdict = assess_framing(
-            frames([90.0] * 4, count=10, with_ball=4), 1280, 720, imgsz=1280
-        )
+        verdict = assess_framing(frames([90.0] * 4, count=10, with_ball=4), 1280, 720, imgsz=1280)
         self.assertAlmostEqual(verdict.ball_share, 0.4)
         self.assertAlmostEqual(verdict.people_per_frame, 4.0)
 
     def test_the_ball_prediction_follows_the_player(self):
         verdict = assess_framing(frames([90.0] * 4), 1280, 720, imgsz=1280)
-        self.assertAlmostEqual(
-            verdict.predicted_ball_px, 90.0 * BALL_TO_PLAYER, places=5
-        )
+        self.assertAlmostEqual(verdict.predicted_ball_px, 90.0 * BALL_TO_PLAYER, places=5)
 
 
 class TestJson(unittest.TestCase):

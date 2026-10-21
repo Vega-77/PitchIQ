@@ -70,7 +70,7 @@ PUNT_MIN_M = 40.0
 class KeeperAssignment:
     by_team: dict[str, set[int]] = field(default_factory=dict)
     scores: dict[int, float] = field(default_factory=dict)
-    method: str = 'unavailable'      # 'colour+position' | 'manual' | 'unavailable'
+    method: str = 'unavailable'  # 'colour+position' | 'manual' | 'unavailable'
 
     def is_keeper(self, track_id: int) -> bool:
         return any(track_id in ids for ids in self.by_team.values())
@@ -91,7 +91,7 @@ class KeeperAssignment:
 @dataclass
 class KeeperDistribution:
     timestamp_s: float
-    kind: str                        # 'throw' | 'kick' | 'punt' | 'unknown'
+    kind: str  # 'throw' | 'kick' | 'punt' | 'unknown'
     hold_duration_s: float
     distance_m: float
     completed: bool
@@ -230,9 +230,7 @@ def identify_keepers(
             continue
         for team, end in defending_end_of_team.items():
             share = goal_share(points, pitch, end)
-            assignment.scores[track_id] = max(
-                assignment.scores.get(track_id, 0.0), share
-            )
+            assignment.scores[track_id] = max(assignment.scores.get(track_id, 0.0), share)
             if share >= min_goal_share:
                 assignment.by_team[team].add(track_id)
 
@@ -271,7 +269,7 @@ def keeper_reports(
 def _count_shots(log: EventLog, report: KeeperReport, team: str, tracks: set[int]) -> None:
     for shot in log.shots():
         if shot.team == team:
-            continue                       # our own keeper does not face our shots
+            continue  # our own keeper does not face our shots
         report.shots_faced += 1
         if shot.on_target:
             report.shots_on_target_faced += 1
@@ -304,9 +302,9 @@ def _count_positional(
         if not isinstance(event, Pass) or 'cross' not in event.tags:
             continue
         landed = [
-            e for e in log.events
-            if e.track_id in tracks
-            and 0 <= e.timestamp_s - event.timestamp_s <= 2.0
+            e
+            for e in log.events
+            if e.track_id in tracks and 0 <= e.timestamp_s - event.timestamp_s <= 2.0
         ]
         if landed:
             report.claims += 1
@@ -321,9 +319,7 @@ def _collect_distribution(
     end: str,
 ) -> None:
     """Throws, kicks and punts, and whether they found a teammate."""
-    holds = {
-        e.timestamp_s: e for e in log.by_type(CARRY) if e.track_id in tracks
-    }
+    holds = {e.timestamp_s: e for e in log.by_type(CARRY) if e.track_id in tracks}
 
     for event in log.events:
         if not isinstance(event, Pass) or event.track_id not in tracks:
@@ -337,14 +333,16 @@ def _collect_distribution(
             if 0 <= event.timestamp_s - start <= 4.0:
                 hold = max(hold, getattr(carry, 'touches', 0) / 10.0)
 
-        report.distributions.append(KeeperDistribution(
-            timestamp_s=event.timestamp_s,
-            kind=_distribution_kind(distance, hold),
-            hold_duration_s=hold,
-            distance_m=distance,
-            completed=event.outcome == 'completed',
-            end_third=zones.third(pitch, event.end_m[0], zones.opposite(end)),
-        ))
+        report.distributions.append(
+            KeeperDistribution(
+                timestamp_s=event.timestamp_s,
+                kind=_distribution_kind(distance, hold),
+                hold_duration_s=hold,
+                distance_m=distance,
+                completed=event.outcome == 'completed',
+                end_third=zones.third(pitch, event.end_m[0], zones.opposite(end)),
+            )
+        )
 
 
 def _distribution_kind(distance_m: float, hold_s: float) -> str:
@@ -360,5 +358,5 @@ def _distribution_kind(distance_m: float, hold_s: float) -> str:
     if distance_m >= PUNT_MIN_M and hold_s >= HOLD_S:
         return 'punt'
     if distance_m >= PUNT_MIN_M:
-        return 'unknown'         # long, but nothing says punt rather than kick
+        return 'unknown'  # long, but nothing says punt rather than kick
     return 'kick'

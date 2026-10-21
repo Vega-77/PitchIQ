@@ -21,7 +21,7 @@ from cv.camera import CameraMotion, Shift, camera_warnings, detect_camera_shift
 from cv.frames import FrameRecord, FrameTable
 
 FPS = 30.0
-HEIGHT_PX = 60.0          # one player height, the unit everything is measured in
+HEIGHT_PX = 60.0  # one player height, the unit everything is measured in
 
 
 def frame(index: int, positions: dict[int, tuple[float, float]]) -> FrameRecord:
@@ -45,8 +45,7 @@ def crowd(n=12):
     """A pitch full of people, spread out the way a formation is."""
     rng = np.random.default_rng(4)
     return {
-        t: (float(200 + (t * 90) % 900), float(300 + rng.uniform(-80, 80)))
-        for t in range(1, n + 1)
+        t: (float(200 + (t * 90) % 900), float(300 + rng.uniform(-80, 80))) for t in range(1, n + 1)
     }
 
 
@@ -55,10 +54,12 @@ def walk(start: dict, seconds: float, move, step_s=0.5) -> list[FrameRecord]:
     out = []
     for i in range(int(seconds / step_s) + 1):
         t = i * step_s
-        out.append(frame(
-            int(round(t * FPS)),
-            {k: (x + move(k, t)[0], y + move(k, t)[1]) for k, (x, y) in start.items()},
-        ))
+        out.append(
+            frame(
+                int(round(t * FPS)),
+                {k: (x + move(k, t)[0], y + move(k, t)[1]) for k, (x, y) in start.items()},
+            )
+        )
     return out
 
 
@@ -66,9 +67,15 @@ class TestFootballIsNotACameraBump:
     def test_players_milling_about_register_nothing(self):
         rng = np.random.default_rng(7)
         drift = {k: rng.uniform(-1, 1, 2) * 40 for k in crowd()}
-        motion = detect_camera_shift(table(walk(
-            crowd(), 6.0, lambda k, t: (drift[k][0] * t, drift[k][1] * t),
-        )))
+        motion = detect_camera_shift(
+            table(
+                walk(
+                    crowd(),
+                    6.0,
+                    lambda k, t: (drift[k][0] * t, drift[k][1] * t),
+                )
+            )
+        )
         assert motion.moved is False
         assert motion.checked is True
 
@@ -77,10 +84,15 @@ class TestFootballIsNotACameraBump:
 
         This is what the median buys over the mean, and why it is the median.
         """
-        motion = detect_camera_shift(table(walk(
-            crowd(), 6.0,
-            lambda k, t: (250 * t, 0.0) if k == 3 else (0.0, 0.0),
-        )))
+        motion = detect_camera_shift(
+            table(
+                walk(
+                    crowd(),
+                    6.0,
+                    lambda k, t: (250 * t, 0.0) if k == 3 else (0.0, 0.0),
+                )
+            )
+        )
         assert motion.moved is False
 
     def test_a_team_breaking_forward_together_does_not_register(self):
@@ -92,10 +104,15 @@ class TestFootballIsNotACameraBump:
         middle player and the middle player is not the frame. Agreement is what
         rejects it: nobody is actually near that midpoint.
         """
-        motion = detect_camera_shift(table(walk(
-            crowd(), 6.0,
-            lambda k, t: (90.0 * t, 0.0) if k <= 6 else (0.0, 0.0),
-        )))
+        motion = detect_camera_shift(
+            table(
+                walk(
+                    crowd(),
+                    6.0,
+                    lambda k, t: (90.0 * t, 0.0) if k <= 6 else (0.0, 0.0),
+                )
+            )
+        )
         assert motion.moved is False
 
     def test_the_split_sprint_really_does_fool_the_median_alone(self):
@@ -104,10 +121,13 @@ class TestFootballIsNotACameraBump:
         With agreement disabled this fires. If someone ever decides the extra
         check is redundant, this is the test that says what it was for.
         """
-        frames = table(walk(
-            crowd(), 6.0,
-            lambda k, t: (90.0 * t, 0.0) if k <= 6 else (0.0, 0.0),
-        ))
+        frames = table(
+            walk(
+                crowd(),
+                6.0,
+                lambda k, t: (90.0 * t, 0.0) if k <= 6 else (0.0, 0.0),
+            )
+        )
         assert detect_camera_shift(frames, min_agreement=0.0).moved is True
 
     def test_even_a_whole_pitch_pressing_is_slower_than_a_bump(self):
@@ -117,18 +137,27 @@ class TestFootballIsNotACameraBump:
         shape this looks for. The difference is speed — 20 px/s is a third of a
         player height a second; the threshold is three quarters, in one step.
         """
-        motion = detect_camera_shift(table(walk(
-            crowd(), 8.0, lambda k, t: (20.0 * t, 0.0),
-        )))
+        motion = detect_camera_shift(
+            table(
+                walk(
+                    crowd(),
+                    8.0,
+                    lambda k, t: (20.0 * t, 0.0),
+                )
+            )
+        )
         assert motion.moved is False
 
 
 class TestABumpIsFound:
     def bumped(self, dx=0.0, dy=0.0, at=3.0, seconds=6.0):
-        return table(walk(
-            crowd(), seconds,
-            lambda k, t: (dx, dy) if t >= at else (0.0, 0.0),
-        ))
+        return table(
+            walk(
+                crowd(),
+                seconds,
+                lambda k, t: (dx, dy) if t >= at else (0.0, 0.0),
+            )
+        )
 
     def test_a_sideways_knock_is_caught(self):
         motion = detect_camera_shift(self.bumped(dx=HEIGHT_PX * 1.5))
@@ -163,7 +192,8 @@ class TestABumpIsFound:
         # Two shifts with a ruined stretch between them, which reads very
         # differently from one knock nobody corrected.
         frames = walk(
-            crowd(), 12.0,
+            crowd(),
+            12.0,
             lambda k, t: (HEIGHT_PX * 2, 0.0) if 3.0 <= t < 7.0 else (0.0, 0.0),
         )
         motion = detect_camera_shift(table(frames))
@@ -177,9 +207,15 @@ class TestRefusingToGuess:
         `checked` is False rather than `moved` being False, because "we looked
         and it was fine" and "we could not look" must not read the same.
         """
-        motion = detect_camera_shift(table(walk(
-            crowd(n=4), 6.0, lambda k, t: (0.0, 0.0),
-        )))
+        motion = detect_camera_shift(
+            table(
+                walk(
+                    crowd(n=4),
+                    6.0,
+                    lambda k, t: (0.0, 0.0),
+                )
+            )
+        )
         assert motion.checked is False
         assert motion.moved is False
 
@@ -201,9 +237,15 @@ class TestRefusingToGuess:
         down far enough to catch it turns every counter-attack into a camera
         bump, so this is a documented limit rather than a setting.
         """
-        motion = detect_camera_shift(table(walk(
-            crowd(), 20.0, lambda k, t: (2.0 * t, 0.0),
-        )))
+        motion = detect_camera_shift(
+            table(
+                walk(
+                    crowd(),
+                    20.0,
+                    lambda k, t: (2.0 * t, 0.0),
+                )
+            )
+        )
         assert motion.moved is False
 
     def test_players_swapped_wholesale_are_not_compared(self):
@@ -220,12 +262,20 @@ class TestRefusingToGuess:
 
 class TestWhatIsSaid:
     def moved_at(self, seconds, count=1):
-        return CameraMotion(shifts=[
-            Shift(frame_index=int(seconds * FPS) + i, timestamp_s=seconds + i,
-                  shift=1.4, dx_heights=1.4, dy_heights=0.0, tracks=11,
-                  agreement=0.95)
-            for i in range(count)
-        ])
+        return CameraMotion(
+            shifts=[
+                Shift(
+                    frame_index=int(seconds * FPS) + i,
+                    timestamp_s=seconds + i,
+                    shift=1.4,
+                    dx_heights=1.4,
+                    dy_heights=0.0,
+                    tracks=11,
+                    agreement=0.95,
+                )
+                for i in range(count)
+            ]
+        )
 
     def test_it_names_the_minute_and_what_it_costs(self):
         [note] = camera_warnings(self.moved_at(154.0), calibrated=True)
@@ -256,9 +306,16 @@ class TestWhatIsSaid:
 class TestJson:
     def test_the_whole_thing_survives_json(self):
         import json
-        motion = detect_camera_shift(table(walk(
-            crowd(), 6.0, lambda k, t: (HEIGHT_PX * 2, 0.0) if t >= 3 else (0.0, 0.0),
-        )))
+
+        motion = detect_camera_shift(
+            table(
+                walk(
+                    crowd(),
+                    6.0,
+                    lambda k, t: (HEIGHT_PX * 2, 0.0) if t >= 3 else (0.0, 0.0),
+                )
+            )
+        )
         data = json.loads(json.dumps(motion.to_json()))
         assert data['moved'] is True
         assert data['shifts'][0]['tracks'] == 12
@@ -291,8 +348,7 @@ class TestItReachesTheReport:
         return motion, build_report_json(report)
 
     def bumped(self):
-        return walk(crowd(), 8.0,
-                    lambda k, t: (HEIGHT_PX * 1.5, 0.0) if t >= 4.0 else (0.0, 0.0))
+        return walk(crowd(), 8.0, lambda k, t: (HEIGHT_PX * 1.5, 0.0) if t >= 4.0 else (0.0, 0.0))
 
     def test_a_moved_camera_makes_the_run_untrustworthy(self):
         # Unlike the real-time factor, this genuinely does make the numbers
@@ -316,5 +372,6 @@ class TestItReachesTheReport:
 
     def test_the_whole_report_is_still_json_safe(self):
         import json
+
         _, data = self.report_for(self.bumped())
         json.dumps(data)

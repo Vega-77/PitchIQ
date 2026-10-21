@@ -18,6 +18,7 @@ clips could flatter it slightly, but none of these crops was hand-labelled.
     -> croplab/sheets/uNNN.jpg, new sheets put FIRST in croplab/manifest.json
     env: PREFIX=v (sheet name), REPLACE=1 (drop older rounds), LABDB=labdb3
 """
+
 import glob
 import json
 import os
@@ -27,8 +28,8 @@ import numpy as np
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, S2)
-import lab_sheets2 as L2                          # noqa: E402
-from train_cls import CLASSES, load_model         # noqa: E402
+import lab_sheets2 as L2  # noqa: E402
+from train_cls import CLASSES, load_model  # noqa: E402
 
 OUT = os.path.join(S2, 'croplab')
 SEED = 20260930
@@ -40,8 +41,7 @@ def main():
     rng = np.random.default_rng(SEED)
     man = json.load(open(os.path.join(OUT, 'manifest.json')))
     seen = {it['id'] for sh in man['sheets'] for it in sh['items']}
-    for q in glob.glob(os.path.join(S2, os.environ.get('LABDB', 'labdb3'),
-                                    'crops', '*.json')):
+    for q in glob.glob(os.path.join(S2, os.environ.get('LABDB', 'labdb3'), 'crops', '*.json')):
         d = json.load(open(q))
         seen.add('%s_%d_%d' % (d['tag'], d['f'], d['j']))
     pseudo = json.load(open(os.path.join(S2, 'pseudo_labels.json')))
@@ -62,16 +62,20 @@ def main():
             key = (tag, int(ab))
 
             def item(i):
-                return dict(id='%s_%d_%d' % (tag, int(f[i]), int(j[i])),
-                            tag=tag, f=int(f[i]), j=int(j[i]),
-                            hint=CLASSES[int(np.argmax(pr[i]))],
-                            p=round(float(pr[i, 0]), 3))
+                return dict(
+                    id='%s_%d_%d' % (tag, int(f[i]), int(j[i])),
+                    tag=tag,
+                    f=int(f[i]),
+                    j=int(j[i]),
+                    hint=CLASSES[int(np.argmax(pr[i]))],
+                    p=round(float(pr[i, 0]), 3),
+                )
+
             if key not in committed:
                 lost.append(item(top))
             elif key in pick:
                 pi = rows[j[rows] == pick[key]]
-                if len(pi) and np.hypot(x[top] - x[pi[0]],
-                                        y[top] - y[pi[0]]) > 60:
+                if len(pi) and np.hypot(x[top] - x[pi[0]], y[top] - y[pi[0]]) > 60:
                     dispute.append(item(top))
             for i in order[1:5]:
                 rand.append(item(i))
@@ -83,11 +87,9 @@ def main():
     a, b, c = take(lost, n[0]), take(dispute, n[1]), None
     used = {it['id'] for it in a + b}
     c = take([it for it in rand if it['id'] not in used], n[2])
-    print('pool: lost %d dispute %d random %d' % (len(lost), len(dispute),
-                                                  len(rand)))
+    print('pool: lost %d dispute %d random %d' % (len(lost), len(dispute), len(rand)))
     items = a + b + c
-    for it, grp in zip(items, ['lost'] * len(a) + ['dispute'] * len(b)
-                       + ['random'] * len(c)):
+    for it, grp in zip(items, ['lost'] * len(a) + ['dispute'] * len(b) + ['random'] * len(c)):
         it['grp'] = grp
     items = [items[i] for i in rng.permutation(len(items))]
     hints = {}
@@ -99,8 +101,7 @@ def main():
     # outdated models; their labels stay in the db)
     man['sheets'] = new + ([] if os.environ.get('REPLACE') else man['sheets'])
     json.dump(man, open(os.path.join(OUT, 'manifest.json'), 'w'))
-    print('%d new sheets first, %d sheets in all' % (len(new),
-                                                      len(man['sheets'])))
+    print('%d new sheets first, %d sheets in all' % (len(new), len(man['sheets'])))
 
 
 if __name__ == '__main__':

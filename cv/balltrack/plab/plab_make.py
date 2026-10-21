@@ -7,6 +7,7 @@ team guess from assign_teams, so the lab can prefill "same id -> same label".
 
     python plab_make.py OUTDIR [lo] [n] [step]
 """
+
 import json
 import os
 import sys
@@ -19,15 +20,15 @@ REPO = os.path.dirname(os.path.dirname(S2))
 sys.path.insert(0, REPO)
 sys.path.insert(0, S2)
 
-import feat4                                         # noqa: E402
-from cv.tracking import PlayerTracker                # noqa: E402
-from cv.teams import assign_teams, kit_sample        # noqa: E402
+import feat4  # noqa: E402
+from cv.tracking import PlayerTracker  # noqa: E402
+from cv.teams import assign_teams, kit_sample  # noqa: E402
 
 OUT = sys.argv[1]
 LO = int(sys.argv[2]) if len(sys.argv) > 2 else 136170
 N = int(sys.argv[3]) if len(sys.argv) > 3 else 40
 STEP = int(sys.argv[4]) if len(sys.argv) > 4 else 15
-HI = LO + N * STEP          # exclusive
+HI = LO + N * STEP  # exclusive
 
 os.makedirs(os.path.join(OUT, 'frames'), exist_ok=True)
 cap = cv2.VideoCapture(feat4.VIDEO)
@@ -49,7 +50,9 @@ for f in range(LO, HI):
                 colours.setdefault(t.track_id, []).append(s)
     if (f - LO) % STEP == 0:
         k = (f - LO) // STEP
-        cv2.imwrite(os.path.join(OUT, 'frames', 'k%02d.jpg' % k), fr, [cv2.IMWRITE_JPEG_QUALITY, 82])
+        cv2.imwrite(
+            os.path.join(OUT, 'frames', 'k%02d.jpg' % k), fr, [cv2.IMWRITE_JPEG_QUALITY, 82]
+        )
         keys[f] = k
     if (f - LO) % 100 == 0:
         print(f, len(tracks), flush=True)
@@ -68,14 +71,43 @@ for f, k in sorted(keys.items()):
                     tm = team.team_of(t.track_id)
                 except Exception:
                     tm = None
-                boxes.append({'tid': t.track_id, 'c': round(b.confidence, 2), 'team': tm,
-                              'xyxy': [round(v, 1) for v in b.xyxy]})
+                boxes.append(
+                    {
+                        'tid': t.track_id,
+                        'c': round(b.confidence, 2),
+                        'team': tm,
+                        'xyxy': [round(v, 1) for v in b.xyxy],
+                    }
+                )
     sheets.append({'k': k, 'f': f, 't': round(f / fps, 3), 'boxes': boxes})
 
-life = {tid: [t.boxes[0].frame_index, t.boxes[-1].frame_index, len(t.boxes)]
-        for tid, t in tracks.items() if t.label == 'person'}
-meta = {'video': os.path.basename(feat4.VIDEO), 'fps': fps, 'w': W, 'h': H, 'lo': LO, 'hi': HI - 1,
-        'step': STEP, 'tracker': 'PlayerTracker yolov8n imgsz1280 botsort', 'life': life, 'sheets': sheets}
+life = {
+    tid: [t.boxes[0].frame_index, t.boxes[-1].frame_index, len(t.boxes)]
+    for tid, t in tracks.items()
+    if t.label == 'person'
+}
+meta = {
+    'video': os.path.basename(feat4.VIDEO),
+    'fps': fps,
+    'w': W,
+    'h': H,
+    'lo': LO,
+    'hi': HI - 1,
+    'step': STEP,
+    'tracker': 'PlayerTracker yolov8n imgsz1280 botsort',
+    'life': life,
+    'sheets': sheets,
+}
 json.dump(meta, open(os.path.join(OUT, 'sheets.json'), 'w'))
-print('tracks', len(life), 'keyframes', len(sheets), 'boxes/kf', np.mean([len(s['boxes']) for s in sheets]),
-      'teams', team.counts, team.axis, round(team.score, 2))
+print(
+    'tracks',
+    len(life),
+    'keyframes',
+    len(sheets),
+    'boxes/kf',
+    np.mean([len(s['boxes']) for s in sheets]),
+    'teams',
+    team.counts,
+    team.axis,
+    round(team.score, 2),
+)

@@ -1,4 +1,5 @@
 """results/2d.json + results/3d.json -> report.html (every version x every test)."""
+
 import html
 import json
 import math
@@ -29,10 +30,21 @@ VERS = [
     ('blob_raw', 'White blobs raw', 'other', 'Every blob, no tracker'),
     ('yolo_trk', 'YOLOv8n + tracker', 'other', 'Stock COCO sports-ball'),
     ('yolo_raw', 'YOLOv8n raw', 'other', 'Stock COCO sports-ball'),
-    ('tn_alone', 'TAPNext++ alone', 'google', 'Google, seeded once per window; ring where it says visible'),
+    (
+        'tn_alone',
+        'TAPNext++ alone',
+        'google',
+        'Google, seeded once per window; ring where it says visible',
+    ),
     ('tn_alone_raw', 'TAPNext++ alone, raw', 'google', 'Ignores its own visibility call (2D only)'),
 ]
-GROUP = {'new': 'Hybrid (new)', 'ours': 'Our tracker', 'cls': 'Earlier classifiers', 'other': 'Other detectors', 'google': 'Google TAPNext++'}
+GROUP = {
+    'new': 'Hybrid (new)',
+    'ours': 'Our tracker',
+    'cls': 'Earlier classifiers',
+    'other': 'Other detectors',
+    'google': 'Google TAPNext++',
+}
 
 
 def num(v):
@@ -62,17 +74,26 @@ def table(cols, rows, caption):
     for j, c in enumerate(cols):
         xs = [v[j] for v in vals if num(v[j])]
         best.append(None if not xs or not c[3] else (max(xs) if c[3] == 'hi' else min(xs)))
-    o = ['<div class="tw"><table><caption>%s</caption><thead><tr><th class="v">Version</th>' % caption]
-    for (lab, _, _, _, t) in cols:
+    o = [
+        '<div class="tw"><table><caption>%s</caption><thead><tr><th class="v">Version</th>'
+        % caption
+    ]
+    for lab, _, _, _, t in cols:
         o.append('<th title="%s">%s</th>' % (html.escape(t), lab))
     o.append('</tr></thead><tbody>')
     last = None
     for (k, lab, grp, note, ctx), v in zip(rows, vals):
         if grp != last:
-            o.append('<tr class="grp"><td colspan="%d">%s</td></tr>' % (len(cols) + 1, GROUP.get(grp, grp)))
+            o.append(
+                '<tr class="grp"><td colspan="%d">%s</td></tr>'
+                % (len(cols) + 1, GROUP.get(grp, grp))
+            )
             last = grp
         cls = ' class="hl"' if k in ('hyb90',) else (' class="ship"' if k == 'cls_B' else '')
-        o.append('<tr%s><td class="v"><b>%s</b>%s</td>' % (cls, html.escape(lab), '<span>%s</span>' % html.escape(note) if note else ''))
+        o.append(
+            '<tr%s><td class="v"><b>%s</b>%s</td>'
+            % (cls, html.escape(lab), '<span>%s</span>' % html.escape(note) if note else '')
+        )
         for j, c in enumerate(cols):
             x = v[j]
             if not num(x):
@@ -92,6 +113,7 @@ def g(*path):
                 return None
             d = d[p]
         return d
+
     return get
 
 
@@ -103,15 +125,28 @@ def flpos(which):
             return None
         m = re.search(r'pos med\s+([\d.]+).*on\s+(\d+)/', t[i])
         return float(m.group(1)) if m else None
+
     return get
 
 
 # ---------- 2D ----------
 rows2 = [(k, l, gr, n, R2[k]) for (k, l, gr, n) in VERS if k in R2]
 C2a = [
-    ('Truth acc', g('truth', 'all', 'acc'), f_pct, 'hi', 'TruthDB: 213 hand marks over 18 windows (158 ball, 55 off-screen)'),
+    (
+        'Truth acc',
+        g('truth', 'all', 'acc'),
+        f_pct,
+        'hi',
+        'TruthDB: 213 hand marks over 18 windows (158 ball, 55 off-screen)',
+    ),
     ('Right', g('truth', 'all', 'right'), f_i, 'hi', 'ball marks with a ring within 60 px'),
-    ('Wrong', g('truth', 'all', 'wrong'), f_i, 'lo', 'ball marks with a ring somewhere else (worst error)'),
+    (
+        'Wrong',
+        g('truth', 'all', 'wrong'),
+        f_i,
+        'lo',
+        'ball marks with a ring somewhere else (worst error)',
+    ),
     ('Empty', g('truth', 'all', 'none'), f_i, 'lo', 'ball marks with no ring'),
     ('H1', g('truth', 'H1', 'acc'), f_pct, 'hi', 'first-half windows'),
     ('H2', g('truth', 'H2', 'acc'), f_pct, 'hi', 'second-half windows'),
@@ -119,27 +154,54 @@ C2a = [
     ('Find wrong', g('find', 'wrong'), f_i, 'lo', ''),
 ]
 C2b = [
-    ('Pass pts /16', g('passes', 'points'), f_i, 'hi', '8 hand-marked passes, both ends; physical ceiling 14'),
+    (
+        'Pass pts /16',
+        g('passes', 'points'),
+        f_i,
+        'hi',
+        '8 hand-marked passes, both ends; physical ceiling 14',
+    ),
     ('Carried /8', g('passes', 'carried'), f_i, 'hi', 'both ends of a pass hit'),
     ('Fix pts /8', g('fix', 'points'), f_i, 'hi', 'Fix Lab points the shipped tracker missed'),
     ('Fix cover', g('fix', 'cover'), f_2, 'hi', 'share of Fix Lab missed spans with a ring'),
-    ('Fix repeat', g('fix', 'repeat'), f_2, 'lo', 'share of Fix Lab WRONG spans where the shipped wrong ring is repeated (lower = better)'),
+    (
+        'Fix repeat',
+        g('fix', 'repeat'),
+        f_2,
+        'lo',
+        'share of Fix Lab WRONG spans where the shipped wrong ring is repeated (lower = better)',
+    ),
     ('Jitter px', g('jitter'), f_2, None, 'median 2nd difference of the ring path'),
     ('Coverage', g('cover'), f_2, None, 'share of all frames with a ring'),
 ]
 
 # ---------- 3D ----------
-VAR = [('dd', 'default'), ('x1', 'strict'), ('sx', 'strict + smooth'), ('c3k', 'chain3k'), ('c3', 'chain3'), ('v1', 'scan v1')]
+VAR = [
+    ('dd', 'default'),
+    ('x1', 'strict'),
+    ('sx', 'strict + smooth'),
+    ('c3k', 'chain3k'),
+    ('c3', 'chain3'),
+    ('v1', 'scan v1'),
+]
 
 
 def rows3(vs, variants):
     out = []
-    for (k, l, gr, n) in VERS:
+    for k, l, gr, n in VERS:
         if k not in R3 or (vs and k not in vs):
             continue
-        for (vk, vl) in (VAR if variants else VAR[:1]):
+        for vk, vl in VAR if variants else VAR[:1]:
             if vk in R3[k]:
-                out.append((k + vk, '%s · %s' % (l, vl) if variants else l, gr, n if (not variants or vk == 'dd') else '', R3[k][vk]))
+                out.append(
+                    (
+                        k + vk,
+                        '%s · %s' % (l, vl) if variants else l,
+                        gr,
+                        n if (not variants or vk == 'dd') else '',
+                        R3[k][vk],
+                    )
+                )
     return out
 
 
@@ -149,7 +211,13 @@ C3 = [
     ('Air false', g('air', 'false'), f_i, 'lo', 'flights invented (worse than missed)'),
     ('Dev hit /20', g('fl_dev', 'hit'), f_i, 'hi', 'Flight Lab dev'),
     ('Dev false', g('fl_dev', 'false'), f_i, 'lo', ''),
-    ('Dev pos', flpos('dev'), f_1, None, 'median position error on the flights this version matched (n varies, so not comparable across rows)'),
+    (
+        'Dev pos',
+        flpos('dev'),
+        f_1,
+        None,
+        'median position error on the flights this version matched (n varies, so not comparable across rows)',
+    ),
     ('Hold hit /15', g('fl_hold', 'hit'), f_i, 'hi', 'Flight Lab hold-out'),
     ('Hold false', g('fl_hold', 'false'), f_i, 'lo', ''),
     ('Hold pos', flpos('hold'), f_1, None, ''),
@@ -158,24 +226,33 @@ C3 = [
     ('FL2 P', g('fl2', 'P'), f_2, 'hi', 'air-frame precision'),
     ('FL2 spots', g('fl2', 'spots'), f_1, 'lo', 'landing / kick spot error (StatsBomb units)'),
     ('FL2 track', g('fl2', 'track'), f_1, 'lo', 'pitch path error (StatsBomb units)'),
-    ('Fix wrong air', g('fix', 'wrong_air_runs'), f_i, 'lo', 'Fix Lab spans marked wrong that became flights'),
+    (
+        'Fix wrong air',
+        g('fix', 'wrong_air_runs'),
+        f_i,
+        'lo',
+        'Fix Lab spans marked wrong that became flights',
+    ),
 ]
 
-hist = '''<div class="tw"><table><caption>Earlier detectors (HANDOFF §5; weights deleted, can't be rerun)</caption>
+hist = """<div class="tw"><table><caption>Earlier detectors (HANDOFF §5; weights deleted, can't be rerun)</caption>
 <thead><tr><th class="v">Detector</th><th>Pass pts raw /16</th><th>Pass pts tracked /16</th></tr></thead><tbody>
 <tr><td class="v"><b>YOLOv8n</b></td><td>2</td><td>4</td></tr>
 <tr><td class="v"><b>White blobs</b></td><td>14</td><td>5</td></tr>
 <tr><td class="v"><b>ballyolo @3840 / @2560</b></td><td>9 / 6</td><td>0–1</td></tr>
 <tr><td class="v"><b>WASB whole frame</b></td><td>0</td><td>–</td></tr>
 <tr><td class="v"><b>WASB 4×4 / 3×3 grid</b></td><td>6 / 6</td><td>1</td></tr>
-</tbody></table></div>'''
+</tbody></table></div>"""
 
 body = open(os.path.join(HERE, 'report_head.html'), encoding='utf-8').read()
 body = body.replace('{{T2A}}', table(C2a, rows2, '2D: hand-marked ball positions'))
 body = body.replace('{{T2B}}', table(C2b, rows2, '2D: passes, Fix Lab, smoothness'))
-body = body.replace('{{T3}}', table(C3, rows3(None, False), '3D: every version through the default flight chain'))
-body = body.replace('{{T3V}}', table(C3, rows3(('hyb90', 'cls_B'), True),
-                                     '3D: every flight model, ours vs hybrid'))
+body = body.replace(
+    '{{T3}}', table(C3, rows3(None, False), '3D: every version through the default flight chain')
+)
+body = body.replace(
+    '{{T3V}}', table(C3, rows3(('hyb90', 'cls_B'), True), '3D: every flight model, ours vs hybrid')
+)
 body = body.replace('{{HIST}}', hist)
 open(os.path.join(HERE, 'report.html'), 'w', encoding='utf-8').write(body)
 print('report.html', len(body))

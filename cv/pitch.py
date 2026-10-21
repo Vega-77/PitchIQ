@@ -26,7 +26,7 @@ from dataclasses import dataclass, fields
 # routinely marked short, narrow, or off-centre. These are what `Pitch` starts
 # from, not what it insists on: every one of them is a field you can override.
 GOAL_WIDTH_M = 7.32
-GOAL_AREA_LENGTH_M = 5.5      # six-yard box depth
+GOAL_AREA_LENGTH_M = 5.5  # six-yard box depth
 GOAL_AREA_WIDTH_M = 18.32
 PENALTY_AREA_LENGTH_M = 16.5
 PENALTY_AREA_WIDTH_M = 40.32
@@ -79,7 +79,7 @@ class Pitch:
     centre_circle_radius_m: float = CENTRE_CIRCLE_RADIUS_M
 
     @classmethod
-    def from_mapping(cls, data) -> "Pitch":
+    def from_mapping(cls, data) -> 'Pitch':
         """A pitch from a JSON-ish mapping, ignoring keys it does not know.
 
         Every field is optional and falls back to the Laws, which is what makes
@@ -90,10 +90,13 @@ class Pitch:
         wrong rather than an error anybody sees.
         """
         known = {f.name for f in fields(cls)}
-        return cls(**{
-            name: float(value) for name, value in (data or {}).items()
-            if name in known and value is not None
-        })
+        return cls(
+            **{
+                name: float(value)
+                for name, value in (data or {}).items()
+                if name in known and value is not None
+            }
+        )
 
     @property
     def markings_are_standard(self) -> bool:
@@ -123,9 +126,9 @@ class Pitch:
         return (self.length_m, self.width_m / 2)
 
     def goal_centre(self, end: str) -> tuple[float, float]:
-        if end == "left":
+        if end == 'left':
             return self.left_goal_centre
-        if end == "right":
+        if end == 'right':
             return self.right_goal_centre
         raise ValueError(f"end must be 'left' or 'right', got {end!r}")
 
@@ -153,55 +156,50 @@ class Pitch:
 
         return {
             # Corners
-            "corner_bottom_left": (0.0, 0.0),
-            "corner_top_left": (0.0, W),
-            "corner_bottom_right": (L, 0.0),
-            "corner_top_right": (L, W),
-
+            'corner_bottom_left': (0.0, 0.0),
+            'corner_top_left': (0.0, W),
+            'corner_bottom_right': (L, 0.0),
+            'corner_top_right': (L, W),
             # Halfway line
-            "halfway_bottom": (L / 2, 0.0),
-            "halfway_top": (L / 2, W),
-            "centre_spot": (L / 2, cy),
-            "centre_circle_bottom": (L / 2, cy - circle),
-            "centre_circle_top": (L / 2, cy + circle),
-
+            'halfway_bottom': (L / 2, 0.0),
+            'halfway_top': (L / 2, W),
+            'centre_spot': (L / 2, cy),
+            'centre_circle_bottom': (L / 2, cy - circle),
+            'centre_circle_top': (L / 2, cy + circle),
             # Left penalty area
-            "pen_left_bottom_goalline": (0.0, cy - pa_half),
-            "pen_left_top_goalline": (0.0, cy + pa_half),
-            "pen_left_bottom_corner": (pa_len, cy - pa_half),
-            "pen_left_top_corner": (pa_len, cy + pa_half),
-            "pen_spot_left": (spot, cy),
-
+            'pen_left_bottom_goalline': (0.0, cy - pa_half),
+            'pen_left_top_goalline': (0.0, cy + pa_half),
+            'pen_left_bottom_corner': (pa_len, cy - pa_half),
+            'pen_left_top_corner': (pa_len, cy + pa_half),
+            'pen_spot_left': (spot, cy),
             # Right penalty area
-            "pen_right_bottom_goalline": (L, cy - pa_half),
-            "pen_right_top_goalline": (L, cy + pa_half),
-            "pen_right_bottom_corner": (L - pa_len, cy - pa_half),
-            "pen_right_top_corner": (L - pa_len, cy + pa_half),
-            "pen_spot_right": (L - spot, cy),
-
+            'pen_right_bottom_goalline': (L, cy - pa_half),
+            'pen_right_top_goalline': (L, cy + pa_half),
+            'pen_right_bottom_corner': (L - pa_len, cy - pa_half),
+            'pen_right_top_corner': (L - pa_len, cy + pa_half),
+            'pen_spot_right': (L - spot, cy),
             # Goal areas (six-yard boxes)
-            "goalarea_left_bottom_corner": (ga_len, cy - ga_half),
-            "goalarea_left_top_corner": (ga_len, cy + ga_half),
-            "goalarea_right_bottom_corner": (L - ga_len, cy - ga_half),
-            "goalarea_right_top_corner": (L - ga_len, cy + ga_half),
-
+            'goalarea_left_bottom_corner': (ga_len, cy - ga_half),
+            'goalarea_left_top_corner': (ga_len, cy + ga_half),
+            'goalarea_right_bottom_corner': (L - ga_len, cy - ga_half),
+            'goalarea_right_top_corner': (L - ga_len, cy + ga_half),
             # Goalposts
-            "goalpost_left_bottom": (0.0, cy - goal_half),
-            "goalpost_left_top": (0.0, cy + goal_half),
-            "goalpost_right_bottom": (L, cy - goal_half),
-            "goalpost_right_top": (L, cy + goal_half),
+            'goalpost_left_bottom': (0.0, cy - goal_half),
+            'goalpost_left_top': (0.0, cy + goal_half),
+            'goalpost_right_bottom': (L, cy - goal_half),
+            'goalpost_right_top': (L, cy + goal_half),
         }
 
     def landmark(self, name: str) -> tuple[float, float]:
         try:
             return self.landmarks()[name]
         except KeyError:
-            raise KeyError(f"Unknown landmark {name!r}") from None
+            raise KeyError(f'Unknown landmark {name!r}') from None
 
     # ---------------------------------------------------------------- StatsBomb
 
     def to_statsbomb(
-        self, x_m: float, y_m: float, attacking_end: str = "right"
+        self, x_m: float, y_m: float, attacking_end: str = 'right'
     ) -> tuple[float, float]:
         """Metres -> StatsBomb 120x80, with the attacked goal always at x=120.
 
@@ -210,13 +208,11 @@ class Pitch:
         not raise — it silently produces plausible-looking xG for a shot
         measured from the wrong goal.
         """
-        if attacking_end == "left":
+        if attacking_end == 'left':
             x_m = self.length_m - x_m
             y_m = self.width_m - y_m
-        elif attacking_end != "right":
-            raise ValueError(
-                f"attacking_end must be 'left' or 'right', got {attacking_end!r}"
-            )
+        elif attacking_end != 'right':
+            raise ValueError(f"attacking_end must be 'left' or 'right', got {attacking_end!r}")
 
         return (
             x_m / self.length_m * STATSBOMB_LENGTH,
@@ -224,12 +220,12 @@ class Pitch:
         )
 
     def from_statsbomb(
-        self, x_sb: float, y_sb: float, attacking_end: str = "right"
+        self, x_sb: float, y_sb: float, attacking_end: str = 'right'
     ) -> tuple[float, float]:
         x_m = x_sb / STATSBOMB_LENGTH * self.length_m
         y_m = y_sb / STATSBOMB_WIDTH * self.width_m
 
-        if attacking_end == "left":
+        if attacking_end == 'left':
             x_m = self.length_m - x_m
             y_m = self.width_m - y_m
         return (x_m, y_m)
@@ -247,7 +243,7 @@ class Pitch:
 
 # Which period markers flip the ends. Teams swap at halftime, so the second half
 # attacks the opposite goal from the first.
-_SECOND_HALF_PERIODS = {"kickoff_2nd", "second_half"}
+_SECOND_HALF_PERIODS = {'kickoff_2nd', 'second_half'}
 
 
 @dataclass
@@ -259,14 +255,14 @@ class MatchOrientation:
     infer it from geometry alone.
     """
 
-    home_attacks_first_half: str = "right"
+    home_attacks_first_half: str = 'right'
 
     def attacking_end(self, side: str, period: str) -> str:
-        if side not in ("us", "them"):
+        if side not in ('us', 'them'):
             raise ValueError(f"side must be 'us' or 'them', got {side!r}")
 
         end = self.home_attacks_first_half
-        if side == "them":
+        if side == 'them':
             end = _flip(end)
         if period in _SECOND_HALF_PERIODS:
             end = _flip(end)
@@ -277,8 +273,8 @@ class MatchOrientation:
 
 
 def _flip(end: str) -> str:
-    if end == "left":
-        return "right"
-    if end == "right":
-        return "left"
+    if end == 'left':
+        return 'right'
+    if end == 'right':
+        return 'left'
     raise ValueError(f"end must be 'left' or 'right', got {end!r}")

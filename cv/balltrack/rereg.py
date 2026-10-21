@@ -12,6 +12,7 @@ those outputs are cleared first. The old bridges and the picks they were seeded 
 it is deterministic (a fresh run reproduced 10-13's eb2_q027 bridges byte for byte), so only
 the gaps the new air flags open are tracked again.
 """
+
 import argparse
 import os
 import shutil
@@ -29,7 +30,12 @@ def main():
     ap.add_argument('lo', type=int)
     ap.add_argument('hi', type=int)
     ap.add_argument('--overlap', type=int, default=300)
-    ap.add_argument('--lanes', type=int, default=H.LANES, help='CPU jobs (shipped chain, hybrid) at a time (at most half.LANES)')
+    ap.add_argument(
+        '--lanes',
+        type=int,
+        default=H.LANES,
+        help='CPU jobs (shipped chain, hybrid) at a time (at most half.LANES)',
+    )
     ap.add_argument('--prev', help='where the old bridges go (default PitchIQ-data/tnprev/<tag>)')
     a = ap.parse_args()
     # never more than half.py's lanes: each hybrid runs a 16-process scan, and at 3 lanes (ww1, ww2
@@ -39,7 +45,10 @@ def main():
     prev = a.prev or os.path.join(DATA, a.tag)
     os.makedirs(prev, exist_ok=True)
     tn = os.path.join(H.AT, 'tn')
-    h.say('REREG %s  %d..%d  %d pieces, %d lanes, old bridges -> %s' % (a.tag, a.lo, a.hi, len(h.pieces), a.lanes, prev))
+    h.say(
+        'REREG %s  %d..%d  %d pieces, %d lanes, old bridges -> %s'
+        % (a.tag, a.lo, a.hi, len(h.pieces), a.lanes, prev)
+    )
     for p in h.pieces:
         P = p['ptag']
         for st in ('build', 'shipped', 'bridges', 'hybrid'):
@@ -48,8 +57,13 @@ def main():
                 os.remove(m)
         b = os.path.join(tn, 'bridges_%s.npy' % P)
         if os.path.exists(b):
-            if not os.path.exists(os.path.join(prev, 'bridges_%s.npy' % P)):    # a restarted rerun keeps the first old copy
-                shutil.copy2(os.path.join(H.AT, 'p2d', 'cls_B', '%s.npz' % P), os.path.join(prev, 'cls_B_%s.npz' % P))
+            if not os.path.exists(
+                os.path.join(prev, 'bridges_%s.npy' % P)
+            ):  # a restarted rerun keeps the first old copy
+                shutil.copy2(
+                    os.path.join(H.AT, 'p2d', 'cls_B', '%s.npz' % P),
+                    os.path.join(prev, 'cls_B_%s.npz' % P),
+                )
                 shutil.move(b, os.path.join(prev, 'bridges_%s.npy' % P))
             else:
                 os.remove(b)
@@ -59,7 +73,8 @@ def main():
     h.env['TN_PREV'] = prev
 
     def ship(p):
-        h.registration(p); h.mark(p['ptag'], 'build')
+        h.registration(p)
+        h.mark(p['ptag'], 'build')
         h.do('shipped', p)
 
     with ThreadPoolExecutor(a.lanes) as cpu:
@@ -74,10 +89,12 @@ def main():
                     hybrids.append(cpu.submit(h.do, 'hybrid', p))
             except BaseException as e:  # noqa: BLE001 - re-raised below, after the pool drains
                 err.append(e)
+
         t = threading.Thread(target=gpu)
-        t.start(); t.join()
+        t.start()
+        t.join()
         for f in list(shipped.values()) + hybrids:
-            f.result()                  # re-raises a failed stage
+            f.result()  # re-raises a failed stage
         if err:
             raise err[0]
     h.stitch()

@@ -78,8 +78,7 @@ def rules_text() -> str:
 def client_files() -> list:
     """Everywhere a marker could live: the site's modules and the publisher."""
     return sorted(
-        [p for d in JS_DIRS for p in (ROOT / d).glob('*.js')]
-        + list((ROOT / 'cv').glob('*.py'))
+        [p for d in JS_DIRS for p in (ROOT / d).glob('*.js')] + list((ROOT / 'cv').glob('*.py'))
     )
 
 
@@ -93,10 +92,14 @@ def markers(text: str) -> list[dict]:
     for i, line in enumerate(text.splitlines()):
         m = MARKER.search(line)
         if m:
-            found.append({
-                'verb': m.group(1), 'expr': m.group(2),
-                'cap': int(m.group(3)), 'line': i,
-            })
+            found.append(
+                {
+                    'verb': m.group(1),
+                    'expr': m.group(2),
+                    'cap': int(m.group(3)),
+                    'line': i,
+                }
+            )
     return found
 
 
@@ -116,11 +119,10 @@ def numbers_below(text: str, line: int) -> list[int]:
     """
     lines = text.splitlines()
     i = line + 1
-    while i < len(lines) and (not lines[i].strip()
-                              or lines[i].lstrip().startswith(('#', '//'))):
+    while i < len(lines) and (not lines[i].strip() or lines[i].lstrip().startswith(('#', '//'))):
         i += 1
     out = []
-    for row in lines[i:i + WINDOW]:
+    for row in lines[i : i + WINDOW]:
         if row.lstrip().startswith(('#', '//')):
             continue
         row = re.sub(r"'[^'\n]*'|\"[^\"\n]*\"|`[^`\n]*`", ' ', row)
@@ -142,18 +144,17 @@ def disagreements(text: str, name: str, rules: str) -> list[str]:
         if not nums:
             out.append(f'{name}: nothing numeric under the `{mark["expr"]}` marker')
         elif max(nums) > mark['cap']:
-            out.append(f'{name}: {max(nums)} sits under a marker claiming'
-                       f' {mark["cap"]}')
+            out.append(f'{name}: {max(nums)} sits under a marker claiming {mark["cap"]}')
         elif mark['verb'] == 'Mirrors' and mark['cap'] not in nums:
-            out.append(f'{name}: marker claims {mark["cap"]}, the code below it'
-                       f' says {nums}')
+            out.append(f'{name}: marker claims {mark["cap"]}, the code below it says {nums}')
 
-        rules_line = rules[:rules.index(full)].count('\n')
-        above = rules.splitlines()[max(0, rules_line - WINDOW):rules_line]
+        rules_line = rules[: rules.index(full)].count('\n')
+        above = rules.splitlines()[max(0, rules_line - WINDOW) : rules_line]
         pointed = [GUARD.match(row).group(1) for row in above if GUARD.match(row)]
         if name not in pointed:
-            out.append(f'{name}: the rule capping `{mark["expr"]}` points at'
-                       f' {pointed or "nothing"}')
+            out.append(
+                f'{name}: the rule capping `{mark["expr"]}` points at {pointed or "nothing"}'
+            )
     return out
 
 
@@ -178,8 +179,7 @@ def orphan_guards(rules: str, marked: dict) -> list[str]:
         elif path not in marked:
             out.append(f'firestore.rules:{i + 1}: {path} carries no marker')
         elif not any(str(cap.group(1)) == str(c) for c in marked[path]):
-            out.append(f'firestore.rules:{i + 1}: {path} quotes {marked[path]},'
-                       f' not {cap.group(1)}')
+            out.append(f'firestore.rules:{i + 1}: {path} quotes {marked[path]}, not {cap.group(1)}')
     return out
 
 
@@ -208,11 +208,11 @@ class TestThePairsAgree:
         point back at. This says the plain thing instead.
         """
         rules = rules_text()
-        client = sum(len(markers(p.read_text(encoding='utf-8')))
-                     for p in client_files())
+        client = sum(len(markers(p.read_text(encoding='utf-8'))) for p in client_files())
         pointers = [line for line in rules.splitlines() if GUARD.match(line)]
         assert client == len(pointers), (
-            f'{client} client markers against {len(pointers)} rule pointers')
+            f'{client} client markers against {len(pointers)} rule pointers'
+        )
 
     def test_the_scan_reaches_both_languages(self):
         """The anti-vacuum guard.
@@ -235,9 +235,11 @@ class TestThePairsAgree:
         of it. It is here so that adding a pair means editing a test that says
         out loud what the pairs are for, rather than a marker sliding in.
         """
-        found = {(rel(p), m['verb'], m['expr'])
-                 for p in client_files()
-                 for m in markers(p.read_text(encoding='utf-8'))}
+        found = {
+            (rel(p), m['verb'], m['expr'])
+            for p in client_files()
+            for m in markers(p.read_text(encoding='utf-8'))
+        }
         assert found == {
             ('cv/publish.py', 'Fits under', 'byEvent.size() <= 1500'),
             ('coach/review.js', 'Mirrors', 'missed.size() <= 300'),
@@ -291,15 +293,19 @@ class TestTheScanWorks:
 
     def test_a_number_in_the_window_that_is_only_prose_is_ignored(self):
         """`recordMiss` shows the coach a message with the cap in it."""
-        src = ('// Mirrors `things.size() <= 50` in firestore.rules.\n'
-               'if (list.length > 50) {\n'
-               '    toast("That is 50 of them, which is 900 too few.");\n')
+        src = (
+            '// Mirrors `things.size() <= 50` in firestore.rules.\n'
+            'if (list.length > 50) {\n'
+            '    toast("That is 50 of them, which is 900 too few.");\n'
+        )
         assert not disagreements(src, 'a/b.js', self.RULES)
 
     def test_a_marker_wrapped_over_several_lines_still_finds_its_code(self):
-        src = ('// Mirrors `things.size() <= 50` in firestore.rules. Refuse here\n'
-               '// rather than letting the save fail with a permission error.\n'
-               'if (list.length > 50) {\n')
+        src = (
+            '// Mirrors `things.size() <= 50` in firestore.rules. Refuse here\n'
+            '// rather than letting the save fail with a permission error.\n'
+            'if (list.length > 50) {\n'
+        )
         assert not disagreements(src, 'a/b.js', self.RULES)
 
     def test_a_rule_pointer_above_no_cap_is_an_orphan(self):

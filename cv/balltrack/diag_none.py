@@ -14,6 +14,7 @@ candidate on 'off' frames (what a threshold would wrongly take).
 
     python diag_none.py
 """
+
 import collections
 
 import numpy as np
@@ -32,8 +33,7 @@ def main():
         C.attach(F[tag], tag)
         for fr in F[tag]:
             fr['s'] = fr['p']
-    picks = {tag: D6.viterbi7(F[tag], drift=12.0, gate=2.0, **CFG)
-             for tag in tags}
+    picks = {tag: D6.viterbi7(F[tag], drift=12.0, gate=2.0, **CFG) for tag in tags}
     cat = collections.Counter()
     ps = collections.defaultdict(list)
     for t in T:
@@ -48,8 +48,7 @@ def main():
             continue
         d = np.hypot(fr['x'] - t['x'], fr['y'] - t['y'])
         ok = d <= W.TOL
-        state = ('none' if j is None else
-                 'right' if ok[j] else 'wrong')
+        state = 'none' if j is None else 'right' if ok[j] else 'wrong'
         if not ok.any():
             cat[(state, 'MISS')] += 1
             continue

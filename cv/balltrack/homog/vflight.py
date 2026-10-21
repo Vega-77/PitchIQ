@@ -16,6 +16,7 @@ this file in metres.
 
     python vflight.py <tag>        -> <tag>_flights.npz, <tag>_ball3d.csv
 """
+
 import os
 import sys
 
@@ -24,8 +25,8 @@ from scipy.optimize import least_squares
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FPS = 30.0
-R_CH = 71.2 / 40.0                  # centre-circle radius in camera heights (the scrimmage camera)
-G = 9.81 * R_CH / 9.15              # gravity, camera heights / s^2
+R_CH = 71.2 / 40.0  # centre-circle radius in camera heights (the scrimmage camera)
+G = 9.81 * R_CH / 9.15  # gravity, camera heights / s^2
 R_CH0 = R_CH
 
 
@@ -35,7 +36,9 @@ def set_camera(r_ch):
     global R_CH, G
     R_CH = float(r_ch)
     G = 9.81 * R_CH / 9.15
-SIG = 2.0                           # pixel noise of the tracker's ball
+
+
+SIG = 2.0  # pixel noise of the tracker's ball
 
 
 class Track:
@@ -43,19 +46,19 @@ class Track:
         z = np.load(os.path.join(HERE, '%s_ballsb.npz' % tag))
         im = np.load(os.path.join(HERE, '%s_img.npz' % tag))
         own = os.path.join(HERE, '%s_venue.npz' % tag)
-        if os.path.exists(own):                      # a camera calibrated in-match (cv/autocal.py)
+        if os.path.exists(own):  # a camera calibrated in-match (cv/autocal.py)
             v = np.load(own)
-            self.A = v['A']                          # CH ground -> SB
+            self.A = v['A']  # CH ground -> SB
             set_camera(1.0 / float(v['C'][2]) if 'C' in v.files else R_CH0)
         else:
             set_camera(R_CH0)
             t = np.load(os.path.join(HERE, 'vtop.npz'))
             p = np.load(os.path.join(HERE, 'vpitch.npz'))
-            self.A = p['P'].dot(t['T'])              # CH ground -> SB
+            self.A = p['P'].dot(t['T'])  # CH ground -> SB
         self.Ai = np.linalg.inv(self.A)
         self.abs = z['abs']
-        self.M = np.einsum('ij,fjk->fik', self.Ai, z['H'])   # pixel -> CH ray
-        for f in range(len(self.M)):                 # w > 0 for rays below
+        self.M = np.einsum('ij,fjk->fik', self.Ai, z['H'])  # pixel -> CH ray
+        for f in range(len(self.M)):  # w > 0 for rays below
             if self.M[f].dot([960, 900, 1])[2] < 0:
                 self.M[f] = -self.M[f]
         self.Mi = np.linalg.inv(self.M)
@@ -70,7 +73,9 @@ class Track:
 
     def project(self, idx, P):
         """Pixels of 3D points P (n, 3: u, v, z) seen in frames idx."""
-        q = np.column_stack((P[:, 0], P[:, 1], 1 - P[:, 2]))   # not np.c_: 4x slower, and called ~1M times a scan
+        q = np.column_stack(
+            (P[:, 0], P[:, 1], 1 - P[:, 2])
+        )  # not np.c_: 4x slower, and called ~1M times a scan
         x = np.einsum('fij,fj->fi', self.Mi[idx], q)
         return x[:, :2] / x[:, 2:3]
 
@@ -98,7 +103,8 @@ def ground_all(tr):
         g[i] = tr.ground(i)
         p0 = tr.project([i], np.r_[g[i], 0][None])[0]
         for c in range(2):
-            d = np.zeros(2); d[c] = 1e-3
+            d = np.zeros(2)
+            d[c] = 1e-3
             J[i, :, c] = (tr.project([i], np.r_[g[i] + d, 0][None])[0] - p0) / 1e-3
     tr.g, tr.J = g, J
     return g, J
@@ -115,24 +121,29 @@ def roll_rms(tr, half=7):
         if len(idx) < 6:
             continue
         t = (idx - i) / FPS
-        Z = np.zeros_like(t); O = np.ones_like(t)
+        Z = np.zeros_like(t)
+        O = np.ones_like(t)
         Arow = np.stack([np.stack([O, Z, t, Z], 1), np.stack([Z, O, Z, t], 1)], 1)
         Am = np.einsum('kij,kjl->kil', tr.J[idx], Arow).reshape(-1, 4)
         bm = np.einsum('kij,kj->ki', tr.J[idx], tr.g[idx]).ravel()
         th = np.linalg.lstsq(Am, bm, rcond=None)[0]
         e = (Am.dot(th) - bm).reshape(-1, 2)
-        out[i] = np.sqrt(np.mean(np.sum(e ** 2, 1)))
+        out[i] = np.sqrt(np.mean(np.sum(e**2, 1)))
     return out
 
 
 if __name__ == '__main__':
     import time
+
     tr = Track(sys.argv[1] if len(sys.argv) > 1 else 'vid1')
     t0 = time.time()
     ground_all(tr)
     rr = roll_rms(tr)
-    print('roll rms px pct 50/75/90/95/99:', np.nanpercentile(rr, [50, 75, 90, 95, 99]).round(1),
-          '(%.0f s)' % (time.time() - t0))
+    print(
+        'roll rms px pct 50/75/90/95/99:',
+        np.nanpercentile(rr, [50, 75, 90, 95, 99]).round(1),
+        '(%.0f s)' % (time.time() - t0),
+    )
     np.save(os.path.join(HERE, 'vid1_rollrms.npy'), rr)
 
 
@@ -145,7 +156,7 @@ def chain_pos(th, K, t):
     P = np.zeros((len(t), 3))
     P[:, 0], P[:, 1] = u, v
     for k in range(K):
-        vu, vv, Tf = th[3 + 3 * k: 6 + 3 * k]
+        vu, vv, Tf = th[3 + 3 * k : 6 + 3 * k]
         s = t - tk
         m = s >= 0
         sc = np.clip(s, 0, Tf)
@@ -168,7 +179,8 @@ def fit_chain(tr, flights, anchor=4):
     idx = np.arange(a, b + 1)
     idx = idx[tr.has[idx]]
     # observations inside the chain, plus at most one anchor on each side
-    before = idx[idx < ta]; after = idx[idx > tb]
+    before = idx[idx < ta]
+    after = idx[idx > tb]
     # only the frames the single fits explained (a gap between a landing and
     # the next take-off may hold a roll or a bad pick)
     inw = np.zeros(len(idx), bool)
@@ -179,25 +191,37 @@ def fit_chain(tr, flights, anchor=4):
     t = (use - a) / FPS
     obs = tr.px[use]
     th0 = [flights[0]['take'][0], flights[0]['take'][1], (ta - a) / FPS]
-    lo = [-np.inf, -np.inf, th0[2] - 0.2]; hi = [np.inf, np.inf, th0[2] + 0.2]
+    lo = [-np.inf, -np.inf, th0[2] - 0.2]
+    hi = [np.inf, np.inf, th0[2] + 0.2]
     for f in flights:
         Tf = (f['t_land'] - f['t_take']) / FPS
         d = f['land'] - f['take']
         th0 += [d[0] / Tf, d[1] / Tf, Tf]
-        lo += [-np.inf, -np.inf, Tf * 0.6]; hi += [np.inf, np.inf, Tf * 1.4 + 0.1]
+        lo += [-np.inf, -np.inf, Tf * 0.6]
+        hi += [np.inf, np.inf, Tf * 1.4 + 0.1]
     th0 = np.clip(th0, np.add(lo, 1e-6), np.subtract(hi, 1e-6))
 
     def res(th):
         return ((tr.project(use, chain_pos(th, K, t)) - obs) / SIG).ravel()
+
     s = least_squares(res, th0, bounds=(lo, hi), loss='soft_l1', f_scale=2.0, max_nfev=400)
     e = np.hypot(*(tr.project(use, chain_pos(s.x, K, t)) - obs).T)
     out = []
     u, v, tk = s.x[0], s.x[1], a + s.x[2] * FPS
     for k in range(K):
-        vu, vv, Tf = s.x[3 + 3 * k: 6 + 3 * k]
+        vu, vv, Tf = s.x[3 + 3 * k : 6 + 3 * k]
         land = np.array([u + vu * Tf, v + vv * Tf])
-        out.append(dict(take=np.array([u, v]), land=land, t_take=tk, t_land=tk + Tf * FPS,
-                        apex=G * Tf * Tf / 8, vel=np.array([vu, vv])))
+        out.append(
+            dict(
+                take=np.array([u, v]),
+                land=land,
+                t_take=tk,
+                t_land=tk + Tf * FPS,
+                apex=G * Tf * Tf / 8,
+                vel=np.array([vu, vv]),
+            )
+        )
         u, v, tk = land[0], land[1], tk + Tf * FPS
-    return dict(flights=out, th=s.x, a=a, K=K, rms=float(np.sqrt(np.mean(e ** 2))),
-                med=float(np.median(e)))
+    return dict(
+        flights=out, th=s.x, a=a, K=K, rms=float(np.sqrt(np.mean(e**2))), med=float(np.median(e))
+    )

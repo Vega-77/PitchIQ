@@ -115,10 +115,7 @@ class TestItFindsRealOnes:
         # TestItDoesNotInventBursts measures separately, on a track with no
         # bursts in it at all. An undercount is a number a coach can still use;
         # an overcount is a number about the camera.
-        counts = [
-            measure(track(four_bursts, 60, 0.20, seed)).accelerations
-            for seed in range(20)
-        ]
+        counts = [measure(track(four_bursts, 60, 0.20, seed)).accelerations for seed in range(20)]
         assert min(counts) >= 6
         assert max(counts) <= 8
 
@@ -197,10 +194,7 @@ class TestMeasuringTheWobble:
     def test_it_recovers_the_noise_it_was_given(self, jitter_m):
         # Within 15% at every level, on a track with four real accelerations
         # mixed in — which is the point of taking a median rather than a mean.
-        estimates = [
-            position_noise_m(track(four_bursts, 60, jitter_m, seed))
-            for seed in range(5)
-        ]
+        estimates = [position_noise_m(track(four_bursts, 60, jitter_m, seed)) for seed in range(5)]
         assert np.mean(estimates) == pytest.approx(jitter_m, rel=0.15)
 
     def test_a_clean_track_reports_almost_none(self):
@@ -238,10 +232,9 @@ class TestWhatTheWobbleCosts:
         # phantom. That is why assets/report.js can no longer hold one constant
         # and reads a published figure instead.
         for jitter_m, expected in ((0.05, 10.7), (0.10, 15.3), (0.20, 22.3)):
-            phantom = np.mean([
-                measure(track(lambda _t: 0.0, 60, jitter_m, seed)).distance_m
-                for seed in range(5)
-            ])
+            phantom = np.mean(
+                [measure(track(lambda _t: 0.0, 60, jitter_m, seed)).distance_m for seed in range(5)]
+            )
             assert phantom == pytest.approx(expected, rel=0.2), f'{jitter_m}m'
 
     def test_the_published_rate_is_what_a_still_player_actually_gains(self):
@@ -250,10 +243,9 @@ class TestWhatTheWobbleCosts:
         # a motionless track really accumulates, the caveat under the figures
         # would be describing a different pipeline.
         for jitter_m in (0.05, 0.10, 0.20):
-            measured = np.mean([
-                measure(track(lambda _t: 0.0, 60, jitter_m, seed)).distance_m
-                for seed in range(5)
-            ])
+            measured = np.mean(
+                [measure(track(lambda _t: 0.0, 60, jitter_m, seed)).distance_m for seed in range(5)]
+            )
             claimed = phantom_m_per_minute(jitter_m, smoothing_window_s(jitter_m))
             assert claimed == pytest.approx(measured, rel=0.10), f'{jitter_m}m'
 
@@ -267,8 +259,7 @@ class TestWhatTheWobbleCosts:
         # Distance totals are safer than they look; a substitute who spent the
         # half warming up is still the case to be careful with.
         for jitter_m, expected in ((0.0, 179.9), (0.10, 180.2), (0.20, 180.7)):
-            measured = np.mean([
-                measure(track(jogging, 60, jitter_m, seed)).distance_m
-                for seed in range(5)
-            ])
+            measured = np.mean(
+                [measure(track(jogging, 60, jitter_m, seed)).distance_m for seed in range(5)]
+            )
             assert measured == pytest.approx(expected, rel=0.02), f'{jitter_m}m'

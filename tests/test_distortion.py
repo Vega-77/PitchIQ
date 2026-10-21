@@ -65,14 +65,18 @@ SUB = 40
 GRID = [(x, y) for x in np.linspace(2, 103, 9) for y in np.linspace(2, 66, 7)]
 
 CLICKED = [
-    "corner_bottom_left", "corner_bottom_right",
-    "corner_top_right", "corner_top_left",
-    "halfway_bottom", "halfway_top",
-    "pen_left_bottom_corner", "pen_right_top_corner",
+    'corner_bottom_left',
+    'corner_bottom_right',
+    'corner_top_right',
+    'corner_top_left',
+    'halfway_bottom',
+    'halfway_top',
+    'pen_left_bottom_corner',
+    'pen_right_top_corner',
 ]
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def scene():
     pitch = Pitch()
     return pitch, camera(pitch)
@@ -87,8 +91,7 @@ def render_through(pitch, matrix, k1: float) -> np.ndarray:
     model = lens(k1)
     frame = np.full((FRAME_H, FRAME_W, 3), 30, dtype=np.uint8)
 
-    corners = [(0, 0), (pitch.length_m, 0),
-               (pitch.length_m, pitch.width_m), (0, pitch.width_m)]
+    corners = [(0, 0), (pitch.length_m, 0), (pitch.length_m, pitch.width_m), (0, pitch.width_m)]
     ring = []
     for i in range(4):
         ax, ay = corners[i]
@@ -101,8 +104,7 @@ def render_through(pitch, matrix, k1: float) -> np.ndarray:
     for seg in pitch_line_segments(pitch):
         pts = [to_px(matrix, x, y) for x, y in seg.sample(seg.length / SUB)]
         pts = model.distort(np.array(pts))
-        cv2.polylines(frame, [np.rint(pts).astype(np.int32)], False,
-                      PAINT_BGR, 3, cv2.LINE_AA)
+        cv2.polylines(frame, [np.rint(pts).astype(np.int32)], False, PAINT_BGR, 3, cv2.LINE_AA)
     return frame
 
 
@@ -136,6 +138,7 @@ def grid_error_m(calibration, pitch, matrix, k1):
 # The model
 # ---------------------------------------------------------------------------
 
+
 class TestTheModel:
     def test_the_two_directions_are_inverses(self):
         """The reason the division model was chosen over Brown's polynomial.
@@ -145,16 +148,23 @@ class TestTheModel:
         directions are closed form, so this should hold to machine precision
         rather than to a tolerance.
         """
-        points = np.array([
-            [0.0, 0.0], [FRAME_W, FRAME_H], [FRAME_W / 2, FRAME_H / 2],
-            [10.0, 700.0], [1270.0, 12.0], [640.0, 20.0], [3.0, 360.0],
-        ])
+        points = np.array(
+            [
+                [0.0, 0.0],
+                [FRAME_W, FRAME_H],
+                [FRAME_W / 2, FRAME_H / 2],
+                [10.0, 700.0],
+                [1270.0, 12.0],
+                [640.0, 20.0],
+                [3.0, 360.0],
+            ]
+        )
         for k1 in (-0.25, -0.1, -0.03, 0.05, 0.2):
             model = lens(k1)
             back = model.undistort(model.distort(points))
-            assert np.allclose(back, points, atol=1e-9), f"k1={k1}"
+            assert np.allclose(back, points, atol=1e-9), f'k1={k1}'
             forth = model.distort(model.undistort(points))
-            assert np.allclose(forth, points, atol=1e-9), f"k1={k1}"
+            assert np.allclose(forth, points, atol=1e-9), f'k1={k1}'
 
     def test_a_factor_of_r_is_easy_to_drop_and_this_is_where_it_shows(self):
         """The bug that cost this module its first afternoon.
@@ -173,8 +183,7 @@ class TestTheModel:
         near = np.array([[FRAME_W / 2 + 4.0, FRAME_H / 2]])
         moved = float(np.linalg.norm(model.distort(near) - near))
         assert moved < 0.05, (
-            "a point four pixels from the centre should barely move; it moved "
-            f"{moved:.3f}px"
+            f'a point four pixels from the centre should barely move; it moved {moved:.3f}px'
         )
 
     def test_the_centre_does_not_move(self):
@@ -194,8 +203,8 @@ class TestTheModel:
 
         barrel = float(np.linalg.norm(lens(-0.1).distort(corner) - centre))
         pincushion = float(np.linalg.norm(lens(+0.1).distort(corner) - centre))
-        assert barrel < straight, "barrel should pull the corners in"
-        assert pincushion > straight, "pincushion should push them out"
+        assert barrel < straight, 'barrel should pull the corners in'
+        assert pincushion > straight, 'pincushion should push them out'
 
     def test_zero_is_the_identity_and_costs_nothing(self):
         model = lens(0.0)
@@ -241,6 +250,7 @@ class TestChain:
 # Following the paint
 # ---------------------------------------------------------------------------
 
+
 class TestTracing:
     def test_it_follows_a_touchline_the_whole_way(self, scene):
         """The one measurement the whole method rests on.
@@ -253,8 +263,7 @@ class TestTracing:
         pitch, matrix = scene
         chains = trace_chains(render_through(pitch, matrix, 0.0))
         assert max(c.span_px for c in chains) > 900, (
-            "the near touchline is about a thousand pixels of paint and "
-            "should be traced as one run"
+            'the near touchline is about a thousand pixels of paint and should be traced as one run'
         )
 
     def test_a_bent_line_traces_out_far_longer_than_its_seed(self, scene):
@@ -278,7 +287,7 @@ class TestTracing:
         chains = trace_chains(render_through(pitch, matrix, 0.0))
         long_runs = [c for c in chains if c.span_px > 600]
         assert len(long_runs) >= 2, (
-            "both touchlines cross the halfway line and both should survive it"
+            'both touchlines cross the halfway line and both should survive it'
         )
 
     def test_grass_with_no_paint_traces_nothing(self, scene):
@@ -292,10 +301,11 @@ class TestTracing:
 # What it is worth
 # ---------------------------------------------------------------------------
 
+
 class TestWorthDoing:
     """The headline. Everything else here is in service of this number."""
 
-    @pytest.mark.parametrize("k1", [-0.03, -0.05, -0.1, -0.2, 0.05])
+    @pytest.mark.parametrize('k1', [-0.03, -0.05, -0.1, -0.2, 0.05])
     def test_a_perfect_click_set_goes_from_unusable_to_usable(self, scene, k1):
         """Measured with every landmark clicked *exactly* right.
 
@@ -311,16 +321,15 @@ class TestWorthDoing:
         naive = Calibration.fit(clicks, pitch, (FRAME_W, FRAME_H))
         _, worst_before = grid_error_m(naive, pitch, matrix, k1)
         assert worst_before > 0.5, (
-            f"k1={k1} should already be past the usability bar without a lens; "
-            f"worst was {worst_before:.2f}m"
+            f'k1={k1} should already be past the usability bar without a lens; '
+            f'worst was {worst_before:.2f}m'
         )
 
         model, fit = lens_for_frame(frame)
-        assert model is not None, f"k1={k1} should be measurable: {fit.summary()}"
+        assert model is not None, f'k1={k1} should be measurable: {fit.summary()}'
 
         undistorted = [
-            Correspondence(c.landmark,
-                           tuple(model.undistort(np.array([c.pixel]))[0]))
+            Correspondence(c.landmark, tuple(model.undistort(np.array([c.pixel]))[0]))
             for c in clicks
         ]
         fixed = Calibration.fit(undistorted, pitch, (FRAME_W, FRAME_H))
@@ -334,12 +343,11 @@ class TestWorthDoing:
         worst_after = float(np.max(errors))
 
         assert worst_after < 0.5, (
-            f"k1={k1}: {worst_before:.2f}m -> {worst_after:.2f}m, still past "
-            "the bar"
+            f'k1={k1}: {worst_before:.2f}m -> {worst_after:.2f}m, still past the bar'
         )
         assert worst_after < worst_before / 3.0
 
-    @pytest.mark.parametrize("k1", [-0.2, -0.1, -0.05, -0.03, 0.05, 0.1])
+    @pytest.mark.parametrize('k1', [-0.2, -0.1, -0.05, -0.03, 0.05, 0.1])
     def test_it_recovers_the_coefficient_it_was_given(self, scene, k1):
         """Tighter than the metres actually need, because a drift here is the
         first sign of the tracer going wrong and it is much easier to read than
@@ -353,6 +361,7 @@ class TestWorthDoing:
 # What it is worth *not* doing
 # ---------------------------------------------------------------------------
 
+
 class TestKnowingWhenToShutUp:
     def test_a_rectilinear_frame_is_refused(self, scene):
         """The most important refusal, and the most common frame.
@@ -365,7 +374,7 @@ class TestKnowingWhenToShutUp:
         pitch, matrix = scene
         model, fit = lens_for_frame(render_through(pitch, matrix, 0.0))
         assert model is None, fit.summary()
-        assert abs(fit.k1) < 0.01, "and the number it declined was tiny anyway"
+        assert abs(fit.k1) < 0.01, 'and the number it declined was tiny anyway'
 
     def test_the_gate_lands_on_the_usability_bar(self, scene):
         """Where the line sits, and why it sits there.
@@ -392,13 +401,13 @@ class TestKnowingWhenToShutUp:
 
             if model is None:
                 assert worst < 0.5, (
-                    f"k1={k1} was refused but cost {worst:.2f}m -- the gate is "
-                    f"too strict: {fit.summary()}"
+                    f'k1={k1} was refused but cost {worst:.2f}m -- the gate is '
+                    f'too strict: {fit.summary()}'
                 )
             else:
                 assert worst > 0.5, (
-                    f"k1={k1} was corrected but only cost {worst:.2f}m -- the "
-                    f"gate is too loose: {fit.summary()}"
+                    f'k1={k1} was corrected but only cost {worst:.2f}m -- the '
+                    f'gate is too loose: {fit.summary()}'
                 )
 
     def test_a_frame_with_nothing_in_it_answers_rather_than_raises(self):
@@ -409,7 +418,7 @@ class TestKnowingWhenToShutUp:
         model, fit = lens_for_frame(blank)
         assert model is None
         assert fit.chains == 0
-        assert "no runs of paint" in fit.summary()
+        assert 'no runs of paint' in fit.summary()
 
     def test_too_few_runs_is_not_a_measurement(self, scene):
         """One line cannot distinguish a bent lens from a bent line. Three is
@@ -430,9 +439,7 @@ class TestKnowingWhenToShutUp:
         chains = trace_chains(frame)
         bent = sorted(chains, key=lambda c: c.bow_px())[-1]
         fit = estimate(chains=[bent] * 3, image_size=(FRAME_W, FRAME_H))
-        assert not fit.confident, (
-            f"three copies of one curve is one opinion: {fit.summary()}"
-        )
+        assert not fit.confident, f'three copies of one curve is one opinion: {fit.summary()}'
 
     def test_it_never_returns_a_coefficient_past_its_own_bound(self, scene):
         """Past about 0.5 the division model stops being invertible across the
@@ -448,5 +455,5 @@ class TestKnowingWhenToShutUp:
         pitch, matrix = scene
         clean = estimate(render_through(pitch, matrix, 0.0)).summary()
         bent = estimate(render_through(pitch, matrix, -0.1)).summary()
-        assert "not confident" in clean
-        assert "not confident" not in bent and "confident" in bent
+        assert 'not confident' in clean
+        assert 'not confident' not in bent and 'confident' in bent

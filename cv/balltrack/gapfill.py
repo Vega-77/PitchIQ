@@ -24,6 +24,7 @@ The ON segments come from viterbi7 on classifier emission, unchanged.
 
     python gapfill.py           # grid, split-half tuned, needs wmNNcls.npz
 """
+
 import itertools
 
 import numpy as np
@@ -47,8 +48,8 @@ def _take(fr, px, py, R, pmin):
 
 def attach_pan(frames, tag):
     import os
-    p = np.load(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             '%span.npz' % tag))
+
+    p = np.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), '%span.npz' % tag))
     cum, plo = p['cum'], int(p['lo'])
     for fr in frames:
         fr['Hinv'] = np.linalg.inv(cum[fr['abs'] - plo])
@@ -67,6 +68,7 @@ def xy(fr, j):
 
 def score(T, F, idx, picks, clips):
     import collections
+
     c = collections.Counter()
     for t in T:
         if t['clip'] not in clips or t['kind'] not in ('ball', 'off'):
@@ -91,8 +93,7 @@ def score(T, F, idx, picks, clips):
     return c
 
 
-def fill(frames, picks, maxgap=32, rad0=20.0, rgrow=5.0, pmin=-99.0,
-         ext=0, synth=0):
+def fill(frames, picks, maxgap=32, rad0=20.0, rgrow=5.0, pmin=-99.0, ext=0, synth=0):
     out = list(picks)
     T = len(frames)
     on = [t for t in range(T) if picks[t] is not None]
@@ -148,13 +149,18 @@ def main():
     for tag in tags:
         C.attach(F[tag], tag)
         attach_pan(F[tag], tag)
-    halves = {'H1': {t for t in tags if int(t[2:]) < 9},
-              'H2': {t for t in tags if int(t[2:]) >= 9}}
-    base_grid = dict(a=[0.75, 1.0], e_off=[-1.0, -0.5, 0.0],
-                     c_enter=[12.0, 20.0], c_near=[2.0, 6.0], skip=[4.0])
-    fill_grid = dict(maxgap=[0, 32, 64, 128, 100000], rad0=[10.0, 20.0],
-                     rgrow=[2.0, 5.0], pmin=[-99.0], ext=[0, 2, 5],
-                     synth=[0, 1])
+    halves = {'H1': {t for t in tags if int(t[2:]) < 9}, 'H2': {t for t in tags if int(t[2:]) >= 9}}
+    base_grid = dict(
+        a=[0.75, 1.0], e_off=[-1.0, -0.5, 0.0], c_enter=[12.0, 20.0], c_near=[2.0, 6.0], skip=[4.0]
+    )
+    fill_grid = dict(
+        maxgap=[0, 32, 64, 128, 100000],
+        rad0=[10.0, 20.0],
+        rgrow=[2.0, 5.0],
+        pmin=[-99.0],
+        ext=[0, 2, 5],
+        synth=[0, 1],
+    )
     res = []
     bk = list(base_grid)
     fk = list(fill_grid)
@@ -164,8 +170,7 @@ def main():
         for tag in tags:
             for fr in F[tag]:
                 fr['s'] = a * fr['p'] + (1 - a) * fr['s0']
-        base = {tag: D6.viterbi7(F[tag], drift=12.0, gate=2.0, **bc)
-                for tag in tags}
+        base = {tag: D6.viterbi7(F[tag], drift=12.0, gate=2.0, **bc) for tag in tags}
         bc['a'] = a
         seen = set()
         for fv in itertools.product(*(fill_grid[k] for k in fk)):
@@ -186,8 +191,11 @@ def main():
 
     nofill = [z for z in res if z[0]['maxgap'] == 0 and z[0]['ext'] == 0]
     nosyn = [z for z in res if not z[0]['synth']]
-    for name, pool in (('viterbi7 alone', nofill), ('fill, candidates only',
-                       nosyn), ('fill + synth', res)):
+    for name, pool in (
+        ('viterbi7 alone', nofill),
+        ('fill, candidates only', nosyn),
+        ('fill + synth', res),
+    ):
         print('\n== %s' % name)
         cfg, r, al = max(pool, key=lambda z: obj(z[2]))
         print('best-on-all %s\n  %s' % (cfg, U.fmt(al)))
@@ -195,9 +203,10 @@ def main():
             cfg, r, al = max(pool, key=lambda z: obj(z[1][tune]))
             print('tuned on %s: %s' % (tune, cfg))
             print('  tune %s %s' % (tune, U.fmt(r[tune])))
-            print('  TEST %s %s  (synth right %d wrong %d)' % (
-                test, U.fmt(r[test]), r[test]['syn_right'],
-                r[test]['syn_wrong']))
+            print(
+                '  TEST %s %s  (synth right %d wrong %d)'
+                % (test, U.fmt(r[test]), r[test]['syn_right'], r[test]['syn_wrong'])
+            )
 
 
 if __name__ == '__main__':

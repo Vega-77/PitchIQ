@@ -109,10 +109,15 @@ class PitchProjector:
         q = h @ np.array([u, v, 1.0])
         w = q[2]
         x, y = q[0] / w, q[1] / w
-        return np.array([
-            [h[0, 0] - x * h[2, 0], h[0, 1] - x * h[2, 1]],
-            [h[1, 0] - y * h[2, 0], h[1, 1] - y * h[2, 1]],
-        ]) / w
+        return (
+            np.array(
+                [
+                    [h[0, 0] - x * h[2, 0], h[0, 1] - x * h[2, 1]],
+                    [h[1, 0] - y * h[2, 0], h[1, 1] - y * h[2, 1]],
+                ]
+            )
+            / w
+        )
 
     def in_view(self, frame: int, pts_m, margin_px: float = 0.0) -> np.ndarray:
         """Which pitch points this frame's picture shows (with `margin_px` to spare)."""
@@ -134,8 +139,10 @@ class PitchProjector:
         u, v = q[:, 0] / q[:, 2], q[:, 1] / q[:, 2]
         out[ok] = (
             (np.sign(q[:, 2]) == self._sign[idx[ok]])
-            & (u >= margin_px) & (u <= self.width - margin_px)
-            & (v >= margin_px) & (v <= self.height - margin_px)
+            & (u >= margin_px)
+            & (u <= self.width - margin_px)
+            & (v >= margin_px)
+            & (v <= self.height - margin_px)
         )
         return out
 
@@ -186,13 +193,17 @@ GRASS_MIN_SAT = 50
 GRASS_MIN_VAL = 40
 GRASS_HUE_MIN_TOL = 4
 GRASS_SAMPLE_STEP = 8
-GRASS_SAT_PCT = 95                      # robust to a shirt filling a few % of the frame
+GRASS_SAT_PCT = 95  # robust to a shirt filling a few % of the frame
 GRASS_SAT_MARGIN = 30
 
 
 def _green(hsv: np.ndarray) -> np.ndarray:
-    return ((hsv[:, 0] >= GRASS_HUE_BAND[0]) & (hsv[:, 0] <= GRASS_HUE_BAND[1])
-            & (hsv[:, 1] >= GRASS_MIN_SAT) & (hsv[:, 2] >= GRASS_MIN_VAL))
+    return (
+        (hsv[:, 0] >= GRASS_HUE_BAND[0])
+        & (hsv[:, 0] <= GRASS_HUE_BAND[1])
+        & (hsv[:, 1] >= GRASS_MIN_SAT)
+        & (hsv[:, 2] >= GRASS_MIN_VAL)
+    )
 
 
 def grass_hue(frame: np.ndarray) -> tuple[float, float, float] | None:
@@ -249,7 +260,7 @@ def body_descriptor(frame: np.ndarray, xyxy, grass=None) -> np.ndarray:
         lab = cv2.cvtColor(patch, cv2.COLOR_BGR2LAB).reshape(-1, 3).astype(np.float64)
         keep = lab[~is_grass]
         if len(keep) >= MIN_PIXELS:
-            out[3 * k:3 * k + 3] = np.median(keep, axis=0)
+            out[3 * k : 3 * k + 3] = np.median(keep, axis=0)
     return out
 
 
@@ -257,7 +268,7 @@ def descriptor_scale(desc: np.ndarray) -> np.ndarray:
     """Per-channel spread across a window, so channels weigh alike."""
     d = np.asarray(desc, dtype=np.float64)
     with warnings.catch_warnings():
-        warnings.simplefilter('ignore', RuntimeWarning)      # all-NaN channels
+        warnings.simplefilter('ignore', RuntimeWarning)  # all-NaN channels
         s = np.nanstd(d, axis=0) if len(d) else np.ones(6)
     return np.where(np.isfinite(s) & (s > 1e-6), s, 1.0)
 
@@ -282,11 +293,11 @@ class Detections:
     a soft penalty while tracking; the linker decides teams per fragment.
     """
 
-    frame: np.ndarray            # (N,) absolute frame number
-    box: np.ndarray              # (N, 4) x1 y1 x2 y2, pixels of that frame
-    conf: np.ndarray             # (N,)
-    team: np.ndarray             # (N,) int
-    desc: np.ndarray             # (N, 6) body_descriptor
+    frame: np.ndarray  # (N,) absolute frame number
+    box: np.ndarray  # (N, 4) x1 y1 x2 y2, pixels of that frame
+    conf: np.ndarray  # (N,)
+    team: np.ndarray  # (N,) int
+    desc: np.ndarray  # (N, 6) body_descriptor
     kit: np.ndarray | None = None  # (N, k) teams.kit_sample, for the linker
     feat: np.ndarray | None = None  # (N, d) unit appearance vectors, for the linker
 
@@ -313,9 +324,9 @@ class Detections:
         return out
 
 
-CONTAINED = 0.75          # share of the weaker box inside the stronger one
-SAME_FEET_H = 0.15        # feet this close vertically, in box heights
-SAME_FEET_W = 0.6         # and horizontally, in box widths
+CONTAINED = 0.75  # share of the weaker box inside the stronger one
+SAME_FEET_H = 0.15  # feet this close vertically, in box heights
+SAME_FEET_W = 0.6  # and horizontally, in box widths
 
 
 def drop_contained(det: Detections) -> Detections:
@@ -352,9 +363,14 @@ def drop_contained(det: Detections) -> Detections:
                 keep[order[j]] = False
                 break
     return Detections(
-        frame=det.frame[keep], box=det.box[keep], conf=det.conf[keep], team=det.team[keep],
-        desc=det.desc[keep], kit=None if det.kit is None else det.kit[keep],
-        feat=None if det.feat is None else det.feat[keep])
+        frame=det.frame[keep],
+        box=det.box[keep],
+        conf=det.conf[keep],
+        team=det.team[keep],
+        desc=det.desc[keep],
+        kit=None if det.kit is None else det.kit[keep],
+        feat=None if det.feat is None else det.feat[keep],
+    )
 
 
 def drop_clipped(det: Detections, height: int, margin_px: float = 3.0) -> Detections:
@@ -367,9 +383,14 @@ def drop_clipped(det: Detections, height: int, margin_px: float = 3.0) -> Detect
     """
     keep = det.box[:, 3] < height - margin_px
     return Detections(
-        frame=det.frame[keep], box=det.box[keep], conf=det.conf[keep], team=det.team[keep],
-        desc=det.desc[keep], kit=None if det.kit is None else det.kit[keep],
-        feat=None if det.feat is None else det.feat[keep])
+        frame=det.frame[keep],
+        box=det.box[keep],
+        conf=det.conf[keep],
+        team=det.team[keep],
+        desc=det.desc[keep],
+        kit=None if det.kit is None else det.kit[keep],
+        feat=None if det.feat is None else det.feat[keep],
+    )
 
 
 # ---- the tracker ------------------------------------------------------------------
@@ -378,36 +399,36 @@ def drop_clipped(det: Detections, height: int, margin_px: float = 3.0) -> Detect
 @dataclass
 class TrackerSettings:
     fps: float = 30.0
-    high_conf: float = 0.35          # may start a track
-    low_conf: float = 0.10           # may only continue one
-    accel_sigma: float = 4.0         # m/s^2, white-noise acceleration
-    gate: float = 13.8               # Mahalanobis^2, chi-square 2 dof at 99.9%
-    low_gate: float = 9.2            # tighter for weak detections (99%)
-    max_gate_m: float = 4.0          # never jump further than this in one frame
-    team_penalty: float = 6.0        # kit disagrees with the track's
+    high_conf: float = 0.35  # may start a track
+    low_conf: float = 0.10  # may only continue one
+    accel_sigma: float = 4.0  # m/s^2, white-noise acceleration
+    gate: float = 13.8  # Mahalanobis^2, chi-square 2 dof at 99.9%
+    low_gate: float = 9.2  # tighter for weak detections (99%)
+    max_gate_m: float = 4.0  # never jump further than this in one frame
+    team_penalty: float = 6.0  # kit disagrees with the track's
     appearance_weight: float = 0.8
-    confirm_hits: int = 3            # hits within the first `confirm_window` frames
+    confirm_hits: int = 3  # hits within the first `confirm_window` frames
     confirm_window: int = 5
-    max_miss_in_view: int = 15       # coast half a second while visible
-    max_miss_out_of_view: int = 3    # left the picture: end almost at once
-    ambiguity_margin: float = 3.0    # swap cost within this of the chosen -> cut
+    max_miss_in_view: int = 15  # coast half a second while visible
+    max_miss_out_of_view: int = 3  # left the picture: end almost at once
+    ambiguity_margin: float = 3.0  # swap cost within this of the chosen -> cut
     ambiguity_radius_m: float = 2.5  # only between players this close
     cut_ambiguous: bool = True
-    episode_join: int = 4            # ambiguous frames this close are one episode
-    episode_min: int = 2             # ambiguous frames before an episode counts
-    episode_pad: int = 2             # and the frames either side are suspect too
-    episode_drop: int = 15           # episodes up to this long are removed, longer kept apart
+    episode_join: int = 4  # ambiguous frames this close are one episode
+    episode_min: int = 2  # ambiguous frames before an episode counts
+    episode_pad: int = 2  # and the frames either side are suspect too
+    episode_drop: int = 15  # episodes up to this long are removed, longer kept apart
     view_margin_px: float = 8.0
 
 
 @dataclass
 class _Track:
     tid: int
-    x: np.ndarray                    # [x, y, vx, vy]
+    x: np.ndarray  # [x, y, vx, vy]
     P: np.ndarray
-    rows: list = field(default_factory=list)   # detection rows, in frame order
+    rows: list = field(default_factory=list)  # detection rows, in frame order
     hits: int = 0
-    age: int = 0                     # frames since birth
+    age: int = 0  # frames since birth
     miss: int = 0
     miss_out: int = 0
     confirmed: bool = False
@@ -428,9 +449,9 @@ class _Track:
 @dataclass
 class Tracklet:
     tid: int
-    rows: np.ndarray                 # detection rows, in frame order
-    end_reason: str                  # 'left view', 'lost', 'cut', 'window end'
-    start_reason: str                # 'new', 'cut'
+    rows: np.ndarray  # detection rows, in frame order
+    end_reason: str  # 'left view', 'lost', 'cut', 'window end'
+    start_reason: str  # 'new', 'cut'
 
 
 class PitchTracker:
@@ -442,8 +463,8 @@ class PitchTracker:
         dt = 1.0 / self.s.fps
         self.F = np.eye(4)
         self.F[0, 2] = self.F[1, 3] = dt
-        q = self.s.accel_sigma ** 2
-        g = np.array([[dt ** 4 / 4, dt ** 3 / 2], [dt ** 3 / 2, dt ** 2]]) * q
+        q = self.s.accel_sigma**2
+        g = np.array([[dt**4 / 4, dt**3 / 2], [dt**3 / 2, dt**2]]) * q
         self.Q = np.zeros((4, 4))
         self.Q[np.ix_([0, 2], [0, 2])] = g
         self.Q[np.ix_([1, 3], [1, 3])] = g
@@ -498,7 +519,7 @@ class PitchTracker:
                     tt = t.team()
                     for b, j in enumerate(cand):
                         d = z[j] - hp
-                        if d @ d > s.max_gate_m ** 2:
+                        if d @ d > s.max_gate_m**2:
                             continue
                         S = S0 + R[j]
                         m2 = float(d @ np.linalg.solve(S, d))
@@ -510,7 +531,8 @@ class PitchTracker:
                             cost += s.team_penalty
                         if t.desc is not None:
                             cost += s.appearance_weight * min(
-                                descriptor_distance(t.desc, det.desc[rows[j]], scale), 9.0)
+                                descriptor_distance(t.desc, det.desc[rows[j]], scale), 9.0
+                            )
                         c[a, b] = cost
                 return c
 
@@ -559,7 +581,7 @@ class PitchTracker:
                 # unmatched
                 if not t.confirmed:
                     if t.age >= s.confirm_window:
-                        continue            # never confirmed: noise
+                        continue  # never confirmed: noise
                     survivors.append(t)
                     continue
                 visible = bool(self.proj.in_view(f, t.x[None, :2], s.view_margin_px)[0])
@@ -613,13 +635,14 @@ class PitchTracker:
                 else:
                     episodes.append([f, f])
             # a single near-tie is a blip, not a crossing
-            episodes = [e for e in episodes
-                        if sum(1 for f in amb if e[0] <= f <= e[1]) >= s.episode_min]
+            episodes = [
+                e for e in episodes if sum(1 for f in amb if e[0] <= f <= e[1]) >= s.episode_min
+            ]
             if not episodes:
                 out.append(tr)
                 continue
             frames = det.frame[tr.rows]
-            cuts = np.zeros(len(frames), dtype=int)       # piece index per row
+            cuts = np.zeros(len(frames), dtype=int)  # piece index per row
             keep = np.ones(len(frames), dtype=bool)
             piece = 0
             for e0, e1 in episodes:
@@ -636,19 +659,21 @@ class PitchTracker:
                 if len(rows) < s.confirm_hits:
                     continue
                 first, last = p == cuts.min(), p == cuts.max()
-                out.append(Tracklet(
-                    tid=tr.tid * 1000 + int(p),
-                    rows=rows,
-                    end_reason=tr.end_reason if last else 'cut',
-                    start_reason=tr.start_reason if first else 'cut',
-                ))
+                out.append(
+                    Tracklet(
+                        tid=tr.tid * 1000 + int(p),
+                        rows=rows,
+                        end_reason=tr.end_reason if last else 'cut',
+                        start_reason=tr.start_reason if first else 'cut',
+                    )
+                )
         return out
 
     def _birth(self, tid, z, R, rows, j, det, scale) -> _Track:
         x = np.r_[z[j], 0.0, 0.0]
         P = np.zeros((4, 4))
         P[:2, :2] = R[j] + np.eye(2) * 0.05
-        P[2, 2] = P[3, 3] = 9.0                  # unknown velocity: up to ~3 m/s
+        P[2, 2] = P[3, 3] = 9.0  # unknown velocity: up to ~3 m/s
         t = _Track(tid=tid, x=x, P=P)
         t.rows.append(int(rows[j]))
         t.hits = 1

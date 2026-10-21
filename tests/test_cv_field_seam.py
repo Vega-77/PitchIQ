@@ -86,7 +86,8 @@ REPO = Path(__file__).resolve().parents[1]
 JS_REPORT = REPO / 'assets' / 'report.js'
 
 pytestmark = pytest.mark.skipif(
-    shutil.which('node') is None, reason='Node is not installed',
+    shutil.which('node') is None,
+    reason='Node is not installed',
 )
 
 # Every directory of served JavaScript. `cv/` is the writing side and is
@@ -107,8 +108,8 @@ NOT_A_REPORT_FIELD = {
     'cvShotRows': "the coach's shot ledger, passed in to correct the map",
     'cvPreview': 'a boolean on the coach page: is the sample plot showing',
     'cvMatches': 'a season accumulator the browser derives from a run of '
-                 'reports by counting the ones that carry cvTouches; it is '
-                 'never stored on a report and never written by anything',
+    'reports by counting the ones that carry cvTouches; it is '
+    'never stored on a report and never written by anything',
 }
 
 # Written by the pipeline, cleared by the browser, and written by nothing in
@@ -143,7 +144,7 @@ def reads(source):
     code = blank(source)
     found = {}
     for m in READ.finditer(code):
-        if code[max(0, m.start() - 2):m.start()] == '..':
+        if code[max(0, m.start() - 2) : m.start()] == '..':
             continue
         found.setdefault(m.group(1), []).append(m.start())
     return found
@@ -161,21 +162,22 @@ def bracket_reads(raw, code):
     out = []
     for m in BRACKET.finditer(code):
         close = code.find(']', m.end() - 1)
-        if close >= 0 and QUOTED_CV.match(raw[m.end():close]):
-            out.append(code[:m.start()].count('\n') + 1)
+        if close >= 0 and QUOTED_CV.match(raw[m.end() : close]):
+            out.append(code[: m.start()].count('\n') + 1)
     return out
 
 
 def node_keys(expression):
     """Keys of an object `assets/report.js` builds, as that module builds it."""
-    script = (
-        'import { cvReportFields } from %s;'
-        'console.log(JSON.stringify(Object.keys(%s)));'
-        % (json.dumps(JS_REPORT.as_uri()), expression)
+    script = 'import { cvReportFields } from %s;console.log(JSON.stringify(Object.keys(%s)));' % (
+        json.dumps(JS_REPORT.as_uri()),
+        expression,
     )
     out = subprocess.run(
         ['node', '--input-type=module', '-e', script],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     if out.returncode != 0:
         pytest.fail('node failed: %s' % out.stderr.strip())
@@ -184,8 +186,7 @@ def node_keys(expression):
 
 @pytest.fixture(scope='module')
 def sources():
-    return {rel: path.read_text(encoding='utf-8', errors='replace')
-            for rel, path in js_files()}
+    return {rel: path.read_text(encoding='utf-8', errors='replace') for rel, path in js_files()}
 
 
 @pytest.fixture(scope='module')
@@ -205,8 +206,7 @@ def written_by_python():
 
 @pytest.fixture(scope='module')
 def written_by_browser():
-    return node_keys('cvReportFields({touches: 1}, '
-                     '{onPitchS: 1, watchedS: 1, share: 1}, null)')
+    return node_keys('cvReportFields({touches: 1}, {onPitchS: 1, watchedS: 1, share: 1}, null)')
 
 
 @pytest.fixture(scope='module')
@@ -221,8 +221,10 @@ def read_fields(sites):
 
 # ------------------------------------------------------- the four corners
 
+
 def test_the_two_writers_together_are_the_clearing_list(
-        written_by_python, written_by_browser, cleared):
+    written_by_python, written_by_browser, cleared
+):
     """Neither writer alone covers it, and the gap between them is the point.
 
     A field on the list that nothing writes is a null published over and over
@@ -233,13 +235,13 @@ def test_the_two_writers_together_are_the_clearing_list(
     both = written_by_python | written_by_browser
     assert both == cleared, (
         'the writers and the clearing list disagree; written and not cleared: '
-        '%s, cleared and not written: %s'
-        % (sorted(both - cleared), sorted(cleared - both))
+        '%s, cleared and not written: %s' % (sorted(both - cleared), sorted(cleared - both))
     )
 
 
 def test_the_fields_only_the_pipeline_writes_are_the_documented_three(
-        written_by_python, written_by_browser):
+    written_by_python, written_by_browser
+):
     """A heatmap, which way they were kicking, and how good the homography was.
 
     The coach's page cannot compute any of the three, so `cvReportFields` does
@@ -251,26 +253,24 @@ def test_the_fields_only_the_pipeline_writes_are_the_documented_three(
 
 def test_every_field_written_is_read_by_some_page(cleared, read_fields):
     """Otherwise it is payload on a document with a key cap and no reader."""
-    assert cleared <= read_fields, (
-        'written and read by nothing: %s' % sorted(cleared - read_fields))
+    assert cleared <= read_fields, 'written and read by nothing: %s' % sorted(cleared - read_fields)
 
 
 def test_every_cv_field_read_is_one_something_writes(cleared, read_fields):
     """The direction that hurts: a name nothing writes reads as undefined, and
     undefined reaches the screen as the same dash as a real absence."""
-    assert read_fields <= cleared, (
-        'read off a report that nothing writes: %s'
-        % sorted(read_fields - cleared))
+    assert read_fields <= cleared, 'read off a report that nothing writes: %s' % sorted(
+        read_fields - cleared
+    )
 
 
 # --------------------------------------------- the exclusions, both ways
 
+
 def test_the_non_report_names_are_not_report_fields(cleared):
     """Forward: nothing on the exclusion list may become a written field."""
     overlap = set(NOT_A_REPORT_FIELD) & cleared
-    assert not overlap, (
-        'excluded as "not a report field" and written as one: %s'
-        % sorted(overlap))
+    assert not overlap, 'excluded as "not a report field" and written as one: %s' % sorted(overlap)
 
 
 def test_the_non_report_names_are_all_still_read(sites):
@@ -280,9 +280,7 @@ def test_the_non_report_names_are_all_still_read(sites):
     it cannot tell which of the others are still load-bearing.
     """
     stale = set(NOT_A_REPORT_FIELD) - set(sites)
-    assert not stale, (
-        'listed as read-but-not-a-report-field, and read nowhere: %s'
-        % sorted(stale))
+    assert not stale, 'listed as read-but-not-a-report-field, and read nowhere: %s' % sorted(stale)
 
 
 def test_no_report_field_is_reached_through_a_bracket(sources):
@@ -292,14 +290,16 @@ def test_no_report_field_is_reached_through_a_bracket(sources):
     than staying a promise: write one and this fails, pointing at the file that
     the property scan can no longer speak for.
     """
-    found = ['%s:%d' % (rel, line)
-             for rel, src in sources.items()
-             for line in bracket_reads(src, blank(src))]
-    assert not found, 'bracket reads of a cv name, invisible to this scan: %s' \
-        % found
+    found = [
+        '%s:%d' % (rel, line)
+        for rel, src in sources.items()
+        for line in bracket_reads(src, blank(src))
+    ]
+    assert not found, 'bracket reads of a cv name, invisible to this scan: %s' % found
 
 
 # ------------------------------------------------------------ the scanner
+
 
 def test_the_scanner_tells_a_read_from_a_spread():
     found = reads('const a = x.cvTouches + [...cvTallies()].length;')
@@ -322,8 +322,10 @@ def test_the_scanner_ignores_an_object_literal_key():
 
 # --------------------------------------------------------- anti-vacuum
 
-def test_the_scan_actually_scanned_something(sources, sites, cleared,
-                                             written_by_python, read_fields):
+
+def test_the_scan_actually_scanned_something(
+    sources, sites, cleared, written_by_python, read_fields
+):
     """A pass here means nothing unless all four corners were really read."""
     assert len(sources) >= 20, len(sources)
     assert all(len(s) > 200 for s in sources.values())

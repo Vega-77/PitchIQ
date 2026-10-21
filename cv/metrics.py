@@ -282,9 +282,7 @@ def smoothing_window_s(noise_m: float | None) -> float:
     return SMOOTH_BANDS[-1][1]
 
 
-def phantom_m_per_minute(
-    noise_m: float | None, window_s: float, fps: float = 30.0
-) -> float | None:
+def phantom_m_per_minute(noise_m: float | None, window_s: float, fps: float = 30.0) -> float | None:
     """Metres a minute a motionless player is credited with, at this smoothing.
 
     Exact rather than fitted: smoothing white noise of size σ over W frames
@@ -335,15 +333,19 @@ def smooth_positions(series: PositionSeries, window: int = 5) -> PositionSeries:
 
     pad = window // 2
     padded = np.pad(
-        series.positions_m, ((pad, pad), (0, 0)),
-        mode="reflect", reflect_type="odd",
+        series.positions_m,
+        ((pad, pad), (0, 0)),
+        mode='reflect',
+        reflect_type='odd',
     )
     kernel = np.ones(window) / window
 
-    smoothed = np.column_stack([
-        np.convolve(padded[:, 0], kernel, mode="valid"),
-        np.convolve(padded[:, 1], kernel, mode="valid"),
-    ])
+    smoothed = np.column_stack(
+        [
+            np.convolve(padded[:, 0], kernel, mode='valid'),
+            np.convolve(padded[:, 1], kernel, mode='valid'),
+        ]
+    )
 
     return PositionSeries(series.track_id, series.timestamps_s, smoothed)
 
@@ -380,15 +382,11 @@ def position_noise_m(series: PositionSeries) -> float | None:
     # Per axis and combined, because the homography stretches the two
     # differently — a metre across the pitch is not a metre up it, at the far
     # touchline especially.
-    per_axis = [
-        float(np.median(np.abs(second[:, axis])) / 1.652) for axis in (0, 1)
-    ]
+    per_axis = [float(np.median(np.abs(second[:, axis])) / 1.652) for axis in (0, 1)]
     return float(np.hypot(*per_axis) / np.sqrt(2))
 
 
-def smooth_for_noise(
-    series: PositionSeries, noise_m: float | None
-) -> tuple[PositionSeries, float]:
+def smooth_for_noise(series: PositionSeries, noise_m: float | None) -> tuple[PositionSeries, float]:
     """Smooth a track over the window its own measured wobble calls for.
 
     Returns the smoothed series and the window actually used, in seconds. The
@@ -457,13 +455,9 @@ def movement_stats(
     stats.distance_m = float(np.sum(good_steps))
     stats.top_speed_ms = float(np.max(good_speeds))
     stats.mean_speed_ms = float(np.average(good_speeds, weights=good_dt))
-    stats.minutes_tracked = float(
-        (series.timestamps_s[-1] - series.timestamps_s[0]) / 60.0
-    )
+    stats.minutes_tracked = float((series.timestamps_s[-1] - series.timestamps_s[0]) / 60.0)
 
-    sprints, sprint_distance = _find_sprints(
-        good_speeds, good_dt, good_steps, sprint_threshold_ms
-    )
+    sprints, sprint_distance = _find_sprints(good_speeds, good_dt, good_steps, sprint_threshold_ms)
     stats.sprint_count = sprints
     stats.sprint_distance_m = sprint_distance
 
@@ -480,7 +474,10 @@ def movement_stats(
     eased = smooth_positions(series, _window_for(series, ACCEL_SMOOTH_S))
     burst_speeds, burst_times = _speed_series(eased, max_speed_ms)
     bursts, hardest = _find_bursts(
-        burst_times, burst_speeds, accel_window_s, min_accel_ms2,
+        burst_times,
+        burst_speeds,
+        accel_window_s,
+        min_accel_ms2,
     )
     stats.accelerations = bursts
     stats.top_acceleration_ms2 = hardest
@@ -489,7 +486,8 @@ def movement_stats(
 
 
 def _speed_series(
-    series: PositionSeries, max_speed_ms: float,
+    series: PositionSeries,
+    max_speed_ms: float,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Speeds and the moments they belong to.
 
@@ -618,7 +616,7 @@ def heatmap(
     return grid / total if total else grid
 
 
-EMPTY_SHAPE = {"width_m": 0.0, "depth_m": 0.0, "compactness_m": 0.0}
+EMPTY_SHAPE = {'width_m': 0.0, 'depth_m': 0.0, 'compactness_m': 0.0}
 
 # Fewest instants either side of the split before a drift figure is offered. A
 # comparison drawn from three snapshots is describing a moment, not a trend.
@@ -775,14 +773,14 @@ def team_shape(
         return dict(EMPTY_SHAPE)
 
     shape = {
-        "width_m": float(np.mean(widths)),
-        "depth_m": float(np.mean(depths)),
-        "compactness_m": float(np.mean(spreads)),
+        'width_m': float(np.mean(widths)),
+        'depth_m': float(np.mean(depths)),
+        'compactness_m': float(np.mean(spreads)),
     }
 
     measured = [v for v in lines if v is not None]
     if measured:
-        shape["line_m"] = float(np.mean(measured))
+        shape['line_m'] = float(np.mean(measured))
     return shape
 
 
@@ -811,8 +809,7 @@ class ShapeDrift:
             'late': {k: round(v, 1) for k, v in self.late.items()},
             'split_s': round(float(self.split_s), 1),
             'change': {
-                k: round(self.change(k), 1) for k in self.early
-                if self.change(k) is not None
+                k: round(self.change(k), 1) for k in self.early if self.change(k) is not None
             },
         }
 
@@ -880,17 +877,17 @@ def shape_drift(
 # What each figure growing actually means on a pitch, in a coach's words.
 DRIFT_TEXT = {
     'width_m': ('spread {n:.0f}m wider', 'squeezed {n:.0f}m narrower'),
-    'depth_m': ('stretched {n:.0f}m longer front to back',
-                'compressed {n:.0f}m front to back'),
-    'compactness_m': ('drifted {n:.0f}m further apart',
-                      'tightened up by {n:.0f}m'),
+    'depth_m': ('stretched {n:.0f}m longer front to back', 'compressed {n:.0f}m front to back'),
+    'compactness_m': ('drifted {n:.0f}m further apart', 'tightened up by {n:.0f}m'),
     # Higher means further from the goal being defended, so a positive change
     # is a line that pushed up. Said as what the defence did rather than as a
     # number going up, because "line height rose 6m" reads as a good thing and
     # this figure has no good direction: pushing up wins the ball higher and
     # leaves more grass behind it.
-    'line_m': ('pushed the back line {n:.0f}m higher up the pitch',
-               'dropped the back line {n:.0f}m deeper'),
+    'line_m': (
+        'pushed the back line {n:.0f}m higher up the pitch',
+        'dropped the back line {n:.0f}m deeper',
+    ),
 }
 
 

@@ -33,28 +33,44 @@ from cv.experiments.publish_report import (
 
 def a_report(**extra) -> dict:
     """Small, and the same shape `tests/test_publish.py` publishes."""
-    return {**{
-        'schema_version': 13,
-        'source': 'clip.mp4',
-        'window': {'start_s': 0, 'end_s': 15},
-        'duration_s': 15.0,
-        'calibrated': False,
-        'calibration_error_m': None,
-        'quality': {'ball_seen_share': 0.65},
-        'warnings': ['no calibration supplied'],
-        'trustworthy': False,
-        'teams': {'team_a': {'passes_attempted': 12}},
-        'keepers': [],
-        'clusters': [{'cluster_id': 0, 'track_ids': [1, 2]}],
-        'tracks': [{
-            'cluster_id': 0, 'team': 'team_a', 'touches': 9,
-            'passes_attempted': 5, 'passes_completed': 4, 'pass_accuracy': 0.8,
-            'carries': 2, 'tackles': 1, 'interceptions': 0, 'recoveries': 1,
-            'shots': None, 'xg': None, 'distance_m': None,
-            'top_speed_kmh': None, 'sprint_count': None, 'minutes_tracked': 12.0,
-        }],
-        'events': [],
-    }, **extra}
+    return {
+        **{
+            'schema_version': 13,
+            'source': 'clip.mp4',
+            'window': {'start_s': 0, 'end_s': 15},
+            'duration_s': 15.0,
+            'calibrated': False,
+            'calibration_error_m': None,
+            'quality': {'ball_seen_share': 0.65},
+            'warnings': ['no calibration supplied'],
+            'trustworthy': False,
+            'teams': {'team_a': {'passes_attempted': 12}},
+            'keepers': [],
+            'clusters': [{'cluster_id': 0, 'track_ids': [1, 2]}],
+            'tracks': [
+                {
+                    'cluster_id': 0,
+                    'team': 'team_a',
+                    'touches': 9,
+                    'passes_attempted': 5,
+                    'passes_completed': 4,
+                    'pass_accuracy': 0.8,
+                    'carries': 2,
+                    'tackles': 1,
+                    'interceptions': 0,
+                    'recoveries': 1,
+                    'shots': None,
+                    'xg': None,
+                    'distance_m': None,
+                    'top_speed_kmh': None,
+                    'sprint_count': None,
+                    'minutes_tracked': 12.0,
+                }
+            ],
+            'events': [],
+        },
+        **extra,
+    }
 
 
 @pytest.fixture
@@ -78,11 +94,16 @@ class TestTheMappingFile:
 
     def test_the_firestore_document_shape_is_unwrapped(self, tmp_path):
         path = tmp_path / 'm.json'
-        path.write_text(json.dumps({
-            'byCluster': {'0': 'playerA', '1': 'playerB'},
-            'updatedAt': '2026-08-18T00:00:00Z',
-            'updatedBy': 'coachUid',
-        }), encoding='utf-8')
+        path.write_text(
+            json.dumps(
+                {
+                    'byCluster': {'0': 'playerA', '1': 'playerB'},
+                    'updatedAt': '2026-08-18T00:00:00Z',
+                    'updatedBy': 'coachUid',
+                }
+            ),
+            encoding='utf-8',
+        )
         assert load_mapping(path) == {'0': 'playerA', '1': 'playerB'}
 
     def test_a_bare_map_is_taken_as_is(self, tmp_path):
@@ -126,10 +147,18 @@ class TestArguments:
         assert 'no such report' in capsys.readouterr().err
 
     def test_a_missing_mapping_exits_two(self, report_path, tmp_path, capsys):
-        code = main([
-            str(report_path), '--team', 't', '--match', 'm',
-            '--mapping', str(tmp_path / 'nope.json'), '--dry-run',
-        ])
+        code = main(
+            [
+                str(report_path),
+                '--team',
+                't',
+                '--match',
+                'm',
+                '--mapping',
+                str(tmp_path / 'nope.json'),
+                '--dry-run',
+            ]
+        )
         assert code == 2
         assert 'no such mapping' in capsys.readouterr().err
 
@@ -143,9 +172,16 @@ class TestArguments:
     def test_a_bad_team_id_is_refused_with_the_reason(self, report_path, capsys):
         """`_check_path` is what stops a slash retargeting the write. The
         wrapper's job is to print the reason instead of a traceback."""
-        code = main([
-            str(report_path), '--team', 'a/b', '--match', 'm', '--dry-run',
-        ])
+        code = main(
+            [
+                str(report_path),
+                '--team',
+                'a/b',
+                '--match',
+                'm',
+                '--dry-run',
+            ]
+        )
         assert code == 1
         assert 'refused:' in capsys.readouterr().err
 
@@ -166,8 +202,7 @@ class TestDryRun:
         client = DryRunClient()
         from cv.publish import publish
 
-        publish(json.loads(report_path.read_text(encoding='utf-8')),
-                't', 'm', client=client)
+        publish(json.loads(report_path.read_text(encoding='utf-8')), 't', 'm', client=client)
         paths = [path for _, path, _ in client.writes]
         assert paths == [
             'teams/t/matches/m/cvStats/summary',
@@ -177,7 +212,9 @@ class TestDryRun:
         ]
 
     def test_without_a_mapping_it_says_why_there_are_no_player_stats(
-        self, report_path, capsys,
+        self,
+        report_path,
+        capsys,
     ):
         main([str(report_path), '--team', 't', '--match', 'm', '--dry-run'])
         out = capsys.readouterr().out
@@ -185,31 +222,56 @@ class TestDryRun:
         assert 'mapping' in out
 
     def test_an_empty_mapping_is_reported_before_anything_is_written(
-        self, report_path, tmp_path, capsys,
+        self,
+        report_path,
+        tmp_path,
+        capsys,
     ):
         path = tmp_path / 'm.json'
         path.write_text('{"byCluster": {}}', encoding='utf-8')
-        code = main([
-            str(report_path), '--team', 't', '--match', 'm',
-            '--mapping', str(path), '--dry-run',
-        ])
+        code = main(
+            [
+                str(report_path),
+                '--team',
+                't',
+                '--match',
+                'm',
+                '--mapping',
+                str(path),
+                '--dry-run',
+            ]
+        )
         assert code == 0
         assert 'confirms no clusters' in capsys.readouterr().out
 
     def test_a_mapped_cluster_reaches_a_player_report(
-        self, report_path, tmp_path, capsys,
+        self,
+        report_path,
+        tmp_path,
+        capsys,
     ):
         path = tmp_path / 'm.json'
         path.write_text('{"0": "playerA"}', encoding='utf-8')
-        code = main([
-            str(report_path), '--team', 't', '--match', 'm',
-            '--mapping', str(path), '--dry-run',
-        ])
+        code = main(
+            [
+                str(report_path),
+                '--team',
+                't',
+                '--match',
+                'm',
+                '--mapping',
+                str(path),
+                '--dry-run',
+            ]
+        )
         assert code == 0
         assert 'playerReports  1' in capsys.readouterr().out
 
     def test_it_admits_it_could_not_check_the_reports_exist(
-        self, report_path, tmp_path, capsys,
+        self,
+        report_path,
+        tmp_path,
+        capsys,
     ):
         """The one thing a dry run cannot know, said out loud.
 
@@ -220,19 +282,36 @@ class TestDryRun:
         """
         path = tmp_path / 'm.json'
         path.write_text('{"0": "playerA"}', encoding='utf-8')
-        main([
-            str(report_path), '--team', 't', '--match', 'm',
-            '--mapping', str(path), '--dry-run',
-        ])
+        main(
+            [
+                str(report_path),
+                '--team',
+                't',
+                '--match',
+                'm',
+                '--mapping',
+                str(path),
+                '--dry-run',
+            ]
+        )
         assert 'may' in capsys.readouterr().out.rsplit('assumed', 1)[-1]
 
     def test_verbose_lists_a_size_for_every_write(
-        self, report_path, capsys,
+        self,
+        report_path,
+        capsys,
     ):
-        main([
-            str(report_path), '--team', 't', '--match', 'm',
-            '--dry-run', '--verbose',
-        ])
+        main(
+            [
+                str(report_path),
+                '--team',
+                't',
+                '--match',
+                'm',
+                '--dry-run',
+                '--verbose',
+            ]
+        )
         out = capsys.readouterr().out
         assert out.count('bytes)') == 4
         assert 'set    teams/t/matches/m/cvStats/summary' in out
@@ -244,25 +323,42 @@ class TestDryRun:
 class TestWhatItPrints:
     def test_the_caveat_is_absent_when_no_player_report_was_written(self):
         lines = describe(
-            {'summary': True, 'identity': True, 'thumbs': 0, 'events': 0,
-             'playerReports': 0, 'skipped': []},
+            {
+                'summary': True,
+                'identity': True,
+                'thumbs': 0,
+                'events': 0,
+                'playerReports': 0,
+                'skipped': [],
+            },
             dry_run=True,
         )
         assert not any('assumed' in line for line in lines)
 
     def test_a_real_run_never_carries_the_dry_run_caveat(self):
         lines = describe(
-            {'summary': True, 'identity': True, 'thumbs': 2, 'events': 30,
-             'playerReports': 4, 'skipped': []},
+            {
+                'summary': True,
+                'identity': True,
+                'thumbs': 2,
+                'events': 30,
+                'playerReports': 4,
+                'skipped': [],
+            },
             dry_run=False,
         )
         assert not any('assumed' in line for line in lines)
 
     def test_every_skip_reason_survives_to_the_output(self):
         lines = describe(
-            {'summary': True, 'identity': True, 'thumbs': 0, 'events': 0,
-             'playerReports': 0,
-             'skipped': ['cluster 4: no stats for it', 'player p: no report']},
+            {
+                'summary': True,
+                'identity': True,
+                'thumbs': 0,
+                'events': 0,
+                'playerReports': 0,
+                'skipped': ['cluster 4: no stats for it', 'player p: no report'],
+            },
             dry_run=False,
         )
         assert sum('skipped:' in line for line in lines) == 2

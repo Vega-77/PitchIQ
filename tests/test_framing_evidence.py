@@ -37,6 +37,7 @@ Everything here compares two numbers pulled out of text by a regex, and a regex
 that stops matching yields nothing to compare. The last class is nothing but
 guards against that.
 """
+
 import inspect
 import re
 from pathlib import Path
@@ -85,9 +86,7 @@ def spike_scale():
     Read off a real `FramingVerdict` rather than written as 960/1280, so the
     worked example in the docstring is tied to the property a caller gets.
     """
-    return assess_framing(
-        [], SPIKE_WIDTH, SPIKE_HEIGHT, imgsz=SPIKE_IMGSZ
-    ).scale
+    return assess_framing([], SPIKE_WIDTH, SPIKE_HEIGHT, imgsz=SPIKE_IMGSZ).scale
 
 
 class TestTheMeasurementItself:
@@ -148,9 +147,7 @@ class TestTheConversion:
         scale = spike_scale()
 
         assert found, 'no inference figure found in the module docstring'
-        assert set(found) == {
-            (player_height_px(lo) * scale, player_height_px(hi) * scale)
-        }
+        assert set(found) == {(player_height_px(lo) * scale, player_height_px(hi) * scale)}
 
 
 class TestTheReadersStillRead:

@@ -11,17 +11,19 @@ Versions built here (detector candidates are drun's for every version):
                   (cls_B is what ships); log-odds from cls/<name>/<tag>cls.npz
   cls_B_nofill    shipped, without the gap fill
 """
+
 import os
 import sys
 
 import numpy as np
 
-HERE = os.path.dirname(os.path.abspath(__file__)); S2 = os.path.dirname(HERE)
+HERE = os.path.dirname(os.path.abspath(__file__))
+S2 = os.path.dirname(HERE)
 sys.path.insert(0, S2)
-import dfree                                       # noqa: E402
-import dtrack6 as D6                               # noqa: E402
-import gapfill as G                                # noqa: E402
-import wm_cls as C                                 # noqa: E402
+import dfree  # noqa: E402
+import dtrack6 as D6  # noqa: E402
+import gapfill as G  # noqa: E402
+import wm_cls as C  # noqa: E402
 
 BASE = dict(e_off=-0.5, c_enter=12.0, c_near=6.0, skip=4.0)
 A = 0.75
@@ -56,16 +58,22 @@ def build(ver, tag):
         raise SystemExit('unknown version ' + ver)
     lo, hi = window(tag)
     n = hi - lo + 1
-    x = np.full(n, np.nan); y = np.full(n, np.nan); src = np.zeros(n, np.int8)
+    x = np.full(n, np.nan)
+    y = np.full(n, np.nan)
+    src = np.zeros(n, np.int8)
     for fr, b, o in zip(F, base, out):
         i = fr['abs'] - lo
         if o is None or not (0 <= i < n):
             continue
         x[i], y[i] = fr['x'][o], fr['y'][o]
         src[i] = 1 if b is not None else 2
-    d = os.path.join(HERE, 'p2d', ver); os.makedirs(d, exist_ok=True)
+    d = os.path.join(HERE, 'p2d', ver)
+    os.makedirs(d, exist_ok=True)
     np.savez(os.path.join(d, '%s.npz' % tag), abs=np.arange(lo, hi + 1), x=x, y=y, src=src)
-    print('%-14s %-5s  conf %.3f  fill %.3f' % (ver, tag, (src == 1).mean(), (src == 2).mean()), flush=True)
+    print(
+        '%-14s %-5s  conf %.3f  fill %.3f' % (ver, tag, (src == 1).mean(), (src == 2).mean()),
+        flush=True,
+    )
 
 
 if __name__ == '__main__':

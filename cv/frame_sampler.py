@@ -65,7 +65,7 @@ def video_info(video_path: str | Path) -> VideoInfo:
     path = Path(video_path)
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
-        raise FileNotFoundError(f"Could not open video: {path}")
+        raise FileNotFoundError(f'Could not open video: {path}')
     try:
         return VideoInfo(
             path=path,
@@ -94,12 +94,12 @@ def sample_frames(
     path = Path(video_path)
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
-        raise FileNotFoundError(f"Could not open video: {path}")
+        raise FileNotFoundError(f'Could not open video: {path}')
 
     try:
         fps = cap.get(cv2.CAP_PROP_FPS)
         if not fps or fps <= 0:
-            raise ValueError(f"Video reports invalid fps ({fps}): {path}")
+            raise ValueError(f'Video reports invalid fps ({fps}): {path}')
         total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         duration_s = total / fps
 
@@ -121,7 +121,7 @@ def sample_frames(
                 x1, y1, x2, y2 = crop
                 frame = frame[y1:y2, x1:x2]
                 if frame.size == 0:
-                    raise ValueError(f"Crop {crop} produced an empty region")
+                    raise ValueError(f'Crop {crop} produced an empty region')
 
             if upscale is not None and upscale != 1.0:
                 frame = cv2.resize(

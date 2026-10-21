@@ -45,6 +45,7 @@ Limits, so a clean run is not read as more than it is:
     unresolved rather than passing quietly — see
     `test_every_write_site_resolves`.
 """
+
 import io
 import re
 from pathlib import Path
@@ -73,41 +74,66 @@ OPS = {
 # Paths whose rule grants no closed field set, with the reason it does not.
 # Checked backwards too: a path that grows a `hasOnly` has to leave this list.
 NO_ALLOWLIST = {
-    'teams/{}/matches/{}/playerReports/{}':
-        'merged with the cv-prefixed fields cv/publish.py wrote through the '
-        'Admin SDK, so the merged result is not a set this file can know; '
-        'capped by key count instead',
+    'teams/{}/matches/{}/playerReports/{}': 'merged with the cv-prefixed fields cv/publish.py wrote through the '
+    'Admin SDK, so the merged result is not a set this file can know; '
+    'capped by key count instead',
 }
 
 # Fields an allowlist grants that nothing in the browser writes. Every one of
 # these is a rule drafted ahead of a screen. Checked in both directions: a
 # field listed here that someone starts writing fails as a stale entry.
 UNWRITTEN = {
-    ('teams/{}', 'update', 'name'):
-        'no rename-a-team control exists; the create writes it and nothing '
-        'edits it afterwards',
-    ('teams/{}', 'update', 'taggerUids'):
-        'nothing populates it on create either — assets/db.js:44-50 says why: '
-        'the tagger-versus-coach split is an open question about people',
-    ('teams/{}', 'update', 'archived'):
-        'the seat a team-hiding switch will sit in, per assets/db.js:49',
-    ('teams/{}/players/{}', 'update', 'name'):
-        'the roster editor changes position and active only; renaming a player '
-        'is not a control the coach has',
-    ('teams/{}/players/{}', 'update', 'jerseyNumber'):
-        'same editor, same gap — a number is fixed at create today',
-    ('teams/{}/players/{}', 'update', 'emailLower'):
-        'firestore.rules:396 anticipates it ("a student changed email") and '
-        'there is no screen for it',
-    ('teams/{}/matches/{}', 'create', 'videoUrl'):
-        'a match is created before anyone has filmed it; the video fields are '
-        'attached later by the update rule',
+    (
+        'teams/{}',
+        'update',
+        'name',
+    ): 'no rename-a-team control exists; the create writes it and nothing edits it afterwards',
+    (
+        'teams/{}',
+        'update',
+        'taggerUids',
+    ): 'nothing populates it on create either — assets/db.js:44-50 says why: '
+    'the tagger-versus-coach split is an open question about people',
+    (
+        'teams/{}',
+        'update',
+        'archived',
+    ): 'the seat a team-hiding switch will sit in, per assets/db.js:49',
+    (
+        'teams/{}/players/{}',
+        'update',
+        'name',
+    ): 'the roster editor changes position and active only; renaming a player '
+    'is not a control the coach has',
+    (
+        'teams/{}/players/{}',
+        'update',
+        'jerseyNumber',
+    ): 'same editor, same gap — a number is fixed at create today',
+    (
+        'teams/{}/players/{}',
+        'update',
+        'emailLower',
+    ): 'firestore.rules:396 anticipates it ("a student changed email") and '
+    'there is no screen for it',
+    (
+        'teams/{}/matches/{}',
+        'create',
+        'videoUrl',
+    ): 'a match is created before anyone has filmed it; the video fields are '
+    'attached later by the update rule',
     ('teams/{}/matches/{}', 'create', 'videoOffsetS'): 'see videoUrl above',
     ('teams/{}/matches/{}', 'create', 'secondHalfVideoS'): 'see videoUrl above',
-    ('teams/{}/matches/{}', 'create', 'halfTimeClockS'):
-        'written by the half-time tap, never at create',
-    ('teams/{}/matches/{}', 'update', 'opponentName'):
-        'no edit-match-details form; both fields are set once at create',
+    (
+        'teams/{}/matches/{}',
+        'create',
+        'halfTimeClockS',
+    ): 'written by the half-time tap, never at create',
+    (
+        'teams/{}/matches/{}',
+        'update',
+        'opponentName',
+    ): 'no edit-match-details form; both fields are set once at create',
     ('teams/{}/matches/{}', 'update', 'date'): 'see opponentName above',
 }
 
@@ -121,6 +147,7 @@ NESTED = {
 
 
 # --------------------------------------------------------------- firestore.rules
+
 
 def rules_code(src):
     """`//` comments and single-quoted strings blanked, space for space.
@@ -155,6 +182,7 @@ ALLOW = re.compile(r'\ballow\s+([a-z, ]+?)\s*:')
 FUNC = re.compile(r'\bfunction\s+(\w+)\s*\(')
 ALLOWLIST = re.compile(r'(?:hasOnly|changed)\s*\(\s*\[')
 CAP = re.compile(r'keys\(\)\.size\(\)\s*<=\s*(\d+)')
+
 
 def normalise(segments):
     """`/teams/{teamId}/matches/{m}` -> `teams/{}/matches/{}`.
@@ -197,7 +225,10 @@ class Grant:
 
     def __repr__(self):
         return 'firestore.rules:%d %s %s' % (
-            self.line, self.path or ('fn ' + self.func), '/'.join(self.ops))
+            self.line,
+            self.path or ('fn ' + self.func),
+            '/'.join(self.ops),
+        )
 
 
 def grants():
@@ -212,7 +243,7 @@ def grants():
         end = code.index(']', m.end())
         # Names come from the raw text: `blank`-style stripping empties the
         # quoted field names but keeps their offsets, which is the point.
-        fields = re.findall(r'\w+', src[m.end():end])
+        fields = re.findall(r'\w+', src[m.end() : end])
         prior_allow = max((o for o in allows if o < m.start()), default=-1)
         prior_func = max((o for o in funcs if o < m.start()), default=-1)
         if prior_func > prior_allow:
@@ -221,8 +252,7 @@ def grants():
             path = normalise(stack[m.start()])
             ops = tuple(v.strip() for v in allows[prior_allow].split(','))
             func = ''
-        out.append(Grant(code[:m.start()].count('\n') + 1, path, ops,
-                         tuple(fields), func))
+        out.append(Grant(code[: m.start()].count('\n') + 1, path, ops, tuple(fields), func))
     return out
 
 
@@ -230,10 +260,8 @@ def key_cap(path):
     """The `keys().size() <= N` bound a path's rules put on the document."""
     code = rules_code(io.open(RULES, encoding='utf-8').read())
     stack = path_stack(code)
-    found = [int(m.group(1)) for m in CAP.finditer(code)
-             if normalise(stack[m.start()]) == path]
-    assert len(found) == 1, (
-        'expected exactly one key-count cap under %s, saw %r' % (path, found))
+    found = [int(m.group(1)) for m in CAP.finditer(code) if normalise(stack[m.start()]) == path]
+    assert len(found) == 1, 'expected exactly one key-count cap under %s, saw %r' % (path, found)
     return found[0]
 
 
@@ -325,8 +353,7 @@ def object_at(code, start, end):
 class Source:
     def __init__(self, rel):
         self.rel = rel
-        self.raw = io.open(ROOT / rel, encoding='utf-8',
-                           errors='replace').read()
+        self.raw = io.open(ROOT / rel, encoding='utf-8', errors='replace').read()
         # `blank` preserves length, so an offset found in one is valid in the
         # other. Structure is read from the blanked text; string contents — the
         # collection names in a `doc()` call — only from the raw text.
@@ -356,8 +383,7 @@ FOR_OF = r'\bfor\s*\(\s*(?:const|let)\s+%s\s+of\s+'
 
 def assignment(src, name, before):
     """(start, end) of the expression assigned to `name` before `before`."""
-    found = [m for m in re.finditer(ASSIGN % re.escape(name), src.code)
-             if m.end() < before]
+    found = [m for m in re.finditer(ASSIGN % re.escape(name), src.code) if m.end() < before]
     if not found:
         return None
     start = found[-1].end()
@@ -430,13 +456,12 @@ def ref_parts_of_name(src, name, before, seen=()):
     seen = seen + (name,)
     span = assignment(src, name, before)
     if span:
-        body = src.code[span[0]:span[1]]
+        body = src.code[span[0] : span[1]]
         arrow = body.find('=>')
         if arrow >= 0 and '{' not in body[:arrow]:
             return ref_parts(src, span[0] + arrow + 2, span[1], seen)
         return ref_parts(src, *span, seen=seen)
-    loop = [m for m in re.finditer(FOR_OF % re.escape(name), src.code)
-            if m.end() < before]
+    loop = [m for m in re.finditer(FOR_OF % re.escape(name), src.code) if m.end() < before]
     if loop:
         m = loop[-1]
         end = src.code.find(')', m.end())
@@ -471,8 +496,9 @@ def expand(src, all_src, expr, before, seen=()):
             found = set(named)
             # `const patch = { status }; if (...) patch.halfTimeClockS = ...`
             # — the conditional key is as real as the literal one.
-            for m in re.finditer(r'\b%s\.(\w+)\s*=(?!=)' % re.escape(name),
-                                 src.code[span[1]:before]):
+            for m in re.finditer(
+                r'\b%s\.(\w+)\s*=(?!=)' % re.escape(name), src.code[span[1] : before]
+            ):
                 found.add(m.group(1))
             for s in spreads:
                 more = expand(src, all_src, s, before, seen)
@@ -543,7 +569,7 @@ def callers(all_src, name):
     for src in all_src.values():
         for m in re.finditer(r'\b%s\s*\(' % re.escape(name), src.code):
             head = src.code.rfind('\n', 0, m.start())
-            if re.search(r'\b(function|import)\b', src.code[head:m.start()]):
+            if re.search(r'\b(function|import)\b', src.code[head : m.start()]):
                 continue
             arglist = items(src.code, m.end() - 1, src.raw)
             if not arglist:
@@ -564,20 +590,23 @@ def writes(all_src):
             lp = m.end() - 1
             arglist = items(src.code, lp, src.raw)
             if len(arglist) < 2:
-                out.append(Write(src.at(m.start()), m.group(1), None, None,
-                                 'no payload argument'))
+                out.append(Write(src.at(m.start()), m.group(1), None, None, 'no payload argument'))
                 continue
             path = ref_path(src, *arglist[0])
             lb = object_at(src.code, *arglist[1])
             if lb is None:
-                found = expand(src, all_src, src.code[arglist[1][0]:
-                                                      arglist[1][1]], lp)
+                found = expand(src, all_src, src.code[arglist[1][0] : arglist[1][1]], lp)
                 if found is PASSTHROUGH:
-                    for where, keys, spreads in callers(
-                            all_src, enclosing(src, m.start())):
-                        out.append(Write(where, m.group(1), path, keys,
-                                         'through ' +
-                                         enclosing(src, m.start())))
+                    for where, keys, spreads in callers(all_src, enclosing(src, m.start())):
+                        out.append(
+                            Write(
+                                where,
+                                m.group(1),
+                                path,
+                                keys,
+                                'through ' + enclosing(src, m.start()),
+                            )
+                        )
                     continue
                 out.append(Write(src.at(m.start()), m.group(1), path, found))
                 continue
@@ -589,11 +618,16 @@ def writes(all_src):
                 more = expand(src, all_src, s, lb)
                 if more is PASSTHROUGH:
                     base = set(fields)
-                    for where, keys, _ in callers(
-                            all_src, enclosing(src, m.start())):
-                        out.append(Write(where, m.group(1), path,
-                                         base | keys, 'through ' +
-                                         enclosing(src, m.start())))
+                    for where, keys, _ in callers(all_src, enclosing(src, m.start())):
+                        out.append(
+                            Write(
+                                where,
+                                m.group(1),
+                                path,
+                                base | keys,
+                                'through ' + enclosing(src, m.start()),
+                            )
+                        )
                     broken = True
                     break
                 if more is None:
@@ -649,8 +683,7 @@ def canonical(path, rule_paths):
     if path is None or path in rule_paths:
         return path
     hits = sorted(r for r in rule_paths if path_matches(path, r))
-    assert len(hits) < 2, 'more than one rule path matches %r: %r' % (
-        path, hits)
+    assert len(hits) < 2, 'more than one rule path matches %r: %r' % (path, hits)
     return hits[0] if hits else path
 
 
@@ -661,24 +694,34 @@ def permitted(rules, path, op):
 
 # ------------------------------------------------------------------------ tests
 
+
 def test_every_write_site_resolves(sites):
     """A shape the resolver cannot read has to say so, not pass quietly."""
-    broken = ['%s: %s' % (w.where, w.note or w.fields) for w in sites
-              if w.path is None or w.fields is None
-              or any(f.startswith('??') for f in w.fields)]
+    broken = [
+        '%s: %s' % (w.where, w.note or w.fields)
+        for w in sites
+        if w.path is None or w.fields is None or any(f.startswith('??') for f in w.fields)
+    ]
     assert not broken, (
         'these writes could not be reduced to a path and a field set; extend '
-        'the resolver rather than dropping them:\n  ' + '\n  '.join(broken))
+        'the resolver rather than dropping them:\n  ' + '\n  '.join(broken)
+    )
 
 
 def test_every_write_lands_on_a_governed_path(sites, rules):
     """A write to a path no rule names is denied, and nothing here says so."""
     known = {g.path for g in rules if g.path}
-    stray = sorted({'%s -> %s' % (w.where, w.path) for w in sites
-                    if w.path not in known and w.path not in NO_ALLOWLIST})
+    stray = sorted(
+        {
+            '%s -> %s' % (w.where, w.path)
+            for w in sites
+            if w.path not in known and w.path not in NO_ALLOWLIST
+        }
+    )
     assert not stray, (
         'no allowlist governs these paths; either the rule is missing or the '
-        'path belongs in NO_ALLOWLIST with a reason:\n  ' + '\n  '.join(stray))
+        'path belongs in NO_ALLOWLIST with a reason:\n  ' + '\n  '.join(stray)
+    )
 
 
 def test_every_written_field_is_permitted(sites, rules):
@@ -695,10 +738,11 @@ def test_every_written_field_is_permitted(sites, rules):
         if any(w.fields <= set(g.fields) for g in options):
             continue
         best = min(options, key=lambda g: len(w.fields - set(g.fields)))
-        bad.append('%s writes %s to %s, which no rule grants (%s is the '
-                   'closest and is missing %s)' % (
-                       w.where, sorted(w.fields), w.path, best,
-                       sorted(w.fields - set(best.fields))))
+        bad.append(
+            '%s writes %s to %s, which no rule grants (%s is the '
+            'closest and is missing %s)'
+            % (w.where, sorted(w.fields), w.path, best, sorted(w.fields - set(best.fields)))
+        )
     assert not bad, '\n  '.join([''] + bad)
 
 
@@ -719,13 +763,12 @@ def test_every_granted_field_is_written(sites, rules):
         for op in g.ops:
             have |= written.get((g.path, op), set())
         for field in g.fields:
-            if field in have or any((g.path, op, field) in UNWRITTEN
-                                    for op in g.ops):
+            if field in have or any((g.path, op, field) in UNWRITTEN for op in g.ops):
                 continue
             bad.append('%s grants %r, and nothing writes it' % (g, field))
     assert not bad, (
-        '\n  '.join([''] + bad) +
-        '\n\nEither wire it up, or add it to UNWRITTEN with the reason.')
+        '\n  '.join([''] + bad) + '\n\nEither wire it up, or add it to UNWRITTEN with the reason.'
+    )
 
 
 def test_unwritten_entries_are_still_unwritten(sites, rules):
@@ -733,8 +776,7 @@ def test_unwritten_entries_are_still_unwritten(sites, rules):
     written = {}
     for w in sites:
         written.setdefault((w.path, w.op), set()).update(w.fields)
-    granted = {(g.path, op, f) for g in rules for op in g.ops
-               for f in g.fields if g.path}
+    granted = {(g.path, op, f) for g in rules for op in g.ops for f in g.fields if g.path}
 
     stale = []
     for key in sorted(UNWRITTEN):
@@ -744,9 +786,10 @@ def test_unwritten_entries_are_still_unwritten(sites, rules):
         elif field in written.get((path, op), set()):
             stale.append('%s/%s/%s: something writes it now' % key)
     assert not stale, (
-        '\n  '.join([''] + stale) +
-        '\n\nDelete the entry. An allowlist of excuses that is never pruned is '
-        'the graveyard this check exists to avoid.')
+        '\n  '.join([''] + stale)
+        + '\n\nDelete the entry. An allowlist of excuses that is never pruned is '
+        'the graveyard this check exists to avoid.'
+    )
 
 
 def test_paths_without_an_allowlist_are_the_documented_ones(sites, rules):
@@ -756,7 +799,8 @@ def test_paths_without_an_allowlist_are_the_documented_ones(sites, rules):
     stale = sorted(p for p in NO_ALLOWLIST if p in granted or p not in used)
     assert not stale, (
         'these no longer need an exemption — either a rule now names their '
-        'fields, or nothing writes them: %s' % stale)
+        'fields, or nothing writes them: %s' % stale
+    )
 
 
 def test_the_uncapped_document_stays_under_its_cap(sites, all_src):
@@ -768,14 +812,16 @@ def test_the_uncapped_document_stays_under_its_cap(sites, all_src):
     for w in reports:
         assert len(w.fields) <= cap, (
             '%s writes %d keys and firestore.rules caps the document at %d'
-            % (w.where, len(w.fields), cap))
+            % (w.where, len(w.fields), cap)
+        )
     # The pipeline writes its own on top of these through the Admin SDK, and
     # the cap counts the merged result. Leave it room.
     biggest = max(len(w.fields) for w in reports)
     assert biggest <= cap - 20, (
         'the largest player-report write is %d keys against a cap of %d. The '
         'pipeline merges roughly twenty more on top; raise the cap in '
-        'firestore.rules before this gets closer.' % (biggest, cap))
+        'firestore.rules before this gets closer.' % (biggest, cap)
+    )
 
 
 def test_nested_allowlists_match_their_literal_exactly(rules, all_src):
@@ -790,16 +836,21 @@ def test_nested_allowlists_match_their_literal_exactly(rules, all_src):
         assert g is not None, '%s no longer holds a closed field set' % func
         keys = returned_keys(all_src, js)
         assert keys, '%s in %s returns no object literal' % (js, rel)
-        assert keys == set(g.fields), (
-            '%s grants %s and %s writes %s' % (
-                g, sorted(g.fields), js, sorted(keys)))
+        assert keys == set(g.fields), '%s grants %s and %s writes %s' % (
+            g,
+            sorted(g.fields),
+            js,
+            sorted(keys),
+        )
 
 
 # --------------------------------------------------- the merge-clearing branch
 
 CV_KEYS = re.compile(r'const CV_REPORT_KEYS = \[')
-NO_STATS = re.compile(r'if \(!stats\) return Object\.fromEntries\(\s*'
-                      r'CV_REPORT_KEYS')
+NO_STATS = re.compile(
+    r'if \(!stats\) return Object\.fromEntries\(\s*'
+    r'CV_REPORT_KEYS'
+)
 
 
 def cv_branches(all_src):
@@ -819,7 +870,8 @@ def cv_branches(all_src):
     body_src, start, end = body
     assert NO_STATS.search(' '.join(body_src.code[start:end].split())), (
         'the no-stats branch of cvReportFields no longer nulls every '
-        'CV_REPORT_KEYS entry; this check reads that shape')
+        'CV_REPORT_KEYS entry; this check reads that shape'
+    )
     written = set()
     for r in RETURN.finditer(body_src.code[start:end]):
         named, _ = literal_keys(body_src.code, start + r.end() - 1, body_src.raw)
@@ -841,7 +893,8 @@ def test_the_cleared_cv_fields_cover_the_written_ones(all_src):
     missing = sorted(written - nulled)
     assert not missing, (
         'cvReportFields writes %s but CV_REPORT_KEYS does not list them, so '
-        'un-mapping a player never clears them' % missing)
+        'un-mapping a player never clears them' % missing
+    )
 
 
 def test_the_cleared_cv_fields_are_all_real(all_src):
@@ -856,10 +909,12 @@ def test_the_cleared_cv_fields_are_all_real(all_src):
     stray = sorted(nulled - written - pipeline)
     assert not stray, (
         'CV_REPORT_KEYS lists %s, which cvReportFields never writes and '
-        'cv/publish.py does not either' % stray)
+        'cv/publish.py does not either' % stray
+    )
 
 
 # ------------------------------------------------------------------ anti-vacuum
+
 
 def test_the_scan_actually_scanned_something(all_src, sites, rules):
     """A gate that reads nothing passes everything."""
@@ -879,17 +934,20 @@ def test_the_scan_actually_scanned_something(all_src, sites, rules):
 def test_the_backward_check_has_something_to_check(sites, rules):
     """UNWRITTEN is the finding, not a formality — it must stay live."""
     assert UNWRITTEN, 'the day this empties, delete the mechanism too'
-    granted = {(g.path, op, f) for g in rules for op in g.ops
-               for f in g.fields if g.path}
+    granted = {(g.path, op, f) for g in rules for op in g.ops for f in g.fields if g.path}
     assert set(UNWRITTEN) <= granted
 
 
 # ------------------------------------------------------------- negative control
 
+
 def test_the_forward_check_can_fail(sites, rules):
-    invented = Write('nowhere:1', 'setDoc', 'teams/{}',
-                     {'name', 'coachUids', 'createdAt', 'createdBy',
-                      'taggerUids', 'archived', 'sponsor'})
+    invented = Write(
+        'nowhere:1',
+        'setDoc',
+        'teams/{}',
+        {'name', 'coachUids', 'createdAt', 'createdBy', 'taggerUids', 'archived', 'sponsor'},
+    )
     options = permitted(rules, 'teams/{}', 'create')
     assert options
     assert not any(invented.fields <= set(g.fields) for g in options)
@@ -902,7 +960,7 @@ def test_the_path_resolver_can_fail():
 
 
 def test_the_literal_reader_can_fail():
-    code = "x({ a: 1, ...spread, [dynamic]: 2 })"
+    code = 'x({ a: 1, ...spread, [dynamic]: 2 })'
     named, spreads = literal_keys(code, code.index('{'))
     assert 'a' in named
     assert spreads == ['spread']
@@ -910,8 +968,9 @@ def test_the_literal_reader_can_fail():
 
 
 def test_the_rules_reader_ignores_commented_out_grants():
-    code = rules_code("allow create: if x.keys().hasOnly(['a']);\n"
-                      "// allow update: if y.keys().hasOnly(['b']);\n")
+    code = rules_code(
+        "allow create: if x.keys().hasOnly(['a']);\n// allow update: if y.keys().hasOnly(['b']);\n"
+    )
     assert 'a' in code
     assert 'hasOnly' in code.split('\n')[0]
     assert 'hasOnly' not in code.split('\n')[1]

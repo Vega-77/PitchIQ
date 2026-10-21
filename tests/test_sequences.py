@@ -39,23 +39,42 @@ FINAL = 90.0
 
 def a_pass(t, x, team=TEAM_A, outcome=COMPLETED, in_play=True):
     return Pass(
-        event_id=f'p{t}', type='pass', timestamp_s=float(t), frame_index=int(t * 30),
-        team=team, track_id=1, start_xy_px=(0.0, 0.0), start_m=(x, 34.0),
-        outcome=outcome, in_play=in_play,
+        event_id=f'p{t}',
+        type='pass',
+        timestamp_s=float(t),
+        frame_index=int(t * 30),
+        team=team,
+        track_id=1,
+        start_xy_px=(0.0, 0.0),
+        start_m=(x, 34.0),
+        outcome=outcome,
+        in_play=in_play,
     )
 
 
 def a_shot(t, x, team=TEAM_A):
     return Shot(
-        event_id=f's{t}', type='shot', timestamp_s=float(t), frame_index=int(t * 30),
-        team=team, track_id=1, start_xy_px=(0.0, 0.0), start_m=(x, 34.0),
+        event_id=f's{t}',
+        type='shot',
+        timestamp_s=float(t),
+        frame_index=int(t * 30),
+        team=team,
+        track_id=1,
+        start_xy_px=(0.0, 0.0),
+        start_m=(x, 34.0),
     )
 
 
 def a_tackle(t, x, team=TEAM_B):
     return DefensiveAction(
-        event_id=f'd{t}', type='tackle', timestamp_s=float(t), frame_index=int(t * 30),
-        team=team, track_id=9, start_xy_px=(0.0, 0.0), start_m=(x, 34.0),
+        event_id=f'd{t}',
+        type='tackle',
+        timestamp_s=float(t),
+        frame_index=int(t * 30),
+        team=team,
+        track_id=9,
+        start_xy_px=(0.0, 0.0),
+        start_m=(x, 34.0),
     )
 
 
@@ -91,8 +110,10 @@ class TestWhatCountsAsOnePossession:
         # Only a tagged log knows this. A throw-in starts a new possession
         # however cleanly it is taken.
         spells = split(
-            a_pass(0, OWN), a_pass(1, MID),
-            a_pass(2, MID, in_play=False), a_pass(3, FINAL),
+            a_pass(0, OWN),
+            a_pass(1, MID),
+            a_pass(2, MID, in_play=False),
+            a_pass(3, FINAL),
         )
         assert len(spells) == 2
         assert spells[1].events == 2
@@ -160,7 +181,11 @@ class TestTheFunnel:
     def build(self, *events, team=TEAM_A):
         log = log_of(*events)
         return phase_of_play(
-            sequences(log, PITCH, ENDS), log, PITCH, team, ENDS[team],
+            sequences(log, PITCH, ENDS),
+            log,
+            PITCH,
+            team,
+            ENDS[team],
         )
 
     def test_reaching_is_cumulative(self):
@@ -178,9 +203,11 @@ class TestTheFunnel:
 
     def test_the_share_reaching_is_out_of_everything_started(self):
         report = self.build(
-            a_pass(0, OWN), a_pass(1, FINAL),        # reaches
-            a_tackle(2, MID),                        # theirs, ends ours
-            a_pass(20, OWN), a_pass(21, OWN + 2),    # does not
+            a_pass(0, OWN),
+            a_pass(1, FINAL),  # reaches
+            a_tackle(2, MID),  # theirs, ends ours
+            a_pass(20, OWN),
+            a_pass(21, OWN + 2),  # does not
         )
         assert report.total == 2
         assert report.share_reaching(zones.ATTACKING_THIRD) == pytest.approx(0.5)
@@ -190,11 +217,14 @@ class TestTheFunnel:
         # in midfield already. "Can we play out from the back" is a question
         # about the ones that did not.
         report = self.build(
-            a_pass(0, OWN), a_pass(1, MID),           # out from the back
+            a_pass(0, OWN),
+            a_pass(1, MID),  # out from the back
             a_tackle(2, MID),
-            a_pass(20, OWN), a_pass(21, OWN + 2),     # stuck in it
+            a_pass(20, OWN),
+            a_pass(21, OWN + 2),  # stuck in it
             a_tackle(22, OWN),
-            a_pass(40, MID), a_pass(41, FINAL),       # started upfield
+            a_pass(40, MID),
+            a_pass(41, FINAL),  # started upfield
         )
         assert report.total == 3
         # Two started at the back, one escaped — not two of three.
@@ -208,9 +238,11 @@ class TestTheFunnel:
 
     def test_shots_are_counted_as_an_ending(self):
         report = self.build(
-            a_pass(0, MID), a_shot(1, FINAL),
+            a_pass(0, MID),
+            a_shot(1, FINAL),
             a_tackle(2, FINAL),
-            a_pass(20, MID), a_pass(21, MID, outcome=INCOMPLETE),
+            a_pass(20, MID),
+            a_pass(21, MID, outcome=INCOMPLETE),
         )
         assert report.ended[ENDED_SHOT] == 1
         assert report.ended[ENDED_LOST] == 1
@@ -220,7 +252,11 @@ class TestPassingByPhase:
     def build(self, *events, team=TEAM_A):
         log = log_of(*events)
         return phase_of_play(
-            sequences(log, PITCH, ENDS), log, PITCH, team, ENDS[team],
+            sequences(log, PITCH, ENDS),
+            log,
+            PITCH,
+            team,
+            ENDS[team],
         )
 
     def test_accuracy_is_split_by_where_the_pass_was_played_from(self):
@@ -229,10 +265,13 @@ class TestPassingByPhase:
         # hides both halves of that and 60% at the back is a problem nobody
         # would see.
         report = self.build(
-            a_pass(0, OWN), a_pass(1, OWN + 1), a_pass(2, OWN + 2),
+            a_pass(0, OWN),
+            a_pass(1, OWN + 1),
+            a_pass(2, OWN + 2),
             a_pass(3, OWN + 3, outcome=INCOMPLETE),
             a_tackle(4, OWN),
-            a_pass(20, FINAL), a_pass(21, FINAL, outcome=INCOMPLETE),
+            a_pass(20, FINAL),
+            a_pass(21, FINAL, outcome=INCOMPLETE),
         )
         assert report.accuracy_in(zones.DEFENSIVE_THIRD) == pytest.approx(0.75)
         assert report.accuracy_in(zones.ATTACKING_THIRD) == pytest.approx(0.5)
@@ -259,9 +298,16 @@ class TestWhatCannotBeMeasured:
 
     def test_a_team_with_no_possessions_at_all_answers_none(self):
         log = log_of(a_pass(0, OWN, team=TEAM_A))
-        assert phase_of_play(
-            sequences(log, PITCH, ENDS), log, PITCH, TEAM_B, 'left',
-        ) is None
+        assert (
+            phase_of_play(
+                sequences(log, PITCH, ENDS),
+                log,
+                PITCH,
+                TEAM_B,
+                'left',
+            )
+            is None
+        )
 
     def test_one_team_being_unreadable_does_not_take_the_other_down(self):
         # Half a homography is still half an answer. The team whose direction is

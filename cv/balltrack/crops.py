@@ -37,6 +37,7 @@ joins to a pick on (f, j) with no coordinate matching.
     python crops.py <tag> [--every N] [--frames file.json] [--size 48]
     python crops.py selftest        # synthetic numpy check, no video
 """
+
 import io
 import json
 import os
@@ -48,15 +49,26 @@ import numpy as np
 S2 = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, S2)
 
-import dfree                                   # noqa: E402
+import dfree  # noqa: E402
 
 W, H = 1920, 1080
 MINCONF = 0.25
-DIST_NONE = float(np.hypot(W, H))    # nobody in the frame: a diagonal away
-DIST_REL_MAX = 20.0                  # a tiny far box must not blow up dist_rel
+DIST_NONE = float(np.hypot(W, H))  # nobody in the frame: a diagonal away
+DIST_REL_MAX = 20.0  # a tiny far box must not blow up dist_rel
 
-CTX_NAMES = ['has_ppl', 'n_people', 'inside', 'u', 'v', 'dist_px',
-             'dist_rel', 'box_h', 's', 'rank', 'y_rel']
+CTX_NAMES = [
+    'has_ppl',
+    'n_people',
+    'inside',
+    'u',
+    'v',
+    'dist_px',
+    'dist_rel',
+    'box_h',
+    's',
+    'rank',
+    'y_rel',
+]
 
 
 def load_ppl(tag):
@@ -95,10 +107,10 @@ def context(x, y, s, boxes, has_ppl):
     px, py = x[:, None], y[:, None]
     bw = np.maximum(x2 - x1, 1.0)
     bh = np.maximum(y2 - y1, 1.0)
-    ins = (px >= x1) & (px <= x2) & (py >= y1) & (py <= y2)       # (n, m)
+    ins = (px >= x1) & (px <= x2) & (py >= y1) & (py <= y2)  # (n, m)
     dx = np.maximum(np.maximum(x1 - px, px - x2), 0.0)
     dy = np.maximum(np.maximum(y1 - py, py - y2), 0.0)
-    d = np.hypot(dx, dy)                                           # 0 inside
+    d = np.hypot(dx, dy)  # 0 inside
     area = np.where(ins, bw * bh, np.inf)
     any_in = ins.any(axis=1)
     best = np.where(any_in, np.argmin(area, axis=1), np.argmin(d, axis=1))
@@ -125,7 +137,7 @@ def cut(img, x, y, size, dst):
     a1, b1 = min(x0 + size, iw), min(y0 + size, ih)
     dst[...] = 0
     if a1 > a0 and b1 > b0:
-        dst[b0 - y0:b1 - y0, a0 - x0:a1 - x0] = img[b0:b1, a0:a1]
+        dst[b0 - y0 : b1 - y0, a0 - x0 : a1 - x0] = img[b0:b1, a0:a1]
 
 
 def choose(frames, every, fjson):
@@ -135,23 +147,24 @@ def choose(frames, every, fjson):
     got = [fr for fr in frames if fr['abs'] in want]
     miss = len(want) - len(got)
     if miss:
-        print('  %d requested frames have no candidates or lie outside the'
-              ' clip - skipped' % miss)
+        print('  %d requested frames have no candidates or lie outside the clip - skipped' % miss)
     return got
 
 
 def run(tag, every, fjson, size):
     import cv2
-    import feat4                                # only cv2 / numpy
+    import feat4  # only cv2 / numpy
 
     t0 = time.time()
     frames = choose(dfree.load(tag), every, fjson)
     assert frames, 'no frames chosen'
     ppl = load_ppl(tag)
     has_ppl = ppl is not None
-    print('%s: %d frames chosen, person boxes %s'
-          % (tag, len(frames), 'present' if has_ppl else 'ABSENT (has_ppl=0)'),
-          flush=True)
+    print(
+        '%s: %d frames chosen, person boxes %s'
+        % (tag, len(frames), 'present' if has_ppl else 'ABSENT (has_ppl=0)'),
+        flush=True,
+    )
 
     N = sum(len(fr['s']) for fr in frames)
     F = np.empty(N, np.int32)
@@ -165,7 +178,7 @@ def run(tag, every, fjson, size):
     cap = cv2.VideoCapture(feat4.VIDEO)
     assert cap.isOpened(), 'cannot open video'
     pos = frames[0]['abs']
-    cap.set(cv2.CAP_PROP_POS_FRAMES, pos)       # the one seek
+    cap.set(cv2.CAP_PROP_POS_FRAMES, pos)  # the one seek
     k = 0
     done = 0
     for fr in frames:
@@ -193,24 +206,44 @@ def run(tag, every, fjson, size):
         done += 1
         if done % 100 == 0:
             el = time.time() - t0
-            print('  %d/%d frames  %d crops  %.1f s  %.1f fps'
-                  % (done, len(frames), k, el, done / el), flush=True)
+            print(
+                '  %d/%d frames  %d crops  %.1f s  %.1f fps'
+                % (done, len(frames), k, el, done / el),
+                flush=True,
+            )
     cap.release()
 
     out = os.path.join(S2, '%scrops.npz' % tag)
-    np.savez_compressed(out, f=F[:k], j=J[:k], x=X[:k], y=Y[:k], s=S[:k],
-                        crop=C[:k], ctx=K[:k], ctx_names=np.array(CTX_NAMES),
-                        size=size, tag=tag)
-    print('%s  %d frames  %d crops  %.1f s  -> %s'
-          % (tag, done, k, time.time() - t0, os.path.basename(out)),
-          flush=True)
+    np.savez_compressed(
+        out,
+        f=F[:k],
+        j=J[:k],
+        x=X[:k],
+        y=Y[:k],
+        s=S[:k],
+        crop=C[:k],
+        ctx=K[:k],
+        ctx_names=np.array(CTX_NAMES),
+        size=size,
+        tag=tag,
+    )
+    print(
+        '%s  %d frames  %d crops  %.1f s  -> %s'
+        % (tag, done, k, time.time() - t0, os.path.basename(out)),
+        flush=True,
+    )
 
 
 def selftest():
     """Synthetic arrays only - no video, no npz from disk."""
-    boxes = np.array([[100, 100, 150, 300],      # tall player
-                      [110, 150, 140, 250],      # smaller box inside it
-                      [500, 500, 520, 540]], np.float64)
+    boxes = np.array(
+        [
+            [100, 100, 150, 300],  # tall player
+            [110, 150, 140, 250],  # smaller box inside it
+            [500, 500, 520, 540],
+        ],
+        np.float64,
+    )
     x = np.array([125.0, 105.0, 125.0, 530.0, 1900.0])
     y = np.array([200.0, 110.0, 310.0, 520.0, 1080.0])
     s = np.array([0.1, 0.9, 0.5, 0.5, 0.3])
@@ -247,10 +280,10 @@ def selftest():
     d = np.empty((48, 48, 3), np.uint8)
     cut(img, 500.0, 400.0, 48, d)
     assert (d == img[376:424, 476:524]).all()
-    cut(img, 3.0, 2.0, 48, d)                   # top-left corner
+    cut(img, 3.0, 2.0, 48, d)  # top-left corner
     assert (d[:22] == 0).all() and (d[:, :21] == 0).all()
     assert (d[22:, 21:] == img[:26, :27]).all()
-    cut(img, 1919.4, 1079.6, 48, d)             # bottom-right corner
+    cut(img, 1919.4, 1079.6, 48, d)  # bottom-right corner
     assert (d[:24, :24] == img[1056:1080, 1895:1919]).all()
     assert (d[:, 25:] == 0).all() and (d[24:] == 0).all()
     cut(img, -500.0, -500.0, 48, d)

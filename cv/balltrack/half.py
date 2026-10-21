@@ -24,6 +24,7 @@ Outputs, as hybrid.sh writes them for a window:
   plab/out/<tag>_dets.npz, <tag>_feat.npz                      players
   half/<tag>/seams.json, log.txt
 """
+
 import argparse
 import json
 import os
@@ -45,29 +46,37 @@ PY = sys.executable
 sys.path.insert(0, S2)
 sys.path.insert(0, REPO)
 
-import drun                                    # noqa: E402
+import drun  # noqa: E402
 
-AGREE = 5                                      # frames each side of a cut that must agree
-TOL2, TOL3 = 1.0, 0.5                          # agreement: px in 2D, StatsBomb units in 3D
+AGREE = 5  # frames each side of a cut that must agree
+TOL2, TOL3 = 1.0, 0.5  # agreement: px in 2D, StatsBomb units in 3D
 # CPU stages run as many processes as there are cores, so each keeps one BLAS
 # thread: 16 scan workers x 28 OpenBLAS threads beside drun ran out of commit
 ONE_THREAD = dict(OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', MKL_NUM_THREADS='1')
-MIN_CORE = drun.CHUNK // 5                     # a minute: a shorter end chunk joins its neighbour
-LANES = 2                                      # the ball's CPU jobs at a time
-LOOKAHEAD = 10                                 # dense.OFFS: the ball detector reads 10 frames each side
+MIN_CORE = drun.CHUNK // 5  # a minute: a shorter end chunk joins its neighbour
+LANES = 2  # the ball's CPU jobs at a time
+LOOKAHEAD = 10  # dense.OFFS: the ball detector reads 10 frames each side
 
 
 def scorable(video):
     """The first and last frames a pass can score: the video's frames are
     0..count-1 and the ball detector reads LOOKAHEAD past either side."""
     import cv2
+
     n = int(cv2.VideoCapture(video).get(cv2.CAP_PROP_FRAME_COUNT))
     return LOOKAHEAD, n - 1 - LOOKAHEAD
 
 
 class Half:
     def __init__(self, tag, lo, hi, workers, overlap, lanes=LANES):
-        self.tag, self.lo, self.hi, self.workers, self.ov, self.lanes = tag, lo, hi, workers, overlap, lanes
+        self.tag, self.lo, self.hi, self.workers, self.ov, self.lanes = (
+            tag,
+            lo,
+            hi,
+            workers,
+            overlap,
+            lanes,
+        )
         self.dir = os.path.join(S2, 'half', tag)
         os.makedirs(self.dir, exist_ok=True)
         self.chunks = drun.chunk_edges(lo, hi)
@@ -80,8 +89,14 @@ class Half:
                 cores.append((a, b))
         self.pieces = []
         for k, (a, b) in enumerate(cores):
-            self.pieces.append(dict(k=k, ptag='%s_q%03d' % (tag, a // drun.CHUNK), core=(a, b),
-                                    win=(max(lo, a - overlap), min(hi, b + overlap))))
+            self.pieces.append(
+                dict(
+                    k=k,
+                    ptag='%s_q%03d' % (tag, a // drun.CHUNK),
+                    core=(a, b),
+                    win=(max(lo, a - overlap), min(hi, b + overlap)),
+                )
+            )
         self.log_f = open(os.path.join(self.dir, 'log.txt'), 'a', encoding='utf-8')
         self.t0 = time.time()
         self.err = None
@@ -107,8 +122,14 @@ class Half:
 
     def run(self, cwd, *cmd, env=None, log=None):
         e = dict(self.env, **(env or {}))
-        proc = subprocess.Popen([PY, '-W', 'ignore'] + list(cmd), cwd=cwd, env=e,
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        proc = subprocess.Popen(
+            [PY, '-W', 'ignore'] + list(cmd),
+            cwd=cwd,
+            env=e,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
         with self.lock:
             self.procs.add(proc)
         try:
@@ -147,31 +168,47 @@ class Half:
 
     def dets_ready(self, a, b):
         from cv.experiments import player_lab as L
-        return all(os.path.exists(L._part(self.tag, 'dets', clo, chi))
-                   for clo, chi in self.chunks if not (chi < a or clo > b))
+
+        return all(
+            os.path.exists(L._part(self.tag, 'dets', clo, chi))
+            for clo, chi in self.chunks
+            if not (chi < a or clo > b)
+        )
 
     # ---- piece stages -----------------------------------------------------------------
 
     def build(self, p):
         """<ptag>.npz / pan / ppl cut from the finished chunks, registration copied."""
         from cv.experiments import player_lab as L
-        a, b = p['win']; P = p['ptag']
+
+        a, b = p['win']
+        P = p['ptag']
         drun.merge(P, a, b, self.drun_res(a, b))
         F, B, C = [], [], []
         for clo, chi in self.chunks:
             if chi < a or clo > b:
                 continue
             with np.load(L._part(self.tag, 'dets', clo, chi)) as d:
-                m = (d['conf'] >= 0.25) & (d['frame'] >= a) & (d['frame'] <= b)   # ppl.from_dets
-                F.append(d['frame'][m]); B.append(d['box'][m]); C.append(d['conf'][m])
-        np.savez_compressed(os.path.join(S2, '%sppl.npz' % P), f=np.concatenate(F).astype(np.int32),
-                            box=np.concatenate(B).astype(np.float32), conf=np.concatenate(C).astype(np.float32),
-                            lo=a, hi=b, imgsz=1280, minconf=0.25)
+                m = (d['conf'] >= 0.25) & (d['frame'] >= a) & (d['frame'] <= b)  # ppl.from_dets
+                F.append(d['frame'][m])
+                B.append(d['box'][m])
+                C.append(d['conf'][m])
+        np.savez_compressed(
+            os.path.join(S2, '%sppl.npz' % P),
+            f=np.concatenate(F).astype(np.int32),
+            box=np.concatenate(B).astype(np.float32),
+            conf=np.concatenate(C).astype(np.float32),
+            lo=a,
+            hi=b,
+            imgsz=1280,
+            minconf=0.25,
+        )
         self.registration(p)
 
     def registration(self, p):
         """The half's registration cut to the piece's window (the chain reads it only there)."""
-        a, b = p['win']; P = p['ptag']
+        a, b = p['win']
+        P = p['ptag']
         with np.load(os.path.join(HOM, '%s_reg.npz' % self.tag)) as r:
             m = (r['abs'] >= a) & (r['abs'] <= b)
             np.savez(os.path.join(HOM, '%s_reg.npz' % P), **{k: r[k][m] for k in r.files})
@@ -183,18 +220,35 @@ class Half:
         self.run(S2, 'clsscore.py', 'cls_B.pt', p['ptag'])
 
     def shipped(self, p):
-        P = p['ptag']; log = os.path.join(HOM, '%s_chain.log' % P)
+        P = p['ptag']
+        log = os.path.join(HOM, '%s_chain.log' % P)
         self.run(AT, 'mkpicks_one.py', P, log=log, env=ONE_THREAD)
-        for cmd in (('vballsb.py', P), ('vfl0.py', P), ('vflscan2.py', P, '16'), ('vrowspd.py', P),
-                    ('vflchain2.py', P)):
+        for cmd in (
+            ('vballsb.py', P),
+            ('vfl0.py', P),
+            ('vflscan2.py', P, '16'),
+            ('vrowspd.py', P),
+            ('vflchain2.py', P),
+        ):
             self.run(HOM, *cmd, log=log, env=ONE_THREAD)
         self.run(HOM, 'vsmooth.py', P, env=dict(ONE_THREAD, VS_B3='%s_ball3d2.npz' % P), log=log)
-        self.run(HOM, '_mk.py', '%s_ball3d2.npz' % P, '%s_smooth.npz' % P, '%s_ball3dd.npz' % P, log=log,
-                 env=ONE_THREAD)
+        self.run(
+            HOM,
+            '_mk.py',
+            '%s_ball3d2.npz' % P,
+            '%s_smooth.npz' % P,
+            '%s_ball3dd.npz' % P,
+            log=log,
+            env=ONE_THREAD,
+        )
 
     def bridges(self, p):
         # neighbours already bridged lend their tracks in the overlap (same gap, picks and frames)
-        near = [q['ptag'] for q in self.pieces if abs(q['k'] - p['k']) == 1 and self.done(q['ptag'], 'bridges')]
+        near = [
+            q['ptag']
+            for q in self.pieces
+            if abs(q['k'] - p['k']) == 1 and self.done(q['ptag'], 'bridges')
+        ]
         self.run(TNX, '-u', 'tn_engine.py', 'bridges', p['ptag'], env=dict(TN_NEAR=','.join(near)))
 
     def hybrid(self, p):
@@ -231,6 +285,7 @@ class Half:
 
     def players_loop(self):
         from cv.experiments import player_lab as L
+
         try:
             ex = L.Extractor()
             first_row = 0
@@ -260,7 +315,9 @@ class Half:
         """One GPU stage, piece by piece as `after` finishes them: bridges, or the classifier."""
         try:
             while self.err is None:
-                stage_, p = self.claim([(stage, p) for p in self.pieces if self.done(p['ptag'], after)])
+                stage_, p = self.claim(
+                    [(stage, p) for p in self.pieces if self.done(p['ptag'], after)]
+                )
                 if stage_ is None:
                     if all(self.done(p['ptag'], stage) for p in self.pieces):
                         return
@@ -276,10 +333,19 @@ class Half:
             while self.err is None:
                 stage, p = self.claim(
                     [('hybrid', p) for p in self.pieces if self.done(p['ptag'], 'bridges')]
-                    + [('shipped', p) for p in self.pieces
-                       if self.done(p['ptag'], 'build') and self.done(p['ptag'], 'classify')]
-                    + [('build', p) for p in self.pieces if not self.done(p['ptag'], 'build')
-                       and self.drun_res(*p['win']) is not None and self.dets_ready(*p['win'])])
+                    + [
+                        ('shipped', p)
+                        for p in self.pieces
+                        if self.done(p['ptag'], 'build') and self.done(p['ptag'], 'classify')
+                    ]
+                    + [
+                        ('build', p)
+                        for p in self.pieces
+                        if not self.done(p['ptag'], 'build')
+                        and self.drun_res(*p['win']) is not None
+                        and self.dets_ready(*p['win'])
+                    ]
+                )
                 if stage is None:
                     if all(self.done(p['ptag'], 'hybrid') for p in self.pieces):
                         return
@@ -291,7 +357,8 @@ class Half:
 
     def merge_players(self):
         from cv.experiments import player_lab as L
-        L.extract(self.tag, self.lo, self.hi - self.lo + 1, 1280, 0.05)     # parts done: merges only
+
+        L.extract(self.tag, self.lo, self.hi - self.lo + 1, 1280, 0.05)  # parts done: merges only
         L.features(self.tag)
         self.say('players merged')
 
@@ -305,6 +372,7 @@ class Half:
 
     def stitch(self):
         """Join the pieces at seams where both neighbours agree, in 2D and in 3D."""
+
         def load(ver, P):
             p2 = np.load(os.path.join(AT, 'p2d', ver, '%s.npz' % P))
             d3 = np.load(os.path.join(HOM if ver == 'cls_B' else H3D, '%s_ball3dd.npz' % P))
@@ -325,16 +393,26 @@ class Half:
         seams, cuts = [], [self.lo]
         for left, right in zip(self.pieces[:-1], self.pieces[1:]):
             edge = right['core'][0]
-            lo = max(left['win'][0], right['win'][0]) + AGREE; hi = min(left['win'][1], right['win'][1]) - AGREE
+            lo = max(left['win'][0], right['win'][0]) + AGREE
+            hi = min(left['win'][1], right['win'][1]) - AGREE
             V = {v: (load(v, left['ptag']), load(v, right['ptag'])) for v in ('cls_B', 'hyb90')}
 
             def agree(c):
                 for (l2, l3), (r2, r3) in V.values():
-                    for A, B, keys, tol in ((l2, r2, ('x', 'y', 'src'), TOL2), (l3, r3, ('x', 'y', 'z', 'state'), TOL3)):
-                        ia = np.searchsorted(A['abs'], c - AGREE); ib = np.searchsorted(B['abs'], c - AGREE)
+                    for A, B, keys, tol in (
+                        (l2, r2, ('x', 'y', 'src'), TOL2),
+                        (l3, r3, ('x', 'y', 'z', 'state'), TOL3),
+                    ):
+                        ia = np.searchsorted(A['abs'], c - AGREE)
+                        ib = np.searchsorted(B['abs'], c - AGREE)
                         n = 2 * AGREE + 1
-                        sa = {k: A[k][ia:ia + n] for k in keys}; sb = {k: B[k][ib:ib + n] for k in keys}
-                        if len(sa[keys[0]]) != n or len(sb[keys[0]]) != n or not same(sa, sb, keys, tol):
+                        sa = {k: A[k][ia : ia + n] for k in keys}
+                        sb = {k: B[k][ib : ib + n] for k in keys}
+                        if (
+                            len(sa[keys[0]]) != n
+                            or len(sb[keys[0]]) != n
+                            or not same(sa, sb, keys, tol)
+                        ):
                             return False
                 return True
 
@@ -342,14 +420,24 @@ class Half:
             for d in range(0, max(edge - lo, hi - edge) + 1):
                 for c in (edge - d, edge + d):
                     if lo <= c <= hi and agree(c):
-                        cut = c; break
+                        cut = c
+                        break
                 if cut is not None:
                     break
-            seams.append(dict(left=left['ptag'], right=right['ptag'], edge=edge,
-                              cut=edge if cut is None else cut, agreed=cut is not None))
+            seams.append(
+                dict(
+                    left=left['ptag'],
+                    right=right['ptag'],
+                    edge=edge,
+                    cut=edge if cut is None else cut,
+                    agreed=cut is not None,
+                )
+            )
             if cut is None:
-                self.say('SEAM %s|%s: no agreeing frame within the overlap; cut at the chunk edge %d'
-                         % (left['ptag'], right['ptag'], edge))
+                self.say(
+                    'SEAM %s|%s: no agreeing frame within the overlap; cut at the chunk edge %d'
+                    % (left['ptag'], right['ptag'], edge)
+                )
             cuts.append(edge if cut is None else cut)
         cuts.append(self.hi + 1)
 
@@ -357,16 +445,21 @@ class Half:
             two, three = {}, {}
             for p, a, b in zip(self.pieces, cuts[:-1], cuts[1:]):
                 p2, d3 = load(ver, p['ptag'])
-                m2 = (p2['abs'] >= a) & (p2['abs'] < b); m3 = (d3['abs'] >= a) & (d3['abs'] < b)
+                m2 = (p2['abs'] >= a) & (p2['abs'] < b)
+                m3 = (d3['abs'] >= a) & (d3['abs'] < b)
                 for k in p2.files:
                     two.setdefault(k, []).append(p2[k][m2])
                 for k in d3.files:
                     three.setdefault(k, []).append(d3[k][m3])
             two = {k: np.concatenate(v) for k, v in two.items()}
             three = {k: np.concatenate(v) for k, v in three.items()}
-            assert np.array_equal(two['abs'], np.arange(self.lo, self.hi + 1)), 'stitched 2D has gaps'
+            assert np.array_equal(two['abs'], np.arange(self.lo, self.hi + 1)), (
+                'stitched 2D has gaps'
+            )
             np.savez(os.path.join(AT, 'p2d', ver, '%s.npz' % self.tag), **two)
-            np.savez(os.path.join(HOM if ver == 'cls_B' else H3D, '%s_ball3dd.npz' % self.tag), **three)
+            np.savez(
+                os.path.join(HOM if ver == 'cls_B' else H3D, '%s_ball3dd.npz' % self.tag), **three
+            )
         # the smoothed camera (H per frame) that match_video, spotlab and panned draw with,
         # and the ball track (per-frame H + image point) that vflight.Track reads
         for name in ('smooth2', 'ballsb', 'img'):
@@ -377,20 +470,25 @@ class Half:
                     for k in s.files:
                         sm.setdefault(k, []).append(s[k][m])
             sm = {k: np.concatenate(v) for k, v in sm.items()}
-            assert np.array_equal(sm['abs'], np.arange(self.lo, self.hi + 1)), 'stitched %s has gaps' % name
+            assert np.array_equal(sm['abs'], np.arange(self.lo, self.hi + 1)), (
+                'stitched %s has gaps' % name
+            )
             np.savez(os.path.join(H3D, '%s_%s.npz' % (self.tag, name)), **sm)
         for kind in ('reg', 'venue'):
             src = os.path.join(HOM, '%s_%s.npz' % (self.tag, kind))
             if os.path.exists(src):
                 shutil.copy2(src, H3D)
         json.dump(seams, open(os.path.join(self.dir, 'seams.json'), 'w'), indent=1)
-        self.say('stitched %d pieces, %d of %d seams cut where both sides agree'
-                 % (len(self.pieces), sum(s['agreed'] for s in seams), len(seams)))
+        self.say(
+            'stitched %d pieces, %d of %d seams cut where both sides agree'
+            % (len(self.pieces), sum(s['agreed'] for s in seams), len(seams))
+        )
 
     # ---- the run ----------------------------------------------------------------------------
 
     def main(self):
         from cv.experiments import player_lab as L
+
         if L.CHUNK != drun.CHUNK:
             raise SystemExit('PLAB_CHUNK and DRUN_CHUNK must match')
         if not os.path.exists(os.path.join(HOM, '%s_reg.npz' % self.tag)):
@@ -399,13 +497,31 @@ class Half:
             self.say('PIQ_VIDEO is not set: this is the scrimmage video')
         first, last = scorable(L.VIDEO)
         if not first <= self.lo <= self.hi <= last:
-            raise SystemExit('%d..%d is not inside %d..%d, the frames this video lets a pass score'
-                             % (self.lo, self.hi, first, last))
-        self.say('HALF %s  %d..%d  %d pieces, overlap %d frames, drun %d workers, %d lanes'
-                 % (self.tag, self.lo, self.hi, len(self.pieces), self.ov, self.workers, self.lanes))
+            raise SystemExit(
+                '%d..%d is not inside %d..%d, the frames this video lets a pass score'
+                % (self.lo, self.hi, first, last)
+            )
+        self.say(
+            'HALF %s  %d..%d  %d pieces, overlap %d frames, drun %d workers, %d lanes'
+            % (self.tag, self.lo, self.hi, len(self.pieces), self.ov, self.workers, self.lanes)
+        )
         dlog = open(os.path.join(self.dir, 'drun.log'), 'a', encoding='utf-8')
-        drun_p = subprocess.Popen([PY, '-W', 'ignore', 'drun.py', str(self.lo), str(self.hi), str(self.workers),
-                                   self.tag], cwd=S2, env=self.env, stdout=dlog, stderr=subprocess.STDOUT)
+        drun_p = subprocess.Popen(
+            [
+                PY,
+                '-W',
+                'ignore',
+                'drun.py',
+                str(self.lo),
+                str(self.hi),
+                str(self.workers),
+                self.tag,
+            ],
+            cwd=S2,
+            env=self.env,
+            stdout=dlog,
+            stderr=subprocess.STDOUT,
+        )
         threads = [threading.Thread(target=self.players_loop)]
         threads += [threading.Thread(target=self.ball_gpu_loop, args=('bridges', 'shipped'))]
         threads += [threading.Thread(target=self.ball_gpu_loop, args=('classify', 'build'))]
@@ -418,9 +534,11 @@ class Half:
         while any(t.is_alive() for t in threads):
             time.sleep(5)
             if drun_p.poll() not in (None, 0) and self.err is None:
-                self.err = RuntimeError('drun.py exited with %d (half/%s/drun.log)' % (drun_p.returncode, self.tag))
+                self.err = RuntimeError(
+                    'drun.py exited with %d (half/%s/drun.log)' % (drun_p.returncode, self.tag)
+                )
             if self.err is not None and not killed:
-                self.kill_all()             # the other thread may be blocked in a child
+                self.kill_all()  # the other thread may be blocked in a child
                 killed = True
         if self.err is not None:
             self.say('FAILED: %s' % self.err)
@@ -439,7 +557,9 @@ def main():
     ap.add_argument('--workers', type=int, default=12)
     ap.add_argument('--overlap', type=int, default=300)
     ap.add_argument('--lanes', type=int, default=LANES, help="the ball's CPU jobs at a time")
-    ap.add_argument('--stitch-only', action='store_true', help='re-stitch finished pieces, run nothing')
+    ap.add_argument(
+        '--stitch-only', action='store_true', help='re-stitch finished pieces, run nothing'
+    )
     a = ap.parse_args()
     h = Half(a.tag, a.lo, a.hi, a.workers, a.overlap, a.lanes)
     h.stitch() if a.stitch_only else h.main()

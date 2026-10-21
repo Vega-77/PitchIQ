@@ -47,7 +47,9 @@ from cv.pitchtrack import (
 
 PLAB = Path(__file__).resolve().parents[1] / 'balltrack' / 'plab'
 VIDEO = os.environ.get(
-    'PIQ_VIDEO', str(Path.home() / 'Downloads' / '8-26-26 Scrimmage v Gov Livingston - Tactical.mp4'))
+    'PIQ_VIDEO',
+    str(Path.home() / 'Downloads' / '8-26-26 Scrimmage v Gov Livingston - Tactical.mp4'),
+)
 LO, N = 136170, 600
 
 
@@ -64,7 +66,7 @@ def _paths(tag: str) -> dict[str, Path]:
 # ---- extract ----------------------------------------------------------------------
 
 
-CHUNK = int(os.environ.get('PLAB_CHUNK', 9000))   # 5 minutes: a crash loses at most one
+CHUNK = int(os.environ.get('PLAB_CHUNK', 9000))  # 5 minutes: a crash loses at most one
 
 
 def _chunks(lo: int, hi: int) -> list[tuple[int, int]]:
@@ -115,7 +117,7 @@ def _ahead(it, depth: int = 16):
                 if not put(x):
                     return
             put(None)
-        except BaseException as e:   # noqa: BLE001 - handed to the reader
+        except BaseException as e:  # noqa: BLE001 - handed to the reader
             put(e)
 
     t = threading.Thread(target=run, daemon=True)
@@ -139,8 +141,15 @@ def _colours(idx, batch, boxes):
         grass = grass_hue(img)
         for xyxy, c in zip(xy, cf):
             k = kit_sample(img, xyxy)
-            out.append((fi, xyxy, float(c), np.full(4, np.nan) if k is None else np.asarray(k, dtype=np.float64),
-                        body_descriptor(img, xyxy, grass)))
+            out.append(
+                (
+                    fi,
+                    xyxy,
+                    float(c),
+                    np.full(4, np.nan) if k is None else np.asarray(k, dtype=np.float64),
+                    body_descriptor(img, xyxy, grass),
+                )
+            )
     return out
 
 
@@ -182,7 +191,11 @@ class Extractor:
         path = _part(tag, 'dets', a, b)
         if path.exists():
             with np.load(path) as z:
-                if int(z['imgsz']) == self.imgsz and float(z['min_conf']) == self.conf and str(z['video']) == VIDEO:
+                if (
+                    int(z['imgsz']) == self.imgsz
+                    and float(z['min_conf']) == self.conf
+                    and str(z['video']) == VIDEO
+                ):
                     return path
         from concurrent.futures import ThreadPoolExecutor
 
@@ -190,6 +203,7 @@ class Extractor:
 
         if self.model is None:
             from ultralytics import YOLO
+
             self.model = YOLO(str(DEFAULT_WEIGHTS))
         self._seek(a)
         rows = {'frame': [], 'box': [], 'conf': [], 'kit': [], 'desc': []}
@@ -207,18 +221,33 @@ class Extractor:
                 batch.append(frame)
                 idx.append(f)
                 if len(batch) == 8 or f == b:
-                    results = self.model.predict(batch, classes=[CLASS_PERSON], conf=self.conf, imgsz=self.imgsz,
-                                                 verbose=False)
-                    boxes = [(r.boxes.xyxy.cpu().numpy(), r.boxes.conf.cpu().numpy()) for r in results]
+                    results = self.model.predict(
+                        batch,
+                        classes=[CLASS_PERSON],
+                        conf=self.conf,
+                        imgsz=self.imgsz,
+                        verbose=False,
+                    )
+                    boxes = [
+                        (r.boxes.xyxy.cpu().numpy(), r.boxes.conf.cpu().numpy()) for r in results
+                    ]
                     pending.append(colour.submit(_colours, idx, batch, boxes))
                     if len(pending) > 2:
                         take(pending.pop(0))
                     batch, idx = [], []
             for fut in pending:
                 take(fut)
-        _save_atomic(path, frame=np.array(rows['frame'], dtype=np.int64), box=np.array(rows['box']).reshape(-1, 4),
-                     conf=np.array(rows['conf']), kit=np.array(rows['kit']).reshape(-1, 4),
-                     desc=np.array(rows['desc']), imgsz=self.imgsz, min_conf=self.conf, video=VIDEO)
+        _save_atomic(
+            path,
+            frame=np.array(rows['frame'], dtype=np.int64),
+            box=np.array(rows['box']).reshape(-1, 4),
+            conf=np.array(rows['conf']),
+            kit=np.array(rows['kit']).reshape(-1, 4),
+            desc=np.array(rows['desc']),
+            imgsz=self.imgsz,
+            min_conf=self.conf,
+            video=VIDEO,
+        )
         return path
 
     def _features_for(self, det: Detections, a: int, b: int) -> np.ndarray:
@@ -231,12 +260,13 @@ class Extractor:
             from ultralytics import YOLO
 
             from cv.detector import DEFAULT_WEIGHTS
+
             # only the backbone up to the feature layer: nothing after it changes its output
-            self.net = YOLO(str(DEFAULT_WEIGHTS)).model.eval().cuda().model[:FEATURE_LAYER + 1]
-            assert all(m.f == -1 for m in self.net)       # a plain chain, each layer reads the last
+            self.net = YOLO(str(DEFAULT_WEIGHTS)).model.eval().cuda().model[: FEATURE_LAYER + 1]
+            assert all(m.f == -1 for m in self.net)  # a plain chain, each layer reads the last
         net = self.net
         rows_by = det.rows_by_frame()
-        out = np.zeros((len(det), 128 * 8), np.float16)    # layer 6 has 128 channels, pooled 4 x 2
+        out = np.zeros((len(det), 128 * 8), np.float16)  # layer 6 has 128 channels, pooled 4 x 2
 
         def run(batch):
             x = torch.from_numpy(np.stack([im[:, :, ::-1] for _, (im, _) in batch]))
@@ -246,11 +276,15 @@ class Extractor:
             rows = np.concatenate([rows_by[f] for f, _ in batch])
             bx = det.box[rows]
             which = np.concatenate([np.full(len(rows_by[f]), q) for q, (f, _) in enumerate(batch)])
-            boxes = torch.tensor(np.c_[which, bx[:, 0] * sx, bx[:, 1] * sy, bx[:, 2] * sx, bx[:, 3] * sy],
-                                 dtype=torch.float32).cuda()
+            boxes = torch.tensor(
+                np.c_[which, bx[:, 0] * sx, bx[:, 1] * sy, bx[:, 2] * sx, bx[:, 3] * sy],
+                dtype=torch.float32,
+            ).cuda()
             with torch.no_grad():
                 fm = net(x.cuda().float() / 255).float()
-                r = roi_align(fm, boxes, output_size=(4, 2), spatial_scale=fm.shape[-1] / 1280, aligned=True)
+                r = roi_align(
+                    fm, boxes, output_size=(4, 2), spatial_scale=fm.shape[-1] / 1280, aligned=True
+                )
                 out[rows] = torch.nn.functional.normalize(r.flatten(1), dim=1).half().cpu().numpy()
 
         if len(det):
@@ -258,8 +292,10 @@ class Extractor:
             batch = []
             # the reader thread decodes and shrinks; the GPU never waits on it
             used = (f in rows_by and len(rows_by[f]) for f in range(a, b + 1))
-            frames = ((f, (cv2.resize(img, (1280, 736)), img.shape) if use else None)
-                      for use, (f, img) in zip(used, _frames(self.cap, a, b)))
+            frames = (
+                (f, (cv2.resize(img, (1280, 736)), img.shape) if use else None)
+                for use, (f, img) in zip(used, _frames(self.cap, a, b))
+            )
             for f, x in _ahead(frames):
                 if x is not None:
                     batch.append((f, x))
@@ -283,9 +319,18 @@ class Extractor:
         """feat_part for a piece whose dets_part is done, numbering its rows from
         first_row: the pieces before it in the window hold the rows before."""
         with np.load(_part(tag, 'dets', a, b)) as z:
-            det = drop_contained(drop_clipped(Detections(
-                frame=z['frame'], box=z['box'], conf=z['conf'], team=np.full(len(z['frame']), -1),
-                desc=z['desc']), self.h))
+            det = drop_contained(
+                drop_clipped(
+                    Detections(
+                        frame=z['frame'],
+                        box=z['box'],
+                        conf=z['conf'],
+                        team=np.full(len(z['frame']), -1),
+                        desc=z['desc'],
+                    ),
+                    self.h,
+                )
+            )
         rows = first_row + np.arange(len(det))
         return self.feat_part(tag, a, b, rows, det), len(det)
 
@@ -305,11 +350,26 @@ def extract(tag: str, lo: int, n: int, imgsz: int, conf: float) -> None:
                 if len(z['frame']):
                     merged[k].append(z[k])
     out = _paths(tag)['dets']
-    _save_atomic(out, **{k: np.concatenate(v) for k, v in merged.items()},
-                 fps=ex.fps, w=ex.w, h=ex.h, lo=lo, n=n, imgsz=imgsz, min_conf=conf)
+    _save_atomic(
+        out,
+        **{k: np.concatenate(v) for k, v in merged.items()},
+        fps=ex.fps,
+        w=ex.w,
+        h=ex.h,
+        lo=lo,
+        n=n,
+        imgsz=imgsz,
+        min_conf=conf,
+    )
     for path in parts:
         os.remove(path)
-    print('wrote', out, sum(len(v) for v in merged['frame']), 'detections', '%.0fs' % (time.time() - t0))
+    print(
+        'wrote',
+        out,
+        sum(len(v) for v in merged['frame']),
+        'detections',
+        '%.0fs' % (time.time() - t0),
+    )
 
 
 def redescribe(tag: str) -> None:
@@ -337,8 +397,8 @@ def redescribe(tag: str) -> None:
     print('rewrote', path, f'{int(changed.sum())} of {len(desc)} descriptors changed')
 
 
-FEATURE_LAYER = 6                       # YOLOv8n backbone, stride 16, 128 channels
-FEATURE_BATCH = int(os.environ.get('PLAB_FEATURE_BATCH', 8))   # frames per forward pass
+FEATURE_LAYER = 6  # YOLOv8n backbone, stride 16, 128 channels
+FEATURE_BATCH = int(os.environ.get('PLAB_FEATURE_BATCH', 8))  # frames per forward pass
 
 
 def features(tag: str) -> None:
@@ -351,17 +411,31 @@ def features(tag: str) -> None:
     """
     z = np.load(_paths(tag)['dets'])
     # the same rows as load_detections, without its team pass
-    det = drop_contained(drop_clipped(Detections(
-        frame=z['frame'], box=z['box'], conf=z['conf'], team=np.full(len(z['frame']), -1), desc=z['desc']),
-        int(z['h'])))
+    det = drop_contained(
+        drop_clipped(
+            Detections(
+                frame=z['frame'],
+                box=z['box'],
+                conf=z['conf'],
+                team=np.full(len(z['frame']), -1),
+                desc=z['desc'],
+            ),
+            int(z['h']),
+        )
+    )
     ex = Extractor()
     out = np.zeros((len(det), 128 * 8), np.float16)
     t0 = time.time()
     parts = []
     for a, b in _chunks(int(det.frame.min()), int(det.frame.max())):
         rows = np.flatnonzero((det.frame >= a) & (det.frame <= b))
-        sub = Detections(frame=det.frame[rows], box=det.box[rows], conf=det.conf[rows], team=det.team[rows],
-                         desc=det.desc[rows])
+        sub = Detections(
+            frame=det.frame[rows],
+            box=det.box[rows],
+            conf=det.conf[rows],
+            team=det.team[rows],
+            desc=det.desc[rows],
+        )
         parts.append(ex.feat_part(tag, a, b, rows, sub))
         with np.load(parts[-1]) as p:
             out[rows] = p['feat']
@@ -377,13 +451,20 @@ def load_detections(tag: str, dedupe: bool = True, with_features: bool = True):
     z = np.load(_paths(tag)['dets'])
     from cv.teams import TEAM_A, TEAM_B, assign_teams
 
-    kit, conf = z['kit'], z['conf']    # each z[...] decompresses the whole array: read once, not per row
+    kit, conf = (
+        z['kit'],
+        z['conf'],
+    )  # each z[...] decompresses the whole array: read once, not per row
     # A kit guess per detection, used only as a soft hint while tracking;
     # teams proper are decided per tracklet by the linker.
-    samples = {i: [kit[i]] for i in range(len(kit)) if np.isfinite(kit[i]).any() and conf[i] >= 0.25}
+    samples = {
+        i: [kit[i]] for i in range(len(kit)) if np.isfinite(kit[i]).any() and conf[i] >= 0.25
+    }
     a = assign_teams(samples)
     team = np.array([{TEAM_A: 0, TEAM_B: 1}.get(a.team_of(i), -1) for i in range(len(kit))])
-    det = Detections(frame=z['frame'], box=z['box'], conf=z['conf'], team=team, desc=z['desc'], kit=kit)
+    det = Detections(
+        frame=z['frame'], box=z['box'], conf=z['conf'], team=team, desc=z['desc'], kit=kit
+    )
     meta = {k: z[k].item() for k in ('fps', 'w', 'h', 'lo', 'n')}
     if dedupe:
         det = drop_contained(drop_clipped(det, meta['h']))
@@ -391,7 +472,9 @@ def load_detections(tag: str, dedupe: bool = True, with_features: bool = True):
     if with_features and dedupe and path.exists():
         feat = np.load(path)['feat']
         if len(feat) != len(det):
-            raise SystemExit(f'{path} has {len(feat)} rows for {len(det)} detections: run `features` again')
+            raise SystemExit(
+                f'{path} has {len(feat)} rows for {len(det)} detections: run `features` again'
+            )
         # kept float16, as saved: the linker averages them in float64 (linking._unit_mean), which
         # float16 converts to exactly, and a float32 copy of a whole half was 18 GB on NB
         det.feat = feat
@@ -417,6 +500,7 @@ def baseline(tag: str, lo: int, n: int, imgsz: int) -> None:
     from cv.teams import assign_teams
 
     import cv2
+
     cap = cv2.VideoCapture(VIDEO)
     fps = cap.get(cv2.CAP_PROP_FPS)
     w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -424,8 +508,13 @@ def baseline(tag: str, lo: int, n: int, imgsz: int) -> None:
     t0 = time.time()
     single = TrackedFramePass(imgsz=imgsz)
     table, colours, _ = single.run(
-        VIDEO, fps=fps, frame_width=w, frame_height=h,
-        batches=_stream_batches(Path(VIDEO), fps, lo / fps, (lo + n) / fps), stride=1)
+        VIDEO,
+        fps=fps,
+        frame_width=w,
+        frame_height=h,
+        batches=_stream_batches(Path(VIDEO), fps, lo / fps, (lo + n) / fps),
+        stride=1,
+    )
     px = {r.frame_index: r.players.copy() for r in table.records if lo <= r.frame_index < lo + n}
     cam = PannedCamera.from_tracker(tag)
     table.calibration = cam.calibration
@@ -453,9 +542,28 @@ def baseline(tag: str, lo: int, n: int, imgsz: int) -> None:
             out['clusters'][f].append([('c%d' % c_of[tid]) if tid in c_of else 't%d' % tid] + rec)
     path = _paths(tag)['baseline']
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({'fps': fps, 'lo': lo, 'n': n, 'imgsz': imgsz, 'tracks': len(colours),
-                                'clusters': len(clusters), 'preds': out}))
-    print('wrote', path, len(colours), 'tracks ->', len(clusters), 'clusters', '%.0fs' % (time.time() - t0))
+    path.write_text(
+        json.dumps(
+            {
+                'fps': fps,
+                'lo': lo,
+                'n': n,
+                'imgsz': imgsz,
+                'tracks': len(colours),
+                'clusters': len(clusters),
+                'preds': out,
+            }
+        )
+    )
+    print(
+        'wrote',
+        path,
+        len(colours),
+        'tracks ->',
+        len(clusters),
+        'clusters',
+        '%.0fs' % (time.time() - t0),
+    )
 
 
 def baseline_predictors(tag: str) -> dict:
@@ -465,9 +573,11 @@ def baseline_predictors(tag: str) -> dict:
     preds = json.loads(path.read_text())['preds']
     out = {}
     for name, by_frame in preds.items():
-        table = {int(f): [player_eval.Pred(r[0], np.array(r[1:5]), r[5], r[6]) for r in rows]
-                 for f, rows in by_frame.items()}
-        out['pipeline ' + name] = (lambda t: (lambda f: t.get(f, [])))(table)
+        table = {
+            int(f): [player_eval.Pred(r[0], np.array(r[1:5]), r[5], r[6]) for r in rows]
+            for f, rows in by_frame.items()
+        }
+        out['pipeline ' + name] = (lambda t: lambda f: t.get(f, []))(table)
     return out
 
 
@@ -504,8 +614,11 @@ def predictor(result):
 
     def predict(f):
         if f not in cache:
-            cache[f] = [player_eval.Pred(i.pid, b, result.team_at(i, f), i.role) for i, b in result.at(f)]
+            cache[f] = [
+                player_eval.Pred(i.pid, b, result.team_at(i, f), i.role) for i, b in result.at(f)
+            ]
         return cache[f]
+
     return predict
 
 
@@ -560,8 +673,10 @@ def score(tag: str, labels: Path, partial: bool) -> None:
     sheets = json.loads(_paths(tag)['sheets'].read_text())
     docs = player_eval.load_docs(labels)
     truth = player_eval.build_truth(sheets, docs, include_partial=partial)
-    print(f'{len(docs)} label docs: {len(truth.confirmed)} confirmed, {len(truth.partial)} partial '
-          f'keyframes scored; {len(truth.named)} named people')
+    print(
+        f'{len(docs)} label docs: {len(truth.confirmed)} confirmed, {len(truth.partial)} partial '
+        f'keyframes scored; {len(truth.named)} named people'
+    )
     if not truth.frames:
         raise SystemExit('nothing to score yet')
     run = track(tag)
@@ -571,7 +686,8 @@ def score(tag: str, labels: Path, partial: bool) -> None:
     for s in sheets['sheets']:
         sheet_preds[int(s['f'])] = [
             player_eval.Pred(b['tid'], np.array(b['xyxy']), b.get('team') or 'unknown', 'player')
-            for b in s['boxes']]
+            for b in s['boxes']
+        ]
     predictors = {'lab BoT-SORT ids': lambda f: sheet_preds.get(f, [])}
     predictors.update(baseline_predictors(tag))
     for name, result in run['results'].items():
@@ -583,17 +699,25 @@ def score(tag: str, labels: Path, partial: bool) -> None:
 
     # Two people one behind the other: a lab click lands on either box, so
     # who is who there is the labeller's guess as much as the model's.
-    named = [e for f in truth.frames for e in truth.entries[f] if player_eval._is_player_label(e.label)]
+    named = [
+        e for f in truth.frames for e in truth.entries[f] if player_eval._is_player_label(e.label)
+    ]
     crowded = sum(e.crowded for e in named)
-    print(f'\nidentity on clear views only ({crowded} of {len(named)} player labels crowded, left out):')
+    print(
+        f'\nidentity on clear views only ({crowded} of {len(named)} player labels crowded, left out):'
+    )
     keys = ('name', 'IDF1', 'wrong_person', 'merged_ids', 'ids_per_player', 'switches')
-    clear = [player_eval.score(name, truth, p, proj, clear_only=True).row() for name, p in predictors.items()]
+    clear = [
+        player_eval.score(name, truth, p, proj, clear_only=True).row()
+        for name, p in predictors.items()
+    ]
     print(player_eval.format_table([{k: r[k] for k in keys} for r in clear]))
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog='python -m cv.experiments.player_lab',
-                                description=__doc__.split('\n\n')[0])
+    p = argparse.ArgumentParser(
+        prog='python -m cv.experiments.player_lab', description=__doc__.split('\n\n')[0]
+    )
     p.add_argument('cmd', choices=['extract', 'features', 'redesc', 'baseline', 'track', 'score'])
     p.add_argument('--tag', default='fr00')
     p.add_argument('--lo', type=int, default=LO)

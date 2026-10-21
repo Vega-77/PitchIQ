@@ -46,15 +46,16 @@ RING = 'assets/app.css'
 OVER = [s for s in SHEETS if s != 'live-tagging/tagging.css']
 
 # The link, exactly as it is written on all six pages.
-LINK = re.compile(r'<a class="skip-link" href="#([A-Za-z][\w-]*)"[^>]*>'
-                  r'([^<]*)</a>')
+LINK = re.compile(
+    r'<a class="skip-link" href="#([A-Za-z][\w-]*)"[^>]*>'
+    r'([^<]*)</a>'
+)
 COMMENT = re.compile(r'<!--.*?-->', re.S)
 
 # Anything a Tab can land on. Deliberately generous -- this is the scan the
 # six-not-seven split rests on, and an under-reading one would quietly agree
 # that a page has nothing before its <main> when it has three things.
-FOCUSABLE = re.compile(r'<(a|button|input|select|textarea|summary)\b([^>]*)>',
-                       re.I)
+FOCUSABLE = re.compile(r'<(a|button|input|select|textarea|summary)\b([^>]*)>', re.I)
 TABINDEX = re.compile(r'\btabindex\s*=\s*"(-?\d+)"')
 Z_INDEX = re.compile(r'\bz-index\s*:\s*(-?\d+)')
 
@@ -121,8 +122,7 @@ def rule(selector, src):
 
 
 def props(body):
-    return {d.split(':', 1)[0].strip()
-            for d in body.split(';') if ':' in d}
+    return {d.split(':', 1)[0].strip() for d in body.split(';') if ':' in d}
 
 
 LINKED = {rel: LINK.search(markup(rel)) for rel in HTML}
@@ -133,8 +133,19 @@ REVEALED = rule('.skip-link:focus', screen(RING))
 # Properties that decide whether a focused element is somewhere a person can
 # look at. The reveal has to undo the rest using one of these, and using the
 # same one.
-PLACEMENT = {'transform', 'translate', 'top', 'bottom', 'left', 'right',
-             'inset', 'opacity', 'clip', 'clip-path', 'position'}
+PLACEMENT = {
+    'transform',
+    'translate',
+    'top',
+    'bottom',
+    'left',
+    'right',
+    'inset',
+    'opacity',
+    'clip',
+    'clip-path',
+    'position',
+}
 
 
 class TestTheLinkIsWhereTheTabOrderStarts:
@@ -154,8 +165,7 @@ class TestTheLinkIsWhereTheTabOrderStarts:
             src = prefix(rel)
             # The link itself sits in that prefix on six pages and is the
             # thing being justified, so it cannot be its own justification.
-            ahead[rel] = [f for f in focusables(src)
-                          if 'skip-link' not in f[2]]
+            ahead[rel] = [f for f in focusables(src) if 'skip-link' not in f[2]]
         bare = {rel for rel, f in ahead.items() if not f}
         assert bare == set(HTML) - CARRIES, ahead
 
@@ -234,8 +244,9 @@ class TestItComesBackWhenItIsReached:
         one rule on the site whose colours fail on paper, and the print hide
         list is what the contrast gate reads to know what it may stop scoring
         -- so this line is load-bearing twice over."""
-        assert re.search(r'^\s*\.skip-link,\s*$', paper(), re.M), \
+        assert re.search(r'^\s*\.skip-link,\s*$', paper(), re.M), (
             'the print theme stopped hiding it'
+        )
 
 
 class TestTheScanCouldBeLying:

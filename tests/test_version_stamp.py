@@ -44,18 +44,22 @@ REPO = Path(__file__).resolve().parent.parent
 # discover a *new* page directory without also wandering into the virtualenv —
 # matplotlib and torch both ship HTML and JavaScript of their own.
 NOT_BROWSER = {
-    '.git', '.github', 'node_modules', '__pycache__', 'PitchIQHelper',
-    'cv', 'tests', 'baselines', 'runs', 'scratch_frames',
+    '.git',
+    '.github',
+    'node_modules',
+    '__pycache__',
+    'PitchIQHelper',
+    'cv',
+    'tests',
+    'baselines',
+    'runs',
+    'scratch_frames',
 }
 
 # The same shapes stamp_version.py looks for, but blind to quoting style. What
 # the stamper can see minus what is actually there is the drift this catches.
-LOOSE_ASSET = re.compile(
-    r'(?:href|src)\s*=\s*(["\'])([^"\']+)\1'
-)
-LOOSE_SPEC = re.compile(
-    r'(?:from|import)\s*\(?\s*(["\'])(\.{1,2}/[^"\']+\.js(?:\?v=\d+)?)\1'
-)
+LOOSE_ASSET = re.compile(r'(?:href|src)\s*=\s*(["\'])([^"\']+)\1')
+LOOSE_SPEC = re.compile(r'(?:from|import)\s*\(?\s*(["\'])(\.{1,2}/[^"\']+\.js(?:\?v=\d+)?)\1')
 
 STAMP = re.compile(r'\?v=(\d+)$')
 
@@ -123,8 +127,7 @@ def references() -> list[tuple[str, str]]:
 
 class TestEveryReferenceIsStamped(unittest.TestCase):
     def test_nothing_local_is_missing_its_stamp(self):
-        bare = [f'{where}: {ref}'
-                for where, ref in references() if not STAMP.search(ref)]
+        bare = [f'{where}: {ref}' for where, ref in references() if not STAMP.search(ref)]
         self.assertEqual(bare, [], 'unstamped local reference')
 
     def test_every_stamp_is_the_same_number(self):
@@ -134,12 +137,13 @@ class TestEveryReferenceIsStamped(unittest.TestCase):
             if match:
                 seen.setdefault(match.group(1), []).append(f'{where}: {ref}')
         self.assertEqual(
-            len(seen), 1,
+            len(seen),
+            1,
             'the frontend is on more than one version at once — a page loading '
             'a module stamped with a different number is a mixed module graph, '
             'which is the failure the stamper exists to prevent: '
-            + '; '.join(f'v={v} ({len(w)} refs, e.g. {w[0]})'
-                        for v, w in sorted(seen.items())))
+            + '; '.join(f'v={v} ({len(w)} refs, e.g. {w[0]})' for v, w in sorted(seen.items())),
+        )
 
     def test_every_stamped_path_still_exists(self):
         missing = []
@@ -155,8 +159,9 @@ class TestEveryReferenceIsStamped(unittest.TestCase):
         # coach page's entry point, and that entry point's import of auth.js.
         refs = dict(references())
         self.assertIn('coach/index.html', refs, 'the coach page found no refs')
-        found = [ref for where, ref in references()
-                 if where == 'coach/coach.js' and 'auth.js' in ref]
+        found = [
+            ref for where, ref in references() if where == 'coach/coach.js' and 'auth.js' in ref
+        ]
         self.assertEqual(len(found), 1, 'coach.js -> auth.js was not seen')
         self.assertTrue(STAMP.search(found[0]), found[0])
 
@@ -166,8 +171,7 @@ class TestTheStamperStillReachesEverything(unittest.TestCase):
         self.assertEqual(set(stamp_version.PAGES), pages_on_disk())
 
     def test_the_module_directory_list_matches_what_is_on_disk(self):
-        self.assertEqual(
-            set(stamp_version.MODULE_DIRS), browser_dirs_on_disk())
+        self.assertEqual(set(stamp_version.MODULE_DIRS), browser_dirs_on_disk())
 
     def test_no_module_is_hiding_in_a_subdirectory(self):
         # The stamper globs '*.js', which does not recurse.
@@ -184,9 +188,11 @@ class TestTheStamperStillReachesEverything(unittest.TestCase):
         for path in page_paths():
             text = _read(path)
             rel = path.relative_to(REPO).as_posix()
-            loose = {value.split('?')[0]
-                     for _q, value in LOOSE_ASSET.findall(text)
-                     if _is_local_asset(value)}
+            loose = {
+                value.split('?')[0]
+                for _q, value in LOOSE_ASSET.findall(text)
+                if _is_local_asset(value)
+            }
             seen = {m.group(2) for m in stamp_version.ASSET_REF.finditer(text)}
             self.assertEqual(loose - seen, set(), f'{rel}: stamper blind spot')
 
@@ -195,8 +201,7 @@ class TestTheStamperStillReachesEverything(unittest.TestCase):
         for path in module_paths():
             text = _read(path)
             rel = path.relative_to(REPO).as_posix()
-            loose = {value.split('?')[0]
-                     for _q, value in LOOSE_SPEC.findall(text)}
+            loose = {value.split('?')[0] for _q, value in LOOSE_SPEC.findall(text)}
             seen = {m.group(2) for m in stamp_version.IMPORT_SPEC.finditer(text)}
             self.assertEqual(loose - seen, set(), f'{rel}: stamper blind spot')
 
@@ -204,8 +209,7 @@ class TestTheStamperStillReachesEverything(unittest.TestCase):
         # The stamper walks .js files for imports and HTML only for attributes,
         # so a relative import written inside <script type="module"> in a page
         # is stamped by nothing at all.
-        inline = re.compile(r'<script[^>]*type="module"[^>]*>(.*?)</script>',
-                            re.S | re.I)
+        inline = re.compile(r'<script[^>]*type="module"[^>]*>(.*?)</script>', re.S | re.I)
         offenders = []
         for path in page_paths():
             for body in inline.findall(_read(path)):
@@ -222,38 +226,32 @@ class TestTheStamperItself(unittest.TestCase):
         self.assertTrue(STAMP.search('assets/app.css?v=7'))
 
     def test_a_single_quoted_attribute_escapes_the_stamper(self):
-        text = "<link rel=\"stylesheet\" href='assets/app.css'>"
+        text = '<link rel="stylesheet" href=\'assets/app.css\'>'
         self.assertEqual(list(stamp_version.ASSET_REF.finditer(text)), [])
-        self.assertEqual(
-            [v for _q, v in LOOSE_ASSET.findall(text)], ['assets/app.css'])
+        self.assertEqual([v for _q, v in LOOSE_ASSET.findall(text)], ['assets/app.css'])
 
     def test_a_double_quoted_specifier_escapes_the_stamper(self):
         text = 'import { onUser } from "../assets/auth.js";'
         self.assertEqual(list(stamp_version.IMPORT_SPEC.finditer(text)), [])
-        self.assertEqual(
-            [v for _q, v in LOOSE_SPEC.findall(text)], ['../assets/auth.js'])
+        self.assertEqual([v for _q, v in LOOSE_SPEC.findall(text)], ['../assets/auth.js'])
 
     def test_restamping_replaces_rather_than_appends(self):
         # The bump is run over already-stamped files every time, so the regex
         # has to consume the old query string instead of growing a second one.
         page = '<script type="module" src="coach.js?v=41"></script>'
         once = stamp_version.ASSET_REF.sub(r'\1\2?v=42\3', page)
-        self.assertEqual(
-            once, '<script type="module" src="coach.js?v=42"></script>')
+        self.assertEqual(once, '<script type="module" src="coach.js?v=42"></script>')
         self.assertEqual(stamp_version.ASSET_REF.sub(r'\1\2?v=42\3', once), once)
 
         spec = "import { getTeam } from '../assets/db.js?v=41';"
         once = stamp_version.IMPORT_SPEC.sub(r'\1\2?v=42\3', spec)
         self.assertEqual(once, "import { getTeam } from '../assets/db.js?v=42';")
-        self.assertEqual(
-            stamp_version.IMPORT_SPEC.sub(r'\1\2?v=42\3', once), once)
+        self.assertEqual(stamp_version.IMPORT_SPEC.sub(r'\1\2?v=42\3', once), once)
 
     def test_a_remote_url_is_left_alone(self):
         text = '<link href="https://fonts.googleapis.com/css2?family=X">'
         self.assertEqual(list(stamp_version.ASSET_REF.finditer(text)), [])
-        self.assertEqual(
-            [v for _q, v in LOOSE_ASSET.findall(text) if _is_local_asset(v)],
-            [])
+        self.assertEqual([v for _q, v in LOOSE_ASSET.findall(text) if _is_local_asset(v)], [])
 
 
 if __name__ == '__main__':

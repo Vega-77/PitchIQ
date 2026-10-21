@@ -77,8 +77,8 @@ class TestJitter:
 
         # A player who never moved appears to have run a long way.
         assert stats.distance_m > 30.0, (
-            "this test exists to prove the problem is real; if it fails, "
-            "the jitter model is too gentle to be representative"
+            'this test exists to prove the problem is real; if it fails, '
+            'the jitter model is too gentle to be representative'
         )
 
     def test_smoothing_removes_most_of_it(self):
@@ -89,9 +89,7 @@ class TestJitter:
         raw = movement_stats(jittered).distance_m
         smoothed = movement_stats(smooth_positions(jittered, window=9)).distance_m
 
-        assert smoothed < raw * 0.35, (
-            f"smoothing barely helped: {raw:.1f}m -> {smoothed:.1f}m"
-        )
+        assert smoothed < raw * 0.35, f'smoothing barely helped: {raw:.1f}m -> {smoothed:.1f}m'
 
     def test_smoothing_keeps_real_movement(self):
         """Noise suppression must not eat the signal."""
@@ -116,7 +114,7 @@ class TestSpeed:
     def test_teleports_are_discarded_not_counted(self):
         """An identity switch would otherwise dominate every total."""
         path = [(i, 34.0) for i in range(20)]
-        path.append((95.0, 34.0))          # track jumps to the far end
+        path.append((95.0, 34.0))  # track jumps to the far end
         path += [(95.0 + i, 34.0) for i in range(1, 10)]
 
         stats = movement_stats(series(path))
@@ -133,7 +131,7 @@ class TestSpeed:
 
 class TestSprints:
     def test_counts_a_sustained_burst(self):
-        jog = [(i * 0.12, 34.0) for i in range(50)]           # ~3 m/s
+        jog = [(i * 0.12, 34.0) for i in range(50)]  # ~3 m/s
         start = jog[-1][0]
         sprint = [(start + i * 0.36, 34.0) for i in range(1, 76)]  # ~9 m/s, 3s
 
@@ -177,35 +175,24 @@ class TestHeatmap:
 class TestTeamShape:
     def test_measures_a_known_formation(self):
         # A flat back four across the pitch, 30m apart end to end.
-        players = {
-            i: series([(20.0, 20.0 + i * 10.0)] * 10, track_id=i)
-            for i in range(4)
-        }
+        players = {i: series([(20.0, 20.0 + i * 10.0)] * 10, track_id=i) for i in range(4)}
         shape = team_shape(players)
 
-        assert shape["width_m"] == pytest.approx(30.0, abs=0.5)
-        assert shape["depth_m"] == pytest.approx(0.0, abs=0.5)
+        assert shape['width_m'] == pytest.approx(30.0, abs=0.5)
+        assert shape['depth_m'] == pytest.approx(0.0, abs=0.5)
 
     def test_a_compact_side_scores_lower_than_a_stretched_one(self):
-        compact = {
-            i: series([(50.0 + i, 34.0 + i)] * 10, track_id=i) for i in range(5)
-        }
-        stretched = {
-            i: series([(20.0 + i * 15, 10.0 + i * 12)] * 10, track_id=i)
-            for i in range(5)
-        }
+        compact = {i: series([(50.0 + i, 34.0 + i)] * 10, track_id=i) for i in range(5)}
+        stretched = {i: series([(20.0 + i * 15, 10.0 + i * 12)] * 10, track_id=i) for i in range(5)}
 
-        assert (
-            team_shape(compact)["compactness_m"]
-            < team_shape(stretched)["compactness_m"]
-        )
+        assert team_shape(compact)['compactness_m'] < team_shape(stretched)['compactness_m']
 
     def test_needs_enough_players_to_mean_anything(self):
         two = {i: series([(50.0, 34.0)] * 5, track_id=i) for i in range(2)}
-        assert team_shape(two)["width_m"] == 0.0
+        assert team_shape(two)['width_m'] == 0.0
 
     def test_handles_no_players(self):
-        assert team_shape({})["width_m"] == 0.0
+        assert team_shape({})['width_m'] == 0.0
 
     def test_a_track_that_has_not_started_is_not_on_the_pitch(self):
         # A back three for two seconds, and a fourth player the tracker only
@@ -277,7 +264,7 @@ class TestDefensiveLineHeight:
     def test_too_few_tracked_to_call_it_a_line(self):
         """Five visible players are not a back four plus cover, they are five
         players. The class below measures what reporting them anyway costs."""
-        few = standing(FOUR_FOUR_TWO[:MIN_LINE_OUTFIELDERS - 1])
+        few = standing(FOUR_FOUR_TWO[: MIN_LINE_OUTFIELDERS - 1])
         shape = team_shape(few, 'left', Pitch())
         assert 'line_m' not in shape
         assert shape['width_m'] > 0
@@ -331,10 +318,8 @@ class TestSparseTrackingBias:
             for combo in itertools.combinations(FOUR_FOUR_TWO, k):
                 points = list(combo)
                 fixed.append(defensive_line_m(points, 'left', pitch))
-                share.append(defensive_line_m(
-                    points, 'left', pitch, players=line_players(k)))
-            out[k] = (statistics.mean(fixed) - TRUE_LINE_M,
-                      statistics.mean(share) - TRUE_LINE_M)
+                share.append(defensive_line_m(points, 'left', pitch, players=line_players(k)))
+            out[k] = (statistics.mean(fixed) - TRUE_LINE_M, statistics.mean(share) - TRUE_LINE_M)
         return out
 
     def test_the_naive_estimator_is_badly_biased_upward(self):
@@ -442,7 +427,8 @@ class TestShapeDrift:
         data = shape_drift(self.spread_apart()).to_json()
         assert set(data) == {'early', 'late', 'split_s', 'change'}
         assert data['change']['width_m'] == pytest.approx(
-            data['late']['width_m'] - data['early']['width_m'], abs=0.11,
+            data['late']['width_m'] - data['early']['width_m'],
+            abs=0.11,
         )
 
     def dropped_off(self, n=200, start_m=30.0, end_m=15.0):
@@ -456,33 +442,27 @@ class TestShapeDrift:
         by_track = {}
         for track, (x, y) in enumerate(FOUR_FOUR_TWO):
             if (x, y) in BACK_FOUR:
-                points = [
-                    (start_m + (end_m - start_m) * i / (n - 1), y)
-                    for i in range(n)
-                ]
+                points = [(start_m + (end_m - start_m) * i / (n - 1), y) for i in range(n)]
             else:
                 points = [(x, y)] * n
             by_track[track] = series(points, track_id=track)
         return by_track
 
     def test_a_back_line_that_was_pushed_back_reads_as_deeper(self):
-        drift = shape_drift(self.dropped_off(), defending_end='left',
-                            pitch=Pitch())
+        drift = shape_drift(self.dropped_off(), defending_end='left', pitch=Pitch())
         assert drift is not None
         assert drift.change('line_m') < -5.0
         assert drift.late['line_m'] < drift.early['line_m']
 
     def test_and_says_so_in_words(self):
-        drift = shape_drift(self.dropped_off(), defending_end='left',
-                            pitch=Pitch())
+        drift = shape_drift(self.dropped_off(), defending_end='left', pitch=Pitch())
         assert any('deeper' in note for note in drift_notes(drift))
 
     def test_a_line_that_held_produces_no_note_about_it(self):
         """The other three figures barely move here either. The point is that
         a figure which did not move stays out of the sentence list rather than
         appearing as a change of nought."""
-        drift = shape_drift(standing(FOUR_FOUR_TWO, n=200),
-                            defending_end='left', pitch=Pitch())
+        drift = shape_drift(standing(FOUR_FOUR_TWO, n=200), defending_end='left', pitch=Pitch())
         assert drift.change('line_m') == pytest.approx(0.0, abs=0.5)
         assert drift_notes(drift) == []
 
@@ -512,8 +492,7 @@ class TestShapeDrift:
         window with plenty of width samples late and too few line samples. The
         width drift is still worth reporting; the line drift is not, and taking
         the whole drift away because of it would be the wrong trade."""
-        drift = shape_drift(self.half_a_side_walks_off(),
-                            defending_end='left', pitch=Pitch())
+        drift = shape_drift(self.half_a_side_walks_off(), defending_end='left', pitch=Pitch())
         assert drift is not None
         assert 'width_m' in drift.late
         assert 'line_m' not in drift.late

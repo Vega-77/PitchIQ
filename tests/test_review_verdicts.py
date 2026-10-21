@@ -106,9 +106,7 @@ def producible(source: str, verdicts: dict[str, str]) -> set[str]:
 
 
 class TestOneDeclaration:
-    def test_the_three_verdicts_are_declared_and_exported_in_one_file(
-        self, verdicts
-    ):
+    def test_the_three_verdicts_are_declared_and_exported_in_one_file(self, verdicts):
         """Exported, because the only thing that writes one is elsewhere."""
         assert verdicts == {
             'CONFIRMED_STATUS': 'confirmed',
@@ -135,9 +133,7 @@ class TestOneDeclaration:
 
 
 class TestTheButtons:
-    def test_every_verdict_button_carries_an_interpolated_constant(
-        self, review, verdicts
-    ):
+    def test_every_verdict_button_carries_an_interpolated_constant(self, review, verdicts):
         """The attribute is the definition, so it may not be a second copy.
 
         `decide(event.id, { status: button.dataset.act })` sends the attribute
@@ -169,17 +165,13 @@ class TestTheButtons:
         `data-act="${CONFIRMED_STATUS}"` would have passed on the version with
         the bug in it.
         """
-        assert act_values('<button data-act="${EDITED_STATUS}">') == [
-            '${EDITED_STATUS}'
-        ]
+        assert act_values('<button data-act="${EDITED_STATUS}">') == ['${EDITED_STATUS}']
         assert act_values('<button data-act="edited">') == ['edited']
         assert act_values('<button class="btn">') == []
 
 
 class TestTheStyling:
-    def test_every_styled_review_row_state_is_one_the_tool_can_produce(
-        self, review, verdicts
-    ):
+    def test_every_styled_review_row_state_is_one_the_tool_can_produce(self, review, verdicts):
         """A rule for a class nothing sets is a rule nobody can find.
 
         It reads as coverage — the reviewed rows are coloured, so the colours
@@ -214,7 +206,4 @@ class TestWhyThisMatters:
         makes that change should be sent here to say so rather than find the
         file still asserting a premise that stopped being true.
         """
-        assert (
-            'export const hasVerdict = (decision) => Boolean(decision?.status);'
-            in report
-        )
+        assert 'export const hasVerdict = (decision) => Boolean(decision?.status);' in report

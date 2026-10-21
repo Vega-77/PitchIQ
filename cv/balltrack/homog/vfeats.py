@@ -7,6 +7,7 @@ Features are masked to the field (cv.lines.field_mask, eroded so the fence
 edge and crowd are out) - everything on the ground plane is a valid match
 under one homography, players are not but move, so RANSAC drops them.
 """
+
 import os
 import sys
 import time
@@ -16,8 +17,12 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.environ.get('PIQ_REPO', os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
-VIDEO = os.environ.get('PIQ_VIDEO', os.path.join(os.path.expanduser('~'), 'Downloads',
-                                                 '8-26-26 Scrimmage v Gov Livingston - Tactical.mp4'))
+VIDEO = os.environ.get(
+    'PIQ_VIDEO',
+    os.path.join(
+        os.path.expanduser('~'), 'Downloads', '8-26-26 Scrimmage v Gov Livingston - Tactical.mp4'
+    ),
+)
 STEP = 150
 PERIODS = [(32400, 108000), (127350, 201150)]
 NFEAT = 1500
@@ -25,8 +30,10 @@ NFEAT = 1500
 
 def work(frames):
     import cv2
+
     sys.path.insert(0, REPO)
     from cv import lines as L
+
     sift = cv2.SIFT_create(nfeatures=NFEAT)
     cap = cv2.VideoCapture(VIDEO)
     out = []
@@ -53,11 +60,14 @@ def main():
         res = sorted(sum(p.map(work, chunks), []), key=lambda r: r[0])
     ab = np.array([r[0] for r in res], np.int32)
     n = np.array([len(r[1]) for r in res], np.int32)
-    np.savez(os.path.join(HERE, 'vfeats.npz'), abs=ab, n=n,
-             xy=np.concatenate([r[1] for r in res]),
-             desc=np.concatenate([r[2] for r in res]))
-    print('%d keyframes, median %d features, %.0f s' % (
-        len(ab), np.median(n), time.time() - t0))
+    np.savez(
+        os.path.join(HERE, 'vfeats.npz'),
+        abs=ab,
+        n=n,
+        xy=np.concatenate([r[1] for r in res]),
+        desc=np.concatenate([r[2] for r in res]),
+    )
+    print('%d keyframes, median %d features, %.0f s' % (len(ab), np.median(n), time.time() - t0))
 
 
 if __name__ == '__main__':

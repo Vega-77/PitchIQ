@@ -38,9 +38,7 @@ def clip(tmp_path_factory):
     first version of this fixture tested the encoder, not the reader.
     """
     path = tmp_path_factory.mktemp('video') / 'counter.mp4'
-    writer = cv2.VideoWriter(
-        str(path), cv2.VideoWriter_fourcc(*'mp4v'), FPS, (WIDTH, HEIGHT)
-    )
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*'mp4v'), FPS, (WIDTH, HEIGHT))
     if not writer.isOpened():
         pytest.skip('no mp4v encoder available in this OpenCV build')
 
@@ -55,7 +53,7 @@ def collect(path, start_s=0.0, end_s=None):
 
 
 def test_delivers_every_frame_in_the_window(clip):
-    batches = collect(clip, 0.0, 1.0)          # 30 frames
+    batches = collect(clip, 0.0, 1.0)  # 30 frames
     assert sum(len(b) for _, b in batches) == 30
 
 
@@ -75,7 +73,7 @@ def test_indices_are_contiguous_absolute_frame_numbers(clip):
 
 
 def test_a_window_shorter_than_one_batch_still_yields(clip):
-    batches = collect(clip, 0.0, 0.2)          # 6 frames, under BATCH_FRAMES
+    batches = collect(clip, 0.0, 0.2)  # 6 frames, under BATCH_FRAMES
     assert len(batches) == 1
     assert len(batches[0][1]) == 6
 
@@ -100,11 +98,7 @@ def test_frames_arrive_in_order_without_repeats(clip):
     [0, 0, 3]. That lag preserves order, which is the property worth pinning —
     it still catches a batch delivered twice or out of sequence.
     """
-    values = [
-        int(frame[0, 0, 0])
-        for _, batch in collect(clip, 0.0, 1.5)
-        for frame in batch
-    ]
+    values = [int(frame[0, 0, 0]) for _, batch in collect(clip, 0.0, 1.5) for frame in batch]
     assert values == sorted(values), 'frames came back out of order'
     assert len(set(values)) > len(values) // 2, 'too many repeated frames'
 

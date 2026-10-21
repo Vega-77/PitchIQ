@@ -17,6 +17,7 @@ Never the wm test clips.
     env PREFIX (x), LABDB (labdb5)
     -> croplab/sheets/<PREFIX>NNN.jpg, manifest.json holds only this round
 """
+
 import glob
 import json
 import os
@@ -26,11 +27,11 @@ import numpy as np
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, S2)
-import dfree                                      # noqa: E402
-import dtrack6 as D6                              # noqa: E402
-import gapfill as G                               # noqa: E402
-import lab_sheets2 as L2                          # noqa: E402
-import wm_cls as C                                # noqa: E402
+import dfree  # noqa: E402
+import dtrack6 as D6  # noqa: E402
+import gapfill as G  # noqa: E402
+import lab_sheets2 as L2  # noqa: E402
+import wm_cls as C  # noqa: E402
 
 OUT = os.path.join(S2, 'croplab')
 SEED = 20261001
@@ -43,8 +44,7 @@ def main():
     n = [int(v) for v in sys.argv[1:3]] or [170, 30]
     rng = np.random.default_rng(SEED)
     seen = set()
-    for q in glob.glob(os.path.join(S2, os.environ.get('LABDB', 'labdb5'),
-                                    'crops', '*.json')):
+    for q in glob.glob(os.path.join(S2, os.environ.get('LABDB', 'labdb5'), 'crops', '*.json')):
         d = json.load(open(q))
         seen.add('%s_%d_%d' % (d['tag'], d['f'], d['j']))
 
@@ -65,18 +65,31 @@ def main():
                 continue
             tot['added'] += 1
             fr = F[t]
-            it = dict(id='%s_%d_%d' % (tag, fr['abs'], o), tag=tag,
-                      f=int(fr['abs']), j=int(o), x=float(fr['x'][o]),
-                      y=float(fr['y'][o]), hint='ball',
-                      p=round(float(fr['p'][o]), 2))
+            it = dict(
+                id='%s_%d_%d' % (tag, fr['abs'], o),
+                tag=tag,
+                f=int(fr['abs']),
+                j=int(o),
+                x=float(fr['x'][o]),
+                y=float(fr['y'][o]),
+                hint='ball',
+                p=round(float(fr['p'][o]), 2),
+            )
             if it['id'] in seen:
                 continue
             (fill if fr['p'][o] < PMAX else agree).append(it)
-        print(tag, 'on', sum(b is not None for b in base),
-              'added', sum(1 for b, o in zip(base, out)
-                           if b is None and o is not None), flush=True)
-    print('all: on %(on)d, fill added %(added)d' % tot,
-          '| unlabelled disagree %d agree %d' % (len(fill), len(agree)))
+        print(
+            tag,
+            'on',
+            sum(b is not None for b in base),
+            'added',
+            sum(1 for b, o in zip(base, out) if b is None and o is not None),
+            flush=True,
+        )
+    print(
+        'all: on %(on)d, fill added %(added)d' % tot,
+        '| unlabelled disagree %d agree %d' % (len(fill), len(agree)),
+    )
 
     def take(L, k):
         # spread over clips and time: no two items within 9 frames

@@ -201,7 +201,7 @@ def _chroma_distance(a, b) -> float:
     survives that where brightness does not.
     """
     if a is None or b is None:
-        return 0.0                    # no evidence either way, so no objection
+        return 0.0  # no evidence either way, so no objection
     return float(math.dist(a[1:3], b[1:3]))
 
 
@@ -223,7 +223,7 @@ def _relative_l_distance(a, b) -> float:
 def _can_merge(a: TrackSpan, b: TrackSpan) -> bool:
     """Whether two tracks could be one player, in the order a-then-b."""
     if a.overlaps(b):
-        return False                  # seen together: definitively two people
+        return False  # seen together: definitively two people
 
     gap_s = b.first_s - a.last_s
     if gap_s < 0 or gap_s > MAX_BRIDGE_S:
@@ -236,7 +236,7 @@ def _can_merge(a: TrackSpan, b: TrackSpan) -> bool:
         return False
 
     if _relative_l_distance(a.colour, b.colour) > MAX_RELATIVE_L:
-        return False                  # one dark shirt and one white one
+        return False  # one dark shirt and one white one
 
     return _chroma_distance(a.colour, b.colour) <= MAX_CHROMA_DISTANCE
 
@@ -285,9 +285,9 @@ def merge_tracks(
     seen_frames: dict[int, set[int]] = {s.track_id: set(s.frames) for s in ordered}
 
     for index, span in enumerate(ordered):
-        for other in ordered[index + 1:]:
+        for other in ordered[index + 1 :]:
             if other.first_s - span.last_s > MAX_BRIDGE_S:
-                break                 # ordered by start, so nothing later is closer
+                break  # ordered by start, so nothing later is closer
             root_a, root_b = find(span.track_id), find(other.track_id)
             if root_a == root_b:
                 continue
@@ -312,17 +312,19 @@ def merge_tracks(
         teams = [table.team_of(s.track_id) for s in group]
         known = [t for t in teams if t != UNKNOWN]
 
-        clusters.append(PlayerCluster(
-            cluster_id=cluster_id,
-            track_ids={s.track_id for s in group},
-            # Majority vote: a fragment mislabelled by one bad colour sample
-            # should not decide the whole player's team.
-            team=max(set(known), key=known.count) if known else UNKNOWN,
-            first_seen_s=min(s.first_s for s in group),
-            last_seen_s=max(s.last_s for s in group),
-            sightings=sightings,
-            colour=tuple(np.median(np.array(colours_seen), axis=0)) if colours_seen else None,
-        ))
+        clusters.append(
+            PlayerCluster(
+                cluster_id=cluster_id,
+                track_ids={s.track_id for s in group},
+                # Majority vote: a fragment mislabelled by one bad colour sample
+                # should not decide the whole player's team.
+                team=max(set(known), key=known.count) if known else UNKNOWN,
+                first_seen_s=min(s.first_s for s in group),
+                last_seen_s=max(s.last_s for s in group),
+                sightings=sightings,
+                colour=tuple(np.median(np.array(colours_seen), axis=0)) if colours_seen else None,
+            )
+        )
 
     clusters.sort(key=lambda c: c.sightings, reverse=True)
     for index, cluster in enumerate(clusters):
@@ -332,11 +334,7 @@ def merge_tracks(
 
 def cluster_of_track(clusters: list[PlayerCluster]) -> dict[int, int]:
     """Reverse index: track id -> cluster id."""
-    return {
-        track_id: cluster.cluster_id
-        for cluster in clusters
-        for track_id in cluster.track_ids
-    }
+    return {track_id: cluster.cluster_id for cluster in clusters for track_id in cluster.track_ids}
 
 
 def fragmentation(clusters: list[PlayerCluster]) -> float:

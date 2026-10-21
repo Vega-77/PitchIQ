@@ -54,11 +54,11 @@ class Correspondence:
     pixel: tuple[float, float]
 
     def to_json(self) -> dict:
-        return {"landmark": self.landmark, "pixel": list(self.pixel)}
+        return {'landmark': self.landmark, 'pixel': list(self.pixel)}
 
     @staticmethod
-    def from_json(data: dict) -> "Correspondence":
-        return Correspondence(data["landmark"], tuple(data["pixel"]))
+    def from_json(data: dict) -> 'Correspondence':
+        return Correspondence(data['landmark'], tuple(data['pixel']))
 
 
 @dataclass
@@ -74,7 +74,7 @@ class CalibrationError:
     p90_m: float | None = None
 
     @classmethod
-    def from_per_landmark(cls, per: dict[str, float]) -> "CalibrationError":
+    def from_per_landmark(cls, per: dict[str, float]) -> 'CalibrationError':
         values = sorted(per.values())
         return cls(
             mean_m=float(np.mean(values)),
@@ -137,20 +137,20 @@ class CalibrationError:
         if self.mean_m != self.mean_m:  # NaN: nothing was measured
             return ()
         if self.is_usable:
-            return ("shot position", "distance and speed", "territory")
+            return ('shot position', 'distance and speed', 'territory')
         if self.mean_m <= self.COARSE_MEAN_M and self.tail_m <= self.COARSE_TAIL_M:
-            return ("distance and speed", "territory")
+            return ('distance and speed', 'territory')
         return ()
 
     def summary(self) -> str:
         if self.is_usable:
-            verdict = "usable"
+            verdict = 'usable'
         elif self.good_for:
-            verdict = "coarse: " + ", ".join(self.good_for)
+            verdict = 'coarse: ' + ', '.join(self.good_for)
         else:
-            verdict = "TOO HIGH"
-        tail = "" if self.p90_m is None else f", 90th {self.p90_m:.2f}m"
-        return f"mean {self.mean_m:.2f}m{tail}, max {self.max_m:.2f}m ({verdict})"
+            verdict = 'TOO HIGH'
+        tail = '' if self.p90_m is None else f', 90th {self.p90_m:.2f}m'
+        return f'mean {self.mean_m:.2f}m{tail}, max {self.max_m:.2f}m ({verdict})'
 
 
 class Calibration:
@@ -174,7 +174,7 @@ class Calibration:
     ) -> None:
         self.H = np.asarray(homography, dtype=np.float64)
         if self.H.shape != (3, 3):
-            raise ValueError(f"homography must be 3x3, got {self.H.shape}")
+            raise ValueError(f'homography must be 3x3, got {self.H.shape}')
         self.pitch = pitch
         self.correspondences = correspondences or []
         self.image_size = image_size
@@ -190,16 +190,14 @@ class Calibration:
         pitch: Pitch,
         image_size: tuple[int, int] | None = None,
         lens: DistortionModel | None = None,
-    ) -> "Calibration":
+    ) -> 'Calibration':
         if len(correspondences) < 4:
-            raise ValueError(
-                f"need at least 4 correspondences, got {len(correspondences)}"
-            )
+            raise ValueError(f'need at least 4 correspondences, got {len(correspondences)}')
 
         seen = [c.landmark for c in correspondences]
         duplicates = {n for n in seen if seen.count(n) > 1}
         if duplicates:
-            raise ValueError(f"landmark clicked more than once: {sorted(duplicates)}")
+            raise ValueError(f'landmark clicked more than once: {sorted(duplicates)}')
 
         src = np.array([c.pixel for c in correspondences], dtype=np.float64)
         if lens is not None:
@@ -210,22 +208,18 @@ class Calibration:
             # The stored lens would then be correcting a matrix that had
             # already half-corrected itself, and the two would fight.
             src = lens.undistort(src)
-        dst = np.array(
-            [pitch.landmark(c.landmark) for c in correspondences], dtype=np.float64
-        )
+        dst = np.array([pitch.landmark(c.landmark) for c in correspondences], dtype=np.float64)
 
         if len(correspondences) == 4:
             # RANSAC needs redundancy to reject anything; with the bare minimum
             # every point is load-bearing, so fit them exactly.
-            H = cv2.getPerspectiveTransform(
-                src.astype(np.float32), dst.astype(np.float32)
-            ).astype(np.float64)
+            H = cv2.getPerspectiveTransform(src.astype(np.float32), dst.astype(np.float32)).astype(
+                np.float64
+            )
         else:
             H, _ = cv2.findHomography(src, dst, cv2.RANSAC, ransacReprojThreshold=1.0)
             if H is None:
-                raise ValueError(
-                    "homography fit failed — points may be collinear or mislabelled"
-                )
+                raise ValueError('homography fit failed — points may be collinear or mislabelled')
 
         return cls(H, pitch, correspondences, image_size, lens)
 
@@ -269,7 +263,7 @@ class Calibration:
     def error(self) -> CalibrationError:
         """Reprojection error on the points used to fit — optimistic by nature."""
         if not self.correspondences:
-            return CalibrationError(float("nan"), float("nan"))
+            return CalibrationError(float('nan'), float('nan'))
 
         per: dict[str, float] = {}
         for c in self.correspondences:
@@ -293,11 +287,9 @@ class Calibration:
 
         per: dict[str, float] = {}
         for i, held_out in enumerate(self.correspondences):
-            subset = self.correspondences[:i] + self.correspondences[i + 1:]
+            subset = self.correspondences[:i] + self.correspondences[i + 1 :]
             try:
-                trial = Calibration.fit(
-                    subset, self.pitch, self.image_size, self.lens
-                )
+                trial = Calibration.fit(subset, self.pitch, self.image_size, self.lens)
             except (ValueError, np.linalg.LinAlgError):
                 continue
             predicted = np.array(trial.to_pitch(*held_out.pixel))
@@ -332,7 +324,7 @@ class Calibration:
         problems: list[str] = []
 
         if np.linalg.det(self.H) == 0:
-            problems.append("homography is singular")
+            problems.append('homography is singular')
             return problems
 
         # Walk the pitch boundary and project it into the image. Going around
@@ -340,36 +332,38 @@ class Calibration:
         # mislabelled corner turns it into a self-intersecting bowtie, which is
         # exactly what scrambled clicks produce.
         corners_m = [
-            self.pitch.landmark("corner_bottom_left"),
-            self.pitch.landmark("corner_bottom_right"),
-            self.pitch.landmark("corner_top_right"),
-            self.pitch.landmark("corner_top_left"),
+            self.pitch.landmark('corner_bottom_left'),
+            self.pitch.landmark('corner_bottom_right'),
+            self.pitch.landmark('corner_top_right'),
+            self.pitch.landmark('corner_top_left'),
         ]
         corners_px = [self.to_pixels(*c) for c in corners_m]
         if not _is_convex_quad(corners_px):
             problems.append(
-                "the pitch outline projects to a self-intersecting shape — "
-                "landmark labels are probably swapped"
+                'the pitch outline projects to a self-intersecting shape — '
+                'landmark labels are probably swapped'
             )
 
         # The halfway line has to fall between the two goal lines on screen,
         # not outside them.
         left_x = np.mean([corners_px[0][0], corners_px[3][0]])
         right_x = np.mean([corners_px[1][0], corners_px[2][0]])
-        mid_x = np.mean([
-            self.to_pixels(*self.pitch.landmark("halfway_bottom"))[0],
-            self.to_pixels(*self.pitch.landmark("halfway_top"))[0],
-        ])
+        mid_x = np.mean(
+            [
+                self.to_pixels(*self.pitch.landmark('halfway_bottom'))[0],
+                self.to_pixels(*self.pitch.landmark('halfway_top'))[0],
+            ]
+        )
         if not (min(left_x, right_x) < mid_x < max(left_x, right_x)):
-            problems.append("the halfway line projects outside the goal lines")
+            problems.append('the halfway line projects outside the goal lines')
 
         if self.image_size:
             w, h = self.image_size
             projected = [self.to_pitch(*p) for p in [(0, 0), (w, 0), (w, h), (0, h)]]
             if not any(self.pitch.contains(x, y, margin_m=40) for x, y in projected):
                 problems.append(
-                    "no part of the image maps anywhere near the pitch — "
-                    "landmarks are probably mislabelled"
+                    'no part of the image maps anywhere near the pitch — '
+                    'landmarks are probably mislabelled'
                 )
 
         return problems
@@ -378,32 +372,32 @@ class Calibration:
 
     def to_json(self) -> dict:
         return {
-            "homography": self.H.tolist(),
+            'homography': self.H.tolist(),
             # The whole pitch, markings included. Writing only the size here
             # would undo everything upstream of it: the picker measures the
             # paint, `from_picker_export` reads it, this file is what the
             # pipeline actually loads — and a homography fitted against a 15m
             # box would come back tomorrow believing in a 16.5m one.
-            "pitch": asdict(self.pitch),
-            "image_size": list(self.image_size) if self.image_size else None,
-            "correspondences": [c.to_json() for c in self.correspondences],
-            "lens": self.lens.to_json() if self.lens else None,
+            'pitch': asdict(self.pitch),
+            'image_size': list(self.image_size) if self.image_size else None,
+            'correspondences': [c.to_json() for c in self.correspondences],
+            'lens': self.lens.to_json() if self.lens else None,
         }
 
     def save(self, path: str | Path) -> None:
-        Path(path).write_text(json.dumps(self.to_json(), indent=2), encoding="utf-8")
+        Path(path).write_text(json.dumps(self.to_json(), indent=2), encoding='utf-8')
 
     @classmethod
-    def load(cls, path: str | Path) -> "Calibration":
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
-        pitch = Pitch.from_mapping(data["pitch"])
-        size = tuple(data["image_size"]) if data.get("image_size") else None
+    def load(cls, path: str | Path) -> 'Calibration':
+        data = json.loads(Path(path).read_text(encoding='utf-8'))
+        pitch = Pitch.from_mapping(data['pitch'])
+        size = tuple(data['image_size']) if data.get('image_size') else None
         return cls(
-            np.array(data["homography"], dtype=np.float64),
+            np.array(data['homography'], dtype=np.float64),
             pitch,
-            [Correspondence.from_json(c) for c in data.get("correspondences", [])],
+            [Correspondence.from_json(c) for c in data.get('correspondences', [])],
             size,
-            DistortionModel.from_json(data.get("lens")),
+            DistortionModel.from_json(data.get('lens')),
         )
 
     @classmethod
@@ -412,7 +406,7 @@ class Calibration:
         path: str | Path,
         pitch: Pitch | None = None,
         lens: DistortionModel | None = None,
-    ) -> "Calibration":
+    ) -> 'Calibration':
         """Load the JSON produced by the browser landmark picker.
 
         The `pitch` block carries the markings as well as the size, and both
@@ -426,15 +420,14 @@ class Calibration:
         Every marking is optional and falls back to the Laws, so files written
         before the picker could measure paint still load unchanged.
         """
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        data = json.loads(Path(path).read_text(encoding='utf-8'))
 
         if pitch is None:
-            dims = data.get("pitch") or {}
+            dims = data.get('pitch') or {}
             pitch = Pitch.from_mapping(dims)
 
         points = [
-            Correspondence(p["landmark"], (float(p["x"]), float(p["y"])))
-            for p in data["points"]
+            Correspondence(p['landmark'], (float(p['x']), float(p['y']))) for p in data['points']
         ]
-        size = data.get("image_size")
+        size = data.get('image_size')
         return cls.fit(points, pitch, tuple(size) if size else None, lens)

@@ -11,7 +11,11 @@ FPS = int(S.fps)
 
 def track(fs, xy, sd=0.3):
     fs = np.asarray(fs)
-    return fs, np.asarray(xy, dtype=float), np.broadcast_to(np.eye(2) * sd ** 2, (len(fs), 2, 2)).copy()
+    return (
+        fs,
+        np.asarray(xy, dtype=float),
+        np.broadcast_to(np.eye(2) * sd**2, (len(fs), 2, 2)).copy(),
+    )
 
 
 def run(T, *tracks, drift=None, s=S):
@@ -47,7 +51,8 @@ def test_unseen_player_glides_to_a_stop():
 def test_unseen_player_moves_with_the_team():
     T = 8 * FPS
     seen = np.arange(2 * FPS)
-    drift = np.zeros((1, T, 2)); drift[0, :, 0] = 2.0
+    drift = np.zeros((1, T, 2))
+    drift[0, :, 0] = 2.0
     still, _ = run(T, track(seen, np.tile([30.0, 20.0], (len(seen), 1))))
     moved, _ = run(T, track(seen, np.tile([30.0, 20.0], (len(seen), 1))), drift=drift)
     assert abs(still[0, -1, 0] - 30.0) < 0.5
@@ -64,8 +69,16 @@ def test_one_wild_foot_is_not_followed():
 
 
 def visit(pid, first, last, start, end, k=0, group=('team_a', PLAYER)):
-    return TD._Visit(pid, k, group, first, last, (last - first + 1) / FPS,
-                     np.r_[start, 0.0, 0.0], np.r_[end, 0.0, 0.0])
+    return TD._Visit(
+        pid,
+        k,
+        group,
+        first,
+        last,
+        (last - first + 1) / FPS,
+        np.r_[start, 0.0, 0.0],
+        np.r_[end, 0.0, 0.0],
+    )
 
 
 def test_chain_joins_a_player_who_leaves_and_comes_back():
@@ -119,7 +132,8 @@ def ident(pid, team='team_a', role=PLAYER):
 def test_a_blink_is_one_visit_unless_someone_was_seen_there():
     T = 4 * FPS
     fs = np.r_[np.arange(0, 60), np.arange(70, 120)]
-    xs = np.zeros((T, 4)); xs[:, :2] = [30.0, 20.0]
+    xs = np.zeros((T, 4))
+    xs[:, :2] = [30.0, 20.0]
     assert len(TD.visits(ident(1), fs, xs, 0, S)) == 1
     others = {f: [(2, ('team_a', PLAYER), np.array([30.5, 20.0]))] for f in range(60, 70)}
     assert len(TD.visits(ident(1), fs, xs, 0, S, others)) == 2
@@ -134,11 +148,14 @@ def test_a_blink_is_one_visit_unless_someone_was_seen_there():
 def ghosts(T, seen_until, view=None, other=None):
     """One track seen for its first frames, then a guess standing at (30, 20)."""
     N = 1 + (other is not None)
-    xs = np.zeros((N, T, 4)); xs[0, :, :2] = [30.0, 20.0]
+    xs = np.zeros((N, T, 4))
+    xs[0, :, :2] = [30.0, 20.0]
     Ps = np.broadcast_to(np.diag([0.5, 0.5, 1.0, 1.0]), (N, T, 4, 4)).copy()
-    owner = np.full((N, T), -1); owner[0, :seen_until] = 7
+    owner = np.full((N, T), -1)
+    owner[0, :seen_until] = 7
     if other is not None:
-        xs[1, :, :2] = other; owner[1] = 8
+        xs[1, :, :2] = other
+        owner[1] = 8
     mask = owner >= 0
     groups = [('team_a', PLAYER)] * N
     return TD._ghost_alpha(xs, Ps, owner, mask, np.ones((N, T)), groups, [view] * T, S)[0]
@@ -146,22 +163,22 @@ def ghosts(T, seen_until, view=None, other=None):
 
 def test_guess_is_drawn_while_out_of_view():
     a = ghosts(4 * FPS, FPS)
-    assert (a[:FPS] == 0).all()                  # seen: drawn as seen, not as a guess
-    assert a[2 * FPS:].min() > 0.3
+    assert (a[:FPS] == 0).all()  # seen: drawn as seen, not as a guess
+    assert a[2 * FPS :].min() > 0.3
 
 
 def test_guess_fades_where_the_picture_shows_nobody():
     view = np.array([[0.0, 0.0], [60.0, 0.0], [60.0, 40.0], [0.0, 40.0]])
     a = ghosts(4 * FPS, FPS, view=view)
-    assert a[FPS + 5] > 0.2                       # just gone: the detector may only have blinked
-    assert (a[3 * FPS:] == 0).all()               # a second and more with the spot in view and empty
+    assert a[FPS + 5] > 0.2  # just gone: the detector may only have blinked
+    assert (a[3 * FPS :] == 0).all()  # a second and more with the spot in view and empty
 
 
 def test_guess_fades_under_a_teammate_seen_on_it():
     a = ghosts(4 * FPS, FPS, other=[30.5, 20.0])
-    assert (a[2 * FPS:] == 0).all()
+    assert (a[2 * FPS :] == 0).all()
     a = ghosts(4 * FPS, FPS, other=[40.0, 20.0])
-    assert a[2 * FPS:].min() > 0.3
+    assert a[2 * FPS :].min() > 0.3
 
 
 def test_ghost_alpha_fades_with_doubt():
@@ -172,8 +189,11 @@ def test_ghost_alpha_fades_with_doubt():
 def test_team_velocity_is_the_mean_of_seen_teammates():
     T = 2 * FPS
     xs = np.zeros((3, T, 4))
-    xs[0, :, 2] = 2.0; xs[1, :, 2] = 4.0; xs[2, :, 2] = -5.0
-    mask = np.ones((3, T), dtype=bool); mask[1, :FPS] = False
+    xs[0, :, 2] = 2.0
+    xs[1, :, 2] = 4.0
+    xs[2, :, 2] = -5.0
+    mask = np.ones((3, T), dtype=bool)
+    mask[1, :FPS] = False
     groups = [('team_a', PLAYER), ('team_a', PLAYER), ('team_b', PLAYER)]
     v = TD._team_velocity(xs, mask, groups, S)
     a = v[('team_a', PLAYER)][:, 0] / S.team_drift
@@ -183,15 +203,14 @@ def test_team_velocity_is_the_mean_of_seen_teammates():
     assert ('', TD.REFEREE) in v
 
 
-
 def test_a_slot_hands_over_without_drawing_two_guesses():
     T = 200
-    old = TD.handover_share(0, 59, T, None, 120)       # seen 0-59, the slot's next segment starts at 120
+    old = TD.handover_share(0, 59, T, None, 120)  # seen 0-59, the slot's next segment starts at 120
     new = TD.handover_share(120, 199, T, 59, None)
     assert (old[:60] == 1).all() and (new[120:] == 1).all()
     both = (old > 0.02) & (new > 0.02)
-    assert not both.any()                               # never two dots for one slot
-    assert old[60] > 0.9 and new[119] > 0.9             # each guess starts strong where it was last seen
+    assert not both.any()  # never two dots for one slot
+    assert old[60] > 0.9 and new[119] > 0.9  # each guess starts strong where it was last seen
     assert (np.diff(old[59:]) <= 0).all() and (np.diff(new[:121]) >= 0).all()
 
 
@@ -201,11 +220,13 @@ def test_a_slot_with_one_segment_guesses_to_both_edges():
 
 def _dots_for_cap(n_boxed, n_held, ghost_alphas, frame=5):
     boxed = SimpleNamespace(frames=np.array([frame]))
-    held = SimpleNamespace(frames=np.array([frame - 3]))       # its box blinked out
+    held = SimpleNamespace(frames=np.array([frame - 3]))  # its box blinked out
     g = ('team_a', PLAYER)
-    return ([TD.Dot(1.0 * k, 0, True, 1.0, g, boxed, k) for k in range(n_boxed)]
-            + [TD.Dot(50.0 + k, 0, True, 1.0, g, held, -1) for k in range(n_held)]
-            + [TD.Dot(80.0, 0, False, a, g, None, 20 + k) for k, a in enumerate(ghost_alphas)])
+    return (
+        [TD.Dot(1.0 * k, 0, True, 1.0, g, boxed, k) for k in range(n_boxed)]
+        + [TD.Dot(50.0 + k, 0, True, 1.0, g, held, -1) for k in range(n_held)]
+        + [TD.Dot(80.0, 0, False, a, g, None, 20 + k) for k, a in enumerate(ghost_alphas)]
+    )
 
 
 def test_the_map_never_draws_more_than_ten_of_a_team():

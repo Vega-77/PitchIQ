@@ -51,6 +51,7 @@ the surviving top KEEP leave the loop.
     python dense.py --n 40           # a short run, for timing
     python dense.py                  # -> dense.npz
 """
+
 import math
 import os
 import sys
@@ -68,17 +69,17 @@ SP = F.SP
 VIDEO = F.VIDEO
 OUT = os.path.join(S2, 'dense.npz')
 
-LO, HI = 186600, 188275       # the test stretch, inclusive, absolute frames
+LO, HI = 186600, 188275  # the test stretch, inclusive, absolute frames
 OFFS = list(range(-10, 11))
 NOFF = len(OFFS)
 CZERO = OFFS.index(0)
 TW, TH = 640, 360
-SCALE = 1920.0 / TW           # 3.0
-JPEGQ = 72                    # clipbuild wrote the sheets at this quality, and
-                              # the model learnt on that noise; match it
-STAGE1 = 10 ** 6              # no prune - see the header
-KEEP = 40                     # candidates written out per frame (track.py's K)
-MINMATCH, MININL = 12, 10     # clipbuild's guards, kept identical
+SCALE = 1920.0 / TW  # 3.0
+JPEGQ = 72  # clipbuild wrote the sheets at this quality, and
+# the model learnt on that noise; match it
+STAGE1 = 10**6  # no prune - see the header
+KEEP = 40  # candidates written out per frame (track.py's K)
+MINMATCH, MININL = 12, 10  # clipbuild's guards, kept identical
 
 
 def fit_pair(ka, da, kb, db, bf):
@@ -90,8 +91,7 @@ def fit_pair(ka, da, kb, db, bf):
         return None
     p = np.float32([ka[x.queryIdx].pt for x in mm]).reshape(-1, 1, 2)
     d = np.float32([kb[x.trainIdx].pt for x in mm]).reshape(-1, 1, 2)
-    M, inl = cv2.estimateAffinePartial2D(p, d, method=cv2.RANSAC,
-                                         ransacReprojThreshold=3.0)
+    M, inl = cv2.estimateAffinePartial2D(p, d, method=cv2.RANSAC, ransacReprojThreshold=3.0)
     if M is None or inl is None or inl.sum() < MININL:
         return None
     return M
@@ -170,10 +170,13 @@ def tiles_for(bgrs, mats, fids=None, cache=None):
                 cache[fids[k]] = small
         if mats[k] is not None:
             small = cv2.warpAffine(
-                small, F_scaled(mats[k][:2], 1.0 / SCALE), (TW, TH),
-                flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-        enc = cv2.imencode('.jpg', small,
-                           [int(cv2.IMWRITE_JPEG_QUALITY), JPEGQ])[1]
+                small,
+                F_scaled(mats[k][:2], 1.0 / SCALE),
+                (TW, TH),
+                flags=cv2.INTER_LINEAR,
+                borderMode=cv2.BORDER_REPLICATE,
+            )
+        enc = cv2.imencode('.jpg', small, [int(cv2.IMWRITE_JPEG_QUALITY), JPEGQ])[1]
         small = cv2.imdecode(enc, cv2.IMREAD_COLOR)
         out[k] = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY).astype(np.float32)
     return out
@@ -188,16 +191,41 @@ def still_rows(bs, cmaj, cara):
         nn = float(np.sort(dxy)[1]) if len(dxy) > 1 else 999.0
         e_maj = max(1.0, cmaj[0] * b['cy'] + cmaj[1])
         e_side = max(1.0, cara[0] * b['cy'] + cara[1])
-        rows.append([b['minor'], b['major'], b['area'], b['fill'], b['elong'],
-                     b['circ'], b['extent'], b['v_in'], b['v_max'], b['v_std'],
-                     b['v_ring'], b['v_ring_max'], b['con'], b['rel_con'],
-                     b['s_in'], b['s_ring'], b['h_in'], b['grass_ring'],
-                     b['other_ring'], b['white_far'], b['lap'],
-                     b['cx'] / 1920.0, b['cy'] / 1080.0,
-                     b['major'] / e_maj, b['minor'] / e_maj,
-                     math.sqrt(b['area']) / e_side,
-                     nn, float((dxy < 100).sum() - 1), float(len(bs)),
-                     b['split']] + b['th'])
+        rows.append(
+            [
+                b['minor'],
+                b['major'],
+                b['area'],
+                b['fill'],
+                b['elong'],
+                b['circ'],
+                b['extent'],
+                b['v_in'],
+                b['v_max'],
+                b['v_std'],
+                b['v_ring'],
+                b['v_ring_max'],
+                b['con'],
+                b['rel_con'],
+                b['s_in'],
+                b['s_ring'],
+                b['h_in'],
+                b['grass_ring'],
+                b['other_ring'],
+                b['white_far'],
+                b['lap'],
+                b['cx'] / 1920.0,
+                b['cy'] / 1080.0,
+                b['major'] / e_maj,
+                b['minor'] / e_maj,
+                math.sqrt(b['area']) / e_side,
+                nn,
+                float((dxy < 100).sum() - 1),
+                float(len(bs)),
+                b['split'],
+            ]
+            + b['th']
+        )
     return np.array(rows, np.float32), pts
 
 
@@ -225,9 +253,8 @@ def temporal_rows(tiles, pts):
         bright = series > 150
         persist = series > (v0 - 25)
         left = float(series[:CZERO].mean())
-        right = float(series[CZERO + 1:].mean())
-        mad = float(np.abs(tiles[:, yy0:yy1, x0:x1]
-                           - cur[yy0:yy1, x0:x1]).mean())
+        right = float(series[CZERO + 1 :].mean())
+        mad = float(np.abs(tiles[:, yy0:yy1, x0:x1] - cur[yy0:yy1, x0:x1]).mean())
 
         wx0, wx1 = max(0, ix - RW), min(W, ix + RW + 1)
         wy0, wy1 = max(0, iy - RW), min(H, iy + RW + 1)
@@ -246,8 +273,7 @@ def temporal_rows(tiles, pts):
             res = np.hypot(px[seen] - A.dot(bx), py[seen] - A.dot(by))
             speed = float(math.hypot(bx[0], by[0]))
             straight = float(res.mean())
-            disp = float(math.hypot(px[seen][-1] - px[seen][0],
-                                    py[seen][-1] - py[seen][0]))
+            disp = float(math.hypot(px[seen][-1] - px[seen][0], py[seen][-1] - py[seen][0]))
         else:
             speed, straight, disp = 0.0, 99.0, 0.0
 
@@ -258,22 +284,38 @@ def temporal_rows(tiles, pts):
         q0 = float(q[CZERO])
         qmed = float(np.median(q))
 
-        T[idx] = [v0, t_med, t_min, v0 - t_med, v0 - t_min, float(series.std()),
-                  bright.mean(), persist.mean(),
-                  TT.run_around(persist, CZERO),
-                  float(fgser[CZERO]),
-                  float(fgs[CZERO, yy0:yy1, x0:x1].mean()),
-                  float(fgser[CZERO]) / max(1.0, v0),
-                  bgmax, left, right, abs(left - right),
-                  float(series[min(NOFF - 1, CZERO + 1)]
-                        - series[max(0, CZERO - 1)]),
-                  mad, float((fgser > FG).sum()),
-                  speed, straight, disp,
-                  q0, qmed, q0 - qmed, float((q > (q0 - 25)).mean()),
-                  float(qf[CZERO]), float((qf > FG).sum()),
-                  float(bg[qy0:qy1, qx0:qx1].max()),
-                  float(np.abs(tiles[:, qy0:qy1, qx0:qx1]
-                               - cur[qy0:qy1, qx0:qx1]).mean())]
+        T[idx] = [
+            v0,
+            t_med,
+            t_min,
+            v0 - t_med,
+            v0 - t_min,
+            float(series.std()),
+            bright.mean(),
+            persist.mean(),
+            TT.run_around(persist, CZERO),
+            float(fgser[CZERO]),
+            float(fgs[CZERO, yy0:yy1, x0:x1].mean()),
+            float(fgser[CZERO]) / max(1.0, v0),
+            bgmax,
+            left,
+            right,
+            abs(left - right),
+            float(series[min(NOFF - 1, CZERO + 1)] - series[max(0, CZERO - 1)]),
+            mad,
+            float((fgser > FG).sum()),
+            speed,
+            straight,
+            disp,
+            q0,
+            qmed,
+            q0 - qmed,
+            float((q > (q0 - 25)).mean()),
+            float(qf[CZERO]),
+            float((qf > FG).sum()),
+            float(bg[qy0:qy1, qx0:qx1].max()),
+            float(np.abs(tiles[:, qy0:qy1, qx0:qx1] - cur[qy0:qy1, qx0:qx1]).mean()),
+        ]
     return T
 
 
@@ -288,10 +330,8 @@ def check(nsample=6):
     assert cap.isOpened(), 'cannot open video'
     orb = cv2.ORB_create(2000)
     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    corners = np.array([[0, 0, 1], [1919, 0, 1], [0, 1079, 1], [1919, 1079, 1]],
-                       np.float64).T
-    print('COMPOSED vs DIRECT registration  (source pixels, %d samples)'
-          % nsample)
+    corners = np.array([[0, 0, 1], [1919, 0, 1], [0, 1079, 1], [1919, 1079, 1]], np.float64).T
+    print('COMPOSED vs DIRECT registration  (source pixels, %d samples)' % nsample)
     print('  %-9s %-9s %-9s %s' % ('anchor', 'mean err', 'max err', 'verdict'))
     errs = []
     for j in range(nsample):
@@ -319,13 +359,13 @@ def check(nsample=6):
         b = homog(D).dot(corners)[:2]
         e = np.hypot(a[0] - b[0], a[1] - b[1])
         errs.append(float(e.max()))
-        print('  %-9d %-9.2f %-9.2f %s'
-              % (t, e.mean(), e.max(),
-                 'ok' if e.max() < 6.0 else 'TOO LARGE'))
+        print(
+            '  %-9d %-9.2f %-9.2f %s'
+            % (t, e.mean(), e.max(), 'ok' if e.max() < 6.0 else 'TOO LARGE')
+        )
     if errs:
         print()
-        print('worst corner disagreement over 10 composed steps: %.2f source px'
-              % max(errs))
+        print('worst corner disagreement over 10 composed steps: %.2f source px' % max(errs))
         print('this says only that they differ, not which one is wrong;')
         print('regcheck.py is the measurement that answers that.')
     cap.release()
@@ -365,11 +405,14 @@ def main():
     orb = cv2.ORB_create(2000)
     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
-    print('dense detection over abs %d..%d  (%d frames, %.1f s of play)'
-          % (lo, hi, hi - lo + 1, (hi - lo + 1) / 30.0))
-    print('  %s; top %d written per frame'
-          % ('no still-only prune' if STAGE1 > 10000
-             else 'still-only prune to %d' % STAGE1, KEEP))
+    print(
+        'dense detection over abs %d..%d  (%d frames, %.1f s of play)'
+        % (lo, hi, hi - lo + 1, (hi - lo + 1) / 30.0)
+    )
+    print(
+        '  %s; top %d written per frame'
+        % ('no still-only prune' if STAGE1 > 10000 else 'still-only prune to %d' % STAGE1, KEEP)
+    )
 
     bgrs, kds = [], []
     FI, CX, CY, SC = [], [], [], []
@@ -390,7 +433,7 @@ def main():
         if len(bgrs) < NOFF:
             continue
 
-        anchor = ab + OFFS[0]                  # the middle of the buffer
+        anchor = ab + OFFS[0]  # the middle of the buffer
         bs, _ = F.blobs(bgrs[CZERO], cmaj)
         NC[anchor] = len(bs)
         if not bs:
@@ -415,32 +458,45 @@ def main():
         done += 1
         if done % 25 == 0:
             el = time.time() - t0
-            print('  %d/%d frames  %.0fs  (%.2f s/frame, eta %.0f min)'
-                  % (done, hi - lo + 1, el, el / done,
-                     (hi - lo + 1 - done) * el / done / 60.0), flush=True)
+            print(
+                '  %d/%d frames  %.0fs  (%.2f s/frame, eta %.0f min)'
+                % (done, hi - lo + 1, el, el / done, (hi - lo + 1 - done) * el / done / 60.0),
+                flush=True,
+            )
     cap.release()
 
     fr = np.array(sorted(NC), np.int32)
     hw = np.array([HOW.get(int(i), [0] * NOFF) for i in fr], np.int8)
     nc = np.array([NC[int(i)] for i in fr], np.int32)
-    np.savez_compressed(OUT, f=np.array(FI, np.int32),
-                        x=np.array(CX, np.float32),
-                        y=np.array(CY, np.float32),
-                        s=np.array(SC, np.float32),
-                        frames=fr, ncand=nc, how=hw,
-                        lo=lo, hi=hi, keep=KEEP, stage1=STAGE1)
+    np.savez_compressed(
+        OUT,
+        f=np.array(FI, np.int32),
+        x=np.array(CX, np.float32),
+        y=np.array(CY, np.float32),
+        s=np.array(SC, np.float32),
+        frames=fr,
+        ncand=nc,
+        how=hw,
+        lo=lo,
+        hi=hi,
+        keep=KEEP,
+        stage1=STAGE1,
+    )
     print()
-    print('%d frames detected, %d rows written, %.1f min'
-          % (len(fr), len(FI), (time.time() - t0) / 60.0))
-    print('  candidates/frame  mean %.0f  min %d  max %d'
-          % (nc.mean(), nc.min(), nc.max()))
+    print(
+        '%d frames detected, %d rows written, %.1f min'
+        % (len(fr), len(FI), (time.time() - t0) / 60.0)
+    )
+    print('  candidates/frame  mean %.0f  min %d  max %d' % (nc.mean(), nc.min(), nc.max()))
     print('  frames with no candidate at all   %d' % int((nc == 0).sum()))
     off = hw[nc > 0]
     if off.size:
         print('REGISTRATION, over %d offset tiles' % off.size)
-        for v, what in ((2, 'direct fit (as clipbuild)'),
-                        (1, 'chain fallback          '),
-                        (0, 'unwarped (neither)      ')):
+        for v, what in (
+            (2, 'direct fit (as clipbuild)'),
+            (1, 'chain fallback          '),
+            (0, 'unwarped (neither)      '),
+        ):
             print('  %s  %7.3f%%' % (what, 100.0 * (off == v).sum() / off.size))
     print('saved %s' % OUT)
 

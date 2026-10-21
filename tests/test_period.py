@@ -24,16 +24,16 @@ def entry(kind, clock_s):
 
 
 BOTH_HALVES = [
-    entry('kickoff_1st', 0.0), entry('halftime', 2700.0),
-    entry('kickoff_2nd', 3600.0), entry('full_time', 6300.0),
+    entry('kickoff_1st', 0.0),
+    entry('halftime', 2700.0),
+    entry('kickoff_2nd', 3600.0),
+    entry('full_time', 6300.0),
 ]
 
 
 def a_report(log=None, duration_s=900.0, offset_s=0.0):
     report = MatchReport(source='clip.mp4', duration_s=duration_s, processing_s=1.0)
-    report.periods = (
-        periods_from_log(log).on_video(VideoClock(offset_s)) if log else None
-    )
+    report.periods = periods_from_log(log).on_video(VideoClock(offset_s)) if log else None
     return report
 
 

@@ -20,6 +20,7 @@ plausible-looking count there would be inventing a score.
 
     python dfree.py drun            # drun.npz + drunpan.npz -> drunpicks.json
 """
+
 import io
 import json
 import os
@@ -33,8 +34,7 @@ import dtrack5 as D5
 S2 = os.path.dirname(os.path.abspath(__file__))
 
 # dbest5.json's winner, found by the sweep over the labelled range at 42/47.
-CFG = dict(lam=0.125, skip=8.0, brk=32.0, kmax=4,
-           rad0=0.0, drift=12.0, gate=0.5)
+CFG = dict(lam=0.125, skip=8.0, brk=32.0, kmax=4, rad0=0.0, drift=12.0, gate=0.5)
 
 
 def load(tag='drun'):
@@ -59,8 +59,7 @@ def load(tag='drun'):
         cy = y[a:b].astype(np.float64)
         H = cum[ab - plo]
         q = np.column_stack([cx, cy, np.ones(len(cx))]).dot(H[:2].T)
-        frames.append(dict(abs=ab, x=cx, y=cy, s=s[a:b].astype(np.float64),
-                           sx=q[:, 0], sy=q[:, 1]))
+        frames.append(dict(abs=ab, x=cx, y=cy, s=s[a:b].astype(np.float64), sx=q[:, 0], sy=q[:, 1]))
     return frames
 
 
@@ -71,11 +70,14 @@ def dump(frames, pick, name, cfg):
         r = int(np.argmax(fr['s']))
         j = pick[t]
         picks[str(int(fr['abs']))] = dict(
-            rx=float(fr['x'][r]), ry=float(fr['y'][r]),
+            rx=float(fr['x'][r]),
+            ry=float(fr['y'][r]),
             tx=None if j is None else float(fr['x'][j]),
-            ty=None if j is None else float(fr['y'][j]))
+            ty=None if j is None else float(fr['y'][j]),
+        )
     io.open(os.path.join(S2, name), 'w', encoding='utf-8').write(
-        json.dumps(dict(cfg=cfg, hits=None, picks=picks)))
+        json.dumps(dict(cfg=cfg, hits=None, picks=picks))
+    )
 
 
 def main():
@@ -83,28 +85,50 @@ def main():
 
     t = time.time()
     frames = load(tag)
-    print('%s: %d frames with candidates, %.1f s of video'
-          % (tag, len(frames), len(frames) / D5.FPS))
-    print('  candidates per frame: min %d  median %d  max %d'
-          % (min(len(fr['s']) for fr in frames),
-             int(np.median([len(fr['s']) for fr in frames])),
-             max(len(fr['s']) for fr in frames)))
+    print(
+        '%s: %d frames with candidates, %.1f s of video' % (tag, len(frames), len(frames) / D5.FPS)
+    )
+    print(
+        '  candidates per frame: min %d  median %d  max %d'
+        % (
+            min(len(fr['s']) for fr in frames),
+            int(np.median([len(fr['s']) for fr in frames])),
+            max(len(fr['s']) for fr in frames),
+        )
+    )
     print('  loaded in %.1f s' % (time.time() - t))
 
-    cfgs = ('viterbi5 lam %g skip %g break %g kmax %d rad0 %g drift %g'
-            ' gate %g' % (CFG['lam'], CFG['skip'], CFG['brk'], CFG['kmax'],
-                          CFG['rad0'], CFG['drift'], CFG['gate']))
+    cfgs = 'viterbi5 lam %g skip %g break %g kmax %d rad0 %g drift %g gate %g' % (
+        CFG['lam'],
+        CFG['skip'],
+        CFG['brk'],
+        CFG['kmax'],
+        CFG['rad0'],
+        CFG['drift'],
+        CFG['gate'],
+    )
     print()
     print('tracking: %s  (stabilised coordinates)' % cfgs, flush=True)
     t = time.time()
-    pick, obj = D5.viterbi5(frames, CFG['lam'], CFG['skip'], CFG['brk'],
-                            CFG['kmax'], CFG['rad0'], CFG['drift'],
-                            CFG['gate'], stab=True, ret_obj=True)
+    pick, obj = D5.viterbi5(
+        frames,
+        CFG['lam'],
+        CFG['skip'],
+        CFG['brk'],
+        CFG['kmax'],
+        CFG['rad0'],
+        CFG['drift'],
+        CFG['gate'],
+        stab=True,
+        ret_obj=True,
+    )
     el = time.time() - t
     ncom = sum(1 for j in pick if j is not None)
     print('  %.1f s, objective %.1f' % (el, obj))
-    print('  the path commits to a candidate in %d of %d frames (%.0f%%)'
-          % (ncom, len(pick), 100.0 * ncom / len(pick)))
+    print(
+        '  the path commits to a candidate in %d of %d frames (%.0f%%)'
+        % (ncom, len(pick), 100.0 * ncom / len(pick))
+    )
 
     out = '%spicks.json' % tag
     dump(frames, pick, out, cfgs)

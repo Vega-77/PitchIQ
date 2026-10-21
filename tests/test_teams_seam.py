@@ -78,10 +78,9 @@ BLOCK_COMMENT = re.compile(r'/\*.*?\*/', re.S)
 # Produced and deliberately not rendered. The reason is the point: it has to say
 # where the figure went instead, or why a coach is better off without it.
 UNREAD_BY_DESIGN = {
-    'team':
-        'the dict key repeated inside its own value — cv/report_json.py builds '
-        'teams[team] = team_stats(...) with TeamStats(team=team), so a page '
-        'holding cv.teams.team_a already knows which side it holds',
+    'team': 'the dict key repeated inside its own value — cv/report_json.py builds '
+    'teams[team] = team_stats(...) with TeamStats(team=team), so a page '
+    'holding cv.teams.team_a already knows which side it holds',
 }
 
 
@@ -148,19 +147,24 @@ def _fields(chunk: str, names: set[str], skip_methods: bool) -> set[str]:
     keys = set()
     for name in names:
         escaped = re.escape(name)
-        pattern = re.compile(
-            r'\b%s\s*\??\s*(?:\.\s*(\w+)|\[\s*\'(\w+)\'\s*\])' % escaped)
+        pattern = re.compile(r'\b%s\s*\??\s*(?:\.\s*(\w+)|\[\s*\'(\w+)\'\s*\])' % escaped)
         for match in pattern.finditer(chunk):
             # `(v) => v.toFixed(2)` is a formatter calling a method, not a page
             # reading a figure. Without this the scan invents `toFixed`.
-            if skip_methods and chunk[match.end():match.end() + 1] == '(':
+            if skip_methods and chunk[match.end() : match.end() + 1] == '(':
                 continue
             keys.add(match.group(1) or match.group(2))
     return keys
 
 
-def read(*, params: bool = True, direct: bool = True, seed=SEED,
-         skip_methods: bool = True, strip: bool = True) -> dict[str, set[str]]:
+def read(
+    *,
+    params: bool = True,
+    direct: bool = True,
+    seed=SEED,
+    skip_methods: bool = True,
+    strip: bool = True,
+) -> dict[str, set[str]]:
     """{field: {files that read it}} across every page's JavaScript.
 
     Every keyword is a knob only so the last class can loosen it and prove that
@@ -232,11 +236,8 @@ class TestForwarded:
 
 
 class TestEveryFigureLands:
-
     def test_every_produced_field_is_rendered_or_excused(self, made, seen):
-        orphans = sorted(
-            k for k in made if not readers(k, seen) and k not in UNREAD_BY_DESIGN
-        )
+        orphans = sorted(k for k in made if not readers(k, seen) and k not in UNREAD_BY_DESIGN)
         assert not orphans, (
             'TeamStats produces %s and no page reads it. Render it, or add it '
             'to UNREAD_BY_DESIGN with the reason.' % ', '.join(orphans)
@@ -259,17 +260,15 @@ class TestTheExcuseList:
 
     def test_no_stale_entries(self, seen):
         rendered = sorted(k for k in UNREAD_BY_DESIGN if readers(k, seen))
-        assert not rendered, (
-            '%s is listed as unrendered but %s reads it now — delete the entry'
-            % (', '.join(rendered),
-               ', '.join(sorted(readers(rendered[0], seen))))
+        assert not rendered, '%s is listed as unrendered but %s reads it now — delete the entry' % (
+            ', '.join(rendered),
+            ', '.join(sorted(readers(rendered[0], seen))),
         )
 
     def test_no_entries_for_fields_that_do_not_exist(self, made):
         gone = sorted(set(UNREAD_BY_DESIGN) - set(made))
-        assert not gone, (
-            '%s is excused here and no longer produced — delete the entry'
-            % ', '.join(gone)
+        assert not gone, '%s is excused here and no longer produced — delete the entry' % ', '.join(
+            gone
         )
 
     def test_every_entry_gives_a_reason(self):
@@ -326,8 +325,7 @@ class TestTheScannerActuallyScans:
         invented = sorted(k for k in set(seen) - set(named) if k not in known)
         assert not invented, (
             'the arrow-parameter guess produced %s, which TeamStats does not '
-            'produce — it is reading something that is not a team'
-            % ', '.join(invented)
+            'produce — it is reading something that is not a team' % ', '.join(invented)
         )
 
     def test_the_method_filter_is_load_bearing(self, made):

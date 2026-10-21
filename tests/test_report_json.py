@@ -42,19 +42,36 @@ from cv.touches import Touch, TouchConfidence, TouchSequence
 
 def a_pass(track, team, outcome=COMPLETED, tags=(), bucket='short', direction=None):
     return Pass(
-        event_id=f'{track}:p', type='pass', timestamp_s=1.0, frame_index=30,
-        team=team, track_id=track, start_xy_px=(0.0, 0.0),
-        confidence=0.8, tags=tags, outcome=outcome,
-        length_bucket=bucket, direction=direction,
+        event_id=f'{track}:p',
+        type='pass',
+        timestamp_s=1.0,
+        frame_index=30,
+        team=team,
+        track_id=track,
+        start_xy_px=(0.0, 0.0),
+        confidence=0.8,
+        tags=tags,
+        outcome=outcome,
+        length_bucket=bucket,
+        direction=direction,
     )
 
 
 def a_touch(track, team, t=1.0):
     return Touch(
-        frame_index=int(t * 30), timestamp_s=t, track_id=track, team=team,
-        ball_xy=(0.0, 0.0), ball_m=None, scale_px=36.0, distance_ph=0.4,
-        speed_before_ph_s=0.0, speed_after_ph_s=0.0, turn_deg=40.0,
-        observed=True, components=TouchConfidence(0.8, 0.7, 1.0, 0.9),
+        frame_index=int(t * 30),
+        timestamp_s=t,
+        track_id=track,
+        team=team,
+        ball_xy=(0.0, 0.0),
+        ball_m=None,
+        scale_px=36.0,
+        distance_ph=0.4,
+        speed_before_ph_s=0.0,
+        speed_after_ph_s=0.0,
+        turn_deg=40.0,
+        observed=True,
+        components=TouchConfidence(0.8, 0.7, 1.0, 0.9),
     )
 
 
@@ -63,12 +80,16 @@ def a_report(calibrated=False, **kwargs):
     report.movement_available = calibrated
     report.possession = PossessionSummary(team_a_s=9.0, team_b_s=6.0)
     report.touches = TouchSequence(touches=[a_touch(1, TEAM_A), a_touch(2, TEAM_A, 2.0)])
-    report.events = EventLog(
-        events=[a_pass(1, TEAM_A)], touches=report.touches
-    )
+    report.events = EventLog(events=[a_pass(1, TEAM_A)], touches=report.touches)
     report.clusters = [
-        PlayerCluster(cluster_id=0, track_ids={1, 2}, team=TEAM_A,
-                      first_seen_s=0.0, last_seen_s=15.0, sightings=400),
+        PlayerCluster(
+            cluster_id=0,
+            track_ids={1, 2},
+            team=TEAM_A,
+            first_seen_s=0.0,
+            last_seen_s=15.0,
+            sightings=400,
+        ),
     ]
     for key, value in kwargs.items():
         setattr(report, key, value)
@@ -83,17 +104,20 @@ class TestJsonSafety:
     def test_no_numpy_scalars_survive_anywhere(self):
         """The failure that surfaces as a 500 nowhere near its cause."""
         report = a_report(calibrated=True)
-        report.players = [PlayerReport(
-            track_id=1, team=TEAM_A,
-            movement=MovementStats(
+        report.players = [
+            PlayerReport(
                 track_id=1,
-                distance_m=np.float32(1234.5),
-                top_speed_ms=np.float64(7.2),
-                sprint_count=np.int64(3),
-                sprint_distance_m=np.float32(88.0),
-            ),
-            minutes_tracked=np.float64(12.0),
-        )]
+                team=TEAM_A,
+                movement=MovementStats(
+                    track_id=1,
+                    distance_m=np.float32(1234.5),
+                    top_speed_ms=np.float64(7.2),
+                    sprint_count=np.int64(3),
+                    sprint_distance_m=np.float32(88.0),
+                ),
+                minutes_tracked=np.float64(12.0),
+            )
+        ]
 
         def walk(value, path='root'):
             if isinstance(value, dict):
@@ -104,9 +128,9 @@ class TestJsonSafety:
                     walk(item, f'{path}[{i}]')
             else:
                 assert not isinstance(value, np.generic), f'numpy at {path}: {value!r}'
-                assert isinstance(
-                    value, (int, float, str, bool, type(None))
-                ), f'{path}: {type(value)}'
+                assert isinstance(value, (int, float, str, bool, type(None))), (
+                    f'{path}: {type(value)}'
+                )
 
         walk(report.to_json())
 
@@ -120,8 +144,15 @@ class TestAbsentNotZero:
         """Nobody counted them. Zero would say they were counted and were none."""
         teams = a_report(calibrated=False).to_json()['teams']
         for field in (
-            'progressive_passes', 'final_third_entries', 'box_entries',
-            'switches', 'crosses', 'shots', 'shots_on_target', 'goals', 'xg',
+            'progressive_passes',
+            'final_third_entries',
+            'box_entries',
+            'switches',
+            'crosses',
+            'shots',
+            'shots_on_target',
+            'goals',
+            'xg',
         ):
             assert teams[TEAM_A][field] is None, field
 
@@ -155,16 +186,14 @@ class TestShapeBelongsToATeam:
     SHAPE_B = {'width_m': 52.0, 'depth_m': 44.0, 'compactness_m': 18.0}
 
     def test_each_team_gets_its_own(self):
-        report = a_report(calibrated=True,
-                          shape={TEAM_A: self.SHAPE_A, TEAM_B: self.SHAPE_B})
+        report = a_report(calibrated=True, shape={TEAM_A: self.SHAPE_A, TEAM_B: self.SHAPE_B})
         teams = report.to_json()['teams']
 
         assert teams[TEAM_A]['shape'] == self.SHAPE_A
         assert teams[TEAM_B]['shape'] == self.SHAPE_B
 
     def test_team_b_is_not_handed_an_empty_shape_by_default(self):
-        report = a_report(calibrated=True,
-                          shape={TEAM_A: self.SHAPE_A, TEAM_B: self.SHAPE_B})
+        report = a_report(calibrated=True, shape={TEAM_A: self.SHAPE_A, TEAM_B: self.SHAPE_B})
         assert report.to_json()['teams'][TEAM_B]['shape'] != {}
 
     def test_a_missing_team_is_empty_rather_than_an_error(self):
@@ -175,20 +204,34 @@ class TestShapeBelongsToATeam:
 class TestParticipants:
     def scene(self):
         report = a_report()
-        report.participants = ParticipantReport(by_track={
-            1: ParticipantVerdict(
-                track_id=1, role=ROLE_OFFFIELD, reason='never moved',
-                sightings=300, screen_time_s=30.0, spread_ph=0.2,
-                travel_ph_per_min=1.0, edge_share=0.9, off_pitch_share=None,
-                kit_known=False,
-            ),
-            2: ParticipantVerdict(
-                track_id=2, role=ROLE_OFFICIAL, reason='neither kit',
-                sightings=300, screen_time_s=30.0, spread_ph=6.0,
-                travel_ph_per_min=90.0, edge_share=0.1, off_pitch_share=0.0,
-                kit_known=False,
-            ),
-        })
+        report.participants = ParticipantReport(
+            by_track={
+                1: ParticipantVerdict(
+                    track_id=1,
+                    role=ROLE_OFFFIELD,
+                    reason='never moved',
+                    sightings=300,
+                    screen_time_s=30.0,
+                    spread_ph=0.2,
+                    travel_ph_per_min=1.0,
+                    edge_share=0.9,
+                    off_pitch_share=None,
+                    kit_known=False,
+                ),
+                2: ParticipantVerdict(
+                    track_id=2,
+                    role=ROLE_OFFICIAL,
+                    reason='neither kit',
+                    sightings=300,
+                    screen_time_s=30.0,
+                    spread_ph=6.0,
+                    travel_ph_per_min=90.0,
+                    edge_share=0.1,
+                    off_pitch_share=0.0,
+                    kit_known=False,
+                ),
+            }
+        )
         return report
 
     def test_every_verdict_is_carried_with_its_reason(self):
@@ -233,8 +276,7 @@ class TestBallHonesty:
         report = a_report()
         report.duration_s = duration_s
         points = [
-            BallPoint(i, i / 30, (1.0, 1.0), i < observed)
-            for i in range(observed + interpolated)
+            BallPoint(i, i / 30, (1.0, 1.0), i < observed) for i in range(observed + interpolated)
         ]
         report.ball = BallTrajectory(points)
         return report
@@ -277,9 +319,9 @@ class TestNoTouchesReason:
         report = a_report()
         report.duration_s = 10.0
         report.clear_holder_share = holder
-        report.ball = BallTrajectory([
-            BallPoint(i, i / 30, (1.0, 1.0), i < int(300 * seen)) for i in range(300)
-        ])
+        report.ball = BallTrajectory(
+            [BallPoint(i, i / 30, (1.0, 1.0), i < int(300 * seen)) for i in range(300)]
+        )
         return _no_touches_reason(report)
 
     def test_a_barely_seen_ball_is_named_as_the_cause(self):
@@ -298,9 +340,15 @@ class TestQuality:
     def test_the_quality_block_sits_beside_the_numbers(self):
         quality = a_report().to_json()['quality']
         for key in (
-            'ball_seen_share', 'ball_filled_share', 'clear_holder_share', 'kit_separation',
-            'touch_confidence_p50', 'touch_confidence_p10', 'unseen_spans',
-            'tracks_per_cluster', 'keeper_method',
+            'ball_seen_share',
+            'ball_filled_share',
+            'clear_holder_share',
+            'kit_separation',
+            'touch_confidence_p50',
+            'touch_confidence_p10',
+            'unseen_spans',
+            'tracks_per_cluster',
+            'keeper_method',
         ):
             assert key in quality, key
 
@@ -313,9 +361,9 @@ class TestQuality:
         report = a_report()
         report.players = [
             PlayerReport(
-                track_id=i, team=TEAM_A,
-                movement=MovementStats(track_id=i, position_noise_m=noise,
-                                       minutes_tracked=10.0),
+                track_id=i,
+                team=TEAM_A,
+                movement=MovementStats(track_id=i, position_noise_m=noise, minutes_tracked=10.0),
             )
             for i, noise in enumerate((0.12, 0.13, 0.26))
         ]
@@ -348,9 +396,7 @@ class TestQuality:
         no caveat attached is exactly how a fragment gets shown as a player.
         """
         report = a_report()
-        report.players = [
-            PlayerReport(track_id=i, team=TEAM_A) for i in range(60)
-        ]
+        report.players = [PlayerReport(track_id=i, team=TEAM_A) for i in range(60)]
         data = report.to_json()
         assert any('fragments' in w for w in data['warnings'])
         assert data['trustworthy'] is False
@@ -381,7 +427,9 @@ class TestPositionalFieldsReachTheJson:
     def test_with_one_they_are_computed(self):
         team = self.a_positional_report().to_json()['teams'][TEAM_A]
         assert team['turnovers_by_third'] == {
-            'defensive': 0, 'middle': 0, 'attacking': 0,
+            'defensive': 0,
+            'middle': 0,
+            'attacking': 0,
         }
 
     def test_each_team_is_given_the_other_team_direction_for_pressing(self):
@@ -477,11 +525,14 @@ class TestWhatWasNeverSeen:
     def a_blindness(self, **kwargs):
         from cv.blind import ACCOUNTED, DEAD, UNEXPLAINED, Blindness, BlindSpell
 
-        return Blindness(spells=[
-            BlindSpell(10.0, 40.0, DEAD),
-            BlindSpell(60.0, 70.0, ACCOUNTED, ('corner',)),
-            BlindSpell(100.0, 120.0, UNEXPLAINED),
-        ], **kwargs)
+        return Blindness(
+            spells=[
+                BlindSpell(10.0, 40.0, DEAD),
+                BlindSpell(60.0, 70.0, ACCOUNTED, ('corner',)),
+                BlindSpell(100.0, 120.0, UNEXPLAINED),
+            ],
+            **kwargs,
+        )
 
     def test_no_run_of_it_leaves_the_key_null_rather_than_absent(self):
         assert a_report().to_json()['quality']['blind'] is None
@@ -529,10 +580,13 @@ class TestReconciliation:
     def a_reconciliation(self, **kwargs):
         from cv.reconcile import Disagreement, Reconciliation
 
-        return Reconciliation(entries=[
-            Disagreement('goal', 'agreed', cv_s=600.0, tag_s=602.0),
-            Disagreement('goal', 'tag_only', tag_s=1200.0),
-        ], **kwargs)
+        return Reconciliation(
+            entries=[
+                Disagreement('goal', 'agreed', cv_s=600.0, tag_s=602.0),
+                Disagreement('goal', 'tag_only', tag_s=1200.0),
+            ],
+            **kwargs,
+        )
 
     def test_no_tagged_log_leaves_it_null_rather_than_empty(self):
         data = a_report().to_json()
@@ -563,20 +617,25 @@ class TestReconciliation:
 
 class TestTeamRollup:
     def test_passes_are_counted_per_team(self):
-        log = EventLog(events=[
-            a_pass(1, TEAM_A), a_pass(2, TEAM_A, outcome='incomplete'),
-            a_pass(9, TEAM_B),
-        ])
+        log = EventLog(
+            events=[
+                a_pass(1, TEAM_A),
+                a_pass(2, TEAM_A, outcome='incomplete'),
+                a_pass(9, TEAM_B),
+            ]
+        )
         stats = team_stats(log, TEAM_A, calibrated=False)
         assert stats.passes_attempted == 2
         assert stats.passes_completed == 1
         assert stats.pass_accuracy == pytest.approx(0.5)
 
     def test_length_and_direction_are_bucketed(self):
-        log = EventLog(events=[
-            a_pass(1, TEAM_A, bucket='short', direction='forward'),
-            a_pass(2, TEAM_A, bucket='long', direction='forward'),
-        ])
+        log = EventLog(
+            events=[
+                a_pass(1, TEAM_A, bucket='short', direction='forward'),
+                a_pass(2, TEAM_A, bucket='long', direction='forward'),
+            ]
+        )
         stats = team_stats(log, TEAM_A, calibrated=True)
         assert stats.passes_by_length == {'short': 1, 'long': 1}
         assert stats.passes_by_direction == {'forward': 2}
@@ -600,10 +659,20 @@ class TestTrackRollup:
         """Distance adds up; top speed does not."""
         report = a_report(calibrated=True)
         report.players = [
-            PlayerReport(track_id=1, team=TEAM_A, movement=MovementStats(
-                track_id=1, distance_m=100.0, top_speed_ms=6.0, sprint_count=1)),
-            PlayerReport(track_id=2, team=TEAM_A, movement=MovementStats(
-                track_id=2, distance_m=50.0, top_speed_ms=8.0, sprint_count=2)),
+            PlayerReport(
+                track_id=1,
+                team=TEAM_A,
+                movement=MovementStats(
+                    track_id=1, distance_m=100.0, top_speed_ms=6.0, sprint_count=1
+                ),
+            ),
+            PlayerReport(
+                track_id=2,
+                team=TEAM_A,
+                movement=MovementStats(
+                    track_id=2, distance_m=50.0, top_speed_ms=8.0, sprint_count=2
+                ),
+            ),
         ]
         track = report.to_json()['tracks'][0]
         assert track['distance_m'] == pytest.approx(150.0)
@@ -641,9 +710,17 @@ class TestShotMarks:
 
     def shot(self, x, y, xg=0.2, outcome='saved', on_target=True):
         return Shot(
-            event_id='s1', type='shot', timestamp_s=612.0, frame_index=1,
-            team=TEAM_A, track_id=9, start_xy_px=(0.0, 0.0),
-            start_m=(x, y), xg=xg, outcome=outcome, on_target=on_target,
+            event_id='s1',
+            type='shot',
+            timestamp_s=612.0,
+            frame_index=1,
+            team=TEAM_A,
+            track_id=9,
+            start_xy_px=(0.0, 0.0),
+            start_m=(x, y),
+            xg=xg,
+            outcome=outcome,
+            on_target=on_target,
         )
 
     def test_attacking_right_is_left_alone(self):
@@ -682,7 +759,8 @@ class TestShotMarks:
 
     def test_the_outcome_and_xg_travel_with_the_point(self):
         mark = shot_marks(
-            [self.shot(99.0, 34.0, xg=0.62, outcome='goal', on_target=True)], 'right',
+            [self.shot(99.0, 34.0, xg=0.62, outcome='goal', on_target=True)],
+            'right',
         )[0]
         assert mark['outcome'] == 'goal'
         assert mark['on_target'] is True

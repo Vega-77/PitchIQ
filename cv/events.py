@@ -65,8 +65,7 @@ DUEL = 'duel'
 # Every type an event can carry, whoever put it there. `coach/review.js` offers
 # exactly this list to a reviewer as the set of things an event can be retyped
 # into, so the two have to stay the same list.
-EVENT_TYPES = (PASS, CARRY, SHOT, TACKLE, INTERCEPTION, RECOVERY, CLEARANCE,
-               DUEL)
+EVENT_TYPES = (PASS, CARRY, SHOT, TACKLE, INTERCEPTION, RECOVERY, CLEARANCE, DUEL)
 
 # The types on that list the pipeline itself never produces.
 #
@@ -279,7 +278,8 @@ class Carry(EventBase):
 
     def to_json(self) -> dict:
         return super().to_json() | {
-            'touches': self.touches, 'distance_m': self.distance_m,
+            'touches': self.touches,
+            'distance_m': self.distance_m,
         }
 
 
@@ -331,7 +331,8 @@ class DefensiveAction(EventBase):
 
     def to_json(self) -> dict:
         return super().to_json() | {
-            'won': self.won, 'opponent_track_id': self.opponent_track_id,
+            'won': self.won,
+            'opponent_track_id': self.opponent_track_id,
         }
 
 
@@ -409,9 +410,7 @@ def _bucket(length_m: float | None) -> str | None:
     return 'medium' if length_m < LONG_PASS_M else 'long'
 
 
-def _direction(
-    pitch: Pitch, start_m, end_m, attacking_end: str | None
-) -> str | None:
+def _direction(pitch: Pitch, start_m, end_m, attacking_end: str | None) -> str | None:
     """Forward, sideways or backward — or None, which is not the same as square.
 
     None means we could not tell, and there is no pixel-space approximation
@@ -465,9 +464,8 @@ def _tags(pitch: Pitch, start_m, end_m, attacking_end: str | None) -> tuple[str,
         tags.append('cross')
     if zones.in_penalty_area(pitch, end_m[0], end_m[1], attacking_end):
         tags.append('into_box')
-    if (
-        zones.in_final_third(pitch, end_m[0], attacking_end)
-        and not zones.in_final_third(pitch, start_m[0], attacking_end)
+    if zones.in_final_third(pitch, end_m[0], attacking_end) and not zones.in_final_third(
+        pitch, start_m[0], attacking_end
     ):
         tags.append('final_third_entry')
     return tuple(tags)
@@ -548,7 +546,11 @@ def derive_events(
 
     def attacking_end(team: str) -> str | None:
         return attacking_end_for(
-            orientation, side_of_team, period, team, calibrated=calibrated,
+            orientation,
+            side_of_team,
+            period,
+            team,
+            calibrated=calibrated,
         )
 
     ordered = sorted(touches, key=lambda t: t.timestamp_s)
@@ -558,8 +560,14 @@ def derive_events(
         following = ordered[index + 1] if index + 1 < len(ordered) else None
 
         shot = _as_shot(
-            current, following, touches, table, pitch,
-            attacking_end(current.team), keeper_tracks, ordered[index + 1:],
+            current,
+            following,
+            touches,
+            table,
+            pitch,
+            attacking_end(current.team),
+            keeper_tracks,
+            ordered[index + 1 :],
         )
         if shot is not None:
             log.events.append(shot)
@@ -569,18 +577,30 @@ def derive_events(
             continue
 
         produced = _between(
-            current, following, touches, table, pitch,
-            attacking_end(current.team), index, ordered,
-            min_pass_length_ph, identity, max_pass_speed_ph_s,
+            current,
+            following,
+            touches,
+            table,
+            pitch,
+            attacking_end(current.team),
+            index,
+            ordered,
+            min_pass_length_ph,
+            identity,
+            max_pass_speed_ph_s,
         )
         if any(event.type == PASS for event in produced):
             transfers.append((current, produced))
         else:
             log.events.extend(produced)
 
-    log.events.extend(_one_claim_per_transfer(
-        transfers, same_transfer_s, same_transfer_ph,
-    ))
+    log.events.extend(
+        _one_claim_per_transfer(
+            transfers,
+            same_transfer_s,
+            same_transfer_ph,
+        )
+    )
     log.events.extend(_carries(ordered, table, pitch, identity))
     log.events.sort(key=lambda e: e.timestamp_s)
 
@@ -588,8 +608,7 @@ def derive_events(
     # constructors, all of which would have to remember it.
     if phases is not None:
         log.events = [
-            replace(event, in_play=phases.is_live(event.timestamp_s))
-            for event in log.events
+            replace(event, in_play=phases.is_live(event.timestamp_s)) for event in log.events
         ]
 
     return log
@@ -684,7 +703,7 @@ def _between(
 ) -> list[EventBase]:
     """Classify one adjacent pair of touches."""
     if _same_person(current, following, identity):
-        return []                                   # a carry; handled in bulk
+        return []  # a carry; handled in bulk
 
     events: list[EventBase] = []
     crossed_gap = touches.gap_between(current, following)
@@ -694,10 +713,7 @@ def _between(
         # so the link between these two touches is a guess.
         confidence *= 0.5
 
-    same_team = (
-        current.team == following.team
-        and current.team != UNKNOWN
-    )
+    same_team = current.team == following.team and current.team != UNKNOWN
 
     length_ph = _pixel_distance_ph(current, following)
 
@@ -737,38 +753,57 @@ def _between(
         # ball staying put and a duel by it moving less than one and a half
         # player heights, and the floor stands at one.
         if outcome == INCOMPLETE:
-            return [_defensive_action(
-                current, following, touches, table, pitch, index, ordered,
-                confidence,
-            )]
+            return [
+                _defensive_action(
+                    current,
+                    following,
+                    touches,
+                    table,
+                    pitch,
+                    index,
+                    ordered,
+                    confidence,
+                )
+            ]
         return events
 
-    events.append(Pass(
-        event_id=_event_id(current, PASS),
-        type=PASS,
-        timestamp_s=current.timestamp_s,
-        frame_index=current.frame_index,
-        team=current.team,
-        track_id=current.track_id,
-        start_xy_px=current.ball_xy,
-        end_xy_px=following.ball_xy,
-        start_m=current.ball_m,
-        end_m=following.ball_m,
-        confidence=confidence,
-        tags=_tags(pitch, current.ball_m, following.ball_m, attacking_end),
-        receiver_track_id=following.track_id if outcome == COMPLETED else None,
-        outcome=outcome,
-        length_m=length_m,
-        length_ph=length_ph,
-        length_bucket=_bucket(length_m),
-        direction=_direction(pitch, current.ball_m, following.ball_m, attacking_end),
-        crossed_gap=crossed_gap,
-    ))
+    events.append(
+        Pass(
+            event_id=_event_id(current, PASS),
+            type=PASS,
+            timestamp_s=current.timestamp_s,
+            frame_index=current.frame_index,
+            team=current.team,
+            track_id=current.track_id,
+            start_xy_px=current.ball_xy,
+            end_xy_px=following.ball_xy,
+            start_m=current.ball_m,
+            end_m=following.ball_m,
+            confidence=confidence,
+            tags=_tags(pitch, current.ball_m, following.ball_m, attacking_end),
+            receiver_track_id=following.track_id if outcome == COMPLETED else None,
+            outcome=outcome,
+            length_m=length_m,
+            length_ph=length_ph,
+            length_bucket=_bucket(length_m),
+            direction=_direction(pitch, current.ball_m, following.ball_m, attacking_end),
+            crossed_gap=crossed_gap,
+        )
+    )
 
     if outcome == INCOMPLETE:
-        events.append(_defensive_action(
-            current, following, touches, table, pitch, index, ordered, confidence,
-        ))
+        events.append(
+            _defensive_action(
+                current,
+                following,
+                touches,
+                table,
+                pitch,
+                index,
+                ordered,
+                confidence,
+            )
+        )
 
     return events
 
@@ -865,25 +900,24 @@ def _carries(
         if len(run) < 2:
             return
         first, last = run[0], run[-1]
-        distance = (
-            math.dist(first.ball_m, last.ball_m)
-            if first.ball_m and last.ball_m else None
+        distance = math.dist(first.ball_m, last.ball_m) if first.ball_m and last.ball_m else None
+        carries.append(
+            Carry(
+                event_id=_event_id(first, CARRY),
+                type=CARRY,
+                timestamp_s=first.timestamp_s,
+                frame_index=first.frame_index,
+                team=first.team,
+                track_id=first.track_id,
+                start_xy_px=first.ball_xy,
+                end_xy_px=last.ball_xy,
+                start_m=first.ball_m,
+                end_m=last.ball_m,
+                confidence=min(t.confidence for t in run),
+                touches=len(run),
+                distance_m=distance,
+            )
         )
-        carries.append(Carry(
-            event_id=_event_id(first, CARRY),
-            type=CARRY,
-            timestamp_s=first.timestamp_s,
-            frame_index=first.frame_index,
-            team=first.team,
-            track_id=first.track_id,
-            start_xy_px=first.ball_xy,
-            end_xy_px=last.ball_xy,
-            start_m=first.ball_m,
-            end_m=last.ball_m,
-            confidence=min(t.confidence for t in run),
-            touches=len(run),
-            distance_m=distance,
-        ))
 
     for touch in ordered:
         if run and not _same_person(touch, run[-1], identity):
@@ -929,11 +963,15 @@ def _as_shot(
     # blocked strike travels two metres, and measuring the gap to the blocker
     # would score it as a gentle roll.
     if touch.speed_after_ph_s < SHOT_SPEED_PH_S:
-        return None                    # rolled towards goal, not struck at it
+        return None  # rolled towards goal, not struck at it
 
     pressure = _pressure(table, touch)
     outcome, on_target = _shot_outcome(
-        touch, later, pitch, attacking_end, keeper_tracks,
+        touch,
+        later,
+        pitch,
+        attacking_end,
+        keeper_tracks,
     )
 
     return Shot(
@@ -948,14 +986,17 @@ def _as_shot(
         start_m=touch.ball_m,
         end_m=end_m,
         confidence=touch.confidence,
-        tags=('in_box',) if zones.in_penalty_area(
-            pitch, touch.ball_m[0], touch.ball_m[1], attacking_end) else (),
+        tags=('in_box',)
+        if zones.in_penalty_area(pitch, touch.ball_m[0], touch.ball_m[1], attacking_end)
+        else (),
         outcome=outcome,
         on_target=on_target,
         distance_to_goal_m=zones.distance_to_goal(
-            pitch, touch.ball_m[0], touch.ball_m[1], attacking_end),
+            pitch, touch.ball_m[0], touch.ball_m[1], attacking_end
+        ),
         angle_to_goal_rad=zones.angle_to_goal(
-            pitch, touch.ball_m[0], touch.ball_m[1], attacking_end),
+            pitch, touch.ball_m[0], touch.ball_m[1], attacking_end
+        ),
         under_pressure=pressure > 0,
         pressure_count=pressure,
     )
@@ -1044,7 +1085,9 @@ def turnovers_by_third(
         return None
 
     counts = {
-        zones.DEFENSIVE_THIRD: 0, zones.MIDDLE_THIRD: 0, zones.ATTACKING_THIRD: 0,
+        zones.DEFENSIVE_THIRD: 0,
+        zones.MIDDLE_THIRD: 0,
+        zones.ATTACKING_THIRD: 0,
     }
     for event in log.passes(team):
         if event.outcome != INCOMPLETE or event.start_m is None:
@@ -1102,10 +1145,7 @@ def count_pressing(
         if point is None:
             return False
         # Distance from the opponent's own goal line, along their attack.
-        forward = (
-            point[0] if attacking_end_of_opponent == 'right'
-            else pitch.length_m - point[0]
-        )
+        forward = point[0] if attacking_end_of_opponent == 'right' else pitch.length_m - point[0]
         return forward >= boundary
 
     def in_span(event) -> bool:
@@ -1117,14 +1157,14 @@ def count_pressing(
 
     opponent = _other(pressing_team)
     allowed = sum(
-        1 for p in log.passes(opponent)
-        if p.in_play and in_span(p) and in_zone(p.start_m)
-        and p.outcome != UNKNOWN_OUTCOME
+        1
+        for p in log.passes(opponent)
+        if p.in_play and in_span(p) and in_zone(p.start_m) and p.outcome != UNKNOWN_OUTCOME
     )
     actions = sum(
-        1 for e in log.by_type(TACKLE, INTERCEPTION, RECOVERY, DUEL)
-        if e.in_play and e.team == pressing_team and in_span(e)
-        and in_zone(e.start_m)
+        1
+        for e in log.by_type(TACKLE, INTERCEPTION, RECOVERY, DUEL)
+        if e.in_play and e.team == pressing_team and in_span(e) and in_zone(e.start_m)
     )
     return PressingCount(allowed=allowed, actions=actions)
 
@@ -1155,7 +1195,9 @@ def ppda(
 
 
 def _segment_bounds(
-    start_s: float, end_s: float, segment_s: float,
+    start_s: float,
+    end_s: float,
+    segment_s: float,
 ) -> list[tuple[float, float]]:
     """Tile `[start_s, end_s)` in blocks, with no runt at the end.
 
@@ -1169,10 +1211,7 @@ def _segment_bounds(
         return []
 
     count = max(1, int(span // segment_s))
-    bounds = [
-        (start_s + i * segment_s, start_s + (i + 1) * segment_s)
-        for i in range(count)
-    ]
+    bounds = [(start_s + i * segment_s, start_s + (i + 1) * segment_s) for i in range(count)]
     # Whatever is left over extends the last block. By construction the
     # remainder is under one full segment, so this never doubles a block.
     bounds[-1] = (bounds[-1][0], end_s)
@@ -1214,22 +1253,30 @@ def pressing_segments(
     out = []
     for since, until in bounds:
         counted = count_pressing(
-            log, pitch, pressing_team, attacking_end_of_opponent, since, until,
+            log,
+            pitch,
+            pressing_team,
+            attacking_end_of_opponent,
+            since,
+            until,
         )
         ratio = counted.ppda
-        out.append({
-            'start_s': round(since, 1),
-            'end_s': round(until, 1),
-            'allowed': counted.allowed,
-            'actions': counted.actions,
-            # Withheld on a thin denominator, but the counts stay. A reader who
-            # wants the rough number can divide; what they cannot do is mistake
-            # it for one of the segments that earned its ratio.
-            'ppda': (
-                round(ratio, 2) if ratio is not None
-                and counted.actions >= MIN_PRESSING_ACTIONS else None
-            ),
-        })
+        out.append(
+            {
+                'start_s': round(since, 1),
+                'end_s': round(until, 1),
+                'allowed': counted.allowed,
+                'actions': counted.actions,
+                # Withheld on a thin denominator, but the counts stay. A reader who
+                # wants the rough number can divide; what they cannot do is mistake
+                # it for one of the segments that earned its ratio.
+                'ppda': (
+                    round(ratio, 2)
+                    if ratio is not None and counted.actions >= MIN_PRESSING_ACTIONS
+                    else None
+                ),
+            }
+        )
     return out
 
 

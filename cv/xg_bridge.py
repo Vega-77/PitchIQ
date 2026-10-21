@@ -166,9 +166,7 @@ def load_session(model_path: str | Path | None = None):
     """
     import onnxruntime as ort
 
-    return ort.InferenceSession(
-        str(model_path or MODEL_PATH), providers=['CPUExecutionProvider']
-    )
+    return ort.InferenceSession(str(model_path or MODEL_PATH), providers=['CPUExecutionProvider'])
 
 
 @dataclass
@@ -253,9 +251,7 @@ def build_features(context: ShotContext, pitch: Pitch) -> dict[str, float]:
 def feature_vector(context: ShotContext, pitch: Pitch) -> np.ndarray:
     """The features as a (1, 12) float32 array, in the model's own order."""
     features = build_features(context, pitch)
-    return np.array(
-        [[features[name] for name in FEATURE_ORDER]], dtype=np.float32
-    )
+    return np.array([[features[name] for name in FEATURE_ORDER]], dtype=np.float32)
 
 
 def shot_context_from_tracking(
@@ -374,7 +370,7 @@ def xg_for_shots(
     if session is None:
         try:
             session = load_session()
-        except Exception as error:                       # noqa: BLE001
+        except Exception as error:  # noqa: BLE001
             return {}, [f'expected goals unavailable: {error}']
 
     pitch = calibration.pitch
@@ -383,7 +379,10 @@ def xg_for_shots(
 
     for shot in shots:
         attacking_end = attacking_end_for(
-            orientation, side_of_team, period, shot.team,
+            orientation,
+            side_of_team,
+            period,
+            shot.team,
         )
         if attacking_end is None or shot.start_m is None:
             skipped += 1
@@ -436,7 +435,7 @@ def xg_for_shots(
                 feature_vector(replace(context, is_header=True), pitch),
             )
             xg_by_event[shot.event_id] = (foot, header)
-        except Exception as error:                       # noqa: BLE001
+        except Exception as error:  # noqa: BLE001
             return xg_by_event, [f'expected goals stopped early: {error}']
 
     warnings = []
@@ -472,10 +471,10 @@ def validate_against_noise(
     rng = np.random.default_rng(seed)
 
     spots = [
-        (95.0, 34.0),   # central, close
-        (88.0, 20.0),   # wide right
-        (88.0, 48.0),   # wide left
-        (75.0, 34.0),   # edge of the box
+        (95.0, 34.0),  # central, close
+        (88.0, 20.0),  # wide right
+        (88.0, 48.0),  # wide left
+        (75.0, 34.0),  # edge of the box
         (100.0, 30.0),  # inside, tight angle
     ]
 
@@ -501,10 +500,12 @@ def validate_against_noise(
                     pitch.length_m - 4.0 + rng.normal(0, noise_m),
                     pitch.width_m / 2 + rng.normal(0, noise_m),
                 ),
-                defenders_m=[(
-                    spot[0] + 4 + rng.normal(0, noise_m),
-                    spot[1] + 2 + rng.normal(0, noise_m),
-                )],
+                defenders_m=[
+                    (
+                        spot[0] + 4 + rng.normal(0, noise_m),
+                        spot[1] + 2 + rng.normal(0, noise_m),
+                    )
+                ],
             )
             shifts.append(abs(_predict(session, feature_vector(jittered, pitch)) - base))
 

@@ -15,6 +15,7 @@ gapfill.fill.  Each output frame shows
 
     python render_vid.py <tag> [out.mp4] [scale]     (scale 0.6667 -> 1280x720)
 """
+
 import os
 import sys
 import time
@@ -23,15 +24,15 @@ import numpy as np
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, S2)
-import dfree                                      # noqa: E402
-import dtrack6 as D6                              # noqa: E402
-import gapfill as G                               # noqa: E402
-import wm_cls as C                                # noqa: E402
+import dfree  # noqa: E402
+import dtrack6 as D6  # noqa: E402
+import gapfill as G  # noqa: E402
+import wm_cls as C  # noqa: E402
 
 BASE = dict(e_off=-0.5, c_enter=12.0, c_near=6.0, skip=4.0)
 A = 0.75
 FPS = 30
-HIST = 300                        # graph width in frames (10 s)
+HIST = 300  # graph width in frames (10 s)
 GREEN = (60, 220, 60)
 ORANGE = (0, 165, 255)
 GREY = (170, 170, 170)
@@ -82,7 +83,7 @@ def main():
     W, H = int(1920 * sc), int(1080 * sc)
     vw = cv2.VideoWriter(out, cv2.VideoWriter_fourcc(*'mp4v'), FPS, (W, H))
     assert vw.isOpened(), 'VideoWriter did not open'
-    hist = []                           # (src, conf) per frame
+    hist = []  # (src, conf) per frame
     n = dict(track=0, fill=0, none=0)
     t0 = time.time()
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -100,10 +101,19 @@ def main():
             cv2.circle(img, (cx, cy), 16, (0, 0, 0), 5, cv2.LINE_AA)
             cv2.circle(img, (cx, cy), 16, col, 3, cv2.LINE_AA)
             conf = sig(rec['p'])
-            cv2.putText(img, '%d%%' % round(100 * conf), (cx + 20, cy - 12),
-                        font, 0.55, (0, 0, 0), 4, cv2.LINE_AA)
-            cv2.putText(img, '%d%%' % round(100 * conf), (cx + 20, cy - 12),
-                        font, 0.55, col, 1, cv2.LINE_AA)
+            cv2.putText(
+                img,
+                '%d%%' % round(100 * conf),
+                (cx + 20, cy - 12),
+                font,
+                0.55,
+                (0, 0, 0),
+                4,
+                cv2.LINE_AA,
+            )
+            cv2.putText(
+                img, '%d%%' % round(100 * conf), (cx + 20, cy - 12), font, 0.55, col, 1, cv2.LINE_AA
+            )
             hist.append((src, conf))
         else:
             n['none'] += 1
@@ -116,55 +126,75 @@ def main():
 
         # panel
         px, py, pw, ph = 12, H - 178, HIST + 150, 166
-        roi = img[py:py + ph, px:px + pw]
+        roi = img[py : py + ph, px : px + pw]
         roi[:] = (roi * 0.35).astype(np.uint8)
-        state = {'track': ('BALL  (tracked)', GREEN),
-                 'fill': ('BALL  (motion fill)', ORANGE),
-                 None: ('no ball chosen', GREY)}[src]
+        state = {
+            'track': ('BALL  (tracked)', GREEN),
+            'fill': ('BALL  (motion fill)', ORANGE),
+            None: ('no ball chosen', GREY),
+        }[src]
         tot = sum(n.values())
         found = 100.0 * (n['track'] + n['fill']) / max(1, tot)
-        lines = [('match %s   frame %d' % (clock(ab), ab), (235, 235, 235)),
-                 (state[0] + ('   conf %d%%' % round(100 * conf)
-                              if conf is not None else ''), state[1]),
-                 ('ball found in %.0f%% of frames so far' % found,
-                  (235, 235, 235))]
+        lines = [
+            ('match %s   frame %d' % (clock(ab), ab), (235, 235, 235)),
+            (state[0] + ('   conf %d%%' % round(100 * conf) if conf is not None else ''), state[1]),
+            ('ball found in %.0f%% of frames so far' % found, (235, 235, 235)),
+        ]
         for i, (s, c) in enumerate(lines):
-            cv2.putText(img, s, (px + 10, py + 22 + 22 * i), font, 0.55, c,
-                        1, cv2.LINE_AA)
+            cv2.putText(img, s, (px + 10, py + 22 + 22 * i), font, 0.55, c, 1, cv2.LINE_AA)
         gx, gy, gh = px + 10, py + ph - 12, 70
         cv2.line(img, (gx, gy), (gx + HIST, gy), (120, 120, 120), 1)
-        cv2.line(img, (gx, gy - gh // 2), (gx + HIST, gy - gh // 2),
-                 (80, 80, 80), 1)
+        cv2.line(img, (gx, gy - gh // 2), (gx + HIST, gy - gh // 2), (80, 80, 80), 1)
         for k, (s, c) in enumerate(hist):
             if s is None:
                 continue
             x = gx + HIST - len(hist) + k
-            cv2.line(img, (x, gy), (x, gy - max(1, int(gh * c))),
-                     GREEN if s == 'track' else ORANGE, 1)
-        cv2.putText(img, '100%', (gx + HIST + 6, gy - gh + 4), font, 0.4,
-                    (200, 200, 200), 1, cv2.LINE_AA)
-        cv2.putText(img, '50%', (gx + HIST + 6, gy - gh // 2 + 4), font, 0.4,
-                    (200, 200, 200), 1, cv2.LINE_AA)
-        cv2.putText(img, 'last 10 s', (gx + HIST + 6, gy), font, 0.4,
-                    (200, 200, 200), 1, cv2.LINE_AA)
+            cv2.line(
+                img, (x, gy), (x, gy - max(1, int(gh * c))), GREEN if s == 'track' else ORANGE, 1
+            )
+        cv2.putText(
+            img, '100%', (gx + HIST + 6, gy - gh + 4), font, 0.4, (200, 200, 200), 1, cv2.LINE_AA
+        )
+        cv2.putText(
+            img,
+            '50%',
+            (gx + HIST + 6, gy - gh // 2 + 4),
+            font,
+            0.4,
+            (200, 200, 200),
+            1,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            img, 'last 10 s', (gx + HIST + 6, gy), font, 0.4, (200, 200, 200), 1, cv2.LINE_AA
+        )
         lroi = img[8:84, 8:318]
         lroi[:] = (lroi * 0.35).astype(np.uint8)
-        for i, (s, c) in enumerate([
+        for i, (s, c) in enumerate(
+            [
                 ('tracked: classifier agrees', GREEN),
                 ('motion fill: across a gap', ORANGE),
-                ('best candidate, not chosen', GREY)]):
+                ('best candidate, not chosen', GREY),
+            ]
+        ):
             cv2.circle(img, (26, 26 + 22 * i), 7, c, 2, cv2.LINE_AA)
-            cv2.putText(img, s, (42, 31 + 22 * i), font, 0.5, (235, 235, 235),
-                        1, cv2.LINE_AA)
+            cv2.putText(img, s, (42, 31 + 22 * i), font, 0.5, (235, 235, 235), 1, cv2.LINE_AA)
         vw.write(img)
         if (ab - lo) % 1500 == 0:
-            print('%d/%d  %.0f s' % (ab - lo, hi - lo, time.time() - t0),
-                  flush=True)
+            print('%d/%d  %.0f s' % (ab - lo, hi - lo, time.time() - t0), flush=True)
     vw.release()
     tot = sum(n.values())
-    print('done %s  %d frames  tracked %.1f%%  fill %.1f%%  none %.1f%%  %.0f s'
-          % (out, tot, 100.0 * n['track'] / tot, 100.0 * n['fill'] / tot,
-             100.0 * n['none'] / tot, time.time() - t0))
+    print(
+        'done %s  %d frames  tracked %.1f%%  fill %.1f%%  none %.1f%%  %.0f s'
+        % (
+            out,
+            tot,
+            100.0 * n['track'] / tot,
+            100.0 * n['fill'] / tot,
+            100.0 * n['none'] / tot,
+            time.time() - t0,
+        )
+    )
 
 
 if __name__ == '__main__':

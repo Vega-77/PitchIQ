@@ -34,19 +34,20 @@ Map physics (on a `topdown.TopDown`, positions in metres)
   * `crowding`: frames with more than eleven of a team on the pitch.
   * `still_outside`: players who stand outside the lines.
 """
+
 from __future__ import annotations
 
 import numpy as np
 
-RUN_MS = 10.0          # faster than any player sprints, m/s
-JUMP_M = 1.0           # one frame at 30 fps: 30 m/s
-MARGIN_SB = 3.0        # StatsBomb units of slack around the lines for feet
-OUT_M = 2.0            # this far beyond a line is outside it
-STILL_MS = 0.5         # slower than this is standing
-PAINT_TOL_M = 1.5      # paint this close to a model line is on it
-FAR_NEAR_OK = (0.85, 1.15)   # far/near person height of a right calibration (validated 0.94-1.02)
-HEIGHT_OK = (1.55, 1.95)     # median person height, m (validated 1.72-1.79)
-MIN_PEOPLE = 30              # fewer and far_near is noise
+RUN_MS = 10.0  # faster than any player sprints, m/s
+JUMP_M = 1.0  # one frame at 30 fps: 30 m/s
+MARGIN_SB = 3.0  # StatsBomb units of slack around the lines for feet
+OUT_M = 2.0  # this far beyond a line is outside it
+STILL_MS = 0.5  # slower than this is standing
+PAINT_TOL_M = 1.5  # paint this close to a model line is on it
+FAR_NEAR_OK = (0.85, 1.15)  # far/near person height of a right calibration (validated 0.94-1.02)
+HEIGHT_OK = (1.55, 1.95)  # median person height, m (validated 1.72-1.79)
+MIN_PEOPLE = 30  # fewer and far_near is noise
 
 
 def feet_on_pitch(Hsb: np.ndarray, feet_px: list, margin: float = MARGIN_SB) -> dict:
@@ -59,10 +60,17 @@ def feet_on_pitch(Hsb: np.ndarray, feet_px: list, margin: float = MARGIN_SB) -> 
         if not len(p):
             continue
         q = np.c_[p, np.ones(len(p))] @ np.asarray(H, float).T
-        front = np.sign(q[:, 2]) == np.sign(np.median(q[:, 2]))     # H's overall sign is arbitrary
+        front = np.sign(q[:, 2]) == np.sign(np.median(q[:, 2]))  # H's overall sign is arbitrary
         xy = q[:, :2] / q[:, 2:3]
-        inside = front & (xy[:, 0] > -margin) & (xy[:, 0] < 120 + margin) & (xy[:, 1] > -margin) & (xy[:, 1] < 80 + margin)
-        on += int(inside.sum()); n += len(p)
+        inside = (
+            front
+            & (xy[:, 0] > -margin)
+            & (xy[:, 0] < 120 + margin)
+            & (xy[:, 1] > -margin)
+            & (xy[:, 1] < 80 + margin)
+        )
+        on += int(inside.sum())
+        n += len(p)
     return dict(feet=n, on_pitch=on / n if n else float('nan'))
 
 
@@ -88,7 +96,10 @@ def _line_distance(length: float, width: float, res: float = 0.1, pad: float = 1
         import cv2
 
         from cv.experiments.cal_overlay import _lines
-        g = np.full((int((width + 2 * pad) / res) + 1, int((length + 2 * pad) / res) + 1), 255, np.uint8)
+
+        g = np.full(
+            (int((width + 2 * pad) / res) + 1, int((length + 2 * pad) / res) + 1), 255, np.uint8
+        )
         for l in _lines(length, width):
             m = l * [length / 120.0, width / 80.0]
             cv2.polylines(g, [np.round((m + pad) / res).astype(np.int32)], False, 0, 1)
@@ -96,7 +107,9 @@ def _line_distance(length: float, width: float, res: float = 0.1, pad: float = 1
     return _DIST[key]
 
 
-def paint_on_lines(Hsb: np.ndarray, paint_px: list, length: float, width: float, tol: float = PAINT_TOL_M) -> dict:
+def paint_on_lines(
+    Hsb: np.ndarray, paint_px: list, length: float, width: float, tol: float = PAINT_TOL_M
+) -> dict:
     """The share of painted-line pixels the calibration puts within tol metres of a
     pitch line. Hsb: (n, 3, 3) px -> StatsBomb; paint_px: n arrays of (k, 2)
     full-resolution pixels (autocal.paint_mask's, scaled up). Paint that maps
@@ -111,9 +124,17 @@ def paint_on_lines(Hsb: np.ndarray, paint_px: list, length: float, width: float,
             continue
         m, front = _to_metres(H, p, length, width)
         ij = np.round((m + pad) / res)
-        ok = front & np.isfinite(ij).all(1) & (ij[:, 0] >= 0) & (ij[:, 0] < d.shape[1]) & (ij[:, 1] >= 0) & (ij[:, 1] < d.shape[0])
+        ok = (
+            front
+            & np.isfinite(ij).all(1)
+            & (ij[:, 0] >= 0)
+            & (ij[:, 0] < d.shape[1])
+            & (ij[:, 1] >= 0)
+            & (ij[:, 1] < d.shape[0])
+        )
         ij = ij[ok].astype(int)
-        near += int((d[ij[:, 1], ij[:, 0]] <= tol).sum()); n += len(p)
+        near += int((d[ij[:, 1], ij[:, 0]] <= tol).sum())
+        n += len(p)
     return dict(paint=n, on_lines=near / n if n else float('nan'))
 
 
@@ -142,16 +163,25 @@ def far_near(Hsb: np.ndarray, boxes: list, length: float, width: float) -> dict:
     for H, b in zip(Hsb, boxes):
         b = np.asarray(b, float).reshape(-1, 4)
         if len(b):
-            est.append(person_heights(H, b, length, width)); rows.append(b[:, 3])
+            est.append(person_heights(H, b, length, width))
+            rows.append(b[:, 3])
     if not est:
         return dict(people=0, ratio=float('nan'), median_m=float('nan'))
     e, r = np.concatenate(est), np.concatenate(rows)
     ok = np.isfinite(e) & (e > 0.3) & (e < 6.0)
     e, r = e[ok], r[ok]
     if len(e) < 8:
-        return dict(people=int(len(e)), ratio=float('nan'), median_m=float(np.median(e)) if len(e) else float('nan'))
+        return dict(
+            people=int(len(e)),
+            ratio=float('nan'),
+            median_m=float(np.median(e)) if len(e) else float('nan'),
+        )
     q1, q3 = np.percentile(r, [25, 75])
-    return dict(people=int(len(e)), ratio=float(np.median(e[r <= q1]) / np.median(e[r >= q3])), median_m=float(np.median(e)))
+    return dict(
+        people=int(len(e)),
+        ratio=float(np.median(e[r <= q1]) / np.median(e[r >= q3])),
+        median_m=float(np.median(e)),
+    )
 
 
 def _known(td, min_alpha: float = 0.02) -> np.ndarray:
@@ -169,18 +199,29 @@ def speeds(td, fps: float = 30.0) -> dict:
     step = np.linalg.norm(np.diff(xy, axis=1), axis=2)
     both = k[:, 1:] & k[:, :-1] & np.isfinite(step)
     v = step[both] * fps
-    return dict(steps=int(both.sum()), fast=float((v > RUN_MS).mean()) if len(v) else 0.0,
-                jumps=int((step[both] > JUMP_M).sum()), worst_ms=float(v.max()) if len(v) else 0.0)
+    return dict(
+        steps=int(both.sum()),
+        fast=float((v > RUN_MS).mean()) if len(v) else 0.0,
+        jumps=int((step[both] > JUMP_M).sum()),
+        worst_ms=float(v.max()) if len(v) else 0.0,
+    )
 
 
 def _on_pitch(xy: np.ndarray, length: float, width: float, out: float = OUT_M) -> np.ndarray:
-    return (xy[..., 0] > -out) & (xy[..., 0] < length + out) & (xy[..., 1] > -out) & (xy[..., 1] < width + out)
+    return (
+        (xy[..., 0] > -out)
+        & (xy[..., 0] < length + out)
+        & (xy[..., 1] > -out)
+        & (xy[..., 1] < width + out)
+    )
 
 
-def crowding(td, length: float, width: float, roles=('player', 'keeper'), min_alpha: float = 0.02) -> dict:
+def crowding(
+    td, length: float, width: float, roles=('player', 'keeper'), min_alpha: float = 0.02
+) -> dict:
     """Frames where a team has more than eleven drawn on the pitch, and the most at once.
     min_alpha: the faintest guess counted (inf: seen boxes only)."""
-    if td.dots:                                 # what the map draws, after its own team cap
+    if td.dots:  # what the map draws, after its own team cap
         return _crowding_dots(td, length, width, roles, min_alpha)
     k = _known(td, min_alpha) & _on_pitch(td.path, length, width)
     most = {}
@@ -200,20 +241,36 @@ def _crowding_dots(td, length, width, roles, min_alpha) -> dict:
     count: dict = {}
     for t, dots in enumerate(td.dots):
         for d in dots:
-            if (d.group[1] in roles and (d.seen or d.alpha > min_alpha)
-                    and _on_pitch(np.array([d.x, d.y]), length, width) and d.drawn_team in ('team_a', 'team_b')):
+            if (
+                d.group[1] in roles
+                and (d.seen or d.alpha > min_alpha)
+                and _on_pitch(np.array([d.x, d.y]), length, width)
+                and d.drawn_team in ('team_a', 'team_b')
+            ):
                 count.setdefault(d.drawn_team, np.zeros(len(td.dots), int))[t] += 1
     worst = np.max(list(count.values()), axis=0) if count else np.zeros(len(td.dots), int)
-    return dict(frames=len(td.dots), over11=int((worst > 11).sum()), most={k: int(v.max()) for k, v in count.items()})
+    return dict(
+        frames=len(td.dots),
+        over11=int((worst > 11).sum()),
+        most={k: int(v.max()) for k, v in count.items()},
+    )
 
 
-def still_outside(td, length: float, width: float, fps: float = 30.0, min_s: float = 2.0,
-                  roles=('player', 'keeper')) -> dict:
+def still_outside(
+    td,
+    length: float,
+    width: float,
+    fps: float = 30.0,
+    min_s: float = 2.0,
+    roles=('player', 'keeper'),
+) -> dict:
     """Players seen standing outside the lines for min_s or more at a stretch:
     usually a sub or a coach read as a player, or a calibration off at the edge."""
     seen = td.owner >= 0
     out = seen & ~_on_pitch(td.path, length, width)
-    sp = np.r_['1', np.zeros((len(td.path), 1)), np.linalg.norm(np.diff(td.path, axis=1), axis=2) * fps]
+    sp = np.r_[
+        '1', np.zeros((len(td.path), 1)), np.linalg.norm(np.diff(td.path, axis=1), axis=2) * fps
+    ]
     bad = out & (sp < STILL_MS)
     need = int(round(min_s * fps))
     tracks = []
@@ -230,9 +287,12 @@ def still_outside(td, length: float, width: float, fps: float = 30.0, min_s: flo
 
 
 def map_report(td, length: float, width: float, fps: float = 30.0) -> dict:
-    return dict(speeds=speeds(td, fps), crowding=crowding(td, length, width),
-                crowding_seen=crowding(td, length, width, min_alpha=np.inf),
-                still_outside=still_outside(td, length, width, fps))
+    return dict(
+        speeds=speeds(td, fps),
+        crowding=crowding(td, length, width),
+        crowding_seen=crowding(td, length, width, min_alpha=np.inf),
+        still_outside=still_outside(td, length, width, fps),
+    )
 
 
 def cal_flags(r: dict) -> list[str]:

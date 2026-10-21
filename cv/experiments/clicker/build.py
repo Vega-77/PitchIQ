@@ -12,6 +12,7 @@ Held-out halves (NB H2, Piscataway H1/H2, WH H1) are test-only: never trained on
 
     python build.py [<out root>]        -> <root>/b1..b5/{items.json, media}, <root>/items_all.json
 """
+
 import json
 import os
 import sys
@@ -23,8 +24,17 @@ from PIL import Image
 
 DL = os.path.join(os.path.expanduser('~'), 'Downloads', '')
 # PIQ_DATA: the data folder beside the repo, as cv/experiments/autocal_run.py has it.
-DATA = os.environ.get('PIQ_DATA', os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))), 'PitchIQ-data'))
+DATA = os.environ.get(
+    'PIQ_DATA',
+    os.path.join(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            )
+        ),
+        'PitchIQ-data',
+    ),
+)
 VID = {
     'nb': DL + "North Brunswick vs South Brunswick High School Boys' Varsity Soccer - Tactical.mp4",
     'ww': DL + 'Home v West Windsor South 9-19-2026 - Tactical.mp4',
@@ -38,7 +48,15 @@ HALVES = [
     ('nb1', 'NB H1', 'nb', 3750, 78750, [], False),
     ('ww1', 'WW H1', 'ww', 23400, 100800, [(23400, 24899)], False),
     ('ww2', 'WW H2', 'ww', 120600, 210150, [(120600, 120789), (209500, 210151)], False),
-    ('eb1', 'EB H1', 'eb', 76800, 154350, [(76800, 77430), (78045, 78689), (152600, 154350)], False),
+    (
+        'eb1',
+        'EB H1',
+        'eb',
+        76800,
+        154350,
+        [(76800, 77430), (78045, 78689), (152600, 154350)],
+        False,
+    ),
     ('eb2', 'EB H2', 'eb', 168750, 251100, [], False),
     ('scrimh1', 'Scrimmage H1', 'scrim', 32400, 108000, [], False),
     ('scrimh2', 'Scrimmage H2', 'scrim', 127350, 201150, [], False),
@@ -64,8 +82,18 @@ def plan():
         fr = fr[keep]
         for s, part in enumerate(np.array_split(fr, PER_HALF)):
             f = int(part[rng.integers(len(part))])
-            items.append(dict(id='%s-%02d' % (tag, s), half=tag, title=title, video=vk, f=f, slot=s,
-                              batch=1 + s % BATCHES, held=held))
+            items.append(
+                dict(
+                    id='%s-%02d' % (tag, s),
+                    half=tag,
+                    title=title,
+                    video=vk,
+                    f=f,
+                    slot=s,
+                    batch=1 + s % BATCHES,
+                    held=held,
+                )
+            )
     return items
 
 
@@ -86,11 +114,24 @@ def render(job):
             mid = fr[HALF_LOOP]
             assert mid.shape[:2] == (1080, 1920), mid.shape
             Image.fromarray(mid[..., ::-1]).save(s_p + '.part', 'WEBP', quality=STILL_Q, method=4)
-            ims = [Image.fromarray(cv2.resize(x, (LOOP_W, LOOP_H), interpolation=cv2.INTER_AREA)[..., ::-1])
-                   for x in fr[::3]]
-            ims[0].save(l_p + '.part', 'WEBP', save_all=True, append_images=ims[1:], duration=100, loop=0,
-                        quality=LOOP_Q, method=4)
-            os.replace(s_p + '.part', s_p); os.replace(l_p + '.part', l_p)
+            ims = [
+                Image.fromarray(
+                    cv2.resize(x, (LOOP_W, LOOP_H), interpolation=cv2.INTER_AREA)[..., ::-1]
+                )
+                for x in fr[::3]
+            ]
+            ims[0].save(
+                l_p + '.part',
+                'WEBP',
+                save_all=True,
+                append_images=ims[1:],
+                duration=100,
+                loop=0,
+                quality=LOOP_Q,
+                method=4,
+            )
+            os.replace(s_p + '.part', s_p)
+            os.replace(l_p + '.part', l_p)
         out.append(it['id'])
     return its[0]['half'], len(out)
 
@@ -109,11 +150,33 @@ def main():
     for b in range(1, BATCHES + 1):
         its = [it for it in items if it['batch'] == b]
         its = [its[i] for i in rng.permutation(len(its))]
-        rows = [dict(id=it['id'], half=it['half'], title=it['title'], f=it['f'], still=it['id'] + '_s.webp',
-                     loop=it['id'] + '_l.webp') for it in its]
-        json.dump(dict(batch='b%d' % b, items=rows), open(os.path.join(root, 'b%d' % b, 'items.json'), 'w'), indent=0)
-    json.dump(dict(halves=[dict(tag=h[0], title=h[1], lo=h[3], hi=h[4], excl=h[5], held=h[6]) for h in HALVES],
-                   items=items, seed=SEED), open(os.path.join(root, 'items_all.json'), 'w'), indent=1)
+        rows = [
+            dict(
+                id=it['id'],
+                half=it['half'],
+                title=it['title'],
+                f=it['f'],
+                still=it['id'] + '_s.webp',
+                loop=it['id'] + '_l.webp',
+            )
+            for it in its
+        ]
+        json.dump(
+            dict(batch='b%d' % b, items=rows),
+            open(os.path.join(root, 'b%d' % b, 'items.json'), 'w'),
+            indent=0,
+        )
+    json.dump(
+        dict(
+            halves=[
+                dict(tag=h[0], title=h[1], lo=h[3], hi=h[4], excl=h[5], held=h[6]) for h in HALVES
+            ],
+            items=items,
+            seed=SEED,
+        ),
+        open(os.path.join(root, 'items_all.json'), 'w'),
+        indent=1,
+    )
     sz = sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fs in os.walk(root) for f in fs)
     print('%d items, %.0f MB' % (len(items), sz / 1e6))
 

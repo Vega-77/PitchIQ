@@ -5,6 +5,7 @@ to explain its pixels, and that roll's trimmed px error.
 
 Rows are independent, so they are split over processes; the output is the same
 whatever the count (8 by default)."""
+
 import sys
 from multiprocessing import Pool
 
@@ -20,9 +21,11 @@ def rows(args):
     global _TR
     tag, a0, a1 = args
     if _TR is None:
-        _TR = V.Track(tag); V.ground_all(_TR)
+        _TR = V.Track(tag)
+        V.ground_all(_TR)
     tr = _TR
-    Z = np.load('%s_scan2.npz' % tag); S, C = Z['S'], {c: i for i, c in enumerate(Z['cols'].tolist())}
+    Z = np.load('%s_scan2.npz' % tag)
+    S, C = Z['S'], {c: i for i, c in enumerate(Z['cols'].tolist())}
     out = np.full((a1 - a0, 2), np.nan)
     for r in range(a0, a1):
         if not np.isfinite(S[r, C['d_rms']]):
@@ -31,7 +34,8 @@ def rows(args):
         e, th = R.droll(tr, a, b)
         if th is None:
             continue
-        uv0, v, k = th; Tt = (b - a) / V.FPS
+        uv0, v, k = th
+        Tt = (b - a) / V.FPS
         E = Tt if k == 0 else (1 - np.exp(-k * Tt)) / k
         p = tr.to_sb(np.array([uv0, uv0 + v * E]))
         out[r - a0] = (np.hypot(*(p[1] - p[0])) / Tt, e)

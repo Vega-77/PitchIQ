@@ -49,9 +49,16 @@ from dataclasses import dataclass, field
 OPENS_DEAD = frozenset({'out_of_bounds', 'foul', 'offside', 'card', 'goal'})
 
 # Play restarts.
-CLOSES_DEAD = frozenset({
-    'corner', 'throw_in', 'goal_kick', 'free_kick', 'kickoff_1st', 'kickoff_2nd',
-})
+CLOSES_DEAD = frozenset(
+    {
+        'corner',
+        'throw_in',
+        'goal_kick',
+        'free_kick',
+        'kickoff_1st',
+        'kickoff_2nd',
+    }
+)
 
 # Play is over for the period; anything still open closes here.
 ENDS_PLAY = frozenset({'halftime', 'full_time'})
@@ -151,14 +158,17 @@ class PhaseTable:
         timestamp that meets it. `clock` rather than a bare offset because the
         offset alone stops being right at half-time — see VideoClock.
         """
-        return PhaseTable(spans=[
-            DeadSpan(
-                start_s=clock.to_video(s.start_s),
-                end_s=clock.to_video(s.end_s),
-                opened_by=s.opened_by, closed_by=s.closed_by,
-            )
-            for s in self.spans
-        ])
+        return PhaseTable(
+            spans=[
+                DeadSpan(
+                    start_s=clock.to_video(s.start_s),
+                    end_s=clock.to_video(s.end_s),
+                    opened_by=s.opened_by,
+                    closed_by=s.closed_by,
+                )
+                for s in self.spans
+            ]
+        )
 
     def to_json(self) -> dict:
         return {
@@ -283,14 +293,16 @@ class PeriodTable:
         the interval becomes a gap between the spans instead of being absorbed
         into one of them. `PeriodTable.at` already answers None inside it.
         """
-        return PeriodTable(spans=[
-            PeriodSpan(
-                period=s.period,
-                start_s=clock.to_video(s.start_s),
-                end_s=None if s.end_s is None else clock.to_video_end(s.end_s),
-            )
-            for s in self.spans
-        ])
+        return PeriodTable(
+            spans=[
+                PeriodSpan(
+                    period=s.period,
+                    start_s=clock.to_video(s.start_s),
+                    end_s=None if s.end_s is None else clock.to_video_end(s.end_s),
+                )
+                for s in self.spans
+            ]
+        )
 
     def to_json(self) -> dict:
         return {'spans': [s.to_json() for s in self.spans]}
@@ -349,10 +361,7 @@ class VideoClock:
         `knows_break`; negative there is exactly what makes it meaningless."""
         if self.second_half_video_s is None or self.second_half_clock_s is None:
             return 0.0
-        return (
-            (self.second_half_video_s - self.video_offset_s)
-            - self.second_half_clock_s
-        )
+        return (self.second_half_video_s - self.video_offset_s) - self.second_half_clock_s
 
     def to_video(self, clock_s: float) -> float:
         """Where in the footage the clock read this.
@@ -407,9 +416,7 @@ class VideoClock:
         half in the log to pin it to, leaves the clock in its one-anchor state
         rather than anchoring it to a guess.
         """
-        restart = next(
-            (s.start_s for s in periods.spans if s.period == SECOND_HALF), None
-        )
+        restart = next((s.start_s for s in periods.spans if s.period == SECOND_HALF), None)
         return cls(
             video_offset_s=video_offset_s,
             second_half_video_s=second_half_video_s,
@@ -501,7 +508,7 @@ def phases_from_log(
         cap = DEAD_CAP_S.get(open_by, max_dead_s)
         limit = open_at + cap
         if at > limit:
-            at, by = limit, None          # nothing closed it in time
+            at, by = limit, None  # nothing closed it in time
 
         # Shrunk, never grown. A span shorter than the slop it would give back
         # is dropped entirely: it is inside the tagger's reaction time, so

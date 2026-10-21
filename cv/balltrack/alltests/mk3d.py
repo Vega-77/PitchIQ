@@ -9,6 +9,7 @@ homog so the shipped outputs are never touched.
   --variants  also vflscan 8 (v1), vflchain3 (3, 3k), vstrict (x1), vsmooth on x1 -> sx
 TAPNext bridge frames (src 3) go in as 'fill' unless BRIDGE_TRACK=1.
 """
+
 import glob
 import re
 import io
@@ -18,7 +19,8 @@ import subprocess
 import sys
 import time
 
-HERE = os.path.dirname(os.path.abspath(__file__)); S2 = os.path.dirname(HERE)
+HERE = os.path.dirname(os.path.abspath(__file__))
+S2 = os.path.dirname(HERE)
 HOM = os.path.join(S2, 'homog')
 PY = sys.executable
 
@@ -47,7 +49,7 @@ def setup(ver):
     if os.path.exists(os.path.join(d, 'rv_shim.py')):
         return d
     os.makedirs(d, exist_ok=True)
-    try:                                   # another queue instance may be setting up this copy
+    try:  # another queue instance may be setting up this copy
         os.close(os.open(os.path.join(d, '.setup'), os.O_CREAT | os.O_EXCL | os.O_WRONLY))
     except FileExistsError:
         while not os.path.exists(os.path.join(d, 'rv_shim.py')):
@@ -62,10 +64,20 @@ def setup(ver):
         if b.endswith('.py') or b.endswith('.sh'):
             s = io.open(p, newline='', encoding='utf-8', errors='surrogateescape').read()
             s = s.replace('import render_vid as RV', 'import rv_shim as RV')
-            io.open(os.path.join(d, b), 'w', newline='', encoding='utf-8', errors='surrogateescape').write(s)
-        elif b.endswith('.json') or (b.endswith('_reg.npz')) or (
-                b.endswith(('.npz', '.npy')) and not b.startswith(('_', 'vid', 'wm', 'vfeats'))
-                and not re.search(r'_(ballsb|img|scan|ball3d|smooth|chains|rowspd|flights|fixed)', b)):
+            io.open(
+                os.path.join(d, b), 'w', newline='', encoding='utf-8', errors='surrogateescape'
+            ).write(s)
+        elif (
+            b.endswith('.json')
+            or (b.endswith('_reg.npz'))
+            or (
+                b.endswith(('.npz', '.npy'))
+                and not b.startswith(('_', 'vid', 'wm', 'vfeats'))
+                and not re.search(
+                    r'_(ballsb|img|scan|ball3d|smooth|chains|rowspd|flights|fixed)', b
+                )
+            )
+        ):
             # map inputs only: a window's own chain outputs in homog are the SHIPPED picks' 3D,
             # and copying e.g. <tag>_ball3dd.npz would make chain() think this version is done
             shutil.copy2(p, d)
@@ -78,14 +90,23 @@ def setup(ver):
 def run(d, log, *cmd, env=None):
     t = time.time()
     e = dict(os.environ, **(env or {}))
-    r = subprocess.run([PY, '-W', 'ignore'] + list(cmd), cwd=d, env=e, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    log.write('$ %s  (%.0f s)\n%s\n' % (' '.join(cmd), time.time() - t, r.stdout)); log.flush()
+    r = subprocess.run(
+        [PY, '-W', 'ignore'] + list(cmd),
+        cwd=d,
+        env=e,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    log.write('$ %s  (%.0f s)\n%s\n' % (' '.join(cmd), time.time() - t, r.stdout))
+    log.flush()
     if r.returncode:
         raise SystemExit('FAILED %s in %s:\n%s' % (cmd, d, r.stdout[-2000:]))
 
 
 def chain(ver, tag, variants):
-    d = setup(ver); t0 = time.time()
+    d = setup(ver)
+    t0 = time.time()
     with open(os.path.join(d, 'chain_%s.log' % tag), 'a') as log:
         if not os.path.exists(os.path.join(d, '%s_ball3dd.npz' % tag)):
             run(d, log, 'vballsb.py', tag)
@@ -94,15 +115,31 @@ def chain(ver, tag, variants):
             run(d, log, 'vrowspd.py', tag)
             run(d, log, 'vflchain2.py', tag)
             run(d, log, 'vsmooth.py', tag, env=dict(VS_B3='%s_ball3d2.npz' % tag))
-            run(d, log, '_mk.py', '%s_ball3d2.npz' % tag, '%s_smooth.npz' % tag, '%s_ball3dd.npz' % tag)
-            os.replace(os.path.join(d, '%s_smooth.npz' % tag), os.path.join(d, '%s_smooth2.npz' % tag))
+            run(
+                d,
+                log,
+                '_mk.py',
+                '%s_ball3d2.npz' % tag,
+                '%s_smooth.npz' % tag,
+                '%s_ball3dd.npz' % tag,
+            )
+            os.replace(
+                os.path.join(d, '%s_smooth.npz' % tag), os.path.join(d, '%s_smooth2.npz' % tag)
+            )
         if variants and not os.path.exists(os.path.join(d, '%s_ball3dsx.npz' % tag)):
             run(d, log, 'vflscan.py', tag, '8')
             run(d, log, 'vflchain3.py', tag, '3')
             run(d, log, 'vflchain3.py', tag, '3k', env=dict(V3_ERR='4', V3_FAST_ERR='5'))
             run(d, log, 'vstrict.py', '%s_ball3d3k.npz' % tag, '%s_ball3dx1.npz' % tag, tag)
             run(d, log, 'vsmooth.py', tag, env=dict(VS_B3='%s_ball3dx1.npz' % tag))
-            run(d, log, '_mk.py', '%s_ball3dx1.npz' % tag, '%s_smooth.npz' % tag, '%s_ball3dsx.npz' % tag)
+            run(
+                d,
+                log,
+                '_mk.py',
+                '%s_ball3dx1.npz' % tag,
+                '%s_smooth.npz' % tag,
+                '%s_ball3dsx.npz' % tag,
+            )
     print('%-16s %-5s 3D done  %.0f s' % (ver, tag, time.time() - t0), flush=True)
 
 

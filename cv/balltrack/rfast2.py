@@ -32,6 +32,7 @@ still rfast's code running on rfast's data.
     reg = Registrar(bf, gmatch2.Matcher())     # matcher=None -> plain rfast
     mats, how = reg.transforms(kds, fids, CZERO)
 """
+
 import cv2
 import numpy as np
 
@@ -44,9 +45,9 @@ class Registrar:
     def __init__(self, bf, matcher=None):
         self.bf = bf
         self.M = matcher
-        self._mm = {}       # (src, dst) -> (queryIdx, trainIdx), bf.match order
-        self._pt = {}       # frame id -> (n, 2) float32 keypoint coordinates
-        self._pre = {}      # (src, dst) -> the same, from the batched matcher
+        self._mm = {}  # (src, dst) -> (queryIdx, trainIdx), bf.match order
+        self._pt = {}  # frame id -> (n, 2) float32 keypoint coordinates
+        self._pre = {}  # (src, dst) -> the same, from the batched matcher
         self.hits = 0
         self.misses = 0
         self.batched = 0
@@ -104,16 +105,14 @@ class Registrar:
         """dense.fit_pair, same matrix, without re-matching or re-listing."""
         ka, da = kda
         kb, db = kdb
-        if da is None or db is None \
-                or len(ka) < D.MINMATCH or len(kb) < D.MINMATCH:
+        if da is None or db is None or len(ka) < D.MINMATCH or len(kb) < D.MINMATCH:
             return None
         q, t = self.match(fa, da, fb, db)
         if len(q) < D.MINMATCH:
             return None
         p = self.coords(fa, ka)[q].reshape(-1, 1, 2)
         d = self.coords(fb, kb)[t].reshape(-1, 1, 2)
-        M, inl = cv2.estimateAffinePartial2D(p, d, method=cv2.RANSAC,
-                                             ransacReprojThreshold=3.0)
+        M, inl = cv2.estimateAffinePartial2D(p, d, method=cv2.RANSAC, ransacReprojThreshold=3.0)
         if M is None or inl is None or inl.sum() < D.MININL:
             return None
         return M
@@ -140,7 +139,7 @@ class Registrar:
             if da is None or len(ka) < D.MINMATCH:
                 continue
             fa = fids[k]
-            if (fb, fa) in self._mm:        # the cache has this one
+            if (fb, fa) in self._mm:  # the cache has this one
                 continue
             need.append((fa, da))
         if not need:

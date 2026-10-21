@@ -56,16 +56,13 @@ PAGES = stamp_version.PAGES
 # Empty, and that is the finding — every module the frontend ships is reached.
 STRANDED_BY_DESIGN: dict[str, str] = {}
 
-SPEC = re.compile(
-    r"""(?:from|import)\s*\(?\s*(['"])(\.{1,2}/[^'"]+\.js)(?:\?v=\d+)?\1""")
-ENTRY = re.compile(
-    r"""<script[^>]*\btype=(['"])module\1[^>]*\bsrc=(['"])([^'"]+)\2""", re.I)
+SPEC = re.compile(r"""(?:from|import)\s*\(?\s*(['"])(\.{1,2}/[^'"]+\.js)(?:\?v=\d+)?\1""")
+ENTRY = re.compile(r"""<script[^>]*\btype=(['"])module\1[^>]*\bsrc=(['"])([^'"]+)\2""", re.I)
 # A classic script in the head: `assets/kit-boot.js`, which paints the team's
 # colours before the first frame so a page does not flash navy and then turn
 # maroon. It is not an entry point (it imports nothing and is imported by
 # nothing), but it is loaded, so it is not stranded either.
-CLASSIC = re.compile(
-    r"""<script(?![^>]*\btype=)[^>]*\bsrc=(['"])([^'"]+)\1""", re.I)
+CLASSIC = re.compile(r"""<script(?![^>]*\btype=)[^>]*\bsrc=(['"])([^'"]+)\1""", re.I)
 
 
 def _read(path: Path) -> str:
@@ -86,8 +83,7 @@ def modules() -> dict[Path, str]:
 
 
 def imports_of(path: Path, source: str) -> list[Path]:
-    return [(path.parent / spec).resolve()
-            for _quote, spec in SPEC.findall(source)]
+    return [(path.parent / spec).resolve() for _quote, spec in SPEC.findall(source)]
 
 
 def entry_points() -> dict[Path, list[str]]:
@@ -99,8 +95,7 @@ def entry_points() -> dict[Path, list[str]]:
             src = src.split('?')[0]
             if src.startswith(('http:', 'https:', '//')):
                 continue
-            found.setdefault(
-                (path.parent / src).resolve(), []).append(page)
+            found.setdefault((path.parent / src).resolve(), []).append(page)
     return found
 
 
@@ -136,18 +131,17 @@ class TestNothingIsStranded(unittest.TestCase):
         stranded = sorted(_rel(Path(p)) for p in modules() if p not in found)
         unexplained = [m for m in stranded if m not in STRANDED_BY_DESIGN]
         self.assertEqual(
-            unexplained, [],
+            unexplained,
+            [],
             'a module no page loads and nothing imports — either wire it up, '
-            'delete it, or record why it is waiting in STRANDED_BY_DESIGN')
+            'delete it, or record why it is waiting in STRANDED_BY_DESIGN',
+        )
 
     def test_the_record_has_not_gone_stale(self):
         found = reachable()
         stranded = {_rel(Path(p)) for p in modules() if p not in found}
-        wired = sorted(name for name in STRANDED_BY_DESIGN
-                       if name not in stranded)
-        self.assertEqual(
-            wired, [],
-            'these are loaded now and should come out of the list')
+        wired = sorted(name for name in STRANDED_BY_DESIGN if name not in stranded)
+        self.assertEqual(wired, [], 'these are loaded now and should come out of the list')
 
     def test_every_reason_says_something(self):
         for name, reason in STRANDED_BY_DESIGN.items():
@@ -168,8 +162,7 @@ class TestTheGraphItself(unittest.TestCase):
         # An entry point outside MODULE_DIRS would be loaded by the browser,
         # never stamped, and invisible to this walk all at once.
         source = modules()
-        outside = sorted(_rel(Path(p)) for p in entry_points()
-                         if p not in source)
+        outside = sorted(_rel(Path(p)) for p in entry_points() if p not in source)
         self.assertEqual(outside, [])
 
     def test_the_walk_actually_follows_imports(self):
@@ -214,7 +207,7 @@ class TestNoCycles(unittest.TestCase):
                 if target not in source:
                     continue
                 if state.get(target) == 1:
-                    loop = path[path.index(target):] + [target]
+                    loop = path[path.index(target) :] + [target]
                     found.append(' -> '.join(_rel(p) for p in loop))
                 elif target not in state:
                     walk(target, path + [target])
@@ -240,8 +233,7 @@ class TestNoCycles(unittest.TestCase):
             state[node] = 1
             for target in graph[node]:
                 if state.get(target) == 1:
-                    found.append(' -> '.join(path[path.index(target):]
-                                             + [target]))
+                    found.append(' -> '.join(path[path.index(target) :] + [target]))
                 elif target not in state:
                     walk(target, path + [target])
             state[node] = 2

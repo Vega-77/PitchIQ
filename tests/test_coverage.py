@@ -28,8 +28,12 @@ PITCH = Pitch()
 
 
 def overhead(
-    x_min: float, x_max: float, y_min: float, y_max: float,
-    width_px: int = 1920, height_px: int = 1080,
+    x_min: float,
+    x_max: float,
+    y_min: float,
+    y_max: float,
+    width_px: int = 1920,
+    height_px: int = 1080,
 ) -> Calibration:
     """A camera straight above the pitch, framing exactly that rectangle.
 
@@ -41,16 +45,19 @@ def overhead(
     sx = width_px / (x_max - x_min)
     sy = height_px / (y_max - y_min)
     # pixels -> metres, which is the direction Calibration.H runs in.
-    H = np.array([
-        [1 / sx, 0.0, x_min],
-        [0.0, 1 / sy, y_min],
-        [0.0, 0.0, 1.0],
-    ])
+    H = np.array(
+        [
+            [1 / sx, 0.0, x_min],
+            [0.0, 1 / sy, y_min],
+            [0.0, 0.0, 1.0],
+        ]
+    )
     return Calibration(H, PITCH, image_size=(width_px, height_px))
 
 
-def sideline(height_m: float = 12.0, back_m: float = 20.0,
-             width_px: int = 1920, height_px: int = 1080) -> Calibration:
+def sideline(
+    height_m: float = 12.0, back_m: float = 20.0, width_px: int = 1920, height_px: int = 1080
+) -> Calibration:
     """A real perspective camera on the halfway line, `back_m` behind a touchline.
 
     Built as an actual pinhole projection rather than a fitted homography, so
@@ -70,12 +77,12 @@ def sideline(height_m: float = 12.0, back_m: float = 20.0,
     right = right / np.linalg.norm(right)
     down = np.cross(forward, right)
 
-    R = np.vstack([right, down, forward])          # world -> camera
+    R = np.vstack([right, down, forward])  # world -> camera
     t = -R @ np.array([cx, cy, cz])
 
     K = np.array([[f, 0, width_px / 2], [0, f, height_px / 2], [0, 0, 1.0]])
     # Ground plane z = 0, so the third column of R drops out.
-    P = K @ np.column_stack([R[:, 0], R[:, 1], t])   # metres -> pixels
+    P = K @ np.column_stack([R[:, 0], R[:, 1], t])  # metres -> pixels
     return Calibration(np.linalg.inv(P), PITCH, image_size=(width_px, height_px))
 
 
@@ -139,8 +146,7 @@ class TestPartialPitch:
         # Without this branch the run would report nothing at all.
         cov = pitch_coverage(overhead(0, PITCH.length_m, 4, PITCH.width_m - 4))
         assert not cov.complete
-        assert all(s > 0.75 for s in
-                   (cov.left_third, cov.middle_third, cov.right_third))
+        assert all(s > 0.75 for s in (cov.left_third, cov.middle_third, cov.right_third))
         assert len(coverage_warnings(cov)) == 1
         assert 'framed' in coverage_warnings(cov)[0]
 
@@ -227,10 +233,8 @@ class TestProjection:
         flipped = Calibration(-cam.H, PITCH, image_size=cam.image_size)
         xs, ys = np.array([95.0, 10.0]), np.array([34.0, 34.0])
 
-        straight = _project(np.linalg.inv(cam.H), xs, ys,
-                            _orientation(cam, 1920, 1080))[2]
-        negated = _project(np.linalg.inv(flipped.H), xs, ys,
-                           _orientation(flipped, 1920, 1080))[2]
+        straight = _project(np.linalg.inv(cam.H), xs, ys, _orientation(cam, 1920, 1080))[2]
+        negated = _project(np.linalg.inv(flipped.H), xs, ys, _orientation(flipped, 1920, 1080))[2]
         assert list(straight) == list(negated)
 
 
@@ -264,9 +268,7 @@ class TestShape:
     def test_json_rounds_and_carries_the_verdict(self):
         cov = pitch_coverage(overhead(0, PITCH.length_m, 0, PITCH.width_m))
         data = cov.to_json()
-        assert set(data) == {
-            'visible_share', 'thirds', 'goalmouths', 'complete', 'cell_m'
-        }
+        assert set(data) == {'visible_share', 'thirds', 'goalmouths', 'complete', 'cell_m'}
         assert set(data['thirds']) == {'left', 'middle', 'right'}
         assert data['complete'] is True
 
@@ -279,8 +281,12 @@ class TestShape:
 
     def test_the_goalmouth_threshold_is_the_one_documented(self):
         cov = PitchCoverage(
-            visible_share=0.9, left_third=1.0, middle_third=1.0, right_third=0.7,
-            left_goalmouth=GOALMOUTH_SEEN, right_goalmouth=GOALMOUTH_SEEN - 0.01,
+            visible_share=0.9,
+            left_third=1.0,
+            middle_third=1.0,
+            right_third=0.7,
+            left_goalmouth=GOALMOUTH_SEEN,
+            right_goalmouth=GOALMOUTH_SEEN - 0.01,
             cell_m=1.0,
         )
         assert cov.sees_goal('left')

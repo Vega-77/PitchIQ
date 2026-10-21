@@ -35,12 +35,19 @@ def build_parser() -> argparse.ArgumentParser:
         description=__doc__.splitlines()[0],
     )
     parser.add_argument('--video', required=True, help='path to the clip')
-    parser.add_argument('--calibration', default=None,
-                        help='calibration JSON; without it, metre-based stats are skipped')
-    parser.add_argument('--panned', default=None, metavar='TAG',
-                        help='footage from a camera that follows the play: use the '
-                             'ball tracker run tagged TAG (cv/balltrack/hybrid.sh) '
-                             'for registration and the ball, instead of --calibration')
+    parser.add_argument(
+        '--calibration',
+        default=None,
+        help='calibration JSON; without it, metre-based stats are skipped',
+    )
+    parser.add_argument(
+        '--panned',
+        default=None,
+        metavar='TAG',
+        help='footage from a camera that follows the play: use the '
+        'ball tracker run tagged TAG (cv/balltrack/hybrid.sh) '
+        'for registration and the ball, instead of --calibration',
+    )
     parser.add_argument('--start', type=float, default=0.0, help='seconds into the video')
     parser.add_argument('--end', type=float, default=None, help='seconds into the video')
     parser.add_argument('--conf', type=float, default=0.25, help='player confidence')
@@ -50,19 +57,30 @@ def build_parser() -> argparse.ArgumentParser:
 
     # The speed levers. Both trade accuracy for time; see the analyse_match
     # docstring for what each one measured.
-    parser.add_argument('--tracker', default='botsort.yaml',
-                        choices=['botsort.yaml', 'bytetrack.yaml'],
-                        help='bytetrack is faster and fragments more')
-    parser.add_argument('--stride', type=int, default=1,
-                        help='process every Nth frame; costs ball coverage as '
-                             'well as identity, so raise it only when a run '
-                             'will not otherwise finish')
-    parser.add_argument('--sample-fps', type=float, default=None,
-                        help='analyse at about this many frames a second, '
-                             'working the stride out from the source. The '
-                             'movement figures are flat down to 6; tracking is '
-                             'not, so the reason to use this is a source above '
-                             '30fps, which is doing double work for nothing')
+    parser.add_argument(
+        '--tracker',
+        default='botsort.yaml',
+        choices=['botsort.yaml', 'bytetrack.yaml'],
+        help='bytetrack is faster and fragments more',
+    )
+    parser.add_argument(
+        '--stride',
+        type=int,
+        default=1,
+        help='process every Nth frame; costs ball coverage as '
+        'well as identity, so raise it only when a run '
+        'will not otherwise finish',
+    )
+    parser.add_argument(
+        '--sample-fps',
+        type=float,
+        default=None,
+        help='analyse at about this many frames a second, '
+        'working the stride out from the source. The '
+        'movement figures are flat down to 6; tracking is '
+        'not, so the reason to use this is a source above '
+        '30fps, which is doing double work for nothing',
+    )
     return parser
 
 
@@ -81,9 +99,11 @@ def main(argv: list[str] | None = None) -> int:
     # frame — tens of megabytes for a half, not gigabytes.
     window = (args.end - args.start) if args.end else None
     if window is None or window > 600:
-        print('WARNING: no --end, or a window over ten minutes. Detection runs '
-              'at roughly half realtime, so this will take a while.',
-              file=sys.stderr)
+        print(
+            'WARNING: no --end, or a window over ten minutes. Detection runs '
+            'at roughly half realtime, so this will take a while.',
+            file=sys.stderr,
+        )
 
     report = analyse_match(
         video,
@@ -103,9 +123,11 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print(report.summary())
     print()
-    print(f'  processing        {report.processing_s:.1f}s '
-          f'for {report.duration_s:.0f}s of video '
-          f'({report.processing_s / max(report.duration_s, 1e-9):.1f}x realtime)')
+    print(
+        f'  processing        {report.processing_s:.1f}s '
+        f'for {report.duration_s:.0f}s of video '
+        f'({report.processing_s / max(report.duration_s, 1e-9):.1f}x realtime)'
+    )
     print(f'  kit separation    {report.kit_separation:.1f}')
     print(f'  clear holder      {report.clear_holder_share:.0%} of frames')
 

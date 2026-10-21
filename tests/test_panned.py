@@ -48,7 +48,11 @@ def camera(frames, dxs, ball=None):
         xs, ys, seen = zip(*ball)
         kwargs = dict(ball_x=np.array(xs), ball_y=np.array(ys), ball_observed=np.array(seen))
     return PannedCamera.from_arrays(
-        np.array(frames), np.array([shifted(d) for d in dxs]), REF_TO_SB, PITCH, **kwargs,
+        np.array(frames),
+        np.array([shifted(d) for d in dxs]),
+        REF_TO_SB,
+        PITCH,
+        **kwargs,
     )
 
 
@@ -56,17 +60,27 @@ class TestStabilise:
     def test_a_panned_box_lands_where_the_reference_view_saw_it(self):
         # The camera moved 300 px right, so the same player appears 300 px
         # further left in this frame; holding it still puts him back.
-        table = FrameTable(fps=30.0, frame_width=1920, frame_height=1080, records=[
-            record(10, [[7, 100, 200, 120, 260, 0.9]]),
-        ])
+        table = FrameTable(
+            fps=30.0,
+            frame_width=1920,
+            frame_height=1080,
+            records=[
+                record(10, [[7, 100, 200, 120, 260, 0.9]]),
+            ],
+        )
         camera([10], [300.0]).stabilise(table)
         assert table.records[0].players[0, 1:5].tolist() == pytest.approx([400, 200, 420, 260])
 
     def test_the_feet_measure_to_the_right_metres(self):
         cam = camera([10], [300.0])
-        table = FrameTable(fps=30.0, frame_width=1920, frame_height=1080, records=[
-            record(10, [[7, 100, 200, 120, 260, 0.9]]),
-        ])
+        table = FrameTable(
+            fps=30.0,
+            frame_width=1920,
+            frame_height=1080,
+            records=[
+                record(10, [[7, 100, 200, 120, 260, 0.9]]),
+            ],
+        )
         cam.stabilise(table)
         foot = table.records[0].player_boxes()[0].ground_point
         x_m, y_m = cam.calibration.to_pitch(*foot)
@@ -75,11 +89,16 @@ class TestStabilise:
         assert y_m == pytest.approx(26 * PITCH.width_m / STATSBOMB_WIDTH)
 
     def test_an_unregistered_frame_is_emptied_and_counted(self):
-        table = FrameTable(fps=30.0, frame_width=1920, frame_height=1080, records=[
-            record(10, [[7, 100, 200, 120, 260, 0.9]]),
-            record(11, [[7, 101, 200, 121, 260, 0.9]]),
-            record(12, []),
-        ])
+        table = FrameTable(
+            fps=30.0,
+            frame_width=1920,
+            frame_height=1080,
+            records=[
+                record(10, [[7, 100, 200, 120, 260, 0.9]]),
+                record(11, [[7, 101, 200, 121, 260, 0.9]]),
+                record(12, []),
+            ],
+        )
         dropped = camera([10], [0.0]).stabilise(table)
         assert dropped == 1
         assert len(table.records[1]) == 0
@@ -92,11 +111,21 @@ class TestStabilise:
 
 class TestBall:
     def test_the_tracker_ball_comes_back_in_the_reference_view(self):
-        cam = camera([10, 11, 12], [0.0, 0.0, 0.0],
-                     ball=[(60.0, 40.0, True), (61.0, 40.0, False), (np.nan, np.nan, False)])
-        table = FrameTable(fps=30.0, frame_width=1920, frame_height=1080, records=[
-            record(10, []), record(11, []), record(12, []),
-        ])
+        cam = camera(
+            [10, 11, 12],
+            [0.0, 0.0, 0.0],
+            ball=[(60.0, 40.0, True), (61.0, 40.0, False), (np.nan, np.nan, False)],
+        )
+        table = FrameTable(
+            fps=30.0,
+            frame_width=1920,
+            frame_height=1080,
+            records=[
+                record(10, []),
+                record(11, []),
+                record(12, []),
+            ],
+        )
         ball = cam.trajectory(table)
         assert [p.frame_index for p in ball.points] == [10, 11]
         assert ball.points[0].xy == pytest.approx((600.0, 400.0))
@@ -116,7 +145,9 @@ class TestCalibration:
 
     def test_a_given_error_is_carried(self):
         bad = CalibrationError(mean_m=2.0, max_m=5.0)
-        cam = PannedCamera.from_arrays(np.array([10]), np.array([shifted(0)]), REF_TO_SB, PITCH, error=bad)
+        cam = PannedCamera.from_arrays(
+            np.array([10]), np.array([shifted(0)]), REF_TO_SB, PITCH, error=bad
+        )
         assert not cam.calibration.error().is_usable
 
     def test_it_cannot_be_given_with_a_calibration_file(self, tmp_path):
@@ -195,22 +226,32 @@ def _run(tmp_path_factory, pan):
     P = e2e.PITCH
     # Reference (still clip) pixels -> metres, y flipped as in e2e.px, -> StatsBomb.
     clip_to_m = np.array([[1 / e2e.SCALE, 0, 0], [0, -1 / e2e.SCALE, P.width_m], [0, 0, 1.0]])
-    ref_to_sb = np.diag([STATSBOMB_LENGTH / P.length_m, STATSBOMB_WIDTH / P.width_m, 1.0]) @ clip_to_m
+    ref_to_sb = (
+        np.diag([STATSBOMB_LENGTH / P.length_m, STATSBOMB_WIDTH / P.width_m, 1.0]) @ clip_to_m
+    )
     frames = np.arange(e2e.FRAMES)
-    frame_to_sb = np.array([
-        ref_to_sb @ np.array([[1, 0, pan(n)], [0, 1, 0], [0, 0, 1.0]]) for n in frames
-    ])
+    frame_to_sb = np.array(
+        [ref_to_sb @ np.array([[1, 0, pan(n)], [0, 1, 0], [0, 0, 1.0]]) for n in frames]
+    )
     ball = np.array([e2e.ball_m(n / e2e.FPS) for n in frames])
     cam = PannedCamera.from_arrays(
-        frames, frame_to_sb, ref_to_sb, P,
+        frames,
+        frame_to_sb,
+        ref_to_sb,
+        P,
         ball_x=ball[:, 0] * STATSBOMB_LENGTH / P.length_m,
         ball_y=ball[:, 1] * STATSBOMB_WIDTH / P.width_m,
         ball_observed=np.ones(len(frames), bool),
     )
     return analyse_match(
-        path, device='cpu', panned=cam, detector=PanningDetector(pan),
+        path,
+        device='cpu',
+        panned=cam,
+        detector=PanningDetector(pan),
         tracker_factory=lambda name, device: e2e.SlotTracker(),
-        orientation=e2e.ORIENTATION, period='first_half', side_of_team=e2e.SIDES,
+        orientation=e2e.ORIENTATION,
+        period='first_half',
+        side_of_team=e2e.SIDES,
     )
 
 
@@ -232,6 +273,7 @@ class TestEndToEnd:
     def test_the_pan_is_undone_so_nobody_runs_further(self, still, panned):
         def distances(report):
             return sorted(p.movement.distance_m for p in report.players)
+
         assert distances(panned) == pytest.approx(distances(still), abs=0.5)
 
     def test_the_teams_and_the_shot_survive_the_pan(self, still, panned):

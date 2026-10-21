@@ -57,10 +57,7 @@ def _commands_in_fences(text: str) -> list[str]:
     out = []
     for block in FENCE.findall(text):
         joined = re.sub(r'\\\n\s*', ' ', block)
-        out.extend(
-            line.strip() for line in joined.splitlines()
-            if line.strip().startswith(PREFIX)
-        )
+        out.extend(line.strip() for line in joined.splitlines() if line.strip().startswith(PREFIX))
     return out
 
 
@@ -139,7 +136,8 @@ class TestTheExtractorReadsMarkdownTheWayAPersonDoes(unittest.TestCase):
 
     def found(self):
         return [
-            c for c in _commands_in_fences(SHAPES) + _commands_in_prose(SHAPES)
+            c
+            for c in _commands_in_fences(SHAPES) + _commands_in_prose(SHAPES)
             if not PLACEHOLDER.match(c)
         ]
 
@@ -153,9 +151,7 @@ class TestTheExtractorReadsMarkdownTheWayAPersonDoes(unittest.TestCase):
 
     def test_a_span_wrapped_across_a_line_break_survives(self):
         wrapped = [c for c in self.found() if 'calibrate' in c]
-        self.assertEqual(
-            wrapped, [PREFIX + 'calibrate points.json --frame frame.png']
-        )
+        self.assertEqual(wrapped, [PREFIX + 'calibrate points.json --frame frame.png'])
 
     def test_a_glob_naming_the_whole_set_is_not_read_as_a_command(self):
         # Writing about these commands in the docs should not break the check on
@@ -205,9 +201,7 @@ class TestEveryCommandParses(unittest.TestCase):
             module, args = split(command)
             if not args:
                 continue  # `see \`python -m ...spike_detect\`` is prose, not a command
-            parser = importlib.import_module(
-                f'cv.experiments.{module}'
-            ).build_parser()
+            parser = importlib.import_module(f'cv.experiments.{module}').build_parser()
             with self.subTest(source=source, command=command):
                 try:
                     with contextlib.redirect_stderr(io.StringIO()) as complaint:
@@ -223,8 +217,7 @@ class TestEveryCommandParses(unittest.TestCase):
 class TestEveryCommandHasTheSameShape(unittest.TestCase):
     def modules(self):
         return [
-            (name, importlib.import_module(f'cv.experiments.{name}'))
-            for name in module_names()
+            (name, importlib.import_module(f'cv.experiments.{name}')) for name in module_names()
         ]
 
     def test_each_one_exposes_a_parser_and_an_entry_point(self):

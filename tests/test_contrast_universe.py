@@ -29,6 +29,7 @@ wrong answer before it was found:
 And an eighth, which is why one table in the gate is checked rather than
 believed: **absence is not evidence of hiding.** See the last class here.
 """
+
 import re
 import sys
 from pathlib import Path
@@ -36,11 +37,36 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from test_contrast_floor import (  # noqa: E402
-    BG, CLASS_ATTR, COLOR, GROUND_LITERALS, HAIRLINE, HTML,
-    JS_DIRS, JS_HOSTS, PAGE, PRINTABLE, PRINTS, SHEETS, SIZED, TEXT_FLOOR,
-    VAR, ancestor_ground, blocks, failures, hidden_names, js_hidden,
-    hidden_selectors, parse, ratio, read, roots, scored, strip_comments,
-    theme, values, without_print,
+    BG,
+    CLASS_ATTR,
+    COLOR,
+    GROUND_LITERALS,
+    HAIRLINE,
+    HTML,
+    JS_DIRS,
+    JS_HOSTS,
+    PAGE,
+    PRINTABLE,
+    PRINTS,
+    SHEETS,
+    SIZED,
+    TEXT_FLOOR,
+    VAR,
+    ancestor_ground,
+    blocks,
+    failures,
+    hidden_names,
+    js_hidden,
+    hidden_selectors,
+    parse,
+    ratio,
+    read,
+    roots,
+    scored,
+    strip_comments,
+    theme,
+    values,
+    without_print,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,9 +83,8 @@ def linked():
         for m in LINK.finditer(read(rel)):
             h = HREF.search(m.group(0))
             if h is None or h.group(1).startswith('http'):
-                continue          # the font stylesheet is not ours to score
-            out.add((here / h.group(1)).resolve()
-                    .relative_to(ROOT).as_posix())
+                continue  # the font stylesheet is not ours to score
+            out.add((here / h.group(1)).resolve().relative_to(ROOT).as_posix())
     return out
 
 
@@ -183,8 +208,7 @@ class TestLiteralColoursAreVisible:
         # because the kit is chosen per team and a literal cannot follow it.
         # White on the error toast is the one left: --danger does not change
         # with the team.
-        inks = [(rel, head, v) for kind, rel, head, v in literals()
-                if kind == 'ink']
+        inks = [(rel, head, v) for kind, rel, head, v in literals() if kind == 'ink']
         assert inks == [
             ('assets/app.css', '.toast.error', '#ffffff'),
         ], inks
@@ -195,8 +219,7 @@ class TestLiteralColoursAreVisible:
         # Twenty-odd in the dark theme. Four now: the video letterbox, the
         # page and list rows in plain white, and the scrim behind a sheet on
         # the touchline pad.
-        grounds = sorted((rel, head, v) for kind, rel, head, v in literals()
-                         if kind == 'ground')
+        grounds = sorted((rel, head, v) for kind, rel, head, v in literals() if kind == 'ground')
         assert grounds == [
             ('assets/app.css', '.list-item', '#fff'),
             ('assets/app.css', '.video-frame', '#000'),
@@ -213,8 +236,9 @@ class TestLiteralColoursAreVisible:
         # a red edge on one key -- so it needs no colour of its own.
         css = read('live-tagging/tagging.css')
         assert '#fb923c' not in css
-        rule = [b for s, b in blocks(css)
-                if s.splitlines()[-1].strip() == '.choice.second_yellow'][0]
+        rule = [b for s, b in blocks(css) if s.splitlines()[-1].strip() == '.choice.second_yellow'][
+            0
+        ]
         assert 'var(--card-yellow)' in rule and 'var(--card-red)' in rule
 
 
@@ -266,6 +290,7 @@ class TestAGroundCanComeFromAnAncestor:
             for sel, body in blocks(without_print(read(rel))):
                 out.setdefault(sel.splitlines()[-1].strip(), body)
             return out
+
         coach = rules_of('coach/coach.css')
         assert ancestor_ground(coach, '.on-kit .record-gd.pos') is None
         both = {**rules_of('assets/app.css'), **coach}
@@ -316,8 +341,7 @@ class TestAbsenceIsNotHiding:
         out = set()
         for rel in PRINTABLE:
             for sel, _ in blocks(read(rel)):
-                for c in re.findall(r'\.([a-zA-Z][\w-]*)',
-                                    sel.splitlines()[-1]):
+                for c in re.findall(r'\.([a-zA-Z][\w-]*)', sel.splitlines()[-1]):
                     if c not in present:
                         out.add(c)
         return out
@@ -345,10 +369,11 @@ class TestAbsenceIsNotHiding:
             assert '#' + host in hidden or any(
                 '.' + c in hidden
                 for rel in seen
-                for m in [re.search(r'<\w+[^>]*\bid="%s"[^>]*>' % host,
-                                    read(rel))] if m
+                for m in [re.search(r'<\w+[^>]*\bid="%s"[^>]*>' % host, read(rel))]
+                if m
                 for a in CLASS_ATTR.finditer(m.group(0))
-                for c in a.group(1).split()), host
+                for c in a.group(1).split()
+            ), host
 
     def test_the_host_is_hidden_two_independent_ways(self):
         """Belt and braces, and worth knowing which is which.
@@ -365,20 +390,21 @@ class TestAbsenceIsNotHiding:
         assert '.chips' in listed
         assert '#cv-review-block' in listed
         src = read('coach/index.html')
-        inside = [b for b in roots(src, '#cv-review-block')
-                  if 'id="cv-review-filters"' in b]
+        inside = [b for b in roots(src, '#cv-review-block') if 'id="cv-review-filters"' in b]
         assert len(inside) == 1, inside
 
     def test_the_class_really_is_made_by_a_script(self):
         # If markup contained one, the ancestry derivation would already see
         # it and the table would be unnecessary.
-        src = '\n'.join(read(p.relative_to(ROOT).as_posix())
-                        for d in JS_DIRS
-                        for p in sorted((ROOT / d).glob('*.js')))
+        src = '\n'.join(
+            read(p.relative_to(ROOT).as_posix())
+            for d in JS_DIRS
+            for p in sorted((ROOT / d).glob('*.js'))
+        )
         for cls in JS_HOSTS:
-            assert re.search(r"""className\s*=\s*['"]%s['"]""" % cls, src) \
-                or re.search(r"""classList\.\w+\(\s*['"]%s['"]""" % cls, src), \
-                cls
+            assert re.search(r"""className\s*=\s*['"]%s['"]""" % cls, src) or re.search(
+                r"""classList\.\w+\(\s*['"]%s['"]""" % cls, src
+            ), cls
 
 
 class TestBothScansStillReportSomething:

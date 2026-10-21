@@ -74,7 +74,7 @@ class FakeDetector:
 
     def __init__(self, per_frame):
         self.per_frame = per_frame
-        self.calls: list[int] = []          # frames per call, in call order
+        self.calls: list[int] = []  # frames per call, in call order
         self.seen: list[np.ndarray] = []
 
     def detect_batch_raw(self, images):
@@ -157,7 +157,8 @@ def make_pass(per_frame, **kwargs):
 class TestFrameRecord:
     def record(self, rows):
         return FrameRecord(
-            frame_index=7, timestamp_s=7 / FPS,
+            frame_index=7,
+            timestamp_s=7 / FPS,
             players=np.array(rows, dtype=np.float32).reshape(-1, 6),
         )
 
@@ -191,10 +192,13 @@ class TestFrameRecord:
 class TestFrameTable:
     def table(self, indices, **kwargs):
         return FrameTable(
-            fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             records=[
-                FrameRecord(frame_index=i, timestamp_s=i / FPS,
-                            players=np.empty((0, 6), dtype=np.float32))
+                FrameRecord(
+                    frame_index=i, timestamp_s=i / FPS, players=np.empty((0, 6), dtype=np.float32)
+                )
                 for i in indices
             ],
             **kwargs,
@@ -237,7 +241,7 @@ class TestFrameTable:
         table = self.table(range(4))
         table.records[0].ball_xy = (1.0, 1.0)
         table.records[0].ball_observed = True
-        table.records[1].ball_xy = (2.0, 2.0)      # interpolated
+        table.records[1].ball_xy = (2.0, 2.0)  # interpolated
         assert table.ball_coverage() == 0.5
         assert table.ball_observed_share() == 0.25
 
@@ -249,7 +253,10 @@ class TestSinglePass:
     def test_one_record_per_frame_in_order(self):
         runner, _, _ = make_pass(lambda i: [player_row()])
         table, _, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=batches_of(100, 20, 8),
         )
         assert [r.frame_index for r in table.records] == list(range(100, 120))
@@ -264,7 +271,10 @@ class TestSinglePass:
         """
         runner, _, tracker = make_pass(lambda i: [player_row()])
         runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=batches_of(0, 40, 16),
         )
         assert tracker.frames_seen == 40
@@ -278,7 +288,10 @@ class TestSinglePass:
         """
         runner, _, _ = make_pass(lambda i: [player_row()])
         table, _, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=one_batch(26, 4),
         )
         assert table.records[0].timestamp_s == pytest.approx(26 / FPS)
@@ -286,7 +299,10 @@ class TestSinglePass:
     def test_track_ids_survive_into_the_record(self):
         runner, _, _ = make_pass(lambda i: [player_row(), player_row(x=200)])
         table, _, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=one_batch(0, 3),
         )
         assert table.records[0].track_ids() == [100, 101]
@@ -306,7 +322,10 @@ class TestSinglePass:
             conf=0.25,
         )
         table, _, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=one_batch(0, 1),
         )
         assert len(table.records[0]) == 1
@@ -333,7 +352,10 @@ class TestSinglePass:
             tracker_factory=lambda name, device: recorder,
         )
         runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=one_batch(0, 3),
         )
         assert all(CLASS_BALL not in row for row in seen)
@@ -341,7 +363,10 @@ class TestSinglePass:
     def test_ball_detections_are_collected_as_candidates(self):
         runner, _, _ = make_pass(lambda i: [player_row(), ball_row(conf=0.4)])
         _, _, balls = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=one_batch(10, 3),
         )
         assert sorted(balls) == [10, 11, 12]
@@ -349,10 +374,14 @@ class TestSinglePass:
 
     def test_balls_below_the_ball_threshold_are_dropped(self):
         runner, _, _ = make_pass(
-            lambda i: [ball_row(conf=0.02)], ball_conf=0.08,
+            lambda i: [ball_row(conf=0.02)],
+            ball_conf=0.08,
         )
         _, _, balls = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=one_batch(0, 3),
         )
         assert balls == {}
@@ -366,7 +395,10 @@ class TestSinglePass:
         """
         runner, _, _ = make_pass(lambda i: [player_row()], colour_every=1)
         _, colours, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=one_batch(0, 6),
         )
         assert set(colours) == {100}
@@ -375,10 +407,13 @@ class TestSinglePass:
     def test_colour_sampling_respects_its_cadence(self):
         runner, _, _ = make_pass(lambda i: [player_row()], colour_every=3)
         _, colours, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=one_batch(0, 9),
         )
-        assert len(colours[100]) == 3           # frames 0, 3, 6
+        assert len(colours[100]) == 3  # frames 0, 3, 6
 
     def test_colour_samples_are_capped_per_track(self):
         """A cap, so one long track cannot outvote fifty short ones.
@@ -387,10 +422,15 @@ class TestSinglePass:
         running the whole half would dominate the k-means on its own.
         """
         runner, _, _ = make_pass(
-            lambda i: [player_row()], colour_every=1, max_colour_samples=4,
+            lambda i: [player_row()],
+            colour_every=1,
+            max_colour_samples=4,
         )
         _, colours, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=one_batch(0, 20),
         )
         assert len(colours[100]) == 4
@@ -406,10 +446,14 @@ class TestThumbnails:
 
     def test_a_tracked_figure_comes_out_with_a_picture(self):
         runner, _, _ = make_pass(
-            lambda i: [player_row(h=70.0)], colour_every=1,
+            lambda i: [player_row(h=70.0)],
+            colour_every=1,
         )
         table, _, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=one_batch(0, 4),
         )
         assert set(table.thumb_by_track) == {100}
@@ -419,10 +463,14 @@ class TestThumbnails:
         """A player runs towards the camera and gets more recognisable."""
         heights = {0: 40.0, 1: 55.0, 2: 96.0, 3: 62.0}
         runner, _, _ = make_pass(
-            lambda i: [player_row(h=heights[i])], colour_every=1,
+            lambda i: [player_row(h=heights[i])],
+            colour_every=1,
         )
         table, _, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=one_batch(0, 4),
         )
         held = table.thumb_by_track[100]
@@ -437,10 +485,14 @@ class TestThumbnails:
         """
         runner, _, _ = make_pass(
             # Wider than tall the whole way through — two players in one box.
-            lambda i: [player_row(w=120.0, h=70.0)], colour_every=1,
+            lambda i: [player_row(w=120.0, h=70.0)],
+            colour_every=1,
         )
         table, _, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=one_batch(0, 4),
         )
         assert table.thumb_by_track == {}
@@ -450,10 +502,14 @@ class TestThumbnails:
         pixels. A second one would be a second thing to tune with no evidence
         for either setting."""
         runner, _, _ = make_pass(
-            lambda i: [player_row(h=40.0 + i)], colour_every=4,
+            lambda i: [player_row(h=40.0 + i)],
+            colour_every=4,
         )
         table, _, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
             batches=one_batch(0, 8),
         )
         # Frames 0 and 4 were sampled; 4 is the taller of the two.
@@ -465,8 +521,12 @@ class TestStride:
         """Skipping after inference would save nothing — inference is the cost."""
         runner, detector, _ = make_pass(lambda i: [player_row()])
         table, _, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
-            batches=batches_of(0, 24, 8), stride=3,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
+            batches=batches_of(0, 24, 8),
+            stride=3,
         )
         assert [r.frame_index for r in table.records] == [0, 3, 6, 9, 12, 15, 18, 21]
         assert sum(detector.calls) == 8
@@ -480,16 +540,24 @@ class TestStride:
         """
         runner, _, _ = make_pass(lambda i: [player_row()])
         table, _, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
-            batches=batches_of(26, 12, 8), stride=4,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
+            batches=batches_of(26, 12, 8),
+            stride=4,
         )
         assert [r.frame_index for r in table.records] == [26, 30, 34]
 
     def test_stride_of_one_processes_everything(self):
         runner, _, _ = make_pass(lambda i: [player_row()])
         table, _, _ = runner.run(
-            'fake.mp4', fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
-            batches=batches_of(0, 10, 4), stride=1,
+            'fake.mp4',
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
+            batches=batches_of(0, 10, 4),
+            stride=1,
         )
         assert len(table.records) == 10
 
@@ -505,16 +573,20 @@ class TestAttachTrajectory:
         from cv.ball import BallPoint, BallTrajectory
 
         table = FrameTable(
-            fps=FPS, frame_width=WIDTH, frame_height=HEIGHT,
-            records=[
-                FrameRecord(i, i / FPS, np.empty((0, 6), dtype=np.float32))
-                for i in range(5)
-            ],
+            fps=FPS,
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
+            records=[FrameRecord(i, i / FPS, np.empty((0, 6), dtype=np.float32)) for i in range(5)],
         )
-        attach_trajectory(table, BallTrajectory([
-            BallPoint(1, 1 / FPS, (10.0, 10.0), True, 0.6),
-            BallPoint(2, 2 / FPS, (20.0, 20.0), False),
-        ]))
+        attach_trajectory(
+            table,
+            BallTrajectory(
+                [
+                    BallPoint(1, 1 / FPS, (10.0, 10.0), True, 0.6),
+                    BallPoint(2, 2 / FPS, (20.0, 20.0), False),
+                ]
+            ),
+        )
 
         assert table.records[0].ball_xy is None
         assert table.records[1].ball_xy == (10.0, 10.0)

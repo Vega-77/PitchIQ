@@ -46,13 +46,9 @@ class TestPinsAgree:
         shared = set(main) & set(test)
         assert shared, 'the two files share no packages, which cannot be right'
 
-        mismatched = {
-            name: (main[name], test[name])
-            for name in shared if main[name] != test[name]
-        }
-        assert not mismatched, (
-            'requirements.txt and requirements-test.txt disagree:\n'
-            + '\n'.join(f'  {n}: {a} vs {b}' for n, (a, b) in mismatched.items())
+        mismatched = {name: (main[name], test[name]) for name in shared if main[name] != test[name]}
+        assert not mismatched, 'requirements.txt and requirements-test.txt disagree:\n' + '\n'.join(
+            f'  {n}: {a} vs {b}' for n, (a, b) in mismatched.items()
         )
 
     def test_the_heavy_dependencies_stay_out_of_the_test_install(self):
@@ -105,6 +101,7 @@ class TestPyproject:
     @staticmethod
     def project() -> dict:
         import tomllib
+
         return tomllib.loads((REPO / 'pyproject.toml').read_text(encoding='utf-8'))['project']
 
     @staticmethod
@@ -124,12 +121,16 @@ class TestPyproject:
             pinned.update(self.specs(extra))
         for path in (MAIN, TEST, BALL):
             other = pins(path)
-            clash = {n: (pinned[n], other[n]) for n in set(pinned) & set(other) if pinned[n] != other[n]}
+            clash = {
+                n: (pinned[n], other[n]) for n in set(pinned) & set(other) if pinned[n] != other[n]
+            }
             assert not clash, (path.name, clash)
 
     def test_the_base_and_test_tiers_are_the_test_install(self):
         project = self.project()
-        light = self.specs(project['dependencies']) | self.specs(project['optional-dependencies']['test'])
+        light = self.specs(project['dependencies']) | self.specs(
+            project['optional-dependencies']['test']
+        )
         assert light == pins(TEST)
 
     def test_the_detector_is_an_extra_not_a_dependency(self):
@@ -137,7 +138,8 @@ class TestPyproject:
         base = self.specs(project['dependencies'])
         assert 'torch' not in base and 'ultralytics' not in base
         assert self.specs(project['optional-dependencies']['detect']).keys() == (
-            pins(MAIN).keys() - base.keys())
+            pins(MAIN).keys() - base.keys()
+        )
 
     def test_the_balltrack_extra_is_the_balltrack_file(self):
         extra = self.project()['optional-dependencies']['balltrack']

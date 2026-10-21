@@ -55,6 +55,7 @@ each side.
 
     python gmatch2.py [n_anchors] [warm_s]
 """
+
 import os
 import sys
 import time
@@ -67,12 +68,12 @@ import dense as D
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 DEV = 'cuda' if torch.cuda.is_available() else 'cpu'
-PAD = 30000          # sentinel distance for padded query rows
-CHUNK = 1            # query sets per matmul; see the docstring - 1 wins
+PAD = 30000  # sentinel distance for padded query rows
+CHUNK = 1  # query sets per matmul; see the docstring - 1 wins
 
 _BITS = torch.tensor(
-    np.unpackbits(np.arange(256, dtype=np.uint8)[:, None], axis=1),
-    dtype=torch.float16, device=DEV)
+    np.unpackbits(np.arange(256, dtype=np.uint8)[:, None], axis=1), dtype=torch.float16, device=DEV
+)
 
 
 class Matcher:
@@ -117,7 +118,7 @@ class Matcher:
         bt = b.T.contiguous()
         out = []
         for i in range(0, len(queries), self.chunk):
-            out.extend(self._chunk(queries[i:i + self.chunk], bt, pb, nb))
+            out.extend(self._chunk(queries[i : i + self.chunk], bt, pb, nb))
         self.calls += 1
         self.pairs += len(queries)
         return out
@@ -136,13 +137,11 @@ class Matcher:
             A = torch.cat(parts, 0)
             PA = torch.cat(pops, 0)
         else:
-            A = torch.zeros((K * na, parts[0].shape[1]),
-                            dtype=torch.float16, device=DEV)
-            PA = torch.full((K * na,), float(PAD),
-                            dtype=torch.float16, device=DEV)
+            A = torch.zeros((K * na, parts[0].shape[1]), dtype=torch.float16, device=DEV)
+            PA = torch.full((K * na,), float(PAD), dtype=torch.float16, device=DEV)
             for k, (p, q) in enumerate(zip(parts, pops)):
-                A[k * na:k * na + ns[k]] = p
-                PA[k * na:k * na + ns[k]] = q
+                A[k * na : k * na + ns[k]] = p
+                PA[k * na : k * na + ns[k]] = q
 
         # hamming(i, j) = popcount(a_i) + popcount(b_j) - 2 * a_i . b_j
         dist = (PA[:, None] + pb[None, :] - 2.0 * (A @ bt)).to(torch.int32)
@@ -151,7 +150,7 @@ class Matcher:
             # overwrite outright so the sentinel is exact.
             m = torch.ones((K, na), dtype=torch.bool, device=DEV)
             for k in range(K):
-                m[k, :ns[k]] = False
+                m[k, : ns[k]] = False
             dist = dist.reshape(K, na, nb)
             dist[m] = PAD
         else:
@@ -159,10 +158,10 @@ class Matcher:
 
         jr = torch.arange(nb, device=DEV, dtype=torch.int32)
         ir = torch.arange(na, device=DEV, dtype=torch.int32)
-        ja = torch.argmin(dist * 2048 + jr[None, None, :], dim=2)      # K, na
-        ib = torch.argmin(dist * 2048 + ir[None, :, None], dim=1)      # K, nb
+        ja = torch.argmin(dist * 2048 + jr[None, None, :], dim=2)  # K, na
+        ib = torch.argmin(dist * 2048 + ir[None, :, None], dim=1)  # K, nb
 
-        back = torch.gather(ib, 1, ja)                                 # K, na
+        back = torch.gather(ib, 1, ja)  # K, na
         keep = back == ir[None, :].long()
         # One transfer each, not two per pair.  The per-pair split is the
         # same work either way, but 2 * chunk small copies cost more in
@@ -171,8 +170,8 @@ class Matcher:
         keep_h = keep.cpu().numpy()
         res = []
         for k in range(K):
-            qi = np.nonzero(keep_h[k, :ns[k]])[0].astype(np.int32)
-            res.append((qi, ja_h[k, :ns[k]][qi]))
+            qi = np.nonzero(keep_h[k, : ns[k]])[0].astype(np.int32)
+            res.append((qi, ja_h[k, : ns[k]][qi]))
         return res
 
 
@@ -193,7 +192,7 @@ def main():
     cap = cv2.VideoCapture(D.VIDEO)
     assert cap.isOpened()
     cap.set(cv2.CAP_PROP_POS_FRAMES, D.LO)
-    orb = cv2.ORB_create(2000)   # dense.py:283
+    orb = cv2.ORB_create(2000)  # dense.py:283
     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
     need = nbuf + n_anchor - 1
@@ -206,11 +205,10 @@ def main():
         _, d = orb.detectAndCompute(g, None)
         descs.append(d)
     cap.release()
-    print('  descriptor counts %d..%d' % (min(len(d) for d in descs),
-                                          max(len(d) for d in descs)))
+    print('  descriptor counts %d..%d' % (min(len(d) for d in descs), max(len(d) for d in descs)))
 
     M = Matcher()
-    M.match_many([(0, descs[0])], 1, descs[1])     # burn in the context
+    M.match_many([(0, descs[0])], 1, descs[1])  # burn in the context
     torch.cuda.synchronize()
     M._bits.clear()
     M._pop.clear()
@@ -230,8 +228,12 @@ def main():
         for fa, da in qs:
             mm = bf.match(da, descs[c])
             n = len(mm)
-            cpu.append((np.fromiter((x.queryIdx for x in mm), np.int32, n),
-                        np.fromiter((x.trainIdx for x in mm), np.int32, n)))
+            cpu.append(
+                (
+                    np.fromiter((x.queryIdx for x in mm), np.int32, n),
+                    np.fromiter((x.trainIdx for x in mm), np.int32, n),
+                )
+            )
         t_cpu += time.time() - t
 
         t = time.time()
@@ -241,10 +243,12 @@ def main():
 
         for (cq, ct), (gq, gt) in zip(cpu, gpu):
             npair += 1
-            same_set += int(set(zip(cq.tolist(), ct.tolist()))
-                            == set(zip(gq.tolist(), gt.tolist())))
-            same_order += int(len(cq) == len(gq) and np.array_equal(cq, gq)
-                              and np.array_equal(ct, gt))
+            same_set += int(
+                set(zip(cq.tolist(), ct.tolist())) == set(zip(gq.tolist(), gt.tolist()))
+            )
+            same_order += int(
+                len(cq) == len(gq) and np.array_equal(cq, gq) and np.array_equal(ct, gt)
+            )
         M.evict(a + 1)
 
     print()

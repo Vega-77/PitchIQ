@@ -62,6 +62,7 @@ The four exemptions, each derived rather than declared:
 Paper is scored over the three stylesheets a printable page loads, and no
 others.
 """
+
 import re
 from pathlib import Path
 
@@ -72,15 +73,27 @@ ROOT = Path(__file__).resolve().parents[1]
 # Every sheet the site loads. `landing.css` was missing from this list while
 # both sibling gates carried it, so the front page -- the one page a stranger
 # is guaranteed to see -- was scored by no contrast test at all.
-SHEETS = ['assets/app.css', 'assets/landing.css', 'coach/coach.css',
-          'player/player.css', 'live-tagging/tagging.css',
-          'halftime/halftime.css', 'calibrate/calibrate.css']
+SHEETS = [
+    'assets/app.css',
+    'assets/landing.css',
+    'coach/coach.css',
+    'player/player.css',
+    'live-tagging/tagging.css',
+    'halftime/halftime.css',
+    'calibrate/calibrate.css',
+]
 # Only the coach and player views ever call window.print(). A page nobody
 # prints cannot have a paper defect, and scoring one is how a scanner invents
 # work for somebody.
 PRINTABLE = ['assets/app.css', 'coach/coach.css', 'player/player.css']
-HTML = ['index.html', 'coach/index.html', 'player/index.html',
-        'live-tagging/index.html', 'halftime/index.html', 'calibrate/index.html']
+HTML = [
+    'index.html',
+    'coach/index.html',
+    'player/index.html',
+    'live-tagging/index.html',
+    'halftime/index.html',
+    'calibrate/index.html',
+]
 # The only two pages that call window.print(). A paper question asked of
 # any other page is a question about a medium that page never reaches --
 # and asking it wrongly is not harmless: `.brand` sits inside the hidden
@@ -159,7 +172,7 @@ def blocks(src):
         while depth and j < len(src):
             depth += (src[j] == '{') - (src[j] == '}')
             j += 1
-        sel, body = src[start:o].strip(), src[o + 1:j - 1]
+        sel, body = src[start:o].strip(), src[o + 1 : j - 1]
         if '{' in body:
             out.extend(blocks(body))
         else:
@@ -170,11 +183,11 @@ def blocks(src):
 def theme(printed=False):
     """The token table as the browser would resolve it, screen or paper."""
     app = read('assets/app.css')
-    head = strip_comments(app[app.index(':root {'):app.index('*, *::before')])
+    head = strip_comments(app[app.index(':root {') : app.index('*, *::before')])
     t = {m.group(1): m.group(2).strip() for m in DECL.finditer(head)}
     if printed:
-        pr = app[app.index('@media print {'):]
-        body = strip_comments(pr[pr.index(':root {'):pr.index('@page')])
+        pr = app[app.index('@media print {') :]
+        body = strip_comments(pr[pr.index(':root {') : pr.index('@page')])
         t.update({m.group(1): m.group(2).strip() for m in DECL.finditer(body)})
     return t
 
@@ -188,7 +201,7 @@ def parse(v):
             h = ''.join(c * 2 for c in h)
         if len(h) != 6:
             return None
-        return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)) + (1.0,)
+        return tuple(int(h[i : i + 2], 16) for i in (0, 2, 4)) + (1.0,)
     m = re.match(r'rgba?\(([^)]*)\)$', v)
     if not m:
         return None
@@ -206,8 +219,8 @@ def luminance(c):
     def channel(x):
         x /= 255.0
         return x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4
-    return (0.2126 * channel(c[0]) + 0.7152 * channel(c[1])
-            + 0.0722 * channel(c[2]))
+
+    return 0.2126 * channel(c[0]) + 0.7152 * channel(c[1]) + 0.0722 * channel(c[2])
 
 
 def ratio(a, b):
@@ -216,6 +229,7 @@ def ratio(a, b):
 
 
 # --------------------------------------------------------------- print-hidden
+
 
 def extent(src, i):
     """The index just past the block whose header starts at `i`.
@@ -238,7 +252,7 @@ def extent(src, i):
 def print_block():
     app = strip_comments(read('assets/app.css'))
     i = app.index('@media print {')
-    return app[i:extent(app, i)]
+    return app[i : extent(app, i)]
 
 
 def without_print(src):
@@ -252,7 +266,7 @@ def without_print(src):
     """
     src = strip_comments(src)
     i = src.find('@media print {')
-    return src if i < 0 else src[:i] + src[extent(src, i):]
+    return src if i < 0 else src[:i] + src[extent(src, i) :]
 
 
 def hidden_selectors():
@@ -281,10 +295,9 @@ def roots(src, selector):
     if selector.startswith('#'):
         pat = r'<(\w+)[^>]*\bid="%s"' % re.escape(selector[1:])
     elif re.fullmatch(r'\.[\w-]+', selector):
-        pat = (r'<(\w+)[^>]*\bclass="[^"]*(?<![\w-])%s(?![\w-])'
-               % re.escape(selector[1:]))
+        pat = r'<(\w+)[^>]*\bclass="[^"]*(?<![\w-])%s(?![\w-])' % re.escape(selector[1:])
     else:
-        return []                 # a compound selector; nothing to walk
+        return []  # a compound selector; nothing to walk
     return [subtree(src, m) for m in re.finditer(pat, src)]
 
 
@@ -293,9 +306,9 @@ def subtree(src, m):
     tag = m.group(1)
     opener = re.compile(r'<%s[\s>]' % tag)
     closer = re.compile(r'</%s>' % tag)
-    void = re.match(r"<\w+[^>]*?/?>", src[m.start():])
-    if void and void.group(0).endswith("/>"):
-        return src[m.start():m.start() + void.end()]
+    void = re.match(r'<\w+[^>]*?/?>', src[m.start() :])
+    if void and void.group(0).endswith('/>'):
+        return src[m.start() : m.start() + void.end()]
     depth, j = 0, m.start()
     while j < len(src):
         o, c = opener.search(src, j), closer.search(src, j)
@@ -306,8 +319,8 @@ def subtree(src, m):
         else:
             depth, j = depth - 1, c.end()
             if depth == 0:
-                return src[m.start():j]
-    return src[m.start():]
+                return src[m.start() : j]
+    return src[m.start() :]
 
 
 def hidden_names():
@@ -349,6 +362,7 @@ def hidden_pattern():
 
 
 # ------------------------------------------------------------------- colours
+
 
 def values(text):
     """The colours a declaration names: theme tokens, or a bare literal.
@@ -408,8 +422,7 @@ def js_hidden():
     hidden, out = hidden_names(), set()
     for cls, host in JS_HOSTS.items():
         for rel in PRINTS:
-            m = re.search(r'<\w+[^>]*\bid="%s"[^>]*>' % re.escape(host),
-                          read(rel))
+            m = re.search(r'<\w+[^>]*\bid="%s"[^>]*>' % re.escape(host), read(rel))
             if not m:
                 continue
             names = {'#' + host}
@@ -421,6 +434,7 @@ def js_hidden():
 
 
 # ---------------------------------------------------------------- the scanner
+
 
 def scored(sheets, *, printed, exempt=True):
     """Every (kind, floor, token, ground_or_None, where) this repo can be read
@@ -447,8 +461,7 @@ def scored(sheets, *, printed, exempt=True):
             where = '%s %s' % (rel, head[:44])
             if skip is not None and skip.search(sel):
                 continue
-            grounds = [g for m in BG.finditer(body)
-                       for g in values(m.group(1))]
+            grounds = [g for m in BG.finditer(body) for g in values(m.group(1))]
             ground = grounds[-1] if grounds else ancestor_ground(rules, head)
             is_map = any(sel.strip().startswith(c) for c in CURRENT_COLOR)
 
@@ -461,11 +474,11 @@ def scored(sheets, *, printed, exempt=True):
                 prop, value = m.group(1), m.group(2)
                 for v in values(value):
                     if prop == 'stroke' and v in PAGE:
-                        continue          # halo: a ring in the ground colour
+                        continue  # halo: a ring in the ground colour
                     out.append(('paint', GRAPHIC_FLOOR, v, ground, where))
 
             if not SIZED.search(body) or HAIRLINE.search(body):
-                continue                  # a container, or a 1px rule
+                continue  # a container, or a 1px rule
             # A mark is read against what it is drawn on: the page, unless an
             # ancestor in its own selector paints a ground (the crest on the
             # kit-coloured bar).
@@ -473,7 +486,7 @@ def scored(sheets, *, printed, exempt=True):
             for m in BG.finditer(body):
                 for v in values(m.group(1)):
                     if v in GROUND_TOKENS or v in GROUND_LITERALS:
-                        continue          # a sized container is still a ground
+                        continue  # a sized container is still a ground
                     out.append(('mark', GRAPHIC_FLOOR, v, under, where))
     return t, out
 
@@ -521,10 +534,14 @@ class TestTheHaloIsASeparatorNotAMark:
 
     def test_both_haloed_dots_are_still_stroked_in_the_ground(self):
         app = strip_comments(read('assets/app.css'))
-        found = {sel.strip() for sel, body in blocks(app)
-                 for m in PAINT.finditer(body)
-                 if m.group(1) == 'stroke'
-                 for tok in VAR.findall(m.group(2)) if tok in PAGE}
+        found = {
+            sel.strip()
+            for sel, body in blocks(app)
+            for m in PAINT.finditer(body)
+            if m.group(1) == 'stroke'
+            for tok in VAR.findall(m.group(2))
+            if tok in PAGE
+        }
         assert found == {'.pass-dot', '.form-dot'}, found
 
     def test_the_exemption_changes_a_verdict(self):
@@ -539,10 +556,15 @@ class TestTheHaloIsASeparatorNotAMark:
         # The ring is exempt because the dot beside it is not. If the fill ever
         # stops being a real mark, the whole justification goes with it.
         for sel in ('.pass-dot', '.form-dot'):
-            body = [b for s, b in blocks(strip_comments(read('assets/app.css')))
-                    if s.strip() == sel][0]
-            fills = [tok for m in PAINT.finditer(body) if m.group(1) == 'fill'
-                     for tok in VAR.findall(m.group(2))]
+            body = [
+                b for s, b in blocks(strip_comments(read('assets/app.css'))) if s.strip() == sel
+            ][0]
+            fills = [
+                tok
+                for m in PAINT.finditer(body)
+                if m.group(1) == 'fill'
+                for tok in VAR.findall(m.group(2))
+            ]
             assert fills == ['--accent'], (sel, fills)
 
 
@@ -563,9 +585,11 @@ class TestAHairlineIsARuleNotADatum:
         # There were four while the landing page had an eyebrow over its
         # headline with a 22px dash in front of it. The eyebrow went with the
         # School Colours redesign (2026-10-07).
-        assert self.hairlines() == {'.record-sep': '--line-hi',
-                                    '.tally-sep': '--line-hi',
-                                    '.tick-half': '--mark-quiet'}
+        assert self.hairlines() == {
+            '.record-sep': '--line-hi',
+            '.tally-sep': '--line-hi',
+            '.tick-half': '--mark-quiet',
+        }
 
     def test_only_two_of_them_need_the_exemption(self):
         # `.tick-half` is the half-time divider on the timeline, and it clears
@@ -573,9 +597,11 @@ class TestAHairlineIsARuleNotADatum:
         # answer; naming it as load-bearing when it is not is how a waiver
         # grows quietly until something real falls through it.
         t = theme(False)
-        needed = {sel for sel, tok in self.hairlines().items()
-                  if min(ratio(parse(t[tok]), parse(t[p])) for p in PAGE)
-                  < GRAPHIC_FLOOR}
+        needed = {
+            sel
+            for sel, tok in self.hairlines().items()
+            if min(ratio(parse(t[tok]), parse(t[p])) for p in PAGE) < GRAPHIC_FLOOR
+        }
         assert needed == {'.record-sep', '.tally-sep'}, needed
 
     def test_the_exemption_changes_a_verdict(self):
@@ -596,8 +622,10 @@ class TestPaperOnlyScoresWhatReachesPaper:
         # on a page it had never looked at.
         callers = sorted(
             str(f.relative_to(ROOT)).replace('\\', '/').rsplit('/', 1)[0]
-            for d in JS_DIRS for f in (ROOT / d).glob('*.js')
-            if 'window.print()' in f.read_text(encoding='utf-8'))
+            for d in JS_DIRS
+            for f in (ROOT / d).glob('*.js')
+            if 'window.print()' in f.read_text(encoding='utf-8')
+        )
         assert callers == ['coach', 'player'], callers
         assert [h.split('/')[0] for h in PRINTS] == callers
 
@@ -611,10 +639,10 @@ class TestPaperOnlyScoresWhatReachesPaper:
         names = hidden_names()
         # On `#getting-started` and on sixteen blocks that do print.
         assert '.card' not in names
-        assert '.btn' in names          # listed outright by the print theme
-        assert '.steps' in names        # only ever inside the hidden section
+        assert '.btn' in names  # listed outright by the print theme
+        assert '.steps' in names  # only ever inside the hidden section
         assert '.step-note' in names
-        assert '.brand' in names        # only ever inside the hidden topbar
+        assert '.brand' in names  # only ever inside the hidden topbar
 
     def test_the_exemption_selects_the_rules_it_should(self):
         # The derivation's job, checked head-on rather than through whatever
@@ -622,8 +650,7 @@ class TestPaperOnlyScoresWhatReachesPaper:
         # the hidden getting-started section never reaches paper; the accent
         # chips that do print are not covered and must not be.
         pat = hidden_pattern()
-        for sel in ['.brand span', '.steps li::before', '.topbar',
-                    '.step-note']:
+        for sel in ['.brand span', '.steps li::before', '.topbar', '.step-note']:
             assert pat.search(sel), sel
         for sel in ['.job-count', '.staff-initial', '.card', '.card-chip']:
             assert not pat.search(sel), sel
@@ -646,8 +673,10 @@ class TestPaperOnlyScoresWhatReachesPaper:
         # light ground, so paper keeps it, and the pair is far clear.
         screen, paper = theme(False), theme(True)
         assert paper['--accent'] == screen['--accent']
-        r = ratio(parse(paper['--accent']),
-                  over(parse(paper['--accent-dim']), parse(paper['--surface-hi'])))
+        r = ratio(
+            parse(paper['--accent']),
+            over(parse(paper['--accent-dim']), parse(paper['--surface-hi'])),
+        )
         assert round(r, 2) == 11.27, r
 
     def test_the_exemption_is_what_keeps_paper_green(self):
@@ -679,8 +708,7 @@ class TestPaperOnlyScoresWhatReachesPaper:
         """
         assert failures(PRINTABLE, printed=True) == []
         rows = failures(PRINTABLE, printed=True, exempt=False)
-        assert [(r, ink, where.split()[-1]) for r, _, _, ink, _, where
-                in rows] == [], rows
+        assert [(r, ink, where.split()[-1]) for r, _, _, ink, _, where in rows] == [], rows
         # `.toast` and `.btn` are written into the print hide list. `.chip` is
         # not, and cannot be: no printable markup contains one, because a
         # script makes them inside a container the list does hide. That claim
@@ -713,19 +741,21 @@ class TestTheMapsPaintWithCurrentColor:
         # decides on purpose whether it is text or paint.
         app = strip_comments(read('assets/app.css'))
         rules = {sel.strip(): body for sel, body in blocks(app)}
-        shaped = sorted(s for s, b in rules.items()
-                        if COLOR.search(b) and s + '-svg' in rules)
+        shaped = sorted(s for s, b in rules.items() if COLOR.search(b) and s + '-svg' in rules)
         assert shaped == sorted(CURRENT_COLOR), shaped
 
     def test_something_still_paints_in_currentcolor(self):
         # The whole exemption rests on this. If the painters stop using
         # currentColor the three `color:` declarations become dead weight and
         # the maps stop being drawn at all.
-        users = [rel for d in JS_DIRS for p in (ROOT / d).glob('*.js')
-                 for rel in [str(p.relative_to(ROOT)).replace('\\', '/')]
-                 if 'currentColor' in p.read_text(encoding='utf-8')]
-        assert sorted(users) == ['assets/heatmap.js',
-                                 'assets/pitch-backdrop.js'], users
+        users = [
+            rel
+            for d in JS_DIRS
+            for p in (ROOT / d).glob('*.js')
+            for rel in [str(p.relative_to(ROOT)).replace('\\', '/')]
+            if 'currentColor' in p.read_text(encoding='utf-8')
+        ]
+        assert sorted(users) == ['assets/heatmap.js', 'assets/pitch-backdrop.js'], users
 
     def test_the_exemption_changes_a_verdict(self):
         # 4.10 passes 3.0 and fails 4.5. Which floor applies is the whole
@@ -783,8 +813,12 @@ class TestTheScannerCanSeeTheRepo:
         # and the scan must light up. If this passes, the scan found nothing
         # to score and every assertion above is vacuous.
         t, rows = scored(SHEETS, printed=False)
-        under = [r for kind, floor, tok, ground, where in rows
-                 for fg in [parse(t.get(tok))] if fg
-                 for r in [min(ratio(fg, parse(t[p])) for p in PAGE)]
-                 if r < 21.0]
+        under = [
+            r
+            for kind, floor, tok, ground, where in rows
+            for fg in [parse(t.get(tok))]
+            if fg
+            for r in [min(ratio(fg, parse(t[p])) for p in PAGE)]
+            if r < 21.0
+        ]
         assert len(under) > 200, len(under)

@@ -77,7 +77,7 @@ class BallPoint:
     frame_index: int
     timestamp_s: float
     xy: tuple[float, float]
-    observed: bool          # False when filled in across a gap
+    observed: bool  # False when filled in across a gap
     confidence: float = 0.0
 
 
@@ -118,7 +118,7 @@ def candidates_from_detections(
     """Pull ball detections out of per-frame detector output."""
     out: dict[int, list[BallCandidate]] = {}
     for frame_index, detections in detections_by_frame.items():
-        balls = [d for d in detections if getattr(d, "label", None) == "ball"]
+        balls = [d for d in detections if getattr(d, 'label', None) == 'ball']
         if not balls:
             continue
         out[frame_index] = [
@@ -196,16 +196,17 @@ def build_trajectory(
     # is strong enough that a single static source drags the whole path onto it,
     # and there is nothing left downstream to undo that.
     flat = drop_static_candidates(
-        flat, static_radius_px, static_span_s, static_min_hits,
+        flat,
+        static_radius_px,
+        static_span_s,
+        static_min_hits,
     )
 
     if not flat:
         return BallTrajectory()
     if len(flat) == 1:
         c = flat[0]
-        return BallTrajectory([
-            BallPoint(c.frame_index, c.timestamp_s, c.xy, True, c.confidence)
-        ])
+        return BallTrajectory([BallPoint(c.frame_index, c.timestamp_s, c.xy, True, c.confidence)])
 
     max_speed_px = max_speed_frac * frame_width
 
@@ -225,21 +226,19 @@ def build_trajectory(
             other = flat[j]
             dt = cand.timestamp_s - other.timestamp_s
             if dt <= 0:
-                continue                      # same frame: alternatives, not a step
+                continue  # same frame: alternatives, not a step
             if dt > max_gap_s:
-                continue                      # too far apart to link
+                continue  # too far apart to link
             distance = math.dist(cand.xy, other.xy)
             if distance / dt > max_speed_px:
-                continue                      # physically impossible
+                continue  # physically impossible
 
             # Smooth motion costs little; a near-teleport costs nearly the whole
             # reward. Longer gaps are penalised so a continuous chain beats a
             # sparse one covering the same span.
             motion_cost = distance / max(max_speed_px * dt, 1e-6)
             gap_cost = dt * 0.5
-            candidate_score = (
-                score[j] + LINK_REWARD + cand.confidence - motion_cost - gap_cost
-            )
+            candidate_score = score[j] + LINK_REWARD + cand.confidence - motion_cost - gap_cost
 
             if candidate_score > score[i]:
                 score[i] = candidate_score
@@ -262,9 +261,7 @@ def _interpolate(chain: list[BallCandidate], max_gap_s: float) -> BallTrajectory
     points: list[BallPoint] = []
 
     for index, cand in enumerate(chain):
-        points.append(
-            BallPoint(cand.frame_index, cand.timestamp_s, cand.xy, True, cand.confidence)
-        )
+        points.append(BallPoint(cand.frame_index, cand.timestamp_s, cand.xy, True, cand.confidence))
 
         if index + 1 >= len(chain):
             break
@@ -306,7 +303,7 @@ def nearest_player(
     possession long before it supports per-player touch counts.
     """
     best_id: int | None = None
-    best_distance = float("inf")
+    best_distance = float('inf')
 
     for track_id, (x1, _, x2, y2) in player_boxes:
         ground = ((x1 + x2) / 2, y2)

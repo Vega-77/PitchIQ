@@ -36,6 +36,7 @@ Scope, stated plainly so the next reader does not over-trust the number:
 * The body is taken from the **source**, not from `blank()`'s output, so two
   functions whose bodies differ only inside a string literal stay distinct.
 """
+
 import re
 from collections import defaultdict
 
@@ -97,10 +98,10 @@ def bodies_in(src):
     found = []
     for m in DECL.finditer(blanked):
         rparen = close(blanked, m.end() - 1, '(', ')')
-        params = blanked[m.end() - 1:rparen + 1]
+        params = blanked[m.end() - 1 : rparen + 1]
         lbrace = blanked.index('{', rparen)
         rbrace = close(blanked, lbrace, '{', '}')
-        body = re.sub(r'\s+', ' ', src[lbrace:rbrace + 1]).strip()
+        body = re.sub(r'\s+', ' ', src[lbrace : rbrace + 1]).strip()
         found.append((m.group(1), body, params))
     return found
 
@@ -136,46 +137,51 @@ SOURCES = sources()
 
 # ------------------------------------------------------------ the finding
 
+
 def test_no_two_functions_share_a_body():
     groups = defaultdict(list)
     for where, fn, body, _ in FUNCTIONS:
         groups[body].append('%s::%s' % (where, fn))
-    repeated = {body: names for body, names in groups.items()
-                if len(names) > 1}
-    lines = ['%s\n      %s' % (' | '.join(sorted(names)), body[:200])
-             for body, names in sorted(repeated.items(),
-                                       key=lambda kv: -len(kv[0]))]
+    repeated = {body: names for body, names in groups.items() if len(names) > 1}
+    lines = [
+        '%s\n      %s' % (' | '.join(sorted(names)), body[:200])
+        for body, names in sorted(repeated.items(), key=lambda kv: -len(kv[0]))
+    ]
     assert not repeated, (
         'these functions have identical bodies -- move the shared one into a '
-        'module both can import:\n  ' + '\n  '.join(lines))
+        'module both can import:\n  ' + '\n  '.join(lines)
+    )
 
 
 # ------------------------------------------- the extractor, held honest
 
+
 def test_no_body_extracts_as_empty():
     """`{}` is the naive extractor's signature failure, not a real body."""
-    empty = ['%s::%s' % (where, fn)
-             for where, fn, body, _ in FUNCTIONS if body == '{}']
+    empty = ['%s::%s' % (where, fn) for where, fn, body, _ in FUNCTIONS if body == '{}']
     assert not empty, (
         'extracted an empty body for %s -- the parameter list was almost '
-        'certainly mistaken for it' % ', '.join(empty))
+        'certainly mistaken for it' % ', '.join(empty)
+    )
 
 
 def test_every_body_is_a_brace_pair():
-    bad = ['%s::%s -> %r' % (where, fn, body[:60])
-           for where, fn, body, _ in FUNCTIONS
-           if not (body.startswith('{') and body.endswith('}'))]
+    bad = [
+        '%s::%s -> %r' % (where, fn, body[:60])
+        for where, fn, body, _ in FUNCTIONS
+        if not (body.startswith('{') and body.endswith('}'))
+    ]
     assert not bad, 'not a brace-delimited body: ' + '; '.join(bad)
 
 
 def test_braced_parameter_lists_are_common():
     """Without these the guard above would pass on a broken extractor too."""
-    braced = [(where, fn) for where, fn, _, params in FUNCTIONS
-              if '{' in params]
+    braced = [(where, fn) for where, fn, _, params in FUNCTIONS if '{' in params]
     assert len(braced) >= MIN_BRACED_PARAMS, (
         'only %d functions declare a brace in the parameter list, under the '
         'floor of %d -- either the tree changed a great deal or the parameter '
-        'list is no longer being read' % (len(braced), MIN_BRACED_PARAMS))
+        'list is no longer being read' % (len(braced), MIN_BRACED_PARAMS)
+    )
 
 
 def test_extractor_steps_over_a_defaulted_parameter():
@@ -196,75 +202,83 @@ def test_extractor_ignores_a_brace_inside_a_string():
 
 def test_bodies_come_from_the_source_not_the_blanked_text():
     """Two functions differing only inside a string are not duplicates."""
-    src = ('function a() {\n    return "one";\n}\n'
-           'function b() {\n    return "two";\n}\n')
+    src = 'function a() {\n    return "one";\n}\nfunction b() {\n    return "two";\n}\n'
     found = bodies_in(src)
     assert found[0][1] != found[1][1], (
         'string contents were blanked out of the body, which would make every '
-        'pair of otherwise-identical functions look like a duplicate')
+        'pair of otherwise-identical functions look like a duplicate'
+    )
 
 
 def test_the_scan_can_still_see_a_duplicate():
     """The gate above passes today; prove it is not passing vacuously."""
-    src = ('function a() {\n    return 1;\n}\n'
-           'function b() {\n    return 1;\n}\n')
+    src = 'function a() {\n    return 1;\n}\nfunction b() {\n    return 1;\n}\n'
     found = bodies_in(src)
     assert found[0][1] == found[1][1] == '{ return 1; }'
 
 
 # --------------------------------------- where the shared copies now live
 
+
 def test_one_place_makes_an_svg_element():
     """`document.createElementNS` exists once, in assets/svg.js."""
-    holders = sorted(rel for rel, src in SOURCES.items()
-                     if 'createElementNS' in blank(src))
+    holders = sorted(rel for rel, src in SOURCES.items() if 'createElementNS' in blank(src))
     assert holders == ['assets/svg.js'], (
-        'the SVG element factory is back in more than one file: %s'
-        % ', '.join(holders))
+        'the SVG element factory is back in more than one file: %s' % ', '.join(holders)
+    )
 
 
 def test_everyone_who_uses_the_factory_imports_it():
-    users = sorted(rel for rel, src in SOURCES.items()
-                   if 'svgEl' in blank(src) and rel != 'assets/svg.js')
-    missing = [rel for rel in users
-               if not re.search(r"import \{[^}]*svgEl[^}]*\} from "
-                                r"'\.\./?assets?/?svg\.js", SOURCES[rel])
-               and not re.search(r"import \{[^}]*svgEl[^}]*\} from "
-                                 r"'\./svg\.js", SOURCES[rel])]
+    users = sorted(
+        rel for rel, src in SOURCES.items() if 'svgEl' in blank(src) and rel != 'assets/svg.js'
+    )
+    missing = [
+        rel
+        for rel in users
+        if not re.search(
+            r'import \{[^}]*svgEl[^}]*\} from '
+            r"'\.\./?assets?/?svg\.js",
+            SOURCES[rel],
+        )
+        and not re.search(
+            r'import \{[^}]*svgEl[^}]*\} from '
+            r"'\./svg\.js",
+            SOURCES[rel],
+        )
+    ]
     assert users, 'nothing imports the SVG factory, which cannot be right'
-    assert not missing, (
-        '%s names svgEl without importing it from assets/svg.js'
-        % ', '.join(missing))
+    assert not missing, '%s names svgEl without importing it from assets/svg.js' % ', '.join(
+        missing
+    )
 
 
 def test_one_place_reads_todays_date():
     """`localDate` had been written twice; `getFullYear` says whether it is."""
-    holders = sorted(rel for rel, src in SOURCES.items()
-                     if 'getFullYear' in blank(src))
+    holders = sorted(rel for rel, src in SOURCES.items() if 'getFullYear' in blank(src))
     assert holders == ['assets/ui.js'], (
-        "today's date is being formatted in more than one file: %s"
-        % ', '.join(holders))
+        "today's date is being formatted in more than one file: %s" % ', '.join(holders)
+    )
 
 
 # ----------------------------------------------------------- anti-vacuum
 
+
 def test_enough_functions_were_scanned():
     assert len(FUNCTIONS) >= MIN_FUNCTIONS, (
         'only %d top-level functions found, under the floor of %d -- the '
-        'declaration pattern has probably stopped matching'
-        % (len(FUNCTIONS), MIN_FUNCTIONS))
+        'declaration pattern has probably stopped matching' % (len(FUNCTIONS), MIN_FUNCTIONS)
+    )
 
 
 def test_enough_files_were_scanned():
     files = {where for where, _, _, _ in FUNCTIONS}
     assert len(files) >= MIN_FILES, (
-        'only %d files contributed a function, under the floor of %d'
-        % (len(files), MIN_FILES))
+        'only %d files contributed a function, under the floor of %d' % (len(files), MIN_FILES)
+    )
 
 
 def test_every_directory_was_reached():
-    thin = {name: PER_DIR.get(name, 0) for name in JS_DIRS
-            if PER_DIR.get(name, 0) < MIN_PER_DIR}
+    thin = {name: PER_DIR.get(name, 0) for name in JS_DIRS if PER_DIR.get(name, 0) < MIN_PER_DIR}
     assert not thin, (
-        'these directories contributed almost nothing, so the scan is not '
-        'reaching them: %s' % thin)
+        'these directories contributed almost nothing, so the scan is not reaching them: %s' % thin
+    )

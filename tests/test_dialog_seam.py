@@ -36,6 +36,7 @@ nobody reached with Tab gets no ring -- so nothing here mentions `outline`.
 The stronger claim this file adds is *where* the target lives: a name that
 resolves to a heading in some other sheet resolves fine and reads wrong.
 """
+
 import re
 
 from test_contrast_floor import ROOT, read, strip_comments
@@ -52,8 +53,7 @@ JS_DIRS = ['assets', 'coach', 'halftime', 'live-tagging', 'player']
 #: The five, in document order. Read off the page everywhere else; written out
 #: once here so that a scan which quietly stops finding overlays fails instead
 #: of passing over an empty list.
-FIVE = ['overlay-event', 'overlay-clock', 'overlay-sub', 'overlay-exit',
-        'overlay-log']
+FIVE = ['overlay-event', 'overlay-clock', 'overlay-sub', 'overlay-exit', 'overlay-log']
 
 OVERLAY_ID = re.compile(r'\bid="(overlay-[a-z-]+)"')
 ANY_ID = re.compile(r'\bid="([^"]+)"')
@@ -97,8 +97,7 @@ def dialogs(rel=PAGE):
     """
     src = page(rel)
     found = spans(src, unit)
-    inner = [(lo, hi, attrs) for (kind, _, attrs), lo, hi in found
-             if kind == 'sheet']
+    inner = [(lo, hi, attrs) for (kind, _, attrs), lo, hi in found if kind == 'sheet']
     out = []
     for (kind, oid, _), lo, hi in found:
         if kind != 'overlay':
@@ -132,8 +131,7 @@ def code(src):
     keep = []
     for line in src.replace('\r\n', '\n').split('\n'):
         bare = line.strip()
-        if bare.startswith('//') or bare.startswith('/*') \
-                or bare.startswith('*'):
+        if bare.startswith('//') or bare.startswith('/*') or bare.startswith('*'):
             continue
         keep.append(line)
     return '\n'.join(keep)
@@ -179,6 +177,7 @@ class TestEverySheetIsADialog:
         # appearing is a thing to look at, not a thing to wave through.
         roles = {}
         from test_contrast_floor import HTML
+
         for rel in HTML:
             found = ROLE.findall(decomment(read(rel)))
             if found:
@@ -208,8 +207,9 @@ class TestTheNameComesFromInsideTheDialog:
         names = {}
         for oid, attrs, lo, hi in dialogs():
             want = re.search(r'\baria-labelledby="([^"]*)"', attrs).group(1)
-            m = re.search(r'<h([1-6])\b[^>]*\bid="%s"[^>]*>(.*?)</h\1>'
-                          % re.escape(want), src[lo:hi], re.S)
+            m = re.search(
+                r'<h([1-6])\b[^>]*\bid="%s"[^>]*>(.*?)</h\1>' % re.escape(want), src[lo:hi], re.S
+            )
             assert m, '%s names %s, which is not a heading' % (oid, want)
             names[oid] = ' '.join(re.sub(r'<[^>]+>', ' ', m.group(2)).split())
         assert names == {
@@ -225,8 +225,7 @@ class TestTheNameComesFromInsideTheDialog:
         said = []
         for _, attrs, lo, hi in dialogs():
             want = re.search(r'\baria-labelledby="([^"]*)"', attrs).group(1)
-            m = re.search(r'>([^<]*)</h', src[lo:hi][src[lo:hi].find(
-                'id="%s"' % want):])
+            m = re.search(r'>([^<]*)</h', src[lo:hi][src[lo:hi].find('id="%s"' % want) :])
             said.append(' '.join(m.group(1).split()))
         assert len(set(said)) == len(said), said
 
@@ -241,8 +240,7 @@ class TestTheNameComesFromInsideTheDialog:
             described[oid] = m.group(1)
             here = set(ANY_ID.findall(page()[lo:hi]))
             assert set(m.group(1).split()) <= here, oid
-        assert described == {'overlay-clock': 'clock-explain',
-                             'overlay-exit': 'exit-explain'}
+        assert described == {'overlay-clock': 'clock-explain', 'overlay-exit': 'exit-explain'}
 
 
 class TestNothingOpensASheetBehindTheSeam:
@@ -253,8 +251,11 @@ class TestNothingOpensASheetBehindTheSeam:
         # door opens sheets through `openSheet`, so a stray
         # `classList.add('open')` in `tagging.js` -- a sheet up with no focus
         # moved, no Escape, no trap -- would leave all thirteen of them green.
-        where = {rel: len(TOUCH.findall(code(src)))
-                 for rel, src in js().items() if TOUCH.search(code(src))}
+        where = {
+            rel: len(TOUCH.findall(code(src)))
+            for rel, src in js().items()
+            if TOUCH.search(code(src))
+        }
         assert where == {IMPL: 2}
 
     def test_every_id_passed_in_is_a_sheet_that_exists(self):
@@ -279,9 +280,13 @@ class TestNothingOpensASheetBehindTheSeam:
     def test_the_one_listener_is_wired_once(self):
         # Twice and Escape closes two sheets on one press; never, and Escape
         # and the Tab trap are both simply absent with nothing to show for it.
-        at = [(rel, line)
-              for rel, src in js().items() if rel != IMPL
-              for line in code(src).split('\n') if 'mountSheets()' in line]
+        at = [
+            (rel, line)
+            for rel, src in js().items()
+            if rel != IMPL
+            for line in code(src).split('\n')
+            if 'mountSheets()' in line
+        ]
         assert len(at) == 1, at
         rel, line = at[0]
         assert rel == 'live-tagging/tagging.js'
@@ -323,9 +328,7 @@ class TestTheScanCouldBeLying:
         assert unit('div', 'class="sheet wide"')[0] == 'sheet'
 
     def test_it_would_notice_a_missing_attribute(self):
-        found = spans(
-            '<div id="overlay-x"><div class="sheet" role="dialog">'
-            '</div></div>', unit)
+        found = spans('<div id="overlay-x"><div class="sheet" role="dialog"></div></div>', unit)
         attrs = [a for (k, _, a), _, _ in found if k == 'sheet'][0]
         assert 'aria-modal="true"' not in attrs
         assert 'tabindex="-1"' not in attrs
@@ -340,7 +343,7 @@ class TestTheScanCouldBeLying:
 
     def test_it_would_see_a_sheet_opened_by_hand(self):
         assert TOUCH.search("byId('overlay-log').classList.add('open');")
-        assert TOUCH.search('el.classList.remove( \'open\' )')
+        assert TOUCH.search("el.classList.remove( 'open' )")
         assert not TOUCH.search("classList.add('opened')")
 
     def test_it_reads_every_script_the_site_ships(self):

@@ -12,6 +12,7 @@ Per stratum:
   off    - a commit is an error; no pick is right.
   hidden - commit rate only; there is no position to be right or wrong about.
 """
+
 import collections
 import glob
 import json
@@ -45,8 +46,7 @@ def main():
     T = truth()
     picks = {}
     for tag in sorted({t['clip'] for t in T}):
-        picks[tag] = json.load(open(os.path.join(
-            S2, '%s%spicks.json' % (tag, suf))))['picks']
+        picks[tag] = json.load(open(os.path.join(S2, '%s%spicks.json' % (tag, suf))))['picks']
 
     R = collections.defaultdict(collections.Counter)
     miss = []
@@ -62,8 +62,7 @@ def main():
                 m = f == t['abs']
                 d = np.hypot(x[m] - t['x'], y[m] - t['y'])
                 c['ceil'] += bool(len(d) and d.min() <= TOL)
-                if p is not None and np.hypot(p['rx'] - t['x'],
-                                              p['ry'] - t['y']) <= TOL:
+                if p is not None and np.hypot(p['rx'] - t['x'], p['ry'] - t['y']) <= TOL:
                     c['raw'] += 1
                 if tx is None:
                     c['none'] += 1
@@ -71,8 +70,7 @@ def main():
                     c['right'] += 1
                 else:
                     c['wrong'] += 1
-                if g == 'ALL' and tx is not None and np.hypot(
-                        tx - t['x'], p['ty'] - t['y']) > TOL:
+                if g == 'ALL' and tx is not None and np.hypot(tx - t['x'], p['ty'] - t['y']) > TOL:
                     miss.append(t['i'])
             elif t['kind'] == 'off':
                 c['offcommit'] += tx is not None
@@ -80,22 +78,48 @@ def main():
                 c['hidcommit'] += tx is not None
 
     print('picks%s  TOL %d px' % (suf or '(base)', TOL))
-    print('%-11s %5s %6s %6s %6s %6s %6s | %4s %8s | %4s %8s' % (
-        'stratum', 'ball', 'right', 'wrong', 'none', 'raw', 'ceil',
-        'off', 'commit', 'hid', 'commit'))
+    print(
+        '%-11s %5s %6s %6s %6s %6s %6s | %4s %8s | %4s %8s'
+        % (
+            'stratum',
+            'ball',
+            'right',
+            'wrong',
+            'none',
+            'raw',
+            'ceil',
+            'off',
+            'commit',
+            'hid',
+            'commit',
+        )
+    )
     for g in ('random', 'continuous', 'edge', 'ALL'):
         c = R[g]
         n = max(c['ball'], 1)
-        print('%-11s %5d %5.0f%% %5.0f%% %5.0f%% %5.0f%% %5.0f%% | %4d %8d |'
-              ' %4d %8d' % (g, c['ball'], 100. * c['right'] / n,
-                            100. * c['wrong'] / n, 100. * c['none'] / n,
-                            100. * c['raw'] / n, 100. * c['ceil'] / n,
-                            c['off'], c['offcommit'], c['hidden'],
-                            c['hidcommit']))
+        print(
+            '%-11s %5d %5.0f%% %5.0f%% %5.0f%% %5.0f%% %5.0f%% | %4d %8d |'
+            ' %4d %8d'
+            % (
+                g,
+                c['ball'],
+                100.0 * c['right'] / n,
+                100.0 * c['wrong'] / n,
+                100.0 * c['none'] / n,
+                100.0 * c['raw'] / n,
+                100.0 * c['ceil'] / n,
+                c['off'],
+                c['offcommit'],
+                c['hidden'],
+                c['hidcommit'],
+            )
+        )
     a = R['ALL']
     ok = a['right'] + a['off'] - a['offcommit']
-    print('\nframe accuracy over ball+off: %d / %d = %.0f%%' % (
-        ok, a['ball'] + a['off'], 100. * ok / (a['ball'] + a['off'])))
+    print(
+        '\nframe accuracy over ball+off: %d / %d = %.0f%%'
+        % (ok, a['ball'] + a['off'], 100.0 * ok / (a['ball'] + a['off']))
+    )
     print('wrong-commit frames:', miss)
 
 

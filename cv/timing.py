@@ -80,9 +80,9 @@ NONLINEAR_NOTICE = 0.02
 
 
 # How a stage's cost grows with the length of the footage.
-LINEAR = 'linear'                # decode, inference, possession, movement
-FIXED = 'fixed'                  # loading a model, reading a calibration
-SUPERLINEAR = 'superlinear'      # merge_tracks: quadratic in tracks
+LINEAR = 'linear'  # decode, inference, possession, movement
+FIXED = 'fixed'  # loading a model, reading a calibration
+SUPERLINEAR = 'superlinear'  # merge_tracks: quadratic in tracks
 
 
 @dataclass
@@ -235,8 +235,7 @@ class Timings:
         if self.total_s <= 0:
             return False
         return any(
-            stage.scaling == SUPERLINEAR
-            and stage.seconds / self.total_s >= NONLINEAR_NOTICE
+            stage.scaling == SUPERLINEAR and stage.seconds / self.total_s >= NONLINEAR_NOTICE
             for stage in self.stages
         )
 

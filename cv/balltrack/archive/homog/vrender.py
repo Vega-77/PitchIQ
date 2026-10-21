@@ -3,6 +3,7 @@ and averaged (moving players wash out, paint stays).
 
     python vrender.py [every] [width]   -> vmap.jpg
 """
+
 import os
 import sys
 
@@ -10,9 +11,11 @@ import cv2
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.environ.get('PIQ_REPO', os.path.dirname(os.path.dirname(os.path.dirname(HERE)))))
-from cv import lines as L                          # noqa: E402
-import vfeats                                      # noqa: E402
+sys.path.insert(
+    0, os.environ.get('PIQ_REPO', os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
+)
+from cv import lines as L  # noqa: E402
+import vfeats  # noqa: E402
 
 
 def apply(H, p):
@@ -23,8 +26,7 @@ def apply(H, p):
 def canvas(z, width):
     """Scale+shift T (map plane -> canvas px) covering the field footprints."""
     corners = np.float32([[0, 330], [1919, 330], [1919, 1079], [0, 1079]])
-    pts = np.concatenate([apply(H, corners) for H, ok in zip(z['H'], z['ok'])
-                          if ok])
+    pts = np.concatenate([apply(H, corners) for H, ok in zip(z['H'], z['ok']) if ok])
     lo, hi = np.percentile(pts, 1, 0), np.percentile(pts, 99, 0)
     s = width / (hi[0] - lo[0])
     T = np.array([[s, 0, -lo[0] * s], [0, s, -lo[1] * s], [0, 0, 1]])

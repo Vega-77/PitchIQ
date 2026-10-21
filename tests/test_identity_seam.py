@@ -77,6 +77,7 @@ live and this file says nothing. Guards against the second kind are worth
 keeping inert, and are deliberately left untested so that nobody has to
 manufacture a fake reader in a comment to keep a test alive.
 """
+
 import re
 from pathlib import Path
 
@@ -91,19 +92,46 @@ SERVED = ['assets', 'coach', 'player', 'halftime', 'live-tagging']
 SKIP = {'sample-report.js'}
 
 BUILTIN = {
-    'length', 'map', 'filter', 'forEach', 'flatMap', 'find', 'findIndex',
-    'some', 'every', 'sort', 'reduce', 'slice', 'push', 'join', 'includes',
-    'concat', 'indexOf', 'reverse', 'keys', 'values', 'entries',
+    'length',
+    'map',
+    'filter',
+    'forEach',
+    'flatMap',
+    'find',
+    'findIndex',
+    'some',
+    'every',
+    'sort',
+    'reduce',
+    'slice',
+    'push',
+    'join',
+    'includes',
+    'concat',
+    'indexOf',
+    'reverse',
+    'keys',
+    'values',
+    'entries',
 }
-ITERATORS = ('map', 'filter', 'forEach', 'flatMap', 'find', 'findIndex',
-             'some', 'every', 'sort', 'reduce')
+ITERATORS = (
+    'map',
+    'filter',
+    'forEach',
+    'flatMap',
+    'find',
+    'findIndex',
+    'some',
+    'every',
+    'sort',
+    'reduce',
+)
 
 FUNC = re.compile(r'^(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(', re.M)
 DECL = re.compile(r'\b(?:const|let|var)\s+(\w+)\s*=\s*([^;\n]*)')
 DESTRUCT = re.compile(r'\b(?:const|let|var)\s*\{([^}]*)\}\s*=\s*([^;\n]*)')
 FOR_OF = re.compile(r'\bfor\s*\(\s*(?:const|let|var)\s+(\w+)\s+of\s+([^)]*)\)')
-CALLBACK = re.compile(
-    r'\.\s*(?:%s)\s*\(\s*\(?\s*(\w+)' % '|'.join(ITERATORS))
+CALLBACK = re.compile(r'\.\s*(?:%s)\s*\(\s*\(?\s*(\w+)' % '|'.join(ITERATORS))
 CALL = re.compile(r'\b(\w+)\s*\(')
 LINE_COMMENT = re.compile(r'//[^\n]*')
 BLOCK_COMMENT = re.compile(r'/\*.*?\*/', re.S)
@@ -111,8 +139,7 @@ DEFAULTED = re.compile(r'\|\||\?\?')
 NEWMAP = re.compile(r'^\s*new\s+Map\s*\(')
 GETTER = re.compile(r'^\s*(\w+)\s*\.\s*get\s*\(')
 INDEXED = re.compile(r'\b(\w+)\s*\[\s*(\w+)\s*\]')
-NAMELIST = re.compile(
-    r'\bconst\s+([A-Z][A-Z0-9_]*)\s*=\s*\[([^\]]*)\]', re.S)
+NAMELIST = re.compile(r'\bconst\s+([A-Z][A-Z0-9_]*)\s*=\s*\[([^\]]*)\]', re.S)
 MAX_ROUNDS = 8
 
 
@@ -169,7 +196,7 @@ def _params(body):
                 break
         i += 1
     names = []
-    for piece in _split_top(body[open_at + 1:i]):
+    for piece in _split_top(body[open_at + 1 : i]):
         piece = piece.split('=')[0].strip()
         names.append(piece if re.fullmatch(r'\w+', piece) else None)
     return names
@@ -223,7 +250,7 @@ def _head(expr):
             depth += 1
         elif ch in ')]}':
             depth -= 1
-        elif depth == 0 and expr[i:i + 2] in ('||', '??'):
+        elif depth == 0 and expr[i : i + 2] in ('||', '??'):
             return expr[:i]
     return expr
 
@@ -258,7 +285,7 @@ def _peel(expr, on=True):
                 return expr
             got = re.search(r'[.]\s*(\w+)\s*$', e[:at])
             if got and got.group(1) in PRESERVING:
-                expr = e[:at][:got.start()]
+                expr = e[:at][: got.start()]
                 continue
         return expr
 
@@ -298,11 +325,11 @@ def _receiver(body, dot):
             k -= 1
         if k >= 0 and (body[k].isalnum() or body[k] in '_$'):
             return None
-        return body[j + 1:i]
+        return body[j + 1 : i]
     start = i
     while start >= 0 and (body[start].isalnum() or body[start] in '_$.?[]'):
         start -= 1
-    return body[start + 1:i + 1]
+    return body[start + 1 : i + 1]
 
 
 def _namelists(files):
@@ -319,9 +346,21 @@ def _namelists(files):
     return out
 
 
-def scan(root_src, *, cross=True, callbacks=True, hops=True, loops=True,
-         aliases=True, chunked=True, strip_comments=True, builtins=True,
-         maps=True, keylists=True, peel=True):
+def scan(
+    root_src,
+    *,
+    cross=True,
+    callbacks=True,
+    hops=True,
+    loops=True,
+    aliases=True,
+    chunked=True,
+    strip_comments=True,
+    builtins=True,
+    maps=True,
+    keylists=True,
+    peel=True,
+):
     root = re.compile(root_src)
     files = _sources(strip=strip_comments)
     lists = _namelists(files) if keylists else {}
@@ -366,8 +405,11 @@ def scan(root_src, *, cross=True, callbacks=True, hops=True, loops=True,
                         names.add(n)
             if callbacks:
                 for m in CALLBACK.finditer(body):
-                    head = (_receiver(body, m.start()) if aliases
-                            else body[max(0, m.start() - 60):m.start() + 1])
+                    head = (
+                        _receiver(body, m.start())
+                        if aliases
+                        else body[max(0, m.start() - 60) : m.start() + 1]
+                    )
                     if head and _mentions(head, names, root):
                         names.add(m.group(1))
             if names != seeds[key] or held != rowmaps[key]:
@@ -383,8 +425,7 @@ def scan(root_src, *, cross=True, callbacks=True, hops=True, loops=True,
                     if callee not in by_name or callee in BUILTIN:
                         continue
                     for i, expr in enumerate(_args(body, m.end() - 1)):
-                        if not _alias(expr, names, root, aliases,
-                                      rowmaps[key], peel):
+                        if not _alias(expr, names, root, aliases, rowmaps[key], peel):
                             continue
                         for target in by_name[callee]:
                             ps = _params(units[target][1])
@@ -396,13 +437,11 @@ def scan(root_src, *, cross=True, callbacks=True, hops=True, loops=True,
                     call = re.match(r'\s*(?:await\s+)?(\w+)\s*\(', expr)
                     if not call or call.group(1) not in by_name:
                         continue
-                    wanted = {p.split(':')[-1].strip()
-                              for p in group.split(',')}
+                    wanted = {p.split(':')[-1].strip() for p in group.split(',')}
                     for source in by_name[call.group(1)]:
                         bag = units[source][1]
                         for k, v in re.findall(r'(\w+)\s*:\s*([^,\n]+)', bag):
-                            if k in wanted and _mentions(v, seeds[source],
-                                                         None):
+                            if k in wanted and _mentions(v, seeds[source], None):
                                 if k not in seeds[key]:
                                     seeds[key].add(k)
                                     grew = True
@@ -414,8 +453,7 @@ def scan(root_src, *, cross=True, callbacks=True, hops=True, loops=True,
         where = '%s::%s' % (key[0], name)
         patterns = [root_src + r'\s*(?:\?\.|\.)\s*(\w+)\s*(\()?']
         for n in seeds[key]:
-            patterns.append(
-                r'\b%s\b\s*(?:\?\.|\.)\s*(\w+)\s*(\()?' % re.escape(n))
+            patterns.append(r'\b%s\b\s*(?:\?\.|\.)\s*(\w+)\s*(\()?' % re.escape(n))
         for pattern in patterns:
             for m in re.finditer(pattern, body):
                 field, called = m.group(1), m.group(2)
@@ -440,12 +478,12 @@ def scan(root_src, *, cross=True, callbacks=True, hops=True, loops=True,
                     continue
                 for const in re.findall(r'\b([A-Z][A-Z0-9_]*)\b', ' '.join(bound.get(idx, ()))):
                     for field in lists.get(const, ()):
-                        found.setdefault(field, set()).add(
-                            '%s[%s]' % (where, const))
+                        found.setdefault(field, set()).add('%s[%s]' % (where, const))
     return found
 
 
 # ------------------------------------------------------------- producers
+
 
 def payload_keys():
     text = (ROOT / 'cv' / 'publish.py').read_text(encoding='utf-8')
@@ -471,7 +509,7 @@ def _stripped(*tuples):
     pub = (ROOT / 'cv' / 'publish.py').read_text(encoding='utf-8')
     out = set()
     for name in tuples:
-        body = re.search(r"%s = \(([^)]*)\)" % name, pub).group(1)
+        body = re.search(r'%s = \(([^)]*)\)' % name, pub).group(1)
         out |= set(re.findall(r"'(\w+)'", body))
     return out
 
@@ -573,31 +611,24 @@ def publish_source():
 class TestEveryPublishedFigureReachesAPage:
     """The finding direction. A failure here is a figure nobody can see."""
 
-    def test_every_track_figure_is_read_off_a_track_row(self, tracks,
-                                                        seen_tracks):
+    def test_every_track_figure_is_read_off_a_track_row(self, tracks, seen_tracks):
         orphans = [k for k in tracks if not readers(k, seen_tracks)]
         assert not orphans, (
             'These are published on every track of every run and no page reads '
             'them off a track: %s. Either wire one up or stop publishing it -- '
             'a figure that reaches nobody still costs a coach bandwidth on '
             'every page load. If it is genuinely wanted unread, add it to '
-            'UNREAD_BY_DESIGN with a reason a stranger would accept.'
-            % ', '.join(orphans)
+            'UNREAD_BY_DESIGN with a reason a stranger would accept.' % ', '.join(orphans)
         )
 
-    def test_every_cluster_figure_is_read_off_a_cluster_row(self, clusters,
-                                                            seen_clusters):
+    def test_every_cluster_figure_is_read_off_a_cluster_row(self, clusters, seen_clusters):
         orphans = [k for k in clusters if not readers(k, seen_clusters)]
-        assert not orphans, (
-            'Published on every cluster and read off none: %s' % ', '.join(orphans)
-        )
+        assert not orphans, 'Published on every cluster and read off none: %s' % ', '.join(orphans)
 
     def test_every_document_key_is_read_or_excused(self, doc_keys, seen_doc):
-        orphans = [k for k in doc_keys
-                   if not readers(k, seen_doc) and k not in UNREAD_BY_DESIGN]
+        orphans = [k for k in doc_keys if not readers(k, seen_doc) and k not in UNREAD_BY_DESIGN]
         assert not orphans, (
-            'Top-level keys of the identity document that nothing reads: %s'
-            % ', '.join(orphans)
+            'Top-level keys of the identity document that nothing reads: %s' % ', '.join(orphans)
         )
 
 
@@ -609,8 +640,7 @@ class TestNothingIsReadThatIsNotPublished:
     happened. These tests are why the scan is narrow enough to be believed.
     """
 
-    def test_no_page_reads_a_track_field_the_pipeline_does_not_publish(
-            self, tracks, seen_tracks):
+    def test_no_page_reads_a_track_field_the_pipeline_does_not_publish(self, tracks, seen_tracks):
         ghosts = sorted(set(seen_tracks) - set(tracks))
         assert not ghosts, (
             'Read off a published track row and not published on one: %s. '
@@ -620,25 +650,24 @@ class TestNothingIsReadThatIsNotPublished:
         )
 
     def test_the_only_cluster_fields_read_and_not_published_are_the_pictures(
-            self, clusters, seen_clusters):
+        self, clusters, seen_clusters
+    ):
         ghosts = set(seen_clusters) - set(clusters)
         assert ghosts == set(READ_ELSEWHERE), (
             'Expected exactly the two thumbnail fields, which arrive from the '
-            'thumbs document rather than this one. Got: %s'
-            % ', '.join(sorted(ghosts))
+            'thumbs document rather than this one. Got: %s' % ', '.join(sorted(ghosts))
         )
 
     def test_nothing_else_is_read_off_the_identity_document(
-            self, doc_keys, tracks, clusters, seen_doc):
+        self, doc_keys, tracks, clusters, seen_doc
+    ):
         # The document-level root matches the bare name, so the row fields
         # reached through it show up here too. Anything outside that union is
         # a field of something that is not this document.
-        allowed = (set(doc_keys) | set(tracks) | set(clusters)
-                   | set(READ_ELSEWHERE))
+        allowed = set(doc_keys) | set(tracks) | set(clusters) | set(READ_ELSEWHERE)
         stray = sorted(set(seen_doc) - allowed)
-        assert not stray, (
-            'Read off `identity` and not part of it at any level: %s'
-            % ', '.join(stray)
+        assert not stray, 'Read off `identity` and not part of it at any level: %s' % ', '.join(
+            stray
         )
 
 
@@ -655,21 +684,17 @@ class TestTheExcusesDoNotRot:
 
     def test_no_entries_for_fields_that_do_not_exist(self, doc_keys):
         gone = [k for k in UNREAD_BY_DESIGN if k not in doc_keys]
-        assert not gone, (
-            'Excused, and no longer published at all: %s' % ', '.join(gone)
-        )
+        assert not gone, 'Excused, and no longer published at all: %s' % ', '.join(gone)
 
     def test_every_entry_gives_a_reason(self):
-        for key, why in list(UNREAD_BY_DESIGN.items()) + list(
-                READ_ELSEWHERE.items()):
+        for key, why in list(UNREAD_BY_DESIGN.items()) + list(READ_ELSEWHERE.items()):
             assert len(why) > 40, (
                 '%s is excused with %r, which is a label and not a reason. The '
                 'next person has to be able to disagree with it.' % (key, why)
             )
 
-    def test_the_picture_fields_are_still_stripped_at_the_seam(
-            self, publish_source, clusters):
-        named = re.search(r"THUMB_FIELDS = \(([^)]*)\)", publish_source)
+    def test_the_picture_fields_are_still_stripped_at_the_seam(self, publish_source, clusters):
+        named = re.search(r'THUMB_FIELDS = \(([^)]*)\)', publish_source)
         assert named, 'THUMB_FIELDS is where the two sides of this agree.'
         assert set(re.findall(r"'(\w+)'", named.group(1))) == set(READ_ELSEWHERE)
         assert not set(READ_ELSEWHERE) & set(clusters), (
@@ -695,8 +720,7 @@ class TestThePremiseHolds:
         assert 'cv?.identity?.tracks' in coach
         assert 'cv?.identity?.clusters' in coach
 
-    def test_the_producer_parse_found_all_three_levels(self, doc_keys, tracks,
-                                                       clusters):
+    def test_the_producer_parse_found_all_three_levels(self, doc_keys, tracks, clusters):
         assert set(doc_keys) == {'clusters', 'tracks', 'playerByCluster'}
         assert len(tracks) > 15, (
             'Only %d track figures parsed out of `TrackStats.to_json`, which '
@@ -705,8 +729,7 @@ class TestThePremiseHolds:
         )
         assert len(clusters) > 5, len(clusters)
 
-    def test_the_dropped_figures_are_really_dropped(self, publish_source,
-                                                    tracks, clusters):
+    def test_the_dropped_figures_are_really_dropped(self, publish_source, tracks, clusters):
         body = publish_source.split('def identity_payload(', 1)[1]
         body = body.split('\ndef ', 1)[0]
         # Look for the filter, not the name. The docstring names all three
@@ -720,8 +743,7 @@ class TestThePremiseHolds:
             'split above is cutting the function somewhere else.'
         )
         body = re.sub(r'#[^\n]*', '', body)
-        for name in ('THUMB_FIELDS', 'DROPPED_TRACK_FIELDS',
-                     'DROPPED_CLUSTER_FIELDS'):
+        for name in ('THUMB_FIELDS', 'DROPPED_TRACK_FIELDS', 'DROPPED_CLUSTER_FIELDS'):
             assert 'not in %s' % name in body, (
                 'Nothing in identity_payload takes %s off a row. The tuple '
                 'can still be there, and the probe above reads the tuple, so '
@@ -731,8 +753,7 @@ class TestThePremiseHolds:
         assert 'pass_accuracy' not in tracks
         assert 'minutes_tracked' not in clusters
 
-    def test_the_scan_found_the_readers_it_should_have(self, seen_tracks,
-                                                       seen_clusters):
+    def test_the_scan_found_the_readers_it_should_have(self, seen_tracks, seen_clusters):
         where = {w for v in seen_tracks.values() for w in v}
         assert any(w.startswith('assets/report.js') for w in where), (
             'cvStatsByPlayer is the only reader of the track rows in the repo. '

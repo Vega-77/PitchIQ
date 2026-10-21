@@ -27,7 +27,7 @@ from cv.touches import (
 )
 
 FPS = 30.0
-PLAYER_H = 60.0          # pixels; one "player height" in these fixtures
+PLAYER_H = 60.0  # pixels; one "player height" in these fixtures
 
 
 def player(track_id, x, y, height=PLAYER_H):
@@ -40,15 +40,19 @@ def build(frames, *, fps=FPS, teams=None, calibration=None):
     """frames: [(ball_xy | None, observed, [player rows])]."""
     records = []
     for i, (ball, observed, rows) in enumerate(frames):
-        records.append(FrameRecord(
-            frame_index=i,
-            timestamp_s=i / fps,
-            players=np.array(rows, dtype=np.float32).reshape(-1, 6),
-            ball_xy=ball,
-            ball_observed=observed,
-        ))
+        records.append(
+            FrameRecord(
+                frame_index=i,
+                timestamp_s=i / fps,
+                players=np.array(rows, dtype=np.float32).reshape(-1, 6),
+                ball_xy=ball,
+                ball_observed=observed,
+            )
+        )
     return FrameTable(
-        fps=fps, frame_width=1280, frame_height=720,
+        fps=fps,
+        frame_width=1280,
+        frame_height=720,
         records=records,
         team_by_track=teams or {},
         calibration=calibration,
@@ -73,10 +77,10 @@ class TestLocalScale:
         far too mean at the bottom.
         """
         boxes = [
-            (1, (0, 0, 20, 200)),      # near camera, 200px tall, far from ball
+            (1, (0, 0, 20, 200)),  # near camera, 200px tall, far from ball
             (2, (0, 0, 20, 200)),
             (3, (0, 0, 20, 200)),
-            (4, (990, 340, 1010, 400)),   # by the ball, 60px tall
+            (4, (990, 340, 1010, 400)),  # by the ball, 60px tall
             (5, (995, 340, 1015, 400)),
             (6, (1005, 340, 1025, 400)),
         ]
@@ -124,10 +128,16 @@ class TestTouchDetection:
         frames = []
         for i in range(n):
             bx = 100.0 + i * 12.0 if i <= at else 100.0 + (2 * at - i) * 12.0
-            frames.append(((bx, 400.0), True, [
-                player(track, x, 400.0),
-                player(99, 1100.0, 400.0),
-            ]))
+            frames.append(
+                (
+                    (bx, 400.0),
+                    True,
+                    [
+                        player(track, x, 400.0),
+                        player(99, 1100.0, 400.0),
+                    ],
+                )
+            )
         return frames
 
     def test_a_reversal_beside_a_player_is_one_touch(self):
@@ -166,31 +176,37 @@ class TestScaleInvariance:
         pitch changing. If the answer moved with the zoom, none of this would
         mean anything on the only footage that exists.
         """
+
         def scenario(k):
             frames = []
             for i in range(40):
                 bx = (100.0 + i * 12.0) if i <= 20 else (100.0 + (40 - i) * 12.0)
-                frames.append((
-                    (bx * k, 400.0 * k), True,
-                    [player(7, 340.0 * k, 400.0 * k, height=PLAYER_H * k),
-                     player(8, 1100.0 * k, 400.0 * k, height=PLAYER_H * k)],
-                ))
+                frames.append(
+                    (
+                        (bx * k, 400.0 * k),
+                        True,
+                        [
+                            player(7, 340.0 * k, 400.0 * k, height=PLAYER_H * k),
+                            player(8, 1100.0 * k, 400.0 * k, height=PLAYER_H * k),
+                        ],
+                    )
+                )
             return segment_touches(build(frames))
 
         small, large = scenario(1.0), scenario(2.0)
         assert [t.frame_index for t in small] == [t.frame_index for t in large]
         assert [t.track_id for t in small] == [t.track_id for t in large]
-        assert small.touches[0].distance_ph == pytest.approx(
-            large.touches[0].distance_ph, rel=1e-6
-        )
+        assert small.touches[0].distance_ph == pytest.approx(large.touches[0].distance_ph, rel=1e-6)
 
 
 class TestGaps:
     def test_a_long_unseen_run_is_recorded_as_a_gap(self):
         frames = (
             straight_pass(n=10)
-            + [((220.0 + i * 12, 400.0), False, [player(1, 600.0, 400.0)])
-               for i in range(MAX_GAP_FRAMES + 5)]
+            + [
+                ((220.0 + i * 12, 400.0), False, [player(1, 600.0, 400.0)])
+                for i in range(MAX_GAP_FRAMES + 5)
+            ]
             + straight_pass(n=10, x0=500.0)
         )
         gaps = find_gaps(build(frames))
@@ -199,8 +215,7 @@ class TestGaps:
     def test_a_short_unseen_run_is_not_a_gap(self):
         frames = (
             straight_pass(n=10)
-            + [((220.0 + i * 12, 400.0), False, [player(1, 600.0, 400.0)])
-               for i in range(3)]
+            + [((220.0 + i * 12, 400.0), False, [player(1, 600.0, 400.0)]) for i in range(3)]
             + straight_pass(n=10, x0=500.0)
         )
         assert find_gaps(build(frames)) == []
@@ -250,8 +265,7 @@ class TestGaps:
     def test_a_ball_that_carries_straight_on_through_a_gap_is_not_a_touch(self):
         """Nothing changed across the span, so nothing happened in it."""
         frames = [
-            ((100.0 + i * 12.0, 400.0), i not in (19, 20, 21),
-             [player(7, 340.0, 400.0)])
+            ((100.0 + i * 12.0, 400.0), i not in (19, 20, 21), [player(7, 340.0, 400.0)])
             for i in range(40)
         ]
         assert len(segment_touches(build(frames))) == 0
@@ -278,14 +292,21 @@ class TestConfidence:
         because "shot by the striker" and "shot by the defender marking him"
         are the same measurement otherwise.
         """
+
         def scenario(second_player_at):
             frames = []
             for i in range(40):
                 bx = 100.0 + i * 12.0 if i <= 20 else 100.0 + (40 - i) * 12.0
-                frames.append(((bx, 400.0), True, [
-                    player(7, 340.0, 400.0),
-                    player(8, second_player_at, 400.0),
-                ]))
+                frames.append(
+                    (
+                        (bx, 400.0),
+                        True,
+                        [
+                            player(7, 340.0, 400.0),
+                            player(8, second_player_at, 400.0),
+                        ],
+                    )
+                )
             return segment_touches(build(frames))
 
         alone = scenario(1100.0).touches[0]
@@ -341,10 +362,16 @@ class TestSuppression:
                 bx = 100.0 + 16 * 14.0 - (i - 16) * 4.0
             else:
                 bx = 100.0 + 16 * 14.0 - 6 * 4.0 + (i - 22) * 16.0
-            frames.append(((bx, 400.0), True, [
-                player(1, 330.0, 400.0),
-                player(2, 306.0, 400.0),
-            ]))
+            frames.append(
+                (
+                    (bx, 400.0),
+                    True,
+                    [
+                        player(1, 330.0, 400.0),
+                        player(2, 306.0, 400.0),
+                    ],
+                )
+            )
 
         touches = segment_touches(build(frames))
         assert len({t.track_id for t in touches}) == 2
@@ -365,8 +392,21 @@ class TestSequence:
         from cv.touches import Touch
 
         def fake(t):
-            return Touch(0, t, 1, TEAM_A, (0.0, 0.0), None, 60.0, 0.0,
-                         0.0, 0.0, 0.0, True, TouchConfidence(1, 1, 1, 1))
+            return Touch(
+                0,
+                t,
+                1,
+                TEAM_A,
+                (0.0, 0.0),
+                None,
+                60.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                True,
+                TouchConfidence(1, 1, 1, 1),
+            )
 
         assert sequence.gaps
         start, end = sequence.gaps[0]

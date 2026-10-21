@@ -8,6 +8,7 @@ so it goes up in parts of <= 64 MB / 255 files. Answers: db batches/<b>/answers/
 {v: ball|out|dead|cant, x, y (full-res px of frame f, v=ball only), ms, at}}}, 100 items per doc by
 position in that batch's items.json.
 """
+
 import json
 import os
 import shutil
@@ -15,8 +16,17 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # PIQ_DATA: the data folder beside the repo, as cv/experiments/autocal_run.py has it.
-DATA = os.environ.get('PIQ_DATA', os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))), 'PitchIQ-data'))
+DATA = os.environ.get(
+    'PIQ_DATA',
+    os.path.join(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            )
+        ),
+        'PitchIQ-data',
+    ),
+)
 ROOT = os.path.join(DATA, 'clicker')
 
 site, live = sys.argv[1], sys.argv[2:]

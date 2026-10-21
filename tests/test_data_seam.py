@@ -114,6 +114,7 @@ validate independently. Unavoidable is not the same as unchecked. A button
 whose type the rules reject writes nothing, and it fails at the side of a
 pitch, in the second half, with nobody able to read a console.
 """
+
 import inspect
 import re
 import unittest
@@ -121,10 +122,23 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-CSS = ['assets/app.css', 'assets/landing.css', 'coach/coach.css',
-       'player/player.css', 'live-tagging/tagging.css', 'halftime/halftime.css', 'calibrate/calibrate.css']
-HTML = ['index.html', 'coach/index.html', 'player/index.html',
-        'live-tagging/index.html', 'halftime/index.html', 'calibrate/index.html']
+CSS = [
+    'assets/app.css',
+    'assets/landing.css',
+    'coach/coach.css',
+    'player/player.css',
+    'live-tagging/tagging.css',
+    'halftime/halftime.css',
+    'calibrate/calibrate.css',
+]
+HTML = [
+    'index.html',
+    'coach/index.html',
+    'player/index.html',
+    'live-tagging/index.html',
+    'halftime/index.html',
+    'calibrate/index.html',
+]
 JS_DIRS = ['assets', 'coach', 'player', 'live-tagging', 'halftime', 'calibrate']
 
 # Every place `scan()` looks, and the whole vocabulary `drop` accepts. Kept in
@@ -151,9 +165,11 @@ SELECTOR = re.compile(r'\[data-([a-z][a-z0-9-]*)[\]=]')
 # substitution rather than one anybody sends. A pin satisfied by a lookalike in
 # another file is a pin that keeps passing after the writer it names is gone.
 EXTRA_CLIENT_TYPES = {
-    'sub': ('assets/db.js',
-            'written as `kind: sub, type: sub` for a substitution; it is not '
-            'a tap-able event and has no entry in EVENTS'),
+    'sub': (
+        'assets/db.js',
+        'written as `kind: sub, type: sub` for a substitution; it is not '
+        'a tap-able event and has no entry in EVENTS',
+    ),
 }
 
 # `source` is the field where the rules are deliberately wider than the client.
@@ -170,14 +186,14 @@ def read(rel):
 def js_files():
     out = []
     for d in JS_DIRS:
-        out += sorted(str(p.relative_to(ROOT)).replace('\\', '/')
-                      for p in (ROOT / d).glob('*.js'))
+        out += sorted(str(p.relative_to(ROOT)).replace('\\', '/') for p in (ROOT / d).glob('*.js'))
     return out
 
 
 def harness_files():
-    return sorted(str(p.relative_to(ROOT)).replace('\\', '/')
-                  for p in (ROOT / 'tests').glob('*.js'))
+    return sorted(
+        str(p.relative_to(ROOT)).replace('\\', '/') for p in (ROOT / 'tests').glob('*.js')
+    )
 
 
 def dashed(camel):
@@ -242,28 +258,41 @@ WRITTEN, GOT = scan()
 
 # --------------------------------------------------------------- both ways
 
+
 class TestAttributeSeam(unittest.TestCase):
     """Every attribute written is read, and every attribute read is written."""
 
     def test_no_attribute_is_written_and_never_read(self):
         dead = sorted(n for n in WRITTEN if n not in GOT)
-        self.assertEqual(dead, [], (
-            'these data attributes are written and read by nothing: %s. '
-            'Either something stopped reading them, or they were never read '
-            '-- `data-mark-id` in assets/timeline.js was the latter, on every '
-            'tick and every moment button, for its whole life.'
-            % ', '.join('data-' + n + ' (' + ', '.join(sorted(set(
-                WRITTEN[n]))) + ')' for n in dead)))
+        self.assertEqual(
+            dead,
+            [],
+            (
+                'these data attributes are written and read by nothing: %s. '
+                'Either something stopped reading them, or they were never read '
+                '-- `data-mark-id` in assets/timeline.js was the latter, on every '
+                'tick and every moment button, for its whole life.'
+                % ', '.join(
+                    'data-' + n + ' (' + ', '.join(sorted(set(WRITTEN[n]))) + ')' for n in dead
+                )
+            ),
+        )
 
     def test_no_attribute_is_read_and_never_written(self):
         ghost = sorted(n for n in GOT if n not in WRITTEN)
-        self.assertEqual(ghost, [], (
-            'these data attributes are read and written by nothing: %s. '
-            'A read of an attribute nobody wrote is `undefined`, and a '
-            'comparison against `undefined` is quietly false -- the branch '
-            'never fires and nothing is logged.'
-            % ', '.join('data-' + n + ' (' + ', '.join(sorted(set(
-                GOT[n]))) + ')' for n in ghost)))
+        self.assertEqual(
+            ghost,
+            [],
+            (
+                'these data attributes are read and written by nothing: %s. '
+                'A read of an attribute nobody wrote is `undefined`, and a '
+                'comparison against `undefined` is quietly false -- the branch '
+                'never fires and nothing is logged.'
+                % ', '.join(
+                    'data-' + n + ' (' + ', '.join(sorted(set(GOT[n]))) + ')' for n in ghost
+                )
+            ),
+        )
 
     def test_every_name_survives_the_round_trip(self):
         """`data-rail-group` and `railGroup` have to agree, or both halves
@@ -282,6 +311,7 @@ class TestAttributeSeam(unittest.TestCase):
 
 
 # ------------------------------------------------------------------- sites
+
 
 class TestSites(unittest.TestCase):
     """Each site earns its place by being switched off."""
@@ -346,8 +376,7 @@ class TestSites(unittest.TestCase):
         self.assertIn('[data-cluster="${', coach)
         self.assertIn('[data-same="${', coach)
         for name in ('cluster', 'same'):
-            self.assertIn(name, [m.group(1) for m
-                                 in SELECTOR.finditer(coach)])
+            self.assertIn(name, [m.group(1) for m in SELECTOR.finditer(coach)])
 
     def test_harness_site_has_input_even_though_it_is_inert(self):
         """It changes no verdict today. It is kept because it is the
@@ -358,8 +387,9 @@ class TestSites(unittest.TestCase):
             src = read(rel)
             found += [m.group(1) for m in SELECTOR.finditer(src)]
             assigned = {m.start() for m in DATASET_SET.finditer(src)}
-            found += [dashed(m.group(1)) for m in DATASET_ANY.finditer(src)
-                      if m.start() not in assigned]
+            found += [
+                dashed(m.group(1)) for m in DATASET_ANY.finditer(src) if m.start() not in assigned
+            ]
         self.assertGreaterEqual(len(found), 3, found)
         for name in found:
             self.assertIn(name, WRITTEN, name)
@@ -368,14 +398,15 @@ class TestSites(unittest.TestCase):
         """Inert by verdict today -- script reads `data-event` as well -- so
         it is pinned by what it finds instead, like the harness site. Only
         the tagging sheet selects on an attribute, and only on that one."""
-        hits = {rel: sorted({m.group(1) for m in SELECTOR.finditer(read(rel))})
-                for rel in CSS}
-        self.assertEqual({r: h for r, h in hits.items() if h},
-                         {'live-tagging/tagging.css': ['event']})
+        hits = {rel: sorted({m.group(1) for m in SELECTOR.finditer(read(rel))}) for rel in CSS}
+        self.assertEqual(
+            {r: h for r, h in hits.items() if h}, {'live-tagging/tagging.css': ['event']}
+        )
         self.assertEqual(self.deltas('css'), ([], []))
 
 
 # -------------------------------------------------------- the vocabulary
+
 
 def object_keys(src, decl):
     """The top-level keys of the object literal that `decl` opens."""
@@ -388,9 +419,8 @@ def object_keys(src, decl):
         elif src[i] in '}])':
             depth -= 1
         i += 1
-    flat = re.sub(r'\{[^{}]*\}', '', src[start:i - 1])
-    return [m.group(1) for m
-            in re.finditer(r'^\s*([a-z][a-z0-9_]*)\s*:', flat, re.M)]
+    flat = re.sub(r'\{[^{}]*\}', '', src[start : i - 1])
+    return [m.group(1) for m in re.finditer(r'^\s*([a-z][a-z0-9_]*)\s*:', flat, re.M)]
 
 
 def quoted(text):
@@ -405,10 +435,8 @@ def rules_list(field):
     the bracket is whitespace of any kind and cannot be a literal.
     """
     src = read('firestore.rules')
-    hits = re.findall(r'request\.resource\.data\.%s\s+in\s*\[([^\]]*)\]'
-                      % field, src)
-    assert len(hits) == 1, '%s: %d allowlists in firestore.rules' % (
-        field, len(hits))
+    hits = re.findall(r'request\.resource\.data\.%s\s+in\s*\[([^\]]*)\]' % field, src)
+    assert len(hits) == 1, '%s: %d allowlists in firestore.rules' % (field, len(hits))
     return quoted(hits[0])
 
 
@@ -425,48 +453,72 @@ class TestVocabulary(unittest.TestCase):
 
     def test_every_button_is_an_event_the_app_knows(self):
         unknown = sorted(set(BUTTONS) - set(EVENTS))
-        self.assertEqual(unknown, [], (
-            'live-tagging/index.html has a button for %s, and EVENTS in '
-            'assets/events.js has no entry for it -- the sheet opens with no '
-            'label, no side wording and no player prompt.' % unknown))
+        self.assertEqual(
+            unknown,
+            [],
+            (
+                'live-tagging/index.html has a button for %s, and EVENTS in '
+                'assets/events.js has no entry for it -- the sheet opens with no '
+                'label, no side wording and no player prompt.' % unknown
+            ),
+        )
 
     def test_every_event_the_app_knows_has_a_button(self):
         # Bar one, by name. Out of bounds is never tagged now -- the restart
         # that follows says where the ball went -- but the tags already in
         # the log still have to read, and cv/ still reads them.
         unreachable = sorted(set(EVENTS) - set(BUTTONS) - RETIRED)
-        self.assertEqual(unreachable, [], (
-            'EVENTS describes %s and no button in live-tagging/index.html '
-            'carries it, so nobody can tag one.' % unreachable))
+        self.assertEqual(
+            unreachable,
+            [],
+            (
+                'EVENTS describes %s and no button in live-tagging/index.html '
+                'carries it, so nobody can tag one.' % unreachable
+            ),
+        )
 
     def test_every_type_the_client_writes_is_allowed_by_the_rules(self):
         client = set(EVENTS) | set(PERIODS) | set(EXTRA_CLIENT_TYPES)
         rejected = sorted(client - set(rules_list('type')))
-        self.assertEqual(rejected, [], (
-            'the app can write type %s and firestore.rules rejects it. The '
-            'tap fails at the side of a pitch, with nobody able to read a '
-            'console.' % rejected))
+        self.assertEqual(
+            rejected,
+            [],
+            (
+                'the app can write type %s and firestore.rules rejects it. The '
+                'tap fails at the side of a pitch, with nobody able to read a '
+                'console.' % rejected
+            ),
+        )
 
     def test_the_rules_allow_no_type_the_client_cannot_write(self):
         client = set(EVENTS) | set(PERIODS) | set(EXTRA_CLIENT_TYPES)
         stale = sorted(set(rules_list('type')) - client)
-        self.assertEqual(stale, [], (
-            'firestore.rules admits type %s and nothing in the app writes '
-            'one. Either a feature was removed and the rule was not, or a '
-            'writer moved somewhere this test cannot see it.' % stale))
+        self.assertEqual(
+            stale,
+            [],
+            (
+                'firestore.rules admits type %s and nothing in the app writes '
+                'one. Either a feature was removed and the rule was not, or a '
+                'writer moved somewhere this test cannot see it.' % stale
+            ),
+        )
 
     def test_pinned_extra_types_are_still_written(self):
         """A pin has to keep proving itself, or the list rots into a
         graveyard nobody dares touch."""
         for name, (rel, why) in EXTRA_CLIENT_TYPES.items():
-            self.assertIn("type: '%s'" % name, read(rel), (
-                '%s is pinned as a client type -- %s -- and %s does not write '
-                'it any more. Either follow the writer, or drop the pin and '
-                'let the rules drop the type with it.' % (name, why, rel)))
+            self.assertIn(
+                "type: '%s'" % name,
+                read(rel),
+                (
+                    '%s is pinned as a client type -- %s -- and %s does not write '
+                    'it any more. Either follow the writer, or drop the pin and '
+                    'let the rules drop the type with it.' % (name, why, rel)
+                ),
+            )
 
     def test_card_colours_agree_with_the_rules(self):
-        self.assertEqual(sorted(CARDS), sorted(rules_list('cardColor')),
-                         'CARD_COLOURS: %s' % CARDS)
+        self.assertEqual(sorted(CARDS), sorted(rules_list('cardColor')), 'CARD_COLOURS: %s' % CARDS)
 
     def test_the_kinds_db_writes_are_exactly_the_kinds_allowed(self):
         kinds = sorted(set(re.findall(r"kind: '([a-z_]+)'", read('assets/db.js'))))
@@ -481,9 +533,14 @@ class TestVocabulary(unittest.TestCase):
         allowed = set(rules_list('source'))
         self.assertEqual(allowed - {'live_tag'}, FUTURE_SOURCES, allowed)
         for name in FUTURE_SOURCES:
-            self.assertIn(name, db, (
-                '%s is allowed by the rules and assets/db.js no longer '
-                'explains why it is not written.' % name))
+            self.assertIn(
+                name,
+                db,
+                (
+                    '%s is allowed by the rules and assets/db.js no longer '
+                    'explains why it is not written.' % name
+                ),
+            )
 
     def test_the_period_labels_report_js_keeps_its_own_copy_of_still_match(self):
         """`assets/report.js` imports nothing by design, so it carries a
@@ -493,9 +550,9 @@ class TestVocabulary(unittest.TestCase):
         self.assertEqual(text, PERIODS, text)
         for key in PERIODS:
             shared = re.search(r"^\s*%s: '([^']*)'" % key, EVENTS_JS, re.M)
-            mine = re.search(r"^\s*%s: '([^']*)'" % key,
-                             report[report.index('const PERIOD_TEXT = {'):],
-                             re.M)
+            mine = re.search(
+                r"^\s*%s: '([^']*)'" % key, report[report.index('const PERIOD_TEXT = {') :], re.M
+            )
             self.assertEqual(shared.group(1), mine.group(1), key)
 
     def test_the_vocabulary_scan_found_something(self):

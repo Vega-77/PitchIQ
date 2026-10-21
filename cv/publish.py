@@ -156,10 +156,8 @@ def _client(key_path: str | None = None):
     try:
         import firebase_admin
         from firebase_admin import credentials, firestore
-    except ImportError as exc:                       # pragma: no cover
-        raise PublishError(
-            'firebase-admin is not installed. pip install firebase-admin'
-        ) from exc
+    except ImportError as exc:  # pragma: no cover
+        raise PublishError('firebase-admin is not installed. pip install firebase-admin') from exc
 
     if not firebase_admin._apps:
         firebase_admin.initialize_app(credentials.Certificate(str(key)))
@@ -229,7 +227,8 @@ def summary_payload(report_json: dict) -> dict:
 
 
 def participant_notes(
-    report_json: dict, limit: int = MAX_PARTICIPANT_NOTES,
+    report_json: dict,
+    limit: int = MAX_PARTICIPANT_NOTES,
 ) -> list[dict]:
     """The tracks the classifier acted on, and what it said about each.
 
@@ -247,7 +246,8 @@ def participant_notes(
     # player, because the alternative is deleting someone for being brief. It is
     # not news, and listing it here would read as a third kind of rejection.
     acted_on = [
-        p for p in report_json.get('participants') or []
+        p
+        for p in report_json.get('participants') or []
         if p.get('role') in ('offfield', 'official')
     ]
     acted_on.sort(key=lambda p: p.get('screen_time_s') or 0.0, reverse=True)
@@ -376,15 +376,17 @@ def identity_payload(report_json: dict, mapping: dict[str, str] | None = None) -
     """
     tracks = []
     for track in report_json.get('tracks') or []:
-        row = {k: v for k, v in track.items()
-               if k not in DROPPED_TRACK_FIELDS}
+        row = {k: v for k, v in track.items() if k not in DROPPED_TRACK_FIELDS}
         if row.get('heatmap') is not None:
             row['heatmap'] = _flat_heatmap(row['heatmap'])
         tracks.append(row)
 
     clusters = [
-        {k: v for k, v in cluster.items()
-         if k not in THUMB_FIELDS and k not in DROPPED_CLUSTER_FIELDS}
+        {
+            k: v
+            for k, v in cluster.items()
+            if k not in THUMB_FIELDS and k not in DROPPED_CLUSTER_FIELDS
+        }
         for cluster in (report_json.get('clusters') or [])
     ]
 
@@ -538,9 +540,20 @@ def _flat_heatmap(grid) -> dict | None:
 # sides publish the same player's match to two different screens, and a stat
 # that adds on one and replaces on the other is one match told two ways.
 SUMMED_FIELDS = (
-    'touches', 'passes_attempted', 'passes_completed', 'carries',
-    'tackles', 'interceptions', 'recoveries', 'shots', 'goals', 'xg',
-    'distance_m', 'sprint_count', 'sprint_distance_m', 'minutes_tracked',
+    'touches',
+    'passes_attempted',
+    'passes_completed',
+    'carries',
+    'tackles',
+    'interceptions',
+    'recoveries',
+    'shots',
+    'goals',
+    'xg',
+    'distance_m',
+    'sprint_count',
+    'sprint_distance_m',
+    'minutes_tracked',
     'accelerations',
 )
 # Taken at the worst fragment rather than averaged. A player assembled from a
@@ -624,8 +637,7 @@ def _merge_heatmaps(grids) -> list[list[float]] | None:
     if any((len(g), len(g[0]) if g[0] else 0) != shape for g in present):
         return None
     return [
-        [sum(g[col][row] for g in present) for row in range(shape[1])]
-        for col in range(shape[0])
+        [sum(g[col][row] for g in present) for row in range(shape[1])] for col in range(shape[0])
     ]
 
 
@@ -647,15 +659,16 @@ def publish(
     _check_path(team_id, match_id)
     db = client or _client(key_path)
 
-    match_ref = (
-        db.collection('teams').document(team_id)
-        .collection('matches').document(match_id)
-    )
+    match_ref = db.collection('teams').document(team_id).collection('matches').document(match_id)
     stats = match_ref.collection(CV_STATS_COLLECTION)
 
     written = {
-        'summary': True, 'identity': True, 'thumbs': 0, 'events': 0,
-        'playerReports': 0, 'skipped': [],
+        'summary': True,
+        'identity': True,
+        'thumbs': 0,
+        'events': 0,
+        'playerReports': 0,
+        'skipped': [],
     }
 
     events = events_payload(report_json)
@@ -674,14 +687,10 @@ def publish(
     stats.document(THUMBS_DOC).set(thumbs)
 
     if not mapping:
-        written['skipped'].append(
-            'per-player stats: no cluster-to-player mapping confirmed yet'
-        )
+        written['skipped'].append('per-player stats: no cluster-to-player mapping confirmed yet')
         return written
 
-    by_cluster = {
-        str(track['cluster_id']): track for track in report_json.get('tracks') or []
-    }
+    by_cluster = {str(track['cluster_id']): track for track in report_json.get('tracks') or []}
 
     # Grouped by player before anything is written, so a student named as two
     # tracked figures gets one document holding both of them rather than two
@@ -710,20 +719,19 @@ def publish(
         # match. A missing one is a mismatch worth seeing, not something to
         # invent a document for.
         if not report_ref.get().exists:
-            written['skipped'].append(
-                f'player {player_id}: no published report to add CV stats to'
-            )
+            written['skipped'].append(f'player {player_id}: no published report to add CV stats to')
             continue
 
         # The team's attacking end travels with the player, since it is what
         # makes their heatmap readable and they never see the team document.
-        end = ((report_json.get('teams') or {}).get(track.get('team')) or {}
-               ).get('attacking_end')
-        report_ref.update(player_report_fields(
-            track,
-            attacking_end=end,
-            calibration_error_m=report_json.get('calibration_error_m'),
-        ))
+        end = ((report_json.get('teams') or {}).get(track.get('team')) or {}).get('attacking_end')
+        report_ref.update(
+            player_report_fields(
+                track,
+                attacking_end=end,
+                calibration_error_m=report_json.get('calibration_error_m'),
+            )
+        )
         written['playerReports'] += 1
 
     return written

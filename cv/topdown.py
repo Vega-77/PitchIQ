@@ -52,47 +52,47 @@ from .pitchtrack import FOOT_SIGMA_FLOOR_PX, FOOT_SIGMA_H, FOOT_SIGMA_W, PitchPr
 class MapSettings:
     fps: float = 30.0
     # feet
-    foot_sigma_w: float = FOOT_SIGMA_W          # pixel noise across, share of box width
-    foot_sigma_h: float = FOOT_SIGMA_H          # pixel noise down, share of box height
+    foot_sigma_w: float = FOOT_SIGMA_W  # pixel noise across, share of box width
+    foot_sigma_h: float = FOOT_SIGMA_H  # pixel noise down, share of box height
     foot_sigma_floor_px: float = FOOT_SIGMA_FLOOR_PX
-    height_tol: float = 0.15                    # |log(box / person height)| still a clean box
-    height_scale: float = 0.10                  # beyond that, noise variance x (1 + 10 k^2), k in these
+    height_tol: float = 0.15  # |log(box / person height)| still a clean box
+    height_scale: float = 0.10  # beyond that, noise variance x (1 + 10 k^2), k in these
     # smoother
-    accel: float = 4.0                          # white-noise acceleration density, m^2/s^3
-    tau_s: float = 1.0                          # an unseen run keeps its speed for about this long
-    team_drift: float = 0.75                    # ...then moves with this share of its team's seen players
-    drift_s: float = 0.5                        # (their mean velocity, averaged over +-this)
-    huber: float = 2.5                          # residuals beyond this many sigmas count less
+    accel: float = 4.0  # white-noise acceleration density, m^2/s^3
+    tau_s: float = 1.0  # an unseen run keeps its speed for about this long
+    team_drift: float = 0.75  # ...then moves with this share of its team's seen players
+    drift_s: float = 0.5  # (their mean velocity, averaged over +-this)
+    huber: float = 2.5  # residuals beyond this many sigmas count less
     iters: int = 3
     # slots
     outfield: int = 10
-    start_cost: float = 6.0                     # a slot that begins (or ends) mid-window
+    start_cost: float = 6.0  # a slot that begins (or ends) mid-window
     bridge_sigma_m: float = 1.5
-    diffusion: float = 20.0                     # m^2/s: how far an unseen player wanders
-    max_speed: float = 8.0                      # m/s, average over a bridge
-    view_cost: float = 1.0                      # per second a bridge spends in the picture
-    value: float = 30.0                         # for putting an identity in a slot at all
+    diffusion: float = 20.0  # m^2/s: how far an unseen player wanders
+    max_speed: float = 8.0  # m/s, average over a bridge
+    view_cost: float = 1.0  # per second a bridge spends in the picture
+    value: float = 30.0  # for putting an identity in a slot at all
     value_per_s: float = 10.0
-    jump_cost: float = 20.0                     # a slot handing over with no plausible run between
+    jump_cost: float = 20.0  # a slot handing over with no plausible run between
     # the camera's view
-    view_grace_s: float = 1.0                   # unseen this long in view is still a detector miss
+    view_grace_s: float = 1.0  # unseen this long in view is still a detector miss
     view_margin_m: float = 1.5
-    blink_s: float = 1.0                        # an identity unseen this long is still drawn as seen
-    shadow_m: float = 2.0                       # a guess this close to a seen teammate is that teammate
+    blink_s: float = 1.0  # an identity unseen this long is still drawn as seen
+    shadow_m: float = 2.0  # a guess this close to a seen teammate is that teammate
     fade_s: float = 0.3
     pitch_margin_m: float = 3.0
 
 
 @dataclass
 class Dot:
-    x: float                                    # metres
+    x: float  # metres
     y: float
-    seen: bool                                  # a box (or the linker's short fill) this frame
-    alpha: float                                # 1 when seen
-    group: tuple                                # (team, role): which colour
-    ident: object = None                        # the Identity while seen
-    slot: int = -1                              # -1 for an identity outside the slots
-    team: str | None = None                     # the team it is drawn as ('unknown': greyed by the cap)
+    seen: bool  # a box (or the linker's short fill) this frame
+    alpha: float  # 1 when seen
+    group: tuple  # (team, role): which colour
+    ident: object = None  # the Identity while seen
+    slot: int = -1  # -1 for an identity outside the slots
+    team: str | None = None  # the team it is drawn as ('unknown': greyed by the cap)
 
     @property
     def drawn_team(self) -> str:
@@ -103,14 +103,14 @@ class Dot:
 class TopDown:
     lo: int
     hi: int
-    dots: list                                  # per frame (lo..hi-1): [Dot]
-    slots: list = field(default_factory=list)   # (group, [(pid, visit)])
+    dots: list  # per frame (lo..hi-1): [Dot]
+    slots: list = field(default_factory=list)  # (group, [(pid, visit)])
     extras: list = field(default_factory=list)  # (pid, visit) outside every slot
-    path: np.ndarray | None = None              # (tracks, frames, 2) metres, every frame
-    owner: np.ndarray | None = None             # (tracks, frames) pid seen there, or -1
-    alpha: np.ndarray | None = None             # (tracks, frames) strength of the guess while unseen
-    slot_of: np.ndarray | None = None           # per track: its slot, -1 for an extra
-    group: list | None = None                   # per track: (team, role) it is drawn as
+    path: np.ndarray | None = None  # (tracks, frames, 2) metres, every frame
+    owner: np.ndarray | None = None  # (tracks, frames) pid seen there, or -1
+    alpha: np.ndarray | None = None  # (tracks, frames) strength of the guess while unseen
+    slot_of: np.ndarray | None = None  # per track: its slot, -1 for an extra
+    group: list | None = None  # per track: (team, role) it is drawn as
 
     def at(self, frame: int) -> list:
         return self.dots[frame - self.lo]
@@ -162,8 +162,14 @@ def _model(s: MapSettings):
     a = s.tau_s * (1.0 - phi)
     F = np.array([[1, 0, a, 0], [0, 1, 0, a], [0, 0, phi, 0], [0, 0, 0, phi]], dtype=np.float64)
     q = s.accel
-    Q = q * np.array([[dt ** 3 / 3, 0, dt ** 2 / 2, 0], [0, dt ** 3 / 3, 0, dt ** 2 / 2],
-                      [dt ** 2 / 2, 0, dt, 0], [0, dt ** 2 / 2, 0, dt]])
+    Q = q * np.array(
+        [
+            [dt**3 / 3, 0, dt**2 / 2, 0],
+            [0, dt**3 / 3, 0, dt**2 / 2],
+            [dt**2 / 2, 0, dt, 0],
+            [0, dt**2 / 2, 0, dt],
+        ]
+    )
     return F, Q
 
 
@@ -185,10 +191,12 @@ def smooth(z: np.ndarray, R: np.ndarray, mask: np.ndarray, s: MapSettings, drift
     eye2 = np.broadcast_to(np.eye(2), R.shape)
     R = np.where(mask[..., None, None], R, eye2)
     w = np.ones((N, T))
-    v0 = s.accel * s.tau_s / 2.0                # stationary velocity variance
+    v0 = s.accel * s.tau_s / 2.0  # stationary velocity variance
     for _ in range(max(1, s.iters)):
-        xf = np.empty((N, T, 4)); Pf = np.empty((N, T, 4, 4))
-        xp = np.empty((N, T, 4)); Pp = np.empty((N, T, 4, 4))
+        xf = np.empty((N, T, 4))
+        Pf = np.empty((N, T, 4, 4))
+        xp = np.empty((N, T, 4))
+        Pp = np.empty((N, T, 4, 4))
         x = np.zeros((N, 4))
         P = np.broadcast_to(np.diag([1e6, 1e6, v0, v0]), (N, 4, 4)).copy()
         for t in range(T):
@@ -204,11 +212,13 @@ def smooth(z: np.ndarray, R: np.ndarray, mask: np.ndarray, s: MapSettings, drift
                 S = P[m, :2, :2] + R[m, t] / w[m, t, None, None]
                 K = P[m, :, :2] @ np.linalg.inv(S)
                 r = z[m, t] - x[m, :2]
-                x = x.copy(); P = P.copy()
+                x = x.copy()
+                P = P.copy()
                 x[m] = x[m] + np.einsum('nij,nj->ni', K, r)
                 P[m] = P[m] - K @ P[m, :2, :]
             xf[:, t], Pf[:, t] = x, P
-        xs = xf.copy(); Ps = Pf.copy()
+        xs = xf.copy()
+        Ps = Pf.copy()
         for t in range(T - 2, -1, -1):
             C = Pf[:, t] @ F.T @ np.linalg.inv(Pp[:, t + 1])
             xs[:, t] = xf[:, t] + np.einsum('nij,nj->ni', C, xs[:, t + 1] - xp[:, t + 1])
@@ -222,7 +232,8 @@ def smooth(z: np.ndarray, R: np.ndarray, mask: np.ndarray, s: MapSettings, drift
 def _timeline(tracks, lo: int, T: int):
     """Stack per-track (frames, xy, R) onto one window timeline."""
     N = len(tracks)
-    z = np.zeros((N, T, 2)); R = np.broadcast_to(np.eye(2), (N, T, 2, 2)).copy()
+    z = np.zeros((N, T, 2))
+    R = np.broadcast_to(np.eye(2), (N, T, 2, 2)).copy()
     mask = np.zeros((N, T), dtype=bool)
     for n, (fs, xy, cov) in enumerate(tracks):
         k = np.asarray(fs) - lo
@@ -234,7 +245,9 @@ def _timeline(tracks, lo: int, T: int):
 # ---- the camera's view ---------------------------------------------------------------
 
 
-def view_polygon(projector: PitchProjector, frame: int, length_m: float, width_m: float, step_px: int = 20):
+def view_polygon(
+    projector: PitchProjector, frame: int, length_m: float, width_m: float, step_px: int = 20
+):
     """The ground the picture shows, in metres: up each side edge as far as it stays near the pitch."""
     W, Hh = projector.width, projector.height
     h = projector.H[int(frame)]
@@ -251,13 +264,18 @@ def view_polygon(projector: PitchProjector, frame: int, length_m: float, width_m
                 break
             best = v
         return best
-    px = np.array([[0, Hh - 1], [W - 1, Hh - 1], [W - 1, top(W - 1)], [0, top(0)]], dtype=np.float64)
+
+    px = np.array(
+        [[0, Hh - 1], [W - 1, Hh - 1], [W - 1, top(W - 1)], [0, top(0)]], dtype=np.float64
+    )
     return projector.to_m(frame, px)
 
 
 def _inside(poly, p, margin: float) -> bool:
-    return poly is not None and cv2.pointPolygonTest(
-        poly.astype(np.float32), (float(p[0]), float(p[1])), True) > margin
+    return (
+        poly is not None
+        and cv2.pointPolygonTest(poly.astype(np.float32), (float(p[0]), float(p[1])), True) > margin
+    )
 
 
 # ---- slots ---------------------------------------------------------------------------
@@ -268,12 +286,12 @@ class _Visit:
     """One identity's run of sightings with no gap longer than `blink_s`."""
 
     pid: int
-    k: int                                      # its number within the identity
+    k: int  # its number within the identity
     group: tuple
-    first: int                                  # frames, absolute
+    first: int  # frames, absolute
     last: int
     seen_s: float
-    start: np.ndarray                           # smoothed x, y, vx, vy at first and last
+    start: np.ndarray  # smoothed x, y, vx, vy at first and last
     end: np.ndarray
 
 
@@ -293,8 +311,8 @@ def _bridge(a: _Visit, b: _Visit, s: MapSettings, in_view_s: float) -> float | N
         return None
     g = s.tau_s * (1.0 - np.exp(-t / s.tau_s))
     r = b.start[:2] - a.end[:2] - 0.5 * (a.end[2:] + b.start[2:]) * g
-    var = s.bridge_sigma_m ** 2 + s.diffusion * t
-    return 0.5 * (r @ r) / var + np.log(var / s.bridge_sigma_m ** 2) + s.view_cost * in_view_s
+    var = s.bridge_sigma_m**2 + s.diffusion * t
+    return 0.5 * (r @ r) / var + np.log(var / s.bridge_sigma_m**2) + s.view_cost * in_view_s
 
 
 def chain(visits: list, polys: list, lo: int, hi: int, k: int, s: MapSettings):
@@ -315,14 +333,19 @@ def chain(visits: list, polys: list, lo: int, hi: int, k: int, s: MapSettings):
     if not visits:
         return [], []
     G = nx.DiGraph()
-    G.add_node('S', demand=-k); G.add_node('T', demand=k)
+    G.add_node('S', demand=-k)
+    G.add_node('T', demand=k)
     G.add_edge('S', 'T', capacity=k, weight=0)
     edge = s.fps * 0.5
     grace = s.view_grace_s * s.fps
-    sc = lambda c: int(round(c * 100))            # noqa: E731  (network simplex wants integers)
+    sc = lambda c: int(round(c * 100))  # noqa: E731  (network simplex wants integers)
     for n, v in enumerate(visits):
-        G.add_edge('S', ('i', n), capacity=1, weight=sc(0.0 if v.first - lo <= edge else s.start_cost))
-        G.add_edge(('o', n), 'T', capacity=1, weight=sc(0.0 if hi - 1 - v.last <= edge else s.start_cost))
+        G.add_edge(
+            'S', ('i', n), capacity=1, weight=sc(0.0 if v.first - lo <= edge else s.start_cost)
+        )
+        G.add_edge(
+            ('o', n), 'T', capacity=1, weight=sc(0.0 if hi - 1 - v.last <= edge else s.start_cost)
+        )
         G.add_edge(('i', n), ('o', n), capacity=1, weight=-sc(s.value + s.value_per_s * v.seen_s))
     for n, a in enumerate(visits):
         for m, b in enumerate(visits):
@@ -339,7 +362,9 @@ def chain(visits: list, polys: list, lo: int, hi: int, k: int, s: MapSettings):
                 step = max(1, int(s.fps / 3))
                 for f in range(int(a.last + grace), int(b.first - grace), step):
                     w = (f - a.last) / (b.first - a.last)
-                    if _inside(polys[f - lo], a.end[:2] * (1 - w) + b.start[:2] * w, s.view_margin_m):
+                    if _inside(
+                        polys[f - lo], a.end[:2] * (1 - w) + b.start[:2] * w, s.view_margin_m
+                    ):
                         seen_s += step / s.fps
             G.add_edge(('o', n), ('i', m), capacity=1, weight=sc(_bridge(a, b, s, seen_s)))
     flow = nx.min_cost_flow(G)
@@ -374,23 +399,43 @@ def visits(ident, fs: np.ndarray, xs: np.ndarray, lo: int, s: MapSettings, other
             a, b = int(fs[j]), int(fs[j + 1])
             for f in range(a + 1, b):
                 p = xs[f - lo, :2]
-                if any(q != ident.pid and h == g and np.hypot(*(xy - p)) < s.shadow_m
-                       for q, h, xy in others.get(f, ())):
+                if any(
+                    q != ident.pid and h == g and np.hypot(*(xy - p)) < s.shadow_m
+                    for q, h, xy in others.get(f, ())
+                ):
                     cut[j] = True
                     break
     cut = np.flatnonzero(cut) + 1
     out = []
     for k, part in enumerate(np.split(fs, cut)):
-        out.append(_Visit(ident.pid, k, g, int(part[0]), int(part[-1]), len(part) / s.fps,
-                          xs[part[0] - lo].copy(), xs[part[-1] - lo].copy()))
+        out.append(
+            _Visit(
+                ident.pid,
+                k,
+                g,
+                int(part[0]),
+                int(part[-1]),
+                len(part) / s.fps,
+                xs[part[0] - lo].copy(),
+                xs[part[-1] - lo].copy(),
+            )
+        )
     return out
 
 
 # ---- the map -------------------------------------------------------------------------
 
 
-def build(res: LinkResult, projector: PitchProjector, lo: int, hi: int, length_m: float, width_m: float,
-          settings: MapSettings | None = None, person_px=None) -> TopDown:
+def build(
+    res: LinkResult,
+    projector: PitchProjector,
+    lo: int,
+    hi: int,
+    length_m: float,
+    width_m: float,
+    settings: MapSettings | None = None,
+    person_px=None,
+) -> TopDown:
     s = settings or MapSettings()
     T = hi - lo
     ident = {i.pid: i for i in res.identities}
@@ -400,7 +445,10 @@ def build(res: LinkResult, projector: PitchProjector, lo: int, hi: int, length_m
     z, R, mask = _timeline([obs[p] for p in pids], lo, T)
     xs, _ = smooth(z, R, mask, s)
     drift = _team_velocity(xs, mask, [_group(ident[p]) for p in pids], s)
-    polys = [view_polygon(projector, f, length_m, width_m) if projector.has(f) else None for f in range(lo, hi)]
+    polys = [
+        view_polygon(projector, f, length_m, width_m) if projector.has(f) else None
+        for f in range(lo, hi)
+    ]
     seen_at: dict = {}
     for n, p in enumerate(pids):
         for f, xy in zip(obs[p][0], xs[n, obs[p][0] - lo, :2]):
@@ -420,12 +468,13 @@ def build(res: LinkResult, projector: PitchProjector, lo: int, hi: int, length_m
         slots += [(g, r) for r in runs]
         extras += left
     # 3. segments: a slot's runs of plausible bridges, each smoothed as one person
-    segs = []                                   # (slot, group, [visits])
+    segs = []  # (slot, group, [visits])
     for n, (g, run) in enumerate(slots):
         cur = [run[0]]
         for a, b in zip(run, run[1:]):
             if _bridge(a, b, s, 0.0) is None:
-                segs.append((n, g, cur)); cur = [b]
+                segs.append((n, g, cur))
+                cur = [b]
             else:
                 cur.append(b)
         segs.append((n, g, cur))
@@ -433,47 +482,98 @@ def build(res: LinkResult, projector: PitchProjector, lo: int, hi: int, length_m
     def rows(v):
         fs = obs[v.pid][0]
         return (fs >= v.first) & (fs <= v.last)
-    tracks = [tuple(np.concatenate([obs[v.pid][j][rows(v)] for v in run]) for j in range(3)) for _, _, run in segs]
+
+    tracks = [
+        tuple(np.concatenate([obs[v.pid][j][rows(v)] for v in run]) for j in range(3))
+        for _, _, run in segs
+    ]
     tracks += [tuple(obs[v.pid][j][rows(v)] for j in range(3)) for v in extras]
     z, R, mask = _timeline(tracks, lo, T)
     still = np.zeros((T, 2))
-    xs, Ps = smooth(z, R, mask, s, np.stack([drift.get(g, still) for _, g, _ in segs]
-                                            + [drift.get(v.group, still) for v in extras]))
-    bounds = (-s.pitch_margin_m, -s.pitch_margin_m, length_m + s.pitch_margin_m, width_m + s.pitch_margin_m)
+    xs, Ps = smooth(
+        z,
+        R,
+        mask,
+        s,
+        np.stack(
+            [drift.get(g, still) for _, g, _ in segs] + [drift.get(v.group, still) for v in extras]
+        ),
+    )
+    bounds = (
+        -s.pitch_margin_m,
+        -s.pitch_margin_m,
+        length_m + s.pitch_margin_m,
+        width_m + s.pitch_margin_m,
+    )
     xs[..., 0] = np.clip(xs[..., 0], bounds[0], bounds[2])
     xs[..., 1] = np.clip(xs[..., 1], bounds[1], bounds[3])
     # 4. who is seen where; a slot's segments hand over across a jump by fading
     N = len(tracks)
     owner = np.full((N, T), -1)
-    share = np.zeros((N, T))                    # how much of the slot's guess this track carries
+    share = np.zeros((N, T))  # how much of the slot's guess this track carries
     for n, (slot, g, run) in enumerate(segs):
         for j, v in enumerate(run):
             end = v.last
             if j + 1 < len(run) and run[j + 1].first - v.last <= s.blink_s * s.fps:
-                end = run[j + 1].first - 1          # a blink between two visits of one person
-            owner[n, v.first - lo:end - lo + 1] = v.pid
+                end = run[j + 1].first - 1  # a blink between two visits of one person
+            owner[n, v.first - lo : end - lo + 1] = v.pid
         prev = [m for m in range(n) if segs[m][0] == slot]
         nxt = [m for m in range(n + 1, len(segs)) if segs[m][0] == slot]
-        share[n] = handover_share(run[0].first - lo, run[-1].last - lo, T,
-                                  segs[prev[-1]][2][-1].last - lo if prev else None,
-                                  segs[nxt[0]][2][0].first - lo if nxt else None)
+        share[n] = handover_share(
+            run[0].first - lo,
+            run[-1].last - lo,
+            T,
+            segs[prev[-1]][2][-1].last - lo if prev else None,
+            segs[nxt[0]][2][0].first - lo if nxt else None,
+        )
     for m, v in enumerate(extras):
-        owner[len(segs) + m, v.first - lo:v.last - lo + 1] = v.pid
-    group = [g for _, g, _ in segs] + [v.group or (ident[v.pid].team, ident[v.pid].role) for v in extras]
+        owner[len(segs) + m, v.first - lo : v.last - lo + 1] = v.pid
+    group = [g for _, g, _ in segs] + [
+        v.group or (ident[v.pid].team, ident[v.pid].role) for v in extras
+    ]
     alpha = _ghost_alpha(xs, Ps, owner, mask, share, group, polys, s)
     slot_of = [sl for sl, _, _ in segs] + [-1] * len(extras)
     dots = [[] for _ in range(T)]
     for n in range(N):
         for t in range(T):
             if owner[n, t] >= 0:
-                dots[t].append(Dot(xs[n, t, 0], xs[n, t, 1], True, 1.0, group[n], ident[owner[n, t]], slot_of[n]))
+                dots[t].append(
+                    Dot(
+                        xs[n, t, 0],
+                        xs[n, t, 1],
+                        True,
+                        1.0,
+                        group[n],
+                        ident[owner[n, t]],
+                        slot_of[n],
+                    )
+                )
             elif alpha[n, t] > 0.02:
-                dots[t].append(Dot(xs[n, t, 0], xs[n, t, 1], False, float(alpha[n, t]), group[n], None, slot_of[n]))
+                dots[t].append(
+                    Dot(
+                        xs[n, t, 0],
+                        xs[n, t, 1],
+                        False,
+                        float(alpha[n, t]),
+                        group[n],
+                        None,
+                        slot_of[n],
+                    )
+                )
     for t in range(T):
         dots[t] = cap_teams(dots[t], res, lo + t, s.outfield)
-    return TopDown(lo, hi, dots, slots=[(g, [(v.pid, v.k) for v in r]) for g, r in slots],
-                   extras=[(v.pid, v.k) for v in extras], path=xs[..., :2], owner=owner, alpha=alpha,
-                   slot_of=np.array(slot_of), group=group)
+    return TopDown(
+        lo,
+        hi,
+        dots,
+        slots=[(g, [(v.pid, v.k) for v in r]) for g, r in slots],
+        extras=[(v.pid, v.k) for v in extras],
+        path=xs[..., :2],
+        owner=owner,
+        alpha=alpha,
+        slot_of=np.array(slot_of),
+        group=group,
+    )
 
 
 def _team_velocity(xs, mask, groups, s: MapSettings) -> dict:
@@ -500,7 +600,9 @@ def _team_velocity(xs, mask, groups, s: MapSettings) -> dict:
     out = {}
     for key in tot:
         m = np.where(cnt[key][:, None] > 0, tot[key] / np.maximum(cnt[key], 1)[:, None], 0.0)
-        m = np.stack([np.convolve(np.pad(m[:, j], k, mode='edge'), ker, mode='valid') for j in range(2)], 1)
+        m = np.stack(
+            [np.convolve(np.pad(m[:, j], k, mode='edge'), ker, mode='valid') for j in range(2)], 1
+        )
         if key:
             out[(key, PLAYER)] = s.team_drift * m
         else:
@@ -517,10 +619,12 @@ def cap_teams(dots: list, res, frame: int, outfield: int) -> list:
     faintest guesses go first, then the held dots are greyed (no box this
     frame: the least evidence), and only then the boxes the linker kept. A
     greyed dot is drawn without a team rather than with a wrong one."""
+
     def boxed(d):
         fs = d.ident.frames
         k = np.searchsorted(fs, frame)
         return k < len(fs) and fs[k] == frame
+
     for d in dots:
         if d.seen and d.ident is not None and d.group[1] == PLAYER:
             d.team = res.team_at(d.ident, frame) if boxed(d) else d.group[0]
@@ -533,7 +637,7 @@ def cap_teams(dots: list, res, frame: int, outfield: int) -> list:
         ghosts = sorted((d for d in mine if not d.seen), key=lambda d: d.alpha)[:extra]
         out = [d for d in out if all(d is not g for g in ghosts)]
         extra -= len(ghosts)
-        for d in [d for d in mine if d.seen and not boxed(d)][:max(extra, 0)]:
+        for d in [d for d in mine if d.seen and not boxed(d)][: max(extra, 0)]:
             d.team = 'unknown'
     return out
 
@@ -549,17 +653,17 @@ def handover_share(a: int, b: int, T: int, p_end: int | None, n_start: int | Non
     the slot is never drawn twice."""
     t = np.arange(T, dtype=float)
     out = np.zeros(T)
-    out[a:b + 1] = 1.0
+    out[a : b + 1] = 1.0
     if p_end is None:
         out[:a] = 1.0
     else:
         m = (p_end + a) / 2
         out[:a] = np.clip((t[:a] - m) / max(a - m, 1), 0, 1)
     if n_start is None:
-        out[b + 1:] = 1.0
+        out[b + 1 :] = 1.0
     else:
         m = (b + n_start) / 2
-        out[b + 1:] = np.clip((m - t[b + 1:]) / max(m - b, 1), 0, 1)
+        out[b + 1 :] = np.clip((m - t[b + 1 :]) / max(m - b, 1), 0, 1)
     return out
 
 

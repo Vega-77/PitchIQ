@@ -48,6 +48,7 @@ switched off within a week. Those four are covered by the table below and only
 by the table. So a new copy of a distinctive number is caught automatically; a
 new copy of 105 has to be added here by whoever writes it.
 """
+
 import io
 import re
 from dataclasses import fields
@@ -86,43 +87,59 @@ def _lit(value):
 # about prose, and it runs over `blank`ed source instead.
 SITES = [
     # --- assets/pitch-backdrop.js: the frame the maps plot into -----------
-    ('assets/pitch-backdrop.js', 'L', r'\bconst L = ' + NUMBER,
-     lambda p: p.length_m),
-    ('assets/pitch-backdrop.js', 'W', r'\bconst W = ' + NUMBER,
-     lambda p: p.width_m),
-    ('assets/pitch-backdrop.js', 'PEN_LEN', r'\bconst PEN_LEN = ' + NUMBER,
-     lambda p: p.penalty_area_length_m),
-    ('assets/pitch-backdrop.js', 'PEN_W', r'\bconst PEN_W = ' + NUMBER,
-     lambda p: p.penalty_area_width_m),
-    ('assets/pitch-backdrop.js', 'SIX_LEN', r'\bconst SIX_LEN = ' + NUMBER,
-     lambda p: p.goal_area_length_m),
-    ('assets/pitch-backdrop.js', 'SIX_W', r'\bconst SIX_W = ' + NUMBER,
-     lambda p: p.goal_area_width_m),
-    ('assets/pitch-backdrop.js', 'CIRCLE_R', r'\bconst CIRCLE_R = ' + NUMBER,
-     lambda p: p.centre_circle_radius_m),
-    ('assets/pitch-backdrop.js', 'SPOT', r'\bconst SPOT = ' + NUMBER,
-     lambda p: p.penalty_spot_m),
-    ('assets/pitch-backdrop.js', 'GOAL_W', r'\bconst GOAL_W = ' + NUMBER,
-     lambda p: p.goal_width_m),
-
+    ('assets/pitch-backdrop.js', 'L', r'\bconst L = ' + NUMBER, lambda p: p.length_m),
+    ('assets/pitch-backdrop.js', 'W', r'\bconst W = ' + NUMBER, lambda p: p.width_m),
+    (
+        'assets/pitch-backdrop.js',
+        'PEN_LEN',
+        r'\bconst PEN_LEN = ' + NUMBER,
+        lambda p: p.penalty_area_length_m,
+    ),
+    (
+        'assets/pitch-backdrop.js',
+        'PEN_W',
+        r'\bconst PEN_W = ' + NUMBER,
+        lambda p: p.penalty_area_width_m,
+    ),
+    (
+        'assets/pitch-backdrop.js',
+        'SIX_LEN',
+        r'\bconst SIX_LEN = ' + NUMBER,
+        lambda p: p.goal_area_length_m,
+    ),
+    (
+        'assets/pitch-backdrop.js',
+        'SIX_W',
+        r'\bconst SIX_W = ' + NUMBER,
+        lambda p: p.goal_area_width_m,
+    ),
+    (
+        'assets/pitch-backdrop.js',
+        'CIRCLE_R',
+        r'\bconst CIRCLE_R = ' + NUMBER,
+        lambda p: p.centre_circle_radius_m,
+    ),
+    ('assets/pitch-backdrop.js', 'SPOT', r'\bconst SPOT = ' + NUMBER, lambda p: p.penalty_spot_m),
+    ('assets/pitch-backdrop.js', 'GOAL_W', r'\bconst GOAL_W = ' + NUMBER, lambda p: p.goal_width_m),
     # --- assets/passing.js: not fallbacks, the actual pitch ---------------
-    ('assets/passing.js', 'pitchLengthM', r'pitchLengthM = ' + NUMBER,
-     lambda p: p.length_m),
-    ('assets/passing.js', 'pitchWidthM', r'pitchWidthM = ' + NUMBER,
-     lambda p: p.width_m),
-
+    ('assets/passing.js', 'pitchLengthM', r'pitchLengthM = ' + NUMBER, lambda p: p.length_m),
+    ('assets/passing.js', 'pitchWidthM', r'pitchWidthM = ' + NUMBER, lambda p: p.width_m),
     # --- assets/sample-report.js: the preview heatmap's cell size ---------
-    ('assets/sample-report.js', 'CELL_LENGTH_M',
-     r'\bconst CELL_LENGTH_M = ' + NUMBER + r' / COLS', lambda p: p.length_m),
-    ('assets/sample-report.js', 'CELL_WIDTH_M',
-     r'\bconst CELL_WIDTH_M = ' + NUMBER + r' / ROWS', lambda p: p.width_m),
-
+    (
+        'assets/sample-report.js',
+        'CELL_LENGTH_M',
+        r'\bconst CELL_LENGTH_M = ' + NUMBER + r' / COLS',
+        lambda p: p.length_m,
+    ),
+    (
+        'assets/sample-report.js',
+        'CELL_WIDTH_M',
+        r'\bconst CELL_WIDTH_M = ' + NUMBER + r' / ROWS',
+        lambda p: p.width_m,
+    ),
     # --- coach/coach.js: the shape scale a coach reads the bars against ---
-    ('coach/coach.js', "the 'Halfway' tick", r"'Halfway', " + NUMBER,
-     lambda p: p.length_m / 2),
-    ('coach/coach.js', "the 'Their goal' tick", r"'Their goal', " + NUMBER,
-     lambda p: p.length_m),
-
+    ('coach/coach.js', "the 'Halfway' tick", r"'Halfway', " + NUMBER, lambda p: p.length_m / 2),
+    ('coach/coach.js', "the 'Their goal' tick", r"'Their goal', " + NUMBER, lambda p: p.length_m),
 ]
 
 
@@ -167,16 +184,18 @@ def test_every_literal_matches_the_python_default(sources):
         rel, label, pattern, _ = site
         found = matches(sources[rel], pattern)
         if len(found) != 1:
-            continue                       # the backwards test reports this
+            continue  # the backwards test reports this
         want = expected(site)
         got = tuple(float(g) for g in found[0].groups())
         for i, (a, b) in enumerate(zip(got, want)):
             if a != pytest.approx(b, abs=1e-9):
-                wrong.append('%s %s%s: js=%g python=%g' % (
-                    rel, label, '' if len(got) == 1 else ' #%d' % (i + 1), a, b))
+                wrong.append(
+                    '%s %s%s: js=%g python=%g'
+                    % (rel, label, '' if len(got) == 1 else ' #%d' % (i + 1), a, b)
+                )
     assert not wrong, (
-        'pitch dimensions in the browser disagree with cv/pitch.py:\n  '
-        + '\n  '.join(wrong))
+        'pitch dimensions in the browser disagree with cv/pitch.py:\n  ' + '\n  '.join(wrong)
+    )
 
 
 # -------------------------------------------------------------- backwards
@@ -194,10 +213,8 @@ def test_every_site_is_still_there(sources):
     for rel, label, pattern, _ in SITES:
         found = matches(sources[rel], pattern)
         if len(found) != 1:
-            broken.append('%s %s: matched %d times, expected 1'
-                          % (rel, label, len(found)))
-    assert not broken, (
-        'stale rows in SITES -- delete or fix them:\n  ' + '\n  '.join(broken))
+            broken.append('%s %s: matched %d times, expected 1' % (rel, label, len(found)))
+    assert not broken, 'stale rows in SITES -- delete or fix them:\n  ' + '\n  '.join(broken)
 
 
 def test_no_unlisted_laws_literal():
@@ -223,12 +240,11 @@ def test_no_unlisted_laws_literal():
             for m in re.finditer(r'(?<![\w$.])%s(?![\w$.])' % _lit(value), code):
                 if any(a <= m.start() and m.end() <= b for a, b in spans):
                     continue
-                stray.append('%s:%d  %s' % (
-                    rel, code[:m.start()].count('\n') + 1, value))
+                stray.append('%s:%d  %s' % (rel, code[: m.start()].count('\n') + 1, value))
     assert not stray, (
         'pitch dimensions written down somewhere this file does not check.\n'
-        'Add a row to SITES so the number is held to cv/pitch.py:\n  '
-        + '\n  '.join(stray))
+        'Add a row to SITES so the number is held to cv/pitch.py:\n  ' + '\n  '.join(stray)
+    )
 
 
 # Fields of `Pitch` the browser has no copy of, and why.
@@ -256,9 +272,9 @@ def test_every_pitch_field_is_mirrored_somewhere():
     missing = {f.name for f in fields(Pitch)} - seen - set(NOT_IN_THE_BROWSER)
     assert not seen & set(NOT_IN_THE_BROWSER), (
         'NOT_IN_THE_BROWSER is stale: %s now has a copy'
-        % ', '.join(sorted(seen & set(NOT_IN_THE_BROWSER))))
-    assert not missing, (
-        'no browser copy of %s is checked here' % ', '.join(sorted(missing)))
+        % ', '.join(sorted(seen & set(NOT_IN_THE_BROWSER)))
+    )
+    assert not missing, 'no browser copy of %s is checked here' % ', '.join(sorted(missing))
 
 
 # ------------------------------------------------------------- anti-vacuum
@@ -278,8 +294,7 @@ def test_the_scan_actually_scanned_something(sources):
     assert len({rel for rel, *_ in SITES}) >= 4
     assert len(modules()) >= 25
     assert all(len(text) > 200 for text in sources.values())
-    total = sum(len(matches(sources[rel], pattern))
-                for rel, _, pattern, _ in SITES)
+    total = sum(len(matches(sources[rel], pattern)) for rel, _, pattern, _ in SITES)
     assert total == len(SITES), 'every row should match exactly once'
 
 
@@ -327,7 +342,8 @@ def test_every_distinctive_number_is_one_the_laws_specify(value):
     known = [getattr(PITCH, f.name) for f in fields(Pitch)]
     known.append(PITCH.length_m / 2)
     assert any(float(value) == pytest.approx(k, abs=1e-9) for k in known), (
-        '%s is in DISTINCTIVE but is not a dimension cv/pitch.py has' % value)
+        '%s is in DISTINCTIVE but is not a dimension cv/pitch.py has' % value
+    )
 
 
 def test_the_number_pattern_does_not_read_a_version_query():

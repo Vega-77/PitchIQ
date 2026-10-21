@@ -53,6 +53,7 @@ it must never be counted as one.
 
     python dtrack4.py
 """
+
 import io
 import json
 import os
@@ -80,9 +81,9 @@ def viterbi4(frames, lam, skip, brk, kmax, stab=True, ret_obj=False):
     kx, ky = ('sx', 'sy') if stab else ('x', 'y')
     T = len(frames)
     best = [None] * T
-    bk = [None] * T                    # (dt, index) or None for a fresh start
-    run, runat = NEG, None             # best[t'] - skip*(t-t'-1), and where
-    virt = 0.0                         # -skip*t: not started yet, still paying
+    bk = [None] * T  # (dt, index) or None for a fresh start
+    run, runat = NEG, None  # best[t'] - skip*(t-t'-1), and where
+    virt = 0.0  # -skip*t: not started yet, still paying
 
     for t in range(T):
         fr = frames[t]
@@ -95,8 +96,7 @@ def viterbi4(frames, lam, skip, brk, kmax, stab=True, ret_obj=False):
             if best[t - k] is None:
                 continue
             reach = max(1.0, SPEED * (fr['abs'] - pf['abs']) / FPS)
-            d = np.hypot(fr[kx][:, None] - pf[kx][None, :],
-                         fr[ky][:, None] - pf[ky][None, :])
+            d = np.hypot(fr[kx][:, None] - pf[kx][None, :], fr[ky][:, None] - pf[ky][None, :])
             tot = best[t - k][None, :] - lam * (d / reach) ** 2 - skip * (k - 1)
             tot = np.where(d > reach, NEG, tot)
             i = tot.argmax(axis=1)
@@ -149,14 +149,11 @@ def cover(pick):
 
 def main():
     frames, lab, absi = D2.load()
-    nb = sum(1 for fr in frames
-             if lab.get(absi.get(fr['abs']), {}).get('kind') == 'ball')
+    nb = sum(1 for fr in frames if lab.get(absi.get(fr['abs']), {}).get('kind') == 'ball')
     T = len(frames)
-    print('%d frames, %d hand-marked balls.  Pool ceiling 46 at KEEP 200.'
-          % (T, nb))
+    print('%d frames, %d hand-marked balls.  Pool ceiling 46 at KEEP 200.' % (T, nb))
     print('Raw per-frame argmax 23/47.  Dense first-order at the swept knobs')
-    print('37/47.  This model 41/47 at lambda %s break %s skip 8 kmax 4,'
-          % (LAM, BREAK))
+    print('37/47.  This model 41/47 at lambda %s break %s skip 8 kmax 4,' % (LAM, BREAK))
     print('held out and with both folds agreeing.')
     print()
     print('COASTING VITERBI.  Each cell: hits / 47, and the % of frames the')
@@ -164,8 +161,7 @@ def main():
     print('here - this model has no null state, so no setting of kmax turns')
     print('it back into the first-order one.')
     print()
-    print('  %-10s %s' % ('', '  '.join('%-14s' % ('kmax ' + str(k))
-                                        for k in KMAXS)))
+    print('  %-10s %s' % ('', '  '.join('%-14s' % ('kmax ' + str(k)) for k in KMAXS)))
     best = None
     for sk in SKIPS:
         cells = []
@@ -179,19 +175,36 @@ def main():
 
     h, lam, sk, km, p = best
     print()
-    print('best %d / 47  at lambda %s  skip %s  kmax %d  (%.0f%% coverage)'
-          % (h, lam, sk, km, 100.0 * cover(p) / T))
+    print(
+        'best %d / 47  at lambda %s  skip %s  kmax %d  (%.0f%% coverage)'
+        % (h, lam, sk, km, 100.0 * cover(p) / T)
+    )
 
     out = []
     for t, fr in enumerate(frames):
         j = p[t]
-        out.append(dict(abs=int(fr['abs']),
-                        x=None if j is None else float(fr['x'][j]),
-                        y=None if j is None else float(fr['y'][j]),
-                        s=None if j is None else float(fr['s'][j])))
-    json.dump(dict(lam=lam, skip=sk, brk=BREAK, kmax=km, tol=TOL, best=h,
-                   coverage=cover(p), frames=T, path=out),
-              io.open(os.path.join(S2, 'dtrack4.json'), 'w', encoding='utf-8'))
+        out.append(
+            dict(
+                abs=int(fr['abs']),
+                x=None if j is None else float(fr['x'][j]),
+                y=None if j is None else float(fr['y'][j]),
+                s=None if j is None else float(fr['s'][j]),
+            )
+        )
+    json.dump(
+        dict(
+            lam=lam,
+            skip=sk,
+            brk=BREAK,
+            kmax=km,
+            tol=TOL,
+            best=h,
+            coverage=cover(p),
+            frames=T,
+            path=out,
+        ),
+        io.open(os.path.join(S2, 'dtrack4.json'), 'w', encoding='utf-8'),
+    )
     print('wrote dtrack4.json')
 
 

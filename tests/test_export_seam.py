@@ -31,6 +31,7 @@ were deleted on its word. Here the same blindness is worth 40 verdicts: switch
 scanner's universe is part of its correctness, and a false `dead` costs more
 than no scanner at all, because a scanner gets believed.
 """
+
 import inspect
 import re
 
@@ -40,8 +41,8 @@ NAME = r'[A-Za-z_$][\w$]*'
 
 # Declarations. `export function`, `export const`, and the re-export list.
 DECL = re.compile(
-    r'^export\s+(?:async\s+)?(?:function\*?|const|class|let|var)\s+('
-    + NAME + r')', re.M)
+    r'^export\s+(?:async\s+)?(?:function\*?|const|class|let|var)\s+(' + NAME + r')', re.M
+)
 DECL_LIST = re.compile(r'^export\s*\{([^}]*)\}', re.M)
 
 # Uses.
@@ -63,8 +64,7 @@ SITES = ('static', 'dynamic', 'namespace', 'local', 'comments', 'harness')
 
 def harness_files():
     """The test suite's own JavaScript, which reads the frontend like any page."""
-    return sorted(p.relative_to(ROOT).as_posix()
-                  for p in (ROOT / 'tests').glob('*.js'))
+    return sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / 'tests').glob('*.js'))
 
 
 def strip_comments(src):
@@ -87,17 +87,15 @@ class Seam:
     """One reading of the seam, with one or more sites switched off."""
 
     def __init__(self, declared, owners, used, local):
-        self.declared = declared      # name -> files declaring it outright
-        self.owners = owners          # name -> files declaring or re-exporting
-        self.used = used              # name -> where it is read from elsewhere
-        self.local = local            # names used again inside their own file
-        self.dead = sorted(n for n in owners
-                           if n not in used and n not in local)
-        self.local_only = sorted(n for n in owners
-                                 if n not in used and n in local)
+        self.declared = declared  # name -> files declaring it outright
+        self.owners = owners  # name -> files declaring or re-exporting
+        self.used = used  # name -> where it is read from elsewhere
+        self.local = local  # names used again inside their own file
+        self.dead = sorted(n for n in owners if n not in used and n not in local)
+        self.local_only = sorted(n for n in owners if n not in used and n in local)
         self.only_tests = sorted(
-            n for n, where in used.items()
-            if all(w.startswith('tests/') for w in where))
+            n for n, where in used.items() if all(w.startswith('tests/') for w in where)
+        )
 
     @property
     def product_dead(self):
@@ -179,6 +177,7 @@ def local_only_without(site):
 # What the scan can see
 # ---------------------------------------------------------------------------
 
+
 def test_every_file_it_claims_to_read_exists():
     for rel in js_files() + harness_files():
         assert (ROOT / rel).is_file(), rel
@@ -216,9 +215,11 @@ def test_every_import_in_the_repo_is_a_shape_this_scan_can_read():
         assert not re.search(r'^export\s*\*', src, re.M), rel
         assert 'require(' not in src, rel
         for line in src.splitlines():
-            if (line.startswith('import ')
-                    and not line.startswith('import {')
-                    and not line.startswith('import *')):
+            if (
+                line.startswith('import ')
+                and not line.startswith('import {')
+                and not line.startswith('import *')
+            ):
                 plain.append(line.strip())
     # The two shapes that bind no project name: a node builtin, and one bare
     # side-effect import that installs the module hooks.
@@ -231,6 +232,7 @@ def test_every_import_in_the_repo_is_a_shape_this_scan_can_read():
 # ---------------------------------------------------------------------------
 # The headline
 # ---------------------------------------------------------------------------
+
 
 def test_nothing_is_exported_that_nobody_reads():
     assert SEAM.dead == []
@@ -276,16 +278,28 @@ LOCAL_ONLY = {
     # exports nearly everything it declares so the pure JS suites can reach
     # in; these are the ones no test asked for either.
     'report.js tuning constants': {
-        'BRIDGE_S', 'CHANGE_GROUP_S', 'CHANGE_WINDOW_S', 'COVERAGE_MARGIN_M',
-        'COVERAGE_SPREAD_MAX', 'LEVEL', 'MAX_TIMELINE', 'MIN_CHANGE_WINDOW_S',
-        'NEARBY_TAG_S', 'PERIOD_WORDS', 'PHANTOM_M_PER_MINUTE',
-        'POSITION_FLOOR_M', 'POSITION_SIGMAS', 'WANDER_TAU_S',
+        'BRIDGE_S',
+        'CHANGE_GROUP_S',
+        'CHANGE_WINDOW_S',
+        'COVERAGE_MARGIN_M',
+        'COVERAGE_SPREAD_MAX',
+        'LEVEL',
+        'MAX_TIMELINE',
+        'MIN_CHANGE_WINDOW_S',
+        'NEARBY_TAG_S',
+        'PERIOD_WORDS',
+        'PHANTOM_M_PER_MINUTE',
+        'POSITION_FLOOR_M',
+        'POSITION_SIGMAS',
+        'WANDER_TAU_S',
     },
     # Two helpers called once each, by a neighbour a few hundred lines away.
     'report.js private helpers': {'resultOf', 'reviewedCorrections'},
     # The season page's own measure table and its floor.
     'season.js measure table': {
-        'FORM_MEASURES', 'MEASURE_BY_KEY', 'MIN_POINT_ATTEMPTS',
+        'FORM_MEASURES',
+        'MEASURE_BY_KEY',
+        'MIN_POINT_ATTEMPTS',
     },
     # The wording behind the confidence chips, used by the chip builder itself.
     'ui.js wording': {'CONFIDENCE_LEVELS'},
@@ -298,7 +312,11 @@ LOCAL_ONLY = {
     # Each of these draws a chart and is called only by the mount function
     # directly below it, which finds the element and puts the markup in.
     'renderers with a sibling mount': {
-        'formCard', 'formSparkline', 'heatmapSvg', 'passMapSvg', 'pitchSvg',
+        'formCard',
+        'formSparkline',
+        'heatmapSvg',
+        'passMapSvg',
+        'pitchSvg',
     },
     'shell.js view list': {'VIEWS'},
 }
@@ -349,14 +367,20 @@ def test_the_renderers_and_their_mounts_share_a_file():
 # Every site earns its place
 # ---------------------------------------------------------------------------
 
+
 def reading(seam):
     """Everything one scan concluded, in a shape two scans can be compared in.
 
     `Seam` has no `__eq__`, so comparing the objects would compare identity and
     every check below would pass without looking at anything.
     """
-    return (sorted(seam.owners), seam.dead, seam.local_only, sorted(seam.local),
-            sorted((n, sorted(w)) for n, w in seam.used.items()))
+    return (
+        sorted(seam.owners),
+        seam.dead,
+        seam.local_only,
+        sorted(seam.local),
+        sorted((n, sorted(w)) for n, w in seam.used.items()),
+    )
 
 
 def test_every_site_it_names_is_a_site_it_reads():

@@ -30,7 +30,7 @@ def _hungarian(a: np.ndarray) -> np.ndarray:
     n, m = a.shape
     u = np.zeros(n + 1)
     v = np.zeros(m + 1)
-    p = np.zeros(m + 1, dtype=int)        # row assigned to column j (1-based), 0 = none
+    p = np.zeros(m + 1, dtype=int)  # row assigned to column j (1-based), 0 = none
     way = np.zeros(m + 1, dtype=int)
     for i in range(1, n + 1):
         p[0] = i

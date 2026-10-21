@@ -69,7 +69,7 @@ class BallExit:
     """A moment the ball's path crossed a boundary of the pitch."""
 
     timestamp_s: float
-    boundary: str                     # 'touchline' | 'byline'
+    boundary: str  # 'touchline' | 'byline'
 
 
 @dataclass(frozen=True)
@@ -83,12 +83,12 @@ class Disagreement:
     disagreement.
     """
 
-    kind: str                         # 'goal' | 'exit'
+    kind: str  # 'goal' | 'exit'
     status: str
     cv_s: float | None = None
     tag_s: float | None = None
     tag_type: str | None = None
-    detail: str | None = None         # the boundary, for exits
+    detail: str | None = None  # the boundary, for exits
 
     @property
     def at_s(self) -> float:
@@ -140,10 +140,7 @@ class Reconciliation:
 
     def disagreements(self, kind: str | None = None) -> list[Disagreement]:
         """The entries worth a human's time — everything except agreement."""
-        return [
-            e for e in self.entries
-            if e.status != AGREED and (kind is None or e.kind == kind)
-        ]
+        return [e for e in self.entries if e.status != AGREED and (kind is None or e.kind == kind)]
 
     def to_json(self) -> dict:
         return {
@@ -299,15 +296,13 @@ def reconcile(
 
     # ---- goals ----
     cv_goals = sorted(
-        e.timestamp_s for e in (log.events if log else [])
-        if getattr(e, 'outcome', None) == GOAL
+        e.timestamp_s for e in (log.events if log else []) if getattr(e, 'outcome', None) == GOAL
     )
     tag_goals = tagged_times(tag_entries, {GOAL}, clock)
 
     agreed, cv_only, tag_only = pair_up(cv_goals, tag_goals, goal_window_s)
     for cv_s, tag_s in agreed:
-        entries.append(Disagreement(GOAL, AGREED, cv_s=cv_s, tag_s=tag_s,
-                                    tag_type=GOAL))
+        entries.append(Disagreement(GOAL, AGREED, cv_s=cv_s, tag_s=tag_s, tag_type=GOAL))
     for cv_s in cv_only:
         entries.append(Disagreement(GOAL, CV_ONLY, cv_s=cv_s))
     for tag_s in tag_only:
@@ -323,17 +318,29 @@ def reconcile(
         boundary_at = {e.timestamp_s: e.boundary for e in exits}
 
         agreed, cv_only, tag_only = pair_up(
-            exit_times, tag_exits, stoppage_window_s,
+            exit_times,
+            tag_exits,
+            stoppage_window_s,
         )
         for cv_s, tag_s in agreed:
-            entries.append(Disagreement(
-                'exit', AGREED, cv_s=cv_s, tag_s=tag_s,
-                detail=boundary_at.get(cv_s),
-            ))
+            entries.append(
+                Disagreement(
+                    'exit',
+                    AGREED,
+                    cv_s=cv_s,
+                    tag_s=tag_s,
+                    detail=boundary_at.get(cv_s),
+                )
+            )
         for cv_s in cv_only:
-            entries.append(Disagreement(
-                'exit', CV_ONLY, cv_s=cv_s, detail=boundary_at.get(cv_s),
-            ))
+            entries.append(
+                Disagreement(
+                    'exit',
+                    CV_ONLY,
+                    cv_s=cv_s,
+                    detail=boundary_at.get(cv_s),
+                )
+            )
         for tag_s in tag_only:
             entries.append(Disagreement('exit', TAG_ONLY, tag_s=tag_s))
 
@@ -355,12 +362,8 @@ def warnings_for(reconciliation: Reconciliation, clock=None) -> list[str]:
     for entry in reconciliation.disagreements(GOAL):
         if entry.status == TAG_ONLY:
             notes.append(
-                f'a goal was tagged at {fmt(entry.tag_s)} that the video '
-                'analysis did not find'
+                f'a goal was tagged at {fmt(entry.tag_s)} that the video analysis did not find'
             )
         else:
-            notes.append(
-                f'the video analysis found a goal at {fmt(entry.cv_s)} that '
-                'nobody tagged'
-            )
+            notes.append(f'the video analysis found a goal at {fmt(entry.cv_s)} that nobody tagged')
     return notes

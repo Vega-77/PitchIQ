@@ -13,6 +13,7 @@ if the first moved:
 
     python wm_cls.py          # needs wmNNcls.npz from clsscore.py
 """
+
 import itertools
 import os
 
@@ -53,23 +54,35 @@ def ranks(T, F, idx):
             out.append(int((sc[~ok] > b).sum()))
     for name, r in (('detector s', r_s), ('classifier p', r_p)):
         r = np.array(r)
-        print('  %-13s n %3d  rank0 %3.0f%%  top3 %3.0f%%  top5 %3.0f%%  '
-              'median %d' % (name, len(r), 100 * (r == 0).mean(),
-                             100 * (r < 3).mean(), 100 * (r < 5).mean(),
-                             np.median(r)))
+        print(
+            '  %-13s n %3d  rank0 %3.0f%%  top3 %3.0f%%  top5 %3.0f%%  '
+            'median %d'
+            % (
+                name,
+                len(r),
+                100 * (r == 0).mean(),
+                100 * (r < 3).mean(),
+                100 * (r < 5).mean(),
+                np.median(r),
+            )
+        )
 
 
 def main():
     T, tags, F, idx = U.load_all()
     for tag in tags:
         attach(F[tag], tag)
-    print('RANK of the true ball among its frame\'s candidates')
+    print("RANK of the true ball among its frame's candidates")
     ranks(T, F, idx)
 
-    halves = {'H1': {t for t in tags if int(t[2:]) < 9},
-              'H2': {t for t in tags if int(t[2:]) >= 9}}
-    grid = dict(a=[0.0, 0.5, 0.75, 1.0], e_off=[-1.0, -0.5, 0.0, 0.5],
-                c_enter=[12.0, 20.0], c_near=[2.0, 6.0], skip=[4.0, 8.0])
+    halves = {'H1': {t for t in tags if int(t[2:]) < 9}, 'H2': {t for t in tags if int(t[2:]) >= 9}}
+    grid = dict(
+        a=[0.0, 0.5, 0.75, 1.0],
+        e_off=[-1.0, -0.5, 0.0, 0.5],
+        c_enter=[12.0, 20.0],
+        c_near=[2.0, 6.0],
+        skip=[4.0, 8.0],
+    )
     keys = list(grid)
     res = []
     for vals in itertools.product(*(grid[k] for k in keys)):
@@ -78,16 +91,18 @@ def main():
         for tag in tags:
             for fr in F[tag]:
                 fr['s'] = a * fr['p'] + (1 - a) * fr['s0']
-        p = {tag: D6.viterbi7(F[tag], drift=12.0, gate=2.0, **cfg)
-             for tag in tags}
+        p = {tag: D6.viterbi7(F[tag], drift=12.0, gate=2.0, **cfg) for tag in tags}
         cfg['a'] = a
-        res.append((cfg, {h: U.score(T, F, idx, p, cl)
-                          for h, cl in halves.items()},
-                    U.score(T, F, idx, p, set(tags))))
+        res.append(
+            (
+                cfg,
+                {h: U.score(T, F, idx, p, cl) for h, cl in halves.items()},
+                U.score(T, F, idx, p, set(tags)),
+            )
+        )
     print('\nTRACK  %d grid points' % len(res))
     for a in grid['a']:
-        cfg, r, al = max((z for z in res if z[0]['a'] == a),
-                         key=lambda z: z[2]['ok'])
+        cfg, r, al = max((z for z in res if z[0]['a'] == a), key=lambda z: z[2]['ok'])
         print('  a %.2f best-on-all  %s' % (a, U.fmt(al)))
     for tune, test in (('H1', 'H2'), ('H2', 'H1')):
         cfg, r, al = max(res, key=lambda z: z[1][tune]['ok'])

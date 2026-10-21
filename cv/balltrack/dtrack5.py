@@ -49,6 +49,7 @@ a ceiling.
 
     PIQ_DENSE=dense200.npz python dtrack5.py
 """
+
 import os
 
 import numpy as np
@@ -57,7 +58,7 @@ import dtrack2 as D2
 from dtrack2 import FPS, SPEED
 from dtrack4 import NEG
 
-RESTK = 8                     # restart sources carried forward
+RESTK = 8  # restart sources carried forward
 
 RAD0S = [0.0, 60.0, 150.0]
 DRIFTS = [12.0, 37.0, 90.0]
@@ -65,8 +66,7 @@ GATES = [0.0, 0.5, 2.0, 8.0]
 LAM, SKIP, BRK, KMAX = 0.125, 8.0, 32.0, 4
 
 
-def viterbi5(frames, lam, skip, brk, kmax, rad0, drift, gate,
-             stab=True, ret_obj=False):
+def viterbi5(frames, lam, skip, brk, kmax, rad0, drift, gate, stab=True, ret_obj=False):
     """viterbi4, with the restart priced by distance from where it broke.
 
     gate 0.0 reproduces viterbi4 exactly (the penalty term vanishes and the
@@ -76,7 +76,7 @@ def viterbi5(frames, lam, skip, brk, kmax, rad0, drift, gate,
     T = len(frames)
     best = [None] * T
     bk = [None] * T
-    virt = 0.0                                  # -skip*t, nothing started yet
+    virt = 0.0  # -skip*t, nothing started yet
 
     # restart pool: parallel arrays of score-at-entry, frame, index, position
     ps = np.zeros(0)
@@ -97,8 +97,7 @@ def viterbi5(frames, lam, skip, brk, kmax, rad0, drift, gate,
             if best[t - k] is None:
                 continue
             reach = max(1.0, SPEED * (fr['abs'] - pf['abs']) / FPS)
-            d = np.hypot(fr[kx][:, None] - pf[kx][None, :],
-                         fr[ky][:, None] - pf[ky][None, :])
+            d = np.hypot(fr[kx][:, None] - pf[kx][None, :], fr[ky][:, None] - pf[ky][None, :])
             tot = best[t - k][None, :] - lam * (d / reach) ** 2 - skip * (k - 1)
             tot = np.where(d > reach, NEG, tot)
             i = tot.argmax(axis=1)
@@ -112,12 +111,10 @@ def viterbi5(frames, lam, skip, brk, kmax, rad0, drift, gate,
         if len(ps):
             age = np.maximum(1.0, t - pt).astype(float)
             allowed = np.maximum(1.0, rad0 + drift * age)
-            d = np.hypot(fr[kx][:, None] - px[None, :],
-                         fr[ky][:, None] - py[None, :])
+            d = np.hypot(fr[kx][:, None] - px[None, :], fr[ky][:, None] - py[None, :])
             over = np.maximum(0.0, d - allowed[None, :]) / allowed[None, :]
             # ps already carries the -skip decay for every frame it waited
-            tot = (ps[None, :] - skip * (t - pt - 1)[None, :] - brk
-                   - gate * over ** 2)
+            tot = ps[None, :] - skip * (t - pt - 1)[None, :] - brk - gate * over**2
             i = tot.argmax(axis=1)
             v = tot[np.arange(n), i]
             take = v > cur
@@ -147,8 +144,7 @@ def viterbi5(frames, lam, skip, brk, kmax, rad0, drift, gate,
             # rank by score decayed to NOW; the decay is uniform, so this
             # ordering does not change as t advances
             keep = np.argsort(-(ps - skip * (t - pt)))[:RESTK]
-            ps, pt, pj, px, py = (ps[keep], pt[keep], pj[keep],
-                                  px[keep], py[keep])
+            ps, pt, pj, px, py = (ps[keep], pt[keep], pj[keep], px[keep], py[keep])
         virt -= skip
 
     # --- backtrace ------------------------------------------------------
@@ -175,10 +171,11 @@ def cover(pick):
 def main():
     frames, lab, absi = D2.load()
     T = len(frames)
-    nb = sum(1 for fr in frames
-             if lab.get(absi.get(fr['abs']), {}).get('kind') == 'ball')
-    print('%s: %d frames, %d hand marks, pool ceiling 46.'
-          % (os.environ.get('PIQ_DENSE', 'dense.npz'), T, nb))
+    nb = sum(1 for fr in frames if lab.get(absi.get(fr['abs']), {}).get('kind') == 'ball')
+    print(
+        '%s: %d frames, %d hand marks, pool ceiling 46.'
+        % (os.environ.get('PIQ_DENSE', 'dense.npz'), T, nb)
+    )
     print('viterbi4 at these knobs scores 41.  gate 0 below MUST reproduce')
     print('it - the penalty vanishes and the restart is the old one.  If it')
     print('does not, the pool rewrite is wrong and nothing else here counts.')
@@ -194,10 +191,8 @@ def main():
                 row.append('%2d %3.0f%%' % (h, cover(p)))
                 if best is None or h > best[0]:
                     best = (h, rad0, drift, g)
-            print('  rad0 %-6s drift %-6s  %s'
-                  % (rad0, drift, '  '.join('%-9s' % c for c in row)))
-    print('  %-22s %s' % ('', '  '.join('%-9s' % ('gate ' + str(g))
-                                        for g in GATES)))
+            print('  rad0 %-6s drift %-6s  %s' % (rad0, drift, '  '.join('%-9s' % c for c in row)))
+    print('  %-22s %s' % ('', '  '.join('%-9s' % ('gate ' + str(g)) for g in GATES)))
     print()
     h, rad0, drift, g = best
     print('  best %d / 47 at rad0 %s drift %s gate %s' % (h, rad0, drift, g))

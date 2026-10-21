@@ -14,6 +14,7 @@ It also prints `checks.feet_on_pitch` for the people on those frames: well
 under 0.8 means the calibration throws players off the pitch. A pitch drawn
 too big passes that check, so look at the sheet as well.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -54,12 +55,15 @@ def overlay(tag: str, n: int):
 
     z = np.load(HOMOG / f'{tag}_reg.npz')
     v = HOMOG / f'{tag}_venue.npz'
-    lines = _lines(*(M_PER_R * float(np.load(v)[k]) for k in ('L', 'W'))) if v.exists() else _lines()
+    lines = (
+        _lines(*(M_PER_R * float(np.load(v)[k]) for k in ('L', 'W'))) if v.exists() else _lines()
+    )
     idx = np.flatnonzero(z['ok'])
     idx = idx[np.linspace(0, len(idx) - 1, n).round().astype(int)]
     from ultralytics import YOLO
 
     from cv.detector import CLASS_PERSON, DEFAULT_WEIGHTS
+
     model = YOLO(str(DEFAULT_WEIGHTS))
     cap = cv2.VideoCapture(VIDEO)
     tiles, Hs, feet = [], [], []
@@ -69,33 +73,61 @@ def overlay(tag: str, n: int):
         if not ok:
             continue
         H = z['Hsb'][i]
-        b = model.predict(img, classes=[CLASS_PERSON], conf=0.4, imgsz=1280, verbose=False)[0].boxes.xyxy.cpu().numpy()
-        b = b[b[:, 3] - b[:, 1] < 0.25 * img.shape[0]]    # the people on the pitch, not the camera's neighbours
-        Hs.append(H); feet.append(np.c_[(b[:, 0] + b[:, 2]) / 2, b[:, 3]])
+        b = (
+            model.predict(img, classes=[CLASS_PERSON], conf=0.4, imgsz=1280, verbose=False)[0]
+            .boxes.xyxy.cpu()
+            .numpy()
+        )
+        b = b[
+            b[:, 3] - b[:, 1] < 0.25 * img.shape[0]
+        ]  # the people on the pitch, not the camera's neighbours
+        Hs.append(H)
+        feet.append(np.c_[(b[:, 0] + b[:, 2]) / 2, b[:, 3]])
         Hi = np.linalg.inv(H)
-        c = H @ [img.shape[1] / 2, img.shape[0] / 2, 1.0]  # the frame centre's pitch point must map back in front
+        c = H @ [
+            img.shape[1] / 2,
+            img.shape[0] / 2,
+            1.0,
+        ]  # the frame centre's pitch point must map back in front
         if (Hi @ (c / c[2]))[2] < 0:
             Hi = -Hi
         for l in lines:
             d = _densify(l)
             p = np.c_[d, np.ones(len(d))] @ Hi.T
-            good = p[:, 2] > 0                            # points behind the camera do not project
-            q = (p[:, :2] / p[:, 2:3])
+            good = p[:, 2] > 0  # points behind the camera do not project
+            q = p[:, :2] / p[:, 2:3]
             for a, b, ga, gb in zip(q[:-1], q[1:], good[:-1], good[1:]):
                 if ga and gb and np.all(np.abs(np.r_[a, b]) < 1e5):
-                    cv2.line(img, tuple(int(v) for v in a), tuple(int(v) for v in b), (255, 0, 255), 2, cv2.LINE_AA)
-        cv2.putText(img, f'{tag} f{int(z["abs"][i])}', (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 255), 3)
+                    cv2.line(
+                        img,
+                        tuple(int(v) for v in a),
+                        tuple(int(v) for v in b),
+                        (255, 0, 255),
+                        2,
+                        cv2.LINE_AA,
+                    )
+        cv2.putText(
+            img,
+            f'{tag} f{int(z["abs"][i])}',
+            (20, 50),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.5,
+            (0, 255, 255),
+            3,
+        )
         tiles.append(cv2.resize(img, (960, 540)))
     while len(tiles) % 2:
         tiles.append(np.zeros_like(tiles[0]))
-    sheet = np.vstack([np.hstack(tiles[k:k + 2]) for k in range(0, len(tiles), 2)])
+    sheet = np.vstack([np.hstack(tiles[k : k + 2]) for k in range(0, len(tiles), 2)])
     out = PLAB / 'out' / f'{tag}_overlay.jpg'
     cv2.imwrite(str(out), sheet, [cv2.IMWRITE_JPEG_QUALITY, 85])
     return out, feet_on_pitch(np.array(Hs), feet)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog='python -m cv.experiments.cal_overlay', description=__doc__.split('\n\n')[0])
+    p = argparse.ArgumentParser(
+        prog='python -m cv.experiments.cal_overlay', description=__doc__.split('\n\n')[0]
+    )
     p.add_argument('tag')
     p.add_argument('--n', type=int, default=6, help='frames to draw')
     return p

@@ -30,6 +30,7 @@ from cv.pitch import (
 # A synthetic camera with known ground truth
 # ---------------------------------------------------------------------------
 
+
 def synthetic_camera(pitch: Pitch, width_px: int = 1280, height_px: int = 720):
     """A plausible elevated, slightly off-centre view of the pitch.
 
@@ -68,8 +69,9 @@ def project(matrix: np.ndarray, x: float, y: float) -> tuple[float, float]:
     return (float(out[0]), float(out[1]))
 
 
-def clicks_for(pitch: Pitch, matrix: np.ndarray, names: list[str], jitter_px: float = 0.0,
-               seed: int = 0) -> list[Correspondence]:
+def clicks_for(
+    pitch: Pitch, matrix: np.ndarray, names: list[str], jitter_px: float = 0.0, seed: int = 0
+) -> list[Correspondence]:
     rng = np.random.default_rng(seed)
     out = []
     for name in names:
@@ -92,27 +94,27 @@ def picker_export(pitch: Pitch, names: list[str] | None = None) -> dict:
 
     matrix = synthetic_camera(pitch)
     return {
-        "image_size": [1280, 720],
-        "pitch": asdict(pitch),
-        "points": [
-            {"landmark": c.landmark, "x": c.pixel[0], "y": c.pixel[1]}
+        'image_size': [1280, 720],
+        'pitch': asdict(pitch),
+        'points': [
+            {'landmark': c.landmark, 'x': c.pixel[0], 'y': c.pixel[1]}
             for c in clicks_for(pitch, matrix, names or EIGHT_POINTS)
         ],
     }
 
 
 FOUR_CORNERS = [
-    "corner_bottom_left",
-    "corner_bottom_right",
-    "corner_top_right",
-    "corner_top_left",
+    'corner_bottom_left',
+    'corner_bottom_right',
+    'corner_top_right',
+    'corner_top_left',
 ]
 
 EIGHT_POINTS = FOUR_CORNERS + [
-    "halfway_bottom",
-    "halfway_top",
-    "pen_left_bottom_corner",
-    "pen_right_top_corner",
+    'halfway_bottom',
+    'halfway_top',
+    'pen_left_bottom_corner',
+    'pen_right_top_corner',
 ]
 
 
@@ -130,47 +132,48 @@ def camera(pitch: Pitch) -> np.ndarray:
 # Pitch geometry
 # ---------------------------------------------------------------------------
 
+
 class TestPitch:
     def test_goal_posts_are_regulation_width(self, pitch: Pitch):
-        bottom, top = pitch.goal_posts("left")
+        bottom, top = pitch.goal_posts('left')
         assert top[1] - bottom[1] == pytest.approx(7.32)
 
     def test_landmarks_lie_within_the_pitch(self, pitch: Pitch):
         for name, (x, y) in pitch.landmarks().items():
-            assert pitch.contains(x, y, margin_m=0.01), f"{name} is off the pitch"
+            assert pitch.contains(x, y, margin_m=0.01), f'{name} is off the pitch'
 
     def test_penalty_area_matches_the_laws(self, pitch: Pitch):
-        bottom = pitch.landmark("pen_left_bottom_goalline")
-        top = pitch.landmark("pen_left_top_goalline")
-        corner = pitch.landmark("pen_left_bottom_corner")
+        bottom = pitch.landmark('pen_left_bottom_goalline')
+        top = pitch.landmark('pen_left_top_goalline')
+        corner = pitch.landmark('pen_left_bottom_corner')
 
         assert top[1] - bottom[1] == pytest.approx(40.32)
         assert corner[0] == pytest.approx(16.5)
 
     def test_smaller_pitch_scales_the_lines_but_not_the_goal(self):
         small = Pitch(length_m=95.0, width_m=60.0)
-        bottom, top = small.goal_posts("right")
+        bottom, top = small.goal_posts('right')
 
         # Goal size is fixed by the Laws even when the field is short.
         assert top[1] - bottom[1] == pytest.approx(7.32)
-        assert small.landmark("corner_top_right") == (95.0, 60.0)
+        assert small.landmark('corner_top_right') == (95.0, 60.0)
 
 
 class TestStatsBombConversion:
     def test_attacked_goal_lands_at_x_120(self, pitch: Pitch):
-        x, y = pitch.to_statsbomb(*pitch.right_goal_centre, attacking_end="right")
+        x, y = pitch.to_statsbomb(*pitch.right_goal_centre, attacking_end='right')
         assert x == pytest.approx(STATSBOMB_LENGTH)
         assert y == pytest.approx(STATSBOMB_WIDTH / 2)
 
     def test_attacking_left_mirrors_so_the_goal_is_still_at_x_120(self, pitch: Pitch):
         # The xG model always assumes the target goal is at x=120, so a team
         # attacking the left end must be mirrored into that frame.
-        x, y = pitch.to_statsbomb(*pitch.left_goal_centre, attacking_end="left")
+        x, y = pitch.to_statsbomb(*pitch.left_goal_centre, attacking_end='left')
         assert x == pytest.approx(STATSBOMB_LENGTH)
         assert y == pytest.approx(STATSBOMB_WIDTH / 2)
 
     def test_round_trips(self, pitch: Pitch):
-        for end in ("left", "right"):
+        for end in ('left', 'right'):
             for point in [(10.0, 20.0), (52.5, 34.0), (95.0, 60.0)]:
                 sb = pitch.to_statsbomb(*point, attacking_end=end)
                 back = pitch.from_statsbomb(*sb, attacking_end=end)
@@ -179,39 +182,40 @@ class TestStatsBombConversion:
     def test_a_shot_from_the_same_spot_differs_by_which_way_you_attack(self, pitch: Pitch):
         # 20m from the right goal.
         spot = (85.0, 34.0)
-        attacking_right = pitch.to_statsbomb(*spot, attacking_end="right")
-        attacking_left = pitch.to_statsbomb(*spot, attacking_end="left")
+        attacking_right = pitch.to_statsbomb(*spot, attacking_end='right')
+        attacking_left = pitch.to_statsbomb(*spot, attacking_end='left')
 
         dist_right = STATSBOMB_LENGTH - attacking_right[0]
         dist_left = STATSBOMB_LENGTH - attacking_left[0]
-        assert dist_right < dist_left, "attacking the far goal must read as farther"
+        assert dist_right < dist_left, 'attacking the far goal must read as farther'
 
 
 class TestMatchOrientation:
     def test_sides_attack_opposite_ends(self):
-        o = MatchOrientation(home_attacks_first_half="right")
-        assert o.attacking_end("us", "first_half") == "right"
-        assert o.attacking_end("them", "first_half") == "left"
+        o = MatchOrientation(home_attacks_first_half='right')
+        assert o.attacking_end('us', 'first_half') == 'right'
+        assert o.attacking_end('them', 'first_half') == 'left'
 
     def test_ends_swap_after_halftime(self):
-        o = MatchOrientation(home_attacks_first_half="right")
-        assert o.attacking_end("us", "kickoff_2nd") == "left"
-        assert o.attacking_end("them", "kickoff_2nd") == "right"
+        o = MatchOrientation(home_attacks_first_half='right')
+        assert o.attacking_end('us', 'kickoff_2nd') == 'left'
+        assert o.attacking_end('them', 'kickoff_2nd') == 'right'
 
     def test_defending_end_is_always_the_other_one(self):
-        o = MatchOrientation(home_attacks_first_half="left")
-        for period in ("first_half", "second_half"):
-            for side in ("us", "them"):
+        o = MatchOrientation(home_attacks_first_half='left')
+        for period in ('first_half', 'second_half'):
+            for side in ('us', 'them'):
                 assert o.attacking_end(side, period) != o.defending_end(side, period)
 
     def test_rejects_a_bad_side(self):
         with pytest.raises(ValueError):
-            MatchOrientation().attacking_end("nobody", "first_half")
+            MatchOrientation().attacking_end('nobody', 'first_half')
 
 
 # ---------------------------------------------------------------------------
 # Homography
 # ---------------------------------------------------------------------------
+
 
 class TestCalibrationFit:
     def test_recovers_a_known_camera_from_four_corners(self, pitch, camera):
@@ -220,7 +224,7 @@ class TestCalibrationFit:
         for name, truth in pitch.landmarks().items():
             px = project(camera, *truth)
             recovered = calib.to_pitch(*px)
-            assert recovered == pytest.approx(truth, abs=0.01), f"{name} drifted"
+            assert recovered == pytest.approx(truth, abs=0.01), f'{name} drifted'
 
     def test_error_is_essentially_zero_on_clean_clicks(self, pitch, camera):
         calib = Calibration.fit(clicks_for(pitch, camera, EIGHT_POINTS), pitch)
@@ -236,21 +240,21 @@ class TestCalibrationFit:
         )
         err = calib.error()
 
-        assert err.is_usable, f"jittered clicks gave {err.summary()}"
+        assert err.is_usable, f'jittered clicks gave {err.summary()}'
 
     def test_rejects_too_few_points(self, pitch, camera):
-        with pytest.raises(ValueError, match="at least 4"):
+        with pytest.raises(ValueError, match='at least 4'):
             Calibration.fit(clicks_for(pitch, camera, FOUR_CORNERS[:3]), pitch)
 
     def test_rejects_a_duplicated_landmark(self, pitch, camera):
         points = clicks_for(pitch, camera, FOUR_CORNERS)
         points.append(points[0])
-        with pytest.raises(ValueError, match="more than once"):
+        with pytest.raises(ValueError, match='more than once'):
             Calibration.fit(points, pitch)
 
     def test_rejects_an_unknown_landmark(self, pitch, camera):
         points = clicks_for(pitch, camera, FOUR_CORNERS)
-        points[0] = Correspondence("corner_of_the_moon", points[0].pixel)
+        points[0] = Correspondence('corner_of_the_moon', points[0].pixel)
         with pytest.raises(KeyError):
             Calibration.fit(points, pitch)
 
@@ -278,7 +282,7 @@ class TestHoldoutError:
         holdout = calib.holdout_error()
 
         assert holdout is not None
-        assert not holdout.is_usable, "a mislabelled point should fail the bar"
+        assert not holdout.is_usable, 'a mislabelled point should fail the bar'
 
     def test_names_the_actual_culprit(self, pitch, camera):
         """Detection and localisation want different metrics.
@@ -315,7 +319,7 @@ class TestProjection:
 
         centre = calib.to_pitch((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
         error = math.dist(centre, (52.5, 34.0))
-        assert error > 3.0, "using the box centre should be visibly wrong"
+        assert error > 3.0, 'using the box centre should be visibly wrong'
 
     def test_pixels_and_metres_round_trip(self, pitch, camera):
         calib = Calibration.fit(clicks_for(pitch, camera, EIGHT_POINTS), pitch)
@@ -343,13 +347,13 @@ class TestSanityChecks:
     def test_flags_a_nonsense_fit(self, pitch):
         # Corners clicked in a scrambled order — still fits, still garbage.
         scrambled = [
-            Correspondence("corner_bottom_left", (140.0, 640.0)),
-            Correspondence("corner_bottom_right", (310.0, 300.0)),
-            Correspondence("corner_top_right", (1150.0, 640.0)),
-            Correspondence("corner_top_left", (980.0, 300.0)),
+            Correspondence('corner_bottom_left', (140.0, 640.0)),
+            Correspondence('corner_bottom_right', (310.0, 300.0)),
+            Correspondence('corner_top_right', (1150.0, 640.0)),
+            Correspondence('corner_top_left', (980.0, 300.0)),
         ]
         calib = Calibration.fit(scrambled, pitch, image_size=(1280, 720))
-        assert calib.sanity_check(), "a scrambled fit should raise a complaint"
+        assert calib.sanity_check(), 'a scrambled fit should raise a complaint'
 
 
 class TestPersistence:
@@ -357,7 +361,7 @@ class TestPersistence:
         calib = Calibration.fit(
             clicks_for(pitch, camera, EIGHT_POINTS), pitch, image_size=(1280, 720)
         )
-        path = tmp_path / "calib.json"
+        path = tmp_path / 'calib.json'
         calib.save(path)
 
         loaded = Calibration.load(path)
@@ -372,15 +376,12 @@ class TestPersistence:
     def test_reads_the_picker_export_format(self, pitch, camera, tmp_path):
         points = clicks_for(pitch, camera, EIGHT_POINTS)
         export = {
-            "image_size": [1280, 720],
-            "pitch": {"length_m": 105.0, "width_m": 68.0},
-            "points": [
-                {"landmark": c.landmark, "x": c.pixel[0], "y": c.pixel[1]}
-                for c in points
-            ],
+            'image_size': [1280, 720],
+            'pitch': {'length_m': 105.0, 'width_m': 68.0},
+            'points': [{'landmark': c.landmark, 'x': c.pixel[0], 'y': c.pixel[1]} for c in points],
         }
-        path = tmp_path / "picker.json"
-        path.write_text(json.dumps(export), encoding="utf-8")
+        path = tmp_path / 'picker.json'
+        path.write_text(json.dumps(export), encoding='utf-8')
 
         calib = Calibration.from_picker_export(path)
         assert calib.error().is_usable
@@ -393,12 +394,11 @@ class TestPersistence:
         the picker measures the paint, the export carries it, the CLI reports
         it — and then tomorrow's run quietly refits against the Laws.
         """
-        school = Pitch(length_m=105.0, width_m=68.0, penalty_spot_m=10.0,
-                       goal_width_m=7.0)
+        school = Pitch(length_m=105.0, width_m=68.0, penalty_spot_m=10.0, goal_width_m=7.0)
         calib = Calibration.fit(
             clicks_for(school, camera, EIGHT_POINTS), school, image_size=(1280, 720)
         )
-        path = tmp_path / "school.calib.json"
+        path = tmp_path / 'school.calib.json'
         calib.save(path)
 
         assert Calibration.load(path).pitch == school
@@ -412,12 +412,14 @@ class TestPersistence:
         file would look fine while every metre out of it was wrong.
         """
         school = Pitch(
-            length_m=105.0, width_m=68.0,
-            penalty_area_length_m=15.0, penalty_area_width_m=38.0,
+            length_m=105.0,
+            width_m=68.0,
+            penalty_area_length_m=15.0,
+            penalty_area_width_m=38.0,
             penalty_spot_m=10.0,
         )
-        path = tmp_path / "school.json"
-        path.write_text(json.dumps(picker_export(school)), encoding="utf-8")
+        path = tmp_path / 'school.json'
+        path.write_text(json.dumps(picker_export(school)), encoding='utf-8')
 
         calib = Calibration.from_picker_export(path)
         assert calib.pitch.penalty_area_length_m == 15.0
@@ -439,33 +441,34 @@ class TestPersistence:
         positions nobody ever clicked.
         """
         school = Pitch(
-            length_m=105.0, width_m=68.0,
-            penalty_area_length_m=15.0, penalty_area_width_m=38.0,
+            length_m=105.0,
+            width_m=68.0,
+            penalty_area_length_m=15.0,
+            penalty_area_width_m=38.0,
             penalty_spot_m=10.0,
         )
         export = picker_export(school)
-        export["pitch"] = {"length_m": 105.0, "width_m": 68.0}
-        path = tmp_path / "laws.json"
-        path.write_text(json.dumps(export), encoding="utf-8")
+        export['pitch'] = {'length_m': 105.0, 'width_m': 68.0}
+        path = tmp_path / 'laws.json'
+        path.write_text(json.dumps(export), encoding='utf-8')
 
         err = Calibration.from_picker_export(path).error()
         assert err.mean_m == pytest.approx(0.474, abs=0.01)
         assert err.max_m == pytest.approx(1.896, abs=0.01)
         assert not err.is_usable
 
-    def test_a_file_without_markings_still_loads_at_the_laws(self, pitch, camera,
-                                                             tmp_path):
+    def test_a_file_without_markings_still_loads_at_the_laws(self, pitch, camera, tmp_path):
         """Every export written before the picker could measure paint."""
         export = {
-            "image_size": [1280, 720],
-            "pitch": {"length_m": 100.0, "width_m": 64.0},
-            "points": [
-                {"landmark": c.landmark, "x": c.pixel[0], "y": c.pixel[1]}
+            'image_size': [1280, 720],
+            'pitch': {'length_m': 100.0, 'width_m': 64.0},
+            'points': [
+                {'landmark': c.landmark, 'x': c.pixel[0], 'y': c.pixel[1]}
                 for c in clicks_for(pitch, camera, EIGHT_POINTS)
             ],
         }
-        path = tmp_path / "old.json"
-        path.write_text(json.dumps(export), encoding="utf-8")
+        path = tmp_path / 'old.json'
+        path.write_text(json.dumps(export), encoding='utf-8')
 
         calib = Calibration.from_picker_export(path)
         assert calib.pitch.length_m == 100.0

@@ -67,7 +67,7 @@ class TestGapFilling:
         keep = set(range(5)) | set(range(10, 15))
         traj = build_trajectory(by_frame(straight_path(15, keep=keep)), FRAME_W)
 
-        assert len(traj) == 15, "the gap should be bridged"
+        assert len(traj) == 15, 'the gap should be bridged'
         assert traj.observed_count == 10
         assert traj.interpolated_count == 5
 
@@ -86,7 +86,7 @@ class TestGapFilling:
         traj = build_trajectory(by_frame(candidates), FRAME_W, max_gap_s=1.0)
 
         assert traj.interpolated_count == 0
-        assert len(traj) <= 2, "the far detection must not be chained across 3s"
+        assert len(traj) <= 2, 'the far detection must not be chained across 3s'
 
     def test_recovers_most_frames_from_sparse_detections(self):
         """The real-world case: detector sees the ball ~60% of the time."""
@@ -94,8 +94,7 @@ class TestGapFilling:
         traj = build_trajectory(by_frame(straight_path(60, keep=keep)), FRAME_W)
 
         assert traj.coverage(60) > 0.95, (
-            f"only recovered {traj.coverage(60):.0%} of frames from "
-            f"{len(keep)/60:.0%} detection"
+            f'only recovered {traj.coverage(60):.0%} of frames from {len(keep) / 60:.0%} detection'
         )
 
 
@@ -110,7 +109,7 @@ class TestRobustness:
 
         point = traj.at_frame(5)
         assert point is not None
-        assert point.xy[0] < 400, "the outlier should not have been chosen"
+        assert point.xy[0] < 400, 'the outlier should not have been chosen'
 
     def test_prefers_the_longer_explanation(self):
         """A greedy tracker fails this; the DP should not.
@@ -123,7 +122,7 @@ class TestRobustness:
 
         traj = build_trajectory(by_frame(candidates), FRAME_W)
 
-        assert len(traj) >= 20, "should follow the long chain, not the lone spike"
+        assert len(traj) >= 20, 'should follow the long chain, not the lone spike'
         point = traj.at_frame(12)
         assert point.xy[0] < 400
 
@@ -142,8 +141,7 @@ class TestRobustness:
 
         rng = random.Random(3)
         candidates = [
-            cand(i, 100 + 8 * i + rng.uniform(-4, 4), 400 + rng.uniform(-4, 4))
-            for i in range(40)
+            cand(i, 100 + 8 * i + rng.uniform(-4, 4), 400 + rng.uniform(-4, 4)) for i in range(40)
         ]
         traj = build_trajectory(by_frame(candidates), FRAME_W)
 
@@ -153,8 +151,8 @@ class TestRobustness:
 class TestPossessionPrimitive:
     def test_finds_the_closest_player(self):
         players = [
-            (1, (100.0, 300.0, 140.0, 400.0)),   # ground point (120, 400)
-            (2, (500.0, 300.0, 540.0, 400.0)),   # ground point (520, 400)
+            (1, (100.0, 300.0, 140.0, 400.0)),  # ground point (120, 400)
+            (2, (500.0, 300.0, 540.0, 400.0)),  # ground point (520, 400)
         ]
         track_id, distance = nearest_player((130.0, 400.0), players)
 
@@ -184,10 +182,7 @@ class TestSceneryFilter:
 
     def _parked(self, n=200, x=600.0, y=400.0, conf=0.4):
         """Something standing still, seen every frame, jittering a pixel or two."""
-        return [
-            cand(i, x + (i % 3) - 1, y + (i % 2), conf)
-            for i in range(n)
-        ]
+        return [cand(i, x + (i % 3) - 1, y + (i % 2), conf) for i in range(n)]
 
     def test_a_parked_object_is_dropped(self):
         kept = drop_static_candidates(self._parked())
@@ -215,8 +210,7 @@ class TestSceneryFilter:
         moving = straight_path(150, x0=100.0, dx=6.0, conf=0.5)
         scenery = self._parked(n=150, x=1000.0, y=700.0, conf=0.5)
 
-        without = build_trajectory(by_frame(moving + scenery), FRAME_W,
-                                   static_radius_px=0.0)
+        without = build_trajectory(by_frame(moving + scenery), FRAME_W, static_radius_px=0.0)
         with_filter = build_trajectory(by_frame(moving + scenery), FRAME_W)
 
         # Unfiltered, the motionless chain wins and the path never moves.

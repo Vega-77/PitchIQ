@@ -104,8 +104,10 @@ def crop_score(
     if width / height > MAX_ASPECT:
         return None
     if (
-        x1 <= EDGE_MARGIN_PX or y1 <= EDGE_MARGIN_PX
-        or x2 >= frame_w - EDGE_MARGIN_PX or y2 >= frame_h - EDGE_MARGIN_PX
+        x1 <= EDGE_MARGIN_PX
+        or y1 <= EDGE_MARGIN_PX
+        or x2 >= frame_w - EDGE_MARGIN_PX
+        or y2 >= frame_h - EDGE_MARGIN_PX
     ):
         return None
     return height
@@ -152,7 +154,9 @@ def encode(patch: np.ndarray) -> str | None:
     import cv2
 
     ok, buffer = cv2.imencode(
-        '.jpg', patch, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY],
+        '.jpg',
+        patch,
+        [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY],
     )
     if not ok:
         return None
@@ -212,7 +216,8 @@ def attach_thumbs(clusters, thumbs: dict[int, Thumb]) -> None:
 
 
 def fit_budget(
-    clusters, budget_bytes: int = THUMB_BUDGET_BYTES,
+    clusters,
+    budget_bytes: int = THUMB_BUDGET_BYTES,
 ) -> tuple[int, int]:
     """Drop thumbnails, smallest cluster first, until the rest fit the budget.
 

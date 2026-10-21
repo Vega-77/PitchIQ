@@ -85,9 +85,10 @@ def imported_names(code: str) -> list[str]:
             for part in braced.group(1).split(','):
                 if part.strip():
                     names.append(part.split()[-1])
-            clause = clause[:braced.start()]
-        names.extend(w for w in re.findall(r'[A-Za-z_$][\w$]*', clause)
-                     if w not in ('as', 'default'))
+            clause = clause[: braced.start()]
+        names.extend(
+            w for w in re.findall(r'[A-Za-z_$][\w$]*', clause) if w not in ('as', 'default')
+        )
     return names
 
 
@@ -212,19 +213,19 @@ class TestTheScanWorks:
         swallowed interpolations this gate would report the fix for the bug it
         was written about as a fresh instance of the same bug.
         """
-        source = "const TAG = 'a';\nexport const html = `<b data-x=\"${TAG}\"></b>`;\n"
+        source = 'const TAG = \'a\';\nexport const html = `<b data-x="${TAG}"></b>`;\n'
         assert unread(source)['declared'] == []
 
     def test_a_name_left_only_in_a_comment_is_unread(self):
         """Comments are where a deleted use goes to look like a live one."""
-        source = "const GONE = 1;\n// GONE is still used by the chart code.\n"
+        source = 'const GONE = 1;\n// GONE is still used by the chart code.\n'
         assert unread(source)['declared'] == ['GONE']
 
     def test_exported_names_are_left_to_the_call_graph(self):
         """Checked, because silence here has to be a decision and not an
         accident of where the regex happens to anchor."""
-        assert unread("export const LOOSE = 1;\n")['declared'] == []
-        assert unread("const LOOSE = 1;\n")['declared'] == ['LOOSE']
+        assert unread('export const LOOSE = 1;\n')['declared'] == []
+        assert unread('const LOOSE = 1;\n')['declared'] == ['LOOSE']
 
 
 class TestWhatItCannotSee:

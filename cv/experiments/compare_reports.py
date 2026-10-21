@@ -81,9 +81,16 @@ def compare(
             elif key not in baseline:
                 out.append(f'{where}: new ({_brief(current[key])})')
             else:
-                out.extend(compare(
-                    baseline[key], current[key], tolerance, abs_tol, ignore, where,
-                ))
+                out.extend(
+                    compare(
+                        baseline[key],
+                        current[key],
+                        tolerance,
+                        abs_tol,
+                        ignore,
+                        where,
+                    )
+                )
         return out
 
     if isinstance(baseline, list) and isinstance(current, list):
@@ -94,9 +101,16 @@ def compare(
             return [f'{here}: {len(baseline)} items became {len(current)}']
         out = []
         for index, (was, now) in enumerate(zip(baseline, current)):
-            out.extend(compare(
-                was, now, tolerance, abs_tol, ignore, f'{path}[{index}]',
-            ))
+            out.extend(
+                compare(
+                    was,
+                    now,
+                    tolerance,
+                    abs_tol,
+                    ignore,
+                    f'{path}[{index}]',
+                )
+            )
         return out
 
     # None and a number are not a small difference. "We could not measure this"
@@ -124,7 +138,7 @@ def _delta(was, now) -> str:
 
 def _brief(value, limit: int = 60) -> str:
     text = json.dumps(value, default=str)
-    return text if len(text) <= limit else text[:limit - 1] + '…'
+    return text if len(text) <= limit else text[: limit - 1] + '…'
 
 
 def load(path: Path):
@@ -139,20 +153,27 @@ def build_parser() -> argparse.ArgumentParser:
         prog='python -m cv.experiments.compare_reports',
         description='Diff a pipeline run against a baseline run.',
     )
-    parser.add_argument('baseline', type=Path,
-                        help='a report JSON somebody looked at and believed')
-    parser.add_argument('current', type=Path,
-                        help='the report JSON from the run being checked')
-    parser.add_argument('--tolerance', type=float, default=DEFAULT_TOLERANCE,
-                        help='relative tolerance for numbers (default 0.02)')
-    parser.add_argument('--abs', dest='abs_tol', type=float, default=DEFAULT_ABS,
-                        help='absolute floor, for numbers near zero where a '
-                             'relative tolerance means nothing')
-    parser.add_argument('--any-window', action='store_true',
-                        help='ignore the window and source, for comparing '
-                             'different clips of the same match')
-    parser.add_argument('--quiet', action='store_true',
-                        help='exit code only, no listing')
+    parser.add_argument('baseline', type=Path, help='a report JSON somebody looked at and believed')
+    parser.add_argument('current', type=Path, help='the report JSON from the run being checked')
+    parser.add_argument(
+        '--tolerance',
+        type=float,
+        default=DEFAULT_TOLERANCE,
+        help='relative tolerance for numbers (default 0.02)',
+    )
+    parser.add_argument(
+        '--abs',
+        dest='abs_tol',
+        type=float,
+        default=DEFAULT_ABS,
+        help='absolute floor, for numbers near zero where a relative tolerance means nothing',
+    )
+    parser.add_argument(
+        '--any-window',
+        action='store_true',
+        help='ignore the window and source, for comparing different clips of the same match',
+    )
+    parser.add_argument('--quiet', action='store_true', help='exit code only, no listing')
     return parser
 
 
@@ -169,8 +190,11 @@ def main(argv: list[str] | None = None) -> int:
         ignore |= {'window', 'source', 'duration_s'}
 
     differences = compare(
-        load(args.baseline), load(args.current),
-        tolerance=args.tolerance, abs_tol=args.abs_tol, ignore=ignore,
+        load(args.baseline),
+        load(args.current),
+        tolerance=args.tolerance,
+        abs_tol=args.abs_tol,
+        ignore=ignore,
     )
 
     if not differences:
@@ -179,16 +203,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if not args.quiet:
-        print(f'{len(differences)} differences, {args.baseline.name} -> '
-              f'{args.current.name}')
+        print(f'{len(differences)} differences, {args.baseline.name} -> {args.current.name}')
         print()
         for line in differences:
             print(f'  {line}')
         print()
         # Said out loud because an exit code of 1 reads as a failure, and this
         # is not one. A pipeline change is supposed to change the output.
-        print('A difference is not a failure. The baseline is a run somebody '
-              'believed, not the truth.')
+        print(
+            'A difference is not a failure. The baseline is a run somebody believed, not the truth.'
+        )
     return 1
 
 

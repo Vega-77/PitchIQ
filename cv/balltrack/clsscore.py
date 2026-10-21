@@ -9,6 +9,7 @@ video goes past, keeping only (f, j, p).
 
     python clsscore.py <model.pt> <tag> [<tag> ...]    # -> <tag>cls.npz
 """
+
 import os
 import sys
 import time
@@ -18,8 +19,8 @@ import numpy as np
 S2 = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, S2)
 
-import crops as CR                              # noqa: E402
-import dfree                                    # noqa: E402
+import crops as CR  # noqa: E402
+import dfree  # noqa: E402
 
 SIZE = 48
 BATCH_FRAMES = 32
@@ -68,26 +69,28 @@ def run(model, tag):
         c = np.empty((n, SIZE, SIZE, 3), np.uint8)
         for j in range(n):
             CR.cut(img, fr['x'][j], fr['y'][j], SIZE, c[j])
-        F[k:k + n] = ab
-        J[k:k + n] = np.arange(n)
+        F[k : k + n] = ab
+        J[k : k + n] = np.arange(n)
         buf_c.append(c)
-        buf_k.append(CR.context(fr['x'], fr['y'], fr['s'],
-                                ppl.get(ab) if has else None, has))
+        buf_k.append(CR.context(fr['x'], fr['y'], fr['s'], ppl.get(ab) if has else None, has))
         buf_i.append(np.arange(k, k + n))
         k += n
         if (q + 1) % BATCH_FRAMES == 0:
             flush()
     flush()
     cap.release()
-    np.savez_compressed(os.path.join(S2, '%scls.npz' % tag),
-                        f=F[:k], j=J[:k], p=P[:k])
+    np.savez_compressed(os.path.join(S2, '%scls.npz' % tag), f=F[:k], j=J[:k], p=P[:k])
     el = time.time() - t0
-    print('%s  %d frames  %d candidates  %.1f s  %.1f fps  ppl %s'
-          % (tag, len(frames), k, el, len(frames) / el, has), flush=True)
+    print(
+        '%s  %d frames  %d candidates  %.1f s  %.1f fps  ppl %s'
+        % (tag, len(frames), k, el, len(frames) / el, has),
+        flush=True,
+    )
 
 
 def main():
     from train_cls import load_model
+
     model = load_model(sys.argv[1])
     for tag in sys.argv[2:]:
         run(model, tag)

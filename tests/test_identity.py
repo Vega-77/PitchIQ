@@ -26,7 +26,7 @@ from cv.identity import (
 from cv.teams import TEAM_A, TEAM_B, UNKNOWN
 
 FPS = 30.0
-SCALE = 60.0            # player height in pixels
+SCALE = 60.0  # player height in pixels
 
 
 def box(track_id, x, y):
@@ -38,23 +38,25 @@ def table(frames, teams=None):
     records = []
     for index in sorted(frames):
         rows = [box(t, x, y) for t, x, y in frames[index]]
-        records.append(FrameRecord(
-            frame_index=index,
-            timestamp_s=index / FPS,
-            players=np.array(rows, dtype=np.float32).reshape(-1, 6),
-        ))
+        records.append(
+            FrameRecord(
+                frame_index=index,
+                timestamp_s=index / FPS,
+                players=np.array(rows, dtype=np.float32).reshape(-1, 6),
+            )
+        )
     return FrameTable(
-        fps=FPS, frame_width=1280, frame_height=720,
-        records=records, team_by_track=teams or {},
+        fps=FPS,
+        frame_width=1280,
+        frame_height=720,
+        records=records,
+        team_by_track=teams or {},
     )
 
 
 def run_of(track_id, start, count, x0=500.0, y=400.0, step=1.0):
     """One track visible for `count` consecutive frames."""
-    return {
-        start + i: [(track_id, x0 + i * step, y)]
-        for i in range(count)
-    }
+    return {start + i: [(track_id, x0 + i * step, y)] for i in range(count)}
 
 
 def combine(*parts):
@@ -80,16 +82,24 @@ class TestSpans:
         still be one player seen either side of an occlusion. Only actually
         appearing together proves two people.
         """
-        spans = track_spans(table(combine(
-            run_of(1, 0, 10),
-            run_of(2, 5, 10, y=200.0),
-        )))
+        spans = track_spans(
+            table(
+                combine(
+                    run_of(1, 0, 10),
+                    run_of(2, 5, 10, y=200.0),
+                )
+            )
+        )
         assert spans[1].overlaps(spans[2])
 
-        apart = track_spans(table(combine(
-            run_of(1, 0, 10),
-            run_of(2, 20, 10),
-        )))
+        apart = track_spans(
+            table(
+                combine(
+                    run_of(1, 0, 10),
+                    run_of(2, 20, 10),
+                )
+            )
+        )
         assert not apart[1].overlaps(apart[2])
 
 
@@ -100,10 +110,7 @@ class TestRefusals:
         These two are the same colour, the same size, and adjacent — everything
         short of the frame evidence says one player.
         """
-        frames = {
-            i: [(1, 500.0, 400.0), (2, 520.0, 400.0)]
-            for i in range(40)
-        }
+        frames = {i: [(1, 500.0, 400.0), (2, 520.0, 400.0)] for i in range(40)}
         clusters = merge_tracks(table(frames))
         assert len(clusters) == 2
 
@@ -114,18 +121,26 @@ class TestRefusals:
         two clusters mapped to one player still sum correctly.
         """
         gap_frames = int((MAX_BRIDGE_S + 3) * FPS)
-        clusters = merge_tracks(table(combine(
-            run_of(1, 0, 30),
-            run_of(2, 30 + gap_frames, 30),
-        )))
+        clusters = merge_tracks(
+            table(
+                combine(
+                    run_of(1, 0, 30),
+                    run_of(2, 30 + gap_frames, 30),
+                )
+            )
+        )
         assert len(clusters) == 2
 
     def test_a_reappearance_far_away_is_not_bridged(self):
         """Nobody crosses forty metres in a tenth of a second."""
-        clusters = merge_tracks(table(combine(
-            run_of(1, 0, 30, x0=100.0),
-            run_of(2, 33, 30, x0=1200.0),
-        )))
+        clusters = merge_tracks(
+            table(
+                combine(
+                    run_of(1, 0, 30, x0=100.0),
+                    run_of(2, 33, 30, x0=1200.0),
+                )
+            )
+        )
         assert len(clusters) == 2
 
     def test_a_different_shirt_is_not_bridged(self):
@@ -133,9 +148,7 @@ class TestRefusals:
             1: [np.array([50.0, 60.0, 10.0])],
             2: [np.array([50.0, -60.0, 10.0])],
         }
-        clusters = merge_tracks(
-            table(combine(run_of(1, 0, 30), run_of(2, 33, 30))), colours
-        )
+        clusters = merge_tracks(table(combine(run_of(1, 0, 30), run_of(2, 33, 30))), colours)
         assert len(clusters) == 2
 
     def test_a_cluster_never_absorbs_a_track_that_overlaps_any_member(self):
@@ -146,9 +159,9 @@ class TestRefusals:
         join anyway and put one player in two places at once.
         """
         frames = combine(
-            run_of(1, 0, 20),               # frames 0-19
-            run_of(2, 22, 20, x0=520.0),    # frames 22-41, bridges from 1
-            {i: [(3, 540.0, 400.0)] for i in range(10, 20)},   # overlaps 1
+            run_of(1, 0, 20),  # frames 0-19
+            run_of(2, 22, 20, x0=520.0),  # frames 22-41, bridges from 1
+            {i: [(3, 540.0, 400.0)] for i in range(10, 20)},  # overlaps 1
         )
         clusters = merge_tracks(table(frames), min_sightings=5)
         index = cluster_of_track(clusters)
@@ -163,20 +176,29 @@ class TestMerging:
         A player walks behind an opponent for a few frames and comes back with
         a new id, a couple of metres from where they vanished.
         """
-        clusters = merge_tracks(table(combine(
-            run_of(1, 0, 30, x0=500.0),
-            run_of(2, 36, 30, x0=560.0),
-        )))
+        clusters = merge_tracks(
+            table(
+                combine(
+                    run_of(1, 0, 30, x0=500.0),
+                    run_of(2, 36, 30, x0=560.0),
+                )
+            )
+        )
         assert len(clusters) == 1
         assert clusters[0].track_ids == {1, 2}
 
     def test_three_fragments_chain_into_one_cluster(self):
         """Union-find, not pairwise: a chain must collapse, not leave pairs."""
-        clusters = merge_tracks(table(combine(
-            run_of(1, 0, 20, x0=500.0),
-            run_of(2, 24, 20, x0=540.0),
-            run_of(3, 48, 20, x0=580.0),
-        )), min_sightings=5)
+        clusters = merge_tracks(
+            table(
+                combine(
+                    run_of(1, 0, 20, x0=500.0),
+                    run_of(2, 24, 20, x0=540.0),
+                    run_of(3, 48, 20, x0=580.0),
+                )
+            ),
+            min_sightings=5,
+        )
         assert len(clusters) == 1
         assert clusters[0].track_ids == {1, 2, 3}
 
@@ -208,9 +230,7 @@ class TestMerging:
 
 def largest_hole_s(cluster, spans) -> float:
     """The longest stretch inside a cluster's own span where it was not on screen."""
-    windows = sorted(
-        (spans[t].first_s, spans[t].last_s) for t in cluster.track_ids
-    )
+    windows = sorted((spans[t].first_s, spans[t].last_s) for t in cluster.track_ids)
     hole = 0.0
     reach = windows[0][1]
     for first_s, last_s in windows[1:]:
@@ -277,9 +297,15 @@ class TestSolidInterval:
             for _ in range(3):
                 track_id += 1
                 length = int(rng.integers(20, 40))
-                parts.append(run_of(
-                    track_id, start, length, x0=200.0 + lane * 150.0, y=400.0,
-                ))
+                parts.append(
+                    run_of(
+                        track_id,
+                        start,
+                        length,
+                        x0=200.0 + lane * 150.0,
+                        y=400.0,
+                    )
+                )
                 start += length + int(rng.integers(0, 90))
         frames = combine(*parts)
         spans = track_spans(table(frames))
@@ -297,10 +323,15 @@ class TestOutput:
 
     def test_clusters_are_ordered_by_how_much_was_seen(self):
         """The coach confirms these by hand, so the biggest go first."""
-        clusters = merge_tracks(table(combine(
-            run_of(1, 0, 60, y=100.0),
-            run_of(2, 0, 25, y=500.0),
-        )), min_sightings=5)
+        clusters = merge_tracks(
+            table(
+                combine(
+                    run_of(1, 0, 60, y=100.0),
+                    run_of(2, 0, 25, y=500.0),
+                )
+            ),
+            min_sightings=5,
+        )
         assert clusters[0].sightings > clusters[1].sightings
         assert [c.cluster_id for c in clusters] == [0, 1]
 
@@ -310,10 +341,15 @@ class TestOutput:
 
     def test_fragmentation_reports_tracks_per_player(self):
         """The number that says how far to trust anything per-player."""
-        clusters = merge_tracks(table(combine(
-            run_of(1, 0, 20, x0=500.0),
-            run_of(2, 24, 20, x0=540.0),
-        )), min_sightings=5)
+        clusters = merge_tracks(
+            table(
+                combine(
+                    run_of(1, 0, 20, x0=500.0),
+                    run_of(2, 24, 20, x0=540.0),
+                )
+            ),
+            min_sightings=5,
+        )
         assert fragmentation(clusters) == pytest.approx(2.0)
 
     def test_no_clusters_gives_zero_fragmentation_not_a_crash(self):
@@ -321,6 +357,7 @@ class TestOutput:
 
     def test_json_is_all_primitives(self):
         import json
+
         clusters = merge_tracks(table(run_of(1, 0, 30)))
         data = json.loads(json.dumps(clusters[0].to_json()))
         assert data['track_ids'] == [1]

@@ -83,10 +83,12 @@ class TestStructure:
     def test_nested_paths_are_reported_in_full(self):
         """A bare "0.83 -> 0.61" in a report with two hundred numbers in it is
         not actionable."""
-        line = only(compare(
-            {'teams': {'team_a': {'xg': 1.2}}},
-            {'teams': {'team_a': {'xg': 2.4}}},
-        ))
+        line = only(
+            compare(
+                {'teams': {'team_a': {'xg': 1.2}}},
+                {'teams': {'team_a': {'xg': 2.4}}},
+            )
+        )
         assert line.startswith('teams.team_a.xg:')
 
     def test_a_list_that_changed_length_reports_the_count_and_stops(self):
@@ -96,10 +98,12 @@ class TestStructure:
         assert '3 items became 4' in line
 
     def test_same_length_lists_are_compared_element_wise(self):
-        line = only(compare(
-            {'events': [{'type': 'pass'}, {'type': 'shot'}]},
-            {'events': [{'type': 'pass'}, {'type': 'carry'}]},
-        ))
+        line = only(
+            compare(
+                {'events': [{'type': 'pass'}, {'type': 'shot'}]},
+                {'events': [{'type': 'pass'}, {'type': 'carry'}]},
+            )
+        )
         assert line.startswith('events[1].type:')
 
     def test_a_long_value_is_shortened_rather_than_dumped(self):
@@ -107,9 +111,13 @@ class TestStructure:
         assert len(line) < 200
 
     def test_ignored_keys_are_ignored_at_every_depth(self):
-        assert compare(
-            {'a': {'processing_s': 1.0}}, {'a': {'processing_s': 99.0}},
-        ) == []
+        assert (
+            compare(
+                {'a': {'processing_s': 1.0}},
+                {'a': {'processing_s': 99.0}},
+            )
+            == []
+        )
 
 
 class TestTheCommand:
@@ -149,14 +157,26 @@ class TestTheCommand:
         assert main([str(a), str(tmp_path / 'nope.json')]) == 2
 
     def test_any_window_lets_two_clips_be_compared(self, tmp_path):
-        a = self.write(tmp_path, 'a.json', {
-            'source': 'first.mp4', 'window': {'start_s': 0}, 'duration_s': 15.0,
-            'quality': {'ball_seen_share': 0.8},
-        })
-        b = self.write(tmp_path, 'b.json', {
-            'source': 'second.mp4', 'window': {'start_s': 600}, 'duration_s': 30.0,
-            'quality': {'ball_seen_share': 0.8},
-        })
+        a = self.write(
+            tmp_path,
+            'a.json',
+            {
+                'source': 'first.mp4',
+                'window': {'start_s': 0},
+                'duration_s': 15.0,
+                'quality': {'ball_seen_share': 0.8},
+            },
+        )
+        b = self.write(
+            tmp_path,
+            'b.json',
+            {
+                'source': 'second.mp4',
+                'window': {'start_s': 600},
+                'duration_s': 30.0,
+                'quality': {'ball_seen_share': 0.8},
+            },
+        )
 
         assert main([str(a), str(b)]) == 1
         assert main([str(a), str(b), '--any-window']) == 0

@@ -90,28 +90,45 @@ GuardedClient = FakeClient
 
 
 def a_report(tracks=None, clusters=None, **extra):
-    return {**{
-        'schema_version': 1,
-        'source': 'clip.mp4',
-        'window': {'start_s': 0, 'end_s': 15},
-        'duration_s': 15.0,
-        'calibrated': False,
-        'calibration_error_m': None,
-        'quality': {'ball_seen_share': 0.65},
-        'warnings': ['no calibration supplied'],
-        'trustworthy': False,
-        'teams': {'team_a': {'passes_attempted': 12}},
-        'keepers': [],
-        'clusters': clusters or [{'cluster_id': 0, 'track_ids': [1, 2]}],
-        'tracks': tracks or [{
-            'cluster_id': 0, 'team': 'team_a', 'touches': 9,
-            'passes_attempted': 5, 'passes_completed': 4, 'pass_accuracy': 0.8,
-            'carries': 2, 'tackles': 1, 'interceptions': 0, 'recoveries': 1,
-            'shots': None, 'xg': None, 'distance_m': None,
-            'top_speed_kmh': None, 'sprint_count': None, 'minutes_tracked': 12.0,
-        }],
-        'events': [],
-    }, **extra}
+    return {
+        **{
+            'schema_version': 1,
+            'source': 'clip.mp4',
+            'window': {'start_s': 0, 'end_s': 15},
+            'duration_s': 15.0,
+            'calibrated': False,
+            'calibration_error_m': None,
+            'quality': {'ball_seen_share': 0.65},
+            'warnings': ['no calibration supplied'],
+            'trustworthy': False,
+            'teams': {'team_a': {'passes_attempted': 12}},
+            'keepers': [],
+            'clusters': clusters or [{'cluster_id': 0, 'track_ids': [1, 2]}],
+            'tracks': tracks
+            or [
+                {
+                    'cluster_id': 0,
+                    'team': 'team_a',
+                    'touches': 9,
+                    'passes_attempted': 5,
+                    'passes_completed': 4,
+                    'pass_accuracy': 0.8,
+                    'carries': 2,
+                    'tackles': 1,
+                    'interceptions': 0,
+                    'recoveries': 1,
+                    'shots': None,
+                    'xg': None,
+                    'distance_m': None,
+                    'top_speed_kmh': None,
+                    'sprint_count': None,
+                    'minutes_tracked': 12.0,
+                }
+            ],
+            'events': [],
+        },
+        **extra,
+    }
 
 
 # ------------------------------------------------------------------ guards
@@ -181,8 +198,7 @@ class TestPublish:
         for path in client.store:
             assert '/cvStats/' in path or '/playerReports/' in path, path
         assert not any(
-            path.startswith(('users', 'invites')) or '/players/' in path
-            for path in client.store
+            path.startswith(('users', 'invites')) or '/players/' in path for path in client.store
         )
 
     def test_the_quality_block_and_warnings_travel_with_the_stats(self):
@@ -248,8 +264,18 @@ class TestEvents:
     def test_only_the_fields_the_review_tool_needs_survive(self):
         doc = events_payload({'events': [an_event()]})
         assert set(doc['events'][0]) == {
-            'id', 'type', 'timestampS', 'trackId', 'team', 'confidence',
-            'inPlay', 'outcome', 'xg', 'xgHeader', 'receiverTrackId', 'startM',
+            'id',
+            'type',
+            'timestampS',
+            'trackId',
+            'team',
+            'confidence',
+            'inPlay',
+            'outcome',
+            'xg',
+            'xgHeader',
+            'receiverTrackId',
+            'startM',
         }
 
     def test_where_the_event_happened_travels(self):
@@ -372,10 +398,7 @@ class TestPerPlayerGate:
     def test_every_written_field_is_prefixed(self):
         """So a coach can always tell an estimate from something a human tapped,
         and so removing them later is one filter."""
-        assert all(
-            key.startswith(CV_FIELD_PREFIX)
-            for key in player_report_fields({'touches': 1})
-        )
+        assert all(key.startswith(CV_FIELD_PREFIX) for key in player_report_fields({'touches': 1}))
 
     def test_a_missing_player_report_is_reported_not_created(self):
         """A report exists because a coach published the match.
@@ -412,34 +435,64 @@ class TestOnePlayerSeveralFigures:
     @staticmethod
     def two_fragments():
         return [
-            {'cluster_id': 0, 'team': 'team_a', 'touches': 30,
-             'passes_attempted': 20, 'passes_completed': 16, 'pass_accuracy': 0.8,
-             'carries': 5, 'tackles': 2, 'interceptions': 1, 'recoveries': 3,
-             'shots': 2, 'xg': 0.3, 'distance_m': 4200.0, 'top_speed_kmh': 27.0,
-             'sprint_count': 9, 'minutes_tracked': 28.0, 'position_noise_m': 0.4,
-             'touch_times_s': [90.0, 30.0], 'heatmap': [[1.0, 0.0], [0.0, 2.0]]},
-            {'cluster_id': 1, 'team': 'team_a', 'touches': 24,
-             'passes_attempted': 15, 'passes_completed': 10, 'pass_accuracy': 0.667,
-             'carries': 4, 'tackles': 1, 'interceptions': 0, 'recoveries': 2,
-             'shots': 1, 'xg': 0.1, 'distance_m': 3100.0, 'top_speed_kmh': 29.5,
-             'sprint_count': 7, 'minutes_tracked': 21.0, 'position_noise_m': 1.9,
-             'touch_times_s': [60.0], 'heatmap': [[0.0, 3.0], [1.0, 0.0]]},
+            {
+                'cluster_id': 0,
+                'team': 'team_a',
+                'touches': 30,
+                'passes_attempted': 20,
+                'passes_completed': 16,
+                'pass_accuracy': 0.8,
+                'carries': 5,
+                'tackles': 2,
+                'interceptions': 1,
+                'recoveries': 3,
+                'shots': 2,
+                'xg': 0.3,
+                'distance_m': 4200.0,
+                'top_speed_kmh': 27.0,
+                'sprint_count': 9,
+                'minutes_tracked': 28.0,
+                'position_noise_m': 0.4,
+                'touch_times_s': [90.0, 30.0],
+                'heatmap': [[1.0, 0.0], [0.0, 2.0]],
+            },
+            {
+                'cluster_id': 1,
+                'team': 'team_a',
+                'touches': 24,
+                'passes_attempted': 15,
+                'passes_completed': 10,
+                'pass_accuracy': 0.667,
+                'carries': 4,
+                'tackles': 1,
+                'interceptions': 0,
+                'recoveries': 2,
+                'shots': 1,
+                'xg': 0.1,
+                'distance_m': 3100.0,
+                'top_speed_kmh': 29.5,
+                'sprint_count': 7,
+                'minutes_tracked': 21.0,
+                'position_noise_m': 1.9,
+                'touch_times_s': [60.0],
+                'heatmap': [[0.0, 3.0], [1.0, 0.0]],
+            },
         ]
 
     def published(self):
         client = GuardedClient()
         report = a_report(
             tracks=self.two_fragments(),
-            clusters=[{'cluster_id': 0, 'track_ids': [1]},
-                      {'cluster_id': 1, 'track_ids': [2]}],
+            clusters=[{'cluster_id': 0, 'track_ids': [1]}, {'cluster_id': 1, 'track_ids': [2]}],
         )
         written = publish(
-            report, 'team1', 'match1',
-            {'0': 'playerA', '1': 'playerA'}, client=client,
+            report,
+            'team1',
+            'match1',
+            {'0': 'playerA', '1': 'playerA'},
+            client=client,
         )
-        return written, client.store[
-            'teams/team1/matches/match1/playerReports/playerA'
-        ]
+        return written, client.store['teams/team1/matches/match1/playerReports/playerA']
 
     def test_one_player_is_one_report(self):
         written, _ = self.published()
@@ -540,9 +593,13 @@ class TestPayloads:
             {'start_s': 0, 'end_s': 900, 'allowed': 48, 'actions': 12, 'ppda': 4.0},
             {'start_s': 900, 'end_s': 1800, 'allowed': 45, 'actions': 3, 'ppda': None},
         ]
-        payload = summary_payload(a_report(teams={
-            'team_a': {'ppda': 6.2, 'pressing_segments': blocks},
-        }))
+        payload = summary_payload(
+            a_report(
+                teams={
+                    'team_a': {'ppda': 6.2, 'pressing_segments': blocks},
+                }
+            )
+        )
         assert payload['teams']['team_a']['pressing_segments'] == blocks
 
     def test_an_empty_report_still_produces_a_valid_payload(self):
@@ -558,10 +615,16 @@ class TestPayloads:
         every statistic in the same document. See TestThePicturesAreKeptApart
         below, and THUMBS_DOC in cv/publish.py for why.
         """
-        report = a_report(clusters=[{
-            'cluster_id': 0, 'sightings': 900,
-            'thumb': 'data:image/jpeg;base64,abc', 'thumb_height_px': 71.0,
-        }])
+        report = a_report(
+            clusters=[
+                {
+                    'cluster_id': 0,
+                    'sightings': 900,
+                    'thumb': 'data:image/jpeg;base64,abc',
+                    'thumb_height_px': 71.0,
+                }
+            ]
+        )
         picture = thumbs_payload(report)['byCluster']['0']
         assert picture['thumb'] == 'data:image/jpeg;base64,abc'
         assert picture['thumb_height_px'] == 71.0
@@ -593,14 +656,21 @@ class TestParticipantNotes:
 
     def verdict(self, track_id, role, screen_time_s=100.0, reason='because'):
         return {
-            'track_id': track_id, 'role': role, 'reason': reason,
+            'track_id': track_id,
+            'role': role,
+            'reason': reason,
             'screen_time_s': screen_time_s,
         }
 
     def test_players_are_not_news(self):
-        notes = participant_notes(self.report([
-            self.verdict(1, 'player'), self.verdict(2, 'offfield'),
-        ]))
+        notes = participant_notes(
+            self.report(
+                [
+                    self.verdict(1, 'player'),
+                    self.verdict(2, 'offfield'),
+                ]
+            )
+        )
         assert [n['trackId'] for n in notes] == [2]
 
     def test_officials_are_reported_even_though_they_were_kept(self):
@@ -614,25 +684,35 @@ class TestParticipantNotes:
         assert participant_notes(self.report([self.verdict(4, 'unsure')])) == []
 
     def test_the_reason_survives_the_trip_unedited(self):
-        notes = participant_notes(self.report([
-            self.verdict(5, 'offfield', reason='never moved more than 0.4 of a '
-                         'body length from one spot in 2460s'),
-        ]))
+        notes = participant_notes(
+            self.report(
+                [
+                    self.verdict(
+                        5,
+                        'offfield',
+                        reason='never moved more than 0.4 of a body length from one spot in 2460s',
+                    ),
+                ]
+            )
+        )
         assert notes[0]['reason'].startswith('never moved more than 0.4')
 
     def test_longest_on_screen_first(self):
         """A figure watched for forty minutes and then dropped is a bigger
         claim than one seen for twenty-five seconds."""
-        notes = participant_notes(self.report([
-            self.verdict(1, 'offfield', screen_time_s=30.0),
-            self.verdict(2, 'official', screen_time_s=2400.0),
-            self.verdict(3, 'offfield', screen_time_s=600.0),
-        ]))
+        notes = participant_notes(
+            self.report(
+                [
+                    self.verdict(1, 'offfield', screen_time_s=30.0),
+                    self.verdict(2, 'official', screen_time_s=2400.0),
+                    self.verdict(3, 'offfield', screen_time_s=600.0),
+                ]
+            )
+        )
         assert [n['trackId'] for n in notes] == [2, 3, 1]
 
     def test_a_crowd_is_capped(self):
-        crowd = [self.verdict(i, 'offfield', screen_time_s=float(i))
-                 for i in range(200)]
+        crowd = [self.verdict(i, 'offfield', screen_time_s=float(i)) for i in range(200)]
         notes = participant_notes(self.report(crowd))
         assert len(notes) == MAX_PARTICIPANT_NOTES
         # The longest-watched survive, and the authoritative totals are in
@@ -645,10 +725,14 @@ class TestParticipantNotes:
         assert participant_notes({'participants': None}) == []
 
     def test_a_missing_screen_time_does_not_break_the_sort(self):
-        notes = participant_notes(self.report([
-            {'track_id': 1, 'role': 'offfield', 'reason': 'x'},
-            self.verdict(2, 'offfield', screen_time_s=10.0),
-        ]))
+        notes = participant_notes(
+            self.report(
+                [
+                    {'track_id': 1, 'role': 'offfield', 'reason': 'x'},
+                    self.verdict(2, 'offfield', screen_time_s=10.0),
+                ]
+            )
+        )
         assert [n['trackId'] for n in notes] == [2, 1]
 
     def test_the_summary_carries_them(self):
@@ -668,11 +752,20 @@ class TestThePicturesAreKeptApart:
     def report(self, thumbs=True):
         return {
             'clusters': [
-                {'cluster_id': 0, 'team': 'team_a', 'sightings': 400,
-                 'thumb': 'data:image/png;base64,AAA' if thumbs else None,
-                 'thumb_height_px': 90.0 if thumbs else None},
-                {'cluster_id': 1, 'team': 'team_b', 'sightings': 200,
-                 'thumb': None, 'thumb_height_px': None},
+                {
+                    'cluster_id': 0,
+                    'team': 'team_a',
+                    'sightings': 400,
+                    'thumb': 'data:image/png;base64,AAA' if thumbs else None,
+                    'thumb_height_px': 90.0 if thumbs else None,
+                },
+                {
+                    'cluster_id': 1,
+                    'team': 'team_b',
+                    'sightings': 200,
+                    'thumb': None,
+                    'thumb_height_px': None,
+                },
             ],
             'tracks': [],
         }
@@ -706,5 +799,6 @@ class TestThePicturesAreKeptApart:
 
     def test_both_payloads_survive_json(self):
         import json
+
         json.dumps(identity_payload(self.report()))
         json.dumps(thumbs_payload(self.report()))

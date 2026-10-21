@@ -40,6 +40,7 @@ FPS = 25.0
 # Synthetic players
 # ---------------------------------------------------------------------------
 
+
 def player_frame(colours, box_h=120, box_w=44, gap=90, grass=(60, 110, 55)):
     """An image of players in the given BGR shirt colours, standing on grass.
 
@@ -59,8 +60,8 @@ def player_frame(colours, box_h=120, box_w=44, gap=90, grass=(60, 110, 55)):
         head_h = int(box_h * 0.2)
         torso_bottom = y1 + int(box_h * 0.58)
 
-        frame[y1:y1 + head_h, x1:x2] = (45, 45, 45)
-        frame[y1 + head_h:torso_bottom, x1:x2] = colour
+        frame[y1 : y1 + head_h, x1:x2] = (45, 45, 45)
+        frame[y1 + head_h : torso_bottom, x1:x2] = colour
         frame[torso_bottom:y2, x1:x2] = (225, 225, 225)
 
         boxes.append((i, (x1, y1, x2, y2)))
@@ -144,8 +145,9 @@ class TestTeamAssignment:
     def test_separation_is_small_for_similar_kits(self):
         """Two near-identical kits should be reported as barely separated, so a
         caller can distrust the team stats rather than believe them."""
-        near = assign_teams(self.build([(40, 40, 200), (40, 40, 200),
-                                        (55, 55, 195), (55, 55, 195)]))
+        near = assign_teams(
+            self.build([(40, 40, 200), (40, 40, 200), (55, 55, 195), (55, 55, 195)])
+        )
         assert separation(near) < 12
 
     def test_swap_exchanges_the_labels(self):
@@ -230,8 +232,7 @@ class TestKitAxis:
     def test_a_dark_kit_and_a_white_one_are_told_apart(self):
         """Chroma cannot do this: both kits sit on neutral (128, 128), so the
         a and b channels hold nothing at all to split on."""
-        assignment = assign_teams(
-            self.build([DARK_KIT, DARK_KIT, WHITE_KIT, WHITE_KIT]))
+        assignment = assign_teams(self.build([DARK_KIT, DARK_KIT, WHITE_KIT, WHITE_KIT]))
 
         assert assignment.axis == 'grass-relative lightness'
         assert assignment.team_of(0) == assignment.team_of(1)
@@ -257,6 +258,7 @@ class TestKitAxis:
         short ones in sun. Unweighted, the sunlit scraps pull the white centre so
         far that the shaded whites fall on the black side; told how long each
         track is, the split sees it is lopsided and refits on the frames."""
+
         def sample(rel, lightness):
             return [np.array([lightness, 128.0, 128.0, rel])]
 
@@ -333,8 +335,7 @@ class TestKitAxis:
         Two teams are two halves, so a candidate that leaves one side barely
         populated does not get the split however tight that side is.
         """
-        assignment = assign_teams(self.build(
-            [DARK_KIT] * 9 + [WHITE_KIT] * 9 + [YELLOW] * 2))
+        assignment = assign_teams(self.build([DARK_KIT] * 9 + [WHITE_KIT] * 9 + [YELLOW] * 2))
 
         assert assignment.axis == 'grass-relative lightness'
 
@@ -353,22 +354,21 @@ class TestKitAxis:
         only in noise must score low even though their centres are some
         distance apart, because the clusters are as wide as the gap."""
         real = assign_teams(self.build([RED, RED, YELLOW, YELLOW]))
-        near = assign_teams(self.build([(40, 40, 200), (40, 40, 200),
-                                        (55, 55, 195), (55, 55, 195)]))
+        near = assign_teams(
+            self.build([(40, 40, 200), (40, 40, 200), (55, 55, 195), (55, 55, 195)])
+        )
 
         assert real.score > near.score
 
     def test_separation_reports_the_axis_it_split_on(self):
-        assignment = assign_teams(
-            self.build([DARK_KIT, DARK_KIT, WHITE_KIT, WHITE_KIT]))
+        assignment = assign_teams(self.build([DARK_KIT, DARK_KIT, WHITE_KIT, WHITE_KIT]))
 
         # Chroma between two neutral kits is nothing; the axis that did the
         # work is worth a hundred and more.
         assert separation(assignment) > 100
 
     def test_swap_does_not_disturb_the_axis(self):
-        assignment = assign_teams(
-            self.build([DARK_KIT, DARK_KIT, WHITE_KIT, WHITE_KIT]))
+        assignment = assign_teams(self.build([DARK_KIT, DARK_KIT, WHITE_KIT, WHITE_KIT]))
         axis, score, gap = assignment.axis, assignment.score, assignment.gap
         assignment.swap()
 
@@ -393,19 +393,31 @@ class TestTrainingBibs:
     @staticmethod
     def shares(rows, assignment):
         """Frame-weighted share of each kind on its own team's side."""
-        black = max((TEAM_A, TEAM_B), key=lambda t: sum(
-            r[4] for i, r in enumerate(rows) if r[5] == 'a' and assignment.team_of(i) == t))
+        black = max(
+            (TEAM_A, TEAM_B),
+            key=lambda t: sum(
+                r[4] for i, r in enumerate(rows) if r[5] == 'a' and assignment.team_of(i) == t
+            ),
+        )
         white = TEAM_B if black == TEAM_A else TEAM_A
         out = {}
         for kind, want in (('a', black), ('w', white), ('bib', white)):
             total = sum(r[4] for r in rows if r[5] == kind)
-            out[kind] = sum(r[4] for i, r in enumerate(rows)
-                            if r[5] == kind and assignment.team_of(i) == want) / total
+            out[kind] = (
+                sum(
+                    r[4]
+                    for i, r in enumerate(rows)
+                    if r[5] == kind and assignment.team_of(i) == want
+                )
+                / total
+            )
         return out
 
     def split(self, tag):
         rows = self.DATA[tag]
-        samples = {i: [np.array([np.nan if v is None else v for v in r[:4]])] for i, r in enumerate(rows)}
+        samples = {
+            i: [np.array([np.nan if v is None else v for v in r[:4]])] for i, r in enumerate(rows)
+        }
         return rows, assign_teams(samples, weights={i: r[4] for i, r in enumerate(rows)})
 
     @pytest.mark.parametrize('tag', ['fm01', 'fr00'])
@@ -414,8 +426,11 @@ class TestTrainingBibs:
         Lightness split by tracks, that is: split by frames it already hands fr00's
         bibs to white (0.84), though fm01 stays near a coin toss (0.60)."""
         from cv import teams
+
         monkeypatch.setattr(teams, '_discriminant_refit', lambda *a: None)
-        monkeypatch.setattr(teams, '_weighted_two_means', lambda samples, weights: teams._kmeans_two(samples))
+        monkeypatch.setattr(
+            teams, '_weighted_two_means', lambda samples, weights: teams._kmeans_two(samples)
+        )
         rows, assignment = self.split(tag)
         assert self.shares(rows, assignment)['bib'] < 0.5
 
@@ -424,6 +439,7 @@ class TestTrainingBibs:
         rows, assignment = self.split(tag)
         after = self.shares(rows, assignment)
         from cv import teams
+
         monkeypatch.setattr(teams, '_discriminant_refit', lambda *a: None)
         before = self.shares(*self.split(tag))
 
@@ -454,12 +470,13 @@ class TestTrainingBibs:
         assert len({assignment.team_of(t) for t in range(8, 16)} - {UNKNOWN}) == 1
         assert assignment.team_of(0) != assignment.team_of(8)
         if assignment.projection is not None:
-            assert abs(assignment.projection[2]) < 1.0      # tint never outweighs lightness
+            assert abs(assignment.projection[2]) < 1.0  # tint never outweighs lightness
 
 
 # ---------------------------------------------------------------------------
 # Possession
 # ---------------------------------------------------------------------------
+
 
 def boxes_at(positions, height=100, width=40):
     """Detection boxes standing at the given ground points."""
@@ -524,7 +541,10 @@ class TestClearHolderMargin:
         boxes = boxes_at({1: (100, 400), 2: (120, 400)})
 
         holder, team, _ = frame_holder(
-            (110, 400), boxes, self.KITS.get, margin_player_heights=0.5,
+            (110, 400),
+            boxes,
+            self.KITS.get,
+            margin_player_heights=0.5,
         )
 
         assert holder is None
@@ -534,7 +554,10 @@ class TestClearHolderMargin:
         boxes = boxes_at({1: (100, 400), 2: (250, 400)})
 
         holder, team, _ = frame_holder(
-            (105, 400), boxes, self.KITS.get, margin_player_heights=0.5,
+            (105, 400),
+            boxes,
+            self.KITS.get,
+            margin_player_heights=0.5,
         )
 
         assert holder == 1
@@ -545,7 +568,10 @@ class TestClearHolderMargin:
         boxes = boxes_at({1: (100, 400), 2: (115, 400)})
 
         holder, team, _ = frame_holder(
-            (105, 400), boxes, lambda t: TEAM_A, margin_player_heights=1.0,
+            (105, 400),
+            boxes,
+            lambda t: TEAM_A,
+            margin_player_heights=1.0,
         )
 
         assert holder == 1
@@ -560,7 +586,10 @@ class TestClearHolderMargin:
         assert team == UNKNOWN
 
         holder, team, _ = frame_holder(
-            (110, 400), boxes, self.KITS.get, margin_player_heights=0.0,
+            (110, 400),
+            boxes,
+            self.KITS.get,
+            margin_player_heights=0.0,
         )
         assert holder == 1
         assert team == TEAM_A
@@ -578,7 +607,10 @@ class TestLocalScale:
         assert holder == 2, 'the frame median was set by the near-camera pair'
 
         holder, _, _ = frame_holder(
-            ball, boxes, lambda t: TEAM_A, scale_players=3,
+            ball,
+            boxes,
+            lambda t: TEAM_A,
+            scale_players=3,
         )
         assert holder is None, '240px is far when the players there are 60px tall'
 
@@ -593,7 +625,10 @@ class TestExcludingNonPlayers:
         assert holder == 1, 'nearest wins when everybody counts'
 
         holder, _, _ = frame_holder(
-            (100, 400), boxes, lambda t: TEAM_A, is_player=lambda t: t != 1,
+            (100, 400),
+            boxes,
+            lambda t: TEAM_A,
+            is_player=lambda t: t != 1,
         )
         assert holder == 2, 'and the next nearest wins when they do not'
 
@@ -608,13 +643,18 @@ class TestExcludingNonPlayers:
         assert holder is None, 'the tiny figures dragged the median down'
 
         holder, _, _ = frame_holder(
-            ball, boxes, lambda t: TEAM_A, is_player=lambda t: t == 1,
+            ball,
+            boxes,
+            lambda t: TEAM_A,
+            is_player=lambda t: t == 1,
         )
         assert holder == 1
 
     def test_excluding_everybody_is_not_a_crash(self):
         holder, team, _ = frame_holder(
-            (100, 400), boxes_at({1: (100, 400)}), lambda t: TEAM_A,
+            (100, 400),
+            boxes_at({1: (100, 400)}),
+            lambda t: TEAM_A,
             is_player=lambda t: False,
         )
         assert holder is None
@@ -624,8 +664,9 @@ class TestExcludingNonPlayers:
 def states(sequence, fps=FPS, ball_seen=True):
     """Build per-frame states from a list of team labels."""
     return [
-        FrameState(timestamp_s=i / fps, holder_track=None, team=team,
-                   distance_px=0.0, ball_seen=ball_seen)
+        FrameState(
+            timestamp_s=i / fps, holder_track=None, team=team, distance_px=0.0, ball_seen=ball_seen
+        )
         for i, team in enumerate(sequence)
     ]
 
@@ -640,11 +681,7 @@ class TestSummary:
         assert summary.share(TEAM_B) == pytest.approx(1 / 3, abs=0.05)
 
     def test_counts_turnovers(self):
-        sequence = (
-            [TEAM_A] * int(2 * FPS)
-            + [TEAM_B] * int(2 * FPS)
-            + [TEAM_A] * int(2 * FPS)
-        )
+        sequence = [TEAM_A] * int(2 * FPS) + [TEAM_B] * int(2 * FPS) + [TEAM_A] * int(2 * FPS)
         assert summarise(states(sequence)).turnovers == 2
 
     def test_ignores_flicker(self):
@@ -659,9 +696,7 @@ class TestSummary:
 
     def test_a_brief_touch_does_not_break_a_spell(self):
         # A long A spell with a three-frame B deflection in the middle.
-        sequence = (
-            [TEAM_A] * int(3 * FPS) + [TEAM_B] * 3 + [TEAM_A] * int(3 * FPS)
-        )
+        sequence = [TEAM_A] * int(3 * FPS) + [TEAM_B] * 3 + [TEAM_A] * int(3 * FPS)
         summary = summarise(states(sequence))
 
         assert summary.turnovers == 0
@@ -693,10 +728,7 @@ class TestDeadBall:
         assert summary.share(TEAM_A) == pytest.approx(0.5, abs=0.05)
 
     def test_a_dead_stretch_does_not_count_as_a_turnover(self):
-        sequence = (
-            [TEAM_A] * int(3 * FPS) + [TEAM_A] * int(2 * FPS)
-            + [TEAM_B] * int(3 * FPS)
-        )
+        sequence = [TEAM_A] * int(3 * FPS) + [TEAM_A] * int(2 * FPS) + [TEAM_B] * int(3 * FPS)
         summary = summarise(states(sequence), phases=self.phases(3.0, 5.0))
 
         assert summary.turnovers == 1, 'A to B, through a stoppage'
@@ -728,8 +760,11 @@ class TestBallMissing:
         unseen = states([UNKNOWN] * int(2 * FPS), ball_seen=False)
         for i, state in enumerate(unseen):
             unseen[i] = FrameState(
-                timestamp_s=2.0 + i / FPS, holder_track=None, team=UNKNOWN,
-                distance_px=None, ball_seen=False,
+                timestamp_s=2.0 + i / FPS,
+                holder_track=None,
+                team=UNKNOWN,
+                distance_px=None,
+                ball_seen=False,
             )
 
         summary = summarise(seen + unseen)
@@ -742,8 +777,13 @@ class TestBallMissing:
         """Documented as a diagnostic. If it ever starts double-counting, the
         three numbers stop summing to the window and nobody notices."""
         unseen = [
-            FrameState(timestamp_s=i / FPS, holder_track=None, team=UNKNOWN,
-                       distance_px=None, ball_seen=False)
+            FrameState(
+                timestamp_s=i / FPS,
+                holder_track=None,
+                team=UNKNOWN,
+                distance_px=None,
+                ball_seen=False,
+            )
             for i in range(int(3 * FPS))
         ]
         summary = summarise(unseen)
@@ -756,9 +796,7 @@ class TestBallMissing:
         assert summarise(states(sequence)).turnovers == 1
 
     def test_contested_time_is_excluded_from_the_share(self):
-        sequence = (
-            [TEAM_A] * int(3 * FPS) + [UNKNOWN] * int(3 * FPS) + [TEAM_B] * int(3 * FPS)
-        )
+        sequence = [TEAM_A] * int(3 * FPS) + [UNKNOWN] * int(3 * FPS) + [TEAM_B] * int(3 * FPS)
         summary = summarise(states(sequence))
 
         assert summary.contested_s == pytest.approx(3, abs=0.3)

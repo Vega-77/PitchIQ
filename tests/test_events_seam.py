@@ -60,6 +60,7 @@ off a published event, and the two that are not were already excused in
 answer, not a disappointment -- the value here is that the next deletion cannot
 pass by accident.
 """
+
 import re
 from pathlib import Path
 
@@ -80,19 +81,46 @@ SKIP = {'sample-report.js'}
 # Array methods, so `events.length` does not arrive as a figure the pipeline
 # never made. Also the method names the callback rule keys off.
 BUILTIN = {
-    'length', 'map', 'filter', 'forEach', 'flatMap', 'find', 'findIndex',
-    'some', 'every', 'sort', 'reduce', 'slice', 'push', 'join', 'includes',
-    'concat', 'indexOf', 'reverse', 'keys', 'values', 'entries',
+    'length',
+    'map',
+    'filter',
+    'forEach',
+    'flatMap',
+    'find',
+    'findIndex',
+    'some',
+    'every',
+    'sort',
+    'reduce',
+    'slice',
+    'push',
+    'join',
+    'includes',
+    'concat',
+    'indexOf',
+    'reverse',
+    'keys',
+    'values',
+    'entries',
 }
-ITERATORS = ('map', 'filter', 'forEach', 'flatMap', 'find', 'findIndex',
-             'some', 'every', 'sort', 'reduce')
+ITERATORS = (
+    'map',
+    'filter',
+    'forEach',
+    'flatMap',
+    'find',
+    'findIndex',
+    'some',
+    'every',
+    'sort',
+    'reduce',
+)
 
 FUNC = re.compile(r'^(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(', re.M)
 DECL = re.compile(r'\b(?:const|let|var)\s+(\w+)\s*=\s*([^;\n]*)')
 DESTRUCT = re.compile(r'\b(?:const|let|var)\s*\{([^}]*)\}\s*=\s*([^;\n]*)')
 FOR_OF = re.compile(r'\bfor\s*\(\s*(?:const|let|var)\s+(\w+)\s+of\s+([^)]*)\)')
-CALLBACK = re.compile(
-    r'\.\s*(?:%s)\s*\(\s*\(?\s*(\w+)' % '|'.join(ITERATORS))
+CALLBACK = re.compile(r'\.\s*(?:%s)\s*\(\s*\(?\s*(\w+)' % '|'.join(ITERATORS))
 CALL = re.compile(r'\b(\w+)\s*\(')
 LINE_COMMENT = re.compile(r'//[^\n]*')
 BLOCK_COMMENT = re.compile(r'/\*.*?\*/', re.S)
@@ -108,17 +136,15 @@ MAX_ROUNDS = 8
 # checks a different claim -- that nothing reads them off an event -- and an
 # excuse that has to be looked up somewhere else stops being argued with.
 UNREAD_BY_DESIGN = {
-    'schemaVersion':
-        'provenance, and deliberately inert: nothing in the browser may '
-        'branch on it, because a page that changes behaviour by schema '
-        'version is a page that has to be rewritten every time the pipeline '
-        'learns something new',
-    'droppedBelowConfidence':
-        'the confidence floor a truncated list was cut at -- a tuning figure '
-        'for whoever is training the detector. Every note that mentions the '
-        'trim says it in words instead, because `confidence` is a '
-        'model-internal scale no page explains, so a coach reading '
-        '"dropped below 0.45" learns nothing they can act on',
+    'schemaVersion': 'provenance, and deliberately inert: nothing in the browser may '
+    'branch on it, because a page that changes behaviour by schema '
+    'version is a page that has to be rewritten every time the pipeline '
+    'learns something new',
+    'droppedBelowConfidence': 'the confidence floor a truncated list was cut at -- a tuning figure '
+    'for whoever is training the detector. Every note that mentions the '
+    'trim says it in words instead, because `confidence` is a '
+    'model-internal scale no page explains, so a coach reading '
+    '"dropped below 0.45" learns nothing they can act on',
 }
 
 
@@ -187,7 +213,7 @@ def _params(body: str) -> list[str | None]:
                 break
         i += 1
     names = []
-    for piece in _split_top(body[open_at + 1:i]):
+    for piece in _split_top(body[open_at + 1 : i]):
         piece = piece.split('=')[0].strip()
         names.append(piece if re.fullmatch(r'\w+', piece) else None)
     return names
@@ -268,16 +294,25 @@ def _receiver(body: str, dot: int) -> str | None:
         while k >= 0 and body[k] in ' \t\n':
             k -= 1
         if k >= 0 and (body[k].isalnum() or body[k] in '_$'):
-            return None       # an identifier before `(` -- a call
-        return body[j + 1:i]  # a grouping -- `(events || [])`
+            return None  # an identifier before `(` -- a call
+        return body[j + 1 : i]  # a grouping -- `(events || [])`
     start = i
     while start >= 0 and (body[start].isalnum() or body[start] in '_$.?[]'):
         start -= 1
-    return body[start + 1:i + 1]
+    return body[start + 1 : i + 1]
 
 
-def _scan(*, cross=True, callbacks=True, hops=True, loops=True, aliases=True,
-          chunked=True, strip_comments=True, builtins=True):
+def _scan(
+    *,
+    cross=True,
+    callbacks=True,
+    hops=True,
+    loops=True,
+    aliases=True,
+    chunked=True,
+    strip_comments=True,
+    builtins=True,
+):
     """{field: {where it is read}} for everything reached from the handle."""
     files = _sources(strip=strip_comments)
 
@@ -315,8 +350,11 @@ def _scan(*, cross=True, callbacks=True, hops=True, loops=True, aliases=True,
                         names.add(n)
             if callbacks:
                 for m in CALLBACK.finditer(body):
-                    head = (_receiver(body, m.start()) if aliases
-                            else body[max(0, m.start() - 60):m.start() + 1])
+                    head = (
+                        _receiver(body, m.start())
+                        if aliases
+                        else body[max(0, m.start() - 60) : m.start() + 1]
+                    )
                     if head and _mentions(head, names):
                         names.add(m.group(1))
             if names != seeds[key]:
@@ -346,8 +384,7 @@ def _scan(*, cross=True, callbacks=True, hops=True, loops=True, aliases=True,
                     call = re.match(r'\s*(?:await\s+)?(\w+)\s*\(', expr)
                     if not call or call.group(1) not in by_name:
                         continue
-                    wanted = {p.split(':')[-1].strip()
-                              for p in group.split(',')}
+                    wanted = {p.split(':')[-1].strip() for p in group.split(',')}
                     for source in by_name[call.group(1)]:
                         bag = units[source][1]
                         for k, v in re.findall(r'(\w+)\s*:\s*([^,\n]+)', bag):
@@ -428,18 +465,17 @@ def seen():
 class TestEverythingPublishedIsRead:
     def test_every_figure_is_read_off_an_event_or_excused(self, made, seen):
         orphans = {
-            key: level for key, level in made.items()
+            key: level
+            for key, level in made.items()
             if not readers(key, seen) and key not in UNREAD_BY_DESIGN
         }
         assert orphans == {}, (
             'published on %s and read off nothing: %s. Either a page should '
             'be showing it, or it should stop being published, or it belongs '
-            'in UNREAD_BY_DESIGN with a reason.'
-            % (sorted(orphans.values()), sorted(orphans))
+            'in UNREAD_BY_DESIGN with a reason.' % (sorted(orphans.values()), sorted(orphans))
         )
 
-    def test_nothing_reads_a_field_the_pipeline_never_produces(self, made,
-                                                               seen):
+    def test_nothing_reads_a_field_the_pipeline_never_produces(self, made, seen):
         ghosts = sorted(k for k in seen if k not in made)
         assert ghosts == [], (
             'read off a published event, and never published: %s. Either the '
@@ -460,16 +496,14 @@ class TestTheExcusesDoNotRot:
         # A figure that started being rendered keeps its excuse forever, and
         # the list turns into a graveyard nobody dares touch.
         rendered = [k for k in UNREAD_BY_DESIGN if readers(k, seen)]
-        assert rendered == [], (
-            '%s now has a reader: %s. Drop the excuse.'
-            % (rendered, {k: sorted(readers(k, seen)) for k in rendered})
+        assert rendered == [], '%s now has a reader: %s. Drop the excuse.' % (
+            rendered,
+            {k: sorted(readers(k, seen)) for k in rendered},
         )
 
     def test_no_entries_for_fields_that_do_not_exist(self, made):
         gone = [k for k in UNREAD_BY_DESIGN if k not in made]
-        assert gone == [], (
-            '%s is excused and no longer published. Drop the excuse.' % gone
-        )
+        assert gone == [], '%s is excused and no longer published. Drop the excuse.' % gone
 
     def test_every_entry_gives_a_reason(self):
         for key, why in UNREAD_BY_DESIGN.items():
@@ -493,8 +527,7 @@ class TestThePremiseHolds:
         assert "'cvStats', 'events'" in db
         coach = (ROOT / 'coach' / 'coach.js').read_text(encoding='utf-8')
         assert HANDLE in coach, (
-            'the scan starts from `state.match.%s` and nothing binds it'
-            % HANDLE
+            'the scan starts from `state.match.%s` and nothing binds it' % HANDLE
         )
 
     def test_the_producer_parse_found_both_levels(self, made):
@@ -503,13 +536,11 @@ class TestThePremiseHolds:
         assert len(made) == 17, sorted(made)
 
     def test_the_scan_found_the_files_that_read_the_list(self, seen):
-        where = {place.split('::')[0]
-                 for places in seen.values() for place in places}
+        where = {place.split('::')[0] for places in seen.values() for place in places}
         # Four files, and each one matters: coach.js holds the handle,
         # report.js the shot log and the label export, passing.js the only
         # reader of `startM`, review.js the filter chips.
-        for name in ('coach/coach.js', 'assets/report.js',
-                     'assets/passing.js', 'coach/review.js'):
+        for name in ('coach/coach.js', 'assets/report.js', 'assets/passing.js', 'coach/review.js'):
             assert name in where, '%s read nothing: %s' % (name, sorted(where))
 
 
@@ -559,8 +590,16 @@ class TestTheScannerCannotPassVacuously:
         without = read(cross=False)
         rows = [k for k, level in made.items() if level == 'each event']
         assert [k for k in rows if not readers(k, without)] == [
-            'type', 'timestampS', 'trackId', 'team', 'confidence', 'outcome',
-            'xg', 'xgHeader', 'receiverTrackId', 'startM',
+            'type',
+            'timestampS',
+            'trackId',
+            'team',
+            'confidence',
+            'outcome',
+            'xg',
+            'xgHeader',
+            'receiverTrackId',
+            'startM',
         ]
 
     def test_the_bag_is_load_bearing(self, seen):
@@ -601,10 +640,13 @@ class TestTheScannerCannotPassVacuously:
         whole = read(chunked=False)
         rows = [k for k, level in made.items() if level == 'each event']
         assert [k for k in rows if not readers(k, whole)] == [
-            'team', 'xg', 'xgHeader', 'receiverTrackId', 'startM',
+            'team',
+            'xg',
+            'xgHeader',
+            'receiverTrackId',
+            'startM',
         ]
-        assert all(place.endswith('::<file>')
-                   for places in whole.values() for place in places)
+        assert all(place.endswith('::<file>') for places in whole.values() for place in places)
 
     def test_comment_stripping_is_load_bearing(self, made, seen):
         # In both directions, which is unusual -- on the other four seam gates

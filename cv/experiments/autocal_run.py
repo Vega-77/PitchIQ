@@ -43,17 +43,18 @@ WORK = REPO.parent / 'PitchIQ-data' / 'autocal'
 HOMOG = REPO / 'cv' / 'balltrack' / 'homog'
 DETS = REPO / 'cv' / 'balltrack' / 'plab' / 'out'
 STAGES = ('gather', 'prep', 'cal', 'height', 'write')
-STEP = 15                      # frames between samples
-M_PER_R = 9.15                 # metres per centre-circle radius
-INLIER_M = 1.5                 # paint this close to a model line counts as fitted
-PERSON_CONF = 0.5              # the height cue's people: confident, whole boxes only
-MASK_SHAPE = (540, 960)        # paint_mask's size for a 1920 x 1080 frame
+STEP = 15  # frames between samples
+M_PER_R = 9.15  # metres per centre-circle radius
+INLIER_M = 1.5  # paint this close to a model line counts as fitted
+PERSON_CONF = 0.5  # the height cue's people: confident, whole boxes only
+MASK_SHAPE = (540, 960)  # paint_mask's size for a 1920 x 1080 frame
 # processes reading and matching frames (gather) and pricing focal lengths (prep)
 WORKERS = int(os.environ.get('AUTOCAL_WORKERS', min(12, os.cpu_count() or 1)))
 
 
 def _video():
     import cv2
+
     path = os.environ.get('PIQ_VIDEO')
     if not path:
         raise SystemExit('set PIQ_VIDEO: unset, every stage would silently read the scrimmage')
@@ -65,6 +66,7 @@ def _video():
 
 def _frame(cap, ab):
     import cv2
+
     cap.set(cv2.CAP_PROP_POS_FRAMES, ab)
     ok, im = cap.read()
     if not ok:
@@ -81,7 +83,9 @@ def _save(path: Path, obj) -> None:
     tmp = path.with_suffix(path.suffix + '.part')
     with open(tmp, 'wb') as fh:
         pickle.dump(obj, fh)
-    os.replace(tmp, path)      # a crash mid-write leaves no half file to be mistaken for a finished stage
+    os.replace(
+        tmp, path
+    )  # a crash mid-write leaves no half file to be mistaken for a finished stage
 
 
 # ---- the stages ------------------------------------------------------------------
@@ -121,18 +125,21 @@ def _gather_block(args):
     """Samples s..e-1: their packed paint masks, and their links' inlier pairs
     as (i, j, pairs or None) in the order gather draws from them."""
     import cv2
+
     frames, s, e, lines = args
     A.LINES = lines
     cap = _video()
     sift = cv2.SIFT_create(nfeatures=3000)
     feats, masks = {}, []
-    for k in range(s, min(e + 4, len(frames))):          # a link reaches 4 samples ahead
+    for k in range(s, min(e + 4, len(frames))):  # a link reaches 4 samples ahead
         im = _frame(cap, frames[k])
         feats[k] = A.frame_features(im, sift)
         if k < e:
             m = A.paint_mask(im) > 0
             if m.shape != MASK_SHAPE:
-                raise SystemExit(f'paint mask is {m.shape}, not {MASK_SHAPE}: not a 1920 x 1080 video')
+                raise SystemExit(
+                    f'paint mask is {m.shape}, not {MASK_SHAPE}: not a 1920 x 1080 video'
+                )
             masks.append(np.packbits(m))
     pairs = []
     for i in range(s, e):
@@ -154,15 +161,15 @@ class _Masks(Mapping):
         if self.packed is None:
             self.cap = self.cap or _video()
             return A.paint_mask(_frame(self.cap, self.frames[k]))
-        return np.unpackbits(self.packed[k], count=MASK_SHAPE[0] * MASK_SHAPE[1]).reshape(MASK_SHAPE)
+        return np.unpackbits(self.packed[k], count=MASK_SHAPE[0] * MASK_SHAPE[1]).reshape(
+            MASK_SHAPE
+        )
 
     def __iter__(self):
         return iter(range(len(self)))
 
     def __len__(self):
         return len(self.packed if self.packed is not None else self.frames)
-
-
 
 
 def _pool_map(fn, items, workers, initializer=None, initargs=()):
@@ -173,6 +180,7 @@ def _pool_map(fn, items, workers, initializer=None, initargs=()):
         yield from map(fn, items)
         return
     import multiprocessing as mp
+
     with mp.get_context('spawn').Pool(workers, initializer=initializer, initargs=initargs) as pool:
         yield from pool.imap(fn, items)
 
@@ -181,15 +189,19 @@ def prep(D: dict, log, workers: int = WORKERS) -> tuple[dict, np.ndarray]:
     n = len(D['frames'])
     if workers > 1:
         import multiprocessing as mp
-        with mp.get_context('spawn').Pool(min(workers, 15), initializer=A.focal_pool_init,
-                                          initargs=(D['links'], n)) as pool:
+
+        with mp.get_context('spawn').Pool(
+            min(workers, 15), initializer=A.focal_pool_init, initargs=(D['links'], n)
+        ) as pool:
             f0 = A.best_focal(D['links'], n, pool=pool)
     else:
         f0 = A.best_focal(D['links'], n)
     R, f = A.chain_rotations(D['links'], n, f0)
     P = A.build_panorama(_Masks(D.get('masks'), D['frames']), R, f)
-    log('%d samples, %d links, f0 %.0f, f %.0f..%.0f, pano %dx%d'
-        % (n, len(D['links']), f0, f.min(), f.max(), P.paint.shape[1], P.paint.shape[0]))
+    log(
+        '%d samples, %d links, f0 %.0f, f %.0f..%.0f, pano %dx%d'
+        % (n, len(D['links']), f0, f.min(), f.max(), P.paint.shape[1], P.paint.shape[0])
+    )
     img = np.zeros(P.paint.shape + (3,), np.uint8)
     img[..., 1] = (P.cover > 0) * 60
     img[P.paint >= 0.25] = (0, 220, 255)
@@ -203,9 +215,14 @@ def calibrate(Q: dict, camera: tuple | None, log) -> tuple:
         C, _R0, L, W = camera
         got = A.calibrate_rotation(Q['pano'], np.asarray(C, float), A.PitchModel(L=L, W=W), log=log)
     if got is None:
-        raise SystemExit('no halfway line and centre circle found: pick a stretch where the camera sees midfield')
+        raise SystemExit(
+            'no halfway line and centre circle found: pick a stretch where the camera sees midfield'
+        )
     C, R0, pm, info = got
-    log('C %s  L %.2f W %.2f  explained %d/%d' % (np.round(C, 3), pm.L, pm.W, info['explained'], info['paint']))
+    log(
+        'C %s  L %.2f W %.2f  explained %d/%d'
+        % (np.round(C, 3), pm.L, pm.W, info['explained'], info['paint'])
+    )
     return C, R0, pm.L, pm.W
 
 
@@ -219,17 +236,25 @@ def people(tag: str, frames: list[int], log) -> dict:
         if set(frames) <= set(np.unique(z['frame']).tolist()):
             fr, box, conf = z['frame'], z['box'], z['conf']
             log('people from %s' % path.name)
-            return _whole({k: box[(fr == ab) & (conf >= PERSON_CONF)] for k, ab in enumerate(frames)})
+            return _whole(
+                {k: box[(fr == ab) & (conf >= PERSON_CONF)] for k, ab in enumerate(frames)}
+            )
     from ultralytics import YOLO
 
     from cv.detector import CLASS_PERSON, DEFAULT_WEIGHTS
+
     model = YOLO(str(DEFAULT_WEIGHTS))
     cap = _video()
     out = {}
     for i in range(0, len(frames), 8):
         ks = list(range(i, min(i + 8, len(frames))))
-        res = model.predict([_frame(cap, frames[k]) for k in ks], classes=[CLASS_PERSON], conf=PERSON_CONF,
-                            imgsz=1280, verbose=False)
+        res = model.predict(
+            [_frame(cap, frames[k]) for k in ks],
+            classes=[CLASS_PERSON],
+            conf=PERSON_CONF,
+            imgsz=1280,
+            verbose=False,
+        )
         for k, r in zip(ks, res):
             out[k] = r.boxes.xyxy.cpu().numpy()
     log('people detected on %d samples' % len(frames))
@@ -243,14 +268,22 @@ def _whole(boxes: dict) -> dict:
 def height(tag: str, Q: dict, cal: tuple, log) -> tuple:
     C, R0, L, W = cal
     boxes = people(tag, Q['frames'], log)
-    C, R0, pm, _rows = A.height_from_people(Q['pano'], Q['R'], Q['f'], np.asarray(C, float), R0,
-                                            A.PitchModel(L=L, W=W), boxes, log=log)
+    C, R0, pm, _rows = A.height_from_people(
+        Q['pano'], Q['R'], Q['f'], np.asarray(C, float), R0, A.PitchModel(L=L, W=W), boxes, log=log
+    )
     log('C %s  W %.2f' % (np.round(C, 3), pm.W))
     return C, R0, pm.L, pm.W
 
 
-def write(tag: str, Q: dict, rig_pose: tuple, homog: Path, log, paint: dict | None = None,
-          masks: np.ndarray | None = None) -> dict:
+def write(
+    tag: str,
+    Q: dict,
+    rig_pose: tuple,
+    homog: Path,
+    log,
+    paint: dict | None = None,
+    masks: np.ndarray | None = None,
+) -> dict:
     """The tracker's registration (every sample's frame -> StatsBomb) and venue
     (camera heights -> StatsBomb, the reference view, the pitch), plus the fit:
     each sample's paint on the ground, distance to the nearest model line
@@ -287,25 +320,45 @@ def write(tag: str, Q: dict, rig_pose: tuple, homog: Path, log, paint: dict | No
         d_all.append(d[inl])
     d_all = np.concatenate(d_all) if d_all else np.zeros(1)
     err = dict(err_mean=d_all.mean(), err_max=d_all.max(), err_p90=np.percentile(d_all, 90))
-    log('paint within %.1f m of a line: %d px over %d samples; mean %.2f m p90 %.2f m; samples < 30: %d'
-        % (INLIER_M, len(d_all), n, err['err_mean'], err['err_p90'], (ninl < 30).sum()))
+    log(
+        'paint within %.1f m of a line: %d px over %d samples; mean %.2f m p90 %.2f m; samples < 30: %d'
+        % (INLIER_M, len(d_all), n, err['err_mean'], err['err_p90'], (ninl < 30).sum())
+    )
 
     h = C[2]
     foot = np.array([C[0] * 120 / L, C[1] * 80 / W])
-    Ach = np.array([[0, h * 120 / L, foot[0]], [h * 80 / W, 0, foot[1]], [0, 0, 1.0]])   # the scrimmage map's axes
+    Ach = np.array(
+        [[0, h * 120 / L, foot[0]], [h * 80 / W, 0, foot[1]], [0, 0, 1.0]]
+    )  # the scrimmage map's axes
     homog.mkdir(parents=True, exist_ok=True)
-    np.savez(homog / f'{tag}_reg.npz', abs=np.asarray(Q['frames']), Hsb=Hsb, ninl=ninl, ok=np.ones(n, bool))
+    np.savez(
+        homog / f'{tag}_reg.npz',
+        abs=np.asarray(Q['frames']),
+        Hsb=Hsb,
+        ninl=ninl,
+        ok=np.ones(n, bool),
+    )
     np.savez(homog / f'{tag}_venue.npz', A=Ach, ref=Hsb[0], L=L, W=W, C=C, **err)
-    log('camera at u %.2f v %.2f h %.3f R (foot SB %.1f, %.1f); pitch %.1f x %.1f m -> %s'
-        % (C[0], C[1], h, foot[0], foot[1], L * M_PER_R, W * M_PER_R, homog))
+    log(
+        'camera at u %.2f v %.2f h %.3f R (foot SB %.1f, %.1f); pitch %.1f x %.1f m -> %s'
+        % (C[0], C[1], h, foot[0], foot[1], L * M_PER_R, W * M_PER_R, homog)
+    )
     return err
 
 
 # ---- the run ------------------------------------------------------------------------
 
 
-def run(tag: str, lo: int, hi: int, work: Path = WORK, homog: Path = HOMOG, lines: str | None = None,
-        camera: str | None = None, redo: str | None = None) -> dict:
+def run(
+    tag: str,
+    lo: int,
+    hi: int,
+    work: Path = WORK,
+    homog: Path = HOMOG,
+    lines: str | None = None,
+    camera: str | None = None,
+    redo: str | None = None,
+) -> dict:
     d = work / tag
     d.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
@@ -319,8 +372,13 @@ def run(tag: str, lo: int, hi: int, work: Path = WORK, homog: Path = HOMOG, line
 
     # the stretch, the paint colour and the camera source are fixed once; a resumed
     # run with different ones would quietly mix two calibrations
-    spec = dict(lo=lo, hi=hi, lines=lines or os.environ.get('PIQ_LINES', 'gold'), camera=camera,
-                video=os.environ.get('PIQ_VIDEO'))
+    spec = dict(
+        lo=lo,
+        hi=hi,
+        lines=lines or os.environ.get('PIQ_LINES', 'gold'),
+        camera=camera,
+        video=os.environ.get('PIQ_VIDEO'),
+    )
     old = _load(d / 'spec.pkl') if (d / 'spec.pkl').exists() else None
     first = STAGES.index(redo) if redo else len(STAGES)
     if old is not None and old != spec:
@@ -329,9 +387,17 @@ def run(tag: str, lo: int, hi: int, work: Path = WORK, homog: Path = HOMOG, line
             raise SystemExit(f'{d} was run with other {changed}; pass --redo gather or another tag')
     _save(d / 'spec.pkl', spec)
     A.LINES = spec['lines']
-    log('%s %d..%d lines %s%s' % (tag, lo, hi, spec['lines'], ' camera from ' + camera if camera else ''))
+    log(
+        '%s %d..%d lines %s%s'
+        % (tag, lo, hi, spec['lines'], ' camera from ' + camera if camera else '')
+    )
 
-    out = {'gather': d / 'gather.pkl', 'prep': d / 'prep.pkl', 'cal': d / 'cal.pkl', 'height': d / 'full.pkl'}
+    out = {
+        'gather': d / 'gather.pkl',
+        'prep': d / 'prep.pkl',
+        'cal': d / 'cal.pkl',
+        'height': d / 'full.pkl',
+    }
 
     rerun = []
 
@@ -349,6 +415,7 @@ def run(tag: str, lo: int, hi: int, work: Path = WORK, homog: Path = HOMOG, line
         Q, img = prep(_load(out['gather']), log)
         _save(out['prep'], Q)
         import cv2
+
         cv2.imwrite(str(d / 'pano.jpg'), img)
     Q = _load(out['prep'])
     if fresh('cal'):
@@ -374,12 +441,18 @@ def run(tag: str, lo: int, hi: int, work: Path = WORK, homog: Path = HOMOG, line
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog='python -m cv.experiments.autocal_run', description=__doc__.split('\n\n')[0])
+    p = argparse.ArgumentParser(
+        prog='python -m cv.experiments.autocal_run', description=__doc__.split('\n\n')[0]
+    )
     p.add_argument('tag')
     p.add_argument('lo', type=int)
     p.add_argument('hi', type=int)
-    p.add_argument('--lines', choices=['gold', 'white'], help='paint colour (default PIQ_LINES, else gold)')
-    p.add_argument('--camera', help="another tag's camera and pitch: solve this stretch's rotation only")
+    p.add_argument(
+        '--lines', choices=['gold', 'white'], help='paint colour (default PIQ_LINES, else gold)'
+    )
+    p.add_argument(
+        '--camera', help="another tag's camera and pitch: solve this stretch's rotation only"
+    )
     p.add_argument('--redo', choices=STAGES, help='rerun this stage and every later one')
     p.add_argument('--work', type=Path, default=WORK)
     p.add_argument('--homog', type=Path, default=HOMOG, help='where the _reg/_venue files go')

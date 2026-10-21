@@ -48,9 +48,9 @@ PITCH = Pitch()
 WIDTH = int(PITCH.length_m * SCALE)
 HEIGHT = int(PITCH.width_m * SCALE)
 FPS = 30.0
-FRAMES = 270                                    # nine seconds
+FRAMES = 270  # nine seconds
 
-RED = (40, 40, 220)                             # BGR, as OpenCV wants it
+RED = (40, 40, 220)  # BGR, as OpenCV wants it
 BLUE = (220, 60, 40)
 WHITE = (245, 245, 245)
 
@@ -73,15 +73,22 @@ NUDGE_S = 4.9
 STRIKE_S = 7.0
 FLIGHT_S = 0.8
 NUDGE_LEAD_M = 1.0
-GOAL_M = (-2.0, PITCH.width_m / 2)              # past the line, not on it
+GOAL_M = (-2.0, PITCH.width_m / 2)  # past the line, not on it
 
 ORIENTATION = MatchOrientation(home_attacks_first_half='right')
 SIDES = {TEAM_A: 'us', TEAM_B: 'them'}
 
 STAGES = [
-    'load the detector', 'detect, track and sample colour', 'ball', 'camera',
-    'possession', 'identity', 'thumbnails', 'touches and events',
-    'expected goals', 'movement',
+    'load the detector',
+    'detect, track and sample colour',
+    'ball',
+    'camera',
+    'possession',
+    'identity',
+    'thumbnails',
+    'touches and events',
+    'expected goals',
+    'movement',
 ]
 
 
@@ -214,9 +221,7 @@ class SlotTracker:
 @pytest.fixture(scope='module')
 def clip(tmp_path_factory):
     path = tmp_path_factory.mktemp('e2e') / 'match.mp4'
-    writer = cv2.VideoWriter(
-        str(path), cv2.VideoWriter_fourcc(*'mp4v'), FPS, (WIDTH, HEIGHT)
-    )
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*'mp4v'), FPS, (WIDTH, HEIGHT))
     if not writer.isOpened():
         pytest.skip('no mp4v encoder available in this OpenCV build')
     for n in range(FRAMES):
@@ -237,8 +242,13 @@ def calibration_path(tmp_path_factory):
     fixture goes through `fit` the way a real calibration file does.
     """
     names = [
-        'corner_bottom_left', 'corner_top_left', 'corner_bottom_right',
-        'corner_top_right', 'centre_spot', 'halfway_bottom', 'halfway_top',
+        'corner_bottom_left',
+        'corner_top_left',
+        'corner_bottom_right',
+        'corner_top_right',
+        'centre_spot',
+        'halfway_bottom',
+        'halfway_top',
     ]
     points = [Correspondence(n, px(*PITCH.landmark(n))) for n in names]
     fitted = Calibration.fit(points, PITCH, image_size=(WIDTH, HEIGHT))

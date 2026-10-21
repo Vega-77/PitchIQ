@@ -123,6 +123,7 @@ SPREAD_FRACTION = 0.5
 # The model
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class DistortionModel:
     """One-parameter radial distortion, in the division form.
@@ -150,7 +151,7 @@ class DistortionModel:
     scale: float
 
     @staticmethod
-    def for_image(image_size, k1: float = 0.0) -> "DistortionModel":
+    def for_image(image_size, k1: float = 0.0) -> 'DistortionModel':
         width, height = float(image_size[0]), float(image_size[1])
         return DistortionModel(
             k1=float(k1),
@@ -181,7 +182,7 @@ class DistortionModel:
         offset = pts - np.array(self.centre, dtype=np.float64)
         r_ideal = np.linalg.norm(offset, axis=1) / self.scale
 
-        disc = 1.0 - 4.0 * self.k1 * r_ideal ** 2
+        disc = 1.0 - 4.0 * self.k1 * r_ideal**2
         # Pincushion strong enough to fold the frame onto itself has no real
         # inverse out at the corners. Clamping rather than raising keeps a
         # drawing routine drawing something visibly wrong instead of crashing;
@@ -192,29 +193,30 @@ class DistortionModel:
         # offset vector is the ratio of the two radii, so this divides by
         # r_ideal twice. As r_ideal -> 0 the ratio tends to 1 (expand the root
         # as sqrt(1-x) ~ 1 - x/2) but the expression goes 0/0, hence the guard.
-        with np.errstate(divide="ignore", invalid="ignore"):
-            ratio = (1.0 - np.sqrt(disc)) / (2.0 * self.k1 * r_ideal ** 2)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            ratio = (1.0 - np.sqrt(disc)) / (2.0 * self.k1 * r_ideal**2)
         ratio = np.where(r_ideal < 1e-9, 1.0, ratio)
 
         return np.array(self.centre) + offset * ratio[:, None]
 
     def to_json(self) -> dict:
-        return {"k1": self.k1, "centre": list(self.centre), "scale": self.scale}
+        return {'k1': self.k1, 'centre': list(self.centre), 'scale': self.scale}
 
     @staticmethod
-    def from_json(data: dict | None) -> "DistortionModel | None":
+    def from_json(data: dict | None) -> 'DistortionModel | None':
         if not data:
             return None
         return DistortionModel(
-            k1=float(data["k1"]),
-            centre=(float(data["centre"][0]), float(data["centre"][1])),
-            scale=float(data["scale"]),
+            k1=float(data['k1']),
+            centre=(float(data['centre'][0]), float(data['centre'][1])),
+            scale=float(data['scale']),
         )
 
 
 # ---------------------------------------------------------------------------
 # Following the paint
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class Chain:
@@ -328,10 +330,12 @@ def trace_chains(
 def _clean_start(mask, seed, direction, band_px):
     """A point on the seed where the paint can be centred. Midpoint first."""
     for fraction in (0.5, 0.35, 0.65, 0.2, 0.8, 0.1, 0.9):
-        along = np.array([
-            seed.x1 + (seed.x2 - seed.x1) * fraction,
-            seed.y1 + (seed.y2 - seed.y1) * fraction,
-        ])
+        along = np.array(
+            [
+                seed.x1 + (seed.x2 - seed.x1) * fraction,
+                seed.y1 + (seed.y2 - seed.y1) * fraction,
+            ]
+        )
         found = _centre_of_paint(mask, along, direction, band_px)
         if found is not None and found[1]:
             return found[0]
@@ -435,7 +439,7 @@ def _centre_of_paint(mask, around, heading, band_px):
         return None
 
     centre_index = int(np.argmin(np.abs(offsets)))
-    nearest = int(np.argmin(np.where(lit, np.abs(np.arange(len(offsets)) - centre_index), 10 ** 6)))
+    nearest = int(np.argmin(np.where(lit, np.abs(np.arange(len(offsets)) - centre_index), 10**6)))
 
     lo = nearest
     while lo > 0 and lit[lo - 1]:
@@ -445,12 +449,13 @@ def _centre_of_paint(mask, around, heading, band_px):
         hi += 1
 
     clean = lo > 0 and hi < len(lit) - 1 and (hi - lo + 1) <= MAX_PAINT_PX
-    return samples[lo:hi + 1].mean(axis=0), clean
+    return samples[lo : hi + 1].mean(axis=0), clean
 
 
 # ---------------------------------------------------------------------------
 # Fitting the coefficient
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class DistortionFit:
@@ -479,7 +484,7 @@ class DistortionFit:
     def gain(self) -> float:
         """How many times straighter the correction made the lines."""
         if not (self.residual_px > 0):
-            return float("inf")
+            return float('inf')
         return self.baseline_px / self.residual_px
 
     @property
@@ -520,13 +525,13 @@ class DistortionFit:
 
     def summary(self) -> str:
         if self.chains == 0:
-            return "no runs of paint long enough to measure"
-        verdict = "confident" if self.confident else "not confident"
+            return 'no runs of paint long enough to measure'
+        verdict = 'confident' if self.confident else 'not confident'
         return (
-            f"k1 {self.k1:+.4f}, lines bow {self.bow_px:.1f}px and straighten "
-            f"{self.baseline_px:.2f}px -> {self.residual_px:.2f}px "
-            f"({self.gain:.1f}x) over {self.chains} runs, "
-            f"+/-{self.spread:.4f} across them ({verdict})"
+            f'k1 {self.k1:+.4f}, lines bow {self.bow_px:.1f}px and straighten '
+            f'{self.baseline_px:.2f}px -> {self.residual_px:.2f}px '
+            f'({self.gain:.1f}x) over {self.chains} runs, '
+            f'+/-{self.spread:.4f} across them ({verdict})'
         )
 
 
@@ -545,16 +550,17 @@ def estimate(
     """
     if chains is None:
         if image is None:
-            raise ValueError("estimate needs either an image or chains")
+            raise ValueError('estimate needs either an image or chains')
         chains = trace_chains(image)
     if image_size is None:
         if image is None:
-            raise ValueError("estimate needs an image_size when given chains")
+            raise ValueError('estimate needs an image_size when given chains')
         image_size = (int(image.shape[1]), int(image.shape[0]))
 
     if not chains:
-        return DistortionFit(0.0, float("nan"), float("nan"), float("nan"),
-                             0, 0, float("inf"), image_size)
+        return DistortionFit(
+            0.0, float('nan'), float('nan'), float('nan'), 0, 0, float('inf'), image_size
+        )
 
     kept = _drop_the_crooked(chains, image_size, max_k1)
     # Counted over `kept`, not over everything traced: a run that trimming threw
@@ -596,7 +602,7 @@ def _pooled_rms(chains: list[Chain], model: DistortionModel | None) -> float:
         r = chain.residuals(model)
         total += float(np.sum(r * r))
         count += len(r)
-    return math.sqrt(total / count) if count else float("nan")
+    return math.sqrt(total / count) if count else float('nan')
 
 
 def _best_k1(chains: list[Chain], image_size, max_k1: float) -> float:
@@ -679,10 +685,9 @@ def _leave_one_out_spread(chains, image_size, max_k1) -> float:
     (1.0x), and it is the gain that turns it down.
     """
     if len(chains) < 3:
-        return float("inf")
+        return float('inf')
     answers = sorted(
-        _best_k1(chains[:i] + chains[i + 1:], image_size, max_k1)
-        for i in range(len(chains))
+        _best_k1(chains[:i] + chains[i + 1 :], image_size, max_k1) for i in range(len(chains))
     )
     middle = answers[len(answers) // 2]
     furthest = max(range(len(answers)), key=lambda i: abs(answers[i] - middle))

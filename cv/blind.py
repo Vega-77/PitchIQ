@@ -181,9 +181,7 @@ class Blindness:
             'checked': self.checked,
             'dead_s': _round(self.seconds(DEAD)) if self.checked else None,
             'accounted_s': _round(self.seconds(ACCOUNTED)) if self.checked else None,
-            'unexplained_s': (
-                _round(self.seconds(UNEXPLAINED)) if self.checked else None
-            ),
+            'unexplained_s': (_round(self.seconds(UNEXPLAINED)) if self.checked else None),
             # The list is only ever the ones nothing accounted for. The others
             # are a number; these are a place to send someone looking.
             'worst': [s.to_json() for s in self.named()[:5]],
@@ -322,8 +320,7 @@ def blindness(
                 continue
             tags = _explaining(a, b, moments, explain_window_s)
             spells.append(
-                BlindSpell(a, b, ACCOUNTED, tags) if tags
-                else BlindSpell(a, b, UNEXPLAINED)
+                BlindSpell(a, b, ACCOUNTED, tags) if tags else BlindSpell(a, b, UNEXPLAINED)
             )
 
     return Blindness(spells=spells, checked=True)
@@ -348,7 +345,8 @@ def blindness_warnings(report_blindness: Blindness | None) -> list[str]:
     rest = len(long_ones) - 1
     also = f', and {rest} more like it' if rest else ''
     why = (
-        'with nothing tagged to explain it' if report_blindness.checked
+        'with nothing tagged to explain it'
+        if report_blindness.checked
         else 'and with no tagged log there is nothing that could explain it'
     )
     return [

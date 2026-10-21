@@ -54,7 +54,7 @@ def straight(speed_ms: float, seconds: float):
 
 def arc(speed_ms: float, turn_rad: float, lateral_ms2: float = MAX_LATERAL_MS2):
     """A turn at the tightest radius this speed allows."""
-    radius = speed_ms ** 2 / lateral_ms2
+    radius = speed_ms**2 / lateral_ms2
     n = max(3, int(round((turn_rad * radius / speed_ms) * FPS)))
     a = np.linspace(0, turn_rad, n)
     return np.column_stack([radius * np.cos(a), radius * np.sin(a)])
@@ -149,7 +149,7 @@ class TestWhatALongWindowCosts:
         # the corner back out. A turn shorter than the window loses less than
         # an endless arc would, not more.
         window = int(1.0 * FPS)
-        expected = (np.pi / 2) * MAX_LATERAL_MS2 * 1.0 ** 2 / 24
+        expected = (np.pi / 2) * MAX_LATERAL_MS2 * 1.0**2 / 24
 
         path = turn_with_runway(speed_ms, np.pi / 2)
         smoothed = smooth_positions(series(path), window).positions_m
@@ -163,12 +163,17 @@ class TestWhatALongWindowCosts:
         # Stated as the number rather than as the formula, because "0.3m per
         # turn" is what has to be weighed against tens of metres a minute of
         # phantom, and the formula hides how small it is.
-        expected = (np.pi / 2) * MAX_LATERAL_MS2 * 1.0 ** 2 / 24
+        expected = (np.pi / 2) * MAX_LATERAL_MS2 * 1.0**2 / 24
         assert expected == pytest.approx(0.29, abs=0.02)
 
-    @pytest.mark.parametrize('window_s,expected_m', [
-        (0.30, 0.36), (0.50, 0.82), (1.03, 2.12),
-    ])
+    @pytest.mark.parametrize(
+        'window_s,expected_m',
+        [
+            (0.30, 0.36),
+            (0.50, 0.82),
+            (1.03, 2.12),
+        ],
+    )
     def test_a_hard_cut_costs_far_more_than_a_curve(self, window_s, expected_m):
         # The honest adversarial case: not a curve at all but a cusp — sprint
         # in, plant, come back the way you came. A long average smears straight
@@ -236,8 +241,9 @@ class TestTheFittedRule:
         total = 0.0
         for i, path in enumerate(paths):
             noisy = jitter(path, sigma, seed=100 + i)
-            smoothed, _ = smooth_for_noise(noisy_series := series(noisy),
-                                           position_noise_m(noisy_series))
+            smoothed, _ = smooth_for_noise(
+                noisy_series := series(noisy), position_noise_m(noisy_series)
+            )
             total += movement_stats(smoothed).distance_m
 
         assert abs(total - truth) / len(paths) < 2.0
@@ -305,10 +311,8 @@ class TestTheWindowIsInSeconds:
         # Twenty seconds of a motionless player, sampled two ways.
         still_30 = np.zeros((int(20 * FPS), 2))
         still_15 = np.zeros((int(20 * FPS / 2), 2))
-        s30 = PositionSeries(1, np.arange(len(still_30)) / FPS,
-                             jitter(still_30, 0.10, 5))
-        s15 = PositionSeries(1, np.arange(len(still_15)) / (FPS / 2),
-                             jitter(still_15, 0.10, 5))
+        s30 = PositionSeries(1, np.arange(len(still_30)) / FPS, jitter(still_30, 0.10, 5))
+        s15 = PositionSeries(1, np.arange(len(still_15)) / (FPS / 2), jitter(still_15, 0.10, 5))
 
         d30 = length(smooth_for_noise(s30, 0.10)[0].positions_m)
         d15 = length(smooth_for_noise(s15, 0.10)[0].positions_m)
@@ -355,10 +359,12 @@ class TestWhatDidNotGetBetter:
         # only ever push the peak higher, never lower — and no window removes
         # that. The fitted window roughly halves it (from +30% to +9% at
         # sigma=0.20) and cannot do more.
-        jog = np.column_stack([
-            np.zeros(int(30 * FPS)),
-            np.cumsum(np.full(int(30 * FPS), 8.0 / FPS)),
-        ])
+        jog = np.column_stack(
+            [
+                np.zeros(int(30 * FPS)),
+                np.cumsum(np.full(int(30 * FPS), 8.0 / FPS)),
+            ]
+        )
         noisy = series(jitter(jog, sigma, seed=4))
         smoothed, _ = smooth_for_noise(noisy, position_noise_m(noisy))
         assert movement_stats(smoothed).top_speed_ms < 8.0 * ceiling

@@ -1,4 +1,5 @@
 """Baseline code-clarity metrics for PitchIQ. Run from the repo root: python tools/audit_metrics.py"""
+
 import ast, collections, hashlib, re, subprocess
 from pathlib import Path
 
@@ -14,7 +15,11 @@ def parse(path):
 
 def doc_lines(tree):
     nodes = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-    return sum(len(d.split('\n')) for n in ast.walk(tree) if isinstance(n, nodes) and (d := ast.get_docstring(n, clean=False)))
+    return sum(
+        len(d.split('\n'))
+        for n in ast.walk(tree)
+        if isinstance(n, nodes) and (d := ast.get_docstring(n, clean=False))
+    )
 
 
 def non_code_share(path):
@@ -50,7 +55,11 @@ def duplicate_bodies(paths, min_lines=5):
         if ast.get_docstring(node):
             body.body = node.body[1:]
         names = {n.id: '_' for n in ast.walk(body) if isinstance(n, ast.Name)}
-        key = re.sub(r'\b(%s)\b' % '|'.join(map(re.escape, names)) if names else r'$^', '_', ast.unparse(body))
+        key = re.sub(
+            r'\b(%s)\b' % '|'.join(map(re.escape, names)) if names else r'$^',
+            '_',
+            ast.unparse(body),
+        )
         seen[hashlib.md5(key.encode()).hexdigest()].append(f'{path}:{node.lineno}:{node.name}')
     return [group for group in seen.values() if len(group) > 1]
 
@@ -58,27 +67,63 @@ def duplicate_bodies(paths, min_lines=5):
 def main():
     core_funcs = list(functions(CORE))
     public = [(p, n) for p, n in core_funcs if not n.name.startswith('_')]
-    print('cv core: files', len(CORE), '| non-code share (docstrings+comments):',
-          f"{sum(non_code_share(f) for f in CORE) / len(CORE):.0%} mean, worst:",
-          sorted(((round(non_code_share(f), 2), f) for f in CORE), reverse=True)[:3])
-    print('cv core: public functions/methods without docstring:',
-          sum(1 for _, n in public if not ast.get_docstring(n)), 'of', len(public))
-    print('cv core: functions without return annotation:',
-          sum(1 for _, n in core_funcs if n.returns is None and n.name != '__init__'))
-    print('cv core: functions > 80 lines:',
-          sorted(((n.end_lineno - n.lineno + 1, f'{p}:{n.name}') for p, n in core_funcs if n.end_lineno - n.lineno + 1 > 80), reverse=True)[:5])
-    print('cv core: functions with >= 12 params:',
-          [f'{p}:{n.name}' for p, n in core_funcs if len(n.args.args) + len(n.args.kwonlyargs) >= 12])
-    print('balltrack: functions without docstring:',
-          sum(1 for _, n in functions(BALLTRACK) if not ast.get_docstring(n)), 'of', len(list(functions(BALLTRACK))))
-    print('short import aliases (<3 chars), files:', len(short_aliases(FILES)),
-          'total:', sum(short_aliases(FILES).values()))
+    print(
+        'cv core: files',
+        len(CORE),
+        '| non-code share (docstrings+comments):',
+        f'{sum(non_code_share(f) for f in CORE) / len(CORE):.0%} mean, worst:',
+        sorted(((round(non_code_share(f), 2), f) for f in CORE), reverse=True)[:3],
+    )
+    print(
+        'cv core: public functions/methods without docstring:',
+        sum(1 for _, n in public if not ast.get_docstring(n)),
+        'of',
+        len(public),
+    )
+    print(
+        'cv core: functions without return annotation:',
+        sum(1 for _, n in core_funcs if n.returns is None and n.name != '__init__'),
+    )
+    print(
+        'cv core: functions > 80 lines:',
+        sorted(
+            (
+                (n.end_lineno - n.lineno + 1, f'{p}:{n.name}')
+                for p, n in core_funcs
+                if n.end_lineno - n.lineno + 1 > 80
+            ),
+            reverse=True,
+        )[:5],
+    )
+    print(
+        'cv core: functions with >= 12 params:',
+        [f'{p}:{n.name}' for p, n in core_funcs if len(n.args.args) + len(n.args.kwonlyargs) >= 12],
+    )
+    print(
+        'balltrack: functions without docstring:',
+        sum(1 for _, n in functions(BALLTRACK) if not ast.get_docstring(n)),
+        'of',
+        len(list(functions(BALLTRACK))),
+    )
+    print(
+        'short import aliases (<3 chars), files:',
+        len(short_aliases(FILES)),
+        'total:',
+        sum(short_aliases(FILES).values()),
+    )
     print('duplicate function bodies in cv/*.py:', duplicate_bodies(CORE))
     print('duplicate function bodies in cv/balltrack:', len(duplicate_bodies(BALLTRACK)))
-    print('sys.path.insert hacks in cv/balltrack:',
-          sum(Path(f).read_text(encoding='utf-8', errors='ignore').count('sys.path.insert') for f in BALLTRACK))
+    print(
+        'sys.path.insert hacks in cv/balltrack:',
+        sum(
+            Path(f).read_text(encoding='utf-8', errors='ignore').count('sys.path.insert')
+            for f in BALLTRACK
+        ),
+    )
     text = '\n'.join(Path(f).read_text(encoding='utf-8', errors='ignore') for f in CORE + BALLTRACK)
-    print('personal names / local paths in cv/:', len(re.findall(r"\bAlex\b|C:/Users/|alexv", text)))
+    print(
+        'personal names / local paths in cv/:', len(re.findall(r'\bAlex\b|C:/Users/|alexv', text))
+    )
 
 
 if __name__ == '__main__':

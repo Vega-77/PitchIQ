@@ -63,7 +63,7 @@ from .teams import TEAM_A, TEAM_B, UNKNOWN, assign_teams
 PLAYER = 'player'
 KEEPER = 'keeper'
 REFEREE = 'referee'
-OFF = 'off'          # well outside the lines most of the time: coach, sub, fan
+OFF = 'off'  # well outside the lines most of the time: coach, sub, fan
 
 # A kit that is confidently neither team's. `assign_teams` splits on one axis
 # and puts everyone on a side of it; a neon referee is "light" on the
@@ -75,12 +75,12 @@ OTHER = 'other'
 @dataclass
 class LinkSettings:
     fps: float = 30.0
-    max_speed: float = 8.5              # m/s, sustained, over a gap
+    max_speed: float = 8.5  # m/s, sustained, over a gap
     reach_slack_m: float = 2.0
-    reach_sigmas: float = 2.0           # how many of the two ends' combined foot sigmas
-    reach_rss: bool = False             # combine as root-sum-square, not a plain sum
+    reach_sigmas: float = 2.0  # how many of the two ends' combined foot sigmas
+    reach_rss: bool = False  # combine as root-sum-square, not a plain sum
     stage_windows_s: tuple = (0.5, 2.0, 5.0, 20.0)
-    threshold: float = 9.0              # a join must cost less than this
+    threshold: float = 9.0  # a join must cost less than this
     # 4 until the bib fix: with bibs on their own team, a bib's piece may join
     # any white shirt, and same-team joins are where this tracker goes wrong.
     # At 6, over three jittered runs, fm01 wrong-person 0.055 -> 0.037 for
@@ -99,22 +99,22 @@ class LinkSettings:
     feature_weight: float = 4.0
     feature_cap: float = 9.0
     feature_margin: float = 3.0
-    motion_sigma0: float = 0.6          # m
-    motion_sigma_per_s: float = 1.2     # m per second of gap
-    velocity_horizon_s: float = 1.0     # extrapolate at most this far
+    motion_sigma0: float = 0.6  # m
+    motion_sigma_per_s: float = 1.2  # m per second of gap
+    velocity_horizon_s: float = 1.0  # extrapolate at most this far
     unseen_grace_s: float = 1.0
     unseen_penalty_per_s: float = 1.5
     occluder_radius_m: float = 1.5
     view_margin_px: float = 20.0
     team_cap: int = 11
-    cap_window_s: float = 120.0         # the cap pass only makes sense over short windows
+    cap_window_s: float = 120.0  # the cap pass only makes sense over short windows
     # Forcing joins until a kit has eleven assumes every shirt was read
     # right; one player in a navy bib over white reads as the black team and
     # the forced joins are guesses (on the dev window: 3 right, 3 wrong). Off.
     cap_relax: tuple = ()
     off_margin_m: float = 3.0
-    line_band_m: float = 1.0            # on or beyond a line, give or take a metre
-    still_spread_m: float = 1.5         # median distance from their own median spot
+    line_band_m: float = 1.0  # on or beyond a line, give or take a metre
+    still_spread_m: float = 1.5  # median distance from their own median spot
     still_min_s: float = 1.0
     off_share: float = 0.8
     # Touchlines only (a keeper lives near a goal line): the far touchline is
@@ -128,14 +128,14 @@ class LinkSettings:
     # for at least this long, is not playing, moving or not.
     touchline_live_share: float = 0.95
     touchline_live_s: float = 10.0
-    keeper_depth_m: float = 8.0         # median spot this close to the goal line
-    keeper_half_width_m: float = 20.0   # and within the box's width of centre
+    keeper_depth_m: float = 8.0  # median spot this close to the goal line
+    keeper_half_width_m: float = 20.0  # and within the box's width of centre
     keeper_min_s: float = 3.0
-    fill_gap_s: float = 1.0             # interpolate joined gaps up to this long
-    end_fit_n: int = 15                 # observations for an end's velocity
-    other_kit_ab: float = 25.0          # Lab a-b distance from both teams' shirts
-    other_kit_spread: float = 4.0       # ... and this many of the teams' own spreads
-    other_kit_min_s: float = 0.5        # seen this long before it can be called
+    fill_gap_s: float = 1.0  # interpolate joined gaps up to this long
+    end_fit_n: int = 15  # observations for an end's velocity
+    other_kit_ab: float = 25.0  # Lab a-b distance from both teams' shirts
+    other_kit_spread: float = 4.0  # ... and this many of the teams' own spreads
+    other_kit_min_s: float = 0.5  # seen this long before it can be called
     # Cut a tracklet where its shirt reads as the other kit for a sustained
     # stretch: a rolling median over `kit_cut_win` rows, at least
     # `kit_cut_rows` rows on each side. Lean is 0 halfway between the kits and
@@ -174,8 +174,8 @@ class LinkSettings:
     guess_sure_margin: float = 1.0
     guess_cost: float = 15.0
     guess_margin: float = 4.0
-    guess_after_s: float = 1.0          # who is there in the first second is not new
-    guess_doubt_cost: float = 15.0      # "?" only if somebody earlier fits this well
+    guess_after_s: float = 1.0  # who is there in the first second is not new
+    guess_doubt_cost: float = 15.0  # "?" only if somebody earlier fits this well
     # A long gap fits almost anywhere: its motion sigma is so wide that a
     # 16-second absence cost the same as a 2.7-second one two metres away, and
     # the right join was refused as ambiguous. A Gaussian's own normaliser
@@ -196,8 +196,8 @@ class _Piece:
     idx: int
     rows: np.ndarray
     frames: np.ndarray
-    pos: np.ndarray                     # (n, 2) metres
-    sigma: np.ndarray                   # (n,) metres, worst-axis foot uncertainty
+    pos: np.ndarray  # (n, 2) metres
+    sigma: np.ndarray  # (n,) metres, worst-axis foot uncertainty
     first: int
     last: int
     p0: np.ndarray
@@ -218,13 +218,13 @@ class Identity:
     """One person across the window."""
 
     pid: int
-    team: str                           # team_a / team_b / unknown
-    role: str                           # player / keeper / referee / off
-    frames: np.ndarray                  # sorted absolute frames
-    boxes: np.ndarray                   # (n, 4) pixels
-    conf: np.ndarray                    # (n,) 0 for interpolated
-    interp: np.ndarray                  # (n,) bool
-    rows: np.ndarray                    # detection row, -1 when interpolated
+    team: str  # team_a / team_b / unknown
+    role: str  # player / keeper / referee / off
+    frames: np.ndarray  # sorted absolute frames
+    boxes: np.ndarray  # (n, 4) pixels
+    conf: np.ndarray  # (n,) 0 for interpolated
+    interp: np.ndarray  # (n,) bool
+    rows: np.ndarray  # detection row, -1 when interpolated
     pieces: list = field(default_factory=list)
 
     def box_at(self, frame: int):
@@ -237,12 +237,12 @@ class Identity:
 @dataclass
 class LinkResult:
     identities: list
-    joins: list                         # (stage, end piece, start piece, cost)
-    refused: list                       # (stage, end piece, start piece, cost, why)
+    joins: list  # (stage, end piece, start piece, cost)
+    refused: list  # (stage, end piece, start piece, cost, why)
     team_counts: dict
-    defends_left: str | None            # which team keeps the x=0 goal
-    unsure: dict = field(default_factory=dict)   # frame -> pids over the outfield cap there
-    guess: dict = field(default_factory=dict)    # pid -> the earlier pid it probably is, or None
+    defends_left: str | None  # which team keeps the x=0 goal
+    unsure: dict = field(default_factory=dict)  # frame -> pids over the outfield cap there
+    guess: dict = field(default_factory=dict)  # pid -> the earlier pid it probably is, or None
 
     def label(self, ident: Identity) -> str:
         """What to call the identity: its number, or "?" / "12?" if it may be someone seen before."""
@@ -279,9 +279,17 @@ def _torso_covered(det: Detections, share: float = 0.2) -> np.ndarray:
         tx1, tx2 = b[:, 0], b[:, 2]
         ty1, ty2 = b[:, 1] + 0.15 * h, b[:, 1] + 0.55 * h
         area = np.maximum((tx2 - tx1) * (ty2 - ty1), 1e-6)
-        ix = np.clip(np.minimum(tx2[:, None], b[None, :, 2]) - np.maximum(tx1[:, None], b[None, :, 0]), 0, None)
-        iy = np.clip(np.minimum(ty2[:, None], b[None, :, 3]) - np.maximum(ty1[:, None], b[None, :, 1]), 0, None)
-        nearer = b[None, :, 3] > b[:, None, 3]          # feet lower in the picture: in front
+        ix = np.clip(
+            np.minimum(tx2[:, None], b[None, :, 2]) - np.maximum(tx1[:, None], b[None, :, 0]),
+            0,
+            None,
+        )
+        iy = np.clip(
+            np.minimum(ty2[:, None], b[None, :, 3]) - np.maximum(ty1[:, None], b[None, :, 1]),
+            0,
+            None,
+        )
+        nearer = b[None, :, 3] > b[:, None, 3]  # feet lower in the picture: in front
         hit = (ix * iy / area[:, None] > share) & nearer
         np.fill_diagonal(hit, False)
         out[rows] = hit.any(axis=1)
@@ -312,8 +320,13 @@ def _end_fit(frames: np.ndarray, pos: np.ndarray, fps: float, max_speed: float):
 
 
 class Linker:
-    def __init__(self, projector: PitchProjector, pitch_length: float, pitch_width: float,
-                 settings: LinkSettings | None = None) -> None:
+    def __init__(
+        self,
+        projector: PitchProjector,
+        pitch_length: float,
+        pitch_width: float,
+        settings: LinkSettings | None = None,
+    ) -> None:
         self.proj = projector
         self.L = float(pitch_length)
         self.W = float(pitch_width)
@@ -340,14 +353,27 @@ class Linker:
             with np.errstate(all='ignore'):
                 desc0 = np.nanmedian(d[:n], axis=0) if len(d) else np.full(6, np.nan)
                 desc1 = np.nanmedian(d[-n:], axis=0) if len(d) else np.full(6, np.nan)
-            out.append(_Piece(
-                idx=i, rows=rows, frames=frames, pos=pos, sigma=sig,
-                first=int(frames[0]), last=int(frames[-1]),
-                p0=pr, v0=-vr, p1=p1, v1=v1,
-                s0=float(np.median(sig[:n])), s1=float(np.median(sig[-n:])),
-                desc0=desc0, desc1=desc1,
-                feat0=_unit_mean(det.feat, rows[:n]), feat1=_unit_mean(det.feat, rows[-n:]),
-            ))
+            out.append(
+                _Piece(
+                    idx=i,
+                    rows=rows,
+                    frames=frames,
+                    pos=pos,
+                    sigma=sig,
+                    first=int(frames[0]),
+                    last=int(frames[-1]),
+                    p0=pr,
+                    v0=-vr,
+                    p1=p1,
+                    v1=v1,
+                    s0=float(np.median(sig[:n])),
+                    s1=float(np.median(sig[-n:])),
+                    desc0=desc0,
+                    desc1=desc1,
+                    feat0=_unit_mean(det.feat, rows[:n]),
+                    feat1=_unit_mean(det.feat, rows[-n:]),
+                )
+            )
         return out
 
     def _kits(self, pieces: list[_Piece], det: Detections) -> None:
@@ -393,7 +419,7 @@ class Linker:
         """
         s = self.s
         covered = _torso_covered(det)
-        need = [s.kit_cut_sure, s.kit_cut_sure]           # team_a side, team_b side
+        need = [s.kit_cut_sure, s.kit_cut_sure]  # team_a side, team_b side
         if assignment.axis == 'grass-relative lightness':
             light = 1 if assignment.axis_centres[1, 0] > assignment.axis_centres[0, 0] else 0
             need[1 - light] = s.kit_cut_lean
@@ -411,7 +437,7 @@ class Linker:
             smooth = np.full(n, np.nan)
             with np.errstate(all='ignore'):
                 for k in range(n):
-                    w = lean[max(0, k - h):k + h + 1]
+                    w = lean[max(0, k - h) : k + h + 1]
                     if np.isfinite(w).sum() > h:
                         smooth[k] = np.nanmedian(w)
             side = np.where(smooth >= need[1], 1, np.where(smooth <= -need[0], -1, 0))
@@ -437,16 +463,24 @@ class Linker:
                     next_tid += 1
                 lo_k = bounds[p] if p == 0 else runs[p][0]
                 hi_k = runs[p][1] + 1 if p < len(runs) - 1 else n
-                out.append(Tracklet(
-                    tid=next_tid - 1 if p else tr.tid,
-                    rows=rows[lo_k:hi_k],
-                    end_reason=tr.end_reason if p == len(runs) - 1 else 'cut',
-                    start_reason=tr.start_reason if p == 0 else 'cut',
-                ))
+                out.append(
+                    Tracklet(
+                        tid=next_tid - 1 if p else tr.tid,
+                        rows=rows[lo_k:hi_k],
+                        end_reason=tr.end_reason if p == len(runs) - 1 else 'cut',
+                        start_reason=tr.start_reason if p == 0 else 'cut',
+                    )
+                )
                 gap = runs[p + 1][0] - hi_k if p < len(runs) - 1 else 0
                 if s.kit_cut_keep_rows and gap >= s.kit_cut_keep_rows:
-                    out.append(Tracklet(tid=next_tid, rows=rows[hi_k:hi_k + gap],
-                                        end_reason='cut', start_reason='cut'))
+                    out.append(
+                        Tracklet(
+                            tid=next_tid,
+                            rows=rows[hi_k : hi_k + gap],
+                            end_reason='cut',
+                            start_reason='cut',
+                        )
+                    )
                     next_tid += 1
         return out
 
@@ -483,8 +517,10 @@ class Linker:
         for p in pieces:
             if p.idx not in med or seen[p.idx] < s.other_kit_min_s * s.fps:
                 continue
-            far = all(np.hypot(*(med[p.idx] - c)) > max(s.other_kit_ab, s.other_kit_spread * sp)
-                      for c, sp in teams.values())
+            far = all(
+                np.hypot(*(med[p.idx] - c)) > max(s.other_kit_ab, s.other_kit_spread * sp)
+                for c, sp in teams.values()
+            )
             if far:
                 p.kit = OTHER
 
@@ -505,7 +541,7 @@ class Linker:
         m1 = a.p1 + a.v1 * h
         m2 = b.p0 - b.v0 * h
         sigma = s.motion_sigma0 + s.motion_sigma_per_s * gap + a.s1 + b.s0
-        cost = float(np.sum((m1 - m2) ** 2)) / sigma ** 2
+        cost = float(np.sum((m1 - m2) ** 2)) / sigma**2
         if s.gap_vagueness_weight:
             cost += s.gap_vagueness_weight * 4.0 * np.log(sigma / (s.motion_sigma0 + a.s1 + b.s0))
         if a.kit != b.kit:
@@ -533,7 +569,9 @@ class Linker:
         hidden = np.zeros(int(seen.sum()), dtype=bool)
         if inside.any():
             d = np.hypot(*(crowd[k[inside]] - path[seen][inside][:, None, :]).transpose(2, 0, 1))
-            hidden[inside] = np.nanmin(np.where(np.isfinite(d), d, np.inf), axis=1) <= s.occluder_radius_m
+            hidden[inside] = (
+                np.nanmin(np.where(np.isfinite(d), d, np.inf), axis=1) <= s.occluder_radius_m
+            )
         unseen = int((~hidden).sum())
         extra = unseen / s.fps - s.unseen_grace_s
         return s.unseen_penalty_per_s * max(extra, 0.0)
@@ -565,8 +603,10 @@ class Linker:
 
     def _round(self, groups, pieces, occupancy, window_s, threshold, only_kit=None):
         """One optimal round of joins between group ends and group starts."""
-        heads = sorted(groups)                       # group id -> list of piece idx
-        ends = [g for g in heads if only_kit is None or self._group_kit(groups[g], pieces) == only_kit]
+        heads = sorted(groups)  # group id -> list of piece idx
+        ends = [
+            g for g in heads if only_kit is None or self._group_kit(groups[g], pieces) == only_kit
+        ]
         starts = list(ends)
         C = self._join_costs(ends, groups, pieces, occupancy, window_s)
         pairs = min_cost_matching(C, unmatched=threshold / 2.0)
@@ -605,8 +645,12 @@ class Linker:
         so the alternative includes everything that has to move with it.
         """
         s = self.s
-        heads = [g for g in sorted(groups) if self._group_kit(groups[g], pieces) == kit
-                 and self._role_raw(groups[g], pieces) != OFF]
+        heads = [
+            g
+            for g in sorted(groups)
+            if self._group_kit(groups[g], pieces) == kit
+            and self._role_raw(groups[g], pieces) != OFF
+        ]
         n = len(heads)
         if n < 2:
             return [], []
@@ -616,9 +660,9 @@ class Linker:
         u = s.threshold / 2.0
         big = np.full((2 * n, 2 * n), np.inf)
         big[:n, :n] = C
-        big[:n, n:][np.arange(n), np.arange(n)] = u          # nobody after this end
+        big[:n, n:][np.arange(n), np.arange(n)] = u  # nobody after this end
         new = np.where(np.arange(n) < s.team_cap, u, u + s.roster_penalty)
-        big[n:, :n] = new[:, None]                           # somebody new
+        big[n:, :n] = new[:, None]  # somebody new
         big[n:, n:] = 0.0
 
         def solve(m):
@@ -682,7 +726,9 @@ class Linker:
     def link(self, tracklets: list[Tracklet], det: Detections) -> LinkResult:
         s = self.s
         self.scale = descriptor_scale(det.desc)
-        self.margin = s.feature_margin if s.feature_weight and det.feat is not None else s.ambiguity_margin
+        self.margin = (
+            s.feature_margin if s.feature_weight and det.feat is not None else s.ambiguity_margin
+        )
         pieces = self._pieces(tracklets, det)
         self._assignment = None
         self._kits(pieces, det)
@@ -697,10 +743,16 @@ class Linker:
         # (frames, most people in a frame, 2), NaN-padded
         by_frame = {f: r for f, r in det.rows_by_frame().items() if self.proj.has(f)}
         f0 = min(by_frame) if by_frame else 0
-        crowd = np.full(((max(by_frame) - f0 + 1) if by_frame else 0,
-                         max((len(r) for r in by_frame.values()), default=1), 2), np.nan)
+        crowd = np.full(
+            (
+                (max(by_frame) - f0 + 1) if by_frame else 0,
+                max((len(r) for r in by_frame.values()), default=1),
+                2,
+            ),
+            np.nan,
+        )
         for f, rows in by_frame.items():
-            crowd[f - f0, :len(rows)] = self.proj.to_m(f, foot_points(det.box[rows]))
+            crowd[f - f0, : len(rows)] = self.proj.to_m(f, foot_points(det.box[rows]))
         occupancy = (crowd, f0)
         self._occupancy = occupancy
         self._cache = {}
@@ -733,7 +785,9 @@ class Linker:
                     break
                 apply(keep, '%.1fs' % w)
 
-        span = (max((p.last for p in pieces), default=0) - min((p.first for p in pieces), default=0)) / s.fps
+        span = (
+            max((p.last for p in pieces), default=0) - min((p.first for p in pieces), default=0)
+        ) / s.fps
         if s.roster_penalty:
             for kit in (TEAM_A, TEAM_B):
                 while True:
@@ -748,8 +802,9 @@ class Linker:
                     if self._count_team(groups, pieces, kit) <= s.team_cap:
                         break
                     while self._count_team(groups, pieces, kit) > s.team_cap:
-                        keep, ref = self._round(groups, pieces, occupancy, span + 1.0,
-                                                s.threshold * relax, only_kit=kit)
+                        keep, ref = self._round(
+                            groups, pieces, occupancy, span + 1.0, s.threshold * relax, only_kit=kit
+                        )
                         if not keep:
                             break
                         apply(keep, 'cap x%.1f' % relax)
@@ -797,13 +852,19 @@ class Linker:
         inside_by = np.minimum.reduce([x, self.L - x, y, self.W - y])
         spread = float(np.median(np.hypot(*(pos - np.median(pos, axis=0)).T)))
         on_line = (inside_by < s.line_band_m + sig).mean()
-        if (len(pos) >= s.still_min_s * s.fps and on_line >= s.off_share
-                and spread < max(s.still_spread_m, float(np.median(sig)))):
+        if (
+            len(pos) >= s.still_min_s * s.fps
+            and on_line >= s.off_share
+            and spread < max(s.still_spread_m, float(np.median(sig)))
+        ):
             return OFF
         side = np.minimum(y, self.W - y)
         near = (side < s.line_band_m + s.touchline_sigmas * sig).mean()
-        if (len(pos) >= s.still_min_s * s.fps and near >= s.off_share
-                and spread < max(s.still_spread_m, s.touchline_still_sigmas * float(np.median(sig)))):
+        if (
+            len(pos) >= s.still_min_s * s.fps
+            and near >= s.off_share
+            and spread < max(s.still_spread_m, s.touchline_still_sigmas * float(np.median(sig)))
+        ):
             return OFF
         if near >= s.touchline_live_share and len(pos) >= s.touchline_live_s * s.fps:
             return OFF
@@ -829,7 +890,9 @@ class Linker:
             if abs(cy - self.W / 2) > s.keeper_half_width_m:
                 continue
             for end, depth in (('left', cx), ('right', self.L - cx)):
-                if -s.off_margin_m < depth < s.keeper_depth_m and (end not in best or depth < best[end][1]):
+                if -s.off_margin_m < depth < s.keeper_depth_m and (
+                    end not in best or depth < best[end][1]
+                ):
                     best[end] = (g, depth)
         return {g: end for end, (g, _) in best.items()}
 
@@ -857,7 +920,9 @@ class Linker:
             team = kit
             if g in keepers:
                 role = KEEPER
-                team = (defends_left if keepers[g] == 'left' else other.get(defends_left)) or UNKNOWN
+                team = (
+                    defends_left if keepers[g] == 'left' else other.get(defends_left)
+                ) or UNKNOWN
             elif role == PLAYER and kit == OTHER:
                 role = REFEREE
                 team = UNKNOWN
@@ -877,18 +942,27 @@ class Linker:
                 rows += p.rows.tolist()
                 prev = p
             order = np.argsort(frames, kind='stable')
-            idents.append(Identity(
-                pid=pid, team=team, role=role,
-                frames=np.asarray(frames)[order], boxes=np.asarray(boxes).reshape(-1, 4)[order],
-                conf=np.asarray(conf)[order], interp=np.asarray(interp)[order],
-                rows=np.asarray(rows)[order], pieces=list(members),
-            ))
+            idents.append(
+                Identity(
+                    pid=pid,
+                    team=team,
+                    role=role,
+                    frames=np.asarray(frames)[order],
+                    boxes=np.asarray(boxes).reshape(-1, 4)[order],
+                    conf=np.asarray(conf)[order],
+                    interp=np.asarray(interp)[order],
+                    rows=np.asarray(rows)[order],
+                    pieces=list(members),
+                )
+            )
         counts: dict = {}
         for ident in idents:
             key = ident.team if ident.role in (PLAYER, KEEPER) else ident.role
             counts[key] = counts.get(key, 0) + 1
         unsure = self._outfield_cap(idents, det) if s.outfield_cap else {}
-        return LinkResult(idents, joins, refused, counts, defends_left, unsure, self._guesses(idents, pieces))
+        return LinkResult(
+            idents, joins, refused, counts, defends_left, unsure, self._guesses(idents, pieces)
+        )
 
     def _guesses(self, idents: list[Identity], pieces) -> dict:
         """Pid -> earlier pid, or None, for players who appear mid-window.
@@ -907,16 +981,20 @@ class Linker:
                 continue
             first = pieces[b.pieces[0]]
             costs = sorted(
-                (self._cost(pieces[a.pieces[-1]], first, self._occupancy), a.pid) for a in play
-                if a.frames[-1] < b.frames[0] and b.frames[0] - a.frames[-1] <= s.guess_window_s * s.fps)
+                (self._cost(pieces[a.pieces[-1]], first, self._occupancy), a.pid)
+                for a in play
+                if a.frames[-1] < b.frames[0]
+                and b.frames[0] - a.frames[-1] <= s.guess_window_s * s.fps
+            )
             costs = [x for x in costs if np.isfinite(x[0])]
             if not costs or costs[0][0] >= s.guess_doubt_cost:
-                continue                     # nobody seen before fits: somebody new
+                continue  # nobody seen before fits: somebody new
             out[b.pid] = None
             c, a = costs[0]
             margin = costs[1][0] - c if len(costs) > 1 else np.inf
-            if ((c < s.guess_sure_cost and margin > s.guess_sure_margin)
-                    or (c < s.guess_cost and margin > s.guess_margin)):
+            if (c < s.guess_sure_cost and margin > s.guess_sure_margin) or (
+                c < s.guess_cost and margin > s.guess_margin
+            ):
                 offers.append((c, b.pid, a))
         taken = set()
         for c, b, a in sorted(offers):

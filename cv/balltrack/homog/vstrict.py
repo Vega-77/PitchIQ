@@ -11,6 +11,7 @@ Dropped flight frames go back to 'ground' where the tracker has a ball, else 'no
 
     python vstrict.py in.npz out.npz [tag]
 """
+
 import os
 import sys
 
@@ -23,13 +24,15 @@ for k_ in P:
 
 
 def runs(m):
-    r = []; i = 0
+    r = []
+    i = 0
     while i < len(m):
         if m[i]:
             j = i
             while j + 1 < len(m) and m[j + 1]:
                 j += 1
-            r.append((i, j)); i = j + 1
+            r.append((i, j))
+            i = j + 1
         else:
             i += 1
     return r
@@ -40,14 +43,18 @@ def outside(x, y, mg):
 
 
 def strict(B, has):
-    st = B['state'].copy(); x, y = B['x'], B['y']
+    st = B['state'].copy()
+    x, y = B['x'], B['y']
     why = {'unseen': 0, 'out': 0, 'short': 0, 'kept': 0}
     for a, b in runs(st == 'air'):
-        s = np.where(has[a:b + 1])[0] + a
+        s = np.where(has[a : b + 1])[0] + a
         if len(s) == 0:
-            st[a:b + 1] = 'none'; why['unseen'] += 1; continue
+            st[a : b + 1] = 'none'
+            why['unseen'] += 1
+            continue
         a2, b2 = max(a, s[0] - int(P['edge'])), min(b, s[-1] + int(P['edge']))
-        st[a:a2] = np.where(has[a:a2], 'ground', 'none'); st[b2 + 1:b + 1] = np.where(has[b2 + 1:b + 1], 'ground', 'none')
+        st[a:a2] = np.where(has[a:a2], 'ground', 'none')
+        st[b2 + 1 : b + 1] = np.where(has[b2 + 1 : b + 1], 'ground', 'none')
         n = b2 - a2 + 1
         ok_xy = np.isfinite(x[s])
         with np.errstate(invalid='ignore'):
@@ -57,10 +64,11 @@ def strict(B, has):
             bad = 'unseen'
         elif n < P['min_len']:
             bad = 'short'
-        elif len(o) and (o.mean() > P['out_frac'] or o[:int(P['start_n'])].mean() > 0.5):
+        elif len(o) and (o.mean() > P['out_frac'] or o[: int(P['start_n'])].mean() > 0.5):
             bad = 'out'
         if bad:
-            st[a2:b2 + 1] = np.where(has[a2:b2 + 1], 'ground', 'none'); why[bad] += 1
+            st[a2 : b2 + 1] = np.where(has[a2 : b2 + 1], 'ground', 'none')
+            why[bad] += 1
         else:
             why['kept'] += 1
     return st, why
@@ -74,7 +82,10 @@ def main():
     st, why = strict(B, has)
     B['state'] = st
     np.savez(dst, **B)
-    print('%s -> %s  air frames %d -> %d  %s' % (src, dst, (np.load(src)['state'] == 'air').sum(), (st == 'air').sum(), why))
+    print(
+        '%s -> %s  air frames %d -> %d  %s'
+        % (src, dst, (np.load(src)['state'] == 'air').sum(), (st == 'air').sum(), why)
+    )
 
 
 if __name__ == '__main__':

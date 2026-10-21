@@ -71,9 +71,9 @@ class TerritorySplit:
                 # Absent rather than three zeroes, for the usual reason.
                 out[team] = None
                 continue
-            out[team] = {
-                third: round(self.share(team, third), 3) for third in THIRDS
-            } | {'seconds': round(self.total_s(team), 1)}
+            out[team] = {third: round(self.share(team, third), 3) for third in THIRDS} | {
+                'seconds': round(self.total_s(team), 1)
+            }
         return out
 
 
@@ -123,6 +123,4 @@ def pinned_back(split: TerritorySplit, team: str, threshold: float = 0.45):
     share = split.share(team, zones.DEFENSIVE_THIRD)
     if share is None or share < threshold:
         return None
-    return (
-        f'{round(share * 100)}% of that possession was in their own third'
-    )
+    return f'{round(share * 100)}% of that possession was in their own third'

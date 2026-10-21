@@ -22,6 +22,7 @@ and Alex's clicks (croplab) override them.
     python pseudolab.py tr00 tr01 ...    # -> pseudo_labels.json,
                                          #    <tag>frames.json (for crops.py)
 """
+
 import json
 import os
 import sys
@@ -32,12 +33,11 @@ import dfree
 import dtrack6 as D6
 
 S2 = os.path.dirname(os.path.abspath(__file__))
-PREC = dict(skip=4.0, kmax=4, e_off=0.0, c_leave=6.0, c_enter=12.0,
-            A=2.3, ab=0.0)
+PREC = dict(skip=4.0, kmax=4, e_off=0.0, c_leave=6.0, c_enter=12.0, A=2.3, ab=0.0)
 NEAR, FAR = 20.0, 60.0
-EVERY = 3            # crop every 3rd committed frame: neighbours are near-copies
-BACKGROUND = 15      # plus every 15th frame regardless, for the classifier's
-                     # own score pass on uncommitted frames
+EVERY = 3  # crop every 3rd committed frame: neighbours are near-copies
+BACKGROUND = 15  # plus every 15th frame regardless, for the classifier's
+# own score pass on uncommitted frames
 W_PSEUDO = 0.5
 
 
@@ -62,15 +62,35 @@ def main():
                     nneg += 1
                 else:
                     continue
-                out.append(dict(tag=tag, f=int(fr['abs']), j=i, label=lab,
-                                weight=W_PSEUDO, src='viterbi6-prec'))
-        want = sorted({int(frames[k]['abs']) for k in use}
-                      | {int(fr['abs']) for fr in frames[::BACKGROUND]})
+                out.append(
+                    dict(
+                        tag=tag,
+                        f=int(fr['abs']),
+                        j=i,
+                        label=lab,
+                        weight=W_PSEUDO,
+                        src='viterbi6-prec',
+                    )
+                )
+        want = sorted(
+            {int(frames[k]['abs']) for k in use} | {int(fr['abs']) for fr in frames[::BACKGROUND]}
+        )
         json.dump(want, open(os.path.join(S2, '%sframes.json' % tag), 'w'))
-        print('%s  %d frames, path commits on %d (%.0f%%), labelled %d of '
-              'them: %d ball, %d not-ball; crop list %d frames'
-              % (tag, len(frames), len(com), 100.0 * len(com) / len(frames),
-                 len(use), npos, nneg, len(want)), flush=True)
+        print(
+            '%s  %d frames, path commits on %d (%.0f%%), labelled %d of '
+            'them: %d ball, %d not-ball; crop list %d frames'
+            % (
+                tag,
+                len(frames),
+                len(com),
+                100.0 * len(com) / len(frames),
+                len(use),
+                npos,
+                nneg,
+                len(want),
+            ),
+            flush=True,
+        )
     json.dump(out, open(os.path.join(S2, 'pseudo_labels.json'), 'w'))
     print('pseudo_labels.json: %d rows' % len(out))
 

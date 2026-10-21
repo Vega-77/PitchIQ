@@ -61,9 +61,7 @@ def session():
 
 
 def measure(session, noise_m, seed=0):
-    return validate_against_noise(
-        session, Pitch(), noise_m=noise_m, trials=TRIALS, seed=seed
-    )
+    return validate_against_noise(session, Pitch(), noise_m=noise_m, trials=TRIALS, seed=seed)
 
 
 class TestTheHarnessItself:
@@ -101,9 +99,7 @@ class TestSensitivity:
         shifts = [measure(session, n)['mean_shift'] for n in (0.25, 0.5, 1.0, 2.0, 4.0)]
         assert shifts == sorted(shifts)
 
-    def test_a_good_calibration_still_costs_about_a_sixth_of_the_answer(
-        self, session
-    ):
+    def test_a_good_calibration_still_costs_about_a_sixth_of_the_answer(self, session):
         """The headline figure, pinned so a model swap cannot quietly change it.
 
         0.5 m is the error `cv/calibrate.py` accepts as good. Half a metre of it

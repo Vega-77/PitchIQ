@@ -13,6 +13,7 @@ alone    TAPNext on its own: seeded once on the window's first confident pick, t
 Tracking is the 'lead' policy that held flights best: a native 384 px window (TNS) centred on
 the last estimate plus its own velocity, so the 12 px ball is never shrunk.
 """
+
 import os
 import sys
 import time
@@ -21,21 +22,29 @@ import cv2
 import numpy as np
 import torch
 
-HERE = os.path.dirname(os.path.abspath(__file__)); S2 = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(HERE, 'tapnet')); sys.path.insert(0, S2)
-from tapnet.tapnextpp.votsp2026.model import TAPNextPP   # noqa: E402
-sys.path.insert(0, os.path.join(S2, 'alltests'))
-from hybrid import AGR, ANC, air_mask   # noqa: E402
+HERE = os.path.dirname(os.path.abspath(__file__))
+S2 = os.path.dirname(HERE)
+sys.path.insert(0, os.path.join(HERE, 'tapnet'))
+sys.path.insert(0, S2)
+from tapnet.tapnextpp.votsp2026.model import TAPNextPP  # noqa: E402
 
-AT = os.path.join(S2, 'alltests'); OUT = os.path.join(AT, os.environ.get('TN_DIR', 'tn'))   # TN_DIR: a trial's own bridges
-S = int(os.environ.get('TNS', 384))   # crop window, px; the checkpoint was tuned at 512, but 384 halves the time
-                                      # for the same wrong picks on the 22 ball labs (2 fewer right of 158, flights
-                                      # slightly better): chosen by the user 2026-10-07
-MODEL_SIZE = 256                # TAPNextPP.MODEL_SIZE: query and track coordinates live on this grid
+sys.path.insert(0, os.path.join(S2, 'alltests'))
+from hybrid import AGR, ANC, air_mask  # noqa: E402
+
+AT = os.path.join(S2, 'alltests')
+OUT = os.path.join(AT, os.environ.get('TN_DIR', 'tn'))  # TN_DIR: a trial's own bridges
+S = int(
+    os.environ.get('TNS', 384)
+)  # crop window, px; the checkpoint was tuned at 512, but 384 halves the time
+# for the same wrong picks on the 22 ball labs (2 fewer right of 158, flights
+# slightly better): chosen by the user 2026-10-07
+MODEL_SIZE = 256  # TAPNextPP.MODEL_SIZE: query and track coordinates live on this grid
 MAXGAP = int(os.environ.get('MAXGAP', 90))
 B = int(os.environ.get('TNB', 1))
-SPAN = 600                      # frames one group may span (read once, sequentially)
-CKPT_S = float(os.environ.get('TN_CKPT_S', 300))   # seconds of work between checkpoints: a crash loses at most this
+SPAN = 600  # frames one group may span (read once, sequentially)
+CKPT_S = float(
+    os.environ.get('TN_CKPT_S', 300)
+)  # seconds of work between checkpoints: a crash loses at most this
 # TN_PREV: a directory holding an earlier run's bridges_<tag>.npy and the cls_B picks it was seeded
 # from (cls_B_<tag>.npz). With B = 1 every track depends only on its frames and its seed, so a track
 # whose gap, direction and seed pick are unchanged is taken from there instead of re-run: a rerun
@@ -48,13 +57,16 @@ NEAR = [t for t in os.environ.get('TN_NEAR', '').split(',') if t]
 
 
 def model():
-    m = TAPNextPP.from_checkpoint(os.path.join(HERE, 'tapnextpp_512.ckpt'), device='cuda', input_resolution=S)
+    m = TAPNextPP.from_checkpoint(
+        os.path.join(HERE, 'tapnextpp_512.ckpt'), device='cuda', input_resolution=S
+    )
     return m._model
 
 
 def crop(fr, c):
-    ox = int(round(np.clip(c[0] - S / 2, 0, 1920 - S))); oy = int(round(np.clip(c[1] - S / 2, 0, 1080 - S)))
-    return fr[oy:oy + S, ox:ox + S], np.array([ox, oy], float)
+    ox = int(round(np.clip(c[0] - S / 2, 0, 1920 - S)))
+    oy = int(round(np.clip(c[1] - S / 2, 0, 1080 - S)))
+    return fr[oy : oy + S, ox : ox + S], np.array([ox, oy], float)
 
 
 def to_t(crops):
@@ -66,21 +78,29 @@ class Group:
     """B tracks advanced in lock-step; each gets one frame per step from get(j, k)."""
 
     def __init__(self, net, seeds):
-        self.net = net; self.n = len(seeds)
-        self.seed = np.array(seeds, float); self.c = self.seed.copy(); self.v = np.zeros((self.n, 2))
-        self.st = None; self.prev = None
+        self.net = net
+        self.n = len(seeds)
+        self.seed = np.array(seeds, float)
+        self.c = self.seed.copy()
+        self.v = np.zeros((self.n, 2))
+        self.st = None
+        self.prev = None
 
     @torch.no_grad()
     def step(self, frames):
         crops, offs = [], []
         for j, fr in enumerate(frames):
-            im, off = crop(fr, self.c[j] + self.v[j]); crops.append(im); offs.append(off)
-        offs = np.array(offs); x = to_t(crops)
-        k = S / MODEL_SIZE              # crop px per model unit; the model works on a 256 grid
+            im, off = crop(fr, self.c[j] + self.v[j])
+            crops.append(im)
+            offs.append(off)
+        offs = np.array(offs)
+        x = to_t(crops)
+        k = S / MODEL_SIZE  # crop px per model unit; the model works on a 256 grid
         with torch.amp.autocast('cuda', dtype=torch.float16):
             if self.st is None:
                 q = np.zeros((self.n, 1, 3), np.float32)
-                q[:, 0, 1] = (self.seed[:, 1] - offs[:, 1]) / k; q[:, 0, 2] = (self.seed[:, 0] - offs[:, 0]) / k
+                q[:, 0, 1] = (self.seed[:, 1] - offs[:, 1]) / k
+                q[:, 0, 2] = (self.seed[:, 0] - offs[:, 0]) / k
                 tr, _, vl, self.st = self.net(video=x, query_points=torch.from_numpy(q).cuda())
             else:
                 tr, _, vl, self.st = self.net(video=x, state=self.st)
@@ -88,12 +108,14 @@ class Group:
         vis = (vl[:, 0, 0, 0] > 0).cpu().numpy()
         if self.prev is not None:
             self.v = 0.6 * self.v + 0.4 * (xy - self.prev)
-        self.prev = xy.copy(); self.c = xy.copy()
+        self.prev = xy.copy()
+        self.c = xy.copy()
         return xy, vis
 
 
 def read_range(cap, lo, hi, need):
-    cap.set(cv2.CAP_PROP_POS_FRAMES, lo); out = {}
+    cap.set(cv2.CAP_PROP_POS_FRAMES, lo)
+    out = {}
     for f in range(lo, hi + 1):
         if f in need:
             ok, fr = cap.read()
@@ -106,23 +128,25 @@ def read_range(cap, lo, hi, need):
 
 def bridges(net, tag):
     import feat4
+
     z = np.load(os.path.join(AT, 'p2d', 'cls_B', '%s.npz' % tag))
     ab, px, py, src = z['abs'], z['x'], z['y'], z['src']
     anc = np.flatnonzero(src == 1)
     # hybrid.py rejects any gap touching a frame the shipped 3D chain calls air,
     # whatever TAPNext says, so those are never run (9 of 74 gaps on fr00).
     air = air_mask(tag, ab)
-    jobs = []                       # (a, b, direction, order, seed)
-    goal = {}                       # (a, b) -> the pick at b a forward track must land on
-    start = {}                      # (a, b) -> the pick at a
-    fwd_xy = {}                     # (a, b) -> the forward track, which a backward one must stay near
+    jobs = []  # (a, b, direction, order, seed)
+    goal = {}  # (a, b) -> the pick at b a forward track must land on
+    start = {}  # (a, b) -> the pick at a
+    fwd_xy = {}  # (a, b) -> the forward track, which a backward one must stay near
     for i, j in zip(anc[:-1], anc[1:]):
         L = j - i - 1
-        if 1 <= L <= MAXGAP and not air[i:j + 1].any():
+        if 1 <= L <= MAXGAP and not air[i : j + 1].any():
             a, b = int(ab[i]), int(ab[j])
             jobs.append((a, b, +1, list(range(a, b + 1)), (px[i], py[i])))
             jobs.append((a, b, -1, list(range(b, a - 1, -1)), (px[j], py[j])))
-            goal[(a, b)] = (px[j], py[j]); start[(a, b)] = (px[i], py[i])
+            goal[(a, b)] = (px[j], py[j])
+            start[(a, b)] = (px[i], py[i])
     jobs.sort(key=lambda t: (min(t[3]), -len(t[3])))
     cache = {}
     if B == 1:
@@ -132,10 +156,15 @@ def bridges(net, tag):
             cache.update(prev_tracks(tag, PREV))
     # A track depends on its frames and its seed; a backward one also on the forward track it is cut
     # against (AGR), so on the pick at a too, and whether it runs at all on the pick at b: key on both.
-    key = lambda t: (t[0], t[1], t[2]) + tuple(float(v) for v in start[(t[0], t[1])] + goal[(t[0], t[1])])   # noqa: E731
+    key = lambda t: (
+        (t[0], t[1], t[2]) + tuple(float(v) for v in start[(t[0], t[1])] + goal[(t[0], t[1])])
+    )  # noqa: E731
     reused = 0
     cap = cv2.VideoCapture(feat4.VIDEO)
-    res = []; t0 = time.time(); k0 = 0; done = 0
+    res = []
+    t0 = time.time()
+    k0 = 0
+    done = 0
     # Resume: groups are fixed by the jobs and run independently, so a checkpoint of
     # the finished groups plus where the next one starts continues bit for bit.
     ckpt = os.path.join(OUT, 'bridges_%s.ckpt.npy' % tag)
@@ -149,27 +178,35 @@ def bridges(net, tag):
     # One autocast context for the whole run: Group.step's own (nested) context then no longer
     # drops autocast's fp16 weight casts after every step. Same casts, same kernels: bit-identical
     # tracks, 3-5% faster (tn_cache.py, 2026-10-16).
-    amp = torch.amp.autocast('cuda', dtype=torch.float16); amp.__enter__()
+    amp = torch.amp.autocast('cuda', dtype=torch.float16)
+    amp.__enter__()
     while k0 < len(jobs):
-        span = [jobs[k0]]; lo = min(jobs[k0][3]); k = k0 + 1
+        span = [jobs[k0]]
+        lo = min(jobs[k0][3])
+        k = k0 + 1
         while k < len(jobs) and max(jobs[k][3]) - lo <= SPAN:
-            span.append(jobs[k]); k += 1
+            span.append(jobs[k])
+            k += 1
         k0 = k
-        need = set(f for t in span for f in t[3]); hi = max(need)
+        need = set(f for t in span for f in t[3])
+        hi = max(need)
         frames = read_range(cap, lo, hi, need) if any(key(t) not in cache for t in span) else None
         # Forward first. A forward track that misses the pick at b by more than
         # hybrid.py's ANC sinks the gap whatever the backward track does, so its
         # backward run is skipped (17% of track-frames on fr00).
-        fwd = [t for t in span if t[2] > 0]; landed = set()
+        fwd = [t for t in span if t[2] > 0]
+        landed = set()
         for backward in (False, True):
             part = [t for t in span if t[2] < 0 and (t[0], t[1]) in landed] if backward else fwd
             for g0 in range(0, len(part), B):
-                g = part[g0:g0 + B]
+                g = part[g0 : g0 + B]
                 if len(g) == 1 and key(g[0]) in cache:
-                    t = g[0]; n = len(t[3])
+                    t = g[0]
+                    n = len(t[3])
                     # rebuilt as the run builds them (views of fresh arrays), so the saved
                     # file pickles byte for byte as a fresh run's
-                    xy = np.full((1, n, 2), np.nan); vis = np.zeros((1, n), bool)
+                    xy = np.full((1, n, 2), np.nan)
+                    vis = np.zeros((1, n), bool)
                     xy[0], vis[0] = cache[key(t)]
                     xy_t, vis_t = xy[0, :n], vis[0, :n]
                     res.append((t[0], t[1], t[2], xy_t, vis_t))
@@ -177,10 +214,13 @@ def bridges(net, tag):
                         fwd_xy[(t[0], t[1])] = xy_t
                     if t[2] > 0 and np.hypot(*(xy_t[-1] - goal[(t[0], t[1])])) <= ANC:
                         landed.add((t[0], t[1]))
-                    done += 1; reused += 1
+                    done += 1
+                    reused += 1
                     continue
-                G = Group(net, [t[4] for t in g]); L = max(len(t[3]) for t in g)
-                xy = np.full((len(g), L, 2), np.nan); vis = np.zeros((len(g), L), bool)
+                G = Group(net, [t[4] for t in g])
+                L = max(len(t[3]) for t in g)
+                xy = np.full((len(g), L, 2), np.nan)
+                vis = np.zeros((len(g), L), bool)
                 cut = np.zeros(len(g), bool)
                 for s in range(L):
                     fs = [frames[t[3][min(s, len(t[3]) - 1)]] for t in g]
@@ -191,32 +231,52 @@ def bridges(net, tag):
                     if backward:
                         for q, t in enumerate(g):
                             f = t[3][s] - t[0]
-                            if 0 < f < len(t[3]) - 1 and np.hypot(*(xy[q, s] - fwd_xy[(t[0], t[1])][f])) > AGR:
+                            if (
+                                0 < f < len(t[3]) - 1
+                                and np.hypot(*(xy[q, s] - fwd_xy[(t[0], t[1])][f])) > AGR
+                            ):
                                 cut[q] = True
                         if cut.all():
                             break
                 for q, t in enumerate(g):
-                    n = len(t[3]); res.append((t[0], t[1], t[2], xy[q, :n], vis[q, :n]))
+                    n = len(t[3])
+                    res.append((t[0], t[1], t[2], xy[q, :n], vis[q, :n]))
                     if t[2] > 0:
                         fwd_xy[(t[0], t[1])] = xy[q, :n]
                     if t[2] > 0 and np.hypot(*(xy[q, n - 1] - goal[(t[0], t[1])])) <= ANC:
                         landed.add((t[0], t[1]))
                 done += len(g)
                 if done % 80 < len(g):
-                    print('%s  %d/%d tracks  %.0f s' % (tag, done, len(jobs), time.time() - t0), flush=True)
+                    print(
+                        '%s  %d/%d tracks  %.0f s' % (tag, done, len(jobs), time.time() - t0),
+                        flush=True,
+                    )
         del frames
         if time.time() - saved > CKPT_S and k0 < len(jobs):
             os.makedirs(OUT, exist_ok=True)
             np.save(ckpt + '.part.npy', dict(sig=sig, res=res, k0=k0, done=done), allow_pickle=True)
-            os.replace(ckpt + '.part.npy', ckpt); saved = time.time()
+            os.replace(ckpt + '.part.npy', ckpt)
+            saved = time.time()
     amp.__exit__(None, None, None)
     os.makedirs(OUT, exist_ok=True)
-    np.save(os.path.join(OUT, 'bridges_%s.npy' % tag), np.array(res, dtype=object), allow_pickle=True)
+    np.save(
+        os.path.join(OUT, 'bridges_%s.npy' % tag), np.array(res, dtype=object), allow_pickle=True
+    )
     if os.path.exists(ckpt):
         os.remove(ckpt)
-    print('%s  %d tracks  %d frames  %.0f s%s' % (tag, len(res), sum(len(r[3]) for r in res), time.time() - t0,
-          '  (%d reused from %s)' % (reused, ' '.join(NEAR + ([PREV] if PREV else [])))
-          if PREV or NEAR else ''), flush=True)
+    print(
+        '%s  %d tracks  %d frames  %.0f s%s'
+        % (
+            tag,
+            len(res),
+            sum(len(r[3]) for r in res),
+            time.time() - t0,
+            '  (%d reused from %s)' % (reused, ' '.join(NEAR + ([PREV] if PREV else [])))
+            if PREV or NEAR
+            else '',
+        ),
+        flush=True,
+    )
 
 
 def prev_tracks(tag, where):
@@ -225,11 +285,19 @@ def prev_tracks(tag, where):
     where = TN_PREV (bridges_<tag>.npy beside cls_B_<tag>.npz) or OUT (a neighbouring piece: its picks
     are in p2d/cls_B/<tag>.npz)."""
     pb = os.path.join(where, 'bridges_%s.npy' % tag)
-    pp = os.path.join(where, 'cls_B_%s.npz' % tag) if where != OUT else os.path.join(AT, 'p2d', 'cls_B', '%s.npz' % tag)
+    pp = (
+        os.path.join(where, 'cls_B_%s.npz' % tag)
+        if where != OUT
+        else os.path.join(AT, 'p2d', 'cls_B', '%s.npz' % tag)
+    )
     if not (os.path.exists(pb) and os.path.exists(pp)):
         return {}
     z = np.load(pp)
-    seed = {int(f): (float(x), float(y)) for f, x, y, s in zip(z['abs'], z['x'], z['y'], z['src']) if s == 1}
+    seed = {
+        int(f): (float(x), float(y))
+        for f, x, y, s in zip(z['abs'], z['x'], z['y'], z['src'])
+        if s == 1
+    }
     out = {}
     for a, b, d, xy, vis in np.load(pb, allow_pickle=True):
         sa, sb = seed.get(int(a)), seed.get(int(b))
@@ -240,33 +308,49 @@ def prev_tracks(tag, where):
 
 def alone(net, tags):
     import feat4
+
     caps, seeds, spans = [], [], []
     for tag in tags:
         z = np.load(os.path.join(AT, 'p2d', 'cls_B', '%s.npz' % tag))
         i = int(np.flatnonzero(z['src'] == 1)[0])
-        s = int(z['abs'][i]); spans.append((s, int(z['abs'][-1]), int(z['abs'][0]), len(z['abs'])))
+        s = int(z['abs'][i])
+        spans.append((s, int(z['abs'][-1]), int(z['abs'][0]), len(z['abs'])))
         seeds.append((z['x'][i], z['y'][i]))
-        cap = cv2.VideoCapture(feat4.VIDEO); cap.set(cv2.CAP_PROP_POS_FRAMES, s); caps.append(cap)
+        cap = cv2.VideoCapture(feat4.VIDEO)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, s)
+        caps.append(cap)
     L = max(e - s + 1 for s, e, _, _ in spans)
-    G = Group(net, seeds); out = [np.full((n, 2), np.nan) for *_, n in spans]; vis = [np.zeros(n, bool) for *_, n in spans]
-    last = [None] * len(tags); t0 = time.time()
+    G = Group(net, seeds)
+    out = [np.full((n, 2), np.nan) for *_, n in spans]
+    vis = [np.zeros(n, bool) for *_, n in spans]
+    last = [None] * len(tags)
+    t0 = time.time()
     for k in range(L):
         fs = []
         for j, cap in enumerate(caps):
             if spans[j][0] + k <= spans[j][1]:
-                ok, fr = cap.read(); assert ok; last[j] = fr
+                ok, fr = cap.read()
+                assert ok
+                last[j] = fr
             fs.append(last[j])
         xy, vv = G.step(fs)
         for j in range(len(tags)):
             f = spans[j][0] + k
             if f <= spans[j][1]:
-                out[j][f - spans[j][2]] = xy[j]; vis[j][f - spans[j][2]] = vv[j]
+                out[j][f - spans[j][2]] = xy[j]
+                vis[j][f - spans[j][2]] = vv[j]
         if k % 300 == 0:
             print('alone %s  %d/%d  %.0f s' % (','.join(tags), k, L, time.time() - t0), flush=True)
     os.makedirs(OUT, exist_ok=True)
     for j, tag in enumerate(tags):
-        np.savez(os.path.join(OUT, 'alone_%s.npz' % tag), abs=np.arange(spans[j][2], spans[j][2] + spans[j][3]),
-                 x=out[j][:, 0], y=out[j][:, 1], vis=vis[j], seed=spans[j][0])
+        np.savez(
+            os.path.join(OUT, 'alone_%s.npz' % tag),
+            abs=np.arange(spans[j][2], spans[j][2] + spans[j][3]),
+            x=out[j][:, 0],
+            y=out[j][:, 1],
+            vis=vis[j],
+            seed=spans[j][0],
+        )
     print('alone done %s  %.0f s' % (','.join(tags), time.time() - t0), flush=True)
 
 

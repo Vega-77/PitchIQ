@@ -37,11 +37,14 @@ PX_PER_M = 20.0
 
 
 def calibration():
-    homography = np.array([
-        [1 / PX_PER_M, 0.0, 0.0],
-        [0.0, 1 / PX_PER_M, 0.0],
-        [0.0, 0.0, 1.0],
-    ], dtype=np.float64)
+    homography = np.array(
+        [
+            [1 / PX_PER_M, 0.0, 0.0],
+            [0.0, 1 / PX_PER_M, 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
     return Calibration(homography, PITCH, image_size=(4000, 2000))
 
 
@@ -54,13 +57,17 @@ def table_with(tracks_positions, frames=40, calibrated=True):
             x_m, y_m = path(i)
             px, py = x_m * PX_PER_M, y_m * PX_PER_M
             rows.append([track_id, px - 10, py - 36, px + 10, py, 0.9])
-        records.append(FrameRecord(
-            frame_index=i,
-            timestamp_s=i / FPS,
-            players=np.array(rows, dtype=np.float32).reshape(-1, 6),
-        ))
+        records.append(
+            FrameRecord(
+                frame_index=i,
+                timestamp_s=i / FPS,
+                players=np.array(rows, dtype=np.float32).reshape(-1, 6),
+            )
+        )
     return FrameTable(
-        fps=FPS, frame_width=4000, frame_height=2000,
+        fps=FPS,
+        frame_width=4000,
+        frame_height=2000,
         records=records,
         calibration=calibration() if calibrated else None,
     )
@@ -97,11 +104,13 @@ class TestGoalShare:
 
 class TestIdentification:
     def test_a_keeper_is_found_and_attributed(self):
-        table = table_with({
-            1: fixed(3.0, MID_Y),          # team A keeper, left goal
-            2: fixed(L - 3.0, MID_Y),      # team B keeper, right goal
-            3: fixed(52.5, MID_Y),         # a midfielder
-        })
+        table = table_with(
+            {
+                1: fixed(3.0, MID_Y),  # team A keeper, left goal
+                2: fixed(L - 3.0, MID_Y),  # team B keeper, right goal
+                3: fixed(52.5, MID_Y),  # a midfielder
+            }
+        )
         keepers = identify_keepers(table, ENDS)
         assert keepers.method == 'colour+position'
         assert keepers.by_team[TEAM_A] == {1}
@@ -118,6 +127,7 @@ class TestIdentification:
         the reason position is scored as a share over time rather than sampled
         at one moment.
         """
+
         def dropping(i):
             return (3.0, MID_Y) if i % 4 == 0 else (35.0, MID_Y)
 
@@ -126,6 +136,7 @@ class TestIdentification:
 
     def test_a_referee_working_a_diagonal_is_not_a_keeper(self):
         """Colour makes a referee a candidate; position rules them out."""
+
         def diagonal(i):
             return (5.0 + i * 2.5, 5.0 + i * 1.5)
 
@@ -142,11 +153,13 @@ class TestIdentification:
         Colour alone would only ever find pieces; the positional test recovers
         all of them, which is why by_team holds a set rather than one id.
         """
-        table = table_with({
-            1: fixed(3.0, MID_Y),
-            2: fixed(4.0, MID_Y + 2),
-            3: fixed(2.0, MID_Y - 3),
-        })
+        table = table_with(
+            {
+                1: fixed(3.0, MID_Y),
+                2: fixed(4.0, MID_Y + 2),
+                3: fixed(2.0, MID_Y - 3),
+            }
+        )
         assert identify_keepers(table, ENDS).by_team[TEAM_A] == {1, 2, 3}
 
 
@@ -207,9 +220,7 @@ class TestReport:
 
     def test_accuracy_is_none_for_a_kind_never_attempted(self):
         report = KeeperReport(team=TEAM_A)
-        report.distributions.append(
-            KeeperDistribution(1.0, 'kick', 0.0, 35.0, True, 'middle')
-        )
+        report.distributions.append(KeeperDistribution(1.0, 'kick', 0.0, 35.0, True, 'middle'))
         assert report.accuracy('kick') == 1.0
         assert report.accuracy('punt') is None
         assert report.mean_distance_m('punt') is None
@@ -224,6 +235,7 @@ class TestReport:
 
     def test_json_is_all_primitives(self):
         import json
+
         report = KeeperReport(team=TEAM_A, track_ids=[1, 2], saves=2, goals_conceded=1)
         assert json.loads(json.dumps(report.to_json()))['save_pct'] is not None
 
@@ -264,7 +276,10 @@ class TestReportsForTheMatch:
 
     def test_an_end_it_knows_is_recorded_as_known(self):
         reports = keeper_reports(
-            EventLog(), self.assignment(), PITCH, {TEAM_A: 'left'},
+            EventLog(),
+            self.assignment(),
+            PITCH,
+            {TEAM_A: 'left'},
         )
         assert [r.end_known for r in reports] == [True]
         assert reports[0].to_json()['claims'] == 0

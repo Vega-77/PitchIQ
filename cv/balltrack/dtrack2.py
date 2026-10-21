@@ -35,6 +35,7 @@ alongside another fix is worth knowing about.
 
     python dtrack2.py
 """
+
 import io
 import json
 import math
@@ -78,8 +79,7 @@ def viterbi(frames, lam, miss, anchors=None, stab=True):
             np_ = len(pf['s'])
             dt = (fr['abs'] - pf['abs']) / FPS
             reach = max(1.0, SPEED * dt)
-            d = np.hypot(fr[kx][:, None] - pf[kx][None, :],
-                         fr[ky][:, None] - pf[ky][None, :])
+            d = np.hypot(fr[kx][:, None] - pf[kx][None, :], fr[ky][:, None] - pf[ky][None, :])
             pen = lam * (d / reach) ** 2
             pen[d > reach] = np.inf
             full = np.full((n + 1, np_ + 1), miss)
@@ -141,8 +141,7 @@ def score(frames, pick, lab, absi):
             continue
         tot += 1
         j = pick[t]
-        if j is not None and math.hypot(fr['x'][j] - L['x'],
-                                        fr['y'][j] - L['y']) <= TOL:
+        if j is not None and math.hypot(fr['x'][j] - L['x'], fr['y'][j] - L['y']) <= TOL:
             hit += 1
     return hit, tot
 
@@ -154,9 +153,7 @@ def nulls(pick):
 def load():
     # PIQ_DENSE re-points every downstream script at another manifest
     # (dense200.npz) without editing any of them.
-    z = np.load(os.path.join(S2, os.environ.get('PIQ_DENSE',
-                                                'dense.npz')),
-                allow_pickle=True)
+    z = np.load(os.path.join(S2, os.environ.get('PIQ_DENSE', 'dense.npz')), allow_pickle=True)
     f, x, y, s = z['f'], z['x'], z['y'], z['s']
     lo, hi = int(z['lo']), int(z['hi'])
     o = np.argsort(f, kind='stable')
@@ -175,11 +172,9 @@ def load():
         cy = y[a:b].astype(np.float64)
         H = cum[ab - plo]
         q = np.column_stack([cx, cy, np.ones(len(cx))]).dot(H[:2].T)
-        frames.append(dict(abs=ab, x=cx, y=cy, s=s[a:b].astype(np.float64),
-                           sx=q[:, 0], sy=q[:, 1]))
+        frames.append(dict(abs=ab, x=cx, y=cy, s=s[a:b].astype(np.float64), sx=q[:, 0], sy=q[:, 1]))
 
-    man = json.load(io.open(os.path.join(SP, 'label', 'manifest.json'),
-                            encoding='utf-8'))
+    man = json.load(io.open(os.path.join(SP, 'label', 'manifest.json'), encoding='utf-8'))
     absi = {fr['abs']: fr['i'] for fr in man['frames']}
     lab = {}
     labdir = os.path.join(S2, 'lab5', 'labels')
@@ -208,35 +203,34 @@ def prec(frames, an, lab, absi):
 
 def main():
     frames, lab, absi = load()
-    nb = sum(1 for fr in frames
-             if lab.get(absi.get(fr['abs']), {}).get('kind') == 'ball')
-    print('%d frames, %d hand-marked balls, ceiling on this pool 43'
-          % (len(frames), nb))
+    nb = sum(1 for fr in frames if lab.get(absi.get(fr['abs']), {}).get('kind') == 'ball')
+    print('%d frames, %d hand-marked balls, ceiling on this pool 43' % (len(frames), nb))
 
     raw = [0] * len(frames)
-    print('raw per-frame argmax   %d / %d' % (score(frames, raw, lab, absi)[0],
-                                              nb))
+    print('raw per-frame argmax   %d / %d' % (score(frames, raw, lab, absi)[0], nb))
 
     an_s = find_anchors(frames, stab=True)
     an_r = find_anchors(frames, stab=False)
     ps, ts = prec(frames, an_s, lab, absi)
     pr, tr = prec(frames, an_r, lab, absi)
     print()
-    print('ANCHORS  stabilised %d frames (%d/%d labelled right)'
-          % (sum(a is not None for a in an_s), ps, ts))
-    print('         raw        %d frames (%d/%d labelled right)'
-          % (sum(a is not None for a in an_r), pr, tr))
+    print(
+        'ANCHORS  stabilised %d frames (%d/%d labelled right)'
+        % (sum(a is not None for a in an_s), ps, ts)
+    )
+    print(
+        '         raw        %d frames (%d/%d labelled right)'
+        % (sum(a is not None for a in an_r), pr, tr)
+    )
     print('  stabilising should find MORE: a ball flying straight across the')
     print('  pitch is a straight line only once the camera is taken out.')
 
     for stab in (False, True):
         print()
         print('=' * 66)
-        print('TRANSITION IN %s COORDINATES'
-              % ('CAMERA-STABILISED' if stab else 'RAW SOURCE'))
+        print('TRANSITION IN %s COORDINATES' % ('CAMERA-STABILISED' if stab else 'RAW SOURCE'))
         an = an_s if stab else an_r
-        print('  %-7s %s' % ('', '   '.join('%-9s' % ('lam ' + str(l))
-                                            for l in LAMS)))
+        print('  %-7s %s' % ('', '   '.join('%-9s' % ('lam ' + str(l)) for l in LAMS)))
         best = None
         for ms in MISSES:
             cells = []
@@ -250,13 +244,12 @@ def main():
                 ha = score(frames, pa, lab, absi)[0]
                 if ha > best[0]:
                     best = (ha, lam, ms, True)
-            print('  miss %-3s %s' % (ms, '   '.join('%-9s' % c
-                                                     for c in cells)))
-        print('  each cell: hits / 47, and the %% of frames the path called'
-              ' empty')
-        print('  best here, anchors allowed: %d / 47  at lambda %s miss %s%s'
-              % (best[0], best[1], best[2], ', with anchors' if best[3]
-                 else ', without'))
+            print('  miss %-3s %s' % (ms, '   '.join('%-9s' % c for c in cells)))
+        print('  each cell: hits / 47, and the %% of frames the path called empty')
+        print(
+            '  best here, anchors allowed: %d / 47  at lambda %s miss %s%s'
+            % (best[0], best[1], best[2], ', with anchors' if best[3] else ', without')
+        )
 
     print()
     print('track.py sparse: raw 19/47, tracked 28/47.  dtrack.py v1, dense')

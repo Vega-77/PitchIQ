@@ -40,7 +40,10 @@ def frame(value: int = 120) -> np.ndarray:
     """A frame with something in it — an all-black one encodes suspiciously well."""
     rng = np.random.default_rng(7)
     return rng.integers(
-        0, 255, size=(HEIGHT, WIDTH, 3), dtype=np.uint8,
+        0,
+        255,
+        size=(HEIGHT, WIDTH, 3),
+        dtype=np.uint8,
     ) // 2 + np.uint8(value // 2)
 
 
@@ -179,13 +182,17 @@ class TestKeepingTheBest:
 
 def cluster(cluster_id, track_ids, sightings=100):
     return PlayerCluster(
-        cluster_id=cluster_id, track_ids=set(track_ids), sightings=sightings,
+        cluster_id=cluster_id,
+        track_ids=set(track_ids),
+        sightings=sightings,
     )
 
 
 def thumb(track_id, height, size=1000):
     return Thumb(
-        track_id=track_id, frame_index=1, height_px=height,
+        track_id=track_id,
+        frame_index=1,
+        height_px=height,
         data_uri='data:image/jpeg;base64,' + 'A' * size,
     )
 

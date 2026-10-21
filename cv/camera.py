@@ -220,9 +220,9 @@ def detect_camera_shift(
             continue
 
         compared += 1
-        moves = np.array([
-            (after[t][0] - before[t][0], after[t][1] - before[t][1]) for t in shared
-        ], dtype=float)
+        moves = np.array(
+            [(after[t][0] - before[t][0], after[t][1] - before[t][1]) for t in shared], dtype=float
+        )
 
         # Median per axis, not the median of the magnitudes. A crowd moving in
         # all directions cancels on each axis; taking magnitudes first would
@@ -242,15 +242,17 @@ def detect_camera_shift(
         if agreement < min_agreement:
             continue
 
-        shifts.append(Shift(
-            frame_index=record.frame_index,
-            timestamp_s=record.timestamp_s,
-            shift=magnitude,
-            dx_heights=float(dx) / scale,
-            dy_heights=float(dy) / scale,
-            tracks=len(shared),
-            agreement=agreement,
-        ))
+        shifts.append(
+            Shift(
+                frame_index=record.frame_index,
+                timestamp_s=record.timestamp_s,
+                shift=magnitude,
+                dx_heights=float(dx) / scale,
+                dy_heights=float(dy) / scale,
+                tracks=len(shared),
+                agreement=agreement,
+            )
+        )
 
     return CameraMotion(shifts=shifts, checked=compared > 0)
 
@@ -278,5 +280,5 @@ def camera_warnings(motion: CameraMotion | None, calibrated: bool) -> list[str]:
         f'the camera moved at {when} into the footage'
         + (f' and {count - 1} more time{"s" if count > 2 else ""}' if count > 1 else '')
         + ' — the pitch calibration was fitted before that, so every figure in '
-          'metres after it describes a pitch the camera is no longer pointed at'
+        'metres after it describes a pitch the camera is no longer pointed at'
     ]

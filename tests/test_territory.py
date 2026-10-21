@@ -27,8 +27,11 @@ ENDS = {TEAM_A: 'right', TEAM_B: 'left'}
 
 def at(t, team, x_m, y_m=MID_Y):
     return FrameState(
-        timestamp_s=t, holder_track=1, team=team,
-        distance_px=10.0, ball_m=(x_m, y_m),
+        timestamp_s=t,
+        holder_track=1,
+        team=team,
+        distance_px=10.0,
+        ball_m=(x_m, y_m),
     )
 
 
@@ -45,10 +48,14 @@ class TestSplittingByThird:
     def test_a_third_is_named_from_the_holder_own_direction(self):
         """The same spot on the pitch is Team A's attacking third and Team B's
         defensive third, and both sentences are the one a coach wants."""
-        split = run([
-            at(0.0, TEAM_A, 95.0), at(1.0, TEAM_A, 95.0),
-            at(2.0, TEAM_B, 95.0), at(3.0, TEAM_B, 95.0),
-        ])
+        split = run(
+            [
+                at(0.0, TEAM_A, 95.0),
+                at(1.0, TEAM_A, 95.0),
+                at(2.0, TEAM_B, 95.0),
+                at(3.0, TEAM_B, 95.0),
+            ]
+        )
         assert split.share(TEAM_A, ATTACKING_THIRD) == 1.0
         assert split.share(TEAM_B, DEFENSIVE_THIRD) == 1.0
 
@@ -57,12 +64,17 @@ class TestSplittingByThird:
         assert split.share(TEAM_A, MIDDLE_THIRD) == 1.0
 
     def test_shares_across_the_thirds_add_to_one(self):
-        split = run([
-            at(0.0, TEAM_A, 10.0), at(1.0, TEAM_A, 10.0),
-            at(2.0, TEAM_A, 52.0), at(3.0, TEAM_A, 95.0),
-        ])
-        total = sum(split.share(TEAM_A, t) for t in
-                    (DEFENSIVE_THIRD, MIDDLE_THIRD, ATTACKING_THIRD))
+        split = run(
+            [
+                at(0.0, TEAM_A, 10.0),
+                at(1.0, TEAM_A, 10.0),
+                at(2.0, TEAM_A, 52.0),
+                at(3.0, TEAM_A, 95.0),
+            ]
+        )
+        total = sum(
+            split.share(TEAM_A, t) for t in (DEFENSIVE_THIRD, MIDDLE_THIRD, ATTACKING_THIRD)
+        )
         assert total == pytest.approx(1.0)
 
 
@@ -149,16 +161,21 @@ class TestAgreeingWithPossession:
         """A field added to FrameState and dropped by smooth_states would leave
         territory silently empty on every real run."""
         prepared = prepare_states(
-            [at(i * 0.1, TEAM_A, 95.0) for i in range(20)], smooth_window=5,
+            [at(i * 0.1, TEAM_A, 95.0) for i in range(20)],
+            smooth_window=5,
         )
         assert all(s.ball_m is not None for s in prepared)
 
 
 class TestSerialisation:
     def test_the_json_carries_shares_and_the_seconds_behind_them(self):
-        data = run([
-            at(0.0, TEAM_A, 10.0), at(1.0, TEAM_A, 10.0), at(2.0, TEAM_A, 95.0),
-        ]).to_json()
+        data = run(
+            [
+                at(0.0, TEAM_A, 10.0),
+                at(1.0, TEAM_A, 10.0),
+                at(2.0, TEAM_A, 95.0),
+            ]
+        ).to_json()
 
         assert data[TEAM_A][DEFENSIVE_THIRD] == pytest.approx(0.5)
         assert data[TEAM_A][ATTACKING_THIRD] == pytest.approx(0.5)
@@ -173,9 +190,13 @@ class TestSerialisation:
 
 class TestPinnedBack:
     def test_it_says_so_when_a_team_is_pinned_in_its_own_third(self):
-        split = run([
-            at(0.0, TEAM_A, 10.0), at(1.0, TEAM_A, 10.0), at(2.0, TEAM_A, 95.0),
-        ])
+        split = run(
+            [
+                at(0.0, TEAM_A, 10.0),
+                at(1.0, TEAM_A, 10.0),
+                at(2.0, TEAM_A, 95.0),
+            ]
+        )
         assert '50%' in pinned_back(split, TEAM_A)
 
     def test_it_stays_quiet_when_there_is_nothing_to_say(self):

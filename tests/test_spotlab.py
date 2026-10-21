@@ -1,4 +1,5 @@
 """Spot-check lab media helpers (cv/experiments/spotlab.py)."""
+
 import numpy as np
 import pytest
 
@@ -6,7 +7,13 @@ from cv.experiments import spotlab as S
 
 
 def test_crop_rect_is_16_by_9_and_inside_the_frame():
-    for cx, cy, ch in [(960, 540, 300), (5, 5, 300), (1915, 1075, 300), (960, 540, 50), (960, 540, 5000)]:
+    for cx, cy, ch in [
+        (960, 540, 300),
+        (5, 5, 300),
+        (1915, 1075, 300),
+        (960, 540, 50),
+        (960, 540, 5000),
+    ]:
         x0, y0, cw, h = S._crop_rect(cx, cy, ch)
         assert cw == pytest.approx(h * 16 / 9)
         assert 120 <= h <= 1080

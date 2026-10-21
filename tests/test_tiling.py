@@ -37,8 +37,7 @@ class Stub:
             if self._per_crop is not None:
                 out.append(list(self._per_crop))
             else:
-                out.append([box(width / 2 - 5, height / 2 - 15,
-                                width / 2 + 5, height / 2 + 15)])
+                out.append([box(width / 2 - 5, height / 2 - 15, width / 2 + 5, height / 2 + 15)])
         return out
 
 
@@ -94,10 +93,12 @@ class TestWindows(unittest.TestCase):
 
 class TestMerging(unittest.TestCase):
     def test_the_same_player_seen_twice_is_kept_once(self):
-        merged = merge_detections([
-            box(100, 100, 130, 190, conf=0.9),
-            box(102, 101, 132, 191, conf=0.5),
-        ])
+        merged = merge_detections(
+            [
+                box(100, 100, 130, 190, conf=0.9),
+                box(102, 101, 132, 191, conf=0.5),
+            ]
+        )
         self.assertEqual(len(merged), 1)
         self.assertAlmostEqual(merged[0].confidence, 0.9)
 
@@ -113,29 +114,33 @@ class TestMerging(unittest.TestCase):
         self.assertEqual(len(merge_detections([whole, legs])), 1)
 
     def test_two_real_players_side_by_side_both_survive(self):
-        merged = merge_detections([
-            box(100, 100, 130, 190, conf=0.9),
-            box(140, 100, 170, 190, conf=0.8),
-        ])
+        merged = merge_detections(
+            [
+                box(100, 100, 130, 190, conf=0.9),
+                box(140, 100, 170, 190, conf=0.8),
+            ]
+        )
         self.assertEqual(len(merged), 2)
 
     def test_a_ball_at_a_players_feet_survives_the_player(self):
-        merged = merge_detections([
-            box(100, 100, 130, 190, conf=0.9),
-            box(112, 180, 120, 188, label='ball', conf=0.3),
-        ])
+        merged = merge_detections(
+            [
+                box(100, 100, 130, 190, conf=0.9),
+                box(112, 180, 120, 188, label='ball', conf=0.3),
+            ]
+        )
         self.assertEqual(len(merged), 2)
         self.assertEqual({d.label for d in merged}, {'person', 'ball'})
 
     def test_results_come_back_most_confident_first(self):
-        merged = merge_detections([
-            box(0, 0, 30, 90, conf=0.3),
-            box(400, 0, 430, 90, conf=0.9),
-            box(800, 0, 830, 90, conf=0.6),
-        ])
-        self.assertEqual(
-            [round(d.confidence, 1) for d in merged], [0.9, 0.6, 0.3]
+        merged = merge_detections(
+            [
+                box(0, 0, 30, 90, conf=0.3),
+                box(400, 0, 430, 90, conf=0.9),
+                box(800, 0, 830, 90, conf=0.6),
+            ]
         )
+        self.assertEqual([round(d.confidence, 1) for d in merged], [0.9, 0.6, 0.3])
 
     def test_nothing_in_nothing_out(self):
         self.assertEqual(merge_detections([]), [])
@@ -181,9 +186,7 @@ class TestDetector(unittest.TestCase):
         # 1920x1080 into three leaves 640-wide tiles, taller than they are wide,
         # so rows follow and the same three columns come back twice.
         self.assertEqual(len(results[1]), 6)
-        self.assertEqual(
-            sorted({round(d.center[0]) for d in results[1]}), [320, 960, 1600]
-        )
+        self.assertEqual(sorted({round(d.center[0]) for d in results[1]}), [320, 960, 1600])
 
     def test_duplicates_across_the_seam_are_merged_away(self):
         # Every tile reports a box at the same place in its own coordinates.

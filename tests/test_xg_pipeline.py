@@ -55,11 +55,14 @@ def box(track_id, x_m, y_m):
 
 
 def identity_calibration(scale=PX_PER_M):
-    homography = np.array([
-        [1 / scale, 0.0, 0.0],
-        [0.0, 1 / scale, 0.0],
-        [0.0, 0.0, 1.0],
-    ], dtype=np.float64)
+    homography = np.array(
+        [
+            [1 / scale, 0.0, 0.0],
+            [0.0, 1 / scale, 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
     return Calibration(homography, PITCH, image_size=(1920, 1080))
 
 
@@ -96,43 +99,58 @@ def strike(x_m=95.0, y_m=MID_Y, others=(), teams=None):
         team_by_track[track_id] = team
     team_by_track.update(teams or {})
 
-    records = [FrameRecord(
-        frame_index=0,
-        timestamp_s=0.0,
-        players=np.array(rows, dtype=np.float32).reshape(-1, 6),
-    )]
+    records = [
+        FrameRecord(
+            frame_index=0,
+            timestamp_s=0.0,
+            players=np.array(rows, dtype=np.float32).reshape(-1, 6),
+        )
+    ]
 
     # The ball carries on past the touch and over the line, which is what makes
     # this a shot rather than a pass to nobody.
     for step in range(1, 20):
         t = step / FPS
         x = x_m + (L + 1.0 - x_m) * step / 12.0
-        records.append(FrameRecord(
-            frame_index=step,
-            timestamp_s=t,
-            players=np.empty((0, 6), dtype=np.float32),
-            ball_xy=px(min(x, L + 1.0), y_m),
-            ball_observed=True,
-        ))
+        records.append(
+            FrameRecord(
+                frame_index=step,
+                timestamp_s=t,
+                players=np.empty((0, 6), dtype=np.float32),
+                ball_xy=px(min(x, L + 1.0), y_m),
+                ball_observed=True,
+            )
+        )
 
     table = FrameTable(
-        fps=FPS, frame_width=1920, frame_height=1080,
+        fps=FPS,
+        frame_width=1920,
+        frame_height=1080,
         records=records,
         team_by_track=team_by_track,
         calibration=identity_calibration(),
     )
     log = derive_events(
-        TouchSequence(touches=[shooter]), table,
-        pitch=PITCH, orientation=ORIENTATION,
-        period='first_half', side_of_team=SIDES,
+        TouchSequence(touches=[shooter]),
+        table,
+        pitch=PITCH,
+        orientation=ORIENTATION,
+        period='first_half',
+        side_of_team=SIDES,
     )
     return log, table
 
 
 def run(log, table, **kwargs):
     return xg_for_shots(
-        log, table, identity_calibration(), ORIENTATION, 'first_half',
-        SIDES, kwargs.pop('keepers', None), **kwargs,
+        log,
+        table,
+        identity_calibration(),
+        ORIENTATION,
+        'first_half',
+        SIDES,
+        kwargs.pop('keepers', None),
+        **kwargs,
     )
 
 
@@ -194,6 +212,7 @@ class TestAgainstTheRealModel:
         # end resolved from an orientation this fixture has no reason to build,
         # and what is being pinned here is the serialisation, not that.
         from cv.report_json import shot_marks
+
         mark = shot_marks(log.shots(), 'right')[0]
         assert mark['xg_header'] < mark['xg']
         # The join key. Without it the browser can only match a correction to a
@@ -214,9 +233,7 @@ class TestAgainstTheRealModel:
         report.movement_available = True
         data = report.to_json()
 
-        assert data['teams'][TEAM_A]['xg'] == pytest.approx(
-            log.shots()[0].xg, abs=1e-3
-        )
+        assert data['teams'][TEAM_A]['xg'] == pytest.approx(log.shots()[0].xg, abs=1e-3)
 
     def test_the_number_reaches_the_event_and_the_team_total(self):
         """The point of the whole exercise: `Shot.xg` stops being None."""
@@ -232,9 +249,7 @@ class TestAgainstTheRealModel:
         report.movement_available = True
         data = report.to_json()
 
-        assert data['teams'][TEAM_A]['xg'] == pytest.approx(
-            log.shots()[0].xg, abs=1e-3
-        )
+        assert data['teams'][TEAM_A]['xg'] == pytest.approx(log.shots()[0].xg, abs=1e-3)
 
     def test_a_shot_from_the_six_yard_box_beats_one_from_forty_metres(self):
         pytest.importorskip('onnxruntime')
@@ -262,15 +277,21 @@ class TestAgainstTheRealModel:
         """
         pytest.importorskip('onnxruntime')
         others = [
-            (30, TEAM_B, L - 3.0, MID_Y),        # the keeper, off his line
+            (30, TEAM_B, L - 3.0, MID_Y),  # the keeper, off his line
             (20, TEAM_B, L - 0.5, MID_Y + 1.0),  # a defender covering the goal
         ]
         log, table = strike(others=others)
 
         guessed, _ = next(iter(run(log, table)[0].values()))
-        told, _ = next(iter(run(
-            log, table, keepers=KeeperAssignment(by_team={TEAM_B: {30}}),
-        )[0].values()))
+        told, _ = next(
+            iter(
+                run(
+                    log,
+                    table,
+                    keepers=KeeperAssignment(by_team={TEAM_B: {30}}),
+                )[0].values()
+            )
+        )
 
         assert guessed != told
 
@@ -287,7 +308,11 @@ class TestWhenItCannotAnswer:
     def test_an_unknown_attacking_end_is_counted_and_explained(self):
         log, table = strike(others=[(30, TEAM_B, L - 2.0, MID_Y)])
         xg, warnings = xg_for_shots(
-            log, table, identity_calibration(), ORIENTATION, 'first_half',
+            log,
+            table,
+            identity_calibration(),
+            ORIENTATION,
+            'first_half',
             side_of_team=None,
         )
         assert xg == {}

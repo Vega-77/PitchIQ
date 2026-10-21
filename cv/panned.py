@@ -138,9 +138,13 @@ class PannedCamera:
                 M = sb_to_reference @ H
                 to_reference[int(frame)] = M / M[2, 2]
 
-        sb_to_m = np.diag([
-            pitch.length_m / STATSBOMB_LENGTH, pitch.width_m / STATSBOMB_WIDTH, 1.0,
-        ])
+        sb_to_m = np.diag(
+            [
+                pitch.length_m / STATSBOMB_LENGTH,
+                pitch.width_m / STATSBOMB_WIDTH,
+                1.0,
+            ]
+        )
         calibration = PannedCalibration(sb_to_m @ reference_to_sb, pitch, error)
 
         ball_sb = {}
@@ -170,11 +174,12 @@ class PannedCamera:
         missing = [str(p) for p in paths if not p.exists()]
         if missing:
             raise FileNotFoundError(
-                f"{tag}: the ball tracker has not been run for this tag; missing "
-                f"{', '.join(missing)}. Make them with `sh hybrid.sh <lo> <hi> {tag}` "
-                f"in cv/balltrack (a window) or `python half.py {tag} <lo> <hi>` "
-                "(a half), with PIQ_VIDEO set to the match; cv/balltrack/README.md "
-                "has the steps before that.")
+                f'{tag}: the ball tracker has not been run for this tag; missing '
+                f'{", ".join(missing)}. Make them with `sh hybrid.sh <lo> <hi> {tag}` '
+                f'in cv/balltrack (a window) or `python half.py {tag} <lo> <hi>` '
+                '(a half), with PIQ_VIDEO set to the match; cv/balltrack/README.md '
+                'has the steps before that.'
+            )
         smooth, ball, picks = (np.load(p) for p in paths)
         frames = smooth['abs']
         if not (np.array_equal(ball['abs'], frames) and np.array_equal(picks['abs'], frames)):
@@ -187,8 +192,11 @@ class PannedCamera:
             # view (the first registered sample) and its own fit to the paint.
             venue = np.load(own)
             reference_to_sb = venue['ref']
-            error = CalibrationError(mean_m=float(venue['err_mean']), max_m=float(venue['err_max']),
-                                     p90_m=float(venue['err_p90']))
+            error = CalibrationError(
+                mean_m=float(venue['err_mean']),
+                max_m=float(venue['err_max']),
+                p90_m=float(venue['err_p90']),
+            )
         else:
             venue = np.load(homog / 'vpitch.npz')
             top = np.load(homog / 'vtop.npz')
@@ -203,8 +211,14 @@ class PannedCamera:
         # No ball where the classifier is lost for minutes (cv/balltrack/ballgate.py).
         lost = ballgate.lost(tag, int(frames[0]), (picks['src'] > 0) & np.isfinite(picks['x']))
         return cls.from_arrays(
-            frames, smooth['H'], reference_to_sb, pitch,
-            np.where(lost, np.nan, ball['x']), np.where(lost, np.nan, ball['y']), observed, error,
+            frames,
+            smooth['H'],
+            reference_to_sb,
+            pitch,
+            np.where(lost, np.nan, ball['x']),
+            np.where(lost, np.nan, ball['y']),
+            observed,
+            error,
         )
 
     @property
@@ -230,9 +244,15 @@ class PannedCamera:
                 continue
             rows = record.players.astype(np.float64)
             x1, y1, x2, y2 = (rows[:, c] for c in (COL_X1, COL_Y1, COL_X2, COL_Y2))
-            corners = np.stack([
-                np.c_[x1, y1], np.c_[x2, y1], np.c_[x1, y2], np.c_[x2, y2],
-            ], axis=1).reshape(-1, 1, 2)
+            corners = np.stack(
+                [
+                    np.c_[x1, y1],
+                    np.c_[x2, y1],
+                    np.c_[x1, y2],
+                    np.c_[x2, y2],
+                ],
+                axis=1,
+            ).reshape(-1, 1, 2)
             moved = cv2.perspectiveTransform(corners, H).reshape(-1, 4, 2)
             # Bottom-centre has to land where the feet land, since that is the
             # point every metre in the report is measured from; a pan barely
@@ -250,19 +270,23 @@ class PannedCamera:
         if not wanted:
             return BallTrajectory()
         sb = np.array([self.ball_sb[r.frame_index][:2] for r in wanted])
-        sb_to_m = np.diag([
-            self.pitch.length_m / STATSBOMB_LENGTH,
-            self.pitch.width_m / STATSBOMB_WIDTH,
-        ])
+        sb_to_m = np.diag(
+            [
+                self.pitch.length_m / STATSBOMB_LENGTH,
+                self.pitch.width_m / STATSBOMB_WIDTH,
+            ]
+        )
         metres = sb @ sb_to_m
         reference = Calibration._apply(np.linalg.inv(self.calibration.H), metres)
-        return BallTrajectory(points=[
-            BallPoint(
-                frame_index=r.frame_index,
-                timestamp_s=r.timestamp_s,
-                xy=(float(x), float(y)),
-                observed=self.ball_sb[r.frame_index][2],
-                confidence=1.0 if self.ball_sb[r.frame_index][2] else 0.0,
-            )
-            for r, (x, y) in zip(wanted, reference)
-        ])
+        return BallTrajectory(
+            points=[
+                BallPoint(
+                    frame_index=r.frame_index,
+                    timestamp_s=r.timestamp_s,
+                    xy=(float(x), float(y)),
+                    observed=self.ball_sb[r.frame_index][2],
+                    confidence=1.0 if self.ball_sb[r.frame_index][2] else 0.0,
+                )
+                for r, (x, y) in zip(wanted, reference)
+            ]
+        )

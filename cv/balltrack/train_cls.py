@@ -67,6 +67,7 @@ last epoch - no picking the best epoch on val.
     from train_cls import load_model
     m = load_model('cls.pt'); p = m.score(crops_uint8, ctx)   # log-odds
 """
+
 import argparse
 import json
 import os
@@ -83,11 +84,11 @@ S2 = os.path.dirname(os.path.abspath(__file__))
 
 CLASSES = ['ball', 'cleat', 'head', 'otherball', 'other']
 CIDX = {c: i for i, c in enumerate(CLASSES)}
-CIDX['notball'] = CIDX['other']   # tracker pseudo-negatives: not ball, why unknown
+CIDX['notball'] = CIDX['other']  # tracker pseudo-negatives: not ball, why unknown
 BALL = CIDX['ball']
-WIN = 32          # side of the window the net sees, cut from the 48 crop
-SHIFT = 3         # max +- px of train-time shift of that window
-CTX_CLIP = 5.0    # standardised ctx is clipped to +-this (dist_px can be huge)
+WIN = 32  # side of the window the net sees, cut from the 48 crop
+SHIFT = 3  # max +- px of train-time shift of that window
+CTX_CLIP = 5.0  # standardised ctx is clipped to +-this (dist_px can be huge)
 
 
 def seed_all(seed):
@@ -105,12 +106,17 @@ def device():
 
 # --------------------------------------------------------------------- data
 
+
 def load_crops(tag):
     """Everything in <tag>crops.npz, as plain arrays."""
     z = np.load(os.path.join(S2, '%scrops.npz' % tag), allow_pickle=True)
-    d = dict(f=z['f'].astype(np.int64), j=z['j'].astype(np.int64),
-             s=z['s'].astype(np.float32), crop=z['crop'],
-             ctx=np.asarray(z['ctx'], np.float32))
+    d = dict(
+        f=z['f'].astype(np.int64),
+        j=z['j'].astype(np.int64),
+        s=z['s'].astype(np.float32),
+        crop=z['crop'],
+        ctx=np.asarray(z['ctx'], np.float32),
+    )
     d['ctx_names'] = [str(n) for n in z['ctx_names']]
     assert d['crop'].ndim == 4 and d['crop'].shape[-1] == 3, d['crop'].shape
     assert d['crop'].shape[1] >= WIN + 2 * SHIFT, 'crop smaller than window+shift'
@@ -150,9 +156,16 @@ def join(tag, d, labels):
     for i, (f, j) in enumerate(zip(d['f'], d['j'])):
         v = labels.get((tag, int(f), int(j)))
         if v is not None:
-            rows.append(i); y.append(v[0]); w.append(v[1]); hand.append(v[2])
-    return (np.asarray(rows, np.int64), np.asarray(y, np.int64),
-            np.asarray(w, np.float32), np.asarray(hand, bool))
+            rows.append(i)
+            y.append(v[0])
+            w.append(v[1])
+            hand.append(v[2])
+    return (
+        np.asarray(rows, np.int64),
+        np.asarray(y, np.int64),
+        np.asarray(w, np.float32),
+        np.asarray(hand, bool),
+    )
 
 
 def reorder_ctx(ctx, have, want):
@@ -179,9 +192,13 @@ def ctx_norm(ctx, mu, sd):
 
 # -------------------------------------------------------------------- model
 
+
 def block(cin, cout, pool):
-    layers = [nn.Conv2d(cin, cout, 3, padding=1, bias=False),
-              nn.BatchNorm2d(cout), nn.ReLU(inplace=True)]
+    layers = [
+        nn.Conv2d(cin, cout, 3, padding=1, bias=False),
+        nn.BatchNorm2d(cout),
+        nn.ReLU(inplace=True),
+    ]
     if pool:
         layers.append(nn.MaxPool2d(2))
     return nn.Sequential(*layers)
@@ -190,25 +207,30 @@ def block(cin, cout, pool):
 class BallNet(nn.Module):
     def __init__(self, k_ctx, n_cls=len(CLASSES), w=(16, 32, 48, 64)):
         super().__init__()
-        self.conv = nn.Sequential(block(3, w[0], True),      # 32 -> 16
-                                  block(w[0], w[1], True),   # 16 -> 8
-                                  block(w[1], w[2], True),   # 8 -> 4
-                                  block(w[2], w[3], False))  # 4x4x64
+        self.conv = nn.Sequential(
+            block(3, w[0], True),  # 32 -> 16
+            block(w[0], w[1], True),  # 16 -> 8
+            block(w[1], w[2], True),  # 8 -> 4
+            block(w[2], w[3], False),
+        )  # 4x4x64
         self.ctx = nn.Sequential(nn.Linear(k_ctx, 32), nn.ReLU(inplace=True))
-        self.head = nn.Sequential(nn.Linear(2 * w[3] + 32, 64),
-                                  nn.ReLU(inplace=True), nn.Dropout(0.2),
-                                  nn.Linear(64, n_cls))
+        self.head = nn.Sequential(
+            nn.Linear(2 * w[3] + 32, 64),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.2),
+            nn.Linear(64, n_cls),
+        )
 
     def forward(self, img, ctx):
-        m = self.conv(img)                       # B x C x 4 x 4
-        g = m.mean((2, 3))                       # surroundings
-        c = m[:, :, 1:3, 1:3].mean((2, 3))       # the candidate itself
+        m = self.conv(img)  # B x C x 4 x 4
+        g = m.mean((2, 3))  # surroundings
+        c = m[:, :, 1:3, 1:3].mean((2, 3))  # the candidate itself
         return self.head(torch.cat([g, c, self.ctx(ctx)], 1))
 
 
 def ball_logodds(logits):
     """log P(ball) - log P(not ball), from 5-class logits."""
-    rest = torch.cat([logits[:, :BALL], logits[:, BALL + 1:]], 1)
+    rest = torch.cat([logits[:, :BALL], logits[:, BALL + 1 :]], 1)
     return logits[:, BALL] - torch.logsumexp(rest, 1)
 
 
@@ -221,7 +243,7 @@ def to_input(crops_u8, dev, oy=None, ox=None):
     n, h, w = t.shape[0], t.shape[1], t.shape[2]
     if oy is None:
         y0, x0 = (h - WIN) // 2, (w - WIN) // 2
-        t = t[:, y0:y0 + WIN, x0:x0 + WIN]
+        t = t[:, y0 : y0 + WIN, x0 : x0 + WIN]
     else:
         ar = torch.arange(WIN, device=dev)
         ry = (torch.as_tensor(oy, device=dev)[:, None] + ar)[:, :, None]
@@ -239,10 +261,12 @@ def augment(crops_u8, dev, rng):
     x = to_input(crops_u8, dev, oy, ox)
     flip = torch.as_tensor(rng.random(n) < 0.5, device=dev)
     x = torch.where(flip[:, None, None, None], x.flip(3), x)
-    contrast = torch.as_tensor(rng.uniform(0.75, 1.25, n), device=dev,
-                               dtype=torch.float32)[:, None, None, None]
-    bright = torch.as_tensor(rng.uniform(-0.12, 0.12, n), device=dev,
-                             dtype=torch.float32)[:, None, None, None]
+    contrast = torch.as_tensor(rng.uniform(0.75, 1.25, n), device=dev, dtype=torch.float32)[
+        :, None, None, None
+    ]
+    bright = torch.as_tensor(rng.uniform(-0.12, 0.12, n), device=dev, dtype=torch.float32)[
+        :, None, None, None
+    ]
     mean = x.mean((1, 2, 3), keepdim=True)
     return (x - mean) * contrast + mean + bright
 
@@ -252,6 +276,7 @@ def n_params(m):
 
 
 # ------------------------------------------------------------------ scoring
+
 
 class Scorer:
     """A trained BallNet plus the ctx normalisation it was trained with."""
@@ -276,9 +301,9 @@ class Scorer:
         c = ctx_norm(np.asarray(ctx), self.mu, self.sd)
         out = np.empty(n, np.float32)
         for a in range(0, n, batch):
-            x = to_input(np.ascontiguousarray(crops_uint8[a:a + batch]), self.dev)
-            k = torch.as_tensor(c[a:a + batch], device=self.dev)
-            out[a:a + batch] = ball_logodds(self.net(x, k)).float().cpu().numpy()
+            x = to_input(np.ascontiguousarray(crops_uint8[a : a + batch]), self.dev)
+            k = torch.as_tensor(c[a : a + batch], device=self.dev)
+            out[a : a + batch] = ball_logodds(self.net(x, k)).float().cpu().numpy()
         return out
 
     @torch.no_grad()
@@ -289,9 +314,9 @@ class Scorer:
         c = ctx_norm(np.asarray(ctx), self.mu, self.sd)
         out = np.empty((len(crops_uint8), len(CLASSES)), np.float32)
         for a in range(0, len(crops_uint8), batch):
-            x = to_input(np.ascontiguousarray(crops_uint8[a:a + batch]), self.dev)
-            k = torch.as_tensor(c[a:a + batch], device=self.dev)
-            out[a:a + batch] = torch.softmax(self.net(x, k), 1).float().cpu().numpy()
+            x = to_input(np.ascontiguousarray(crops_uint8[a : a + batch]), self.dev)
+            k = torch.as_tensor(c[a : a + batch], device=self.dev)
+            out[a : a + batch] = torch.softmax(self.net(x, k), 1).float().cpu().numpy()
         return out
 
 
@@ -300,11 +325,17 @@ def load_model(path, dev=None):
     ck = torch.load(path, map_location=dev, weights_only=False)  # our own file
     net = BallNet(len(ck['ctx_names'])).to(dev)
     net.load_state_dict(ck['state'])
-    return Scorer(net, np.asarray(ck['mu'], np.float32),
-                  np.asarray(ck['sd'], np.float32), ck['ctx_names'], dev)
+    return Scorer(
+        net,
+        np.asarray(ck['mu'], np.float32),
+        np.asarray(ck['sd'], np.float32),
+        ck['ctx_names'],
+        dev,
+    )
 
 
 # ----------------------------------------------------------------- training
+
 
 def class_weights(y):
     """Ball gets half the total weight, the non-ball classes share the rest."""
@@ -327,8 +358,7 @@ def fit(crops, ctx, y, w, epochs, dev, seed, bs=256, lr=2e-3, log=''):
     net = BallNet(ctx.shape[1]).to(dev)
     opt = torch.optim.AdamW(net.parameters(), lr=lr, weight_decay=1e-4)
     steps = max(1, epochs * ((len(y) + bs - 1) // bs))
-    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=lr, total_steps=steps,
-                                                pct_start=0.15)
+    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=lr, total_steps=steps, pct_start=0.15)
     sw = w * class_weights(y)[y]
     ctx_t = torch.as_tensor(ctx, device=dev)
     y_t = torch.as_tensor(y, device=dev)
@@ -338,22 +368,25 @@ def fit(crops, ctx, y, w, epochs, dev, seed, bs=256, lr=2e-3, log=''):
         perm = rng.permutation(len(y))
         tot, t0 = 0.0, time.time()
         for a in range(0, len(perm), bs):
-            b = perm[a:a + bs]
-            if len(b) < 2:           # BatchNorm cannot train on one sample
+            b = perm[a : a + bs]
+            if len(b) < 2:  # BatchNorm cannot train on one sample
                 continue
             x = augment(crops[b], dev, rng)
             bt = torch.as_tensor(b, device=dev)
             logits = net(x, ctx_t[bt])
-            loss = (F.cross_entropy(logits, y_t[bt], reduction='none')
-                    * sw_t[bt]).sum() / sw_t[bt].sum()
+            loss = (F.cross_entropy(logits, y_t[bt], reduction='none') * sw_t[bt]).sum() / sw_t[
+                bt
+            ].sum()
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()
             sched.step()
             tot += float(loss) * len(b)
         if ep == 0 or (ep + 1) % 5 == 0 or ep + 1 == epochs:
-            print('%s  epoch %2d/%d  loss %.4f  %.1fs' % (log, ep + 1, epochs,
-                                                         tot / len(y), time.time() - t0))
+            print(
+                '%s  epoch %2d/%d  loss %.4f  %.1fs'
+                % (log, ep + 1, epochs, tot / len(y), time.time() - t0)
+            )
     return net.eval()
 
 
@@ -366,13 +399,13 @@ def auc(pos, neg):
     ranks = np.empty(len(allv))
     sv = allv[order]
     i = 0
-    while i < len(sv):            # average ranks over ties
+    while i < len(sv):  # average ranks over ties
         k = i
         while k + 1 < len(sv) and sv[k + 1] == sv[i]:
             k += 1
-        ranks[order[i:k + 1]] = 0.5 * (i + k) + 1
+        ranks[order[i : k + 1]] = 0.5 * (i + k) + 1
         i = k + 1
-    rp = ranks[:len(pos)].sum()
+    rp = ranks[: len(pos)].sum()
     return float((rp - len(pos) * (len(pos) + 1) / 2) / (len(pos) * len(neg)))
 
 
@@ -391,9 +424,14 @@ def frame_ranks(f, score, is_ball):
 def rank_line(name, r):
     if len(r) == 0:
         return '    %-4s  no frames' % name
-    return ('    %-4s  rank0 %5.1f%%  top3 %5.1f%%  median %4.1f  mean %5.2f  (%d frames)'
-            % (name, 100 * np.mean(r == 0), 100 * np.mean(r < 3),
-               np.median(r), r.mean(), len(r)))
+    return '    %-4s  rank0 %5.1f%%  top3 %5.1f%%  median %4.1f  mean %5.2f  (%d frames)' % (
+        name,
+        100 * np.mean(r == 0),
+        100 * np.mean(r < 3),
+        np.median(r),
+        r.mean(),
+        len(r),
+    )
 
 
 def evaluate(scorer, data, tags):
@@ -407,7 +445,8 @@ def evaluate(scorer, data, tags):
         rows, y, _, hand = d['lab']
         for k, keep in (('all', np.ones(len(rows), bool)), ('hand', hand)):
             r, yy, A = rows[keep], y[keep], acc[k]
-            A['ps'].append(p[r[yy == BALL]]); A['ns'].append(p[r[yy != BALL]])
+            A['ps'].append(p[r[yy == BALL]])
+            A['ns'].append(p[r[yy != BALL]])
             is_ball = np.zeros(len(p), bool)
             is_ball[r[yy == BALL]] = True
             if is_ball.any():
@@ -417,9 +456,13 @@ def evaluate(scorer, data, tags):
     out = {}
     for k, A in acc.items():
         pos, neg = cat(A['ps']), cat(A['ns'])
-        out[k] = dict(auc=auc(pos, neg), n_pos=len(pos), n_neg=len(neg),
-                      r_new=cat(A['rn']).astype(np.int64),
-                      r_old=cat(A['ro']).astype(np.int64))
+        out[k] = dict(
+            auc=auc(pos, neg),
+            n_pos=len(pos),
+            n_neg=len(neg),
+            r_new=cat(A['rn']).astype(np.int64),
+            r_old=cat(A['ro']).astype(np.int64),
+        )
     return out
 
 
@@ -430,9 +473,9 @@ def gather(data, tags, names):
         rows, yy, ww, _ = d['lab']
         crops.append(d['crop'][rows])
         ctx.append(reorder_ctx(d['ctx'], d['ctx_names'], names)[rows])
-        y.append(yy); w.append(ww)
-    return (np.concatenate(crops), np.concatenate(ctx),
-            np.concatenate(y), np.concatenate(w))
+        y.append(yy)
+        w.append(ww)
+    return (np.concatenate(crops), np.concatenate(ctx), np.concatenate(y), np.concatenate(w))
 
 
 def train_on(data, tags, names, epochs, dev, seed, log):
@@ -454,9 +497,16 @@ def cmd_train(a):
         d['lab'] = join(t, d, labels)
         rows, y, _, hand = d['lab']
         cnt = np.bincount(y, minlength=len(CLASSES))
-        print('%-8s %6d crops  %5d labelled (%d hand)  %s' % (
-            t, len(d['f']), len(rows), hand.sum(),
-            ' '.join('%s=%d' % (c, n) for c, n in zip(CLASSES, cnt))))
+        print(
+            '%-8s %6d crops  %5d labelled (%d hand)  %s'
+            % (
+                t,
+                len(d['f']),
+                len(rows),
+                hand.sum(),
+                ' '.join('%s=%d' % (c, n) for c, n in zip(CLASSES, cnt)),
+            )
+        )
         data[t] = d
     tags = [t for t in tags if len(data[t]['lab'][0])]
     assert tags, 'no labelled crops in any listed tag'
@@ -479,11 +529,14 @@ def cmd_train(a):
                 if e['n_pos'] + e['n_neg'] == 0:
                     print('  %-4s labels: none' % k)
                     continue
-                print('  %-4s labels: AUC %.4f  (%d ball / %d not)' % (
-                    k, e['auc'], e['n_pos'], e['n_neg']))
+                print(
+                    '  %-4s labels: AUC %.4f  (%d ball / %d not)'
+                    % (k, e['auc'], e['n_pos'], e['n_neg'])
+                )
                 print(rank_line('new', e['r_new']))
                 print(rank_line('s', e['r_old']))
-                pooled[k]['rn'].append(e['r_new']); pooled[k]['ro'].append(e['r_old'])
+                pooled[k]['rn'].append(e['r_new'])
+                pooled[k]['ro'].append(e['r_old'])
         for k in ('all', 'hand'):
             if pooled[k]['rn']:
                 print('all folds, %s labels' % k)
@@ -494,9 +547,20 @@ def cmd_train(a):
 
     sc = train_on(data, tags, names, a.epochs, dev, a.seed, 'all')
     out = a.out if os.path.isabs(a.out) else os.path.join(S2, a.out)
-    torch.save(dict(state=sc.net.state_dict(), mu=sc.mu, sd=sc.sd,
-                    ctx_names=list(names), classes=CLASSES, win=WIN,
-                    tags=tags, epochs=a.epochs, seed=a.seed), out)
+    torch.save(
+        dict(
+            state=sc.net.state_dict(),
+            mu=sc.mu,
+            sd=sc.sd,
+            ctx_names=list(names),
+            classes=CLASSES,
+            win=WIN,
+            tags=tags,
+            epochs=a.epochs,
+            seed=a.seed,
+        ),
+        out,
+    )
     print('wrote %s' % out)
 
 
@@ -509,10 +573,11 @@ def cmd_score(a):
     p = m.score(d['crop'], d['ctx'], d['ctx_names'])
     dt = time.time() - t0
     out = os.path.join(S2, '%scls.npz' % a.tag)
-    np.savez(out, f=d['f'].astype(np.int32), j=d['j'].astype(np.int16),
-             p=p.astype(np.float32))
-    print('%s: %d crops scored in %.2fs (%.0f crops/s) -> %s' % (
-        a.tag, len(p), dt, len(p) / max(dt, 1e-9), out))
+    np.savez(out, f=d['f'].astype(np.int32), j=d['j'].astype(np.int16), p=p.astype(np.float32))
+    print(
+        '%s: %d crops scored in %.2fs (%.0f crops/s) -> %s'
+        % (a.tag, len(p), dt, len(p) / max(dt, 1e-9), out)
+    )
 
 
 def main(argv):

@@ -47,7 +47,7 @@ from cv.zones import (
     zone_grid,
 )
 
-PITCH = Pitch()          # 105 x 68
+PITCH = Pitch()  # 105 x 68
 L, W = PITCH.length_m, PITCH.width_m
 MID_Y = W / 2
 
@@ -60,14 +60,17 @@ class TestEndValidation:
     could tell.
     """
 
-    @pytest.mark.parametrize('call', [
-        lambda e: third(PITCH, 50.0, e),
-        lambda e: in_penalty_area(PITCH, 5.0, MID_Y, e),
-        lambda e: distance_to_goal(PITCH, 50.0, MID_Y, e),
-        lambda e: angle_to_goal(PITCH, 50.0, MID_Y, e),
-        lambda e: is_progressive(PITCH, (10.0, 34.0), (50.0, 34.0), e),
-        lambda e: defensive_line_m([(10.0, 34.0)], e, PITCH),
-    ])
+    @pytest.mark.parametrize(
+        'call',
+        [
+            lambda e: third(PITCH, 50.0, e),
+            lambda e: in_penalty_area(PITCH, 5.0, MID_Y, e),
+            lambda e: distance_to_goal(PITCH, 50.0, MID_Y, e),
+            lambda e: angle_to_goal(PITCH, 50.0, MID_Y, e),
+            lambda e: is_progressive(PITCH, (10.0, 34.0), (50.0, 34.0), e),
+            lambda e: defensive_line_m([(10.0, 34.0)], e, PITCH),
+        ],
+    )
     def test_rejects_a_nonsense_end(self, call):
         with pytest.raises(ValueError):
             call('north')

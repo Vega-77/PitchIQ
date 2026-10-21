@@ -54,37 +54,27 @@ IS_ALIAS = re.compile(r'^[\w?.()\[\]\s]*\bquality$')
 # Produced and deliberately not rendered. The reason is the point: it has to say
 # where the figure went instead, or why a coach is better off without it.
 UNREAD_BY_DESIGN = {
-    'ball_filled_share':
-        'kept apart from ball_seen_share on purpose — filled-in points are a '
-        'straight line drawn between two sightings, and the seen share is the '
-        'one the pages caption',
-    'clusters':
-        'a count of what the pipeline built; the pages count the cluster rows '
-        'they actually render',
-    'dead_ball_s':
-        'live_share is the rendered form of the same measurement, and it is the '
-        'share rather than the raw seconds that a coach can read',
-    'exit_agreement':
-        'the reconciliation block carries the same rate, and assets/report.js '
-        'reads it from there, next to the disagreements it belongs with',
-    'goal_agreement':
-        'the reconciliation block carries the same rate, and assets/report.js '
-        'reads it from there, next to the disagreements it belongs with',
-    'kit_separation':
-        'already reaches the coach as a pipeline warning when it falls below '
-        'MIN_KIT_SEPARATION, which is the only value at which it means anything',
-    'touch_confidence_p10':
-        'the median is what assets/db.js renders; the tenth percentile is the '
-        'tail, kept for tuning rather than for a match page',
-    'touches':
-        'a count of what the pipeline built; the pages count the touches they '
-        'actually render',
-    'tracks':
-        'a count of what the pipeline built; the pages count the track rows '
-        'they actually render',
-    'unseen_spans':
-        'this is len(touches.gaps); no_ball_s is the same absence expressed in '
-        'seconds, and seconds are what the note says',
+    'ball_filled_share': 'kept apart from ball_seen_share on purpose — filled-in points are a '
+    'straight line drawn between two sightings, and the seen share is the '
+    'one the pages caption',
+    'clusters': 'a count of what the pipeline built; the pages count the cluster rows '
+    'they actually render',
+    'dead_ball_s': 'live_share is the rendered form of the same measurement, and it is the '
+    'share rather than the raw seconds that a coach can read',
+    'exit_agreement': 'the reconciliation block carries the same rate, and assets/report.js '
+    'reads it from there, next to the disagreements it belongs with',
+    'goal_agreement': 'the reconciliation block carries the same rate, and assets/report.js '
+    'reads it from there, next to the disagreements it belongs with',
+    'kit_separation': 'already reaches the coach as a pipeline warning when it falls below '
+    'MIN_KIT_SEPARATION, which is the only value at which it means anything',
+    'touch_confidence_p10': 'the median is what assets/db.js renders; the tenth percentile is the '
+    'tail, kept for tuning rather than for a match page',
+    'touches': 'a count of what the pipeline built; the pages count the touches they '
+    'actually render',
+    'tracks': 'a count of what the pipeline built; the pages count the track rows '
+    'they actually render',
+    'unseen_spans': 'this is len(touches.gaps); no_ball_s is the same absence expressed in '
+    'seconds, and seconds are what the note says',
 }
 
 
@@ -122,8 +112,7 @@ def read(is_alias=IS_ALIAS) -> dict[str, set[str]]:
                 for name in _aliases(chunk, is_alias):
                     escaped = re.escape(name)
                     dot = re.findall(r'\b%s\s*\??\.\s*(\w+)' % escaped, chunk)
-                    sq = re.findall(
-                        r"\b%s\s*\??\[\s*'(\w+)'\s*\]" % escaped, chunk)
+                    sq = re.findall(r"\b%s\s*\??\[\s*'(\w+)'\s*\]" % escaped, chunk)
                     for key in dot + sq:
                         found.setdefault(key, set()).add(rel)
     return found
@@ -166,11 +155,8 @@ class TestForwarded:
 
 
 class TestEveryFigureLands:
-
     def test_every_produced_key_is_rendered_or_excused(self, made, seen):
-        orphans = sorted(
-            k for k in made if not readers(k, seen) and k not in UNREAD_BY_DESIGN
-        )
+        orphans = sorted(k for k in made if not readers(k, seen) and k not in UNREAD_BY_DESIGN)
         assert not orphans, (
             'cv/report_json.py produces %s and no page reads it. Render it, or '
             'add it to UNREAD_BY_DESIGN with the reason.' % ', '.join(orphans)
@@ -190,17 +176,15 @@ class TestTheExcuseList:
 
     def test_no_stale_entries(self, made, seen):
         rendered = sorted(k for k in UNREAD_BY_DESIGN if readers(k, seen))
-        assert not rendered, (
-            '%s is listed as unrendered but %s reads it now — delete the entry'
-            % (', '.join(rendered),
-               ', '.join(sorted(readers(rendered[0], seen))))
+        assert not rendered, '%s is listed as unrendered but %s reads it now — delete the entry' % (
+            ', '.join(rendered),
+            ', '.join(sorted(readers(rendered[0], seen))),
         )
 
     def test_no_entries_for_keys_that_do_not_exist(self, made):
         gone = sorted(set(UNREAD_BY_DESIGN) - set(made))
-        assert not gone, (
-            '%s is excused here and no longer produced — delete the entry'
-            % ', '.join(gone)
+        assert not gone, '%s is excused here and no longer produced — delete the entry' % ', '.join(
+            gone
         )
 
     def test_every_entry_gives_a_reason(self):

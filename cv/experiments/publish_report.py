@@ -113,9 +113,7 @@ def load_mapping(path: Path) -> dict[str, str]:
     """Cluster id to player id, from either shape the file comes in."""
     data = json.loads(path.read_text(encoding='utf-8'))
     if not isinstance(data, dict):
-        raise ValueError(
-            f'{path.name}: expected an object, got {type(data).__name__}'
-        )
+        raise ValueError(f'{path.name}: expected an object, got {type(data).__name__}')
 
     by_cluster = data['byCluster'] if 'byCluster' in data else data
     if not isinstance(by_cluster, dict):
@@ -160,20 +158,24 @@ def build_parser() -> argparse.ArgumentParser:
         prog='python -m cv.experiments.publish_report',
         description='Write a match report JSON to Firestore for the app to read.',
     )
-    parser.add_argument('report', type=Path,
-                        help='report JSON, as written by event_report --json')
+    parser.add_argument('report', type=Path, help='report JSON, as written by event_report --json')
     parser.add_argument('--team', required=True, help='team document id')
     parser.add_argument('--match', required=True, help='match document id')
-    parser.add_argument('--mapping', type=Path,
-                        help='cluster-to-player mapping confirmed by a coach; '
-                             'without it, no per-player stats are written')
-    parser.add_argument('--key',
-                        help='service account JSON; defaults to PITCHIQ_SA_KEY')
-    parser.add_argument('--dry-run', action='store_true',
-                        help='record the writes and perform none; needs no '
-                             'credential')
-    parser.add_argument('--verbose', action='store_true',
-                        help='with --dry-run, list every path and its size')
+    parser.add_argument(
+        '--mapping',
+        type=Path,
+        help='cluster-to-player mapping confirmed by a coach; '
+        'without it, no per-player stats are written',
+    )
+    parser.add_argument('--key', help='service account JSON; defaults to PITCHIQ_SA_KEY')
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='record the writes and perform none; needs no credential',
+    )
+    parser.add_argument(
+        '--verbose', action='store_true', help='with --dry-run, list every path and its size'
+    )
     return parser
 
 
@@ -201,8 +203,9 @@ def main(argv: list[str] | None = None) -> int:
             print(str(exc), file=sys.stderr)
             return 2
         if not mapping:
-            print(f'{args.mapping.name} confirms no clusters, so no per-player '
-                  'stats will be written')
+            print(
+                f'{args.mapping.name} confirms no clusters, so no per-player stats will be written'
+            )
 
     client = DryRunClient() if args.dry_run else None
 

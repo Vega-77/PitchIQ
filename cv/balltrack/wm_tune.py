@@ -12,6 +12,7 @@ correctly saying "not on screen").  Hidden frames are not scored.
     python wm_tune.py            # viterbi6
     python wm_tune.py 7          # viterbi7, GRID7
 """
+
 import collections
 import itertools
 import json
@@ -60,32 +61,50 @@ def score(T, F, idx, picks, clips):
 
 
 def fmt(c):
-    return ('acc %3d/%3d %3.0f%% | ball right %3d wrong %3d none %3d / %3d'
-            ' | off ok %2d / %2d' % (
-                c['ok'], c['ball'] + c['off'],
-                100.0 * c['ok'] / max(1, c['ball'] + c['off']),
-                c['right'], c['wrong'], c['none'], c['ball'],
-                c['ok'] - c['right'], c['off']))
+    return 'acc %3d/%3d %3.0f%% | ball right %3d wrong %3d none %3d / %3d | off ok %2d / %2d' % (
+        c['ok'],
+        c['ball'] + c['off'],
+        100.0 * c['ok'] / max(1, c['ball'] + c['off']),
+        c['right'],
+        c['wrong'],
+        c['none'],
+        c['ball'],
+        c['ok'] - c['right'],
+        c['off'],
+    )
 
 
-GRID = dict(lam=[0.125], skip=[4.0, 8.0], kmax=[4, 8],
-            e_off=[-0.5, 0.0, 0.5, 1.0],
-            c_leave=[2.0, 6.0, 12.0], c_enter=[2.0, 6.0, 12.0],
-            A=[2.3], ab=[0.0, 2.0])
+GRID = dict(
+    lam=[0.125],
+    skip=[4.0, 8.0],
+    kmax=[4, 8],
+    e_off=[-0.5, 0.0, 0.5, 1.0],
+    c_leave=[2.0, 6.0, 12.0],
+    c_enter=[2.0, 6.0, 12.0],
+    A=[2.3],
+    ab=[0.0, 2.0],
+)
 
 
-GRID7 = dict(skip=[2.0, 4.0, 8.0], kmax=[4], e_off=[-1.0, -0.5, 0.0],
-             c_leave=[2.0], c_enter=[8.0, 12.0, 20.0],
-             c_near=[0.0, 2.0, 6.0], drift=[12.0, 37.0], gate=[0.5, 2.0])
+GRID7 = dict(
+    skip=[2.0, 4.0, 8.0],
+    kmax=[4],
+    e_off=[-1.0, -0.5, 0.0],
+    c_leave=[2.0],
+    c_enter=[8.0, 12.0, 20.0],
+    c_near=[0.0, 2.0, 6.0],
+    drift=[12.0, 37.0],
+    gate=[0.5, 2.0],
+)
 
 
 def main():
     v7 = len(sys.argv) > 1 and sys.argv[1] == '7'
-    grid, fn, out = ((GRID7, D6.viterbi7, 'wm_tune7.json') if v7
-                     else (GRID, D6.viterbi6, 'wm_tune.json'))
+    grid, fn, out = (
+        (GRID7, D6.viterbi7, 'wm_tune7.json') if v7 else (GRID, D6.viterbi6, 'wm_tune.json')
+    )
     T, tags, F, idx = load_all()
-    halves = {'H1': {t for t in tags if int(t[2:]) < 9},
-              'H2': {t for t in tags if int(t[2:]) >= 9}}
+    halves = {'H1': {t for t in tags if int(t[2:]) < 9}, 'H2': {t for t in tags if int(t[2:]) >= 9}}
 
     base = {tag: D5.viterbi5(F[tag], **dfree.CFG, stab=True) for tag in tags}
     print('viterbi5 baseline')
@@ -107,8 +126,10 @@ def main():
         print('\ntuned on %s: %s' % (tune, cfg))
         print('  tune %-4s %s' % (tune, fmt(r[tune])))
         print('  TEST %-4s %s' % (test, fmt(r[test])))
-    json.dump([(cfg, {h: dict(c) for h, c in r.items()}) for cfg, r in res],
-              open(os.path.join(W.S2, out), 'w'))
+    json.dump(
+        [(cfg, {h: dict(c) for h, c in r.items()}) for cfg, r in res],
+        open(os.path.join(W.S2, out), 'w'),
+    )
 
 
 if __name__ == '__main__':

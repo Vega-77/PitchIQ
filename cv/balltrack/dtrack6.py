@@ -28,21 +28,32 @@ kmax-1 frames stepped over, lam*(d/reach)^2 inside the speed gate, NEG
 outside.  viterbi5's distance-gated restart pool is gone; a break is now
 ON -> OFF -> ON.
 """
+
 import numpy as np
 
 from dtrack2 import FPS, SPEED
 from dtrack4 import NEG
 
 
-def viterbi6(frames, lam=0.125, skip=8.0, kmax=4, e_off=0.0, c_leave=4.0,
-             c_enter=4.0, A=2.3, ab=0.0, stab=True):
+def viterbi6(
+    frames,
+    lam=0.125,
+    skip=8.0,
+    kmax=4,
+    e_off=0.0,
+    c_leave=4.0,
+    c_enter=4.0,
+    A=2.3,
+    ab=0.0,
+    stab=True,
+):
     """-> list of candidate index or None (None = ball not on screen)."""
     kx, ky = ('sx', 'sy') if stab else ('x', 'y')
     T = len(frames)
     on = [None] * T
-    bk = [None] * T                  # (n, 2): source frame, source cand; -1 = OFF
+    bk = [None] * T  # (n, 2): source frame, source cand; -1 = OFF
     off = np.zeros(T)
-    offbk = np.zeros(T, np.int64)    # -1 = from OFF, else candidate at t-1
+    offbk = np.zeros(T, np.int64)  # -1 = from OFF, else candidate at t-1
 
     for t in range(T):
         fr = frames[t]
@@ -54,8 +65,7 @@ def viterbi6(frames, lam=0.125, skip=8.0, kmax=4, e_off=0.0, c_leave=4.0,
         for k in range(1, min(kmax, t) + 1):
             pf = frames[t - k]
             reach = max(1.0, SPEED * (fr['abs'] - pf['abs']) / FPS)
-            d = np.hypot(fr[kx][:, None] - pf[kx][None, :],
-                         fr[ky][:, None] - pf[ky][None, :])
+            d = np.hypot(fr[kx][:, None] - pf[kx][None, :], fr[ky][:, None] - pf[ky][None, :])
             tot = on[t - k][None, :] - lam * (d / reach) ** 2 - skip * (k - 1)
             tot = np.where(d > reach, NEG, tot)
             i = tot.argmax(axis=1)
@@ -93,7 +103,7 @@ def viterbi6(frames, lam=0.125, skip=8.0, kmax=4, e_off=0.0, c_leave=4.0,
         else:
             out[t] = state
             p0, p1 = bk[t][state]
-            if p1 < 0:                 # came from OFF at p0 (= t-1) or start
+            if p1 < 0:  # came from OFF at p0 (= t-1) or start
                 t, state = int(p0), -1
                 if t < 0:
                     break
@@ -105,9 +115,20 @@ def viterbi6(frames, lam=0.125, skip=8.0, kmax=4, e_off=0.0, c_leave=4.0,
 RESTK = 8
 
 
-def viterbi7(frames, lam=0.125, skip=8.0, kmax=4, e_off=-0.5, c_leave=2.0,
-             c_enter=12.0, c_near=2.0, rad0=0.0, drift=12.0, gate=0.5,
-             stab=True):
+def viterbi7(
+    frames,
+    lam=0.125,
+    skip=8.0,
+    kmax=4,
+    e_off=-0.5,
+    c_leave=2.0,
+    c_enter=12.0,
+    c_near=2.0,
+    rad0=0.0,
+    drift=12.0,
+    gate=0.5,
+    stab=True,
+):
     """viterbi6, plus viterbi5's memory of where the ball was lost.
 
     A dropped ball can come back two ways: anywhere, for c_enter (viterbi6's
@@ -135,8 +156,7 @@ def viterbi7(frames, lam=0.125, skip=8.0, kmax=4, e_off=-0.5, c_leave=2.0,
         for k in range(1, min(kmax, t) + 1):
             pf = frames[t - k]
             reach = max(1.0, SPEED * (fr['abs'] - pf['abs']) / FPS)
-            d = np.hypot(fr[kx][:, None] - pf[kx][None, :],
-                         fr[ky][:, None] - pf[ky][None, :])
+            d = np.hypot(fr[kx][:, None] - pf[kx][None, :], fr[ky][:, None] - pf[ky][None, :])
             tot = on[t - k][None, :] - lam * (d / reach) ** 2 - skip * (k - 1)
             tot = np.where(d > reach, NEG, tot)
             i = tot.argmax(axis=1)
@@ -148,11 +168,9 @@ def viterbi7(frames, lam=0.125, skip=8.0, kmax=4, e_off=-0.5, c_leave=2.0,
         if len(ps):
             age = np.maximum(1.0, t - pt).astype(float)
             allowed = np.maximum(1.0, rad0 + drift * age)
-            d = np.hypot(fr[kx][:, None] - px[None, :],
-                         fr[ky][:, None] - py[None, :])
+            d = np.hypot(fr[kx][:, None] - px[None, :], fr[ky][:, None] - py[None, :])
             over = np.maximum(0.0, d - allowed[None, :]) / allowed[None, :]
-            tot = (ps[None, :] + e_off * (t - pt - 1)[None, :] - c_near
-                   - gate * over ** 2)
+            tot = ps[None, :] + e_off * (t - pt - 1)[None, :] - c_near - gate * over**2
             i = tot.argmax(axis=1)
             v = tot[np.arange(n), i]
             take = v > cur
@@ -183,8 +201,7 @@ def viterbi7(frames, lam=0.125, skip=8.0, kmax=4, e_off=-0.5, c_leave=2.0,
         py = np.concatenate([py, fr[ky][top]])
         if len(ps) > RESTK:
             keep = np.argsort(-(ps + e_off * (t - pt)))[:RESTK]
-            ps, pt, pj, px, py = (ps[keep], pt[keep], pj[keep],
-                                  px[keep], py[keep])
+            ps, pt, pj, px, py = (ps[keep], pt[keep], pj[keep], px[keep], py[keep])
 
     # the path may also END in a remembered gap: close it at T-1
     out = [None] * T
@@ -209,4 +226,3 @@ def viterbi7(frames, lam=0.125, skip=8.0, kmax=4, e_off=-0.5, c_leave=2.0,
             else:
                 t, state = int(p0), int(p1)
     return out
-

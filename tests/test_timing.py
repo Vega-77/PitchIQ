@@ -21,7 +21,11 @@ from __future__ import annotations
 import pytest
 
 from cv.timing import (
-    FIXED, HALF_S, SUPERLINEAR, Timings, fastest_rate_that_fits,
+    FIXED,
+    HALF_S,
+    SUPERLINEAR,
+    Timings,
+    fastest_rate_that_fits,
 )
 
 
@@ -225,6 +229,7 @@ class TestTheProjectionIsAFloor:
 class TestJson:
     def test_every_value_survives_json(self):
         import json
+
         timings = run(10.0, detect=7.0, identity=1.0)
         json.dumps(timings.to_json(120.0))
 

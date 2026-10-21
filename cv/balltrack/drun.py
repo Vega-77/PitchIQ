@@ -36,6 +36,7 @@ manifest, so a crash or a reboot costs at most the chunks in flight.
 
     python drun.py <lo> <hi> [procs] [tag]
 """
+
 import io
 import json
 import multiprocessing as mp
@@ -44,20 +45,23 @@ import sys
 import time
 
 S2 = os.path.dirname(os.path.abspath(__file__))
-FLUSH = 250              # anchors between part files
-CHUNK = int(os.environ.get("DRUN_CHUNK", 9000))   # 5 min of video: a finished chunk is never redone
-CPU_MATCH = os.environ.get('DRUN_CPU_MATCH') == '1'   # match on the CPU: no torch, no CUDA context
-SHARED = os.environ.get('DRUN_SHARED_MATCH', '1') == '1'   # one GPU matcher for the pool (mshare.py); '0' = one per worker
-PROCS = 16               # dpar8's confirmed point: 29.07 fps, 6607 MiB peak
+FLUSH = 250  # anchors between part files
+CHUNK = int(os.environ.get('DRUN_CHUNK', 9000))  # 5 min of video: a finished chunk is never redone
+CPU_MATCH = os.environ.get('DRUN_CPU_MATCH') == '1'  # match on the CPU: no torch, no CUDA context
+SHARED = (
+    os.environ.get('DRUN_SHARED_MATCH', '1') == '1'
+)  # one GPU matcher for the pool (mshare.py); '0' = one per worker
+PROCS = 16  # dpar8's confirmed point: 29.07 fps, 6607 MiB peak
 
 
 def worker(args):
-    wid, alo, ahi, tag = args       # tag here is '<tag>_k<chunk>', so part names never collide
+    wid, alo, ahi, tag = args  # tag here is '<tag>_k<chunk>', so part names never collide
     for v in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
         os.environ[v] = '1'
     import cv2
     import numpy as np
     import xgboost as xgb
+
     sys.path.insert(0, S2)
     import bfast2
     import dense as D
@@ -65,10 +69,9 @@ def worker(args):
     import rfast2
 
     cv2.setNumThreads(1)
-    D.LO, D.HI = alo, ahi          # set at runtime; dense.py is not edited
+    D.LO, D.HI = alo, ahi  # set at runtime; dense.py is not edited
 
-    log = io.open(os.path.join(S2, '%s_w%02d.log' % (tag, wid)), 'w',
-                  encoding='utf-8')
+    log = io.open(os.path.join(S2, '%s_w%02d.log' % (tag, wid)), 'w', encoding='utf-8')
 
     def say(m):
         log.write(m + '\n')
@@ -80,10 +83,12 @@ def worker(args):
     M = None
     if SHARED:
         import mshare
+
         M = mshare.proxy()
     elif not CPU_MATCH:
         import gmatch2
         import torch
+
         torch.set_num_threads(1)
         M = gmatch2.Matcher()
     reg = rfast2.Registrar(cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True), M)
@@ -117,24 +122,28 @@ def worker(args):
         name = '%s_w%02d_p%03d.npz' % (tag, wid, len(parts))
         np.savez_compressed(
             os.path.join(S2, name),
-            f=np.array(FI, np.int32), x=np.array(CX, np.float32),
-            y=np.array(CY, np.float32), s=np.array(SC, np.float32),
-            frames=fr, ncand=np.array([NC[int(i)] for i in fr], np.int32),
+            f=np.array(FI, np.int32),
+            x=np.array(CX, np.float32),
+            y=np.array(CY, np.float32),
+            s=np.array(SC, np.float32),
+            frames=fr,
+            ncand=np.array([NC[int(i)] for i in fr], np.int32),
             how=np.array([HOW.get(int(i), [0] * D.NOFF) for i in fr], np.int8),
-            hstep=np.array([HST.get(int(i), np.eye(3)) for i in fr],
-                           np.float64))
+            hstep=np.array([HST.get(int(i), np.eye(3)) for i in fr], np.float64),
+        )
         parts.append(name)
         say('  flushed %s  %d frames' % (name, len(fr)))
 
     FI, CX, CY, SC = [], [], [], []
     NC, HOW, HST = {}, {}, {}
     bgrs, kds, fids = [], [], []
-    small = {}                    # frame id -> its tile-size resize, shared by its 21 anchors
+    small = {}  # frame id -> its tile-size resize, shared by its 21 anchors
     done = 0
     t0 = time.time()
     # seconds spent in each step, summed over the worker's anchors
-    PT = dict.fromkeys(('read', 'orb', 'blobs', 'still', 'register', 'tiles',
-                        'temporal', 'rank'), 0.0)
+    PT = dict.fromkeys(
+        ('read', 'orb', 'blobs', 'still', 'register', 'tiles', 'temporal', 'rank'), 0.0
+    )
     clock = time.perf_counter
     for ab in range(first, last + 1):
         t = clock()
@@ -142,7 +151,8 @@ def worker(args):
         if not ok:
             say('  read failed at %d - stopping' % ab)
             break
-        t1 = clock(); PT['read'] += t1 - t
+        t1 = clock()
+        PT['read'] += t1 - t
         g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         kds.append(reg_detect(cv2, g))
         PT['orb'] += clock() - t1
@@ -158,23 +168,28 @@ def worker(args):
         anchor = ab + D.OFFS[0]
         t = clock()
         bs, _ = bfast2.blobs(bgrs[D.CZERO], cmaj)
-        t1 = clock(); PT['blobs'] += t1 - t
+        t1 = clock()
+        PT['blobs'] += t1 - t
         NC[anchor] = len(bs)
         if bs:
             Xs, pts = D.still_rows(bs, cmaj, cara)
-            t = clock(); PT['still'] += t - t1
+            t = clock()
+            PT['still'] += t - t1
             mats, how = reg.transforms(kds, fids, D.CZERO)
-            t1 = clock(); PT['register'] += t1 - t
+            t1 = clock()
+            PT['register'] += t1 - t
             HOW[anchor] = how
             if mats[D.CZERO + 1] is not None:
                 HST[anchor] = mats[D.CZERO + 1]
             tiles = D.tiles_for(bgrs, mats, fids, small)
-            t = clock(); PT['tiles'] += t - t1
+            t = clock()
+            PT['tiles'] += t - t1
             Tt = tfast.temporal_rows(tiles, pts)
-            t1 = clock(); PT['temporal'] += t1 - t
+            t1 = clock()
+            PT['temporal'] += t1 - t
             s2 = bst.predict(xgb.DMatrix(np.hstack([Xs, Tt])))
             PT['rank'] += clock() - t1
-            for j in np.argsort(-s2)[:D.KEEP]:
+            for j in np.argsort(-s2)[: D.KEEP]:
                 FI.append(anchor)
                 CX.append(float(pts[j][0]))
                 CY.append(float(pts[j][1]))
@@ -186,18 +201,32 @@ def worker(args):
             flush(FI, CX, CY, SC, NC, HOW, HST)
             FI, CX, CY, SC = [], [], [], []
             NC, HOW, HST = {}, {}, {}
-            say('  %d/%d  %.0fs  %.2f fps'
-                % (done, ahi - alo + 1, time.time() - t0,
-                   done / (time.time() - t0)))
+            say(
+                '  %d/%d  %.0fs  %.2f fps'
+                % (done, ahi - alo + 1, time.time() - t0, done / (time.time() - t0))
+            )
     cap.release()
     flush(FI, CX, CY, SC, NC, HOW, HST)
     el = time.time() - t0
-    say('worker %d done: %d anchors, %.1fs, %.2f fps, %d cached / %d batched'
-        % (wid, done, el, done / el if el else 0.0, reg.hits, reg.batched))
+    say(
+        'worker %d done: %d anchors, %.1fs, %.2f fps, %d cached / %d batched'
+        % (wid, done, el, done / el if el else 0.0, reg.hits, reg.batched)
+    )
     say('  seconds by step: ' + '  '.join('%s %.1f' % kv for kv in PT.items()))
     log.close()
-    return dict(wid=wid, tag=tag, lo=alo, hi=ahi, done=done, secs=el, parts=parts, prof=PT,
-                cached=reg.hits, batched=reg.batched, misses=reg.misses)
+    return dict(
+        wid=wid,
+        tag=tag,
+        lo=alo,
+        hi=ahi,
+        done=done,
+        secs=el,
+        parts=parts,
+        prof=PT,
+        cached=reg.hits,
+        batched=reg.batched,
+        misses=reg.misses,
+    )
 
 
 def reg_detect(cv2, g):
@@ -241,13 +270,15 @@ def load_chunk(tag, c, clo, chi):
     lo = min(r['lo'] for r in res)
     hi = max(r['hi'] for r in res)
     if (lo, hi) != (clo, chi) or not all(
-            os.path.exists(os.path.join(S2, p)) for r in res for p in r['parts']):
+        os.path.exists(os.path.join(S2, p)) for r in res for p in r['parts']
+    ):
         return None
     return res
 
 
 def merge(tag, lo, hi, res):
     import numpy as np
+
     parts = []
     for r in sorted(res, key=lambda r: (r['lo'], r['wid'])):
         parts.extend(r['parts'])
@@ -271,12 +302,20 @@ def merge(tag, lo, hi, res):
     fr = fr[o]
     assert len(np.unique(fr)) == len(fr), 'an anchor was detected twice'
     dense = os.path.join(S2, '%s.npz' % tag)
-    np.savez_compressed(dense,
-                        f=np.concatenate(F), x=np.concatenate(X),
-                        y=np.concatenate(Y), s=np.concatenate(S),
-                        frames=fr, ncand=np.concatenate(NCn)[o],
-                        how=np.concatenate(HW)[o],
-                        lo=lo, hi=hi, keep=40, stage1=10 ** 6)
+    np.savez_compressed(
+        dense,
+        f=np.concatenate(F),
+        x=np.concatenate(X),
+        y=np.concatenate(Y),
+        s=np.concatenate(S),
+        frames=fr,
+        ncand=np.concatenate(NCn)[o],
+        how=np.concatenate(HW)[o],
+        lo=lo,
+        hi=hi,
+        keep=40,
+        stage1=10**6,
+    )
 
     # pan.npz's own shape: cum[k] maps frame lo+k onto frame lo.  pan.py
     # builds it as acc = acc.dot(H) over consecutive fits and carries the
@@ -300,8 +339,7 @@ def merge(tag, lo, hi, res):
             p = np.array([960.0, 540.0, 1.0]).dot(H[:2].T)
             step[k + 1] = float(np.hypot(p[0] - 960.0, p[1] - 540.0))
         acc = acc.dot(H)
-    np.savez_compressed(os.path.join(S2, '%span.npz' % tag),
-                        cum=cum, step=step, lo=lo, hi=hi)
+    np.savez_compressed(os.path.join(S2, '%span.npz' % tag), cum=cum, step=step, lo=lo, hi=hi)
     return dense, fr, np.concatenate(NCn)[o], step, nfail
 
 
@@ -315,22 +353,24 @@ def main():
     chunks = chunk_edges(lo, hi)
     todo, res = [], []
     for clo, chi in chunks:
-        c = clo // CHUNK            # the absolute 5-minute slot: same frames, same name
+        c = clo // CHUNK  # the absolute 5-minute slot: same frames, same name
         done = load_chunk(tag, c, clo, chi)
         if done is not None:
             res.extend(done)
             continue
         m = chi - clo + 1
         edges = [clo + (m * i) // procs for i in range(procs)] + [chi + 1]
-        todo += [(i, edges[i], edges[i + 1] - 1, '%s_k%03d' % (tag, c))
-                 for i in range(procs) if edges[i + 1] > edges[i]]
-    print('DETECTOR over abs %d..%d  (%d frames, %.1f s of video)'
-          % (lo, hi, n, n / 30.0))
-    print('  %d processes x 1 thread, bfast2 blobs + rfast2/gmatch2 registrar'
-          % procs)
-    print('  %d chunks of <= %d frames, %d already done; part file every %d'
-          % (len(chunks), CHUNK, len(chunks) - len({j[3] for j in todo}),
-             FLUSH))
+        todo += [
+            (i, edges[i], edges[i + 1] - 1, '%s_k%03d' % (tag, c))
+            for i in range(procs)
+            if edges[i + 1] > edges[i]
+        ]
+    print('DETECTOR over abs %d..%d  (%d frames, %.1f s of video)' % (lo, hi, n, n / 30.0))
+    print('  %d processes x 1 thread, bfast2 blobs + rfast2/gmatch2 registrar' % procs)
+    print(
+        '  %d chunks of <= %d frames, %d already done; part file every %d'
+        % (len(chunks), CHUNK, len(chunks) - len({j[3] for j in todo}), FLUSH)
+    )
     sys.stdout.flush()
 
     # One pool for every chunk; a chunk's manifest is written the moment its
@@ -346,6 +386,7 @@ def main():
     if todo:
         if SHARED:
             import mshare
+
             server, req, init = mshare.start(procs)
             pool_args = dict(initializer=mshare.init_worker, initargs=init)
         else:
@@ -355,15 +396,21 @@ def main():
                 ct = r['tag']
                 got_c[ct].append(r)
                 left[ct] -= 1
-                print('  %s worker %2d  %d anchors  %6.1fs  %5.2f fps'
-                      % (ct, r['wid'], r['done'], r['secs'],
-                         r['done'] / r['secs'] if r['secs'] else 0.0),
-                      flush=True)
+                print(
+                    '  %s worker %2d  %d anchors  %6.1fs  %5.2f fps'
+                    % (
+                        ct,
+                        r['wid'],
+                        r['done'],
+                        r['secs'],
+                        r['done'] / r['secs'] if r['secs'] else 0.0,
+                    ),
+                    flush=True,
+                )
                 if not left[ct]:
                     save_chunk(ct, got_c[ct])
                     res.extend(got_c[ct])
-                    print('  chunk %s done  [%.0f s]' % (ct, time.time() - t0),
-                          flush=True)
+                    print('  chunk %s done  [%.0f s]' % (ct, time.time() - t0), flush=True)
         if SHARED:
             mshare.stop(server, req)
     wall = max(time.time() - t0, 1e-9)
@@ -375,12 +422,13 @@ def main():
     print()
     print('WALL CLOCK  %.1f s  (%.2f min) for %d frames' % (wall, wall / 60.0, got))
     print('  %.2f frames/s   %.1f ms/frame' % (got / wall, 1000.0 * wall / got))
-    print('  the video itself is %.1f s long, so this ran at %.2fx real time'
-          % (n / 30.0, (n / 30.0) / wall))
+    print(
+        '  the video itself is %.1f s long, so this ran at %.2fx real time'
+        % (n / 30.0, (n / 30.0) / wall)
+    )
     print()
     print('DETECTED  %d of %d anchors' % (len(fr), n))
-    print('  candidates/frame  mean %.0f  min %d  max %d'
-          % (nc.mean(), nc.min(), nc.max()))
+    print('  candidates/frame  mean %.0f  min %d  max %d' % (nc.mean(), nc.min(), nc.max()))
     print('  frames with no candidate at all  %d' % int((nc == 0).sum()))
     prof = {}
     for r in res:
@@ -388,19 +436,32 @@ def main():
             prof[k] = prof.get(k, 0.0) + v
     if prof and got:
         print('WORKER TIME by step, ms per anchor (one process):')
-        print('  ' + '  '.join('%s %.0f' % (k, 1000.0 * v / got) for k, v in prof.items())
-              + '  | total %.0f' % (1000.0 * sum(prof.values()) / got))
+        print(
+            '  '
+            + '  '.join('%s %.0f' % (k, 1000.0 * v / got) for k, v in prof.items())
+            + '  | total %.0f' % (1000.0 * sum(prof.values()) / got)
+        )
     s = step[np.isfinite(step)]
     print('CAMERA between consecutive frames, source px at the centre')
-    print('  median %.1f  p90 %.1f  p99 %.1f  max %.1f   (%d steps not fit)'
-          % (np.median(s), np.percentile(s, 90), np.percentile(s, 99),
-             s.max(), nfail))
-    io.open(os.path.join(S2, '%s_timing.json' % tag), 'w',
-            encoding='utf-8').write(json.dumps(dict(
-                lo=lo, hi=hi, frames=n, detected=int(len(fr)), procs=procs,
-                wall_s=wall, fps=got / wall, realtime=(n / 30.0) / wall,
-                workers=[{k: v for k, v in r.items() if k != 'parts'}
-                         for r in res])))
+    print(
+        '  median %.1f  p90 %.1f  p99 %.1f  max %.1f   (%d steps not fit)'
+        % (np.median(s), np.percentile(s, 90), np.percentile(s, 99), s.max(), nfail)
+    )
+    io.open(os.path.join(S2, '%s_timing.json' % tag), 'w', encoding='utf-8').write(
+        json.dumps(
+            dict(
+                lo=lo,
+                hi=hi,
+                frames=n,
+                detected=int(len(fr)),
+                procs=procs,
+                wall_s=wall,
+                fps=got / wall,
+                realtime=(n / 30.0) / wall,
+                workers=[{k: v for k, v in r.items() if k != 'parts'} for r in res],
+            )
+        )
+    )
     print('saved %s, %span.npz, %s_timing.json' % (dense, tag, tag))
 
 

@@ -68,6 +68,7 @@ row landing within GATE_EPS of the threshold is recomputed by the original
 scalar path and decided on that.  It costs nothing because ~0 rows qualify,
 and it turns a proof into a guarantee.
 """
+
 import math
 import time
 
@@ -75,12 +76,12 @@ import cv2
 import numpy as np
 
 import feat4 as F
-from bfast import tophat_batch, box_mean          # unchanged, already exact
+from bfast import tophat_batch, box_mean  # unchanged, already exact
 
-BUCKETS = (14, 20, 28, 44, 68)   # padded sizes for the component gather
-LAPMIN = 3                       # batch a lap group only if it has this many
-GATE_EPS = 1e-3                  # recheck rows this close to F.CON by hand
-EXACT_STD = False                # True = per-candidate v_std, bit for bit
+BUCKETS = (14, 20, 28, 44, 68)  # padded sizes for the component gather
+LAPMIN = 3  # batch a lap group only if it has this many
+GATE_EPS = 1e-3  # recheck rows this close to F.CON by hand
+EXACT_STD = False  # True = per-candidate v_std, bit for bit
 
 # Set to a dict to accumulate per-phase seconds in place.  The timing is
 # eight perf_counter pairs per FRAME, not per candidate, so unlike bprof3 it
@@ -105,11 +106,11 @@ def _lap_batch(grey32, y0, x0, bh, bw):
     numpy would walk on one box alone.
     """
     n = len(y0)
-    g = grey32[(y0[:, None] + np.arange(bh))[:, :, None],
-               (x0[:, None] + np.arange(bw))[:, None, :]]
+    g = grey32[(y0[:, None] + np.arange(bh))[:, :, None], (x0[:, None] + np.arange(bw))[:, None, :]]
     p = np.pad(g, ((0, 0), (1, 1), (1, 1)), mode='reflect')
-    lp = (p[:, :-2, 1:-1] + p[:, 2:, 1:-1] + p[:, 1:-1, :-2] + p[:, 1:-1, 2:]
-          - 4.0 * p[:, 1:-1, 1:-1])
+    lp = (
+        p[:, :-2, 1:-1] + p[:, 2:, 1:-1] + p[:, 1:-1, :-2] + p[:, 1:-1, 2:] - 4.0 * p[:, 1:-1, 1:-1]
+    )
     return lp.reshape(n, -1).var(axis=1)
 
 
@@ -126,8 +127,7 @@ def _reduce(M, R, V, S, Hh, G):
     cr1 = np.maximum(cr, 1)
 
     vm = np.where(M, V, 0)
-    v_in = vm.sum(axis=ax, dtype=np.int64).astype(np.float32) \
-        / cm1.astype(np.float32)
+    v_in = vm.sum(axis=ax, dtype=np.int64).astype(np.float32) / cm1.astype(np.float32)
     v_max = vm.max(axis=ax).astype(np.float64)
     s_in = np.where(M, S, 0).sum(axis=ax, dtype=np.int64) / cm1
     h_in = np.where(M, Hh, 0).sum(axis=ax, dtype=np.int64) / cm1
@@ -135,31 +135,28 @@ def _reduce(M, R, V, S, Hh, G):
     if EXACT_STD:
         v_std = None
     else:
-        d = np.where(M, V.astype(np.float32) - v_in[:, None, None],
-                     np.float32(0.0))
-        v_std = np.sqrt((d * d).sum(axis=ax, dtype=np.float32)
-                        / cm1.astype(np.float32))
+        d = np.where(M, V.astype(np.float32) - v_in[:, None, None], np.float32(0.0))
+        v_std = np.sqrt((d * d).sum(axis=ax, dtype=np.float32) / cm1.astype(np.float32))
 
     rv = np.where(R, V, 0)
-    v_ring = rv.sum(axis=ax, dtype=np.int64).astype(np.float32) \
-        / cr1.astype(np.float32)
+    v_ring = rv.sum(axis=ax, dtype=np.int64).astype(np.float32) / cr1.astype(np.float32)
     v_ring_max = rv.max(axis=ax).astype(np.float64)
     g_ring = np.where(R, G, False).sum(axis=ax, dtype=np.int64) / cr1
     s_ring = np.where(R, S, 0).sum(axis=ax, dtype=np.int64) / cr1
 
     # The original's empty-ring branch, applied down the stack.
-    e = (cr == 0)
+    e = cr == 0
     if e.any():
         v_ring = np.where(e, v_in, v_ring)
         v_ring_max = np.where(e, v_in.astype(np.float64), v_ring_max)
         g_ring = np.where(e, 0.0, g_ring)
         s_ring = np.where(e, 0.0, s_ring)
-    return (v_in, v_max, v_std, s_in, h_in,
-            v_ring, v_ring_max, g_ring, s_ring)
+    return (v_in, v_max, v_std, s_in, h_in, v_ring, v_ring_max, g_ring, s_ring)
 
 
 def blobs(img, cmaj=None):
     """feat4.blobs, same candidates in the same order, pass 2 batched too."""
+
     def tick(t0, name):
         if PROF is None:
             return 0.0
@@ -172,11 +169,11 @@ def blobs(img, cmaj=None):
     h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
     white = ((v > 150) & (s < F.SAT)).astype(np.uint8) * 255
     white = cv2.morphologyEx(white, cv2.MORPH_OPEN, F.K2)
-    grass = ((h > 30) & (h < 95) & (s > 60))
+    grass = (h > 30) & (h < 95) & (s > 60)
     n, lab, st, cent = cv2.connectedComponentsWithStats(white, 8)
     H, W = v.shape
     grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    wf = (lab > 0)
+    wf = lab > 0
     _t = tick(_t, 'front')
 
     resp = None
@@ -200,8 +197,7 @@ def blobs(img, cmaj=None):
         if mn >= F.MINOR and mj <= F.MAJOR and area >= F.FILL * w * hh:
             y0, y1 = max(0, y - F.PAD), min(H, y + hh + F.PAD)
             x0, x1 = max(0, x - F.PAD), min(W, x + w + F.PAD)
-            jobs.append((y0, y1, x0, x1, cent[i][0], cent[i][1],
-                         mn, mj, area, w, hh, 0.0))
+            jobs.append((y0, y1, x0, x1, cent[i][0], cent[i][1], mn, mj, area, w, hh, 0.0))
             gate.append(True)
             ident.append(i)
         if cmaj is None:
@@ -209,11 +205,11 @@ def blobs(img, cmaj=None):
         e_maj = max(1.0, cmaj[0] * cent[i][1] + cmaj[1])
         if mj <= F.OVER * e_maj:
             continue
-        pk = ispeak[y:y + hh, x:x + w] & (lab[y:y + hh, x:x + w] == i)
+        pk = ispeak[y : y + hh, x : x + w] & (lab[y : y + hh, x : x + w] == i)
         py, px = np.where(pk)
         if not len(px):
             continue
-        order = np.argsort(-resp[py + y, px + x])[:F.PERCOMP]
+        order = np.argsort(-resp[py + y, px + x])[: F.PERCOMP]
         for j in order:
             cx, cy = int(px[j]) + x, int(py[j]) + y
             wy0, wy1 = max(0, cy - F.WIN), min(H, cy + F.WIN + 1)
@@ -221,12 +217,13 @@ def blobs(img, cmaj=None):
             win = resp[wy0:wy1, wx0:wx1]
             bw = (win >= 0.5 * float(resp[cy, cx])).astype(np.uint8)
             n2, l2 = cv2.connectedComponents(bw, 8)
-            m = (l2 == l2[cy - wy0, cx - wx0])
+            m = l2 == l2[cy - wy0, cx - wx0]
             ys2, xs2 = np.where(m)
             sw = int(xs2.max() - xs2.min()) + 1
             sh = int(ys2.max() - ys2.min()) + 1
-            jobs.append((wy0, wy1, wx0, wx1, cx, cy,
-                         min(sw, sh), max(sw, sh), int(m.sum()), sw, sh, 1.0))
+            jobs.append(
+                (wy0, wy1, wx0, wx1, cx, cy, min(sw, sh), max(sw, sh), int(m.sum()), sw, sh, 1.0)
+            )
             gate.append(False)
             ident.append(m)
 
@@ -247,8 +244,7 @@ def blobs(img, cmaj=None):
     isplit = np.array([j[11] == 1.0 for j in jobs], bool)
 
     # --- the stages bfast already batched, unchanged ----------------------
-    em = np.maximum(1.0, cmaj[0] * cys + cmaj[1]) if cmaj is not None \
-        else np.ones(nc)
+    em = np.maximum(1.0, cmaj[0] * cys + cmaj[1]) if cmaj is not None else np.ones(nc)
     TH = tophat_batch(resp, cxs, cys, em)
     integ = cv2.integral(wf.view(np.uint8))
     boxarea = ((y1 - y0) * (x1 - x0)).astype(np.float64)
@@ -271,8 +267,7 @@ def blobs(img, cmaj=None):
     SRING = np.zeros(nc, np.float64)
 
     def store(g, r):
-        for arr, val in zip((VIN, VMAX, VSTD, SIN, HIN,
-                             VRING, VRMAX, GRING, SRING), r):
+        for arr, val in zip((VIN, VMAX, VSTD, SIN, HIN, VRING, VRMAX, GRING, SRING), r):
             if val is not None:
                 arr[g] = val
 
@@ -284,14 +279,17 @@ def blobs(img, cmaj=None):
             g = comp[np.array([_bucket(int(t)) == B for t in need])]
             d = np.arange(B)
             yr, xr = y0[g][:, None] + d, x0[g][:, None] + d
-            ok = (yr < y1[g][:, None])[:, :, None] \
-                & (xr < x1[g][:, None])[:, None, :]
+            ok = (yr < y1[g][:, None])[:, :, None] & (xr < x1[g][:, None])[:, None, :]
             yy = np.minimum(yr, H - 1)[:, :, None]
             xx = np.minimum(xr, W - 1)[:, None, :]
             L = lab[yy, xx]
             ids = np.array([ident[k] for k in g], np.int64)[:, None, None]
-            store(g, _reduce((L == ids) & ok, (L == 0) & ok,
-                             v[yy, xx], s[yy, xx], h[yy, xx], grass[yy, xx]))
+            store(
+                g,
+                _reduce(
+                    (L == ids) & ok, (L == 0) & ok, v[yy, xx], s[yy, xx], h[yy, xx], grass[yy, xx]
+                ),
+            )
 
     spl = idx[isplit]
     if len(spl):
@@ -303,16 +301,14 @@ def blobs(img, cmaj=None):
             M = np.stack([ident[k] for k in g])
             yy = (y0[g][:, None] + np.arange(gh))[:, :, None]
             xx = (x0[g][:, None] + np.arange(gw))[:, None, :]
-            store(g, _reduce(M, ~M, v[yy, xx], s[yy, xx],
-                             h[yy, xx], grass[yy, xx]))
+            store(g, _reduce(M, ~M, v[yy, xx], s[yy, xx], h[yy, xx], grass[yy, xx]))
 
     _t = tick(_t, 'groups')
     if EXACT_STD:
         vf = v.astype(np.float32)
         for k in range(nc):
-            m = (lab[y0[k]:y1[k], x0[k]:x1[k]] == ident[k]) \
-                if not isplit[k] else ident[k]
-            VSTD[k] = float(vf[y0[k]:y1[k], x0[k]:x1[k]][m].std())
+            m = (lab[y0[k] : y1[k], x0[k] : x1[k]] == ident[k]) if not isplit[k] else ident[k]
+            VSTD[k] = float(vf[y0[k] : y1[k], x0[k] : x1[k]][m].std())
 
     # --- pass 2b: lap, grouped by exact box shape -------------------------
     grey32 = grey.astype(np.float32)
@@ -323,8 +319,7 @@ def blobs(img, cmaj=None):
     for (gh, gw), ks in shapes.items():
         if len(ks) < LAPMIN:
             for k in ks:
-                LAP[k] = float(cv2.Laplacian(
-                    grey[y0[k]:y1[k], x0[k]:x1[k]], cv2.CV_32F).var())
+                LAP[k] = float(cv2.Laplacian(grey[y0[k] : y1[k], x0[k] : x1[k]], cv2.CV_32F).var())
             continue
         g = np.array(ks)
         LAP[g] = _lap_batch(grey32, y0[g], x0[g], gh, gw)
@@ -339,8 +334,8 @@ def blobs(img, cmaj=None):
     if len(near):
         vf = v.astype(np.float32)
         for k in near:
-            sub = lab[y0[k]:y1[k], x0[k]:x1[k]]
-            vv = vf[y0[k]:y1[k], x0[k]:x1[k]]
+            sub = lab[y0[k] : y1[k], x0[k] : x1[k]]
+            vv = vf[y0[k] : y1[k], x0[k] : x1[k]]
             m, ring = (sub == ident[k]), ~(sub > 0)
             VIN[k] = float(vv[m].mean())
             VRING[k] = float(vv[ring].mean()) if ring.any() else VIN[k]
@@ -356,18 +351,34 @@ def blobs(img, cmaj=None):
         c = v_in - v_ring
         if gate[k] and c < F.CON:
             continue
-        out.append(dict(
-            th=th_list[k], cx=float(cxs[k]), cy=float(cys[k]),
-            minor=mn, major=mj, area=int(area),
-            fill=area / float(max(1, w * hh)),
-            elong=mj / float(max(1, mn)),
-            circ=area / (math.pi * (mj / 2.0) ** 2),
-            extent=area / float(max(1, w * hh)),
-            v_in=v_in, v_max=float(VMAX[k]), v_std=float(VSTD[k]),
-            v_ring=v_ring, v_ring_max=float(VRMAX[k]), con=c,
-            rel_con=c / max(1.0, v_ring),
-            s_in=float(SIN[k]), s_ring=float(SRING[k]), h_in=float(HIN[k]),
-            grass_ring=float(GRING[k]), other_ring=oth[k], white_far=wfar[k],
-            lap=float(LAP[k]), split=split))
+        out.append(
+            dict(
+                th=th_list[k],
+                cx=float(cxs[k]),
+                cy=float(cys[k]),
+                minor=mn,
+                major=mj,
+                area=int(area),
+                fill=area / float(max(1, w * hh)),
+                elong=mj / float(max(1, mn)),
+                circ=area / (math.pi * (mj / 2.0) ** 2),
+                extent=area / float(max(1, w * hh)),
+                v_in=v_in,
+                v_max=float(VMAX[k]),
+                v_std=float(VSTD[k]),
+                v_ring=v_ring,
+                v_ring_max=float(VRMAX[k]),
+                con=c,
+                rel_con=c / max(1.0, v_ring),
+                s_in=float(SIN[k]),
+                s_ring=float(SRING[k]),
+                h_in=float(HIN[k]),
+                grass_ring=float(GRING[k]),
+                other_ring=oth[k],
+                white_far=wfar[k],
+                lap=float(LAP[k]),
+                split=split,
+            )
+        )
     _t = tick(_t, 'dicts')
     return out, grey

@@ -14,6 +14,7 @@ plane (extended beyond the reference frame's edges).
 
     python vmap.py        -> vmap.npz (abs, H, ok), vmap_edges.npz, vmap.log
 """
+
 import collections
 import os
 import time
@@ -25,8 +26,8 @@ from scipy.sparse import lil_matrix
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MIN_INL = 40
-NPTS = 25            # point pairs per edge in the solve
-REF_ABS = 40050      # a wide midfield view
+NPTS = 25  # point pairs per edge in the solve
+REF_ABS = 40050  # a wide midfield view
 
 
 def load():
@@ -35,8 +36,7 @@ def load():
     K = []
     for i, ab in enumerate(z['abs']):
         a, b = off[i], off[i + 1]
-        K.append(dict(abs=int(ab), xy=z['xy'][a:b],
-                      d=z['desc'][a:b].astype(np.float32)))
+        K.append(dict(abs=int(ab), xy=z['xy'][a:b], d=z['desc'][a:b].astype(np.float32)))
     return K
 
 
@@ -47,8 +47,7 @@ def match(A, B):
     """Homography B-pixels -> A-pixels, and the inlier pairs (pa, pb)."""
     if len(A['d']) < 20 or len(B['d']) < 20:
         return None
-    ms = [m for m, n in FLANN.knnMatch(B['d'], A['d'], k=2)
-          if m.distance < 0.75 * n.distance]
+    ms = [m for m, n in FLANN.knnMatch(B['d'], A['d'], k=2) if m.distance < 0.75 * n.distance]
     if len(ms) < MIN_INL:
         return None
     pb = B['xy'][[m.queryIdx for m in ms]]
@@ -70,9 +69,8 @@ def main():
     K = load()
     N = len(K)
     ref = int(np.argmin([abs(k['abs'] - REF_ABS) for k in K]))
-    print('%d keyframes, reference %d (abs %d)' % (N, ref, K[ref]['abs']),
-          flush=True)
-    edges = {}                       # (i, j) i<j -> (H j->i, pi, pj)
+    print('%d keyframes, reference %d (abs %d)' % (N, ref, K[ref]['abs']), flush=True)
+    edges = {}  # (i, j) i<j -> (H j->i, pi, pj)
 
     def add(i, j):
         if (i, j) in edges:
@@ -86,14 +84,13 @@ def main():
     for i in range(N):
         for j in range(i + 1, min(N, i + 4)):
             add(i, j)
-    print('temporal edges %d  (%.0f s)' % (len(edges), time.time() - t0),
-          flush=True)
+    print('temporal edges %d  (%.0f s)' % (len(edges), time.time() - t0), flush=True)
 
     def tree():
         adj = collections.defaultdict(list)
         for (i, j), (H, _, _) in edges.items():
-            adj[i].append((j, H))                  # j -> i
-            adj[j].append((i, np.linalg.inv(H)))   # i -> j
+            adj[i].append((j, H))  # j -> i
+            adj[j].append((i, np.linalg.inv(H)))  # i -> j
         Hs = {ref: np.eye(3)}
         q = collections.deque([ref])
         while q:
@@ -115,14 +112,13 @@ def main():
         if not miss:
             break
         conn = np.array(sorted(Hs))
-        for k in miss[::max(1, len(miss) // 60)]:
+        for k in miss[:: max(1, len(miss) // 60)]:
             for c in rng.choice(conn, min(40, len(conn)), replace=False):
                 i, j = min(k, c), max(k, c)
                 if add(i, j):
                     break
         Hs = tree()
-        print('link round %d: connected %d / %d' % (rnd, len(Hs), N),
-              flush=True)
+        print('link round %d: connected %d / %d' % (rnd, len(Hs), N), flush=True)
 
     # 3. loop edges by footprint overlap in the map
     corners = np.float32([[200, 400], [1720, 400], [1720, 1000], [200, 1000]])
@@ -132,15 +128,17 @@ def main():
     nloop = 0
     for a, k in enumerate(ks):
         d = np.hypot(*(C - C[a]).T)
-        cand = [ks[b] for b in np.argsort(d)[1:12]
-                if abs(ks[b] - k) > 3 and d[b] < 400]
+        cand = [ks[b] for b in np.argsort(d)[1:12] if abs(ks[b] - k) > 3 and d[b] < 400]
         for c in cand[:5]:
             i, j = min(k, c), max(k, c)
             if (i, j) not in edges and add(i, j):
                 nloop += 1
     Hs = tree()
-    print('loop edges %d, total edges %d, connected %d  (%.0f s)' % (
-        nloop, len(edges), len(Hs), time.time() - t0), flush=True)
+    print(
+        'loop edges %d, total edges %d, connected %d  (%.0f s)'
+        % (nloop, len(edges), len(Hs), time.time() - t0),
+        flush=True,
+    )
 
     # 4. global solve
     idx = {k: n for n, k in enumerate(k for k in sorted(Hs) if k != ref)}
@@ -148,11 +146,10 @@ def main():
     def getH(x, k):
         if k == ref:
             return np.eye(3)
-        v = x[8 * idx[k]:8 * idx[k] + 8]
+        v = x[8 * idx[k] : 8 * idx[k] + 8]
         return np.append(v, 1.0).reshape(3, 3)
 
-    x0 = np.concatenate([(Hs[k] / Hs[k][2, 2]).ravel()[:8]
-                         for k in sorted(idx, key=idx.get)])
+    x0 = np.concatenate([(Hs[k] / Hs[k][2, 2]).ravel()[:8] for k in sorted(idx, key=idx.get)])
     obs = []
     for (i, j), (H, pi, pj) in edges.items():
         if i not in Hs or j not in Hs:
@@ -174,28 +171,38 @@ def main():
     for i, j, pi, pj in obs:
         for k in (i, j):
             if k != ref:
-                S[row:row + 2 * len(pi), 8 * idx[k]:8 * idx[k] + 8] = 1
+                S[row : row + 2 * len(pi), 8 * idx[k] : 8 * idx[k] + 8] = 1
         row += 2 * len(pi)
     r0 = resid(x0)
-    sol = least_squares(resid, x0, jac_sparsity=S, loss='huber', f_scale=3.0,
-                        x_scale='jac', max_nfev=60, verbose=0)
+    sol = least_squares(
+        resid, x0, jac_sparsity=S, loss='huber', f_scale=3.0, x_scale='jac', max_nfev=60, verbose=0
+    )
     r1 = sol.fun
     e0 = np.hypot(r0[0::2], r0[1::2])
     e1 = np.hypot(r1[0::2], r1[1::2])
-    print('solve: point error px  median %.2f -> %.2f   p95 %.1f -> %.1f  '
-          '(%.0f s)' % (np.median(e0), np.median(e1), np.percentile(e0, 95),
-                        np.percentile(e1, 95), time.time() - t0), flush=True)
+    print(
+        'solve: point error px  median %.2f -> %.2f   p95 %.1f -> %.1f  '
+        '(%.0f s)'
+        % (
+            np.median(e0),
+            np.median(e1),
+            np.percentile(e0, 95),
+            np.percentile(e1, 95),
+            time.time() - t0,
+        ),
+        flush=True,
+    )
 
     H = np.zeros((N, 3, 3))
     ok = np.zeros(N, bool)
     for k in Hs:
         H[k] = getH(sol.x, k)
         ok[k] = True
-    np.savez(os.path.join(HERE, 'vmap.npz'), abs=[k['abs'] for k in K], H=H,
-             ok=ok, ref=ref)
+    np.savez(os.path.join(HERE, 'vmap.npz'), abs=[k['abs'] for k in K], H=H, ok=ok, ref=ref)
     E = list(edges)
-    np.savez(os.path.join(HERE, 'vmap_edges.npz'), e=np.array(E),
-             ninl=[len(edges[e][1]) for e in E])
+    np.savez(
+        os.path.join(HERE, 'vmap_edges.npz'), e=np.array(E), ninl=[len(edges[e][1]) for e in E]
+    )
     print('saved vmap.npz  %d / %d keyframes placed' % (ok.sum(), N))
 
 

@@ -21,7 +21,12 @@ from cv.ball import build_trajectory, candidates_from_detections
 from cv.detector import PersonBallDetector
 from cv.possession import build_states, summarise
 from cv.teams import (
-    TEAM_A, TEAM_B, UNKNOWN, assign_teams, separation, shirt_colour,
+    TEAM_A,
+    TEAM_B,
+    UNKNOWN,
+    assign_teams,
+    separation,
+    shirt_colour,
 )
 
 # Kits this close in Lab are hard to tell apart, and every team number derived
@@ -44,14 +49,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--start', type=float, default=30.0)
     parser.add_argument('--end', type=float, default=90.0)
     parser.add_argument('--conf', type=float, default=0.25)
-    parser.add_argument('--ball-conf', type=float, default=0.08,
-                        help='the ball needs a far lower threshold than players')
+    parser.add_argument(
+        '--ball-conf',
+        type=float,
+        default=0.08,
+        help='the ball needs a far lower threshold than players',
+    )
     parser.add_argument('--imgsz', type=int, default=1280)
     parser.add_argument('--device', default=0)
     parser.add_argument('--name-a', default='Team A')
     parser.add_argument('--name-b', default='Team B')
-    parser.add_argument('--save-frames', action='store_true',
-                        help='write annotated frames for eyeballing the team split')
+    parser.add_argument(
+        '--save-frames',
+        action='store_true',
+        help='write annotated frames for eyeballing the team split',
+    )
     return parser
 
 
@@ -68,9 +80,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # One detector pass at the ball's lower threshold; players are filtered back
     # up afterwards. Running the model twice would double the cost for nothing.
-    detector = PersonBallDetector(
-        conf=args.ball_conf, imgsz=args.imgsz, device=args.device
-    )
+    detector = PersonBallDetector(conf=args.ball_conf, imgsz=args.imgsz, device=args.device)
 
     cap = cv2.VideoCapture(str(args.video))
     if not cap.isOpened():
@@ -99,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
     detections_by_frame: dict[int, list] = {}
     timestamps: dict[int, float] = {}
     for i in range(0, len(frames), 16):
-        batch = frames[i:i + 16]
+        batch = frames[i : i + 16]
         for k, dets in enumerate(detector.detect_batch(batch)):
             idx = i + k
             detections_by_frame[idx] = dets
@@ -122,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
         people = [d for d in dets if d.label == 'person' and d.confidence >= args.conf]
         boxes = []
         for n, det in enumerate(people):
-            pseudo_id = idx * 100 + n          # unique within the frame
+            pseudo_id = idx * 100 + n  # unique within the frame
             boxes.append((pseudo_id, det.xyxy))
             colour = shirt_colour(frames[idx], det.xyxy)
             if colour is not None:
@@ -146,13 +156,17 @@ def main(argv: list[str] | None = None) -> int:
         print('\nkit colours (BGR)')
         print(f'  {args.name_a:<12} {lab_to_bgr(assignment.centres[TEAM_A])}')
         print(f'  {args.name_b:<12} {lab_to_bgr(assignment.centres[TEAM_B])}')
-    print(f'  separation   {gap:.0f}'
-          + ('  <- too close to trust' if gap < WEAK_SEPARATION else ''))
+    print(
+        f'  separation   {gap:.0f}' + ('  <- too close to trust' if gap < WEAK_SEPARATION else '')
+    )
 
     # ---- possession ----
     states = build_states(
-        sorted(detections_by_frame), ball_by_frame, boxes_by_frame,
-        assignment.team_of, timestamps,
+        sorted(detections_by_frame),
+        ball_by_frame,
+        boxes_by_frame,
+        assignment.team_of,
+        timestamps,
     )
     summary = summarise(states)
 
@@ -165,17 +179,20 @@ def main(argv: list[str] | None = None) -> int:
     clear_share = clear / len(states) if states else 0.0
 
     heights = [
-        h for h in (
-            np.median([float(b[3]) - float(b[1]) for _, b in boxes])
-            if boxes else 0
+        h
+        for h in (
+            np.median([float(b[3]) - float(b[1]) for _, b in boxes]) if boxes else 0
             for boxes in boxes_by_frame.values()
-        ) if h > 0
+        )
+        if h > 0
     ]
     typical_height = float(np.median(heights)) if heights else 0.0
 
     print(f'\nball tracked     {trajectory.coverage(len(frames)):.0%} of frames')
-    print(f'player size      {typical_height:.0f}px tall (possession radius '
-          f'{typical_height * 1.6:.0f}px)')
+    print(
+        f'player size      {typical_height:.0f}px tall (possession radius '
+        f'{typical_height * 1.6:.0f}px)'
+    )
     print(f'clear holder     {clear_share:.0%} of frames')
     print(f'possession       {summary.summary_line(args.name_a, args.name_b)}')
     print(f'\n{len(frames) / elapsed:.1f} frames/sec ({elapsed:.0f}s)')
@@ -204,7 +221,9 @@ def main(argv: list[str] | None = None) -> int:
         out_dir = Path('scratch_frames') / f'{args.video.stem}_possession'
         out_dir.mkdir(parents=True, exist_ok=True)
         colours = {
-            TEAM_A: (60, 220, 255), TEAM_B: (255, 140, 60), UNKNOWN: (150, 150, 150),
+            TEAM_A: (60, 220, 255),
+            TEAM_B: (255, 140, 60),
+            UNKNOWN: (150, 150, 150),
         }
 
         for idx in list(sorted(boxes_by_frame))[::60]:

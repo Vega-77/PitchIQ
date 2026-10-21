@@ -15,6 +15,7 @@ this pass's to under 1 px (99.9%) and move one ball pick of 1801 by 3 px.
 Long windows run in drun's 5-minute chunks: each writes tagppl_k<chunk>.npz as
 it finishes, a rerun skips those, and the last step joins them.
 """
+
 import os
 import sys
 import time
@@ -27,9 +28,9 @@ REPO = os.path.dirname(os.path.dirname(S2))
 sys.path.insert(0, REPO)
 sys.path.insert(0, S2)
 
-import feat4                                   # noqa: E402  (VIDEO path)
-from drun import chunk_edges                   # noqa: E402
-from cv.detector import PersonBallDetector     # noqa: E402
+import feat4  # noqa: E402  (VIDEO path)
+from drun import chunk_edges  # noqa: E402
+from cv.detector import PersonBallDetector  # noqa: E402
 
 IMGSZ = 1280
 CONF = 0.25
@@ -48,9 +49,16 @@ def from_dets(tag, lo, hi):
         if fr.min() > lo or fr.max() < hi or int(d['lo']) > lo or int(d['lo']) + int(d['n']) <= hi:
             return False
         m = (d['conf'] >= CONF) & (fr >= lo) & (fr <= hi)
-        np.savez_compressed(os.path.join(S2, '%sppl.npz' % tag), f=fr[m].astype(np.int32),
-                            box=d['box'][m].astype(np.float32), conf=d['conf'][m].astype(np.float32),
-                            lo=lo, hi=hi, imgsz=IMGSZ, minconf=CONF)
+        np.savez_compressed(
+            os.path.join(S2, '%sppl.npz' % tag),
+            f=fr[m].astype(np.int32),
+            box=d['box'][m].astype(np.float32),
+            conf=d['conf'][m].astype(np.float32),
+            lo=lo,
+            hi=hi,
+            imgsz=IMGSZ,
+            minconf=CONF,
+        )
     print('%s  people from %s' % (tag, os.path.basename(p)), flush=True)
     return True
 
@@ -69,20 +77,29 @@ def run(det, tag):
             run_chunk(det, clo, chi, name)
     F, B, C = [], [], []
     for name in names:
-        with np.load(name) as p:       # closed, so Windows lets the part go below
+        with np.load(name) as p:  # closed, so Windows lets the part go below
             F.append(p['f'])
             B.append(p['box'])
             C.append(p['conf'])
     F, B, C = np.concatenate(F), np.concatenate(B).reshape(-1, 4), np.concatenate(C)
-    np.savez_compressed(os.path.join(S2, '%sppl.npz' % tag),
-                        f=F, box=B, conf=C, lo=lo, hi=hi,
-                        imgsz=IMGSZ, minconf=CONF)
+    np.savez_compressed(
+        os.path.join(S2, '%sppl.npz' % tag),
+        f=F,
+        box=B,
+        conf=C,
+        lo=lo,
+        hi=hi,
+        imgsz=IMGSZ,
+        minconf=CONF,
+    )
     for name in names:
         os.remove(name)
     el = time.time() - t0
     n = hi - lo + 1
-    print('%s  %d frames  %.1f s  %.1f fps  %.1f people/frame'
-          % (tag, n, el, n / el, len(F) / n), flush=True)
+    print(
+        '%s  %d frames  %.1f s  %.1f fps  %.1f people/frame' % (tag, n, el, n / el, len(F) / n),
+        flush=True,
+    )
 
 
 def run_chunk(det, lo, hi, name):
@@ -114,9 +131,12 @@ def run_chunk(det, lo, hi, name):
     if imgs:
         go()
     cap.release()
-    np.savez_compressed(name + '.part.npz', f=np.array(F, np.int32),
-                        box=np.array(B, np.float32).reshape(-1, 4),
-                        conf=np.array(C, np.float32))
+    np.savez_compressed(
+        name + '.part.npz',
+        f=np.array(F, np.int32),
+        box=np.array(B, np.float32).reshape(-1, 4),
+        conf=np.array(C, np.float32),
+    )
     os.replace(name + '.part.npz', name)
     print('  frames %d..%d done' % (lo, hi), flush=True)
 

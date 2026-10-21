@@ -115,9 +115,9 @@ class FrameRecord:
     loop); this is the same lesson applied to the output instead of the input.
     """
 
-    frame_index: int                 # absolute frame number in the source video
+    frame_index: int  # absolute frame number in the source video
     timestamp_s: float
-    players: np.ndarray              # (N, 6): track_id, x1, y1, x2, y2, conf
+    players: np.ndarray  # (N, 6): track_id, x1, y1, x2, y2, conf
     ball_xy: tuple[float, float] | None = None
     ball_observed: bool = False
     ball_confidence: float = 0.0
@@ -128,10 +128,15 @@ class FrameRecord:
     def boxes(self) -> list[tuple[int, tuple[float, float, float, float]]]:
         """[(track_id, xyxy)] — the shape possession.frame_holder already takes."""
         return [
-            (int(row[COL_TRACK_ID]), (
-                float(row[COL_X1]), float(row[COL_Y1]),
-                float(row[COL_X2]), float(row[COL_Y2]),
-            ))
+            (
+                int(row[COL_TRACK_ID]),
+                (
+                    float(row[COL_X1]),
+                    float(row[COL_Y1]),
+                    float(row[COL_X2]),
+                    float(row[COL_Y2]),
+                ),
+            )
             for row in self.players
         ]
 
@@ -140,8 +145,10 @@ class FrameRecord:
             PlayerBox(
                 track_id=int(row[COL_TRACK_ID]),
                 xyxy=(
-                    float(row[COL_X1]), float(row[COL_Y1]),
-                    float(row[COL_X2]), float(row[COL_Y2]),
+                    float(row[COL_X1]),
+                    float(row[COL_Y1]),
+                    float(row[COL_X2]),
+                    float(row[COL_Y2]),
                 ),
                 confidence=float(row[COL_CONF]),
             )
@@ -255,8 +262,7 @@ def build_tracker(tracker: str = 'botsort.yaml', device: str | int | None = None
     cfg.device = device
     if cfg.tracker_type not in TRACKER_MAP:
         raise ValueError(
-            f'unsupported tracker {cfg.tracker_type!r}; '
-            f'expected one of {sorted(TRACKER_MAP)}'
+            f'unsupported tracker {cfg.tracker_type!r}; expected one of {sorted(TRACKER_MAP)}'
         )
     return TRACKER_MAP[cfg.tracker_type](args=cfg)
 
@@ -331,10 +337,7 @@ class TrackedFramePass:
                 origin = first_index
 
             if stride > 1:
-                wanted = [
-                    i for i in range(len(frames))
-                    if (first_index + i - origin) % stride == 0
-                ]
+                wanted = [i for i in range(len(frames)) if (first_index + i - origin) % stride == 0]
                 if not wanted:
                     continue
                 indices = [first_index + i for i in wanted]
@@ -367,11 +370,13 @@ class TrackedFramePass:
                 if candidates:
                     ball_candidates[absolute] = candidates
 
-                table.records.append(FrameRecord(
-                    frame_index=absolute,
-                    timestamp_s=timestamp,
-                    players=players,
-                ))
+                table.records.append(
+                    FrameRecord(
+                        frame_index=absolute,
+                        timestamp_s=timestamp,
+                        players=players,
+                    )
+                )
 
         return table, colour_samples, ball_candidates
 
@@ -394,7 +399,7 @@ class TrackedFramePass:
 
         players = np.empty((len(tracks), PLAYER_COLUMNS), dtype=np.float32)
         players[:, COL_TRACK_ID] = tracks[:, 4]
-        players[:, COL_X1:COL_Y2 + 1] = tracks[:, 0:4]
+        players[:, COL_X1 : COL_Y2 + 1] = tracks[:, 0:4]
         players[:, COL_CONF] = tracks[:, 5]
         return players
 
@@ -419,10 +424,15 @@ class TrackedFramePass:
             held = samples.setdefault(track_id, [])
             if len(held) >= self.max_colour_samples:
                 continue
-            colour = kit_sample(frame, (
-                float(row[COL_X1]), float(row[COL_Y1]),
-                float(row[COL_X2]), float(row[COL_Y2]),
-            ))
+            colour = kit_sample(
+                frame,
+                (
+                    float(row[COL_X1]),
+                    float(row[COL_Y1]),
+                    float(row[COL_X2]),
+                    float(row[COL_Y2]),
+                ),
+            )
             if colour is not None:
                 held.append(colour)
 
@@ -446,10 +456,15 @@ class TrackedFramePass:
         for row in players:
             track_id = int(row[COL_TRACK_ID])
             thumbs[track_id] = consider(
-                thumbs.get(track_id), frame, track_id, absolute,
+                thumbs.get(track_id),
+                frame,
+                track_id,
+                absolute,
                 (
-                    float(row[COL_X1]), float(row[COL_Y1]),
-                    float(row[COL_X2]), float(row[COL_Y2]),
+                    float(row[COL_X1]),
+                    float(row[COL_Y1]),
+                    float(row[COL_X2]),
+                    float(row[COL_Y2]),
                 ),
             )
             # `consider` returns None only when there was nothing held and this
@@ -458,20 +473,20 @@ class TrackedFramePass:
             if thumbs[track_id] is None:
                 del thumbs[track_id]
 
-    def _ball_candidates(
-        self, balls, absolute: int, timestamp: float
-    ) -> list[BallCandidate]:
+    def _ball_candidates(self, balls, absolute: int, timestamp: float) -> list[BallCandidate]:
         out: list[BallCandidate] = []
         for xyxy, score in zip(balls.xyxy, balls.conf):
             if float(score) < self.ball_conf:
                 continue
             x1, y1, x2, y2 = (float(v) for v in xyxy)
-            out.append(BallCandidate(
-                frame_index=absolute,
-                timestamp_s=timestamp,
-                xy=((x1 + x2) / 2, (y1 + y2) / 2),
-                confidence=float(score),
-            ))
+            out.append(
+                BallCandidate(
+                    frame_index=absolute,
+                    timestamp_s=timestamp,
+                    xy=((x1 + x2) / 2, (y1 + y2) / 2),
+                    confidence=float(score),
+                )
+            )
         return out
 
 

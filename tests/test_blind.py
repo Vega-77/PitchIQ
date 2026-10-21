@@ -60,10 +60,11 @@ def tag(kind, clock_s):
 
 
 def table(*spans):
-    return PhaseTable(spans=[
-        DeadSpan(start_s=a, end_s=b, opened_by=by, closed_by='throw_in')
-        for a, b, by in spans
-    ])
+    return PhaseTable(
+        spans=[
+            DeadSpan(start_s=a, end_s=b, opened_by=by, closed_by='throw_in') for a, b, by in spans
+        ]
+    )
 
 
 def split_run():
@@ -116,8 +117,7 @@ class TestFindingTheStretches:
 
         frames = states([1] * 10 + [0] * 30 + [1] * 10 + [0] * 20 + [1] * 30)
         total = sum(b - a for a, b in unseen_stretches(frames))
-        assert total == pytest.approx(summarise(frames, smooth_window=0).no_ball_s,
-                                      abs=0.15)
+        assert total == pytest.approx(summarise(frames, smooth_window=0).no_ball_s, abs=0.15)
 
     def test_no_states_at_all_is_no_stretches_rather_than_a_crash(self):
         assert unseen_stretches([]) == []
@@ -164,9 +164,14 @@ class TestWhatTheTagLogExplains:
 
     def test_the_nearest_tag_is_named_first(self):
         frames = blind_from([(1, 10), (0, 10), (1, 5)])
-        result = blindness(frames, phases=table(), tag_log=[
-            tag('sub', 10.5), tag('foul', 15.0),
-        ])
+        result = blindness(
+            frames,
+            phases=table(),
+            tag_log=[
+                tag('sub', 10.5),
+                tag('foul', 15.0),
+            ],
+        )
         assert result.spells[0].tags[0] == 'foul'
 
     def test_tags_are_read_on_the_video_clock_not_the_match_clock(self):
@@ -178,14 +183,12 @@ class TestWhatTheTagLogExplains:
         unexplained.
         """
         frames = blind_from([(1, 5), (0, 10), (1, 5)])
-        clock = VideoClock(video_offset_s=0.0, second_half_video_s=105.0,
-                           second_half_clock_s=5.0)
+        clock = VideoClock(video_offset_s=0.0, second_half_video_s=105.0, second_half_clock_s=5.0)
         # On the match clock this tag is at 8s; on video it lands inside the gap.
         assert clock.to_video(8.0) == pytest.approx(108.0)
         naive = blindness(frames, phases=table(), tag_log=[tag('corner', 8.0)])
         assert naive.spells[0].kind == ACCOUNTED
-        shifted = blindness(frames, phases=table(), tag_log=[tag('corner', 8.0)],
-                            clock=clock)
+        shifted = blindness(frames, phases=table(), tag_log=[tag('corner', 8.0)], clock=clock)
         assert shifted.spells[0].kind == UNEXPLAINED
 
 
@@ -213,9 +216,7 @@ class TestStraddling:
         )
         assert result.total_s == pytest.approx(30.0, abs=0.2)
         assert (
-            result.seconds(DEAD)
-            + result.seconds(ACCOUNTED)
-            + result.seconds(UNEXPLAINED)
+            result.seconds(DEAD) + result.seconds(ACCOUNTED) + result.seconds(UNEXPLAINED)
         ) == pytest.approx(result.total_s)
 
     def test_a_stoppage_entirely_inside_the_gap_leaves_live_play_on_both_sides(self):
@@ -226,7 +227,7 @@ class TestStraddling:
 
 class TestWhatItRefusesToClaim:
     def test_without_a_log_nothing_is_sorted_and_the_figures_are_withheld(self):
-        """"Nobody looked" and "we looked and found nothing" are different.
+        """ "Nobody looked" and "we looked and found nothing" are different.
 
         Three zeroes beside a four-minute total would read as a clean bill of
         health for a run where no check was even possible.
@@ -281,8 +282,7 @@ class TestWhatItRefusesToClaim:
 
         published = result.to_json()
         assert (
-            published['dead_s'] + published['accounted_s']
-            + published['unexplained_s']
+            published['dead_s'] + published['accounted_s'] + published['unexplained_s']
         ) == pytest.approx(published['total_s'], abs=0.2)
 
 
@@ -328,8 +328,7 @@ class TestTheVocabularyOfKinds:
         """
         source = inspect.getsource(Blindness.to_json)
         published = {
-            getattr(blind, name, name)
-            for name in re.findall(r'self\.seconds\((\w+)\)', source)
+            getattr(blind, name, name) for name in re.findall(r'self\.seconds\((\w+)\)', source)
         }
         assert published == set(KINDS) - {UNCHECKED}
 
@@ -354,9 +353,17 @@ class TestTheVocabularyOfKinds:
 
 class TestWhichStretchesGetNamed:
     def test_the_longest_unresolved_stretch_is_the_one_carried(self):
-        frames = blind_from([
-            (1, 2), (0, 5), (1, 2), (0, 40), (1, 2), (0, 8), (1, 2),
-        ])
+        frames = blind_from(
+            [
+                (1, 2),
+                (0, 5),
+                (1, 2),
+                (0, 40),
+                (1, 2),
+                (0, 8),
+                (1, 2),
+            ]
+        )
         result = blindness(frames, phases=table())
         assert result.longest().duration_s == pytest.approx(40.0, abs=0.3)
 
@@ -371,9 +378,17 @@ class TestWhichStretchesGetNamed:
         assert result.longest().duration_s == pytest.approx(20.0, abs=0.3)
 
     def test_the_named_list_runs_longest_first(self):
-        frames = blind_from([
-            (1, 1), (0, 6), (1, 1), (0, 20), (1, 1), (0, 12), (1, 1),
-        ])
+        frames = blind_from(
+            [
+                (1, 1),
+                (0, 6),
+                (1, 1),
+                (0, 20),
+                (1, 1),
+                (0, 12),
+                (1, 1),
+            ]
+        )
         named = blindness(frames, phases=table()).named()
         assert [round(s.duration_s) for s in named] == [20, 12, 6]
 
@@ -386,8 +401,9 @@ class TestWhichStretchesGetNamed:
         assert len(result.to_json()['worst']) == 5
 
     def test_nothing_is_carried_for_a_run_with_no_unresolved_stretches(self):
-        result = blindness(blind_from([(1, 2), (0, 20), (1, 2)]),
-                           phases=table((0.0, 30.0, 'out_of_bounds')))
+        result = blindness(
+            blind_from([(1, 2), (0, 20), (1, 2)]), phases=table((0.0, 30.0, 'out_of_bounds'))
+        )
         assert result.longest() is None
         assert result.to_json()['worst'] == []
 
@@ -436,9 +452,13 @@ class TestTheWarning:
 
 class TestTheTaggedMoments:
     def test_entries_without_a_clock_are_dropped_rather_than_placed_at_zero(self):
-        moments = tagged_moments([
-            tag('corner', 10.0), {'type': 'foul'}, {'matchClockS': 20.0},
-        ])
+        moments = tagged_moments(
+            [
+                tag('corner', 10.0),
+                {'type': 'foul'},
+                {'matchClockS': 20.0},
+            ]
+        )
         assert moments == [(10.0, 'corner')]
 
     def test_a_boolean_clock_is_not_a_number(self):
@@ -453,8 +473,11 @@ class TestTheJson:
     def test_a_spell_carries_its_own_arithmetic(self):
         published = BlindSpell(12.0, 18.5, ACCOUNTED, ('corner',)).to_json()
         assert published == {
-            'start_s': 12.0, 'end_s': 18.5, 'duration_s': 6.5,
-            'kind': ACCOUNTED, 'tags': ['corner'],
+            'start_s': 12.0,
+            'end_s': 18.5,
+            'duration_s': 6.5,
+            'kind': ACCOUNTED,
+            'tags': ['corner'],
         }
 
     def test_the_three_figures_fit_inside_the_total(self):
@@ -464,10 +487,7 @@ class TestTheJson:
             phases=table((2.0, 12.0, 'out_of_bounds')),
             tag_log=[tag('throw_in', 12.0)],
         ).to_json()
-        parts = (
-            published['dead_s'] + published['accounted_s']
-            + published['unexplained_s']
-        )
+        parts = published['dead_s'] + published['accounted_s'] + published['unexplained_s']
         assert parts == pytest.approx(published['total_s'], abs=0.2)
 
 

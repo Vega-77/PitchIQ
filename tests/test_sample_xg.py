@@ -81,14 +81,13 @@ def in_front(shot: tuple[float, float], along: float, across: float = 0.0):
 # chance in the match and why it is worth the fixture showing a miss there.
 FRAMES = [
     # video_s, shooter,        keeper,         defenders (along, across), pressure
-    (412.4,  (92.1, 33.8), (103.2, 34.4), [(3.5, 0.4), (6.0, -1.2)], True),
-    (631.0,  (84.6, 27.2), (103.9, 33.4), [(2.0, 0.3), (5.5, -0.8)], True),
-    (908.7,  (99.2, 38.4), (101.6, 36.4), [(3.4, 3.0)], False),
+    (412.4, (92.1, 33.8), (103.2, 34.4), [(3.5, 0.4), (6.0, -1.2)], True),
+    (631.0, (84.6, 27.2), (103.9, 33.4), [(2.0, 0.3), (5.5, -0.8)], True),
+    (908.7, (99.2, 38.4), (101.6, 36.4), [(3.4, 3.0)], False),
     (1204.2, (76.3, 41.9), (103.6, 34.0), [(1.2, 0.0), (3.0, 0.1), (9.0, 1.5)], True),
     (1655.8, (95.8, 30.1), (103.4, 33.4), [(2.4, 0.5), (4.6, -0.9)], True),
     (2210.5, (88.4, 34.6), (103.1, 34.0), [(6.5, 0.8)], False),
-
-    (520.3,  (81.7, 24.5), (103.7, 33.6), [(2.6, 0.1), (6.0, -1.0)], True),
+    (520.3, (81.7, 24.5), (103.7, 33.6), [(2.6, 0.1), (6.0, -1.0)], True),
     (1420.9, (97.4, 35.2), (102.2, 34.8), [(3.0, 2.6)], False),
     (1888.1, (90.2, 44.8), (103.4, 34.8), [(2.0, 0.1), (4.5, -0.7), (8.0, 1.2)], True),
     (2402.6, (72.9, 31.4), (103.2, 34.0), [(3.0, 0.2), (7.0, -1.0)], False),
@@ -118,8 +117,8 @@ def published(source) -> dict[float, dict]:
     shots = {}
     for line in source.splitlines():
         found = re.search(
-            r"video_s:\s*([\d.]+),\s*x_m:\s*([\d.]+),\s*y_m:\s*([\d.]+),\s*"
-            r"xg:\s*([\d.]+)",
+            r'video_s:\s*([\d.]+),\s*x_m:\s*([\d.]+),\s*y_m:\s*([\d.]+),\s*'
+            r'xg:\s*([\d.]+)',
             line,
         )
         if found:
@@ -138,8 +137,7 @@ def scored(session, frame) -> float:
             shooter_m=shooter,
             attacking_end='right',
             keeper_m=keeper,
-            defenders_m=[in_front(shooter, along, across)
-                         for along, across in defenders],
+            defenders_m=[in_front(shooter, along, across) for along, across in defenders],
             under_pressure=pressure,
             # One camera cannot see the ball's height, so the pipeline never
             # says otherwise and neither does the fixture.
@@ -189,7 +187,9 @@ class TestTheFramesSayWhatTheFixtureSays:
         _, shooter, keeper, defenders, pressure = blocked
         features = build_features(
             ShotContext(
-                shooter_m=shooter, attacking_end='right', keeper_m=keeper,
+                shooter_m=shooter,
+                attacking_end='right',
+                keeper_m=keeper,
                 defenders_m=[in_front(shooter, a, c) for a, c in defenders],
                 under_pressure=pressure,
             ),

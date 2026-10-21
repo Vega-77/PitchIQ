@@ -41,14 +41,26 @@ thing that one already does: flatten the at-rule wrappers so a rule inside a
 
 import re
 
-from test_contrast_floor import (GRAPHIC_FLOOR, PAGE, ROOT, SHEETS, blocks,
-                                 over, parse, ratio, read, theme)
+from test_contrast_floor import (
+    GRAPHIC_FLOOR,
+    PAGE,
+    ROOT,
+    SHEETS,
+    blocks,
+    over,
+    parse,
+    ratio,
+    read,
+    theme,
+)
 
 SUPPRESS = re.compile(
     r'outline\s*:\s*(?:none|0)\b'
     r'|outline-width\s*:\s*0(?![.\d])'
     r'|outline-style\s*:\s*none'
-    r'|outline-color\s*:\s*transparent', re.I)
+    r'|outline-color\s*:\s*transparent',
+    re.I,
+)
 
 # Selectors allowed to put the ring out, and the reason each one is not the
 # bug this file exists to catch. Keyed by selector rather than by line number:
@@ -80,8 +92,7 @@ ALL = [r for rel in SHEETS for r in rules(rel)]
 
 def suppressions(scope=None):
     """Every rule that puts a focus ring out, wherever it lives."""
-    return [(rel, sel, body) for rel, sel, body in (scope or ALL)
-            if SUPPRESS.search(body)]
+    return [(rel, sel, body) for rel, sel, body in (scope or ALL) if SUPPRESS.search(body)]
 
 
 def specificity(sel):
@@ -110,8 +121,7 @@ def specificity(sel):
 
 def ring():
     """(selector, declarations) for the site-wide focus ring."""
-    found = [(sel, body) for sel, body in blocks(read(RING))
-             if sel == ':focus-visible']
+    found = [(sel, body) for sel, body in blocks(read(RING)) if sel == ':focus-visible']
     assert len(found) == 1, found
     return found[0]
 
@@ -121,8 +131,8 @@ RING_SPEC = specificity(':focus-visible')
 
 # --- the finding ------------------------------------------------------------
 
-class TestNothingSilentlyPutsTheRingOut:
 
+class TestNothingSilentlyPutsTheRingOut:
     def test_no_suppression_sits_on_a_base_rule(self):
         """The sandbox bug, and the one shape with no legitimate instance.
 
@@ -131,8 +141,7 @@ class TestNothingSilentlyPutsTheRingOut:
         this has ever had was somebody resetting an element's appearance and
         taking the ring with it as a side effect.
         """
-        base = [(rel, sel) for rel, sel, _ in suppressions()
-                if ':focus' not in sel]
+        base = [(rel, sel) for rel, sel, _ in suppressions() if ':focus' not in sel]
         assert base == [], base
 
     def test_every_focus_suppression_is_named_and_explained(self):
@@ -162,15 +171,14 @@ class TestNothingSilentlyPutsTheRingOut:
         assert claimed == ['.shot-mark.is-pickable:focus-visible'], claimed
         for sel in claimed:
             body = [b for _, s, b in suppressions() if s == sel][0]
-            names = {d.split(':')[0].strip() for d in body.split(';')
-                     if ':' in d}
+            names = {d.split(':')[0].strip() for d in body.split(';') if ':' in d}
             assert {'stroke', 'stroke-width'} <= names, names
 
 
 # --- specificity is the mechanism, not carelessness -------------------------
 
-class TestWhyOneLineWasEnough:
 
+class TestWhyOneLineWasEnough:
     def test_the_ring_is_the_weakest_selector_that_could_paint_it(self):
         sel, body = ring()
         assert specificity(sel) == RING_SPEC == (0, 1, 0)
@@ -200,12 +208,11 @@ class TestWhyOneLineWasEnough:
 
 # --- a ring nobody can see is not a ring ------------------------------------
 
-class TestTheRingCanBeSeen:
 
+class TestTheRingCanBeSeen:
     def colour(self):
         sel, body = ring()
-        m = re.search(r'outline\s*:\s*[\d.]+px\s+solid\s+var\(\s*(--[-\w]+)',
-                      body)
+        m = re.search(r'outline\s*:\s*[\d.]+px\s+solid\s+var\(\s*(--[-\w]+)', body)
         assert m, body
         return m.group(1)
 
@@ -231,23 +238,31 @@ class TestTheRingCanBeSeen:
 
 # --- the ways this scan could be lying --------------------------------------
 
-class TestTheScanCouldBeLying:
 
+class TestTheScanCouldBeLying:
     def test_it_would_see_the_other_four_spellings(self):
         """None of these are in the repo, which is the whole problem.
 
         A scanner whose universe is one string looks perfect right up until
         somebody writes the synonym, and then it keeps looking perfect.
         """
-        for decl in ('outline: 0;', 'outline-width: 0;',
-                     'outline-style: none;', 'outline-color: transparent;',
-                     'outline:none', 'OUTLINE: NONE;'):
+        for decl in (
+            'outline: 0;',
+            'outline-width: 0;',
+            'outline-style: none;',
+            'outline-color: transparent;',
+            'outline:none',
+            'OUTLINE: NONE;',
+        ):
             css = '.x:focus { %s }' % decl
             assert suppressions(rules_of(css)), decl
 
     def test_it_does_not_cry_wolf_over_a_ring_being_drawn(self):
-        for decl in ('outline: 2px solid var(--accent);',
-                     'outline-width: 0.5px;', 'outline-offset: 0;'):
+        for decl in (
+            'outline: 2px solid var(--accent);',
+            'outline-width: 0.5px;',
+            'outline-offset: 0;',
+        ):
             css = '.x:focus { %s }' % decl
             assert not suppressions(rules_of(css)), decl
 
@@ -258,8 +273,7 @@ class TestTheScanCouldBeLying:
         assert [s for _, s, _ in suppressions(rules_of(css))] == ['.x:focus']
 
     def test_it_reads_every_stylesheet_the_site_ships(self):
-        on_disk = sorted(p.relative_to(ROOT).as_posix()
-                         for p in ROOT.glob('*/*.css'))
+        on_disk = sorted(p.relative_to(ROOT).as_posix() for p in ROOT.glob('*/*.css'))
         assert on_disk == sorted(SHEETS), on_disk
 
     def test_it_finds_rules_at_all(self):

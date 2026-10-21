@@ -54,6 +54,7 @@ PAINT_BGR = (235, 235, 235)
 # The synthetic camera and the frame it sees
 # ---------------------------------------------------------------------------
 
+
 def camera(pitch: Pitch) -> np.ndarray:
     """Metres -> pixels for a plausible elevated, slightly off-centre view.
 
@@ -61,8 +62,7 @@ def camera(pitch: Pitch) -> np.ndarray:
     failure here and a failure there are talking about the same camera.
     """
     src = np.array(
-        [[0.0, 0.0], [pitch.length_m, 0.0],
-         [pitch.length_m, pitch.width_m], [0.0, pitch.width_m]],
+        [[0.0, 0.0], [pitch.length_m, 0.0], [pitch.length_m, pitch.width_m], [0.0, pitch.width_m]],
         dtype=np.float32,
     )
     dst = np.array(
@@ -73,9 +73,7 @@ def camera(pitch: Pitch) -> np.ndarray:
 
 
 def to_px(matrix: np.ndarray, x_m: float, y_m: float) -> tuple[float, float]:
-    out = cv2.perspectiveTransform(
-        np.array([[[x_m, y_m]]], dtype=np.float64), matrix
-    ).reshape(2)
+    out = cv2.perspectiveTransform(np.array([[[x_m, y_m]]], dtype=np.float64), matrix).reshape(2)
     return (float(out[0]), float(out[1]))
 
 
@@ -83,9 +81,14 @@ def render(pitch: Pitch, matrix: np.ndarray, *, paint: bool = True) -> np.ndarra
     """A frame: dark surround, green pitch, white lines."""
     frame = np.full((FRAME_H, FRAME_W, 3), 30, dtype=np.uint8)
     quad = np.array(
-        [[to_px(matrix, 0, 0), to_px(matrix, pitch.length_m, 0),
-          to_px(matrix, pitch.length_m, pitch.width_m),
-          to_px(matrix, 0, pitch.width_m)]],
+        [
+            [
+                to_px(matrix, 0, 0),
+                to_px(matrix, pitch.length_m, 0),
+                to_px(matrix, pitch.length_m, pitch.width_m),
+                to_px(matrix, 0, pitch.width_m),
+            ]
+        ],
         dtype=np.int32,
     )
     cv2.fillPoly(frame, quad, GRASS_BGR)
@@ -97,7 +100,9 @@ def render(pitch: Pitch, matrix: np.ndarray, *, paint: bool = True) -> np.ndarra
                 frame,
                 (int(round(a[0])), int(round(a[1]))),
                 (int(round(b[0])), int(round(b[1]))),
-                PAINT_BGR, 3, cv2.LINE_AA,
+                PAINT_BGR,
+                3,
+                cv2.LINE_AA,
             )
     return frame
 
@@ -125,10 +130,14 @@ def landmark_error(calibration: Calibration, pitch: Pitch, matrix: np.ndarray):
 def rough_clicks(pitch, matrix, jitter_px, seed):
     """A human's landmark clicks, off by a few pixels each."""
     names = [
-        "corner_bottom_left", "corner_bottom_right",
-        "corner_top_right", "corner_top_left",
-        "halfway_bottom", "halfway_top",
-        "pen_left_bottom_corner", "pen_right_top_corner",
+        'corner_bottom_left',
+        'corner_bottom_right',
+        'corner_top_right',
+        'corner_top_left',
+        'halfway_bottom',
+        'halfway_top',
+        'pen_left_bottom_corner',
+        'pen_right_top_corner',
     ]
     rng = np.random.default_rng(seed)
     out = []
@@ -137,14 +146,13 @@ def rough_clicks(pitch, matrix, jitter_px, seed):
         out.append(
             Correspondence(
                 name,
-                (px + float(rng.normal(0, jitter_px)),
-                 py + float(rng.normal(0, jitter_px))),
+                (px + float(rng.normal(0, jitter_px)), py + float(rng.normal(0, jitter_px))),
             )
         )
     return out
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def scene():
     pitch = Pitch()
     matrix = camera(pitch)
@@ -155,6 +163,7 @@ def scene():
 # ---------------------------------------------------------------------------
 # The model of what is painted
 # ---------------------------------------------------------------------------
+
 
 class TestPitchModel:
     def test_model_matches_the_landmark_table(self):
@@ -173,17 +182,24 @@ class TestPitchModel:
             endpoints.add((round(seg.x2, 6), round(seg.y2, 6)))
 
         for name in (
-            "corner_bottom_left", "corner_top_left",
-            "corner_bottom_right", "corner_top_right",
-            "halfway_bottom", "halfway_top",
-            "pen_left_bottom_corner", "pen_left_top_corner",
-            "pen_right_bottom_corner", "pen_right_top_corner",
-            "goalarea_left_bottom_corner", "goalarea_left_top_corner",
-            "goalarea_right_bottom_corner", "goalarea_right_top_corner",
+            'corner_bottom_left',
+            'corner_top_left',
+            'corner_bottom_right',
+            'corner_top_right',
+            'halfway_bottom',
+            'halfway_top',
+            'pen_left_bottom_corner',
+            'pen_left_top_corner',
+            'pen_right_bottom_corner',
+            'pen_right_top_corner',
+            'goalarea_left_bottom_corner',
+            'goalarea_left_top_corner',
+            'goalarea_right_bottom_corner',
+            'goalarea_right_top_corner',
         ):
             x_m, y_m = pitch.landmark(name)
             assert (round(x_m, 6), round(y_m, 6)) in endpoints, (
-                f"{name} is not an endpoint of any modelled line"
+                f'{name} is not an endpoint of any modelled line'
             )
 
     def test_every_landmark_lies_on_a_painted_line(self):
@@ -197,10 +213,10 @@ class TestPitchModel:
         pitch = Pitch()
         model = pitch_line_segments(pitch)
         for name, (x_m, y_m) in pitch.landmarks().items():
-            if "spot" in name:
+            if 'spot' in name:
                 continue
             nearest = min(seg.distance_to(x_m, y_m) for seg in model)
-            assert nearest < 0.01, f"{name} sits {nearest:.2f}m off every line"
+            assert nearest < 0.01, f'{name} sits {nearest:.2f}m off every line'
 
     def test_a_measured_pitch_gets_its_own_model(self):
         """Dimensions are configurable because school pitches vary, and the
@@ -218,6 +234,7 @@ class TestPitchModel:
 # ---------------------------------------------------------------------------
 # Segment geometry
 # ---------------------------------------------------------------------------
+
 
 class TestSegment:
     def test_distance_is_to_the_segment_not_its_infinite_line(self):
@@ -260,6 +277,7 @@ class TestSegment:
 # Merging fragments
 # ---------------------------------------------------------------------------
 
+
 class TestMerge:
     def test_the_two_edges_of_a_stripe_become_its_centre(self):
         """Canny finds edges, not centres, and the difference is a bias.
@@ -270,10 +288,12 @@ class TestMerge:
         enough to make a calibration shifted onto the near edge score *better*
         than the true one. The merged result has to land between them.
         """
-        merged = merge_collinear([
-            Segment(0.0, 100.0, 400.0, 100.0),
-            Segment(0.0, 104.0, 400.0, 104.0),
-        ])
+        merged = merge_collinear(
+            [
+                Segment(0.0, 100.0, 400.0, 100.0),
+                Segment(0.0, 104.0, 400.0, 104.0),
+            ]
+        )
         assert len(merged) == 1
         assert merged[0].midpoint[1] == pytest.approx(102.0, abs=0.01)
 
@@ -287,29 +307,35 @@ class TestMerge:
         says. Each fragment still scores against the model on its own, so
         nothing is lost but the tidy picture.
         """
-        merged = merge_collinear([
-            Segment(0.0, 50.0, 180.0, 50.0),
-            Segment(240.0, 50.0, 600.0, 50.0),
-        ])
+        merged = merge_collinear(
+            [
+                Segment(0.0, 50.0, 180.0, 50.0),
+                Segment(240.0, 50.0, 600.0, 50.0),
+            ]
+        )
         assert len(merged) == 2
 
     def test_fragments_that_overlap_become_one(self):
         """Hough returns overlapping pieces of the same stripe constantly, and
         those carry no hidden stretch between them -- they are two readings of
         the same paint, and averaging them is what `_average_line` is for."""
-        merged = merge_collinear([
-            Segment(0.0, 50.0, 400.0, 50.0),
-            Segment(200.0, 52.0, 600.0, 52.0),
-        ])
+        merged = merge_collinear(
+            [
+                Segment(0.0, 50.0, 400.0, 50.0),
+                Segment(200.0, 52.0, 600.0, 52.0),
+            ]
+        )
         assert len(merged) == 1
         assert merged[0].length == pytest.approx(600.0, abs=2.0)
 
     def test_lines_that_are_not_the_same_line_stay_apart(self):
-        merged = merge_collinear([
-            Segment(0.0, 50.0, 600.0, 50.0),     # far apart, same angle
-            Segment(0.0, 400.0, 600.0, 400.0),
-            Segment(300.0, 0.0, 300.0, 600.0),   # perpendicular
-        ])
+        merged = merge_collinear(
+            [
+                Segment(0.0, 50.0, 600.0, 50.0),  # far apart, same angle
+                Segment(0.0, 400.0, 600.0, 400.0),
+                Segment(300.0, 0.0, 300.0, 600.0),  # perpendicular
+            ]
+        )
         assert len(merged) == 3
 
     def test_nothing_in_nothing_out(self):
@@ -320,10 +346,11 @@ class TestMerge:
 # Detection
 # ---------------------------------------------------------------------------
 
+
 class TestDetect:
     def test_it_finds_the_long_lines(self, scene):
         _, _, _, segments = scene
-        assert len(segments) >= 8, "the pitch has more lines than that"
+        assert len(segments) >= 8, 'the pitch has more lines than that'
         # Longest first, and the longest of them spans most of the frame --
         # that is a touchline, and if it is missing nothing downstream works.
         assert segments[0].length > 900
@@ -359,15 +386,14 @@ class TestDetect:
         frame = render(pitch, matrix)
         cv2.line(frame, (0, 60), (1279, 60), PAINT_BGR, 5)
         after = detect_segments(frame)
-        assert all(min(s.y1, s.y2) > 200 for s in after), (
-            "a line above the pitch was detected"
-        )
+        assert all(min(s.y1, s.y2) > 200 for s in after), 'a line above the pitch was detected'
         assert len(after) == len(baseline)
 
 
 # ---------------------------------------------------------------------------
 # Scoring a calibration
 # ---------------------------------------------------------------------------
+
 
 class TestFitToLines:
     def test_the_true_calibration_lands_on_the_paint(self, scene):
@@ -393,14 +419,13 @@ class TestFitToLines:
         """
         pitch, matrix, _, segments = scene
         shifted = Calibration(
-            np.array([[1, 0, 25.0], [0, 1, 0], [0, 0, 1]])
-            @ truth_calibration(pitch, matrix).H,
+            np.array([[1, 0, 25.0], [0, 1, 0], [0, 0, 1]]) @ truth_calibration(pitch, matrix).H,
             pitch,
         )
         fit = fit_to_lines(shifted, segments)
 
-        assert fit.median_m < 0.5, "the premise of this test is a small median"
-        assert fit.coverage < 0.6, "coverage should have collapsed"
+        assert fit.median_m < 0.5, 'the premise of this test is a small median'
+        assert fit.coverage < 0.6, 'coverage should have collapsed'
         assert not fit.is_usable
 
     def test_a_shift_along_the_touchlines_is_caught_by_the_tail(self, scene):
@@ -414,14 +439,13 @@ class TestFitToLines:
         """
         pitch, matrix, _, segments = scene
         shifted = Calibration(
-            np.array([[1, 0, 3.0], [0, 1, 0], [0, 0, 1]])
-            @ truth_calibration(pitch, matrix).H,
+            np.array([[1, 0, 3.0], [0, 1, 0], [0, 0, 1]]) @ truth_calibration(pitch, matrix).H,
             pitch,
         )
         fit = fit_to_lines(shifted, segments)
 
         assert fit.coverage == pytest.approx(1.0)
-        assert fit.median_m < 0.5, "the median is not what catches this"
+        assert fit.median_m < 0.5, 'the median is not what catches this'
         assert fit.p90_m > 1.5
         assert not fit.is_usable
 
@@ -438,20 +462,21 @@ class TestFitToLines:
         assert fit.sampled == 0
         assert fit.matched == 0
         assert not fit.is_usable
-        assert fit.to_json()["median_m"] is None
-        assert fit.to_json()["p90_m"] is None
-        assert "no line pixels" in fit.summary()
+        assert fit.to_json()['median_m'] is None
+        assert fit.to_json()['p90_m'] is None
+        assert 'no line pixels' in fit.summary()
 
     def test_a_fit_that_matched_nothing_still_says_how_much_it_looked_at(self):
-        fit = LineFit(float("nan"), float("nan"), 400, 0)
+        fit = LineFit(float('nan'), float('nan'), 400, 0)
         assert fit.coverage == 0.0
-        assert "400 sampled" in fit.summary()
+        assert '400 sampled' in fit.summary()
         assert not fit.is_usable
 
 
 # ---------------------------------------------------------------------------
 # Refinement
 # ---------------------------------------------------------------------------
+
 
 class TestRefine:
     """Refinement, and the exact size of what it cannot do.
@@ -474,14 +499,17 @@ class TestRefine:
         for seed in range(trials):
             rough = Calibration.fit(
                 rough_clicks(pitch, matrix, jitter_px, seed),
-                pitch, (FRAME_W, FRAME_H),
+                pitch,
+                (FRAME_W, FRAME_H),
             )
             refined, _, after = refine(rough, segments)
-            rows.append({
-                "before": landmark_error(rough, pitch, matrix),
-                "after": landmark_error(refined, pitch, matrix),
-                "usable": after.is_usable,
-            })
+            rows.append(
+                {
+                    'before': landmark_error(rough, pitch, matrix),
+                    'after': landmark_error(refined, pitch, matrix),
+                    'usable': after.is_usable,
+                }
+            )
         return rows
 
     def test_it_pulls_a_carefully_clicked_calibration_onto_the_paint(self, scene):
@@ -496,12 +524,12 @@ class TestRefine:
         pitch, matrix, _, segments = scene
         rows = self.sweep(pitch, matrix, segments, 3.0)
 
-        assert all(r["after"][0] <= r["before"][0] for r in rows), (
-            "refinement made a landmark fit worse"
+        assert all(r['after'][0] <= r['before'][0] for r in rows), (
+            'refinement made a landmark fit worse'
         )
-        before_max = float(np.median([r["before"][1] for r in rows]))
-        after_max = float(np.median([r["after"][1] for r in rows]))
-        assert before_max > 1.0, "this test needs calibrations worth refining"
+        before_max = float(np.median([r['before'][1] for r in rows]))
+        after_max = float(np.median([r['after'][1] for r in rows]))
+        assert before_max > 1.0, 'this test needs calibrations worth refining'
         assert after_max < before_max / 3
         assert after_max < 0.6
 
@@ -517,10 +545,10 @@ class TestRefine:
         pitch, matrix, _, segments = scene
         rows = self.sweep(pitch, matrix, segments, 8.0)
 
-        still_wrong = [r for r in rows if r["after"][1] > 3.0]
-        assert still_wrong, "this test needs some hopeless cases in it"
-        assert not any(r["usable"] for r in still_wrong), (
-            "a calibration metres out was reported as usable"
+        still_wrong = [r for r in rows if r['after'][1] > 3.0]
+        assert still_wrong, 'this test needs some hopeless cases in it'
+        assert not any(r['usable'] for r in still_wrong), (
+            'a calibration metres out was reported as usable'
         )
 
     def test_a_usable_verdict_bounds_the_error_but_loosely(self, scene):
@@ -543,12 +571,13 @@ class TestRefine:
         should be shown.
         """
         pitch, matrix, _, segments = scene
-        rows = [row for jitter in (3.0, 5.0, 8.0)
-                for row in self.sweep(pitch, matrix, segments, jitter)]
+        rows = [
+            row for jitter in (3.0, 5.0, 8.0) for row in self.sweep(pitch, matrix, segments, jitter)
+        ]
 
-        passed = [r for r in rows if r["usable"]]
-        assert len(passed) > 20, "this test needs a real sample of verdicts"
-        assert max(r["after"][1] for r in passed) < 3.5
+        passed = [r for r in rows if r['usable']]
+        assert len(passed) > 20, 'this test needs a real sample of verdicts'
+        assert max(r['after'][1] for r in passed) < 3.5
 
     def test_the_tail_is_what_notices_a_slide_along_the_lines(self, scene):
         """The most important result in this file.
@@ -568,15 +597,13 @@ class TestRefine:
         pitch, matrix, _, segments = scene
         truth_fit = fit_to_lines(truth_calibration(pitch, matrix), segments)
 
-        rough = Calibration.fit(
-            rough_clicks(pitch, matrix, 8.0, 7), pitch, (FRAME_W, FRAME_H)
-        )
+        rough = Calibration.fit(rough_clicks(pitch, matrix, 8.0, 7), pitch, (FRAME_W, FRAME_H))
         refined, _, after = refine(rough, segments)
         _, after_max = landmark_error(refined, pitch, matrix)
 
         assert after.median_m <= truth_fit.median_m
         assert after.coverage > 0.9
-        assert after_max > 10.0, "the calibration really is metres wrong"
+        assert after_max > 10.0, 'the calibration really is metres wrong'
         assert after.p90_m > 1.5
         assert not after.is_usable
 
@@ -584,15 +611,11 @@ class TestRefine:
         """`before` is why refinement returns three things: a coach needs to
         see that something changed, not only that the result is good."""
         pitch, matrix, _, segments = scene
-        rough = Calibration.fit(
-            rough_clicks(pitch, matrix, 3.0, 0), pitch, (FRAME_W, FRAME_H)
-        )
+        rough = Calibration.fit(rough_clicks(pitch, matrix, 3.0, 0), pitch, (FRAME_W, FRAME_H))
         refined, before, after = refine(rough, segments)
 
         assert refined is not rough
-        assert before.median_m == pytest.approx(
-            fit_to_lines(rough, segments).median_m
-        )
+        assert before.median_m == pytest.approx(fit_to_lines(rough, segments).median_m)
         assert after.median_m < before.median_m
 
     def test_it_keeps_the_clicks_that_made_it(self, scene):
@@ -600,12 +623,8 @@ class TestRefine:
         reprojection error, or the picker loses the numbers it shows."""
         pitch, matrix, _, segments = scene
         clicks = rough_clicks(pitch, matrix, 3.0, 0)
-        refined, _, _ = refine(
-            Calibration.fit(clicks, pitch, (FRAME_W, FRAME_H)), segments
-        )
-        assert [c.landmark for c in refined.correspondences] == [
-            c.landmark for c in clicks
-        ]
+        refined, _, _ = refine(Calibration.fit(clicks, pitch, (FRAME_W, FRAME_H)), segments)
+        assert [c.landmark for c in refined.correspondences] == [c.landmark for c in clicks]
         assert refined.image_size == (FRAME_W, FRAME_H)
 
     def test_a_frame_with_no_lines_leaves_the_calibration_alone(self, scene):
@@ -633,14 +652,12 @@ class TestImprovementRule:
     """
 
     def test_a_better_fit_is_taken(self):
-        assert _is_improvement(LineFit(0.80, 2.00, 500, 500),
-                               LineFit(0.20, 0.60, 500, 500))
+        assert _is_improvement(LineFit(0.80, 2.00, 500, 500), LineFit(0.20, 0.60, 500, 500))
 
     def test_the_tail_may_not_be_traded_for_the_middle(self):
         """Halving the median while doubling the 90th percentile describes a
         calibration that has slid, not one that has settled."""
-        assert not _is_improvement(LineFit(0.80, 2.00, 500, 500),
-                                   LineFit(0.20, 4.00, 500, 500))
+        assert not _is_improvement(LineFit(0.80, 2.00, 500, 500), LineFit(0.20, 4.00, 500, 500))
 
     def test_coverage_may_wobble_but_not_collapse(self):
         before = LineFit(0.80, 2.00, 500, 500)
@@ -652,20 +669,22 @@ class TestImprovementRule:
         assert not _is_improvement(same, same)
 
     def test_a_fit_that_matched_nothing_is_never_an_improvement(self):
-        nothing = LineFit(float("nan"), float("nan"), 500, 0)
+        nothing = LineFit(float('nan'), float('nan'), 500, 0)
         assert not _is_improvement(LineFit(0.40, 1.00, 500, 500), nothing)
         assert not _is_improvement(nothing, nothing)
 
     def test_a_first_measurement_against_nothing_can_be_accepted(self):
         """Starting from no matches at all there is no median to beat, so the
         comparison is skipped rather than counted as a failure."""
-        assert _is_improvement(LineFit(float("nan"), float("nan"), 500, 0),
-                               LineFit(0.30, 0.90, 500, 480))
+        assert _is_improvement(
+            LineFit(float('nan'), float('nan'), 500, 0), LineFit(0.30, 0.90, 500, 480)
+        )
 
 
 # ---------------------------------------------------------------------------
 # Drawing
 # ---------------------------------------------------------------------------
+
 
 class TestDraw:
     def test_the_outline_lands_on_the_paint(self, scene):
@@ -676,18 +695,15 @@ class TestDraw:
         painted = np.count_nonzero(np.all(frame == PAINT_BGR, axis=2))
 
         overlay = frame.copy()
-        draw_pitch_lines(overlay, truth_calibration(pitch, matrix),
-                         colour=(0, 0, 255), thickness=5)
+        draw_pitch_lines(overlay, truth_calibration(pitch, matrix), colour=(0, 0, 255), thickness=5)
         left = np.count_nonzero(np.all(overlay == PAINT_BGR, axis=2))
 
         assert painted > 1000
-        assert left < painted * 0.1, "the drawn model missed the painted lines"
+        assert left < painted * 0.1, 'the drawn model missed the painted lines'
 
     def test_a_hopeless_homography_does_not_crash_the_drawing(self, scene):
         """A calibration can fold the pitch behind the camera and send
         landmarks to infinity. Drawing it must fail visibly, not raise."""
         pitch, _, frame, _ = scene
-        broken = Calibration(
-            np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 1e-12]]), pitch
-        )
+        broken = Calibration(np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 1e-12]]), pitch)
         draw_pitch_lines(frame.copy(), broken)

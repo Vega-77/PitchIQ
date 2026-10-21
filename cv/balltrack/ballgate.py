@@ -11,6 +11,7 @@ scrimmage (2 + 7 + 6 wrong of 104). A wrong ring is worse than a missing one, so
 
     lost(tag, abs0, on) -> bool per frame of the half (True: don't draw a ball)
 """
+
 import functools
 import glob
 import os
@@ -18,10 +19,10 @@ import os
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-LOST_P = 2.0     # classifier logit
-LOST_W = 9000    # frames each side (5 min at 30 fps)
-STEP = 300       # evaluate every 10 s; a stretch is minutes long
-MIN_N = 75       # need this many scored rings in the window to call it lost
+LOST_P = 2.0  # classifier logit
+LOST_W = 9000  # frames each side (5 min at 30 fps)
+STEP = 300  # evaluate every 10 s; a stretch is minutes long
+MIN_N = 75  # need this many scored rings in the window to call it lost
 
 
 @functools.lru_cache(maxsize=8)
@@ -56,5 +57,5 @@ def lost(tag, abs0, on):
     for c in range(0, len(on), STEP):
         a, b = np.searchsorted(idx, c - LOST_W), np.searchsorted(idx, c + LOST_W, 'right')
         if b - a >= MIN_N and np.median(sc[a:b]) < LOST_P:
-            out[max(0, c - STEP // 2):c + STEP // 2 + 1] = True
+            out[max(0, c - STEP // 2) : c + STEP // 2 + 1] = True
     return out

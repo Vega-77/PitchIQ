@@ -45,11 +45,14 @@ ORIGIN_PX = (100.0, 20.0)
 
 
 def calibration():
-    homography = np.array([
-        [1 / PX_PER_M, 0.0, -ORIGIN_PX[0] / PX_PER_M],
-        [0.0, 1 / PX_PER_M, -ORIGIN_PX[1] / PX_PER_M],
-        [0.0, 0.0, 1.0],
-    ], dtype=np.float64)
+    homography = np.array(
+        [
+            [1 / PX_PER_M, 0.0, -ORIGIN_PX[0] / PX_PER_M],
+            [0.0, 1 / PX_PER_M, -ORIGIN_PX[1] / PX_PER_M],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
     return Calibration(homography, PITCH, image_size=(WIDTH, HEIGHT))
 
 
@@ -59,8 +62,7 @@ def player(track_id, x, y, height=PLAYER_H):
     return [track_id, x - width / 2, y - height, x + width / 2, y, 0.9]
 
 
-def build(frames, *, fps=FPS, teams=None, width=WIDTH, height=HEIGHT,
-          calibrated=False):
+def build(frames, *, fps=FPS, teams=None, width=WIDTH, height=HEIGHT, calibrated=False):
     """frames: [[player rows]] — one list of rows per frame."""
     records = [
         FrameRecord(
@@ -71,8 +73,11 @@ def build(frames, *, fps=FPS, teams=None, width=WIDTH, height=HEIGHT,
         for i, rows in enumerate(frames)
     ]
     return FrameTable(
-        fps=fps, frame_width=width, frame_height=height,
-        records=records, team_by_track=teams or {},
+        fps=fps,
+        frame_width=width,
+        frame_height=height,
+        records=records,
+        team_by_track=teams or {},
         calibration=calibration() if calibrated else None,
     )
 
@@ -151,18 +156,20 @@ class TestOffPitch:
         return frames
 
     def test_a_substitute_behind_the_goal_is_rejected(self):
-        table = build(self.sub_behind_the_goal(),
-                      teams={**crowd_teams(), 1: TEAM_A}, calibrated=True)
+        table = build(
+            self.sub_behind_the_goal(), teams={**crowd_teams(), 1: TEAM_A}, calibrated=True
+        )
         verdict = classify_participants(table).by_track[1]
 
-        assert verdict.spread_ph > 1.5          # stillness would never catch them
+        assert verdict.spread_ph > 1.5  # stillness would never catch them
         assert verdict.off_pitch_share == 1.0
         assert verdict.role == ROLE_OFFFIELD
         assert 'off the pitch' in verdict.reason
 
     def test_without_a_calibration_the_same_person_is_kept(self):
-        table = build(self.sub_behind_the_goal(),
-                      teams={**crowd_teams(), 1: TEAM_A}, calibrated=False)
+        table = build(
+            self.sub_behind_the_goal(), teams={**crowd_teams(), 1: TEAM_A}, calibrated=False
+        )
         verdict = classify_participants(table).by_track[1]
 
         # None, not zero. Zero would claim we looked and they were on the pitch.
@@ -170,8 +177,7 @@ class TestOffPitch:
         assert verdict.role == ROLE_PLAYER
 
     def test_players_on_the_pitch_are_not_rejected_by_it(self):
-        table = build([crowd(i) for i in range(FRAMES)],
-                      teams=crowd_teams(), calibrated=True)
+        table = build([crowd(i) for i in range(FRAMES)], teams=crowd_teams(), calibrated=True)
         report = classify_participants(table)
 
         assert report.excluded == frozenset()
@@ -192,10 +198,7 @@ class TestPlayers:
     def test_being_at_the_frame_edge_is_never_enough_to_reject(self):
         """A wide player on a camera framing the whole pitch is at the edge of
         the picture for most of the match. That is a fact about the camera."""
-        frames = [
-            crowd(i) + [player(1, 30.0, 200.0 + (i * 9.0) % 400)]
-            for i in range(FRAMES)
-        ]
+        frames = [crowd(i) + [player(1, 30.0, 200.0 + (i * 9.0) % 400)] for i in range(FRAMES)]
         teams = {**crowd_teams(), 1: TEAM_B}
 
         verdict = classify_participants(build(frames, teams=teams)).by_track[1]
@@ -206,8 +209,8 @@ class TestPlayers:
 class TestOfficials:
     def test_an_unknown_kit_that_moves_is_flagged_not_dropped(self):
         frames = [
-            crowd(i) + [player(1, 500.0 + math.cos(i / 18.0) * 200.0,
-                               400.0 + math.sin(i / 18.0) * 150.0)]
+            crowd(i)
+            + [player(1, 500.0 + math.cos(i / 18.0) * 200.0, 400.0 + math.sin(i / 18.0) * 150.0)]
             for i in range(FRAMES)
         ]
         teams = {**crowd_teams(), 1: UNKNOWN}
@@ -239,9 +242,7 @@ class TestUnsure:
         assert report.is_player(9999)
 
     def test_an_empty_table_is_not_an_error(self):
-        report = classify_participants(
-            FrameTable(fps=FPS, frame_width=WIDTH, frame_height=HEIGHT)
-        )
+        report = classify_participants(FrameTable(fps=FPS, frame_width=WIDTH, frame_height=HEIGHT))
         assert report.by_track == {}
         assert report.excluded == frozenset()
 
@@ -258,20 +259,21 @@ class TestScaleInvariance:
         for i in range(FRAMES):
             rows = crowd(i, factor=factor)
             rows.append(player(1, 640.0 * factor, 400.0 * factor, PLAYER_H * factor))
-            rows.append(player(2, (200.0 + i * 3.0) * factor,
-                               (300.0 + i * 1.5) * factor, PLAYER_H * factor))
+            rows.append(
+                player(2, (200.0 + i * 3.0) * factor, (300.0 + i * 1.5) * factor, PLAYER_H * factor)
+            )
             frames.append(rows)
 
         teams = {**crowd_teams(), 1: TEAM_A, 2: TEAM_A}
-        return build(frames, teams=teams,
-                     width=int(WIDTH * factor), height=int(HEIGHT * factor))
+        return build(frames, teams=teams, width=int(WIDTH * factor), height=int(HEIGHT * factor))
 
     def test_doubling_every_coordinate_changes_no_verdict(self):
         plain = classify_participants(self.scenes(1.0))
         zoomed = classify_participants(self.scenes(2.0))
 
-        assert {t: v.role for t, v in plain.by_track.items()} == \
-               {t: v.role for t, v in zoomed.by_track.items()}
+        assert {t: v.role for t, v in plain.by_track.items()} == {
+            t: v.role for t, v in zoomed.by_track.items()
+        }
 
         # And the scale-free measurements themselves agree, not just the labels.
         for track_id, verdict in plain.by_track.items():

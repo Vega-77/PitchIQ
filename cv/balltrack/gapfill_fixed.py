@@ -32,18 +32,14 @@ def main():
         G.attach_pan(F[tag], tag)
         for fr in F[tag]:
             fr['s'] = A * fr['p'] + (1 - A) * fr['s0']
-    base = {tag: D6.viterbi7(F[tag], drift=12.0, gate=2.0, **BASE)
-            for tag in tags}
-    halves = {'H1': {t for t in tags if int(t[2:]) < 9},
-              'H2': {t for t in tags if int(t[2:]) >= 9}}
+    base = {tag: D6.viterbi7(F[tag], drift=12.0, gate=2.0, **BASE) for tag in tags}
+    halves = {'H1': {t for t in tags if int(t[2:]) < 9}, 'H2': {t for t in tags if int(t[2:]) >= 9}}
     for name, fc in FILLS:
-        p = base if fc is None else {t: G.fill(F[t], base[t], **fc)
-                                     for t in tags}
+        p = base if fc is None else {t: G.fill(F[t], base[t], **fc) for t in tags}
         print('%-18s' % name)
         for h in ('H1', 'H2'):
             r = G.score(T, F, idx, p, halves[h])
-            print('   %s %s  syn +%d/-%d' % (h, U.fmt(r), r['syn_right'],
-                                             r['syn_wrong']))
+            print('   %s %s  syn +%d/-%d' % (h, U.fmt(r), r['syn_right'], r['syn_wrong']))
 
 
 if __name__ == '__main__':

@@ -16,6 +16,7 @@ column = offset index, tile 640x360, so source pixels divide by three.
 
     python feat_t4.py            # -> temporal4.npz
 """
+
 import io
 import json
 import math
@@ -34,21 +35,46 @@ NPZ = os.path.join(S2, 'still4.npz')
 OUT = os.path.join(S2, 'temporal4.npz')
 
 TW, TH, PER = 640, 360, 5
-SCALE = 1920.0 / TW          # 3.0
-RP = 2                       # patch radius in tile pixels (~15 source px)
-RW = 6                       # search radius for the moving-peak track
-FG = 25                      # a pixel this far above the background plate is
-                             # something that was not there a moment ago
+SCALE = 1920.0 / TW  # 3.0
+RP = 2  # patch radius in tile pixels (~15 source px)
+RW = 6  # search radius for the moving-peak track
+FG = 25  # a pixel this far above the background plate is
+# something that was not there a moment ago
 
-TNAMES = ['t_v0', 't_med', 't_min', 't_blink', 't_dip', 't_std',
-          't_nbright', 't_persist', 't_run0',
-          't_fg0', 't_fgmean', 't_fgratio', 't_bgmax',
-          't_left', 't_right', 't_asym', 't_slope', 't_mad', 't_nfg',
-          't_speed', 't_straight', 't_disp',
-          # the same questions asked of a 3x3 tile patch (~9 source px), so
-          # that two candidates 15 px apart stop sharing one answer
-          't1_v0', 't1_med', 't1_blink', 't1_persist', 't1_fg0', 't1_nfg',
-          't1_bgmax', 't1_mad']
+TNAMES = [
+    't_v0',
+    't_med',
+    't_min',
+    't_blink',
+    't_dip',
+    't_std',
+    't_nbright',
+    't_persist',
+    't_run0',
+    't_fg0',
+    't_fgmean',
+    't_fgratio',
+    't_bgmax',
+    't_left',
+    't_right',
+    't_asym',
+    't_slope',
+    't_mad',
+    't_nfg',
+    't_speed',
+    't_straight',
+    't_disp',
+    # the same questions asked of a 3x3 tile patch (~9 source px), so
+    # that two candidates 15 px apart stop sharing one answer
+    't1_v0',
+    't1_med',
+    't1_blink',
+    't1_persist',
+    't1_fg0',
+    't1_nfg',
+    't1_bgmax',
+    't1_mad',
+]
 
 
 def run_around(mask, c):
@@ -58,10 +84,12 @@ def run_around(mask, c):
     n = 1
     i = c - 1
     while i >= 0 and mask[i]:
-        n += 1; i -= 1
+        n += 1
+        i -= 1
     i = c + 1
     while i < len(mask) and mask[i]:
-        n += 1; i += 1
+        n += 1
+        i += 1
     return n
 
 
@@ -95,10 +123,10 @@ def main():
         if meta['flags'].get(str(fi), 1) == 0:
             continue
         y0 = row * TH
-        band = sheet[y0:y0 + TH]
-        tiles = np.stack([cv2.cvtColor(band[:, c * TW:(c + 1) * TW],
-                                       cv2.COLOR_BGR2GRAY)
-                          for c in range(ncol)]).astype(np.float32)
+        band = sheet[y0 : y0 + TH]
+        tiles = np.stack(
+            [cv2.cvtColor(band[:, c * TW : (c + 1) * TW], cv2.COLOR_BGR2GRAY) for c in range(ncol)]
+        ).astype(np.float32)
         bg = np.median(tiles, axis=0)
         fgs = np.clip(tiles - bg, 0, None)
         cur = tiles[czero]
@@ -120,9 +148,8 @@ def main():
             bright = series > 150
             persist = series > (v0 - 25)
             left = float(series[:czero].mean())
-            right = float(series[czero + 1:].mean())
-            mad = float(np.abs(tiles[:, yy0:yy1, x0:x1]
-                               - cur[yy0:yy1, x0:x1]).mean())
+            right = float(series[czero + 1 :].mean())
+            mad = float(np.abs(tiles[:, yy0:yy1, x0:x1] - cur[yy0:yy1, x0:x1]).mean())
 
             # where the brightest new thing sits at each offset: a ball walks
             # a short straight line through offset 0, scenery does not move
@@ -143,8 +170,7 @@ def main():
                 res = np.hypot(px[seen] - A.dot(bx), py[seen] - A.dot(by))
                 speed = float(math.hypot(bx[0], by[0]))
                 straight = float(res.mean())
-                disp = float(math.hypot(px[seen][-1] - px[seen][0],
-                                        py[seen][-1] - py[seen][0]))
+                disp = float(math.hypot(px[seen][-1] - px[seen][0], py[seen][-1] - py[seen][0]))
             else:
                 speed, straight, disp = 0.0, 99.0, 0.0
 
@@ -157,39 +183,60 @@ def main():
             q0 = float(q[czero])
             qmed = float(np.median(q))
 
-            T[idx] = [v0, t_med, t_min, v0 - t_med, v0 - t_min,
-                      float(series.std()),
-                      bright.mean(), persist.mean(),
-                      run_around(persist, czero),
-                      float(fgser[czero]),
-                      float(fgs[czero, yy0:yy1, x0:x1].mean()),
-                      float(fgser[czero]) / max(1.0, v0),
-                      bgmax, left, right, abs(left - right),
-                      float(series[min(ncol - 1, czero + 1)]
-                            - series[max(0, czero - 1)]),
-                      mad, float((fgser > FG).sum()),
-                      speed, straight, disp,
-                      q0, qmed, q0 - qmed, float((q > (q0 - 25)).mean()),
-                      float(qf[czero]), float((qf > FG).sum()),
-                      float(bg[qy0:qy1, qx0:qx1].max()),
-                      float(np.abs(tiles[:, qy0:qy1, qx0:qx1]
-                                   - cur[qy0:qy1, qx0:qx1]).mean())]
+            T[idx] = [
+                v0,
+                t_med,
+                t_min,
+                v0 - t_med,
+                v0 - t_min,
+                float(series.std()),
+                bright.mean(),
+                persist.mean(),
+                run_around(persist, czero),
+                float(fgser[czero]),
+                float(fgs[czero, yy0:yy1, x0:x1].mean()),
+                float(fgser[czero]) / max(1.0, v0),
+                bgmax,
+                left,
+                right,
+                abs(left - right),
+                float(series[min(ncol - 1, czero + 1)] - series[max(0, czero - 1)]),
+                mad,
+                float((fgser > FG).sum()),
+                speed,
+                straight,
+                disp,
+                q0,
+                qmed,
+                q0 - qmed,
+                float((q > (q0 - 25)).mean()),
+                float(qf[czero]),
+                float((qf > FG).sum()),
+                float(bg[qy0:qy1, qx0:qx1].max()),
+                float(np.abs(tiles[:, qy0:qy1, qx0:qx1] - cur[qy0:qy1, qx0:qx1]).mean()),
+            ]
             ok[idx] = 1
         if k % 25 == 24:
-            print('  %d/%d frames  %.0fs' % (k + 1, len(bounds), time.time() - t0),
-                  flush=True)
+            print('  %d/%d frames  %.0fs' % (k + 1, len(bounds), time.time() - t0), flush=True)
 
     np.savez_compressed(OUT, T=T, ok=ok, tnames=np.array(TNAMES))
     print()
     print('rows with temporal features: %d / %d' % (int(ok.sum()), n))
     y = z['y'].astype(int)
-    for nm in ('t_blink', 't_persist', 't_fg0', 't_nfg', 't_speed',
-               't1_blink', 't1_persist', 't1_fg0'):
+    for nm in (
+        't_blink',
+        't_persist',
+        't_fg0',
+        't_nfg',
+        't_speed',
+        't1_blink',
+        't1_persist',
+        't1_fg0',
+    ):
         i = TNAMES.index(nm)
         p = T[(y == 1) & (ok == 1), i]
         q = T[(y == 0) & (ok == 1), i]
-        print('  %-10s positives %8.2f    negatives %8.2f'
-              % (nm, float(p.mean()), float(q.mean())))
+        print('  %-10s positives %8.2f    negatives %8.2f' % (nm, float(p.mean()), float(q.mean())))
     print('saved %s  %.1f s' % (OUT, time.time() - t0))
 
 

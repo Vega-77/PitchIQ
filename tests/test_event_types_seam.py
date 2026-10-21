@@ -35,6 +35,7 @@ counter loop in `cv/report_json.py:373`. A fifth defensive kind added to
 `_defensive_action` reaches neither on its own, and a team that made twelve of
 them would be published as having made none.
 """
+
 import inspect
 import re
 from pathlib import Path
@@ -173,8 +174,7 @@ class TestTheDefensiveFour:
         the type is *not*, and naming a word there has to stay legal.
         """
         summary = inspect.getdoc(DefensiveAction).strip().split('\n')[0]
-        assert set(re.findall(r'[a-z]+', summary)) & set(EVENT_TYPES) == \
-            defensive_kinds()
+        assert set(re.findall(r'[a-z]+', summary)) & set(EVENT_TYPES) == defensive_kinds()
 
     def test_every_defensive_kind_reaches_a_team_counter(self):
         """A kind with no counter is a column of football that goes unpublished.
