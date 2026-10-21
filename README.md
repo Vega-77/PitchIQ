@@ -142,6 +142,7 @@ carries now (see `shared/README.md`).
   ball, venue map, Hybrid 90, ...).
 - [docs/report-schema.md](docs/report-schema.md): the report JSON and Firestore
   documents the browser reads.
+- [CHANGELOG.md](CHANGELOG.md): the notable changes, by date.
 - [docs/conventions.md](docs/conventions.md): how the Python is written
   (formatting, names, docstrings, types).
 - [shared/README.md](shared/README.md): frontend conventions and cache busting.
