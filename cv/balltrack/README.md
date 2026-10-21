@@ -75,24 +75,62 @@ second process. `TNS=384` (a 384 px window instead of 512) runs in 91 s per
 minute and changes 3% of fr00's frames; it is not the default until the labs
 say it is no worse.
 
+## A whole half: `half.py` and the ball gate
+
+```
+PIQ_VIDEO=<video> python half.py <tag> <lo> <hi> [--workers 12]
+```
+
+`half.py` runs the chain `hybrid.sh` runs on a window over a whole half: drun
+on the CPU in 5-minute chunks, each chunk (plus 300 frames of overlap) through
+the classifier, the shipped picks, TAPNext bridges, Hybrid 90 and the 3D chain,
+and the person detector on the GPU meanwhile. The pieces are stitched where
+neighbours agree on the ball. It needs `homog/<tag>_reg.npz` and
+`<tag>_venue.npz` first, from `python -m cv.experiments.autocal_run <tag> ...
+--homog`. Every stage leaves a marker in `half/<tag>/`, so a rerun after a
+crash redoes only what did not finish.
+
+`ballgate.py` decides where not to draw a ball at all. Wrong rings came in
+stretches minutes long, not one at a time, so per-ring thresholds did not
+carry from one game to the next. What did is how sure the classifier is around
+the ring for minutes on end: where the rolling median of the best classifier
+score sits below 2.0, the stretch is blanked (`lost(tag, abs0, on)`). It blanks
+almost all of a night half and of East Brunswick, and almost none of the
+daytime dev games. `cv/panned.py` applies it before the pipeline sees the
+ball, and `match_video.py` before drawing it.
+
 ### Layout
 
 | dir | what |
 |---|---|
 | `homog/` | venue map (`vmap*`), pitch registration (`vreg.py` -> `<tag>_reg.npz`), 3D flight chain, Air/Flight/Fix lab labels and scorers |
 | `tapnext/` | `tn_engine.py` (bridges), `hyb_video.py` (the review video) |
-| `alltests/` | `mkpicks_one.py`, `hybrid.py`, `mk3d.py` (3D per 2D version in `h3d_<ver>/`), the 2D/3D test harness, Find the Ball / Fix Lab / pass labels, `results/` |
+| `alltests/` | `mkpicks_one.py`, `hybrid.py`, `mk3d.py` (3D per 2D version in `h3d_<ver>/`), the 2D/3D test harness, Find the Ball / Fix Lab / pass labels, and the score tables in `alltests/results/` (`2d.json`, `3d.json`) |
 
-Some files are not in git:
+### Generated, not in git
+
+Downloaded inputs (`requirements-balltrack.txt` at the repo root says how to
+get them):
 - The TAPNext++ checkpoint `tapnext/tapnextpp_512.ckpt` (2.4 GB).
 - The tapnet code, cloned at `tapnext/tapnet` from google-deepmind/tapnet at
   commit 730cda1.
+
+Built here, by the scripts that read them:
 - `homog/vfeats.npz` (102 MB, over GitHub's limit; rebuild with
   `python vfeats.py`).
-- The per-window detector outputs (`*.npz`).
-- The lab clip media.
+- The per-window detector outputs: `<tag>.npz`, `<tag>pan.npz`,
+  `<tag>ppl.npz`, `<tag>cls.npz` (`run.sh`).
+- The picks: `alltests/p2d/<version>/<tag>.npz` (`cls_B` shipped, `hyb90`
+  Hybrid 90), and the TAPNext-alone runs in `alltests/tn/`.
+- The 3D chain: `h3d_<version>/<tag>_ball3dd.npz` and `_smooth2.npz` (what
+  `cv/panned.py` reads), and `homog/<tag>_ball3dd.npz` for the shipped picks.
+- The ball on the pitch: `homog/<tag>_ballsb.npz` and `.csv` (`vballsb.py`).
+- A half's working state: `half/<tag>/` (stage markers, seams, log) and
+  drun's `*_kNNN.json` chunk manifests; the players in `plab/out/`.
+- Every video (`*.mp4`, `*.webm`), image and log, and the lab clip media.
 
-All of these exist in this checkout and in the full backup at
+The registrations themselves, `homog/<tag>_reg.npz`, are small and are in git.
+The inputs and the scrimmage's outputs are also in the full backup at
 `PitchIQ-data/scratch-2026-10-03` beside the repo. The layout keeps every
 script's `S2 = dirname(HERE)` pointing here, so no path was edited in the move.
 
@@ -134,4 +172,8 @@ Treat a wrong pick as worse than a missing one when changing anything here.
   data from an old scratchpad that no longer exists; set `PIQ_LEGACY_SP` to a
   copy to rerun them. Only the legacy training paths read it; `run.sh` does
   not.
-- Positions are image pixels. Mapping them onto the pitch is the next step.
+- The tracker works in image pixels. `homog/vreg.py` registers each frame to
+  the venue map and `vballsb.py` and the 3D chain carry the ball onto the
+  pitch (StatsBomb 120x80); `cv/panned.py` does the same for the players. The
+  pitch position is only as good as the registration, which is checked by
+  hand on every dev half (the Spot Check Lab's line questions).
