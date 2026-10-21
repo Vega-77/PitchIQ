@@ -62,7 +62,7 @@ the root `README.md`. For one window of a panned game:
 
 ```bash
 python -m pitchiq.experiments.autocal_run nb1 7200 9000
-python -m pitchiq.experiments.event_report --video clips/first-half.mp4 --panned nb1
+python -m pitchiq event_report --video clips/first-half.mp4 --panned nb1
 ```
 
 ---
@@ -174,7 +174,8 @@ PitchIQ/
 ├── firestore.rules      the security boundary (with firestore.indexes.json)
 ├── tests/               Python tests, JS tests and the Firestore emulator suites
 ├── pitchiq/                  the video pipeline: detection, tracking, calibration, events, xG
-│   ├── experiments/        the command-line entry points (python -m pitchiq.experiments.<name>)
+│   ├── cli/                the match-day commands (python -m pitchiq <command>)
+│   ├── experiments/        research tools and labs (python -m pitchiq.experiments.<name>)
 │   └── balltrack/          the ball tracker (Hybrid 90) and its labs
 ├── baselines/           report JSONs a person checked against the match
 ├── xg_training/         xG model training (main.py)

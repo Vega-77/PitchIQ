@@ -1,6 +1,6 @@
 """Run the whole pipeline over a clip and print the report.
 
-    .venv/Scripts/python.exe -m pitchiq.experiments.match_report \
+    .venv/Scripts/python.exe -m pitchiq match_report \
         --video clips/clip.mp4 --start 30 --end 50
 
 This is the only entry point that exercises analyse_match end to end, which is
@@ -31,7 +31,7 @@ from pitchiq.pipeline import analyse_match
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog='python -m pitchiq.experiments.match_report',
+        prog='python -m pitchiq match_report',
         description=__doc__.splitlines()[0],
     )
     parser.add_argument('--video', required=True, help='path to the clip')

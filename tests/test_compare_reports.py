@@ -10,7 +10,7 @@ Run:  .venv/Scripts/python.exe -m pytest tests/test_compare_reports.py -q
 
 import json
 
-from pitchiq.experiments.compare_reports import VOLATILE, compare, main
+from pitchiq.cli.compare_reports import VOLATILE, compare, main
 
 
 def only(differences):

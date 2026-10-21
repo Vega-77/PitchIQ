@@ -1,9 +1,9 @@
 """Turn clicked landmarks into a calibration, and say how good it is.
 
-    python -m pitchiq.experiments.calibrate calibration-points.json
-    python -m pitchiq.experiments.calibrate points.json --out pitchiq/calibrations/home.json
-    python -m pitchiq.experiments.calibrate points.json --frame frame.png --refine
-    python -m pitchiq.experiments.calibrate points.json --frame frame.png --lens
+    python -m pitchiq calibrate calibration-points.json
+    python -m pitchiq calibrate points.json --out pitchiq/calibrations/home.json
+    python -m pitchiq calibrate points.json --frame frame.png --refine
+    python -m pitchiq calibrate points.json --frame frame.png --lens
 
 Reports both reprojection error (optimistic — it is measured on the very points
 that were fitted) and leave-one-out error (honest, and what actually catches a
@@ -34,7 +34,7 @@ from pitchiq.calibration import Calibration
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog='python -m pitchiq.experiments.calibrate',
+        prog='python -m pitchiq calibrate',
         description='Fit a pixel->pitch homography from exported landmark clicks.',
     )
     parser.add_argument('points', type=Path, help='JSON from the browser picker')

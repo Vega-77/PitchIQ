@@ -15,7 +15,7 @@ import json
 
 import pytest
 
-from pitchiq.experiments.event_report import load_tag_log, load_video_timing
+from pitchiq.cli.event_report import load_tag_log, load_video_timing
 from pitchiq.phases import (
     DEAD_CAP_S,
     MAX_DEAD_S,

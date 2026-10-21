@@ -1,7 +1,7 @@
 // A plane homography from pinned landmarks, and how far off it is, in metres.
 //
 // This is only the page's check. The calibration the pipeline uses is still
-// fitted in Python (`python -m pitchiq.experiments.calibrate`), from the file this
+// fitted in Python (`python -m pitchiq calibrate`), from the file this
 // page saves. The page fits its own so a person can see, while still clicking,
 // whether the outline lands on the paint, and which pin is the bad one.
 

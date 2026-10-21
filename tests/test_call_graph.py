@@ -11,9 +11,10 @@ between two functions that each pass their own tests.
 So this walks the call graph instead of the coverage, and fails when a public
 name defined at the top level of a `pitchiq/` module is unreachable from anything
 that actually runs. Reachable means: reachable from module-level code, from a
-`main()` in `pitchiq/experiments/`, or from `analyse_match`. Tests are deliberately
-not roots — "called only by its own test" is precisely the thing being looked
-for, so counting a test as a caller would hide every finding.
+`main()` in `pitchiq/cli/` or `pitchiq/experiments/`, or from `analyse_match`.
+Tests are deliberately not roots — "called only by its own test" is precisely
+the thing being looked for, so counting a test as a caller would hide every
+finding.
 
     What this check is, and what it is not.
 
@@ -220,7 +221,7 @@ def build_graph():
                     roots |= _names_used(dec)
 
         # A tool is entered through its `main`, which nothing in the repo calls.
-        if path.parent.name == 'experiments':
+        if path.parent.name in ('cli', 'experiments'):
             roots.add('main')
 
     # The pipeline's entry point, called from every experiment and from tests.
@@ -300,7 +301,7 @@ class TestTheGraphItself:
 
     def test_the_last_mile_would_have_been_caught(self):
         """`publish` is the function whose orphaning started all of this. It
-        has a caller now, in `pitchiq/experiments/publish_report.py`, and this
+        has a caller now, in `pitchiq/cli/publish_report.py`, and this
         asserts the walk actually finds it — otherwise the check would have
         missed the one case it was built for."""
         assert 'publish' in reachable_names()

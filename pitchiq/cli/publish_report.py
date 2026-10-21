@@ -1,6 +1,6 @@
 """Put a finished report on the coach's screen.
 
-    python -m pitchiq.experiments.publish_report report.json --team T --match M
+    python -m pitchiq publish_report report.json --team T --match M
         [--mapping cvMapping.json] [--dry-run]
 
 `pitchiq/publish_to_firestore.py` is the last mile of this whole project: every number the
@@ -155,7 +155,7 @@ def describe_writes(client: DryRunClient) -> list[str]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog='python -m pitchiq.experiments.publish_report',
+        prog='python -m pitchiq publish_report',
         description='Write a match report JSON to Firestore for the app to read.',
     )
     parser.add_argument('report', type=Path, help='report JSON, as written by event_report --json')

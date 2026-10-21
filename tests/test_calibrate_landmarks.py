@@ -1,7 +1,7 @@
 """The calibrate page's landmarks, against the two calibrators that read its pins.
 
 `calibrate/landmarks.js` names every landmark twice: once as `pitchiq/pitch.py`
-does (what `python -m pitchiq.experiments.calibrate` fits a fixed camera from) and
+does (what `python -m pitchiq calibrate` fits a fixed camera from) and
 once as the panning camera's pin solve does. A name the reader does not know
 is a pin it silently drops, and a position that disagrees with
 `Pitch.landmarks()` is a homography the page checks against one pitch and

@@ -50,7 +50,8 @@ in git"). Accuracy figures for the tracker are in that README too, and
 | path | what |
 |---|---|
 | `pitchiq/` | the pipeline: detection, tracking, identity, calibration, ball, possession, events, top-down map, report JSON, publishing to Firestore |
-| `pitchiq/experiments/` | command-line tools: `event_report`, `match_report`, `spike_detect`, `track_report`, `calibrate`, `autocal_run`, `publish_report`, labs |
+| `pitchiq/cli/` | the match-day commands, run as `python -m pitchiq <command>`: `grab_frame`, `calibrate`, `event_report`, `match_report`, `compare_reports`, `publish_report` |
+| `pitchiq/experiments/` | research tools and labs: `spike_detect`, `track_report`, `speed_report`, `autocal_run`, `player_lab`, ... |
 | `pitchiq/balltrack/` | the ball tracker for panning footage (Hybrid 90: detector + classifier + TAPNext++ bridges + 3D flight chain), and the venue map and registration in `homog/` |
 | `assets/` | shared frontend modules and CSS (no build step, plain ES modules) |
 | `index.html` | landing page and sign-in |

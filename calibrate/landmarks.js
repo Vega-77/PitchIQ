@@ -3,7 +3,7 @@
 // Two calibrators read the pins, and they name the same points differently:
 //
 //   pitchiq/pitch.py `Pitch.landmarks()`    corner_bottom_left, pen_left_top_corner, ...
-//                                      read by `python -m pitchiq.experiments.calibrate`
+//                                      read by `python -m pitchiq calibrate`
 //                                      (a fixed camera: one frame, one homography)
 //   the pin solve (`pin_cal.py`)       'left corner near', 'left box far', ...
 //                                      (a panning camera: pins on its panorama)
@@ -16,7 +16,7 @@
 // tests/test_calibrate_landmarks.py holds the names to pitchiq/pitch.py and the
 // positions to `Pitch.landmarks()`.
 
-import { MARKINGS_M } from '../assets/pitch-backdrop.js?v=141';
+import { MARKINGS_M } from '../assets/pitch-backdrop.js?v=142';
 
 // [pitchiq/pitch.py name, pin-solve name or null, label, suggested]
 // Suggested: the spread the solve does best with when only a few can be placed.

@@ -59,6 +59,9 @@ xg-training = [
     "onnxmltools",
 ]
 
+[project.scripts]
+pitchiq = "pitchiq.__main__:main"
+
 [tool.setuptools.packages.find]
 include = ["pitchiq", "pitchiq.*"]
 

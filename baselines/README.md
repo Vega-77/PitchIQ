@@ -27,7 +27,7 @@ Never one from a held-out half. See `FOOTAGE_DAY.md`.
 ## Making one
 
 ```bash
-python -m pitchiq.experiments.event_report \
+python -m pitchiq event_report \
     --video clips/2026-08-15-first-half.mp4 \
     --calibration clips/2026-08-15.calib.json \
     --tag-log clips/2026-08-15.log.json \
@@ -39,7 +39,7 @@ From the panning camera, after the ball tracker has run on that window
 (`pitchiq/balltrack/README.md`):
 
 ```bash
-python -m pitchiq.experiments.event_report --video clips/first-half.mp4 \
+python -m pitchiq event_report --video clips/first-half.mp4 \
     --panned nb1 --json baselines/nb1-first-half.json
 ```
 
@@ -51,7 +51,7 @@ directions.
 ## Checking against one
 
 ```bash
-python -m pitchiq.experiments.compare_reports \
+python -m pitchiq compare_reports \
     baselines/2026-08-15-first-half.json runs/today.json
 ```
 

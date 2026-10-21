@@ -1,7 +1,7 @@
 """Save a single frame from a video, for calibrating against.
 
-python -m pitchiq.experiments.grab_frame "match.mp4" --at 120
-python -m pitchiq.experiments.grab_frame "match.mp4" --at 120 --out frame.png
+python -m pitchiq grab_frame "match.mp4" --at 120
+python -m pitchiq grab_frame "match.mp4" --at 120 --out frame.png
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pitchiq.video_io import sample_frames, video_info
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog='python -m pitchiq.experiments.grab_frame', description='Save one frame from a video.'
+        prog='python -m pitchiq grab_frame', description='Save one frame from a video.'
     )
     parser.add_argument('video', type=Path)
     parser.add_argument('--at', type=float, default=60.0, help='timestamp in seconds')

@@ -88,7 +88,7 @@ tracker in `pitchiq/balltrack/` learnt to register every frame to the pitch
 | calibration | one frame, pinned on `calibrate/` (section 2) | from the match itself: `python -m pitchiq.experiments.autocal_run nb1 7200 9000` (tag, first and last frame) |
 | ball | the pipeline's own detector | the Hybrid 90 tracker, `pitchiq/balltrack/` |
 | players | `analyse_match` | `analyse_match`, after `PannedCamera` moves every box into one still view |
-| run | `python -m pitchiq.experiments.event_report --video clips/first-half.mp4 --calibration clips/first-half.calib.json` (section 5) | `sh pitchiq/balltrack/hybrid.sh <lo> <hi> <tag>` for a window or `python pitchiq/balltrack/half.py <tag> <lo> <hi>` for a half, then `python -m pitchiq.experiments.event_report --video clips/first-half.mp4 --panned nb1` |
+| run | `python -m pitchiq event_report --video clips/first-half.mp4 --calibration clips/first-half.calib.json` (section 5) | `sh pitchiq/balltrack/hybrid.sh <lo> <hi> <tag>` for a window or `python pitchiq/balltrack/half.py <tag> <lo> <hi>` for a half, then `python -m pitchiq event_report --video clips/first-half.mp4 --panned nb1` |
 | cost on this laptop | minutes | hours of GPU per half |
 
 The panning pipeline's steps, what each writes and how good the ball is (its
@@ -133,7 +133,7 @@ One frame, once, per camera position. It is what turns pixels into metres, and
 without it there is no distance, no speed, no shape, no shots and no xG.
 
 ```bash
-python -m pitchiq.experiments.grab_frame clips/first-half.mp4 --at 60
+python -m pitchiq grab_frame clips/first-half.mp4 --at 60
 ```
 
 Pick a moment where the pitch markings are clearly visible — the centre circle,
@@ -144,7 +144,7 @@ up by name). "Save pins" writes `calibration-points.json`; turn it into the
 calibration with
 
 ```bash
-python -m pitchiq.experiments.calibrate calibration-points.json --frame frame.png --out clips/first-half.calib.json
+python -m pitchiq calibrate calibration-points.json --frame frame.png --out clips/first-half.calib.json
 ```
 
 A panning camera is pinned on the same page ("The panorama of a panning camera")
@@ -157,7 +157,7 @@ page leaves the checking to that solve.
   wide-angle or action camera bends the painted lines, and a homography cannot
   represent a bent line, so every landmark can be clicked perfectly and the fit
   still fail. Re-clicking will not help; measuring the bow will. Run
-  `python -m pitchiq.experiments.calibrate calibration-points.json --frame frame.png --lens`.
+  `python -m pitchiq calibrate calibration-points.json --frame frame.png --lens`.
   If the frame can answer, the coefficient is saved with the calibration and
   everything downstream corrects for it without being told. If it cannot — if
   the paint all runs near the middle of the shot, where no lens bends it — it
@@ -276,7 +276,7 @@ sprints, top speed — is a fragment until this comes down.
 **Third — the full run.**
 
 ```bash
-python -m pitchiq.experiments.event_report \
+python -m pitchiq event_report \
     --video clips/first-half.mp4 \
     --calibration clips/first-half.calib.json \
     --tag-log clips/first-half.log.json \
@@ -319,7 +319,7 @@ Once the output is something you would defend, commit that JSON to `baselines/`
 with the command that produced it. From then on:
 
 ```bash
-python -m pitchiq.experiments.compare_reports baselines/2026-08-15-first-half.json runs/today.json
+python -m pitchiq compare_reports baselines/2026-08-15-first-half.json runs/today.json
 ```
 
 catches any change to a threshold that quietly moves the numbers. Every threshold
@@ -334,7 +334,7 @@ None of this exists to anyone until it is in Firestore, and every step above
 produces a file on a laptop. Look at what would be written before writing it:
 
 ```bash
-python -m pitchiq.experiments.publish_report \
+python -m pitchiq publish_report \
     baselines/2026-08-15-first-half.json \
     --team TEAMID --match MATCHID \
     --dry-run --verbose

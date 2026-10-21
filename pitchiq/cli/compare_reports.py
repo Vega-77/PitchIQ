@@ -1,6 +1,6 @@
 """Diff two report JSONs, so a change to the pipeline has to explain itself.
 
-    python -m pitchiq.experiments.compare_reports baselines/first-half.json runs/today.json
+    python -m pitchiq compare_reports baselines/first-half.json runs/today.json
 
 The roadmap's Testing Strategy has asked for this from the beginning — "rerun
 the pipeline against these fixed clips after every change and diff the output,
@@ -150,7 +150,7 @@ def load(path: Path):
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog='python -m pitchiq.experiments.compare_reports',
+        prog='python -m pitchiq compare_reports',
         description='Diff a pipeline run against a baseline run.',
     )
     parser.add_argument('baseline', type=Path, help='a report JSON somebody looked at and believed')

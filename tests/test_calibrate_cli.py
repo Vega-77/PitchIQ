@@ -28,7 +28,7 @@ import numpy as np
 import pytest
 
 from pitchiq.calibration import Calibration
-from pitchiq.experiments.calibrate import main
+from pitchiq.cli.calibrate import main
 from pitchiq.pitch import Pitch
 from test_distortion import grid_error_m, perfect_clicks, render_through
 from test_lines import (

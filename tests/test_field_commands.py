@@ -8,9 +8,9 @@ first real footage lands, in the dark, with no time to fix it and no second clip
 for another week.
 
 So this file reads the Markdown the way a person does: it pulls every
-`python -m pitchiq.experiments.*` invocation out of the docs, tokenises it, and hands
-the arguments to the parser of the module it names. A flag that no longer exists
-fails here instead of there.
+`python -m pitchiq <command>` and `python -m pitchiq.experiments.*` invocation out
+of the docs, tokenises it, and hands the arguments to the parser of the module it
+names. A flag that no longer exists fails here instead of there.
 
 There is no video and no model anywhere in this file. Argument parsing does not
 open the paths it is given, so `clips/first-half.mp4` never has to exist — which
@@ -29,10 +29,16 @@ import shlex
 import unittest
 from pathlib import Path
 
+import pitchiq.cli
 import pitchiq.experiments
+from pitchiq.__main__ import main as front_end
 
 REPO = Path(__file__).resolve().parent.parent
+# The match-day commands go through the one front end; the research tools and
+# labs are still run as modules of their own.
+CLI = 'python -m pitchiq '
 PREFIX = 'python -m pitchiq.experiments.'
+PACKAGES = {CLI: pitchiq.cli, PREFIX: pitchiq.experiments}
 
 # Every Markdown file that is allowed to teach somebody a command. Kept explicit
 # rather than globbed: a stray README in a scratch directory should not become
@@ -41,12 +47,22 @@ DOCS = ['FOOTAGE_DAY.md', 'ROADMAP.md', 'baselines/README.md']
 
 
 def module_names() -> list[str]:
-    """Every command under `pitchiq/experiments/`, in the order a listing shows them."""
+    """Every command under `pitchiq/cli/` and `pitchiq/experiments/`, as full
+    module names, in the order a listing shows them."""
     return sorted(
-        info.name
-        for info in pkgutil.iter_modules(pitchiq.experiments.__path__)
+        f'{package.__name__}.{info.name}'
+        for package in PACKAGES.values()
+        for info in pkgutil.iter_modules(package.__path__)
         if not info.name.startswith('_')
     )
+
+
+def typed(module: str) -> str:
+    """The command a person types to run `module`."""
+    for prefix, package in PACKAGES.items():
+        if module.startswith(package.__name__ + '.'):
+            return prefix + module.rsplit('.', 1)[1]
+    raise ValueError(module)
 
 
 FENCE = re.compile(r'^```[a-z]*\n(.*?)^```', re.S | re.M)
@@ -57,7 +73,9 @@ def _commands_in_fences(text: str) -> list[str]:
     out = []
     for block in FENCE.findall(text):
         joined = re.sub(r'\\\n\s*', ' ', block)
-        out.extend(line.strip() for line in joined.splitlines() if line.strip().startswith(PREFIX))
+        out.extend(
+            line.strip() for line in joined.splitlines() if line.strip().startswith(tuple(PACKAGES))
+        )
     return out
 
 
@@ -73,15 +91,15 @@ def _commands_in_prose(text: str) -> list[str]:
     out = []
     for span in re.findall(r'`([^`]+)`', FENCE.sub('', text)):
         span = ' '.join(span.split())
-        if span.startswith(PREFIX):
+        if span.startswith(tuple(PACKAGES)):
             out.append(span)
     return out
 
 
-# `python -m pitchiq.experiments.*` and `python -m pitchiq.experiments.<name>` are how
-# prose names the set of commands rather than one of them. Only this exact
-# placeholder syntax is skipped: a module name that is merely wrong still fails.
-PLACEHOLDER = re.compile(re.escape(PREFIX) + r'(\*|<[^>]*>)')
+# `python -m pitchiq.experiments.*` and `python -m pitchiq <command>` are how prose
+# names the set of commands rather than one of them. Only this exact placeholder
+# syntax is skipped: a module name that is merely wrong still fails.
+PLACEHOLDER = re.compile('(' + '|'.join(map(re.escape, PACKAGES)) + r')(\*|<[^>]*>)')
 
 
 def documented_commands() -> list[tuple[str, str]]:
@@ -100,11 +118,14 @@ def documented_commands() -> list[tuple[str, str]]:
 
 
 def split(command: str) -> tuple[str, list[str]]:
-    """`(module, args)`. Square brackets around an optional flag are usage
-    notation rather than shell syntax, so they come off before parsing."""
+    """`(module, args)`, with the module's full name. Square brackets around an
+    optional flag are usage notation rather than shell syntax, so they come off
+    before parsing."""
     tokens = [t.strip('[]') for t in shlex.split(command)]
     assert tokens[:2] == ['python', '-m']
-    return tokens[2].split('.')[-1], tokens[3:]
+    if tokens[2] == 'pitchiq':
+        return f'pitchiq.cli.{tokens[3]}', tokens[4:]
+    return tokens[2], tokens[3:]
 
 
 SHAPES = """\
@@ -112,12 +133,12 @@ Prose first, mentioning `python -m pitchiq.experiments.spike_detect` with no
 arguments at all.
 
 ```bash
-python -m pitchiq.experiments.grab_frame clips/x.mp4 --at 60
+python -m pitchiq grab_frame clips/x.mp4 --at 60
 ```
 
 The set as a whole is `python -m pitchiq.experiments.*`, which names no module.
 
-A wrapped span: run `python -m pitchiq.experiments.calibrate
+A wrapped span: run `python -m pitchiq calibrate
 points.json --frame frame.png` and look at the error.
 
 ```bash
@@ -151,14 +172,16 @@ class TestTheExtractorReadsMarkdownTheWayAPersonDoes(unittest.TestCase):
 
     def test_a_span_wrapped_across_a_line_break_survives(self):
         wrapped = [c for c in self.found() if 'calibrate' in c]
-        self.assertEqual(wrapped, [PREFIX + 'calibrate points.json --frame frame.png'])
+        self.assertEqual(wrapped, [CLI + 'calibrate points.json --frame frame.png'])
 
     def test_a_glob_naming_the_whole_set_is_not_read_as_a_command(self):
         # Writing about these commands in the docs should not break the check on
         # them, and `pitchiq.experiments.*` is the natural way to write about them.
         self.assertFalse([c for c in self.found() if '.*' in c])
         self.assertTrue(PLACEHOLDER.match(PREFIX + '<name> --conf 0.08'))
+        self.assertTrue(PLACEHOLDER.match(CLI + '<command> --help'))
         self.assertFalse(PLACEHOLDER.match(PREFIX + 'spike_detect'))
+        self.assertFalse(PLACEHOLDER.match(CLI + 'calibrate'))
 
     def test_a_fence_does_not_desynchronise_the_prose_scan(self):
         # Three backticks are three backticks. Scanning for single-backtick
@@ -192,7 +215,7 @@ class TestEveryCommandIsAModule(unittest.TestCase):
         # Catches a stale import in a command nobody has run for a month, which
         # is otherwise invisible until the moment it is needed.
         for name in module_names():
-            importlib.import_module(f'pitchiq.experiments.{name}')
+            importlib.import_module(name)
 
 
 class TestEveryCommandParses(unittest.TestCase):
@@ -201,7 +224,7 @@ class TestEveryCommandParses(unittest.TestCase):
             module, args = split(command)
             if not args:
                 continue  # `see \`python -m ...spike_detect\`` is prose, not a command
-            parser = importlib.import_module(f'pitchiq.experiments.{module}').build_parser()
+            parser = importlib.import_module(module).build_parser()
             with self.subTest(source=source, command=command):
                 try:
                     with contextlib.redirect_stderr(io.StringIO()) as complaint:
@@ -216,10 +239,7 @@ class TestEveryCommandParses(unittest.TestCase):
 
 class TestEveryCommandHasTheSameShape(unittest.TestCase):
     def modules(self):
-        return [
-            (name, importlib.import_module(f'pitchiq.experiments.{name}'))
-            for name in module_names()
-        ]
+        return [(name, importlib.import_module(name)) for name in module_names()]
 
     def test_each_one_exposes_a_parser_and_an_entry_point(self):
         for name, module in self.modules():
@@ -235,7 +255,7 @@ class TestEveryCommandHasTheSameShape(unittest.TestCase):
         # `usage: track_report [...]` is a command that does not exist. So is
         # `usage: -c`, which is what argparse infers when nothing sets prog.
         for name, module in self.modules():
-            self.assertEqual(module.build_parser().prog, PREFIX + name)
+            self.assertEqual(module.build_parser().prog, typed(name))
 
     def test_help_prints_rather_than_crashing(self):
         for name, module in self.modules():
@@ -243,12 +263,39 @@ class TestEveryCommandHasTheSameShape(unittest.TestCase):
                 with self.assertRaises(SystemExit) as exit:
                     module.build_parser().parse_args(['--help'])
             self.assertEqual(exit.exception.code, 0, name)
-            self.assertIn(PREFIX + name, text.getvalue())
+            self.assertIn(typed(name), text.getvalue())
 
     def test_every_command_describes_itself(self):
         for name, module in self.modules():
             description = module.build_parser().description
             self.assertTrue(description and description.strip(), name)
+
+
+class TestTheFrontEnd(unittest.TestCase):
+    """`python -m pitchiq <command>` is only a dispatcher; these pin that it
+    reaches every command and nothing else."""
+
+    def test_it_lists_exactly_the_modules_in_cli(self):
+        listed = sorted(f'pitchiq.cli.{name}' for name in pitchiq.cli.COMMANDS)
+        self.assertEqual(listed, [m for m in module_names() if m.startswith('pitchiq.cli.')])
+
+    def test_a_command_gets_the_rest_of_the_arguments(self):
+        with contextlib.redirect_stdout(io.StringIO()) as text:
+            with self.assertRaises(SystemExit) as exit:
+                front_end(['calibrate', '--help'])
+        self.assertEqual(exit.exception.code, 0)
+        self.assertIn(CLI + 'calibrate', text.getvalue())
+
+    def test_an_unknown_command_is_refused_with_the_list(self):
+        with contextlib.redirect_stderr(io.StringIO()) as text:
+            self.assertEqual(front_end(['calibrat']), 2)
+        self.assertIn('publish_report', text.getvalue())
+
+    def test_help_lists_the_commands(self):
+        with contextlib.redirect_stdout(io.StringIO()) as text:
+            self.assertEqual(front_end(['--help']), 0)
+        for name in pitchiq.cli.COMMANDS:
+            self.assertIn(name, text.getvalue())
 
 
 if __name__ == '__main__':

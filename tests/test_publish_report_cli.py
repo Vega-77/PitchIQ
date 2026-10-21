@@ -21,7 +21,7 @@ import json
 
 import pytest
 
-from pitchiq.experiments.publish_report import (
+from pitchiq.cli.publish_report import (
     DryRunClient,
     build_parser,
     describe,

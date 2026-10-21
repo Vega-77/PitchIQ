@@ -1,6 +1,6 @@
 """Run the event chain over a clip and print what it found, timestamped.
 
-    .venv/Scripts/python.exe -m pitchiq.experiments.event_report \
+    .venv/Scripts/python.exe -m pitchiq event_report \
         --video clips/clip.mp4 --start 90 --end 105
 
 This exists to be checked against the video, not to be believed on its own.
@@ -44,7 +44,7 @@ def clock(seconds: float) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog='python -m pitchiq.experiments.event_report',
+        prog='python -m pitchiq event_report',
         description=__doc__.splitlines()[0],
     )
     parser.add_argument('--video', required=True)
