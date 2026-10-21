@@ -59,6 +59,9 @@ def run_around(mask, c):
 
 
 def main():
+    """Temporal features for every still4.npz candidate from the clip sheets
+    -> temporal4.npz.
+    """
     meta = json.load(io.open(os.path.join(CLIPS, 'clip.json'), encoding='utf-8'))
     offs = meta['offs']
     ncol = len(offs)

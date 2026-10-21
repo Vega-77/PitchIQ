@@ -67,6 +67,9 @@ def scorable(video):
 
 class Half:
     def __init__(self, tag, lo, hi, workers, overlap, lanes=LANES):
+        """Split lo..hi into pieces (one per detector chunk, ragged ends merged into a
+        neighbour), each with its core and its window widened by `overlap`; open half/<tag>/log.txt.
+        """
         self.tag, self.lo, self.hi, self.workers, self.ov, self.lanes = (
             tag,
             lo,
@@ -106,6 +109,7 @@ class Half:
     # ---- bookkeeping ------------------------------------------------------------------
 
     def say(self, msg):
+        """Print msg with the minutes since start, and append it to the half's log."""
         line = '[%6.1f min] %s' % ((time.time() - self.t0) / 60.0, msg)
         with self.lock:
             print(line, flush=True)
@@ -113,9 +117,11 @@ class Half:
             self.log_f.flush()
 
     def done(self, ptag, stage):
+        """Whether `stage` has finished for piece ptag (its marker file exists)."""
         return os.path.exists(os.path.join(self.dir, '%s.%s.done' % (ptag, stage)))
 
     def mark(self, ptag, stage):
+        """Record that `stage` has finished for piece ptag."""
         open(os.path.join(self.dir, '%s.%s.done' % (ptag, stage)), 'w').close()
 
     def run(self, cwd, *cmd, env=None, log=None):
@@ -166,6 +172,7 @@ class Half:
         return res
 
     def dets_ready(self, a, b):
+        """Whether the players' detections cover every chunk that frames a..b touch."""
         from pitchiq.experiments import player_lab
 
         return all(
@@ -218,9 +225,11 @@ class Half:
             shutil.copy2(venue, os.path.join(HOM, '%s_venue.npz' % P))
 
     def classify(self, p):
+        """Crop classifier log-odds for the piece's candidates (score_candidates, cls_B)."""
         self.run(S2, 'score_candidates', 'cls_B.pt', p['ptag'])
 
     def shipped(self, p):
+        """The shipped tracker's picks and the 3D chain on them, for one piece."""
         P = p['ptag']
         log = os.path.join(HOM, '%s_chain.log' % P)
         self.run(AT, 'evaluation.mkpicks_one', P, log=log, env=ONE_THREAD)
@@ -251,6 +260,7 @@ class Half:
 
     def bridges(self, p):
         # neighbours already bridged lend their tracks in the overlap (same gap, picks and frames)
+        """TAPNext bridges for one piece, reusing finished neighbours' tracks in the overlap."""
         near = [
             q['ptag']
             for q in self.pieces
@@ -265,6 +275,7 @@ class Half:
         )
 
     def hybrid(self, p):
+        """Hybrid 90 picks for one piece, then the 3D chain on them in h3d_hyb90/."""
         P = p['ptag']
         self.run(AT, 'evaluation.hybrid', P, env=ONE_THREAD)
         os.makedirs(H3D, exist_ok=True)
@@ -297,6 +308,9 @@ class Half:
         return None, None
 
     def players_loop(self):
+        """The players' lane: detect every chunk, then features, then merge once every
+        piece is built.  An exception is stored in self.err for main to report.
+        """
         from pitchiq.experiments import player_lab
 
         try:
@@ -369,6 +383,7 @@ class Half:
             self.err = e
 
     def merge_players(self):
+        """Merge the players' chunk parts into the half's detections and features."""
         from pitchiq.experiments import player_lab
 
         player_lab.extract(
@@ -378,6 +393,7 @@ class Half:
         self.say('players merged')
 
     def do(self, stage, p):
+        """Run `stage` on piece p, mark it done and log how long it took."""
         t = time.time()
         getattr(self, stage)(p)
         self.mark(p['ptag'], stage)
@@ -502,6 +518,9 @@ class Half:
     # ---- the run ----------------------------------------------------------------------------
 
     def main(self):
+        """Run the whole half: start the detector, the players', GPU and CPU lanes, wait for
+        them (stopping everything on the first error), then stitch.
+        """
         from pitchiq.experiments import player_lab
 
         if player_lab.CHUNK != detect_candidates.CHUNK:
@@ -568,6 +587,7 @@ class Half:
 
 
 def main():
+    """Command line: <tag> <lo> <hi> [--workers] [--overlap] [--lanes] [--stitch-only]."""
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('tag')
     ap.add_argument('lo', type=int)

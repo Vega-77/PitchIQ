@@ -283,6 +283,9 @@ def check(nsample=6):
 
 
 def main():
+    """Command line: [--check] [--n N] [--keep K] - the detector on every frame of the test
+    stretch LO..HI in one process -> dense.npz (--check compares a sample instead).
+    """
     a = sys.argv[1:]
     if '--check' in a:
         check()

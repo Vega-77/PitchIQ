@@ -26,6 +26,7 @@ TOL = wm_score.TOL
 
 
 def load_all():
+    """Ball Truth, its clip tags, each clip's tracker frames, and frame index by abs."""
     T = wm_score.truth()
     tags = sorted({t['clip'] for t in T})
     F = {tag: ball_tracker.load_frames(tag) for tag in tags}
@@ -34,6 +35,7 @@ def load_all():
 
 
 def score(T, F, idx, picks, clips):
+    """Counts of ball right / wrong / none and off ok over the marks in `clips`."""
     c = collections.Counter()
     for t in T:
         if t['clip'] not in clips or t['kind'] not in ('ball', 'off'):
@@ -57,6 +59,7 @@ def score(T, F, idx, picks, clips):
 
 
 def fmt(c):
+    """One line of score() counts."""
     return 'acc %3d/%3d %3.0f%% | ball right %3d wrong %3d none %3d / %3d | off ok %2d / %2d' % (
         c['ok'],
         c['ball'] + c['off'],
@@ -83,6 +86,7 @@ GRID = dict(
 
 
 def main():
+    """Run GRID, tune on each match half, score on the other -> wm_tune.json."""
     T, tags, F, idx = load_all()
     halves = {'H1': {t for t in tags if int(t[2:]) < 9}, 'H2': {t for t in tags if int(t[2:]) >= 9}}
 

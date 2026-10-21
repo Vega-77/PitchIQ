@@ -50,15 +50,18 @@ KEEPER, REF, UNK = (0, 220, 255), (200, 90, 255), (200, 200, 200)
 
 
 def mm(x, y):
+    """Map panel pixel for StatsBomb point (x, y), clipped to 4 units round the pitch."""
     return (int(OX + (np.clip(x, -4, 124) + 4) * MS), int(OY + (84 - np.clip(y, -4, 84)) * MS))
 
 
 def text(im, s, org, sc, col, th=1):
+    """Text s at org with a black outline."""
     cv2.putText(im, s, org, FONT, sc, BLACK, th + 2, cv2.LINE_AA)
     cv2.putText(im, s, org, FONT, sc, col, th, cv2.LINE_AA)
 
 
 def ring(im, c, r, col):
+    """A ring of radius r at c with a black outline."""
     c = (int(c[0]), int(c[1]))
     cv2.circle(im, c, r, BLACK, 4, cv2.LINE_AA)
     cv2.circle(im, c, r, col, 2, cv2.LINE_AA)
@@ -132,6 +135,9 @@ def kit_name(lab) -> str:
 
 
 def players(tag):
+    """The linked players of `tag`, the darker kit's colour (red) and the lighter's (blue),
+    and each kit's name for the legend.
+    """
     from pitchiq.experiments import player_lab
 
     det, meta = player_lab.load_detections(tag)
@@ -209,6 +215,7 @@ def pitch_map(tag, res, Hs, a0, lo, hi, settings=None):
 
 
 def colour(ident, col, team=None):
+    """Drawing colour for an identity: referee, keeper, else its team's (or `team`'s)."""
     if ident.role == 'referee':
         return REF
     if ident.role == 'keeper':
@@ -217,6 +224,7 @@ def colour(ident, col, team=None):
 
 
 def group_colour(group, col):
+    """Drawing colour for a (team, role) group, as colour() does for one identity."""
     team, role = group
     return REF if role == 'referee' else KEEPER if role == 'keeper' else col.get(team, UNK)
 
@@ -240,6 +248,7 @@ def blend_dot(im, p, r, c, a, ring=False):
 
 
 def main():
+    """Command line: tag lo hi - render match_<tag>_<lo>.mp4 (see the module docstring)."""
     from . import config
 
     tag, lo, hi = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])

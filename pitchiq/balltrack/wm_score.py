@@ -26,6 +26,7 @@ TOL = 60.0
 
 
 def truth():
+    """Every Ball Truth mark, from ground_truth/truth/*.json."""
     out = []
     for f in sorted(glob.glob(os.path.join(S2, 'ground_truth', 'truth', '*.json'))):
         t = json.load(open(f))
@@ -34,6 +35,7 @@ def truth():
 
 
 def cands(tag, cache={}):
+    """Candidate frames, positions and scores of window `tag` (<tag>.npz), cached."""
     if tag not in cache:
         z = np.load(os.path.join(S2, '%s.npz' % tag), allow_pickle=True)
         f = z['f']
@@ -42,6 +44,7 @@ def cands(tag, cache={}):
 
 
 def main():
+    """Command line: [suffix] - score wmNN<suffix>picks.json against Ball Truth, per stratum."""
     suf = sys.argv[1] if len(sys.argv) > 1 else ''
     T = truth()
     picks = {}

@@ -25,6 +25,9 @@ DATA = os.path.join(os.path.dirname(half.REPO), 'PitchIQ-data', 'tnprev')
 
 
 def main():
+    """Command line: <tag> <lo> <hi> [--overlap] [--lanes] [--prev] - per piece the new
+    registration, the shipped chain, bridges and hybrid, then the stitch.
+    """
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('tag')
     ap.add_argument('lo', type=int)

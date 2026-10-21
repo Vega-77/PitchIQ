@@ -364,6 +364,9 @@ def collect(use, frames, cmaj):
 
 
 def main():
+    """Candidates and still features on the first labelling round's labelled frames
+    -> still4.npz.
+    """
     man = json.load(io.open(os.path.join(SP, 'label', 'manifest.json'), encoding='utf-8'))
     frames = {f['i']: f for f in man['frames']}
     labdir = os.path.join(S2, 'lab5', 'labels')
