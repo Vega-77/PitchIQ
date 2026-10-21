@@ -17,12 +17,14 @@ with it torch, only when one is built (see `detector.py`).
 from .calibration import Calibration
 from .detector import Detection, PersonBallDetector
 from .panning_camera import PannedCamera
-from .pipeline import MatchReport, analyse_match
+from .pipeline import AnalysisOptions, MatchContext, MatchReport, analyse_match
 from .pitch import Pitch
 from .video_io import SampledFrame, sample_frames, video_info
 
 __all__ = [
     'analyse_match',
+    'AnalysisOptions',
+    'MatchContext',
     'MatchReport',
     'Calibration',
     'Pitch',

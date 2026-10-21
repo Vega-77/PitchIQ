@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 from pitchiq.panning_camera import PannedCamera
-from pitchiq.pipeline import analyse_match
+from pitchiq.pipeline import AnalysisOptions, analyse_match
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -111,13 +111,15 @@ def main(argv: list[str] | None = None) -> int:
         panned=PannedCamera.from_tracker(args.panned) if args.panned else None,
         start_s=args.start,
         end_s=args.end,
-        conf=args.conf,
-        ball_conf=args.ball_conf,
-        imgsz=args.imgsz,
-        device=device,
-        tracker=args.tracker,
-        stride=args.stride,
-        sample_fps=args.sample_fps,
+        options=AnalysisOptions(
+            conf=args.conf,
+            ball_conf=args.ball_conf,
+            imgsz=args.imgsz,
+            device=device,
+            tracker=args.tracker,
+            stride=args.stride,
+            sample_fps=args.sample_fps,
+        ),
     )
 
     print()

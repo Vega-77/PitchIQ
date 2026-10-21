@@ -35,7 +35,7 @@ import pytest
 from pitchiq.calibration import Calibration, Correspondence
 from pitchiq.detector import CLASS_BALL, CLASS_PERSON
 from pitchiq.events import SHOT_SPEED_PH_S
-from pitchiq.pipeline import analyse_match
+from pitchiq.pipeline import AnalysisOptions, MatchContext, analyse_match
 from pitchiq.pitch import MatchOrientation, Pitch
 from pitchiq.report_export import build_report_json
 from pitchiq.teams import TEAM_A, TEAM_B
@@ -261,12 +261,10 @@ def _run(clip, calibration_path):
     return analyse_match(
         clip,
         calibration_path=calibration_path,
-        device='cpu',
+        options=AnalysisOptions(device='cpu'),
+        context=MatchContext(orientation=ORIENTATION, period='first_half', side_of_team=SIDES),
         detector=ScriptedDetector(),
         tracker_factory=lambda name, device: SlotTracker(),
-        orientation=ORIENTATION,
-        period='first_half',
-        side_of_team=SIDES,
     )
 
 

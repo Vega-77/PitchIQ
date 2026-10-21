@@ -23,7 +23,7 @@ import pytest
 from pitchiq.calibration import CalibrationError
 from pitchiq.frame_table import FrameRecord, FrameTable
 from pitchiq.panning_camera import MAP_FIT_ERROR, PannedCamera
-from pitchiq.pipeline import analyse_match
+from pitchiq.pipeline import AnalysisOptions, MatchContext, analyse_match
 from pitchiq.pitch import Pitch, STATSBOMB_LENGTH, STATSBOMB_WIDTH
 
 PITCH = Pitch(length_m=112.7, width_m=70.8)
@@ -245,13 +245,13 @@ def _run(tmp_path_factory, pan):
     )
     return analyse_match(
         path,
-        device='cpu',
+        options=AnalysisOptions(device='cpu'),
+        context=MatchContext(
+            orientation=e2e.ORIENTATION, period='first_half', side_of_team=e2e.SIDES
+        ),
         panned=cam,
         detector=PanningDetector(pan),
         tracker_factory=lambda name, device: e2e.SlotTracker(),
-        orientation=e2e.ORIENTATION,
-        period='first_half',
-        side_of_team=e2e.SIDES,
     )
 
 

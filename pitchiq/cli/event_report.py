@@ -34,7 +34,7 @@ from pathlib import Path
 
 from pitchiq.events import CARRY, PASS, SHOT
 from pitchiq.panning_camera import PannedCamera
-from pitchiq.pipeline import analyse_match
+from pitchiq.pipeline import AnalysisOptions, MatchContext, analyse_match
 from pitchiq.teams import TEAM_A, TEAM_B
 
 
@@ -198,23 +198,27 @@ def main(argv: list[str] | None = None) -> int:
         panned=PannedCamera.from_tracker(args.panned) if args.panned else None,
         start_s=args.start,
         end_s=args.end,
-        conf=args.conf,
-        ball_conf=args.ball_conf,
-        imgsz=args.imgsz,
-        device=args.device if args.device == 'cpu' else int(args.device),
-        stride=args.stride,
-        sample_fps=args.sample_fps,
-        period=args.period,
-        side_of_team=side_of_team,
-        tag_log=load_tag_log(args.tag_log),
-        # A flag beats the file, and the file beats nothing. Which is the right
-        # precedence for a number that is right in the file until somebody
-        # re-cuts the video and has not saved the new one yet.
-        video_offset_s=_pick(args.video_offset, timing.get('videoOffsetS'), 0.0),
-        second_half_video_s=_pick(
-            args.second_half_video,
-            timing.get('secondHalfVideoS'),
-            None,
+        options=AnalysisOptions(
+            conf=args.conf,
+            ball_conf=args.ball_conf,
+            imgsz=args.imgsz,
+            device=args.device if args.device == 'cpu' else int(args.device),
+            stride=args.stride,
+            sample_fps=args.sample_fps,
+        ),
+        context=MatchContext(
+            period=args.period,
+            side_of_team=side_of_team,
+            tag_log=load_tag_log(args.tag_log),
+            # A flag beats the file, and the file beats nothing. Which is the right
+            # precedence for a number that is right in the file until somebody
+            # re-cuts the video and has not saved the new one yet.
+            video_offset_s=_pick(args.video_offset, timing.get('videoOffsetS'), 0.0),
+            second_half_video_s=_pick(
+                args.second_half_video,
+                timing.get('secondHalfVideoS'),
+                None,
+            ),
         ),
     )
 

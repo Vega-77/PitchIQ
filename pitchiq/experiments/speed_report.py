@@ -40,7 +40,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from pitchiq.pipeline import analyse_match
+from pitchiq.pipeline import AnalysisOptions, analyse_match
 from pitchiq.run_timing import FIXED, HALF_S, SUPERLINEAR, fastest_rate_that_fits
 
 # The rates worth asking about. 30 is a phone export run at full rate, 15 a
@@ -66,7 +66,7 @@ def measure(video: Path, rate: float, seconds: float, calibration: Path | None):
         calibration_path=calibration,
         start_s=0.0,
         end_s=seconds,
-        sample_fps=rate,
+        options=AnalysisOptions(sample_fps=rate),
     )
     timings = report.timings
     return {

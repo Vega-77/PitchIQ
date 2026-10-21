@@ -21,13 +21,13 @@ Design notes, measurements and history: `docs/design/pipeline.md`.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-from .ball import BallTrajectory, build_trajectory
+from .ball import BallCandidate, BallTrajectory, build_trajectory
 from .ball_visibility import (
     ACCOUNTED,
     DEAD,
@@ -72,6 +72,7 @@ from .phases import (
 from .pitch import MatchOrientation, Pitch
 from .possession_sequences import PhaseOfPlay, Sequence, phase_of_play, sequences
 from .possession import (
+    FrameState,
     PossessionSummary,
     build_states,
     prepare_states,
@@ -415,27 +416,59 @@ def _event_line(events: EventLog) -> str:
     )
 
 
+@dataclass(frozen=True)
+class AnalysisOptions:
+    """How the detector and tracker run: settings, not facts about the match.
+
+    `sample_fps` is the speed lever, in hertz because that is the only unit any
+    of this is true in. Given, it replaces `stride` with the stride that comes
+    nearest on this source, and the rate that really ran is the one the report
+    publishes. The defaults are the ones every published number came from; why
+    the default is every frame is in docs/design/pipeline.md.
+    """
+
+    conf: float = 0.25
+    ball_conf: float = 0.08
+    imgsz: int = 1280
+    device: str | int | None = 0
+    tracker: str = 'botsort.yaml'
+    stride: int = 1
+    sample_fps: float | None = None
+
+
+@dataclass(frozen=True)
+class MatchContext:
+    """What is known about the match from outside the footage.
+
+    Every piece is optional; each one missing costs the figures that need it,
+    and the report's warnings say which. `tag_log` is the hand-tagged match log
+    as `shared/db.js::listLog` returns it, and is what tells the pipeline when
+    the ball was out of play. `video_offset_s` relates the log's clock to the
+    video's, and is the number the coach types in beside the video link; the
+    tablet's clock stops for the interval and the footage does not, so
+    `second_half_video_s`, where the restart sits in this file, is what makes a
+    second-half timestamp land where it happened. See `phases.VideoClock`.
+    """
+
+    orientation: MatchOrientation | None = None
+    period: str | None = None
+    side_of_team: dict[str, str] | None = None
+    tag_log: list[dict] | None = None
+    video_offset_s: float = 0.0
+    second_half_video_s: float | None = None
+
+
 def analyse_match(
     video_path: str | Path,
     calibration_path: str | Path | None = None,
+    *,
     start_s: float = 0.0,
     end_s: float | None = None,
-    conf: float = 0.25,
-    ball_conf: float = 0.08,
-    imgsz: int = 1280,
-    device: str | int | None = 0,
-    orientation: MatchOrientation | None = None,
-    tracker: str = 'botsort.yaml',
-    stride: int = 1,
-    sample_fps: float | None = None,
-    period: str | None = None,
-    side_of_team: dict[str, str] | None = None,
-    tag_log=None,
-    video_offset_s: float = 0.0,
-    second_half_video_s: float | None = None,
+    options: AnalysisOptions | None = None,
+    context: MatchContext | None = None,
+    panned=None,
     detector=None,
     tracker_factory=None,
-    panned=None,
 ) -> MatchReport:
     """Run the full pipeline over a video.
 
@@ -443,98 +476,27 @@ def analyse_match(
     tracks themselves, which need only pixels. With one it adds everything
     expressed in metres.
 
-    `tag_log` is the hand-tagged match log, as `shared/db.js::listLog` returns
-    it. It is what tells this pipeline when the ball was out of play; without it
-    every stoppage counts as possession for whoever was standing over the ball.
-    `video_offset_s` relates the two clocks, and is the same number the coach
-    already types in beside the video link. It is only the first half of that
-    relation: the tablet's clock stops for the interval and the footage does
-    not, so `second_half_video_s` — where the restart sits in this file — is
-    what makes a second-half timestamp land where it happened. Without it the
-    clock stays single-anchored and everything after the break is out by the
-    length of the break. See `phases.VideoClock`.
-
-    Speed and fragmentation, on the same 15s 720p window (450 frames, RTX
-    4060). Three fresh processes each, one model per process, medians given
-    with the observed spread:
-
-        two passes   detect 8.0s + track 29.9s = 37.8s   (37.1-49.0)  146 tracks
-        one pass                                17.1s    (17.0-18.4)  125 tracks
-
-    So roughly 2.2x faster. Two things produce that. The duplicated decode and
-    duplicated inference are gone; and the surviving inference is batched,
-    where `model.track()` forces one frame at a time. That second point is also
-    why the old path's spread is so much wider than the new one's — anything
-    that perturbs per-call overhead gets multiplied by 450 there and by 29
-    here.
-
-    Fragmentation came down slightly rather than up, which is the ByteTrack
-    bargain: detection now runs at the ball's lower threshold, and those extra
-    weak boxes go to the tracker, which uses them to re-associate tracks it
-    already has while still refusing to create tracks from them. The old
-    arrangement detected at 0.25 for tracking and threw that away.
-
-    125 is still far more than the 22 people on a pitch, so per-track figures
-    remain fragments. `pitchiq/identity.py` merges them — on this window, into 37
-    clusters — and a human confirms the result. That made the problem smaller,
-    not absent.
-
-    `sample_fps` is the speed lever, and it is stated in hertz because that is
-    the only unit any of this is true in. `stride` still works and is what
-    actually reaches the frame loop, but a stride is a ratio to a number nobody
-    said out loud: stride 2 is fifteen frames a second on a camcorder and
-    thirty on a phone, and those are different analyses run by the same flag.
-    Given `sample_fps`, the stride is worked out from the source and the rate
-    that really ran is published.
-
-    What it costs splits cleanly in two, and the two halves disagree.
-
-    **The movement figures do not care.** Measured synthetically against
-    constructed truth in tests/test_sampling.py: distance, mean speed, sprints
-    and bursts are flat from 60Hz down to 6Hz, and top speed moves less with
-    the rate than it does with a tenth of a metre of positional wobble. The
-    reason is that the smoothing window is stated in seconds, so the smoothed
-    path is nearly the same curve at any rate — the average simply holds fewer
-    samples. That ends at three samples, which is `metrics.min_sample_hz()` and
-    currently six a second; below it the burst count starts reporting wobble.
-
-    **Tracking and the ball do care**, and they are what actually bounds the
-    rate. Measured on real footage:
-
-        botsort.yaml,   stride 1      100 tracks, longest 449/450
-        bytetrack.yaml, stride 1      119 tracks, longest 418
-        botsort.yaml,   stride 2       70 tracks, longest 225/225
-
-    A third of the tracks and half the longest one, for half the compute. Since
-    ball coverage bounds every event statistic downstream and fragmentation is
-    already the weakest link, the default stays every frame.
-
-    So the useful finding is narrower than "subsample everything": the movement
-    figures were never the reason to run at full rate. The one place that is
-    free money is a source above 30fps — a phone export at stride 1 does twice
-    the inference of a camcorder for figures that measure the same to within a
-    percent, and `sample_fps=30` is how to stop paying for it.
-
-    (`track_imgsz` is gone. It set a separate image size for the tracking pass,
-    and there is no longer a separate pass for it to size.)
+    `start_s` and `end_s` bound the window analysed. `options` is how to run the
+    detector (`AnalysisOptions`) and `context` what is known about the match
+    from outside the footage (`MatchContext`); without its `tag_log`, every
+    stoppage counts as possession for whoever was standing over the ball.
 
     `detector` and `tracker_factory` are handed straight to `TrackedFramePass`,
-    which has taken both since it was written so that its bookkeeping could be
-    checked without a GPU (see pitchiq/frame_table.py). For a long time the seam stopped
-    one level short of here, and this — the function every published number
-    comes out of — was the one part of the pipeline nothing could test: the
-    detector was built inside, so calling this at all meant installing
-    ultralytics and torch, which `requirements-test.txt` deliberately leaves
-    out. Passing them through costs two arguments and makes the assembly of
-    twenty-odd subsystems something a test can run.
+    so a test can run the whole assembly without ultralytics or a GPU.
+    `panned` is a `pitchiq.panning_camera.PannedCamera`, for footage from a
+    camera that follows the play. It replaces `calibration_path`: every box is
+    moved into one reference view before anything is measured, and the ball
+    comes from the tracker in `pitchiq/balltrack` instead of this pass's own
+    detections.
 
-    `panned` is a `pitchiq.panning_camera.PannedCamera`, for footage from a camera that
-    follows the play. It replaces `calibration_path`: every box is moved into
-    one reference view before anything is measured, and the ball comes from
-    the tracker in `pitchiq/balltrack` instead of this pass's own detections.
+    The stages below run in order, each reading what the ones before it put on
+    the report. Speed, fragmentation and sampling-rate measurements are in
+    docs/design/pipeline.md.
     """
     video_path = Path(video_path)
     started = time.perf_counter()
+    options = options or AnalysisOptions()
+    context = context or MatchContext()
 
     if panned is not None and calibration_path:
         raise ValueError('a panned camera brings its own calibration; pass one or the other')
@@ -546,23 +508,86 @@ def analyse_match(
         else None
     )
     pitch = calibration.pitch if calibration else Pitch()
-    orientation = orientation or MatchOrientation()
+    context = replace(context, orientation=context.orientation or MatchOrientation())
 
     report = MatchReport(source=video_path.name, duration_s=0.0, processing_s=0.0)
     timings = Timings()
     report.timings = timings
 
-    # ---- one streamed pass: detect, track, sample colours ----
-    #
-    # Nothing here keeps a frame beyond the batch it arrived in. An earlier
-    # version read the whole window into a list first, which is 2.8 MB per 720p
-    # frame — about 5 GB a minute, and roughly 227 GB for a 45-minute half. It
-    # could analyse a clip and could never analyse a match.
-    #
-    # The constraint that shapes the loop inside TrackedFramePass: shirt colour
-    # needs pixels, so it has to be sampled there rather than in a later pass
-    # over the detections. What survives a batch is a few numbers per detection,
-    # not the image.
+    table, colour_samples, ball_candidates = _detect_and_track(
+        report, video_path, start_s, end_s, options, detector, tracker_factory
+    )
+    table.calibration = calibration
+    if panned is not None:
+        _hold_still(report, table, panned)
+    _follow_the_ball(report, table, ball_candidates, panned)
+    _check_the_view(report, table, calibration)
+    _split_teams(report, table, colour_samples)
+    is_player = _find_participants(report, table)
+
+    clock = _clocks_and_phases(report, context)
+    context = replace(context, period=_resolve_period(report, context.period, start_s, end_s))
+
+    states = _possession(report, table, calibration, is_player, context, clock)
+    attacking_ends = {
+        team: attacking_end_for(context.orientation, context.side_of_team, context.period, team)
+        for team in (TEAM_A, TEAM_B)
+    }
+    report.attacking_ends = attacking_ends
+    report.pitch = pitch if calibration is not None else None
+    if calibration is not None and any(attacking_ends.values()):
+        report.territory = territory(states, pitch, attacking_ends)
+
+    _identify(report, table, colour_samples, is_player)
+    defending_ends = _defending_ends(context.orientation, context.side_of_team, context.period)
+    _touches_and_events(report, table, pitch, context, defending_ends, is_player)
+    # Gated on a calibration for the same reason shots themselves are: without
+    # one there is no `start_m`, and a shot with no position on the pitch has
+    # nothing to be expected about.
+    if calibration is not None and report.events is not None:
+        _expected_goals(report, table, calibration, context)
+        _phase_of_play(report, pitch, attacking_ends)
+    if context.tag_log:
+        _reconcile(report, calibration, context.tag_log, clock)
+    if report.touches is not None and not report.touches.touches:
+        report.warnings.append(_no_touches_reason(report))
+
+    # The tracks exist either way; they came out of the pass above. What a
+    # calibration adds is the ability to measure them.
+    sightings = _sightings_by_track(table, is_player=is_player)
+    if calibration is None:
+        _list_unmeasured_players(report, table, sightings)
+    else:
+        series_by_track = _measure_players(report, table, calibration, sightings)
+        _team_shapes(report, table, series_by_track, defending_ends, pitch)
+        _warn_on_impossible_shape(report, pitch)
+    _warn_on_fragmentation(report)
+
+    report.processing_s = timings.total_s = time.perf_counter() - started
+    return report
+
+
+def _detect_and_track(
+    report: MatchReport,
+    video_path: Path,
+    start_s: float,
+    end_s: float | None,
+    options: AnalysisOptions,
+    detector,
+    tracker_factory,
+) -> tuple[FrameTable, dict[int, list[np.ndarray]], dict[int, list[BallCandidate]]]:
+    """One streamed pass: detect, track, sample colours.
+
+    Nothing here keeps a frame beyond the batch it arrived in. An earlier
+    version read the whole window into a list first, which is 2.8 MB per 720p
+    frame — about 5 GB a minute, and roughly 227 GB for a 45-minute half. It
+    could analyse a clip and could never analyse a match.
+
+    The constraint that shapes the loop inside TrackedFramePass: shirt colour
+    needs pixels, so it has to be sampled there rather than in a later pass
+    over the detections. What survives a batch is a few numbers per detection,
+    not the image.
+    """
     info = video_info(video_path)
     fps = info.fps or 30.0
 
@@ -570,8 +595,9 @@ def analyse_match(
     # back into the rate that will actually happen. A 30fps clip asked for 12
     # gets 15, and 15 is what the report says — quoting the request would
     # describe a run nobody did.
-    if sample_fps:
-        stride = stride_for_fps(fps, sample_fps)
+    stride = options.stride
+    if options.sample_fps:
+        stride = stride_for_fps(fps, options.sample_fps)
     stride = max(1, stride)
     report.source_fps = fps
     report.sample_fps = effective_fps(fps, stride)
@@ -585,17 +611,17 @@ def analyse_match(
     # total it reads as 3.5x real time; it is the same thirteen seconds on a
     # forty-five minute half, where it reads as nothing. Counting it as work
     # that scales would condemn a machine that comfortably keeps up.
-    with timings.stage('load the detector', scaling=FIXED):
+    with report.timings.stage('load the detector', scaling=FIXED):
         single_pass = TrackedFramePass(
-            conf=conf,
-            ball_conf=ball_conf,
-            imgsz=imgsz,
-            device=device,
-            tracker=tracker,
+            conf=options.conf,
+            ball_conf=options.ball_conf,
+            imgsz=options.imgsz,
+            device=options.device,
+            tracker=options.tracker,
             detector=detector,
             tracker_factory=tracker_factory,
         )
-    with timings.stage('detect, track and sample colour'):
+    with report.timings.stage('detect, track and sample colour'):
         table, colour_samples, ball_candidates = single_pass.run(
             video_path,
             fps=fps,
@@ -608,54 +634,69 @@ def analyse_match(
     if not table.records:
         raise ValueError('no frames read from video')
 
-    table.calibration = calibration
     report.duration_s = len(table.records) * stride / fps
+    return table, colour_samples, ball_candidates
 
-    # ---- a panning camera, held still ----
-    #
-    # Before the ball and before the camera check, because both read pixel
-    # positions, and after this every pixel is in the one reference view.
-    if panned is not None:
-        unregistered = panned.stabilise(table)
-        if unregistered:
-            report.warnings.append(
-                f'{unregistered} frames had players but no pitch registration, '
-                'and their players were left out'
-            )
 
-    # ---- ball ----
-    with timings.stage('ball'):
+def _hold_still(report: MatchReport, table: FrameTable, panned) -> None:
+    """A panning camera, held still.
+
+    Before the ball and before the camera check, because both read pixel
+    positions, and after this every pixel is in the one reference view.
+    """
+    unregistered = panned.stabilise(table)
+    if unregistered:
+        report.warnings.append(
+            f'{unregistered} frames had players but no pitch registration, '
+            'and their players were left out'
+        )
+
+
+def _follow_the_ball(
+    report: MatchReport,
+    table: FrameTable,
+    ball_candidates: dict[int, list[BallCandidate]],
+    panned,
+) -> None:
+    """The ball, from the panned camera's tracker or from this pass's detections."""
+    with report.timings.stage('ball'):
         report.ball = (
             panned.trajectory(table)
             if panned is not None
-            else build_trajectory(ball_candidates, info.width)
+            else build_trajectory(ball_candidates, table.frame_width)
         )
         attach_trajectory(table, report.ball)
 
-    # ---- did the camera hold still? ----
-    #
-    # Before anything is measured in metres, because this is the thing that
-    # decides whether those metres mean anything. Cheap: it walks the frames
-    # once and takes a median per sample.
-    with timings.stage('camera'):
+
+def _check_the_view(
+    report: MatchReport, table: FrameTable, calibration: Calibration | None
+) -> None:
+    """Did the camera hold still, and how much of the pitch was in it?
+
+    Before anything is measured in metres, because these decide whether those
+    metres mean anything. The camera check is cheap: it walks the frames once
+    and takes a median per sample. Coverage is pure geometry over the
+    homography, so it costs nothing and needs no frames; the two are the two
+    questions about the same fitted transform.
+    """
+    with report.timings.stage('camera'):
         report.camera = detect_camera_shift(table)
     report.warnings.extend(camera_warnings(report.camera, calibration is not None))
 
-    # ---- and how much of the pitch was in it? ----
-    #
-    # Pure geometry over the homography, so it costs nothing and needs no
-    # frames. Beside the camera check because they are the two questions about
-    # the same fitted transform, and both have to be answered before a metre
-    # means anything.
     if calibration is not None:
         report.coverage = pitch_coverage(calibration)
         report.warnings.extend(coverage_warnings(report.coverage))
 
-    # ---- teams ----
-    #
-    # Keyed on real track ids, which is the whole point of the single pass: a
-    # team is a property of a player over time, and the previous arrangement
-    # could only ever answer it per detection.
+
+def _split_teams(
+    report: MatchReport, table: FrameTable, colour_samples: dict[int, list[np.ndarray]]
+) -> None:
+    """Teams, keyed on real track ids.
+
+    That is the whole point of the single pass: a team is a property of a
+    player over time, and the previous arrangement could only ever answer it
+    per detection.
+    """
     assignment = assign_teams(colour_samples)
     table.team_by_track = assignment.by_track
     report.kit_separation = separation(assignment)
@@ -666,13 +707,15 @@ def analyse_match(
             'too close to separate reliably'
         )
 
-    # ---- who is actually playing ----
-    #
-    # Before any statistic is taken. The detector returns people, and a touchline
-    # is full of people who are not in the match; every count below is measured
-    # over whoever survives this.
+
+def _find_participants(report: MatchReport, table: FrameTable):
+    """Who is actually playing; returns the `is_player` test every count uses.
+
+    Before any statistic is taken. The detector returns people, and a touchline
+    is full of people who are not in the match; every count after this is
+    measured over whoever survives it.
+    """
     report.participants = classify_participants(table)
-    is_player = report.participants.is_player
 
     # Not a warning at any number above zero. Leaving a substitute out is the
     # module working, and `trustworthy` is `not warnings` — so saying so every
@@ -685,18 +728,25 @@ def analyse_match(
             'as not playing, which is more than a touchline — check '
             'participants before trusting any count here'
         )
+    return report.participants.is_player
 
-    # ---- the two clocks ----
-    #
-    # Built once, here, and everything that touches a tagged timestamp goes
-    # through it. The second half of the anchor comes out of the log itself —
-    # the clock reading the break froze at is where the second-half span starts
-    # — so only the video position has to be supplied.
+
+def _clocks_and_phases(report: MatchReport, context: MatchContext) -> VideoClock:
+    """The tagged log onto video time: the clock, in play or not, and the halves.
+
+    The clock is built once, here, and everything that touches a tagged
+    timestamp goes through it. The second half of the anchor comes out of the
+    log itself — the clock reading the break froze at is where the second-half
+    span starts — so only the video position has to be supplied. Phases are put
+    onto video time once, here, rather than converting every timestamp that
+    later meets them.
+    """
+    tag_log = context.tag_log
     tagged_periods = periods_from_log(tag_log) if tag_log else PeriodTable()
     clock = VideoClock.from_periods(
         tagged_periods,
-        video_offset_s,
-        second_half_video_s,
+        context.video_offset_s,
+        context.second_half_video_s,
     )
     has_second_half = any(s.period == SECOND_HALF for s in tagged_periods.spans)
     if has_second_half and not clock.knows_break:
@@ -706,10 +756,6 @@ def analyse_match(
             'match never stopped for the interval'
         )
 
-    # ---- in play or not ----
-    #
-    # Put onto video time once, here, rather than converting every timestamp
-    # that later meets it.
     report.phases = phases_from_log(tag_log).on_video(clock) if tag_log else None
     if report.phases is None:
         report.warnings.append(
@@ -722,11 +768,22 @@ def analyse_match(
             'restart tagged, and were capped rather than measured'
         )
 
-    # ---- which half ----
     report.periods = tagged_periods.on_video(clock) if tag_log else None
-    period = _resolve_period(report, period, start_s, end_s)
+    return clock
 
-    # ---- possession ----
+
+def _possession(
+    report: MatchReport,
+    table: FrameTable,
+    calibration: Calibration | None,
+    is_player,
+    context: MatchContext,
+    clock: VideoClock,
+) -> list[FrameState]:
+    """Possession, what was missed, and how often a holder was clear.
+
+    Returns the prepared per-frame states, which territory is then taken from.
+    """
     ball_by_frame = {r.frame_index: r.ball_xy for r in table.records if r.ball_xy is not None}
     # Ball positions in metres, when there is a homography to make them. This is
     # what lets territory be taken from the same per-frame answers possession
@@ -735,7 +792,7 @@ def analyse_match(
     if calibration is not None:
         ball_m_by_frame = {index: calibration.to_pitch(*xy) for index, xy in ball_by_frame.items()}
 
-    with timings.stage('possession'):
+    with report.timings.stage('possession'):
         states = build_states(
             [r.frame_index for r in table.records],
             ball_by_frame,
@@ -753,28 +810,17 @@ def analyse_match(
         states = prepare_states(states, phases=report.phases)
         report.possession = summarise_possession(states, smooth_window=0)
 
-    # ---- what was missed, and whether that was anyone's fault ----
-    #
-    # From the same prepared states, so the split is a split of the very
-    # `no_ball_s` reported beside it rather than a second count of the same
-    # thing arrived at separately.
+    # What was missed, and whether that was anyone's fault. From the same
+    # prepared states, so the split is a split of the very `no_ball_s` reported
+    # beside it rather than a second count of the same thing arrived at
+    # separately.
     report.blindness = blindness(
         states,
         phases=report.phases,
-        tag_log=tag_log,
+        tag_log=context.tag_log,
         clock=clock,
     )
     report.warnings.extend(blindness_warnings(report.blindness))
-
-    attacking_ends = {
-        team: attacking_end_for(orientation, side_of_team, period, team)
-        for team in (TEAM_A, TEAM_B)
-    }
-    report.attacking_ends = attacking_ends
-    report.pitch = pitch if calibration is not None else None
-
-    if calibration is not None and any(attacking_ends.values()):
-        report.territory = territory(states, pitch, attacking_ends)
 
     clear = sum(1 for s in states if s.team in (TEAM_A, TEAM_B))
     report.clear_holder_share = clear / len(states) if states else 0.0
@@ -783,18 +829,25 @@ def analyse_match(
         report.warnings.append(
             f'a ball holder was identifiable in only {report.clear_holder_share:.0%} of frames'
         )
+    return states
 
-    # ---- identity ----
-    #
-    # Fragments back into people, so per-player figures have somebody to belong
-    # to. This does not name anyone — that stays a human job — but it turns a
-    # hundred tracks into a list short enough for a coach to work through.
-    #
+
+def _identify(
+    report: MatchReport,
+    table: FrameTable,
+    colour_samples: dict[int, list[np.ndarray]],
+    is_player,
+) -> None:
+    """Fragments back into people, so per-player figures have somebody to belong to.
+
+    This does not name anyone — that stays a human job — but it turns a hundred
+    tracks into a list short enough for a coach to work through.
+    """
     # Timed as non-linear, and that is not a formality. `merge_tracks` is a
     # quadratic pass over the tracks, and the number of tracks grows with the
     # footage — so its cost grows faster than the clip it was measured on, and
     # any projection from a clip to a half is a floor rather than an estimate.
-    with timings.stage('identity', scaling=SUPERLINEAR):
+    with report.timings.stage('identity', scaling=SUPERLINEAR):
         report.clusters = merge_tracks(table, colour_samples, is_player=is_player)
 
     # Each figure gets the best picture the pass cut of any fragment it was
@@ -808,24 +861,31 @@ def analyse_match(
     # run with a smaller convenience. The picker says which rows have no
     # thumbnail, which is both the only place it matters and the only place
     # anyone can act on it.
-    with timings.stage('thumbnails'):
+    with report.timings.stage('thumbnails'):
         attach_thumbs(report.clusters, table.thumb_by_track)
         fit_budget(report.clusters)
 
-    # ---- keepers ----
-    defending_ends = _defending_ends(orientation, side_of_team, period)
+
+def _touches_and_events(
+    report: MatchReport,
+    table: FrameTable,
+    pitch: Pitch,
+    context: MatchContext,
+    defending_ends: dict[str, str],
+    is_player,
+) -> None:
+    """Keepers, touches, and everything built on them."""
     report.keepers = identify_keepers(table, defending_ends)
 
-    # ---- touches, and everything built on them ----
-    with timings.stage('touches and events'):
+    with report.timings.stage('touches and events'):
         report.touches = segment_touches(table, is_player=is_player)
         report.events = derive_events(
             report.touches,
             table,
             pitch=pitch,
-            orientation=orientation,
-            period=period,
-            side_of_team=side_of_team,
+            orientation=context.orientation,
+            period=context.period,
+            side_of_team=context.side_of_team,
             keeper_tracks=report.keepers.all_tracks(),
             phases=report.phases,
             # Who counts as the same player. Identity ran above, so the
@@ -836,92 +896,103 @@ def analyse_match(
     if defending_ends and report.keepers.all_tracks():
         report.keeper_stats = keeper_reports(report.events, report.keepers, pitch, defending_ends)
 
-    # ---- expected goals ----
-    #
-    # Runs here, before `to_json`, because the per-team and per-cluster xG
-    # totals are summed out of the event log at serialisation time. Attach
-    # first and both totals come out right with nothing else to change.
-    #
-    # Gated on a calibration for the same reason shots themselves are: without
-    # one there is no `start_m`, and a shot with no position on the pitch has
-    # nothing to be expected about.
-    if calibration is not None and report.events is not None:
-        with timings.stage('expected goals'):
-            xg_by_event, xg_warnings = xg_for_shots(
-                report.events,
-                table,
-                calibration,
-                orientation,
-                period,
-                side_of_team,
-                report.keepers,
-            )
-            attach_xg(report.events, xg_by_event)
-        report.warnings.extend(xg_warnings)
 
-    # ---- phase of play ----
-    #
-    # Split into possessions once and rolled up per team, rather than each team
-    # re-splitting the same log: the boundaries are a property of the match, not
-    # of whoever is asking, and two teams disagreeing about where one possession
-    # ended would be a contradiction rather than a difference of view.
-    if calibration is not None and report.events is not None:
-        report.possessions = sequences(report.events, pitch, attacking_ends)
-        for team in (TEAM_A, TEAM_B):
-            funnel = phase_of_play(
-                report.possessions,
-                report.events,
-                pitch,
-                team,
-                attacking_ends.get(team),
-            )
-            if funnel is not None:
-                report.phase_of_play[team] = funnel
+def _expected_goals(
+    report: MatchReport,
+    table: FrameTable,
+    calibration: Calibration,
+    context: MatchContext,
+) -> None:
+    """xG on every shot in the event log.
 
-    # ---- the two records, side by side ----
-    #
-    # Only worth doing when there is a second record to compare against. The
-    # goals are checked whatever else happened; the ball leaving play needs a
-    # calibration, because without one there is no boundary to cross.
-    #
-    # A disputed goal becomes a warning, and `trustworthy` is `not warnings`, so
-    # a run where the two records disagree about a goal correctly stops
-    # presenting itself as reliable.
-    if tag_log:
-        report.reconciliation = reconcile(
+    Runs before `to_json` because the per-team and per-cluster xG totals are
+    summed out of the event log at serialisation time. Attach first and both
+    totals come out right with nothing else to change.
+    """
+    with report.timings.stage('expected goals'):
+        xg_by_event, xg_warnings = xg_for_shots(
             report.events,
-            tag_log,
-            trajectory=report.ball,
-            calibration=calibration,
-            clock=clock,
+            table,
+            calibration,
+            context.orientation,
+            context.period,
+            context.side_of_team,
+            report.keepers,
         )
-        report.warnings.extend(warnings_for(report.reconciliation))
+        attach_xg(report.events, xg_by_event)
+    report.warnings.extend(xg_warnings)
 
-    if report.touches is not None and not report.touches.touches:
-        report.warnings.append(_no_touches_reason(report))
 
-    # ---- players ----
-    #
-    # The tracks exist either way — they came out of the pass above. What a
-    # calibration adds is the ability to measure them.
-    sightings = _sightings_by_track(table, is_player=is_player)
+def _phase_of_play(report: MatchReport, pitch: Pitch, attacking_ends: dict[str, str]) -> None:
+    """Possessions, rolled up per team into a phase-of-play funnel.
 
-    if calibration is None:
-        report.warnings.append(
-            'no calibration supplied, so distance, speed and shape are unavailable'
+    Split into possessions once rather than each team re-splitting the same
+    log: the boundaries are a property of the match, not of whoever is asking,
+    and two teams disagreeing about where one possession ended would be a
+    contradiction rather than a difference of view.
+    """
+    report.possessions = sequences(report.events, pitch, attacking_ends)
+    for team in (TEAM_A, TEAM_B):
+        funnel = phase_of_play(
+            report.possessions,
+            report.events,
+            pitch,
+            team,
+            attacking_ends.get(team),
         )
-        for track_id, (times, _) in sorted(sightings.items()):
-            report.players.append(
-                PlayerReport(
-                    track_id=track_id,
-                    team=table.team_of(track_id),
-                    minutes_tracked=(times[-1] - times[0]) / 60.0,
-                )
+        if funnel is not None:
+            report.phase_of_play[team] = funnel
+
+
+def _reconcile(
+    report: MatchReport,
+    calibration: Calibration | None,
+    tag_log: list[dict],
+    clock: VideoClock,
+) -> None:
+    """The two records, side by side.
+
+    The goals are checked whatever else happened; the ball leaving play needs a
+    calibration, because without one there is no boundary to cross. A disputed
+    goal becomes a warning, and `trustworthy` is `not warnings`, so a run where
+    the two records disagree about a goal correctly stops presenting itself as
+    reliable.
+    """
+    report.reconciliation = reconcile(
+        report.events,
+        tag_log,
+        trajectory=report.ball,
+        calibration=calibration,
+        clock=clock,
+    )
+    report.warnings.extend(warnings_for(report.reconciliation))
+
+
+def _list_unmeasured_players(
+    report: MatchReport,
+    table: FrameTable,
+    sightings: dict[int, tuple[np.ndarray, np.ndarray]],
+) -> None:
+    """Without a calibration: every track, with only how long it was seen."""
+    report.warnings.append('no calibration supplied, so distance, speed and shape are unavailable')
+    for track_id, (times, _) in sorted(sightings.items()):
+        report.players.append(
+            PlayerReport(
+                track_id=track_id,
+                team=table.team_of(track_id),
+                minutes_tracked=(times[-1] - times[0]) / 60.0,
             )
-        _warn_on_fragmentation(report)
-        report.processing_s = timings.total_s = time.perf_counter() - started
-        return report
+        )
 
+
+def _measure_players(
+    report: MatchReport,
+    table: FrameTable,
+    calibration: Calibration,
+    sightings: dict[int, tuple[np.ndarray, np.ndarray]],
+) -> dict[int, PositionSeries]:
+    """Movement and heatmap for every track; returns each track's smoothed path."""
+    pitch = calibration.pitch
     error = calibration.holdout_error() or calibration.error()
     report.calibration_error_m = error.mean_m
     report.movement_available = True
@@ -931,7 +1002,6 @@ def analyse_match(
         )
 
     series_by_track: dict[int, PositionSeries] = {}
-    smoothing_by_track: dict[int, float] = {}
     # Timed with a plain pair rather than the `with` block used elsewhere: the
     # loop is forty lines and wrapping it would reindent all of them to say the
     # same thing.
@@ -955,8 +1025,7 @@ def analyse_match(
         # run matters because the noise is per track — a player at the far
         # touchline is projected through a stretch of the homography that a
         # player in the centre circle never touches.
-        smoothed, window_s = smooth_for_noise(series, noise_m)
-        smoothing_by_track[track_id] = window_s
+        smoothed, _window_s = smooth_for_noise(series, noise_m)
         series_by_track[track_id] = smoothed
 
         stats = movement_stats(smoothed, noise_m=noise_m)
@@ -970,20 +1039,31 @@ def analyse_match(
             )
         )
 
-    timings.add('movement', time.perf_counter() - movement_started)
+    report.timings.add('movement', time.perf_counter() - movement_started)
+    return series_by_track
 
-    # Shape is per team, and each team's is built from that team's own tracks.
-    # Measuring it over everyone on the pitch produces the bounding box of the
-    # match — two banks of players plus the referee — which is not a formation
-    # and cannot be compacted.
-    #
-    # The line height needs two things width and depth do not: the goal this
-    # team is defending, which only a human saying which cluster is which side
-    # can supply, and the keepers, who are dropped. `assign_teams` puts a keeper
-    # in UNKNOWN whenever his kit matches neither outfield kit, so on most
-    # footage he is not in `own` to begin with — but "most" is not "all", and a
-    # keeper in a strip close to his own outfield kit would otherwise sit among
-    # the deepest players at every instant and pull the line several metres back.
+
+def _team_shapes(
+    report: MatchReport,
+    table: FrameTable,
+    series_by_track: dict[int, PositionSeries],
+    defending_ends: dict[str, str],
+    pitch: Pitch,
+) -> None:
+    """Each team's shape, and how it drifted, from that team's own tracks.
+
+    Measuring it over everyone on the pitch produces the bounding box of the
+    match — two banks of players plus the referee — which is not a formation
+    and cannot be compacted.
+
+    The line height needs two things width and depth do not: the goal this
+    team is defending, which only a human saying which cluster is which side
+    can supply, and the keepers, who are dropped. `assign_teams` puts a keeper
+    in UNKNOWN whenever his kit matches neither outfield kit, so on most
+    footage he is not in `own` to begin with — but "most" is not "all", and a
+    keeper in a strip close to his own outfield kit would otherwise sit among
+    the deepest players at every instant and pull the line several metres back.
+    """
     keeper_tracks = report.keepers.all_tracks()
     for team in (TEAM_A, TEAM_B):
         own = {
@@ -1003,10 +1083,14 @@ def analyse_match(
         if drift is not None:
             report.shape_drift[team] = drift
 
-    # A team cannot be wider than the pitch or deeper than it is long. If it
-    # comes out that way the homography is wrong, or the camera moved after it
-    # was fitted — either way the metres are fiction, and saying so beats
-    # printing "126m deep" on a 105m pitch with a straight face.
+
+def _warn_on_impossible_shape(report: MatchReport, pitch: Pitch) -> None:
+    """A team cannot be wider than the pitch or deeper than it is long.
+
+    If it comes out that way the homography is wrong, or the camera moved after
+    it was fitted — either way the metres are fiction, and saying so beats
+    printing "126m deep" on a 105m pitch with a straight face.
+    """
     for team, shape in report.shape.items():
         if not shape:
             continue
@@ -1025,11 +1109,6 @@ def analyse_match(
                 + '; '.join(impossible)
                 + ') — the calibration does not match this footage'
             )
-
-    _warn_on_fragmentation(report)
-
-    report.processing_s = timings.total_s = time.perf_counter() - started
-    return report
 
 
 def _resolve_period(
