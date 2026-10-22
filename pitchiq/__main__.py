@@ -10,6 +10,7 @@ import importlib
 import sys
 
 from pitchiq.cli import COMMANDS
+from pitchiq.extras import MissingExtra
 
 
 def usage() -> str:
@@ -29,7 +30,12 @@ def main(argv: list[str] | None = None) -> int:
     if name not in COMMANDS:
         print(f'unknown command {name!r}\n\n{usage()}', end='', file=sys.stderr)
         return 2
-    return importlib.import_module(f'pitchiq.cli.{name}').main(rest)
+    try:
+        return importlib.import_module(f'pitchiq.cli.{name}').main(rest)
+    except MissingExtra as e:
+        # An install question, not a bug: the message is the whole answer.
+        print(e, file=sys.stderr)
+        return 1
 
 
 if __name__ == '__main__':

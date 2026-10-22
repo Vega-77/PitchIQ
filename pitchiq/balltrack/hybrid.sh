@@ -20,6 +20,7 @@ cd "$BT"
 B=$(pwd -W 2>/dev/null || pwd)
 LO=$1; HI=$2; T=$3
 [ -n "$T" ] || { echo "usage: sh hybrid.sh <lo> <hi> <tag>"; exit 2; }
+"$PY" -m pitchiq.extras balltrack || exit 1   # names a missing extra, clone or checkpoint
 
 [ -f "${T}cls.npz" ] || sh run.sh "$LO" "$HI" "$T"
 if [ ! -f "pitch_registration/${T}_reg.npz" ]; then

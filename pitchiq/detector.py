@@ -66,7 +66,9 @@ class PersonBallDetector:
         device: str | int | None = None,
     ) -> None:
         """Load the YOLO weights once; `conf` and `imgsz` apply to every call."""
-        from ultralytics import YOLO
+        from .extras import require
+
+        YOLO = require('ultralytics', 'detect', 'The person and ball detector').YOLO
 
         self.model = YOLO(str(weights))
         self.conf = conf

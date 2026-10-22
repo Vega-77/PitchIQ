@@ -85,7 +85,9 @@ class PlayerTracker:
         tracker: str = 'botsort.yaml',
     ) -> None:
         """Load the YOLO weights and pick the tracker; tracks build up across calls."""
-        from ultralytics import YOLO
+        from .extras import require
+
+        YOLO = require('ultralytics', 'detect', 'The player tracker').YOLO
 
         self.model = YOLO(str(weights))
         self.conf = conf

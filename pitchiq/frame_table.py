@@ -212,6 +212,9 @@ def build_tracker(
     tracker ourselves rather than through `model.track()` is what keeps the ball
     — see the module docstring.
     """
+    from .extras import require
+
+    require('ultralytics', 'detect', 'The player trackers')
     from ultralytics.trackers.track import TRACKER_MAP
     from ultralytics.utils import YAML, IterableSimpleNamespace
     from ultralytics.utils.checks import check_yaml

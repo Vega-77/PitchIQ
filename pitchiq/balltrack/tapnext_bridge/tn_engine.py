@@ -23,10 +23,17 @@ import numpy as np
 import torch
 
 from ..evaluation.hybrid import AGR, ANC, air_mask
+from ...extras import MissingExtra, tapnext_missing
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2 = os.path.dirname(HERE)
 # tapnet/ is a checkout of the TAPNext++ repo (not a package of ours, not on PyPI)
+if tapnext_missing():
+    raise MissingExtra(
+        'The TAPNext++ bridge needs '
+        + ' and '.join(tapnext_missing())
+        + '; requirements-balltrack.txt has the commands.'
+    )
 sys.path.insert(0, os.path.join(HERE, 'tapnet'))
 from tapnet.tapnextpp.votsp2026.model import TAPNextPP  # noqa: E402
 

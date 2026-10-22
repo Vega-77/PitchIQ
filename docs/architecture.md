@@ -54,7 +54,9 @@ feeds autocal and the venue map.
 
 **Entry points.** `pipeline.py` runs everything and returns a `MatchReport`.
 `__main__.py` dispatches `python -m pitchiq <command>` to `cli/`. `__init__.py`
-exports `analyse_match` and the camera classes.
+exports `analyse_match` and the camera classes. `extras.py` turns a missing
+optional dependency (the `[detect]` or `[balltrack]` extra, the tapnet clone)
+into a message naming the install command.
 
 **Video and detection.** `video_io.py` samples frames at a fixed rate.
 `detector.py` runs YOLOv8 for the person and ball classes only. `frame_table.py`

@@ -37,6 +37,7 @@ import time
 import numpy as np
 
 from . import config, detect_candidates, script
+from ..extras import MissingExtra, check
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(S2))
@@ -599,6 +600,11 @@ def main():
         '--stitch-only', action='store_true', help='re-stitch finished pieces, run nothing'
     )
     a = ap.parse_args()
+    if not a.stitch_only:
+        try:
+            check('balltrack')
+        except MissingExtra as e:
+            sys.exit(str(e))  # the message, with no traceback; exit status 1
     h = Half(a.tag, a.lo, a.hi, a.workers, a.overlap, a.lanes)
     h.stitch() if a.stitch_only else h.main()
 
