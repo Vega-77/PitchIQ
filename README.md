@@ -82,6 +82,10 @@ same version from pytorch.org first. The ball tracker needs a CUDA GPU (it
 was built on an RTX 4060). The fixed-camera pipeline runs on a CPU, just
 slowly.
 
+On Windows, keep the clone's own path under about 110 characters, or enable
+long paths: torch installs header files 143 characters deep inside the venv,
+and past 260 in all pip stops with an OSError.
+
 The tracker has extra dependencies in `requirements-balltrack.txt`: a tapnet
 clone and a 2.4 GB TAPNext++ checkpoint, described there and in
 `pitchiq/balltrack/README.md`.

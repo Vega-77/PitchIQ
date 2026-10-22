@@ -3,20 +3,16 @@ labelled ball points every such flash was a wrong ring."""
 
 from __future__ import annotations
 
-import os
-
 import numpy as np
 
-_cwd = os.getcwd()
-try:
-    from pitchiq.balltrack import match_video  # chdirs on import
-finally:
-    os.chdir(_cwd)
+# match_video draws the rings with these; it is not imported here because its
+# import reads the generated venue-map files, which a clone does not have.
+from pitchiq.balltrack import ballgate
 
 
 def test_short_runs_marks_only_runs_under_k():
     on = np.array([1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1], bool)
-    got = match_video.short_runs(on, 5)
+    got = ballgate.short_runs(on, 5)
     assert got.tolist() == [
         True,
         False,
@@ -35,14 +31,14 @@ def test_short_runs_marks_only_runs_under_k():
 
 
 def test_short_runs_keeps_a_run_of_exactly_k():
-    assert not match_video.short_runs(np.ones(5, bool), 5).any()
+    assert not ballgate.short_runs(np.ones(5, bool), 5).any()
 
 
 def test_short_runs_empty_and_all_off():
-    assert match_video.short_runs(np.zeros(0, bool)).shape == (0,)
-    assert not match_video.short_runs(np.zeros(7, bool)).any()
+    assert ballgate.short_runs(np.zeros(0, bool)).shape == (0,)
+    assert not ballgate.short_runs(np.zeros(7, bool)).any()
 
 
 def test_default_is_min_run():
-    assert match_video.short_runs(np.ones(match_video.MIN_RUN - 1, bool)).all()
-    assert not match_video.short_runs(np.ones(match_video.MIN_RUN, bool)).any()
+    assert ballgate.short_runs(np.ones(ballgate.MIN_RUN - 1, bool)).all()
+    assert not ballgate.short_runs(np.ones(ballgate.MIN_RUN, bool)).any()

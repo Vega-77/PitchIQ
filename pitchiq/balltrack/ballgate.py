@@ -10,6 +10,7 @@ rings (35 of their 45 answered rings were wrong) and for 0-0.8% of NB H1, West W
 scrimmage (2 + 7 + 6 wrong of 104). A wrong ring is worse than a missing one, so there we draw nothing.
 
     lost(tag, abs0, on) -> bool per frame of the half (True: don't draw a ball)
+    short_runs(on)      -> bool per frame: rings that would show for under MIN_RUN frames
 """
 
 import functools
@@ -23,6 +24,7 @@ LOST_P = 2.0  # classifier logit
 LOST_W = 9000  # frames each side (5 min at 30 fps)
 STEP = 300  # evaluate every 10 s; a stretch is minutes long
 MIN_N = 75  # need this many scored rings in the window to call it lost
+MIN_RUN = 5  # frames; on the labelled ball points every ring shown for fewer was wrong (2026-10-12)
 
 
 @functools.lru_cache(maxsize=8)
@@ -58,4 +60,13 @@ def lost(tag, abs0, on):
         a, b = np.searchsorted(idx, c - LOST_W), np.searchsorted(idx, c + LOST_W, 'right')
         if b - a >= MIN_N and np.median(sc[a:b]) < LOST_P:
             out[max(0, c - STEP // 2) : c + STEP // 2 + 1] = True
+    return out
+
+
+def short_runs(on, k=MIN_RUN):
+    """True on the frames of each run of `on` shorter than k frames."""
+    d = np.diff(np.r_[0, np.asarray(on, bool).astype(np.int8), 0])
+    out = np.zeros(len(on), bool)
+    for b, e in zip(np.where(d == 1)[0], np.where(d == -1)[0]):
+        out[b:e] = e - b < k
     return out

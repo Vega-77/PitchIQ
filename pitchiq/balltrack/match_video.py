@@ -23,6 +23,7 @@ import cv2
 import numpy as np
 
 from . import ballgate, pitch_registration
+from .ballgate import short_runs  # MIN_RUN frames; clickscore reads it from here too
 from . import render_review_video  # clock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -65,18 +66,6 @@ def ring(im, c, r, col):
     c = (int(c[0]), int(c[1]))
     cv2.circle(im, c, r, BLACK, 4, cv2.LINE_AA)
     cv2.circle(im, c, r, col, 2, cv2.LINE_AA)
-
-
-MIN_RUN = 5  # frames; on the labelled ball points every ring shown for fewer was wrong (2026-10-12)
-
-
-def short_runs(on, k=MIN_RUN):
-    """True on the frames of each run of `on` shorter than k frames."""
-    d = np.diff(np.r_[0, np.asarray(on, bool).astype(np.int8), 0])
-    out = np.zeros(len(on), bool)
-    for b, e in zip(np.where(d == 1)[0], np.where(d == -1)[0]):
-        out[b:e] = e - b < k
-    return out
 
 
 def ball(tag, lo, hi):
