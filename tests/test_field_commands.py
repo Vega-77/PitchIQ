@@ -32,6 +32,7 @@ from pathlib import Path
 import pitchiq.cli
 import pitchiq.experiments
 from pitchiq.__main__ import main as front_end
+from pitchiq.__main__ import summary
 
 REPO = Path(__file__).resolve().parent.parent
 # The match-day commands go through the one front end; the research tools and
@@ -296,6 +297,19 @@ class TestTheFrontEnd(unittest.TestCase):
             self.assertEqual(front_end(['--help']), 0)
         for name in pitchiq.cli.COMMANDS:
             self.assertIn(name, text.getvalue())
+
+    def test_each_command_says_what_it_does_in_one_line(self):
+        with contextlib.redirect_stdout(io.StringIO()) as text:
+            front_end(['--help'])
+        for name in pitchiq.cli.COMMANDS:
+            line = summary(name)
+            self.assertTrue(line.strip(), name)
+            self.assertIn(line, text.getvalue())
+
+    def test_version_prints_the_installed_version(self):
+        with contextlib.redirect_stdout(io.StringIO()) as text:
+            self.assertEqual(front_end(['--version']), 0)
+        self.assertEqual(text.getvalue().strip(), f'pitchiq {pitchiq.__version__}')
 
 
 if __name__ == '__main__':

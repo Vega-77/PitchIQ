@@ -14,12 +14,19 @@ research tools and labs are in `pitchiq/experiments/`.
 with it torch, only when one is built (see `detector.py`).
 """
 
+from importlib.metadata import PackageNotFoundError, version
+
 from .calibration import Calibration
 from .detector import Detection, PersonBallDetector
 from .panning_camera import PannedCamera
 from .pipeline import AnalysisOptions, MatchContext, MatchReport, analyse_match
 from .pitch import Pitch
 from .video_io import SampledFrame, sample_frames, video_info
+
+try:
+    __version__ = version('pitchiq')
+except PackageNotFoundError:  # a source tree that was never pip-installed
+    __version__ = '0+unknown'
 
 __all__ = [
     'analyse_match',

@@ -18,9 +18,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='python -m pitchiq grab_frame', description='Save one frame from a video.'
     )
-    parser.add_argument('video', type=Path)
+    parser.add_argument('video', type=Path, help='the match video (any file OpenCV can read)')
     parser.add_argument('--at', type=float, default=60.0, help='timestamp in seconds')
-    parser.add_argument('--out', type=Path, default=None)
+    parser.add_argument(
+        '--out', type=Path, default=None, help='PNG to write (default: <video>_<at>s.png)'
+    )
     return parser
 
 

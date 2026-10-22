@@ -1,5 +1,9 @@
 # PitchIQ
 
+[![Tests](https://github.com/Vega-77/PitchIQ/actions/workflows/tests.yml/badge.svg)](https://github.com/Vega-77/PitchIQ/actions/workflows/tests.yml)
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](LICENSE)
+![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
+
 PitchIQ turns video of a high-school football (soccer) match into stats a
 coach can use: possession, territory, shape, a top-down map of every player,
 shots and xG. Players get reports of their own as well. A tablet on the
@@ -10,6 +14,17 @@ and Firestore) shows the report to the coach and the players.
 
 PitchIQ is source-available under the PolyForm Noncommercial License 1.0.0:
 free for non-commercial use, see [License](#license).
+
+## Status
+
+Working on the team's own footage: a panning (Hudl) camera calibrated from
+the match itself, the Hybrid 90 ball tracker, and reports on the site for the
+coach and the players. It is a research tool used by one team, not a
+finished product. The ball tracker finds about three balls in four on
+held-out clips and abstains on the rest, by design, but under floodlights it
+loses the ball almost entirely. Players and ball together on one top-down
+map is the next piece, and real footage needs a CUDA GPU.
+[ROADMAP.md](ROADMAP.md) has where things stand and what is next.
 
 ## Quickstart
 
@@ -39,11 +54,8 @@ a locked-off shot, and that is all it needs.
 actually has is from a Hudl camera that follows the play. Every frame gets its
 own frame-to-pitch homography:
 - `pitchiq/autocal.py` calibrates the camera from the match itself, using the
-  paint plus SIFT between frames;
-- `pitchiq/balltrack/pitch_registration/register_frames.py` registers frames to a venue map;
-- landmark pins clicked on the camera's panorama on the calibrate page can
-  place the pitch instead (the pin solve that reads them, `pin_cal.py`, is not
-  in the repo yet).
+  paint plus SIFT between frames, and
+- `pitchiq/balltrack/pitch_registration/register_frames.py` registers frames to a venue map.
 
 The ball comes from the Hybrid 90 tracker in `pitchiq/balltrack/`, and
 `PannedCamera` moves everything into one still reference view. After that,

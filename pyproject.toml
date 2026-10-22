@@ -56,10 +56,10 @@ balltrack = [
 xg-training = [
     "xgboost==3.4.0",
     "matplotlib==3.11.1",
-    "statsbombpy",
-    "scikit-learn",
-    "pandas",
-    "onnxmltools",
+    "statsbombpy==1.22.0",
+    "scikit-learn==1.9.0",
+    "pandas==3.0.5",
+    "onnxmltools==1.16.0",
 ]
 
 [project.scripts]

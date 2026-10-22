@@ -5,6 +5,10 @@ Two suites. `python -m pytest tests/ -q` runs the Python one (`pip install -e
 for the Firestore rules, a JVM for the emulator. This page sorts the files;
 most open with a docstring or comment saying what they hold.
 
+On a `[test]` install two tests in `test_detector_weights` skip: one needs
+Ultralytics (the `[detect]` extra), the other the downloaded YOLO weights.
+Everything else runs without torch.
+
 ## Unit tests
 
 One pipeline module each, on inputs built in the test (synthetic tracks,
