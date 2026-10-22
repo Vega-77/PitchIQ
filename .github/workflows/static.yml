@@ -32,7 +32,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
       - name: Collect the site
         # Only the pages and what they load. The Python package, tests,
         # baselines and notes stay out of the published site.
