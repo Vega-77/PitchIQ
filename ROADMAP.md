@@ -109,6 +109,12 @@ it, **[Stretch]** for later.
       RTX 4060 (`pitchiq/balltrack/README.md`, speed), so nothing yet reaches the
       break. Processing the first half incrementally during play needs a much
       faster tracker first; `pitchiq.experiments.speed_report` measures the rest.
+- [ ] **A detector and tracker without AGPL-3.0.** Ultralytics (the person and
+      ball detector, the player trackers) is AGPL-3.0, which does not sit
+      cleanly with PitchIQ's non-commercial license (THIRD_PARTY_NOTICES.md).
+      The detector is already injectable (`analyse_match(detector=...)`);
+      evaluate a permissively licensed detector, tracker and weights before
+      anyone adopts PitchIQ. Not started: needs the owner's go-ahead.
 - [ ] **[Stretch]** Multiple cameras, a drone, or pan-tilt-zoom coverage.
 - [ ] **[Stretch]** Jersey-number OCR, only as a suggestion for the mapping.
 - [ ] **[Stretch]** Offside detection. It stays human-marked.

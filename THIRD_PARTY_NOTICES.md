@@ -49,6 +49,11 @@ yourself, and they are needed only for the detector and the trackers. Code
 that does not run the detector (the report, xG and site code, and the test
 suite) runs without them.
 
+The owner's decision (2026-10-21): keep PitchIQ's license, state this here
+and in the README, and treat a permissively licensed detector and tracker as
+a roadmap item. If a school district, club or company plans to adopt
+PitchIQ, it should take its own legal advice on this combination first.
+
 ## Ball tracker
 
 | Component | License | Where it comes from |

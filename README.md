@@ -83,6 +83,14 @@ same version from pytorch.org first. The ball tracker needs a CUDA GPU (it
 was built on an RTX 4060). The fixed-camera pipeline runs on a CPU, just
 slowly.
 
+**Ultralytics is AGPL-3.0.** `requirements.txt` and the `[detect]` extra
+install [Ultralytics](https://www.ultralytics.com/license), which has its own
+license (AGPL-3.0), and so do the `yolov8n.pt` weights below. PitchIQ does not
+include either; they are needed only for the detector and the player
+trackers. The owner has chosen to keep PitchIQ's license and document this;
+making the detector replaceable is on the [roadmap](ROADMAP.md). Details are
+in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 On Windows, keep the clone's own path under about 110 characters, or enable
 long paths: torch installs header files 143 characters deep inside the venv,
 and past 260 in all pip stops with an OSError.
