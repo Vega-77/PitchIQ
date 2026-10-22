@@ -273,9 +273,12 @@ class TestTheListIsTheOneTheCodeUses:
         assert got == VIEWS['live-tagging/index.html'], got
 
     def test_the_pages_are_the_pages_the_site_ships(self):
+        # 404.html is GitHub Pages' not-found page: one heading, no views, no
+        # shared stylesheet. tests/test_not_found_page.py checks it instead.
         on_disk = sorted(
             p.relative_to(ROOT).as_posix()
             for p in list(ROOT.glob('*.html')) + list(ROOT.glob('*/index.html'))
+            if p.name != '404.html'
         )
         assert on_disk == sorted(HTML), on_disk
         assert sorted(VIEWS) == sorted(HTML)

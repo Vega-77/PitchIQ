@@ -3,7 +3,7 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { num } from './report-format.js?v=150';
+import { num } from './report-format.js?v=151';
 
 // ------------------------------------------------- who was on, and when
 //

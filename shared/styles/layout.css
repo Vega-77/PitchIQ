@@ -481,3 +481,14 @@ section.block > p.muted { max-width: 74ch; }
 
 /* The StatsBomb credit under each xG figure (THIRD_PARTY_NOTICES.md, Data). */
 .xg-credit { margin: 10px 0 0; font-size: 0.8rem; }
+
+/* What a page says with JavaScript turned off, where it would otherwise show
+   an empty shell (the <noscript> at the top of each <main>). */
+.noscript-note {
+    margin: 16px 0;
+    padding: 12px 16px;
+    border: 1px solid var(--warn);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+}

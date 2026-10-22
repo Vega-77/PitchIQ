@@ -2,13 +2,13 @@
 //
 // One of the coach page's modules; `coach.js` loads them and wires the page up.
 
-import { listMatches, publishReports } from '../shared/db.js?v=150';
-import { shotLedger } from '../shared/report.js?v=150';
-import { byId, toast } from '../shared/ui.js?v=150';
-import { state } from './shell.js?v=150';
-import { renderHero } from './season.js?v=150';
-import { renderMatchStatus } from './match.js?v=150';
-import { renderMatches } from './matches.js?v=150';
+import { listMatches, publishReports } from '../shared/db.js?v=151';
+import { shotLedger } from '../shared/report.js?v=151';
+import { byId, toast } from '../shared/ui.js?v=151';
+import { state } from './shell.js?v=151';
+import { renderHero } from './season.js?v=151';
+import { renderMatchStatus } from './match.js?v=151';
+import { renderMatches } from './matches.js?v=151';
 
 export async function doPublish() {
     const button = byId('btn-publish');

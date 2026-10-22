@@ -2,9 +2,9 @@
 //
 // One of the coach page's modules; `coach.js` loads them and wires the page up.
 
-import { roughDuration } from '../shared/report.js?v=150';
-import { byId, setText, plural } from '../shared/ui.js?v=150';
-import { activeCv } from './shell.js?v=150';
+import { roughDuration } from '../shared/report.js?v=151';
+import { byId, setText, plural } from '../shared/ui.js?v=151';
+import { activeCv } from './shell.js?v=151';
 
 // --------------------------------------------------- who was left out, and why
 //

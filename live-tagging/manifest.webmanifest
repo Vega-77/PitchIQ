@@ -1,0 +1,16 @@
+{
+  "name": "PitchIQ Live Tagging",
+  "short_name": "PitchIQ Tag",
+  "description": "Record kick-off, goals, cards and substitutions from the touchline.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f2f3f5",
+  "theme_color": "#13294b",
+  "icons": [
+    { "src": "../shared/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "../shared/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "../shared/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

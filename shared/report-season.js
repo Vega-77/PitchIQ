@@ -2,9 +2,9 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { num, count } from './report-format.js?v=150';
-import { knownMinutes } from './report-clock.js?v=150';
-import { positionOf } from './report-positions.js?v=150';
+import { num, count } from './report-format.js?v=151';
+import { knownMinutes } from './report-clock.js?v=151';
+import { positionOf } from './report-positions.js?v=151';
 
 // ------------------------------------------------ a player's season, grouped
 //

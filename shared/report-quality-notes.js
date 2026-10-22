@@ -2,7 +2,7 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { count } from './report-format.js?v=150';
+import { count } from './report-format.js?v=151';
 
 // ------------------------------------------------- what the figures rest on
 //

@@ -11,7 +11,7 @@
 // every shot in the wrong place under a diagram that still looked right.
 // tests/test_pitch_dimensions.py holds them to pitchiq/pitch.py.
 
-import { svgEl as el } from './svg.js?v=150';
+import { svgEl as el } from './svg.js?v=151';
 
 // Metres, matching the defaults in pitchiq/pitch.py.
 const L = 105;

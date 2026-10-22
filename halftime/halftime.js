@@ -10,24 +10,24 @@
 // It has to be readable standing up, on a phone, in three minutes, by someone
 // who is about to talk to fifteen teenagers.
 
-import { onUser, resolveAccess, configWarning } from '../shared/auth.js?v=150';
-import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=150';
+import { onUser, resolveAccess, configWarning } from '../shared/auth.js?v=151';
+import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=151';
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch,
     readCvStats, cvConfidence,
-} from '../shared/db.js?v=150';
-import { describeEvent, timelineTone, CARD_COLOURS } from '../shared/events.js?v=150';
+} from '../shared/db.js?v=151';
+import { describeEvent, timelineTone, CARD_COLOURS } from '../shared/events.js?v=151';
 import {
     possessionIsInPlay, cvReads, xgTrust, groupStats, clockFromMatch,
     taggedTeamRows, taggedCount,
     SHARE, COUNT, RATE,
-} from '../shared/report.js?v=150';
-import { sampleCvSummary, SAMPLE_NOTICE } from '../shared/sample-report.js?v=150';
-import { renderMatchVideo, teamMarks } from '../shared/match-video.js?v=150';
+} from '../shared/report.js?v=151';
+import { sampleCvSummary, SAMPLE_NOTICE } from '../shared/sample-report.js?v=151';
+import { renderMatchVideo, teamMarks } from '../shared/match-video.js?v=151';
 import {
     byId, setText, toast, showOnly, clockText, timelineRow, plural, cardChips,
     tally, groupHead,
-} from '../shared/ui.js?v=150';
+} from '../shared/ui.js?v=151';
 
 const VIEWS = ['view-error', 'view-report'];
 

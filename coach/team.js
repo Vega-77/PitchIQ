@@ -3,15 +3,15 @@
 //
 // One of the coach page's modules; `coach.js` loads them and wires the page up.
 
-import { rememberTeam, saveStaffProfile } from '../shared/auth.js?v=150';
-import { createTeam, getTeam, listPlayers, listMatches, listStaff } from '../shared/db.js?v=150';
-import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=150';
-import { byId, setText, toast, kitPicker } from '../shared/ui.js?v=150';
-import { show, state } from './shell.js?v=150';
-import { renderHero } from './season.js?v=150';
-import { closeKit, renderStaff } from './staff.js?v=150';
-import { renderMatches } from './matches.js?v=150';
-import { renderRoster } from './roster.js?v=150';
+import { rememberTeam, saveStaffProfile } from '../shared/auth.js?v=151';
+import { createTeam, getTeam, listPlayers, listMatches, listStaff } from '../shared/db.js?v=151';
+import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=151';
+import { byId, setText, toast, kitPicker } from '../shared/ui.js?v=151';
+import { show, state } from './shell.js?v=151';
+import { renderHero } from './season.js?v=151';
+import { closeKit, renderStaff } from './staff.js?v=151';
+import { renderMatches } from './matches.js?v=151';
+import { renderRoster } from './roster.js?v=151';
 
 // ---------------------------------------------------------------- team setup
 
