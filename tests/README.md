@@ -73,4 +73,5 @@ and an entry that stops being true fails the test.
 | `test_naming` | the checkable naming rules in `docs/conventions.md` |
 | `test_version_stamp` | an asset reference without the same `?v=` cache-busting stamp as the rest |
 | `test_report_parts`, `test_package_api` | `shared/report.js`'s parts importing the DOM or Firestore; `import pitchiq` pulling in torch |
+| `test_pages_workflow` | a page the Pages workflow does not copy into the published site, or a copied path that no longer exists |
 | `test_requirements`, `test_detector_weights`, `test_field_commands` | requirements files disagreeing on a version; the wrong YOLO weights; a command in the field guide that no longer runs |

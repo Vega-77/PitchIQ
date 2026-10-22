@@ -213,6 +213,15 @@ carries now (see `shared/README.md`).
 - [shared/README.md](shared/README.md): frontend conventions and cache busting.
 - [baselines/README.md](baselines/README.md): regression baselines.
 
+## Contributing
+
+Bug reports, footage that does not work, and small fixes are welcome; for a
+larger change open an issue first. [CONTRIBUTING.md](CONTRIBUTING.md) has the
+checks to run and what the hygiene tests guard. Security problems, above all
+anything that exposes students' data, go by email: see
+[SECURITY.md](SECURITY.md). Never attach match video or frames that show
+players to a public issue.
+
 ## Credits
 
 - The xG model (`pitchiq/xg_model8.onnx`) was trained on
