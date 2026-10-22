@@ -70,18 +70,39 @@ in git"). Accuracy figures for the tracker are in that README too, and
 
 ## Setup
 
-Python 3.12, in a virtual environment:
+Python 3.12 (`requires-python = ">=3.12"`; CI tests 3.12 only). Clone the
+repo and install it **editable** into a virtual environment. That is the only
+supported install: the ball tracker and the panning-camera path read data
+files that sit beside the code (the venue map, the ball ranker and
+classifier), and a wheel or a plain `pip install .` does not carry them.
 
 ```bash
+git clone https://github.com/Vega-77/PitchIQ.git
+cd PitchIQ
 python -m venv .venv
 .venv/Scripts/activate            # Windows; source .venv/bin/activate elsewhere
-pip install -r requirements.txt
+pip install -e .[detect]
 ```
 
-`requirements.txt` pins `torch`. For a GPU, install the CUDA build of that
-same version from pytorch.org first. The ball tracker needs a CUDA GPU (it
-was built on an RTX 4060). The fixed-camera pipeline runs on a CPU, just
-slowly.
+Pick the extra for what you will run:
+
+| extra | what it adds | for |
+|---|---|---|
+| `[test]` | pytest, pyflakes, ruff (no torch) | the tests and the demo |
+| `[detect]` | Ultralytics, torch, torchvision | the pipeline on real footage |
+| `[balltrack]` | `[detect]` plus XGBoost, matplotlib, Pillow, einops | the ball tracker |
+| `[xg-training]` | StatsBomb download, scikit-learn, pandas, ONNX export | retraining the xG model |
+
+The pins live in `pyproject.toml`. `requirements.txt`, `requirements-test.txt`
+and `requirements-balltrack.txt` hold the same pins as plain lock files (CI
+installs `requirements-test.txt`), and `tests/test_requirements.py` fails if
+any of them drift apart.
+
+The pins name `torch` without a CUDA build. For a GPU, install the CUDA build
+of that same version from pytorch.org first (`requirements.txt` has the
+command), then `pip install -e .[detect]` keeps it. The ball tracker needs a
+CUDA GPU (it was built on an RTX 4060). The fixed-camera pipeline runs on a
+CPU, just slowly.
 
 **Ultralytics is AGPL-3.0.** `requirements.txt` and the `[detect]` extra
 install [Ultralytics](https://www.ultralytics.com/license), which has its own
@@ -95,8 +116,8 @@ On Windows, keep the clone's own path under about 110 characters, or enable
 long paths: torch installs header files 143 characters deep inside the venv,
 and past 260 in all pip stops with an OSError.
 
-The tracker has extra dependencies in `requirements-balltrack.txt`: a tapnet
-clone and a 2.4 GB TAPNext++ checkpoint, described there and in
+Beyond `[balltrack]`, the tracker needs a tapnet clone and a 2.4 GB TAPNext++
+checkpoint, described in `requirements-balltrack.txt` and
 `pitchiq/balltrack/README.md`.
 
 **Detector weights.** `pitchiq/detector.py` loads `pitchiq/weights/yolov8n.pt`, which
@@ -125,7 +146,7 @@ a clone:
 ## Tests
 
 ```bash
-pip install -r requirements-test.txt
+pip install -e .[test]
 python -m pytest tests/ -q
 python -m pyflakes $(git ls-files 'pitchiq/*.py' 'tests/*.py')
 python -m ruff format --check pitchiq tests tools xg_training
