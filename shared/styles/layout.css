@@ -478,3 +478,6 @@ section.block { margin-top: 46px; }
  * line. The cap is a shade wider than the lede's because these are captions
  * rather than opening paragraphs, and they sit under something. */
 section.block > p.muted { max-width: 74ch; }
+
+/* The StatsBomb credit under each xG figure (THIRD_PARTY_NOTICES.md, Data). */
+.xg-credit { margin: 10px 0 0; font-size: 0.8rem; }

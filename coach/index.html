@@ -7,9 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Saira+Condensed:wght@600;700;800&family=Saira:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../shared/app.css?v=149">
-    <script src="../shared/kit-boot.js?v=149"></script>
-    <link rel="stylesheet" href="coach.css?v=149">
+    <link rel="stylesheet" href="../shared/app.css?v=150">
+    <script src="../shared/kit-boot.js?v=150"></script>
+    <link rel="stylesheet" href="coach.css?v=150">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to the main content</a>
@@ -168,6 +168,7 @@
             <section class="card hidden" id="season-xg" style="margin-bottom:16px">
                 <h3 style="margin-bottom:6px">Are the chance ratings (xG) right for your pitch?</h3>
                 <p class="muted" id="season-xg-note" style="margin:0"></p>
+                <p class="muted xg-credit">xG model trained on StatsBomb open data.</p>
             </section>
             <div class="split">
                 <section>
@@ -546,6 +547,7 @@
                     <div id="cv-shots-them" class="shot-map"></div>
                 </figure>
             </div>
+            <p class="muted xg-credit">xG model trained on StatsBomb open data.</p>
         </section>
 
         <!-- Where each player actually played, against the line the coach put
@@ -625,6 +627,7 @@
             <p class="muted no-print" style="margin:0 0 14px">Tap Header on any that were headed.</p>
             <div id="cv-xg-check" class="xg-check hidden"></div>
             <div id="cv-shotlog" class="list"></div>
+            <p class="muted xg-credit">xG model trained on StatsBomb open data.</p>
         </section>
 
         <section class="block hidden no-print col-half" id="cv-clusters-block"
@@ -795,7 +798,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="coach.js?v=149"></script>
+<script type="module" src="coach.js?v=150"></script>
 <footer class="site-foot">
     <nav aria-label="Site">
         <a href="../">Home</a>

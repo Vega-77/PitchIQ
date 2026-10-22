@@ -4,6 +4,25 @@ Trains the expected-goals (xG) model the pipeline runs, from StatsBomb open data
 and exports it to ONNX beside the code that loads it. Reuse is under the
 repo's [LICENSE](../LICENSE); the StatsBomb data keeps its own terms.
 
+## The model and its data
+
+`pitchiq/xg_model8.onnx` (`MODEL_VERSION = 'xg_model8'` in
+`pitchiq/xg_model.py`) is an XGBoost classifier with an isotonic calibration
+step, over the 12 features in `FEATURES`. It was trained on the shots in 28
+competition-seasons of [StatsBomb open data](https://github.com/statsbomb/open-data),
+listed in `TOURNAMENTS` in `data.py`: five club seasons, five international
+tournaments, eight historical La Liga seasons, three FA Women's Super League
+seasons, five historical Champions League seasons, the Premier League 2003/04
+and the Indian Super League 2021/22. Every shot was taken by a professional;
+none comes from a high school pitch.
+
+**Credits and terms.** Data source: StatsBomb. Their open data comes under the
+StatsBomb Public Data User Agreement (`LICENSE.pdf` in their repo), which asks
+anyone who publishes, shares or distributes work based on it to name StatsBomb
+as the source and use their logo. The model file is part of PitchIQ and
+reusable under the repo's [LICENSE](../LICENSE) (non-commercial); before
+redistributing the model itself, read StatsBomb's agreement as well.
+
 ## Retraining
 
 Install the repo with the training extras once, from the repo root

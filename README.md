@@ -162,6 +162,18 @@ carries now (see `shared/README.md`).
 - [shared/README.md](shared/README.md): frontend conventions and cache busting.
 - [baselines/README.md](baselines/README.md): regression baselines.
 
+## Credits
+
+- The xG model (`pitchiq/xg_model8.onnx`) was trained on
+  [StatsBomb open data](https://github.com/statsbomb/open-data). Data source:
+  StatsBomb. How it was trained is in [xg_training/README.md](xg_training/README.md).
+- The person and ball detector and the player trackers are
+  [Ultralytics](https://github.com/ultralytics/ultralytics) YOLOv8.
+- The ball tracker bridges gaps with Google DeepMind's
+  [TAPNext++](https://github.com/google-deepmind/tapnet).
+- Every third-party package, model and dataset, with its license, is in
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## License
 
 PitchIQ is source-available, not open source. It is released under the
