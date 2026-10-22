@@ -70,9 +70,12 @@ TOTALS = {
     'index.html': 5,
     'coach/index.html': 10,
     'player/index.html': 6,
-    'live-tagging/index.html': 2,
+    # main and the setup screen's footer nav (2026-10-21); still no banner or
+    # contentinfo, see test_the_fullscreen_tool_has_neither.
+    'live-tagging/index.html': 3,
     'halftime/index.html': 4,
     'calibrate/index.html': 5,
+    'about/index.html': 4,
 }
 
 

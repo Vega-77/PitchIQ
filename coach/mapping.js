@@ -3,16 +3,16 @@
 //
 // One of the coach page's modules; `coach.js` loads them and wires the page up.
 
-import { clearThumbs, saveCvMapping } from '../shared/db.js?v=151';
+import { clearThumbs, saveCvMapping } from '../shared/db.js?v=152';
 import {
     NOT_A_PLAYER, rankRosterForCluster, sameFigureCandidates, SAME_KIT_CHROMA, roughDuration,
     currentAnswers,
-} from '../shared/report.js?v=151';
-import { byId, setText, toast, clockText, plural, figure } from '../shared/ui.js?v=151';
-import { state } from './shell.js?v=151';
-import { clockMap } from './review.js?v=151';
-import { renderMatchRail, renderPlayerTable, mergeCvPlayers } from './match-overview.js?v=151';
-import { renderShape, renderPassing } from './match-play.js?v=151';
+} from '../shared/report.js?v=152';
+import { byId, setText, toast, clockText, plural, figure } from '../shared/ui.js?v=152';
+import { state } from './shell.js?v=152';
+import { clockMap } from './review.js?v=152';
+import { renderMatchRail, renderPlayerTable, mergeCvPlayers } from './match-overview.js?v=152';
+import { renderShape, renderPassing } from './match-play.js?v=152';
 
 // ---------------------------------------------------------------- who is who
 

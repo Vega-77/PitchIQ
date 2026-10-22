@@ -46,6 +46,7 @@ PAGES = (
     'live-tagging/index.html',
     'halftime/index.html',
     'calibrate/index.html',
+    'about/index.html',
 )
 
 CONTROL = re.compile(r'<(button|a|input|select|textarea)\b([^>]*)>', re.I)
@@ -281,5 +282,8 @@ class TestTheScanReportsSomething:
         # same day. `live-tagging` wants no skip link: its <main> is the first
         # thing in its <body>. A hundred and eleven when the calibrate page
         # came back (2026-10-20): its skip link, save, five stage tools and
-        # three footer links, and the topbar's home link.
-        assert counted == {'text': 111, 'title': 3, 'label-wrap': 20}, counted
+        # three footer links, and the topbar's home link. A hundred and
+        # fifty-five on 2026-10-21: Privacy, Contact, Credits and License in
+        # five footers, live tagging's first footer (seven links), and the
+        # privacy page (skip link, home, seven footer links, eight in the text).
+        assert counted == {'text': 155, 'title': 3, 'label-wrap': 20}, counted

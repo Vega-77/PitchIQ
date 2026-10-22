@@ -16,10 +16,10 @@
 // Pins are kept in full-resolution image pixels. A draft is kept in this
 // browser per picture, so a reload does not lose an hour of clicking.
 
-import { byId, toast, showOnly } from '../shared/ui.js?v=151';
-import { PITCH_LENGTH_M, PITCH_WIDTH_M } from '../shared/pitch-backdrop.js?v=151';
-import { GROUPS, LANDMARKS, positions, lines } from './landmarks.js?v=151';
-import { assess, apply, depth } from './homography.js?v=151';
+import { byId, toast, showOnly } from '../shared/ui.js?v=152';
+import { PITCH_LENGTH_M, PITCH_WIDTH_M } from '../shared/pitch-backdrop.js?v=152';
+import { GROUPS, LANDMARKS, positions, lines } from './landmarks.js?v=152';
+import { assess, apply, depth } from './homography.js?v=152';
 
 const VIEWS = ['view-intro', 'view-work'];
 const ENOUGH = 6;

@@ -75,7 +75,7 @@ itself is not in the repo.
 | Component | License | How the site uses it |
 |---|---|---|
 | [Firebase JavaScript SDK](https://github.com/firebase/firebase-js-sdk) 12.16.0 | Apache-2.0 | loaded by the browser from `www.gstatic.com` (sign-in, Firestore) |
-| Fonts: Graduate, Saira, Saira Condensed | SIL Open Font License 1.1 | from Google Fonts |
+| Fonts: Graduate, Saira, Saira Condensed | SIL Open Font License 1.1 | served from `shared/fonts/` (Google Fonts' woff2 files), licence texts beside them |
 
 ## Development tools (npm, not shipped)
 

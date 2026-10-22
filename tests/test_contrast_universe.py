@@ -117,9 +117,10 @@ class TestEverySheetIsScored:
         stale = set(SHEETS) - linked()
         assert stale == set(), stale
 
-    def test_there_are_seven_of_them(self):
-        # Seven since the calibrate page came back (2026-10-20).
-        assert len(SHEETS) == 7, SHEETS
+    def test_there_are_eight_of_them(self):
+        # Seven since the calibrate page came back (2026-10-20), eight since
+        # the privacy page arrived (2026-10-21).
+        assert len(SHEETS) == 8, SHEETS
 
 
 class TestPrintRulesAreNotScoredTwice:
@@ -139,7 +140,7 @@ class TestPrintRulesAreNotScoredTwice:
         assert 'background: #fff' not in without_print(read('shared/app.css'))
 
     def test_a_sheet_with_no_print_block_is_untouched(self):
-        # Six of the seven have no print theme, and the cut must be a
+        # Seven of the eight have no print theme, and the cut must be a
         # no-op on them rather than merely harmless.
         n = 0
         for rel in SHEETS:
@@ -147,7 +148,7 @@ class TestPrintRulesAreNotScoredTwice:
             if '@media print {' not in src:
                 assert without_print(src) == strip_comments(src), rel
                 n += 1
-        assert n == 6, n
+        assert n == 7, n
 
     def test_a_print_only_selector_produces_no_screen_row(self):
         # `.print-stamp` is the line naming the match at the top of a printed

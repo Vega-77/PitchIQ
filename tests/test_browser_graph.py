@@ -57,6 +57,13 @@ PAGES = stamp_version.PAGES
 # Empty, and that is the finding — every module the frontend ships is reached.
 STRANDED_BY_DESIGN: dict[str, str] = {}
 
+# A page with no module at all, and why. It still gets the stamped stylesheet
+# and kit-boot.js; it just has nothing to run.
+STATIC_PAGES: dict[str, str] = {
+    'about/index.html': 'privacy, contact and credits as plain text, readable '
+    'without signing in or running anything',
+}
+
 SPEC = re.compile(r"""(?:from|import)\s*\(?\s*(['"])(\.{1,2}/[^'"]+\.js)(?:\?v=\d+)?\1""")
 ENTRY = re.compile(r"""<script[^>]*\btype=(['"])module\1[^>]*\bsrc=(['"])([^'"]+)\2""", re.I)
 # A classic script in the head: `shared/kit-boot.js`, which paints the team's
@@ -155,7 +162,9 @@ class TestTheGraphItself(unittest.TestCase):
         for module, pages in entry_points().items():
             for page in pages:
                 by_page.setdefault(page, []).append(_rel(Path(module)))
-        self.assertEqual(sorted(by_page), sorted(PAGES), 'a page loads nothing')
+        self.assertEqual(
+            sorted(by_page), sorted(set(PAGES) - set(STATIC_PAGES)), 'a page loads nothing'
+        )
         for page, found in sorted(by_page.items()):
             self.assertEqual(len(found), 1, f'{page} loads {found}')
 

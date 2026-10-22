@@ -34,6 +34,7 @@ PAGES = [
     'live-tagging/index.html',
     'halftime/index.html',
     'calibrate/index.html',
+    'about/index.html',
 ]
 
 MODULE_DIRS = [
@@ -43,6 +44,7 @@ MODULE_DIRS = [
     'live-tagging',
     'halftime',
     'calibrate',
+    'about',
 ]
 
 # href="shared/app.css?v=3" / src="coach.js?v=3" — local files only, so a CDN

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Who can see a student's data on PitchIQ, how long it is kept, who to contact, and the credits and license.">
+    <meta name="theme-color" content="#13294b">
+    <link rel="icon" href="../shared/icon.svg" type="image/svg+xml">
+    <link rel="icon" href="../shared/icon-32.png" sizes="32x32" type="image/png">
+    <link rel="apple-touch-icon" href="../shared/apple-touch-icon.png">
+    <title>PitchIQ — Privacy, contact and credits</title>
+    <link rel="stylesheet" href="../shared/app.css?v=152">
+    <script src="../shared/kit-boot.js?v=152"></script>
+    <link rel="stylesheet" href="about.css?v=152">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to the main content</a>
+
+<header class="topbar">
+    <a class="brand" href="../">PitchIQ <span>beta</span></a>
+</header>
+
+<!-- One static page for the footer's Privacy, Contact and Credits links. No
+     script and no sign-in: a parent checking what happens to a student's data
+     should not need an account to find out. What it says about access is
+     what firestore.rules enforces; change one and the other has to follow. -->
+<main id="main" class="shell narrow">
+    <h1>Privacy, contact and credits</h1>
+    <p class="lede">
+        PitchIQ is a beta, built for one high school soccer team's season. This
+        page says who can see a student's data, how long it is kept, how to have
+        it deleted and who to ask.
+    </p>
+
+    <section class="block" id="privacy">
+        <h3>Who can see a student's data</h3>
+        <ul class="about-list">
+            <li><strong>The team's coaches</strong> see the squad (names, shirt
+                numbers and the address each player signs in with), every match,
+                and every player's report. That includes pictures of players cut
+                from the match video, used to put a name to each figure the
+                camera tracked.</li>
+            <li><strong>Staff a coach invites to run the tagging tablet</strong>
+                record matches and see each match's line-up and statistics. They
+                cannot see students' email addresses or the players' reports.</li>
+            <li><strong>A player</strong> sees only their own reports, and only
+                once the coach has published them. Players never see each other's
+                reports or the live match data.</li>
+            <li><strong>Nobody else.</strong> Every page needs a Google sign-in,
+                and teams cannot be searched or listed. The database enforces this
+                itself (its rules are <a href="https://github.com/Vega-77/PitchIQ/blob/main/firestore.rules">firestore.rules</a>
+                in the source), not only the pages.</li>
+            <li><strong>The person who runs PitchIQ</strong> administers the
+                database, so, like the operator of any hosted service, can reach
+                everything stored in it.</li>
+        </ul>
+    </section>
+
+    <section class="block">
+        <h3>What is stored</h3>
+        <ul class="about-list">
+            <li>The name and email address of the Google account you sign in with.</li>
+            <li>The squad: players' names, shirt numbers and sign-in addresses.</li>
+            <li>Each match: what was tagged on the touchline (kick-off, goals,
+                cards, substitutions) and the statistics worked out from the match
+                video, with the player pictures described above.</li>
+            <li>A link to the match video, if the coach adds one. The video itself
+                is not uploaded to this site.</li>
+        </ul>
+    </section>
+
+    <section class="block">
+        <h3>How long it is kept, and deleting it</h3>
+        <p class="about-text">
+            Everything about a team is kept until the team is deleted. To have a
+            player's data removed, ask the coach first: a coach can take a player
+            off the squad, delete their reports, and delete the pictures cut from a
+            match's video. If that does not work, or to have a whole team deleted,
+            email the address under Contact.
+        </p>
+    </section>
+
+    <section class="block">
+        <h3>Other services the site uses</h3>
+        <ul class="about-list">
+            <li><strong>Google Firebase</strong> provides the sign-in and the
+                database. Its code loads from Google's servers (www.gstatic.com),
+                so Google sees your IP address, as with any Google sign-in.</li>
+            <li><strong>GitHub Pages</strong> hosts the pages and keeps the usual
+                server logs.</li>
+            <li>No analytics, no advertising and no tracking cookies. The fonts
+                are served from this site, not from a font service.</li>
+        </ul>
+    </section>
+
+    <section class="block" id="contact">
+        <h3>Contact</h3>
+        <p class="about-text">
+            Access for a new coach, a question about a student's data, a request
+            to delete it, or a commercial license:
+            <a class="about-mail" href="mailto:alexvega20137@gmail.com">alexvega20137@gmail.com</a>
+        </p>
+    </section>
+
+    <section class="block" id="credits">
+        <h3>Credits</h3>
+        <ul class="about-list">
+            <li>The xG model was trained on
+                <a href="https://github.com/statsbomb/open-data">StatsBomb open data</a>.
+                Data source: StatsBomb.</li>
+            <li>Players and the ball are detected with
+                <a href="https://github.com/ultralytics/ultralytics">Ultralytics</a>
+                YOLOv8 (AGPL-3.0).</li>
+            <li>The ball tracker bridges gaps with Google DeepMind's
+                <a href="https://github.com/google-deepmind/tapnet">TAPNext++</a>.</li>
+            <li>Typefaces: Graduate, Saira and Saira Condensed, under the SIL Open
+                Font License 1.1.</li>
+            <li>Every third-party package, model and dataset, with its license:
+                <a href="https://github.com/Vega-77/PitchIQ/blob/main/THIRD_PARTY_NOTICES.md">THIRD_PARTY_NOTICES.md</a>.</li>
+        </ul>
+    </section>
+
+    <section class="block" id="license">
+        <h3>License</h3>
+        <p class="about-text">
+            PitchIQ is source-available under the
+            <a href="https://github.com/Vega-77/PitchIQ/blob/main/LICENSE">PolyForm Noncommercial License 1.0.0</a>:
+            free for non-commercial use. Commercial use needs a license from the
+            copyright holder; see
+            <a href="https://github.com/Vega-77/PitchIQ/blob/main/COMMERCIAL.md">COMMERCIAL.md</a>.
+        </p>
+    </section>
+</main>
+
+<footer class="site-foot">
+    <nav aria-label="Site">
+        <a href="../">Home</a>
+        <a href="../coach/">Coach</a>
+        <a href="../player/">Player</a>
+        <a href="../about/#privacy">Privacy</a>
+        <a href="../about/#contact">Contact</a>
+        <a href="../about/#credits">Credits</a>
+        <a href="https://github.com/Vega-77/PitchIQ/blob/main/LICENSE">License</a>
+    </nav>
+    <span class="foot-note">PitchIQ &middot; beta, built for one high school season</span>
+    <p class="foot-privacy">Only a team's coaches and the staff they invite see its
+    players' data; each player sees only their own report. xG model trained on
+    StatsBomb open data.</p>
+</footer>
+</body>
+</html>

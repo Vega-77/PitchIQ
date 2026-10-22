@@ -35,6 +35,9 @@
     .site-foot a:hover { color: var(--accent); }
 }
 .site-foot .foot-note { margin-left: auto; }
+/* Who can see a student's data, said on every page rather than only on the
+   privacy page, and the StatsBomb credit the xG figures owe. */
+.site-foot .foot-privacy { flex-basis: 100%; margin: 0; max-width: 74ch; }
 
 @media (max-width: 640px) {
     .site-foot { margin-top: 36px; padding-bottom: 32px; }

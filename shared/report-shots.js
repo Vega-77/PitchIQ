@@ -3,7 +3,7 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { REJECTED_STATUS, EDITED_STATUS } from './report-review.js?v=151';
+import { REJECTED_STATUS, EDITED_STATUS } from './report-review.js?v=152';
 
 // -------------------------------------------- marking the model's predictions
 //

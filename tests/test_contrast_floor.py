@@ -82,6 +82,7 @@ SHEETS = [
     'live-tagging/tagging.css',
     'halftime/halftime.css',
     'calibrate/calibrate.css',
+    'about/about.css',
 ]
 # Only the coach and player views ever call window.print(). A page nobody
 # prints cannot have a paper defect, and scoring one is how a scanner invents
@@ -94,6 +95,7 @@ HTML = [
     'live-tagging/index.html',
     'halftime/index.html',
     'calibrate/index.html',
+    'about/index.html',
 ]
 # The only two pages that call window.print(). A paper question asked of
 # any other page is a question about a medium that page never reaches --
@@ -807,7 +809,9 @@ class TestTheScannerCanSeeTheRepo:
     @pytest.mark.parametrize('rel', SHEETS)
     def test_every_stylesheet_yields_rules(self, rel):
         rules = blocks(read(rel))
-        assert len(rules) > 10, (rel, len(rules))
+        # The privacy page's sheet is five rules of running text; every
+        # other sheet is an app's and runs to dozens.
+        assert len(rules) > (4 if rel == 'about/about.css' else 10), (rel, len(rules))
         assert all(sel for sel, _ in rules), rel
 
     def test_a_broken_floor_would_be_noticed(self):

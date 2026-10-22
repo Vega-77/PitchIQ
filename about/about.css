@@ -1,0 +1,19 @@
+/* The privacy, contact and credits page: running text and lists, nothing
+ * else. Everything else it uses is shared (shell, lede, section.block, h3). */
+
+.about-text,
+.about-list {
+    max-width: 68ch;
+    color: var(--text-dim);
+    line-height: 1.6;
+}
+.about-text { margin: 0; }
+.about-list {
+    margin: 0;
+    padding-left: 1.2em;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.about-list strong { color: var(--text); }
+.about-mail { font-weight: 600; overflow-wrap: anywhere; }

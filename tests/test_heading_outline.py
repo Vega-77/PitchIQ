@@ -57,6 +57,7 @@ VIEWS = {
     'live-tagging/index.html': ['view-setup', 'view-kickoff', 'view-live'],
     'halftime/index.html': ['view-error', 'view-report'],
     'calibrate/index.html': ['view-intro', 'view-work'],
+    'about/index.html': [],
 }
 
 # Pages whose view set is a literal array in one module, and where it lives.
@@ -235,6 +236,8 @@ class TestEveryViewIntroducesItself:
         sit outside the view boxes rather than only those inside.
         """
         loose = {}
+        # The privacy page has no views at all, so its one h1 is outside
+        # every view by construction.
         for rel in HTML:
             src = decomment(read(rel))
             boxes = {k: (lo, hi) for k, lo, hi in spans(src, attr('id')) if k in VIEWS[rel]}
@@ -245,6 +248,7 @@ class TestEveryViewIntroducesItself:
                     loose[rel] = text(m.group(3))
         assert loose == {
             'live-tagging/index.html': 'PitchIQ live tagging',
+            'about/index.html': 'Privacy, contact and credits',
         }, loose
 
 
@@ -436,7 +440,7 @@ class TestTheScanCouldBeLying:
         a scan that returns nothing satisfies all of them."""
         total = sum(len(o) for _, _, o in every_view())
         assert total >= 80, total
-        assert len(list(every_view())) == 17
+        assert len(list(every_view())) == 18
         for rel in HTML:
             assert any(o for r, _, o in every_view() if r == rel), rel
 

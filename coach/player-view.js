@@ -2,18 +2,18 @@
 //
 // One of the coach page's modules; `coach.js` loads them and wires the page up.
 
-import { playerSeason, seasonTotals, knownMinutes } from '../shared/db.js?v=151';
+import { playerSeason, seasonTotals, knownMinutes } from '../shared/db.js?v=152';
 import {
     seasonForms, formNote, MIN_FORM_POINTS, MIN_POINT_MINUTES,
-} from '../shared/season.js?v=151';
-import { renderForms } from '../shared/form-chart.js?v=151';
-import { positionLabel, FULL_MATCH_MIN, seasonGroups } from '../shared/report.js?v=151';
-import { CARD_COLOURS } from '../shared/events.js?v=151';
-import { mountRail } from '../shared/rail.js?v=151';
+} from '../shared/season.js?v=152';
+import { renderForms } from '../shared/form-chart.js?v=152';
+import { positionLabel, FULL_MATCH_MIN, seasonGroups } from '../shared/report.js?v=152';
+import { CARD_COLOURS } from '../shared/events.js?v=152';
+import { mountRail } from '../shared/rail.js?v=152';
 import {
     byId, setText, toast, plural, fillStatGroup, figure, cardChips, minutesChart, coverageStrip,
-} from '../shared/ui.js?v=151';
-import { show, state } from './shell.js?v=151';
+} from '../shared/ui.js?v=152';
+import { show, state } from './shell.js?v=152';
 
 // ---------------------------------------------------------------- one player
 

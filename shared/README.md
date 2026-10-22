@@ -1,7 +1,8 @@
 # Frontend notes
 
 The site's code is under the repo's [LICENSE](../LICENSE), like the rest of
-PitchIQ; the Firebase SDK and the fonts it loads keep their own terms.
+PitchIQ; the Firebase SDK and the fonts in `fonts/` (SIL Open Font License
+1.1, texts beside them) keep their own terms.
 
 ## Cache busting
 

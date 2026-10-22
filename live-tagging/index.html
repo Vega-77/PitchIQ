@@ -11,12 +11,9 @@
     <link rel="apple-touch-icon" href="../shared/apple-touch-icon.png">
     <link rel="manifest" href="manifest.webmanifest">
     <title>PitchIQ — Live Tagging</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Saira+Condensed:wght@600;700;800&family=Saira:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../shared/app.css?v=151">
-    <script src="../shared/kit-boot.js?v=151"></script>
-    <link rel="stylesheet" href="tagging.css?v=151">
+    <link rel="stylesheet" href="../shared/app.css?v=152">
+    <script src="../shared/kit-boot.js?v=152"></script>
+    <link rel="stylesheet" href="tagging.css?v=152">
 </head>
 <body>
 
@@ -109,6 +106,23 @@
                     <button id="btn-save-lineup" class="btn primary block">Save lineup &amp; continue</button>
                 </div>
             </div>
+            <!-- The page cannot scroll (tagging.css), so the site footer lives at
+                 the end of the setup screen, the one view that does. -->
+            <footer class="site-foot">
+        <nav aria-label="Site">
+            <a href="../">Home</a>
+            <a href="../coach/">Coach</a>
+            <a href="../player/">Player</a>
+            <a href="../about/#privacy">Privacy</a>
+            <a href="../about/#contact">Contact</a>
+            <a href="../about/#credits">Credits</a>
+            <a href="https://github.com/Vega-77/PitchIQ/blob/main/LICENSE">License</a>
+        </nav>
+        <span class="foot-note">PitchIQ &middot; beta, built for one high school season</span>
+        <p class="foot-privacy">Only a team's coaches and the staff they invite see its
+        players' data; each player sees only their own report. xG model trained on
+        StatsBomb open data.</p>
+            </footer>
         </div>
     </section>
 
@@ -337,6 +351,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="tagging.js?v=151"></script>
+<script type="module" src="tagging.js?v=152"></script>
 </body>
 </html>
