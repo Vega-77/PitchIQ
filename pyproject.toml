@@ -49,7 +49,7 @@ balltrack = [
     "pitchiq[detect]",
     "xgboost==3.4.0",
     "matplotlib==3.11.1",
-    "pillow==12.2.0",
+    "pillow==13.0.0",
     "einops==0.8.2",
 ]
 # Retraining the xG model only; never needed to run the pipeline.
