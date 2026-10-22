@@ -3,15 +3,15 @@
 //
 // One of the coach page's modules; `coach.js` loads them and wires the page up.
 
-import { rememberTeam, saveStaffProfile } from '../shared/auth.js?v=152';
-import { createTeam, getTeam, listPlayers, listMatches, listStaff } from '../shared/db.js?v=152';
-import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=152';
-import { byId, setText, toast, kitPicker } from '../shared/ui.js?v=152';
-import { show, state } from './shell.js?v=152';
-import { renderHero } from './season.js?v=152';
-import { closeKit, renderStaff } from './staff.js?v=152';
-import { renderMatches } from './matches.js?v=152';
-import { renderRoster } from './roster.js?v=152';
+import { rememberTeam, saveStaffProfile } from '../shared/auth.js?v=154';
+import { createTeam, getTeam, listPlayers, listMatches, listStaff } from '../shared/db.js?v=154';
+import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=154';
+import { byId, setText, toast, kitPicker } from '../shared/ui.js?v=154';
+import { show, state } from './shell.js?v=154';
+import { renderHero } from './season.js?v=154';
+import { closeKit, renderStaff } from './staff.js?v=154';
+import { renderMatches } from './matches.js?v=154';
+import { renderRoster } from './roster.js?v=154';
 
 // ---------------------------------------------------------------- team setup
 
@@ -71,7 +71,7 @@ export async function doCreateTeam() {
     } catch (err) {
         toast(
             err?.code === 'permission-denied'
-                ? 'This email has not been approved to create a team yet. Ask the app owner to add it, then try again.'
+                ? 'This Google account is not approved to create a team yet. Email alexvega20137@gmail.com from this address to be added, then try again.'
                 : err.message || 'Could not create the team.',
             true,
         );

@@ -89,6 +89,26 @@ Clients can't read or write this collection — the rules check it internally.
   Credentials → HTTP referrer restriction (`https://<username>.github.io/*`,
   `http://localhost:*`).
 
+## Using your own copy
+
+A copy of this repo published on another domain still points at the original
+Firebase project, and sign-in there fails: that project only authorises its own
+domains. To run your own copy:
+
+1. Do steps 1 to 7 above in your own Firebase project, including adding your
+   domain under **Authorized domains**.
+2. Replace the `firebaseConfig` object in `shared/firebase-init.js` with your
+   web app's (step 5).
+3. Replace the project ID in `.firebaserc` with yours, or run
+   `npx firebase use --add`.
+4. Deploy the rules and indexes: `npm run deploy:rules`.
+5. Put your own contact address where the site names one (`index.html`,
+   `coach/team.js`, `about/index.html`), and check that the privacy page still
+   describes how your copy is run.
+
+Local development needs none of this: on `localhost` the config talks to the
+emulators, never to a live project.
+
 ---
 
 ## Running locally

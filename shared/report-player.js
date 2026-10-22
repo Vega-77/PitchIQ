@@ -2,10 +2,10 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { count } from './report-format.js?v=152';
-import { knownMinutes } from './report-clock.js?v=152';
-import { CONFIRMED_STATUS, REJECTED_STATUS, EDITED_STATUS } from './report-review.js?v=152';
-import { correctedShotMarks } from './report-shots.js?v=152';
+import { count } from './report-format.js?v=154';
+import { knownMinutes } from './report-clock.js?v=154';
+import { CONFIRMED_STATUS, REJECTED_STATUS, EDITED_STATUS } from './report-review.js?v=154';
+import { correctedShotMarks } from './report-shots.js?v=154';
 
 // What a player is allowed to see of a match they played in.
 //

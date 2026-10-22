@@ -286,4 +286,6 @@ class TestTheScanReportsSomething:
         # fifty-five on 2026-10-21: Privacy, Contact, Credits and License in
         # five footers, live tagging's first footer (seven links), and the
         # privacy page (skip link, home, seven footer links, eight in the text).
-        assert counted == {'text': 155, 'title': 3, 'label-wrap': 20}, counted
+        # A hundred and fifty-seven: the landing page's two mail links saying
+        # whom to ask for access.
+        assert counted == {'text': 157, 'title': 3, 'label-wrap': 20}, counted

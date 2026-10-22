@@ -8,24 +8,24 @@
 // `matches.js`, `player-view.js`, `roster.js`, `team.js` and `publish.js`.
 // Each imports only modules below it, which tests/test_browser_graph.py holds.
 
-import { onUser, signOut, resolveAccess, configWarning } from '../shared/auth.js?v=152';
-import { startMotion } from '../shared/motion.js?v=152';
-import { byId, toast, localDate } from '../shared/ui.js?v=152';
-import { show, state, initTabs } from './shell.js?v=152';
+import { onUser, signOut, resolveAccess, configWarning } from '../shared/auth.js?v=154';
+import { startMotion } from '../shared/motion.js?v=154';
+import { byId, toast, localDate } from '../shared/ui.js?v=154';
+import { show, state, initTabs } from './shell.js?v=154';
 import {
     REVIEW_TYPES, doDownloadLabels, doRecordMiss, leaveReview, onReviewChange, useVideoPosition,
-} from './review.js?v=152';
-import { closeKit, toggleKit, doSaveKit, doInviteCoach } from './staff.js?v=152';
-import { updateVideoHint, renderClockMap, leaveMatchVideo, doSaveVideo } from './footage.js?v=152';
-import { renderMatchRail } from './match-overview.js?v=152';
-import { redrawShotViews } from './match-shots.js?v=152';
-import { toggleSample, doDownloadLog } from './match.js?v=152';
-import { doCreateMatch } from './matches.js?v=152';
-import { doAddPlayer } from './roster.js?v=152';
+} from './review.js?v=154';
+import { closeKit, toggleKit, doSaveKit, doInviteCoach } from './staff.js?v=154';
+import { updateVideoHint, renderClockMap, leaveMatchVideo, doSaveVideo } from './footage.js?v=154';
+import { renderMatchRail } from './match-overview.js?v=154';
+import { redrawShotViews } from './match-shots.js?v=154';
+import { toggleSample, doDownloadLog } from './match.js?v=154';
+import { doCreateMatch } from './matches.js?v=154';
+import { doAddPlayer } from './roster.js?v=154';
 import {
     showCreateTeam, cancelCreateTeam, doCreateTeam, loadTeamData, switchTeam,
-} from './team.js?v=152';
-import { doPublish } from './publish.js?v=152';
+} from './team.js?v=154';
+import { doPublish } from './publish.js?v=154';
 
 // ---------------------------------------------------------------- init
 

@@ -3,12 +3,12 @@
 //
 // One of the coach page's modules; `coach.js` loads them and wires the page up.
 
-import { seasonSummary } from '../shared/db.js?v=152';
-import { formGuide, seasonJobs } from '../shared/report.js?v=152';
-import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=152';
-import { mountPitchBackdrop } from '../shared/pitch-backdrop.js?v=152';
-import { byId, setText, signed, plural, localDate, statCard } from '../shared/ui.js?v=152';
-import { state, showTab } from './shell.js?v=152';
+import { seasonSummary } from '../shared/db.js?v=154';
+import { formGuide, seasonJobs } from '../shared/report.js?v=154';
+import { HOUSE_KIT, applyKit } from '../shared/kit.js?v=154';
+import { mountPitchBackdrop } from '../shared/pitch-backdrop.js?v=154';
+import { byId, setText, signed, plural, localDate, statCard } from '../shared/ui.js?v=154';
+import { state, showTab } from './shell.js?v=154';
 
 // ---------------------------------------------------------------- season hero
 

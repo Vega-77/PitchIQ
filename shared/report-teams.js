@@ -2,8 +2,8 @@
 //
 // Part of `report.js`, which re-exports it.
 
-import { num, share } from './report-format.js?v=152';
-import { possessionIsInPlay, shapeConfidence, xgTrust } from './report-quality-notes.js?v=152';
+import { num, share } from './report-format.js?v=154';
+import { possessionIsInPlay, shapeConfidence, xgTrust } from './report-quality-notes.js?v=154';
 
 // ------------------------------------------------- comparing the two sides
 //

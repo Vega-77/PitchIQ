@@ -3,25 +3,25 @@
 //
 // One of the coach page's modules; `coach.js` loads them and wires the page up.
 
-import { cvStatsByPlayer } from '../shared/db.js?v=152';
+import { cvStatsByPlayer } from '../shared/db.js?v=154';
 import {
     samplePassEvents, samplePassMapping, sampleShapeGrids, sampleSubRoster, sampleSubEvents,
     sampleSubClock,
-} from '../shared/sample-report.js?v=152';
+} from '../shared/sample-report.js?v=154';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
-} from '../shared/passing.js?v=152';
-import { renderPassMap } from '../shared/pass-map.js?v=152';
-import { mergeHeatmaps, orientedCentroid } from '../shared/heatmap.js?v=152';
+} from '../shared/passing.js?v=154';
+import { renderPassMap } from '../shared/pass-map.js?v=154';
+import { mergeHeatmaps, orientedCentroid } from '../shared/heatmap.js?v=154';
 import {
     NOT_A_PLAYER, pressingTrend, pressingNote, pressingRead, substitutionWindows,
     substitutionRead, substitutionNote, CHANGE_REASONS, matchClockMap, groupByPosition,
     positionalPlay, MAX_BAND_M,
-} from '../shared/report.js?v=152';
-import { PITCH_LENGTH_M } from '../shared/pitch-backdrop.js?v=152';
-import { byId, setText, clockText, plural } from '../shared/ui.js?v=152';
-import { activeCv, state } from './shell.js?v=152';
-import { clockMap } from './review.js?v=152';
+} from '../shared/report.js?v=154';
+import { PITCH_LENGTH_M } from '../shared/pitch-backdrop.js?v=154';
+import { byId, setText, clockText, plural } from '../shared/ui.js?v=154';
+import { activeCv, state } from './shell.js?v=154';
+import { clockMap } from './review.js?v=154';
 
 // ------------------------------------------------ where each player played
 //
