@@ -164,6 +164,7 @@ PitchIQ is source-available, not open source. It is released under the
 - commercial use needs the owner's permission.
 
 The license covers everything written for this repo: code, docs, tests,
-labels and ground truth.
+labels and ground truth. Third-party software, model weights and data keep
+their own terms, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Commercial licensing and contact: alexvega20137@gmail.com
