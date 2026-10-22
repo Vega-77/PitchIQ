@@ -11,6 +11,23 @@ and Firestore) shows the report to the coach and the players.
 PitchIQ is source-available under the PolyForm Noncommercial License 1.0.0:
 free for non-commercial use, see [License](#license).
 
+## Quickstart
+
+Python 3.12, from a clone of the repo ([Setup](#setup) has the rest):
+
+```bash
+pip install -e .[test]
+python -m pitchiq demo
+```
+
+`demo` draws a nine-second scripted match (coloured boxes: a long pass, a
+touch, a shot), fits a fixed-camera calibration to it and runs
+`analyse_match` with a scripted detector standing in for YOLO. It needs no
+footage, GPU or weights and finishes in seconds; `--out DIR` keeps the clip,
+the calibration and the report JSON. The numbers show the chain working, not
+how well it sees a real match. On real fixed-camera footage the same steps
+are `grab_frame`, `calibrate` and `match_report` (see `FOOTAGE_DAY.md`).
+
 ## Two camera pipelines
 
 **Fixed camera** (`pitchiq/calibration.py`). One homography per camera position
@@ -30,7 +47,8 @@ own frame-to-pitch homography:
 
 The ball comes from the Hybrid 90 tracker in `pitchiq/balltrack/`, and
 `PannedCamera` moves everything into one still reference view. After that,
-`pitchiq/pipeline.py` runs unchanged:
+`pitchiq/pipeline.py` runs unchanged. This example requires a GPU and
+generated data, so it does not run from a fresh clone:
 
 ```python
 from pitchiq.panning_camera import PannedCamera
@@ -51,7 +69,7 @@ in git"). Accuracy figures for the tracker are in that README too, and
 | path | what |
 |---|---|
 | `pitchiq/` | the pipeline: detection, tracking, identity, calibration, ball, possession, events, top-down map, report JSON, publishing to Firestore |
-| `pitchiq/cli/` | the match-day commands, run as `python -m pitchiq <command>`: `grab_frame`, `calibrate`, `event_report`, `match_report`, `compare_reports`, `publish_report` |
+| `pitchiq/cli/` | the match-day commands, run as `python -m pitchiq <command>`: `grab_frame`, `calibrate`, `event_report`, `match_report`, `compare_reports`, `publish_report`, `demo` |
 | `pitchiq/experiments/` | research tools and labs: `spike_detect`, `track_report`, `speed_report`, `autocal_run`, `player_lab`, ... |
 | `pitchiq/balltrack/` | the ball tracker for panning footage (Hybrid 90: detector + classifier + TAPNext++ bridges + 3D flight chain), and the venue map and registration in `pitch_registration/` |
 | `shared/` | shared frontend modules and CSS (no build step, plain ES modules) |

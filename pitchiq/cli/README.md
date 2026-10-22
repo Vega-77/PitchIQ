@@ -9,6 +9,7 @@ The match-day commands, run as `python -m pitchiq <command> [args]`
 - `match_report`: run the whole pipeline over a clip and print the report.
 - `compare_reports`: diff two report JSONs (see `baselines/`).
 - `publish_report`: write a report to Firestore (`--dry-run` writes nothing).
+- `demo`: run the pipeline on a scripted nine-second match (no footage needed).
 
 Each module has `build_parser()` and `main(argv)`; adding one means adding its
 name to `COMMANDS` in `__init__.py`.

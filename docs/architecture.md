@@ -110,7 +110,8 @@ keep up with a live half.
 under a strict path allowlist. `_util.py` holds small shared helpers.
 
 **`cli/`.** The match-day commands: `grab_frame`, `calibrate`, `event_report`,
-`match_report`, `compare_reports`, `publish_report`.
+`match_report`, `compare_reports`, `publish_report`, and `demo`, which runs
+the scripted match in `demo.py` (the same scene the end-to-end test pins).
 
 **`experiments/`.** Research tools and labs, run one by one: `autocal_run`,
 `cal_health`, `cal_overlay`, `halves`, `player_lab`, `possession_report`,

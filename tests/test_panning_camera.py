@@ -7,7 +7,7 @@ registered must be dropped rather than measured through somebody else's
 homography.
 
 The second half runs `analyse_match` end to end on the rectangle clip from
-`tests/test_pipeline_end_to_end.py`, with the camera's pan undone by a
+`pitchiq/demo.py` (the end-to-end test's scene), with the camera's pan undone by a
 `PannedCamera` instead of a still calibration, and checks that the metre-based
 stages run and agree with the still-camera run.
 
@@ -20,6 +20,7 @@ import cv2
 import numpy as np
 import pytest
 
+from pitchiq import demo
 from pitchiq.calibration import CalibrationError
 from pitchiq.frame_table import FrameRecord, FrameTable
 from pitchiq.panning_camera import MAP_FIT_ERROR, PannedCamera
@@ -179,9 +180,9 @@ class TestFromTracker:
 
 # ---------------------------------------------------------------- end to end
 
-import test_pipeline_end_to_end as e2e  # noqa: E402  (a `tests` package in the venv shadows ours)
+from test_pipeline_end_to_end import STAGES  # noqa: E402  (a `tests` package in the venv shadows ours)
 
-# The e2e clip, filmed twice: once still, and once by a camera that pans up to
+# The demo clip, filmed twice: once still, and once by a camera that pans up to
 # PAN_PX to the right and back, so every rectangle is drawn that much further
 # left. A camera holding the still clip's view as its reference must turn the
 # second into the first.
@@ -189,26 +190,26 @@ PAN_PX = 40.0
 
 
 def _pan(n):
-    return PAN_PX * np.sin(2 * np.pi * n / e2e.FRAMES)
+    return PAN_PX * np.sin(2 * np.pi * n / demo.FRAMES)
 
 
 def _write(path, pan):
     writer = cv2.VideoWriter(
-        str(path), cv2.VideoWriter_fourcc(*'mp4v'), e2e.FPS, (e2e.WIDTH, e2e.HEIGHT)
+        str(path), cv2.VideoWriter_fourcc(*'mp4v'), demo.FPS, (demo.WIDTH, demo.HEIGHT)
     )
     if not writer.isOpened():
         pytest.skip('no mp4v encoder available in this OpenCV build')
-    for n in range(e2e.FRAMES):
-        frame = np.full((e2e.HEIGHT, e2e.WIDTH, 3), 60, dtype=np.uint8)
+    for n in range(demo.FRAMES):
+        frame = np.full((demo.HEIGHT, demo.WIDTH, 3), 60, dtype=np.uint8)
         d = pan(n)
-        for _cls, _conf, x1, y1, x2, y2, colour in e2e.scene(n):
+        for _cls, _conf, x1, y1, x2, y2, colour in demo.scene(n):
             cv2.rectangle(frame, (int(x1 - d), int(y1)), (int(x2 - d), int(y2)), colour, -1)
         writer.write(frame)
     writer.release()
     return path
 
 
-class PanningDetector(e2e.ScriptedDetector):
+class PanningDetector(demo.ScriptedDetector):
     def __init__(self, pan):
         super().__init__()
         self.pan = pan
@@ -223,17 +224,17 @@ class PanningDetector(e2e.ScriptedDetector):
 
 def _run(tmp_path_factory, pan):
     path = _write(tmp_path_factory.mktemp('panned') / 'match.mp4', pan)
-    P = e2e.PITCH
-    # Reference (still clip) pixels -> metres, y flipped as in e2e.px, -> StatsBomb.
-    clip_to_m = np.array([[1 / e2e.SCALE, 0, 0], [0, -1 / e2e.SCALE, P.width_m], [0, 0, 1.0]])
+    P = demo.PITCH
+    # Reference (still clip) pixels -> metres, y flipped as in demo.px, -> StatsBomb.
+    clip_to_m = np.array([[1 / demo.SCALE, 0, 0], [0, -1 / demo.SCALE, P.width_m], [0, 0, 1.0]])
     ref_to_sb = (
         np.diag([STATSBOMB_LENGTH / P.length_m, STATSBOMB_WIDTH / P.width_m, 1.0]) @ clip_to_m
     )
-    frames = np.arange(e2e.FRAMES)
+    frames = np.arange(demo.FRAMES)
     frame_to_sb = np.array(
         [ref_to_sb @ np.array([[1, 0, pan(n)], [0, 1, 0], [0, 0, 1.0]]) for n in frames]
     )
-    ball = np.array([e2e.ball_m(n / e2e.FPS) for n in frames])
+    ball = np.array([demo.ball_m(n / demo.FPS) for n in frames])
     cam = PannedCamera.from_arrays(
         frames,
         frame_to_sb,
@@ -247,11 +248,11 @@ def _run(tmp_path_factory, pan):
         path,
         options=AnalysisOptions(device='cpu'),
         context=MatchContext(
-            orientation=e2e.ORIENTATION, period='first_half', side_of_team=e2e.SIDES
+            orientation=demo.ORIENTATION, period='first_half', side_of_team=demo.SIDES
         ),
         panned=cam,
         detector=PanningDetector(pan),
-        tracker_factory=lambda name, device: e2e.SlotTracker(),
+        tracker_factory=lambda name, device: demo.SlotTracker(),
     )
 
 
@@ -267,7 +268,7 @@ def panned(tmp_path_factory):
 
 class TestEndToEnd:
     def test_the_metre_stages_run(self, panned):
-        assert [s.name for s in panned.timings.stages] == e2e.STAGES
+        assert [s.name for s in panned.timings.stages] == STAGES
         assert panned.movement_available
 
     def test_the_pan_is_undone_so_nobody_runs_further(self, still, panned):
