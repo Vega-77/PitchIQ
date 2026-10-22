@@ -1,7 +1,8 @@
 # xg_training
 
 Trains the expected-goals (xG) model the pipeline runs, from StatsBomb open data,
-and exports it to ONNX beside the code that loads it.
+and exports it to ONNX beside the code that loads it. Reuse is under the
+repo's [LICENSE](../LICENSE); the StatsBomb data keeps its own terms.
 
 ## Retraining
 

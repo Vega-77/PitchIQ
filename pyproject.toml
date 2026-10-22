@@ -11,7 +11,7 @@
 # requirements.txt before installing the `detect` extra.
 
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]  # 77: the SPDX `license` string below
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -20,7 +20,10 @@ version = "0.1.0"
 description = "Match statistics from a single sideline video of a youth football game."
 readme = "README.md"
 requires-python = ">=3.12"
-# All rights reserved (see README.md); this keeps it off package indexes.
+# Source-available, not open source (see LICENSE). Not published to PyPI:
+# the classifier makes an accidental upload fail.
+license = "PolyForm-Noncommercial-1.0.0"
+license-files = ["LICENSE"]
 classifiers = ["Private :: Do Not Upload"]
 dependencies = [
     "opencv-python==5.0.0.93",

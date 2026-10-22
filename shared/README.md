@@ -1,5 +1,8 @@
 # Frontend notes
 
+The site's code is under the repo's [LICENSE](../LICENSE), like the rest of
+PitchIQ; the Firebase SDK and the fonts it loads keep their own terms.
+
 ## Cache busting
 
 Run this before committing any frontend change, and bump the number each time:

@@ -8,7 +8,8 @@ substitutions, restarts). The computer-vision pipeline in `pitchiq/` turns the
 match video and that tag log into a report JSON, and the site (GitHub Pages
 and Firestore) shows the report to the coach and the players.
 
-No license is granted. All rights reserved.
+PitchIQ is source-available under the PolyForm Noncommercial License 1.0.0:
+free for non-commercial use, see [License](#license).
 
 ## Two camera pipelines
 
@@ -152,3 +153,17 @@ carries now (see `shared/README.md`).
   (formatting, names, docstrings, types).
 - [shared/README.md](shared/README.md): frontend conventions and cache busting.
 - [baselines/README.md](baselines/README.md): regression baselines.
+
+## License
+
+PitchIQ is source-available, not open source. It is released under the
+[PolyForm Noncommercial License 1.0.0](LICENSE):
+
+- free to use, copy, change and share for any non-commercial purpose,
+  including schools, clubs, coaches, players, learners and research;
+- commercial use needs the owner's permission.
+
+The license covers everything written for this repo: code, docs, tests,
+labels and ground truth.
+
+Commercial licensing and contact: alexvega20137@gmail.com
