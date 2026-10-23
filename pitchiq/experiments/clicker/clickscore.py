@@ -50,7 +50,7 @@ TOL = 15.0  # px at 1920x1080: the drawn ring's radius (14) plus one
 
 def rings(match_video, tag, frames):
     """match_video.ball's image point and kind, at the given frames only (the whole half takes minutes)."""
-    tr = match_video.V.Track(tag)
+    tr = match_video.flight_model.Track(tag)
     a0 = int(tr.abs[0])
     B = np.load(os.path.join(match_video.HG, '%s_ball3dd.npz' % tag))
     P = np.load(os.path.join(match_video.HERE, 'evaluation', 'p2d', 'hyb90', '%s.npz' % tag))
