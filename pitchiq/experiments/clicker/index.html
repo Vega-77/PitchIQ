@@ -389,6 +389,7 @@ async function boot(){
   }
   try { S.batches = (await (await fetch('batches.json')).json()).batches; }
   catch (e){ banner('The batches did not load. Reload the page.'); return; }
+  if (!S.batches.length){ banner('Every batch is answered. Thank you!', true); return; }
   const sel = $('batchSel'); sel.replaceChildren();
   S.batches.forEach(b => { const o = document.createElement('option'); o.value = b.name; o.textContent = b.title; sel.append(o); });
   let pick = S.batches[S.batches.length - 1].name;
