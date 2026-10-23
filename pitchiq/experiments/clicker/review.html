@@ -1,0 +1,399 @@
+<title>Ring Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* The Ball Clicker's family. One scored frame at a time: your click and the video's ring on it. */
+:root{
+  --ground:#131920; --panel:#1b232d; --panel2:#222c38; --line:#2c3845;
+  --ink:#e8edf3; --dim:#8695a6; --faint:#5d6b7a;
+  --signal:#f59e2c; --mark:#ffe600; --ok:#49c58c; --warn:#e0645f; --stage:#000000;
+  --disp:'Chivo',system-ui,sans-serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --r:6px; color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+  --signal:#c7730f; --mark:#b39b00; --ok:#23915f; --warn:#d23447; --stage:#0e141b; color-scheme:light;
+}}
+:root[data-theme="light"]{
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+  --signal:#c7730f; --mark:#b39b00; --ok:#23915f; --warn:#d23447; --stage:#0e141b; color-scheme:light;
+}
+:root[data-theme="dark"]{ color-scheme:dark; }
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0; background:var(--ground); color:var(--ink); font-family:var(--body);
+  font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased; overflow-x:hidden}
+button,select,textarea{font:inherit; color:inherit}
+button,select{cursor:pointer}
+:focus-visible{outline:2px solid var(--signal); outline-offset:2px}
+kbd{font-family:var(--mono); font-size:11px; background:var(--panel2); border:1px solid var(--line);
+  border-bottom-width:2px; border-radius:4px; padding:1px 6px; white-space:nowrap; color:var(--ink)}
+
+.head{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--panel);
+  border-bottom:1px solid var(--line); padding:10px 16px}
+.headRow{display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap; max-width:1400px; margin:0 auto}
+h1{font-family:var(--disp); font-weight:900; font-size:15px; letter-spacing:.06em; text-transform:uppercase; margin:0}
+h1 span{color:var(--mark)}
+select.sel{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:5px 8px; font-size:12.5px; max-width:100%; min-width:0}
+.prog{margin-left:auto; font-size:12px; color:var(--dim); display:flex; gap:14px; flex-wrap:wrap}
+.prog b{font-family:var(--mono); font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums}
+.save{font-family:var(--mono); font-size:11px; color:var(--faint)}
+.save.busy{color:var(--signal)} .save.bad{color:var(--warn)}
+.bar{height:3px; background:var(--line); max-width:1400px; margin:8px auto 0; border-radius:2px; overflow:hidden}
+.bar i{display:block; height:100%; width:0; background:var(--ok); transition:width .2s}
+
+.wrap{max-width:1400px; margin:0 auto; padding:14px 16px 40px; display:flex; flex-direction:column; gap:12px}
+.banner{background:color-mix(in srgb, var(--warn) 14%, transparent); border:1px solid color-mix(in srgb, var(--warn) 55%, transparent);
+  border-radius:var(--r); padding:9px 11px; font-size:12.5px}
+.banner.note{background:color-mix(in srgb, var(--signal) 12%, transparent); border-color:color-mix(in srgb, var(--signal) 45%, transparent)}
+.legend{display:flex; flex-wrap:wrap; gap:6px 18px; font-size:12px; color:var(--dim); align-items:center}
+.legend svg{vertical-align:-4px; margin-right:5px}
+
+.grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,380px); gap:12px; align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.stage{position:relative; background:var(--stage); border-radius:var(--r); overflow:hidden; border:1px solid var(--line); aspect-ratio:16/9}
+.stage img, .stage svg{position:absolute; inset:0; width:100%; height:100%; display:block}
+.load{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#c9d2dc;
+  font-family:var(--mono); font-size:12px; pointer-events:none}
+.tag{position:absolute; left:8px; top:8px; font-family:var(--mono); font-size:11px; padding:2px 7px; border-radius:4px;
+  background:rgba(0,0,0,.6); color:#fff; pointer-events:none}
+.under{display:flex; align-items:center; gap:10px; margin-top:6px; font-size:12px; color:var(--dim); flex-wrap:wrap}
+.under .sp{margin-left:auto; display:flex; gap:6px}
+
+.side{display:flex; flex-direction:column; gap:10px; min-width:0}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:12px 14px; display:flex; flex-direction:column; gap:10px}
+.eyebrow{font-family:var(--disp); font-weight:700; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--signal)}
+.call{display:flex; flex-direction:column; gap:3px}
+.call .lab{font-family:var(--disp); font-weight:700; font-size:17px; line-height:1.25; text-wrap:balance}
+.call .lab.wrong{color:var(--warn)} .call .lab.right{color:var(--ok)}
+.call .why{font-size:12.5px; color:var(--dim)}
+.call .why b{font-family:var(--mono); font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums}
+.zooms{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px}
+.zoom{display:flex; flex-direction:column; gap:4px; min-width:0}
+.zoom span{font-size:11px; color:var(--faint); font-family:var(--mono)}
+.zbox{position:relative; aspect-ratio:1/1; background:var(--stage); border:1px solid var(--line); border-radius:var(--r); overflow:hidden}
+.zbox canvas{position:absolute; inset:0; width:100%; height:100%}
+.zbox .empty{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center;
+  padding:12px; color:var(--faint); font-size:12px}
+.q{font-family:var(--disp); font-weight:700; font-size:14px; margin:0}
+.opts{display:grid; grid-template-columns:minmax(0,1fr); gap:6px}
+.opt{display:flex; align-items:center; gap:10px; text-align:left; background:var(--panel2); border:1px solid var(--line);
+  border-radius:var(--r); padding:7px 12px; font-weight:500; min-width:0}
+.opt:hover{border-color:var(--faint)}
+.opt small{display:block; color:var(--dim); font-size:11.5px; font-weight:400}
+.opt kbd{margin-left:auto}
+.opt.prev{border-color:var(--signal); background:color-mix(in srgb, var(--signal) 14%, var(--panel2))}
+textarea{width:100%; min-height:54px; resize:vertical; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r);
+  padding:7px 9px; font-size:12.5px}
+.btn{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:6px 10px; cursor:pointer;
+  font-family:var(--disp); font-weight:700; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase}
+.btn:hover:not(:disabled){border-color:var(--faint)}
+.btn:disabled{opacity:.38; cursor:not-allowed}
+.keys{font-size:12px; color:var(--faint); display:flex; gap:12px; flex-wrap:wrap}
+.tally{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px}
+.tally div{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:8px 10px; font-size:12px; color:var(--dim)}
+.tally b{display:block; font-family:var(--mono); font-size:16px; color:var(--ink); font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+
+<header class="head">
+  <div class="headRow">
+    <h1>Ring <span>Review</span></h1>
+    <select class="sel" id="catSel" aria-label="Which frames"></select>
+    <select class="sel" id="halfSel" aria-label="Which half"></select>
+    <div class="prog">
+      <span>judged <b id="pDone">0</b> / <b id="pN">0</b></span>
+      <span>disagree <b id="pBad">0</b></span>
+      <span class="save" id="save">ready</span>
+    </div>
+  </div>
+  <div class="bar"><i id="barI"></i></div>
+</header>
+
+<main class="wrap">
+  <div class="banner" id="banner" hidden></div>
+  <div class="legend" aria-label="What the marks mean">
+    <span><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="3.5" fill="#49c58c" stroke="#000" stroke-width="1"/></svg>your click</span>
+    <span><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="#49c58c" stroke-width="1.5" stroke-dasharray="3 2"/></svg>how close the scorer needs the ring (<span id="tolT">15</span> px)</span>
+    <span><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="#f59e2c" stroke-width="2"/></svg>the ring the video draws, at its size there</span>
+    <span><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="#f59e2c" stroke-width="2" stroke-dasharray="3 2"/></svg>your hidden-ball click</span>
+  </div>
+
+  <section id="qView" hidden>
+    <div class="grid">
+      <div>
+        <div class="stage" id="stage">
+          <img id="still" alt="The scored frame" draggable="false">
+          <svg id="ov" viewBox="0 0 1920 1080" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <div class="load" id="load">loading frame&#8230;</div>
+          <div class="tag" id="tag"></div>
+        </div>
+        <div class="under">
+          <span id="underT"></span>
+          <span class="sp">
+            <button class="btn" id="bPrev" type="button">&#8592; Back</button>
+            <button class="btn" id="bNext" type="button">Next &#8594;</button>
+          </span>
+        </div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <div class="eyebrow" id="eyebrow">Item</div>
+          <div class="call">
+            <div class="lab" id="callL"></div>
+            <div class="why" id="callW"></div>
+          </div>
+          <div class="zooms">
+            <div class="zoom"><span>around your click</span><div class="zbox"><canvas id="zA" width="320" height="320"></canvas><div class="empty" id="zAe"></div></div></div>
+            <div class="zoom"><span>around the ring</span><div class="zbox"><canvas id="zB" width="320" height="320"></canvas><div class="empty" id="zBe"></div></div></div>
+          </div>
+          <p class="q">Is the scorer's call right?</p>
+          <div class="opts">
+            <button class="opt" type="button" data-v="agree"><span>The call is right<small>What the scorer says matches what you see.</small></span><kbd>Y</kbd></button>
+            <button class="opt" type="button" data-v="disagree"><span>The call is wrong<small>Say why below if it isn't obvious, e.g. the ring is on the ball.</small></span><kbd>W</kbd></button>
+            <button class="opt" type="button" data-v="unsure"><span>Can't judge<small>You can't tell from this frame.</small></span><kbd>U</kbd></button>
+          </div>
+          <textarea id="note" placeholder="Note (optional, saved with your answer)" aria-label="Note"></textarea>
+          <div class="keys"><span><kbd>&#8592;</kbd> <kbd>&#8594;</kbd> back, next</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="doneView" hidden>
+    <div class="card">
+      <div class="eyebrow">All judged</div>
+      <p class="q" id="doneQ">Every frame in this view has your answer.</p>
+      <p class="hint" style="margin:0;color:var(--dim);font-size:12.5px">Tell Claude. Pick another view above, or go back through these.</p>
+      <div class="tally" id="tally"></div>
+      <div><button class="btn" id="bAgain" type="button">Go through from the start</button></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const ZOOM_SRC = 150;   // full-resolution pixels across a zoom
+// match_video draws the ring at 720 px wide with radius 11 (ground) or 12 (air): this size at 1920
+const RING_R = {ground: 11 * 1920 / 720, air: 12 * 1920 / 720};
+const CATS = [
+  ['off', 'Ring, but not on the ball', false],
+  ['hidmiss', 'Hidden ball, no ring near it', false],
+  ['noring', 'No ring on a visible ball', false],
+  ['okring', 'Ring on the ball', true],
+  ['hidok', 'Hidden ball, ring near it', true],
+  ['okempty', 'No ring, ball not in frame', true],
+];
+const CAT = Object.fromEntries(CATS.map(([k, l, r]) => [k, {label: l, right: r}]));
+const clone = o => JSON.parse(JSON.stringify(o));
+const $ = id => document.getElementById(id);
+const S = {db: null, local: false, all: [], items: [], ver: {}, cur: -1, busy: {}, data: null};
+
+/* ---------- storage -------------------------------------------------------------------------- */
+function deepFreeze(o){ if (o && typeof o === 'object'){ Object.values(o).forEach(deepFreeze); Object.freeze(o); } return o; }
+function mockDb(){   // local preview only: behaves like the real store, snapshots frozen
+  const store = new Map();
+  const snap = (k, v) => ({id: k.split('/').pop(), exists: true, data: () => deepFreeze(clone(v))});
+  return {collection(p){ return {
+    doc: id => ({id, set: async d => { await new Promise(r => setTimeout(r, 30)); store.set(p + '/' + id, clone(d)); }}),
+    get: async () => { const docs = [...store].filter(([k]) => k.startsWith(p + '/')).map(([k, v]) => snap(k, v));
+                       return {docs, size: docs.length, empty: !docs.length}; },
+  }; }};
+}
+function setSave(state, text){ const el = $('save'); el.className = 'save ' + state; el.textContent = text; }
+function banner(text, note){ const b = $('banner'); b.textContent = text; b.className = 'banner' + (note ? ' note' : ''); b.hidden = !text; }
+function save(id){   // one write at a time per item; the latest state wins
+  if (!S.db) return;
+  const w = S.busy[id] || (S.busy[id] = {on: false, again: false});
+  if (w.on){ w.again = true; return; }
+  w.on = true; setSave('busy', 'saving\u2026');
+  (async () => {
+    do {
+      w.again = false;
+      try { await S.db.collection('verdicts').doc(id).set(clone(S.ver[id])); setSave('', S.local ? 'saved in this tab' : 'saved'); }
+      catch (e){ setSave('bad', 'not saved'); banner('An answer did not save (' + ((e && e.code) || 'error') + '). It will retry with your next answer.'); w.on = false; return; }
+    } while (w.again);
+    w.on = false;
+  })();
+}
+
+/* ---------- drawing -------------------------------------------------------------------------- */
+const NS = 'http://www.w3.org/2000/svg';
+function circle(svg, x, y, r, attrs){
+  const c = document.createElementNS(NS, 'circle');
+  c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', r);
+  for (const k in attrs) c.setAttribute(k, attrs[k]);
+  svg.append(c);
+}
+function marks(svg, it, k){   // k: drawn units per frame pixel (keeps strokes readable at any zoom)
+  if (it.kind){
+    circle(svg, it.rx, it.ry, RING_R[it.kind], {fill: 'none', stroke: '#000', 'stroke-width': 5 / k, opacity: .6});
+    circle(svg, it.rx, it.ry, RING_R[it.kind], {fill: 'none', stroke: '#f59e2c', 'stroke-width': 2.5 / k});
+  }
+  if (it.ax != null){
+    const tol = it.v === 'hidden' ? S.data.hid_tol : S.data.tol;
+    circle(svg, it.ax, it.ay, tol, {fill: 'none', stroke: it.v === 'hidden' ? '#f59e2c' : '#49c58c', 'stroke-width': 1.6 / k, 'stroke-dasharray': (5 / k) + ' ' + (3 / k)});
+    circle(svg, it.ax, it.ay, 3.5 / k, {fill: '#49c58c', stroke: '#000', 'stroke-width': 1 / k});
+  }
+}
+function drawStage(it){
+  const svg = $('ov'); svg.replaceChildren();
+  const w = $('stage').getBoundingClientRect().width || 960;
+  marks(svg, it, w / 1920);
+}
+function drawZoom(cv, empty, it, cx, cy, msg){
+  const g = cv.getContext('2d'), im = $('still');
+  g.clearRect(0, 0, cv.width, cv.height);
+  if (cx == null){ empty.textContent = msg; empty.hidden = false; return; }
+  empty.hidden = true;
+  if (!im.complete || !im.naturalWidth) return;
+  const x0 = Math.round(Math.max(0, Math.min(1920 - ZOOM_SRC, cx - ZOOM_SRC / 2)));
+  const y0 = Math.round(Math.max(0, Math.min(1080 - ZOOM_SRC, cy - ZOOM_SRC / 2)));
+  const s = cv.width / ZOOM_SRC;
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height);
+  g.drawImage(im, x0, y0, ZOOM_SRC, ZOOM_SRC, 0, 0, cv.width, cv.height);
+  const P = (x, y) => [(x - x0) * s, (y - y0) * s];
+  if (it.kind){
+    const [x, y] = P(it.rx, it.ry);
+    g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.6)'; g.beginPath(); g.arc(x, y, RING_R[it.kind] * s, 0, 7); g.stroke();
+    g.lineWidth = 2; g.strokeStyle = '#f59e2c'; g.beginPath(); g.arc(x, y, RING_R[it.kind] * s, 0, 7); g.stroke();
+  }
+  if (it.ax != null){
+    const [x, y] = P(it.ax, it.ay), tol = it.v === 'hidden' ? S.data.hid_tol : S.data.tol;
+    g.setLineDash([5, 3]); g.lineWidth = 1.6; g.strokeStyle = it.v === 'hidden' ? '#f59e2c' : '#49c58c';
+    g.beginPath(); g.arc(x, y, tol * s, 0, 7); g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#49c58c'; g.strokeStyle = '#000'; g.lineWidth = 1; g.beginPath(); g.arc(x, y, 3.5, 0, 7); g.fill(); g.stroke();
+  }
+}
+function drawAll(){
+  if (S.cur < 0) return;
+  const it = S.items[S.cur];
+  drawStage(it);
+  drawZoom($('zA'), $('zAe'), it, it.ax, it.ay, it.v === 'out' ? 'You answered: not in frame.' : 'No click.');
+  drawZoom($('zB'), $('zBe'), it, it.kind ? it.rx : null, it.ry, 'No ring is drawn in this frame.');
+}
+
+/* ---------- one item ------------------------------------------------------------------------- */
+const ansLabel = it => ({ball: 'you clicked the ball', out: 'you answered not in frame', hidden: 'you clicked a hidden ball'})[it.v] || it.v;
+function show(i){
+  if (!S.items.length){ finish(); return; }
+  i = Math.max(0, Math.min(S.items.length - 1, i));
+  S.cur = i; $('qView').hidden = false; $('doneView').hidden = true;
+  const it = S.items[i], c = CAT[it.cat], vv = S.ver[it.id];
+  $('tag').textContent = it.title + ' \u00b7 frame ' + it.f;
+  $('eyebrow').textContent = 'Frame ' + (i + 1) + ' of ' + S.items.length + ' \u00b7 ' + (it.held ? 'held-out' : 'dev') + (vv ? ' \u00b7 judged' : '');
+  $('callL').textContent = 'Scored ' + (c.right ? 'right' : 'wrong') + ': ' + c.label;
+  $('callL').className = 'lab ' + (c.right ? 'right' : 'wrong');
+  const w = $('callW'); w.replaceChildren();
+  const parts = [ansLabel(it) + '; '];
+  if (it.kind) parts.push('the video draws a ' + it.kind + ' ring');
+  else parts.push('the video draws no ring');
+  w.append(parts.join(''));
+  if (it.d != null){ w.append(', '); const b = document.createElement('b'); b.textContent = it.d + ' px'; w.append(b, ' from your click'); }
+  w.append('.');
+  $('underT').textContent = it.kind ? 'The orange ring is drawn at the size the video shows it.' : '';
+  document.querySelectorAll('.opt').forEach(b => b.classList.toggle('prev', !!vv && b.dataset.v === vv.v));
+  $('note').value = vv && vv.note ? vv.note : '';
+  $('bPrev').disabled = i === 0; $('bNext').disabled = i === S.items.length - 1;
+  $('load').hidden = false; $('load').textContent = 'loading frame\u2026';
+  $('ov').replaceChildren(); drawZoom($('zA'), $('zAe'), it, null, null, ''); drawZoom($('zB'), $('zBe'), it, null, null, '');
+  const im = $('still'), u = 'f/' + it.id + '.webp';
+  im.onload = () => { if (S.cur === i){ $('load').hidden = true; drawAll(); } };
+  im.onerror = () => { if (S.cur === i) $('load').textContent = 'the frame did not load; go next and come back, or reload'; };
+  if (im.getAttribute('src') !== u) im.src = u; else if (im.complete) im.onload();
+  for (const j of [i + 1, i + 2]) if (S.items[j]){ const p = new Image(); p.src = 'f/' + S.items[j].id + '.webp'; }
+}
+function judge(v){
+  if (S.cur < 0) return;
+  const it = S.items[S.cur];
+  S.ver[it.id] = {v, note: $('note').value.trim(), at: Date.now()};
+  save(it.id); progress();
+  document.querySelectorAll('.opt').forEach(b => b.classList.toggle('prev', b.dataset.v === v));
+  setTimeout(() => { const n = nextOpen(S.cur + 1); n < 0 ? finish() : show(n); }, 160);
+}
+function nextOpen(from){
+  for (let i = from; i < S.items.length; i++) if (!S.ver[S.items[i].id]) return i;
+  for (let i = 0; i < from && i < S.items.length; i++) if (!S.ver[S.items[i].id]) return i;
+  return -1;
+}
+function progress(){
+  const d = S.items.filter(it => S.ver[it.id]).length;
+  $('pDone').textContent = d; $('pN').textContent = S.items.length;
+  $('pBad').textContent = S.all.filter(it => S.ver[it.id] && S.ver[it.id].v === 'disagree').length;
+  $('barI').style.width = (S.items.length ? d / S.items.length * 100 : 0) + '%';
+}
+function finish(){
+  S.cur = -1; $('qView').hidden = true; $('doneView').hidden = false;
+  const t = $('tally'); t.replaceChildren();
+  for (const [k, n] of [['agree', 'calls right'], ['disagree', 'calls wrong'], ['unsure', "can't judge"]]){
+    const d = document.createElement('div'), b = document.createElement('b');
+    b.textContent = S.items.filter(it => S.ver[it.id] && S.ver[it.id].v === k).length; d.append(b, n); t.append(d);
+  }
+}
+
+/* ---------- views ---------------------------------------------------------------------------- */
+function filter(){
+  const c = $('catSel').value, h = $('halfSel').value;
+  S.items = S.all.filter(it => (c === 'all' || it.cat === c || (c === 'wrong' && !CAT[it.cat].right) || (c === 'right' && CAT[it.cat].right))
+                            && (h === 'all' || it.half === h));
+  try { localStorage.setItem('ringreview.view', JSON.stringify([c, h])); } catch (e) {}
+  progress();
+  const n = nextOpen(0); n < 0 ? finish() : show(n);
+}
+function fillSelects(){
+  const cs = $('catSel'), n = k => S.all.filter(it => it.cat === k).length;
+  const opt = (sel, v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.append(o); };
+  opt(cs, 'all', 'All frames here (' + S.all.length + ')');
+  opt(cs, 'wrong', 'Scored wrong (' + S.all.filter(it => !CAT[it.cat].right).length + ')');
+  opt(cs, 'right', 'Scored right, a sample (' + S.all.filter(it => CAT[it.cat].right).length + ')');
+  for (const [k, l] of CATS) if (n(k)) opt(cs, k, l + ' (' + n(k) + (CAT[k].right ? ' of ' + S.data.counts[k] : '') + ')');
+  const hs = $('halfSel'), halves = [...new Set(S.all.map(it => it.half))].sort();
+  opt(hs, 'all', 'Every half');
+  for (const h of halves) opt(hs, h, S.all.find(it => it.half === h).title);
+  try { const m = JSON.parse(localStorage.getItem('ringreview.view') || 'null');
+        if (m){ if ([...cs.options].some(o => o.value === m[0])) cs.value = m[0]; if ([...hs.options].some(o => o.value === m[1])) hs.value = m[1]; } } catch (e) {}
+  cs.onchange = filter; hs.onchange = filter;
+}
+
+/* ---------- events --------------------------------------------------------------------------- */
+document.querySelectorAll('.opt').forEach(b => b.onclick = () => judge(b.dataset.v));
+$('bPrev').onclick = () => show(S.cur - 1);
+$('bNext').onclick = () => show(S.cur + 1);
+$('bAgain').onclick = () => show(0);
+$('note').addEventListener('change', () => {   // a note edited after answering is saved with that answer
+  if (S.cur < 0) return; const it = S.items[S.cur];
+  if (S.ver[it.id]){ S.ver[it.id] = Object.assign({}, S.ver[it.id], {note: $('note').value.trim()}); save(it.id); }
+});
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.ctrlKey || e.metaKey || e.altKey || S.cur < 0) return;
+  const k = e.key.toLowerCase();
+  if (k === 'y') judge('agree');
+  else if (k === 'w') judge('disagree');
+  else if (k === 'u') judge('unsure');
+  else if (k === 'arrowleft'){ e.preventDefault(); show(S.cur - 1); }
+  else if (k === 'arrowright'){ e.preventDefault(); show(S.cur + 1); }
+});
+window.addEventListener('resize', drawAll);
+
+async function boot(){
+  if (!window.claude){ S.db = mockDb(); S.local = true; banner('Local preview: answers stay in this tab only.', true); }
+  else {
+    try { S.db = await window.claude.use('db'); } catch (e){ S.db = null; }
+    if (!S.db) banner('Answers cannot be saved in this view. Open the page signed in to claude.ai to answer.');
+  }
+  try { S.data = await (await fetch('data.json')).json(); }
+  catch (e){ banner('The frames did not load. Reload the page.'); return; }
+  S.all = S.data.items; $('tolT').textContent = S.data.tol;
+  if (S.db){
+    try { const q = await S.db.collection('verdicts').get(); q.docs.forEach(d => { S.ver[d.id] = clone(d.data() || {}); }); }
+    catch (e){ banner('Could not read earlier answers (' + ((e && e.code) || 'error') + '). Reload before answering, or earlier answers may be overwritten.'); S.db = null; }
+  }
+  fillSelects(); filter();
+}
+boot();
+</script>

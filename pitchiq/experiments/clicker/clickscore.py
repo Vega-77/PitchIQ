@@ -11,6 +11,8 @@ ballgate-lost stretches dropped).
   no ring     -> 'ballmiss' (No ball left without a ring): right when the answer is 'not in frame';
                  a clicked ball with no ring is a miss.
   'dead' (ball there, out of play) and 'cant' answers are not scored.
+  'hidden' (behind a player, clicked where it is; batch b6, cantbatch.py) -> 'hidden': right when a
+                 ring is within HID_TOL px. Not one of the grid's rows, and never detector training.
 
     python clickscore.py [<db dir>]    (default PitchIQ-data/clicker/db: the artifact's answer docs,
                                         saved as <db dir>/batches/<b>/answers/cNNN.json)
@@ -46,6 +48,9 @@ DATA = os.environ.get(
 ROOT = os.path.join(DATA, 'clicker')
 BT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'balltrack')
 TOL = 15.0  # px at 1920x1080: the drawn ring's radius (14) plus one
+# A hidden ball is clicked where it must be, not on it: within the video's ring (radius 11 at 720
+# px wide = 29 px here) counts.
+HID_TOL = 30.0
 
 
 def rings(match_video, tag, frames):
@@ -84,6 +89,40 @@ def answers(d):
     return A
 
 
+def judge(a, p, kind):
+    """One answer against the ring at its frame (p, kind as rings gives them).
+
+    -> (check, right, why) with check 'ballring', 'ballmiss' or 'hidden'; None when not scored
+    ('dead', 'cant'). why says what is wrong ('' when right)."""
+    if a['v'] == 'hidden':  # the tracker's check only: is a ring near where the ball is?
+        d = float(np.hypot(p[0] - a['x'], p[1] - a['y'])) if kind else None
+        if d is not None and d <= HID_TOL:
+            return 'hidden', True, ''
+        return (
+            'hidden',
+            False,
+            'hidden ball, ' + ('no ring' if d is None else 'ring %s %.0f px off' % (kind, d)),
+        )
+    if a['v'] not in ('ball', 'out'):
+        return None
+    if kind:
+        d = float(np.hypot(p[0] - a['x'], p[1] - a['y'])) if a['v'] == 'ball' else None
+        if d is not None and d <= TOL:
+            return 'ballring', True, ''
+        return (
+            'ballring',
+            False,
+            'ring %s, %s'
+            % (
+                kind,
+                'not in frame' if d is None else '%.0f px off' % d,
+            ),
+        )
+    if a['v'] == 'out':
+        return 'ballmiss', True, ''
+    return 'ballmiss', False, 'no ring on a visible ball'
+
+
 def main():
     adir = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'db')
     items = {it['id']: it for it in json.load(open(os.path.join(ROOT, 'items_all.json')))['items']}
@@ -107,36 +146,23 @@ def main():
             )
             continue
         at = rings(match_video, tag, [f for f, _, _ in by[tag]])
-        ring, miss, wrong = [0, 0], [0, 0], []
+        cells, wrong = dict(ballring=[0, 0], ballmiss=[0, 0], hidden=[0, 0]), []
         for f, a, k in sorted(by[tag]):
-            if a['v'] not in ('ball', 'out'):
+            j = judge(a, *at[f])
+            if j is None:
                 continue
-            p, kind = at[f]
-            if kind:
-                ring[1] += 1
-                d = float(np.hypot(p[0] - a['x'], p[1] - a['y'])) if a['v'] == 'ball' else None
-                if d is not None and d <= TOL:
-                    ring[0] += 1
-                else:
-                    wrong.append(
-                        dict(
-                            id=k,
-                            f=f,
-                            why='ring %s, %s'
-                            % (kind, 'not in frame' if d is None else '%.0f px off' % d),
-                        )
-                    )
+            check, right, why = j
+            cells[check][1] += 1
+            if right:
+                cells[check][0] += 1
             else:
-                miss[1] += 1
-                if a['v'] == 'out':
-                    miss[0] += 1
-                else:
-                    wrong.append(dict(id=k, f=f, why='no ring on a visible ball'))
-        row.update(ballring=ring, ballmiss=miss, wrong=wrong)
+                wrong.append(dict(id=k, f=f, why=why))
+        ring, miss, hid = cells['ballring'], cells['ballmiss'], cells['hidden']
+        row.update(ballring=ring, ballmiss=miss, hidden=hid, wrong=wrong)
         out[tag] = row
         print(
-            '%-8s %3d answered  ring on ball %d/%d  no ball left %d/%d  %s'
-            % (tag, len(by[tag]), ring[0], ring[1], miss[0], miss[1], dict(vals))
+            '%-8s %3d answered  ring on ball %d/%d  no ball left %d/%d  hidden ringed %d/%d  %s'
+            % (tag, len(by[tag]), ring[0], ring[1], miss[0], miss[1], hid[0], hid[1], dict(vals))
         )
     json.dump(
         out,
