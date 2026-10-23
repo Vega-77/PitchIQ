@@ -10,7 +10,11 @@ Per item: <id>_s.webp, the frame itself at full resolution (the click is in its 
 
 Held-out halves (NB H2, Piscataway H1/H2, WH H1) are test-only: never trained on.
 
-    python build.py [<out root>]        -> <root>/b1..b5/{items.json, media}, <root>/items_all.json
+Round 2 (2026-10-23) is the two new held-out games, Colonia and Woodbridge (play periods from
+pitchiq/balltrack/halves.json): the same 75 frames per half, in batches b7..b9 (b6 is cantbatch.py's).
+Each round only adds its own halves to items_all.json, so the other round's items stay as they are.
+
+    python build.py [<out root>] [--round 2]   -> <root>/b1..b5 (b7..b9)/{items.json, media}, <root>/items_all.json
 """
 
 import json
@@ -42,6 +46,8 @@ VID = {
     'scrim': DL + '8-26-26 Scrimmage v Gov Livingston - Tactical.mp4',
     'wh': DL + 'Home v Wardlaw-Hartridge 10_8_26 & Senior Night - Tactical.mp4',
     'pi': DL + 'Home v Piscataway 10-6-26 - Tactical.mp4',
+    'co': DL + 'Home v Colonia GMC 1st Round 10_19_26 - Tactical.mp4',
+    'wb': DL + "Woodbridge High vs South Brunswick High School Boys' Varsity Soccer - Tactical.mp4",
 }
 # tag, title, video key, first, last, excluded [(a, b)], held out
 HALVES = [
@@ -66,15 +72,23 @@ HALVES = [
     ('pi2', 'Piscataway H2', 'pi', 135000, 220800, [], True),
     ('wh1', 'WH H1', 'wh', 49500, 126000, [], True),
 ]
+HALVES2 = [
+    ('co1', 'Colonia H1', 'co', 21600, 98550, [], True),
+    ('co2', 'Colonia H2', 'co', 112500, 189450, [], True),
+    ('wb1', 'Woodbridge H1', 'wb', 23100, 99450, [], True),
+    ('wb2', 'Woodbridge H2', 'wb', 118800, 199800, [], True),
+]
 PER_HALF, BATCHES, HALF_LOOP = 75, 5, 30
 SEED = 20261016
+# round -> halves, seed, first batch number, batches
+ROUNDS = {1: (HALVES, SEED, 1, BATCHES), 2: (HALVES2, 20261023, 7, 3)}
 STILL_Q, LOOP_Q, LOOP_W, LOOP_H = 88, 50, 960, 540
 
 
-def plan():
-    rng = np.random.default_rng(SEED)
+def plan(halves=HALVES, seed=SEED, first=1, nbatch=BATCHES):
+    rng = np.random.default_rng(seed)
     items = []
-    for tag, title, vk, lo, hi, excl, held in HALVES:
+    for tag, title, vk, lo, hi, excl, held in halves:
         fr = np.arange(lo + HALF_LOOP, hi - HALF_LOOP + 1)
         keep = np.ones(len(fr), bool)
         for a, b in excl:
@@ -90,7 +104,7 @@ def plan():
                     video=vk,
                     f=f,
                     slot=s,
-                    batch=1 + s % BATCHES,
+                    batch=first + s % nbatch,
                     held=held,
                 )
             )
@@ -137,17 +151,25 @@ def render(job):
 
 
 def main():
-    root = sys.argv[1] if len(sys.argv) > 1 else os.path.join(DATA, 'clicker')
-    items = plan()
-    for b in range(1, BATCHES + 1):
+    args = sys.argv[1:]
+    rnd = 1
+    if '--round' in args:
+        i = args.index('--round')
+        rnd = int(args[i + 1])
+        del args[i : i + 2]
+    root = args[0] if args else os.path.join(DATA, 'clicker')
+    halves, seed, first, nbatch = ROUNDS[rnd]
+    items = plan(halves, seed, first, nbatch)
+    bs = range(first, first + nbatch)
+    for b in bs:
         os.makedirs(os.path.join(root, 'b%d' % b), exist_ok=True)
-    jobs = [(root, [it for it in items if it['half'] == h[0]]) for h in HALVES]
+    jobs = [(root, [it for it in items if it['half'] == h[0]]) for h in halves]
     with Pool(6) as p:
         for half, n in p.imap_unordered(render, jobs):
             print(half, n, 'items', flush=True)
     # each batch's order: halves interleaved, shuffled, so any stretch of a sitting mixes games
-    rng = np.random.default_rng(SEED + 1)
-    for b in range(1, BATCHES + 1):
+    rng = np.random.default_rng(seed + 1)
+    for b in bs:
         its = [it for it in items if it['batch'] == b]
         its = [its[i] for i in rng.permutation(len(its))]
         rows = [
@@ -166,15 +188,17 @@ def main():
             open(os.path.join(root, 'b%d' % b, 'items.json'), 'w'),
             indent=0,
         )
+    p_all = os.path.join(root, 'items_all.json')
+    old = json.load(open(p_all)) if os.path.exists(p_all) else dict(halves=[], items=[])
+    mine = {h[0] for h in halves}
     json.dump(
         dict(
-            halves=[
-                dict(tag=h[0], title=h[1], lo=h[3], hi=h[4], excl=h[5], held=h[6]) for h in HALVES
-            ],
-            items=items,
+            halves=[h for h in old['halves'] if h['tag'] not in mine]
+            + [dict(tag=h[0], title=h[1], lo=h[3], hi=h[4], excl=h[5], held=h[6]) for h in halves],
+            items=[it for it in old['items'] if it['half'] not in mine] + items,
             seed=SEED,
         ),
-        open(os.path.join(root, 'items_all.json'), 'w'),
+        open(p_all, 'w'),
         indent=1,
     )
     sz = sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fs in os.walk(root) for f in fs)

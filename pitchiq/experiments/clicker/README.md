@@ -4,7 +4,8 @@ The Ball Clicker: frames from every half where a person clicks the ball (or
 answers out, dead, hidden, can't tell), to score the ball rings the videos draw.
 
 - `build.py` draws the items: 75 frames per half over 12 halves, split into 5
-  batches that each cover every half end to end.
+  batches that each cover every half end to end. `--round 2` draws the two
+  held-out games added on 2026-10-23 (Colonia, Woodbridge) into b7..b9.
 - `cantbatch.py` builds a batch of the frames answered "can't tell", asked again
   with "Hidden, but it's here" (a click on where the hidden ball is).
 - `stage.py <site dir> b1 [b2 ...]` stages `index.html`, `batches.json` and the
