@@ -296,19 +296,45 @@ def score(
 # ---- the picture moving ---------------------------------------------------------
 
 CENTRE = np.array([960.0, 540.0])
+_OVERLAYS: dict = {}
+
+
+def overlay_boxes(video: str | None = None) -> list:
+    """Burned-in graphics that never move (a scoreboard), as full-frame boxes
+    [x0, y0, x1, y1]: halves.json's "overlay" for the video (PIQ_VIDEO by
+    default). They say "the camera did not turn" in every frame, so SIFT skips
+    them. Woodbridge's scoreboard bent its short links' zoom by up to 2%."""
+    video = os.path.basename(video or os.environ.get('PIQ_VIDEO', ''))
+    if video not in _OVERLAYS:
+        import json
+
+        p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'balltrack', 'halves.json')
+        games = json.load(open(p, encoding='utf-8'))
+        _OVERLAYS[video] = next(
+            (g.get('overlay', []) for g in games.values() if isinstance(g, dict) and g.get('video') == video),
+            [],
+        )
+    return _OVERLAYS[video]
 
 
 def frame_features(
     image: np.ndarray, sift=None, scale: float = 0.5
 ) -> tuple[np.ndarray, np.ndarray]:
     """SIFT over the whole picture (grass, stands and trees all move together
-    when the camera turns), in full-frame pixel coordinates."""
+    when the camera turns) but the video's overlay boxes, in full-frame pixel
+    coordinates."""
     sift = sift or cv2.SIFT_create(nfeatures=3000)
     g = cv2.cvtColor(
         cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA),
         cv2.COLOR_BGR2GRAY,
     )
-    kp, d = sift.detectAndCompute(g, None)
+    mask = None
+    boxes = overlay_boxes()
+    if boxes:
+        mask = np.full(g.shape, 255, np.uint8)
+        for x0, y0, x1, y1 in boxes:
+            mask[int(y0 * scale) : int(np.ceil(y1 * scale)), int(x0 * scale) : int(np.ceil(x1 * scale))] = 0
+    kp, d = sift.detectAndCompute(g, mask)
     xy = np.float32([p.pt for p in kp]).reshape(-1, 2) / scale
     return xy, (np.zeros((0, 128), np.float32) if d is None else d)
 
