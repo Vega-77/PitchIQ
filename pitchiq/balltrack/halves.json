@@ -16,5 +16,13 @@
   "nb": {"video": "North Brunswick vs South Brunswick High School Boys' Varsity Soccer - Tactical.mp4",
          "H1": ["2:05", "43:45", 3750, 78750],
          "H2_heldout": ["55:00", "130:00", 99000, 234000],
-         "approx": "H1 to about 15 s. H2 is the finder's guess only (75 min long, so it may include overtime or stoppages)."}
+         "approx": "H1 to about 15 s. H2 is the finder's guess only (75 min long, so it may include overtime or stoppages)."},
+  "co": {"video": "Home v Colonia GMC 1st Round 10_19_26 - Tactical.mp4",
+         "H1_heldout": ["12:00", "54:45", 21600, 98550],
+         "H2_heldout": ["62:30", "105:15", 112500, 189450],
+         "approx": "Held out (2026-10-23). Placed by eye on strips (6 s apart), to about 10 s; each edge leaves a few seconds of lineup or walk-off in. Home field, gold paint, low sun."},
+  "wb": {"video": "Woodbridge High vs South Brunswick High School Boys' Varsity Soccer - Tactical.mp4",
+         "H1_heldout": ["12:50", "55:15", 23100, 99450],
+         "H2_heldout": ["66:00", "111:00", 118800, 199800],
+         "approx": "Held out (2026-10-23). From the scoreboard overlay's 40:00 countdown (kickoffs 12:58 and 66:05, clock at 0 by 55:11 and 111:00). Night football stadium: gold soccer markings over white football lines. After about 126 min the video is an empty field (extra footage, not play)."}
 }
