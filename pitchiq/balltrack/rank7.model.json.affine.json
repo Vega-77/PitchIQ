@@ -1,0 +1,1 @@
+{"a": 1.2781449556350708, "b": -1.81057608127594, "obj": "pairwise", "stack": false, "params": {"max_depth": 4, "eta": 0.1, "rounds": 300, "mcw": 5, "sub": 0.8, "col": 0.8}, "rows": 970881, "pos": 486}

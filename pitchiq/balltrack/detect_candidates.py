@@ -54,6 +54,9 @@ SHARED = (
     os.environ.get('DRUN_SHARED_MATCH', '1') == '1'
 )  # one GPU matcher for the pool (shared_matcher.py); '0' = one per worker
 PROCS = config.WORKERS
+# The ranker and the affine that puts its margin on rank6's scale (the tracker and the classifier's
+# ctx read the score): rank7 is train_ranker.py on the dev Ball Clicker answers, 2026-10-26
+RANKER = 'rank7.model.json'
 
 
 def worker(args):
@@ -113,7 +116,12 @@ def worker(args):
     z = np.load(os.path.join(S2, 'still4.npz'), allow_pickle=True)
     cmaj, cara = z['cmaj'], z['cara']
     bst = xgb.Booster()
-    bst.load_model(os.path.join(S2, 'rank6.model.json'))
+    bst.load_model(os.path.join(S2, RANKER))
+    aff = os.path.join(S2, RANKER + '.affine.json')
+    ra, rb = 1.0, 0.0
+    if os.path.exists(aff):
+        d = json.load(open(aff))
+        ra, rb = d['a'], d['b']
 
     first, last = alo + candidate_features.OFFS[0], ahi + candidate_features.OFFS[-1]
     cap = cv2.VideoCapture(config.VIDEO)
@@ -194,7 +202,7 @@ def worker(args):
             Tt = temporal_features.temporal_rows(tiles, pts)
             t1 = clock()
             PT['temporal'] += t1 - t
-            s2 = bst.predict(xgb.DMatrix(np.hstack([Xs, Tt])))
+            s2 = ra * bst.predict(xgb.DMatrix(np.hstack([Xs, Tt])), output_margin=True) + rb
             PT['rank'] += clock() - t1
             for j in np.argsort(-s2)[: candidate_features.KEEP]:
                 FI.append(anchor)

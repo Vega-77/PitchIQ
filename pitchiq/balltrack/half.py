@@ -226,8 +226,9 @@ class Half:
             shutil.copy2(venue, os.path.join(HOM, '%s_venue.npz' % P))
 
     def classify(self, p):
-        """Crop classifier log-odds for the piece's candidates (score_candidates, cls_B)."""
-        self.run(S2, 'score_candidates', 'cls_B.pt', p['ptag'])
+        """Crop classifier log-odds for the piece's candidates (score_candidates; cls_C since the
+        2026-10-26 retrain on Ball Clicker answers, its outputs still under the cls_B names)."""
+        self.run(S2, 'score_candidates', 'cls_C.pt', p['ptag'])
 
     def shipped(self, p):
         """The shipped tracker's picks and the 3D chain on them, for one piece."""

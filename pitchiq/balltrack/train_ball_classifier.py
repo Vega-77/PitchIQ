@@ -296,9 +296,12 @@ def n_params(m):
 class Scorer:
     """A trained BallNet plus the ctx normalisation it was trained with."""
 
-    def __init__(self, net, mu, sd, ctx_names, dev):
-        """A trained net with its context normalisation (mu, sd) and context column order."""
+    def __init__(self, net, mu, sd, ctx_names, dev, cal=(1.0, 0.0)):
+        """A trained net with its context normalisation (mu, sd) and context column order.
+        cal (a, b): log-odds come out as a * raw + b (cls_C: onto cls_B's scale, so the tracker's
+        thresholds keep their meaning)."""
         self.net, self.mu, self.sd = net.eval(), mu, sd
+        self.cal = (float(cal[0]), float(cal[1]))
         self.ctx_names, self.dev = list(ctx_names), dev
 
     @torch.no_grad()
@@ -320,6 +323,8 @@ class Scorer:
             x = to_input(np.ascontiguousarray(crops_uint8[a : a + batch]), self.dev)
             k = torch.as_tensor(c[a : a + batch], device=self.dev)
             out[a : a + batch] = ball_logodds(self.net(x, k)).float().cpu().numpy()
+        if self.cal != (1.0, 0.0):
+            out = (self.cal[0] * out + self.cal[1]).astype(np.float32)
         return out
 
 
@@ -335,6 +340,7 @@ def load_model(path, dev=None):
         np.asarray(ck['sd'], np.float32),
         ck['ctx_names'],
         dev,
+        ck.get('cal', (1.0, 0.0)),
     )
 
 

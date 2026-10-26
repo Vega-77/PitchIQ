@@ -86,6 +86,10 @@ SAT = 60  # white is v>150 and s<SAT.  satsweep.py measured
 # 42/47 vs 38 - and costs 684 candidates a frame
 # instead of 855.  Tighter is not free: 45 breaks
 # every flood but drops train to 102.
+VWHITE = 150  # the white cut: v > VWHITE ...
+DV = 30  # ... or, when set (None: off), v > min(VWHITE, the frame's median grass V + DV): East Brunswick and
+# Piscataway balls peak at V 128-144 on grass at 40-80, so a fixed 150 never sees them (2026-10-26)
+GSTEP = 4  # the grass median reads every GSTEP-th pixel each way
 MINOR, MAJOR, FILL, CON = 2, 60, 0.30, 10.0
 SCALES = (9, 17)  # top-hat structuring elements: a far ball and a near one
 NMS = 4  # peak suppression radius, source pixels
@@ -94,6 +98,9 @@ OVER = 1.3  # a component this many times the expected ball is merged
 PERCOMP = 12  # at most this many peaks from one merged component
 WIN = 12  # half-window for re-thresholding a split candidate
 K2 = np.ones((2, 2), np.uint8)
+OPEN = True  # open the white mask with K2 (drops specks; also drops a far ball smaller than 2x2)
+SMALL = 6  # if set (0: off), a raw white component no bigger than SMALL px each way that the opening wiped out
+# entirely comes back (a far ball of a few pixels; 56 of the 156 dev clicks lost at DV 30 went this way)
 
 DIRS = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
 TR = 12  # half-window for the shared top-hat readings
@@ -235,6 +242,28 @@ def _reduce(M, R, V, S, Hh, G):
     return (v_in, v_max, v_std, s_in, h_in, v_ring, v_ring_max, g_ring, s_ring)
 
 
+def small_back(raw, opened):
+    """The raw white components, at most SMALL px each way and at least MINOR each way, with no pixel left after the opening."""
+    n, lab, st, _ = cv2.connectedComponentsWithStats(raw, 8)
+    w, h = st[:, 2], st[:, 3]
+    keep = (np.maximum(w, h) <= SMALL) & (np.minimum(w, h) >= MINOR)
+    keep[0] = False
+    if not keep.any():
+        return np.zeros_like(raw)
+    keep[np.unique(lab[opened > 0])] = False
+    return (keep[lab] * 255).astype(np.uint8)
+
+
+def white_cut(v, grass):
+    """The V a pixel must beat to be white: VWHITE, or with DV set, min(VWHITE, median grass V + DV)."""
+    if DV is None:
+        return VWHITE
+    g = v[::GSTEP, ::GSTEP][grass[::GSTEP, ::GSTEP]]
+    if not len(g):
+        return VWHITE
+    return int(min(VWHITE, int(np.median(g)) + DV))
+
+
 def blobs(img, cmaj=None):
     """blobs_per_candidate.blobs, same candidates in the same order, pass 2 batched too."""
 
@@ -248,9 +277,14 @@ def blobs(img, cmaj=None):
     _t = time.perf_counter() if PROF is not None else 0.0
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
-    white = ((v > 150) & (s < SAT)).astype(np.uint8) * 255
-    white = cv2.morphologyEx(white, cv2.MORPH_OPEN, K2)
     grass = (h > 30) & (h < 95) & (s > 60)
+    vcut = white_cut(v, grass)
+    white = ((v > vcut) & (s < SAT)).astype(np.uint8) * 255
+    if OPEN:
+        raw = white
+        white = cv2.morphologyEx(white, cv2.MORPH_OPEN, K2)
+        if SMALL:
+            white = white | small_back(raw, white)
     n, lab, st, cent = cv2.connectedComponentsWithStats(white, 8)
     H, W = v.shape
     grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -264,7 +298,7 @@ def blobs(img, cmaj=None):
             th = cv2.morphologyEx(v, cv2.MORPH_TOPHAT, se)
             resp = th if resp is None else np.maximum(resp, th)
         d = cv2.dilate(resp, np.ones((2 * NMS + 1, 2 * NMS + 1), np.uint8))
-        ispeak = (resp == d) & (resp >= THR) & (v > 150) & (s < SAT)
+        ispeak = (resp == d) & (resp >= THR) & (v > vcut) & (s < SAT)
     _t = tick(_t, 'tophat')
 
     # --- pass 1: geometry only, and no masks built for component rows -----

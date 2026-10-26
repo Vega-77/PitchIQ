@@ -18,6 +18,7 @@ Thumbs.db
 # The ball tracker's crop classifier (240 KB) is the one checkpoint in git:
 # hybrid.sh cannot run without it and nothing downloads it.
 !pitchiq/balltrack/cls_B.pt
+!pitchiq/balltrack/cls_C.pt
 
 # Local database
 *.db
@@ -53,3 +54,5 @@ ui-debug.log
 # pip install -e . metadata
 *.egg-info/
 build/
+pitchiq/balltrack/ck*labels*.json
+pitchiq/balltrack/ck*logo.json
