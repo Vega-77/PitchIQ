@@ -56,7 +56,11 @@ select.sel{background:var(--panel2); border:1px solid var(--line); border-radius
 .stage{position:relative; background:var(--stage); border-radius:var(--r); overflow:hidden; border:1px solid var(--line);
   aspect-ratio:16/9; cursor:crosshair; user-select:none; -webkit-user-select:none}
 .stage img{position:absolute; inset:0; width:100%; height:100%; display:block; -webkit-user-drag:none}
-.stage.motion{cursor:pointer}
+.stage.motion, .stage.stepping{cursor:pointer}
+.stage canvas{position:absolute; inset:0; width:100%; height:100%; display:block}
+.steps{display:flex; align-items:center; gap:6px}
+.stepAt{min-width:7.5em; text-align:center; font-variant-numeric:tabular-nums}
+.stage.stepping .zbox{opacity:.45}
 .load{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#c9d2dc;
   font-family:var(--mono); font-size:12px; pointer-events:none}
 .tag{position:absolute; left:8px; top:8px; font-family:var(--mono); font-size:11px; padding:2px 7px; border-radius:4px;
@@ -122,6 +126,7 @@ select.sel{background:var(--panel2); border:1px solid var(--line); border-radius
         <div class="stage" id="stage">
           <img id="still" alt="The camera frame to find the ball in" draggable="false">
           <img id="loop" alt="" hidden draggable="false">
+          <canvas id="stepC" hidden aria-label="A frame just before or after this one"></canvas>
           <div class="load" id="load">loading frame&#8230;</div>
           <div class="tag" id="tag"></div>
           <div class="zbox" id="zbox" hidden></div>
@@ -130,6 +135,11 @@ select.sel{background:var(--panel2); border:1px solid var(--line); border-radius
         <div class="under">
           <span id="underT">Click near the ball. A zoom opens on the right for the exact click.</span>
           <span class="sp">
+            <span class="steps" id="steps" hidden>
+              <button class="btn" id="bPrev" type="button" aria-label="Frame back"><kbd>&larr;</kbd> frame</button>
+              <span class="stepAt" id="stepAt">this frame</span>
+              <button class="btn" id="bNext" type="button" aria-label="Frame forward">frame <kbd>&rarr;</kbd></button>
+            </span>
             <button class="btn" id="bMotion" type="button"><span id="bMotionT">Show motion</span> <kbd>Space</kbd></button>
           </span>
         </div>
@@ -149,7 +159,7 @@ select.sel{background:var(--panel2); border:1px solid var(--line); border-radius
             <button class="opt" type="button" data-v="hidden" id="bHidden"><span>Hidden, but it's here<small>Behind a player and you know where: press this, then click where it is.</small></span><kbd>H</kbd></button>
             <button class="opt" type="button" data-v="cant"><span>Can't tell<small>You are not sure where it is.</small></span><kbd>C</kbd></button>
           </div>
-          <div class="keys"><span><kbd>B</kbd> back</span><span><kbd>Esc</kbd> close the zoom</span><span><kbd>Space</kbd> motion</span></div>
+          <div class="keys"><span><kbd>B</kbd> back</span><span><kbd>Esc</kbd> close the zoom</span><span><kbd>Space</kbd> motion</span><span id="stepKeys" hidden><kbd>&larr;</kbd> <kbd>&rarr;</kbd> frame</span></div>
         </div>
       </div>
     </div>
@@ -172,7 +182,9 @@ const PER_DOC = 100;             // answers per stored document
 const clone = o => JSON.parse(JSON.stringify(o));
 const $ = id => document.getElementById(id);
 const S = {db: null, local: false, batches: [], batch: null, items: [], ans: {}, docs: {}, writes: {},
-  cur: -1, sit: 0, t0: 0, zc: null, motion: false, review: false, lock: false, hid: false};
+  cur: -1, sit: 0, t0: 0, zc: null, motion: false, review: false, lock: false, hid: false, step: 0, dec: null};
+const STEP_N = 10, STEP_S = 0.1;   // the loop holds every third frame, f-30..f+30: 10 steps of 0.1 s each side
+const CAN_STEP = typeof ImageDecoder === 'function';   // frames are read out of the loop; no decoder, no step buttons
 const clicked = a => !!a && (a.v === 'ball' || a.v === 'hidden');   // answers that carry x, y
 
 /* ---------- storage -------------------------------------------------------------------------- */
@@ -247,6 +259,44 @@ function setMotion(on){
                                : 'Click near the ball. A zoom opens on the right for the exact click.';
   if (on){ const u = base() + S.items[S.cur].loop; if ($('loop').getAttribute('src') !== u) $('loop').src = u; }
 }
+/* frame step: the loop's frames one at a time, around this frame; clicks still answer on this frame */
+function dropDecoder(){ if (S.dec){ try { S.dec.d.close(); } catch (e) {} S.dec = null; } }
+async function loopFrames(u){
+  if (S.dec && S.dec.u === u) return S.dec.p;
+  dropDecoder();
+  const p = (async () => {
+    const d = new ImageDecoder({data: await (await fetch(u)).arrayBuffer(), type: 'image/webp'});
+    await d.tracks.ready;
+    return d;
+  })();
+  S.dec = {u, p, d: null}; p.then(d => { if (S.dec && S.dec.p === p) S.dec.d = d; else d.close(); }, () => {});
+  return p;
+}
+function stepLabel(n){
+  $('stepAt').textContent = n ? (Math.abs(n) * STEP_S).toFixed(1) + ' s ' + (n < 0 ? 'before' : 'after') : 'this frame';
+  $('bPrev').disabled = n <= -STEP_N; $('bNext').disabled = n >= STEP_N;
+}
+async function stepTo(n){
+  if (S.cur < 0 || !CAN_STEP) return;
+  n = Math.max(-STEP_N, Math.min(STEP_N, n));
+  const i = S.cur;
+  S.step = n; stepLabel(n);
+  if (S.motion) setMotion(false);
+  $('stage').classList.toggle('stepping', n !== 0);
+  if (!n){ $('stepC').hidden = true; setMotion(false); return; }
+  $('underT').textContent = 'Stepping (half size). Click the frame or step back to "this frame" to answer.';
+  try {
+    const d = await loopFrames(base() + S.items[i].loop);
+    const r = await d.decode({frameIndex: STEP_N + n});
+    if (S.cur !== i || S.step !== n){ r.image.close(); return; }
+    const c = $('stepC');
+    c.width = r.image.displayWidth; c.height = r.image.displayHeight;
+    c.getContext('2d').drawImage(r.image, 0, 0); r.image.close();
+    c.hidden = false;
+  } catch (e){
+    if (S.cur === i && S.step === n) $('underT').textContent = 'That frame did not load; press Space for the motion loop instead.';
+  }
+}
 function closeZoom(){
   S.zc = null; $('zbox').hidden = true; $('zEmpty').hidden = false;
   const c = $('zoom'); c.getContext('2d').clearRect(0, 0, c.width, c.height);
@@ -278,6 +328,7 @@ function show(i){
   S.cur = i; S.lock = false; S.t0 = performance.now(); $('qView').hidden = false; $('doneView').hidden = true;
   const it = S.items[i], a = S.ans[it.id];
   if (!a) S.review = false;   // back at new items: skip answered ones again
+  S.step = 0; stepLabel(0); $('stepC').hidden = true; $('stage').classList.remove('stepping'); dropDecoder();
   setHidden(false); setMotion(false); closeZoom();
   $('load').hidden = false; $('load').textContent = 'loading frame\u2026';
   const im = $('still'), u = base() + it.still;
@@ -340,6 +391,7 @@ function finish(){
 $('stage').addEventListener('click', e => {
   if (S.cur < 0) return;
   if (S.motion){ setMotion(false); return; }
+  if (S.step){ stepTo(0); return; }
   if (!$('still').naturalWidth) return;
   const [x, y] = stageXY(e); openZoom(x, y);
 });
@@ -350,12 +402,16 @@ $('zoom').addEventListener('click', e => {
   answer(S.hid ? 'hidden' : 'ball', x, y);
 });
 document.querySelectorAll('.opt').forEach(b => b.onclick = () => b.dataset.v === 'hidden' ? setHidden(!S.hid) : answer(b.dataset.v));
-$('bMotion').onclick = () => { if (S.cur >= 0) setMotion(!S.motion); };
+$('bMotion').onclick = () => { if (S.cur >= 0){ if (S.step) stepTo(0); setMotion(!S.motion); } };
+$('bPrev').onclick = () => stepTo(S.step - 1);
+$('bNext').onclick = () => stepTo(S.step + 1);
+$('steps').hidden = $('stepKeys').hidden = !CAN_STEP;
 $('bReview').onclick = () => { S.review = true; show(0); };
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'SELECT' || e.ctrlKey || e.metaKey || e.altKey || S.cur < 0) return;
   const k = e.key.toLowerCase();
-  if (k === ' '){ e.preventDefault(); setMotion(!S.motion); }
+  if (k === ' '){ e.preventDefault(); if (S.step) stepTo(0); setMotion(!S.motion); }
+  else if (k === 'arrowleft' || k === 'arrowright'){ e.preventDefault(); stepTo(S.step + (k === 'arrowleft' ? -1 : 1)); }
   else if (k === 'n') answer('out');
   else if (k === 'd') answer('dead');
   else if (k === 'c') answer('cant');
