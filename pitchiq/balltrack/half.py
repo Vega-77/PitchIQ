@@ -263,6 +263,11 @@ class Half:
     def bridges(self, p):
         # neighbours already bridged lend their tracks in the overlap (same gap, picks and frames)
         """TAPNext bridges for one piece, reusing finished neighbours' tracks in the overlap."""
+        # tn_engine skips a piece whose bridges file exists; with no marker here, one is an earlier
+        # pass's, keyed to that pass's picks (the 2026-10-26 retrain kept ~94% stale), so it goes
+        out = os.path.join(AT, 'tn', 'bridges_%s.npy' % p['ptag'])
+        if os.path.exists(out):
+            os.remove(out)
         near = [
             q['ptag']
             for q in self.pieces
@@ -281,6 +286,10 @@ class Half:
         P = p['ptag']
         self.run(AT, 'evaluation.hybrid', P, env=ONE_THREAD)
         os.makedirs(H3D, exist_ok=True)
+        # mk3d's chain skips a piece whose ball3dd exists: an earlier pass's would be kept
+        d3 = os.path.join(H3D, '%s_ball3dd.npz' % P)
+        if os.path.exists(d3):
+            os.remove(d3)
         for kind in ('reg', 'venue'):
             src = os.path.join(HOM, '%s_%s.npz' % (P, kind))
             if os.path.exists(src):
