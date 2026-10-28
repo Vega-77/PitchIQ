@@ -10,6 +10,7 @@ rings (35 of their 45 answered rings were wrong) and for 0-0.8% of NB H1, West W
 scrimmage (2 + 7 + 6 wrong of 104). A wrong ring is worse than a missing one, so there we draw nothing.
 
     lost(tag, abs0, on) -> bool per frame of the half (True: don't draw a ball)
+    scored(picks)       -> bool per frame: the rings lost() reads (tracker picks and shipped, not bridged)
     short_runs(on)      -> bool per frame: rings that would show for under MIN_RUN frames
 """
 
@@ -27,6 +28,11 @@ LOST_W = 9000  # frames each side (5 min at 30 fps)
 STEP = 300  # evaluate every 10 s; a stretch is minutes long
 MIN_N = 75  # need this many scored rings in the window to call it lost
 MIN_RUN = 5  # frames; on the labelled ball points every ring shown for fewer was wrong (2026-10-12)
+# hyb90 src the median reads: 1 tracker pick, 2 shipped.  Not 3 (TAPNext bridges): a bridged frame is
+# one the classifier missed (best score ~-2.5), and LOST_P was picked on passes whose bridges had gone
+# stale (2026-10-26 retrain).  With fresh bridges (2026-10-28) they pulled the median under LOST_P across
+# whole halves (Piscataway H2 9123 frames, H1 4943, NB H2 3592, Colonia H2 2827; 212 before)
+SCORED_SRC = (1, 2)
 
 
 @functools.lru_cache(maxsize=8)
@@ -45,6 +51,11 @@ def best_p(tag):
             if v > m.get(f, -np.inf):
                 m[f] = v
     return m
+
+
+def scored(picks):
+    """The frames whose rings lost() should read: a dict / npz with per-frame 'src' and 'x'."""
+    return np.isin(picks['src'], SCORED_SRC) & np.isfinite(picks['x'])
 
 
 def lost(tag, abs0, on):

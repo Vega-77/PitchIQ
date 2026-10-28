@@ -78,9 +78,7 @@ def ball(tag, lo, hi):
     P = np.load(os.path.join(HERE, 'evaluation', 'p2d', 'hyb90', '%s.npz' % tag))
     air = (B['state'] == 'air') & np.isfinite(B['x'])
     flash = short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
-    flash |= ballgate.lost(
-        tag, a0, (P['src'] > 0) & np.isfinite(P['x'])
-    )  # the classifier is lost there
+    flash |= ballgate.lost(tag, a0, ballgate.scored(P))  # the classifier is lost there
     n = hi - lo
     img = np.full((n, 2), np.nan)
     sb = np.full((n, 2), np.nan)

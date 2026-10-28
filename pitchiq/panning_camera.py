@@ -176,7 +176,7 @@ class PannedCamera:
         )
         observed = np.isin(picks['src'], OBSERVED_SOURCES)
         # No ball where the classifier is lost for minutes (pitchiq/balltrack/ballgate.py).
-        lost = ballgate.lost(tag, int(frames[0]), (picks['src'] > 0) & np.isfinite(picks['x']))
+        lost = ballgate.lost(tag, int(frames[0]), ballgate.scored(picks))
         return cls.from_arrays(
             frames,
             smooth['H'],

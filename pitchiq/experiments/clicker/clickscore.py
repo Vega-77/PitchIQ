@@ -61,7 +61,7 @@ def rings(match_video, tag, frames):
     P = np.load(os.path.join(match_video.HERE, 'evaluation', 'p2d', 'hyb90', '%s.npz' % tag))
     air = (B['state'] == 'air') & np.isfinite(B['x'])
     flash = match_video.short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
-    flash |= match_video.ballgate.lost(tag, a0, (P['src'] > 0) & np.isfinite(P['x']))
+    flash |= match_video.ballgate.lost(tag, a0, match_video.ballgate.scored(P))
     out = {}
     for f in frames:
         i = f - a0
