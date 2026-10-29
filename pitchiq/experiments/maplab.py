@@ -48,7 +48,7 @@ STILL = (1280, 720)
 CROP = (100, 200)
 THUMB = (480, 270)
 STRIP_S, STRIP_THUMB, STRIP_COLS = 30, (192, 108), 10
-PACK_S = 60.0
+PACK_S, PACK_MB = 60.0, 12.0  # a published file may be at most 16 MB
 YELLOW, GREEN, ORANGE, WHITE, BLACK = (
     (0, 230, 255),
     (80, 230, 80),
@@ -90,7 +90,8 @@ def _jpg(path: Path, img, q=80):
 
 
 class _Packs:
-    """Clips of any length appended into webm packs of about PACK_S seconds; the page seeks."""
+    """Clips of any length appended into webm packs of about PACK_S seconds or PACK_MB; the page
+    seeks."""
 
     def __init__(self, out: Path):
         self.out, self.cur, self.n = out, {}, 0
@@ -101,7 +102,11 @@ class _Packs:
 
         size = (frames[0].shape[1], frames[0].shape[0])
         cur = self.cur.get(size)
-        if cur is None or cur[2] >= PACK_S * FPS:
+        if (
+            cur is None
+            or cur[2] >= PACK_S * FPS
+            or (self.out / cur[0]).stat().st_size > PACK_MB * 2**20
+        ):
             if cur is not None:
                 cur[1].release()
             name = 'packs/p%03d.webm' % self.n
@@ -823,6 +828,58 @@ def make_strip(game, out: Path):
     return [q]
 
 
+def repack(part: Path, max_mb=15.0):
+    """Split a built half's packs over max_mb at clip boundaries (re-encoded) and point its
+    questions at the new packs."""
+    import cv2
+
+    qf = part / 'questions.json'
+    j = json.loads(qf.read_text())
+    clips = [q['clip'] for q in j['questions'] if q.get('clip')]
+    n = 1 + max(int(Path(c['pack']).stem[1:]) for c in clips)
+    for name in sorted({c['pack'] for c in clips}):
+        src = part / name
+        mb = src.stat().st_size / 2**20
+        if mb <= max_mb:
+            continue
+        mine = sorted((c for c in clips if c['pack'] == name), key=lambda c: c['t0'])
+        total = mine[-1]['t1']
+        groups, cur = [], []
+        for c in mine:
+            if cur and (c['t1'] - cur[0]['t0']) / total * mb > PACK_MB:
+                groups.append(cur)
+                cur = []
+            cur.append(c)
+        groups.append(cur)
+        cap = cv2.VideoCapture(str(src))
+        f = 0
+        for g in groups:
+            new = 'packs/p%03d.webm' % n
+            n += 1
+            vw = cv2.VideoWriter(
+                str(part / new), cv2.VideoWriter_fourcc(*'VP80'), FPS, (g[0]['w'], g[0]['h'])
+            )
+            assert vw.isOpened(), 'no VP80 writer'
+            base = round(g[0]['t0'] * FPS)
+            while f < round(g[-1]['t1'] * FPS):
+                ok, im = cap.read()
+                assert ok, '%s ends at frame %d' % (name, f)
+                if f >= base:
+                    vw.write(im)
+                f += 1
+            vw.release()
+            for c in g:
+                c['pack'] = new
+                c['t0'], c['t1'] = (round(c[k] - base / FPS, 3) for k in ('t0', 't1'))
+            print(
+                '%s -> %s: %d clips, %.1f MB'
+                % (name, new, len(g), (part / new).stat().st_size / 2**20)
+            )
+        cap.release()
+        src.unlink()
+    qf.write_text(json.dumps(j, default=_plain))
+
+
 def merge(set_dir: Path, parts: list[Path]):
     """One set from built halves and strips: media copied under <part name>/, strips first."""
     import shutil
@@ -876,11 +933,13 @@ def main(argv=None) -> int:
     m = sub.add_parser('merge')
     m.add_argument('set_dir', type=Path)
     m.add_argument('parts', type=Path, nargs='+')
+    r = sub.add_parser('repack')
+    r.add_argument('parts', type=Path, nargs='+')
     a = p.parse_args(argv)
     for k in ('out', 'set_dir'):  # match_video changes directory on import
         if getattr(a, k, None) is not None:
             setattr(a, k, getattr(a, k).resolve())
-    if a.cmd == 'merge':
+    if a.cmd in ('merge', 'repack'):
         a.parts = [x.resolve() for x in a.parts]
     if a.cmd == 'half':
         qs = make_half(a.tag, a.out, a.lo, a.hi, a.per, a.windows, a.win_s, a.seed, tuple(a.types))
@@ -890,6 +949,9 @@ def main(argv=None) -> int:
         print('questions:', len(qs), n)
     elif a.cmd == 'strip':
         make_strip(a.game, a.out)
+    elif a.cmd == 'repack':
+        for x in a.parts:
+            repack(x)
     else:
         merge(a.set_dir, a.parts)
     return 0
