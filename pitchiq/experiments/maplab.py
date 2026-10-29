@@ -48,6 +48,7 @@ STILL = (1280, 720)
 CROP = (100, 200)
 THUMB = (480, 270)
 STRIP_S, STRIP_THUMB, STRIP_COLS = 30, (192, 108), 10
+STRIP_BIG, BIG_COLS = (1280, 720), 3  # the frame shown large when a thumbnail is tapped
 PACK_S, PACK_MB = 60.0, 12.0  # a published file may be at most 16 MB
 YELLOW, GREEN, ORANGE, WHITE, BLACK = (
     (0, 230, 255),
@@ -791,23 +792,36 @@ def make_strip(game, out: Path):
     fs = list(range(0, n - 1, step))
     per = STRIP_COLS * STRIP_COLS
     out.mkdir(parents=True, exist_ok=True)
-    atlases = []
-    for a in range(0, len(fs), per):
-        sheet = np.zeros((STRIP_THUMB[1] * STRIP_COLS, STRIP_THUMB[0] * STRIP_COLS, 3), np.uint8)
-        for k, f in enumerate(fs[a : a + per]):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, f)
-            ok, img = cap.read()
-            if not ok:
-                continue
-            r, c = divmod(k, STRIP_COLS)
-            sheet[
-                r * STRIP_THUMB[1] : (r + 1) * STRIP_THUMB[1],
-                c * STRIP_THUMB[0] : (c + 1) * STRIP_THUMB[0],
-            ] = cv2.resize(img, STRIP_THUMB, interpolation=cv2.INTER_AREA)
-        name = 'strip/%s_%02d.jpg' % (game, len(atlases))
-        _jpg(out / name, sheet, 70)
-        atlases.append(name)
-        print(name, flush=True)
+    bper = BIG_COLS * BIG_COLS
+    atlases, bigs = [], []
+    sheet = big = None
+    for k, f in enumerate(fs):
+        if k % per == 0:
+            sheet = np.zeros(
+                (STRIP_THUMB[1] * STRIP_COLS, STRIP_THUMB[0] * STRIP_COLS, 3), np.uint8
+            )
+        if k % bper == 0:
+            big = np.zeros((STRIP_BIG[1] * BIG_COLS, STRIP_BIG[0] * BIG_COLS, 3), np.uint8)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, f)
+        ok, img = cap.read()
+        if ok:
+            for sh, size, cols, j in (
+                (sheet, STRIP_THUMB, STRIP_COLS, k % per),
+                (big, STRIP_BIG, BIG_COLS, k % bper),
+            ):
+                r, c = divmod(j, cols)
+                sh[r * size[1] : (r + 1) * size[1], c * size[0] : (c + 1) * size[0]] = cv2.resize(
+                    img, size, interpolation=cv2.INTER_AREA
+                )
+        if k % per == per - 1 or k == len(fs) - 1:
+            name = 'strip/%s_%02d.jpg' % (game, len(atlases))
+            _jpg(out / name, sheet, 70)
+            atlases.append(name)
+            print(name, flush=True)
+        if k % bper == bper - 1 or k == len(fs) - 1:
+            name = 'strip/%s_big_%02d.jpg' % (game, len(bigs))
+            _jpg(out / name, big, 78)
+            bigs.append(name)
     edges = {k: v[2:4] for k, v in H.items() if isinstance(v, list) and len(v) == 4}
     q = dict(
         id='%s_stops' % game,
@@ -821,6 +835,9 @@ def make_strip(game, out: Path):
         cols=STRIP_COLS,
         per=per,
         atlases=atlases,
+        bigs=bigs,
+        bcols=BIG_COLS,
+        bper=bper,
         frames=n,
         model=dict(halves=edges),
     )
@@ -895,8 +912,9 @@ def merge(set_dir: Path, parts: list[Path]):
                     q[k] = pre + q[k]
             if q.get('clip'):
                 q['clip']['pack'] = pre + q['clip']['pack']
-            if q.get('atlases'):
-                q['atlases'] = [pre + a for a in q['atlases']]
+            for k in ('atlases', 'bigs'):
+                if q.get(k):
+                    q[k] = [pre + a for a in q[k]]
             (stops if q['type'] == 'stops' else rest).append(q)
         dst = set_dir / p.name
         if dst.exists():

@@ -133,7 +133,9 @@ textarea.note{width:100%; min-height:44px; resize:vertical; background:var(--pan
 .th.stop{border-color:var(--k-stop)} .th.stop::after{content:""; position:absolute; inset:0; background:color-mix(in srgb, var(--k-stop) 30%, transparent)}
 .th.pend{border-color:var(--mark); border-style:dashed}
 .th.sel{border-color:var(--mark)}
-.big{width:100%; max-width:100%; aspect-ratio:16/9; border-radius:var(--r); border:1px solid var(--line); background-color:var(--stage); background-repeat:no-repeat; background-size:1000% 1000%}
+.th.view{outline:2px solid var(--signal); outline-offset:1px}
+.frame{position:absolute; inset:0; background-color:var(--stage); background-repeat:no-repeat; background-size:300% 300%}
+#stripBox{display:flex; flex-direction:column; gap:8px; margin-top:4px}
 .runs{display:flex; flex-direction:column; gap:6px}
 .run{display:flex; flex-wrap:wrap; gap:6px; align-items:center; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:7px 9px; font-size:12.5px}
 .run.sel{border-color:var(--mark)}
@@ -141,6 +143,7 @@ textarea.note{width:100%; min-height:44px; resize:vertical; background:var(--pan
 .run .k{color:var(--dim)}
 .run .k.unset{color:var(--warn)}
 .stickyCard{position:sticky; top:calc(env(safe-area-inset-top,0px) + 64px)}
+@media (max-width:860px){.stickyCard{position:static; order:-1}}   /* on a phone the save button would sit under every thumbnail */
 
 .done{text-align:left}
 .tally{display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px}
@@ -172,6 +175,7 @@ textarea.note{width:100%; min-height:44px; resize:vertical; background:var(--pan
         <div class="zoomer" id="zoomer"><div class="media" id="media">
           <video id="vid" muted playsinline preload="auto"></video>
           <img id="img" alt="">
+          <div class="frame" id="frame" hidden role="img" aria-label="The whole camera frame at this point in the video"></div>
           <div class="marks" id="marks"></div>
           <div class="phase" id="phase" hidden></div>
           <div class="load" id="load" hidden>loading…</div>
@@ -192,12 +196,27 @@ textarea.note{width:100%; min-height:44px; resize:vertical; background:var(--pan
           <button class="btn" id="bSlow" type="button">Slow</button>
           <button class="btn" id="bMoment" type="button" hidden>To tick</button>
         </div>
+        <div class="ctl" id="stripCtl" hidden>
+          <button class="btn" id="bBack30" type="button" aria-label="30 seconds back">&#9664; 30 s</button>
+          <span class="clock" id="stripClock"></span>
+          <button class="btn" id="bFwd30" type="button" aria-label="30 seconds on">30 s &#9654;</button>
+          <button class="btn" id="bStart" type="button">Break starts here</button>
+          <button class="btn" id="bEnd" type="button" disabled>Break ends here</button>
+        </div>
         <p class="cap" id="mediaCap"></p>
         <div class="sheet" id="sheet" hidden>
           <img id="sheetImg" alt="Crops of one person: the top row before they left the map, the bottom row after it picked them up again">
         </div>
         <div class="full" id="full" hidden role="img" aria-label="The whole frame of the chosen crop"></div>
         <div id="stripBox" hidden>
+          <div class="status" id="stripStatus"></div>
+          <div class="runs" id="runs"></div>
+          <div id="runEdit" hidden>
+            <div class="sub">This break is</div>
+            <div class="opts" id="kinds"></div>
+            <div class="row" style="margin-top:8px"><button class="btn" id="bRunDel" type="button">Remove this break</button></div>
+          </div>
+          <div class="sub">The whole video, one thumbnail every 30 s</div>
           <div class="strip" id="strip"></div>
         </div>
       </div>
@@ -210,16 +229,6 @@ textarea.note{width:100%; min-height:44px; resize:vertical; background:var(--pan
           <div class="opts" id="brush"></div>
         </div>
         <div id="rateBox" hidden></div>
-        <div id="stopBox" hidden>
-          <div class="big" id="big" role="img" aria-label="The last tapped thumbnail, large"></div>
-          <div class="status" id="bigCap"></div>
-          <div class="runs" id="runs"></div>
-          <div id="runEdit" hidden>
-            <div class="sub">This break is</div>
-            <div class="opts" id="kinds"></div>
-            <div class="row" style="margin-top:8px"><button class="btn" id="bRunDel" type="button">Remove this break</button></div>
-          </div>
-        </div>
         <div class="status" id="tapStatus"></div>
         <div class="opts" id="opts"></div>
         <textarea class="note" id="note" placeholder="Note (optional): anything specific about this one"></textarea>
@@ -260,7 +269,7 @@ const TEAM_OPTS = (q, need) => [['dark', 'Darker kit · ' + kit(q, 'dark').name,
 const MAPKEY = 'On the map, red dots are the darker kit, blue the lighter one, yellow the keepers and purple the referees. Hollow rings are guesses for people off camera; the ball is white on the ground, orange in the air.';
 const TYPES = {
   stops: {label: 'Long stoppages', media: 'strip', q: 'Mark every long break in this game',
-    hint: 'One thumbnail every 30 seconds. Tap the first and last thumbnail of each break: before kickoff, halftime, after the final whistle, and any stop over about a minute (injury, water break). Then pick what each break was. Short stops for throw-ins and fouls do not count.',
+    hint: 'The big picture is the camera at one moment; step through the game 30 s at a time with the arrows, or tap a thumbnail below to jump there. Zoom in to see the players. Press Break starts here on the first frame where play has stopped and Break ends here on the last one before it restarts, then pick what the break was. Mark before kickoff (from 0:00), halftime, after the final whistle, and any stop over about a minute (injury, water break). Throw-ins and fouls do not count.',
     opts: () => [['save', 'Save these breaks', {stops: true}], CANT]},
   landing: {label: 'Ball landing', media: 'clip', tap: 1, timed: true, q: 'Where does the ball first touch the ground?',
     hint: 'The ring shows the tracked ball at the kick. Step or scrub to the first bounce, then tap the ball where it meets the grass. If a player heads, chests or kicks it before it lands, pick that instead.',
@@ -299,7 +308,7 @@ const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
 const S = {db: null, local: false, sets: [], set: null, qs: [], chunks: {}, ans: {}, cur: -1, history: [], t0: 0, slow: false, paused: false, writes: {},
-  marks: [], brush: null, rate: {}, runs: [], pend: null, selRun: -1, crop: -1};
+  marks: [], brush: null, rate: {}, runs: [], pend: null, selRun: -1, crop: -1, view: 0, viewTok: 0};
 
 /* ---------- storage -------------------------------------------------------------------------- */
 function deepFreeze(o){ if (o && typeof o === 'object'){ Object.values(o).forEach(deepFreeze); Object.freeze(o); } return o; }
@@ -504,6 +513,31 @@ function thumbStyle(e, q, k){
   e.style.backgroundImage = 'url("' + base() + q.atlases[a] + '")';
   e.style.backgroundPosition = (c / (q.cols - 1) * 100) + '% ' + (r / (q.cols - 1) * 100) + '%';
 }
+const bigs = new Map();   // atlas url -> Promise, so a frame shows only once its sheet has loaded
+function bigSheet(u){
+  if (!bigs.has(u)){
+    bigs.set(u, new Promise((ok, bad) => { const im = new Image(); im.onload = ok; im.onerror = bad; im.src = u; }));
+    bigs.get(u).catch(() => bigs.delete(u));
+  }
+  return bigs.get(u);
+}
+function viewFrame(q, k){
+  k = Math.max(0, Math.min(q.n - 1, k)); S.view = k;
+  $('stripClock').textContent = 'Video ' + clockOf(q, k) + ' · ' + (k + 1) + ' / ' + q.n;
+  $('bBack30').disabled = k === 0; $('bFwd30').disabled = k === q.n - 1;
+  const f = $('frame'), my = ++S.viewTok;
+  if (!q.bigs){ thumbStyle(f, q, k); f.style.backgroundSize = '1000% 1000%'; return; }
+  const a = Math.floor(k / q.bper), j = k % q.bper, c = j % q.bcols, r = Math.floor(j / q.bcols), u = base() + q.bigs[a];
+  $('load').hidden = false; $('load').textContent = 'loading frame…';
+  bigSheet(u).then(() => {
+    if (my !== S.viewTok) return;
+    $('load').hidden = true;
+    f.style.backgroundImage = 'url("' + u + '")';
+    f.style.backgroundPosition = (c / (q.bcols - 1) * 100) + '% ' + (r / (q.bcols - 1) * 100) + '%';
+  }, () => { if (my === S.viewTok) $('load').textContent = 'The frame did not load. Reload the page to try again.'; });
+  for (const d of [1, -1]) if (q.bigs[a + d]) bigSheet(base() + q.bigs[a + d]);   // the neighbours, for stepping
+}
+function stripStep(n){ const q = S.qs[S.cur]; viewFrame(q, S.view + n); paintStrip(q); }
 function runOf(k){ return S.runs.findIndex(r => r.a <= k && k <= r.b); }
 function stopsOk(){ return S.runs.every(r => r.kind); }
 function buildStrip(q){
@@ -519,6 +553,7 @@ function paintStrip(q){
   for (const b of $('strip').children){
     const k = +b.dataset.k, r = runOf(k);
     b.classList.toggle('stop', r >= 0); b.classList.toggle('pend', k === S.pend); b.classList.toggle('sel', r >= 0 && r === S.selRun);
+    b.classList.toggle('view', k === S.view);
   }
   const runs = $('runs'); runs.replaceChildren();
   S.runs.forEach((r, n) => {
@@ -536,20 +571,23 @@ function paintStrip(q){
     b.onclick = () => { S.runs[S.selRun].kind = k; S.selRun = -1; paintStrip(q); };
     kinds.append(b);
   });
-  $('tapStatus').textContent = S.pend != null ? 'Start at ' + clockOf(q, S.pend) + ': tap the last thumbnail of this break (the same one again for a single one)' : '';
+  $('stripStatus').textContent = S.pend != null ? 'Break starts at ' + clockOf(q, S.pend) + '. Step on to the last frame before play restarts and press Break ends here.' : '';
+  $('bEnd').disabled = S.pend == null;
   drawMarks();
 }
 function stripTap(q, k){
-  const big = $('big'); thumbStyle(big, q, k); $('bigCap').textContent = 'Video at ' + clockOf(q, k);
-  const r = runOf(k);
-  if (S.pend == null && r >= 0){ S.selRun = r; }
-  else if (S.pend == null){ S.pend = k; S.selRun = -1; }
-  else {
-    const a = Math.min(S.pend, k), b = Math.max(S.pend, k);
-    S.runs = S.runs.filter(x => x.b < a || x.a > b);   // a new break swallows any it overlaps
-    S.runs.push({a, b, kind: null}); S.runs.sort((x, y) => x.a - y.a);
-    S.selRun = S.runs.findIndex(x => x.a === a); S.pend = null;
-  }
+  viewFrame(q, k);
+  const r = runOf(k); if (S.pend == null) S.selRun = r;
+  paintStrip(q);
+  $('zoomer').scrollIntoView({block: 'nearest', behavior: 'smooth'});
+}
+function markStart(){ const q = S.qs[S.cur]; S.pend = S.view; S.selRun = -1; paintStrip(q); }
+function markEnd(){
+  const q = S.qs[S.cur]; if (S.pend == null) return;
+  const a = Math.min(S.pend, S.view), b = Math.max(S.pend, S.view);
+  S.runs = S.runs.filter(x => x.b < a || x.a > b);   // a new break swallows any it overlaps
+  S.runs.push({a, b, kind: null}); S.runs.sort((x, y) => x.a - y.a);
+  S.selRun = S.runs.findIndex(x => x.a === a); S.pend = null;
   paintStrip(q);
 }
 
@@ -573,9 +611,10 @@ function show(i){
   S.runs = prev && prev.ranges ? prev.ranges.map(r => ({a: r.a, b: r.b, kind: r.kind})) : [];
   S.pend = null; S.selRun = -1; S.crop = -1;
   $('note').value = prev && prev.note || '';
-  const isClip = t.media === 'clip', isImg = t.media === 'img';
-  $('zoomer').hidden = !(isClip || isImg); $('zoomRow').hidden = !t.tap; setZoom(1); $('ctl').hidden = !isClip; $('vid').hidden = !isClip; $('img').hidden = !isImg;
-  $('sheet').hidden = t.media !== 'sheet'; $('full').hidden = true; $('stripBox').hidden = t.media !== 'strip'; $('stopBox').hidden = t.media !== 'strip';
+  const isClip = t.media === 'clip', isImg = t.media === 'img', isStrip = t.media === 'strip';
+  $('zoomer').hidden = !(isClip || isImg || isStrip); $('zoomRow').hidden = !(t.tap || isStrip); setZoom(1); $('ctl').hidden = !isClip; $('vid').hidden = !isClip; $('img').hidden = !isImg;
+  $('frame').hidden = !isStrip; $('stripCtl').hidden = !isStrip; $('load').hidden = true;
+  $('sheet').hidden = t.media !== 'sheet'; $('full').hidden = true; $('stripBox').hidden = !isStrip;
   $('card').classList.toggle('stickyCard', t.media === 'strip');
   $('phase').hidden = true; $('marks').classList.toggle('tap', !!t.tap);
   $('bMoment').hidden = !t.moment; $('tick').hidden = !t.moment;
@@ -594,7 +633,10 @@ function show(i){
     im.src = base() + q.img;
     $('mediaCap').textContent = q.type === 'feet' ? 'Zoomed in around the person.' : q.type === 'keeper' ? 'The whole camera frame.' : 'Part of the camera frame. White rings are the people the map has here.';
   } else if (t.media === 'sheet'){ buildSheet(q); $('mediaCap').textContent = ''; }
-  else { buildStrip(q); $('big').style.backgroundImage = 'none'; $('bigCap').textContent = 'Tap a thumbnail to see it large here.'; $('mediaCap').textContent = ''; }
+  else {
+    $('media').style.aspectRatio = '16 / 9'; $('frame').style.backgroundImage = 'none';
+    S.view = 0; buildStrip(q); viewFrame(q, 0); $('mediaCap').textContent = '';
+  }
   buildBrush(q); buildRate();
   const box = $('opts'); box.replaceChildren();
   t.opts(q).forEach(([v, label, o], n) => {
@@ -693,15 +735,19 @@ $('bMoment').onclick = () => { const v = $('vid'); v.pause(); S.paused = true; p
 $('scrub').oninput = e => { const v = $('vid'); if (!v.paused){ v.pause(); S.paused = true; pauseLabel(); } seek(e.target.value / 1000 * (V.t1 - V.t0)); };
 $('bSlow').onclick = () => { S.slow = !S.slow; $('bSlow').classList.toggle('on', S.slow); $('vid').playbackRate = S.slow ? 0.35 : 1; };
 $('bPause').onclick = () => { S.paused = !S.paused; pauseLabel(); S.paused ? $('vid').pause() : $('vid').play().catch(() => {}); };
-$('bRunDel').onclick = () => { if (S.selRun >= 0){ S.runs.splice(S.selRun, 1); S.selRun = -1; paintStrip(S.qs[S.cur]); } };
+$('bBack30').onclick = () => stripStep(-1);
+$('bFwd30').onclick = () => stripStep(1);
+$('bStart').onclick = markStart;
+$('bEnd').onclick = markEnd;
+$('bRunDel').onclick =() => { if (S.selRun >= 0){ S.runs.splice(S.selRun, 1); S.selRun = -1; paintStrip(S.qs[S.cur]); } };
 document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || /^(SELECT|TEXTAREA|INPUT)$/.test(e.target.tagName)) return;
   if (!$('qView').hidden && /^[1-9]$/.test(e.key)){
     const b = $('opts').children[+e.key - 1]; if (b && !b.disabled){ e.preventDefault(); answer(b.dataset.v, b); }
   } else if (e.key === 'z' || e.key === 'Z'){ e.preventDefault(); back(); }
   else if (e.key === ' ' && !$('ctl').hidden){ e.preventDefault(); $('bPause').click(); }
-  else if (e.key === ',' || e.key === 'ArrowLeft'){ if (!$('ctl').hidden){ e.preventDefault(); step(-1); } }
-  else if (e.key === '.' || e.key === 'ArrowRight'){ if (!$('ctl').hidden){ e.preventDefault(); step(1); } }
+  else if (e.key === ',' || e.key === 'ArrowLeft'){ if (!$('ctl').hidden){ e.preventDefault(); step(-1); } else if (!$('stripCtl').hidden){ e.preventDefault(); stripStep(-1); } }
+  else if (e.key === '.' || e.key === 'ArrowRight'){ if (!$('ctl').hidden){ e.preventDefault(); step(1); } else if (!$('stripCtl').hidden){ e.preventDefault(); stripStep(1); } }
 });
 boot();
 </script>
