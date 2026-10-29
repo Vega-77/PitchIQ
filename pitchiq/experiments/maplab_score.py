@@ -46,7 +46,11 @@ def metres(q, d_sb):
 def load_answers(path: Path) -> dict:
     j = json.loads(path.read_text())
     out = {}
-    if isinstance(j, dict) and 'a' not in j and all(isinstance(v, dict) and 'v' in v for v in j.values()):
+    if (
+        isinstance(j, dict)
+        and 'a' not in j
+        and all(isinstance(v, dict) and 'v' in v for v in j.values())
+    ):
         return j
     for c in j if isinstance(j, list) else [j]:
         out.update((c.get('data', c) or {}).get('a', {}))
@@ -81,11 +85,18 @@ def score(qs, ans, all_samples=False):
     va = Counter(a['v'] for _, a in air)
     vg = Counter(a['v'] for _, a in gnd)
     R['landing'] = dict(
-        air_runs=len(air), answers=dict(va), landing_error_m_median=_med(err_m),
-        within_3m=sum(e <= 3 for e in err_m), within_8m=sum(e <= 8 for e in err_m), n_err=len(err_m),
+        air_runs=len(air),
+        answers=dict(va),
+        landing_error_m_median=_med(err_m),
+        within_3m=sum(e <= 3 for e in err_m),
+        within_8m=sum(e <= 8 for e in err_m),
+        n_err=len(err_m),
         landing_late_s_median=_med(err_s),
-        false_flights=va['never'], ground_runs=len(gnd), missed_flights=vg['landed'] + vg['touched'] + vg['offcam'],
-        ground_answers=dict(vg))
+        false_flights=va['never'],
+        ground_runs=len(gnd),
+        missed_flights=vg['landed'] + vg['touched'] + vg['offcam'],
+        ground_answers=dict(vg),
+    )
 
     rows = by.get('possession', [])
     agree, n, conf = 0, 0, Counter()
@@ -97,8 +108,12 @@ def score(qs, ans, all_samples=False):
         conf[(a['v'], m)] += 1
         n += 1
         agree += a['v'] == m
-    R['possession'] = dict(n=n, agree=agree, pct=round(100 * agree / n, 1) if n else None,
-                           truth_vs_model={'%s/%s' % k: v for k, v in sorted(conf.items())})
+    R['possession'] = dict(
+        n=n,
+        agree=agree,
+        pct=round(100 * agree / n, 1) if n else None,
+        truth_vs_model={'%s/%s' % k: v for k, v in sorted(conf.items())},
+    )
 
     rows = by.get('feet', [])
     d, team_ok, team_n, roles = [], 0, 0, Counter()
@@ -108,26 +123,46 @@ def score(qs, ans, all_samples=False):
             t = a['taps'][0]
             p = sb_of(q['tag'], q['frame'], t['x'], t['y'])
             kx, ky = q['sb_per_m']
-            d.append(float(np.hypot(p[0] / kx - q['model']['dot_m'][0], p[1] / ky - q['model']['dot_m'][1])))
+            d.append(
+                float(
+                    np.hypot(p[0] / kx - q['model']['dot_m'][0], p[1] / ky - q['model']['dot_m'][1])
+                )
+            )
         if a['v'] in ('dark', 'light'):
             team_n += 1
             team_ok += a['v'] == q['model']['word']
-    R['feet'] = dict(n=len(rows), answers=dict(roles), dot_error_m_median=_med(d), within_1m=sum(x <= 1 for x in d),
-                     within_2m=sum(x <= 2 for x in d), n_err=len(d), team_agree=team_ok, team_n=team_n,
-                     not_players=roles['referee'] + roles['coach'] + roles['nobody'])
+    R['feet'] = dict(
+        n=len(rows),
+        answers=dict(roles),
+        dot_error_m_median=_med(d),
+        within_1m=sum(x <= 1 for x in d),
+        within_2m=sum(x <= 2 for x in d),
+        n_err=len(d),
+        team_agree=team_ok,
+        team_n=team_n,
+        not_players=roles['referee'] + roles['coach'] + roles['nobody'],
+    )
 
     for kind in ('missing', 'extra'):
         rows = by.get(kind, [])
         per = [len(a.get('taps', [])) for q, a in rows if a['v'] != 'cant']
         ks = Counter(t.get('k') for q, a in rows for t in a.get('taps', []))
         rings = sum(len(q['model']['ringed']) for q, a in rows if a['v'] != 'cant')
-        R[kind] = dict(stills=len(per), taps=sum(per), per_still=round(float(np.mean(per)), 2) if per else None,
-                       stills_clean=sum(p == 0 for p in per), rings_shown=rings, by_kind=dict(ks))
+        R[kind] = dict(
+            stills=len(per),
+            taps=sum(per),
+            per_still=round(float(np.mean(per)), 2) if per else None,
+            stills_clean=sum(p == 0 for p in per),
+            rings_shown=rings,
+            by_kind=dict(ks),
+        )
 
     rows = by.get('same', [])
     v = Counter(a['v'] for _, a in rows)
     n = sum(v.values()) - v['cant']
-    R['same'] = dict(answers=dict(v), right_joins=v['same'], pct=round(100 * v['same'] / n, 1) if n else None)
+    R['same'] = dict(
+        answers=dict(v), right_joins=v['same'], pct=round(100 * v['same'] / n, 1) if n else None
+    )
 
     rows = by.get('keeper', [])
     hit, shown, tapped = 0, 0, 0
@@ -138,23 +173,38 @@ def score(qs, ans, all_samples=False):
         for t in taps:
             for k in q['model']['keepers']:
                 b = k['box']
-                if abs(t['x'] - (b[0] + b[2]) / 2) < max(40, b[2] - b[0]) and abs(t['y'] - b[3]) < max(40, (b[3] - b[1]) / 2):
+                if abs(t['x'] - (b[0] + b[2]) / 2) < max(40, b[2] - b[0]) and abs(
+                    t['y'] - b[3]
+                ) < max(40, (b[3] - b[1]) / 2):
                     hit += 1
                     break
-    R['keeper'] = dict(frames=len(rows), answers=dict(Counter(a['v'] for _, a in rows)), keepers_tapped=tapped,
-                       drawn_as_keeper=hit, keepers_drawn=shown)
+    R['keeper'] = dict(
+        frames=len(rows),
+        answers=dict(Counter(a['v'] for _, a in rows)),
+        keepers_tapped=tapped,
+        drawn_as_keeper=hit,
+        keepers_drawn=shown,
+    )
 
     rows = by.get('motion', [])
     v = Counter(a['v'] for _, a in rows)
     n = sum(v.values()) - v['cant']
-    R['motion'] = dict(answers=dict(v), natural_pct=round(100 * v['natural'] / n, 1) if n else None,
-                       notes=[a['note'] for _, a in rows if a.get('note')])
+    R['motion'] = dict(
+        answers=dict(v),
+        natural_pct=round(100 * v['natural'] / n, 1) if n else None,
+        notes=[a['note'] for _, a in rows if a.get('note')],
+    )
 
     rows = [(q, a) for q, a in by.get('trust', []) if a.get('rate')]
-    R['trust'] = dict(n=len(rows), players=_med([a['rate']['players'] for _, a in rows]),
-                      ball=_med([a['rate']['ball'] for _, a in rows]),
-                      players_mean=round(float(np.mean([a['rate']['players'] for _, a in rows])), 2) if rows else None,
-                      ball_mean=round(float(np.mean([a['rate']['ball'] for _, a in rows])), 2) if rows else None)
+    R['trust'] = dict(
+        n=len(rows),
+        players=_med([a['rate']['players'] for _, a in rows]),
+        ball=_med([a['rate']['ball'] for _, a in rows]),
+        players_mean=round(float(np.mean([a['rate']['players'] for _, a in rows])), 2)
+        if rows
+        else None,
+        ball_mean=round(float(np.mean([a['rate']['ball'] for _, a in rows])), 2) if rows else None,
+    )
 
     stops = {}
     for q, a in by.get('stops', []):
@@ -166,22 +216,38 @@ def score(qs, ans, all_samples=False):
         for lo, hi in halves.values():
             live[lo:hi] = True
         # each marked break: from half a thumbnail before its first to half one after its last
-        brk = [(max(0, int((r['a'] - 0.5) * step)), min(q['frames'], int((r['b'] + 0.5) * step)), r['kind']) for r in a['ranges']]
+        brk = [
+            (
+                max(0, int((r['a'] - 0.5) * step)),
+                min(q['frames'], int((r['b'] + 0.5) * step)),
+                r['kind'],
+            )
+            for r in a['ranges']
+        ]
         counted = sum(int(live[lo:hi].sum()) for lo, hi, k in brk) / fps
         edges = sorted(e for lo, hi, _ in brk for e in (lo, hi))
         err = {}
         for name, (lo, hi) in halves.items():
             for side, e in (('start', lo), ('end', hi)):
-                err['%s %s' % (name, side)] = round(min(abs(e - x) for x in edges) / fps, 1) if edges else None
-        stops[q['tag']] = dict(breaks=[dict(kind=k, start_s=round(lo / fps), end_s=round(hi / fps)) for lo, hi, k in brk],
-                               break_s_counted_live=round(counted), edge_error_s=err)
+                err['%s %s' % (name, side)] = (
+                    round(min(abs(e - x) for x in edges) / fps, 1) if edges else None
+                )
+        stops[q['tag']] = dict(
+            breaks=[
+                dict(kind=k, start_s=round(lo / fps), end_s=round(hi / fps)) for lo, hi, k in brk
+            ],
+            break_s_counted_live=round(counted),
+            edge_error_s=err,
+        )
     R['stops'] = stops
     R['notes'] = {q['id']: a['note'] for t in by.values() for q, a in t if a.get('note')}
     return R
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(prog='python -m pitchiq.experiments.maplab_score', description=__doc__.split('\n\n')[0])
+    p = argparse.ArgumentParser(
+        prog='python -m pitchiq.experiments.maplab_score', description=__doc__.split('\n\n')[0]
+    )
     p.add_argument('set_dir', type=Path)
     p.add_argument('answers', type=Path)
     p.add_argument('--all', action='store_true', help='score the hard samples too')

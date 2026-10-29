@@ -49,8 +49,20 @@ CROP = (100, 200)
 THUMB = (480, 270)
 STRIP_S, STRIP_THUMB, STRIP_COLS = 30, (192, 108), 10
 PACK_S = 60.0
-YELLOW, GREEN, ORANGE, WHITE, BLACK = (0, 230, 255), (80, 230, 80), (40, 140, 255), (255, 255, 255), (0, 0, 0)
-DARK, LIGHT, KEEPER, REF, UNK = (60, 60, 235), (235, 170, 50), (0, 220, 255), (200, 90, 255), (200, 200, 200)
+YELLOW, GREEN, ORANGE, WHITE, BLACK = (
+    (0, 230, 255),
+    (80, 230, 80),
+    (40, 140, 255),
+    (255, 255, 255),
+    (0, 0, 0),
+)
+DARK, LIGHT, KEEPER, REF, UNK = (
+    (60, 60, 235),
+    (235, 170, 50),
+    (0, 220, 255),
+    (200, 90, 255),
+    (200, 200, 200),
+)
 MS = 4.4  # map px per StatsBomb unit in the map panel
 
 
@@ -146,7 +158,11 @@ class _Half:
         play = {i.pid for i in self.res.identities if i.role in ('player', 'keeper')}
         boxes = {f: [(i.pid, b) for i, b in self.res.at(f)] for f in fs}
         st = build_states(
-            fs, ball, boxes, lambda p: team.get(p, 'unknown'), {f: f / 30.0 for f in fs},
+            fs,
+            ball,
+            boxes,
+            lambda p: team.get(p, 'unknown'),
+            {f: f / 30.0 for f in fs},
             is_player=lambda p: p in play,
         )
         return [s.team for s in prepare_states(st)]
@@ -183,7 +199,10 @@ class _Half:
                 gnd = np.array([k == 'ground' for k in self.bkind])
                 for k in range(0, len(gnd) - 15, 5):
                     if gnd[k] and gnd[k + 15] and np.all(np.isfinite(self.bsb[[k, k + 15]])):
-                        if np.hypot(*(self.bsb[k + 15] - self.bsb[k])) > 8 and not air[k : k + 45].any():
+                        if (
+                            np.hypot(*(self.bsb[k + 15] - self.bsb[k])) > 8
+                            and not air[k : k + 45].any()
+                        ):
                             f = self.lo + k
                             if self.fits(f - 9, f + 60):
                                 out.append((f, dict(a=f - 9, b=f + 60, kick=f)))
@@ -195,8 +214,20 @@ class _Half:
                     a, b = self.lo + s - 9, self.lo + min(e + 21, s + 120)
                     if self.fits(a, b):
                         land = self.bsb[e - 1] if np.isfinite(self.bsb[e - 1]).all() else None
-                        out.append((self.lo + s, dict(a=a, b=b, kick=self.lo + s, end=self.lo + e - 1,
-                                                       land=None if land is None else [round(float(v), 2) for v in land])))
+                        out.append(
+                            (
+                                self.lo + s,
+                                dict(
+                                    a=a,
+                                    b=b,
+                                    kick=self.lo + s,
+                                    end=self.lo + e - 1,
+                                    land=None
+                                    if land is None
+                                    else [round(float(v), 2) for v in land],
+                                ),
+                            )
+                        )
         elif kind == 'possession':
             P = self.poss
             for f in range(self.lo + 90, self.hi - 61, 15):
@@ -221,13 +252,21 @@ class _Half:
                 if kind == 'missing':
                     det = self.W.det
                     rows = np.flatnonzero((det.frame == f) & (det.conf >= 0.4))
-                    miss = [det.box[r] for r in rows if not any(_iou(det.box[r], c) > 0.3 for _, c in ringed)]
+                    miss = [
+                        det.box[r]
+                        for r in rows
+                        if not any(_iou(det.box[r], c) > 0.3 for _, c in ringed)
+                    ]
                     cands = miss if hard else [b for _, b in ringed]
                 else:
                     odd = []
                     for i, b in ringed:
                         x, y = self.sb(f, ((b[0] + b[2]) / 2, b[3]))
-                        if i.role in ('referee', 'off') or i.team == 'unknown' or not (3 < x < 117 and 3 < y < 77):
+                        if (
+                            i.role in ('referee', 'off')
+                            or i.team == 'unknown'
+                            or not (3 < x < 117 and 3 < y < 77)
+                        ):
                             odd.append((i, b))
                     cands = [b for _, b in odd] if hard else [b for _, b in ringed]
                 for b in cands:
@@ -248,8 +287,12 @@ class _Half:
                     if seen.mean() < 0.6:
                         continue
                     p = self.td.path[n, t : t + 180]
-                    acc = float(np.percentile(np.linalg.norm(np.diff(p, 2, axis=0), axis=1), 95) * 900)
-                    out.append((self.lo + t, dict(n=int(n), a=self.lo + t, b=self.lo + t + 180, acc=acc)))
+                    acc = float(
+                        np.percentile(np.linalg.norm(np.diff(p, 2, axis=0), axis=1), 95) * 900
+                    )
+                    out.append(
+                        (self.lo + t, dict(n=int(n), a=self.lo + t, b=self.lo + t + 180, acc=acc))
+                    )
             if out:
                 cut = np.percentile([o[1]['acc'] for o in out], 90)
                 out = [o for o in out if (o[1]['acc'] >= cut) == hard]
@@ -282,8 +325,19 @@ class _Half:
                 pa = td.path[rows, r0[2]].mean(axis=0)
                 pb = td.path[rows, r1[1]].mean(axis=0)
                 hard = gap > 150 or (a.pid != b.pid and np.hypot(*(pb - pa)) > 15)
-                out.append((self.lo + r1[1], dict(a=a, b=b, ra=(self.lo + r0[1], self.lo + r0[2]),
-                                                  rb=(self.lo + r1[1], self.lo + r1[2]), gap=int(gap), hard=hard)))
+                out.append(
+                    (
+                        self.lo + r1[1],
+                        dict(
+                            a=a,
+                            b=b,
+                            ra=(self.lo + r0[1], self.lo + r0[2]),
+                            rb=(self.lo + r1[1], self.lo + r1[2]),
+                            gap=int(gap),
+                            hard=hard,
+                        ),
+                    )
+                )
         return out
 
     # ---- the map panel ------------------------------------------------------------
@@ -300,7 +354,14 @@ class _Half:
         im[:] = (24, 20, 16)
         cv2.rectangle(im, self.mm(-3, 83), self.mm(123, -3), (45, 105, 50), -1)
         for pl in MV.draw_pitch_overlay.polylines():
-            cv2.polylines(im, [np.int32([self.mm(x, y) for x, y in pl])], False, (225, 235, 225), 1, cv2.LINE_AA)
+            cv2.polylines(
+                im,
+                [np.int32([self.mm(x, y) for x, y in pl])],
+                False,
+                (225, 235, 225),
+                1,
+                cv2.LINE_AA,
+            )
         return im
 
     def dot_colour(self, group, team=None):
@@ -364,7 +425,9 @@ def _crop(img, rect, size):
     import cv2
 
     x0, y0, w, h = rect
-    return cv2.resize(img[int(y0) : int(y0 + h), int(x0) : int(x0 + w)], size, interpolation=cv2.INTER_AREA)
+    return cv2.resize(
+        img[int(y0) : int(y0 + h), int(x0) : int(x0 + w)], size, interpolation=cv2.INTER_AREA
+    )
 
 
 def _r(rect):
@@ -396,7 +459,10 @@ def make_half(tag, out: Path, lo, hi, per=6, windows=3, win_s=180.0, seed=0, typ
     Hs, a0 = sm['H'], int(sm['abs'][0])
     det, meta = player_lab.load_detections(tag)
     proj, pitch = player_lab.projector(tag, meta['w'], meta['h'])
-    lo, hi = max(lo, a0, int(det.frame.min())), min(hi, int(sm['abs'][-1]) + 1, int(det.frame.max()) + 1)
+    lo, hi = (
+        max(lo, a0, int(det.frame.min())),
+        min(hi, int(sm['abs'][-1]) + 1, int(det.frame.max()) + 1),
+    )
     win = int(win_s * meta['fps'])
     spans = [(int(s), int(s) + win) for s in np.linspace(lo, hi - win, windows)]
     out.mkdir(parents=True, exist_ok=True)
@@ -445,7 +511,9 @@ def make_half(tag, out: Path, lo, hi, per=6, windows=3, win_s=180.0, seed=0, typ
             f += 1
     packs.close()
     qs = [qs[i] for i in rng.permutation(len(qs))]
-    (out / 'questions.json').write_text(json.dumps(dict(tag=tag, fps=FPS, step=STEP, questions=qs), default=_plain))
+    (out / 'questions.json').write_text(
+        json.dumps(dict(tag=tag, fps=FPS, step=STEP, questions=qs), default=_plain)
+    )
     return qs
 
 
@@ -477,7 +545,14 @@ def _plan(S, q, jobs):
                     im = img.copy()
                     p = S.bimg[k]
                     cv2.circle(im, (int(p[0]), int(p[1])), 16, BLACK, 5, cv2.LINE_AA)
-                    cv2.circle(im, (int(p[0]), int(p[1])), 16, ORANGE if S.bkind[k] == 'air' else GREEN, 3, cv2.LINE_AA)
+                    cv2.circle(
+                        im,
+                        (int(p[0]), int(p[1])),
+                        16,
+                        ORANGE if S.bkind[k] == 'air' else GREEN,
+                        3,
+                        cv2.LINE_AA,
+                    )
             return cv2.resize(im, CAM, interpolation=cv2.INTER_AREA)
 
         for fr in frames:
@@ -490,7 +565,14 @@ def _plan(S, q, jobs):
 
         def still(img):
             im = img.copy()
-            cv2.rectangle(im, (int(b[0]) - 4, int(b[1]) - 4), (int(b[2]) + 4, int(b[3]) + 4), YELLOW, 3, cv2.LINE_AA)
+            cv2.rectangle(
+                im,
+                (int(b[0]) - 4, int(b[1]) - 4),
+                (int(b[2]) + 4, int(b[3]) + 4),
+                YELLOW,
+                3,
+                cv2.LINE_AA,
+            )
             return _crop(im, q['rect'], (960, 540))
 
         add(f, 'still', still)
@@ -523,10 +605,20 @@ def _plan(S, q, jobs):
                 def crop(img, bb=bb):
                     w, h = bb[2] - bb[0], bb[3] - bb[1]
                     hh = max(h * 1.2, 2 * w * 1.2)
-                    r = (float(np.clip((bb[0] + bb[2]) / 2 - hh / 4, 0, 1920 - hh / 2)),
-                         float(np.clip((bb[1] + bb[3]) / 2 - hh / 2, 0, 1080 - hh)), hh / 2, hh)
+                    r = (
+                        float(np.clip((bb[0] + bb[2]) / 2 - hh / 4, 0, 1920 - hh / 2)),
+                        float(np.clip((bb[1] + bb[3]) / 2 - hh / 2, 0, 1080 - hh)),
+                        hh / 2,
+                        hh,
+                    )
                     th = img.copy()
-                    cv2.rectangle(th, (int(bb[0]) - 4, int(bb[1]) - 4), (int(bb[2]) + 4, int(bb[3]) + 4), YELLOW, 4)
+                    cv2.rectangle(
+                        th,
+                        (int(bb[0]) - 4, int(bb[1]) - 4),
+                        (int(bb[2]) + 4, int(bb[3]) + 4),
+                        YELLOW,
+                        4,
+                    )
                     return _crop(img, r, CROP), cv2.resize(th, THUMB, interpolation=cv2.INTER_AREA)
 
                 add(int(fr), side, crop)
@@ -546,7 +638,13 @@ def _plan(S, q, jobs):
             if bb:
                 bb = np.array(bb)
                 x0, y0, x1, y1 = bb[:, 0].min(), bb[:, 1].min(), bb[:, 2].max(), bb[:, 3].max()
-                rect = list(_crop_rect((x0 + x1) / 2, (y0 + y1) / 2, max(360, 1.4 * (y1 - y0), 1.4 * (x1 - x0) * 9 / 16)))
+                rect = list(
+                    _crop_rect(
+                        (x0 + x1) / 2,
+                        (y0 + y1) / 2,
+                        max(360, 1.4 * (y1 - y0), 1.4 * (x1 - x0) * 9 / 16),
+                    )
+                )
         q['rect'] = rect
 
         def cam(img, fr):
@@ -557,8 +655,17 @@ def _plan(S, q, jobs):
                     b = pid_of[p].box_at(fr)
                     if b is not None:
                         im = img.copy()
-                        cv2.rectangle(im, (int(b[0]) - 4, int(b[1]) - 4), (int(b[2]) + 4, int(b[3]) + 4), YELLOW, 3, cv2.LINE_AA)
-            return _fit(_crop(im, rect, (int(rect[2]), int(rect[3]))) if kind == 'motion' else im, PANEL)
+                        cv2.rectangle(
+                            im,
+                            (int(b[0]) - 4, int(b[1]) - 4),
+                            (int(b[2]) + 4, int(b[3]) + 4),
+                            YELLOW,
+                            3,
+                            cv2.LINE_AA,
+                        )
+            return _fit(
+                _crop(im, rect, (int(rect[2]), int(rect[3]))) if kind == 'motion' else im, PANEL
+            )
 
         for fr in frames:
             add(fr, 'clip', lambda img, fr=fr: cam(img, fr))
@@ -570,15 +677,29 @@ def _finish(S, q, w, tag, out: Path, packs, base, n, n_of):
     kind, f, pay = q['kind'], q['f'], q['pay']
     n_of[kind] = n_of.get(kind, 0) + 1
     qid = '%s_%s_%d_%d' % (tag, kind, f, n)
-    rec = dict(id=qid, tag=tag, type=kind, frame=f, window=w, sample=q['sample'],
-               kits={t: S.kits[t] for t in ('team_a', 'team_b')}, dark=S.dark, light=S.light,
-               pitch=[S.length, S.width], sb_per_m=[round(S.kx, 5), round(S.ky, 5)])
+    rec = dict(
+        id=qid,
+        tag=tag,
+        type=kind,
+        frame=f,
+        window=w,
+        sample=q['sample'],
+        kits={t: S.kits[t] for t in ('team_a', 'team_b')},
+        dark=S.dark,
+        light=S.light,
+        pitch=[S.length, S.width],
+        sb_per_m=[round(S.kx, 5), round(S.ky, 5)],
+    )
     if kind in ('landing', 'possession'):
         rec['clip'] = packs.clip(q['bufs']['clip'])
         rec['rect'] = [0.0, 0.0, 1920.0, 1080.0]
         rec['frames'] = [q['frames'][0], STEP]
         if kind == 'landing':
-            rec['model'] = dict(kind='air' if q['sample'] == 'random' else 'ground', end=pay.get('end'), land=pay.get('land'))
+            rec['model'] = dict(
+                kind='air' if q['sample'] == 'random' else 'ground',
+                end=pay.get('end'),
+                land=pay.get('land'),
+            )
             rec['moment'] = None
         else:
             rec['moment'] = (f - pay['a']) / STEP / FPS
@@ -590,13 +711,25 @@ def _finish(S, q, w, tag, out: Path, packs, base, n, n_of):
         rec['rect'] = _r(q['rect'])
         if kind == 'feet':
             ident = pay
-            rec['model'] = dict(pid=ident.pid, role=ident.role, team=S.res.team_at(ident, f),
-                                word=S.team_word(S.res.team_at(ident, f)), box=q['box'], dot_m=S.dot_of(ident, f))
+            rec['model'] = dict(
+                pid=ident.pid,
+                role=ident.role,
+                team=S.res.team_at(ident, f),
+                word=S.team_word(S.res.team_at(ident, f)),
+                box=q['box'],
+                dot_m=S.dot_of(ident, f),
+            )
         elif kind in ('missing', 'extra'):
-            rec['model'] = dict(ringed=[dict(pid=i.pid, role=i.role, team=i.team, box=_r(b)) for i, b in pay['ringed']])
+            rec['model'] = dict(
+                ringed=[
+                    dict(pid=i.pid, role=i.role, team=i.team, box=_r(b)) for i, b in pay['ringed']
+                ]
+            )
         else:
             keep = [(d.ident, d.ident.box_at(f)) for d in S.seen_dots(f) if d.group[1] == 'keeper']
-            rec['model'] = dict(keepers=[dict(pid=i.pid, team=i.team, box=_r(b)) for i, b in keep if b is not None])
+            rec['model'] = dict(
+                keepers=[dict(pid=i.pid, team=i.team, box=_r(b)) for i, b in keep if b is not None]
+            )
     elif kind == 'same':
         sheet = np.zeros((CROP[1] * 2, CROP[0] * 6, 3), np.uint8)
         atlas = np.zeros((THUMB[1] * 3, THUMB[0] * 4, 3), np.uint8)
@@ -604,14 +737,25 @@ def _finish(S, q, w, tag, out: Path, packs, base, n, n_of):
             for c, (cr, th) in enumerate(q['bufs'].get(side, [])):
                 sheet[r * CROP[1] : (r + 1) * CROP[1], c * CROP[0] : (c + 1) * CROP[0]] = cr
                 k = r * 6 + c
-                atlas[(k // 4) * THUMB[1] : (k // 4 + 1) * THUMB[1], (k % 4) * THUMB[0] : (k % 4 + 1) * THUMB[0]] = th
+                atlas[
+                    (k // 4) * THUMB[1] : (k // 4 + 1) * THUMB[1],
+                    (k % 4) * THUMB[0] : (k % 4 + 1) * THUMB[0],
+                ] = th
         rec['sheet'], rec['atlas'] = 'img/%s_s.jpg' % qid, 'img/%s_a.jpg' % qid
         _jpg(out / rec['sheet'], sheet, 88)
         _jpg(out / rec['atlas'], atlas, 72)
         rec['ncrops'] = [len(q['crops']['A']), len(q['crops']['B'])]
         a, b = pay['a'], pay['b']
-        rec['model'] = dict(same=True, pa=a.pid, pb=b.pid, ra=list(pay['ra']), rb=list(pay['rb']), gap=pay['gap'],
-                            crops=q['crops'], boxes={s: [_r(i.box_at(fr)) for fr in q['crops'][s]] for s, i in (('A', a), ('B', b))})
+        rec['model'] = dict(
+            same=True,
+            pa=a.pid,
+            pb=b.pid,
+            ra=list(pay['ra']),
+            rb=list(pay['rb']),
+            gap=pay['gap'],
+            crops=q['crops'],
+            boxes={s: [_r(i.box_at(fr)) for fr in q['crops'][s]] for s, i in (('A', a), ('B', b))},
+        )
     elif kind in ('motion', 'trust'):
         cam = q['bufs']['clip']
         if kind == 'motion':
@@ -632,7 +776,9 @@ def make_strip(game, out: Path):
     """A thumbnail every STRIP_S seconds over the game's video, with the half edges."""
     import cv2
 
-    H = json.loads((Path(__file__).resolve().parents[1] / 'balltrack' / 'halves.json').read_text())[game]
+    H = json.loads((Path(__file__).resolve().parents[1] / 'balltrack' / 'halves.json').read_text())[
+        game
+    ]
     video = str(Path(os.environ.get('PIQ_DOWNLOADS', 'C:/Users/alexv/Downloads')) / H['video'])
     cap = cv2.VideoCapture(video)
     n, fps = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), cap.get(cv2.CAP_PROP_FPS)
@@ -649,15 +795,30 @@ def make_strip(game, out: Path):
             if not ok:
                 continue
             r, c = divmod(k, STRIP_COLS)
-            sheet[r * STRIP_THUMB[1] : (r + 1) * STRIP_THUMB[1], c * STRIP_THUMB[0] : (c + 1) * STRIP_THUMB[0]] = cv2.resize(
-                img, STRIP_THUMB, interpolation=cv2.INTER_AREA)
+            sheet[
+                r * STRIP_THUMB[1] : (r + 1) * STRIP_THUMB[1],
+                c * STRIP_THUMB[0] : (c + 1) * STRIP_THUMB[0],
+            ] = cv2.resize(img, STRIP_THUMB, interpolation=cv2.INTER_AREA)
         name = 'strip/%s_%02d.jpg' % (game, len(atlases))
         _jpg(out / name, sheet, 70)
         atlases.append(name)
         print(name, flush=True)
     edges = {k: v[2:4] for k, v in H.items() if isinstance(v, list) and len(v) == 4}
-    q = dict(id='%s_stops' % game, tag=game, type='stops', frame=0, sample='random', step=step, fps=fps,
-             n=len(fs), cols=STRIP_COLS, per=per, atlases=atlases, frames=n, model=dict(halves=edges))
+    q = dict(
+        id='%s_stops' % game,
+        tag=game,
+        type='stops',
+        frame=0,
+        sample='random',
+        step=step,
+        fps=fps,
+        n=len(fs),
+        cols=STRIP_COLS,
+        per=per,
+        atlases=atlases,
+        frames=n,
+        model=dict(halves=edges),
+    )
     (out / 'questions.json').write_text(json.dumps(dict(tag=game, questions=[q])))
     return [q]
 
@@ -695,7 +856,9 @@ def merge(set_dir: Path, parts: list[Path]):
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(prog='python -m pitchiq.experiments.maplab', description=__doc__.split('\n\n')[0])
+    p = argparse.ArgumentParser(
+        prog='python -m pitchiq.experiments.maplab', description=__doc__.split('\n\n')[0]
+    )
     sub = p.add_subparsers(dest='cmd', required=True)
     h = sub.add_parser('half')
     h.add_argument('tag')
