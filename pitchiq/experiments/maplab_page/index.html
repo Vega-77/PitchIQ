@@ -1,0 +1,707 @@
+<title>Map Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Same family as Spot Check: the media large on top, the question card under it (beside it on wide screens). Taps on the media are the truth. */
+:root{
+  --ground:#131920; --panel:#1b232d; --panel2:#222c38; --line:#2c3845;
+  --ink:#e8edf3; --dim:#8695a6; --faint:#5d6b7a;
+  --signal:#f59e2c; --mark:#ffe600; --ok:#49c58c; --warn:#e0645f; --stage:#000000;
+  --k-dark:#eb3c3c; --k-light:#32aaeb; --k-ref:#ff5ac8; --k-other:#ffe600; --k-stop:#f59e2c;
+  --disp:'Chivo',system-ui,sans-serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --r:6px; color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+  --signal:#c7730f; --mark:#b39b00; --ok:#23915f; --warn:#d23447; --stage:#0e141b; color-scheme:light;
+}}
+:root[data-theme="light"]{
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+  --signal:#c7730f; --mark:#b39b00; --ok:#23915f; --warn:#d23447; --stage:#0e141b; color-scheme:light;
+}
+:root[data-theme="dark"]{ color-scheme:dark; }
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0; background:var(--ground); color:var(--ink); font-family:var(--body);
+  font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased; overflow-x:hidden}
+body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top,0px); z-index:10; background:var(--panel)}
+button,select,textarea,input{font:inherit; color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--signal); outline-offset:2px}
+kbd{font-family:var(--mono); font-size:11px; background:var(--panel2); border:1px solid var(--line);
+  border-bottom-width:2px; border-radius:4px; padding:1px 6px; white-space:nowrap; color:var(--ink)}
+
+.head{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--panel); border-bottom:1px solid var(--line);
+  padding-block:10px; padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px))}
+.headRow{display:flex; align-items:center; gap:8px 14px; flex-wrap:wrap; max-width:1240px; margin:0 auto}
+h1{font-family:var(--disp); font-weight:900; font-size:15px; letter-spacing:.06em; text-transform:uppercase; margin:0}
+h1 span{color:var(--mark)}
+select.sel{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:5px 8px; font-size:12.5px; max-width:100%; min-width:0}
+.prog{margin-left:auto; font-size:12px; color:var(--dim); display:flex; gap:14px; flex-wrap:wrap}
+.prog b{font-family:var(--mono); font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums}
+.save{font-family:var(--mono); font-size:11px; color:var(--faint)}
+.save.busy{color:var(--signal)} .save.bad{color:var(--warn)}
+.bar{height:3px; background:var(--line); max-width:1240px; margin:8px auto 0; border-radius:2px; overflow:hidden}
+.bar i{display:block; height:100%; width:0; background:var(--ok); transition:width .2s}
+
+.wrap{max-width:1240px; margin:0 auto; padding-block:14px 40px; padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px)); display:flex; flex-direction:column; gap:12px}
+.banner{background:color-mix(in srgb, var(--warn) 14%, transparent); border:1px solid color-mix(in srgb, var(--warn) 55%, transparent);
+  border-radius:var(--r); padding:9px 11px; font-size:12.5px}
+.banner.note{background:color-mix(in srgb, var(--signal) 12%, transparent); border-color:color-mix(in srgb, var(--signal) 45%, transparent)}
+
+.grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,360px); gap:12px; align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.left{display:flex; flex-direction:column; gap:6px; min-width:0}
+.zoomer{width:100%; max-width:100%; max-height:72vh; overflow:auto; border-radius:var(--r); -webkit-overflow-scrolling:touch}
+.media{position:relative; width:100%; flex:none; background:var(--stage); border-radius:var(--r); overflow:hidden;
+  border:1px solid var(--line); aspect-ratio:16/9; touch-action:manipulation}
+.media video,.media img{position:absolute; inset:0; width:100%; height:100%; display:block; object-fit:fill; background:var(--stage)}
+.marks{position:absolute; inset:0}
+.marks.tap{cursor:crosshair}
+.mk{position:absolute; width:24px; height:24px; margin:-12px 0 0 -12px; border-radius:50%; border:3px solid var(--k-other);
+  box-shadow:0 0 0 2px #000, inset 0 0 0 1px #000; pointer-events:none; display:flex; align-items:center; justify-content:center}
+.mk::after{content:""; width:4px; height:4px; border-radius:50%; background:var(--k-other); box-shadow:0 0 0 1px #000}
+.mk[data-k="dark"]{border-color:var(--k-dark)} .mk[data-k="dark"]::after{background:var(--k-dark)}
+.mk[data-k="light"]{border-color:var(--k-light)} .mk[data-k="light"]::after{background:var(--k-light)}
+.mk[data-k="referee"]{border-color:var(--k-ref)} .mk[data-k="referee"]::after{background:var(--k-ref)}
+.mk b{position:absolute; left:20px; top:-14px; font:600 11px/1 var(--mono); color:#fff; background:#000c; padding:2px 4px; border-radius:3px; white-space:nowrap}
+.phase{position:absolute; left:8px; top:8px; font:700 11px/1 var(--disp); letter-spacing:.1em; text-transform:uppercase;
+  background:#000b; color:#fff; padding:5px 7px; border-radius:4px; pointer-events:none}
+.load{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#c9d2dc;
+  font-family:var(--mono); font-size:12px; pointer-events:none; text-align:center; padding:12px}
+
+.ctl{display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+.ctl input[type=range]{flex:1 1 160px; min-width:0; accent-color:var(--signal)}
+.scrub{position:relative; flex:1 1 160px; min-width:0; display:flex}
+.scrub input{width:100%}
+.tick{position:absolute; top:-2px; bottom:-2px; width:3px; margin-left:-1px; background:var(--mark); pointer-events:none; border-radius:1px}
+.clock{font-family:var(--mono); font-size:11.5px; color:var(--dim); font-variant-numeric:tabular-nums; min-width:5.5em; text-align:right}
+.cap{font-size:12px; color:var(--dim); margin:0}
+
+.card{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:14px; display:flex; flex-direction:column; gap:10px; min-width:0}
+.eyebrow{font-family:var(--disp); font-weight:700; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--signal)}
+.q{font-family:var(--disp); font-weight:700; font-size:19px; line-height:1.25; margin:0; text-wrap:balance}
+.hint{font-size:12.5px; color:var(--dim); margin:0; max-width:70ch}
+.sub{font-family:var(--disp); font-weight:700; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim)}
+.opts{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px}
+.opt{display:flex; align-items:center; gap:9px; text-align:left; background:var(--panel2); border:1px solid var(--line);
+  border-radius:var(--r); padding:11px 12px; font-weight:500; min-width:0; min-height:44px}
+.opt:hover:not(:disabled){border-color:var(--faint)}
+.opt:disabled{opacity:.4; cursor:not-allowed}
+.opt.cant{color:var(--dim)}
+.opt.flash{border-color:var(--ok); background:color-mix(in srgb, var(--ok) 18%, var(--panel2))}
+.opt.prev{border-color:var(--signal)}
+.opt.on{border-color:var(--mark); box-shadow:inset 0 0 0 1px var(--mark)}
+.sw{width:20px; height:20px; border-radius:4px; border:1px solid var(--line); flex:none}
+.dotk{width:14px; height:14px; border-radius:50%; flex:none; border:3px solid var(--k-other)}
+.dotk[data-k="dark"]{border-color:var(--k-dark)} .dotk[data-k="light"]{border-color:var(--k-light)} .dotk[data-k="referee"]{border-color:var(--k-ref)}
+.row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.btn{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:7px 10px; min-height:36px;
+  font-family:var(--disp); font-weight:700; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase}
+.btn:hover:not(:disabled){border-color:var(--faint)}
+.btn:disabled{opacity:.38; cursor:not-allowed}
+.btn.on{border-color:var(--signal); color:var(--signal)}
+.btn.go{background:var(--ok); border-color:var(--ok); color:var(--ground)}
+.status{font-size:12px; color:var(--dim); font-family:var(--mono)}
+textarea.note{width:100%; min-height:44px; resize:vertical; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:8px 10px; font-size:13px}
+.rate{display:grid; grid-template-columns:4.5em repeat(5,minmax(0,1fr)); gap:6px; align-items:center}
+.rate span{font-size:12.5px; color:var(--dim)}
+.rate button{min-height:40px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); font-family:var(--mono); font-weight:600}
+.rate button.on{border-color:var(--mark); box-shadow:inset 0 0 0 1px var(--mark)}
+.scale{display:flex; justify-content:space-between; font-size:11px; color:var(--faint); padding-left:5em}
+
+/* same person: the 2 x 6 sheet, then the chosen crop's whole frame */
+.sheet{position:relative; width:100%; max-width:100%; aspect-ratio:3/2; background:var(--stage); border-radius:var(--r); overflow:hidden; border:1px solid var(--line)}
+.sheet img{position:absolute; inset:0; width:100%; height:100%}
+.sheet .lab{position:absolute; left:0; font:700 10px/1 var(--disp); letter-spacing:.1em; text-transform:uppercase; color:#fff; background:#000b; padding:4px 6px}
+.sheet .cell{position:absolute; border:0; background:transparent; padding:0}
+.sheet .cell.on{outline:3px solid var(--mark); outline-offset:-3px}
+.full{width:100%; max-width:100%; aspect-ratio:16/9; background-color:var(--stage); background-repeat:no-repeat; background-size:400% 300%; border-radius:var(--r); border:1px solid var(--line)}
+
+/* stoppages: one thumbnail per 30 s */
+.strip{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:4px}
+.th{position:relative; aspect-ratio:16/9; border:2px solid transparent; border-radius:4px; padding:0; background-color:var(--stage);
+  background-repeat:no-repeat; background-size:1000% 1000%}
+.th i{position:absolute; left:2px; bottom:2px; font:600 10px/1 var(--mono); font-style:normal; color:#fff; background:#000a; padding:2px 3px; border-radius:2px}
+.th.stop{border-color:var(--k-stop)} .th.stop::after{content:""; position:absolute; inset:0; background:color-mix(in srgb, var(--k-stop) 30%, transparent)}
+.th.pend{border-color:var(--mark); border-style:dashed}
+.th.sel{border-color:var(--mark)}
+.big{width:100%; max-width:100%; aspect-ratio:16/9; border-radius:var(--r); border:1px solid var(--line); background-color:var(--stage); background-repeat:no-repeat; background-size:1000% 1000%}
+.runs{display:flex; flex-direction:column; gap:6px}
+.run{display:flex; flex-wrap:wrap; gap:6px; align-items:center; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:7px 9px; font-size:12.5px}
+.run.sel{border-color:var(--mark)}
+.run .t{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.run .k{color:var(--dim)}
+.run .k.unset{color:var(--warn)}
+.stickyCard{position:sticky; top:calc(env(safe-area-inset-top,0px) + 64px)}
+
+.done{text-align:left}
+.tally{display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px}
+.tally div{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:8px 10px; font-size:12px; color:var(--dim)}
+.tally b{display:block; font-family:var(--mono); font-size:16px; color:var(--ink); font-variant-numeric:tabular-nums}
+.keys{font-size:12px; color:var(--faint); display:flex; gap:12px; flex-wrap:wrap}
+@media (hover:none){.keys{display:none}}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+
+<header class="head">
+  <div class="headRow">
+    <h1>Map <span>Lab</span></h1>
+    <select class="sel" id="setSel" aria-label="Question set"></select>
+    <div class="prog">
+      <span>answered <b id="pSet">0</b> / <b id="pSetN">0</b></span>
+      <span class="save" id="save">ready</span>
+    </div>
+  </div>
+  <div class="bar"><i id="barI"></i></div>
+</header>
+
+<main class="wrap">
+  <div class="banner" id="banner" hidden></div>
+
+  <section id="qView" hidden>
+    <div class="grid">
+      <div class="left" id="left">
+        <div class="zoomer" id="zoomer"><div class="media" id="media">
+          <video id="vid" muted playsinline preload="auto"></video>
+          <img id="img" alt="">
+          <div class="marks" id="marks"></div>
+          <div class="phase" id="phase" hidden></div>
+          <div class="load" id="load" hidden>loading…</div>
+        </div></div>
+        <div class="ctl" id="zoomRow">
+          <span class="cap">Zoom</span>
+          <button class="btn" type="button" data-z="1">1&times;</button>
+          <button class="btn" type="button" data-z="2">2&times;</button>
+          <button class="btn" type="button" data-z="3">3&times;</button>
+          <span class="cap" id="zoomCap"></span>
+        </div>
+        <div class="ctl" id="ctl">
+          <button class="btn" id="bPause" type="button">Pause</button>
+          <button class="btn" id="bPrev" type="button" aria-label="One frame back">&#9664; 1</button>
+          <button class="btn" id="bNext" type="button" aria-label="One frame on">1 &#9654;</button>
+          <div class="scrub"><input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Position in the clip"><span class="tick" id="tick" hidden></span></div>
+          <span class="clock" id="clock">0.0 s</span>
+          <button class="btn" id="bSlow" type="button">Slow</button>
+          <button class="btn" id="bMoment" type="button" hidden>To tick</button>
+        </div>
+        <p class="cap" id="mediaCap"></p>
+        <div class="sheet" id="sheet" hidden>
+          <img id="sheetImg" alt="Crops of one person: the top row before they left the map, the bottom row after it picked them up again">
+        </div>
+        <div class="full" id="full" hidden role="img" aria-label="The whole frame of the chosen crop"></div>
+        <div id="stripBox" hidden>
+          <div class="strip" id="strip"></div>
+        </div>
+      </div>
+      <div class="card" id="card">
+        <div class="eyebrow" id="qType"></div>
+        <p class="q" id="qText"></p>
+        <p class="hint" id="qHint"></p>
+        <div id="brushBox" hidden>
+          <div class="sub" id="brushLab">Tap with</div>
+          <div class="opts" id="brush"></div>
+        </div>
+        <div id="rateBox" hidden></div>
+        <div id="stopBox" hidden>
+          <div class="big" id="big" role="img" aria-label="The last tapped thumbnail, large"></div>
+          <div class="status" id="bigCap"></div>
+          <div class="runs" id="runs"></div>
+          <div id="runEdit" hidden>
+            <div class="sub">This break is</div>
+            <div class="opts" id="kinds"></div>
+            <div class="row" style="margin-top:8px"><button class="btn" id="bRunDel" type="button">Remove this break</button></div>
+          </div>
+        </div>
+        <div class="status" id="tapStatus"></div>
+        <div class="opts" id="opts"></div>
+        <textarea class="note" id="note" placeholder="Note (optional): anything specific about this one"></textarea>
+        <div class="row">
+          <button class="btn" id="bBack" type="button">Back</button>
+          <button class="btn" id="bClear" type="button">Clear taps</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card done" id="doneView" hidden>
+    <div class="eyebrow" id="doneEyebrow">Set finished</div>
+    <p class="q" id="doneText"></p>
+    <div class="tally" id="tally"></div>
+  </section>
+
+  <section class="card" id="emptyView">
+    <div class="eyebrow">Loading</div>
+    <p class="q">Fetching the questions…</p>
+    <p class="hint">Each question shows a stretch of a game and asks what really happened there: where the ball landed, who had it, where someone's feet were. Your taps are kept as the truth, so later versions of the map are scored against them without asking again. Every answer saves as you go.</p>
+  </section>
+
+  <div class="keys">
+    <span><kbd>1</kbd>–<kbd>9</kbd> answer</span>
+    <span><kbd>Space</kbd> pause</span>
+    <span><kbd>,</kbd> <kbd>.</kbd> one frame</span>
+    <span><kbd>Z</kbd> back one</span>
+  </div>
+</main>
+
+<script>
+const CHUNK = 100, KEEP_PACKS = 8;
+const CANT = ['cant', "Can't tell"];
+const kit = (q, side) => { const t = q[side], k = q.kits && q.kits[t]; return {name: k ? k.name : side, rgb: k ? k.rgb : null}; };
+const TEAM_OPTS = (q, need) => [['dark', 'Darker kit · ' + kit(q, 'dark').name, {rgb: kit(q, 'dark').rgb, need}],
+                                ['light', 'Lighter kit · ' + kit(q, 'light').name, {rgb: kit(q, 'light').rgb, need}]];
+const MAPKEY = 'On the map, red dots are the darker kit, blue the lighter one, yellow the keepers and purple the referees. Hollow rings are guesses for people off camera; the ball is white on the ground, orange in the air.';
+const TYPES = {
+  stops: {label: 'Long stoppages', media: 'strip', q: 'Mark every long break in this game',
+    hint: 'One thumbnail every 30 seconds. Tap the first and last thumbnail of each break: before kickoff, halftime, after the final whistle, and any stop over about a minute (injury, water break). Then pick what each break was. Short stops for throw-ins and fouls do not count.',
+    opts: () => [['save', 'Save these breaks', {stops: true}], CANT]},
+  landing: {label: 'Ball landing', media: 'clip', tap: 1, timed: true, q: 'Where does the ball first touch the ground?',
+    hint: 'The ring shows the tracked ball at the kick. Step or scrub to the first bounce, then tap the ball where it meets the grass. If a player heads, chests or kicks it before it lands, pick that instead.',
+    opts: () => [['landed', 'It landed where I tapped', {need: 1}], ['never', 'It never left the ground'], ['touched', 'Touched before it landed'],
+                 ['offcam', 'Landed off camera'], CANT]},
+  possession: {label: 'Possession', media: 'clip', tap: 1, timed: true, moment: true, q: 'Which team has the ball at the yellow tick?',
+    hint: 'Watch before and after the tick. A pass between teammates stays with that team. Two players fighting for it, or a pass about to be intercepted, is loose. Out of play: can’t tell. If you like, pause at the tick and tap the player who has it.',
+    opts: q => [...TEAM_OPTS(q, 0), ['loose', 'Loose'], CANT]},
+  feet: {label: 'Feet', media: 'img', tap: 1, q: 'Tap between the feet of the person in the yellow box',
+    hint: 'Then pick their team. If something hides their feet, tap where they would be and pick Hidden. If the box holds a referee, a coach or a sub, pick that; if it holds nobody, pick Nobody there.',
+    opts: q => [...TEAM_OPTS(q, 1), ['hidden', 'Feet hidden', {need: 1}], ['referee', 'Referee'], ['coach', 'Coach or sub'], ['nobody', 'Nobody there'], CANT]},
+  missing: {label: 'Missing people', media: 'img', tap: 30, q: 'Tap anyone on the pitch without a white ring',
+    hint: 'Players, keepers and referees on the pitch should each have a ring at their feet. Pick the team first, then tap between their feet. Tap a mark again to remove it. Ignore people off the pitch.',
+    brush: q => [['dark', 'Darker kit'], ['light', 'Lighter kit'], ['referee', 'Referee']],
+    opts: () => [['done', 'Done: these are missing', {need: 1}], ['none', 'Nobody is missing'], CANT]},
+  extra: {label: 'Extra people', media: 'img', tap: 30, q: 'Tap anyone ringed who is not playing',
+    hint: 'The map should hold the players and 1 to 3 referees (the centre referee and the assistants on the lines). Coaches, subs, spectators and ball kids should not have a ring. Pick who they are, then tap their ring.',
+    brush: () => [['coach', 'Coach or sub'], ['spectator', 'Spectator'], ['ballkid', 'Ball kid'], ['other', 'Someone else']],
+    opts: () => [['done', 'Done: these should go', {need: 1}], ['ok', 'Everyone ringed belongs'], CANT]},
+  same: {label: 'Same person', media: 'sheet', q: 'Are the top row and the bottom row the same person?',
+    hint: 'Top row: the last seconds before this person left the map. Bottom row: the first seconds after the map picked them up again. Tap a crop to see its whole frame.',
+    opts: () => [['same', 'Same person'], ['diffsame', 'Different person, same team'], ['difft', 'Different team'], CANT]},
+  keeper: {label: 'Keeper', media: 'img', tap: 2, q: 'Tap between the goalkeeper’s feet',
+    hint: 'If both keepers are in view, tap both. Pick Not in view if no keeper is in the frame, Hidden if one is there but blocked.',
+    opts: () => [['marked', 'Keeper marked', {need: 1}], ['notinview', 'No keeper in view'], ['hidden', 'Keeper hidden'], CANT]},
+  motion: {label: 'Movement', media: 'clip', q: 'Does the ringed dot move the way the player does?',
+    hint: 'First 6 seconds: the player in the yellow box on camera. Next 6 seconds: their dot alone on the map, ringed in yellow. A note helps when it is something specific.',
+    opts: () => [['natural', 'Natural'], ['jittery', 'Jittery'], ['jumps', 'Jumps'], ['frozen', 'Frozen while they move'], ['teamjump', 'Whole team jumps together'], CANT]},
+  trust: {label: 'Trust', media: 'clip', q: 'How far would you trust the map here?',
+    hint: 'First 8 seconds: the camera. Next 8 seconds: the same stretch on the map. Rate the players and the ball from 1 (useless) to 5 (I would use it as is). ' + MAPKEY,
+    rate: true, opts: () => [['rated', 'Save ratings', {rate: true}], CANT]},
+};
+const STOP_KINDS = [['pre', 'Before the game'], ['half', 'Halftime'], ['post', 'After the game'], ['injury', 'Injury'], ['water', 'Water break'], ['other', 'Other']];
+const clone = o => JSON.parse(JSON.stringify(o));
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+const S = {db: null, local: false, sets: [], set: null, qs: [], chunks: {}, ans: {}, cur: -1, history: [], t0: 0, slow: false, paused: false, writes: {},
+  marks: [], brush: null, rate: {}, runs: [], pend: null, selRun: -1, crop: -1};
+
+/* ---------- storage -------------------------------------------------------------------------- */
+function deepFreeze(o){ if (o && typeof o === 'object'){ Object.values(o).forEach(deepFreeze); Object.freeze(o); } return o; }
+function mockDb(){   // local preview only: behaves like the real store, snapshots frozen
+  const store = new Map();
+  const snap = (k, v) => ({id: k.split('/').pop(), exists: true, data: () => deepFreeze(clone(v)), metadata: {fromCache: false, hasPendingWrites: false}});
+  return {collection(p){ return {
+    doc: id => ({id, path: p + '/' + id, set: async d => { await new Promise(r => setTimeout(r, 30)); store.set(p + '/' + id, clone(d)); },
+                 get: async () => store.has(p + '/' + id) ? snap(p + '/' + id, store.get(p + '/' + id)) : {id, exists: false, data: () => undefined}}),
+    get: async () => { const docs = [...store].filter(([k]) => k.startsWith(p + '/') && !k.slice(p.length + 1).includes('/')).map(([k, v]) => snap(k, v));
+                       return {docs, size: docs.length, empty: !docs.length}; },
+  }; }, _store: store};
+}
+function answersCol(){ return S.db.collection('sets/' + S.set.name + '/answers'); }
+const chunkId = k => 'c' + String(k).padStart(3, '0');
+function setSave(state, text){ const e = $('save'); e.className = 'save ' + state; e.textContent = text; }
+function saveChunk(k){
+  const w = S.writes[k] || (S.writes[k] = {busy: false, dirty: false});
+  if (w.busy){ w.dirty = true; return; }
+  w.busy = true; setSave('busy', 'saving…');
+  (async () => {
+    do {
+      w.dirty = false;
+      const body = clone(S.chunks[k]);
+      let tries = 0;
+      for (;;){
+        try { await answersCol().doc(chunkId(k)).set(body); setSave('', S.local ? 'saved in this tab' : 'saved'); break; }
+        catch (e){
+          if (e && e.code === 'unavailable' && tries++ < 1){ await new Promise(r => setTimeout(r, 800 + Math.random() * 1200)); continue; }
+          setSave('bad', 'not saved');
+          banner(e && e.code === 'quota_exceeded' ? 'The answer store is full. Stop here and tell Claude.' :
+                 'An answer did not save (' + ((e && e.code) || 'error') + '). It will retry with your next answer.');
+          w.dirty = true; w.busy = false; return;
+        }
+      }
+    } while (w.dirty);
+    w.busy = false;
+  })();
+}
+function banner(text, note){ const b = $('banner'); b.textContent = text; b.className = 'banner' + (note ? ' note' : ''); b.hidden = !text; }
+
+/* ---------- media ---------------------------------------------------------------------------- */
+const packs = new Map();   // url -> Promise<objectURL>
+function base(){ return 'sets/' + S.set.name + '/'; }
+function pack(path){
+  const u = base() + path;
+  if (!packs.has(u)){
+    packs.set(u, fetch(u).then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); }).then(b => URL.createObjectURL(b)));
+    packs.get(u).catch(() => packs.delete(u));
+  }
+  return packs.get(u);
+}
+function prune(keep){
+  for (const [u, p] of packs){
+    if (packs.size <= KEEP_PACKS) break;
+    if (!keep.has(u)){ packs.delete(u); p.then(x => { if ($('vid').src !== x) URL.revokeObjectURL(x); }).catch(() => {}); }
+  }
+}
+function prefetch(){
+  const ids = []; for (let i = S.cur; i < S.qs.length && ids.length < 6; i++) if (i >= 0 && !(S.qs[i].id in S.ans)) ids.push(i);
+  const keep = new Set();
+  ids.forEach(i => { const q = S.qs[i];
+    if (q.clip){ keep.add(base() + q.clip.pack); pack(q.clip.pack); }
+    for (const k of ['img', 'sheet', 'atlas']) if (q[k]){ const im = new Image(); im.src = base() + q[k]; }
+  });
+  prune(keep);
+}
+
+const V = {t0: 0, t1: 0, token: 0, fps: 10};
+function clipT(){ return $('vid').currentTime - V.t0; }
+function loopTick(){
+  const v = $('vid'), q = S.qs[S.cur]; if (!q || !q.clip) return;
+  const t = v.currentTime, len = V.t1 - V.t0;
+  if (!v.paused && (t >= V.t1 - 0.5 / V.fps || t < V.t0 - 0.01)) v.currentTime = V.t0 + 0.01;
+  const ct = Math.max(0, Math.min(len, t - V.t0));
+  if (document.activeElement !== $('scrub')) $('scrub').value = Math.round(ct / len * 1000);
+  $('clock').textContent = ct.toFixed(1) + ' s';
+  if (q.split != null){ const ph = $('phase'); ph.hidden = false; ph.textContent = ct < q.split ? 'Camera' : 'Map'; }
+}
+function frameLoop(){
+  const v = $('vid'), my = V.token;
+  const step = () => { if (my !== V.token) return; loopTick(); if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); };
+  if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step);
+  const iv = setInterval(() => { if (my !== V.token){ clearInterval(iv); return; } loopTick(); }, 40);
+}
+async function showClip(q){
+  const v = $('vid'), my = ++V.token;
+  $('load').hidden = false; $('load').textContent = 'loading clip…';
+  let url;
+  try { url = await pack(q.clip.pack); } catch (e){ if (my === V.token) $('load').textContent = 'The clip did not load. Reload the page to try again.'; return; }
+  if (my !== V.token) return;
+  V.t0 = q.clip.t0; V.t1 = q.clip.t1; V.fps = S.fps || 10;
+  if (v.src !== url){ v.src = url; await new Promise(r => { v.onloadedmetadata = r; }); if (my !== V.token) return; }
+  v.playbackRate = S.slow ? 0.35 : 1;
+  v.currentTime = V.t0 + 0.01;
+  if (!S.paused) v.play().catch(() => { if (my === V.token){ S.paused = true; pauseLabel(); } });
+  $('load').hidden = true;
+  frameLoop();
+}
+function seek(t){ const v = $('vid'); v.currentTime = V.t0 + Math.max(0, Math.min(V.t1 - V.t0 - 0.5 / V.fps, t)) + 0.01; loopTick(); }
+function step(n){ const v = $('vid'); if (!v.paused){ v.pause(); S.paused = true; pauseLabel(); } seek(Math.round(clipT() * V.fps + n) / V.fps); }
+function pauseLabel(){ $('bPause').classList.toggle('on', S.paused); $('bPause').textContent = S.paused ? 'Play' : 'Pause'; }
+
+/* ---------- taps ----------------------------------------------------------------------------- */
+function T(){ return TYPES[S.qs[S.cur].type]; }
+function drawMarks(){
+  const box = $('marks'); box.replaceChildren();
+  S.marks.forEach((m, n) => {
+    const d = el('div', 'mk'); d.style.left = (m.u * 100) + '%'; d.style.top = (m.v * 100) + '%';
+    if (m.k) d.dataset.k = m.k;
+    const label = m.k && T().brush ? (T().brush(S.qs[S.cur]).find(b => b[0] === m.k) || [, ''])[1] : (m.t != null ? m.t.toFixed(1) + ' s' : '');
+    if (label || S.marks.length > 1){ const b = el('b', null, (S.marks.length > 1 ? (n + 1) + ' ' : '') + label); d.append(b); }
+    box.append(d);
+  });
+  const t = T(), q = S.qs[S.cur];
+  $('tapStatus').textContent = t.tap ? (S.marks.length ? S.marks.length + (S.marks.length === 1 ? ' tap' : ' taps') + ' marked' : (t.brush ? 'No taps yet' : 'Tap the picture to mark')) : '';
+  $('bClear').hidden = !t.tap; $('bClear').disabled = !S.marks.length;
+  for (const b of $('opts').children){ const need = +b.dataset.need || 0; b.disabled = !S.db || S.marks.length < need || (b.dataset.rate && !(S.rate.players && S.rate.ball)) || (b.dataset.stops && !stopsOk()); }
+}
+function onTap(e){
+  const t = T(); if (!t.tap) return;
+  const r = $('marks').getBoundingClientRect();
+  const u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
+  if (u < 0 || u > 1 || v < 0 || v > 1) return;
+  // a tap on an existing mark removes it
+  const hit = S.marks.findIndex(m => Math.hypot((m.u - u) * r.width, (m.v - v) * r.height) < 16);
+  if (hit >= 0 && t.tap > 1){ S.marks.splice(hit, 1); drawMarks(); return; }
+  const m = {u: +u.toFixed(4), v: +v.toFixed(4)};
+  if (t.brush) m.k = S.brush;
+  if (t.timed){
+    const vid = $('vid'); if (!vid.paused){ vid.pause(); S.paused = true; pauseLabel(); }
+    m.t = +clipT().toFixed(2);
+  }
+  if (t.tap === 1) S.marks = [m]; else if (S.marks.length < t.tap) S.marks.push(m);
+  drawMarks();
+}
+function setZoom(z){
+  const zr = $('zoomer'), m = $('media'), cx = (zr.scrollLeft + zr.clientWidth / 2) / Math.max(1, m.offsetWidth);
+  S.zoom = z; m.style.maxWidth = z > 1 ? 'none' : '100%'; m.style.width = (z * 100) + '%';
+  for (const b of $('zoomRow').querySelectorAll('[data-z]')) b.classList.toggle('on', +b.dataset.z === z);
+  $('zoomCap').textContent = z > 1 ? 'drag sideways to look around' : '';
+  zr.scrollLeft = cx * m.offsetWidth - zr.clientWidth / 2; zr.scrollTop = (m.offsetHeight - zr.clientHeight) / 2;   // offsetWidth lays out now
+}
+function srcPoint(q, m){
+  const r = q.rect || [0, 0, 1920, 1080];
+  const out = {u: m.u, v: m.v, x: +(r[0] + m.u * r[2]).toFixed(1), y: +(r[1] + m.v * r[3]).toFixed(1)};
+  if (m.k) out.k = m.k;
+  if (m.t != null){ out.t = m.t; if (q.frames) out.f = q.frames[0] + Math.round(m.t * (S.fps || 10)) * q.frames[1]; }
+  return out;
+}
+
+/* ---------- per-type panels ------------------------------------------------------------------ */
+function buildBrush(q){
+  const t = TYPES[q.type], box = $('brush'); box.replaceChildren(); $('brushBox').hidden = !t.brush;
+  if (!t.brush) return;
+  const items = t.brush(q); if (!items.some(b => b[0] === S.brush)) S.brush = items[0][0];
+  items.forEach(([k, label]) => {
+    const b = el('button', 'opt' + (k === S.brush ? ' on' : '')); b.type = 'button';
+    const d = el('span', 'dotk'); d.dataset.k = k; b.append(d, el('span', null, label));
+    b.onclick = () => { S.brush = k; for (const c of box.children) c.classList.toggle('on', c === b); };
+    box.append(b);
+  });
+}
+function buildRate(){
+  const box = $('rateBox'); box.replaceChildren(); box.hidden = !T().rate; if (!T().rate) return;
+  const g = el('div', 'rate');
+  for (const [key, label] of [['players', 'Players'], ['ball', 'Ball']]){
+    g.append(el('span', null, label));
+    for (let n = 1; n <= 5; n++){
+      const b = el('button', S.rate[key] === n ? 'on' : '', String(n)); b.type = 'button'; b.setAttribute('aria-label', label + ' ' + n);
+      b.onclick = () => { S.rate[key] = n; buildRate(); drawMarks(); };
+      g.append(b);
+    }
+  }
+  box.append(g, el('div', 'scale')); box.lastChild.append(el('span', null, '1 useless'), el('span', null, '5 use as is'));
+}
+function buildSheet(q){
+  const sh = $('sheet'); sh.querySelectorAll('.cell,.lab').forEach(x => x.remove());
+  $('sheetImg').src = base() + q.sheet;
+  for (let r = 0; r < 2; r++){
+    for (let c = 0; c < (q.ncrops ? q.ncrops[r] : 6); c++){
+      const k = r * 6 + c, b = el('button', 'cell' + (k === S.crop ? ' on' : '')); b.type = 'button';
+      b.style.left = (c / 6 * 100) + '%'; b.style.top = (r * 50) + '%'; b.style.width = (100 / 6) + '%'; b.style.height = '50%';
+      b.setAttribute('aria-label', (r ? 'After' : 'Before') + ' crop ' + (c + 1) + ': show the whole frame');
+      b.onclick = () => { S.crop = k; buildSheet(q); showFull(q); };
+      sh.append(b);
+    }
+    const l = el('span', 'lab', r ? 'After' : 'Before'); l.style.top = r ? '50%' : '0'; sh.append(l);
+  }
+}
+function showFull(q){
+  const f = $('full'); if (S.crop < 0){ f.hidden = true; return; }
+  f.hidden = false; f.style.backgroundImage = 'url("' + base() + q.atlas + '")';
+  f.style.backgroundPosition = ((S.crop % 4) / 3 * 100) + '% ' + (Math.floor(S.crop / 4) / 2 * 100) + '%';
+}
+
+/* stoppages */
+const clockOf = (q, k) => { const s = Math.round(k * q.step / q.fps), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(s % 60).padStart(2, '0'); };
+function thumbStyle(e, q, k){
+  const a = Math.floor(k / q.per), j = k % q.per, c = j % q.cols, r = Math.floor(j / q.cols);
+  e.style.backgroundImage = 'url("' + base() + q.atlases[a] + '")';
+  e.style.backgroundPosition = (c / (q.cols - 1) * 100) + '% ' + (r / (q.cols - 1) * 100) + '%';
+}
+function runOf(k){ return S.runs.findIndex(r => r.a <= k && k <= r.b); }
+function stopsOk(){ return S.runs.every(r => r.kind); }
+function buildStrip(q){
+  const box = $('strip'); box.replaceChildren();
+  for (let k = 0; k < q.n; k++){
+    const b = el('button', 'th'); b.type = 'button'; thumbStyle(b, q, k); b.dataset.k = k;
+    b.append(el('i', null, clockOf(q, k))); b.setAttribute('aria-label', 'Video at ' + clockOf(q, k));
+    b.onclick = () => stripTap(q, k); box.append(b);
+  }
+  paintStrip(q);
+}
+function paintStrip(q){
+  for (const b of $('strip').children){
+    const k = +b.dataset.k, r = runOf(k);
+    b.classList.toggle('stop', r >= 0); b.classList.toggle('pend', k === S.pend); b.classList.toggle('sel', r >= 0 && r === S.selRun);
+  }
+  const runs = $('runs'); runs.replaceChildren();
+  S.runs.forEach((r, n) => {
+    const d = el('div', 'run' + (n === S.selRun ? ' sel' : ''));
+    const kind = STOP_KINDS.find(s => s[0] === r.kind);
+    d.append(el('span', 't', clockOf(q, r.a) + ' – ' + clockOf(q, r.b)), el('span', 'k' + (kind ? '' : ' unset'), kind ? kind[1] : 'pick what it was'));
+    d.onclick = () => { S.selRun = n; paintStrip(q); };
+    runs.append(d);
+  });
+  if (!S.runs.length) runs.append(el('div', 'status', 'No breaks marked yet.'));
+  $('runEdit').hidden = S.selRun < 0;
+  const kinds = $('kinds'); kinds.replaceChildren();
+  if (S.selRun >= 0) STOP_KINDS.forEach(([k, label]) => {
+    const b = el('button', 'opt' + (S.runs[S.selRun].kind === k ? ' on' : ''), label); b.type = 'button';
+    b.onclick = () => { S.runs[S.selRun].kind = k; S.selRun = -1; paintStrip(q); };
+    kinds.append(b);
+  });
+  $('tapStatus').textContent = S.pend != null ? 'Start at ' + clockOf(q, S.pend) + ': tap the last thumbnail of this break (the same one again for a single one)' : '';
+  drawMarks();
+}
+function stripTap(q, k){
+  const big = $('big'); thumbStyle(big, q, k); $('bigCap').textContent = 'Video at ' + clockOf(q, k);
+  const r = runOf(k);
+  if (S.pend == null && r >= 0){ S.selRun = r; }
+  else if (S.pend == null){ S.pend = k; S.selRun = -1; }
+  else {
+    const a = Math.min(S.pend, k), b = Math.max(S.pend, k);
+    S.runs = S.runs.filter(x => x.b < a || x.a > b);   // a new break swallows any it overlaps
+    S.runs.push({a, b, kind: null}); S.runs.sort((x, y) => x.a - y.a);
+    S.selRun = S.runs.findIndex(x => x.a === a); S.pend = null;
+  }
+  paintStrip(q);
+}
+
+/* ---------- questions ------------------------------------------------------------------------ */
+function nextUnanswered(from){ for (let i = Math.max(0, from); i < S.qs.length; i++) if (!(S.qs[i].id in S.ans)) return i; return -1; }
+function answeredCount(){ return Object.keys(S.ans).length; }
+function progress(){
+  $('pSet').textContent = answeredCount(); $('pSetN').textContent = S.qs.length;
+  $('barI').style.width = (S.qs.length ? answeredCount() / S.qs.length * 100 : 0) + '%';
+}
+function show(i){
+  S.cur = i; progress();
+  if (i < 0) return finish();
+  const q = S.qs[i], t = TYPES[q.type], prev = S.ans[q.id] || null;
+  $('qView').hidden = false; $('doneView').hidden = true; $('emptyView').hidden = true;
+  $('qType').textContent = t.label + (q.type === 'stops' ? ' · ' + q.tag.toUpperCase() : '');
+  $('qText').textContent = t.q; $('qHint').textContent = t.hint;
+  // restore an earlier answer when coming back to it
+  S.marks = prev && prev.taps ? prev.taps.map(m => ({u: m.u, v: m.v, k: m.k, t: m.t})) : [];
+  S.rate = prev && prev.rate ? Object.assign({}, prev.rate) : {};
+  S.runs = prev && prev.ranges ? prev.ranges.map(r => ({a: r.a, b: r.b, kind: r.kind})) : [];
+  S.pend = null; S.selRun = -1; S.crop = -1;
+  $('note').value = prev && prev.note || '';
+  const isClip = t.media === 'clip', isImg = t.media === 'img';
+  $('zoomer').hidden = !(isClip || isImg); $('zoomRow').hidden = !t.tap; setZoom(1); $('ctl').hidden = !isClip; $('vid').hidden = !isClip; $('img').hidden = !isImg;
+  $('sheet').hidden = t.media !== 'sheet'; $('full').hidden = true; $('stripBox').hidden = t.media !== 'strip'; $('stopBox').hidden = t.media !== 'strip';
+  $('card').classList.toggle('stickyCard', t.media === 'strip');
+  $('phase').hidden = true; $('marks').classList.toggle('tap', !!t.tap);
+  $('bMoment').hidden = !t.moment; $('tick').hidden = !t.moment;
+  V.token++; $('vid').pause();
+  if (isClip){
+    $('media').style.aspectRatio = q.clip.w + ' / ' + q.clip.h;
+    if (t.moment) $('tick').style.left = (q.moment / (q.clip.t1 - q.clip.t0) * 100) + '%';
+    $('mediaCap').textContent = q.type === 'landing' ? 'Pause, then step a frame at a time to find the bounce. Tapping pauses the clip.' :
+      q.type === 'possession' ? 'The yellow tick on the bar is the moment asked about. To tick jumps there and pauses.' :
+      q.type === 'motion' ? 'The label at the top left says which part is playing. ' + MAPKEY : 'The label at the top left says which part is playing.';
+    showClip(q);
+  } else if (isImg){
+    $('media').style.aspectRatio = '16 / 9'; $('load').hidden = false; $('load').textContent = 'loading picture…';
+    const im = $('img'); im.onload = () => { $('load').hidden = true; $('media').style.aspectRatio = im.naturalWidth + ' / ' + im.naturalHeight; };
+    im.onerror = () => { $('load').textContent = 'The picture did not load. Reload the page to try again.'; };
+    im.src = base() + q.img;
+    $('mediaCap').textContent = q.type === 'feet' ? 'Zoomed in around the person.' : q.type === 'keeper' ? 'The whole camera frame.' : 'Part of the camera frame. White rings are the people the map has here.';
+  } else if (t.media === 'sheet'){ buildSheet(q); $('mediaCap').textContent = ''; }
+  else { buildStrip(q); $('big').style.backgroundImage = 'none'; $('bigCap').textContent = 'Tap a thumbnail to see it large here.'; $('mediaCap').textContent = ''; }
+  buildBrush(q); buildRate();
+  const box = $('opts'); box.replaceChildren();
+  t.opts(q).forEach(([v, label, o], n) => {
+    o = o || {};
+    const b = el('button', 'opt' + (v === 'cant' ? ' cant' : '') + (prev && prev.v === v ? ' prev' : '')); b.type = 'button';
+    b.dataset.v = v; if (o.need) b.dataset.need = o.need; if (o.rate) b.dataset.rate = 1; if (o.stops) b.dataset.stops = 1;
+    if (!('ontouchstart' in window)) b.append(el('kbd', null, String(n + 1)));
+    if (o.rgb){ const sw = el('span', 'sw'); sw.style.background = o.rgb; b.append(sw); }
+    b.append(el('span', null, label));
+    b.onclick = () => answer(v, b); box.append(b);
+  });
+  $('bBack').disabled = !S.history.length;
+  if (t.media === 'strip') paintStrip(q); else drawMarks();
+  S.t0 = performance.now();
+  prefetch();
+}
+function answer(v, btn){
+  if (!S.db || S.cur < 0) return;
+  const q = S.qs[S.cur], t = TYPES[q.type], k = Math.floor(S.cur / CHUNK);
+  const rec = {v, ms: Math.round(performance.now() - S.t0), at: new Date().toISOString()};
+  if (S.marks.length && v !== 'cant') rec.taps = S.marks.map(m => srcPoint(q, m));
+  const note = $('note').value.trim(); if (note) rec.note = note.slice(0, 2000);
+  if (t.rate && v !== 'cant') rec.rate = Object.assign({}, S.rate);
+  if (t.media === 'strip' && v !== 'cant') rec.ranges = S.runs.map(r => ({a: r.a, b: r.b, kind: r.kind,
+    f0: r.a * q.step, f1: r.b * q.step}));
+  if (t.media === 'sheet' && S.crop >= 0) rec.looked = S.crop;
+  S.ans[q.id] = rec;
+  S.chunks[k] = S.chunks[k] || {a: {}};
+  S.chunks[k].a[q.id] = rec;
+  saveChunk(k);
+  S.history.push(S.cur);
+  if (btn) btn.classList.add('flash');
+  setTimeout(() => show(nextUnanswered(0)), btn ? 120 : 0);
+}
+function back(){ if (S.history.length) show(S.history.pop()); }
+function finish(){
+  V.token++; $('vid').pause();
+  $('qView').hidden = true; $('emptyView').hidden = true; $('doneView').hidden = false;
+  $('doneText').textContent = 'Every question in this set has an answer. Tell Claude it is done, or pick another set above.';
+  const tally = $('tally'); tally.replaceChildren();
+  for (const t of Object.keys(TYPES)){
+    const all = S.qs.filter(q => q.type === t); if (!all.length) continue;
+    const got = all.filter(q => q.id in S.ans), cant = got.filter(q => S.ans[q.id].v === 'cant').length;
+    const d = el('div'), b = el('b', null, got.length + ' / ' + all.length);
+    d.append(b, TYPES[t].label + (got.length ? " · can't tell " + Math.round(cant / got.length * 100) + '%' : ''));
+    tally.append(d);
+  }
+}
+
+/* ---------- loading -------------------------------------------------------------------------- */
+async function openSet(name){
+  const set = S.sets.find(s => s.name === name); if (!set) return;
+  S.set = set; S.ans = {}; S.chunks = {}; S.history = []; S.writes = {};
+  try { localStorage.setItem('maplab.set', name); } catch (e) {}
+  $('emptyView').hidden = false; $('qView').hidden = true; $('doneView').hidden = true;
+  let j;
+  try { j = await (await fetch(base() + 'questions.json')).json(); }
+  catch (e){ banner('The questions did not load. Reload the page.'); return; }
+  S.qs = j.questions; S.fps = j.fps || 10;
+  if (S.db){
+    try {
+      const snap = await answersCol().get();
+      for (const d of snap.docs){
+        const k = parseInt(d.id.slice(1), 10), body = clone(d.data() || {});   // snapshots are frozen: keep an editable copy
+        if (!Number.isFinite(k)) continue;
+        S.chunks[k] = {a: body.a || {}};
+        Object.assign(S.ans, S.chunks[k].a);
+      }
+    } catch (e){ banner('Could not read earlier answers (' + ((e && e.code) || 'error') + '). Reload before answering, or earlier answers may be overwritten.'); S.db = null; }
+  }
+  show(nextUnanswered(0));
+}
+async function boot(){
+  if (!window.claude){ S.db = mockDb(); S.local = true; window.__mock = S.db; banner('Local preview: answers stay in this tab only.', true); }
+  else {
+    try { S.db = await window.claude.use('db'); } catch (e){ S.db = null; }
+    if (!S.db) banner('Answers cannot be saved in this view. Open the lab signed in to claude.ai to answer.');
+  }
+  try { S.sets = (await (await fetch('sets.json')).json()).sets; }
+  catch (e){ banner('The question sets did not load. Reload the page.'); return; }
+  const sel = $('setSel'); sel.replaceChildren();
+  S.sets.forEach(s => { const o = el('option', null, s.title); o.value = s.name; sel.append(o); });
+  let pick = S.sets[0].name;
+  try { const m = localStorage.getItem('maplab.set'); if (m && S.sets.some(s => s.name === m)) pick = m; } catch (e) {}
+  sel.value = pick; sel.onchange = () => openSet(sel.value);
+  await openSet(pick);
+}
+
+$('marks').addEventListener('click', onTap);
+for (const b of $('zoomRow').querySelectorAll('[data-z]')) b.onclick = () => setZoom(+b.dataset.z);
+$('bBack').onclick = back;
+$('bClear').onclick = () => { S.marks = []; drawMarks(); };
+$('bPrev').onclick = () => step(-1);
+$('bNext').onclick = () => step(1);
+$('bMoment').onclick = () => { const v = $('vid'); v.pause(); S.paused = true; pauseLabel(); seek(S.qs[S.cur].moment); };
+$('scrub').oninput = e => { const v = $('vid'); if (!v.paused){ v.pause(); S.paused = true; pauseLabel(); } seek(e.target.value / 1000 * (V.t1 - V.t0)); };
+$('bSlow').onclick = () => { S.slow = !S.slow; $('bSlow').classList.toggle('on', S.slow); $('vid').playbackRate = S.slow ? 0.35 : 1; };
+$('bPause').onclick = () => { S.paused = !S.paused; pauseLabel(); S.paused ? $('vid').pause() : $('vid').play().catch(() => {}); };
+$('bRunDel').onclick = () => { if (S.selRun >= 0){ S.runs.splice(S.selRun, 1); S.selRun = -1; paintStrip(S.qs[S.cur]); } };
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || /^(SELECT|TEXTAREA|INPUT)$/.test(e.target.tagName)) return;
+  if (!$('qView').hidden && /^[1-9]$/.test(e.key)){
+    const b = $('opts').children[+e.key - 1]; if (b && !b.disabled){ e.preventDefault(); answer(b.dataset.v, b); }
+  } else if (e.key === 'z' || e.key === 'Z'){ e.preventDefault(); back(); }
+  else if (e.key === ' ' && !$('ctl').hidden){ e.preventDefault(); $('bPause').click(); }
+  else if (e.key === ',' || e.key === 'ArrowLeft'){ if (!$('ctl').hidden){ e.preventDefault(); step(-1); } }
+  else if (e.key === '.' || e.key === 'ArrowRight'){ if (!$('ctl').hidden){ e.preventDefault(); step(1); } }
+});
+boot();
+</script>
