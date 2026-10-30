@@ -215,6 +215,34 @@ def test_roles_off_pitch_keeper_and_referee():
     assert sum(i.role == PLAYER for i in res.identities) == 6
 
 
+def test_a_keeper_still_on_the_goal_line_is_the_keeper():
+    s = Scene(150)
+    frames = range(150)
+    background(s, frames)
+    keeper = s.person(walker(-0.2, PITCH_W / 2 + 1.0), LIGHT, frames)  # on the line, not moving
+    res, owner = s.link(with_kit=True)
+    role = {next(iter(people_in(i, owner))): i for i in res.identities}
+    assert role[keeper].role == KEEPER
+
+
+def test_every_piece_of_a_split_keeper_is_the_keeper():
+    s = Scene(330)
+    background(s, range(330))
+    # neither team's kit, and seen twice at once for a third of a second: never joined
+    a = s.person(walker(2.0, PITCH_W / 2), NEON, range(0, 160))
+    b = s.person(walker(3.0, PITCH_W / 2 + 1.0), NEON, range(150, 330))
+    # a player of the other kit deep in the same box later on is not the keeper
+    p = s.person(walker(4.0, PITCH_W / 2 - 3.0), DARK, range(200, 330))
+    res, owner = s.link(with_kit=True)
+    roles = {
+        pid: [i.role for i in res.identities if pid in people_in(i, owner)] for pid in (a, b, p)
+    }
+    assert roles[a] == [KEEPER] and roles[b] == [KEEPER]
+    assert KEEPER not in roles[p]
+    res, owner = s.link(with_kit=True, keeper_pieces=False)
+    assert sum(i.role == REFEREE for i in res.identities if people_in(i, owner) & {a, b}) == 1
+
+
 def test_the_referee_kit_is_never_joined_to_a_player():
     s = Scene(160)
     frames = range(160)

@@ -40,6 +40,11 @@ class MapSettings:
     foot_sigma_floor_px: float = FOOT_SIGMA_FLOOR_PX
     height_tol: float = 0.15  # |log(box / person height)| still a clean box
     height_scale: float = 0.10  # beyond that, noise variance x (1 + 10 k^2), k in these
+    # An identity whose boxes are mostly under this share of a person's height
+    # where they stand is a painted line, a cone or a bag, not someone half
+    # hidden (Map Lab pilot: "same person" crops of 15 px boxes where a
+    # player is 40). It gets no dot at all. 0 keeps everyone.
+    min_height_share: float = 0.5
     # smoother
     accel: float = 4.0  # white-noise acceleration density, m^2/s^3
     tau_s: float = 1.0  # an unseen run keeps its speed for about this long
@@ -62,7 +67,16 @@ class MapSettings:
     view_margin_m: float = 1.5
     blink_s: float = 1.0  # an identity unseen this long is still drawn as seen
     shadow_m: float = 2.0  # a guess this close to a seen teammate is that teammate
+    # A guess this close to anyone seen, either team, draws as one ring on top of
+    # another: the "double rings" of the Map Lab pilot. On, a guess hidden for
+    # being on someone seen is hidden outright, not eased out. 0 turns it off.
+    crowd_m: float = 1.2
     fade_s: float = 0.3
+    # A guess fades out between these spreads (metres), rather than holding at
+    # ghost_alpha's floor however long the player has been gone. A player gone
+    # for good has a 6 m spread after about 10 s, when the dev clips put the
+    # guess 6-8 m out. Keepers keep theirs. None keeps the floor.
+    vague_m: tuple | None = (6.0, 9.0)
     pitch_margin_m: float = 3.0
 
 
@@ -134,7 +148,10 @@ def feet(res: LinkResult, projector: PitchProjector, s: MapSettings, person_px=N
         sv = s.foot_sigma_h * (b[:, 3] - b[:, 1]) + s.foot_sigma_floor_px
         R = np.einsum('nij,nj,nkj->nik', J, np.c_[su * su, sv * sv], J)
         if person_px is not None:
-            k = np.abs(np.log((b[:, 3] - b[:, 1]) / np.maximum(person_px(fs, b), 1.0)))
+            share = (b[:, 3] - b[:, 1]) / np.maximum(person_px(fs, b), 1.0)
+            if np.median(share) < s.min_height_share:
+                continue
+            k = np.abs(np.log(share))
             k = np.maximum(k - s.height_tol, 0.0) / s.height_scale
             R *= (1.0 + 10.0 * k * k)[:, None, None]
         out[ident.pid] = (fs, xy, R)
@@ -680,8 +697,14 @@ def _ghost_alpha(xs, Ps, owner, mask, share, group, polys, s: MapSettings) -> np
     away = _since(mask, s.fps) > s.view_grace_s
     sd = np.sqrt(np.maximum(Ps[..., 0, 0] + Ps[..., 1, 1], 0.0) / 2)
     want = ghost_alpha(sd) * share
+    if s.vague_m is not None:  # a keeper's guess stays in goal, however long unseen
+        a, b = s.vague_m
+        fade = np.clip((b - sd) / max(b - a, 1e-6), 0.0, 1.0)
+        keeper = np.array([g is not None and g[1] == KEEPER for g in group])
+        want *= np.where(keeper[:, None], 1.0, fade)
     gid = {g: k for k, g in enumerate(sorted(set(group)))}
     gk = np.array([gid[g] for g in group])
+    hit = np.zeros((N, T), dtype=bool)  # contradicted: hidden, eased or not
     for t in range(T):
         ghost = (owner[:, t] < 0) & (want[:, t] > 0)
         if not ghost.any():
@@ -691,14 +714,15 @@ def _ghost_alpha(xs, Ps, owner, mask, share, group, polys, s: MapSettings) -> np
             if away[n, t] and _inside(polys[t], xs[n, t, :2], s.view_margin_m):
                 want[n, t] = 0.0
                 continue
-            near = seen & (gk == gk[n])
-            if near.any() and np.min(np.hypot(*(xs[near, t, :2] - xs[n, t, :2]).T)) < s.shadow_m:
+            d = np.hypot(*(xs[seen, t, :2] - xs[n, t, :2]).T) if seen.any() else np.zeros(0)
+            if (d[gk[seen] == gk[n]] < s.shadow_m).any() or (s.crowd_m and (d < s.crowd_m).any()):
                 want[n, t] = 0.0
+                hit[n, t] = bool(s.crowd_m)  # no faint ring easing out beside them
     # ease in and out rather than blink
     k = max(1, int(s.fade_s * s.fps))
     ker = np.ones(2 * k + 1) / (2 * k + 1)
     out = np.array([np.convolve(np.pad(w, k, mode='edge'), ker, mode='valid') for w in want])
-    return np.where(owner >= 0, 0.0, out)
+    return np.where((owner >= 0) | hit, 0.0, out)
 
 
 def _since(mask: np.ndarray, fps: float) -> np.ndarray:

@@ -106,6 +106,19 @@ class LinkSettings:
     keeper_depth_m: float = 8.0  # median spot this close to the goal line
     keeper_half_width_m: float = 20.0  # and within the box's width of centre
     keeper_min_s: float = 3.0
+    # A keeper's track breaks into pieces like anyone's, and an odd-kit piece
+    # the rule above does not pick becomes a referee (Map Lab pilot: 5 of 12
+    # tapped keepers drawn as keepers; a referee in a WW box 45% of frames).
+    # Later pieces count too: no more than `keeper_overlap_s` in time with a
+    # keeper already taken at that goal, in the first one's kit or neither
+    # team's, and the deepest person at that goal for `keeper_deepest_share`
+    # of its frames. False turns this off.
+    keeper_pieces: bool = True
+    keeper_overlap_s: float = 0.5
+    keeper_deepest_share: float = 0.8
+    # The still-on-a-line test is for benches and coaches; a keeper on their
+    # own line within this far of the goal's centre is not off.
+    goal_mouth_half_m: float = 9.16
     fill_gap_s: float = 1.0  # interpolate joined gaps up to this long
     end_fit_n: int = 15  # observations for an end's velocity
     other_kit_ab: float = 25.0  # Lab a-b distance from both teams' shirts
@@ -845,8 +858,13 @@ class Linker:
         inside_by = np.minimum.reduce([x, self.L - x, y, self.W - y])
         spread = float(np.median(np.hypot(*(pos - np.median(pos, axis=0)).T)))
         on_line = (inside_by < s.line_band_m + sig).mean()
+        cx, cy = np.median(pos, axis=0)
+        in_goal = (
+            abs(cy - self.W / 2) < s.goal_mouth_half_m and min(cx, self.L - cx) > -s.off_margin_m
+        )
         if (
-            len(pos) >= s.still_min_s * s.fps
+            not in_goal
+            and len(pos) >= s.still_min_s * s.fps
             and on_line >= s.off_share
             and spread < max(s.still_spread_m, float(np.median(sig)))
         ):
@@ -864,7 +882,8 @@ class Linker:
         return PLAYER
 
     def _keepers(self, ordered, roles, pieces) -> dict:
-        """Group id -> 'left' / 'right': per goal, the deepest centred person.
+        """Group id -> 'left' / 'right': per goal, the deepest centred person, and the
+        pieces of the same keeper the tracker kept apart (`keeper_pieces`).
 
         Kit can't be relied on: a keeper's shirt is neither team's, but on
         the lightness axis that separates these two kits, a green keeper sits
@@ -872,7 +891,7 @@ class Linker:
         a few metres of their own goal line, in front of the goal.
         """
         s = self.s
-        best: dict[str, tuple] = {}
+        cands: dict[str, list] = {'left': [], 'right': []}
         for g, members in ordered:
             if roles[g] != PLAYER:
                 continue
@@ -883,11 +902,51 @@ class Linker:
             if abs(cy - self.W / 2) > s.keeper_half_width_m:
                 continue
             for end, depth in (('left', cx), ('right', self.L - cx)):
-                if -s.off_margin_m < depth < s.keeper_depth_m and (
-                    end not in best or depth < best[end][1]
-                ):
-                    best[end] = (g, depth)
-        return {g: end for end, (g, _) in best.items()}
+                if -s.off_margin_m < depth < s.keeper_depth_m:
+                    cands[end].append((depth, g))
+        out = {}
+        groups = dict(ordered)
+        for end, cs in cands.items():
+            if not cs:
+                continue
+            cs.sort()
+            out[cs[0][1]] = end
+            if not s.keeper_pieces:
+                continue
+            kit0 = self._group_kit(groups[cs[0][1]], pieces)
+            deepest = self._deepest(ordered, roles, pieces, end)
+            taken = [self._span(groups[cs[0][1]], pieces)]
+            slack = s.keeper_overlap_s * s.fps
+            for _, g in cs[1:]:
+                if self._group_kit(groups[g], pieces) not in (kit0, OTHER):
+                    continue
+                a, b = self._span(groups[g], pieces)
+                if any(min(b, d) - max(a, c) > slack for c, d in taken):
+                    continue
+                fs = np.concatenate([pieces[m].frames for m in groups[g]])
+                if np.mean([deepest.get(int(f)) == g for f in fs]) < s.keeper_deepest_share:
+                    continue
+                out[g] = end
+                taken.append((a, b))
+        return out
+
+    @staticmethod
+    def _span(members, pieces) -> tuple:
+        return min(pieces[m].first for m in members), max(pieces[m].last for m in members)
+
+    def _deepest(self, ordered, roles, pieces, end) -> dict:
+        """Frame -> the group of whoever playing stands nearest the `end` goal line then."""
+        best: dict = {}
+        for g, members in ordered:
+            if roles[g] != PLAYER:
+                continue
+            for m in members:
+                p = pieces[m]
+                depth = p.pos[:, 0] if end == 'left' else self.L - p.pos[:, 0]
+                for f, d in zip(p.frames.tolist(), depth.tolist()):
+                    if f not in best or d < best[f][0]:
+                        best[f] = (d, g)
+        return {f: g for f, (_, g) in best.items()}
 
     def _identities(self, groups, pieces, det, joins, refused) -> LinkResult:
         """Turn the joined groups into identities with kit, role and number, and settle which team defends x=0."""

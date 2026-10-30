@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from pitchiq import topdown
-from pitchiq.linking import PLAYER
+from pitchiq.linking import KEEPER, PLAYER
 
 S = topdown.MapSettings()
 FPS = int(S.fps)
@@ -145,20 +145,29 @@ def test_a_blink_is_one_visit_unless_someone_was_seen_there():
     assert len(topdown.visits(ident(1), fs, xs, 0, S)) == 2
 
 
-def ghosts(T, seen_until, view=None, other=None):
+def ghosts(
+    T,
+    seen_until,
+    view=None,
+    other=None,
+    other_group=('team_a', PLAYER),
+    s=S,
+    sd=0.5,
+    group=('team_a', PLAYER),
+):
     """One track seen for its first frames, then a guess standing at (30, 20)."""
     N = 1 + (other is not None)
     xs = np.zeros((N, T, 4))
     xs[0, :, :2] = [30.0, 20.0]
-    Ps = np.broadcast_to(np.diag([0.5, 0.5, 1.0, 1.0]), (N, T, 4, 4)).copy()
+    Ps = np.broadcast_to(np.diag([sd, sd, 1.0, 1.0]), (N, T, 4, 4)).copy()
     owner = np.full((N, T), -1)
     owner[0, :seen_until] = 7
     if other is not None:
         xs[1, :, :2] = other
         owner[1] = 8
     mask = owner >= 0
-    groups = [('team_a', PLAYER)] * N
-    return topdown._ghost_alpha(xs, Ps, owner, mask, np.ones((N, T)), groups, [view] * T, S)[0]
+    groups = [group, other_group][:N]
+    return topdown._ghost_alpha(xs, Ps, owner, mask, np.ones((N, T)), groups, [view] * T, s)[0]
 
 
 def test_guess_is_drawn_while_out_of_view():
@@ -179,6 +188,25 @@ def test_guess_fades_under_a_teammate_seen_on_it():
     assert (a[2 * FPS :] == 0).all()
     a = ghosts(4 * FPS, FPS, other=[40.0, 20.0])
     assert a[2 * FPS :].min() > 0.3
+
+
+def test_a_guess_on_anyone_seen_is_hidden():
+    other = dict(other=[30.8, 20.0], other_group=('team_b', PLAYER))
+    off = topdown.MapSettings(crowd_m=0.0)
+    assert (
+        ghosts(4 * FPS, FPS, s=off, **other)[2 * FPS :].min() > 0.3
+    )  # another team: kept when off
+    assert (ghosts(4 * FPS, FPS, **other)[FPS:] == 0).all()  # not even easing out
+
+
+def test_a_vague_guess_fades_out():
+    s = S
+    assert ghosts(4 * FPS, FPS, s=s, sd=4.0)[2 * FPS :].min() > 0.3  # 2 m spread
+    assert (ghosts(4 * FPS, FPS, s=s, sd=100.0)[2 * FPS :] == 0).all()  # 10 m
+    off = topdown.MapSettings(vague_m=None)
+    assert ghosts(4 * FPS, FPS, s=off, sd=100.0)[2 * FPS :].min() >= 0.4  # the floor, when off
+    keeper = ghosts(4 * FPS, FPS, s=s, sd=100.0, group=('team_a', KEEPER))
+    assert keeper[2 * FPS :].min() >= 0.4  # a keeper's guess stays in goal
 
 
 def test_ghost_alpha_fades_with_doubt():
@@ -252,3 +280,22 @@ def test_a_box_the_linker_greyed_stays_grey():
     res = SimpleNamespace(team_at=lambda ident, f: 'unknown')
     out = topdown.cap_teams(_dots_for_cap(3, 0, []), res, 5, 10)
     assert all(d.drawn_team == 'unknown' for d in out)
+
+
+def test_a_track_far_too_short_for_a_person_gets_no_dot():
+    from pitchiq.pitchtrack import PitchProjector
+
+    fs = np.arange(10)
+
+    def person(pid, h):
+        boxes = np.tile([100.0, 400.0 - h, 120.0, 400.0], (len(fs), 1))
+        return SimpleNamespace(
+            pid=pid, role=PLAYER, frames=fs, boxes=boxes, interp=np.zeros(10, bool)
+        )
+
+    res = SimpleNamespace(identities=[person(1, 40.0), person(2, 15.0)])
+    proj = PitchProjector({int(f): np.eye(3) for f in fs}, 1920, 1080)
+    tall = lambda f, b: np.full(len(f), 40.0)  # noqa: E731
+    off = topdown.MapSettings(min_height_share=0.0)
+    assert sorted(topdown.feet(res, proj, off, tall)) == [1, 2]
+    assert sorted(topdown.feet(res, proj, S, tall)) == [1]

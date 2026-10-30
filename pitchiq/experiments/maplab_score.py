@@ -140,7 +140,7 @@ def score(qs, ans, all_samples=False):
         n_err=len(d),
         team_agree=team_ok,
         team_n=team_n,
-        not_players=roles['referee'] + roles['coach'] + roles['nobody'],
+        not_players=roles['referee'] + roles['coach'] + roles['spectator'] + roles['nobody'],
     )
 
     for kind in ('missing', 'extra'):

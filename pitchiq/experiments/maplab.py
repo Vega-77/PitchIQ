@@ -46,10 +46,12 @@ CAM = (960, 540)
 PANEL = (640, 400)
 STILL = (1280, 720)
 CROP = (100, 200)
+SAME_MIN_PX = 120  # a same-person crop is at least this tall in camera pixels
 THUMB = (480, 270)
 STRIP_S, STRIP_THUMB, STRIP_COLS = 30, (192, 108), 10
 STRIP_BIG, BIG_COLS = (1280, 720), 3  # the frame shown large when a thumbnail is tapped
 PACK_S, PACK_MB = 60.0, 12.0  # a published file may be at most 16 MB
+EDGE_S = 60.0  # windows keep this far from the play range's ends: the edges are approximate
 YELLOW, GREEN, ORANGE, WHITE, BLACK = (
     (0, 230, 255),
     (80, 230, 80),
@@ -469,6 +471,8 @@ def make_half(tag, out: Path, lo, hi, per=6, windows=3, win_s=180.0, seed=0, typ
         max(lo, a0, int(det.frame.min())),
         min(hi, int(sm['abs'][-1]) + 1, int(det.frame.max()) + 1),
     )
+    edge = int(EDGE_S * meta['fps'])  # pilot: questions after the final whistle
+    lo, hi = lo + edge, hi - edge
     win = int(win_s * meta['fps'])
     spans = [(int(s), int(s) + win) for s in np.linspace(lo, hi - win, windows)]
     out.mkdir(parents=True, exist_ok=True)
@@ -609,8 +613,10 @@ def _plan(S, q, jobs):
                 bb = ident.box_at(int(fr))
 
                 def crop(img, bb=bb):
+                    # wide enough to see what the box is on (pilot: 15 px crops of painted
+                    # lines read as "too zoomed in")
                     w, h = bb[2] - bb[0], bb[3] - bb[1]
-                    hh = max(h * 1.2, 2 * w * 1.2)
+                    hh = max(h * 2.0, 2 * w * 1.5, SAME_MIN_PX)
                     r = (
                         float(np.clip((bb[0] + bb[2]) / 2 - hh / 4, 0, 1920 - hh / 2)),
                         float(np.clip((bb[1] + bb[3]) / 2 - hh / 2, 0, 1080 - hh)),
