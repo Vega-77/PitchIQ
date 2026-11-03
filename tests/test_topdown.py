@@ -282,6 +282,14 @@ def test_a_box_the_linker_greyed_stays_grey():
     assert all(d.drawn_team == 'unknown' for d in out)
 
 
+def test_a_held_dot_keeps_the_grey_of_its_last_box_when_asked():
+    res = SimpleNamespace(team_at=lambda ident, f: 'unknown' if f == 2 else 'team_a')
+    held = topdown.cap_teams(_dots_for_cap(0, 1, []), res, 5, 10)
+    assert held[0].drawn_team == 'team_a'  # by default, its own team
+    held = topdown.cap_teams(_dots_for_cap(0, 1, []), res, 5, 10, held_last=True)
+    assert held[0].drawn_team == 'unknown'  # greyed at frame 2, its last box
+
+
 def test_a_track_far_too_short_for_a_person_gets_no_dot():
     from pitchiq.pitchtrack import PitchProjector
 

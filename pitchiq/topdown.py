@@ -66,6 +66,9 @@ class MapSettings:
     view_grace_s: float = 1.0  # unseen this long in view is still a detector miss
     view_margin_m: float = 1.5
     blink_s: float = 1.0  # an identity unseen this long is still drawn as seen
+    # ...and in the team (or the grey) its last box had, not its own team: a
+    # capped player whose box blinked flashed back to a team colour.
+    held_last: bool = False
     shadow_m: float = 2.0  # a guess this close to a seen teammate is that teammate
     # A guess this close to anyone seen, either team, draws as one ring on top of
     # another: the "double rings" of the Map Lab pilot. On, a guess hidden for
@@ -573,7 +576,7 @@ def build(
                     )
                 )
     for t in range(T):
-        dots[t] = cap_teams(dots[t], res, lo + t, s.outfield)
+        dots[t] = cap_teams(dots[t], res, lo + t, s.outfield, s.held_last)
     return TopDown(
         lo,
         hi,
@@ -622,7 +625,7 @@ def _team_velocity(xs, mask, groups, s: MapSettings) -> dict:
     return out
 
 
-def cap_teams(dots: list, res, frame: int, outfield: int) -> list:
+def cap_teams(dots: list, res, frame: int, outfield: int, held_last: bool = False) -> list:
     """Never draw more than `outfield` of a team's outfield players in one frame.
 
     The linker caps the boxes of a frame (`LinkResult.team_at`), but the map
@@ -637,9 +640,16 @@ def cap_teams(dots: list, res, frame: int, outfield: int) -> list:
         k = np.searchsorted(fs, frame)
         return k < len(fs) and fs[k] == frame
 
+    def last_box(d) -> int:
+        fs = d.ident.frames
+        return int(fs[max(np.searchsorted(fs, frame, side='right') - 1, 0)])
+
     for d in dots:
         if d.seen and d.ident is not None and d.group[1] == PLAYER:
-            d.team = res.team_at(d.ident, frame) if boxed(d) else d.group[0]
+            if boxed(d):
+                d.team = res.team_at(d.ident, frame)
+            else:  # held: its team, or (held_last) as its last box was drawn
+                d.team = res.team_at(d.ident, last_box(d)) if held_last else d.group[0]
     out = list(dots)
     for team in ('team_a', 'team_b'):
         mine = [d for d in out if d.group[1] == PLAYER and d.drawn_team == team]

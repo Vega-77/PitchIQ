@@ -17,6 +17,7 @@ Design notes, measurements and history: `docs/design/linking.md`.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -116,6 +117,10 @@ class LinkSettings:
     keeper_pieces: bool = True
     keeper_overlap_s: float = 0.5
     keeper_deepest_share: float = 0.8
+    # Which candidate anchors a goal: 'deepest' median spot, or 'time' spent as
+    # the deepest person there (a short track behind the line can out-deepen
+    # a keeper who stood in goal for a minute).
+    keeper_anchor: str = 'deepest'
     # The still-on-a-line test is for benches and coaches; a keeper on their
     # own line within this far of the goal's centre is not off.
     goal_mouth_half_m: float = 9.16
@@ -149,6 +154,11 @@ class LinkSettings:
     # in that frame only; their identity keeps its team everywhere else.
     # 0 turns it off.
     outfield_cap: int = 10
+    # A player taken out by the cap, back in and out again within this long,
+    # stays unsure in between: as the count crosses the cap, the eleventh
+    # ring flickered grey and back (Map Lab round 2: "teams that flip back
+    # and forth", 885 flips in 54 min of pi1). 0 turns it off.
+    unsure_bridge_s: float = 0.0
     # Somebody who appears mid-window is new, or someone seen before whose
     # return no join was sure of. If anybody earlier fits under
     # `guess_doubt_cost`, `LinkResult.label` shows them as "?", or as
@@ -254,6 +264,27 @@ class LinkResult:
             if b is not None:
                 out.append((ident, b))
         return out
+
+
+def bridge_unsure(unsure: dict, idents, gap: int) -> dict:
+    """`unsure` (frame -> pids over the cap) with each pid's gaps of at most
+    `gap` frames between two unsure frames filled, on the frames it is seen."""
+    if gap <= 1:
+        return unsure
+    by_pid: dict = {}
+    for f, pids in unsure.items():
+        for p in pids:
+            by_pid.setdefault(p, []).append(f)
+    own = {i.pid: i.frames for i in idents}
+    out = {f: set(p) for f, p in unsure.items()}
+    for p, fs in by_pid.items():
+        fs = np.sort(fs)
+        mine = own[p]
+        for a, b in zip(fs[:-1], fs[1:]):
+            if 1 < b - a <= gap:
+                for f in mine[(mine > a) & (mine < b)].tolist():
+                    out.setdefault(f, set()).add(p)
+    return out
 
 
 def _torso_covered(det: Detections, share: float = 0.2) -> np.ndarray:
@@ -910,11 +941,14 @@ class Linker:
             if not cs:
                 continue
             cs.sort()
+            deepest = self._deepest(ordered, roles, pieces, end)
+            if s.keeper_anchor == 'time':
+                held = Counter(deepest.values())
+                cs.sort(key=lambda c: -held[c[1]])
             out[cs[0][1]] = end
             if not s.keeper_pieces:
                 continue
             kit0 = self._group_kit(groups[cs[0][1]], pieces)
-            deepest = self._deepest(ordered, roles, pieces, end)
             taken = [self._span(groups[cs[0][1]], pieces)]
             slack = s.keeper_overlap_s * s.fps
             for _, g in cs[1:]:
@@ -1013,6 +1047,7 @@ class Linker:
             key = ident.team if ident.role in (PLAYER, KEEPER) else ident.role
             counts[key] = counts.get(key, 0) + 1
         unsure = self._outfield_cap(idents, det) if s.outfield_cap else {}
+        unsure = bridge_unsure(unsure, idents, int(s.unsure_bridge_s * s.fps))
         return LinkResult(
             idents, joins, refused, counts, defends_left, unsure, self._guesses(idents, pieces)
         )

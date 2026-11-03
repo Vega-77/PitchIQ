@@ -1,6 +1,6 @@
 import numpy as np
 
-from pitchiq.linking import KEEPER, OFF, PLAYER, REFEREE, LinkSettings, Linker
+from pitchiq.linking import KEEPER, OFF, PLAYER, REFEREE, LinkSettings, Linker, bridge_unsure
 from pitchiq.teams import UNKNOWN
 from pitchiq.pitchtrack import Detections, PitchProjector, Tracklet
 
@@ -378,3 +378,12 @@ def test_over_the_outfield_cap_the_least_sure_shirt_is_greyed_only_while_over():
     assert all(res.team_at(me, f) == UNKNOWN for f in range(60, 120))
     assert all(res.team_at(i, f) == me.team for i in darks if i is not me for f in range(120))
     assert not any(res.unsure.get(f) for f in range(60))
+
+
+def test_a_short_gap_between_two_greyed_frames_stays_grey_when_bridged():
+    ident = type('I', (), {'pid': 7, 'frames': np.arange(100)})()
+    unsure = {10: {7}, 40: {7}, 99: {7}}
+    assert bridge_unsure(unsure, [ident], 0) is unsure  # off
+    out = bridge_unsure(unsure, [ident], 30)
+    assert all(7 in out.get(f, ()) for f in range(10, 41))
+    assert not any(7 in out.get(f, ()) for f in range(41, 99))  # 59 frames: too long
