@@ -68,7 +68,7 @@ class MapSettings:
     blink_s: float = 1.0  # an identity unseen this long is still drawn as seen
     # ...and in the team (or the grey) its last box had, not its own team: a
     # capped player whose box blinked flashed back to a team colour.
-    held_last: bool = False
+    held_last: bool = True
     shadow_m: float = 2.0  # a guess this close to a seen teammate is that teammate
     # A guess this close to anyone seen, either team, draws as one ring on top of
     # another: the "double rings" of the Map Lab pilot. On, a guess hidden for

@@ -186,6 +186,8 @@ textarea.note{width:100%; min-height:44px; resize:vertical; background:var(--pan
           <button class="btn" type="button" data-z="1">1&times;</button>
           <button class="btn" type="button" data-z="2">2&times;</button>
           <button class="btn" type="button" data-z="3">3&times;</button>
+          <button class="btn" type="button" data-z="4" data-full>4&times;</button>
+          <button class="btn" type="button" data-z="6" data-full>6&times;</button>
           <span class="cap" id="zoomCap"></span>
         </div>
         <div class="ctl" id="ctl">
@@ -283,11 +285,11 @@ const TYPES = {
     hint: 'Then pick their team. If something hides their feet, tap where they would be and pick Hidden. If the box holds a referee, a coach or sub, or a spectator, pick that; if it holds nobody, pick Nobody there.',
     opts: q => [...TEAM_OPTS(q, 1), ['hidden', 'Feet hidden', {need: 1}], ['referee', 'Referee'], ['coach', 'Coach or sub'], ['spectator', 'Spectator'], ['nobody', 'Nobody there'], CANT]},
   missing: {label: 'Missing people', media: 'img', tap: 30, q: 'Tap anyone on the pitch without a white ring',
-    hint: 'Players, keepers and referees on the pitch should each have a ring at their feet. Pick the team first, then tap between their feet. Tap a mark again to remove it. Ignore people off the pitch.',
+    hint: 'Players, keepers and referees on the pitch should each have a ring at their feet. Pick the team first, then tap between their feet. Tap a mark again to remove it. Ignore people off the pitch. The still is the whole camera view: zoom in for far players.',
     brush: q => [['dark', 'Darker kit'], ['light', 'Lighter kit'], ['referee', 'Referee']],
     opts: () => [['done', 'Done: these are missing', {need: 1}], ['none', 'Nobody is missing'], CANT]},
   extra: {label: 'Extra rings', media: 'img', tap: 30, q: 'Tap any ring that should not be there',
-    hint: 'The map should hold the players and 1 to 3 referees (the centre referee and the assistants on the lines). Coaches, subs, spectators and ball kids should not have a ring, and nor should empty grass. Pick what the ring is on, then tap it.',
+    hint: 'The map should hold the players and 1 to 3 referees (the centre referee and the assistants on the lines). Coaches, subs, spectators and ball kids should not have a ring, and nor should empty grass. Pick what the ring is on, then tap it. The still is the whole camera view: zoom in for far players.',
     brush: () => [['empty', 'Nobody there'], ['coach', 'Coach or sub'], ['spectator', 'Spectator'], ['ballkid', 'Ball kid'], ['other', 'Someone else']],
     opts: () => [['done', 'Done: these should go', {need: 1}], ['ok', 'Every ring belongs'], CANT]},
   same: {label: 'Same person', media: 'sheet', q: 'Are the top row and the bottom row the same person?',
@@ -615,6 +617,8 @@ function show(i){
   const isClip = t.media === 'clip', isImg = t.media === 'img', isStrip = t.media === 'strip';
   $('zoomer').hidden = !(isClip || isImg || isStrip); $('zoomRow').hidden = !(t.tap || isStrip); setZoom(1); $('ctl').hidden = !isClip; $('vid').hidden = !isClip; $('img').hidden = !isImg;
   $('frame').hidden = !isStrip; $('stripCtl').hidden = !isStrip; $('load').hidden = true;
+  const whole = isImg && (q.rect || [0, 0, 1920])[2] >= 1920;   // a whole frame: far players need more zoom
+  for (const b of $('zoomRow').querySelectorAll('[data-full]')) b.hidden = !whole;
   $('sheet').hidden = t.media !== 'sheet'; $('full').hidden = true; $('stripBox').hidden = !isStrip;
   $('card').classList.toggle('stickyCard', t.media === 'strip');
   $('phase').hidden = true; $('marks').classList.toggle('tap', !!t.tap);

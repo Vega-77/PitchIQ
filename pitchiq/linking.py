@@ -158,7 +158,7 @@ class LinkSettings:
     # stays unsure in between: as the count crosses the cap, the eleventh
     # ring flickered grey and back (Map Lab round 2: "teams that flip back
     # and forth", 885 flips in 54 min of pi1). 0 turns it off.
-    unsure_bridge_s: float = 0.0
+    unsure_bridge_s: float = 2.0
     # Somebody who appears mid-window is new, or someone seen before whose
     # return no join was sure of. If anybody earlier fits under
     # `guess_doubt_cost`, `LinkResult.label` shows them as "?", or as

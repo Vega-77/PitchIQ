@@ -587,14 +587,15 @@ def _plan(S, q, jobs):
 
         add(f, 'still', still)
     elif kind in ('missing', 'extra'):
-        cx, cy = pay['c']
-        q['rect'] = _crop_rect(cx + S.rng.uniform(-200, 200), cy + S.rng.uniform(-100, 100), 540)
+        # The whole frame, at full size: a crop around the sampled person hid rings and
+        # people elsewhere in view (Map Lab round 2).
+        q['rect'] = [0.0, 0.0, 1920.0, 1080.0]
 
         def still(img):
             im = img.copy()
             for _, bb in pay['ringed']:
                 _feet_ring(im, bb, WHITE, 3)
-            return _crop(im, q['rect'], STILL)
+            return im
 
         add(f, 'still', still)
     elif kind == 'keeper':
