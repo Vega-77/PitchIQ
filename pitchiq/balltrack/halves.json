@@ -29,5 +29,9 @@
   "pi": {"video": "Home v Piscataway 10-6-26 - Tactical.mp4",
          "H1_heldout": ["22:50", "66:00", 41100, 118800],
          "H2": ["75:00", "122:40", 135000, 220800],
-         "approx": "Added 2026-10-30 for the Map Lab strip: the ball clicker's pass ranges (pitchiq/experiments/clicker/build.py). H2's kickoff was read off the video 2026-10-16; the other edges are the pass range's, to about a minute."}
+         "approx": "Added 2026-10-30 for the Map Lab strip: the ball clicker's pass ranges (pitchiq/experiments/clicker/build.py). H2's kickoff was read off the video 2026-10-16; the other edges are the pass range's, to about a minute."},
+  "wh": {"video": "Home v Wardlaw-Hartridge 10_8_26 & Senior Night - Tactical.mp4",
+         "H1_heldout": ["27:30", "70:00", 49500, 126000],
+         "H2": ["79:00", "124:30", 142200, 224100],
+         "approx": "Added 2026-11-04 for the Map Lab round 4 strip: the ball clicker's pass ranges (pitchiq/experiments/clicker/build.py), to about a minute. Night game."}
 }
