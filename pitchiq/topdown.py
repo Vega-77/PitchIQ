@@ -69,6 +69,11 @@ class MapSettings:
     # ...and in the team (or the grey) its last box had, not its own team: a
     # capped player whose box blinked flashed back to a team colour.
     held_last: bool = True
+    # A held dot (no box of its own this frame) this close to a boxed teammate is
+    # that teammate: the track broke, a new box picked the player up, and the old
+    # dot was still held for `blink_s` beside it. Map Lab round 3 put two thirds
+    # of Woodbridge's double rings here. The held dot is dropped. 0 keeps it.
+    held_merge_m: float = 1.0
     shadow_m: float = 2.0  # a guess this close to a seen teammate is that teammate
     # A guess this close to anyone seen, either team, draws as one ring on top of
     # another: the "double rings" of the Map Lab pilot. On, a guess hidden for
@@ -576,6 +581,8 @@ def build(
                     )
                 )
     for t in range(T):
+        if s.held_merge_m > 0:
+            dots[t] = drop_held_doubles(dots[t], lo + t, s.held_merge_m)
         dots[t] = cap_teams(dots[t], res, lo + t, s.outfield, s.held_last)
     return TopDown(
         lo,
@@ -622,6 +629,40 @@ def _team_velocity(xs, mask, groups, s: MapSettings) -> dict:
             out[(key, PLAYER)] = s.team_drift * m
         else:
             out[('', REFEREE)] = s.team_drift * m
+    return out
+
+
+def _boxed(ident, frame: int) -> bool:
+    """Whether the identity has a detector box (not the linker's fill) at `frame`."""
+    fs = ident.frames
+    k = np.searchsorted(fs, frame)
+    return bool(k < len(fs) and fs[k] == frame and not ident.interp[k])
+
+
+def drop_held_doubles(dots: list, frame: int, within_m: float) -> list:
+    """Drop held dots that sit on a boxed teammate.
+
+    A dot is held when its identity is drawn as seen without a detector box this
+    frame (the linker's fill, or a blink under `blink_s`). Within `within_m` of a
+    boxed dot of the same team it is almost always the same person picked up by a
+    new track, so one player shows two rings. A real teammate hidden behind
+    another loses their ring for under a second instead: missing beats wrong.
+    Referees are left alone."""
+
+    def held(d) -> bool:
+        return d.seen and d.ident is not None and d.group[1] != REFEREE and not _boxed(d.ident, frame)
+
+    boxed = [
+        d for d in dots
+        if d.seen and d.ident is not None and d.group[1] != REFEREE and _boxed(d.ident, frame)
+    ]
+    out = []
+    for d in dots:
+        if held(d) and any(
+            b.group[0] == d.group[0] and np.hypot(b.x - d.x, b.y - d.y) < within_m for b in boxed
+        ):
+            continue
+        out.append(d)
     return out
 
 

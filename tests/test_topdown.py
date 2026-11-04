@@ -307,3 +307,26 @@ def test_a_track_far_too_short_for_a_person_gets_no_dot():
     off = topdown.MapSettings(min_height_share=0.0)
     assert sorted(topdown.feet(res, proj, off, tall)) == [1, 2]
     assert sorted(topdown.feet(res, proj, S, tall)) == [1]
+
+
+def _ident(frames, interp=None):
+    fs = np.array(frames)
+    return SimpleNamespace(frames=fs, interp=np.zeros(len(fs), bool) if interp is None else np.array(interp))
+
+
+def test_a_held_dot_on_a_boxed_teammate_is_dropped():
+    g = ('team_a', PLAYER)
+    boxed = topdown.Dot(10.0, 10.0, True, 1.0, g, _ident([5]), 0)
+    held = topdown.Dot(10.4, 10.3, True, 1.0, g, _ident([2]), 1)  # its box blinked out at 2
+    filled = topdown.Dot(10.2, 9.8, True, 1.0, g, _ident([4, 5, 6], [False, True, False]), 2)
+    out = topdown.drop_held_doubles([boxed, held, filled], 5, 1.0)
+    assert out == [boxed]
+
+
+def test_a_held_dot_stays_beside_an_opponent_or_far_from_its_team():
+    held_a = topdown.Dot(10.4, 10.0, True, 1.0, ('team_a', PLAYER), _ident([2]), 1)
+    boxed_b = topdown.Dot(10.0, 10.0, True, 1.0, ('team_b', PLAYER), _ident([5]), 0)
+    far_a = topdown.Dot(13.0, 10.0, True, 1.0, ('team_a', PLAYER), _ident([5]), 2)
+    ghost = topdown.Dot(10.1, 10.0, False, 0.5, ('team_a', PLAYER), None, 3)
+    dots = [held_a, boxed_b, far_a, ghost]
+    assert topdown.drop_held_doubles(dots, 5, 1.0) == dots
