@@ -405,8 +405,9 @@ class _Half:
         for d in td.at(f):
             if d.seen:
                 p = self.mm(d.x * self.kx, d.y * self.ky)
-                cv2.circle(im, p, 7, BLACK, -1, cv2.LINE_AA)
-                cv2.circle(im, p, 5, self.dot_colour(d.group, d.drawn_team), -1, cv2.LINE_AA)
+                with MV.faded(im, p, 9, d.alpha):
+                    cv2.circle(im, p, 7, BLACK, -1, cv2.LINE_AA)
+                    cv2.circle(im, p, 5, self.dot_colour(d.group, d.drawn_team), -1, cv2.LINE_AA)
         if ball and self.bkind[t] and np.isfinite(self.bsb[t]).all():
             p = self.mm(*self.bsb[t])
             c = ORANGE if self.bkind[t] == 'air' else WHITE

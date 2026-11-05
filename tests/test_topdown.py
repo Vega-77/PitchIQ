@@ -330,3 +330,34 @@ def test_a_held_dot_stays_beside_an_opponent_or_far_from_its_team():
     ghost = topdown.Dot(10.1, 10.0, False, 0.5, ('team_a', PLAYER), None, 3)
     dots = [held_a, boxed_b, far_a, ghost]
     assert topdown.drop_held_doubles(dots, 5, 1.0) == dots
+
+
+def _dot(x, team='team_a', track=0, seen=True, alpha=1.0):
+    return topdown.Dot(x, 10.0, seen, alpha, (team, PLAYER), None, track, team, track)
+
+
+def test_a_ring_that_appears_alone_fades_in_and_one_that_goes_fades_out():
+    s = topdown.MapSettings(fade_s=0.1)  # 3 frames
+    T = 12
+    dots = [[_dot(20.0, track=1)] for _ in range(T)]
+    for t in range(3, 8):
+        dots[t].append(_dot(10.0, track=0))
+    path = np.zeros((2, T, 2))
+    path[0, :, 0], path[0, :, 1] = 10.0 + np.arange(T) * 0.1, 10.0
+    topdown.ease_pops(dots, path, s)
+    a = [next((d.alpha for d in ds if d.track == 0), 0.0) for ds in dots]
+    assert a[2] == 0.0 and a[3] == 0.25 and a[4] == 0.5 and a[5] == 0.75 and a[6] == 1.0
+    assert a[8] == 0.75 and a[9] == 0.5 and a[10] == 0.25 and a[11] == 0.0
+    tail = next(d for d in dots[9] if d.track == 0)
+    assert not tail.seen and tail.x == path[0, 9, 0] and tail.drawn_team == 'team_a'
+
+
+def test_a_ring_handing_over_on_the_same_spot_does_not_fade():
+    s = topdown.MapSettings(fade_s=0.1)
+    T = 8
+    dots = [[] for _ in range(T)]
+    for t in range(T):
+        dots[t].append(_dot(10.0, track=0) if t < 4 else _dot(10.6, track=1))
+    topdown.ease_pops(dots, np.full((2, T, 2), 10.0), s)
+    assert [len(ds) for ds in dots] == [1] * T
+    assert all(d.alpha == 1.0 for ds in dots for d in ds)

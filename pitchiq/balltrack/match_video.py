@@ -15,6 +15,7 @@ with Windows' own transcoder, no ffmpeg needed:
     python -m pitchiq.balltrack.match_video tag lo hi            -> match_<tag>_<lo>.mp4   (hi exclusive)
 """
 
+import contextlib
 import os
 import sys
 import time
@@ -216,6 +217,21 @@ def group_colour(group, col):
     return REF if role == 'referee' else KEEPER if role == 'keeper' else col.get(team, UNK)
 
 
+@contextlib.contextmanager
+def faded(im, p, r, a):
+    """What is drawn inside the block within r px of p shows at strength a (0..1)."""
+    if a >= 1:
+        yield
+        return
+    x0, y0 = max(p[0] - r, 0), max(p[1] - r, 0)
+    x1, y1 = min(p[0] + r + 1, im.shape[1]), min(p[1] + r + 1, im.shape[0])
+    before = im[y0:y1, x0:x1].copy()
+    yield
+    if before.size:
+        roi = im[y0:y1, x0:x1]
+        cv2.addWeighted(roi, a, before, 1 - a, 0, dst=roi)
+
+
 def blend_dot(im, p, r, c, a, ring=False):
     """A dot drawn at strength a (0..1) over what is already there; ring: a hollow-looking guess."""
     x0, y0 = max(p[0] - r - 2, 0), max(p[1] - r - 2, 0)
@@ -314,9 +330,11 @@ def main():
             if d.seen:
                 c = colour(d.ident, col, d.drawn_team)
                 p = mm(d.x * kx, d.y * ky)
-                cv2.circle(im, p, 7, BLACK, -1, cv2.LINE_AA)
-                cv2.circle(im, p, 5, c, -1, cv2.LINE_AA)
-                text(im, res.label(d.ident), (p[0] + 7, p[1] - 5), 0.36, WHITE)
+                with faded(im, p, 9, d.alpha):  # fading in (topdown.ease_pops)
+                    cv2.circle(im, p, 7, BLACK, -1, cv2.LINE_AA)
+                    cv2.circle(im, p, 5, c, -1, cv2.LINE_AA)
+                if d.alpha >= 0.5:
+                    text(im, res.label(d.ident), (p[0] + 7, p[1] - 5), 0.36, WHITE)
         # ball: the last second of its path, then the ring
         Hc = np.linalg.inv(Hs[i])
         prev = None

@@ -69,10 +69,6 @@ UNREAD_BY_DESIGN = {
     'what the map diagnostics (kept outside the repo) inspect when a dot jumps slot.',
     'TopDown.extras': 'Visits left outside every slot. Read by the map diagnostics '
     'kept outside the repo, to see who the slot cap squeezed out.',
-    'TopDown.slot_of': 'Per track, its slot or -1. Read by the map diagnostics '
-    'kept outside the repo; the renderer only needs `group`.',
-    'Dot.slot': "The dot's slot, or -1. Lets the map diagnostics kept outside the "
-    'repo tie a drawn dot back to `TopDown.slots`.',
     'LinkResult.team_counts': 'People per team the linker settled on. Read by the '
     'linking diagnostics kept outside the repo; the map takes the cap from settings.',
 }

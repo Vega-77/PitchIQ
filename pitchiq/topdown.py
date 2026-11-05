@@ -74,6 +74,22 @@ class MapSettings:
     # dot was still held for `blink_s` beside it. Map Lab round 3 put two thirds
     # of Woodbridge's double rings here. The held dot is dropped. 0 keeps it.
     held_merge_m: float = 1.0
+    # ...and stays dropped, with the rest of its track's dots, until that track has
+    # a box again: at about 1 m apart the held dot was dropped and redrawn frame
+    # after frame (Map Lab round 4: "doubles", "blips").
+    held_merge_sticky: bool = True
+    # A guess the team cap drops stays dropped until its track is seen again, rather
+    # than coming back whenever the count dips (Map Lab round 4: "other players blip
+    # out so they can blip in").
+    cap_sticky: bool = True
+    # A ring never pops: one that appears from nothing fades in over fade_s, and one
+    # that goes fades out along its path, unless it hands over to a ring already on
+    # that spot (same team within ease_cover_m, or anyone within crowd_m). Players
+    # come and go by fading (Map Lab round 4: "no players should be blipping in or out").
+    # With the two sticky drops, rings popping on or off fell 75-81% on the five dev
+    # halves (eb1 164 -> 32 a minute, wh2 196 -> 58); extra/missing taps unchanged.
+    ease_pops: bool = True
+    ease_cover_m: float = 1.5
     shadow_m: float = 2.0  # a guess this close to a seen teammate is that teammate
     # A guess this close to anyone seen, either team, draws as one ring on top of
     # another: the "double rings" of the Map Lab pilot. On, a guess hidden for
@@ -100,6 +116,7 @@ class Dot:
     ident: object = None  # the Identity while seen
     slot: int = -1  # -1 for an identity outside the slots
     team: str | None = None  # the team it is drawn as ('unknown': greyed by the cap)
+    track: int = -1  # its row in TopDown.path (the map's own thread through frames)
 
     @property
     def drawn_team(self) -> str:
@@ -566,6 +583,7 @@ def build(
                         group[n],
                         ident[owner[n, t]],
                         slot_of[n],
+                        track=n,
                     )
                 )
             elif alpha[n, t] > 0.02:
@@ -578,12 +596,30 @@ def build(
                         group[n],
                         None,
                         slot_of[n],
+                        track=n,
                     )
                 )
+    merged: set = set()  # tracks dropped as held doubles, until boxed again
+    capped: set = set()  # guesses dropped by the team cap, until seen again
     for t in range(T):
         if s.held_merge_m > 0:
-            dots[t] = drop_held_doubles(dots[t], lo + t, s.held_merge_m)
-        dots[t] = cap_teams(dots[t], res, lo + t, s.outfield, s.held_last)
+            kept = drop_held_doubles(dots[t], lo + t, s.held_merge_m)
+            if s.held_merge_sticky:
+                merged |= {d.track for d in dots[t] if all(d is not k for k in kept)}
+                merged -= {
+                    d.track for d in kept if d.seen and d.ident is not None and _boxed(d.ident, lo + t)
+                }
+                kept = [d for d in kept if d.track not in merged]
+            dots[t] = kept
+        if s.cap_sticky:
+            capped -= {d.track for d in dots[t] if d.seen}
+            pre = [d for d in dots[t] if d.seen or d.track not in capped]
+            dots[t] = cap_teams(pre, res, lo + t, s.outfield, s.held_last)
+            capped |= {d.track for d in pre if not d.seen and all(d is not k for k in dots[t])}
+        else:
+            dots[t] = cap_teams(dots[t], res, lo + t, s.outfield, s.held_last)
+    if s.ease_pops:
+        ease_pops(dots, xs[..., :2], s)
     return TopDown(
         lo,
         hi,
@@ -703,6 +739,60 @@ def cap_teams(dots: list, res, frame: int, outfield: int, held_last: bool = Fals
         for d in [d for d in mine if d.seen and not boxed(d)][: max(extra, 0)]:
             d.team = 'unknown'
     return out
+
+
+def ease_pops(dots: list, path: np.ndarray, s: MapSettings) -> None:
+    """Fade rings in and out instead of letting them pop (in place).
+
+    Per track, a ring that appears from nothing has its strength ramped up over
+    `fade_s`; one that disappears is drawn on along its path, fading out over
+    `fade_s`. Not when it hands over: a ring of the same drawn team within
+    `ease_cover_m`, or anyone within `crowd_m`, on the other side of the change
+    (a track broke and another picked the person up, or the ring went behind
+    someone)."""
+    T = len(dots)
+    K = max(1, int(round(s.fade_s * s.fps)))
+    by = [{d.track: d for d in ds if d.track >= 0} for ds in dots]
+    events = []
+    for t in range(1, T):
+        for kind, a, b in (('in', by[t - 1], by[t]), ('out', by[t], by[t - 1])):
+            for n, d in b.items():
+                if n in a:
+                    continue
+                other = by[t - 1] if kind == 'in' else by[t]
+                if any(
+                    m != n
+                    and (
+                        (o.drawn_team == d.drawn_team and np.hypot(o.x - d.x, o.y - d.y) < s.ease_cover_m)
+                        or (s.crowd_m and np.hypot(o.x - d.x, o.y - d.y) < s.crowd_m)
+                    )
+                    for m, o in other.items()
+                ):
+                    continue
+                events.append((kind, t, n, d))
+    for kind, t, n, d in events:
+        if kind == 'in':
+            for k in range(K):
+                e = by[t + k].get(n) if t + k < T else None
+                if e is None:
+                    break
+                e.alpha *= (k + 1) / (K + 1)
+        else:
+            for k in range(K):
+                if t + k >= T or n in by[t + k]:
+                    break
+                f = Dot(
+                    float(path[n, t + k, 0]),
+                    float(path[n, t + k, 1]),
+                    False,
+                    d.alpha * (K - k) / (K + 1),
+                    d.group,
+                    None,
+                    d.slot,
+                    d.drawn_team,
+                    n,
+                )
+                dots[t + k].append(f)
 
 
 def handover_share(a: int, b: int, T: int, p_end: int | None, n_start: int | None) -> np.ndarray:
