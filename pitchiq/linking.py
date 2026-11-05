@@ -116,7 +116,18 @@ class LinkSettings:
     # of its frames. False turns this off.
     keeper_pieces: bool = True
     keeper_overlap_s: float = 0.5
-    keeper_deepest_share: float = 0.8
+    keeper_deepest_share: float = 0.4
+    # Later pieces only (the anchor keeps the rules above). Map Lab round 4, a
+    # night game: the keeper's track broke into pieces under keeper_min_s, his
+    # shirt read as one team's under the lights (so a piece failed the kit test
+    # whenever the anchor read as neither), and a piece where he stood off his
+    # line had a median past keeper_depth_m; and with a defender on the line beside
+    # him he was the deepest only 46% of the time (deepest_share was 0.8). Together:
+    # dev keeper taps 17/27 -> 23/27, held out (scored once) 9/17 -> 12/17, no
+    # keeper ring on anyone untapped. None / True keep the anchor's rule.
+    keeper_piece_min_s: float | None = 1.0
+    keeper_piece_depth_m: float | None = 16.5  # the penalty box
+    keeper_piece_kit: bool = False
     # Which candidate anchors a goal: 'deepest' median spot, or 'time' spent as
     # the deepest person there (a short track behind the line can out-deepen
     # a keeper who stood in goal for a minute).
@@ -922,19 +933,24 @@ class Linker:
         a few metres of their own goal line, in front of the goal.
         """
         s = self.s
+        min_s = s.keeper_min_s if s.keeper_piece_min_s is None else s.keeper_piece_min_s
+        max_d = s.keeper_depth_m if s.keeper_piece_depth_m is None else s.keeper_piece_depth_m
         cands: dict[str, list] = {'left': [], 'right': []}
+        loose: dict[str, list] = {'left': [], 'right': []}  # candidates for later pieces
         for g, members in ordered:
             if roles[g] != PLAYER:
                 continue
             pos = np.vstack([pieces[m].pos for m in members])
-            if len(pos) < s.keeper_min_s * s.fps:
+            if len(pos) < min(s.keeper_min_s, min_s) * s.fps:
                 continue
             cx, cy = np.median(pos, axis=0)
             if abs(cy - self.W / 2) > s.keeper_half_width_m:
                 continue
             for end, depth in (('left', cx), ('right', self.L - cx)):
-                if -s.off_margin_m < depth < s.keeper_depth_m:
+                if -s.off_margin_m < depth < s.keeper_depth_m and len(pos) >= s.keeper_min_s * s.fps:
                     cands[end].append((depth, g))
+                if -s.off_margin_m < depth < max_d and len(pos) >= min_s * s.fps:
+                    loose[end].append((depth, g))
         out = {}
         groups = dict(ordered)
         for end, cs in cands.items():
@@ -951,8 +967,10 @@ class Linker:
             kit0 = self._group_kit(groups[cs[0][1]], pieces)
             taken = [self._span(groups[cs[0][1]], pieces)]
             slack = s.keeper_overlap_s * s.fps
-            for _, g in cs[1:]:
-                if self._group_kit(groups[g], pieces) not in (kit0, OTHER):
+            for _, g in sorted(loose[end]):
+                if g in out:
+                    continue
+                if s.keeper_piece_kit and self._group_kit(groups[g], pieces) not in (kit0, OTHER):
                     continue
                 a, b = self._span(groups[g], pieces)
                 if any(min(b, d) - max(a, c) > slack for c, d in taken):
