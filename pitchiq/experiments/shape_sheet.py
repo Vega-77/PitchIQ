@@ -71,12 +71,17 @@ def _map_panel(t: M.MapTable, f: int, sh: dict, left: dict) -> np.ndarray:
     return im
 
 
-def sheet(tag: str, n: int = 6, seed: int = 0) -> np.ndarray:
+def sheet(tag: str, n: int = 6, seed: int = 0, at=None) -> np.ndarray:
+    """`at`: these frames instead of `n` random ones."""
     t = M.MapTable.load(MAP / f'{tag}.npz')
     left = M.defends_left(t)
     rng = np.random.default_rng(seed)
     frames = np.unique(t.f)
-    picks = np.sort(rng.choice(frames[(frames - frames[0]) % 15 == 0], n, replace=False))
+    picks = (
+        np.asarray(at)
+        if at
+        else np.sort(rng.choice(frames[(frames - frames[0]) % 15 == 0], n, replace=False))
+    )
     cap = cv2.VideoCapture(video_of(tag.split('_')[0]))  # eb1_82200_98400: a stretch of eb1
     rows = []
     for f in picks:
@@ -122,6 +127,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument('tag')
     ap.add_argument('--n', type=int, default=6)
     ap.add_argument('--seed', type=int, default=0)
+    ap.add_argument('--at', type=int, nargs='+', help='these frames instead of --n random ones')
     ap.add_argument('--out')
     return ap
 
@@ -130,7 +136,7 @@ def main(argv=None):
     a = build_parser().parse_args(argv)
     out = a.out or str(MAP.parent / 'sheets' / f'shape_{a.tag}.jpg')
     Path(out).parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(out, sheet(a.tag, a.n, a.seed), [cv2.IMWRITE_JPEG_QUALITY, 85])
+    cv2.imwrite(out, sheet(a.tag, a.n, a.seed, a.at), [cv2.IMWRITE_JPEG_QUALITY, 85])
     print(out)
 
 
