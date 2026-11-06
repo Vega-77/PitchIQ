@@ -17,6 +17,8 @@ matplotlib==3.11.1
 pillow==12.2.0
 # TAPNext++'s model code
 einops==0.8.2
+# ffmpeg for the Player ID lab's VP9 clips (pitchiq/experiments/idlab.py)
+imageio-ffmpeg==0.8.1
 
 # Two things pip cannot install, both needed only by the TAPNext++ bridges
 # (tapnext_bridge/tn_engine.py, step 5 of hybrid.sh):

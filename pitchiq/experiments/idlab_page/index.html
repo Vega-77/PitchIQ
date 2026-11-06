@@ -1,0 +1,399 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Player ID Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Same family as the Map Lab: the clip large, the answer card beside it. A name is the truth;
+   two clips with the same name are the same person. */
+:root{
+  --ground:#131920; --panel:#1b232d; --panel2:#222c38; --line:#2c3845;
+  --ink:#e8edf3; --dim:#8695a6; --faint:#5d6b7a;
+  --signal:#f59e2c; --mark:#ffe600; --ok:#49c58c; --warn:#e0645f; --stage:#000000;
+  --kit-light:#f2f4f7; --kit-dark:#1d232b; --kit-edge:#5d6b7a;
+  --disp:'Chivo',system-ui,sans-serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --r:6px; color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+  --signal:#c7730f; --mark:#b39b00; --ok:#23915f; --warn:#d23447; --stage:#0e141b; color-scheme:light;
+}}
+:root[data-theme="light"]{
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+  --signal:#c7730f; --mark:#b39b00; --ok:#23915f; --warn:#d23447; --stage:#0e141b; color-scheme:light;
+}
+:root[data-theme="dark"]{ color-scheme:dark; }
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0; background:var(--ground); color:var(--ink); font-family:var(--body);
+  font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased; overflow-x:hidden}
+body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top,0px); z-index:10; background:var(--panel)}
+button,select,textarea,input{font:inherit; color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--signal); outline-offset:2px}
+kbd{font-family:var(--mono); font-size:11px; background:var(--panel2); border:1px solid var(--line);
+  border-bottom-width:2px; border-radius:4px; padding:1px 6px; white-space:nowrap; color:var(--ink)}
+
+.head{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--panel); border-bottom:1px solid var(--line);
+  padding-block:10px; padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px))}
+.headRow{display:flex; align-items:center; gap:8px 14px; flex-wrap:wrap; max-width:1300px; margin:0 auto}
+h1{font-family:var(--disp); font-weight:900; font-size:15px; letter-spacing:.06em; text-transform:uppercase; margin:0}
+h1 span{color:var(--mark)}
+select.sel{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:5px 8px; font-size:12.5px; max-width:100%; min-width:0}
+.prog{margin-left:auto; font-size:12px; color:var(--dim); display:flex; gap:14px; flex-wrap:wrap; align-items:center}
+.prog b{font-family:var(--mono); font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums}
+.save{font-family:var(--mono); font-size:11px; color:var(--faint)}
+.save.busy{color:var(--signal)} .save.bad{color:var(--warn)}
+.bar{height:3px; background:var(--line); max-width:1300px; margin:8px auto 0; border-radius:2px; overflow:hidden}
+.bar i{display:block; height:100%; width:0; background:var(--ok); transition:width .2s}
+
+.wrap{max-width:1300px; margin:0 auto; padding-block:14px 40px; padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px)); display:flex; flex-direction:column; gap:12px}
+.banner{background:color-mix(in srgb, var(--warn) 14%, transparent); border:1px solid color-mix(in srgb, var(--warn) 55%, transparent);
+  border-radius:var(--r); padding:9px 11px; font-size:12.5px}
+.banner.note{background:color-mix(in srgb, var(--signal) 12%, transparent); border-color:color-mix(in srgb, var(--signal) 45%, transparent)}
+
+.grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,350px); gap:12px; align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.stage{background:var(--stage); border-radius:var(--r); overflow:hidden; border:1px solid var(--line)}
+.stage video{display:block; width:100%; height:auto; aspect-ratio:844/420; background:#000}
+.panes{display:grid; grid-template-columns:1fr 1fr; font-size:11px; color:#aab4c0; font-family:var(--mono); background:#0b0f14}
+.panes span{padding:4px 8px}
+.ctl{display:flex; flex-wrap:wrap; gap:6px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:8px}
+.ctl button{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:5px 10px; font-size:12.5px}
+.ctl button.on{border-color:var(--signal); color:var(--signal)}
+.ctl input[type=range]{flex:1 1 160px; min-width:0; accent-color:var(--signal)}
+.time{font-family:var(--mono); font-size:12px; color:var(--dim); font-variant-numeric:tabular-nums; margin-left:auto}
+.time b{color:var(--ink); font-weight:600}
+
+.card{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:14px; display:flex; flex-direction:column; gap:12px; min-width:0}
+.qtitle{font-family:var(--disp); font-weight:700; font-size:18px; margin:0; text-wrap:balance}
+.meta{font-size:12px; color:var(--dim); display:flex; gap:6px 12px; flex-wrap:wrap}
+.meta b{font-family:var(--mono); font-weight:600; color:var(--ink)}
+.lbl{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); font-weight:600}
+.kits{display:flex; gap:6px}
+.kit{flex:1; display:flex; align-items:center; gap:8px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:7px 10px; font-size:13px}
+.kit i{width:16px; height:16px; border-radius:3px; border:1px solid var(--kit-edge); flex:none}
+.kit.light i{background:var(--kit-light)} .kit.dark i{background:var(--kit-dark)}
+.kit.on{border-color:var(--mark); box-shadow:inset 0 0 0 1px var(--mark)}
+.nameRow{display:flex; gap:6px}
+.nameRow input{flex:1; min-width:0; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r);
+  padding:9px 11px; font-family:var(--mono); font-size:20px; font-weight:600; letter-spacing:.04em}
+.nameRow input::placeholder{font-family:var(--body); font-size:13px; font-weight:400; letter-spacing:0; color:var(--faint)}
+.btn{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:8px 12px; font-size:13px; text-align:left}
+.btn.primary{background:var(--mark); border-color:var(--mark); color:#111; font-weight:600; text-align:center}
+.btn:disabled{opacity:.45; cursor:default}
+.opts{display:grid; grid-template-columns:1fr; gap:6px}
+.opts .btn{display:flex; justify-content:space-between; gap:8px}
+.opts .btn kbd{opacity:.8}
+.roster{display:grid; grid-template-columns:repeat(auto-fill, minmax(64px, 1fr)); gap:6px; max-height:300px; overflow:auto}
+.chip{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:3px; display:flex; flex-direction:column; align-items:center; gap:2px}
+.chip img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:4px; display:block; background:#000}
+.chip b{font-family:var(--mono); font-size:13px}
+.chip small{font-size:10px; color:var(--dim)}
+.chip:hover{border-color:var(--signal)}
+.empty{font-size:12px; color:var(--faint)}
+.roster .empty{grid-column:1/-1}
+textarea{width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:7px 9px; font-size:12.5px; resize:vertical; min-height:36px}
+.foot{display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:12px; color:var(--dim)}
+.foot .btn{padding:5px 10px; font-size:12px}
+.help{font-size:12.5px; color:var(--dim); background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:10px 12px}
+.help p{margin:0 0 6px} .help p:last-child{margin:0}
+.done{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:18px}
+.done h2{font-family:var(--disp); margin:0 0 6px; font-size:20px}
+.tally{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px}
+.tally span{font-family:var(--mono); font-size:12px; background:var(--panel2); border:1px solid var(--line); border-radius:4px; padding:2px 7px}
+</style>
+
+<header class="head">
+  <div class="headRow">
+    <h1>Player <span>ID</span></h1>
+    <select class="sel" id="setSel" aria-label="Question set"></select>
+    <div class="prog"><span>answered <b id="nDone">0</b> / <b id="nAll">0</b></span><span class="save" id="save"></span></div>
+  </div>
+  <div class="bar"><i id="barFill"></i></div>
+</header>
+
+<main class="wrap">
+  <div class="banner" id="banner" hidden></div>
+  <div class="help" id="help">
+    <p><b>Who is the marked player?</b> Each clip follows one tracked player for up to 12 seconds, picked where he is biggest on screen. Left: close-up, the yellow arrow over his head. Right: the wider view, him boxed. A hollow arrow or thin box means the tracker lost sight of him for a moment and is guessing.</p>
+    <p>Type his <b>shirt number</b> (or <b>GK</b>, or any short name if you know him by sight). Slow it down and step frame by frame to catch the number when he turns. If you recognise him from someone you already named, tap him in the list instead. The video time is shown, so you can check the original video too.</p>
+  </div>
+
+  <section id="emptyView" class="empty">Loading…</section>
+
+  <section id="qView" class="grid" hidden>
+    <div style="display:flex; flex-direction:column; gap:8px; min-width:0">
+      <div class="stage">
+        <video id="vid" muted playsinline loop preload="auto"></video>
+        <div class="panes"><span>close-up</span><span>wider view</span></div>
+      </div>
+      <div class="ctl">
+        <button id="bPause" title="Space">Pause</button>
+        <button id="bPrev" title="← or ,">◀ frame</button>
+        <button id="bNext" title="→ or .">frame ▶</button>
+        <button data-rate="1" class="on">1×</button>
+        <button data-rate="0.5">½×</button>
+        <button data-rate="0.25">¼×</button>
+        <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Clip position">
+        <span class="time">video <b id="vtime">–</b></span>
+      </div>
+      <div class="foot" id="hiddenNote"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="qtitle">Who is this?</h2>
+      <div class="meta" id="meta"></div>
+      <div>
+        <div class="lbl" style="margin-bottom:6px">Team (change it if the tracker got it wrong)</div>
+        <div class="kits">
+          <button class="kit light" data-kit="light"><i></i>Light-kit team</button>
+          <button class="kit dark" data-kit="dark"><i></i>Dark-kit team</button>
+        </div>
+      </div>
+      <div>
+        <div class="lbl" style="margin-bottom:6px">Number or name</div>
+        <div class="nameRow">
+          <input id="name" autocomplete="off" spellcheck="false" maxlength="24" placeholder="e.g. 9, GK, tall blond">
+          <button class="btn primary" id="bSave" title="Enter">Save</button>
+        </div>
+      </div>
+      <div>
+        <div class="lbl" style="margin-bottom:6px" id="rosterLbl">Already named</div>
+        <div class="roster" id="roster"></div>
+      </div>
+      <div class="opts">
+        <button class="btn" data-v="cant"><span>Can't tell who it is</span><kbd>F1</kbd></button>
+        <button class="btn" data-v="mixed"><span>Two people (the marker jumps to someone else)</span><kbd>F2</kbd></button>
+        <button class="btn" data-v="notplayer"><span>Not a player (ref, ball kid, coach…)</span><kbd>F3</kbd></button>
+      </div>
+      <textarea id="note" placeholder="Note (optional): e.g. 'probably 7', 'is 9 until 0:06, then 14'"></textarea>
+      <div class="foot">
+        <button class="btn" id="bBack" title="Ctrl+Z">← Back</button>
+        <button class="btn" id="bSkip">Skip for now</button>
+        <span id="qpos"></span>
+      </div>
+    </div>
+  </section>
+
+  <section id="doneView" class="done" hidden>
+    <h2>All answered</h2>
+    <div id="doneText" class="meta"></div>
+    <div class="tally" id="tally"></div>
+  </section>
+</main>
+
+<script>
+const clone = o => JSON.parse(JSON.stringify(o));
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const S = {db: null, local: false, sets: [], set: null, qs: [], ans: {}, cur: -1, history: [], kit: null, rate: 1, vfps: 30, busy: 0};
+
+/* ---------- storage ---------- */
+function deepFreeze(o){ if (o && typeof o === 'object'){ Object.values(o).forEach(deepFreeze); Object.freeze(o); } return o; }
+function mockDb(){   // local preview only: behaves like the real store, snapshots frozen
+  const store = new Map();
+  const snap = (k, v) => ({id: k.split('/').pop(), exists: true, data: () => deepFreeze(clone(v))});
+  return {collection(p){ return {
+    doc: id => ({id, set: async d => { await new Promise(r => setTimeout(r, 30)); store.set(p + '/' + id, clone(d)); }}),
+    get: async () => { const docs = [...store].filter(([k]) => k.startsWith(p + '/') && !k.slice(p.length + 1).includes('/')).map(([k, v]) => snap(k, v));
+                       return {docs, size: docs.length, empty: !docs.length}; },
+  }; }};
+}
+const answersCol = () => S.db.collection('sets/' + S.set.name + '/answers');
+function setSave(state, text){ const e = $('save'); e.className = 'save ' + state; e.textContent = text; }
+async function store(id, body){
+  S.busy++; setSave('busy', 'saving…');
+  for (let tries = 0; ; tries++){
+    try { await answersCol().doc(id).set(body); break; }
+    catch (e){
+      if (e && e.code === 'unavailable' && tries < 2){ await new Promise(r => setTimeout(r, 800 + Math.random() * 1200)); continue; }
+      S.busy--; setSave('bad', 'not saved');
+      banner(e && e.code === 'quota_exceeded' ? 'The answer store is full. Stop here and tell Claude.' :
+             'An answer did not save (' + ((e && e.code) || 'error') + '). Answer it again, or reload.');
+      delete S.ans[id]; tallyHead(); return;
+    }
+  }
+  S.busy--; if (!S.busy) setSave('', S.local ? 'saved in this tab' : 'saved');
+}
+function banner(text, note){ const b = $('banner'); b.textContent = text; b.className = 'banner' + (note ? ' note' : ''); b.hidden = !text; }
+
+/* ---------- media ---------- */
+const clips = new Map();   // url -> Promise<objectURL>: whole files, so seeking and frame steps are exact
+const base = () => 'sets/' + S.set.name + '/';
+function clip(path){
+  const u = base() + path;
+  if (!clips.has(u)){
+    clips.set(u, fetch(u).then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); }).then(b => URL.createObjectURL(b)));
+    clips.get(u).catch(() => clips.delete(u));
+  }
+  return clips.get(u);
+}
+function prefetch(){
+  const keep = new Set();
+  for (let i = S.cur, n = 0; i < S.qs.length && n < 5; i++){ const q = S.qs[i]; if (!(q.id in S.ans) || i === S.cur){ keep.add(base() + q.clip.file); clip(q.clip.file); n++; } }
+  for (const [u, p] of clips){ if (clips.size <= 12) break; if (!keep.has(u)){ clips.delete(u); p.then(x => { if ($('vid').src !== x) URL.revokeObjectURL(x); }).catch(() => {}); } }
+}
+const q = () => S.qs[S.cur];
+function frameIdx(){ const c = q().clip; return Math.max(0, Math.min(c.n - 1, Math.floor($('vid').currentTime * c.fps + 1e-3))); }
+function clock(f){ const s = Math.floor(f / S.vfps); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); }
+function tick(){
+  if (S.cur < 0 || $('qView').hidden) return;
+  const v = $('vid'), c = q().clip, k = frameIdx();
+  $('vtime').textContent = clock(c.frames[k]) + '  ·  clip ' + (k / c.fps).toFixed(1) + ' s';
+  if (!$('scrub').matches(':active') && v.duration) $('scrub').value = Math.round(1000 * v.currentTime / v.duration);
+  $('hiddenNote').textContent = c.hidden[k] ? 'Tracker is guessing here (he is hidden or missed): the box is where it thinks he is.' : '';
+}
+function pauseLabel(){ $('bPause').textContent = $('vid').paused ? 'Play' : 'Pause'; }
+function step(d){ const v = $('vid'), c = q().clip; v.pause(); pauseLabel();
+  const k = Math.max(0, Math.min(c.n - 1, frameIdx() + d)); v.currentTime = (k + 0.5) / c.fps; }
+
+/* ---------- questions ---------- */
+function labelOf(a){ return a && a.label ? a.label : null; }
+function norm(s){ s = (s || '').trim().replace(/\s+/g, ' '); return /^#?\d{1,2}$/.test(s) ? String(parseInt(s.replace('#', ''), 10)) : /^gk$/i.test(s) ? 'GK' : s; }
+function roster(tag, kit){
+  const m = new Map();
+  for (const x of S.qs){ const a = S.ans[x.id]; if (!a || x.tag !== tag || a.kit !== kit || !a.label) continue;
+    const r = m.get(a.label) || {label: a.label, n: 0, thumb: x.thumb}; r.n++; m.set(a.label, r); }
+  return [...m.values()].sort((a, b) => { const na = /^\d+$/.test(a.label), nb = /^\d+$/.test(b.label);
+    return na && nb ? a.label - b.label : na ? -1 : nb ? 1 : a.label.localeCompare(b.label); });
+}
+function paintRoster(){
+  const x = q(), R = roster(x.tag, S.kit), box = $('roster'); box.replaceChildren();
+  $('rosterLbl').textContent = 'Already named · ' + (S.kit === 'light' ? 'light' : 'dark') + '-kit team';
+  if (!R.length){ box.append(el('div', 'empty', 'Nobody yet. Names you give appear here, so you can match players by look.')); return; }
+  for (const r of R){
+    const b = el('button', 'chip'); b.title = 'Same person as ' + r.label;
+    const im = el('img'); im.src = base() + r.thumb; im.alt = ''; im.loading = 'lazy';
+    b.append(im, el('b', null, r.label), el('small', null, r.n + (r.n === 1 ? ' clip' : ' clips')));
+    b.onclick = () => { $('name').value = r.label; $('name').focus(); };
+    box.append(b);
+  }
+}
+function setKit(k){ S.kit = k; for (const b of document.querySelectorAll('.kit')) b.classList.toggle('on', b.dataset.kit === k); paintRoster(); }
+function tallyHead(){
+  const n = S.qs.filter(x => x.id in S.ans).length;
+  $('nDone').textContent = n; $('nAll').textContent = S.qs.length;
+  $('barFill').style.width = (S.qs.length ? 100 * n / S.qs.length : 0) + '%';
+}
+function nextUnanswered(from){
+  for (let i = from; i < S.qs.length; i++) if (!(S.qs[i].id in S.ans)) return i;
+  for (let i = 0; i < from; i++) if (!(S.qs[i].id in S.ans)) return i;
+  return -1;
+}
+async function show(i){
+  tallyHead();
+  if (i < 0){ return finish(); }
+  S.cur = i; const x = q(), a = S.ans[x.id];
+  $('emptyView').hidden = true; $('doneView').hidden = true; $('qView').hidden = false;
+  const m = $('meta'); m.replaceChildren();
+  const add = (k, v) => { const s = el('span', null, k + ' '); s.append(el('b', null, v)); m.append(s); };
+  add('window', String(x.win)); add('tracked', x.secs + ' s'); add('seen', Math.round(100 * x.seen) + '%');
+  if (x.role === 'keeper') add('tracker says', 'keeper');
+  $('qpos').textContent = 'question ' + (i + 1) + ' of ' + S.qs.length + (a ? ' · answered' : '');
+  $('name').value = a && a.label ? a.label : ''; $('note').value = a && a.note ? a.note : '';
+  setKit(a && a.kit ? a.kit : x.kit);
+  const v = $('vid'); v.pause();
+  try {
+    const u = await clip(x.clip.file);
+    if (S.cur !== i) return;
+    v.src = u; v.playbackRate = S.rate; v.currentTime = 0;
+    v.play().catch(() => {}); pauseLabel();
+  } catch (e){ banner('This clip did not load. Skip it, or reload the page.'); }
+  prefetch();
+  if (matchMedia('(hover:hover)').matches) $('name').focus();
+}
+function answer(v){
+  const x = q(); if (!x) return;
+  const label = norm($('name').value);
+  if (v === 'named' && !label){ $('name').focus(); $('name').placeholder = 'type a number or name first'; return; }
+  const body = {v, kit: S.kit, label: v === 'notplayer' ? null : (label || null), note: $('note').value.trim() || null, t: Date.now(), tag: x.tag, trk: x.trk};
+  S.ans[x.id] = body; S.history.push(S.cur);
+  store(x.id, body);
+  show(nextUnanswered(S.cur + 1));
+}
+function back(){ if (!S.history.length) return; show(S.history.pop()); }
+function skip(){
+  for (let i = S.cur + 1; i < S.qs.length; i++) if (!(S.qs[i].id in S.ans)) return show(i);
+  for (let i = 0; i < S.cur; i++) if (!(S.qs[i].id in S.ans)) return show(i);
+}
+function finish(){
+  $('qView').hidden = true; $('doneView').hidden = false; $('vid').pause();
+  const c = {named: 0, cant: 0, mixed: 0, notplayer: 0}; const names = new Set();
+  for (const x of S.qs){ const a = S.ans[x.id]; if (!a) continue; c[a.v] = (c[a.v] || 0) + 1; if (a.label) names.add(a.kit + ' ' + a.label); }
+  $('doneText').textContent = c.named + ' named, ' + c.cant + ' can\'t tell, ' + c.mixed + ' two people, ' + c.notplayer + ' not a player · ' + names.size + ' different people. Thank you. Use Back to change an answer.';
+  const t = $('tally'); t.replaceChildren(); [...names].sort().forEach(n => t.append(el('span', null, n)));
+}
+
+/* ---------- loading ---------- */
+async function openSet(name){
+  const set = S.sets.find(s => s.name === name); if (!set) return;
+  S.set = set; S.ans = {}; S.history = [];
+  try { localStorage.setItem('idlab.set', name); } catch (e) {}
+  $('emptyView').hidden = false; $('qView').hidden = true; $('doneView').hidden = true;
+  let j;
+  try { j = await (await fetch(base() + 'questions.json')).json(); }
+  catch (e){ banner('The questions did not load. Reload the page.'); return; }
+  S.qs = j.questions; S.vfps = j.fps || 30;
+  if (S.db){
+    try { const snap = await answersCol().get(); for (const d of snap.docs) S.ans[d.id] = clone(d.data() || {}); }
+    catch (e){ banner('Could not read earlier answers (' + ((e && e.code) || 'error') + '). Reload before answering.'); S.db = null; }
+  }
+  show(nextUnanswered(0));
+}
+async function boot(){
+  if (!window.claude){ S.db = mockDb(); S.local = true; banner('Local preview: answers stay in this tab only.', true); }
+  else {
+    try { S.db = await window.claude.use('db'); } catch (e){ S.db = null; }
+    if (!S.db) banner('Answers cannot be saved in this view. Open the lab signed in to claude.ai to answer.');
+  }
+  try { S.sets = (await (await fetch('sets.json')).json()).sets; }
+  catch (e){ banner('The question sets did not load. Reload the page.'); return; }
+  const sel = $('setSel'); sel.replaceChildren();
+  S.sets.forEach(s => { const o = el('option', null, s.title); o.value = s.name; sel.append(o); });
+  let pick = S.sets[0].name;
+  try { const m = localStorage.getItem('idlab.set'); if (m && S.sets.some(s => s.name === m)) pick = m; } catch (e) {}
+  sel.value = pick; sel.onchange = () => openSet(sel.value);
+  await openSet(pick);
+}
+
+const v = $('vid');
+v.addEventListener('timeupdate', tick); v.addEventListener('seeked', tick); v.addEventListener('play', pauseLabel); v.addEventListener('pause', pauseLabel);
+(function loop(){ if (!v.paused) tick(); requestAnimationFrame(loop); })();
+$('bPause').onclick = () => { v.paused ? v.play().catch(() => {}) : v.pause(); };
+$('bPrev').onclick = () => step(-1);
+$('bNext').onclick = () => step(1);
+for (const b of document.querySelectorAll('[data-rate]')) b.onclick = () => {
+  S.rate = +b.dataset.rate; v.playbackRate = S.rate;
+  document.querySelectorAll('[data-rate]').forEach(x => x.classList.toggle('on', x === b));
+};
+$('scrub').oninput = e => { v.pause(); if (v.duration) v.currentTime = e.target.value / 1000 * v.duration; };
+for (const b of document.querySelectorAll('.kit')) b.onclick = () => setKit(b.dataset.kit);
+$('bSave').onclick = () => answer('named');
+for (const b of document.querySelectorAll('.opts [data-v]')) b.onclick = () => answer(b.dataset.v);
+$('bBack').onclick = back;
+$('bSkip').onclick = skip;
+document.addEventListener('keydown', e => {
+  if ($('qView').hidden) return;
+  const inName = e.target === $('name'), inNote = e.target === $('note');
+  const numeric = !inName || /^\d*$/.test($('name').value);   // in the name box, keys still drive the clip while it holds only digits
+  if (e.key === 'Enter' && !inNote){ e.preventDefault(); answer('named'); return; }
+  if (/^F[123]$/.test(e.key)){ e.preventDefault(); answer(['cant', 'mixed', 'notplayer'][+e.key[1] - 1]); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !inName && !inNote){ e.preventDefault(); back(); return; }
+  if (inNote || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (inName && !numeric) return;
+  if (e.key === ' '){ e.preventDefault(); $('bPause').click(); }
+  else if (e.key === 'ArrowLeft' || e.key === ','){ e.preventDefault(); step(-1); }
+  else if (e.key === 'ArrowRight' || e.key === '.'){ e.preventDefault(); step(1); }
+  else if (!inName && /^[0-9]$/.test(e.key)){ e.preventDefault(); $('name').focus(); $('name').value += e.key; }
+});
+boot();
+</script>

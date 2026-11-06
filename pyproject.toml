@@ -51,6 +51,7 @@ balltrack = [
     "matplotlib==3.11.1",
     "pillow==12.2.0",
     "einops==0.8.2",
+    "imageio-ffmpeg==0.8.1",
 ]
 # Retraining the xG model only; never needed to run the pipeline.
 xg-training = [
