@@ -123,3 +123,50 @@ def test_summary_rounds_and_covers():
     assert out[0]['half']['width'] == 50.0
     assert out[0]['cover']['line'] == 1.0
     assert out[0]['seen_share'] == 0.7
+
+
+def test_report_block_for_the_teams_block():
+    """Keyed by which side is ours; NaN becomes null; width and depth held back."""
+    t = _table()
+    b = M.report_block(t, ours=1)
+    a, other = b['team_a'], b['team_b']
+    assert a['shape'] == {
+        'width_m': None,
+        'depth_m': None,
+        'compactness_m': a['shape']['compactness_m'],
+        'line_m': 20.0,
+    }
+    assert other['shape']['line_m'] == 20.0
+    fp = a['field_position']
+    assert fp['height_m'] == 32.0
+    # team 1 (ours) in its own direction: back four in the first third
+    assert fp['third_share'] == {'defensive': 0.4, 'middle': 0.6, 'attacking': 0.0}
+    assert fp['play_third_share'] == {'defensive': 0.0, 'middle': 1.0, 'attacking': 0.0}
+    assert fp['seen_share'] == 0.7 and fp['kept_share'] == 1.0
+    hm = fp['heatmap']
+    assert (hm['cols'], hm['rows']) == M.REPORT_GRID
+    assert len(hm['values']) == len(hm['seen']) == 21 * 14
+    assert abs(sum(hm['values']) - 1) < 1e-3
+    assert None in hm['seen'] and not any(isinstance(v, float) and v != v for v in hm['seen'])
+    assert a['attacking_end'] == 'left' and other['attacking_end'] == 'right'
+
+
+def test_report_block_dropped_half_is_null_not_zero():
+    """Every window's split fails: team figures are null, the heatmap is gone."""
+    t = _table()
+    t.windows = np.array([[0, 60]])
+    mids0 = (t.team == 0) & (t.role == M.OUTFIELD) & (t.trk % 100 >= 10)
+    t = t.replace(seen=t.seen & ~mids0)  # team 0 seen 4 a frame against 7: ratio 0.57
+    b = M.report_block(t, ours=0)
+    fp = b['team_a']['field_position']
+    assert b['team_a']['shape']['line_m'] is None and fp['height_m'] is None
+    assert fp['heatmap'] is None and fp['third_share'] is None and fp['seen_share'] is None
+    assert fp['kept_share'] == 0.0
+    assert fp['play_third_share'] is not None  # play needs no team split
+
+
+def test_report_block_needs_to_be_told_which_side_is_ours():
+    import pytest
+
+    with pytest.raises(ValueError):
+        M.report_block(_table(), ours=2)

@@ -122,6 +122,34 @@ export function sampleHeatmap(
     };
 }
 
+/**
+ * A team's heatmap as the top-down map publishes it (`pitchiq/map_stats.py::
+ * report_block`): 21 x 14 cells of 5 m, turned to attack right, with `seen`,
+ * the part of each cell's time the camera saw rather than the map guessed.
+ *
+ * Seen falls off toward the attacking end, because that is where the real
+ * maps are most guessed (66-75% in the attacking corners on the dev halves,
+ * 44-65% for a pinned side), so the preview shows the hatching where a real
+ * report would. `heightM` is where the team's outfield centre sat.
+ */
+function sampleTeamMap(heightM, { seenFar = 0.6 } = {}) {
+    const cols = 21;
+    const rows = 14;
+    const cx = heightM / 5;
+    const values = [];
+    const seen = [];
+    let total = 0;
+    for (let x = 0; x < cols; x += 1) {
+        for (let y = 0; y < rows; y += 1) {
+            const v = Math.exp(-(((x - cx) / 4.2) ** 2 + ((y - 6.5) / 4.5) ** 2) / 2);
+            values.push(v);
+            total += v;
+            seen.push(Number((0.95 - ((0.95 - seenFar) * x) / (cols - 1)).toFixed(2)));
+        }
+    }
+    return { cols, rows, values: values.map((v) => Number((v / total).toFixed(4))), seen };
+}
+
 // -------------------------------------------------------------- the shots
 //
 // Positions are in metres on a 105x68 pitch, already mirrored to attack right,
@@ -369,6 +397,17 @@ const SAMPLE_TEAMS = {
                 line_m: -6.2,
             },
         },
+        // From the map: the same deep side the rows above describe, and
+        // play in our final third only 17% of the half. Shares are each
+        // side's own direction, so theirs below mirror these.
+        field_position: {
+            height_m: 38.6,
+            third_share: { defensive: 0.42, middle: 0.43, attacking: 0.15 },
+            play_third_share: { defensive: 0.36, middle: 0.47, attacking: 0.17 },
+            heatmap: sampleTeamMap(38.6, { seenFar: 0.55 }),
+            seen_share: 0.81,
+            kept_share: 0.94,
+        },
         attacking_end: 'right',
         shot_map: OUR_SHOTS,
         turnovers_by_third: { defensive: 9, middle: 14, attacking: 11 },
@@ -425,6 +464,14 @@ const SAMPLE_TEAMS = {
             escaped_defence: 19,
         },
         shape_drift: null,
+        field_position: {
+            height_m: 47.2,
+            third_share: { defensive: 0.27, middle: 0.48, attacking: 0.25 },
+            play_third_share: { defensive: 0.17, middle: 0.47, attacking: 0.36 },
+            heatmap: sampleTeamMap(47.2),
+            seen_share: 0.78,
+            kept_share: 0.94,
+        },
         attacking_end: 'left',
         shot_map: THEIR_SHOTS,
         turnovers_by_third: { defensive: 12, middle: 17, attacking: 8 },

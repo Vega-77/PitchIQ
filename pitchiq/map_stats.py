@@ -388,3 +388,99 @@ def summary(series: dict[int, ShapeSeries], fps: float, every_s: float = 300.0) 
             'cover': {k: round(float(np.isfinite(getattr(s, k)).mean()), 2) for k in SHAPE_KEYS},
         }
     return out
+
+
+# ------------------------------------------------------------ for the report
+
+REPORT_GRID = (21, 14)  # 5 m cells on 105 x 68; the thirds fall on columns 7 and 14
+
+
+def _num_or_none(v, places: int) -> float | None:
+    """A plain rounded float, or None for NaN: absent is null in the report, never 0."""
+    v = float(v)
+    return round(v, places) if np.isfinite(v) else None
+
+
+def _finite_mean(v: np.ndarray) -> float:
+    v = v[np.isfinite(v)]
+    return float(v.mean()) if len(v) else float('nan')
+
+
+def _shares_or_none(d: dict[str, float]) -> dict[str, float | None] | None:
+    if not all(np.isfinite(v) for v in d.values()):
+        return None
+    return {k: round(float(v), 3) for k, v in d.items()}
+
+
+def lighter_team(path) -> int:
+    """Which map team wore the lighter shirts: the median kit L over the half's
+    windows, after each window's team swap (as `experiments/heat_sheet.kits`)."""
+    z = np.load(path)
+    kit = np.where(z['swap'][:, None, None], z['kit_lab'][:, ::-1], z['kit_lab'])
+    light = [float(np.nanmedian(kit[:, team, 0])) for team in TEAMS]
+    return int(np.argmax(light))
+
+
+def report_block(t: MapTable, ours: int) -> dict[str, dict]:
+    """The map's team figures, shaped for `report_export`'s teams block.
+
+    `ours` is the map team (0 or 1) that is the coach's side: which side is "us"
+    is a human fact the map cannot know. Keyed 'team_a' (ours) and 'team_b'.
+
+    Per team:
+    * shape: `line_m` and `compactness_m` (half means). `width_m` and `depth_m`
+      are null on purpose: they are max-minus-min, so one stray ring sets them
+      (+4 m and +19 m when there is one every instant), and they lean 3-5 m on
+      where the map guesses unseen players. See docs/design/map_stats.md.
+    * field_position: where the team stood, from the players, not the ball.
+      `height_m` its outfield centre from its own goal; `third_share` its
+      outfielders' time in each third, its own direction; `play_third_share`
+      where the centre of all players was, from this team's direction;
+      `heatmap` its outfielders' time on REPORT_GRID, turned to attack right,
+      with `seen` (not guessed) per cell; `seen_share` the seen part of all
+      its counted time; `kept_share` the part of the half whose team split
+      held (`split_checks`). Team numbers in the rest are null.
+    * attacking_end: 'right' if it defended the low-x goal, else 'left'.
+    """
+    if ours not in TEAMS:
+        raise ValueError(f'ours must be 0 or 1, not {ours!r}')
+    left = defends_left(t)
+    sh = shape(t, left=left)
+    ts = territory(t, left=left)
+    kept = ~bad_split_frames(t, ts.frames)
+    out = {}
+    for team in TEAMS:
+        s = sh[team]
+        h = heatmap(t, team, left=left, grid=REPORT_GRID)
+        cols, rows = REPORT_GRID
+        play = ts.play if team == 0 else t.length_m - ts.play
+        counted = s.n[kept].sum()
+        out['team_a' if team == ours else 'team_b'] = {
+            'shape': {
+                'width_m': None,
+                'depth_m': None,
+                'compactness_m': _num_or_none(s.mean('compact'), 1),
+                'line_m': _num_or_none(s.mean('line'), 1),
+            },
+            'field_position': {
+                'height_m': _num_or_none(_finite_mean(ts.height[team]), 1),
+                'third_share': _shares_or_none(h.thirds()) if h.samples else None,
+                'play_third_share': _shares_or_none(third_shares(play, t.length_m)),
+                'heatmap': (
+                    {
+                        'cols': cols,
+                        'rows': rows,
+                        'values': [round(float(v), 4) for v in h.share.ravel()],
+                        'seen': [_num_or_none(v, 2) for v in h.seen.ravel()],
+                    }
+                    if h.samples
+                    else None
+                ),
+                'seen_share': (
+                    round(float(s.n_seen[kept].sum() / counted), 3) if counted else None
+                ),
+                'kept_share': round(float(kept.mean()), 3),
+            },
+            'attacking_end': 'right' if left[team] else 'left',
+        }
+    return out

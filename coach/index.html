@@ -555,6 +555,28 @@
             <p class="muted xg-credit">xG model trained on StatsBomb open data.</p>
         </section>
 
+        <!-- Where each team stood, from the players on the top-down map rather
+             than the ball. One pitch a side, each turned to attack right so the
+             two read the same way. Hatched ground is where the camera saw the
+             players less than 70% of the time and the map guessed. -->
+        <section class="block hidden" id="cv-teammap-block" data-rail="Team heatmaps">
+            <h3>Where each team stood</h3>
+            <p class="muted" id="cv-teammap-lede" style="margin:-4px 0 14px"></p>
+            <div class="teammap-pair">
+                <figure class="teammap">
+                    <figcaption id="cv-teammap-us-title"></figcaption>
+                    <div id="cv-teammap-us" class="heatmap"></div>
+                    <p class="muted teammap-thirds" id="cv-teammap-us-thirds"></p>
+                </figure>
+                <figure class="teammap">
+                    <figcaption id="cv-teammap-them-title"></figcaption>
+                    <div id="cv-teammap-them" class="heatmap"></div>
+                    <p class="muted teammap-thirds" id="cv-teammap-them-thirds"></p>
+                </figure>
+            </div>
+            <p class="muted" id="cv-teammap-note" style="margin:12px 0 0"></p>
+        </section>
+
         <!-- Where each player actually played, against the line the coach put
              them in. Two real records compared, not one record against a
              template: the video says where somebody's average position was, the

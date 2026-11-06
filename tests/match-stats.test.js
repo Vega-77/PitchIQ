@@ -332,6 +332,54 @@ describe('teamStatRows', () => {
         assert.equal(report.groupStats(rows)[0].rows.length, 4);
     });
 
+    test('a map report shows its line and compactness without width', () => {
+        // The map leaves width and depth null on purpose (one stray ring sets
+        // a max-minus-min); the two figures it does measure still show.
+        const map = { width_m: null, depth_m: null, compactness_m: 13.3, line_m: 50.7 };
+        const rows = report.shapeStatRows(map, { ...map, line_m: 35.3 }, null);
+        const shown = report.groupStats(rows)[0].rows.map((r) => r.label);
+        assert.deepEqual(shown, ['Compactness', 'Defensive line']);
+    });
+
+    const POSITION = {
+        height_m: 60.4,
+        third_share: { defensive: 0.182, middle: 0.497, attacking: 0.321 },
+        play_third_share: { defensive: 0.128, middle: 0.517, attacking: 0.355 },
+    };
+    const THEIR_POSITION = {
+        height_m: 44.8,
+        third_share: { defensive: 0.393, middle: 0.485, attacking: 0.122 },
+        play_third_share: { defensive: 0.355, middle: 0.517, attacking: 0.128 },
+    };
+
+    test('where each side stood is read from the map, both sides', () => {
+        const rows = labelled(report.positionStatRows(POSITION, THEIR_POSITION, null));
+        assert.equal(rows['Average position'].value, '60m');
+        assert.equal(rows['Average position'].themValue, '45m');
+        assert.equal(rows['Time in final third'].value, '32%');
+        assert.equal(rows['Time in final third'].usN, 32.1);
+        assert.equal(rows['Game in their final third'].themValue, '13%');
+        assert.ok(Object.values(rows).every((r) => r.better === null));
+    });
+
+    test('no map, no position rows; a missing third is null, not 0%', () => {
+        assert.deepEqual(report.positionStatRows(null, THEIR_POSITION, null), []);
+        const rows = labelled(report.positionStatRows(
+            { ...POSITION, third_share: null }, THEIR_POSITION, null,
+        ));
+        assert.equal(rows['Time in own third'].value, null);
+        assert.equal(rows['Time in own third'].themValue, '39%');
+        const kept = report.groupStats(Object.values(rows))[0].rows;
+        assert.equal(kept.length, 5);
+    });
+
+    test('a map report gets its own group, after shape', () => {
+        const rows = labelled(report.teamStatRows(cv({ field_position: POSITION })));
+        assert.equal(rows['Average position'].type, 'position');
+        const ids = report.STAT_TYPES.map((t) => t.id);
+        assert.ok(ids.indexOf('position') > ids.indexOf('shape'));
+    });
+
     test('expected goals is withheld, not zeroed, past the trust band', () => {
         const shown = labelled(report.teamStatRows(
             cv({ xg: 1.44 }, { calibrationErrorM: 0.4 }),

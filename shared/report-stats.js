@@ -60,6 +60,16 @@ export const STAT_TYPES = [
             + 'behind his defence at every moment, so counting him would pull '
             + 'the back line several metres deeper than it was played.',
     },
+    {
+        id: 'position',
+        title: 'Where the teams stood',
+        note: 'From the players on the map, not the ball. Each side is measured '
+            + 'from the goal it defended, so the two columns do not add up. '
+            + 'Average position is metres from that goal; the game is in a '
+            + 'side’s final third when the middle of all the outfielders is. '
+            + 'Where the camera could not see a player, the map guesses where '
+            + 'they stood.',
+    },
 ];
 
 /**

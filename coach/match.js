@@ -18,7 +18,9 @@ import {
 import {
     renderTeamStats, matchRail, renderMatchRail, redrawCvNote, renderPlayerTable, mergeCvPlayers,
 } from './match-overview.js?v=154';
-import { renderShape, renderPassing, renderPressing, renderSubs } from './match-play.js?v=154';
+import {
+    renderShape, renderTeamMap, renderPassing, renderPressing, renderSubs,
+} from './match-play.js?v=154';
 import { renderShots, renderSampleToggle, redrawShotViews } from './match-shots.js?v=154';
 import { renderClusterMapping, closeSameAs } from './mapping.js?v=154';
 import { renderExcluded } from './excluded.js?v=154';
@@ -119,6 +121,7 @@ function drawMatch({ match, matchId, stats, log, roster }) {
     // verdict in the review can move, so it lives on `redrawMappedViews`
     // and is drawn once from here.
     renderShape();
+    renderTeamMap();
 
     renderPlayerTable(stats.players);
     renderMatchVideoBlock();
@@ -147,6 +150,7 @@ export function toggleSample() {
     renderShots();
     renderPassing();
     renderShape();
+    renderTeamMap();
     renderPressing();
     renderSubs();
     renderExcluded();

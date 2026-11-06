@@ -150,6 +150,30 @@ the corners of the attacking third, where the camera looks least. A pinned
 team's attacking zones are the most guessed (pi2 team 0: 44-65% seen there),
 so `heat_sheet` prints the seen part under every zone.
 
+## In the report (schema 16)
+
+`map_stats.report_block` shapes the map's team figures for the report's teams
+block, and `python -m pitchiq map_report <map.npz> --ours lighter|darker`
+writes them as a report JSON (alone, or `--into` a pipeline report), which
+`publish_report` sends to Firestore like any other. What goes in, from the
+measurements above:
+
+* `shape`: `line_m` and `compactness_m`. `width_m` and `depth_m` are null on
+  purpose: a stray ring sets a max-minus-min, and they lean 3-5 m on guesses.
+* `field_position`: `height_m`, `third_share`, `play_third_share`, a 21 x 14
+  heatmap (5 m cells, turned to attack right) with `seen` per cell,
+  `seen_share` and `kept_share`.
+* Every figure in a window whose team split failed is left out, and a team
+  with no kept window gets null, never 0.
+
+Which map team is the coach's side cannot be read off the map, so `--ours` has
+no default; the shirt shade (`lighter_team`, median kit L after the window
+swaps) names the two sides the way the heat sheet does.
+
+On the coach's match page they are the "Where the teams stood" rows (beside
+Shape) and the "Where each team stood" block: one pitch a side with the thirds
+dashed and the guessed ground (seen under 70%) hatched.
+
 ## Not done yet
 
 - Live play only: shape at a corner or a goal kick counts like open play.

@@ -12,5 +12,6 @@ COMMANDS = (
     'match_report',
     'compare_reports',
     'publish_report',
+    'map_report',
     'demo',
 )

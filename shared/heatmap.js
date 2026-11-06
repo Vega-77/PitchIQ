@@ -40,6 +40,15 @@ import { svgEl as el } from './svg.js?v=154';
 // "they were everywhere", which is the opposite of what a heatmap is for.
 const FLOOR = 0.06;
 
+// A team heatmap from the top-down map carries, per cell, the share of its time
+// that was a player the camera saw rather than one the map guessed. Below this,
+// the cell is hatched: the colour there is mostly a guess. The same cut as
+// `pitchiq/experiments/heat_sheet.py`'s SEEN_OK.
+export const SEEN_OK = 0.7;
+
+// Each hatch pattern needs an id unique on the page, and a page can draw two.
+let hatchCount = 0;
+
 /** Whether a value is a grid this module can do anything with. */
 export function isGrid(grid) {
     return Boolean(
@@ -269,8 +278,14 @@ export function orientedCentroid(grid, attackingEnd) {
         : { forwardM: middle.xM, lateralM: middle.yM, spreadM };
 }
 
-/** The grid as an `<svg>` over pitch markings. */
-function heatmapSvg(grid, { attackingEnd = null } = {}) {
+/**
+ * The grid as an `<svg>` over pitch markings.
+ *
+ * With `thirds`, dashed lines split the pitch in three. With a `seen` array
+ * on the grid (same layout as `values`), drawn cells the camera saw less than
+ * SEEN_OK of the time are hatched over: the map guessed where players stood.
+ */
+function heatmapSvg(grid, { attackingEnd = null, thirds = false } = {}) {
     const svg = el('svg', {
         viewBox: PITCH_VIEWBOX,
         preserveAspectRatio: 'xMidYMid meet',
@@ -298,12 +313,55 @@ function heatmapSvg(grid, { attackingEnd = null } = {}) {
     }
 
     svg.appendChild(cells);
+    const guessed = guessedCells(grid, peak, cellW, cellH);
+    if (guessed) svg.appendChild(guessed);
     svg.appendChild(pitchMarkings({ width: 0.3 }));
+    if (thirds) {
+        for (const at of [PITCH_LENGTH_M / 3, (2 * PITCH_LENGTH_M) / 3]) {
+            svg.appendChild(el('line', {
+                class: 'heatmap-third',
+                x1: at, y1: 0, x2: at, y2: PITCH_WIDTH_M,
+                stroke: 'currentColor', 'stroke-width': 0.3, 'stroke-dasharray': '1.2 1.2',
+            }));
+        }
+    }
 
     if (attackingEnd === 'left' || attackingEnd === 'right') {
         svg.appendChild(directionArrow(attackingEnd));
     }
     return svg;
+}
+
+/** Hatching over the drawn cells that were mostly guessed; null when none were. */
+function guessedCells(grid, peak, cellW, cellH) {
+    if (!Array.isArray(grid.seen) || grid.seen.length !== grid.values.length) return null;
+    hatchCount += 1;
+    const id = `heatmap-guessed-${hatchCount}`;
+    const group = el('g', { class: 'heatmap-guessed' });
+    const defs = el('defs');
+    const pattern = el('pattern', {
+        id, width: 1.6, height: 1.6, patternUnits: 'userSpaceOnUse',
+        patternTransform: 'rotate(45)',
+    });
+    pattern.appendChild(el('line', {
+        x1: 0, y1: 0, x2: 0, y2: 1.6, stroke: 'currentColor', 'stroke-width': 0.35,
+    }));
+    defs.appendChild(pattern);
+    group.appendChild(defs);
+    let any = false;
+    for (let x = 0; x < grid.cols; x += 1) {
+        for (let y = 0; y < grid.rows; y += 1) {
+            const i = x * grid.rows + y;
+            const seen = grid.seen[i];
+            if (seen == null || seen >= SEEN_OK) continue;
+            if (cellAt(grid, x, y) / peak < FLOOR) continue;
+            group.appendChild(el('rect', {
+                x: x * cellW, y: y * cellH, width: cellW, height: cellH, fill: `url(#${id})`,
+            }));
+            any = true;
+        }
+    }
+    return any ? group : null;
 }
 
 /** A small arrow above the pitch showing which way they were playing. */
@@ -340,6 +398,22 @@ export function renderHeatmap(host, entries, options = {}) {
     const svg = heatmapSvg(grid, options);
     svg.setAttribute('aria-label', options.label
         || 'Where this player spent the match, drawn on the pitch');
+    host.appendChild(svg);
+    return true;
+}
+
+/**
+ * Put one team's heatmap from the map into `host`: already turned to attack
+ * right, with the thirds and the guessed ground marked. False, and `host` left
+ * empty, when there is no grid to draw.
+ */
+export function renderTeamHeatmap(host, grid, options = {}) {
+    if (!host) return false;
+    host.innerHTML = '';
+    if (!isGrid(grid) || !busiestCell(grid)) return false;
+    const svg = heatmapSvg(grid, { attackingEnd: 'right', thirds: true });
+    svg.setAttribute('aria-label', options.label
+        || 'Where this team stood, attacking to the right');
     host.appendChild(svg);
     return true;
 }

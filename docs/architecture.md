@@ -37,7 +37,10 @@ Firestore.
 A second, separate path makes the top-down map for panning footage:
 `pitchtrack.py` (players tracked in metres) -> `linking.py` (tracklets joined into
 people) -> `topdown.py` (everyone, every frame). `balltrack/match_video.py` renders
-it with the ball. It does not feed the report yet.
+it with the ball. `experiments/wholemap.py` maps whole halves, and
+`map_stats.py` reads team shape and where each team stood off that map; `python
+-m pitchiq map_report` puts those into a report JSON (`field_position` and
+`shape` in the teams block). Player figures do not come from the map yet.
 
 ## Which path a module belongs to
 

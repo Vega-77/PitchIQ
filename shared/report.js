@@ -56,7 +56,7 @@ export {
 
 export {
     SHARE, COUNT, RATE, comparePair, verdict, insideNoise, taggedCount, taggedTeamRows,
-    teamStatRows, shapeStatRows, keeperStatRows, keeperOfTrack,
+    teamStatRows, shapeStatRows, positionStatRows, keeperStatRows, keeperOfTrack,
 } from './report-teams.js?v=154';
 
 export {

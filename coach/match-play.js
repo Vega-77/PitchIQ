@@ -12,7 +12,9 @@ import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
 } from '../shared/passing.js?v=154';
 import { renderPassMap } from '../shared/pass-map.js?v=154';
-import { mergeHeatmaps, orientedCentroid } from '../shared/heatmap.js?v=154';
+import {
+    mergeHeatmaps, orientedCentroid, renderTeamHeatmap, SEEN_OK,
+} from '../shared/heatmap.js?v=154';
 import {
     NOT_A_PLAYER, pressingTrend, pressingNote, pressingRead, substitutionWindows,
     substitutionRead, substitutionNote, CHANGE_REASONS, matchClockMap, groupByPosition,
@@ -20,7 +22,7 @@ import {
 } from '../shared/report.js?v=154';
 import { PITCH_LENGTH_M } from '../shared/pitch-backdrop.js?v=154';
 import { byId, setText, clockText, plural } from '../shared/ui.js?v=154';
-import { activeCv, state } from './shell.js?v=154';
+import { activeCv, state, teamLabels } from './shell.js?v=154';
 import { clockMap } from './review.js?v=154';
 
 // ------------------------------------------------ where each player played
@@ -193,6 +195,82 @@ function shapeScale() {
         el.append(tick);
     }
     return el;
+}
+
+// ------------------------------------------------- where each team stood
+//
+// One pitch a side from the top-down map (`pitchiq/map_stats.py::report_block`),
+// each turned to attack right so the two read the same way. The rows in the
+// "Where the teams stood" group carry the numbers; this is the picture.
+
+/** Percent text for a share, or null when it was not measured. */
+const pctOf = (share) => (share == null ? null : `${Math.round(share * 100)}%`);
+
+/** "Own third 18% · Middle third 50% · Final third 32%", or '' without thirds. */
+function thirdsText(shares) {
+    if (!shares) return '';
+    return [
+        ['Own third', shares.defensive], ['Middle third', shares.middle],
+        ['Final third', shares.attacking],
+    ].map(([name, share]) => `${name} ${pctOf(share)}`).join(' · ');
+}
+
+/** One side's pitch, title and thirds; true when there was a grid to draw. */
+function drawTeamMap({ host, title, thirds }, name, position) {
+    host?.classList.toggle('is-sample-plot', Boolean(state.cvPreview));
+    const ok = renderTeamHeatmap(host, position?.heatmap, {
+        label: `Where ${name} stood, attacking to the right`,
+    });
+    host?.closest('figure')?.classList.toggle('hidden', !ok);
+    if (title) title.textContent = ok ? `${name}, attacking →` : '';
+    if (thirds) thirds.textContent = ok ? thirdsText(position.third_share) : '';
+    return ok;
+}
+
+export function renderTeamMap() {
+    const block = byId('cv-teammap-block');
+    if (!block) return;
+    const teams = activeCv()?.teams || {};
+    const { usName, themName } = teamLabels();
+    const sides = [
+        [usName, teams.team_a?.field_position],
+        [themName, teams.team_b?.field_position],
+    ];
+    const drawn = [
+        drawTeamMap({
+            host: byId('cv-teammap-us'),
+            title: byId('cv-teammap-us-title'),
+            thirds: byId('cv-teammap-us-thirds'),
+        }, usName, sides[0][1]),
+        drawTeamMap({
+            host: byId('cv-teammap-them'),
+            title: byId('cv-teammap-them-title'),
+            thirds: byId('cv-teammap-them-thirds'),
+        }, themName, sides[1][1]),
+    ].filter(Boolean).length;
+    block.classList.toggle('hidden', !drawn);
+    if (!drawn) return;
+
+    setText('cv-teammap-lede',
+        'Where each side’s outfielders spent the half, turned so both attack '
+        + 'to the right. Darker is more time. The dashed lines split the '
+        + 'pitch into thirds.');
+
+    const seen = sides
+        .filter(([, position]) => position?.seen_share != null)
+        .map(([name, position]) => `${name} ${pctOf(position.seen_share)}`);
+    const kept = teams.team_a?.field_position?.kept_share;
+    setText('cv-teammap-note', [
+        seen.length
+            ? `Time the camera saw, not guessed by the map: ${seen.join(', ')}.`
+            : null,
+        `Hatched ground is where it saw players less than ${pctOf(SEEN_OK)} of `
+            + 'the time, so the colour there is mostly a guess.',
+        kept != null && kept < 0.995
+            ? `${pctOf(1 - kept)} of the half is left out of both maps: the two `
+                + 'teams’ shirts could not be told apart there.'
+            : null,
+    ].filter(Boolean).join(' '));
 }
 
 export function renderShape() {

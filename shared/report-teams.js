@@ -438,6 +438,8 @@ export function teamStatRows(cv, confidence = {}) {
             (t) => t.turnovers_by_third?.defensive, { better: 'low' }),
 
         ...shapeStatRows(ours.shape, theirs?.shape, cv.calibrationErrorM),
+        ...positionStatRows(ours.field_position, theirs?.field_position,
+            cv.calibrationErrorM),
 
         ...keeperStatRows(cv.keepers, {
             events, shape: shapeConfidence(cv.calibrationErrorM),
@@ -454,15 +456,21 @@ export function teamStatRows(cv, confidence = {}) {
  * opposition is a fact about the match, where "38m wide" on its own is a number
  * with nothing to lean on.
  *
- * Empty until a calibration exists, which is every run today — width in metres
- * is not something a pixel can answer. Their shape may be absent while ours is
- * not, and then the rows draw one-sided rather than against a zero.
+ * Empty until a calibration exists — width in metres is not something a pixel
+ * can answer. Their shape may be absent while ours is not, and then the rows
+ * draw one-sided rather than against a zero.
+ *
+ * A report from the top-down map (`pitchiq/map_stats.py::report_block`) has a
+ * back line and compactness but null width and depth: one stray ring sets a
+ * max-minus-min, so those two wait until strays are fixed. So the gate is any
+ * figure at all, not width, and the two null rows drop out in `groupStats`.
  *
  * None of these is coloured good or bad. A compact side is well-drilled or it
  * is pinned in its own half, and no number here can tell the difference.
  */
 export function shapeStatRows(shape, theirShape, calibrationErrorM) {
-    if (!shape || shape.width_m == null) return [];
+    const keys = ['width_m', 'depth_m', 'compactness_m', 'line_m'];
+    if (!shape || keys.every((key) => shape[key] == null)) return [];
     const band = shapeConfidence(calibrationErrorM);
     const metres = (value) => `${Math.round(value)}m`;
 
@@ -492,6 +500,51 @@ export function shapeStatRows(shape, theirShape, calibrationErrorM) {
         // uncalibrated or unassigned run shows three rows rather than a fourth
         // reading nothing.
         row('Defensive line', 'line_m'),
+    ];
+}
+
+/**
+ * Where each side stood, from the players on the top-down map, not the ball.
+ *
+ * The `territory` rows above split each side's possession by where the ball
+ * was, and the ball is not trustworthy on a panning camera yet. These read the
+ * players instead (`pitchiq/map_stats.py::report_block`): how far up the pitch
+ * a side's outfielders stood on average, how their time split across the
+ * thirds, and how often the game as a whole was in that side's final third.
+ *
+ * Every figure is from that side's own direction, so the two columns are two
+ * views of one match and do not add up. None is marked good or bad: a side
+ * that stood deep may have chosen to.
+ */
+export function positionStatRows(position, theirPosition, calibrationErrorM) {
+    if (!position) return [];
+    const band = shapeConfidence(calibrationErrorM);
+    const row = (label, kind, pick, format) => {
+        const usN = pick(position) ?? null;
+        const themN = theirPosition ? pick(theirPosition) ?? null : null;
+        return {
+            type: 'position', label, kind,
+            better: null, explained: true, confidence: band,
+            value: usN == null ? null : format(usN),
+            themValue: themN == null ? null : format(themN),
+            usN, themN,
+        };
+    };
+    const metres = (value) => `${Math.round(value)}m`;
+    // Percentages in the unit the row prints, as in `teamStatRows`.
+    const third = (key, name) => (side) => {
+        const share = side[key]?.[name];
+        return share == null ? null : share * 100;
+    };
+    const pct = (value) => `${Math.round(value)}%`;
+
+    return [
+        row('Average position', LEVEL, (side) => side.height_m, metres),
+        row('Time in own third', RATE, third('third_share', 'defensive'), pct),
+        row('Time in middle third', RATE, third('third_share', 'middle'), pct),
+        row('Time in final third', RATE, third('third_share', 'attacking'), pct),
+        row('Game in their final third', RATE,
+            third('play_third_share', 'attacking'), pct),
     ];
 }
 

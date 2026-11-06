@@ -43,6 +43,23 @@
    two is the weight, not the colour. */
 .heatmap-arrow { color: var(--text-faint); }
 
+/* A team heatmap from the map. Hatching is the guessed ground: the camera saw
+   players there under 70% of the time. Drawn in the marking colour so it reads
+   as a note on the pitch, not as more heat. The thirds are dashed and quieter
+   than the painted lines, because nobody painted them. */
+.heatmap-guessed { color: var(--mark-quiet); opacity: 0.9; }
+.heatmap-third { color: var(--mark-quiet); opacity: 0.7; }
+
+/* Two pitches side by side on a laptop, stacked on a phone. */
+.teammap-pair {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+}
+.teammap { margin: 0; }
+.teammap figcaption { font-weight: 600; margin: 0 0 6px; }
+.teammap-thirds { margin: 6px 0 0; font-variant-numeric: tabular-nums; }
+
 /* --------------------------------------------------------------- shot map */
 /*
    Half a pitch — the attacking half — with a dot per shot, sized by area so a

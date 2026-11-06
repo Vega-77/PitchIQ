@@ -120,7 +120,14 @@ from .teams import TEAM_A, TEAM_B
 #     pitch — and a shot from the spot then plotted 7m outside the box, and a
 #     second-half shot mirrored through the wrong centre. The mirror now uses
 #     the real pitch, and the drawing frame is applied after it.
-SCHEMA_VERSION = 15
+# 16: `field_position` per team, from the top-down map (`map_stats.report_block`):
+#     average position, time in each third, where the game was, and a team
+#     heatmap with the seen (not guessed) part of each cell. Additive. A map
+#     report (`map_report_json`) also fills `shape` from the map, with
+#     `width_m` and `depth_m` null on purpose: one stray ring sets a
+#     max-minus-min, so they are left out until strays are fixed, and every
+#     event figure in it is null, because the map has no events.
+SCHEMA_VERSION = 16
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -214,6 +221,9 @@ class TeamStats:
     # your own goal is a different event from one lost in theirs, and a single
     # turnover total hides exactly that.
     turnovers_by_third: dict | None = None
+    # Where the team stood, read off the top-down map's players rather than the
+    # ball. None on a run with no map. See `map_stats.report_block`.
+    field_position: dict | None = None
 
     @property
     def pass_accuracy(self) -> float | None:
@@ -254,6 +264,7 @@ class TeamStats:
             'phase_of_play': self.phase_of_play,
             'shape_drift': self.shape_drift,
             'turnovers_by_third': self.turnovers_by_third,
+            'field_position': self.field_position,
             'attacking_end': self.attacking_end,
             'shot_map': self.shot_map,
         }
@@ -960,3 +971,76 @@ def _agreement(report, kind: str) -> float | None:
     if reconciliation is None:
         return None
     return round_or_none(reconciliation.rate(kind), 3)
+
+
+# Said on every map report, so nobody reads its empty event rows as a quiet match.
+MAP_ONLY_WARNING = (
+    'Team figures from the top-down map only: shape and where each team stood. '
+    'No events, possession or player numbers were measured for this report.'
+)
+
+
+def map_report_json(
+    block: dict[str, dict],
+    *,
+    source: str,
+    length_m: float,
+    width_m: float,
+    duration_s: float | None = None,
+    period: int | None = None,
+    window: dict | None = None,
+) -> dict:
+    """A report built from the map alone: `map_stats.report_block` in the teams block.
+
+    Every key a pipeline report carries is here, so the pages read it the same
+    way. Each figure the map does not measure is null, never zero: the map has
+    players, not events, so touches, passes and tackles were not counted, which
+    is a different statement from none having happened.
+    """
+    teams = {}
+    for team in (TEAM_A, TEAM_B):
+        blank = {k: None for k in TeamStats(team).to_json()}
+        blank.update(team=team, passes_by_length=None, passes_by_direction=None)
+        blank.update(block[team])
+        teams[team] = blank
+    return {
+        'schema_version': SCHEMA_VERSION,
+        'source': source,
+        'pitch': {'length_m': round(float(length_m), 1), 'width_m': round(float(width_m), 1)},
+        'window': window or {},
+        'duration_s': round_or_none(duration_s, 1),
+        'processing_s': None,
+        'timing': None,
+        'calibrated': True,
+        'period': period,
+        'period_source': 'map' if period is not None else None,
+        'calibration_error_m': None,
+        'quality': {},
+        'warnings': [MAP_ONLY_WARNING],
+        'trustworthy': False,
+        'teams': teams,
+        'tracks': [],
+        'keepers': [],
+        'clusters': [],
+        'participants': [],
+        'reconciliation': None,
+        'events': [],
+    }
+
+
+def attach_map(report_json: dict, block: dict[str, dict]) -> dict:
+    """A pipeline report with the map's team figures put in (a new dict).
+
+    `field_position` and `attacking_end` come from the map, and so does `shape`:
+    the map's back line and compactness are the measured ones (the pipeline's
+    shape needs a fixed calibration, which no panning match has). The report's
+    `team_a` must be the same side as the block's: `report_block`'s `ours`.
+    """
+    out = dict(report_json)
+    out['teams'] = {k: dict(v) for k, v in (report_json.get('teams') or {}).items()}
+    for team in (TEAM_A, TEAM_B):
+        side = out['teams'].setdefault(team, {'team': team})
+        for key in ('shape', 'field_position', 'attacking_end'):
+            side[key] = block[team][key]
+    out['schema_version'] = SCHEMA_VERSION
+    return out

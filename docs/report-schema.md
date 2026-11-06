@@ -22,7 +22,7 @@ Rules that hold across all of it:
 
 - **Keys are never renamed.** Fields can be added. A change of meaning bumps
   `SCHEMA_VERSION` in `pitchiq/report_export.py`, whose comment block lists every
-  version and why it changed. The current version is 15.
+  version and why it changed. The current version is 16.
 - **Absent is not zero.** A figure nothing could measure is `null`, never `0`.
   Every page renders `null` as a dash. A key that is spelt wrong also reads as
   `undefined`, which is why the seam tests below exist.
@@ -57,7 +57,7 @@ Top level, from `report_export.build_report_json` (written by
 | `warnings` | list of str | plain-language reasons, shown to the coach as written |
 | `quality` | dict | how much was seen: ball seen / filled share, tracks per cluster, position noise, blind spells, pitch coverage, realtime factor, ... |
 | `timing` | dict or null | where the run's seconds went, and whether it keeps up with a live half (not published; null when the run was not timed) |
-| `teams` | dict | `team_a`, `team_b`: possession, passes, shots, xG, territory, shape, pressing, ... per team |
+| `teams` | dict | `team_a`, `team_b`: possession, passes, shots, xG, territory, shape, pressing, `field_position`, ... per team |
 | `tracks` | list | per track: `track_ids`, `cluster_id`, `team`, touches, passes, distance, speed, heatmap, shot map, ... |
 | `clusters` | list | per figure a reviewer maps to a name: `cluster_id`, `track_ids`, `colour`, first / last seen, `thumb` (base64 JPEG) |
 | `participants` | list | per track the pipeline decided about: `role` (`player`, `offfield`, `official`, `unsure`), the `reason`, and the evidence (`screen_time_s`, `off_pitch_share`, `spread_ph`, ...) |
@@ -66,6 +66,15 @@ Top level, from `report_export.build_report_json` (written by
 | `touches` | list | `timestamp_s`, `track_id`, `team`, `confidence`, `observed` |
 | `reconciliation` | dict or null | where the tag log and the pipeline disagree (needs a tag log) |
 | `processing_s` | float | wall-clock seconds of the run |
+
+`field_position` (version 16) comes from the top-down map, not the event log:
+`height_m` (outfield centre from own goal), `third_share` and `play_third_share`
+(each third, the team's own direction), `heatmap` (`cols`, `rows`, `values`,
+`seen`, 21 x 14 cells turned to attack right, flat in the `values[x * rows + y]`
+layout of every other grid), `seen_share` and `kept_share`. A report written by
+`python -m pitchiq map_report` from the map alone has it, plus `shape` with
+`width_m` and `depth_m` null, and every event figure null with a warning saying
+why. See `pitchiq/map_stats.py::report_block` and `docs/design/map_stats.md`.
 
 `tests/test_quality_seam.py`, `test_teams_seam.py`, `test_keepers_seam.py`,
 `test_events_seam.py`, `test_identity_seam.py` and `test_reconcile_seam.py` each
