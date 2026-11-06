@@ -230,7 +230,10 @@ function drawTeamMap({ host, title, thirds }, name, position) {
 export function renderTeamMap() {
     const block = byId('cv-teammap-block');
     if (!block) return;
-    const teams = activeCv()?.teams || {};
+    const cv = activeCv();
+    const teams = cv?.teams || {};
+    // A report of one half says so in `period`; a whole match leaves it null.
+    const span = cv?.period ? 'the half' : 'the match';
     const { usName, themName } = teamLabels();
     const sides = [
         [usName, teams.team_a?.field_position],
@@ -252,7 +255,7 @@ export function renderTeamMap() {
     if (!drawn) return;
 
     setText('cv-teammap-lede',
-        'Where each side’s outfielders spent the half, turned so both attack '
+        `Where each side’s outfielders spent ${span}, turned so both attack `
         + 'to the right. Darker is more time. The dashed lines split the '
         + 'pitch into thirds.');
 
@@ -267,7 +270,7 @@ export function renderTeamMap() {
         `Hatched ground is where it saw players less than ${pctOf(SEEN_OK)} of `
             + 'the time, so the colour there is mostly a guess.',
         kept != null && kept < 0.995
-            ? `${pctOf(1 - kept)} of the half is left out of both maps: the two `
+            ? `${pctOf(1 - kept)} of ${span} is left out of both maps: the two `
                 + 'teams’ shirts could not be told apart there.'
             : null,
     ].filter(Boolean).join(' '));

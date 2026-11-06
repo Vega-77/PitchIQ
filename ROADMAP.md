@@ -126,6 +126,24 @@ it, **[Stretch]** for later.
       pipeline, publish, the coach opening `halftime/`, each step done by a
       real person with a stopwatch running. The pipeline half has run on the
       team's footage; the match-day half has not.
+      First end-to-end run, 2026-11-06 (Woodbridge, map figures only, on
+      reused passes): footage to a published match page works. Gaps it hit,
+      in the order a game meets them:
+      - Footage: the coach page takes a video link; nothing brings the file
+        to the machine that runs the passes (copied by hand).
+      - Half edges: the finder guesses, a person places them by eye in
+        `balltrack/halves.json`.
+      - Calibration: the loop-closure solve (`lc.py`, pins, `bridge.py`)
+        lives in a scratch folder outside the repo; some games need pins.
+      - No one command runs halves, calibration, pass, map, report and
+        publish in order; each game took a hand-written queue.
+      - Which side is ours (`map_report --ours`) and the match date and
+        score are human facts; the score was read off the scoreboard.
+      - Publishing needs a service account key on the machine; the match
+        doc was made with it, as `createMatch` would.
+      - The coach page takes the score from the tag log. With no tagging
+        it shows "—" and "The published score is out of date", although
+        the match holds 3–2: a video-only match has no score of its own.
 - [ ] Decide role split: one app covering both subs and events, or two simpler
       single-purpose roles or devices. Worth testing both at the dry run.
       (`taggerUids` in the rules is ready for either.)

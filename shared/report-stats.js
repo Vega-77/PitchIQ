@@ -56,7 +56,7 @@ export const STAT_TYPES = [
         id: 'shape',
         title: 'Shape',
         note: 'Averaged across the run, and only as good as the calibration. '
-            + 'The goalkeepers are left out of all four: a keeper stands '
+            + 'The goalkeepers are left out of every row: a keeper stands '
             + 'behind his defence at every moment, so counting him would pull '
             + 'the back line several metres deeper than it was played.',
     },
