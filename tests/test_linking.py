@@ -32,10 +32,10 @@ class Scene:
 
     def __init__(self, n):
         self.n = n
-        self.rows = []  # (frame, box, team, kit, desc, person)
+        self.rows = []  # (frame, box, team, kit, desc, person, conf)
         self.runs = []  # (person, [row indices before sorting])
 
-    def person(self, where, look, frames, team=None):
+    def person(self, where, look, frames, team=None, conf=0.9):
         """where(f) -> (x, y); frames: iterable of the frames it is detected in."""
         pid = len({r[5] for r in self.rows})
         run, last = [], None
@@ -52,6 +52,7 @@ class Scene:
                     look['kit'],
                     look['desc'],
                     pid,
+                    conf,
                 )
             )
             last = f
@@ -66,7 +67,7 @@ class Scene:
         det = Detections(
             frame=[x[0] for x in r],
             box=[x[1] for x in r],
-            conf=[0.9] * len(r),
+            conf=[x[6] for x in r],
             team=[x[2] for x in r],
             desc=np.array([x[4] for x in r], dtype=np.float64),
             kit=np.array([x[3] for x in r], dtype=np.float64) if with_kit else None,
@@ -362,6 +363,73 @@ def test_someone_walking_the_touchline_all_window_is_off():
     role = {next(iter(people_in(i, owner))): i.role for i in res.identities}
     assert role[linesman] == OFF
     assert role[winger] == PLAYER
+
+
+def test_a_still_unsure_box_is_off_and_a_still_sure_one_plays():
+    s = Scene(180)
+    background(s, range(180))
+    ghost = s.person(walker(40.0, 20.0), DARK, range(180), conf=0.3)  # a cone, 6 s
+    waiting = s.person(walker(40.0, 30.0), LIGHT, range(180))  # a player waiting, sure
+    unsure = s.person(walker(30.0, 14.0, vx=1.0), DARK, range(180), conf=0.3)  # moving
+    res, owner = s.link()
+    role = {next(iter(people_in(i, owner))): i.role for i in res.identities}
+    assert role[ghost] == OFF
+    assert role[waiting] == PLAYER and role[unsure] == PLAYER
+    res, owner = s.link(ghost_conf=0)
+    role = {next(iter(people_in(i, owner))): i.role for i in res.identities}
+    assert role[ghost] == PLAYER
+
+
+def test_a_ball_kid_past_the_line_is_off_but_a_throw_in_taker_and_a_linesman_are_not():
+    s = Scene(180)
+    background(s, range(180))
+    kid = s.person(walker(10.0, -2.5, vx=3.0), DARK, range(90))  # 2.5 m out, 3 s
+    # 2 m out with the ball for two seconds, then back into play
+    taker = s.person(
+        lambda f: (60.0, -2.0 if f < 60 else -2.0 + 0.2 * (f - 60)), LIGHT, range(150)
+    )
+    linesman = s.person(walker(20.0, -2.5, vx=3.0), NEON, range(90, 180))
+    res, owner = s.link(with_kit=True)
+    role = {next(iter(people_in(i, owner))): i.role for i in res.identities}
+    assert role[kid] == OFF
+    assert role[taker] == PLAYER
+    assert role[linesman] == REFEREE
+    res, owner = s.link(with_kit=True, beyond_m=None)
+    role = {next(iter(people_in(i, owner))): i.role for i in res.identities}
+    assert role[kid] == PLAYER
+
+
+def test_a_ball_kid_piece_joined_to_a_player_leaves_the_player():
+    s = Scene(180)
+    background(s, range(180))
+    # runs out after the ball and stays out: the tracker loses them on the way
+    p = s.person(
+        lambda f: (40.0 + 0.1 * f, max(10.0 - 0.2 * f, -2.5)),
+        DARK,
+        [f for f in range(180) if not 50 <= f < 60],
+    )
+    res, owner = s.link(beyond_m=None)
+    mine = [i for i in res.identities if p in people_in(i, owner)]
+    assert len(mine) == 1 and mine[0].role == PLAYER  # joined, one ring throughout
+    res, owner = s.link()
+    mine = sorted(
+        (i for i in res.identities if p in people_in(i, owner)), key=lambda i: i.frames[0]
+    )
+    assert [i.role for i in mine] == [PLAYER, OFF]
+    assert mine[0].frames[-1] < 50 <= mine[1].frames[0]
+
+
+def test_a_keeper_fetching_the_ball_from_behind_the_goal_stays_the_keeper():
+    s = Scene(300)
+    background(s, range(300))
+    keeper = s.person(
+        lambda f: (max(4.0 - 0.1 * max(f - 100, 0), -2.5), PITCH_W / 2),
+        LIGHT,
+        [f for f in range(300) if not 140 <= f < 150],
+    )
+    res, owner = s.link(with_kit=True)
+    mine = [i for i in res.identities if keeper in people_in(i, owner)]
+    assert [i.role for i in mine] == [KEEPER]
 
 
 def test_over_the_outfield_cap_the_least_sure_shirt_is_greyed_only_while_over():

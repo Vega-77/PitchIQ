@@ -93,6 +93,29 @@ class LinkSettings:
     still_spread_m: float = 1.5  # median distance from their own median spot
     still_min_s: float = 1.0
     off_share: float = 0.8
+    # Ball kids and coaches step on and off the line, so they are rarely 3 m
+    # out for 80% of the time; they still spend most of it well past a line,
+    # where a touchline winger's feet sit within a metre (the user's marks:
+    # ball kids -1.8 and -6.0 m, the nearest real player -0.2 m). A player
+    # taking a throw-in stands there too, then walks back in; a ball kid
+    # doesn't. Refs (neither team's kit) are left alone: linesmen live there.
+    # A tracklet like that inside a player's identity is a wrong join and
+    # leaves it. None turns all of this off.
+    beyond_m: float | None = 1.5  # median this far past a line ...
+    beyond_share: float = 0.5  # ... and past it this share of the time ...
+    beyond_in_m: float = 3.0  # ... and 90% of the time no further in than this
+    # A detection that never moves and is never sure is a thing, not a
+    # person: on every field a few fixed spots (a sprinkler, a cone) were
+    # boxed for seconds on end, and the map ringed them as players.
+    ghost_still_m: float = 0.5  # median distance from their own median spot
+    ghost_min_s: float = 5.0
+    ghost_conf: float = 0.4  # median detector confidence under this; 0 turns it off
+    # Neither rule reaches into a penalty box or behind it: at a corner,
+    # players stand still in a crowd (unsure boxes) and on the posts, which
+    # on the far goal line reads a few metres behind it. On the eight lab
+    # halves those were the only real players either rule took off.
+    box_depth_m: float = 16.5
+    box_half_m: float = 20.16
     # Touchlines only (a keeper lives near a goal line): the far touchline is
     # uncertain by a couple of metres along the ray, and a bench there reads
     # three or four metres inside the pitch. Near = within line_band_m plus
@@ -923,6 +946,66 @@ class Linker:
             return OFF
         return PLAYER
 
+    def _in_box(self, pos) -> bool:
+        """Median spot in a penalty box, or behind one."""
+        cx, cy = np.median(pos, axis=0)
+        return (
+            min(cx, self.L - cx) < self.s.box_depth_m and abs(cy - self.W / 2) < self.s.box_half_m
+        )
+
+    def _beyond(self, members, pieces) -> bool:
+        """Mostly well past a line, and never far into the pitch: a ball kid, not a player."""
+        s = self.s
+        pos = np.vstack([pieces[m].pos for m in members])
+        if len(pos) < s.still_min_s * s.fps or self._in_box(pos):
+            return False
+        x, y = pos[:, 0], pos[:, 1]
+        inside_by = np.minimum.reduce([x, self.L - x, y, self.W - y])
+        return bool(
+            np.median(inside_by) < -s.beyond_m
+            and (inside_by < 0).mean() >= s.beyond_share
+            and np.percentile(inside_by, 90) < s.beyond_in_m
+        )
+
+    def _split_beyond(self, groups, pieces, roles, keepers) -> tuple[dict, set]:
+        """(groups, the ids of groups that are ball kids): a team-kit player group
+        (not a keeper) that is one whole, or else its pieces that are, split off
+        into their own group."""
+        out, beyond = {}, set()
+        nxt = max(groups, default=-1) + 1
+        for g, members in groups.items():
+            if (
+                roles[g] != PLAYER
+                or g in keepers
+                or self._group_kit(members, pieces) == OTHER
+            ):
+                out[g] = members
+                continue
+            if self._beyond(members, pieces):
+                out[g] = members
+                beyond.add(g)
+                continue
+            off = [m for m in members if self._beyond([m], pieces)]
+            rest = [m for m in members if m not in off]
+            out[g] = rest if off else members
+            if off:
+                out[nxt] = off
+                beyond.add(nxt)
+                nxt += 1
+        return out, beyond
+
+    def _ghost(self, members, pieces, det) -> bool:
+        """Still to half a metre for seconds, and never a sure detection: not a person."""
+        s = self.s
+        if not s.ghost_conf:
+            return False
+        pos = np.vstack([pieces[m].pos for m in members])
+        if len(pos) < s.ghost_min_s * s.fps or self._in_box(pos):
+            return False
+        spread = float(np.median(np.hypot(*(pos - np.median(pos, axis=0)).T)))
+        conf = float(np.median(np.concatenate([det.conf[pieces[m].rows] for m in members])))
+        return spread < s.ghost_still_m and conf < s.ghost_conf
+
     def _keepers(self, ordered, roles, pieces) -> dict:
         """Group id -> 'left' / 'right': per goal, the deepest centred person, and the
         pieces of the same keeper the tracker kept apart (`keeper_pieces`).
@@ -1018,7 +1101,16 @@ class Linker:
         idents = []
         ordered = sorted(groups.items(), key=lambda kv: pieces[kv[1][0]].first)
         roles = {g: self._role_raw(members, pieces) for g, members in ordered}
+        for g, members in ordered:
+            if roles[g] == PLAYER and self._ghost(members, pieces, det):
+                roles[g] = OFF
         keepers = self._keepers(ordered, roles, pieces)
+        if s.beyond_m is not None:
+            # after the keepers: a keeper fetching the ball from behind the goal is no ball kid
+            groups, beyond = self._split_beyond(groups, pieces, roles, keepers)
+            ordered = sorted(groups.items(), key=lambda kv: pieces[kv[1][0]].first)
+            for g in beyond:
+                roles[g] = OFF
         for pid, (g, members) in enumerate(ordered):
             kit = self._group_kit(members, pieces)
             role = roles[g]
