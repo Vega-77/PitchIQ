@@ -194,7 +194,7 @@ textarea{width:100%; background:var(--panel2); border:1px solid var(--line); bor
 const clone = o => JSON.parse(JSON.stringify(o));
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-const S = {db: null, local: false, sets: [], set: null, qs: [], ans: {}, cur: -1, history: [], kit: null, rate: 1, vfps: 30, busy: 0};
+const S = {db: null, local: false, sets: [], set: null, qs: [], ans: {}, other: [], cur: -1, history: [], kit: null, rate: 1, vfps: 30, busy: 0};
 
 /* ---------- storage ---------- */
 function deepFreeze(o){ if (o && typeof o === 'object'){ Object.values(o).forEach(deepFreeze); Object.freeze(o); } return o; }
@@ -259,10 +259,13 @@ function step(d){ const v = $('vid'), c = q().clip; v.pause(); pauseLabel();
 /* ---------- questions ---------- */
 function labelOf(a){ return a && a.label ? a.label : null; }
 function norm(s){ s = (s || '').trim().replace(/\s+/g, ' '); return /^#?\d{1,2}$/.test(s) ? String(parseInt(s.replace('#', ''), 10)) : /^gk$/i.test(s) ? 'GK' : s; }
+const game = name => name.replace(/\d+$/, '');   // wb1 and wb2 are one game: the same players
 function roster(tag, kit){
   const m = new Map();
-  for (const x of S.qs){ const a = S.ans[x.id]; if (!a || x.tag !== tag || a.kit !== kit || !a.label) continue;
-    const r = m.get(a.label) || {label: a.label, n: 0, thumb: x.thumb}; r.n++; m.set(a.label, r); }
+  const add = (x, a, thumb) => { if (!a || a.kit !== kit || !a.label) return;
+    const r = m.get(a.label) || {label: a.label, n: 0, thumb}; r.n++; m.set(a.label, r); };
+  for (const x of S.qs) add(x, S.ans[x.id], base() + x.thumb);
+  for (const o of S.other) add(o.q, o.a, o.thumb);   // the game's other half: names given there
   return [...m.values()].sort((a, b) => { const na = /^\d+$/.test(a.label), nb = /^\d+$/.test(b.label);
     return na && nb ? a.label - b.label : na ? -1 : nb ? 1 : a.label.localeCompare(b.label); });
 }
@@ -272,7 +275,7 @@ function paintRoster(){
   if (!R.length){ box.append(el('div', 'empty', 'Nobody yet. Names you give appear here, so you can match players by look.')); return; }
   for (const r of R){
     const b = el('button', 'chip'); b.title = 'Same person as ' + r.label;
-    const im = el('img'); im.src = base() + r.thumb; im.alt = ''; im.loading = 'lazy';
+    const im = el('img'); im.src = r.thumb; im.alt = ''; im.loading = 'lazy';
     b.append(im, el('b', null, r.label), el('small', null, r.n + (r.n === 1 ? ' clip' : ' clips')));
     b.onclick = () => { $('name').value = r.label; $('name').focus(); };
     box.append(b);
@@ -347,6 +350,16 @@ async function openSet(name){
     try { const snap = await answersCol().get(); for (const d of snap.docs) S.ans[d.id] = clone(d.data() || {}); }
     catch (e){ banner('Could not read earlier answers (' + ((e && e.code) || 'error') + '). Reload before answering.'); S.db = null; }
   }
+  S.other = [];
+  for (const o of S.sets.filter(s => s.name !== name && game(s.name) === game(name))){
+    try {
+      const oq = (await (await fetch('sets/' + o.name + '/questions.json')).json()).questions;
+      const snap = S.db ? await S.db.collection('sets/' + o.name + '/answers').get() : {docs: []};
+      const oa = {}; for (const d of snap.docs) oa[d.id] = clone(d.data() || {});
+      for (const x of oq) if (oa[x.id]) S.other.push({q: x, a: oa[x.id], thumb: 'sets/' + o.name + '/' + x.thumb});
+    } catch (e) { /* the other half's names are a help, not needed */ }
+  }
+  if (S.set !== set) return;
   show(nextUnanswered(0));
 }
 async function boot(){
