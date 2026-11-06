@@ -36,7 +36,7 @@ dependencies = [
 [project.optional-dependencies]
 # The person/ball detector. pitchiq/detector.py imports it only when a detector is built.
 detect = [
-    "ultralytics==8.4.108",
+    "ultralytics==8.4.182",
     "torch==2.13.0",
     "torchvision==0.28.0",
 ]
