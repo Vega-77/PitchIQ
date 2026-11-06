@@ -73,6 +73,21 @@ def test_absent_is_nan_not_zero():
     assert np.isfinite(s[1].width).all()
 
 
+def test_bad_team_split_window_is_dropped():
+    """Second window: team 0 seen only 4 a frame against team 1's 7 (ratio 0.57)."""
+    t = _table(frames=(0, 15, 30, 45))
+    t.windows = np.array([[0, 30], [30, 60]])
+    late0 = (t.f >= 30) & (t.team == 0) & (t.role == M.OUTFIELD) & (t.trk % 100 >= 10)
+    t = t.replace(seen=t.seen & ~late0)
+    assert [c['ok'] for c in M.split_checks(t)] == [True, False]
+    s = M.shape(t, left={0: True, 1: False})
+    assert np.isfinite(s[0].line[:2]).all() and np.isnan(s[0].line[2:]).all()
+    assert np.isnan(s[1].width[2:]).all()  # both teams: the split is wrong for both
+    assert list(s[0].n) == [10] * 4  # still counted, just no numbers
+    kept = M.shape(t, left={0: True, 1: False}, drop_bad_split=False)
+    assert np.isfinite(kept[0].line).all()
+
+
 def test_summary_rounds_and_covers():
     t = _table()
     out = M.summary(M.shape(t), t.fps)

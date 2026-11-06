@@ -93,9 +93,7 @@ def perturb(t: M.MapTable, kind: str, rng) -> M.MapTable:
             role=np.zeros(n, t.role.dtype),
         )
         cols = {k: np.concatenate([getattr(t, k), v]) for k, v in add.items()}
-        return M.MapTable(
-            **cols, fps=t.fps, length_m=t.length_m, width_m=t.width_m, side_x=t.side_x
-        )
+        return M.MapTable(**cols, **t._meta())
     if kind == 'cal2':
         cx, cy = t.length_m / 2, t.width_m / 2
         return t.replace(x=cx + (t.x - cx) * 1.02, y=cy + (t.y - cy) * 1.02)

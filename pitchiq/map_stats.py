@@ -57,6 +57,7 @@ class MapTable:
     length_m: float = 105.0
     width_m: float = 68.0
     side_x: np.ndarray | None = None  # (windows, 2) mean x of each team's seen players
+    windows: np.ndarray | None = None  # (windows, 2) first and end frame of each linked window
     extra: dict = field(default_factory=dict)
 
     @classmethod
@@ -69,6 +70,16 @@ class MapTable:
             length_m=float(z['length_m']),
             width_m=float(z['width_m']),
             side_x=z['side_x'] if 'side_x' in z else None,
+            windows=np.stack([z['win_lo'], z['win_hi']], 1) if 'win_lo' in z else None,
+        )
+
+    def _meta(self) -> dict:
+        return dict(
+            fps=self.fps,
+            length_m=self.length_m,
+            width_m=self.width_m,
+            side_x=self.side_x,
+            windows=self.windows,
         )
 
     def subset(self, m: np.ndarray) -> 'MapTable':
@@ -76,9 +87,7 @@ class MapTable:
         cols = {
             k: getattr(self, k)[m] for k in ('f', 'trk', 'x', 'y', 'seen', 'alpha', 'team', 'role')
         }
-        return MapTable(
-            **cols, fps=self.fps, length_m=self.length_m, width_m=self.width_m, side_x=self.side_x
-        )
+        return MapTable(**cols, **self._meta())
 
     def replace(self, **cols) -> 'MapTable':
         """A copy with some columns swapped for new arrays (same length)."""
@@ -86,9 +95,39 @@ class MapTable:
             k: getattr(self, k) for k in ('f', 'trk', 'x', 'y', 'seen', 'alpha', 'team', 'role')
         }
         base.update(cols)
-        return MapTable(
-            **base, fps=self.fps, length_m=self.length_m, width_m=self.width_m, side_x=self.side_x
-        )
+        return MapTable(**base, **self._meta())
+
+
+# A linked window whose team split went wrong (ww1 77400 and 93600, nb1 14550
+# and 25350: brighter exposure, one "team" took 9.5 seen players a frame and
+# the other 3-5, with 1.4-2.9 greys; good windows run about 8 and 8 with
+# under 1 grey). Its team numbers are dropped, not reported.
+SPLIT_RATIO = 0.65  # fewer seen per frame / more seen per frame, below this is wrong
+SPLIT_GREY = 1.2  # seen grey outfielders per frame, at or above this is wrong
+
+
+def split_checks(t: MapTable) -> list[dict]:
+    """Per linked window: seen outfielders per frame of each team and grey, and ok."""
+    if t.windows is None:
+        return []
+    out = []
+    for lo, hi in t.windows:
+        m = (t.f >= lo) & (t.f < hi) & (t.role == OUTFIELD) & t.seen
+        nf = max(1, len(np.unique(t.f[(t.f >= lo) & (t.f < hi)])))
+        s0, s1, g = (float((m & (t.team == k)).sum()) / nf for k in (0, 1, 2))
+        ratio = min(s0, s1) / max(s0, s1, 1e-9)
+        ok = ratio >= SPLIT_RATIO and g < SPLIT_GREY
+        out.append(dict(lo=int(lo), hi=int(hi), seen=(s0, s1), grey=g, ratio=ratio, ok=ok))
+    return out
+
+
+def bad_split_frames(t: MapTable, frames: np.ndarray) -> np.ndarray:
+    """True for the frames that sit in a window failing `split_checks`."""
+    bad = np.zeros(len(frames), bool)
+    for c in split_checks(t):
+        if not c['ok']:
+            bad |= (frames >= c['lo']) & (frames < c['hi'])
+    return bad
 
 
 def defends_left(t: MapTable) -> dict[int, bool]:
@@ -146,16 +185,21 @@ def shape(
     min_alpha: float = 0.0,
     trim: int = 0,
     left: dict[int, bool] | None = None,
+    drop_bad_split: bool = True,
 ) -> dict[int, ShapeSeries]:
     """Per team, the shape every `step` frames.
 
     seen_only: count only dots with a box this frame; else guesses too (the map's
     unseen players, moving with their team), down to `min_alpha` strength. The
     camera shows part of the pitch, so seen-only shape is the shape of what was
-    in view: narrower and shorter than the team."""
+    in view: narrower and shorter than the team.
+
+    drop_bad_split: frames in a window whose team split failed `split_checks`
+    get NaN for every number (n and n_seen still counted)."""
     left = left if left is not None else defends_left(t)
     frames = np.unique(t.f)
     frames = frames[(frames - frames[0]) % step == 0]
+    bad = bad_split_frames(t, frames) if drop_bad_split else np.zeros(len(frames), bool)
     keep = np.isin(t.f, frames) & (t.role == OUTFIELD) & np.isin(t.team, TEAMS)
     keep &= t.alpha.astype(np.float32) > min_alpha  # 0: every drawn dot
     if seen_only:
@@ -178,7 +222,7 @@ def shape(
                 continue
             r = rows[a:b]
             n_seen[i] = int(t.seen[r].sum())
-            if b - a < MIN_SHAPE:
+            if b - a < MIN_SHAPE or bad[i]:
                 continue
             x, y = t.x[r].astype(np.float64), t.y[r].astype(np.float64)
             width[i] = _spread(y, trim)
