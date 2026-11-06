@@ -3,18 +3,18 @@
 //
 // One of the coach page's modules; `coach.js` loads them and wires the page up.
 
-import { renderShotMap, shotSummary } from '../shared/shot-map.js?v=154';
-import { SAMPLE_NOTICE, isSample } from '../shared/sample-report.js?v=154';
+import { renderShotMap, shotSummary } from '../shared/shot-map.js?v=155';
+import { SAMPLE_NOTICE, isSample } from '../shared/sample-report.js?v=155';
 import {
     xgTrust, SHOT_RESULTS, shotLedger, sumXgTallies, xgCalibration, calibrationNote,
     headerCorrection, headerNote, correctedShotMarks,
-} from '../shared/report.js?v=154';
-import { byId, setText, plural } from '../shared/ui.js?v=154';
-import { activeCv, matchXgTally, state } from './shell.js?v=154';
-import { clockAt, queueReviewSave, toMatchClock } from './review.js?v=154';
-import { seekMatchVideo } from './footage.js?v=154';
-import { redrawCvNote, renderPlayerTable, mergeCvPlayers } from './match-overview.js?v=154';
-import { renderPassing } from './match-play.js?v=154';
+} from '../shared/report.js?v=155';
+import { byId, setText, plural } from '../shared/ui.js?v=155';
+import { activeCv, matchXgTally, state } from './shell.js?v=155';
+import { clockAt, queueReviewSave, toMatchClock } from './review.js?v=155';
+import { seekMatchVideo } from './footage.js?v=155';
+import { redrawCvNote, renderPlayerTable, mergeCvPlayers } from './match-overview.js?v=155';
+import { renderPassing } from './match-play.js?v=155';
 
 /**
  * Both sides' shots, side by side.

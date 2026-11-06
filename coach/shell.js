@@ -10,9 +10,9 @@
  * renderer happened to define them first.
  */
 
-import { xgTally, xgTrust, shotLedger } from '../shared/report.js?v=154';
-import { sampleCvSummary } from '../shared/sample-report.js?v=154';
-import { byId, showOnly } from '../shared/ui.js?v=154';
+import { xgTally, xgTrust, shotLedger } from '../shared/report.js?v=155';
+import { sampleCvSummary } from '../shared/sample-report.js?v=155';
+import { byId, showOnly } from '../shared/ui.js?v=155';
 
 const VIEWS = ['view-noteam', 'view-main', 'view-match', 'view-player'];
 
