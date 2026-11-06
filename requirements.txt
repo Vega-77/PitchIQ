@@ -13,7 +13,7 @@
 # --- computer vision (pitchiq/) ---
 opencv-python==5.0.0.93
 ultralytics==8.4.108
-torch==2.13.0
+torch==2.14.1
 torchvision==0.28.0
 numpy==2.4.4
 # pitchiq/autocal.py's pose solve (least_squares), and the ball tracker's 3D chain.
