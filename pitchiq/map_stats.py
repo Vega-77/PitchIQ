@@ -102,8 +102,11 @@ class MapTable:
 # and 25350: brighter exposure, one "team" took 9.5 seen players a frame and
 # the other 3-5, with 1.4-2.9 greys; good windows run about 8 and 8 with
 # under 1 grey). Its team numbers are dropped, not reported.
+# Checked against the keepers on all 135 dev windows: the 8 where a team's keeper
+# stood at the wrong end all have ratio < 0.65 or greys >= 2.7; windows with
+# 1-2.3 greys and agreeing keepers (co2's two dark kits, pi2's low sun) are kept.
 SPLIT_RATIO = 0.65  # fewer seen per frame / more seen per frame, below this is wrong
-SPLIT_GREY = 1.2  # seen grey outfielders per frame, at or above this is wrong
+SPLIT_GREY = 2.5  # seen grey outfielders per frame, at or above this is wrong
 
 
 def split_checks(t: MapTable) -> list[dict]:
