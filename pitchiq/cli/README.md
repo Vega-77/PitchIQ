@@ -9,8 +9,9 @@ The match-day commands, run as `python -m pitchiq <command> [args]`
 - `match_report`: run the whole pipeline over a clip and print the report.
 - `compare_reports`: diff two report JSONs (see `baselines/`).
 - `publish_report`: write a report to Firestore (`--dry-run` writes nothing).
-- `map_report`: a report JSON from a half's top-down map: team shape and where
-  each team stood (`--ours lighter|darker` says which side is the coach's).
+- `map_report`: a report JSON from a match's top-down maps (both halves give
+  one match report): team shape and where each team stood (`--ours
+  lighter|darker` says which side is the coach's).
 - `demo`: run the pipeline on a scripted nine-second match (no footage needed).
 
 Each module has `build_parser()` and `main(argv)`; adding one means adding its

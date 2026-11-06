@@ -1,6 +1,10 @@
 """map_stats: team shape read off the top-down map table."""
 
+import copy
+import dataclasses
+
 import numpy as np
+import pytest
 
 from pitchiq import map_stats as M
 
@@ -170,3 +174,54 @@ def test_report_block_needs_to_be_told_which_side_is_ours():
 
     with pytest.raises(ValueError):
         M.report_block(_table(), ours=2)
+
+
+def _mirrored(t):
+    """The same half with the ends changed, as after half time: the pitch turned round."""
+    return dataclasses.replace(t, x=t.length_m - t.x, y=t.width_m - t.y)
+
+
+def test_match_block_joins_halves_that_changed_ends():
+    h1 = M.report_block(_table(), ours=0)
+    h2 = M.report_block(_mirrored(_table()), ours=0)
+    assert h1['team_a']['attacking_end'] == 'right' and h2['team_a']['attacking_end'] == 'left'
+    m = M.match_block([h1, h2], [2400.0, 2400.0])
+    for team in ('team_a', 'team_b'):
+        # every figure is in the team's own direction, so the change of ends is no change
+        assert m[team]['field_position'] == h1[team]['field_position']
+        assert m[team]['shape'] == h1[team]['shape']
+        assert m[team]['attacking_end'] is None  # the ends changed at half time
+
+
+def test_match_block_weights_by_kept_time_and_skips_missing_figures():
+    a = M.report_block(_table(), ours=0)
+    b = copy.deepcopy(a)
+    b['team_a']['field_position']['height_m'] = 50.0
+    b['team_a']['shape']['line_m'] = None  # not measured in that half: no say
+    m = M.match_block([a, b], [3000.0, 1000.0])['team_a']
+    assert m['field_position']['height_m'] == round((32.0 * 3 + 50.0) / 4, 1)
+    assert m['shape']['line_m'] == a['team_a']['shape']['line_m']
+    b['team_a']['field_position']['kept_share'] = 0.0  # its split never held
+    m = M.match_block([a, b], [3000.0, 1000.0])['team_a']
+    assert m['field_position']['height_m'] == 32.0
+    assert m['field_position']['kept_share'] == 0.75
+
+
+def test_match_block_seen_per_cell_by_time_in_the_cell():
+    a = M.report_block(_table(), ours=0)
+    b = copy.deepcopy(a)
+    ha, hb = a['team_a']['field_position']['heatmap'], b['team_a']['field_position']['heatmap']
+    i = max(range(len(ha['values'])), key=lambda k: ha['values'][k])
+    ha['seen'][i], hb['seen'][i] = 1.0, 0.0
+    hb['values'] = [0.0] * len(hb['values'])  # half b never stood in any cell
+    hb['values'][i] = 1.0
+    m = M.match_block([a, b], [1000.0, 1000.0])['team_a']['field_position']['heatmap']
+    va = ha['values'][i]
+    assert m['seen'][i] == round(va / (va + 1.0), 2)
+    assert abs(sum(m['values']) - 1.0) < 1e-3
+
+
+def test_match_block_needs_a_duration_per_half():
+    b = M.report_block(_table(), ours=0)
+    with pytest.raises(ValueError):
+        M.match_block([b, b], [100.0])

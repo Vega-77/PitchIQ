@@ -166,6 +166,12 @@ measurements above:
 * Every figure in a window whose team split failed is left out, and a team
   with no kept window gets null, never 0.
 
+The site keeps one report per match, so given both halves' maps
+`map_report` writes one: `map_stats.match_block` takes each figure as the
+halves' mean weighted by the time the team split held. Every figure is already
+in the team's own direction, so the change of ends needs no turning;
+`attacking_end` is null for a whole match, as the ends change.
+
 Which map team is the coach's side cannot be read off the map, so `--ours` has
 no default; the shirt shade (`lighter_team`, median kit L after the window
 swaps) names the two sides the way the heat sheet does.

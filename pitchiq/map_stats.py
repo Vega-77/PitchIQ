@@ -484,3 +484,78 @@ def report_block(t: MapTable, ours: int) -> dict[str, dict]:
             'attacking_end': 'right' if left[team] else 'left',
         }
     return out
+
+
+def _weighted(values: list, weights: list[float], places: int) -> float | None:
+    """The weighted mean of the halves that have a figure; None when none has."""
+    pairs = [(v, w) for v, w in zip(values, weights) if v is not None and w > 0]
+    total = sum(w for _, w in pairs)
+    if not total:
+        return None
+    return round(sum(v * w for v, w in pairs) / total, places)
+
+
+def _weighted_shares(dicts: list, weights: list[float]) -> dict[str, float] | None:
+    pairs = [(d, w) for d, w in zip(dicts, weights) if d is not None and w > 0]
+    if not pairs:
+        return None
+    return {k: _weighted([d[k] for d, _ in pairs], [w for _, w in pairs], 3) for k in pairs[0][0]}
+
+
+def _weighted_heatmap(maps: list, weights: list[float]) -> dict | None:
+    """Cell shares averaged by each half's counted time; `seen` per cell by the
+    time spent in that cell, so a half that never reached a cell has no say in it."""
+    pairs = [(h, w) for h, w in zip(maps, weights) if h is not None and w > 0]
+    if not pairs:
+        return None
+    cols, rows = pairs[0][0]['cols'], pairs[0][0]['rows']
+    if any((h['cols'], h['rows']) != (cols, rows) for h, _ in pairs):
+        raise ValueError('the halves have heatmaps on different grids')
+    total = sum(w for _, w in pairs)
+    values, seen = [], []
+    for i in range(cols * rows):
+        values.append(round(sum(h['values'][i] * w for h, w in pairs) / total, 4))
+        part = [(h['values'][i] * w, h['seen'][i]) for h, w in pairs if h['seen'][i] is not None]
+        time = sum(t for t, _ in part)
+        seen.append(round(sum(t * s for t, s in part) / time, 2) if time > 0 else None)
+    return {'cols': cols, 'rows': rows, 'values': values, 'seen': seen}
+
+
+def match_block(blocks: list[dict], durations_s: list[float]) -> dict[str, dict]:
+    """One teams block for a whole match from each half's `report_block`.
+
+    The site keeps one report per match, so the halves are joined here. Every
+    figure in `report_block` is already in the team's own direction (from its
+    own goal, its own thirds, a heatmap turned to attack right), so a half-time
+    change of ends needs no turning: each figure is the halves' mean, weighted
+    by the time its team split held (`duration * kept_share`). A half with no
+    figure has no say; no half with one gives null. `attacking_end` is null
+    unless the halves agree, as the ends change at half time.
+    Both blocks must name the same side `team_a`: `report_block`'s `ours`.
+    """
+    if not blocks or len(blocks) != len(durations_s):
+        raise ValueError('one duration per half, and at least one half')
+    out = {}
+    for team in ('team_a', 'team_b'):
+        sides = [b[team] for b in blocks]
+        pos = [s['field_position'] for s in sides]
+        w = [d * (p['kept_share'] or 0.0) for d, p in zip(durations_s, pos)]
+        ends = {s['attacking_end'] for s in sides}
+        out[team] = {
+            'shape': {
+                'width_m': None,
+                'depth_m': None,
+                'compactness_m': _weighted([s['shape']['compactness_m'] for s in sides], w, 1),
+                'line_m': _weighted([s['shape']['line_m'] for s in sides], w, 1),
+            },
+            'field_position': {
+                'height_m': _weighted([p['height_m'] for p in pos], w, 1),
+                'third_share': _weighted_shares([p['third_share'] for p in pos], w),
+                'play_third_share': _weighted_shares([p['play_third_share'] for p in pos], w),
+                'heatmap': _weighted_heatmap([p['heatmap'] for p in pos], w),
+                'seen_share': _weighted([p['seen_share'] for p in pos], w, 3),
+                'kept_share': _weighted([p['kept_share'] for p in pos], list(durations_s), 3),
+            },
+            'attacking_end': ends.pop() if len(ends) == 1 else None,
+        }
+    return out

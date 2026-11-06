@@ -95,3 +95,26 @@ def test_command_writes_a_report(tmp_path):
 def test_command_refuses_a_missing_map(tmp_path, capsys):
     assert cli.main([str(tmp_path / 'nope.npz'), '--ours', '0']) == 2
     assert 'no such map' in capsys.readouterr().err
+
+
+def test_command_joins_two_halves_into_one_match_report(tmp_path):
+    h1, h2 = tmp_path / 'wb1.npz', tmp_path / 'wb2.npz'
+    _save(h1, light_team=1)
+    _save(h2, light_team=0)  # each half's map numbers its teams on its own
+    out = tmp_path / 'report.json'
+    assert cli.main([str(h1), str(h2), '--ours', 'darker', '--out', str(out)]) == 0
+    r = json.loads(out.read_text(encoding='utf-8'))
+    assert r['source'] == 'wb1+wb2' and r['period'] is None and r['period_source'] is None
+    assert r['duration_s'] == 2.1  # frames 0..30 at 30 fps, twice
+    assert r['window'] == {'start_s': 0.0, 'end_s': 1.0}
+    assert r['teams']['team_a']['field_position']['height_m'] == 32.0
+    # darker is map team 0 in the first half and team 1 in the second, which here
+    # defends the other end: the ends "changed", so the match has no single end
+    assert r['teams']['team_a']['attacking_end'] is None
+
+
+def test_command_refuses_a_period_for_two_halves(tmp_path, capsys):
+    p = tmp_path / 'half.npz'
+    _save(p, light_team=1)
+    assert cli.main([str(p), str(p), '--ours', '0', '--period', '1']) == 2
+    assert 'one map' in capsys.readouterr().err
