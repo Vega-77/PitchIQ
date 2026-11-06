@@ -83,9 +83,15 @@ def sheet(tag: str, n: int = 6, seed: int = 0, at=None) -> np.ndarray:
         else np.sort(rng.choice(frames[(frames - frames[0]) % 15 == 0], n, replace=False))
     )
     cap = cv2.VideoCapture(video_of(tag.split('_')[0]))  # eb1_82200_98400: a stretch of eb1
+    bad = M.bad_split_frames(t, picks)  # judged on the whole window, not one frame
     rows = []
-    for f in picks:
-        one = M.shape(t.subset(t.f == f), step=1, left=left)
+    for f, drop in zip(picks, bad):
+        one = M.shape(t.subset(t.f == f), step=1, left=left, drop_bad_split=False)
+        if drop:  # what map_stats reports there: nothing
+            one = {
+                k: M.ShapeSeries(s.frames, s.n, s.n_seen, *([np.full(1, np.nan)] * 4))
+                for k, s in one.items()
+            }
         sh = {
             team: dict(
                 n=int(s.n[0]),
@@ -108,7 +114,8 @@ def sheet(tag: str, n: int = 6, seed: int = 0, at=None) -> np.ndarray:
         )
         cv2.putText(
             fr,
-            '%s frame %d (%.1f min in)' % (tag, f, (f - frames[0]) / t.fps / 60),
+            '%s frame %d (%.1f min in)%s'
+            % (tag, f, (f - frames[0]) / t.fps / 60, '  team split dropped' if drop else ''),
             (10, 24),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
