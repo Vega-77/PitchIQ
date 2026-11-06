@@ -18,6 +18,8 @@ each type, half from the random pool and half from the hard one:
   keeper      a still with a goal area in view: tap the keeper
   motion      6 s of one player on camera, then the same 6 s of their dot alone
   trust       8 s of camera, then the same 8 s of the map: rate players and ball 1-5
+  grey        (asked for only) a feet question on a box the map drew grey, the
+              eleventh outfield box of a team: whose is it? (sample "grey")
 
 `strip` writes one thumbnail every 30 s over a whole video, for marking long
 stoppages, with the half edges from halves.json. `merge` puts halves and strips
@@ -41,6 +43,7 @@ import numpy as np
 from pitchiq.experiments.spotlab import _crop_rect, _feet_ring, _iou, _Window, linked
 
 TYPES = ('landing', 'possession', 'feet', 'missing', 'extra', 'same', 'keeper', 'motion', 'trust')
+ASKED = ('grey',)  # built only when --types names them
 FPS, STEP = 10, 3  # clips play at 10 fps: every third frame
 CAM = (960, 540)
 PANEL = (640, 400)
@@ -307,6 +310,19 @@ class _Half:
         elif kind == 'trust':
             if not hard:
                 out = [(f, dict(a=f, b=f + 240)) for f in range(self.lo, self.hi - 240, 60)]
+        elif kind == 'grey' and not hard:
+            last = {}  # one question per person per 3 s
+            for f in range(self.lo, self.hi - 1, 5):
+                for d in self.seen_dots(f):
+                    i = d.ident
+                    if d.group[1] != 'player' or d.drawn_team != 'unknown' or i.box_at(f) is None:
+                        continue
+                    k = int(np.searchsorted(i.frames, f))
+                    if k >= len(i.frames) or i.frames[k] != f or i.interp[k]:
+                        continue
+                    if f - last.get(i.pid, -10**9) >= 90:
+                        last[i.pid] = f
+                        out.append((f, i))
         return out
 
     def _joins(self):
@@ -457,7 +473,8 @@ def _linked_cached(tag, det, meta, spans, out: Path):
         yield pickle.loads(p.read_bytes())
 
 
-def make_half(tag, out: Path, lo, hi, per=6, windows=3, win_s=180.0, seed=0, types=TYPES):
+def make_half(tag, out: Path, lo, hi, per=6, windows=3, win_s=180.0, seed=0, types=TYPES, spans=None):
+    """spans: the (lo, hi) windows to use (an earlier round's), instead of placing --windows."""
     import cv2
 
     MV = _mv()
@@ -475,7 +492,9 @@ def make_half(tag, out: Path, lo, hi, per=6, windows=3, win_s=180.0, seed=0, typ
     edge = int(EDGE_S * meta['fps'])  # pilot: questions after the final whistle
     lo, hi = lo + edge, hi - edge
     win = int(win_s * meta['fps'])
-    spans = [(int(s), int(s) + win) for s in np.linspace(lo, hi - win, windows)]
+    if spans is None:
+        spans = [(int(s), int(s) + win) for s in np.linspace(lo, hi - win, windows)]
+    windows = len(spans)
     out.mkdir(parents=True, exist_ok=True)
     packs = _Packs(out)
     cap = cv2.VideoCapture(player_lab.VIDEO)
@@ -489,15 +508,17 @@ def make_half(tag, out: Path, lo, hi, per=6, windows=3, win_s=180.0, seed=0, typ
         for kind in types:
             n = per // windows
             for hard in (False, True):
-                if kind in ('keeper', 'trust') and hard:
+                if kind in ('keeper', 'trust', 'grey') and hard:
                     continue
-                k = n if kind in ('keeper', 'trust') else (n + 1) // 2 if not hard else n // 2
+                k = n if kind in ('keeper', 'trust', 'grey') else (n + 1) // 2 if not hard else n // 2
                 pool = S.pool(kind, hard)
                 if not pool:
                     continue
                 for i in rng.choice(len(pool), min(k, len(pool)), replace=False):
                     f, pay = pool[int(i)]
                     sample = 'random' if not hard else ('ground' if kind == 'landing' else 'hard')
+                    if kind == 'grey':
+                        sample = 'grey'
                     want.append(dict(kind=kind, f=int(f), pay=pay, sample=sample))
         jobs = {}  # frame -> [(q, fn)]
         for q in want:
@@ -568,7 +589,7 @@ def _plan(S, q, jobs):
 
         for fr in frames:
             add(fr, 'clip', lambda img, fr=fr: cam(img, fr))
-    elif kind == 'feet':
+    elif kind in ('feet', 'grey'):
         b = pay.box_at(f)
         h = b[3] - b[1]
         q['rect'] = _crop_rect((b[0] + b[2]) / 2, (b[1] + b[3]) / 2, max(300, 5 * h))
@@ -694,7 +715,7 @@ def _finish(S, q, w, tag, out: Path, packs, base, n, n_of):
     rec = dict(
         id=qid,
         tag=tag,
-        type=kind,
+        type='feet' if kind == 'grey' else kind,
         frame=f,
         window=w,
         sample=q['sample'],
@@ -718,12 +739,12 @@ def _finish(S, q, w, tag, out: Path, packs, base, n, n_of):
         else:
             rec['moment'] = (f - pay['a']) / STEP / FPS
             rec['model'] = dict(team=pay['team'], word=S.team_word(pay['team']))
-    elif kind in ('feet', 'missing', 'extra', 'keeper'):
+    elif kind in ('feet', 'grey', 'missing', 'extra', 'keeper'):
         name = 'img/%s.jpg' % qid
         _jpg(out / name, q['bufs']['still'][0])
         rec['img'] = name
         rec['rect'] = _r(q['rect'])
-        if kind == 'feet':
+        if kind in ('feet', 'grey'):
             ident = pay
             rec['model'] = dict(
                 pid=ident.pid,
@@ -733,6 +754,16 @@ def _finish(S, q, w, tag, out: Path, packs, base, n, n_of):
                 box=q['box'],
                 dot_m=S.dot_of(ident, f),
             )
+            if kind == 'grey':  # what a recolouring rule would have to go on
+                drawn = [d for d in S.seen_dots(f) if d.group[1] == 'player']
+                rec['model'].update(
+                    kit_team=ident.team,
+                    kit_word=S.team_word(ident.team),
+                    boxed={
+                        S.team_word(t): sum(d.drawn_team == t for d in drawn)
+                        for t in ('team_a', 'team_b')
+                    },
+                )
         elif kind in ('missing', 'extra'):
             rec['model'] = dict(
                 ringed=[
@@ -952,7 +983,7 @@ def main(argv=None) -> int:
     h.add_argument('--windows', type=int, default=3)
     h.add_argument('--win-s', type=float, default=180.0)
     h.add_argument('--seed', type=int, default=0)
-    h.add_argument('--types', nargs='+', choices=TYPES, default=list(TYPES))
+    h.add_argument('--types', nargs='+', choices=TYPES + ASKED, default=list(TYPES))
     s = sub.add_parser('strip')
     s.add_argument('game')
     s.add_argument('out', type=Path)
