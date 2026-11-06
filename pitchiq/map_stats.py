@@ -186,6 +186,7 @@ def shape(
     trim: int = 0,
     left: dict[int, bool] | None = None,
     drop_bad_split: bool = True,
+    split_of: MapTable | None = None,
 ) -> dict[int, ShapeSeries]:
     """Per team, the shape every `step` frames.
 
@@ -195,11 +196,15 @@ def shape(
     in view: narrower and shorter than the team.
 
     drop_bad_split: frames in a window whose team split failed `split_checks`
-    get NaN for every number (n and n_seen still counted)."""
+    get NaN for every number (n and n_seen still counted). The split is judged
+    on `split_of` when given (the unperturbed table, in the wrong-input check),
+    else on `t`."""
     left = left if left is not None else defends_left(t)
     frames = np.unique(t.f)
     frames = frames[(frames - frames[0]) % step == 0]
-    bad = bad_split_frames(t, frames) if drop_bad_split else np.zeros(len(frames), bool)
+    bad = np.zeros(len(frames), bool)
+    if drop_bad_split:
+        bad = bad_split_frames(split_of if split_of is not None else t, frames)
     keep = np.isin(t.f, frames) & (t.role == OUTFIELD) & np.isin(t.team, TEAMS)
     keep &= t.alpha.astype(np.float32) > min_alpha  # 0: every drawn dot
     if seen_only:

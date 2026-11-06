@@ -134,7 +134,9 @@ def run_half(tag: str, reps: int = 3, seed: int = 0) -> dict:
             d_block = {team: {k: [] for k in M.SHAPE_KEYS} for team in M.TEAMS}
             for r in range(reps):
                 rng = np.random.default_rng([seed, r, KINDS.index(kind)])
-                p = M.shape(perturb(t, kind, rng), step=STEP, trim=trim, left=left)
+                p = M.shape(
+                    perturb(t, kind, rng), step=STEP, trim=trim, left=left, split_of=t
+                )  # same windows dropped as in the base, so only the error moves it
                 for team in M.TEAMS:
                     b = blocks_of(base[team], t.fps)
                     for key in M.SHAPE_KEYS:
