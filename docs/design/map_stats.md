@@ -174,6 +174,36 @@ On the coach's match page they are the "Where the teams stood" rows (beside
 Shape) and the "Where each team stood" block: one pitch a side with the thirds
 dashed and the guessed ground (seen under 70%) hatched.
 
+## Held out (scored once, 2026-11-06)
+
+nb2, pi1, wh1, co1 and wb2 were mapped and scored once at d27bc11 with the
+dev code and cuts, nothing tuned after (`PitchIQ-data/stats/held_report.py`,
+`held.md`). Median over halves and teams, dev / held out:
+
+| | real 5-min sd | small errors, worst | seen-only lean | stray every instant |
+|---|---|---|---|---|
+| back line (m) | 9.6 / 9.6 | 0.3 / 0.3 | -0.0 / +0.2 | -2.9 / -2.8 |
+| compactness (m) | 1.1 / 1.1 | 0.3 / 0.3 | -1.1 / -0.9 | +2.8 / +2.7 |
+| width (m) | 2.8 / 2.9 | 0.8 / 0.7 | -3.3 / -2.7 | +4.1 / +4.4 |
+| depth (m) | 2.7 / 2.9 | 0.7 / 0.6 | -4.8 / -4.2 | +18.7 / +19.0 |
+| average position (m) | 10.2 / 10.0 | 0.3 / 0.2 | +0.7 / +0.5 | +0.2 / +0.2 |
+| game in final third (pp) | 12.6 / 15.6 | 0.4 / 0.5 | +1.4 / +1.3 | -2.5 / -1.9 |
+| heatmap zone (%) | 20.4 / 20.7 | 1.9 / 2.0 | +2.8 / +2.6 | +2.5 / +2.4 |
+
+Every figure behaves as on dev, so the report keeps what it carries: line
+and compactness yes, width and depth null. Extras per instant 8% (dev 7%),
+missing 0.58 (dev 0.62).
+
+The team split check kept 80 of 83 windows (dev 126 of 135). Keepers agree
+in 61 windows and disagree in 2 (dev 91 / 8), both on pi1 (95100 and
+100500), and the check kept both. They are not the dev kind: the split is
+balanced (ratio 0.74 and 0.85, greys 1.8) and the dark team is team 0 in
+every window after the colour swap, yet the keepers stand at the wrong ends
+and team 0's outfielders stand ahead of team 1's, the reverse of every other
+pi1 window. Either the pitch was read end for end there or the labels
+flipped in a way shirt colour cannot see. 2 of pi1's 15 windows, so its team
+figures are blended about 13% toward the other side. Reported, not tuned.
+
 ## Not done yet
 
 - Live play only: shape at a corner or a goal kick counts like open play.
@@ -181,4 +211,6 @@ dashed and the guessed ground (seen under 70%) hatched.
 - The real stray rate is a lower bound from the counts, not from labels.
 - The linker's team split in bright, low-sun and dark-kit windows (fixing it
   would win back the 9 dropped windows).
-- Held out (nb2, pi1, wh1, co1, wb2) waits for one final score.
+- A window whose keepers stand at the wrong ends but whose split looks fine
+  (pi1 95100, 100500) is kept: the check reads team balance and greys,
+  not keepers.
