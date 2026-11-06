@@ -105,6 +105,51 @@ about 1%). Trimming the outermost dot each side (trim 1) cuts the stray damage
 to depth (+3..+4 m) but not width off a touchline (+6..+7), and doubles the
 missing-player damage.
 
+## Territory and heatmaps
+
+`territory.py` splits possession by third from the ball, and the ball is not
+trustworthy yet (possession flipped answer in half its frames when the ball
+moved 20 px). So territory here is read off the players:
+
+* play: the centre of every outfielder on the map, both teams and greys. It
+  needs no team split, so it is kept in the windows `split_checks` drops. As a
+  share of time in each third, it says where the game was.
+* height: a team's outfield centre, metres from its own goal.
+* heatmap: a team's outfielder time on the 6 x 5 zones of `zones.zone_grid`,
+  turned so it attacks to the right (a half turn, so the left wing stays the
+  left wing). Its thirds are the column pairs. Each zone also carries the seen
+  part of its time: a zone the camera rarely showed is mostly a guess.
+
+All 9 dev halves (`PitchIQ-data/stats/terr_dev.md`), median over halves and
+teams; heat is the share of time put in a different zone:
+
+| | unit | 5-min sd (real) | small errors, worst | expected (missing + extras) | seen only | stray every instant | edge ring every instant |
+|---|---|---|---|---|---|---|---|
+| play, team 0 attacking third | pp | 12.6 | 0.4 | 0.3 | +1.4 | -2.5 | -2.5 |
+| play, team 0 own third | pp | 11.8 | 0.4 | 0.3 | +1.6 | -2.0 | -2.0 |
+| height | m | 10.2 | 0.3 | 0.0 | +0.7 | +0.2 | +0.2 |
+| time in attacking third | pp | 11.8 | 0.4 | 0.1 | -0.2 | +1.0 | +1.0 |
+| time in own third | pp | 13.4 | 0.5 | 0.1 | +1.5 | +0.2 | +0.3 |
+| heatmap | % | 20.4 | 1.9 | 0.7 | 2.8 | 2.5 | 7.2 |
+
+Reading: territory is sturdier than width and depth, because it is a mean or a
+count, not a max-minus-min. No realistic error moves a share by more than half
+a point against real swings of 12-13 points, or a height by more than 0.3 m
+against 10 m. Even a stray ring every instant moves the play shares 2-2.5
+points. The heatmap's 5-minute blocks differ from the half by 20% of their
+time; wrong input moves 1-2%, and edge rings 7% (they pile into the touchline
+zones).
+
+The halves read like their shapes: the team with the higher back line also
+sits higher and has play in its attacking third more (wb1 team 0: height 60 m
+vs 45, play 36% in its attacking third vs 13% in its own; pi2 team 0 the
+other way, 53% of its time in its own third).
+
+Seen part of each zone, median: 79-92% in the own half, falling to 66-75% in
+the corners of the attacking third, where the camera looks least. A pinned
+team's attacking zones are the most guessed (pi2 team 0: 44-65% seen there),
+so `heat_sheet` prints the seen part under every zone.
+
 ## Not done yet
 
 - Live play only: shape at a corner or a goal kick counts like open play.
