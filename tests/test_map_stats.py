@@ -88,6 +88,35 @@ def test_bad_team_split_window_is_dropped():
     assert np.isfinite(kept[0].line).all()
 
 
+def test_territory_play_and_height():
+    t = _table()
+    ts = M.territory(t, left={0: True, 1: False})
+    # every outfielder, greys too: 4x20 + 6x40 + 4x85 + 6x65 + one grey at 52
+    assert np.allclose(ts.play, 1102 / 21)
+    assert np.allclose(ts.height[0], 32) and np.allclose(ts.height[1], 105 - 73)
+    assert M.third_shares(ts.play, t.length_m) == {
+        'defensive': 0.0,
+        'middle': 1.0,
+        'attacking': 0.0,
+    }
+    # on a boundary: the further-forward third, as zones.third does
+    assert M.third_shares(np.array([35.0, np.nan]), 105.0)['middle'] == 1.0
+
+
+def test_heatmap_turns_each_team_to_attack_right():
+    t = _table()
+    h0 = M.heatmap(t, 0, left={0: True, 1: False})
+    h1 = M.heatmap(t, 1, left={0: True, 1: False})
+    assert np.isclose(h0.share.sum(), 1) and h0.samples == 30
+    assert np.allclose(h0.share, h1.share[:, ::-1])  # mirrored table, half turn: same zones
+    assert h0.thirds() == {'defensive': 0.4, 'middle': 0.6, 'attacking': 0.0}
+    assert h0.seen[1, 0] == 1.0  # the back four are seen
+    assert h0.seen[2, 2] == 0.5  # mids at y 30 (seen) and 40 (guessed) share a zone
+    assert np.isnan(h0.seen[5]).all()  # nobody there: no seen share, not 0
+    # a half turn keeps wings: a team attacking left sees y = 60 as its right (low y = left)
+    assert M._attack_right(t, 100.0, 60.0, False) == (5.0, 8.0)
+
+
 def test_summary_rounds_and_covers():
     t = _table()
     out = M.summary(M.shape(t), t.fps)

@@ -3,6 +3,8 @@
 The method that showed possession was fragile (half its frames changed answer
 when the ball moved 20 px), applied to the team shape from `map_stats`:
 perturb the map table in ways it is actually wrong, recompute, compare.
+`run_territory` does the same for territory and heatmaps (heatmaps compared as
+the share of time that lands in a different zone).
 
     python -m pitchiq.experiments.stats_noise eb1 ww2 ... [--reps 3] [--out file.json]
 
@@ -171,6 +173,87 @@ def run_half(tag: str, reps: int = 3, seed: int = 0) -> dict:
     }
     res['minutes'] = float((t.f.max() - t.f.min()) / t.fps / 60)
     return res
+
+
+TERR_KEYS = ('play_att', 'play_def', 'height', 'att', 'def', 'heat')
+
+
+def _terr_values(t: M.MapTable, left: dict, split_of: M.MapTable) -> dict:
+    """The territory numbers of one table: play shares (percent of time, team 0's
+    view), and per team its height (m), its outfield time in its attacking and
+    defensive thirds (percent) and its heatmap."""
+    ts = M.territory(t, step=STEP, left=left, split_of=split_of)
+    play = M.third_shares(ts.play, t.length_m)
+    out = {'play_att': 100 * play['attacking'], 'play_def': 100 * play['defensive']}
+    for team in M.TEAMS:
+        h = M.heatmap(t, team, step=STEP, left=left, split_of=split_of)
+        th = h.thirds()
+        h_ = ts.height[team]
+        out[team] = dict(
+            height=float(np.nanmean(h_)) if np.isfinite(h_).any() else float('nan'),
+            att=100 * th['attacking'],
+            **{'def': 100 * th['defensive']},
+            heat=h.share,
+        )
+    return out
+
+
+def _tv(a: np.ndarray, b: np.ndarray) -> float:
+    """Total variation between two heatmaps, percent: the share of time that sits
+    in a different zone."""
+    return float(50 * np.abs(a - b).sum())
+
+
+def _terr_diff(p: dict, b: dict) -> dict:
+    d = {k: p[k] - b[k] for k in ('play_att', 'play_def')}
+    for team in M.TEAMS:
+        d[team] = {k: p[team][k] - b[team][k] for k in ('height', 'att', 'def')}
+        d[team]['heat'] = _tv(p[team]['heat'], b[team]['heat'])
+    return d
+
+
+def run_territory(tag: str, reps: int = 2, seed: int = 0) -> dict:
+    """Territory and heatmaps of one half: values, the real 5-minute movement,
+    and how far each kind of wrong moves them (all over the same kept windows)."""
+    t = _sampled(M.MapTable.load(MAP / f'{tag}.npz'), STEP)
+    left = M.defends_left(t)
+    base = _terr_values(t, left, t)
+    # Real movement: each 5-minute block's numbers against the half's.
+    f0 = int(t.f.min())
+    blk = ((t.f - f0) / t.fps // 300).astype(int)
+    per_block = [_terr_values(t.subset(blk == k), left, t) for k in range(blk.max() + 1)]
+    per_block = [v for v in per_block if np.isfinite(v['play_att'])]
+    real = {k: float(np.nanstd([v[k] for v in per_block])) for k in ('play_att', 'play_def')}
+    for team in M.TEAMS:
+        real[team] = {
+            k: float(np.nanstd([v[team][k] for v in per_block])) for k in ('height', 'att', 'def')
+        }
+        real[team]['heat'] = float(
+            np.median([_tv(v[team]['heat'], base[team]['heat']) for v in per_block])
+        )
+    moves = {}
+    for kind in KINDS:
+        ds = []
+        for r in range(reps):
+            rng = np.random.default_rng([seed, r, KINDS.index(kind)])
+            ds.append(_terr_diff(_terr_values(perturb(t, kind, rng), left, t), base))
+        mv = {k: float(np.mean([d[k] for d in ds])) for k in ('play_att', 'play_def')}
+        for team in M.TEAMS:
+            mv[team] = {
+                k: float(np.mean([d[team][k] for d in ds]))
+                for k in ('height', 'att', 'def', 'heat')
+            }
+        moves[kind] = mv
+    # Not an error but a lean: the numbers from seen players only (guesses out).
+    seen = _terr_diff(_terr_values(t.subset(t.seen | (t.role != M.OUTFIELD)), left, t), base)
+    n = M.shape(t, step=STEP, left=left)
+    over = {team: float(np.mean(n[team].n > 10)) for team in M.TEAMS}
+    under = {team: float(np.mean(np.clip(10 - n[team].n, 0, None))) for team in M.TEAMS}
+    base_out = {k: base[k] for k in ('play_att', 'play_def')}
+    for team in M.TEAMS:
+        base_out[team] = {k: base[team][k] for k in ('height', 'att', 'def')}
+        base_out[team]['heat'] = np.round(base[team]['heat'], 4).tolist()
+    return dict(base=base_out, real=real, move=moves, seen_only=seen, over=over, under=under)
 
 
 def table(all_res: dict, trim: str = 'trim1') -> str:

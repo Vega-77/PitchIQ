@@ -1,4 +1,4 @@
-"""Team statistics read off the top-down map: shape first.
+"""Team statistics read off the top-down map: shape, then territory and heatmaps.
 
 The older statistics (`metrics.team_shape`, `territory`) were written for the
 earlier tracking path, one `PositionSeries` per track. The map (`linking`, then
@@ -23,6 +23,15 @@ sensitivity check (`experiments/stats_noise.py`) compares trim 0 and 1.
 
 Absent is NaN, never zero: an instant with fewer than `MIN_SHAPE` outfielders
 has no shape, and one with fewer than `metrics.MIN_LINE_OUTFIELDERS` no line.
+
+Territory, from the players, not the ball (`territory.py` splits possession by
+the ball, which is not trustworthy yet):
+
+* play        the centre of every outfielder on the map, both teams and greys:
+              where the game was, as a share of time in each third
+* height      each team's outfield centre, metres from its own goal
+* heatmap     each team's outfielder time on a 6 x 5 grid of zones, turned so it
+              attacks to the right, with the seen (not guessed) part of each zone
 
 Design notes, measurements and history: `docs/design/map_stats.md`.
 """
@@ -241,6 +250,126 @@ def shape(
                 line[i] = float(d[: line_players(b - a)].mean())
         out[team] = ShapeSeries(frames, n, n_seen, width, depth, compact, line)
     return out
+
+
+# ---------------------------------------------------------------- territory
+
+GRID = (6, 5)  # zones.zone_grid's default: 6 columns along the pitch (2 a third), 5 across
+PLAY_MIN = 6  # outfielders on the map before an instant has a centre of play
+THIRD_NAMES = ('defensive', 'middle', 'attacking')  # zones.DEFENSIVE_THIRD etc.
+
+
+def _sampled_rows(t: MapTable, step: int) -> tuple[np.ndarray, np.ndarray]:
+    frames = np.unique(t.f)
+    frames = frames[(frames - frames[0]) % step == 0]
+    keep = np.isin(t.f, frames) & (t.role == OUTFIELD) & (t.alpha.astype(np.float32) > 0)
+    return frames, keep
+
+
+def _attack_right(t: MapTable, x, y, defends_left: bool):
+    """Turn the pitch so the team attacks to the right: own goal at x = 0, its
+    left wing at y = 0 (a half turn, not a mirror, so wings keep their side)."""
+    return (x, y) if defends_left else (t.length_m - x, t.width_m - y)
+
+
+@dataclass
+class TerritorySeries:
+    """Where play sat, every sampled frame (NaN where it cannot be said)."""
+
+    frames: np.ndarray
+    play: np.ndarray  # centre of every outfielder, team or grey: metres from team 0's goal
+    height: dict[int, np.ndarray]  # each team's outfield centre, metres from its own goal
+
+
+def territory(
+    t: MapTable,
+    step: int = 15,
+    left: dict[int, bool] | None = None,
+    drop_bad_split: bool = True,
+    split_of: MapTable | None = None,
+) -> TerritorySeries:
+    """The centre of play and each team's height, every `step` frames.
+
+    The centre of play counts every outfielder, greys included, so it needs no
+    team split and is kept in windows `split_checks` drops; a team's height is
+    NaN there, like its shape."""
+    left = left if left is not None else defends_left(t)
+    frames, keep = _sampled_rows(t, step)
+    fi = np.searchsorted(frames, t.f)
+    F = len(frames)
+    x0 = np.where(left[0], t.x, t.length_m - t.x).astype(np.float64)
+    m = keep & np.isin(t.team, (0, 1, 2))
+    n = np.bincount(fi[m], minlength=F)
+    s = np.bincount(fi[m], x0[m], minlength=F)
+    play = np.where(n >= PLAY_MIN, s / np.maximum(n, 1), np.nan)
+    bad = np.zeros(F, bool)
+    if drop_bad_split:
+        bad = bad_split_frames(split_of if split_of is not None else t, frames)
+    height = {}
+    for team in TEAMS:
+        r = keep & (t.team == team)
+        xt = x0 if left[team] == left[0] else t.length_m - x0
+        n = np.bincount(fi[r], minlength=F)
+        s = np.bincount(fi[r], xt[r], minlength=F)
+        height[team] = np.where((n >= MIN_SHAPE) & ~bad, s / np.maximum(n, 1), np.nan)
+    return TerritorySeries(frames, play, height)
+
+
+def third_shares(fwd: np.ndarray, length_m: float) -> dict[str, float]:
+    """Share of the finite values in each third, measured forward from the own
+    goal; a value on a boundary goes to the further-forward third (zones.third)."""
+    v = fwd[np.isfinite(fwd)]
+    if not len(v):
+        return {k: float('nan') for k in THIRD_NAMES}
+    k = np.clip((v >= length_m / 3).astype(int) + (v >= 2 * length_m / 3), 0, 2)
+    c = np.bincount(k, minlength=3) / len(v)
+    return dict(zip(THIRD_NAMES, map(float, c)))
+
+
+@dataclass
+class Heatmap:
+    """One team's outfielder time per zone, turned so it attacks to the right.
+
+    share sums to 1 (each sampled dot is one equal slice of time); seen is the
+    part of each zone's time that was a seen player rather than a guess (NaN for
+    an empty zone): a cold zone the camera never showed is a guess, not a fact."""
+
+    share: np.ndarray  # (cols, rows): column 0 at the own goal, row 0 the left wing
+    seen: np.ndarray
+    samples: int
+
+    def thirds(self) -> dict[str, float]:
+        c = self.share.reshape(3, -1).sum(1)  # 6 columns, 2 a third
+        return dict(zip(THIRD_NAMES, map(float, c)))
+
+
+def heatmap(
+    t: MapTable,
+    team: int,
+    step: int = 15,
+    left: dict[int, bool] | None = None,
+    grid: tuple[int, int] = GRID,
+    drop_bad_split: bool = True,
+    split_of: MapTable | None = None,
+) -> Heatmap:
+    """`team`'s outfielders on a `grid` of zones over the sampled frames. Dots past
+    a line land in the edge zone (zones.zone_grid clamps the same way)."""
+    left = left if left is not None else defends_left(t)
+    frames, keep = _sampled_rows(t, step)
+    r = keep & (t.team == team)
+    if drop_bad_split:
+        bad = bad_split_frames(split_of if split_of is not None else t, frames)
+        r &= ~np.isin(t.f, frames[bad])
+    x, y = _attack_right(t, t.x[r].astype(np.float64), t.y[r].astype(np.float64), left[team])
+    cols, rows = grid
+    ci = np.clip((x / t.length_m * cols).astype(int), 0, cols - 1)
+    ri = np.clip((y / t.width_m * rows).astype(int), 0, rows - 1)
+    cell = ci * rows + ri
+    n = np.bincount(cell, minlength=cols * rows).astype(np.float64)
+    ns = np.bincount(cell, t.seen[r].astype(np.float64), minlength=cols * rows)
+    share = (n / max(1.0, n.sum())).reshape(cols, rows)
+    seen = np.where(n > 0, ns / np.maximum(n, 1), np.nan).reshape(cols, rows)
+    return Heatmap(share, seen, int(n.sum()))
 
 
 def summary(series: dict[int, ShapeSeries], fps: float, every_s: float = 300.0) -> dict:
