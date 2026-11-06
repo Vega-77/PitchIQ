@@ -55,3 +55,22 @@ def test_a_frame_is_close_up_beside_wider_view():
     assert out.shape == (idlab.ZOOM, idlab.ZOOM + 4 + idlab.CTX, 3)
     p_edge = dict(p, box=np.array([1890.0, 980, 1919, 1079]), cx=1905.0, cy=1030.0)
     assert idlab.render(img, p_edge).shape == out.shape  # a player at the frame's corner still fits
+
+
+def test_a_recut_shows_every_frame_of_the_whole_player():
+    n = int(idlab.CLIP_S * 30)
+    P = idlab.plan(ident([60] * 600 + [150] * n + [60] * 600), 30.0, full=True)
+    assert [p['f'] for p in P] == list(range(1000, 1000 + 1200 + n))
+
+
+def test_a_recut_frame_is_two_close_ups_over_a_wide_strip():
+    img = np.zeros((1080, 1920, 3), np.uint8)
+    p = dict(box=np.array([900.0, 400, 940, 470]), hidden=False, cx=920.0, cy=435.0, h=70.0)
+
+    def x4(crop):  # stands in for the upscaler: no GPU in tests
+        return np.repeat(np.repeat(crop, 4, axis=0), 4, axis=1)
+
+    out = idlab.render_hd(img, p, x4)
+    assert out.shape == (idlab.HD_ZOOM + idlab.HD_STRIP, 2 * idlab.HD_ZOOM, 3)
+    p_edge = dict(p, box=np.array([1890.0, 1000, 1919, 1079]), cx=1905.0, cy=1040.0)
+    assert idlab.render_hd(img, p_edge, x4).shape == out.shape

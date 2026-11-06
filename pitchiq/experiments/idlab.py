@@ -19,6 +19,13 @@ Fragments are the map's own: same windows, same linker run (it draws nothing at 
 `trk` is the map's track id (pid + 10000 * window). Each question also keeps `samples`, the
 fragment's box once a second, so a later linker is scored against the names without asking
 again.
+
+    python -m pitchiq.experiments.idlab recut <tag> <src questions.json> <out> --ids a,b,c
+
+re-asks chosen questions (the ones answered "can't tell") with all the camera gives: the
+whole fragment at every frame, lighter compression, and the close-up twice, plain beside
+AI-cleaned (Real-ESRGAN general-x4v3, which takes the grain off but can invent detail, so the
+plain one stays the reference), over a wide strip of the pitch around him.
 """
 
 from __future__ import annotations
@@ -42,6 +49,9 @@ SMOOTH = 9  # frames each side for the crop's centre and size: a steady camera, 
 HELD_OUT = {'nb2', 'pi1', 'wh1', 'co1', 'wb2'}
 YELLOW, BLACK, WHITE = (0, 230, 255), (0, 0, 0), (255, 255, 255)
 CRF = 34  # VP9 quality: a number reads the same as in the raw frame at a tenth of VP8's size
+HD_ZOOM, HD_STRIP = 480, 240  # recut: two close-ups side by side, a 4:1 strip of the pitch under them
+HD_CRF, HD_MB = 28, 12.5  # recut clips: quality, but under the 16 MB a published file may be
+SR_MODEL = (REPO.parent / 'PitchIQ-data' / 'models' / 'sr' / 'realesr-general-x4v3.pth').resolve()
 
 
 def _plain(o):
@@ -70,15 +80,15 @@ def _kit_l(ident, dw):
 class _Clip:
     """Raw frames piped to ffmpeg (imageio-ffmpeg's build) as VP9 webm."""
 
-    def __init__(self, path, size):
+    def __init__(self, path, size, fps=CLIP_FPS, crf=CRF, kbps=0):
         import subprocess
 
         import imageio_ffmpeg
 
         self.p = subprocess.Popen(
             [imageio_ffmpeg.get_ffmpeg_exe(), '-loglevel', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24',
-             '-s', '%dx%d' % size, '-r', str(CLIP_FPS), '-i', '-', '-c:v', 'libvpx-vp9', '-crf', str(CRF),
-             '-b:v', '0', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '4', '-pix_fmt', 'yuv420p', '-an', str(path)],
+             '-s', '%dx%d' % size, '-r', str(fps), '-i', '-', '-c:v', 'libvpx-vp9', '-crf', str(crf),
+             '-b:v', '%dk' % kbps, '-row-mt', '1', '-deadline', 'good', '-cpu-used', '4', '-pix_fmt', 'yuv420p', '-an', str(path)],
             stdin=subprocess.PIPE,
         )
 
@@ -114,16 +124,19 @@ def pick(res, dw, fps, per, min_s):
     return out, kit
 
 
-def plan(ident, fps):
+def plan(ident, fps, full=False):
     """The clip: CLIP_S seconds where the player is biggest on screen, every few frames, with a
-    smoothed crop centre and size per shown frame."""
+    smoothed crop centre and size per shown frame. `full`: the whole fragment, every frame."""
     fr, bx = ident.frames, ident.boxes.astype(float)
-    h = np.where(ident.interp, 0.0, bx[:, 3] - bx[:, 1])
-    n = min(len(fr), int(CLIP_S * fps))
-    c = np.cumsum(np.insert(h, 0, 0.0))
-    s = int(np.argmax(c[n:] - c[:-n])) if len(fr) > n else 0
-    step = max(1, int(round(fps / CLIP_FPS)))
-    idx = np.arange(s, s + n, step)
+    if full:
+        idx = np.arange(len(fr))
+    else:
+        h = np.where(ident.interp, 0.0, bx[:, 3] - bx[:, 1])
+        n = min(len(fr), int(CLIP_S * fps))
+        c = np.cumsum(np.insert(h, 0, 0.0))
+        s = int(np.argmax(c[n:] - c[:-n])) if len(fr) > n else 0
+        step = max(1, int(round(fps / CLIP_FPS)))
+        idx = np.arange(s, s + n, step)
     cx = _smooth((bx[:, 0] + bx[:, 2]) / 2)
     cy = _smooth((bx[:, 1] + bx[:, 3]) / 2)
     hs = _smooth(bx[:, 3] - bx[:, 1])
@@ -152,15 +165,8 @@ def render(img, p):
     )
     blur = cv2.GaussianBlur(z, (0, 0), 1.4)
     z = cv2.addWeighted(z, 1.7, blur, -0.7, 0)
-    k = ZOOM / s
-    u, v = ((b[0] + b[2]) / 2 - x0) * k, (b[1] - y0) * k
-    tri = np.array([[u - 9, v - 22], [u + 9, v - 22], [u, v - 8]], np.int32)
-    if p['hidden']:
-        cv2.polylines(z, [tri], True, YELLOW, 2, cv2.LINE_AA)
-    else:
-        cv2.fillPoly(z, [tri], YELLOW, cv2.LINE_AA)
-        cv2.polylines(z, [tri], True, BLACK, 1, cv2.LINE_AA)
-    X0, Y0, S = _square(p['cx'], p['cy'], max(CTX_K * p['h'], CTX_MIN), W, H)
+    _marker(z, p, x0, y0, ZOOM / s)
+    X0, Y0, S =_square(p['cx'], p['cy'], max(CTX_K * p['h'], CTX_MIN), W, H)
     c = cv2.resize(img[int(Y0) : int(Y0 + S), int(X0) : int(X0 + S)], (CTX, CTX), interpolation=cv2.INTER_AREA)
     K = CTX / S
     r = [int((b[0] - X0) * K) - 3, int((b[1] - Y0) * K) - 3, int((b[2] - X0) * K) + 3, int((b[3] - Y0) * K) + 3]
@@ -170,6 +176,63 @@ def render(img, p):
     return out
 
 
+def _marker(z, p, x0, y0, k):
+    import cv2
+
+    b = p['box']
+    u, v = ((b[0] + b[2]) / 2 - x0) * k, (b[1] - y0) * k
+    tri = np.array([[u - 9, v - 22], [u + 9, v - 22], [u, v - 8]], np.int32)
+    if p['hidden']:
+        cv2.polylines(z, [tri], True, YELLOW, 2, cv2.LINE_AA)
+    else:
+        cv2.fillPoly(z, [tri], YELLOW, cv2.LINE_AA)
+        cv2.polylines(z, [tri], True, BLACK, 1, cv2.LINE_AA)
+
+
+class _SR:
+    """Real-ESRGAN x4 through spandrel, on the GPU in half precision."""
+
+    def __init__(self, path=SR_MODEL):
+        import torch
+        from spandrel import ModelLoader
+
+        self.torch = torch
+        self.m = ModelLoader().load_from_file(str(path)).cuda().eval().half()
+
+    def __call__(self, crop):
+        t = self.torch.from_numpy(crop[:, :, ::-1].copy()).permute(2, 0, 1)[None].cuda().half() / 255
+        with self.torch.no_grad():
+            o = self.m(t).clamp(0, 1)[0].permute(1, 2, 0).float().cpu().numpy()
+        return (o[:, :, ::-1] * 255).round().astype(np.uint8)
+
+
+def render_hd(img, p, sr):
+    """Recut frame: plain close-up | AI-cleaned close-up, over a 4:1 strip of the pitch."""
+    import cv2
+
+    H, W = img.shape[:2]
+    b = p['box']
+    x0, y0, s = _square(p['cx'], p['cy'] - 0.08 * p['h'], max(ZOOM_K * p['h'], ZOOM_MIN), W, H)
+    crop = img[int(y0) : int(y0 + s), int(x0) : int(x0 + s)]
+    plain = cv2.resize(crop, (HD_ZOOM, HD_ZOOM), interpolation=cv2.INTER_LANCZOS4)
+    plain = cv2.addWeighted(plain, 1.4, cv2.GaussianBlur(plain, (0, 0), 1.2), -0.4, 0)
+    up = sr(crop)
+    ai = cv2.resize(up, (HD_ZOOM, HD_ZOOM), interpolation=cv2.INTER_AREA if up.shape[0] > HD_ZOOM else cv2.INTER_LANCZOS4)
+    k = HD_ZOOM / int(s)
+    for z in (plain, ai):
+        _marker(z, p, x0, y0, k)
+    sh = float(min(max(3.5 * p['h'], 210.0), H, W / 4))
+    sw = 4 * sh
+    X0 = float(np.clip(p['cx'] - sw / 2, 0, W - sw))
+    Y0 = float(np.clip(p['cy'] - sh / 2, 0, H - sh))
+    strip = cv2.resize(img[int(Y0) : int(Y0 + sh), int(X0) : int(X0 + sw)], (2 * HD_ZOOM, HD_STRIP), interpolation=cv2.INTER_AREA)
+    K = HD_STRIP / sh
+    r = [int((b[0] - X0) * K) - 3, int((b[1] - Y0) * K) - 3, int((b[2] - X0) * K) + 3, int((b[3] - Y0) * K) + 3]
+    cv2.rectangle(strip, (r[0], r[1]), (r[2], r[3]), BLACK, 3, cv2.LINE_AA)
+    cv2.rectangle(strip, (r[0], r[1]), (r[2], r[3]), YELLOW, 1 if p['hidden'] else 2, cv2.LINE_AA)
+    return np.vstack([np.hstack([plain, ai]), strip])
+
+
 def thumb(img, b):
     import cv2
 
@@ -177,6 +240,100 @@ def thumb(img, b):
     h = b[3] - b[1]
     x0, y0, s = _square((b[0] + b[2]) / 2, (b[1] + b[3]) / 2, max(1.3 * h, 60), W, H)
     return cv2.resize(img[int(y0) : int(y0 + s), int(x0) : int(x0 + s)], (THUMB, THUMB), interpolation=cv2.INTER_LANCZOS4)
+
+
+def _cut(cap, live, out, draw, fps, crf, mb=0):
+    """Read the video once over the questions' frames; write each clip and thumb. Pops the
+    questions' private '_' keys. `mb`: cap each clip near that size (VP9 constrained quality)."""
+    import cv2
+
+    jobs = {}  # frame -> [(question, shown frame)]
+    for q in live:
+        for k, p in enumerate(q['_P']):
+            jobs.setdefault(p['f'], []).append((q, k))
+        jobs.setdefault(q['_thumb_f'], []).append((q, -1))
+        q['_left'] = len(q['_P'])
+    writers = {}
+    f, last = (min(jobs), max(jobs)) if jobs else (0, -1)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, f)
+    while f <= last:
+        if f not in jobs:
+            cap.grab()
+            f += 1
+            continue
+        ok_, img = cap.read()
+        if not ok_:
+            break
+        for q, k in jobs[f]:
+            if k < 0:
+                cv2.imwrite(str(out / q['thumb']), thumb(img, q['_thumb_b']), [cv2.IMWRITE_JPEG_QUALITY, 88])
+                continue
+            fr = draw(img, q['_P'][k])
+            vw = writers.get(q['id'])
+            if vw is None:
+                kbps = int(mb * 8e3 * fps / len(q['_P'])) if mb else 0
+                vw = writers[q['id']] = _Clip(out / q['clip']['file'], (fr.shape[1], fr.shape[0]), fps, crf, kbps)
+            vw.write(fr)
+            q['_left'] -= 1
+            if q['_left'] == 0:
+                writers.pop(q['id']).release()
+        f += 1
+    for vw in writers.values():
+        vw.release()
+    for q in live:
+        for k in [k for k in q if k.startswith('_')]:
+            q.pop(k)
+
+
+def recut(tag, src: Path, out: Path, ids, final=False):
+    """Re-ask chosen questions of a built set with the whole fragment, every frame, plain and
+    AI-cleaned close-ups (see the module note). Same ids, so answers line up with the source."""
+    import cv2
+
+    if tag in HELD_OUT and not final:
+        raise SystemExit(f'{tag} is held out: scored once, at the end (--final)')
+    from pitchiq.experiments.wholemap import video_of
+
+    v = video_of(tag)
+    if v:
+        os.environ['PIQ_VIDEO'] = v
+    sys.path.insert(0, str(REPO))
+    from pitchiq.experiments import player_lab
+    from pitchiq.experiments.spotlab import linked
+
+    S = json.loads(Path(src).read_text())
+    want = {q['id']: q for q in S['questions'] if q['id'] in set(ids)}
+    missing = set(ids) - set(want)
+    assert not missing, 'not in %s: %s' % (src, sorted(missing))
+    fps = float(S['fps'])
+    det, meta = player_lab.load_detections(tag)
+    spans = sorted({(q['lo'], q['hi']) for q in want.values()})
+    (out / 'clips').mkdir(parents=True, exist_ok=True)
+    (out / 'thumbs').mkdir(parents=True, exist_ok=True)
+    live = []
+    for (lo, hi), res in zip(spans, linked(tag, det, meta, spans)):
+        by = {i.pid: i for i in res.identities}
+        for old in (q for q in want.values() if (q['lo'], q['hi']) == (lo, hi)):
+            ident = by[old['pid']]
+            assert (int(ident.frames[0]), int(ident.frames[-1])) == (old['first'], old['last']), 'linker drifted: ' + old['id']
+            P = plan(ident, fps, full=True)
+            ok = ~ident.interp
+            j = int(np.argmax(np.where(ok, ident.boxes[:, 3] - ident.boxes[:, 1], -1)))
+            q = dict(old)
+            q['clip'] = dict(file='clips/%s.webm' % old['id'], fps=fps, n=len(P), frames=[p['f'] for p in P],
+                             hidden=[int(p['hidden']) for p in P], layout='hd', w=2 * HD_ZOOM, h=HD_ZOOM + HD_STRIP)
+            q['_P'], q['_thumb_f'], q['_thumb_b'] = P, int(ident.frames[j]), ident.boxes[j]
+            live.append(q)
+            print('%s: %d frames (%.0f s)' % (old['id'], len(P), len(P) / fps), flush=True)
+    sr = _SR()
+    cap = cv2.VideoCapture(player_lab.VIDEO)
+    _cut(cap, live, out, lambda img, p: render_hd(img, p, sr), fps, HD_CRF, HD_MB)
+    live.sort(key=lambda q: (q['kit'], q['first']))
+    (out / 'questions.json').write_text(
+        json.dumps(dict(tag=tag, video=S['video'], fps=fps, source=str(src), questions=live), default=_plain)
+    )
+    print('%d questions -> %s' % (len(live), out), flush=True)
+    return live
 
 
 def build(tag, out: Path, windows=None, per=20, min_s=15.0, final=False):
@@ -206,7 +363,6 @@ def build(tag, out: Path, windows=None, per=20, min_s=15.0, final=False):
     for w, (lo, hi), res in zip(windows, spans, linked(tag, det, meta, spans)):
         frags, kit = pick(res, _subset(det, (det.frame >= lo) & (det.frame < hi)), fps, per, min_s)
         print('window %d %d..%d: %d identities, %d asked' % (w, lo, hi, len(res.identities), len(frags)), flush=True)
-        jobs = {}  # frame -> [(question, shown frame)]
         live = []
         for ident in frags:
             P = plan(ident, fps)
@@ -225,42 +381,9 @@ def build(tag, out: Path, windows=None, per=20, min_s=15.0, final=False):
                 samples=[[int(ident.frames[i])] + [round(float(x), 1) for x in ident.boxes[i]]
                          for i in range(0, len(ident.frames), int(fps)) if ok[i]],
             )
-            q['_P'], q['_left'], q['_thumb_f'], q['_thumb_b'] = P, len(P), int(ident.frames[j]), ident.boxes[j]
-            for k, p in enumerate(P):
-                jobs.setdefault(p['f'], []).append((q, k))
-            jobs.setdefault(q['_thumb_f'], []).append((q, -1))
+            q['_P'], q['_thumb_f'], q['_thumb_b'] = P, int(ident.frames[j]), ident.boxes[j]
             live.append(q)
-        if not jobs:
-            continue
-        writers = {}
-        f, last = min(jobs), max(jobs)
-        cap.set(cv2.CAP_PROP_POS_FRAMES, f)
-        while f <= last:
-            if f not in jobs:
-                cap.grab()
-                f += 1
-                continue
-            ok_, img = cap.read()
-            if not ok_:
-                break
-            for q, k in jobs[f]:
-                if k < 0:
-                    cv2.imwrite(str(out / q['thumb']), thumb(img, q['_thumb_b']), [cv2.IMWRITE_JPEG_QUALITY, 88])
-                    continue
-                fr = render(img, q['_P'][k])
-                vw = writers.get(q['id'])
-                if vw is None:
-                    vw = writers[q['id']] = _Clip(out / q['clip']['file'], (fr.shape[1], fr.shape[0]))
-                vw.write(fr)
-                q['_left'] -= 1
-                if q['_left'] == 0:
-                    writers.pop(q['id']).release()
-            f += 1
-        for vw in writers.values():
-            vw.release()
-        for q in live:
-            for k in [k for k in q if k.startswith('_')]:
-                q.pop(k)
+        _cut(cap, live, out, render, CLIP_FPS, CRF)
         live.sort(key=lambda q: (q['kit'], q['first']))
         qs += live
     video = Path(player_lab.VIDEO).name
@@ -281,7 +404,16 @@ def main(argv=None) -> int:
     b.add_argument('--per', type=int, default=20)
     b.add_argument('--min-s', type=float, default=15.0)
     b.add_argument('--final', action='store_true')
+    r = sub.add_parser('recut')
+    r.add_argument('tag')
+    r.add_argument('src', type=Path, help="the built set's questions.json")
+    r.add_argument('out', type=Path)
+    r.add_argument('--ids', required=True, help='question ids, comma separated')
+    r.add_argument('--final', action='store_true')
     a = ap.parse_args(argv)
+    if a.cmd == 'recut':
+        recut(a.tag, a.src, a.out, a.ids.split(','), a.final)
+        return 0
     w = [int(x) for x in a.windows.split(',')] if a.windows else None
     build(a.tag, a.out, w, a.per, a.min_s, a.final)
     return 0

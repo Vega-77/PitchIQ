@@ -62,7 +62,7 @@ select.sel{background:var(--panel2); border:1px solid var(--line); border-radius
 .grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,350px); gap:12px; align-items:start}
 @media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
 .stage{background:var(--stage); border-radius:var(--r); overflow:hidden; border:1px solid var(--line)}
-.stage video{display:block; width:100%; height:auto; aspect-ratio:844/420; background:#000}
+.stage video{display:block; width:100%; height:auto; aspect-ratio:844/420; background:#000; max-height:78vh; object-fit:contain}
 .panes{display:grid; grid-template-columns:1fr 1fr; font-size:11px; color:#aab4c0; font-family:var(--mono); background:#0b0f14}
 .panes span{padding:4px 8px}
 .ctl{display:flex; flex-wrap:wrap; gap:6px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:8px}
@@ -98,6 +98,18 @@ select.sel{background:var(--panel2); border:1px solid var(--line); border-radius
 .chip b{font-family:var(--mono); font-size:13px}
 .chip small{font-size:10px; color:var(--dim)}
 .chip:hover{border-color:var(--signal)}
+.chip{position:relative}
+.chip.on{border-color:var(--mark); box-shadow:inset 0 0 0 1px var(--mark)}
+.chip .ren{position:absolute; top:2px; right:2px; width:22px; height:22px; padding:0; border-radius:4px; border:1px solid var(--line);
+  background:var(--panel); color:var(--dim); font-size:12px; line-height:20px}
+.chip .ren:hover{color:var(--signal); border-color:var(--signal)}
+.renBox{display:flex; flex-direction:column; gap:6px; background:var(--panel2); border:1px solid var(--signal); border-radius:var(--r); padding:8px; margin-bottom:6px}
+.renBox .row{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+.renBox input{flex:1 1 120px; min-width:0; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:6px 9px; font-family:var(--mono); font-size:15px; font-weight:600}
+.renBox .btn{padding:5px 10px; font-size:12.5px}
+.renBox p{margin:0; font-size:12.5px}
+.sure{display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--dim); margin-top:6px; cursor:pointer}
+.sure input{accent-color:var(--signal); width:15px; height:15px; margin:0}
 .empty{font-size:12px; color:var(--faint)}
 .roster .empty{grid-column:1/-1}
 textarea{width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:7px 9px; font-size:12.5px; resize:vertical; min-height:36px}
@@ -123,8 +135,10 @@ textarea{width:100%; background:var(--panel2); border:1px solid var(--line); bor
 <main class="wrap">
   <div class="banner" id="banner" hidden></div>
   <div class="help" id="help">
-    <p><b>Who is the marked player?</b> Each clip follows one tracked player for up to 12 seconds, picked where he is biggest on screen. Left: close-up, the yellow arrow over his head. Right: the wider view, him boxed. A hollow arrow or thin box means the tracker lost sight of him for a moment and is guessing.</p>
+    <p><b>Who is the marked player?</b> Each clip follows one tracked player: a close-up with a yellow arrow over his head, and a wider view with him boxed. A hollow arrow or thin box means the tracker lost sight of him for a moment and is guessing.</p>
+    <p id="hdHelp" hidden><b>Re-asked clips</b> show his whole stretch at every frame. The close-up is there twice: <b>plain</b> on the left, <b>AI-cleaned</b> on the right (the grain taken off). The AI can invent detail, so if the two disagree on a number, trust the plain one. The wider view runs along the bottom.</p>
     <p>Type his <b>shirt number</b> (or <b>GK</b>, or any short name if you know him by sight). Slow it down and step frame by frame to catch the number when he turns. If you recognise him from someone you already named, tap him in the list instead. The video time is shown, so you can check the original video too.</p>
+    <p>Names can change later: <b>✎</b> on a name renames that person in every clip, in both halves. Renaming to a name that already exists merges the two into one person.</p>
   </div>
 
   <section id="emptyView" class="empty">Loading…</section>
@@ -133,7 +147,7 @@ textarea{width:100%; background:var(--panel2); border:1px solid var(--line); bor
     <div style="display:flex; flex-direction:column; gap:8px; min-width:0">
       <div class="stage">
         <video id="vid" muted playsinline loop preload="auto"></video>
-        <div class="panes"><span>close-up</span><span>wider view</span></div>
+        <div class="panes" id="panes"><span>close-up</span><span>wider view</span></div>
       </div>
       <div class="ctl">
         <button id="bPause" title="Space">Pause</button>
@@ -164,9 +178,11 @@ textarea{width:100%; background:var(--panel2); border:1px solid var(--line); bor
           <input id="name" autocomplete="off" spellcheck="false" maxlength="24" placeholder="e.g. 9, GK, tall blond">
           <button class="btn primary" id="bSave" title="Enter">Save</button>
         </div>
+        <label class="sure"><input type="checkbox" id="unsure"> I think it's them, but I'm not 100% sure</label>
       </div>
       <div>
         <div class="lbl" style="margin-bottom:6px" id="rosterLbl">Already named</div>
+        <div class="renBox" id="renBox" hidden></div>
         <div class="roster" id="roster"></div>
       </div>
       <div class="opts">
@@ -194,7 +210,7 @@ textarea{width:100%; background:var(--panel2); border:1px solid var(--line); bor
 const clone = o => JSON.parse(JSON.stringify(o));
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-const S = {db: null, local: false, sets: [], set: null, qs: [], ans: {}, other: [], cur: -1, history: [], kit: null, rate: 1, vfps: 30, busy: 0};
+const S = {db: null, local: false, sets: [], set: null, qs: [], ans: {}, other: [], people: {}, pick: null, cur: -1, history: [], kit: null, rate: 1, vfps: 30, busy: 0};
 
 /* ---------- storage ---------- */
 function deepFreeze(o){ if (o && typeof o === 'object'){ Object.values(o).forEach(deepFreeze); Object.freeze(o); } return o; }
@@ -208,21 +224,32 @@ function mockDb(){   // local preview only: behaves like the real store, snapsho
   }; }};
 }
 const answersCol = () => S.db.collection('sets/' + S.set.name + '/answers');
+/* A person is one record per real player, shared by every half of the game. Answers point at it,
+   so renaming the person renames every clip; merging sets `into` on one record. */
+const peopleCol = () => S.db.collection('games/' + game(S.set) + '/people');
 function setSave(state, text){ const e = $('save'); e.className = 'save ' + state; e.textContent = text; }
-async function store(id, body){
+async function put(col, id, body, undo){
   S.busy++; setSave('busy', 'saving…');
   for (let tries = 0; ; tries++){
-    try { await answersCol().doc(id).set(body); break; }
+    try { await col.doc(id).set(body); break; }
     catch (e){
       if (e && e.code === 'unavailable' && tries < 2){ await new Promise(r => setTimeout(r, 800 + Math.random() * 1200)); continue; }
       S.busy--; setSave('bad', 'not saved');
       banner(e && e.code === 'quota_exceeded' ? 'The answer store is full. Stop here and tell Claude.' :
-             'An answer did not save (' + ((e && e.code) || 'error') + '). Answer it again, or reload.');
-      delete S.ans[id]; tallyHead(); return;
+             'A change did not save (' + ((e && e.code) || 'error') + '). Do it again, or reload.');
+      undo(); return false;
     }
   }
   S.busy--; if (!S.busy) setSave('', S.local ? 'saved in this tab' : 'saved');
+  return true;
 }
+const store = (id, body) => put(answersCol(), id, body, () => { delete S.ans[id]; tallyHead(); });
+function savePerson(pid, body){
+  const before = S.people[pid]; S.people[pid] = body;
+  return put(peopleCol(), pid, body, () => { if (before) S.people[pid] = before; else delete S.people[pid]; refresh(); });
+}
+function resolve(pid){ for (let i = 0; pid && i < 20; i++){ const p = S.people[pid]; if (!p || !p.into) return pid; pid = p.into; } return pid; }
+const newPid = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 function banner(text, note){ const b = $('banner'); b.textContent = text; b.className = 'banner' + (note ? ' note' : ''); b.hidden = !text; }
 
 /* ---------- media ---------- */
@@ -257,30 +284,64 @@ function step(d){ const v = $('vid'), c = q().clip; v.pause(); pauseLabel();
   const k = Math.max(0, Math.min(c.n - 1, frameIdx() + d)); v.currentTime = (k + 0.5) / c.fps; }
 
 /* ---------- questions ---------- */
-function labelOf(a){ return a && a.label ? a.label : null; }
+function personOf(a){ return a && a.person ? S.people[resolve(a.person)] || null : null; }
+function labelOf(a){ const p = personOf(a); return p ? p.label : a && a.label ? a.label : null; }
 function norm(s){ s = (s || '').trim().replace(/\s+/g, ' '); return /^#?\d{1,2}$/.test(s) ? String(parseInt(s.replace('#', ''), 10)) : /^gk$/i.test(s) ? 'GK' : s; }
-const game = name => name.replace(/\d+$/, '');   // wb1 and wb2 are one game: the same players
-function roster(tag, kit){
+const game = set => set.game || set.name.replace(/\d+[a-z]*$/, '');   // wb1, wb2 and wb1x are one game: the same players
+function findPerson(kit, label){
+  for (const [pid, p] of Object.entries(S.people)) if (!p.into && p.kit === kit && p.label === label) return pid;
+  return null;
+}
+function roster(kit){
   const m = new Map();
-  const add = (x, a, thumb) => { if (!a || a.kit !== kit || !a.label) return;
-    const r = m.get(a.label) || {label: a.label, n: 0, thumb}; r.n++; m.set(a.label, r); };
-  for (const x of S.qs) add(x, S.ans[x.id], base() + x.thumb);
-  for (const o of S.other) add(o.q, o.a, o.thumb);   // the game's other half: names given there
+  const add = (a, thumb) => { if (!a || !a.person) return; const pid = resolve(a.person), p = S.people[pid]; if (!p || p.kit !== kit) return;
+    const r = m.get(pid) || {pid, label: p.label, n: 0, thumb}; r.n++; m.set(pid, r); };
+  for (const x of S.qs) add(S.ans[x.id], base() + x.thumb);
+  for (const o of S.other) add(o.a, o.thumb);   // the game's other sets: people named there
   return [...m.values()].sort((a, b) => { const na = /^\d+$/.test(a.label), nb = /^\d+$/.test(b.label);
     return na && nb ? a.label - b.label : na ? -1 : nb ? 1 : a.label.localeCompare(b.label); });
 }
 function paintRoster(){
-  const x = q(), R = roster(x.tag, S.kit), box = $('roster'); box.replaceChildren();
+  const R = roster(S.kit), box = $('roster'); box.replaceChildren();
   $('rosterLbl').textContent = 'Already named · ' + (S.kit === 'light' ? 'light' : 'dark') + '-kit team';
   if (!R.length){ box.append(el('div', 'empty', 'Nobody yet. Names you give appear here, so you can match players by look.')); return; }
   for (const r of R){
-    const b = el('button', 'chip'); b.title = 'Same person as ' + r.label;
+    const b = el('div', 'chip' + (S.pick && resolve(S.pick) === r.pid ? ' on' : '')); b.title = 'Same person as ' + r.label; b.tabIndex = 0; b.setAttribute('role', 'button');
     const im = el('img'); im.src = r.thumb; im.alt = ''; im.loading = 'lazy';
-    b.append(im, el('b', null, r.label), el('small', null, r.n + (r.n === 1 ? ' clip' : ' clips')));
-    b.onclick = () => { $('name').value = r.label; $('name').focus(); };
+    const ren = el('button', 'ren', '✎'); ren.title = 'Rename ' + r.label + ' everywhere';
+    ren.onclick = e => { e.stopPropagation(); openRename(r.pid); };
+    b.append(im, el('b', null, r.label), el('small', null, r.n + (r.n === 1 ? ' clip' : ' clips')), ren);
+    b.onclick = () => { S.pick = r.pid; $('name').value = r.label; paintRoster(); $('name').focus(); };
+    b.onkeydown = e => { if (e.key === 'Enter' && e.target === b){ e.preventDefault(); e.stopPropagation(); b.click(); } };
     box.append(b);
   }
 }
+/* Rename a person everywhere, or merge them into the person who already has that name. */
+function openRename(pid){
+  const p = S.people[pid], box = $('renBox'); box.replaceChildren(); box.hidden = false;
+  const row = el('div', 'row'), inp = el('input'); inp.value = p.label; inp.maxLength = 24; inp.spellcheck = false; inp.autocomplete = 'off';
+  const ok = el('button', 'btn primary', 'Rename'), no = el('button', 'btn', 'Cancel');
+  const msg = el('p', null, 'New name for ' + p.label + ' (' + p.kit + ' kit). Every clip of this person follows.');
+  row.append(inp, ok, no); box.append(msg, row);
+  no.onclick = closeRename;
+  const go = () => {
+    const label = norm(inp.value); if (!label || label === p.label){ closeRename(); return; }
+    const other = findPerson(p.kit, label);
+    if (!other){ savePerson(pid, Object.assign(clone(p), {label, t: Date.now()})); closeRename(); refresh(); return; }
+    box.replaceChildren();
+    const ask = el('p'); ask.append('There is already a '); ask.append(el('b', null, label)); ask.append(' on the ' + p.kit + '-kit team. Are ' + p.label + ' and ' + label + ' the same person?');
+    const r2 = el('div', 'row'), mg = el('button', 'btn primary', 'Yes, merge them'), cn = el('button', 'btn', 'No, cancel');
+    r2.append(mg, cn); box.append(ask, r2);
+    cn.onclick = closeRename;
+    mg.onclick = () => { savePerson(pid, Object.assign(clone(p), {into: other, t: Date.now()})); closeRename(); refresh(); };
+    mg.focus();
+  };
+  ok.onclick = go;
+  inp.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter'){ e.preventDefault(); go(); } else if (e.key === 'Escape') closeRename(); };
+  inp.focus(); inp.select();
+}
+function closeRename(){ $('renBox').hidden = true; $('renBox').replaceChildren(); }
+function refresh(){ if (S.cur >= 0 && !$('qView').hidden){ const a = S.ans[q().id]; if (S.pick) $('name').value = (S.people[resolve(S.pick)] || {}).label || $('name').value; else if (a && a.person) $('name').value = labelOf(a) || ''; paintRoster(); } }
 function setKit(k){ S.kit = k; for (const b of document.querySelectorAll('.kit')) b.classList.toggle('on', b.dataset.kit === k); paintRoster(); }
 function tallyHead(){
   const n = S.qs.filter(x => x.id in S.ans).length;
@@ -302,9 +363,15 @@ async function show(i){
   add('window', String(x.win)); add('tracked', x.secs + ' s'); add('seen', Math.round(100 * x.seen) + '%');
   if (x.role === 'keeper') add('tracker says', 'keeper');
   $('qpos').textContent = 'question ' + (i + 1) + ' of ' + S.qs.length + (a ? ' · answered' : '');
-  $('name').value = a && a.label ? a.label : ''; $('note').value = a && a.note ? a.note : '';
+  closeRename();
+  S.pick = a && a.person ? resolve(a.person) : null;
+  $('name').value = labelOf(a) || ''; $('note').value = a && a.note ? a.note : '';
+  $('unsure').checked = !!(a && a.sure === false);
   setKit(a && a.kit ? a.kit : x.kit);
   const v = $('vid'); v.pause();
+  const hd = x.clip.layout === 'hd';
+  v.style.aspectRatio = hd ? x.clip.w + '/' + x.clip.h : '844/420';
+  $('panes').replaceChildren(...(hd ? ['top left: plain close-up', 'top right: AI-cleaned · bottom: wider view'] : ['close-up', 'wider view']).map(t => el('span', null, t)));
   try {
     const u = await clip(x.clip.file);
     if (S.cur !== i) return;
@@ -318,7 +385,15 @@ function answer(v){
   const x = q(); if (!x) return;
   const label = norm($('name').value);
   if (v === 'named' && !label){ $('name').focus(); $('name').placeholder = 'type a number or name first'; return; }
-  const body = {v, kit: S.kit, label: v === 'notplayer' ? null : (label || null), note: $('note').value.trim() || null, t: Date.now(), tag: x.tag, trk: x.trk};
+  let person = null;
+  if (v === 'named'){
+    const picked = S.pick && S.people[resolve(S.pick)];
+    if (picked && picked.kit === S.kit && picked.label === label) person = resolve(S.pick);
+    else person = findPerson(S.kit, label);
+    if (!person){ person = newPid(); savePerson(person, {kit: S.kit, label, t: Date.now()}); }
+  }
+  const body = {v, kit: S.kit, label: v === 'named' ? label : null, person, sure: v === 'named' ? !$('unsure').checked : null,
+                note: $('note').value.trim() || null, t: Date.now(), tag: x.tag, trk: x.trk};
   S.ans[x.id] = body; S.history.push(S.cur);
   store(x.id, body);
   show(nextUnanswered(S.cur + 1));
@@ -331,7 +406,7 @@ function skip(){
 function finish(){
   $('qView').hidden = true; $('doneView').hidden = false; $('vid').pause();
   const c = {named: 0, cant: 0, mixed: 0, notplayer: 0}; const names = new Set();
-  for (const x of S.qs){ const a = S.ans[x.id]; if (!a) continue; c[a.v] = (c[a.v] || 0) + 1; if (a.label) names.add(a.kit + ' ' + a.label); }
+  for (const x of S.qs){ const a = S.ans[x.id]; if (!a) continue; c[a.v] = (c[a.v] || 0) + 1; const l = labelOf(a); if (l) names.add(a.kit + ' ' + l); }
   $('doneText').textContent = c.named + ' named, ' + c.cant + ' can\'t tell, ' + c.mixed + ' two people, ' + c.notplayer + ' not a player · ' + names.size + ' different people. Thank you. Use Back to change an answer.';
   const t = $('tally'); t.replaceChildren(); [...names].sort().forEach(n => t.append(el('span', null, n)));
 }
@@ -346,12 +421,18 @@ async function openSet(name){
   try { j = await (await fetch(base() + 'questions.json')).json(); }
   catch (e){ banner('The questions did not load. Reload the page.'); return; }
   S.qs = j.questions; S.vfps = j.fps || 30;
+  $('hdHelp').hidden = !S.qs.some(x => x.clip.layout === 'hd');
   if (S.db){
     try { const snap = await answersCol().get(); for (const d of snap.docs) S.ans[d.id] = clone(d.data() || {}); }
     catch (e){ banner('Could not read earlier answers (' + ((e && e.code) || 'error') + '). Reload before answering.'); S.db = null; }
   }
+  S.people = {};
+  if (S.db){
+    try { const snap = await peopleCol().get(); for (const d of snap.docs) S.people[d.id] = clone(d.data() || {}); }
+    catch (e){ banner('Could not read the named people (' + ((e && e.code) || 'error') + '). Reload before answering.'); S.db = null; }
+  }
   S.other = [];
-  for (const o of S.sets.filter(s => s.name !== name && game(s.name) === game(name))){
+  for (const o of S.sets.filter(s => s.name !== name && game(s) === game(set))){
     try {
       const oq = (await (await fetch('sets/' + o.name + '/questions.json')).json()).questions;
       const snap = S.db ? await S.db.collection('sets/' + o.name + '/answers').get() : {docs: []};
@@ -394,6 +475,7 @@ $('bSave').onclick = () => answer('named');
 for (const b of document.querySelectorAll('.opts [data-v]')) b.onclick = () => answer(b.dataset.v);
 $('bBack').onclick = back;
 $('bSkip').onclick = skip;
+$('name').addEventListener('input', () => { if (S.pick){ S.pick = null; paintRoster(); } });   // typing a name un-picks the chip
 document.addEventListener('keydown', e => {
   if ($('qView').hidden) return;
   const inName = e.target === $('name'), inNote = e.target === $('note');
