@@ -1,4 +1,4 @@
-"""Picture of the team heatmaps: where each team's outfielders spent the half, on a real pitch.
+"""Picture of the team heatmaps: where each team's outfielders spent the half.
 
     python -m pitchiq.experiments.heat_sheet <tag> [<tag> ...] [--out sheet.jpg]
 

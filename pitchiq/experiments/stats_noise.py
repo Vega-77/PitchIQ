@@ -283,6 +283,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument('tags', nargs='+')
     ap.add_argument('--reps', type=int, default=3)
     ap.add_argument('--out')
+    ap.add_argument(
+        '--territory', action='store_true', help='territory and heatmaps instead of shape'
+    )
     return ap
 
 
@@ -290,10 +293,12 @@ def main(argv=None):
     a = build_parser().parse_args(argv)
     all_res = {}
     for tag in a.tags:
-        all_res[tag] = run_half(tag, a.reps)
+        all_res[tag] = (run_territory if a.territory else run_half)(tag, a.reps)
         print(tag, 'done', flush=True)
     if a.out:
         Path(a.out).write_text(json.dumps(all_res, indent=1, default=float))
+    if a.territory:
+        return  # the tables are PitchIQ-data/stats/terr_report.py's
     for trim in ('trim0', 'trim1'):
         print(table(all_res, trim))
 

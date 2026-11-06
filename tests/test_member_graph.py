@@ -35,10 +35,6 @@ UNREAD_BY_DESIGN = {
     'VideoClock.to_clock': 'The inverse of `to_video`. The pipeline only ever goes '
     'from match clock to footage; `tests/test_phases.py` round-trips through both, '
     'and the frozen reading during the break is defined here.',
-    # --- a correction hook waiting on its button
-    'TeamAssignment.swap': 'Which cluster is "us" is a human fact. This lets a '
-    'reviewer correct the mapping without refitting; the review page that would '
-    'offer the button has not been built.',
     # --- the funnel, as Python states it
     'PhaseOfPlay.share_reaching': 'One reading of the phase-of-play funnel. '
     '`shared/report.js` renders the funnel from the JSON counts and words it '
