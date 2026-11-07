@@ -92,6 +92,10 @@ select.sel{background:var(--panel2); border:1px solid var(--line); border-radius
 .opts{display:grid; grid-template-columns:1fr; gap:6px}
 .opts .btn{display:flex; justify-content:space-between; gap:8px}
 .opts .btn kbd{opacity:.8}
+.opts .btn.on{border-color:var(--mark); box-shadow:inset 0 0 0 1px var(--mark)}
+.was{font-size:13px; background:var(--panel2); border:1px solid var(--line); border-left:3px solid var(--mark); border-radius:var(--r); padding:7px 10px}
+.was b{font-family:var(--mono); font-size:14px}
+.done .btn.primary{margin-top:14px}
 .roster{display:grid; grid-template-columns:repeat(auto-fill, minmax(64px, 1fr)); gap:6px; max-height:300px; overflow:auto}
 .chip{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:3px; display:flex; flex-direction:column; align-items:center; gap:2px}
 .chip img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:4px; display:block; background:#000}
@@ -165,6 +169,7 @@ textarea{width:100%; background:var(--panel2); border:1px solid var(--line); bor
     <div class="card">
       <h2 class="qtitle">Who is this?</h2>
       <div class="meta" id="meta"></div>
+      <div class="was" id="was" hidden></div>
       <div>
         <div class="lbl" style="margin-bottom:6px">Team (change it if the tracker got it wrong)</div>
         <div class="kits">
@@ -192,6 +197,7 @@ textarea{width:100%; background:var(--panel2); border:1px solid var(--line); bor
       </div>
       <textarea id="note" placeholder="Note (optional): e.g. 'probably 7', 'is 9 until 0:06, then 14'"></textarea>
       <div class="foot">
+        <button class="btn primary" id="bKeep" title="Enter" hidden>Looks right →</button>
         <button class="btn" id="bBack" title="Ctrl+Z">← Back</button>
         <button class="btn" id="bSkip">Skip for now</button>
         <span id="qpos"></span>
@@ -203,6 +209,8 @@ textarea{width:100%; background:var(--panel2); border:1px solid var(--line); bor
     <h2>All answered</h2>
     <div id="doneText" class="meta"></div>
     <div class="tally" id="tally"></div>
+    <button class="btn primary" id="bReview" hidden>Check them all again</button>
+    <p class="meta" id="reviewNote" hidden></p>
   </section>
 </main>
 
@@ -210,7 +218,7 @@ textarea{width:100%; background:var(--panel2); border:1px solid var(--line); bor
 const clone = o => JSON.parse(JSON.stringify(o));
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-const S = {db: null, local: false, sets: [], set: null, qs: [], ans: {}, other: [], people: {}, pick: null, cur: -1, history: [], kit: null, rate: 1, vfps: 30, busy: 0};
+const S = {db: null, local: false, sets: [], set: null, qs: [], ans: {}, other: [], people: {}, pick: null, review: null, redone: {}, cur: -1, history: [], kit: null, rate: 1, vfps: 30, busy: 0};
 
 /* ---------- storage ---------- */
 function deepFreeze(o){ if (o && typeof o === 'object'){ Object.values(o).forEach(deepFreeze); Object.freeze(o); } return o; }
@@ -362,7 +370,13 @@ async function show(i){
   const add = (k, v) => { const s = el('span', null, k + ' '); s.append(el('b', null, v)); m.append(s); };
   add('window', String(x.win)); add('tracked', x.secs + ' s'); add('seen', Math.round(100 * x.seen) + '%');
   if (x.role === 'keeper') add('tracker says', 'keeper');
-  $('qpos').textContent = 'question ' + (i + 1) + ' of ' + S.qs.length + (a ? ' · answered' : '');
+  const r = S.review ? S.review.indexOf(i) : -1;
+  $('qpos').textContent = r >= 0 ? 'checking ' + (r + 1) + ' of ' + S.review.length : 'question ' + (i + 1) + ' of ' + S.qs.length + (a ? ' · answered' : '');
+  $('bKeep').hidden = !(S.review && a);
+  const was = $('was'), re = S.redone[x.id]; was.replaceChildren(); was.hidden = !a && !re;
+  if (a){ was.append(S.review ? 'Your answer: ' : 'Saved: '); wasText(was, a); }
+  if (re){ if (a) was.append(el('br')); was.append('Re-asked in the sharper set: '); wasText(was, re); was.append(' (that one counts)'); }
+  for (const b of document.querySelectorAll('.opts [data-v]')) b.classList.toggle('on', !!a && a.v === b.dataset.v);
   closeRename();
   S.pick = a && a.person ? resolve(a.person) : null;
   $('name').value = labelOf(a) || ''; $('note').value = a && a.note ? a.note : '';
@@ -394,9 +408,36 @@ function answer(v){
   }
   const body = {v, kit: S.kit, label: v === 'named' ? label : null, person, sure: v === 'named' ? !$('unsure').checked : null,
                 note: $('note').value.trim() || null, t: Date.now(), tag: x.tag, trk: x.trk};
+  const a = S.ans[x.id];
+  if (a && same(a, body)) return keep();   // nothing changed: no write, so the saved time stays the first answer's
   S.ans[x.id] = body; S.history.push(S.cur);
   store(x.id, body);
+  advance();
+}
+const WHAT = {cant: "Can't tell", mixed: 'Two people', notplayer: 'Not a player'};
+function wasText(box, a){
+  if (a.v === 'named'){ box.append(el('b', null, labelOf(a) || '?'), ' · ' + a.kit + ' kit' + (a.sure === false ? ' · not 100% sure' : '')); }
+  else box.append(el('b', null, WHAT[a.v] || a.v));
+  if (a.note) box.append(' · “' + a.note + '”');
+}
+function same(a, b){
+  return a.v === b.v && a.kit === b.kit && (a.note || null) === b.note &&
+         (a.v !== 'named' || (resolve(a.person) === resolve(b.person) && (a.sure !== false) === b.sure));
+}
+function formSame(){   // the form still shows the saved answer: Enter means "looks right"
+  const a = S.ans[q().id]; if (!a || a.kit !== S.kit || (a.note || '') !== $('note').value.trim()) return false;
+  const label = norm($('name').value);
+  return a.v === 'named' ? label === labelOf(a) && $('unsure').checked === (a.sure === false) : !label;
+}
+function advance(){
+  if (S.review){ const k = S.review.indexOf(S.cur) + 1; return show(k < S.review.length ? S.review[k] : -1); }
   show(nextUnanswered(S.cur + 1));
+}
+function keep(){ S.history.push(S.cur); advance(); }
+function startReview(){
+  S.review = S.qs.map((x, i) => i).filter(i => S.qs[i].id in S.ans && !S.redone[S.qs[i].id]);
+  S.history = [];
+  if (S.review.length) show(S.review[0]);
 }
 function back(){ if (!S.history.length) return; show(S.history.pop()); }
 function skip(){
@@ -407,14 +448,21 @@ function finish(){
   $('qView').hidden = true; $('doneView').hidden = false; $('vid').pause();
   const c = {named: 0, cant: 0, mixed: 0, notplayer: 0}; const names = new Set();
   for (const x of S.qs){ const a = S.ans[x.id]; if (!a) continue; c[a.v] = (c[a.v] || 0) + 1; const l = labelOf(a); if (l) names.add(a.kit + ' ' + l); }
-  $('doneText').textContent = c.named + ' named, ' + c.cant + ' can\'t tell, ' + c.mixed + ' two people, ' + c.notplayer + ' not a player · ' + names.size + ' different people. Thank you. Use Back to change an answer.';
+  const checked = !!S.review; S.review = null;
+  $('doneView').querySelector('h2').textContent = checked ? 'All checked' : 'All answered';
+  $('doneText').textContent = c.named + ' named, ' + c.cant + ' can\'t tell, ' + c.mixed + ' two people, ' + c.notplayer + ' not a player · ' + names.size + ' different people. Thank you.';
   const t = $('tally'); t.replaceChildren(); [...names].sort().forEach(n => t.append(el('span', null, n)));
+  const n = S.qs.filter(x => x.id in S.ans && !S.redone[x.id]).length, nr = S.qs.filter(x => S.redone[x.id]).length;
+  $('bReview').hidden = !n;
+  $('bReview').textContent = (checked ? 'Check all ' : 'Go through all ') + n + ' again';
+  $('reviewNote').hidden = !nr;
+  $('reviewNote').textContent = nr + ' clip' + (nr === 1 ? ' was' : 's were') + ' re-asked in the sharper set; check ' + (nr === 1 ? 'it' : 'them') + ' there.';
 }
 
 /* ---------- loading ---------- */
 async function openSet(name){
   const set = S.sets.find(s => s.name === name); if (!set) return;
-  S.set = set; S.ans = {}; S.history = [];
+  S.set = set; S.ans = {}; S.history = []; S.review = null; S.redone = {};
   try { localStorage.setItem('idlab.set', name); } catch (e) {}
   $('emptyView').hidden = false; $('qView').hidden = true; $('doneView').hidden = true;
   let j;
@@ -438,6 +486,9 @@ async function openSet(name){
       const snap = S.db ? await S.db.collection('sets/' + o.name + '/answers').get() : {docs: []};
       const oa = {}; for (const d of snap.docs) oa[d.id] = clone(d.data() || {});
       for (const x of oq) if (oa[x.id]) S.other.push({q: x, a: oa[x.id], thumb: 'sets/' + o.name + '/' + x.thumb});
+      // a sharper re-ask of one of this set's clips: its answer replaces the one here
+      const hdHere = S.qs.some(x => x.clip.layout === 'hd'), mine = new Set(S.qs.map(x => x.id));
+      if (!hdHere) for (const x of oq) if (x.clip.layout === 'hd' && mine.has(x.id) && oa[x.id]) S.redone[x.id] = oa[x.id];
     } catch (e) { /* the other half's names are a help, not needed */ }
   }
   if (S.set !== set) return;
@@ -475,12 +526,14 @@ $('bSave').onclick = () => answer('named');
 for (const b of document.querySelectorAll('.opts [data-v]')) b.onclick = () => answer(b.dataset.v);
 $('bBack').onclick = back;
 $('bSkip').onclick = skip;
+$('bKeep').onclick = keep;
+$('bReview').onclick = startReview;
 $('name').addEventListener('input', () => { if (S.pick){ S.pick = null; paintRoster(); } });   // typing a name un-picks the chip
 document.addEventListener('keydown', e => {
   if ($('qView').hidden) return;
   const inName = e.target === $('name'), inNote = e.target === $('note');
   const numeric = !inName || /^\d*$/.test($('name').value);   // in the name box, keys still drive the clip while it holds only digits
-  if (e.key === 'Enter' && !inNote){ e.preventDefault(); answer('named'); return; }
+  if (e.key === 'Enter' && !inNote){ e.preventDefault(); if (S.review && formSame()) keep(); else answer('named'); return; }
   if (/^F[123]$/.test(e.key)){ e.preventDefault(); answer(['cant', 'mixed', 'notplayer'][+e.key[1] - 1]); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !inName && !inNote){ e.preventDefault(); back(); return; }
   if (inNote || e.ctrlKey || e.metaKey || e.altKey) return;
