@@ -22,6 +22,11 @@ without --final.
 wb1 (dev), pairs of named clips, same person joined / two people joined:
     look + place, after a last-seen stitch pass     17/85   8/699
     look + place + number (w 0.5) + move veto      33/85   6/699
+wb2 (held out, scored once 2026-11-07, not tuned on):
+    look + place                                   14/66  12/571
+    look + place + number                          29/66   6/571
+    look + place + number + move veto (chosen)     25/66   9/571
+The number transfers (joins double, fewer wrong); the veto's wb1 gain (11 -> 6 wrong) did not.
 Dead ends on wb1: stitching by last-seen place first (chains of wrong hand-offs block later
 joins), last seen as a bonus (33 -> 23), seeding people from sure number reads then attaching
 (22/85 at 51 wrong: too few seeds force pieces into the wrong person).
