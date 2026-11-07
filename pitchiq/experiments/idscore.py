@@ -13,7 +13,9 @@ Reports:
   2. across windows, what links today (nothing: ids restart each window);
   3. whether the linker's appearance vectors (detector features, colour descriptor) could link
      a clip to the same person in another window: nearest-neighbour hit rate against chance,
-     and same-vs-other AUC, among clips of the same kit.
+     and same-vs-other AUC, among clips of the same kit. The shirt number joins as a soft
+     belief over 0-99 from the off-the-shelf reader (numread.py), so a 25/26 near miss
+     still points at the right person (weight 1 chosen on wb1: 53% -> 77% nearest).
 """
 
 from __future__ import annotations
@@ -217,6 +219,46 @@ def position(tag, qs):
     )
 
 
+NUM_TL = 0.5  # crops the legibility model passes below this say nothing about the number
+NUM_FLOOR = 0.02  # share of a clip's number belief kept uniform: one confident misread can't veto
+
+
+def numbers(tag, qs, variant=''):
+    """Each clip's belief over shirt numbers 0-99, from the reader's digit probabilities.
+
+    A crop's belief is P(first digit) x P(second digit or end) x P(end), so a crop read '25'
+    with some doubt on the 5 still gives 26 some weight: a near miss stays close. The clip's
+    belief is the legibility-weighted mean over its crops (they are not independent looks).
+    Keys set: num_clip (the 12 s clip), num_life (all the identity's crops), num_n (crops used).
+    `variant`: which reads (numread.py / numtrain.py): '' off the shelf, '_oofe' fine-tuned on
+    other people, '_oofew' fine-tuned on other windows of the same game, '_fte' all of wb1.
+    """
+    from pitchiq.experiments.numread import load_reads
+
+    R = load_reads(tag, variant)
+    D = R['dist'].astype(np.float64)
+    n = len(D)
+    one = D[:, 0, 1:11] * D[:, 1, :1]
+    two = (D[:, 0, 1:11, None] * D[:, 1, None, 1:11] * D[:, 2, 0, None, None]).reshape(n, 100)
+    P = np.concatenate([one, two[:, 10:]], 1)  # '0'..'9', then '10'..'99'
+    P /= P.sum(1, keepdims=True) + 1e-12
+    w = np.where(R['leg'] >= NUM_TL, R['leg'], 0.0)
+    clip, life = defaultdict(list), defaultdict(list)
+    for i, (q, inc) in enumerate(zip(R['qid'], R['in_clip'])):
+        life[str(q)].append(i)
+        if inc:
+            clip[str(q)].append(i)
+
+    def belief(idx):
+        ww = w[idx]
+        p = (ww[:, None] * P[idx]).sum(0) / ww.sum() if ww.sum() > 0 else np.full(100, 0.01)
+        return (1 - NUM_FLOOR) * p + NUM_FLOOR / 100, int((ww > 0).sum())
+
+    for q in qs:
+        q['num_clip'], q['num_n'] = belief(clip.get(q['id'], []))
+        q['num_life'], _ = belief(life.get(q['id'], []))
+
+
 def _auc(pos, neg):
     if not len(pos) or not len(neg):
         return float('nan')
@@ -228,6 +270,10 @@ def _auc(pos, neg):
 def _dist(named, key):
     """Distance between two clips on one cue (key, or key[slice] for part of a vector)."""
     key, part = key if isinstance(key, tuple) else (key, slice(None))
+    if key.startswith('num'):
+        # minus the log likelihood ratio same / different person: 0 when either clip has no
+        # legible crop, negative when both lean to the same number
+        return lambda a, b: -np.log(100 * float(a[key] @ b[key]))
     if key == 'feat':
         return lambda a, b: 1 - a['feat'] @ b['feat']
     # scaled per dimension; the colour descriptor has gaps (NaN): compare the parts both have
@@ -240,11 +286,12 @@ def _dist(named, key):
     return d
 
 
-def link_test(qs, keys, label):
+def link_test(qs, keys, label, w_num=1.0):
     """Nearest clip of the same kit in another window: same person? Against chance.
 
     Several keys are summed, each divided by its median distance over all candidate pairs,
-    so no cue gets a tuned weight.
+    so no cue gets a tuned weight; except the number, a log likelihood ratio (its median is
+    ~0), which is added times `w_num` (chosen on wb1).
     """
     keys = keys if isinstance(keys, list) else [keys]
     base = lambda k: k[0] if isinstance(k, tuple) else k  # noqa: E731
@@ -256,7 +303,12 @@ def link_test(qs, keys, label):
         for b in named
         if b['kit'] == a['kit'] and (b['tag'], b['win']) != (a['tag'], a['win'])
     ]
-    med = [np.median([v for v in (fn(a, b) for a, b in pairs) if np.isfinite(v)]) for fn in fns]
+    med = [
+        1 / w_num
+        if base(k).startswith('num')
+        else np.median([v for v in (fn(a, b) for a, b in pairs) if np.isfinite(v)])
+        for k, fn in zip(keys, fns)
+    ]
     hits = top3 = chance = n = 0
     pos, neg = [], []
     for a in named:
@@ -364,6 +416,7 @@ def main(argv=None):
     for t in tags:
         appearance(t, [q for q in qs if q['tag'] == t])
         position(t, [q for q in qs if q['tag'] == t])
+        numbers(t, [q for q in qs if q['tag'] == t])  # off the shelf: no game's taps in it
     lost = [q['id'] for q in qs if q.get('n_rows', 0) < 10]
     if lost:
         print('  few detections matched:', lost)
@@ -378,6 +431,9 @@ def main(argv=None):
         (('pos_life', rel), 'place in team, whole id (spread)'),
         (['feat', ('pos_clip', raw)], 'features + place, 12 s clip'),
         (['feat', ('pos_life', raw)], 'features + place, whole id'),
+        ('num_clip', 'shirt number, 12 s clip'),
+        ('num_life', 'shirt number, whole id'),
+        (['feat', ('pos_life', raw), 'num_life'], 'features + place + number, whole id'),
     ]
     groups = [(t + ' only', [q for q in qs if q['tag'] == t]) for t in tags]
     if a.final:
