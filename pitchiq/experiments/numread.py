@@ -334,6 +334,75 @@ def score(final=False):
     return 0
 
 
+LAB_PER = 40  # crops per grid
+LAB_LEGIBLE = 26  # of them, at most this many the legibility model likes (>= 0.3); the rest spread
+
+
+def _spread(idx, n, gap=2):
+    """Up to n of the sorted crop indices `idx`, evenly over time, no two within `gap` crops."""
+    if len(idx) <= n:
+        pick = list(idx)
+    else:
+        pick = [idx[int(round(x))] for x in np.linspace(0, len(idx) - 1, n)]
+    out = []
+    for i in pick:
+        if not out or i - out[-1] >= gap:
+            out.append(i)
+    return out
+
+
+def lab(tag, out: Path):
+    """Number Lab media: one grid per sure, numbered lab clip of `tag` (dev only): LAB_PER crops
+    from its 12 s stretch, the player's number above. The user taps the crops where the whole
+    number can be read; untapped crops are 'no readable number'. Answers train the reader."""
+    import base64
+
+    from pitchiq.experiments.idscore import truth
+
+    if tag in HELD_OUT:
+        raise SystemExit(f'{tag} is held out: never trained on')
+    C, R = load_crops(tag), load_reads(tag)
+    qs = [q for q in truth([tag]) if q['v'] == 'named' and q['sure'] and number_of(q['name'])]
+    (out / 'grids').mkdir(parents=True, exist_ok=True)
+    grids = []
+    for q in sorted(qs, key=lambda q: (q['kit'], int(number_of(q['name'])), q['first'])):
+        g = C[q['id']]
+        ri = {
+            int(f): i
+            for i, f in zip(np.where(R['qid'] == q['id'])[0], R['frame'][R['qid'] == q['id']])
+        }
+        inc = [k for k in range(len(g['frame'])) if g['in_clip'][k]]
+        leg = [k for k in inc if R['leg'][ri[int(g['frame'][k])]] >= 0.3]
+        pick = set(_spread(leg, LAB_LEGIBLE))
+        rest = [k for k in inc if k not in pick]
+        pick |= set(_spread(rest, LAB_PER - len(pick), gap=3))
+        pick = sorted(pick)[:LAB_PER]
+        crops = [
+            dict(
+                f=int(g['frame'][k]),
+                img='data:image/jpeg;base64,' + base64.b64encode(bytes(g['jpg'][k])).decode(),
+            )
+            for k in pick
+        ]
+        (out / 'grids' / f'{q["id"]}.json').write_text(
+            json.dumps(dict(id=q['id'], crops=crops)), encoding='utf-8'
+        )
+        grids.append(
+            dict(
+                id=q['id'],
+                tag=tag,
+                num=number_of(q['name']),
+                name=q['name'],
+                kit=q['kit'],
+                n=len(crops),
+                h=round(float(np.median([b[3] - b[1] for b in g['box']])), 0),
+            )
+        )
+    (out / 'grids.json').write_text(json.dumps(dict(set=tag, grids=grids)), encoding='utf-8')
+    mb = sum(p.stat().st_size for p in (out / 'grids').glob('*.json')) / 1e6
+    print(f'{len(grids)} grids, {sum(g["n"] for g in grids)} crops, {mb:.1f} MB -> {out}')
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     sub = ap.add_subparsers(dest='cmd', required=True)
@@ -345,6 +414,9 @@ def main(argv=None) -> int:
     c.add_argument('--final', action='store_true')
     c = sub.add_parser('score')
     c.add_argument('--final', action='store_true')
+    c = sub.add_parser('lab')
+    c.add_argument('tag')
+    c.add_argument('out')
     a = ap.parse_args(argv)
     if a.cmd == 'crops':
         crops(a.tag, a.final)
@@ -352,6 +424,8 @@ def main(argv=None) -> int:
         read(a.tag, a.final)
     elif a.cmd == 'score':
         score(a.final)
+    elif a.cmd == 'lab':
+        lab(a.tag, Path(a.out))
     return 0
 
 

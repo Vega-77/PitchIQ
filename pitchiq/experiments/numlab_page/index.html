@@ -1,0 +1,325 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Number Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Same family as the Player ID Lab. One grid = one named player: tap every frame where the
+   whole number on his shirt can be read. Untapped frames teach the reader "no number here". */
+:root{
+  --ground:#131920; --panel:#1b232d; --panel2:#222c38; --line:#2c3845;
+  --ink:#e8edf3; --dim:#8695a6; --faint:#5d6b7a;
+  --signal:#f59e2c; --mark:#ffe600; --ok:#49c58c; --warn:#e0645f; --stage:#0b0f14;
+  --kit-light:#f2f4f7; --kit-dark:#c8323a; --kit-edge:#5d6b7a;
+  --disp:'Chivo',system-ui,sans-serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --r:6px; color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+  --signal:#c7730f; --mark:#b39b00; --ok:#23915f; --warn:#d23447; --stage:#0e141b; color-scheme:light;
+}}
+:root[data-theme="light"]{
+  --ground:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --line:#d5dce4;
+  --ink:#0e141b; --dim:#5d6b7a; --faint:#8695a6;
+  --signal:#c7730f; --mark:#b39b00; --ok:#23915f; --warn:#d23447; --stage:#0e141b; color-scheme:light;
+}
+:root[data-theme="dark"]{ color-scheme:dark; }
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0; background:var(--ground); color:var(--ink); font-family:var(--body);
+  font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased; overflow-x:hidden}
+body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top,0px); z-index:10; background:var(--panel)}
+button,select{font:inherit; color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--signal); outline-offset:2px}
+kbd{font-family:var(--mono); font-size:11px; background:var(--panel2); border:1px solid var(--line);
+  border-bottom-width:2px; border-radius:4px; padding:1px 6px; white-space:nowrap; color:var(--ink)}
+
+.head{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--panel); border-bottom:1px solid var(--line);
+  padding-block:10px; padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px))}
+.headRow{display:flex; align-items:center; gap:8px 14px; flex-wrap:wrap; max-width:1400px; margin:0 auto}
+h1{font-family:var(--disp); font-weight:900; font-size:15px; letter-spacing:.06em; text-transform:uppercase; margin:0}
+h1 span{color:var(--mark)}
+select.sel{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:5px 8px; font-size:12.5px; max-width:100%; min-width:0}
+.prog{margin-left:auto; font-size:12px; color:var(--dim); display:flex; gap:14px; flex-wrap:wrap; align-items:center}
+.prog b{font-family:var(--mono); font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums}
+.save{font-family:var(--mono); font-size:11px; color:var(--faint)}
+.save.busy{color:var(--signal)} .save.bad{color:var(--warn)}
+.bar{height:3px; background:var(--line); max-width:1400px; margin:8px auto 0; border-radius:2px; overflow:hidden}
+.bar i{display:block; height:100%; width:0; background:var(--ok); transition:width .2s}
+
+.wrap{max-width:1400px; margin:0 auto; padding-block:14px 40px; padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px)); display:flex; flex-direction:column; gap:12px}
+.banner{background:color-mix(in srgb, var(--warn) 14%, transparent); border:1px solid color-mix(in srgb, var(--warn) 55%, transparent);
+  border-radius:var(--r); padding:9px 11px; font-size:12.5px}
+.banner.note{background:color-mix(in srgb, var(--signal) 12%, transparent); border-color:color-mix(in srgb, var(--signal) 45%, transparent)}
+
+.cols{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,330px); gap:12px; align-items:start}
+@media (max-width:900px){.cols{grid-template-columns:minmax(0,1fr)} .side{position:static!important}}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:14px; display:flex; flex-direction:column; gap:12px; min-width:0}
+
+.who{display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+.num{font-family:var(--disp); font-weight:900; font-size:44px; line-height:1; min-width:78px; height:68px; padding:0 12px;
+  display:flex; align-items:center; justify-content:center; border-radius:var(--r); border:2px solid var(--kit-edge)}
+.num.light{background:var(--kit-light); color:#11161c}
+.num.dark{background:var(--kit-dark); color:#11161c}
+.whoTxt{display:flex; flex-direction:column; gap:2px; min-width:0}
+.whoTxt b{font-family:var(--disp); font-size:18px; font-weight:700; text-wrap:balance}
+.whoTxt span{font-size:12px; color:var(--dim)}
+.whoTxt code{font-family:var(--mono); font-size:11px; color:var(--faint)}
+.tally{margin-left:auto; font-size:12px; color:var(--dim); text-align:right}
+.tally b{font-family:var(--mono); color:var(--ink)}
+
+.tiles{display:flex; flex-wrap:wrap; gap:6px; background:var(--stage); border-radius:var(--r); padding:8px; min-height:200px}
+.tile{position:relative; padding:0; border:3px solid transparent; border-radius:5px; background:#000; line-height:0; height:166px}
+.tile img{height:160px; width:auto; display:block; border-radius:2px; image-rendering:auto}
+.tile .tag{position:absolute; top:3px; left:3px; font:600 12px/1 var(--mono); padding:3px 5px; border-radius:3px; display:none}
+.tile.yes{border-color:var(--ok)} .tile.yes .tag{display:block; background:var(--ok); color:#06120c}
+.tile.other{border-color:var(--warn)} .tile.other .tag{display:block; background:var(--warn); color:#1a0606}
+.tile.hover{outline:2px solid var(--signal); outline-offset:1px}
+.loading{color:var(--dim); font-size:13px; padding:20px; line-height:1.4}
+
+.acts{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.acts button{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:8px 14px; font-size:13px}
+.acts button.go{background:var(--ok); border-color:var(--ok); color:#06120c; font-weight:600}
+.acts button:disabled{opacity:.45; cursor:default}
+.acts .sp{flex:1}
+
+.side{position:sticky; top:calc(env(safe-area-inset-top,0px) + 74px); display:flex; flex-direction:column; gap:12px}
+.zoom{background:var(--stage); border-radius:var(--r); border:1px solid var(--line); height:430px; display:flex; align-items:center; justify-content:center; overflow:hidden}
+.zoom img{height:100%; width:auto; max-width:100%; object-fit:contain}
+.zoom .hint{color:var(--faint); font-size:12px; padding:20px; text-align:center}
+.how{font-size:12.5px; color:var(--dim); display:flex; flex-direction:column; gap:6px}
+.how p{margin:0}
+.how b{color:var(--ink); font-weight:600}
+.lbl{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); font-weight:600}
+.keys{display:grid; grid-template-columns:auto 1fr; gap:4px 10px; font-size:12px; color:var(--dim); align-items:center}
+.done{text-align:center; padding:40px 10px; display:flex; flex-direction:column; gap:10px; align-items:center}
+.done b{font-family:var(--disp); font-size:22px}
+</style>
+
+<header class="head">
+  <div class="headRow">
+    <h1>Number <span>Lab</span></h1>
+    <select class="sel" id="gridSel" aria-label="Go to a player"></select>
+    <div class="prog">
+      <span>grids done <b id="pDone">0</b> / <b id="pAll">0</b></span>
+      <span>readable frames <b id="pYes">0</b></span>
+      <span class="save" id="save">ready</span>
+    </div>
+  </div>
+  <div class="bar"><i id="bar"></i></div>
+</header>
+
+<main class="wrap">
+  <div class="banner" id="banner" hidden></div>
+  <div class="cols">
+    <section class="card" id="gridCard">
+      <div class="who">
+        <div class="num" id="num">–</div>
+        <div class="whoTxt">
+          <b id="whoName">Loading…</b>
+          <span id="whoSub"></span>
+          <code id="whoId"></code>
+        </div>
+        <div class="tally" id="tally"></div>
+      </div>
+      <div class="tiles" id="tiles"><div class="loading">Loading frames…</div></div>
+      <div class="acts">
+        <button id="bBack">← Back</button>
+        <button id="bClear">Clear taps</button>
+        <span class="sp"></span>
+        <button id="bNone">None readable</button>
+        <button class="go" id="bDone">Done → next</button>
+      </div>
+    </section>
+    <aside class="side">
+      <div class="zoom" id="zoom"><div class="hint">Hover a frame to see it large.</div></div>
+      <div class="card how">
+        <span class="lbl">How to answer</span>
+        <p>Each grid is one player you named, with his number on top.</p>
+        <p><b>Tap</b> every frame where you can read the <b>whole</b> number on his shirt (both digits of a two-digit number).</p>
+        <p>Leave the rest: back turned away, blurred, half the number, hidden. Those teach the reader “no number here”.</p>
+        <p><b>Shift-tap</b> (or right-click) a frame that shows a <b>different</b> player or a different number.</p>
+        <div class="keys">
+          <kbd>Enter</kbd><span>done, next grid</span>
+          <kbd>N</kbd><span>none readable, next</span>
+          <kbd>Backspace</kbd><span>back one grid</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const clone = o => JSON.parse(JSON.stringify(o));
+const S = {db: null, local: false, set: '', grids: [], ans: {}, cur: -1, tap: new Map(), busy: 0, cache: new Map()};
+
+/* ---------- storage: num/<set>/grids/<grid id> = {yes: [frames], other: [frames], n, v, t} ---------- */
+function deepFreeze(o){ if (o && typeof o === 'object'){ Object.values(o).forEach(deepFreeze); Object.freeze(o); } return o; }
+function mockDb(){   // local preview only: behaves like the real store, snapshots frozen
+  const store = new Map();
+  const snap = (k, v) => ({id: k.split('/').pop(), exists: true, data: () => deepFreeze(clone(v))});
+  return {collection(p){ return {
+    doc: id => ({id, set: async d => { await new Promise(r => setTimeout(r, 30)); store.set(p + '/' + id, clone(d)); }}),
+    get: async () => { const docs = [...store].filter(([k]) => k.startsWith(p + '/') && !k.slice(p.length + 1).includes('/')).map(([k, v]) => snap(k, v));
+                       return {docs, size: docs.length, empty: !docs.length}; },
+  }; }};
+}
+const col = () => S.db.collection('num/' + S.set + '/grids');
+function setSave(state, text){ const e = $('save'); e.className = 'save ' + state; e.textContent = text; }
+function banner(text, note){ const b = $('banner'); b.textContent = text; b.className = 'banner' + (note ? ' note' : ''); b.hidden = !text; }
+async function put(id, body){
+  if (!S.db){ banner('Answers cannot be saved in this view. Open the lab signed in to claude.ai.'); return false; }
+  S.busy++; setSave('busy', 'saving…');
+  for (let tries = 0; ; tries++){
+    try { await col().doc(id).set(body); break; }
+    catch (e){
+      if (e && e.code === 'unavailable' && tries < 2){ await new Promise(r => setTimeout(r, 800 + Math.random() * 1200)); continue; }
+      S.busy--; setSave('bad', 'not saved');
+      banner(e && e.code === 'quota_exceeded' ? 'The answer store is full. Stop here and tell Claude.' :
+             'That grid did not save (' + ((e && e.code) || 'error') + '). Press Done again, or reload.');
+      return false;
+    }
+  }
+  S.busy--; if (!S.busy) setSave('', S.local ? 'saved in this tab' : 'saved');
+  return true;
+}
+
+/* ---------- media ---------- */
+function load(i){
+  const g = S.grids[i]; if (!g) return Promise.resolve(null);
+  if (!S.cache.has(g.id)) S.cache.set(g.id, fetch('grids/' + g.id + '.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .catch(e => { S.cache.delete(g.id); throw e; }));
+  return S.cache.get(g.id);
+}
+
+/* ---------- view ---------- */
+function tallyHead(){
+  const done = S.grids.filter(g => S.ans[g.id]).length;
+  const yes = Object.values(S.ans).reduce((a, x) => a + (x.yes || []).length, 0);
+  $('pDone').textContent = done; $('pAll').textContent = S.grids.length; $('pYes').textContent = yes;
+  $('bar').style.width = (S.grids.length ? 100 * done / S.grids.length : 0) + '%';
+  const sel = $('gridSel');
+  S.grids.forEach((g, i) => { const o = sel.options[i]; if (o) o.textContent = (S.ans[g.id] ? '✓ ' : '· ') + g.num + ' ' + g.kit + ' — ' + (i + 1); });
+}
+function paintTally(){
+  const n = [...S.tap.values()];
+  const t = $('tally');
+  t.replaceChildren();
+  const a = el('div'); a.append('readable ', el('b', null, String(n.filter(v => v === 'yes').length)));
+  const b = el('div'); b.append('other player ', el('b', null, String(n.filter(v => v === 'other').length)));
+  t.append(a, b);
+}
+function zoomTo(src){
+  const z = $('zoom');
+  if (!src){ z.replaceChildren(el('div', 'hint', 'Hover a frame to see it large.')); return; }
+  const im = new Image(); im.src = src; im.alt = 'Selected frame, enlarged'; z.replaceChildren(im);
+}
+async function show(i){
+  if (i < 0) i = 0;
+  if (i >= S.grids.length){ finished(); return; }
+  S.cur = i; const g = S.grids[i];
+  $('gridSel').value = String(i);
+  const num = $('num'); num.textContent = g.num; num.className = 'num ' + g.kit;
+  $('whoName').textContent = g.name === g.num ? 'Number ' + g.num : g.name;
+  $('whoSub').textContent = (g.kit === 'light' ? 'Light (white) kit' : 'Dark (red) kit') + ' · grid ' + (i + 1) + ' of ' + S.grids.length + ' · player ~' + g.h + ' px tall';
+  $('whoId').textContent = g.id;
+  const prev = S.ans[g.id];
+  S.tap = new Map();
+  if (prev){ (prev.yes || []).forEach(f => S.tap.set(f, 'yes')); (prev.other || []).forEach(f => S.tap.set(f, 'other')); }
+  $('bDone').disabled = $('bNone').disabled = true;
+  $('tiles').replaceChildren(el('div', 'loading', 'Loading frames…'));
+  zoomTo(null); paintTally();
+  let data;
+  try { data = await load(i); }
+  catch (e){ $('tiles').replaceChildren(el('div', 'loading', 'These frames did not load. Reload the page.')); return; }
+  if (S.cur !== i) return;
+  load(i + 1).catch(() => {}); load(i + 2).catch(() => {});
+  const box = $('tiles'); box.replaceChildren();
+  for (const c of data.crops){
+    const b = el('button', 'tile'); b.type = 'button'; b.dataset.f = c.f;
+    b.setAttribute('aria-label', 'Frame ' + c.f);
+    const im = new Image(); im.src = c.img; im.alt = ''; im.draggable = false;
+    const tag = el('span', 'tag');
+    b.append(im, tag);
+    const paint = () => { const v = S.tap.get(c.f); b.classList.toggle('yes', v === 'yes'); b.classList.toggle('other', v === 'other');
+      tag.textContent = v === 'yes' ? '✓ ' + g.num : v === 'other' ? '✗' : ''; b.setAttribute('aria-pressed', v ? 'true' : 'false'); };
+    const flip = kind => { S.tap.get(c.f) === kind ? S.tap.delete(c.f) : S.tap.set(c.f, kind); paint(); paintTally(); };
+    b.addEventListener('click', e => flip(e.shiftKey ? 'other' : 'yes'));
+    b.addEventListener('contextmenu', e => { e.preventDefault(); flip('other'); });
+    b.addEventListener('pointerenter', () => { b.classList.add('hover'); zoomTo(c.img); });
+    b.addEventListener('pointerleave', () => b.classList.remove('hover'));
+    paint(); box.append(b);
+  }
+  $('bDone').disabled = $('bNone').disabled = false;
+}
+async function done(clearFirst){
+  if (S.cur < 0 || S.cur >= S.grids.length || $('bDone').disabled) return;
+  const g = S.grids[S.cur];
+  if (clearFirst) S.tap = new Map();
+  const yes = [], other = [];
+  for (const [f, v] of S.tap) (v === 'yes' ? yes : other).push(f);
+  const body = {yes: yes.sort((a, b) => a - b), other: other.sort((a, b) => a - b), n: g.n, num: g.num, v: 1, t: Date.now()};
+  const before = S.ans[g.id];
+  S.ans[g.id] = body; tallyHead();
+  const at = S.cur;
+  show(nextOpen(at + 1));
+  if (!(await put(g.id, body))){ if (before) S.ans[g.id] = before; else delete S.ans[g.id]; tallyHead(); show(at); }
+}
+function nextOpen(from){
+  for (let k = 0; k < S.grids.length; k++){ const i = (from + k) % S.grids.length; if (!S.ans[S.grids[i].id]) return i; }
+  return S.grids.length;   // every grid answered
+}
+function finished(){
+  S.cur = S.grids.length;
+  $('num').textContent = '✓'; $('num').className = 'num light';
+  $('whoName').textContent = 'Every grid is done'; $('whoSub').textContent = 'Thank you. Tell Claude, and it will train the reader on your taps.'; $('whoId').textContent = '';
+  $('tally').replaceChildren();
+  const d = el('div', 'done'); d.append(el('b', null, Object.values(S.ans).reduce((a, x) => a + (x.yes || []).length, 0) + ' readable frames marked'),
+    el('span', null, 'Pick any player in the list at the top to change a grid.'));
+  $('tiles').replaceChildren(d);
+  $('bDone').disabled = $('bNone').disabled = true;
+  zoomTo(null);
+}
+
+/* ---------- start ---------- */
+async function boot(){
+  try { S.db = await window.claude.use('db'); } catch (e){ S.db = null; }
+  if (!window.claude){ S.db = mockDb(); S.local = true; banner('Local preview: answers stay in this tab only.', true); }
+  else if (!S.db) banner('Answers cannot be saved in this view. Open the lab signed in to claude.ai to answer.');
+  let meta;
+  try { meta = await (await fetch('grids.json')).json(); }
+  catch (e){ banner('The grids did not load. Reload the page.'); return; }
+  S.set = meta.set; S.grids = meta.grids;
+  const sel = $('gridSel'); sel.replaceChildren();
+  S.grids.forEach((g, i) => { const o = el('option', null, ''); o.value = String(i); sel.append(o); });
+  sel.onchange = () => show(+sel.value);
+  if (S.db){
+    const t = setTimeout(() => banner('Saved answers are slow to load. You can start; earlier grids will show when they arrive.', true), 10000);
+    try { const snap = await col().get(); snap.docs.forEach(d => { S.ans[d.id] = clone(d.data()); }); }
+    catch (e){ banner('Earlier answers did not load (' + ((e && e.code) || 'error') + '). Reload before answering.'); }
+    clearTimeout(t);
+  }
+  tallyHead();
+  show(nextOpen(0));
+}
+$('bDone').onclick = () => done(false);
+$('bNone').onclick = () => done(true);
+$('bClear').onclick = () => { S.tap = new Map(); document.querySelectorAll('.tile').forEach(b => { b.classList.remove('yes', 'other'); b.querySelector('.tag').textContent = ''; b.setAttribute('aria-pressed', 'false'); }); paintTally(); };
+$('bBack').onclick = () => show(Math.max(0, (S.cur >= S.grids.length ? S.grids.length : S.cur) - 1));
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target === $('gridSel')) return;
+  if (e.key === 'Enter'){ e.preventDefault(); done(false); }
+  else if (e.key === 'n' || e.key === 'N'){ e.preventDefault(); done(true); }
+  else if (e.key === 'Backspace'){ e.preventDefault(); $('bBack').click(); }
+});
+boot();
+</script>
