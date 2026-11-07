@@ -202,10 +202,15 @@ def load_legibility(path=MODELS / 'legibility_soccer.pth'):
 class Reader:
     """Legibility and digits for a batch of RGB uint8 crops (H, W, 3)."""
 
-    def __init__(self, device='cuda'):
+    def __init__(self, device='cuda', tuned=None):
+        """`tuned`: a dict {'parseq': state_dict, 'leg': state_dict} fine-tuned on this camera."""
         self.dev = device
-        self.str = load_parseq().to(device)
-        self.leg = load_legibility().to(device)
+        self.str = load_parseq()
+        self.leg = load_legibility()
+        if tuned:
+            self.str.load_state_dict(tuned['parseq'])
+            self.leg.load_state_dict(tuned['leg'])
+        self.str, self.leg = self.str.to(device).eval(), self.leg.to(device).eval()
         self.mean = torch.tensor([0.485, 0.456, 0.406], device=device).view(1, 3, 1, 1)
         self.std = torch.tensor([0.229, 0.224, 0.225], device=device).view(1, 3, 1, 1)
 

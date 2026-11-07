@@ -139,16 +139,19 @@ def torso(img, n_box):
     return img[max(0, y0) : min(H, y1), max(0, x0) : min(W, x1)]
 
 
-def read(tag, final=False, batch=256):
-    """Legibility of each whole crop and the digits read on its torso; cached per half."""
+def read(tag, final=False, batch=256, reader=None, qids=None, name=None):
+    """Legibility of each whole crop and the digits read on its torso; cached per half.
+    `reader`/`qids`/`name`: a fine-tuned reader on some clips only, saved as reads_<name>.npz."""
     import cv2
 
     if tag in HELD_OUT and not final:
         raise SystemExit(f'{tag} is held out: scored once, at the end (--final)')
     from pitchiq.experiments.parseq_lite import Reader
 
-    r = Reader()
+    r = reader or Reader()
     C = load_crops(tag)
+    if qids is not None:
+        C = {q: g for q, g in C.items() if q in qids}
     keys, leg, txt, prob, dist = [], [], [], [], []
     todo = [(qid, k) for qid, g in C.items() for k in range(len(g['frame']))]
     for i in range(0, len(todo), batch):
@@ -165,8 +168,9 @@ def read(tag, final=False, batch=256):
         keys += part
         if (i // batch) % 40 == 0:
             print(f'  {i + len(part)} / {len(todo)}', flush=True)
+    dst = OUT / f'reads_{name or tag}.npz'
     np.savez(
-        OUT / f'reads_{tag}.npz',
+        dst,
         qid=np.array([q for q, _ in keys]),
         frame=np.array([int(C[q]['frame'][k]) for q, k in keys]),
         in_clip=np.array([bool(C[q]['in_clip'][k]) for q, k in keys]),
@@ -176,7 +180,7 @@ def read(tag, final=False, batch=256):
         prob=np.array(prob, np.float32),
         dist=np.array(dist, np.float32),
     )
-    print(f'{len(keys)} reads -> {OUT / f"reads_{tag}.npz"}', flush=True)
+    print(f'{len(keys)} reads -> {dst}', flush=True)
 
 
 def number_of(label):
@@ -188,8 +192,8 @@ def number_of(label):
     return m.group(1)
 
 
-def load_reads(tag):
-    z = np.load(OUT / f'reads_{tag}.npz')
+def load_reads(tag, variant=''):
+    z = np.load(OUT / f'reads_{tag}{variant}.npz')
     return {k: z[k] for k in z.files}
 
 
@@ -241,14 +245,16 @@ def _tally(items, R, p, rosters=None):
     return right, wrong, none, bad
 
 
-def score(final=False):
+def score(final=False, variant=None):
+    """`variant`: {tag: suffix} of the reads files, e.g. the fine-tuned reader's
+    {'wb1': '_oof', 'wb2': '_ft'} (wb1 read only by models that never trained on that person)."""
     from pitchiq.experiments.idscore import truth
 
     tags = ['wb1', 'wb2'] if final else ['wb1']
     qs = truth(tags)
     R = {}
     for t in tags:
-        R[t] = load_reads(t)
+        R[t] = load_reads(t, (variant or {}).get(t, ''))
         by = {}
         for i, (q, inc) in enumerate(zip(R[t]['qid'], R[t]['in_clip'])):
             if inc:
@@ -414,6 +420,8 @@ def main(argv=None) -> int:
     c.add_argument('--final', action='store_true')
     c = sub.add_parser('score')
     c.add_argument('--final', action='store_true')
+    c.add_argument('--wb1', default='', help='reads file suffix, e.g. _oof (numtrain.py)')
+    c.add_argument('--wb2', default='', help='reads file suffix, e.g. _ft (numtrain.py)')
     c = sub.add_parser('lab')
     c.add_argument('tag')
     c.add_argument('out')
@@ -423,7 +431,7 @@ def main(argv=None) -> int:
     elif a.cmd == 'read':
         read(a.tag, a.final)
     elif a.cmd == 'score':
-        score(a.final)
+        score(a.final, {'wb1': a.wb1, 'wb2': a.wb2})
     elif a.cmd == 'lab':
         lab(a.tag, Path(a.out))
     return 0
