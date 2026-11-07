@@ -107,6 +107,20 @@ select.sel{background:var(--panel2); border:1px solid var(--line); border-radius
 .chip .ren{position:absolute; top:2px; right:2px; width:22px; height:22px; padding:0; border-radius:4px; border:1px solid var(--line);
   background:var(--panel); color:var(--dim); font-size:12px; line-height:20px}
 .chip .ren:hover{color:var(--signal); border-color:var(--signal)}
+.chip .see{position:absolute; top:2px; left:2px; width:22px; height:22px; padding:0; border-radius:4px; border:1px solid var(--line);
+  background:var(--panel); color:var(--dim); font-size:10px; line-height:20px}
+.chip .see:hover{color:var(--signal); border-color:var(--signal)}
+.pv{position:fixed; inset:0; z-index:20; background:color-mix(in srgb, var(--ground) 82%, transparent); display:flex; align-items:center; justify-content:center;
+  padding:max(16px, env(safe-area-inset-top,0px)) max(16px, env(safe-area-inset-right,0px)) max(16px, env(safe-area-inset-bottom,0px)) max(16px, env(safe-area-inset-left,0px))}
+.pvBox{background:var(--panel); border:1px solid var(--signal); border-radius:var(--r); padding:12px; width:min(1100px, 100%); max-height:100%; overflow:auto; display:flex; flex-direction:column; gap:10px}
+.pvHead{display:flex; justify-content:space-between; align-items:center; gap:8px}
+.pvHead h3{margin:0; font-family:var(--disp); font-size:17px}
+.pvHead .btn{padding:5px 10px; font-size:12.5px}
+.pvBox video{display:block; width:100%; max-height:62vh; background:#000; border-radius:var(--r); object-fit:contain}
+.pvList{display:grid; grid-template-columns:repeat(auto-fill, minmax(92px, 1fr)); gap:6px}
+.pvList button{background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); padding:3px; display:flex; flex-direction:column; align-items:center; gap:2px; font-size:11px; color:var(--dim)}
+.pvList button img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:4px; background:#000}
+.pvList button.on{border-color:var(--mark); box-shadow:inset 0 0 0 1px var(--mark); color:var(--fg)}
 .renBox{display:flex; flex-direction:column; gap:6px; background:var(--panel2); border:1px solid var(--signal); border-radius:var(--r); padding:8px; margin-bottom:6px}
 .renBox .row{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
 .renBox input{flex:1 1 120px; min-width:0; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:6px 9px; font-family:var(--mono); font-size:15px; font-weight:600}
@@ -142,7 +156,7 @@ textarea{width:100%; background:var(--panel2); border:1px solid var(--line); bor
     <p><b>Who is the marked player?</b> Each clip follows one tracked player: a close-up with a yellow arrow over his head, and a wider view with him boxed. A hollow arrow or thin box means the tracker lost sight of him for a moment and is guessing.</p>
     <p id="hdHelp" hidden><b>Re-asked clips</b> show his whole stretch at every frame. The close-up is there twice: <b>plain</b> on the left, <b>AI-cleaned</b> on the right (the grain taken off). The AI can invent detail, so if the two disagree on a number, trust the plain one. The wider view runs along the bottom.</p>
     <p>Type his <b>shirt number</b> (or <b>GK</b>, or any short name if you know him by sight). Slow it down and step frame by frame to catch the number when he turns. If you recognise him from someone you already named, tap him in the list instead. The video time is shown, so you can check the original video too.</p>
-    <p>Names can change later: <b>✎</b> on a name renames that person in every clip, in both halves. Renaming to a name that already exists merges the two into one person.</p>
+    <p>Names can change later: <b>✎</b> on a name renames that person in every clip, in both halves. Renaming to a name that already exists merges the two into one person. <b>▶</b> on a name plays every other clip you gave that person, to compare.</p>
   </div>
 
   <section id="emptyView" class="empty">Loading…</section>
@@ -212,6 +226,14 @@ textarea{width:100%; background:var(--panel2); border:1px solid var(--line); bor
     <button class="btn primary" id="bReview" hidden>Check them all again</button>
     <p class="meta" id="reviewNote" hidden></p>
   </section>
+
+  <section class="pv" id="pv" hidden role="dialog" aria-modal="true" aria-labelledby="pvTitle">
+    <div class="pvBox">
+      <div class="pvHead"><h3 id="pvTitle"></h3><button class="btn" id="pvClose" title="Esc">Close ✕</button></div>
+      <video id="pvVid" muted playsinline loop controls preload="auto"></video>
+      <div class="pvList" id="pvList"></div>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -231,7 +253,8 @@ function mockDb(){   // local preview only: behaves like the real store, snapsho
                        return {docs, size: docs.length, empty: !docs.length}; },
   }; }};
 }
-const answersCol = () => S.db.collection('sets/' + S.set.name + '/answers');
+// A check set gathers clips from several sets: each question says where its answer lives (aset) and its media (src).
+const answersCol = x => S.db.collection('sets/' + ((x && x.aset) || S.set.name) + '/answers');
 /* A person is one record per real player, shared by every half of the game. Answers point at it,
    so renaming the person renames every clip; merging sets `into` on one record. */
 const peopleCol = () => S.db.collection('games/' + game(S.set) + '/people');
@@ -251,7 +274,7 @@ async function put(col, id, body, undo){
   S.busy--; if (!S.busy) setSave('', S.local ? 'saved in this tab' : 'saved');
   return true;
 }
-const store = (id, body) => put(answersCol(), id, body, () => { delete S.ans[id]; tallyHead(); });
+const store = (x, body, before) => put(answersCol(x), x.id, body, () => { if (before) S.ans[x.id] = before; else delete S.ans[x.id]; tallyHead(); });
 function savePerson(pid, body){
   const before = S.people[pid]; S.people[pid] = body;
   return put(peopleCol(), pid, body, () => { if (before) S.people[pid] = before; else delete S.people[pid]; refresh(); });
@@ -263,8 +286,9 @@ function banner(text, note){ const b = $('banner'); b.textContent = text; b.clas
 /* ---------- media ---------- */
 const clips = new Map();   // url -> Promise<objectURL>: whole files, so seeking and frame steps are exact
 const base = () => 'sets/' + S.set.name + '/';
-function clip(path){
-  const u = base() + path;
+const qbase = x => 'sets/' + (x.src || S.set.name) + '/';
+const clipUrl = x => x.clip.url || qbase(x) + x.clip.file;   // url: a sharper clip kept in the asset store
+function clip(u){
   if (!clips.has(u)){
     clips.set(u, fetch(u).then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); }).then(b => URL.createObjectURL(b)));
     clips.get(u).catch(() => clips.delete(u));
@@ -273,7 +297,7 @@ function clip(path){
 }
 function prefetch(){
   const keep = new Set();
-  for (let i = S.cur, n = 0; i < S.qs.length && n < 5; i++){ const q = S.qs[i]; if (!(q.id in S.ans) || i === S.cur){ keep.add(base() + q.clip.file); clip(q.clip.file); n++; } }
+  for (let i = S.cur, n = 0; i < S.qs.length && n < 5; i++){ const q = S.qs[i]; if (!(q.id in S.ans) || i === S.cur || S.review){ keep.add(clipUrl(q)); clip(clipUrl(q)); n++; } }
   for (const [u, p] of clips){ if (clips.size <= 12) break; if (!keep.has(u)){ clips.delete(u); p.then(x => { if ($('vid').src !== x) URL.revokeObjectURL(x); }).catch(() => {}); } }
 }
 const q = () => S.qs[S.cur];
@@ -302,10 +326,10 @@ function findPerson(kit, label){
 }
 function roster(kit){
   const m = new Map();
-  const add = (a, thumb) => { if (!a || !a.person) return; const pid = resolve(a.person), p = S.people[pid]; if (!p || p.kit !== kit) return;
-    const r = m.get(pid) || {pid, label: p.label, n: 0, thumb}; r.n++; m.set(pid, r); };
-  for (const x of S.qs) add(S.ans[x.id], base() + x.thumb);
-  for (const o of S.other) add(o.a, o.thumb);   // the game's other sets: people named there
+  const add = (a, thumb, url, x) => { if (!a || !a.person) return; const pid = resolve(a.person), p = S.people[pid]; if (!p || p.kit !== kit) return;
+    const r = m.get(pid) || {pid, label: p.label, n: 0, thumb, clips: []}; r.n++; r.clips.push({thumb, url, x}); m.set(pid, r); };
+  for (const x of S.qs) add(S.ans[x.id], qbase(x) + x.thumb, clipUrl(x), x);
+  for (const o of S.other) add(o.a, o.thumb, o.url, o.q);   // the game's other sets: people named there
   return [...m.values()].sort((a, b) => { const na = /^\d+$/.test(a.label), nb = /^\d+$/.test(b.label);
     return na && nb ? a.label - b.label : na ? -1 : nb ? 1 : a.label.localeCompare(b.label); });
 }
@@ -318,7 +342,9 @@ function paintRoster(){
     const im = el('img'); im.src = r.thumb; im.alt = ''; im.loading = 'lazy';
     const ren = el('button', 'ren', '✎'); ren.title = 'Rename ' + r.label + ' everywhere';
     ren.onclick = e => { e.stopPropagation(); openRename(r.pid); };
-    b.append(im, el('b', null, r.label), el('small', null, r.n + (r.n === 1 ? ' clip' : ' clips')), ren);
+    const see = el('button', 'see', '▶'); see.title = 'Watch every clip of ' + r.label;
+    see.onclick = e => { e.stopPropagation(); openPeople(r); };
+    b.append(im, el('b', null, r.label), el('small', null, r.n + (r.n === 1 ? ' clip' : ' clips')), see, ren);
     b.onclick = () => { S.pick = r.pid; $('name').value = r.label; paintRoster(); $('name').focus(); };
     b.onkeydown = e => { if (e.key === 'Enter' && e.target === b){ e.preventDefault(); e.stopPropagation(); b.click(); } };
     box.append(b);
@@ -349,6 +375,28 @@ function openRename(pid){
   inp.focus(); inp.select();
 }
 function closeRename(){ $('renBox').hidden = true; $('renBox').replaceChildren(); }
+/* Watch the clips already given to one person, to compare with the player being asked about. */
+const half = x => { const d = /(\d+)[a-z]*$/.exec(x.tag || ''); return d ? 'H' + d[1] : ''; };
+function openPeople(r){
+  $('vid').pause();
+  const list = $('pvList'), pv = $('pvVid'); list.replaceChildren();
+  const cur = S.cur >= 0 ? q() : null, items = r.clips.filter(c => !cur || c.x.id !== cur.id);
+  $('pvTitle').textContent = r.label + ' · ' + (S.people[r.pid] || {}).kit + ' kit · ' + items.length + (items.length === 1 ? ' other clip' : ' other clips');
+  const play = async (c, b) => {
+    for (const o of list.children) o.classList.toggle('on', o === b);
+    try { const u = await clip(c.url); if (!$('pv').hidden){ pv.src = u; pv.play().catch(() => {}); } }
+    catch (e){ banner('That clip did not load.'); }
+  };
+  items.forEach((c, k) => {
+    const b = el('button'), im = el('img'); im.src = c.thumb; im.alt = ''; im.loading = 'lazy';
+    b.append(im, el('span', null, half(c.x) + ' ' + clock(c.x.first) + (c.x.clip.layout === 'hd' ? ' · sharp' : '')));
+    b.onclick = () => play(c, b); list.append(b);
+    if (!k) play(c, b);
+  });
+  if (!items.length) list.append(el('div', 'empty', 'No other clips of ' + r.label + ' yet.'));
+  $('pv').hidden = false; $('pvClose').focus();
+}
+function closePeople(){ const pv = $('pvVid'); pv.pause(); pv.removeAttribute('src'); pv.load(); $('pv').hidden = true; }
 function refresh(){ if (S.cur >= 0 && !$('qView').hidden){ const a = S.ans[q().id]; if (S.pick) $('name').value = (S.people[resolve(S.pick)] || {}).label || $('name').value; else if (a && a.person) $('name').value = labelOf(a) || ''; paintRoster(); } }
 function setKit(k){ S.kit = k; for (const b of document.querySelectorAll('.kit')) b.classList.toggle('on', b.dataset.kit === k); paintRoster(); }
 function tallyHead(){
@@ -368,6 +416,7 @@ async function show(i){
   $('emptyView').hidden = true; $('doneView').hidden = true; $('qView').hidden = false;
   const m = $('meta'); m.replaceChildren();
   const add = (k, v) => { const s = el('span', null, k + ' '); s.append(el('b', null, v)); m.append(s); };
+  if (S.set.check) add('half', half(x));
   add('window', String(x.win)); add('tracked', x.secs + ' s'); add('seen', Math.round(100 * x.seen) + '%');
   if (x.role === 'keeper') add('tracker says', 'keeper');
   const r = S.review ? S.review.indexOf(i) : -1;
@@ -387,7 +436,7 @@ async function show(i){
   v.style.aspectRatio = hd ? x.clip.w + '/' + x.clip.h : '844/420';
   $('panes').replaceChildren(...(hd ? ['top left: plain close-up', 'top right: AI-cleaned · bottom: wider view'] : ['close-up', 'wider view']).map(t => el('span', null, t)));
   try {
-    const u = await clip(x.clip.file);
+    const u = await clip(clipUrl(x));
     if (S.cur !== i) return;
     v.src = u; v.playbackRate = S.rate; v.currentTime = 0;
     v.play().catch(() => {}); pauseLabel();
@@ -411,7 +460,7 @@ function answer(v){
   const a = S.ans[x.id];
   if (a && same(a, body)) return keep();   // nothing changed: no write, so the saved time stays the first answer's
   S.ans[x.id] = body; S.history.push(S.cur);
-  store(x.id, body);
+  store(x, body, a);
   advance();
 }
 const WHAT = {cant: "Can't tell", mixed: 'Two people', notplayer: 'Not a player'};
@@ -471,7 +520,13 @@ async function openSet(name){
   S.qs = j.questions; S.vfps = j.fps || 30;
   $('hdHelp').hidden = !S.qs.some(x => x.clip.layout === 'hd');
   if (S.db){
-    try { const snap = await answersCol().get(); for (const d of snap.docs) S.ans[d.id] = clone(d.data() || {}); }
+    const own = new Map(S.qs.map(x => [x.id, x.aset || name]));
+    try {
+      for (const as of new Set(own.values())){
+        const snap = await S.db.collection('sets/' + as + '/answers').get();
+        for (const d of snap.docs) if (own.get(d.id) === as) S.ans[d.id] = clone(d.data() || {});
+      }
+    }
     catch (e){ banner('Could not read earlier answers (' + ((e && e.code) || 'error') + '). Reload before answering.'); S.db = null; }
   }
   S.people = {};
@@ -480,18 +535,19 @@ async function openSet(name){
     catch (e){ banner('Could not read the named people (' + ((e && e.code) || 'error') + '). Reload before answering.'); S.db = null; }
   }
   S.other = [];
-  for (const o of S.sets.filter(s => s.name !== name && game(s) === game(set))){
+  for (const o of S.sets.filter(s => s.name !== name && !s.check && !set.check && game(s) === game(set))){
     try {
       const oq = (await (await fetch('sets/' + o.name + '/questions.json')).json()).questions;
       const snap = S.db ? await S.db.collection('sets/' + o.name + '/answers').get() : {docs: []};
       const oa = {}; for (const d of snap.docs) oa[d.id] = clone(d.data() || {});
-      for (const x of oq) if (oa[x.id]) S.other.push({q: x, a: oa[x.id], thumb: 'sets/' + o.name + '/' + x.thumb});
+      for (const x of oq) if (oa[x.id]) S.other.push({q: x, a: oa[x.id], thumb: 'sets/' + o.name + '/' + x.thumb, url: x.clip.url || 'sets/' + o.name + '/' + x.clip.file});
       // a sharper re-ask of one of this set's clips: its answer replaces the one here
       const hdHere = S.qs.some(x => x.clip.layout === 'hd'), mine = new Set(S.qs.map(x => x.id));
       if (!hdHere) for (const x of oq) if (x.clip.layout === 'hd' && mine.has(x.id) && oa[x.id]) S.redone[x.id] = oa[x.id];
     } catch (e) { /* the other half's names are a help, not needed */ }
   }
   if (S.set !== set) return;
+  if (set.check && S.qs.some(x => x.id in S.ans)) return startReview();   // a check set opens straight into checking
   show(nextUnanswered(0));
 }
 async function boot(){
@@ -528,8 +584,11 @@ $('bBack').onclick = back;
 $('bSkip').onclick = skip;
 $('bKeep').onclick = keep;
 $('bReview').onclick = startReview;
+$('pvClose').onclick = closePeople;
+$('pv').onclick = e => { if (e.target === $('pv')) closePeople(); };
 $('name').addEventListener('input', () => { if (S.pick){ S.pick = null; paintRoster(); } });   // typing a name un-picks the chip
 document.addEventListener('keydown', e => {
+  if (!$('pv').hidden){ if (e.key === 'Escape'){ e.preventDefault(); closePeople(); } return; }
   if ($('qView').hidden) return;
   const inName = e.target === $('name'), inNote = e.target === $('note');
   const numeric = !inName || /^\d*$/.test($('name').value);   // in the name box, keys still drive the clip while it holds only digits
