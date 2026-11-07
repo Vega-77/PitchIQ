@@ -29,7 +29,11 @@ wb2 (held out, scored once 2026-11-07, not tuned on):
 The number transfers (joins double, fewer wrong); the veto's wb1 gain (11 -> 6 wrong) did not.
 Dead ends on wb1: stitching by last-seen place first (chains of wrong hand-offs block later
 joins), last seen as a bonus (33 -> 23), seeding people from sure number reads then attaching
-(22/85 at 51 wrong: too few seeds force pieces into the wrong person).
+(22/85 at 51 wrong: too few seeds force pieces into the wrong person), holding back a join
+while either side has a near-equal rival that overlaps the partner in time (dropped: 0 wrong
+but 9/85; retried later: 27-34/85 at 7-10 wrong, sure-number purity no better). Wrong people
+are mixtures of two players taking turns on camera; number swaps sit inside the linker's raw
+tracklets (0/51 at its joins), so splitting at linker joins (`units`) does not separate them.
 """
 
 from __future__ import annotations
@@ -86,9 +90,12 @@ def frags(tag, final=False):
         for k in ('win', 'pid', 'team', 'role', 'first', 'last', 'n_seen', 'feat', 'desc', 'off')
     }
     S = {k: [] for k in ('f', 'box', 'x', 'y')}
+    # the linker's pieces inside each fragment: span, look, and the join that started it
+    B = {k: [] for k in ('frag', 'first', 'last', 'n', 'feat', 'stage', 'cost')}
     n = 0
     for w, ((lo, hi), res) in enumerate(zip(spans, linked(tag, det, meta, spans))):
         sub = _subset(det, (det.frame >= lo) & (det.frame < hi))
+        by_start = {int(j[2]): (str(j[0]), float(j[3])) for j in res.joins}
         for ident in res.identities:
             ok = ~ident.interp
             if ok.sum() < 3:
@@ -115,6 +122,22 @@ def frags(tag, final=False):
             F['n_seen'].append(int(ok.sum()))
             F['feat'].append(v / (np.linalg.norm(v) or 1))
             F['desc'].append(np.nanmedian(sub.desc[rows], 0))
+            fo = ident.frames[ok]
+            cuts = list(ident.piece_first[1:]) + [int(fo[-1]) + 1]
+            f_lo = int(fo[0])
+            for k, (pc, f_hi) in enumerate(zip(ident.pieces, cuts)):
+                sel = (fo >= f_lo) & (fo < f_hi)
+                if sel.any():
+                    v = sub.feat[rows[sel]].astype(np.float64).mean(0)
+                    st, c = by_start.get(int(pc), ('?', np.nan)) if k else ('', np.nan)
+                    B['frag'].append(len(F['win']) - 1)
+                    B['first'].append(int(fo[sel][0]))
+                    B['last'].append(int(fo[sel][-1]))
+                    B['n'].append(int(sel.sum()))
+                    B['feat'].append((v / (np.linalg.norm(v) or 1)).astype(np.float16))
+                    B['stage'].append(st)
+                    B['cost'].append(c)
+                f_lo = f_hi
             F['off'].append(n)
             S['f'].append(fr)
             S['box'].append(bx)
@@ -129,6 +152,7 @@ def frags(tag, final=False):
         OUT / f'frags_{tag}.npz',
         **{k: np.asarray(v, np.float32 if k == 'feat' else None) for k, v in F.items()},
         **{f's_{k}': np.concatenate(v) for k, v in S.items()},
+        **{f'b_{k}': np.asarray(v) for k, v in B.items()},
         fps=float(m['fps']),
         length_m=L,
         width_m=W,
@@ -268,13 +292,70 @@ def _crop_beliefs(dist):
     return P / (P.sum(1, keepdims=True) + 1e-12)
 
 
-class Half:
-    """The fragments of one half, ready to join: start and end places, place in the team's
-    shape, look, number evidence."""
+def units(F, split):
+    """Cut fragments at the linker joins `split(stage, cost)` calls doubtful: each run of pieces
+    between cuts becomes a unit with its own span, look and samples (fields as a fragment,
+    plus `frag`, the fragment it came from)."""
+    nf = len(F['win'])
+    pieces = {}
+    for k in range(len(F['b_frag'])):
+        pieces.setdefault(int(F['b_frag'][k]), []).append(k)
+    U = {k: [] for k in ('frag', 'win', 'pid', 'team', 'role', 'first', 'last', 'n_seen', 'feat')}
+    S = {k: [] for k in ('f', 'box', 'x', 'y')}
+    off, n = [], 0
+    for i in range(nf):
+        ks = sorted(pieces.get(i, []), key=lambda k: F['b_first'][k])
+        runs, cur = [], []
+        for k in ks:
+            if cur and split(str(F['b_stage'][k]), float(F['b_cost'][k])):
+                runs.append(cur)
+                cur = []
+            cur.append(k)
+        if cur:
+            runs.append(cur)
+        if not runs:  # no piece table: the fragment whole
+            runs = [None]
+        sl = slice(F['off'][i], F['off'][i + 1])
+        sf = F['s_f'][sl]
+        for r in runs:
+            if r is None:
+                lo, hi, ns, v = F['first'][i], F['last'][i], F['n_seen'][i], F['feat'][i]
+            else:
+                lo, hi = F['b_first'][r[0]], F['b_last'][r[-1]]
+                wt = F['b_n'][r].astype(np.float64)
+                ns = int(wt.sum())
+                v = (F['b_feat'][r].astype(np.float64) * wt[:, None]).sum(0)
+                v = v / (np.linalg.norm(v) or 1)
+            m = (sf >= lo) & (sf <= hi)
+            for k, key in (('frag', i), ('first', lo), ('last', hi), ('n_seen', ns), ('feat', v)):
+                U[k].append(key)
+            for k in ('win', 'pid', 'team', 'role'):
+                U[k].append(F[k][i])
+            off.append(n)
+            for k in S:
+                S[k].append(F[f's_{k}'][sl][m])
+            n += int(m.sum())
+    off.append(n)
+    out = {k: np.asarray(v) for k, v in U.items()}
+    out['feat'] = out['feat'].astype(np.float32)
+    out['off'] = np.asarray(off)
+    out.update({f's_{k}': np.concatenate(v) for k, v in S.items()})
+    out['fps'] = F['fps']
+    return out
 
-    def __init__(self, tag, numbers_file=None):
-        F = load_frags(tag)
+
+class Half:
+    """The units of one half (fragments, or fragments cut at doubtful linker joins), ready to
+    join: start and end places, place in the team's shape, look, number evidence."""
+
+    def __init__(self, tag, numbers_file=None, split=None):
+        F0 = load_frags(tag)
+        if split is None:
+            F = dict(F0, frag=np.arange(len(F0['win'])))
+        else:
+            F = units(F0, split)
         self.tag, self.F, self.fps = tag, F, float(F['fps'])
+        self._where = {(int(w), int(p)): i for i, (w, p) in enumerate(zip(F0['win'], F0['pid']))}
         off = F['off']
         keep = (F['team'] < 2) & (F['role'] <= 1) & (F['n_seen'] >= MIN_SEEN)
         self.ids = np.where(keep)[0]
@@ -305,10 +386,34 @@ class Half:
             z = np.load(nf)
             P = _crop_beliefs(z['dist'])
             w = np.where(z['leg'] >= NUM_TL, z['leg'], 0.0)
-            for i in np.unique(z['frag']):
-                m = (z['frag'] == i) & (w > 0)
-                if m.any():
-                    self.numP[int(i)] = (P[m] * w[m, None]).sum(0), float(w[m].sum())
+            u = self.unit_at(z['frag'], z['frame'])
+            for i in np.unique(u[(u >= 0) & (w > 0)]):
+                m = (u == i) & (w > 0)
+                self.numP[int(i)] = (P[m] * w[m, None]).sum(0), float(w[m].sum())
+
+    def unit_at(self, frag, frame):
+        """The unit holding fragment `frag` at `frame` (arrays), -1 if none."""
+        F = self.F
+        order = np.lexsort((F['first'], F['frag']))
+        uf, u0 = F['frag'][order], F['first'][order]
+        frag, frame = np.asarray(frag), np.asarray(frame)
+        lo = np.searchsorted(uf, frag)
+        hi = np.searchsorted(uf, frag, side='right')
+        out = np.full(len(frag), -1)
+        for j in np.where(hi > lo)[0]:
+            k = lo[j] + np.searchsorted(u0[lo[j] : hi[j]], frame[j], side='right') - 1
+            out[j] = order[max(k, lo[j])]
+        return out
+
+    def unit_of(self, q):
+        """The unit a lab clip (window, pid, once-a-second samples) mostly falls in."""
+        i = self._where.get((q['win'], q['pid']))
+        if i is None:
+            return None
+        fr = np.asarray(q['samples'], float)[:, 0].astype(int)
+        u = self.unit_at(np.full(len(fr), i), fr)
+        u = u[u >= 0]
+        return int(np.bincount(u).argmax()) if len(u) else None
 
     def group(
         self,
@@ -458,14 +563,12 @@ def _belief_pooled(g):
     return (1 - NUM_FLOOR) * p + NUM_FLOOR / 100
 
 
-def score(tag, person, label=''):
+def score(H, person, label=''):
     """Pairs of named lab clips (sure answers): same person joined, two people joined."""
     from pitchiq.experiments.idscore import truth
 
-    F = load_frags(tag)
-    where = {(int(w), int(p)): i for i, (w, p) in enumerate(zip(F['win'], F['pid']))}
-    qs = [q for q in truth([tag]) if q['v'] == 'named' and q['sure']]
-    got = [(q, where.get((q['win'], q['pid']))) for q in qs]
+    qs = [q for q in truth([H.tag]) if q['v'] == 'named' and q['sure']]
+    got = [(q, H.unit_of(q)) for q in qs]
     miss = [q['id'] for q, i in got if i is None]
     got = [(q, i) for q, i in got if i is not None]
     same = same_j = diff = diff_j = 0
@@ -496,7 +599,7 @@ def join(tag, final=False):
     _guard(tag, final)
     H = Half(tag)
     print(f'{tag}: {len(H.ids)} fragments ({len(H.numP)} with a legible number crop)')
-    score(tag, np.arange(len(H.F['win'])), 'nothing joined (the linker today)')
+    score(H, np.arange(len(H.F['win'])), 'nothing joined (the linker today)')
     runs = [
         ('look + place', ('feat', 'place')),
         ('look + place + last seen', ('feat', 'place', 'last')),
@@ -506,7 +609,7 @@ def join(tag, final=False):
     for label, cues in runs:
         person = H.group(cues=cues)
         n = len(np.unique(person[person >= 0]))
-        _, _, _, _, bad = score(tag, person, f'{label} ({n} people)')
+        _, _, _, _, bad = score(H, person, f'{label} ({n} people)')
     for b in bad:
         print('    wrong join:', *b)
     np.savez_compressed(OUT / f'people_{tag}.npz', person=person, win=H.F['win'], pid=H.F['pid'])

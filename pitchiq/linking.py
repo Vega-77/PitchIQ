@@ -258,6 +258,7 @@ class Identity:
     interp: np.ndarray  # (n,) bool
     rows: np.ndarray  # detection row, -1 when interpolated
     pieces: list = field(default_factory=list)
+    piece_first: list = field(default_factory=list)  # first frame of each member piece
 
     def box_at(self, frame: int) -> np.ndarray | None:
         """The box (x1, y1, x2, y2) at `frame`, or None if unseen then."""
@@ -1150,6 +1151,7 @@ class Linker:
                     interp=np.asarray(interp)[order],
                     rows=np.asarray(rows)[order],
                     pieces=list(members),
+                    piece_first=[int(pieces[m].first) for m in members],
                 )
             )
         counts: dict = {}
