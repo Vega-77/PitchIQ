@@ -20,6 +20,14 @@ mixes two players' stats for the rest of the game, so it counts worse than a mis
 Settings were chosen on wb1 only. Held out halves (nb2, pi1, wh1, co1, wb2) are refused
 without --final.
 
+Roles are corrected before joining (`fix_roles`, 2026-11-07, from the formation video): 329
+wb1 pieces standing still on a touchline (a ball kid was person A20) are dropped; both
+keepers wear neon, neither team's kit, so the linker called them 'referee' and made the
+deepest centred person keeper, a red defender on the post at set pieces: 13 odd-kit pieces
+in front of a goal became keeper, 8 linker keepers beside them became players, and keeper
+pieces join only each other, so each goal has one keeper person (was 2 and 3). Named-clip
+pairs unchanged (33/85 at 6/699).
+
 wb1 (dev), pairs of named clips, same person joined / two people joined:
     look + place, after a last-seen stitch pass     17/85   8/699
     look + place + number (w 0.5) + move veto      33/85   6/699
@@ -263,6 +271,83 @@ def numbers(tag, final=False, every=3, min_h=35.0, tuned=None, batch=256):
 
 # ---------------------------------------------------------------- joining
 MIN_SEEN = 10  # fragments seen in fewer frames (a third of a second) are left alone
+# bystanders: a team-kit piece whose median is this close to (or past) a touchline, with most
+# of its spots this close to that median (ball kids, bench, coaches; the linker's own rule
+# only drops medians 1.5 m past a line)
+SIT_LINE_M, SIT_STILL_M, SIT_SHARE = 3.0, 2.0, 0.8
+# keepers: a referee-kit piece whose median is this deep and this central is that goal's
+# keeper (keepers wear neither team's kit). The linker picks the deepest centred person, which
+# at set pieces is a defender on the post (wb1 25:37, 44:52: the neon keeper was 'referee',
+# the red defender beside him 'keeper'): a linker keeper seen at the same goal at the same time
+# as such a piece is turned back into a player of its team.
+KEEP_REF_M, KEEP_REF_W = 8.0, 12.0
+KEEP_OVERLAP_S = 0.3  # the joiner's own limit (10 frames): longer overlaps can't be one person
+
+
+def fix_roles(F):
+    """Roles the linker got wrong, decided on the piece's spots: bystanders on a touchline are
+    'off' (3); a referee-kit piece standing in front of a goal is its keeper (1, the team that
+    defends it), and a linker keeper beside it at the same time is a player (0). Returns (role,
+    team, end, counts); end is the keeper's goal (0 at x=0, 1 at x=L, -1 not a keeper)."""
+    role, team = F['role'].copy(), F['team'].copy()
+    L, W, fps, off = float(F['length_m']), float(F['width_m']), float(F['fps']), F['off']
+    n = len(role)
+    med = np.full((n, 2), np.nan)
+    still = np.zeros(n)
+    for i in range(n):
+        sl = slice(off[i], off[i + 1])
+        xy = np.stack([F['s_x'][sl], F['s_y'][sl]], 1).astype(np.float64)
+        xy = xy[np.isfinite(xy).all(1)]
+        if len(xy):
+            med[i] = np.median(xy, 0)
+            still[i] = np.mean(np.linalg.norm(xy - med[i], axis=1) < SIT_STILL_M)
+    cnt = {'bystander': 0, 'keeper from referee': 0, 'keeper to player': 0}
+    on_line = (np.minimum(np.abs(med[:, 1]), np.abs(med[:, 1] - W)) < SIT_LINE_M) | (
+        (med[:, 1] < 0) | (med[:, 1] > W)
+    )
+    sit = (role == 0) & (team < 2) & on_line & (still >= SIT_SHARE)
+    role[sit] = 3
+    cnt['bystander'] = int(sit.sum())
+    end = np.where(med[:, 0] < L / 2, 0, 1)
+    dep = np.where(end == 0, med[:, 0], L - med[:, 0])
+    wide = np.abs(med[:, 1] - W / 2)
+    # which team defends each goal: the linker's keepers, by time
+    kp = (role == 1) & (team < 2) & np.isfinite(med[:, 0])
+    owner = {}
+    for e in (0, 1):
+        k = kp & (end == e)
+        if k.any():
+            owner[e] = int(np.bincount(team[k], F['n_seen'][k], minlength=2).argmax())
+    if len(owner) == 2 and owner[0] != owner[1]:
+        slack = KEEP_OVERLAP_S * fps
+        ok = np.isfinite(dep) & (dep > -SIT_LINE_M)
+        new = np.where((role == 2) & ok & (dep < KEEP_REF_M) & (wide < KEEP_REF_W))[0]
+        for i in new:
+            role[i], team[i] = 1, owner[int(end[i])]
+        cnt['keeper from referee'] = len(new)
+        for j in np.where(kp)[0]:
+            e = int(end[j])
+            a, b = F['first'][j], F['last'][j]
+            same = new[end[new] == e]
+            if (np.minimum(F['last'][same], b) - np.maximum(F['first'][same], a) > slack).any():
+                role[j] = 0
+                cnt['keeper to player'] += 1
+        # one keeper per goal at a time: where keeper pieces overlap, the longer one keeps it
+        cnt['keeper overlap undone'] = 0
+        for e in (0, 1):
+            ks = np.where((role == 1) & (end == e))[0]
+            held = []
+            for i in ks[np.argsort(-F['n_seen'][ks], kind='stable')]:
+                a, b = F['first'][i], F['last'][i]
+                if any(min(b, d) - max(a, c) > slack for c, d in held):
+                    role[i], team[i] = F['role'][i] if F['role'][i] != 1 else 0, F['team'][i]
+                    cnt['keeper overlap undone'] += 1
+                else:
+                    held.append((a, b))
+    kend = np.where(role == 1, end, -1)
+    return role, team, kend, cnt
+
+
 NUM_TL, NUM_FLOOR = 0.5, 0.02  # as idscore.numbers
 PARTS = ('hair', 'face', 'arms', 'knees', 'socks', 'cleats')  # Lab colour each, then sock length
 PART_SLOTS = [slice(3 * k, 3 * k + 3) for k in range(len(PARTS))] + [slice(18, 19)]
@@ -362,12 +447,18 @@ class Half:
     """The units of one half (fragments, or fragments cut at doubtful linker joins), ready to
     join: start and end places, place in the team's shape, look, number evidence."""
 
-    def __init__(self, tag, numbers_file=None, split=None):
+    def __init__(self, tag, numbers_file=None, split=None, fix=True):
         F0 = load_frags(tag)
         if split is None:
             F = dict(F0, frag=np.arange(len(F0['win'])))
         else:
             F = units(F0, split)
+        F.setdefault('length_m', F0['length_m'])
+        F.setdefault('width_m', F0['width_m'])
+        self.kend = np.full(len(F['win']), -1)
+        self.fixed = {}
+        if fix:
+            F['role'], F['team'], self.kend, self.fixed = fix_roles(F)
         self.tag, self.F, self.fps = tag, F, float(F['fps'])
         self._where = {(int(w), int(p)): i for i, (w, p) in enumerate(zip(F0['win'], F0['pid']))}
         off = F['off']
@@ -485,6 +576,7 @@ class Half:
                 nw=nP[1] if nP else 0.0,
                 members=[i],
                 ends=[(int(F['first'][i]), self.start_p[i], int(F['last'][i]), self.end_p[i])],
+                kend=int(self.kend[i]),
             )
 
         def apart(a, b):
@@ -533,6 +625,8 @@ class Half:
         )
 
         def cost(a, b):
+            if G[a]['kend'] >= 0 and G[a]['kend'] == G[b]['kend']:
+                return 0.0  # one keeper per goal: every keeper piece there is the same person
             p = parts(a, b)
             c = 0.0
             if 'feat' in cues:
@@ -554,7 +648,7 @@ class Half:
         for gs in by_team.values():
             for i, a in enumerate(gs):
                 for b in gs[i + 1 :]:
-                    if apart(a, b):
+                    if G[a]['kend'] == G[b]['kend'] and apart(a, b):
                         heap.append((cost(a, b), a, b))
         heapq.heapify(heap)
         nxt_id = max(keys) + 1 if keys else 0
@@ -577,10 +671,11 @@ class Half:
                 pn=A['pn'] + B['pn'],
                 members=A['members'] + B['members'],
                 ends=sorted(A['ends'] + B['ends'], key=lambda e: e[0]),
+                kend=A['kend'],
             )
             alive -= {a, b}
             for o in list(alive):
-                if G[o]['team'] == A['team'] and apart(nxt_id, o):
+                if G[o]['team'] == A['team'] and G[o]['kend'] == A['kend'] and apart(nxt_id, o):
                     heapq.heappush(heap, (cost(nxt_id, o), nxt_id, o))
             alive.add(nxt_id)
             nxt_id += 1

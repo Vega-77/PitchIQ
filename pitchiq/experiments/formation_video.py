@@ -9,11 +9,17 @@ the half that nobody else overlaps), their person ID (A7 = team A's 7th most-see
 and their shirt number when the reader is sure of it. A card is lit while its player is on
 camera; otherwise it shows the last one seen there, dimmed, with how long ago.
 
-Positions: k-means centres (k = 10) of every outfield sighting's place in its team's shape
-over the whole half (as idslots); a person's position is the centre nearest their average
-place, or keeper when >= 30% of their sightings are as keeper. The formation is the
-standard one (FORMATIONS) whose positions best match the centres after a fitted stretch of
-depth and width; wb1: team A 3-5-2, team B 4-1-4-1.
+Formation: each standard one (FORMATIONS) is fitted, with its own stretch of depth and width,
+to the team's shape once a second where the whole-half map sees all 10 outfielders; the
+lowest median error wins (`pick_formation`), or the one given with --formation B=4-4-2.
+Others within 5% are shown as close. Positions are the moments averaged with players paired
+to that formation; a person's position is the one nearest their average place, or keeper
+when >= 30% of their sightings are as keeper. wb1: both teams a back four, the front six
+close (A 4-1-4-1, close 4-2-3-1 and 4-3-3; B 4-3-3, close 4-1-4-1, 4-2-3-1 and 4-4-2; the
+user saw 4-4-2 for Woodbridge). The first version clustered every sighting: 3-5-2, 4-1-4-1.
+
+Roles come from idlink's `fix_roles`: touchline bystanders are dropped (not drawn), the
+odd-kit person standing in a goal is its keeper, and one keeper piece per goal at a time.
 
 Works for any half that has the whole-half map, `idlink frags` and `idlink numbers` (and
 `idlink parts` for --parts). Held out halves (nb2, pi1, wh1, co1, wb2) need --final.
@@ -121,14 +127,71 @@ def fit(C, template, iters=8):
     return float(cost[r, c].sum()), c[np.argsort(r)]
 
 
-def formation(P, w, k=10, seed=0):
-    """Position centres in the team's shape (forward +x, team's left +y) by k-means over the
-    sightings' places, and the formation that fits them best: (centres, lines back to front
-    as centre indices left to right, name per centre, formation name, fit error per template)."""
-    C = _kmeans(P, w, k, seed=seed)
-    errs = {name: fit(C, t) for name, t in FORMATIONS.items()}
-    best = min(errs, key=lambda n: errs[n][0])
-    idx = iter(errs[best][1])
+def team_moments(tag, tm, sign, step=30, min_moments=60):
+    """The team's outfield shape once a second from the whole-half map (10 points, metres
+    from the team's centre, forward +x, team's left +y), where all 10 outfielders are seen;
+    moments with map guesses fill in when fewer than `min_moments` are. Returns (moments
+    array (n, 10, 2), fully seen count) or None."""
+    z = np.load(L.MAP / f'{tag}.npz')
+    m = (z['team'] == tm) & (z['role'] == 0)
+    f, x, y, s = z['f'][m], z['x'][m], z['y'][m], z['seen'][m]
+    o = np.argsort(f, kind='stable')
+    f, x, y, s = f[o], x[o], y[o], s[o]
+    cut = np.flatnonzero(np.diff(f)) + 1
+    full, guess = [], []
+    for a, b in zip(np.r_[0, cut], np.r_[cut, len(f)]):
+        if b - a != 10 or int(f[a]) % step:
+            continue
+        P = sign * (np.stack([x[a:b], y[a:b]], 1) - [x[a:b].mean(), y[a:b].mean()])
+        (full if s[a:b].all() else guess).append(P)
+    shapes = full if len(full) >= min_moments else full + guess
+    return (np.stack(shapes), len(full)) if len(shapes) >= 10 else None
+
+
+def pick_formation(S, every=2):
+    """Each standard formation fitted to every moment's shape (own stretch per moment); the
+    one with the lowest median error wins. Returns {name: median error}.
+
+    No starting point: averaging the moments first (pairing players to a running average)
+    named a different formation depending on the moment it started from (wb1 team B: 4-3-3,
+    4-2-3-1, 4-1-4-1 or 4-4-2 over 30 starts). Every start and this score agree on a back four
+    for both wb1 teams; the front six are within a few percent of each other."""
+    return {n: float(np.median([fit(P, t)[0] for P in S[::every]])) for n, t in FORMATIONS.items()}
+
+
+def average_shape(S, template, iters=10):
+    """The average of the moments with players paired (Hungarian) to the running average,
+    started from the formation's own shape so the positions match its names."""
+    from scipy.optimize import linear_sum_assignment
+
+    T = np.array([(d, w) for line in template for _, d, w in line])
+    ref = np.stack([(T[:, 0] - T[:, 0].mean()) * 25.0, T[:, 1] * 15.0], 1)
+    for _ in range(iters):
+        al = []
+        for P in S:
+            r, c = linear_sum_assignment(((ref[:, None] - P[None]) ** 2).sum(2))
+            al.append(P[c])
+        ref = np.mean(al, 0)
+    return ref
+
+
+def formation(P, w, k=10, seed=0, S=None, name=None):
+    """Position centres in the team's shape (forward +x, team's left +y) and their names:
+    from the map's moments `S` when given (formation by `pick_formation`, or `name`), else
+    k-means over the sightings' places (the first version). Returns (centres, lines back to
+    front as centre indices left to right, name per centre, formation name, error per
+    formation)."""
+    if S is not None:
+        errs = pick_formation(S)
+        best = name or min(errs, key=errs.get)
+        C = average_shape(S, FORMATIONS[best])
+        idx = iter(fit(C, FORMATIONS[best])[1])
+    else:
+        C = _kmeans(P, w, k, seed=seed)
+        e = {n: fit(C, t) for n, t in FORMATIONS.items()}
+        errs = {n: v[0] for n, v in e.items()}
+        best = name or min(errs, key=errs.get)
+        idx = iter(e[best][1])
     lines, names = [], {}
     for line in FORMATIONS[best]:
         g = []
@@ -137,13 +200,23 @@ def formation(P, w, k=10, seed=0):
             g.append(j)
             names[j] = nm
         lines.append(g)
-    return C, lines, names, best, {n: e[0] for n, e in errs.items()}
+    return C, lines, names, best, errs
+
+
+def close_call(errs, best, share=0.05):
+    """Other formations within `share` of the chosen one's error (the call is not clear)."""
+    return [
+        n
+        for n, e in sorted(errs.items(), key=lambda t: t[1])
+        if n != best and e <= errs[best] * (1 + share)
+    ]
 
 
 class Match:
     """The half's people (joined fragments), their positions, labels and pictures."""
 
-    def __init__(self, tag, cues=('feat', 'place', 'num', 'last'), min_s=5.0):
+    def __init__(self, tag, cues=('feat', 'place', 'num', 'last'), min_s=5.0, forms=None):
+        self.forms = forms
         H = self.H = L.Half(tag)
         F = self.F = H.F
         self.tag, self.fps = tag, H.fps
@@ -188,15 +261,22 @@ class Match:
                     d['best'] = (float(h[j]), int(F['s_f'][off[i] + j]), b[j])
                     break
         self.P = P
-        # positions per team, from every outfield sighting's place
-        self.form = {}
+        # positions per team: the map's average team shape (k-means of sightings as fallback)
+        self.form, self.moments = {}, {}
         for tm in (0, 1):
             ids = [
                 i
                 for i in np.where(self.person >= 0)[0]
                 if F['team'][i] == tm and F['role'][i] == 0 and np.isfinite(H.place[i]).all()
             ]
-            self.form[tm] = formation(H.place[ids], F['n_seen'][ids].astype(float))
+            mo = team_moments(tag, tm, self.sign[tm])
+            self.moments[tm] = (len(mo[0]), mo[1]) if mo else (0, 0)
+            self.form[tm] = formation(
+                H.place[ids],
+                F['n_seen'][ids].astype(float),
+                S=mo[0] if mo else None,
+                name=(forms or {}).get(LETTER[tm]),
+            )
         for tm in (0, 1):
             order = sorted((p for p in P if P[p]['team'] == tm), key=lambda p: -P[p]['seen'])
             for k, p in enumerate(order):
@@ -420,7 +500,10 @@ class Video:
 
     def panel(self, tm, f, on):
         M = self.M
-        C, lines, names, form, _ = M.form[tm]
+        C, lines, names, form, errs = M.form[tm]
+        given = (M.forms or {}).get(LETTER[tm]) == form
+        close = close_call(errs, form)
+        shown = form + (' (given)' if given else f' (close: {close[0]})' if close else '')
         im = np.full((PANEL[1], PANEL[0], 3), (30, 52, 30), np.uint8)
         cv2.rectangle(im, (0, 0), (PANEL[0] - 1, PANEL[1] - 1), (70, 90, 70), 1)
         cv2.rectangle(im, (8, 6), (22, 20), M.kit[tm], -1)
@@ -429,7 +512,7 @@ class Video:
         n_all = sum(1 for d in M.P.values() if d['team'] == tm)
         _text(
             im,
-            f'team {LETTER[tm]}   {form}   on camera now {n_on}   people found this half {n_all}',
+            f'team {LETTER[tm]}   {shown}   on camera {n_on}   people this half {n_all}',
             (30, 18),
             0.45,
         )
@@ -517,22 +600,38 @@ def main(argv=None) -> int:
     )
     ap.add_argument('--crf', type=int, default=36)
     ap.add_argument('--final', action='store_true')
+    ap.add_argument(
+        '--formation',
+        default=None,
+        help="a team's known formation, e.g. B=4-4-2 or A=4-3-3,B=4-4-2 (else picked from the map)",
+    )
     a = ap.parse_args(argv)
     L._guard(a.tag, a.final)
     cues = ('feat', 'place', 'num', 'last') + (('parts',) if a.parts else ())
-    M = Match(a.tag, cues=cues)
+    forms = dict(kv.split('=') for kv in a.formation.split(',')) if a.formation else None
+    for v in (forms or {}).values():
+        if v not in FORMATIONS:
+            raise SystemExit(f'unknown formation {v}: one of {", ".join(FORMATIONS)}')
+    M = Match(a.tag, cues=cues, forms=forms)
     lo = int(_secs(a.start) * M.fps) if a.start else int(M.F['win_lo'][0] + 600 * M.fps)
     hi = lo + int(a.secs * M.fps)
     out = Path(a.out) if a.out else L.OUT / f'formation_{a.tag}_{lo}.webm'
+    print(
+        'roles fixed (pieces):',
+        M.H.fixed,
+        '  people:',
+        {LETTER[t]: sum(1 for d in M.P.values() if d['team'] == t) for t in (0, 1)},
+    )
     for tm in (0, 1):
         C, lines, names, form, errs = M.form[tm]
         print(
-            f'team {LETTER[tm]}: {form}  '
+            f'team {LETTER[tm]}: {form}  ({M.moments[tm][0]} moments, {M.moments[tm][1]} fully seen)  '
             + '  '.join(f'{names[j]}({C[j, 0]:+.0f},{C[j, 1]:+.0f})' for g in lines for j in g)
         )
         print(
             '   fit error m^2: '
             + '  '.join(f'{n} {e:.0f}' for n, e in sorted(errs.items(), key=lambda t: t[1]))
+            + (f'   close: {" ".join(close_call(errs, form))}' if close_call(errs, form) else '')
         )
     Video(M, lo, hi, out, crf=a.crf).run()
     print(
