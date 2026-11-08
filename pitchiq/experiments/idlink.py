@@ -10,6 +10,7 @@ is ~7000 fragments for ~25 people. Joining them uses what stays true of a person
 
     python -m pitchiq.experiments.idlink frags <tag>     # every fragment: positions, look
     python -m pitchiq.experiments.idlink numbers <tag>   # number belief per fragment
+    python -m pitchiq.experiments.idlink parts <tag>     # body-part colours (opt-in cue)
     python -m pitchiq.experiments.idlink join <tag>      # people; scored on Player ID Lab names
 
 Scored on the Player ID Lab answers: the named clips are fragments of this same linker run
@@ -34,6 +35,16 @@ while either side has a near-equal rival that overlaps the partner in time (drop
 but 9/85; retried later: 27-34/85 at 7-10 wrong, sure-number purity no better). Wrong people
 are mixtures of two players taking turns on camera; number swaps sit inside the linker's raw
 tracklets (0/51 at its joins), so splitting at linker joins (`units`) does not separate them.
+
+Body parts (hair, face, arms and bands, knees, socks, sock length, cleats; `parts`, opt-in):
+on sure-number sightings they pick the right player 58% alone vs 70% for the detector look,
+but place + look + parts 85% vs 78%. As one more joiner cue on wb1 (a sightings' parts
+averaged into one distance, weight 1):
+    numbers visible, lab pairs                33/85  6/699  ->  35/85 10/699
+    sure numbers hidden, lab pairs            23/85  8/699  ->  33/85 12/699
+    sure numbers hidden, sure-number pairs    31% 1.4%      ->  35% 1.5%
+More joins where numbers are missing, but the new wrong ones merge players sharing a colour
+(#8 and #5, both pink); as a veto only (cost above a floor, x2-x5) no better. Off by default.
 """
 
 from __future__ import annotations
@@ -253,6 +264,9 @@ def numbers(tag, final=False, every=3, min_h=35.0, tuned=None, batch=256):
 # ---------------------------------------------------------------- joining
 MIN_SEEN = 10  # fragments seen in fewer frames (a third of a second) are left alone
 NUM_TL, NUM_FLOOR = 0.5, 0.02  # as idscore.numbers
+PARTS = ('hair', 'face', 'arms', 'knees', 'socks', 'cleats')  # Lab colour each, then sock length
+PART_SLOTS = [slice(3 * k, 3 * k + 3) for k in range(len(PARTS))] + [slice(18, 19)]
+PART_DIM = 19
 
 
 def team_shape(tag, F):
@@ -379,6 +393,17 @@ class Half:
             rel = rel[np.isfinite(rel).all(1)]
             if len(rel) >= 3:
                 self.place[i] = np.median(rel, 0)
+        # body-part colours (hair, face, arms, knees, socks, cleats, sock length) per fragment
+        self.parts = np.full((n, PART_DIM), np.nan)
+        pf = OUT / f'parts_{tag}_all.npz'
+        if pf.exists():
+            z = np.load(pf)
+            row = {int(f): k for k, f in enumerate(z['frag'])}
+            V = np.concatenate([z[p] for p in PARTS] + [z['sock_len'][:, None]], 1)
+            for i in range(n):
+                k = row.get(int(F['frag'][i]))
+                if k is not None:
+                    self.parts[i] = V[k]
         # number evidence per fragment: summed crop beliefs and weights (pooled per person)
         self.numP = {}
         nf = numbers_file or OUT / f'numbers_{tag}.npz'
@@ -420,6 +445,7 @@ class Half:
         thr=2.5,
         cues=('feat', 'place', 'num', 'last'),
         w_num=0.5,
+        w_parts=1.0,
         min_s=5.0,
         overlap=10,
         w_last=5.0,
@@ -431,6 +457,7 @@ class Half:
         never two places at once (> `overlap` frames), cost = look / median + place / median
         + w_num * (-log number likelihood ratio) + w_last * (impossible-move penalty). Stops
         when the cheapest join costs more than `thr`. Returns person per fragment, -1 left out.
+        Cue 'parts' (opt-in) adds w_parts * the mean over body parts of colour gap / median.
 
         The last-seen term only penalises: where one ends and the other starts within `last_s`,
         a miss beyond s0 + sv * gap metres costs (miss / (s0 + sv * gap) - 1). As a bonus for
@@ -443,7 +470,12 @@ class Half:
             wt = float(F['n_seen'][i])
             ok = np.isfinite(self.place[i]).all()
             nP = self.numP.get(i)
+            pv = self.parts[i]
+            pm = np.array([np.isfinite(pv[s]).all() for s in PART_SLOTS], float) * wt
             G[i] = dict(
+                pp=np.nan_to_num(pv)
+                * np.concatenate([np.full(s.stop - s.start, m) for s, m in zip(PART_SLOTS, pm)]),
+                pn=pm,
                 team=int(F['team'][i]),
                 spans=[(int(F['first'][i]), int(F['last'][i]))],
                 feat=F['feat'][i] * wt,
@@ -476,6 +508,14 @@ class Half:
             else:
                 out['place'] = np.nan
             out['num'] = -np.log(100 * float(_belief_pooled(A) @ _belief_pooled(B)))
+            out['parts'] = np.array(
+                [
+                    np.linalg.norm(A['pp'][s] / A['pn'][k] - B['pp'][s] / B['pn'][k])
+                    if A['pn'][k] > 0 and B['pn'][k] > 0
+                    else np.nan
+                    for k, s in enumerate(PART_SLOTS)
+                ]
+            )
             return out
 
         keys = sorted(G)
@@ -488,6 +528,9 @@ class Half:
                 a, b = rng.choice(gs, 2, replace=False)
                 smp.append(parts(a, b))
         med = {k: np.nanmedian([s[k] for s in smp]) for k in ('feat', 'place')}
+        med['parts'] = (
+            np.nanmedian([s['parts'] for s in smp], 0) if smp else np.ones(len(PART_SLOTS))
+        )
 
         def cost(a, b):
             p = parts(a, b)
@@ -498,6 +541,9 @@ class Half:
                 c += (p['place'] / med['place']) if np.isfinite(p['place']) else 1.0
             if 'num' in cues:
                 c += w_num * p['num']
+            if 'parts' in cues:
+                d = p['parts'] / med['parts']
+                c += w_parts * (np.nanmean(d) if np.isfinite(d).any() else 1.0)
             if 'last' in cues:
                 c += w_last * self._impossible(G[a]['ends'], G[b]['ends'], last_s, s0, sv)
             return c
@@ -527,6 +573,8 @@ class Half:
                 pw=A['pw'] + B['pw'],
                 num=A['num'] + B['num'],
                 nw=A['nw'] + B['nw'],
+                pp=A['pp'] + B['pp'],
+                pn=A['pn'] + B['pn'],
                 members=A['members'] + B['members'],
                 ends=sorted(A['ends'] + B['ends'], key=lambda e: e[0]),
             )
@@ -604,6 +652,7 @@ def join(tag, final=False):
         ('look + place', ('feat', 'place')),
         ('look + place + last seen', ('feat', 'place', 'last')),
         ('look + place + number', ('feat', 'place', 'num')),
+        ('... + last seen + body parts', ('feat', 'place', 'num', 'last', 'parts')),
         ('look + place + number + last seen', ('feat', 'place', 'num', 'last')),
     ]
     for label, cues in runs:
@@ -617,9 +666,119 @@ def join(tag, final=False):
     return person
 
 
+def bodyparts(tag, final=False, n_box=15, min_h=55):
+    """Body-part colours per outfield fragment seen >= 5 s: median Lab of the non-grass pixels of
+    hair, face, arms (shirt-coloured pixels dropped: bare arms, sleeves, bands), knees, socks and
+    cleats over up to `n_box` boxes at least `min_h` px tall, and sock length (share of leg rows
+    in the sock colour). -> parts_<tag>_all.npz, read by Half for the 'parts' cue."""
+    _guard(tag, final)
+    _video(tag)
+    import cv2
+
+    from pitchiq.experiments import player_lab
+    from pitchiq.pitchtrack import _green, grass_hue
+
+    # (rows, column ranges) as shares of the box
+    R = dict(
+        hair=((0.00, 0.06), [(0.32, 0.68)]),
+        face=((0.06, 0.13), [(0.35, 0.65)]),
+        shirt=((0.20, 0.42), [(0.35, 0.65)]),
+        arms=((0.18, 0.50), [(0.0, 0.25), (0.75, 1.0)]),
+        knees=((0.58, 0.70), [(0.25, 0.75)]),
+        leg=((0.55, 0.92), [(0.25, 0.75)]),
+        socks=((0.80, 0.90), [(0.25, 0.75)]),
+        cleats=((0.92, 1.00), [(0.20, 0.80)]),
+    )
+    F = load_frags(tag)
+    fps, off = float(F['fps']), F['off']
+    jobs = {}
+    for i in range(len(F['win'])):
+        if F['team'][i] > 1 or F['role'][i] != 0 or F['n_seen'][i] < 5 * fps:
+            continue
+        k = np.arange(off[i], off[i + 1])
+        b = F['s_box'][k]
+        k = k[(b[:, 3] - b[:, 1]) >= min_h]
+        for j in k[np.linspace(0, len(k) - 1, min(n_box, len(k))).astype(int)] if len(k) else []:
+            jobs.setdefault(int(F['s_f'][j]), []).append((i, F['s_box'][j]))
+    print(f'{sum(map(len, jobs.values()))} boxes on {len(jobs)} frames', flush=True)
+
+    def pixels(img, b, region, grass):
+        (ra, rb), cols = R[region]
+        H, W = img.shape[:2]
+        x1, y1, x2, y2 = (float(v) for v in b)
+        r0, r1 = (
+            int(np.clip(y1 + ra * (y2 - y1), 0, H - 1)),
+            int(np.clip(y1 + rb * (y2 - y1), 1, H)),
+        )
+        out, rows = [np.zeros((0, 3))], [np.zeros(0, int)]
+        for ca, cb in cols:
+            c0, c1 = (
+                int(np.clip(x1 + ca * (x2 - x1), 0, W - 1)),
+                int(np.clip(x1 + cb * (x2 - x1), 1, W)),
+            )
+            p = img[r0 : max(r1, r0 + 1), c0 : max(c1, c0 + 1)]
+            if p.size == 0:
+                continue
+            hsv = cv2.cvtColor(p, cv2.COLOR_BGR2HSV).reshape(-1, 3)
+            g = _green(hsv)
+            if grass is not None:
+                g &= (np.abs(hsv[:, 0].astype(float) - grass[0]) <= grass[1]) & (
+                    hsv[:, 1] <= grass[2]
+                )
+            out.append(cv2.cvtColor(p, cv2.COLOR_BGR2LAB).reshape(-1, 3).astype(float)[~g])
+            rows.append(np.repeat(np.arange(p.shape[0]), p.shape[1])[~g])
+        return np.concatenate(out), np.concatenate(rows)
+
+    def med(lab):
+        return np.median(lab, 0) if len(lab) >= 4 else np.full(3, np.nan)
+
+    def describe(img, b, grass):
+        v = {
+            p: med(pixels(img, b, p, grass)[0])
+            for p in ('hair', 'face', 'knees', 'socks', 'cleats')
+        }
+        shirt = med(pixels(img, b, 'shirt', grass)[0])
+        arms = pixels(img, b, 'arms', grass)[0]
+        if np.isfinite(shirt).all() and len(arms):
+            arms = arms[np.linalg.norm(arms - shirt, axis=1) > 18]
+        v['arms'] = med(arms)
+        sl = np.nan
+        leg, rr = pixels(img, b, 'leg', grass)
+        if np.isfinite(v['socks']).all() and len(leg):
+            m = [np.median(leg[rr == r], 0) for r in np.unique(rr) if (rr == r).sum() >= 2]
+            if m:
+                sl = float(np.mean([np.linalg.norm(x - v['socks']) < 15 for x in m]))
+        return np.concatenate([v[p] for p in PARTS] + [[sl]])
+
+    acc = {}
+    cap = cv2.VideoCapture(player_lab.VIDEO)
+    fs = sorted(jobs)
+    want = set(fs)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, fs[0])
+    for f in range(fs[0], fs[-1] + 1):
+        if f not in want:
+            if not cap.grab():
+                break
+            continue
+        ok, img = cap.read()
+        if not ok:
+            break
+        gr = grass_hue(img)
+        for i, b in jobs[f]:
+            acc.setdefault(i, []).append(describe(img, b, gr))
+    ids = sorted(acc)
+    V = np.array([np.nanmedian(np.array(acc[i]), 0) for i in ids])
+    out = OUT / f'parts_{tag}_all.npz'
+    cols = {p: V[:, 3 * k : 3 * k + 3] for k, p in enumerate(PARTS)}
+    np.savez(
+        out, frag=np.array(ids), sock_len=V[:, -1], n=np.array([len(acc[i]) for i in ids]), **cols
+    )
+    print(len(ids), 'fragments ->', out)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('cmd', choices=['frags', 'numbers', 'join'])
+    ap.add_argument('cmd', choices=['frags', 'numbers', 'parts', 'join'])
     ap.add_argument('tag')
     ap.add_argument('--final', action='store_true')
     ap.add_argument('--tuned', default=None, help='numtrain.py model for the reader')
@@ -628,6 +787,8 @@ def main(argv=None) -> int:
         frags(a.tag, a.final)
     elif a.cmd == 'numbers':
         numbers(a.tag, a.final, tuned=a.tuned)
+    elif a.cmd == 'parts':
+        bodyparts(a.tag, a.final)
     else:
         join(a.tag, a.final)
     return 0
