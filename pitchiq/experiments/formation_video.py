@@ -13,8 +13,13 @@ Formation: each standard one (FORMATIONS) is fitted, with its own stretch of dep
 to the team's shape once a second where the whole-half map sees all 10 outfielders; the
 lowest median error wins (`pick_formation`), or the one given with --formation B=4-4-2.
 Others within 5% are shown as close. Positions are the moments averaged with players paired
-to that formation; a person's position is the one nearest their average place, or keeper
-when >= 30% of their sightings are as keeper. wb1: both teams a back four, the front six
+to that formation. Cards are filled moment by moment, one player per position (`assign`):
+players on camera are paired to positions by their recent place in the team's shape and
+their half-average place, keep their card through tracking gaps and move only when the
+pairing has put them elsewhere for 2 s; players seen too briefly for an ID get a card too
+("no ID", live picture). The first version put each person on the position nearest their
+half-average place, so split IDs piled up (wh2 team A: 7 people on DM) and two players on
+camera could share one card while another stayed empty. Keeper: >= 30% of sightings. wb1: both teams a back four, the front six
 close (A 4-1-4-1, close 4-2-3-1 and 4-3-3; B 4-3-3, close 4-1-4-1, 4-2-3-1 and 4-4-2; the
 user saw 4-4-2 for Woodbridge). The first version clustered every sighting: 3-5-2, 4-1-4-1.
 
@@ -50,6 +55,16 @@ NUM_P, NUM_W = (
     2.0,
 )  # a number is shown when the pooled belief is this sure, on this much evidence
 LETTER = 'AB'
+# Cards are filled moment by moment, one player per position. Cost of a player at a position
+# = squared distance from their recent place in the team's shape (EMA per output frame) +
+# PRIOR_W x that from their half-average place. A player keeps their card: through tracking
+# gaps up to BRIDGE output frames (lit for the first LIT_GAP), and until the best one-per-
+# position pairing (Hungarian) has put them elsewhere for SWITCH frames in a row. Re-pairing
+# every frame swapped cards ~150 times a minute per team, because players drop out of the
+# samples for single frames and the pairing reshuffles around each gap.
+EMA, PRIOR_W = 0.1, 0.5
+BRIDGE, LIT_GAP, SWITCH = 15, 5, 20
+CENTRE_S = 2.0  # the team centroid the places are measured from is averaged over this
 KEEPER_SHARE = (
     0.3  # a person with this share of keeper sightings is a keeper (the linker misses some)
 )
@@ -232,7 +247,7 @@ class Match:
                 np.uint8([[np.clip(np.nan_to_num(lab, nan=128), 0, 255)]]), cv2.COLOR_LAB2BGR
             )[0, 0]
             self.kit[tm] = tuple(int(v) for v in bgr)
-        _, self.sign = L.team_shape(tag, F)
+        self.cteam, self.sign = L.team_shape(tag, F)
         off = F['off']
         self._by_f = np.argsort(F['s_f'], kind='stable')
         self._sf_sorted = F['s_f'][self._by_f]
@@ -341,21 +356,51 @@ class Match:
             ok, img = cap.read()
             if not ok:
                 continue
-            x1, y1, x2, y2 = self.P[p]['best'][2]
-            h = y2 - y1
-            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
-            hh = h * 1.1 / 2
-            hw = hh * PORT[0] / PORT[1]
-            r = [
-                int(max(0, cx - hw)),
-                int(max(0, cy - hh)),
-                int(min(img.shape[1], cx + hw)),
-                int(min(img.shape[0], cy + hh)),
-            ]
-            crop = img[r[1] : r[3], r[0] : r[2]]
-            if crop.size:
-                out[p] = cv2.resize(crop, PORT, interpolation=cv2.INTER_AREA)
+            pic = portrait(img, self.P[p]['best'][2])
+            if pic is not None:
+                out[p] = pic
         return out
+
+    def centre(self, f, tm):
+        """The team's outfield centroid at frame f (nearest frame where the map has it):
+        every outfield row of the map, its guesses for players off camera included, averaged
+        over CENTRE_S. The seen-only centroid jumps metres whenever a player walks into or out
+        of the picture, and every card near a boundary flipped with it."""
+        if not hasattr(self, '_cmap'):
+            z = np.load(L.MAP / f'{self.tag}.npz')
+            n = len(self.cteam)
+            k = np.ones(int(round(CENTRE_S * self.fps)) | 1)
+            self._cmap = np.full((n, 2, 2), np.nan)
+            for t in (0, 1):
+                m = (z['team'] == t) & (z['role'] == 0) & (z['f'] < n)
+                cnt = np.convolve(np.bincount(z['f'][m], minlength=n), k, 'same')
+                for a, key in enumerate(('x', 'y')):
+                    s = np.convolve(np.bincount(z['f'][m], z[key][m], minlength=n), k, 'same')
+                    with np.errstate(invalid='ignore', divide='ignore'):
+                        self._cmap[:, t, a] = np.where(cnt >= 6 * len(k) // 2, s / cnt, np.nan)
+        C = self._cmap
+        for d in range(0, 600, 3):
+            for g in (f - d, f + d):
+                if 0 <= g < len(C) and np.isfinite(C[g, tm]).all():
+                    return C[g, tm]
+        return np.nanmean(C[:, tm], 0)
+
+
+def portrait(img, box):
+    """The box cropped (10% headroom) and fitted to PORT, or None."""
+    x1, y1, x2, y2 = (float(v) for v in box)
+    h = y2 - y1
+    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+    hh = h * 1.1 / 2
+    hw = hh * PORT[0] / PORT[1]
+    r = [
+        int(max(0, cx - hw)),
+        int(max(0, cy - hh)),
+        int(min(img.shape[1], cx + hw)),
+        int(min(img.shape[0], cy + hh)),
+    ]
+    crop = img[r[1] : r[3], r[0] : r[2]]
+    return cv2.resize(crop, PORT, interpolation=cv2.INTER_AREA) if crop.size else None
 
 
 def _text(img, s, org, scale=0.4, col=WHITE, th=1, bg=None):
@@ -390,6 +435,13 @@ class Video:
             int(M.person[i]) for v in self.vis.values() for i, *_ in v if M.person[i] >= 0
         }
         self.px = min((MAP_W - 24) / M.length, (CAM[1] - 70) / M.width)
+        # per-moment positions: an entry is ('p', person) or ('f', fragment) for a player
+        # seen too briefly to have an ID
+        self.ema = {}
+        self.hold = {0: {}, 1: {}}  # entry -> the position whose card it holds
+        self.gap, self.bad = {}, {}  # entry -> frames unseen / frames placed elsewhere
+        self.held = {0: {}, 1: {}}  # position -> (entry, frame) it was last lit
+        self.crop = {}  # entry without an ID -> its latest live picture
 
     def run(self):
         import imageio_ffmpeg  # noqa: F401  (the writer's encoder; fail before the long read)
@@ -420,12 +472,88 @@ class Video:
             if p >= 0:
                 on.setdefault(p, []).append((b, x, y))
                 self.last[p] = f
+        cur = {tm: self.assign(tm, f, now, img) for tm in (0, 1)}
         canvas = np.full((SIZE[1], SIZE[0], 3), 24, np.uint8)
         canvas[: CAM[1], : CAM[0]] = self.camera(f, img, now)
         canvas[: CAM[1], CAM[0] :] = self.pitch(now)
         for tm in (0, 1):
-            canvas[CAM[1] :, tm * PANEL[0] : (tm + 1) * PANEL[0]] = self.panel(tm, f, on)
+            canvas[CAM[1] :, tm * PANEL[0] : (tm + 1) * PANEL[0]] = self.panel(tm, f, on, cur[tm])
         return canvas
+
+    def assign(self, tm, f, now, img):
+        """{position: entry} lit at frame f: one player per position, each keeping their
+        card through short gaps and until the best pairing has moved them for SWITCH frames."""
+        from scipy.optimize import linear_sum_assignment
+
+        M, F = self.M, self.M.F
+        C = M.form[tm][0]
+        ent = {}
+        for i, b, x, y in now:
+            if int(F['team'][i]) != tm or int(F['role'][i]) != 0:
+                continue
+            if not (np.isfinite(x) and np.isfinite(y)):
+                continue
+            p = int(M.person[i])
+            if p >= 0 and M.P[p]['slot'] == 'GK':
+                continue
+            ent.setdefault(('p', p) if p >= 0 else ('f', int(i)), []).append((b, x, y))
+        hold, gap, bad = self.hold[tm], self.gap, self.bad
+        c = M.centre(f, tm)
+        for k, v in ent.items():
+            rel = M.sign[tm] * (np.mean([(x, y) for _, x, y in v], 0) - c)
+            e = self.ema.get(k)
+            self.ema[k] = rel if e is None else e + EMA * (rel - e)
+            gap[k] = 0
+            if k[0] == 'f':
+                pic = portrait(img, v[0][0])
+                if pic is not None:
+                    self.crop[k] = pic
+        for k in list(hold):
+            if k not in ent:
+                gap[k] = gap.get(k, 0) + 1
+                if gap[k] > BRIDGE:
+                    del hold[k]
+                    bad.pop(k, None)
+        keys = list(dict.fromkeys(list(ent) + list(hold)))
+        if not keys:
+            return {}
+        cost = np.zeros((len(keys), len(C)))
+        for r, k in enumerate(keys):
+            cost[r] = ((C - self.ema[k]) ** 2).sum(1)
+            if k[0] == 'p' and M.P[k[1]]['pw'] > 0:
+                home = M.P[k[1]]['place'] / M.P[k[1]]['pw']
+                cost[r] += PRIOR_W * ((C - home) ** 2).sum(1)
+        rows, cols = linear_sum_assignment(cost)
+        ideal = {keys[r]: int(s) for r, s in zip(rows, cols)}
+        # holders the best pairing has put elsewhere for SWITCH frames move there, when that
+        # card is free or its holder is moving too
+        movers = []
+        for k, s in hold.items():
+            bad[k] = bad.get(k, 0) + 1 if ideal.get(k, s) != s else 0
+            if bad[k] >= SWITCH:
+                movers.append(k)
+        for k in movers:
+            del hold[k]
+        for k in movers:
+            if k in ideal and ideal[k] not in hold.values():
+                hold[k] = ideal[k]
+                bad[k] = 0
+        # new players take free cards (Hungarian); players gone longest give theirs up first
+        new = [k for k in ent if k not in hold]
+        free = [s for s in range(len(C)) if s not in hold.values()]
+        for k in sorted((k for k in hold if gap.get(k, 0) > 0), key=lambda k: -gap[k]):
+            if len(free) >= len(new):
+                break
+            free.append(hold.pop(k))
+        if new and free:
+            sub = cost[np.ix_([keys.index(k) for k in new], free)]
+            for r, s in zip(*linear_sum_assignment(sub)):
+                hold[new[r]] = free[s]
+                bad[new[r]] = 0
+        out = {s: k for k, s in hold.items() if gap.get(k, 0) <= LIT_GAP}
+        for s, k in out.items():
+            self.held[tm][s] = (k, f)
+        return out
 
     def _style(self, i):
         """Colour, label and line width of fragment i's box / dot."""
@@ -498,7 +626,7 @@ class Video:
         )
         return im
 
-    def panel(self, tm, f, on):
+    def panel(self, tm, f, on, cur):
         M = self.M
         C, lines, names, form, errs = M.form[tm]
         given = (M.forms or {}).get(LETTER[tm]) == form
@@ -508,7 +636,7 @@ class Video:
         cv2.rectangle(im, (0, 0), (PANEL[0] - 1, PANEL[1] - 1), (70, 90, 70), 1)
         cv2.rectangle(im, (8, 6), (22, 20), M.kit[tm], -1)
         cv2.rectangle(im, (8, 6), (22, 20), WHITE, 1)
-        n_on = sum(1 for p in on if M.P[p]['team'] == tm)
+        n_on = len(cur)  # outfield players on a lit card, the ones without an ID included
         n_all = sum(1 for d in M.P.values() if d['team'] == tm)
         _text(
             im,
@@ -523,40 +651,44 @@ class Video:
         for p, d in M.P.items():
             if d['team'] == tm and d['slot'] is not None:
                 by_slot.setdefault(d['slot'], []).append(p)
+        lit_now = set(cur.values())
         for r, row in enumerate(rows):
             cy = HEAD + rh * (r + 0.5)
             for k, s in enumerate(row):
                 cx = PANEL[0] * (k + 1) / (len(row) + 1)
+                if s != 'GK' and s in cur:
+                    show, lit, note = [cur[s]], True, ''
+                elif s != 'GK' and s in self.held[tm] and self.held[tm][s][0] not in lit_now:
+                    e, fh = self.held[tm][s]
+                    show, lit, note = [e], False, f'{(f - fh) / M.fps:.0f}s ago'
+                else:
+                    # GK, or a position nobody has held yet in this clip: the people whose
+                    # half-average place is nearest it (and are not lit on another card)
+                    occ = [p for p in by_slot.get(s, []) if ('p', p) not in lit_now]
+                    show, lit, note = self._usual(occ, on, f)
                 self.card(
-                    im,
-                    tm,
-                    s,
-                    'GK' if s == 'GK' else names[s],
-                    by_slot.get(s, []),
-                    on,
-                    f,
-                    int(cx),
-                    int(cy),
+                    im, tm, s, 'GK' if s == 'GK' else names[s], show, lit, note, int(cx), int(cy)
                 )
         return im
 
-    def card(self, im, tm, slot, name, occ, on, f, cx, cy):
+    def _usual(self, occ, on, f):
+        """(entries, lit, note) from the people whose usual position this is."""
+        M = self.M
+        live = sorted((p for p in occ if p in on), key=lambda p: -M.P[p]['seen'])[:1]
+        if live:
+            return [('p', p) for p in live], True, ''
+        seen = [p for p in occ if p in self.last and self.last[p] <= f]
+        if seen:
+            p = max(seen, key=lambda q: self.last[q])
+            return [('p', p)], False, f'{(f - self.last[p]) / M.fps:.0f}s ago'
+        if occ:
+            return [('p', max(occ, key=lambda q: M.P[q]['seen']))], False, 'not yet'
+        return [], False, 'nobody'
+
+    def card(self, im, tm, slot, name, show, lit, note, cx, cy):
         M = self.M
         w, h = self.card_size
         x0, y0 = cx - w // 2, cy - h // 2
-        live = sorted((p for p in occ if p in on), key=lambda p: -M.P[p]['seen'])[:2]
-        if live:
-            show, lit, note = live, True, ''
-        else:
-            seen = [p for p in occ if p in self.last and self.last[p] <= f]
-            if seen:
-                p = max(seen, key=lambda q: self.last[q])
-                show, note = [p], f'{(f - self.last[p]) / M.fps:.0f}s ago'
-            elif occ:
-                show, note = [max(occ, key=lambda q: M.P[q]['seen'])], 'not yet'
-            else:
-                show, note = [], 'nobody'
-            lit = False
         col = M.kit[tm] if slot != 'GK' else GOLD
         cv2.rectangle(im, (x0, y0), (x0 + w, y0 + h), (20, 30, 20), -1)
         cv2.rectangle(im, (x0, y0), (x0 + w, y0 + h), col if lit else DARK, 3 if lit else 1)
@@ -570,23 +702,23 @@ class Video:
                 GREY,
             )
         n = len(show)
-        for k, p in enumerate(show):
+        for k, (kind, v) in enumerate(show):
             px0 = x0 + (w - n * PORT[0] - (n - 1) * 4) // 2 + k * (PORT[0] + 4)
             py0 = y0 + 16
-            pic = self.port.get(p)
+            pic = self.port.get(v) if kind == 'p' else self.crop.get((kind, v))
             if pic is not None:
                 im[py0 : py0 + PORT[1], px0 : px0 + PORT[0]] = (
                     pic if lit else (pic * 0.45).astype(np.uint8)
                 )
             else:
                 cv2.rectangle(im, (px0, py0), (px0 + PORT[0], py0 + PORT[1]), DARK, 1)
-            d = M.P[p]
+            if kind == 'f':
+                _text(im, 'no ID', (px0, y0 + h - 4), 0.33, WHITE if lit else GREY)
+                continue
+            d = M.P[v]
             _text(im, d['id'], (px0, y0 + h - 4), 0.33, WHITE if lit else GREY)
             if d['number'] is not None:
                 _text(im, f'#{d["number"]}', (px0 + 1, py0 + PORT[1] - 3), 0.33, WHITE, 1, bg=BLACK)
-        extra = len([p for p in occ if p in on]) - len(live) if lit else 0
-        if extra > 0:
-            _text(im, f'+{extra}', (x0 + w - 18, y0 + h - 4), 0.33, WHITE)
 
 
 def main(argv=None) -> int:
