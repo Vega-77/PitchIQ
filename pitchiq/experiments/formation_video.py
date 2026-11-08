@@ -32,6 +32,10 @@ every frame the lines still looked like they were glitching, so who is in which 
 fitted once per LINE_HOLD = 3 s to each map player's average place over that stretch: no
 changes inside a stretch, 0.01-0.09 per player per second at stretch ends, same dots on a line.
 
+The ball (2026-11-08, on unless --no-ball) is match_video's: a magenta ring on the camera
+(with a drop line to the ground under an air ball), a magenta dot on the map (a ring in the
+air) with its last second, wherever the tracker has it; nothing where it doesn't.
+
 Roles come from idlink's `fix_roles`: touchline bystanders are dropped (not drawn), the
 odd-kit person standing in a goal is its keeper, and one keeper piece per goal at a time.
 
@@ -87,6 +91,8 @@ GREY, DARK, WHITE, BLACK, GOLD = (
 LINES_MIN = 8  # a team's lines are drawn when this many of its outfielders are on camera
 MATCH_M = 4.0  # a dot takes the line of the map player within this many metres
 LINE_HOLD = 3.0  # seconds: who is in which line is fitted once per stretch this long
+BALL = (255, 60, 255)  # magenta: no kit, line or keeper colour uses it
+TRAIL_S = 1.0  # the map shows where the ball was over this many seconds
 LINE_COL = ((255, 220, 40), (30, 140, 255))  # map lines: team A cyan, B orange (BGR); kit
 # colours often read alike on the map (co2: both near-black against the sunset)
 FONT = cv2.FONT_HERSHEY_SIMPLEX
@@ -468,6 +474,24 @@ class Match:
         return np.nanmean(C[:, tm], 0)
 
 
+def ball_track(tag, lo, hi, length, width):
+    """The ball as match_video draws it (Hybrid 90 picks + flight chain, short flashes and
+    ballgate's lost stretches left out), per frame lo..hi-1: image point, map point in
+    metres, ground point under an air ball, and kind ('ground', 'air' or '' = no ball)."""
+    import os
+
+    cwd = os.getcwd()
+    try:
+        from pitchiq.balltrack import match_video as MV  # chdirs into its work folder
+
+        os.chdir(MV.HG)
+        _, img, sb, gnd, kind = MV.ball(tag, lo, hi)
+    finally:
+        os.chdir(cwd)
+    xy = sb * [length / 120.0, width / 80.0]  # StatsBomb units -> metres, as idlink's D
+    return img, xy, gnd, np.array(kind)
+
+
 def portrait(img, box):
     """The box cropped (10% headroom) and fitted to PORT, or None."""
     x1, y1, x2, y2 = (float(v) for v in box)
@@ -500,11 +524,12 @@ def _ink(bgr):
 
 
 class Video:
-    def __init__(self, M: Match, lo, hi, out: Path, crf=36, lines=False):
+    def __init__(self, M: Match, lo, hi, out: Path, crf=36, lines=False, ball=True):
         from pitchiq.experiments.idlab import _Clip
 
         self.M, self.lo, self.hi, self.out = M, lo, hi, out
         self.lines = lines  # draw each team's lines (back, middle, front) on the map
+        self.ball = ball_track(M.tag, lo, hi, M.length, M.width) if ball else None
         self.pos = {}  # entry -> its latest map place (x, y)
         self.present = {0: [], 1: []}  # entries on camera at this frame
         self.line_of = {}  # (team, map slot) -> the formation line it was in last
@@ -668,6 +693,18 @@ class Video:
             cv2.rectangle(cam, (x1, y1), (x2, y2), col, 2 if lab else 1)
             if lab:
                 _text(cam, lab, (x1, y1 - 3), 0.38, _ink(col), 1, bg=col)
+        if self.ball is not None:
+            bimg, _, gnd, kind = self.ball
+            k = f - self.lo
+            if kind[k]:
+                c = (int(bimg[k, 0] * s), int(bimg[k, 1] * s))
+                if kind[k] == 'air' and np.isfinite(gnd[k]).all():
+                    g = (int(gnd[k, 0] * s), int(gnd[k, 1] * s))
+                    cv2.line(cam, c, g, BLACK, 3, cv2.LINE_AA)
+                    cv2.line(cam, c, g, BALL, 1, cv2.LINE_AA)
+                    cv2.circle(cam, g, 2, BALL, -1, cv2.LINE_AA)
+                cv2.circle(cam, c, 9, BLACK, 4, cv2.LINE_AA)
+                cv2.circle(cam, c, 9, BALL, 2, cv2.LINE_AA)
         t = f / self.M.fps
         _text(cam, f'{self.M.tag}  video {_clock(t)}   ({_clock((f - self.lo) / self.M.fps)} of {_clock((self.hi - self.lo) / self.M.fps)})',
               (8, CAM[1] - 10), 0.5, WHITE, 1, bg=BLACK)  # fmt: skip
@@ -756,6 +793,29 @@ class Video:
             cv2.circle(im, c, 6, BLACK, 1, cv2.LINE_AA)
             if lab:
                 _text(im, lab.split(' ')[0], (c[0] + 7, c[1] - 4), 0.36, WHITE, 1)
+        if self.ball is not None:
+            # the last TRAIL_S seconds of the ball's map points, broken where it was lost,
+            # then the ball now: filled on the ground, a ring in the air
+            _, bxy, _, kind = self.ball
+            k = self._f - self.lo
+            k0 = max(0, k - int(TRAIL_S * M.fps))
+            seg = []
+            for j in range(k0, k + 1):
+                if np.isfinite(bxy[j]).all():
+                    seg.append(p(*bxy[j]))
+                elif len(seg) > 1:
+                    cv2.polylines(im, [np.int32(seg)], False, BALL, 1, cv2.LINE_AA)
+                    seg = []
+                else:
+                    seg = []
+            if len(seg) > 1:
+                cv2.polylines(im, [np.int32(seg)], False, BALL, 1, cv2.LINE_AA)
+            if np.isfinite(bxy[k]).all():  # as match_video: wherever the chain has a point
+                c, air = p(*bxy[k]), kind[k] == 'air'
+                cv2.circle(im, c, 5, BLACK, 3 if air else -1, cv2.LINE_AA)
+                cv2.circle(im, c, 4, BALL, 2 if air else -1, cv2.LINE_AA)
+            else:
+                _text(im, 'ball: not found', (MAP_W - 118, CAM[1] - 10), 0.4, (170, 170, 170))
         _text(
             im,
             'lines: back, middle, front line  (team A cyan, team B orange)'
@@ -875,6 +935,7 @@ def main(argv=None) -> int:
     ap.add_argument(
         '--lines', action='store_true', help="draw each team's back, middle and front lines on the map"
     )
+    ap.add_argument('--no-ball', action='store_true', help='leave the ball out')
     ap.add_argument('--final', action='store_true')
     ap.add_argument(
         '--formation',
@@ -909,10 +970,17 @@ def main(argv=None) -> int:
             + '  '.join(f'{n} {e:.0f}' for n, e in sorted(errs.items(), key=lambda t: t[1]))
             + (f'   close: {" ".join(close_call(errs, form))}' if close_call(errs, form) else '')
         )
-    Video(M, lo, hi, out, crf=a.crf, lines=a.lines).run()
+    V = Video(M, lo, hi, out, crf=a.crf, lines=a.lines, ball=not a.no_ball)
+    V.run()
     print(
         f'{_clock(lo / M.fps)}..{_clock(hi / M.fps)} -> {out} ({out.stat().st_size / 1e6:.1f} MB)'
     )
+    if V.ball is not None:
+        _, bxy, _, kind = V.ball
+        print(
+            f'ball: ring on camera {np.mean(kind != ""):.0%} of frames (in the air {np.mean(kind == "air"):.0%}), '
+            f'on the map {np.isfinite(bxy[:, 0]).mean():.0%}'
+        )
     return 0
 
 
