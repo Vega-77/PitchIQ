@@ -23,6 +23,12 @@ camera could share one card while another stayed empty. Keeper: >= 30% of sighti
 close (A 4-1-4-1, close 4-2-3-1 and 4-3-3; B 4-3-3, close 4-1-4-1, 4-2-3-1 and 4-4-2; the
 user saw 4-4-2 for Woodbridge). The first version clustered every sighting: 3-5-2, 4-1-4-1.
 
+--lines (2026-11-08) joins each team's back, middle and front line on the map (team A cyan,
+B orange): the formation fitted at each moment to the map's whole team (`fit_now`), each dot
+in the line of its nearest map player. Against fitting the dots on camera alone, over seven
+20 s clips: tighter lines (depth spread 3.0-4.8 m vs 2.9-5.3) and half the line changes per
+player (0.04-0.64/s vs 0.13-1.17/s), but fewer dots on a line (62-86% vs 83-92%).
+
 Roles come from idlink's `fix_roles`: touchline bystanders are dropped (not drawn), the
 odd-kit person standing in a goal is its keeper, and one keeper piece per goal at a time.
 
@@ -75,6 +81,10 @@ GREY, DARK, WHITE, BLACK, GOLD = (
     (0, 0, 0),
     (0, 215, 255),
 )
+LINES_MIN = 8  # a team's lines are drawn when this many of its outfielders are on camera
+MATCH_M = 4.0  # a dot takes the line of the map player within this many metres
+LINE_COL = ((255, 220, 40), (30, 140, 255))  # map lines: team A cyan, B orange (BGR); kit
+# colours often read alike on the map (co2: both near-black against the sunset)
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 # Formations, back line first; each position (name, depth 0 back .. 1 front, width +1 team's left)
 _BACK4 = [('LB', 0.05, 1.0), ('LCB', 0.0, 0.35), ('RCB', 0.0, -0.35), ('RB', 0.05, -1.0)]
@@ -140,6 +150,34 @@ def fit(C, template, iters=8):
     cost = ((Q[:, None] - C[None]) ** 2).sum(2)
     r, c = linear_sum_assignment(cost)
     return float(cost[r, c].sum()), c[np.argsort(r)]
+
+
+def fit_now(P, template, prev=None, stick=25.0, iters=6):
+    """Each of n <= 10 players (metres from their centre, forward +x, team's left +y) put on
+    one of the formation's positions at this moment, the formation stretched to them as in
+    `fit`. `prev` (line index per player or -1) adds `stick` m^2 for leaving one's last line,
+    so players between two lines don't flicker. Returns the line index per player."""
+    from scipy.optimize import linear_sum_assignment
+
+    T = np.array([(d, w) for line in template for _, d, w in line])
+    line_of = np.array([li for li, line in enumerate(template) for _ in line])
+    a, b = P[:, 0].min(), np.ptp(P[:, 0]) or 1.0
+    s = np.sort(np.abs(P[:, 1]))[-2] if len(P) > 1 else 1.0
+    s = s or 1.0
+    pen = 0.0
+    if prev is not None:
+        pen = stick * ((prev[:, None] >= 0) & (prev[:, None] != line_of[None]))
+    for _ in range(iters):
+        Q = np.stack([a + b * T[:, 0], s * T[:, 1]], 1)
+        r, c = linear_sum_assignment(((P[:, None] - Q[None]) ** 2).sum(2) + pen)
+        A = np.stack([np.ones(len(r)), T[c, 0]], 1)
+        if len(r) >= 3:
+            a, b = np.linalg.lstsq(A, P[r, 0], rcond=None)[0]
+            b = max(b, 1.0)
+            s = max(float(T[c, 1] @ P[r, 1]) / max(float(T[c, 1] @ T[c, 1]), 1e-6), 1.0)
+    out = np.full(len(P), -1)
+    out[r] = line_of[c]
+    return out
 
 
 def team_moments(tag, tm, sign, step=30, min_moments=60):
@@ -361,6 +399,24 @@ class Match:
                 out[p] = pic
         return out
 
+    def team_rows(self, f, tm):
+        """The whole-half map's 10 outfielders of team tm at frame f (nearest frame within 2):
+        (map slot per player, places (10, 2), seen on camera per player), or None. The map
+        guesses players off camera, so a formation fitted to these has the whole team."""
+        if not hasattr(self, '_rows'):
+            z = np.load(L.MAP / f'{self.tag}.npz')
+            m = (z['role'] == 0) & (z['slot'] >= 0)
+            o = np.argsort(z['f'][m], kind='stable')
+            self._rows = {k: z[k][m][o] for k in ('f', 'team', 'slot', 'x', 'y', 'seen')}
+        R = self._rows
+        for g in (f, f - 1, f + 1, f - 2, f + 2):
+            a, b = np.searchsorted(R['f'], g), np.searchsorted(R['f'], g, side='right')
+            m = R['team'][a:b] == tm
+            if m.sum() >= 7:  # map slots can be empty for a while (wh2: 8-9 rows per team)
+                xy = np.stack([R['x'][a:b][m], R['y'][a:b][m]], 1).astype(float)
+                return R['slot'][a:b][m].astype(int), xy, R['seen'][a:b][m]
+        return None
+
     def centre(self, f, tm):
         """The team's outfield centroid at frame f (nearest frame where the map has it):
         every outfield row of the map, its guesses for players off camera included, averaged
@@ -418,10 +474,14 @@ def _ink(bgr):
 
 
 class Video:
-    def __init__(self, M: Match, lo, hi, out: Path, crf=36):
+    def __init__(self, M: Match, lo, hi, out: Path, crf=36, lines=False):
         from pitchiq.experiments.idlab import _Clip
 
         self.M, self.lo, self.hi, self.out = M, lo, hi, out
+        self.lines = lines  # draw each team's lines (back, middle, front) on the map
+        self.pos = {}  # entry -> its latest map place (x, y)
+        self.present = {0: [], 1: []}  # entries on camera at this frame
+        self.line_of = {}  # entry -> the formation line it was drawn in last
         self.writer = _Clip(out, SIZE, fps=int(round(M.fps / STEP)), crf=crf)
         self.vis = M.samples(lo, hi)
         F, P = M.F, M.P
@@ -473,9 +533,10 @@ class Video:
                 on.setdefault(p, []).append((b, x, y))
                 self.last[p] = f
         cur = {tm: self.assign(tm, f, now, img) for tm in (0, 1)}
+        self._f = f
         canvas = np.full((SIZE[1], SIZE[0], 3), 24, np.uint8)
         canvas[: CAM[1], : CAM[0]] = self.camera(f, img, now)
-        canvas[: CAM[1], CAM[0] :] = self.pitch(now)
+        canvas[: CAM[1], CAM[0] :] = self.pitch(now, cur)
         for tm in (0, 1):
             canvas[CAM[1] :, tm * PANEL[0] : (tm + 1) * PANEL[0]] = self.panel(tm, f, on, cur[tm])
         return canvas
@@ -498,9 +559,11 @@ class Video:
                 continue
             ent.setdefault(('p', p) if p >= 0 else ('f', int(i)), []).append((b, x, y))
         hold, gap, bad = self.hold[tm], self.gap, self.bad
+        self.present[tm] = list(ent)
         c = M.centre(f, tm)
         for k, v in ent.items():
-            rel = M.sign[tm] * (np.mean([(x, y) for _, x, y in v], 0) - c)
+            self.pos[k] = np.mean([(x, y) for _, x, y in v], 0)
+            rel = M.sign[tm] * (self.pos[k] - c)
             e = self.ema.get(k)
             self.ema[k] = rel if e is None else e + EMA * (rel - e)
             gap[k] = 0
@@ -583,7 +646,7 @@ class Video:
               (8, CAM[1] - 10), 0.5, WHITE, 1, bg=BLACK)  # fmt: skip
         return cam
 
-    def pitch(self, now):
+    def pitch(self, now, cur=None):
         M, px = self.M, self.px
         im = np.full((CAM[1], MAP_W, 3), (40, 105, 40), np.uint8)
         ox = (MAP_W - M.length * px) / 2
@@ -608,6 +671,38 @@ class Video:
             cv2.rectangle(im, (x, 8), (x + 14, 22), M.kit[tm], -1)
             cv2.rectangle(im, (x, 8), (x + 14, 22), WHITE, 1)
             _text(im, f'team {LETTER[tm]} attacks {arrow}', (x + 20, 20), 0.42)
+        if self.lines:
+            # each line of the formation (back, middle, front) joins the players in it now,
+            # side to side. Who is in which line: the formation fitted at this moment to the
+            # map's whole team (its guesses for players off camera included; fitting only
+            # the players on camera put players in the wrong line whenever one or two were
+            # missing). Not the cards: they follow each player's usual place and move only
+            # after 2 s, so lines drawn through them zigzagged across the pitch. A line joins
+            # the dots on camera, each in the line of the map player nearest it (the map's
+            # own seen flags often disagree with the tracker's dots).
+            for tm in (0, 1):
+                rows = M.team_rows(self._f, tm)
+                dots = [self.pos[k] for k in self.present[tm]]
+                if rows is None or len(dots) < LINES_MIN:
+                    continue
+                slots, X, seen = rows
+                rel = M.sign[tm] * (X - X.mean(0))
+                prev = np.array([self.line_of.get((tm, s), -1) for s in slots])
+                tmpl = FORMATIONS[M.form[tm][3]]
+                li = fit_now(rel, tmpl, prev)
+                for s, v in zip(slots, li):
+                    self.line_of[(tm, s)] = int(v)
+                D = np.linalg.norm(np.array(dots)[:, None] - X[None], axis=2)
+                near = D.argmin(1)
+                ok = D.min(1) < MATCH_M
+                for g in range(len(tmpl)):
+                    vs = [q for q, j, o in zip(dots, near, ok) if o and li[j] == g]
+                    if len(vs) < 2:
+                        continue
+                    vs.sort(key=lambda q: q[1])
+                    pts = np.array([p(*q) for q in vs], np.int32)
+                    cv2.polylines(im, [pts], False, BLACK, 5, cv2.LINE_AA)
+                    cv2.polylines(im, [pts], False, LINE_COL[tm], 2, cv2.LINE_AA)
         for i, _, x, y in now:
             if not (np.isfinite(x) and np.isfinite(y)) or self.M.F['role'][i] == 3:
                 continue
@@ -619,7 +714,9 @@ class Video:
                 _text(im, lab.split(' ')[0], (c[0] + 7, c[1] - 4), 0.36, WHITE, 1)
         _text(
             im,
-            'dots: players on camera now; label = person ID',
+            'lines: back, middle, front line  (team A cyan, team B orange)'
+            if self.lines
+            else 'dots: players on camera now; label = person ID',
             (8, CAM[1] - 10),
             0.4,
             (210, 210, 210),
@@ -731,6 +828,9 @@ def main(argv=None) -> int:
         '--parts', action='store_true', help="add the body-part look cue ('idlink parts' first)"
     )
     ap.add_argument('--crf', type=int, default=36)
+    ap.add_argument(
+        '--lines', action='store_true', help="draw each team's back, middle and front lines on the map"
+    )
     ap.add_argument('--final', action='store_true')
     ap.add_argument(
         '--formation',
@@ -765,7 +865,7 @@ def main(argv=None) -> int:
             + '  '.join(f'{n} {e:.0f}' for n, e in sorted(errs.items(), key=lambda t: t[1]))
             + (f'   close: {" ".join(close_call(errs, form))}' if close_call(errs, form) else '')
         )
-    Video(M, lo, hi, out, crf=a.crf).run()
+    Video(M, lo, hi, out, crf=a.crf, lines=a.lines).run()
     print(
         f'{_clock(lo / M.fps)}..{_clock(hi / M.fps)} -> {out} ({out.stat().st_size / 1e6:.1f} MB)'
     )
