@@ -27,7 +27,10 @@ user saw 4-4-2 for Woodbridge). The first version clustered every sighting: 3-5-
 B orange): the formation fitted at each moment to the map's whole team (`fit_now`), each dot
 in the line of its nearest map player. Against fitting the dots on camera alone, over seven
 20 s clips: tighter lines (depth spread 3.0-4.8 m vs 2.9-5.3) and half the line changes per
-player (0.04-0.64/s vs 0.13-1.17/s), but fewer dots on a line (62-86% vs 83-92%).
+player (0.04-0.64/s vs 0.13-1.17/s), but fewer dots on a line (62-86% vs 83-92%). Fitted
+every frame the lines still looked like they were glitching, so who is in which line is
+fitted once per LINE_HOLD = 3 s to each map player's average place over that stretch: no
+changes inside a stretch, 0.01-0.09 per player per second at stretch ends, same dots on a line.
 
 Roles come from idlink's `fix_roles`: touchline bystanders are dropped (not drawn), the
 odd-kit person standing in a goal is its keeper, and one keeper piece per goal at a time.
@@ -83,6 +86,7 @@ GREY, DARK, WHITE, BLACK, GOLD = (
 )
 LINES_MIN = 8  # a team's lines are drawn when this many of its outfielders are on camera
 MATCH_M = 4.0  # a dot takes the line of the map player within this many metres
+LINE_HOLD = 3.0  # seconds: who is in which line is fitted once per stretch this long
 LINE_COL = ((255, 220, 40), (30, 140, 255))  # map lines: team A cyan, B orange (BGR); kit
 # colours often read alike on the map (co2: both near-black against the sunset)
 FONT = cv2.FONT_HERSHEY_SIMPLEX
@@ -417,6 +421,28 @@ class Match:
                 return R['slot'][a:b][m].astype(int), xy, R['seen'][a:b][m]
         return None
 
+    def team_block(self, f0, f1, tm):
+        """Each map slot's average place over frames [f0, f1) of team tm, measured from the
+        team's centre at each frame (so a team moving up the pitch doesn't smear it): (slots,
+        places (n, 2)) for slots seen in at least half the frames, or None for fewer than 7."""
+        self.team_rows(f0, tm)  # loads the rows
+        R = self._rows
+        a, b = np.searchsorted(R['f'], f0), np.searchsorted(R['f'], f1)
+        m = R['team'][a:b] == tm
+        f, s = R['f'][a:b][m], R['slot'][a:b][m].astype(int)
+        if not len(f):
+            return None
+        xy = np.stack([R['x'][a:b][m], R['y'][a:b][m]], 1).astype(float)
+        fi = f - f0
+        n = np.bincount(fi, minlength=f1 - f0)
+        cen = np.stack([np.bincount(fi, xy[:, k], minlength=f1 - f0) for k in (0, 1)], 1)
+        cen = cen / np.maximum(n, 1)[:, None]
+        rel = xy - cen[fi]
+        cnt = np.bincount(s)
+        avg = np.stack([np.bincount(s, rel[:, k]) for k in (0, 1)], 1) / np.maximum(cnt, 1)[:, None]
+        keep = np.flatnonzero(cnt >= 0.5 * (n > 0).sum())
+        return (keep, avg[keep]) if len(keep) >= 7 else None
+
     def centre(self, f, tm):
         """The team's outfield centroid at frame f (nearest frame where the map has it):
         every outfield row of the map, its guesses for players off camera included, averaged
@@ -481,7 +507,8 @@ class Video:
         self.lines = lines  # draw each team's lines (back, middle, front) on the map
         self.pos = {}  # entry -> its latest map place (x, y)
         self.present = {0: [], 1: []}  # entries on camera at this frame
-        self.line_of = {}  # entry -> the formation line it was drawn in last
+        self.line_of = {}  # (team, map slot) -> the formation line it was in last
+        self.blocks = {}  # (team, stretch) -> ({map slot: line}, {entry: line})
         self.writer = _Clip(out, SIZE, fps=int(round(M.fps / STEP)), crf=crf)
         self.vis = M.samples(lo, hi)
         F, P = M.F, M.P
@@ -672,31 +699,48 @@ class Video:
             cv2.rectangle(im, (x, 8), (x + 14, 22), WHITE, 1)
             _text(im, f'team {LETTER[tm]} attacks {arrow}', (x + 20, 20), 0.42)
         if self.lines:
-            # each line of the formation (back, middle, front) joins the players in it now,
-            # side to side. Who is in which line: the formation fitted at this moment to the
-            # map's whole team (its guesses for players off camera included; fitting only
+            # each line of the formation (back, middle, front) joins the players in it,
+            # side to side. Who is in which line is decided once per LINE_HOLD seconds: the
+            # formation fitted to each map player's average place over that stretch (the
+            # map's whole team, its guesses for players off camera included; fitting only
             # the players on camera put players in the wrong line whenever one or two were
-            # missing). Not the cards: they follow each player's usual place and move only
-            # after 2 s, so lines drawn through them zigzagged across the pitch. A line joins
-            # the dots on camera, each in the line of the map player nearest it (the map's
-            # own seen flags often disagree with the tracker's dots).
+            # missing). Fitted every frame, players jumped between lines 0.04-0.64 times a
+            # second and the lines looked like they were glitching. Not the cards: they
+            # follow each player's usual place, so lines drawn through them zigzagged across
+            # the pitch. Each dot on camera takes the line of the map player nearest it the
+            # first time it is seen in the stretch and keeps it to the stretch's end.
+            hold = int(round(LINE_HOLD * M.fps))
+            b = (self._f - self.lo) // hold
+            f0 = self.lo + b * hold
             for tm in (0, 1):
-                rows = M.team_rows(self._f, tm)
-                dots = [self.pos[k] for k in self.present[tm]]
-                if rows is None or len(dots) < LINES_MIN:
+                key = (tm, b)
+                if key not in self.blocks:
+                    blk = M.team_block(f0, min(f0 + hold, self.hi), tm)
+                    li = {}
+                    if blk is not None:
+                        slots, A = blk
+                        prev = np.array([self.line_of.get((tm, s), -1) for s in slots])
+                        fit = fit_now(M.sign[tm] * A, FORMATIONS[M.form[tm][3]], prev)
+                        li = {int(s): int(v) for s, v in zip(slots, fit) if v >= 0}
+                        for s, v in li.items():
+                            self.line_of[(tm, s)] = v
+                    self.blocks[key] = (li, {})
+                li, ent_line = self.blocks[key]
+                ks = self.present[tm]
+                if not li or len(ks) < LINES_MIN:
                     continue
-                slots, X, seen = rows
-                rel = M.sign[tm] * (X - X.mean(0))
-                prev = np.array([self.line_of.get((tm, s), -1) for s in slots])
-                tmpl = FORMATIONS[M.form[tm][3]]
-                li = fit_now(rel, tmpl, prev)
-                for s, v in zip(slots, li):
-                    self.line_of[(tm, s)] = int(v)
-                D = np.linalg.norm(np.array(dots)[:, None] - X[None], axis=2)
-                near = D.argmin(1)
-                ok = D.min(1) < MATCH_M
-                for g in range(len(tmpl)):
-                    vs = [q for q, j, o in zip(dots, near, ok) if o and li[j] == g]
+                rows = M.team_rows(self._f, tm)
+                if rows is not None:
+                    slots, X, _ = rows
+                    for k in ks:
+                        if k in ent_line:
+                            continue
+                        d = np.linalg.norm(X - self.pos[k], axis=1)
+                        j = int(d.argmin())
+                        if d[j] < MATCH_M and int(slots[j]) in li:
+                            ent_line[k] = li[int(slots[j])]
+                for g in range(len(FORMATIONS[M.form[tm][3]])):
+                    vs = [self.pos[k] for k in ks if ent_line.get(k) == g]
                     if len(vs) < 2:
                         continue
                     vs.sort(key=lambda q: q[1])
