@@ -462,6 +462,11 @@ class MatchContext:
     tag_log: list[dict] | None = None
     video_offset_s: float = 0.0
     second_half_video_s: float | None = None
+    # 'lighter' or 'darker': which shirts are the coach's side. When given, the
+    # team split is labelled so that side is TEAM_A, and `side_of_team` defaults
+    # to TEAM_A 'us'. That is the convention `report_export.attach_map` needs,
+    # since the map's report block keys our side as team_a.
+    ours_kit: str | None = None
 
 
 def analyse_match(
@@ -528,7 +533,9 @@ def analyse_match(
         _hold_still(report, table, panned)
     _follow_the_ball(report, table, ball_candidates, panned)
     _check_the_view(report, table, calibration)
-    _split_teams(report, table, colour_samples)
+    _split_teams(report, table, colour_samples, context.ours_kit)
+    if context.ours_kit and context.side_of_team is None:
+        context = replace(context, side_of_team={TEAM_A: 'us', TEAM_B: 'them'})
     is_player = _find_participants(report, table)
 
     clock = _clocks_and_phases(report, context)
@@ -695,15 +702,30 @@ def _check_the_view(
 
 
 def _split_teams(
-    report: MatchReport, table: FrameTable, colour_samples: dict[int, list[np.ndarray]]
+    report: MatchReport,
+    table: FrameTable,
+    colour_samples: dict[int, list[np.ndarray]],
+    ours_kit: str | None = None,
 ) -> None:
     """Teams, keyed on real track ids.
 
     That is the whole point of the single pass: a team is a property of a
     player over time, and the previous arrangement could only ever answer it
     per detection.
+
+    With `ours_kit` ('lighter' or 'darker'), the labels are swapped if needed so
+    that the coach's side is TEAM_A. Lightness is the first value of each team's
+    kit centre (Lab L).
     """
     assignment = assign_teams(colour_samples)
+    if ours_kit is not None:
+        if ours_kit not in ('lighter', 'darker'):
+            raise ValueError(f"ours_kit must be 'lighter' or 'darker', got {ours_kit!r}")
+        centres = assignment.centres
+        if TEAM_A in centres and TEAM_B in centres:
+            a_lighter = float(centres[TEAM_A][0]) >= float(centres[TEAM_B][0])
+            if a_lighter != (ours_kit == 'lighter'):
+                assignment.swap()
     table.team_by_track = assignment.by_track
     report.kit_separation = separation(assignment)
 
