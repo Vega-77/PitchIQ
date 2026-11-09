@@ -8,10 +8,10 @@
 //
 // One of the coach page's modules; `coach.js` loads them and wires the page up.
 
-import { watchRun, requestRun, cancelRunRequest } from '../shared/db.js?v=155';
-import { runView } from '../shared/run-view.js?v=155';
-import { byId, toast } from '../shared/ui.js?v=155';
-import { state } from './shell.js?v=155';
+import { watchRun, requestRun, cancelRunRequest } from '../shared/db.js?v=156';
+import { runView } from '../shared/run-view.js?v=156';
+import { byId, toast } from '../shared/ui.js?v=156';
+import { state } from './shell.js?v=156';
 
 const HALF_NAME = { h1: 'first half', h2: 'second half' };
 let steps = null;

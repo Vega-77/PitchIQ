@@ -7,24 +7,24 @@
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch, readCvStats, readCvMapping, readCvEvents,
     readCvReview,
-} from '../shared/db.js?v=155';
-import { taggedCount, printStamp } from '../shared/report.js?v=155';
-import { byId, setText, toast, plural } from '../shared/ui.js?v=155';
-import { activeCv, download, show, state } from './shell.js?v=155';
-import { renderReview } from './review.js?v=155';
+} from '../shared/db.js?v=156';
+import { taggedCount, printStamp } from '../shared/report.js?v=156';
+import { byId, setText, toast, plural } from '../shared/ui.js?v=156';
+import { activeCv, download, show, state } from './shell.js?v=156';
+import { renderReview } from './review.js?v=156';
 import {
     renderMatchVideoBlock, updateVideoHint, renderClockMap, renderTimeline,
-} from './footage.js?v=155';
+} from './footage.js?v=156';
 import {
     renderTeamStats, matchRail, renderMatchRail, redrawCvNote, renderPlayerTable, mergeCvPlayers,
-} from './match-overview.js?v=155';
+} from './match-overview.js?v=156';
 import {
     renderShape, renderTeamMap, renderPassing, renderPressing, renderSubs,
-} from './match-play.js?v=155';
-import { renderShots, renderSampleToggle, redrawShotViews } from './match-shots.js?v=155';
-import { renderClusterMapping, closeSameAs } from './mapping.js?v=155';
-import { renderExcluded } from './excluded.js?v=155';
-import { renderRun } from './run.js?v=155';
+} from './match-play.js?v=156';
+import { renderShots, renderSampleToggle, redrawShotViews } from './match-shots.js?v=156';
+import { renderClusterMapping, closeSameAs } from './mapping.js?v=156';
+import { renderExcluded } from './excluded.js?v=156';
+import { renderRun } from './run.js?v=156';
 
 // ---------------------------------------------------------------- one match
 

@@ -21,12 +21,12 @@
 // (cvPano), the coach pins it here and the pins go back to the match (cvPins),
 // where the waiting run picks them up. No files either way.
 
-import { byId, toast, showOnly } from '../shared/ui.js?v=155';
-import { onUser, signIn } from '../shared/auth.js?v=155';
-import { readPitchPanoImage, readPitchPins, savePitchPins } from '../shared/db.js?v=155';
-import { PITCH_LENGTH_M, PITCH_WIDTH_M } from '../shared/pitch-backdrop.js?v=155';
-import { GROUPS, LANDMARKS, positions, lines } from './landmarks.js?v=155';
-import { assess, apply, depth } from './homography.js?v=155';
+import { byId, toast, showOnly } from '../shared/ui.js?v=156';
+import { onUser, signIn } from '../shared/auth.js?v=156';
+import { readPitchPanoImage, readPitchPins, savePitchPins } from '../shared/db.js?v=156';
+import { PITCH_LENGTH_M, PITCH_WIDTH_M } from '../shared/pitch-backdrop.js?v=156';
+import { GROUPS, LANDMARKS, positions, lines } from './landmarks.js?v=156';
+import { assess, apply, depth } from './homography.js?v=156';
 
 const VIEWS = ['view-intro', 'view-work'];
 const ENOUGH = 6;

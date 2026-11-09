@@ -2,11 +2,11 @@
 //
 // One of the coach page's modules; `coach.js` loads them and wires the page up.
 
-import { listMatches, createMatch } from '../shared/db.js?v=155';
-import { byId, toast, localDate } from '../shared/ui.js?v=155';
-import { state } from './shell.js?v=155';
-import { renderSeasonXgCheck } from './match-shots.js?v=155';
-import { openMatch } from './match.js?v=155';
+import { listMatches, createMatch } from '../shared/db.js?v=156';
+import { byId, toast, localDate } from '../shared/ui.js?v=156';
+import { state } from './shell.js?v=156';
+import { renderSeasonXgCheck } from './match-shots.js?v=156';
+import { openMatch } from './match.js?v=156';
 
 // ---------------------------------------------------------------- matches
 

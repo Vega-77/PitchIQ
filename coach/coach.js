@@ -8,25 +8,25 @@
 // `matches.js`, `player-view.js`, `roster.js`, `team.js` and `publish.js`.
 // Each imports only modules below it, which tests/test_browser_graph.py holds.
 
-import { onUser, signOut, resolveAccess, configWarning } from '../shared/auth.js?v=155';
-import { startMotion } from '../shared/motion.js?v=155';
-import { byId, toast, localDate } from '../shared/ui.js?v=155';
-import { show, state, initTabs } from './shell.js?v=155';
+import { onUser, signOut, resolveAccess, configWarning } from '../shared/auth.js?v=156';
+import { startMotion } from '../shared/motion.js?v=156';
+import { byId, toast, localDate } from '../shared/ui.js?v=156';
+import { show, state, initTabs } from './shell.js?v=156';
 import {
     REVIEW_TYPES, doDownloadLabels, doRecordMiss, leaveReview, onReviewChange, useVideoPosition,
-} from './review.js?v=155';
-import { closeKit, toggleKit, doSaveKit, doInviteCoach } from './staff.js?v=155';
-import { updateVideoHint, renderClockMap, leaveMatchVideo, doSaveVideo } from './footage.js?v=155';
-import { renderMatchRail } from './match-overview.js?v=155';
-import { redrawShotViews } from './match-shots.js?v=155';
-import { toggleSample, doDownloadLog } from './match.js?v=155';
-import { doCreateMatch } from './matches.js?v=155';
-import { doAddPlayer } from './roster.js?v=155';
+} from './review.js?v=156';
+import { closeKit, toggleKit, doSaveKit, doInviteCoach } from './staff.js?v=156';
+import { updateVideoHint, renderClockMap, leaveMatchVideo, doSaveVideo } from './footage.js?v=156';
+import { renderMatchRail } from './match-overview.js?v=156';
+import { redrawShotViews } from './match-shots.js?v=156';
+import { toggleSample, doDownloadLog } from './match.js?v=156';
+import { doCreateMatch } from './matches.js?v=156';
+import { doAddPlayer } from './roster.js?v=156';
 import {
     showCreateTeam, cancelCreateTeam, doCreateTeam, loadTeamData, switchTeam,
-} from './team.js?v=155';
-import { doPublish } from './publish.js?v=155';
-import { leaveRun } from './run.js?v=155';
+} from './team.js?v=156';
+import { doPublish } from './publish.js?v=156';
+import { leaveRun } from './run.js?v=156';
 
 // ---------------------------------------------------------------- init
 

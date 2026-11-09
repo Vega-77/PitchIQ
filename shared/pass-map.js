@@ -31,9 +31,9 @@
 
 import {
     PITCH_LENGTH_M, PITCH_WIDTH_M, PITCH_VIEWBOX, pitchMarkings,
-} from './pitch-backdrop.js?v=155';
-import { foldEdges } from './passing.js?v=155';
-import { svgEl as el } from './svg.js?v=155';
+} from './pitch-backdrop.js?v=156';
+import { foldEdges } from './passing.js?v=156';
+import { svgEl as el } from './svg.js?v=156';
 
 // A pair has to have exchanged this many passes before it is a line. See above.
 export const MIN_EDGE = 2;
