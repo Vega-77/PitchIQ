@@ -659,3 +659,41 @@ td.num.cv-partial {
     text-decoration: underline dotted var(--text-faint);
     text-underline-offset: 3px;
 }
+
+/* The match page's video processing card (coach/run.js). One bar for the whole
+   run, weighted by how long each step takes, so a 2-hour pass moves it more than
+   a 5-minute calibration; the step and the time left say the rest in words. */
+.run-text { margin: 0 0 12px; }
+.run-now { margin: 10px 0 4px; }
+.run-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
+.run-bar {
+    height: 10px;
+    border-radius: 5px;
+    background: var(--line);
+    overflow: hidden;
+}
+.run-bar-fill {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 5px;
+    transition: width 0.6s var(--ease-out);
+}
+.run-you, .run-warn {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border-left: 2px solid var(--warn);
+    background: var(--warn-dim);
+    border-radius: var(--radius);
+}
+.run-ours { border: 0; padding: 0; margin: 0 0 4px; display: grid; gap: 6px; }
+.run-ours legend { font-weight: 600; margin-bottom: 6px; padding: 0; }
+.run-all { margin-top: 12px; }
+.run-all summary { cursor: pointer; color: var(--text-dim); }
+.run-steps { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.run-step { display: flex; gap: 8px; color: var(--text-faint); }
+.run-step[data-status="done"] { color: var(--text-dim); }
+.run-step[data-status="now"] { color: var(--text); font-weight: 600; }
+.run-step[data-status="done"] .run-step-mark { color: var(--good); }
+.run-step[data-status="now"] .run-step-mark { color: var(--accent); }
+.run-step[data-status="todo"] { color: var(--text-faint); }

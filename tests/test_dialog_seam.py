@@ -358,7 +358,8 @@ class TestTheScanCouldBeLying:
         # first frame) and shared/motion.js, and to 47 when shared/report.js was
         # split into seventeen shared/report-*.js parts behind it (deep clean, E-2),
         # and to 61 when coach/coach.js was split into fourteen view modules
-        # beside it (E-5).
+        # beside it (E-5), and to 63 with the match page's video processing card
+        # (coach/run.js and shared/run-view.js, 2026-11-09).
         seen = js()
-        assert len(seen) == 61
+        assert len(seen) == 63
         assert IMPL in seen and 'live-tagging/tagging.js' in seen

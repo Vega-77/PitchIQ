@@ -4,6 +4,7 @@
     python -m pitchiq process_match <video> --game xx --ours darker --h1 12:58-55:15 --h2 66:05-111:00 --lines white --team T --match M
     python -m pitchiq process_match <video> --game xx --ours lighter --plan
     python -m pitchiq process_match --list-matches
+    python -m pitchiq process_match --requests
 
 It runs the same steps that made the published Woodbridge report, one after
 another, each skipped when its output is already on disk. A crash or a
@@ -36,15 +37,20 @@ this command prints when each one starts and ends.
                 written to the match on the site (`cached_report merge`,
                 `map_report --into`, `publish_report`)
 
-Which kit is ours (`--ours`) the video cannot say. The end we attack in the
-first half comes from the map (where each team's keeper and players stand)
-unless `--attacks-first` says it; the run stops if the two halves' maps do not
-show the teams changing ends.
+A coach asks for a match on the site (the match page's "Video processing"
+card, which also says which shirts are ours); `--requests` lists those, each
+with the command to run once the video is downloaded. With --team/--match the
+run keeps that card's progress bar up to date (`pitchiq/run_progress.py`):
+the step, how far it is, the time left, a call to pin the pitch, and done.
 
-Roughly 10 hours a game on this PC, plus however long the coach takes to pin:
-the panoramas about 25 min a half, the calibration 5 min a half, the pass
-2-3 h a half (longer at night), the map 15-30 min a half, the stats about 1 h
-a half. Everything runs one step at a time.
+Which kit is ours (`--ours`) the video cannot say: the coach's request says it,
+or the command line. The end we attack in the first half comes from the map
+(where each team's keeper and players stand) unless `--attacks-first` says it;
+the run stops if the two halves' maps do not show the teams changing ends.
+
+About 5 to 9 hours a game on this PC, plus however long the coach takes to
+pin; each step's time is in `shared/run-steps.json`, which the coach page's
+estimate reads too. Everything runs one step at a time.
 
 Publishing needs PITCHIQ_SA_KEY (the service account key, kept outside the
 repo) and the team and match ids; `--list-matches` prints them. Both are
@@ -63,6 +69,8 @@ import sys
 import time
 from datetime import date
 from pathlib import Path
+
+from pitchiq.run_progress import Progress, pass_fraction, read_requests, step_of
 
 REPO = Path(__file__).resolve().parents[2]
 DATA = REPO.parent / 'PitchIQ-data'
@@ -85,6 +93,7 @@ MAP_PROCS = 8
 SITE = os.environ.get('PIQ_SITE', 'https://vega-77.github.io/PitchIQ/')
 PIN_POLL_S = 60  # how often the run looks for the coach's pins
 PIN_REMIND_S = 1800  # and how often it says it is still waiting
+TICK_S = 30  # how often a running step's progress is looked at
 STEPS = ('halves', 'camera', 'pass', 'map', 'stats', 'publish')
 
 
@@ -148,6 +157,7 @@ class Run:
             PYTHONPATH=str(REPO),
             PYTHONIOENCODING='utf8',
         )
+        self.progress = Progress(None, None, None)  # main() points it at the match
 
     def say(self, text: str) -> None:
         line = f'{now()}  {text}'
@@ -158,20 +168,41 @@ class Run:
                 f.write(f'{date.today()} {line}\n')
 
     def py(self, name: str, *args, check=True) -> int:
-        """Run `python -m <module> args` from the repo root, its output to logs/<name>.log."""
+        """Run `python -m <module> args` from the repo root, its output to logs/<name>.log.
+        While it runs, the coach page's progress bar is kept up to date."""
         cmd = [sys.executable, '-W', 'ignore', '-m', *map(str, args)]
         log = self.logs / f'{name}.log'
+        key = step_of(name)
+        if key:
+            self.progress.begin(key)
         self.say(f'start {name}  (log: {log})')
         t0 = time.time()
         with open(log, 'a', encoding='utf-8') as f:
             f.write(f'\n=== {time.ctime()}  {" ".join(cmd)}\n')
             f.flush()
-            rc = subprocess.call(cmd, cwd=REPO, env=self.env, stdout=f, stderr=subprocess.STDOUT)
+            proc = subprocess.Popen(cmd, cwd=REPO, env=self.env, stdout=f, stderr=subprocess.STDOUT)
+            while True:
+                try:
+                    rc = proc.wait(timeout=TICK_S)
+                    break
+                except subprocess.TimeoutExpired:
+                    if key:
+                        self.tick(name, key)
         self.say(f'end {name}  rc {rc}  ({(time.time() - t0) / 60:.0f} min)')
         if rc and check:
             tail = log.read_text(encoding='utf-8', errors='replace').splitlines()[-15:]
             raise Stop(f'{name} failed (rc {rc}). The end of {log}:\n  ' + '\n  '.join(tail))
         return rc
+
+    def tick(self, name: str, key: str) -> None:
+        """How far the running step is: the pass from its log, the rest from the clock."""
+        p = self.progress
+        f = None
+        if key.startswith('pass_'):
+            f = pass_fraction(TRACK / 'half' / name.split('_', 1)[1] / 'log.txt')
+        if f is None:
+            f = min(0.95, (time.time() - p.step_t0) / p.expected(key))
+        p.at(f)
 
 
 # ---------------------------------------------------------------- 0. checks before anything long
@@ -193,13 +224,15 @@ def check_video(path: Path) -> None:
         )
 
 
-def check_site(a) -> None:
-    """The key and the match exist, read-only, so a 10-hour run cannot fail at its last step."""
+def check_site(a):
+    """The key and the match exist, read-only, so a 10-hour run cannot fail at its last step.
+    The Firestore client, or None without a site; `--ours` from the coach's request when
+    it was left out."""
     if a.plan:
-        return
+        return None
     if not (a.team and a.match):
         if a.no_publish:
-            return  # no site at all: the pins come from a file (see offer)
+            return None  # no site at all: the pins come from a file (see offer)
         raise Stop(
             'publishing needs --team and --match (--list-matches prints them), or pass --no-publish'
         )
@@ -214,6 +247,48 @@ def check_site(a) -> None:
         raise Stop(f'no match {a.match} under team {a.team} (--list-matches prints them)')
     d = m.to_dict() or {}
     print(f'publishing to: {d.get("opponentName") or "?"} on {d.get("date") or "?"}', flush=True)
+    if not a.ours:
+        req = m.reference.collection('cvRun').document('request').get()
+        a.ours = (req.to_dict() or {}).get('ours') if req.exists else None
+        if not a.ours:
+            raise Stop('--ours is needed: the coach has not asked for this match on the site')
+        print(f"ours: {a.ours} (from the coach's request)", flush=True)
+    return db
+
+
+def list_requests() -> int:
+    """The matches coaches have asked to have processed, with the command for each."""
+    from pitchiq.publish_to_firestore import PublishError, _client
+
+    try:
+        db = _client()
+    except PublishError as e:
+        print(e, file=sys.stderr)
+        return 1
+    reqs = read_requests(db)
+    if not reqs:
+        print('no coach is waiting for a match to be processed')
+    taken = set(load_halves())
+    for q in reqs:
+        print(f'{q["date"]}  v {q["opponent"]}  ({q["state"]})')
+        print(f'  video: {q["video"] or "(no link on the match yet)"}')
+        code = suggest_code(q['opponent'], taken)
+        taken.add(code)
+        print(
+            f'  python -m pitchiq process_match <downloaded video> --game {code} '
+            f'--team {q["team"]} --match {q["match"]}'
+        )
+    return 0
+
+
+def suggest_code(opponent: str, taken: set[str]) -> str:
+    """A free game code from the opponent's name: 'Woodbridge' -> 'wo', then 'woo'..."""
+    letters = re.sub(r'[^a-z]', '', opponent.lower()) or 'game'
+    for n in range(2, 9):
+        code = (letters + 'zzzzzzzz')[:n]
+        if code not in taken and code != 'scrim':
+            return code
+    return next(f'g{c}' for c in 'abcdefghijklmnopqrstuvwxyz' if f'g{c}' not in taken)
 
 
 def list_matches() -> int:
@@ -455,6 +530,10 @@ def wait_for_pins(r: Run, db, tag: str) -> None:
         if r.a.no_wait or db is None:
             where = pin_url(r, tag) if db is not None else str(path)
             raise Stop(f'{tag} has no pins yet ({where}). Run the same command once they are in.')
+        why = ''
+        if rejected.exists():
+            why = json.loads(rejected.read_text()).get('why', '')
+        r.progress.waiting_for_pins([f'h{tag[-1]}'], why)
         if time.time() - told > PIN_REMIND_S:
             r.say(f'camera {tag}: waiting for the coach to pin {pin_url(r, tag)}')
             told = time.time()
@@ -493,7 +572,9 @@ def reject(r: Run, db, tag: str, why: str) -> None:
     when nobody is there to fix them (--no-wait, or no site)."""
     from pitchiq.experiments import pincal as PC
 
-    (PC.here(tag) / 'pins.json').replace(PC.here(tag) / 'pins_rejected.json')
+    bad = PC.here(tag) / 'pins_rejected.json'
+    (PC.here(tag) / 'pins.json').replace(bad)
+    bad.write_text(json.dumps(json.loads(bad.read_text()) | {'why': why}, indent=1))
     for t in r.tags:
         carried = PC.here(t) / 'pins.json'
         if t != tag and carried.exists() and json.loads(carried.read_text()).get('from') == tag:
@@ -762,6 +843,11 @@ def build_parser() -> argparse.ArgumentParser:
         action='store_true',
         help='print team and match ids from the site, and stop',
     )
+    p.add_argument(
+        '--requests',
+        action='store_true',
+        help='print the matches coaches have asked to have processed, and stop',
+    )
     return p  # fmt: skip
 
 
@@ -770,15 +856,21 @@ def main(argv: list[str] | None = None) -> int:
     a = p.parse_args(argv)
     if a.list_matches:
         return list_matches()
-    if not (a.video and a.game and a.ours):
-        p.error('a video, --game and --ours are needed')
+    if a.requests:
+        return list_requests()
+    if not (a.video and a.game):
+        p.error('a video and --game are needed')
+    if not a.ours and not (a.team and a.match and not a.plan):
+        p.error("--ours is needed (it comes from the coach's request with --team and --match)")
     if bool(a.h1) != bool(a.h2):
         p.error('give both --h1 and --h2, or neither')
     a.video = a.video.resolve()
     r = Run(a)
     try:
         check_video(a.video)
-        check_site(a)
+        db = check_site(a)
+        if db is not None:
+            r.progress = Progress(db, a.team, a.match)
         r.say(
             f'{"plan for" if a.plan else "processing"} {a.video.name} as {r.g} (ours: {a.ours}, lines: {a.lines})'
         )
@@ -786,9 +878,16 @@ def main(argv: list[str] | None = None) -> int:
             step(r)
     except Stop as e:
         r.say(f'STOPPED: {e}')
+        r.progress.stopped('')
         print('Run the same command again once that is fixed: finished steps are skipped.')
         return 1
+    except KeyboardInterrupt:
+        r.say('STOPPED: interrupted')
+        r.progress.stopped('')
+        return 1
     footage_note(r)
+    if not a.plan:
+        r.progress.finished()
     r.say('plan only: nothing was run' if a.plan else 'ALL DONE')
     return 0
 

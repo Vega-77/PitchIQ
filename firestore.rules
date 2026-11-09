@@ -711,6 +711,26 @@ service cloud.firestore {
           allow delete: if isCoach(t);
         }
 
+        // ---- cvRun: the coach asks for the video to be processed ----
+        //
+        // `request` is the coach's: which shirts are ours (the one thing the
+        // video cannot tell), who asked and when. `progress` is the run's, kept
+        // up to date by pitchiq/run_progress.py through the Admin SDK, and read
+        // by the match page's progress bar. A coach can take a request back;
+        // the run itself is stopped on the processing computer.
+        match /cvRun/{doc} {
+          allow get, list: if isCoach(t);
+
+          allow create, update: if isCoach(t)
+            && doc == 'request'
+            && request.resource.data.keys().hasOnly(['ours', 'requestedAt', 'requestedBy'])
+            && request.resource.data.ours in ['lighter', 'darker']
+            && request.resource.data.requestedBy == uid()
+            && isTimestampNow(request.resource.data.requestedAt);
+
+          allow delete: if isCoach(t) && doc == 'request';
+        }
+
         // ---- cvReview: a human's verdict on what the pipeline claimed ----
         //
         // The same split as cvMapping, for the same reason. cvStats says what

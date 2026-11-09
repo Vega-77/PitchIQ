@@ -1134,6 +1134,56 @@ describe('pitch pins', () => {
   });
 });
 
+describe('video processing', () => {
+  const run = (name) => ['teams', TEAM, 'matches', MATCH, 'cvRun', name];
+  const ask = (uid, over = {}) => ({
+    ours: 'darker', requestedAt: serverTimestamp(), requestedBy: uid, ...over,
+  });
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'teams', TEAM), {
+        name: 'South Brunswick',
+        coachUids: [COACH.uid],
+        taggerUids: [STRANGER.uid],
+        archived: false,
+        createdBy: COACH.uid,
+      });
+      await setDoc(doc(db, ...run('progress')), { state: 'running', step: 'pass_h1' });
+    });
+  });
+
+  it('a coach can ask for a run, change which shirts, and take it back', async () => {
+    await assertSucceeds(setDoc(doc(as(COACH), ...run('request')), ask(COACH.uid)));
+    await assertSucceeds(
+      setDoc(doc(as(COACH), ...run('request')), ask(COACH.uid, { ours: 'lighter' }))
+    );
+    await assertSucceeds(deleteDoc(doc(as(COACH), ...run('request'))));
+  });
+
+  it('a coach can watch the progress but only the processing computer writes it', async () => {
+    // A browser-written progress bar could say "done" over a run that never was.
+    await assertSucceeds(getDoc(doc(as(COACH), ...run('progress'))));
+    await assertFails(setDoc(doc(as(COACH), ...run('progress')), { state: 'done' }));
+    await assertFails(deleteDoc(doc(as(COACH), ...run('progress'))));
+  });
+
+  it('a tagger and a player can neither ask nor watch', async () => {
+    await assertFails(setDoc(doc(as(STRANGER), ...run('request')), ask(STRANGER.uid)));
+    await assertFails(getDoc(doc(as(STRANGER), ...run('progress'))));
+    await assertFails(setDoc(doc(as(PLAYER), ...run('request')), ask(PLAYER.uid)));
+  });
+
+  it('a request names our shirts, its own asker and nothing else', async () => {
+    const ref = doc(as(COACH), ...run('request'));
+    await assertFails(setDoc(ref, ask(COACH.uid, { ours: 'red' })));
+    await assertFails(setDoc(ref, ask(COACH.uid, { priority: 'now' })));
+    await assertFails(setDoc(ref, ask(PLAYER.uid)));
+    await assertFails(setDoc(doc(as(COACH), ...run('other')), ask(COACH.uid)));
+  });
+});
+
 // =====================================================================
 // Identity guards
 // =====================================================================

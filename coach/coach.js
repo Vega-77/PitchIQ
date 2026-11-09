@@ -26,6 +26,7 @@ import {
     showCreateTeam, cancelCreateTeam, doCreateTeam, loadTeamData, switchTeam,
 } from './team.js?v=155';
 import { doPublish } from './publish.js?v=155';
+import { leaveRun } from './run.js?v=155';
 
 // ---------------------------------------------------------------- init
 
@@ -85,6 +86,7 @@ function init() {
         // talking has no obvious way to stop it.
         leaveReview();
         leaveMatchVideo();
+        leaveRun();
         show('view-main');
     });
     byId('btn-back-roster').addEventListener('click', () => show('view-main'));

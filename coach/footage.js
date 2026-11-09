@@ -12,6 +12,7 @@ import { videoKind } from '../shared/video.js?v=155';
 import { byId, toast, clockText, plural, timelineRow } from '../shared/ui.js?v=155';
 import { state, teamLabels } from './shell.js?v=155';
 import { clockAt, clockMap, renderReview } from './review.js?v=155';
+import { redrawRun } from './run.js?v=155';
 
 // ------------------------------------------------------------- the match video
 //
@@ -325,6 +326,7 @@ export async function doSaveVideo() {
         state.match.videoUrl = url || null;
         state.match.videoOffsetS = offset;
         state.match.secondHalfVideoS = secondHalfVideoS;
+        redrawRun(); // a link makes the processing card offer to process it
 
         // The players' copies. `publishReports` takes them at publish time, and
         // the ordinary order of events — publish after the match, upload the

@@ -1176,7 +1176,8 @@ export function saveCvMapping(user, teamId, matchId, byCluster) {
 }
 
 /**
- * The panoramas waiting for (or already given) the coach's pitch pins.
+ * One half's panorama for the coach's pitch pins, as a picture the browser can
+ * open, or null.
  *
  * `cvPano/h1` and `h2` describe each half's picture (size, how many parts,
  * whether that half needs pins of its own or takes the first half's, and the
@@ -1184,18 +1185,6 @@ export function saveCvMapping(user, teamId, matchId, byCluster) {
  * `h1_0`, `h1_1`... because a Firestore document holds at most 1 MiB.
  * Written by pitchiq/experiments/pincal.py; read-only here.
  */
-export async function readPitchPanos(teamId, matchId) {
-    const snap = await getDocs(
-        collection(db, 'teams', teamId, 'matches', matchId, 'cvPano')
-    ).catch(() => null);
-    const out = {};
-    for (const d of snap?.docs || []) {
-        if (/^h[12]$/.test(d.id)) out[d.id] = d.data();
-    }
-    return out;
-}
-
-/** One half's panorama as a picture the browser can open, or null. */
 export async function readPitchPanoImage(teamId, matchId, half) {
     const col = ['teams', teamId, 'matches', matchId, 'cvPano'];
     // Not caught: a refused read (wrong account) must not look like "no panorama yet".
@@ -1227,6 +1216,35 @@ export function savePitchPins(user, teamId, matchId, half, pins, w, h) {
         doc(db, 'teams', teamId, 'matches', matchId, 'cvPins', half),
         { pins, w, h, updatedAt: serverTimestamp(), updatedBy: user.uid },
     );
+}
+
+/**
+ * The coach's request to process this match's video and the run's progress,
+ * live: `onChange({ request, progress })`, each a document's data or null.
+ * `progress` is written by pitchiq/run_progress.py on the processing computer.
+ * Returns the unsubscribe function.
+ */
+export function watchRun(teamId, matchId, onChange, onError) {
+    return onSnapshot(
+        collection(db, 'teams', teamId, 'matches', matchId, 'cvRun'),
+        (snap) => {
+            const by = Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));
+            onChange({ request: by.request || null, progress: by.progress || null });
+        },
+        (err) => onError?.(err),
+    );
+}
+
+/** Ask for this match's video to be processed; `ours` is 'lighter' or 'darker'. */
+export function requestRun(user, teamId, matchId, ours) {
+    return setDoc(
+        doc(db, 'teams', teamId, 'matches', matchId, 'cvRun', 'request'),
+        { ours, requestedAt: serverTimestamp(), requestedBy: user.uid },
+    );
+}
+
+export function cancelRunRequest(teamId, matchId) {
+    return deleteDoc(doc(db, 'teams', teamId, 'matches', matchId, 'cvRun', 'request'));
 }
 
 /**

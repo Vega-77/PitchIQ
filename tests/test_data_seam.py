@@ -41,12 +41,12 @@ Measured, by switching each site off and reading what changed:
 
     site off        +dead  +ghost   names
       markup            0      2    event, tab
-      template          0      1    act
+      template          0      2    act, status
       assign            0      2    signature, target
       read              3      0    signature, tab, target
       selector          2      0    cluster, same
       harness           0      0
-      (css)             0      0
+      (css)             1      0    status
       (comments)        0      0
 
 `selector` is worth a word, because the shape it has to survive is the one a
@@ -69,8 +69,11 @@ standing guard for the day one appeared. It appeared on 2026-10-12: the live
 tagging keys are coloured by `[data-event="..."]`, along with the tally row,
 the "just recorded" strip and the event sheet that carry the same colour. So
 the stylesheets are read like any other site. `data-event` is read by script
-as well, which is why switching this site off moves no verdict today; it is
-here so that the next attribute only a stylesheet reads is not called dead.
+as well, so switching this site off moved no verdict then; it was kept so that
+the next attribute only a stylesheet reads would not be called dead. That came
+on 2026-11-09: the steps of the coach page's "Video processing" card carry
+`data-status` (done, now, to do), which `coach/run.js` writes and only
+`shared/styles/components.css` reads.
 
 One site was measured and is not here
 -------------------------------------
@@ -356,7 +359,7 @@ class TestSites(unittest.TestCase):
 
     def test_template_site_is_load_bearing(self):
         dead, ghost = self.deltas('template')
-        self.assertEqual(ghost, ['act'], ghost)
+        self.assertEqual(ghost, ['act', 'status'], ghost)
         self.assertEqual(dead, [])
 
     def test_assign_site_is_load_bearing(self):
@@ -399,14 +402,16 @@ class TestSites(unittest.TestCase):
             self.assertIn(name, WRITTEN, name)
 
     def test_the_css_site_reads_what_the_stylesheets_select_on(self):
-        """Inert by verdict today -- script reads `data-event` as well -- so
-        it is pinned by what it finds instead, like the harness site. Only
-        the tagging sheet selects on an attribute, and only on that one."""
+        """Pinned by what it finds and by the verdict it carries: script reads
+        `data-event` as well, but only the shared sheet (through its
+        `styles/components.css` part) reads `data-status`, so without this
+        site that one is called dead."""
         hits = {rel: sorted({m.group(1) for m in SELECTOR.finditer(read(rel))}) for rel in CSS}
         self.assertEqual(
-            {r: h for r, h in hits.items() if h}, {'live-tagging/tagging.css': ['event']}
+            {r: h for r, h in hits.items() if h},
+            {'live-tagging/tagging.css': ['event'], 'shared/app.css': ['status']},
         )
-        self.assertEqual(self.deltas('css'), ([], []))
+        self.assertEqual(self.deltas('css'), (['status'], []))
 
 
 # -------------------------------------------------------- the vocabulary
