@@ -63,7 +63,9 @@ class CachedDetector:
         self.frame, self.box, self.conf = frame[order], box[order], conf[order]
         self.next = int(first_frame)
         if not self.lo <= self.next < self.lo + self.n:
-            raise ValueError(f'{tag}: frame {first_frame} is outside the cache {self.lo}..{self.lo + self.n - 1}')
+            raise ValueError(
+                f'{tag}: frame {first_frame} is outside the cache {self.lo}..{self.lo + self.n - 1}'
+            )
 
     def rows(self, f: int) -> np.ndarray:
         a, b = np.searchsorted(self.frame, [f, f + 1])
@@ -135,7 +137,9 @@ def run_half(args) -> int:
     data['source'] = args.tag
     args.out.write_text(json.dumps(data), encoding='utf-8')
     print(report.summary())
-    print(f'{hi - lo + 1} frames in {time.time() - t0:.0f} s; attacking ends {report.attacking_ends}')
+    print(
+        f'{hi - lo + 1} frames in {time.time() - t0:.0f} s; attacking ends {report.attacking_ends}'
+    )
     return 0
 
 
@@ -193,7 +197,10 @@ def merge(halves: list[dict], min_minutes: float = 0.0) -> dict:
     durations = [h.get('duration_s') or 0.0 for h in halves]
     out = dict(halves[0])
     out['source'] = '+'.join(h['source'] for h in halves)
-    out['window'] = {'start_s': halves[0]['window'].get('start_s'), 'end_s': halves[-1]['window'].get('end_s')}
+    out['window'] = {
+        'start_s': halves[0]['window'].get('start_s'),
+        'end_s': halves[-1]['window'].get('end_s'),
+    }
     out['duration_s'] = round(sum(durations), 1)
     out['processing_s'] = round(sum(h.get('processing_s') or 0.0 for h in halves), 1)
     out['timing'] = None
@@ -219,19 +226,30 @@ def merge(halves: list[dict], min_minutes: float = 0.0) -> dict:
             t[key] = None
             for s in sides:
                 t[key] = _add(t[key], s.get(key))
-        for key in ('passes_by_length', 'passes_by_direction', 'phase_of_play', 'turnovers_by_third'):
+        for key in (
+            'passes_by_length',
+            'passes_by_direction',
+            'phase_of_play',
+            'turnovers_by_third',
+        ):
             t[key] = None
             for s in sides:
                 t[key] = _add(t[key], s.get(key))
         t['pass_accuracy'] = (
-            round(t['passes_completed'] / t['passes_attempted'], 3) if t.get('passes_attempted') else None
+            round(t['passes_completed'] / t['passes_attempted'], 3)
+            if t.get('passes_attempted')
+            else None
         )
         t['possession_pct'] = _wmean([s.get('possession_pct') for s in sides], durations)
         possessed = [(s.get('possession_pct') or 0) * d for s, d in zip(sides, durations)]
         t['territory'] = _wmean([s.get('territory') for s in sides], possessed)
         if t['territory'] is not None:
-            t['territory']['seconds'] = round(sum((s.get('territory') or {}).get('seconds') or 0 for s in sides), 1)
-        t['pressing_segments'] = [seg for s in sides for seg in s.get('pressing_segments') or []] or None
+            t['territory']['seconds'] = round(
+                sum((s.get('territory') or {}).get('seconds') or 0 for s in sides), 1
+            )
+        t['pressing_segments'] = [
+            seg for s in sides for seg in s.get('pressing_segments') or []
+        ] or None
         t['ppda'] = _ppda(halves, team)
         t['shot_map'] = [m for s in sides for m in s.get('shot_map') or []] or None
         t['shape_drift'] = None
@@ -248,9 +266,21 @@ def merge(halves: list[dict], min_minutes: float = 0.0) -> dict:
             return [i + s for i in ids]
 
         for c in h.get('clusters') or []:
-            clusters.append({**c, 'cluster_id': c['cluster_id'] + shift_c, 'track_ids': tr(c.get('track_ids') or [])})
+            clusters.append(
+                {
+                    **c,
+                    'cluster_id': c['cluster_id'] + shift_c,
+                    'track_ids': tr(c.get('track_ids') or []),
+                }
+            )
         for t in h.get('tracks') or []:
-            tracks.append({**t, 'cluster_id': t['cluster_id'] + shift_c, 'track_ids': tr(t.get('track_ids') or [])})
+            tracks.append(
+                {
+                    **t,
+                    'cluster_id': t['cluster_id'] + shift_c,
+                    'track_ids': tr(t.get('track_ids') or []),
+                }
+            )
         for k in h.get('keepers') or []:
             keepers.append({**k, 'track_ids': tr(k.get('track_ids') or [])})
         for p in h.get('participants') or []:
@@ -278,7 +308,9 @@ def merge(halves: list[dict], min_minutes: float = 0.0) -> dict:
         )
         tracks = [t for t in tracks if t['cluster_id'] in keep]
         clusters = [c for c in clusters if c['cluster_id'] in keep]
-    out.update(tracks=tracks, clusters=clusters, keepers=keepers, participants=participants, events=events)
+    out.update(
+        tracks=tracks, clusters=clusters, keepers=keepers, participants=participants, events=events
+    )
     out['reconciliation'] = None
     return out
 
@@ -296,16 +328,26 @@ def main(argv=None) -> int:
     h = sub.add_parser('half', help='one half, from cached detections')
     h.add_argument('tag')
     h.add_argument('--ours', required=True, choices=('lighter', 'darker'))
-    h.add_argument('--attacks-first', required=True, choices=('left', 'right'),
-                   help="the end our side attacks in the first half (map_stats' attacking_end)")
+    h.add_argument(
+        '--attacks-first',
+        required=True,
+        choices=('left', 'right'),
+        help="the end our side attacks in the first half (map_stats' attacking_end)",
+    )
     h.add_argument('--seconds', type=float, help='only the first N seconds, for a test')
-    h.add_argument('--tag-log', help="the coach page's log download (it carries the video sync too)")
+    h.add_argument(
+        '--tag-log', help="the coach page's log download (it carries the video sync too)"
+    )
     h.add_argument('--out', type=Path, required=True)
     m = sub.add_parser('merge', help="join two halves' reports into one")
     m.add_argument('reports', type=Path, nargs='+')
     m.add_argument('--out', type=Path, required=True)
-    m.add_argument('--min-minutes', type=float, default=0.0,
-                   help='drop per-player rows tracked for less than this (1 fits the site)')
+    m.add_argument(
+        '--min-minutes',
+        type=float,
+        default=0.0,
+        help='drop per-player rows tracked for less than this (1 fits the site)',
+    )
     args = parser.parse_args(argv)
     return run_half(args) if args.cmd == 'half' else run_merge(args)
 
