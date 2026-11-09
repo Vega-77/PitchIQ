@@ -922,8 +922,10 @@ class Video:
                 _text(im, f'#{d["number"]}', (px0 + 1, py0 + PORT[1] - 3), 0.33, WHITE, 1, bg=BLACK)
 
 
-def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        prog='python -m pitchiq.experiments.formation_video', description=__doc__.split('\n')[0]
+    )
     ap.add_argument('tag')
     ap.add_argument('--start', default=None, help='video time m:ss (default: 10 min into the half)')
     ap.add_argument('--secs', type=float, default=120.0)
@@ -933,7 +935,9 @@ def main(argv=None) -> int:
     )
     ap.add_argument('--crf', type=int, default=36)
     ap.add_argument(
-        '--lines', action='store_true', help="draw each team's back, middle and front lines on the map"
+        '--lines',
+        action='store_true',
+        help="draw each team's back, middle and front lines on the map",
     )
     ap.add_argument('--no-ball', action='store_true', help='leave the ball out')
     ap.add_argument('--final', action='store_true')
@@ -942,7 +946,11 @@ def main(argv=None) -> int:
         default=None,
         help="a team's known formation, e.g. B=4-4-2 or A=4-3-3,B=4-4-2 (else picked from the map)",
     )
-    a = ap.parse_args(argv)
+    return ap
+
+
+def main(argv=None) -> int:
+    a = build_parser().parse_args(argv)
     L._guard(a.tag, a.final)
     cues = ('feat', 'place', 'num', 'last') + (('parts',) if a.parts else ())
     forms = dict(kv.split('=') for kv in a.formation.split(',')) if a.formation else None

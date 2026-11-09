@@ -14,4 +14,5 @@ COMMANDS = (
     'publish_report',
     'map_report',
     'demo',
+    'process_match',
 )

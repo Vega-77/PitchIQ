@@ -49,8 +49,10 @@ def video_of(tag: str) -> str | None:
     """The video for a half tag such as 'eb1' (game 'eb', half 1); None for the scrimmage."""
     H = json.loads(HALVES.read_text())
     g = H.get(tag[:-1])
-    if g is None or 'Tactical' not in g.get('video', ''):
+    if g is None or tag[:-1] == 'scrim':
         return None
+    if g.get('path'):  # process_match's games outside Downloads
+        return g['path']
     return str(Path(os.environ.get('PIQ_DOWNLOADS', 'C:/Users/alexv/Downloads')) / g['video'])
 
 

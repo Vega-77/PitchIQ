@@ -13,6 +13,19 @@ The match-day commands, run as `python -m pitchiq <command> [args]`
   one match report): team shape and where each team stood (`--ours
   lighter|darker` says which side is the coach's).
 - `demo`: run the pipeline on a scripted nine-second match (no footage needed).
+- `process_match`: a match video to statistics on the site, every step in
+  one command (about 10 hours a game; rerun the same command to resume):
+
+  ```
+  python -m pitchiq process_match --list-matches
+  python -m pitchiq process_match <video> --game xx --ours lighter --plan
+  python -m pitchiq process_match <video> --game xx --ours lighter --team T --match M
+  ```
+
+  `--ours` names our shirts (lighter or darker). `--h1`/`--h2` give the halves
+  on the video clock (otherwise they are guessed to the minute). `--lines white`
+  is for white-lined fields. `--tag-log` adds the coach page's log and redoes
+  only the stats and the publish. Publishing needs `PITCHIQ_SA_KEY`.
 
 Each module has `build_parser()` and `main(argv)`; adding one means adding its
 name to `COMMANDS` in `__init__.py`.

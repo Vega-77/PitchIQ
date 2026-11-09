@@ -90,7 +90,8 @@ def _half(tag: str) -> tuple[Path, int, int]:
     game, h = tag[:-1], int(tag[-1])
     entry = json.loads(HALVES.read_text(encoding='utf-8'))[game]
     span = next(v for k, v in entry.items() if k.startswith(f'H{h}'))
-    return DOWNLOADS / entry['video'], int(span[2]), int(span[3])
+    video = Path(entry['path']) if entry.get('path') else DOWNLOADS / entry['video']
+    return video, int(span[2]), int(span[3])
 
 
 def run_half(args) -> int:
@@ -322,8 +323,10 @@ def run_merge(args) -> int:
     return 0
 
 
-def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(prog='python -m pitchiq.experiments.cached_report')
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog='python -m pitchiq.experiments.cached_report', description=__doc__.split('\n')[0]
+    )
     sub = parser.add_subparsers(dest='cmd', required=True)
     h = sub.add_parser('half', help='one half, from cached detections')
     h.add_argument('tag')
@@ -348,7 +351,11 @@ def main(argv=None) -> int:
         default=0.0,
         help='drop per-player rows tracked for less than this (1 fits the site)',
     )
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv=None) -> int:
+    args = build_parser().parse_args(argv)
     return run_half(args) if args.cmd == 'half' else run_merge(args)
 
 
