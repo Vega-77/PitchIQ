@@ -27,5 +27,12 @@ The match-day commands, run as `python -m pitchiq <command> [args]`
   is for white-lined fields. `--tag-log` adds the coach page's log and redoes
   only the stats and the publish. Publishing needs `PITCHIQ_SA_KEY`.
 
+  The coach pins the pitch for every game. The run puts each half's
+  panorama on the match, and the match page links to the calibrate page to
+  pin it. The run waits for the pins (`--no-wait` stops instead; rerun once
+  they are in). If the camera did not move at half time, one set of pins does
+  both halves. `--no-pins` calibrates without pins (autocal), for a field it
+  can read alone.
+
 Each module has `build_parser()` and `main(argv)`; adding one means adding its
 name to `COMMANDS` in `__init__.py`.

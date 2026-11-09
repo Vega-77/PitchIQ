@@ -35,11 +35,20 @@
             The software needs to know which part of the picture is which part
             of the field before it can measure anything in metres. You show it by
             pinning landmarks it already knows: corners, the halfway line, the
-            penalty boxes. Nothing leaves this computer; the pins are saved to
-            a file.
+            penalty boxes.<span id="file-only"> Nothing leaves this computer; the pins are saved to
+            a file.</span>
         </p>
 
-        <div class="card cal-start">
+        <div class="card cal-start hidden" id="site-start">
+            <h3>This match&rsquo;s <span id="site-half">first half</span></h3>
+            <p class="muted">The match video has been stitched into one picture of the
+            camera&rsquo;s whole view. Pin it here and processing carries on by itself;
+            the pins are saved to the match, not to a file.</p>
+            <p id="site-status" aria-live="polite">Checking who is signed in&hellip;</p>
+            <button id="btn-sign-in" class="btn primary hidden" type="button">Sign in with Google</button>
+        </div>
+
+        <div class="card cal-start" id="file-start">
             <fieldset class="cal-kind">
                 <legend>What are you pinning?</legend>
                 <label><input type="radio" name="kind" value="fixed" checked>

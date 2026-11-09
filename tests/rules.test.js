@@ -1074,6 +1074,66 @@ describe('cvStats', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// cvPano and cvPins — the coach pins the pitch
+// ---------------------------------------------------------------------------
+
+describe('pitch pins', () => {
+  const match = ['teams', TEAM, 'matches', MATCH];
+  const pins = (uid, over = {}) => ({
+    pins: { 'centre spot': [3210.5, 880.0], 'left corner near': [410.0, 1402.5] },
+    w: 6473,
+    h: 1753,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    ...over,
+  });
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'teams', TEAM), {
+        name: 'South Brunswick',
+        coachUids: [COACH.uid],
+        taggerUids: [STRANGER.uid],
+        archived: false,
+        createdBy: COACH.uid,
+      });
+      await setDoc(doc(db, ...match, 'cvPano', 'h1'), { w: 6473, h: 1753, parts: 3, half: 1 });
+    });
+  });
+
+  it('a coach can see the panorama but nobody can write it', async () => {
+    // pincal.py puts it there through the Admin SDK. A browser-written picture
+    // would let anyone choose what the coach pins on.
+    await assertSucceeds(getDoc(doc(as(COACH), ...match, 'cvPano', 'h1')));
+    await assertFails(setDoc(doc(as(COACH), ...match, 'cvPano', 'h1_0'), { data: 'x' }));
+  });
+
+  it('a coach can save pins for either half', async () => {
+    await assertSucceeds(setDoc(doc(as(COACH), ...match, 'cvPins', 'h1'), pins(COACH.uid)));
+    await assertSucceeds(setDoc(doc(as(COACH), ...match, 'cvPins', 'h2'), pins(COACH.uid)));
+  });
+
+  it('a tagger and a player can neither see the panorama nor pin', async () => {
+    // Every position the pipeline reports follows from the pins: a coach's call.
+    await assertFails(getDoc(doc(as(STRANGER), ...match, 'cvPano', 'h1')));
+    await assertFails(setDoc(doc(as(STRANGER), ...match, 'cvPins', 'h1'), pins(STRANGER.uid)));
+    await assertFails(setDoc(doc(as(PLAYER), ...match, 'cvPins', 'h1'), pins(PLAYER.uid)));
+  });
+
+  it('pins reject other halves, stray fields, bad shapes and borrowed names', async () => {
+    const ref = (half) => doc(as(COACH), ...match, 'cvPins', half);
+    await assertFails(setDoc(ref('h3'), pins(COACH.uid)));
+    await assertFails(setDoc(ref('h1'), pins(COACH.uid, { touches: 900 })));
+    await assertFails(setDoc(ref('h1'), pins(COACH.uid, { pins: ['centre spot', 1, 2] })));
+    await assertFails(setDoc(ref('h1'), pins(COACH.uid, { w: '6473' })));
+    await assertFails(setDoc(ref('h1'), pins(PLAYER.uid)));
+    const many = Object.fromEntries(Array.from({ length: 41 }, (_, i) => [`p${i}`, [i, i]]));
+    await assertFails(setDoc(ref('h1'), pins(COACH.uid, { pins: many })));
+  });
+});
+
 // =====================================================================
 // Identity guards
 // =====================================================================

@@ -6,7 +6,7 @@
 
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch, readCvStats, readCvMapping, readCvEvents,
-    readCvReview,
+    readCvReview, readPitchPanos, readPitchPins,
 } from '../shared/db.js?v=155';
 import { taggedCount, printStamp } from '../shared/report.js?v=155';
 import { byId, setText, toast, plural } from '../shared/ui.js?v=155';
@@ -53,6 +53,8 @@ export async function openMatch(matchId) {
         mergeCvPlayers(stats.players, state.match, stats.matchEndS);
 
         drawMatch({ match, matchId, stats, log, roster });
+        // Not awaited: the report should not wait on a banner most matches never show.
+        renderPinBanner(matchId);
 
         byId('btn-publish').disabled = false;
 
@@ -62,6 +64,52 @@ export async function openMatch(matchId) {
         toast(err.message || 'Could not open that match.', true);
         show('view-main');
     }
+}
+
+const HALF_NAME = { h1: 'first half', h2: 'second half' };
+
+/**
+ * The pitch pins the video's processing is waiting for, if any.
+ *
+ * `process_match` puts a half's panorama on the match and stops until a coach
+ * pins it on the calibrate page. A half whose pins are carried over from the
+ * first (the camera did not move) is not `needed`. Pins already saved hide
+ * the banner, unless the run found one that disagrees with the rest.
+ */
+async function renderPinBanner(matchId) {
+    const banner = byId('match-pins');
+    banner.classList.add('hidden');
+    const teamId = state.team.id;
+    const panos = await readPitchPanos(teamId, matchId).catch(() => ({}));
+    const todo = [];
+    for (const half of ['h1', 'h2']) {
+        const pano = panos[half];
+        if (!pano?.needed) continue;
+        if (pano.problem) {
+            todo.push({ half, why: `the ${HALF_NAME[half]}: ${pano.problem}` });
+            continue;
+        }
+        const pins = await readPitchPins(teamId, matchId, half).catch(() => null);
+        if (!pins) todo.push({ half, why: null });
+    }
+    // The coach may have opened another match while this was reading.
+    if (!todo.length || state.match?.id !== matchId) return;
+    const fixes = todo.filter((t) => t.why).map((t) => t.why);
+    setText('match-pins-text', fixes.length
+        ? `The pins saved for ${fixes.join('; ')}. Move or remove that pin and save again.`
+        : 'Processing has stitched the camera’s view into one picture and needs six or '
+          + 'more landmarks pinned on it (corners, the halfway line, the boxes) before it can '
+          + 'measure anything. It carries on by itself once they are saved.');
+    const links = byId('match-pins-links');
+    links.replaceChildren(...todo.map(({ half }) => {
+        const a = document.createElement('a');
+        a.className = 'btn small primary';
+        a.href = `../calibrate/?team=${encodeURIComponent(teamId)}`
+            + `&match=${encodeURIComponent(matchId)}&half=${half}`;
+        a.textContent = `Pin the ${HALF_NAME[half]}`;
+        return a;
+    }));
+    banner.classList.remove('hidden');
 }
 
 /** Everything one match view reads, in the order `openMatch` unpacks it. */

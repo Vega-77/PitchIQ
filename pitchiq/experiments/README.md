@@ -5,7 +5,8 @@ module, `python -m pitchiq.experiments.<name> --help`. The calibration, player
 and lab tools read the match video from `PIQ_VIDEO`; set it for every tag,
 because unset it means the scrimmage.
 
-- Panning-camera calibration: `autocal_run` (no clicks), `cal_health`,
+- Panning-camera calibration: `pincal` (from the coach's pitch pins, which
+  `process_match` uses), `autocal_run` (no clicks), `cal_health`,
   `cal_overlay`, `halves` (where the halves are in a video).
 - Players: `player_lab` (score trackers on the player lab's labels in
   `balltrack/plab/`), `track_report`, `possession_report`.

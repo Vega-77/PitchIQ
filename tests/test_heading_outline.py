@@ -304,15 +304,14 @@ class TestTheHouseStyleIsDeliberate:
         css = ' '.join(read('shared/app.css').split())
         assert 'This is the heading on every section in the app' in css
         # Both directions, by naming the exceptions rather than counting
-        # the rule: twelve views go h1 -> h3, and the five that do not are
-        # the five with no sections at all. The calibrate page's two are
-        # among them: the intro is one form, and the work view's h3s are the
-        # landmark groups, which calibrate.js writes.
+        # the rule: thirteen views go h1 -> h3, and the four that do not are
+        # the four with no sections at all. The calibrate page's work view is
+        # among them: its h3s are the landmark groups, which calibrate.js
+        # writes. Its intro was too, until a match's pin card (2026-11-09).
         kept = sorted(
             (rel, view) for rel, view, o in every_view() if [h[0] for h in o][:2] != [1, 3]
         )
         assert kept == [
-            ('calibrate/index.html', 'view-intro'),
             ('calibrate/index.html', 'view-work'),
             ('coach/index.html', 'view-noteam'),
             ('halftime/index.html', 'view-error'),

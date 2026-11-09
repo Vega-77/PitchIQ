@@ -287,5 +287,6 @@ class TestTheScanReportsSomething:
         # five footers, live tagging's first footer (seven links), and the
         # privacy page (skip link, home, seven footer links, eight in the text).
         # A hundred and fifty-seven: the landing page's two mail links saying
-        # whom to ask for access.
-        assert counted == {'text': 157, 'title': 3, 'label-wrap': 20}, counted
+        # whom to ask for access. A hundred and fifty-eight when the calibrate
+        # page got a coach sign-in for pinning a match (2026-11-09).
+        assert counted == {'text': 158, 'title': 3, 'label-wrap': 20}, counted

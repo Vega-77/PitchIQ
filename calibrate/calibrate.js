@@ -15,8 +15,15 @@
 //
 // Pins are kept in full-resolution image pixels. A draft is kept in this
 // browser per picture, so a reload does not lose an hour of clicking.
+//
+// Opened from a match (`?team=…&match=…&half=h1`), the page is the coach's
+// half of `process_match`: the pipeline put that half's panorama on the match
+// (cvPano), the coach pins it here and the pins go back to the match (cvPins),
+// where the waiting run picks them up. No files either way.
 
 import { byId, toast, showOnly } from '../shared/ui.js?v=155';
+import { onUser, signIn } from '../shared/auth.js?v=155';
+import { readPitchPanoImage, readPitchPins, savePitchPins } from '../shared/db.js?v=155';
 import { PITCH_LENGTH_M, PITCH_WIDTH_M } from '../shared/pitch-backdrop.js?v=155';
 import { GROUPS, LANDMARKS, positions, lines } from './landmarks.js?v=155';
 import { assess, apply, depth } from './homography.js?v=155';
@@ -42,7 +49,10 @@ const state = {
     outline: true,
     fit: null,
     loaded: null,          // pins from a saved file, applied when the picture opens
+    site: null,            // {team, match, half, user, problem}: pinning a match's panorama
 };
+
+const HALF_NAME = { h1: 'first half', h2: 'second half' };
 
 const BY_NAME = Object.fromEntries(LANDMARKS.map((l) => [l.name, l]));
 const BY_PIN = Object.fromEntries(LANDMARKS.filter((l) => l.pin).map((l) => [l.pin, l]));
@@ -113,6 +123,26 @@ function download() {
     toast(`Saved ${name} to your downloads`);
 }
 
+async function save() {
+    if (!state.site) {
+        download();
+        return;
+    }
+    const { team, match, half, user } = state.site;
+    const btn = byId('btn-save');
+    btn.disabled = true;
+    try {
+        await savePitchPins(user, team, match, half, payload().pins, state.file.w, state.file.h);
+        state.site.problem = '';
+        drawFit();
+        toast('Pins saved to the match. Processing carries on from here.');
+    } catch {
+        toast('The pins did not save. Are you signed in as this team’s coach?', true);
+    } finally {
+        btn.disabled = placedCount() < 4;
+    }
+}
+
 // ---------------------------------------------------------------- the fit
 
 function refit() {
@@ -134,7 +164,16 @@ function drawFit() {
     const box = byId('fit');
     box.replaceChildren();
     if (state.kind !== 'fixed') {
-        box.textContent = 'A panorama is checked by the pin solve, not here.';
+        if (state.site?.problem) {
+            const p = document.createElement('p');
+            p.className = 'cal-verdict bad';
+            p.textContent = `The last pins saved here did not fit: ${state.site.problem}. Move that pin, or remove it, and save again.`;
+            box.appendChild(p);
+        } else {
+            box.textContent = state.site
+                ? 'The pins are checked against each other when processing picks them up. One that disagrees with the rest is named here.'
+                : 'A panorama is checked by the pin solve, not here.';
+        }
         return;
     }
     const f = state.fit;
@@ -492,7 +531,10 @@ function open(file) {
         state.img = img;
         state.file = { name: file.name, w: img.naturalWidth, h: img.naturalHeight };
         const draft = loadDraft();
-        if (state.loaded) {
+        // On a match, this browser's draft is never older than the saved pins
+        // (every click updates it), so it wins: unsaved clicks survive a reload.
+        const drafted = state.site && draft?.kind === state.kind && Object.keys(draft.pins || {}).length;
+        if (state.loaded && !drafted) {
             state.pins = state.loaded;
         } else if (draft && draft.kind === state.kind) {
             state.pins = draft.pins || {};
@@ -533,6 +575,61 @@ async function readPins(file) {
     }
 }
 
+// ---------------------------------------------------------------- a match's panorama
+
+function siteStatus(text, signInButton = false) {
+    byId('site-status').textContent = text;
+    byId('btn-sign-in').classList.toggle('hidden', !signInButton);
+}
+
+async function openFromMatch(user) {
+    const { team, match, half } = state.site;
+    state.site.user = user;
+    siteStatus(`Loading the ${HALF_NAME[half]}’s panorama…`);
+    let got;
+    try {
+        got = await readPitchPanoImage(team, match, half);
+    } catch {
+        got = undefined;
+    }
+    if (got === undefined) {
+        siteStatus('This account cannot open that match. Sign in as the team’s coach.', true);
+        return;
+    }
+    if (!got) {
+        siteStatus(`There is no ${HALF_NAME[half]} panorama on this match yet. It appears once processing has stitched the camera’s view.`);
+        return;
+    }
+    state.site.problem = got.meta.problem || '';
+    const saved = await readPitchPins(team, match, half).catch(() => null);
+    if (saved?.pins) state.loaded = pinsFromFile({ pins: saved.pins });
+    open(new File([got.blob], `${team}-${match}-${half}.jpg`, { type: 'image/jpeg' }));
+}
+
+function startFromMatch() {
+    const q = new URLSearchParams(location.search);
+    const team = q.get('team'), match = q.get('match');
+    if (!team || !match) return false;
+    const half = q.get('half') === 'h2' ? 'h2' : 'h1';
+    state.site = { team, match, half, user: null, problem: '' };
+    byId('view-intro').querySelector('input[value="panned"]').checked = true;
+    setKind('panned');
+    byId('file-start').classList.add('hidden');
+    byId('file-only').classList.add('hidden');
+    byId('site-start').classList.remove('hidden');
+    byId('site-half').textContent = HALF_NAME[half];
+    // signIn() must run straight from the click: an await before it and iPad
+    // Safari's popup blocker eats the window.
+    byId('btn-sign-in').addEventListener('click', () => {
+        signIn().catch(() => toast('Sign-in did not finish', true));
+    });
+    onUser((user) => {
+        if (!user) siteStatus('Sign in as the team’s coach to pin this match.', true);
+        else if (!state.img) openFromMatch(user);
+    });
+    return true;
+}
+
 function start() {
     for (const r of document.querySelectorAll('input[name="kind"]')) {
         r.addEventListener('change', () => setKind(r.value));
@@ -547,7 +644,7 @@ function start() {
     });
     byId('input-length').addEventListener('change', readDims);
     byId('input-width').addEventListener('change', readDims);
-    byId('btn-save').addEventListener('click', download);
+    byId('btn-save').addEventListener('click', save);
     const c = byId('canvas');
     byId('btn-zoom-in').addEventListener('click', () => zoomAt(1.5, c.clientWidth / 2, c.clientHeight / 2));
     byId('btn-zoom-out').addEventListener('click', () => zoomAt(1 / 1.5, c.clientWidth / 2, c.clientHeight / 2));
@@ -574,6 +671,7 @@ function start() {
     });
     wireCanvas();
     setKind(document.querySelector('input[name="kind"]:checked').value);
+    startFromMatch();
 }
 
 start();

@@ -1176,6 +1176,60 @@ export function saveCvMapping(user, teamId, matchId, byCluster) {
 }
 
 /**
+ * The panoramas waiting for (or already given) the coach's pitch pins.
+ *
+ * `cvPano/h1` and `h2` describe each half's picture (size, how many parts,
+ * whether that half needs pins of its own or takes the first half's, and the
+ * pipeline's complaint about pins already saved); the JPEG itself is split over
+ * `h1_0`, `h1_1`... because a Firestore document holds at most 1 MiB.
+ * Written by pitchiq/experiments/pincal.py; read-only here.
+ */
+export async function readPitchPanos(teamId, matchId) {
+    const snap = await getDocs(
+        collection(db, 'teams', teamId, 'matches', matchId, 'cvPano')
+    ).catch(() => null);
+    const out = {};
+    for (const d of snap?.docs || []) {
+        if (/^h[12]$/.test(d.id)) out[d.id] = d.data();
+    }
+    return out;
+}
+
+/** One half's panorama as a picture the browser can open, or null. */
+export async function readPitchPanoImage(teamId, matchId, half) {
+    const col = ['teams', teamId, 'matches', matchId, 'cvPano'];
+    // Not caught: a refused read (wrong account) must not look like "no panorama yet".
+    const head = await getDoc(doc(db, ...col, half));
+    if (!head.exists()) return null;
+    const meta = head.data();
+    const parts = await Promise.all(
+        Array.from({ length: meta.parts }, (_, i) => getDoc(doc(db, ...col, `${half}_${i}`)))
+    );
+    const bytes = parts.map((p) => {
+        const s = atob(p.data()?.data || '');
+        const b = new Uint8Array(s.length);
+        for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+        return b;
+    });
+    return { meta, blob: new Blob(bytes, { type: 'image/jpeg' }) };
+}
+
+/** The coach's pins for one half ('h1' or 'h2'): {name: [x, y]} in panorama pixels, or null. */
+export async function readPitchPins(teamId, matchId, half) {
+    const snap = await getDoc(
+        doc(db, 'teams', teamId, 'matches', matchId, 'cvPins', half)
+    ).catch(() => null);
+    return snap?.exists() ? snap.data() : null;
+}
+
+export function savePitchPins(user, teamId, matchId, half, pins, w, h) {
+    return setDoc(
+        doc(db, 'teams', teamId, 'matches', matchId, 'cvPins', half),
+        { pins, w, h, updatedAt: serverTimestamp(), updatedBy: user.uid },
+    );
+}
+
+/**
  * The individual events the pipeline found, for checking one at a time.
  *
  * Absent for any match published before the review tool existed, and for any

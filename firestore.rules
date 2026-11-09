@@ -674,6 +674,43 @@ service cloud.firestore {
           allow delete: if isCoach(t);
         }
 
+        // ---- cvPano and cvPins: the coach pins the pitch ----
+        //
+        // Before the video can be measured in metres, the pipeline needs to
+        // know which part of the picture is which part of the field. It
+        // stitches the camera's whole view into one panorama (cvPano, written
+        // by pitchiq/experiments/pincal.py through the Admin SDK, so no client
+        // write) and waits for a coach to pin landmarks on it (cvPins, the
+        // calibrate page). The same split as cvMapping: the picture is the
+        // machine's, the pins are a human's.
+        //
+        // Coaches only. A pin moved by a few pixels moves every position the
+        // pipeline reports, which is the coach's call, not the tablet's.
+        match /cvPano/{part} {
+          allow get, list: if isCoach(t);
+          allow write: if false;
+        }
+
+        match /cvPins/{half} {
+          allow get, list: if isCoach(t);
+
+          allow create, update: if isCoach(t)
+            && half in ['h1', 'h2']
+            && request.resource.data.keys().hasOnly(
+                 ['pins', 'w', 'h', 'updatedAt', 'updatedBy'])
+            && request.resource.data.pins is map
+            // 23 landmarks have names; the cap leaves room and no more. The
+            // pipeline ignores names it does not know and checks each pin
+            // against the others before it uses any.
+            && request.resource.data.pins.size() <= 40
+            && request.resource.data.w is int
+            && request.resource.data.h is int
+            && request.resource.data.updatedBy == uid()
+            && isTimestampNow(request.resource.data.updatedAt);
+
+          allow delete: if isCoach(t);
+        }
+
         // ---- cvReview: a human's verdict on what the pipeline claimed ----
         //
         // The same split as cvMapping, for the same reason. cvStats says what

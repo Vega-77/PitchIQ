@@ -419,6 +419,16 @@
             </div>
         </div>
 
+        <!-- Only while the video's processing waits for the coach's pitch pins
+             (pitchiq/experiments/pincal.py put a panorama on the match). -->
+        <div class="banner warn hidden no-print" id="match-pins">
+            <div>
+                <h3>The video is waiting for you to pin the pitch</h3>
+                <p id="match-pins-text"></p>
+                <p id="match-pins-links" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></p>
+            </div>
+        </div>
+
         <!-- Only when a goal was tagged or deleted after the reports went out. -->
         <div class="banner warn hidden" id="match-stale">
             <div>

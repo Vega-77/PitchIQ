@@ -14,10 +14,20 @@ this command prints when each one starts and ends.
   1. halves     where each half starts and ends in the video (`--h1/--h2`, or
                 `experiments/halves.py`'s guess, to the minute), written into
                 `pitchiq/balltrack/halves.json` as game <xx>
-  2. camera     the pin-free camera calibration (`experiments/autocal_run.py`):
-                one minute of the first half for the camera, then each half with
-                that camera; `experiments/cal_health.py` then checks it and the
-                run stops if the half looks wrong (`--trust-cal` carries on)
+  2. camera     the coach's pitch pins (`experiments/pincal.py`): each half
+                stitched into one colour panorama of the camera's view, the
+                first half's put on the match as soon as it exists; the coach
+                pins it on the site (the match page links to the calibrate
+                page) and the run waits for the pins (`--no-wait` stops
+                instead). If the camera stayed put between the halves the
+                pins carry to the second half; if not, it is put up too. A pin
+                the others disagree with is named on the pin page and the run
+                waits for new ones. Then both halves are calibrated from the
+                pins together, and `experiments/cal_health.py` checks each; the
+                run stops if a half looks wrong (`--trust-cal` carries on).
+                Without --team/--match, pin `pano_rgb.jpg` on the calibrate
+                page by hand and save `pins.json` beside it. `--no-pins` uses
+                the pin-free calibration (`experiments/autocal_run.py`) instead
   3. pass       the ball and the players over each half (`balltrack/half.py`)
   4. map        the top-down map of each half (`experiments/wholemap.py`)
   5. stats      the pipeline report of each half from the pass's player
@@ -31,7 +41,8 @@ first half comes from the map (where each team's keeper and players stand)
 unless `--attacks-first` says it; the run stops if the two halves' maps do not
 show the teams changing ends.
 
-Roughly 10 hours a game on this PC: calibration about 1 h a half, the pass
+Roughly 10 hours a game on this PC, plus however long the coach takes to pin:
+the panoramas about 25 min a half, the calibration 5 min a half, the pass
 2-3 h a half (longer at night), the map 15-30 min a half, the stats about 1 h
 a half. Everything runs one step at a time.
 
@@ -71,6 +82,9 @@ CAMERA_FRAMES = 1800  # a minute of the first half for the camera alone
 CAMERA_TRIES = (0.25, 0.5, 0.75, 0.1, 0.9)  # where in the half to try that minute
 MIN_MINUTES = 1.0  # per-player rows shorter than this are left out (Firestore's 1 MB a document)
 MAP_PROCS = 8
+SITE = os.environ.get('PIQ_SITE', 'https://vega-77.github.io/PitchIQ/')
+PIN_POLL_S = 60  # how often the run looks for the coach's pins
+PIN_REMIND_S = 1800  # and how often it says it is still waiting
 STEPS = ('halves', 'camera', 'pass', 'map', 'stats', 'publish')
 
 
@@ -181,9 +195,11 @@ def check_video(path: Path) -> None:
 
 def check_site(a) -> None:
     """The key and the match exist, read-only, so a 10-hour run cannot fail at its last step."""
-    if a.no_publish or a.plan:
+    if a.plan:
         return
     if not (a.team and a.match):
+        if a.no_publish:
+            return  # no site at all: the pins come from a file (see offer)
         raise Stop(
             'publishing needs --team and --match (--list-matches prints them), or pass --no-publish'
         )
@@ -311,28 +327,186 @@ def step_camera(r: Run) -> None:
     todo = [t for t in r.tags if not registered(t)]
     if not todo:
         r.say('camera: both halves already calibrated')
-    elif r.a.plan:
-        r.say(f'camera: to do for {", ".join(todo)} (about 1 h a half)')
-        return
+    elif r.a.no_pins:
+        step_camera_auto(r, halves, todo)
     else:
-        cam = camera_minute(r, halves[0])
-        for t, (lo, hi) in zip(r.tags, halves):
-            if t in todo:
-                r.py(
-                    f'camera_{t}',
-                    'pitchiq.experiments.autocal_run',
-                    t,
-                    lo,
-                    hi,
-                    '--lines',
-                    r.a.lines,
-                    '--camera',
-                    cam,
-                )
-                if not registered(t):
-                    raise Stop(f'autocal finished but wrote no {t}_reg.npz / {t}_venue.npz')
+        step_pins(r, halves)
+    if r.a.plan and todo:
+        return
     for t in r.tags:
         health(r, t)
+
+
+def step_camera_auto(r: Run, halves, todo) -> None:
+    """--no-pins: the pin-free calibration (autocal), for a field it can read alone."""
+    if r.a.plan:
+        r.say(f'camera (no pins): to do for {", ".join(todo)} (about 1 h a half)')
+        return
+    cam = camera_minute(r, halves[0])
+    for t, (lo, hi) in zip(r.tags, halves):
+        if t in todo:
+            r.py(
+                f'camera_{t}', 'pitchiq.experiments.autocal_run', t, lo, hi,
+                '--lines', r.a.lines, '--camera', cam,
+            )  # fmt: skip
+            if not registered(t):
+                raise Stop(f'autocal finished but wrote no {t}_reg.npz / {t}_venue.npz')
+
+
+# The coach's pins (experiments/pincal.py and the calibrate page). Each half gets
+# autocal's gather, a loop closure and a colour panorama (about 25 min). The first
+# half's panorama goes on the match as soon as it exists, so the coach can pin while
+# the second half is prepared. If the tripod stayed put, the first half's pins carry
+# over and the coach pins once; otherwise the second half needs its own.
+
+
+def pin_url(r: Run, tag: str) -> str:
+    return f'{SITE}calibrate/?team={r.a.team}&match={r.a.match}&half=h{tag[-1]}'
+
+
+def others_of(r: Run, tag: str, moved: bool) -> list[str]:
+    return [] if moved else [t for t in r.tags if t != tag]
+
+
+def step_pins(r: Run, halves) -> None:
+    from pitchiq.experiments import pincal as PC
+
+    h1, h2 = r.tags
+    if r.a.plan:
+        for t in r.tags:
+            if (PC.here(t) / 'pins.json').exists():
+                what = 'pins in, calibration to do (5 min)'
+            elif PC.prepped(t):
+                what = 'panorama ready, waiting for pins'
+            else:
+                what = 'panorama to do (about 25 min), then the coach pins it'
+            r.say(f'camera {t}: {what}')
+        return
+    db = None
+    if r.a.team and r.a.match:
+        from pitchiq.publish_to_firestore import _client
+
+        db = _client()
+    for t, (lo, hi) in zip(r.tags, halves):
+        if not PC.prepped(t):
+            r.py(f'pano_{t}', 'pitchiq.experiments.pincal', 'prep', t, lo, hi, '--lines', r.a.lines)
+        if t == h1:
+            offer(r, db, h1)
+    xfer = PC.here(h2) / f'transfer_from_{h1}.json'
+    if not xfer.exists():
+        r.py(f'transfer_{h2}', 'pitchiq.experiments.pincal', 'transfer', h1, h2, check=False)
+    moved = not json.loads(xfer.read_text())['ok']
+    if moved:
+        r.say(f'camera: it moved between the halves, so {h2} needs pins of its own')
+        offer(r, db, h2)
+    else:
+        r.say(f"camera: it stayed put, so {h1}'s pins will carry to {h2}")
+
+    need = [h1, h2] if moved else [h1]
+    while not pins_fit(r, db, moved):
+        pass  # the pins were turned down and the coach told why: wait for new ones
+    if db is not None:
+        for t in need:
+            if (PC.here(t) / 'pins_rejected.json').exists():
+                PC.mark_problem(db, r.a.team, r.a.match, int(t[-1]), '')
+    for t in r.tags:
+        if not registered(t):
+            other = others_of(r, t, moved)
+            args = ['--with', *other] if other else []
+            r.py(f'pincal_{t}', 'pitchiq.experiments.pincal', 'cal', t, *args, '--install')
+            if not registered(t):
+                raise Stop(f'pincal finished but installed no {t}_reg.npz / {t}_venue.npz')
+
+
+def offer(r: Run, db, tag: str) -> None:
+    """Put a half's panorama on the match (once) for the coach to pin."""
+    from pitchiq.experiments import pincal as PC
+
+    if (PC.here(tag) / 'pins.json').exists():
+        return
+    if db is None:
+        r.say(
+            f'camera {tag}: pin {PC.here(tag) / "pano_rgb.jpg"} on the calibrate page '
+            f'(the panorama of a panning camera) and save its pins.json beside it'
+        )
+        return
+    sent = r.out / f'pano_sent_{tag}.json'
+    if not sent.exists():
+        PC.upload_pano(db, r.a.team, r.a.match, int(tag[-1]), tag)
+        sent.write_text(json.dumps({'at': time.ctime()}))
+    r.say(f'camera {tag}: the panorama is on the match; the coach pins it at {pin_url(r, tag)}')
+
+
+def wait_for_pins(r: Run, db, tag: str) -> None:
+    """Until pins.json exists: fetched from the match, or saved there by hand."""
+    from pitchiq.experiments import pincal as PC
+
+    path = PC.here(tag) / 'pins.json'
+    rejected = PC.here(tag) / 'pins_rejected.json'
+    told = 0.0
+    while not path.exists():
+        got = PC.read_pins(db, r.a.team, r.a.match, int(tag[-1])) if db is not None else None
+        if got and rejected.exists() and json.loads(rejected.read_text()).get('at') == got['at']:
+            got = None  # the pins already turned down: wait for the coach to save new ones
+        if got:
+            path.write_text(json.dumps(got, indent=1))
+            r.say(f'camera {tag}: {len(got["pins"])} pins from the match (saved {got["at"]})')
+            return
+        if r.a.no_wait or db is None:
+            where = pin_url(r, tag) if db is not None else str(path)
+            raise Stop(f'{tag} has no pins yet ({where}). Run the same command once they are in.')
+        if time.time() - told > PIN_REMIND_S:
+            r.say(f'camera {tag}: waiting for the coach to pin {pin_url(r, tag)}')
+            told = time.time()
+        time.sleep(PIN_POLL_S)
+
+
+def pins_fit(r: Run, db, moved: bool) -> bool:
+    """Wait for the pins each half needs, carry the first half's over if the camera
+    stayed put, and check every pin against the rest (seconds, before the 5-minute
+    calibration). False when a set was turned down: it is set aside and the pin page
+    names the pin, and the caller waits for new ones."""
+    from pitchiq.experiments import pincal as PC
+
+    h1, h2 = r.tags
+    for t in [h1, h2] if moved else [h1]:
+        wait_for_pins(r, db, t)
+    if not moved:
+        carried = PC.carry_pins(h1, h2)
+        (PC.here(h2) / 'pins.json').write_text(json.dumps(carried, indent=1))
+    for t in r.tags:
+        try:
+            fit = PC.fit_pins(t, others_of(r, t, moved), log=lambda s: None)
+        except PC.BadPins as e:
+            reject(r, db, t if moved else h1, str(e))  # carried pins are the first half's
+            return False
+        worst = max(fit['worst'].items(), key=lambda kv: kv[1], default=('none', 0.0))
+        r.say(
+            f'camera {t}: {len(fit["names"])} pins; the worst, left out, is '
+            f'{worst[1]:.0f} px off ({worst[0]})'
+        )
+    return True
+
+
+def reject(r: Run, db, tag: str, why: str) -> None:
+    """Pins the solve cannot trust: set aside and the coach told why. Stops the run
+    when nobody is there to fix them (--no-wait, or no site)."""
+    from pitchiq.experiments import pincal as PC
+
+    (PC.here(tag) / 'pins.json').replace(PC.here(tag) / 'pins_rejected.json')
+    for t in r.tags:
+        carried = PC.here(t) / 'pins.json'
+        if t != tag and carried.exists() and json.loads(carried.read_text()).get('from') == tag:
+            carried.unlink()
+    r.say(f'camera {tag}: the pins do not fit ({why}); set aside as pins_rejected.json')
+    if db is not None:
+        PC.mark_problem(db, r.a.team, r.a.match, int(tag[-1]), why)
+    if db is None or r.a.no_wait:
+        where = pin_url(r, tag) if db is not None else str(PC.here(tag))
+        raise Stop(
+            f'the pins for {tag} do not fit: {why} ({where}). '
+            'Run the same command once they are saved again.'
+        )
 
 
 def camera_minute(r: Run, h1: tuple[int, int]) -> str:
@@ -354,8 +528,8 @@ def camera_minute(r: Run, h1: tuple[int, int]) -> str:
             return tag
     raise Stop(
         f'the pin-free calibration found no pitch in {len(CAMERA_TRIES)} stretches of the first half '
-        f'(logs/camera_{r.g}cam*.log). Wrong --lines colour? Otherwise this field needs pins '
-        '(the Pitch Pins page), as Piscataway, Colonia and Woodbridge did.'
+        f'(logs/camera_{r.g}cam*.log). Wrong --lines colour? Otherwise this field needs pins: '
+        'run without --no-pins and the coach pins it on the site.'
     )
 
 
@@ -571,6 +745,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         '--trust-cal', action='store_true', help='carry on when the calibration check fails'
+    )
+    p.add_argument(
+        '--no-wait', action='store_true', help='stop, rather than wait, while pins are missing'
+    )
+    p.add_argument(
+        '--no-pins',
+        action='store_true',
+        help='calibrate without pins (autocal: only for a field it can read alone)',
     )
     p.add_argument(
         '--final', action='store_true', help='allow the map of a held out half (scored once)'
