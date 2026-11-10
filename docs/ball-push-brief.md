@@ -100,12 +100,31 @@ find out why before you change anything.
   links). They hold this machine's traps and every past result. Read the
   ball-related ones before planning.
 
-## Already tried: don't repeat these
+## Improvement is the measure
 
-The exception: you can name what is different this time and why it should
-change the result. "More intense" is welcome when the earlier result points
-there (for example more data, or a different stage). It is not welcome as a
-re-run.
+What counts is beating the baseline on the scoreboard, not how new an idea is.
+
+- **Ratchet.** When a change beats the current best and its verifier agrees,
+  keep it. It becomes the new baseline that every later idea builds on and is
+  scored against, so gains stack.
+- **Old ideas are welcome in a new form.** Reworking a past idea is fine, and
+  so is combining it with something else or pushing it harder (more data,
+  another stage, another way of building it). Each such attempt goes in the
+  ledger as "rework of X", with what is different and why that should change
+  the result. Re-running a dead idea the same way is not allowed.
+- **Keep a mix.** At any time, at least one line of work builds on the current
+  best, and at least one tries something not in the list below.
+- **Unstick.** If 12 hours pass with no kept gain, re-rank:
+  - rerun the funnel on the current best
+  - move effort to the stage losing the most balls
+  - try a family of ideas not yet touched
+
+  Write down why the earlier lines stalled.
+
+## Already tried: how each went
+
+Treat these as results to build on or route around, not as a ban. Each needs
+the "rework of X" note above before it is tried again.
 
 - **Detector swaps:** COCO YOLOv8n, a soccer YOLO11n, WASB whole-frame and
   tiled. All see the ball sometimes; none rank it above scenery. Also dead:
@@ -154,6 +173,7 @@ re-run.
   outputs before running a full pass, which takes about an hour a half.
 - **Keep a ledger** in `PitchIQ-data/ball-push/LEDGER.md`. Every idea gets:
   - what it is
+  - new, or "rework of X" with what is different
   - why it might work
   - the exact command
   - dev and held-out numbers
@@ -182,7 +202,8 @@ You may ask for more clicks: a new Ball Clicker batch of a few hundred frames.
 **Every hour, two things:**
 
 1. A short push notification:
-   - the current dev score (right / wrong / missed and both ratios)
+   - the current best dev score (right / wrong / missed and both ratios),
+     and the change from V23
    - what changed since the last hour
    - what is running now
 2. An update to one private live page, a claude.ai artifact named "Ball Push".
@@ -202,14 +223,15 @@ The pushes are for a phone: short, plain words, numbers first.
 
 ## Deadline and handoff
 
-Everything stops by **Sunday 2026-11-15, 11:59 PM Pacific** (Monday 2:59 AM
-Eastern, the PC's clock). After that the plan that pays for this run ends.
+Everything stops by **Monday 2026-11-16, 11:59 PM Pacific**. That is Tuesday
+2:59 AM Eastern on the PC's clock, and 08:59 CET on 2026-11-17. After that the
+plan that pays for this run ends.
 
-- **6 PM Pacific:** start no new experiments.
-- **10 PM Pacific:** have the handoff done.
+- **6 PM Pacific on Monday (9 PM Eastern):** start no new experiments.
+- **10 PM Pacific (1 AM Eastern):** have the handoff done.
 
 The handoff is a full report another model can pick up cold:
-`PitchIQ-data/HANDOFF-2026-11-15-ball.md`, with the same content on the live
+`PitchIQ-data/HANDOFF-2026-11-16-ball.md`, with the same content on the live
 page. It covers:
 - the best version: its commits, its exact scores on both sets, and how to
   reproduce them
