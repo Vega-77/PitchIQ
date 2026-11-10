@@ -195,7 +195,17 @@ def run(name, F):
             win = (int(k[1]), float(k[2]), int(k[3]), int(k[4]) if len(k) > 4 else 1)
     for fr in F:
         fr['s'] = rv.A * fr['p'] + (1 - rv.A) * fr['s0']
-    if win is not None:
+    import motionvar
+
+    mkw = motionvar.parse(name)
+    # fill-only variants share the tracker's picks: keep them per piece, keyed by the tracker part
+    tkey = '+'.join(q for q in name.split('+') if q.split(':')[0] not in ('fill', 'sfill', 'fillk', 'fillb')) or 'base'
+    memo = F[0].setdefault('_trk', {})
+    if tkey in memo and win is None:
+        base = memo[tkey]
+    elif mkw is not None:
+        base = motionvar.track_acc(F, **mkw)
+    elif win is not None:
         base, full = track_floor(F, -np.inf if floor is None else floor, W if floor is not None else np.inf,
                                  conf if floor is not None else 2.0, off_score=off, win=win)
         F[0]['_full'] = full
@@ -203,7 +213,19 @@ def run(name, F):
         base = B.track_ball(F, return_drift=12.0, return_gate=2.0, **dict(rv.BASE, off_score=off))
     else:
         base = track_floor(F, floor, W, conf, off_score=off)
-    out = gap_fill.fill(F, base)
+    memo[tkey] = base
+    fkw = motionvar.parse_fill(name)
+    bkw = motionvar.parse_fillb(name)
+    if bkw is not None:
+        out = motionvar.best_fill(F, base, **bkw)
+        F[0]['_cont'] = np.array([o is not None for o in gap_fill.fill(F, base, **{k: v for k, v in bkw.items() if k not in ('pmin', 'w')})])
+    elif fkw is not None and 'g' in fkw:
+        out = motionvar.smooth_fill(F, base, **fkw)
+    else:
+        out = gap_fill.fill(F, base, **(fkw or {}))
+    if motionvar.keeps_runs(name):
+        k0 = {k: v for k, v in (fkw or {}).items() if k not in ('pmin', 'g')}
+        F[0]['_cont'] = np.array([o is not None for o in gap_fill.fill(F, base, **k0)])
     src = np.array([0 if o is None else (1 if b is not None else 2) for b, o in zip(base, out)], np.int8)
     for fr in F:
         fr['s'] = fr['s0'].copy()

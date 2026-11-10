@@ -24,7 +24,7 @@ sys.path.insert(0, HERE)
 import common  # noqa: E402
 
 BT, SCR = common.BT, common.SCR
-OUT = os.path.join(common.OUT, 'replay')
+OUT = os.environ.get('RP_OUT') or os.path.join(common.OUT, 'tracker', 'replay')
 DEV = os.environ.get('RP_TAGS', 'nb1,ww1,ww2,eb1,eb2,scrimh1,scrimh2,wh2,wb1,pi2,co2').split(',')
 CLS = None
 
@@ -71,6 +71,8 @@ def piece(job):
         fl = F[0].pop('_full', None)
         if fl is not None:
             out[nm + '#full'] = (int(fl.sum()), len(fl))
+        # frames that count as ringed for the short-run rule though the variant draws nothing there
+        out[nm + '#cont'] = F[0].pop('_cont', None)
         q = np.array([np.nan if j is None else F[i]['p'][j] for i, j in enumerate(o)])
         x = np.array([np.nan if j is None else F[i]['x'][j] for i, j in enumerate(o)])
         y = np.array([np.nan if j is None else F[i]['y'][j] for i, j in enumerate(o)])
@@ -112,6 +114,9 @@ def main():
     from pitchiq.balltrack import ballgate
     from pitchiq.experiments.clicker import clickscore as cs
 
+    if os.environ.get('RP_LOSTP'):  # the gate's bar on the rolling median score (shipped 1.5); -99 = no gate
+        ballgate.LOST_P = float(os.environ['RP_LOSTP'])
+
     items = {it['id']: it for it in json.load(open(os.path.join(cs.ROOT, 'items_all.json')))['items']}
     A = cs.answers(os.path.join(cs.ROOT, 'db'))
     jobs = []
@@ -147,11 +152,14 @@ def main():
             Y = X.copy()
             S = np.zeros(n, np.int8)
             Q, SX, SY, S0, FD, IN = (X.copy() for _ in range(6))
+            CT = np.zeros(n, bool)
             for k, (pt, ab, out, best, _) in enumerate(R):
                 i = ab - lo
                 m = owner[i] == k
                 x, y, s, q, sx, sy, s0, fd, inb = out[nm]
                 X[i[m]], Y[i[m]], S[i[m]], Q[i[m]] = x[m], y[m], s[m], q[m]
+                if out.get(nm + '#cont') is not None:
+                    CT[i[m]] = out[nm + '#cont'][m]
                 # stabilised coordinates are per piece: kept for speeds within a piece only
                 SX[i[m]], SY[i[m]], S0[i[m]], FD[i[m]], IN[i[m]] = sx[m], sy[m], s0[m], fd[m], inb[m]
             os.makedirs(os.path.join(OUT, 'replay_cache'), exist_ok=True)
@@ -162,7 +170,7 @@ def main():
             if gate0 is None and os.environ.get('RP_GATE') == 'base':
                 gate0 = g  # the first pass: base's gate, then held for every variant
                 continue
-            flash = ballgate.short_runs(on) | g
+            flash = ballgate.short_runs(on | CT) | g
             c = tot[nm]
             for iid, a in want:
                 f = int(items[iid]['f'])
