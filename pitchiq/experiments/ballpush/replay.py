@@ -73,9 +73,11 @@ def piece(job):
             out[nm + '#full'] = (int(fl.sum()), len(fl))
         # frames that count as ringed for the short-run rule though the variant draws nothing there
         out[nm + '#cont'] = F[0].pop('_cont', None)
+        syn = [isinstance(j, tuple) for j in o]  # synthetic picks (kin variants): ('syn', x, y) in source px
+        x = np.array([np.nan if j is None else gap_fill.xy(F[i], j)[0] for i, j in enumerate(o)])
+        y = np.array([np.nan if j is None else gap_fill.xy(F[i], j)[1] for i, j in enumerate(o)])
+        o = [None if k else j for j, k in zip(o, syn)]
         q = np.array([np.nan if j is None else F[i]['p'][j] for i, j in enumerate(o)])
-        x = np.array([np.nan if j is None else F[i]['x'][j] for i, j in enumerate(o)])
-        y = np.array([np.nan if j is None else F[i]['y'][j] for i, j in enumerate(o)])
         sx = np.array([np.nan if j is None else F[i]['sx'][j] for i, j in enumerate(o)])
         sy = np.array([np.nan if j is None else F[i]['sy'][j] for i, j in enumerate(o)])
         s0 = np.array([np.nan if j is None else F[i]['s0'][j] for i, j in enumerate(o)])
@@ -185,7 +187,8 @@ def main():
                     c['missed'] += not ring
                 else:
                     c['out_ring'] += ring
-                per[nm][iid] = dict(half=tag, v=a['v'], ring=ring, right=bool(chk[1]), src=int(S[i]) if 0 <= i < n else 0)
+                dd = float(np.hypot(X[i] - a['x'], Y[i] - a['y'])) if (a['v'] == 'ball' and 0 <= i < n and np.isfinite(X[i])) else None
+                per[nm][iid] = dict(half=tag, v=a['v'], ring=ring, right=bool(chk[1]), src=int(S[i]) if 0 <= i < n else 0, d=dd)
             c.setdefault('on_frames', 0)
             c['on_frames'] += int((on & ~flash).sum())
     for nm in names:

@@ -199,7 +199,7 @@ def run(name, F):
 
     mkw = motionvar.parse(name)
     # fill-only variants share the tracker's picks: keep them per piece, keyed by the tracker part
-    tkey = '+'.join(q for q in name.split('+') if q.split(':')[0] not in ('fill', 'sfill', 'fillk', 'fillb')) or 'base'
+    tkey = '+'.join(q for q in name.split('+') if q.split(':')[0] not in ('fill', 'sfill', 'fillk', 'fillb', 'kin')) or 'base'
     memo = F[0].setdefault('_trk', {})
     if tkey in memo and win is None:
         base = memo[tkey]
@@ -227,6 +227,12 @@ def run(name, F):
         k0 = {k: v for k, v in (fkw or {}).items() if k not in ('pmin', 'g')}
         F[0]['_cont'] = np.array([o is not None for o in gap_fill.fill(F, base, **k0)])
     src = np.array([0 if o is None else (1 if b is not None else 2) for b, o in zip(base, out)], np.int8)
+    for q in name.split('+'):
+        if q.split(':')[0] == 'kin':
+            import kin
+
+            kq = q.split(':')
+            out, src = kin.bridge(F, out, src, int(kq[1]), kq[2] if len(kq) > 2 else 'lin')
     for fr in F:
         fr['s'] = fr['s0'].copy()
         fr['p'] = fr['p_raw'].copy()
