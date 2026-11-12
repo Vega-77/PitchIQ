@@ -135,6 +135,39 @@ def cmd_run(run, nm):
     print('TN RUN DONE', flush=True)
 
 
+def cmd_back(run, nm):
+    """Backward tracks for the gaps whose forward track missed (cmd_run skips them) -> <tag>_back.npy; for PARTIAL."""
+    import cv2
+    import torch
+    sys.path.insert(0, os.path.join(MAIN, 'tapnext_bridge', 'tapnet'))
+    from tapnet.tapnextpp.votsp2026.model import TAPNextPP
+    from pitchiq import extras
+    extras.tapnext_missing = lambda: []
+    from pitchiq.balltrack.tapnext_bridge import tn_engine as E
+    net = TAPNextPP.from_checkpoint(os.path.join(MAIN, 'tapnext_bridge', 'tapnextpp_512.ckpt'), device='cuda', input_resolution=E.S)._model
+    D, _ = load(run, nm)
+    od = outdir(run, nm)
+    for tag, (z, want) in D.items():
+        ip, op = os.path.join(od, '%s.npy' % tag), os.path.join(od, '%s_back.npy' % tag)
+        if os.path.exists(op) or not os.path.exists(ip):
+            continue
+        lo, X, Y = int(z['lo']), z['x'], z['y']
+        have = {(int(a), int(b), int(d)) for a, b, d, _ in np.load(ip, allow_pickle=True)}
+        cap = cv2.VideoCapture(VID[tag][0])
+        res = []
+        for a, b, d in sorted(have):
+            if d != 1 or (a, b, -1) in have:
+                continue
+            fr = E.read_range(cap, a, b, set(range(a, b + 1)))
+            G = E.Group(net, [(X[b - lo], Y[b - lo])])
+            with torch.amp.autocast('cuda', dtype=torch.float16):
+                xy = np.array([G.step([fr[f]])[0][0] for f in range(b, a - 1, -1)])
+            res.append((a, b, -1, xy))
+            print('%s  gap %d..%d  back' % (tag, a, b), flush=True)
+        np.save(op, np.array(res + [(0, 0, 0, np.zeros((1, 2)))], dtype=object), allow_pickle=True)
+    print('TN BACK DONE', flush=True)
+
+
 def cmd_score(run, nm):
     from pitchiq.balltrack import ballgate
     D, cs = load(run, nm)
@@ -152,13 +185,18 @@ def cmd_score(run, nm):
         p = os.path.join(od, '%s.npy' % tag)
         for a, bb, d, xy in (np.load(p, allow_pickle=True) if os.path.exists(p) else []):
             tr[(int(a), int(bb), int(d))] = np.asarray(xy, float)
+        p = os.path.join(od, '%s_back.npy' % tag)
+        if PARTIAL and os.environ.get('BACK') and os.path.exists(p):
+            for a, bb, d, xy in np.load(p, allow_pickle=True):
+                if d:
+                    tr[(int(a), int(bb), int(d))] = np.asarray(xy, float)
         for i, j in gaps(z, want, tag)[0]:
             f, g = tr.get((lo + i, lo + j, 1)), tr.get((lo + i, lo + j, -1))
             if f is None:
                 continue
             st['gaps'] += 1
             why = None
-            if g is None or np.hypot(*(g[-1] - (X[i], Y[i]))) > ANC:
+            if g is None or np.hypot(*(g[-1] - (X[i], Y[i]))) > ANC or np.hypot(*(f[-1] - (X[j], Y[j]))) > ANC:
                 why = 'land'
             elif np.hypot(*(f[1:-1] - g[::-1][1:-1]).T).max() > AGR:
                 why = 'agree'
@@ -213,4 +251,4 @@ def cmd_score(run, nm):
 
 
 if __name__ == '__main__':
-    dict(jobs=cmd_jobs, run=cmd_run, score=cmd_score)[sys.argv[1]](sys.argv[2], sys.argv[3])
+    dict(jobs=cmd_jobs, run=cmd_run, back=cmd_back, score=cmd_score)[sys.argv[1]](sys.argv[2], sys.argv[3])
