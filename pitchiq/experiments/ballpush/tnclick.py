@@ -34,6 +34,10 @@ TN_TAGS = [t for t in os.environ.get('TN_TAGS', '').split(',') if t]
 EXPORT = os.environ.get('EXPORT')
 # PARTIAL=A:N: in a gap the rule rejects (both tracks exist), still ring the runs of >= N frames where the two
 # tracks are within A px of each other (their midpoint).  Off by default.
+# TN_SET=held: the held-out halves; RC=<replay_cache dir> and BPNAME=<name> (bp_<name>_<tag>.npz) point at their replay.
+TAGS = common.HELD if os.environ.get('TN_SET') == 'held' else common.DEV
+RC = os.environ.get('RC')
+BPNAME = os.environ.get('BPNAME')
 PARTIAL = [float(v) for v in os.environ['PARTIAL'].split(':')] if os.environ.get('PARTIAL') else None
 
 
@@ -55,10 +59,10 @@ def load(run, nm):
     items = {it['id']: it for it in json.load(open(os.path.join(cs.ROOT, 'items_all.json')))['items']}
     A = cs.answers(os.path.join(cs.ROOT, 'db'))
     out = {}
-    for tag in common.DEV:
+    for tag in TAGS:
         if TN_TAGS and tag not in TN_TAGS:
             continue
-        f = glob.glob('%s/trk2/%s/replay_cache/*_%s_%s.npz' % (BP, run, nm.replace(':', '_'), tag))
+        f = glob.glob('%s/*_%s_%s.npz' % (RC or '%s/trk2/%s/replay_cache' % (BP, run), nm.replace(':', '_'), tag))
         f = [p for p in f if not os.path.basename(p).startswith('bp_')]
         if not f:
             continue
@@ -189,7 +193,7 @@ def cmd_score(run, nm):
     st = dict(gaps=0, acc=0, land=0, agree=0, part=0)
     for tag, (z, want) in D.items():
         lo, n = int(z['lo']), len(z['src'])
-        b = np.load('%s/trk2/%s/replay_cache/bp_%s_global_%s.npz' % (BP, run, run, tag))
+        b = np.load('%s/bp_%s_%s.npz' % (RC or '%s/trk2/%s/replay_cache' % (BP, run), BPNAME or run + '_global', tag))
         bp = dict(zip(b['f'].tolist(), b['p'].tolist()))
         ballgate.best_p = lambda t, bp=bp: bp
         X, Y, S, CT = z['x'].copy(), z['y'].copy(), z['src'].copy(), z['cont'].astype(bool)
