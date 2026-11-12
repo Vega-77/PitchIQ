@@ -166,7 +166,7 @@ def main():
                 SX[i[m]], SY[i[m]], S0[i[m]], FD[i[m]], IN[i[m]] = sx[m], sy[m], s0[m], fd[m], inb[m]
             os.makedirs(os.path.join(OUT, 'replay_cache'), exist_ok=True)
             np.savez(os.path.join(OUT, 'replay_cache', '%s_%s_%s.npz' % (os.path.basename(d.rstrip('/')), nm.replace(':', '_'), tag)),
-                     lo=lo, x=X, y=Y, src=S, p=Q, sx=SX, sy=SY, s0=S0, feet=FD, inbox=IN, owner=owner)
+                     lo=lo, x=X, y=Y, src=S, p=Q, sx=SX, sy=SY, s0=S0, feet=FD, inbox=IN, owner=owner, cont=CT)
             on = (S > 0) & np.isfinite(X)
             g = ballgate.lost(tag, lo, on) if gate0 is None else gate0
             if gate0 is None and os.environ.get('RP_GATE') == 'base':
