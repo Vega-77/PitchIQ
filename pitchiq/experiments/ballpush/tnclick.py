@@ -26,6 +26,12 @@ BP = 'C:/Users/alexv/Desktop/Repos/PitchIQ-data/ball-push'
 VID = json.load(open('C:/Users/alexv/Desktop/Repos/PitchIQ-data/scratch-2026-10-26/halfvideo.json'))
 MAXGAP = int(os.environ.get('MAXGAP', 90))
 ANC, AGR = 20.0, 24.0
+# ALLGAPS=1: every gap of the half, not only those holding a click (the real pass; hours of GPU per half).
+# TN_TAGS=a,b: only these halves.  EXPORT=<dir>: score also writes <dir>/<tag>.npz (abs, x, y, src, ring) in the
+# p2d layout (src 1 tracker, 2 fill, 3 bridge; ring = after short-run and lost-stretch filters).
+ALLGAPS = bool(os.environ.get('ALLGAPS'))
+TN_TAGS = [t for t in os.environ.get('TN_TAGS', '').split(',') if t]
+EXPORT = os.environ.get('EXPORT')
 # PARTIAL=A:N: in a gap the rule rejects (both tracks exist), still ring the runs of >= N frames where the two
 # tracks are within A px of each other (their midpoint).  Off by default.
 PARTIAL = [float(v) for v in os.environ['PARTIAL'].split(':')] if os.environ.get('PARTIAL') else None
@@ -50,6 +56,8 @@ def load(run, nm):
     A = cs.answers(os.path.join(cs.ROOT, 'db'))
     out = {}
     for tag in common.DEV:
+        if TN_TAGS and tag not in TN_TAGS:
+            continue
         f = glob.glob('%s/trk2/%s/replay_cache/*_%s_%s.npz' % (BP, run, nm.replace(':', '_'), tag))
         f = [p for p in f if not os.path.basename(p).startswith('bp_')]
         if not f:
@@ -68,6 +76,11 @@ def gaps(z, want, tag):
     air, has = air_mask(tag, lo + np.arange(n))
     ci = sorted({f - lo for _, _, f in want if 0 <= f - lo < n})
     res, nair = [], 0
+    if ALLGAPS:
+        for i, j in zip(anc[:-1].tolist(), anc[1:].tolist()):
+            if 1 <= j - i - 1 <= MAXGAP and not air[i:j + 1].any():
+                res.append((i, j))
+        return res, nair, has
     for c in ci:
         k = np.searchsorted(anc, c)
         if k == 0 or k >= len(anc) or anc[k] == c:
@@ -84,7 +97,7 @@ def gaps(z, want, tag):
 
 
 def outdir(run, nm):
-    return os.path.join(BP, 'tn', run + '_' + nm.replace(':', '_').replace('+', '_') + ('' if MAXGAP == 90 else '_g%d' % MAXGAP))
+    return os.path.join(BP, 'tn', run + '_' + nm.replace(':', '_').replace('+', '_') + ('' if MAXGAP == 90 else '_g%d' % MAXGAP) + ('_all' if ALLGAPS else ''))
 
 
 def cmd_jobs(run, nm):
@@ -233,6 +246,10 @@ def cmd_score(run, nm):
             on = (s > 0) & np.isfinite(x)
             # the gate comes from the replay's own picks for both versions; bridged frames are not gated (f6b0c45)
             flash = ballgate.short_runs(on | CT) | (g0 & (s != 3))
+            if EXPORT and k == 'after':
+                os.makedirs(EXPORT, exist_ok=True)
+                np.savez(os.path.join(EXPORT, '%s.npz' % tag), abs=lo + np.arange(n), x=np.where(on, x, np.nan),
+                         y=np.where(on, y, np.nan), src=np.where(on, s, 0).astype(np.int8), ring=on & ~flash)
             for iid, a, fr in want:
                 i = fr - lo
                 ring = bool(0 <= i < n and on[i] and not flash[i])
