@@ -26,6 +26,9 @@ BP = 'C:/Users/alexv/Desktop/Repos/PitchIQ-data/ball-push'
 VID = json.load(open('C:/Users/alexv/Desktop/Repos/PitchIQ-data/scratch-2026-10-26/halfvideo.json'))
 MAXGAP = int(os.environ.get('MAXGAP', 90))
 ANC, AGR = 20.0, 24.0
+# PARTIAL=A:N: in a gap the rule rejects (both tracks exist), still ring the runs of >= N frames where the two
+# tracks are within A px of each other (their midpoint).  Off by default.
+PARTIAL = [float(v) for v in os.environ['PARTIAL'].split(':')] if os.environ.get('PARTIAL') else None
 
 
 def air_mask(tag, ab):
@@ -137,7 +140,7 @@ def cmd_score(run, nm):
     D, cs = load(run, nm)
     od = outdir(run, nm)
     T = {k: dict(right=0, wrong_ball=0, missed=0, out_ring=0) for k in ('before', 'after')}
-    st = dict(gaps=0, acc=0, land=0, agree=0)
+    st = dict(gaps=0, acc=0, land=0, agree=0, part=0)
     for tag, (z, want) in D.items():
         lo, n = int(z['lo']), len(z['src'])
         b = np.load('%s/trk2/%s/replay_cache/bp_%s_global_%s.npz' % (BP, run, run, tag))
@@ -154,13 +157,32 @@ def cmd_score(run, nm):
             if f is None:
                 continue
             st['gaps'] += 1
+            why = None
             if g is None or np.hypot(*(g[-1] - (X[i], Y[i]))) > ANC:
-                st['land'] += 1
+                why = 'land'
+            elif np.hypot(*(f[1:-1] - g[::-1][1:-1]).T).max() > AGR:
+                why = 'agree'
+            if why:
+                st[why] += 1
+                if PARTIAL and g is not None:
+                    gr = g[::-1]
+                    ok = np.hypot(*(f - gr).T) <= PARTIAL[0]
+                    ok[0] = ok[-1] = False
+                    u = 1
+                    while u < len(ok) - 1:
+                        if not ok[u]:
+                            u += 1
+                            continue
+                        v = u
+                        while ok[v + 1]:
+                            v += 1
+                        if v - u + 1 >= PARTIAL[1]:
+                            q = (f[u:v + 1] + gr[u:v + 1]) / 2
+                            X[i + u:i + v + 1], Y[i + u:i + v + 1], S[i + u:i + v + 1] = q[:, 0], q[:, 1], 3
+                            st['part'] += v - u + 1
+                        u = v + 1
                 continue
             g = g[::-1]
-            if np.hypot(*(f[1:-1] - g[1:-1]).T).max() > AGR:
-                st['agree'] += 1
-                continue
             L = j - i - 1
             w = np.arange(1, L + 1) / (L + 1.0)
             q = (1 - w)[:, None] * f[1:-1] + w[:, None] * g[1:-1]
@@ -184,7 +206,7 @@ def cmd_score(run, nm):
                     c['missed'] += not ring
                 else:
                     c['out_ring'] += ring
-    print('gaps run %(gaps)d  accepted %(acc)d  rejected: landing %(land)d  disagree %(agree)d' % st)
+    print('gaps run %(gaps)d  accepted %(acc)d  rejected: landing %(land)d  disagree %(agree)d  partial frames ringed %(part)d' % st)
     for k, c in T.items():
         print('%-7s right %3d  wrong on ball %3d  missed %3d  | out rings %2d  | wrong total %3d' % (
             k, c['right'], c['wrong_ball'], c['missed'], c['out_ring'], c['wrong_ball'] + c['out_ring']))
