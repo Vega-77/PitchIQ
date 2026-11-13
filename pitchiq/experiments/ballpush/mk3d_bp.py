@@ -50,6 +50,16 @@ def setup(ver, tag):
             continue
         if not os.path.exists(os.path.join(d, b)):
             shutil.copy2(p, d)
+    # nb2's reg has one ok registration 6 frames past its pan's end (the shipped pass ran nb2 in pieces and never
+    # reached it); ball_on_pitch indexes the pan cum with it.  Drop ok registrations outside the pan, in our copy only.
+    rp, pp = os.path.join(d, '%s_reg.npz' % tag), os.path.join(BT, '%span.npz' % tag)
+    if os.path.exists(rp) and os.path.exists(pp):
+        r, pn = dict(np.load(rp)), np.load(pp)
+        bad = r['ok'] & ((r['abs'] < int(pn['lo'])) | (r['abs'] > int(pn['hi'])))
+        if bad.any():
+            r['ok'] = r['ok'] & ~bad
+            np.savez(rp, **r)
+            print('%s: dropped %d registrations outside the pan' % (tag, bad.sum()), flush=True)
     return d
 
 
