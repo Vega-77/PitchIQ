@@ -24,6 +24,9 @@ import common  # noqa: E402
 MAIN = 'C:/Users/alexv/Desktop/Repos/PitchIQ/pitchiq/balltrack'
 BP = 'C:/Users/alexv/Desktop/Repos/PitchIQ-data/ball-push'
 VID = json.load(open('C:/Users/alexv/Desktop/Repos/PitchIQ-data/scratch-2026-10-26/halfvideo.json'))
+# one video per game: a held-out half reads its game's file (nb2 -> nb1's video, etc.)
+for _h, _d in (('nb2', 'nb1'), ('pi1', 'pi2'), ('wh1', 'wh2'), ('co1', 'co2'), ('wb2', 'wb1')):
+    VID.setdefault(_h, VID[_d])
 MAXGAP = int(os.environ.get('MAXGAP', 90))
 ANC, AGR = 20.0, 24.0
 # ALLGAPS=1: every gap of the half, not only those holding a click (the real pass; hours of GPU per half).
