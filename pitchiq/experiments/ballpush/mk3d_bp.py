@@ -26,6 +26,7 @@ PORT = 'C:/Users/alexv/Desktop/Repos/PitchIQ-data/ball-push/port'
 PY = sys.executable
 DATA_BP = 'C:/Users/alexv/Desktop/Repos/PitchIQ-data/ball-push'
 GATE_RUN = os.environ.get('GATE_RUN', 'ko1_s10')  # '' = the shipped classifier's scores
+GATE_NPZ = os.environ.get('GATE_NPZ')  # pattern with %s for the tag (held out: replay3_hk1/replay_cache/bp_cls_%s.npz)
 
 
 def setup(ver, tag):
@@ -105,7 +106,8 @@ def score(ver, tags):
         flash = match_video.short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
         if GATE_RUN and ver != 'V23':
             # the gate reads the classifier that made the picks (the self-trained one), not the shipped cls_C
-            b = np.load('%s/trk2/%s/replay_cache/bp_%s_global_%s.npz' % (DATA_BP, GATE_RUN, GATE_RUN, tag))
+            b = np.load(GATE_NPZ % tag if GATE_NPZ else
+                        '%s/trk2/%s/replay_cache/bp_%s_global_%s.npz' % (DATA_BP, GATE_RUN, GATE_RUN, tag))
             bp = dict(zip(b['f'].tolist(), b['p'].tolist()))
             match_video.ballgate.best_p = lambda t, bp=bp: bp
         g = match_video.ballgate.lost(tag, a0, match_video.ballgate.scored(P))
