@@ -41,6 +41,7 @@ EXPORT = os.environ.get('EXPORT')
 TAGS = common.HELD if os.environ.get('TN_SET') == 'held' else common.DEV
 RC = os.environ.get('RC')
 BPNAME = os.environ.get('BPNAME')
+ENDP = float(os.environ['ENDP']) if os.environ.get('ENDP') else None  # bridge only if both end frames' best score >= this
 PARTIAL = [float(v) for v in os.environ['PARTIAL'].split(':')] if os.environ.get('PARTIAL') else None
 
 
@@ -193,7 +194,7 @@ def cmd_score(run, nm):
     D, cs = load(run, nm)
     od = outdir(run, nm)
     T = {k: dict(right=0, wrong_ball=0, missed=0, out_ring=0) for k in ('before', 'after')}
-    st = dict(gaps=0, acc=0, land=0, agree=0, part=0)
+    st = dict(gaps=0, acc=0, land=0, agree=0, part=0, endp=0)
     for tag, (z, want) in D.items():
         lo, n = int(z['lo']), len(z['src'])
         b = np.load('%s/bp_%s_%s.npz' % (RC or '%s/trk2/%s/replay_cache' % (BP, run), BPNAME or run + '_global', tag))
@@ -216,7 +217,9 @@ def cmd_score(run, nm):
                 continue
             st['gaps'] += 1
             why = None
-            if g is None or np.hypot(*(g[-1] - (X[i], Y[i]))) > ANC or np.hypot(*(f[-1] - (X[j], Y[j]))) > ANC:
+            if ENDP is not None and min(bp.get(lo + i, -99.0), bp.get(lo + j, -99.0)) < ENDP:
+                why = 'endp'
+            elif g is None or np.hypot(*(g[-1] - (X[i], Y[i]))) > ANC or np.hypot(*(f[-1] - (X[j], Y[j]))) > ANC:
                 why = 'land'
             elif np.hypot(*(f[1:-1] - g[::-1][1:-1]).T).max() > AGR:
                 why = 'agree'
@@ -268,7 +271,7 @@ def cmd_score(run, nm):
                     c['missed'] += not ring
                 else:
                     c['out_ring'] += ring
-    print('gaps run %(gaps)d  accepted %(acc)d  rejected: landing %(land)d  disagree %(agree)d  partial frames ringed %(part)d' % st)
+    print('gaps run %(gaps)d  accepted %(acc)d  rejected: landing %(land)d  disagree %(agree)d  weak ends %(endp)d  partial frames ringed %(part)d' % st)
     for k, c in T.items():
         print('%-7s right %3d  wrong on ball %3d  missed %3d  | out rings %2d  | wrong total %3d' % (
             k, c['right'], c['wrong_ball'], c['missed'], c['out_ring'], c['wrong_ball'] + c['out_ring']))
