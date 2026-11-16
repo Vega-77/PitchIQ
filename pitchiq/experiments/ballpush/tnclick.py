@@ -191,6 +191,9 @@ def cmd_back(run, nm):
 
 def cmd_score(run, nm):
     from pitchiq.balltrack import ballgate
+    if os.environ.get('RP_LOSTP'):  # same override as replay.py; without it the score re-gated at the shipped 1.5
+        ballgate.LOST_P = float(os.environ['RP_LOSTP'])
+    print('gate bar %.2f' % ballgate.LOST_P, flush=True)
     D, cs = load(run, nm)
     od = outdir(run, nm)
     T = {k: dict(right=0, wrong_ball=0, missed=0, out_ring=0) for k in ('before', 'after')}
