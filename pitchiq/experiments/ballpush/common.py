@@ -1,7 +1,8 @@
 """Shared paths for the ball push: code runs from this worktree, pass outputs stay in the main checkout."""
 import os
 
-BT = 'C:/Users/alexv/Desktop/Repos/PitchIQ/pitchiq/balltrack'  # shipped pass outputs (read-only)
+# BP_BT: another folder of pass outputs (a re-detected half: giant_build.py), same file names
+BT = os.environ.get('BP_BT') or 'C:/Users/alexv/Desktop/Repos/PitchIQ/pitchiq/balltrack'  # shipped pass outputs (read-only)
 DATA = 'C:/Users/alexv/Desktop/Repos/PitchIQ-data'
 SCR = DATA + '/scratch-2026-10-26'  # the retrain's probes and out-of-fold scores (read-only)
 OUT = DATA + '/ball-push'  # everything the push writes
