@@ -474,10 +474,15 @@ class Match:
         return np.nanmean(C[:, tm], 0)
 
 
-def ball_track(tag, lo, hi, length, width):
+def ball_track(tag, lo, hi, length, width, ver=None):
     """The ball as match_video draws it (Hybrid 90 picks + flight chain, short flashes and
     ballgate's lost stretches left out), per frame lo..hi-1: image point, map point in
-    metres, ground point under an air ball, and kind ('ground', 'air' or '' = no ball)."""
+    metres, ground point under an air ball, and kind ('ground', 'air' or '' = no ball).
+
+    ver (--ball-ver, 2026-11-17): a ball-push run instead, read from PitchIQ-data/ball-push/port:
+    p2d/<ver>/<tag>.npz holds only the run's final rings (its own lost-ball gate already applied),
+    h3d_<ver>/<tag>_ball3dd.npz the shipped 3D chain run on them. Short flashes are left out as
+    above; the shipped ballgate is not applied (it reads the old classifier)."""
     import os
 
     cwd = os.getcwd()
@@ -485,11 +490,46 @@ def ball_track(tag, lo, hi, length, width):
         from pitchiq.balltrack import match_video as MV  # chdirs into its work folder
 
         os.chdir(MV.HG)
-        _, img, sb, gnd, kind = MV.ball(tag, lo, hi)
+        if ver:
+            _, img, sb, gnd, kind = _port_ball(MV, ver, tag, lo, hi)
+        else:
+            _, img, sb, gnd, kind = MV.ball(tag, lo, hi)
     finally:
         os.chdir(cwd)
     xy = sb * [length / 120.0, width / 80.0]  # StatsBomb units -> metres, as idlink's D
     return img, xy, gnd, np.array(kind)
+
+
+def _port_ball(MV, ver, tag, lo, hi):
+    """match_video.ball for a ball-push run (see ball_track)."""
+    port = Path(MV.HERE).parents[2] / 'PitchIQ-data' / 'ball-push' / 'port'  # Repos/PitchIQ-data
+    tr = MV.flight_model.Track(tag)
+    a0 = int(tr.abs[0])
+    B = np.load(port / f'h3d_{ver}' / f'{tag}_ball3dd.npz')
+    P = np.load(port / 'p2d' / ver / f'{tag}.npz')
+    assert int(P['abs'][0]) == a0 and len(P['abs']) == len(B['x']), (tag, int(P['abs'][0]), a0)
+    air = (B['state'] == 'air') & np.isfinite(B['x'])
+    flash = MV.short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
+    n = hi - lo
+    img, sb, gnd = (np.full((n, 2), np.nan) for _ in range(3))
+    kind = [''] * n
+    for k in range(n):
+        i = lo - a0 + k
+        if flash[i]:
+            continue
+        if air[i]:
+            q = np.linalg.solve(tr.A, [B['x'][i], B['y'][i], 1.0])
+            uv = q[:2] / q[2]
+            b_, g_ = tr.project(
+                np.full(2, i), np.array([[uv[0], uv[1], B['z'][i]], [uv[0], uv[1], 0.0]])
+            )
+            img[k], gnd[k], kind[k] = b_, g_, 'air'
+        elif P['src'][i] > 0 and np.isfinite(P['x'][i]):
+            img[k] = P['x'][i], P['y'][i]
+            kind[k] = 'ground'
+        if np.isfinite(B['x'][i]):
+            sb[k] = B['x'][i], B['y'][i]
+    return a0, img, sb, gnd, kind
 
 
 def portrait(img, box):
@@ -524,12 +564,12 @@ def _ink(bgr):
 
 
 class Video:
-    def __init__(self, M: Match, lo, hi, out: Path, crf=36, lines=False, ball=True):
+    def __init__(self, M: Match, lo, hi, out: Path, crf=36, lines=False, ball=True, ball_ver=None):
         from pitchiq.experiments.idlab import _Clip
 
         self.M, self.lo, self.hi, self.out = M, lo, hi, out
         self.lines = lines  # draw each team's lines (back, middle, front) on the map
-        self.ball = ball_track(M.tag, lo, hi, M.length, M.width) if ball else None
+        self.ball = ball_track(M.tag, lo, hi, M.length, M.width, ball_ver) if ball else None
         self.pos = {}  # entry -> its latest map place (x, y)
         self.present = {0: [], 1: []}  # entries on camera at this frame
         self.line_of = {}  # (team, map slot) -> the formation line it was in last
@@ -940,6 +980,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="draw each team's back, middle and front lines on the map",
     )
     ap.add_argument('--no-ball', action='store_true', help='leave the ball out')
+    ap.add_argument(
+        '--ball-ver',
+        default=None,
+        help='draw a ball-push run (PitchIQ-data/ball-push/port/<ver>) instead of the shipped ball',
+    )
     ap.add_argument('--final', action='store_true')
     ap.add_argument(
         '--formation',
@@ -978,7 +1023,7 @@ def main(argv=None) -> int:
             + '  '.join(f'{n} {e:.0f}' for n, e in sorted(errs.items(), key=lambda t: t[1]))
             + (f'   close: {" ".join(close_call(errs, form))}' if close_call(errs, form) else '')
         )
-    V = Video(M, lo, hi, out, crf=a.crf, lines=a.lines, ball=not a.no_ball)
+    V = Video(M, lo, hi, out, crf=a.crf, lines=a.lines, ball=not a.no_ball, ball_ver=a.ball_ver)
     V.run()
     print(
         f'{_clock(lo / M.fps)}..{_clock(hi / M.fps)} -> {out} ({out.stat().st_size / 1e6:.1f} MB)'
