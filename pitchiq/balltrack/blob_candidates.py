@@ -70,6 +70,7 @@ and it turns a proof into a guarantee.
 """
 
 import math
+import os
 import time
 
 import cv2
@@ -101,6 +102,12 @@ K2 = np.ones((2, 2), np.uint8)
 OPEN = True  # open the white mask with K2 (drops specks; also drops a far ball smaller than 2x2)
 SMALL = 6  # if set (0: off), a raw white component no bigger than SMALL px each way that the opening wiped out
 # entirely comes back (a far ball of a few pixels; 56 of the 156 dev clicks lost at DV 30 went this way)
+GIANT = 0  # if set (px; 0: off, the shipped behaviour), a white component at least this big is a pale surface (a
+# washed-out pitch), not a blob: inside it only pixels brighter than its own median V + GDV stay white, so a ball
+# lying on it becomes a blob of its own instead of one of PERCOMP peaks in half a frame (ball-push 2026-11-15)
+GDV = 30
+if os.environ.get('PIQ_GIANT'):  # an experiment's detector workers turn the rule on through this
+    GIANT = int(os.environ['PIQ_GIANT'])
 
 DIRS = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
 TR = 12  # half-window for the shared top-hat readings
@@ -285,6 +292,14 @@ def blobs(img, cmaj=None):
         white = cv2.morphologyEx(white, cv2.MORPH_OPEN, K2)
         if SMALL:
             white = white | small_back(raw, white)
+    if GIANT:
+        n0, lab0, st0, _ = cv2.connectedComponentsWithStats(white, 8)
+        for i in np.where(st0[1:, 4] >= GIANT)[0] + 1:
+            gx, gy, gw, gh = (int(q) for q in st0[i][:4])
+            sub = lab0[gy : gy + gh, gx : gx + gw] == i
+            vv = v[gy : gy + gh, gx : gx + gw]
+            c2 = int(np.median(vv[sub][::16])) + GDV
+            white[gy : gy + gh, gx : gx + gw][sub & (vv <= c2)] = 0
     n, lab, st, cent = cv2.connectedComponentsWithStats(white, 8)
     H, W = v.shape
     grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
