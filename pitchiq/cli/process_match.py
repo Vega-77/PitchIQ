@@ -154,6 +154,7 @@ class Run:
             os.environ,
             PIQ_VIDEO=str(a.video),
             PIQ_LINES=a.lines,
+            PIQ_GIANT='50000',  # the look #17 ball's finder rule (balltrack/blob_candidates.py), in the pass
             PYTHONPATH=str(REPO),
             PYTHONIOENCODING='utf8',
         )
@@ -658,6 +659,18 @@ def step_pass(r: Run) -> None:
                 raise Stop(
                     f'the pass of {t} ended without HALF DONE ({TRACK / "half" / t / "log.txt"})'
                 )
+    # the look #17 ball over both halves at once: self-trained on this game's own tracks
+    from pitchiq.balltrack import ball17
+
+    if all(ball17.version(t) == ball17.VER for t in r.tags):
+        r.say(f'ball {r.g}: done')
+    elif r.a.plan:
+        r.say(f'ball {r.g}: to do (about 3-6 h: 30 min of training, TAPNext bridges, 3D per half)')
+    else:
+        r.py(f'ball17_{r.g}', 'pitchiq.balltrack.ball17', r.g, ','.join(r.tags))
+        missing = [t for t in r.tags if ball17.version(t) != ball17.VER]
+        if missing:
+            raise Stop(f'the ball step left no v17 ball for {", ".join(missing)} ({DATA / "ball17" / r.g / "log.txt"})')
 
 
 def step_map(r: Run) -> None:

@@ -24,12 +24,14 @@ import st
 
 
 def mine_cmd(tag):
+    """tag: one half, or several of one game joined by commas (ball17.py: all of a game's halves)."""
     import mine
     import pseudo
 
-    assert st.HELD_MODE and tag in st.DEV
-    mine.run('oof', st.OOF, [tag])
-    pseudo.select('own_' + st.game(tag), [tag], src='oof')
+    tags = tag.split(',')
+    assert st.HELD_MODE and all(t in st.DEV for t in tags) and len({st.game(t) for t in tags}) == 1
+    mine.run('oof', st.OOF, tags)
+    pseudo.select('own_' + st.game(tags[0]), tags, src='oof')
     print('HKO MINE DONE', tag, flush=True)
 
 

@@ -23,7 +23,7 @@ import time
 import cv2
 import numpy as np
 
-from . import ballgate, pitch_registration
+from . import ball17, ballgate, pitch_registration
 from .ballgate import short_runs  # MIN_RUN frames; clickscore reads it from here too
 from . import render_review_video  # clock
 
@@ -75,11 +75,12 @@ def ball(tag, lo, hi):
     ballgate finds the classifier lost."""
     tr = flight_model.Track(tag)
     a0 = int(tr.abs[0])
-    B = np.load(os.path.join(HG, '%s_ball3dd.npz' % tag))
-    P = np.load(os.path.join(HERE, 'evaluation', 'p2d', 'hyb90', '%s.npz' % tag))
+    ver = ball17.version(tag)  # the look #17 ball where this half has it, else Hybrid 90
+    B = np.load(os.path.join(HERE, 'h3d_' + ver, '%s_ball3dd.npz' % tag))
+    P = np.load(os.path.join(HERE, 'evaluation', 'p2d', ver, '%s.npz' % tag))
     air = (B['state'] == 'air') & np.isfinite(B['x'])
     flash = short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
-    flash |= ballgate.lost(tag, a0, ballgate.scored(P))  # the classifier is lost there
+    flash |= ball17.lost(tag, a0, P, ver)  # the classifier is lost there (v17: already in its rings)
     n = hi - lo
     img = np.full((n, 2), np.nan)
     sb = np.full((n, 2), np.nan)

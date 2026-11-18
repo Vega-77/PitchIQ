@@ -106,7 +106,7 @@ def chain(ver, tag, variants):
         if not os.path.exists(os.path.join(d, '%s_ball3dd.npz' % tag)):
             run(d, ver, log, 'ball_on_pitch', tag)
             run(d, ver, log, 'image_track', tag)
-            run(d, ver, log, 'flight_scan', tag, '16')
+            run(d, ver, log, 'flight_scan', tag, os.environ.get('FS_WORKERS', '16'))
             run(d, ver, log, 'roll_speed_cache', tag)
             run(d, ver, log, 'flight_chain', tag)
             run(d, ver, log, 'smooth_ball', tag, env=dict(VS_B3='%s_ball3d2.npz' % tag))

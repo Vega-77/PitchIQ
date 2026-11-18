@@ -27,6 +27,10 @@ VID = json.load(open('C:/Users/alexv/Desktop/Repos/PitchIQ-data/scratch-2026-10-
 # one video per game: a held-out half reads its game's file (nb2 -> nb1's video, etc.)
 for _h, _d in (('nb2', 'nb1'), ('pi1', 'pi2'), ('wh1', 'wh2'), ('co1', 'co2'), ('wb2', 'wb1')):
     VID.setdefault(_h, VID[_d])
+if os.environ.get('PIQ_VIDEO'):  # a new game's halves (pitchiq/balltrack/ball17.py)
+    for _h in os.environ.get('TN_TAGS', '').split(','):
+        if _h:
+            VID[_h] = [os.environ['PIQ_VIDEO']]
 MAXGAP = int(os.environ.get('MAXGAP', 90))
 ANC, AGR = 20.0, 24.0
 # ALLGAPS=1: every gap of the half, not only those holding a click (the real pass; hours of GPU per half).
@@ -105,7 +109,7 @@ def gaps(z, want, tag):
 
 
 def outdir(run, nm):
-    return os.path.join(BP, 'tn', run + '_' + nm.replace(':', '_').replace('+', '_') + ('' if MAXGAP == 90 else '_g%d' % MAXGAP) + ('_all' if ALLGAPS else ''))
+    return os.path.join(os.environ.get('TN_ROOT') or os.path.join(BP, 'tn'), run + '_' + nm.replace(':', '_').replace('+', '_') + ('' if MAXGAP == 90 else '_g%d' % MAXGAP) + ('_all' if ALLGAPS else ''))
 
 
 def cmd_jobs(run, nm):

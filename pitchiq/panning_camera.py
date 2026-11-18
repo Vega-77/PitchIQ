@@ -27,7 +27,7 @@ import cv2
 import numpy as np
 
 from .ball import BallPoint, BallTrajectory
-from .balltrack import ballgate
+from .balltrack import ball17
 from .calibration import Calibration, CalibrationError
 from .frame_table import COL_X1, COL_X2, COL_Y1, COL_Y2, FrameTable
 from .pitch import CENTRE_CIRCLE_RADIUS_M, STATSBOMB_LENGTH, STATSBOMB_WIDTH, Pitch
@@ -120,7 +120,7 @@ class PannedCamera:
         return cls(to_reference, calibration, ball_sb)
 
     @classmethod
-    def from_tracker(cls, tag: str, version: str = 'hyb90') -> 'PannedCamera':
+    def from_tracker(cls, tag: str, version: str | None = None) -> 'PannedCamera':
         """Load what `pitchiq/balltrack/hybrid.sh <lo> <hi> <tag>` left behind.
 
         Those files are generated, not in git. The chain that makes them:
@@ -130,6 +130,8 @@ class PannedCamera:
         `hybrid.sh` for a window or `half.py` for a half, with PIQ_VIDEO set
         to the match. See `pitchiq/balltrack/README.md`.
         """
+        # the look #17 ball (`balltrack/ball17.py`) where this half has it, else Hybrid 90
+        version = version or ball17.version(tag)
         homog = TRACKER / 'pitch_registration'
         paths = (
             TRACKER / f'h3d_{version}' / f'{tag}_smooth2.npz',
@@ -175,8 +177,9 @@ class PannedCamera:
             width_m=round(float(venue['W']) * CENTRE_CIRCLE_RADIUS_M, 1),
         )
         observed = np.isin(picks['src'], OBSERVED_SOURCES)
-        # No ball where the classifier is lost for minutes (pitchiq/balltrack/ballgate.py).
-        lost = ballgate.lost(tag, int(frames[0]), ballgate.scored(picks))
+        # No ball where the classifier is lost for minutes (pitchiq/balltrack/ballgate.py); the v17
+        # rings carry their own gate, read off the new classifier (ball17.lost).
+        lost = ball17.lost(tag, int(frames[0]), picks, version)
         return cls.from_arrays(
             frames,
             smooth['H'],

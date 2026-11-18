@@ -63,6 +63,9 @@ def videos():
     v = {k: v[0] for k, v in json.load(open(DATA + '/scratch-2026-10-26/halfvideo.json')).items()}
     for h, sib in SIBLING.items():
         v.setdefault(h, v[sib])
+    if HELD_MODE and os.environ.get('PIQ_VIDEO'):  # a new game's halves (ball17.py): one video file
+        for t in DEV:
+            v[t] = os.environ['PIQ_VIDEO']
     return v
 
 

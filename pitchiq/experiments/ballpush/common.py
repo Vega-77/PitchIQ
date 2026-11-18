@@ -8,6 +8,9 @@ SCR = DATA + '/scratch-2026-10-26'  # the retrain's probes and out-of-fold score
 OUT = DATA + '/ball-push'  # everything the push writes
 DEV = ['nb1', 'ww1', 'ww2', 'eb1', 'eb2', 'scrimh1', 'scrimh2', 'wh2', 'wb1', 'pi2', 'co2']
 HELD = ['nb2', 'pi1', 'wh1', 'co1', 'wb2']
+# BP_HELD=a,b: other halves in the held-out role (a new game run by pitchiq/balltrack/ball17.py)
+if os.environ.get('BP_HELD'):
+    HELD = os.environ['BP_HELD'].split(',')
 
 
 def point_at_data():
