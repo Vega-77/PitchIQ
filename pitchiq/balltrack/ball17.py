@@ -73,6 +73,9 @@ FS_ENV = dict(FS_WORKERS='6', OPENBLAS_NUM_THREADS='1')  # 3D: one half at a tim
 
 def version(tag):
     """'v17' when this half has the new ball, else 'hyb90'."""
+    forced = os.environ.get('PIQ_BALL_VER')  # e.g. hyb90: the ball it replaced, for a before/after
+    if forced:
+        return forced
     ok = all(os.path.exists(p) for p in (
         os.path.join(S2, 'evaluation', 'p2d', VER, '%s.npz' % tag),
         os.path.join(S2, 'h3d_' + VER, '%s_ball3dd.npz' % tag),
