@@ -8,6 +8,7 @@
     {"key": "calibrate", "label": "Measuring the pitch from your pins", "min": [10, 15]},
     {"key": "pass_h1", "label": "Following the ball and the players, first half", "min": [50, 125]},
     {"key": "pass_h2", "label": "Following the ball and the players, second half", "min": [50, 125]},
+    {"key": "ball", "label": "Learning this game’s ball and following it again, both halves", "min": [150, 270]},
     {"key": "map_h1", "label": "Placing everyone on the pitch map, first half", "min": [15, 30]},
     {"key": "map_h2", "label": "Placing everyone on the pitch map, second half", "min": [15, 30]},
     {"key": "stats_h1", "label": "Counting the stats, first half", "min": [45, 75]},

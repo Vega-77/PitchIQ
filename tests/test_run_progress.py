@@ -77,6 +77,7 @@ def test_the_step_list_is_the_one_the_page_reads():
     keys = [s['key'] for s in rp.load_steps()]
     assert keys[0] == 'halves' and keys[-1] == 'publish'
     assert keys.index('panorama_h1') < keys.index('pins') < keys.index('pass_h1')
+    assert keys.index('pass_h2') < keys.index('ball') < keys.index('map_h1')
     assert all(s['min'][0] <= s['min'][1] for s in rp.load_steps())
 
 
@@ -86,6 +87,7 @@ def test_the_step_list_is_the_one_the_page_reads():
         ('halves', 'halves'),
         ('pano_wb1', 'panorama_h1'),
         ('pass_wb2', 'pass_h2'),
+        ('ball17_wb', 'ball'),
         ('map_co1', 'map_h1'),
         ('stats_co2', 'stats_h2'),
         ('transfer_wb2', 'calibrate'),

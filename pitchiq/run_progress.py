@@ -32,6 +32,8 @@ def step_of(name: str) -> str | None:
     """The coach page's step for one of process_match's commands (`Run.py` names)."""
     if name == 'halves':
         return 'halves'
+    if re.fullmatch(r'ball17_\w+', name):
+        return 'ball'
     m = re.fullmatch(r'(pano|pass|map|stats)_[a-z]+([12])', name)
     if m:
         return {'pano': 'panorama'}.get(m[1], m[1]) + f'_h{m[2]}'
