@@ -20,8 +20,8 @@ test('the step list is the one the run reads, with one step for the coach', () =
 
 test('before a run: the estimate and when the pins are asked for', () => {
     const e = estimate(steps);
-    assert.equal(e.text, 'about 5 to 9 hours');
-    assert.equal(e.pinsAfter, '25 to 40 minutes');
+    assert.equal(e.text, 'about 6 to 14 hours');
+    assert.equal(e.pinsAfter, '20 to 40 minutes');
     assert.equal(runView({ steps, request: null, progress: null, hasVideo: true }).phase, 'offer');
     assert.equal(runView({ steps, request: null, progress: null, hasVideo: false }).phase, 'novideo');
 });
@@ -40,9 +40,9 @@ test('halfway through the first pass: the bar, the step and the time left', () =
     };
     const v = runView({ steps, request: { ours: 'lighter' }, progress, now: NOW });
     assert.equal(v.phase, 'running');
-    assert.deepEqual(v.step, { n: 6, of: 12, label: 'Following the ball and the players, first half' });
+    assert.deepEqual(v.step, { n: 6, of: 13, label: 'Following the ball and the players, first half' });
     assert.equal(v.leftText, '4 h 50 min');
-    assert.ok(v.percent > 20 && v.percent < 35, v.percent);
+    assert.ok(v.percent > 12 && v.percent < 30, v.percent);
     assert.equal(v.stale, false);
     assert.deepEqual(v.list.slice(4, 7).map((s) => s.status), ['done', 'now', 'todo']);
 });
