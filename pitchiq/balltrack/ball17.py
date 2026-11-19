@@ -154,11 +154,12 @@ class Game:
         if os.path.exists(done):
             return
         self.run('mine_r%d' % r, ['hko.py', 'mine', ','.join(self.tags)], SELF, self.st_env(self.scores_dir(r - 1)))
-        for s in SEEDS:
-            run = 'r%ds%d' % (r, s)
-            if not all(os.path.exists(os.path.join(self.W, 'runs', run, 'raw', pt + '.npy')) for pt in self.pieces()):
-                self.run('fit_' + run, ['-m', 'pitchiq.balltrack.ball17', '_fit', self.game, ','.join(self.tags),
-                                        self.bt, self.W, run, str(s)], REPO, self.env(own_bt=False))
+        todo = [s for s in SEEDS if not all(os.path.exists(os.path.join(self.W, 'runs', 'r%ds%d' % (r, s), 'raw', pt + '.npy'))
+                                             for pt in self.pieces())]
+        if todo:
+            self.run('fit_r%d' % r, ['-m', 'pitchiq.balltrack.ball17', '_fit', self.game, ','.join(self.tags), self.bt,
+                                     self.W, ','.join('r%ds%d' % (r, s) for s in todo), ','.join(map(str, todo))],
+                     REPO, self.env(own_bt=False))
         self.finish(r)
         open(done, 'w').close()
 
@@ -183,41 +184,56 @@ class Game:
         self.say('round %d scores -> %s (a %.4f b %.4f)' % (r, out, aa, bb))
 
     # 3
-    def track(self, r):
+    RUNS = (1, 3)  # run A: round-1 scores, run B: round-3 scores
+
+    def tn_env(self, r, tags):
         name = 'r%d' % r
-        exp = os.path.join(self.W, 'export_' + name)
-        if all(os.path.exists(os.path.join(exp, t + '.npz')) for t in self.tags):
-            return exp
+        tn = dict(TN_SET='held', TN_TAGS=','.join(tags), RC=os.path.join(self.W, 'replay_' + name, 'replay_cache'),
+                  BPNAME=name, MAXGAP=MAXGAP, RP_LOSTP=LOST_P, TN_ROOT=os.path.join(self.W, 'tn'))
+        if not self.clicked:
+            tn['ALLGAPS'] = 1
+        return tn
+
+    def tn_run(self, r):
+        return 'b17_%s_r%d' % (self.game, r)
+
+    def export(self, r):
+        return os.path.join(self.W, 'export_r%d' % r)
+
+    def replay(self, r):
+        name = 'r%d' % r
         rp = os.path.join(self.W, 'replay_' + name)
         nm = TRACKER.replace(':', '_')
         if not all(os.path.exists(os.path.join(rp, 'replay_cache', '%s_%s_%s.npz' % (name, nm, t))) for t in self.tags):
             self.run('replay_' + name, [os.path.join(BP, 'replay.py'), self.scores_dir(r), TRACKER], REPO,
                      self.env(RP_TAGS=','.join(self.tags), RP_OUT=rp, RP_LOSTP=LOST_P))
-        tn = dict(TN_SET='held', TN_TAGS=','.join(self.tags), RC=os.path.join(rp, 'replay_cache'), BPNAME=name,
-                  MAXGAP=MAXGAP, RP_LOSTP=LOST_P, TN_ROOT=os.path.join(self.W, 'tn'))
-        if not self.clicked:
-            tn['ALLGAPS'] = 1
-        run = 'b17_%s_%s' % (self.game, name)
-        self.run('bridges_' + name, [os.path.join(BP, 'tnclick.py'), 'run', run, TRACKER], REPO, self.env(**tn))
-        self.run('score_' + name, [os.path.join(BP, 'tnclick.py'), 'score', run, TRACKER], REPO, self.env(EXPORT=exp, **tn))
-        return exp
+
+    def bridges(self, t):
+        """Both runs' TAPNext tracks for half t in one pass (_bridge), then each run's score -> export_r<k>/t.npz."""
+        if all(os.path.exists(os.path.join(self.export(r), t + '.npz')) for r in self.RUNS):
+            return
+        spec = ','.join('%s=%s' % (self.tn_run(r), self.tn_env(r, [t])['RC']) for r in self.RUNS)
+        self.run('bridges_' + t, ['-m', 'pitchiq.balltrack.ball17', '_bridge', t, spec], REPO,
+                 self.env(**self.tn_env(self.RUNS[0], [t])))
+        for r in self.RUNS:
+            self.run('score_r%d_%s' % (r, t), [os.path.join(BP, 'tnclick.py'), 'score', self.tn_run(r), TRACKER], REPO,
+                     self.env(EXPORT=self.export(r), **self.tn_env(r, [t])))
 
     # 4
-    def merge(self, a, b):
+    def merge(self, t):
         sys.path.insert(0, BP)
         import mergerings
 
         od = self.p2d
         os.makedirs(od, exist_ok=True)
-        for t in self.tags:
-            m = mergerings.merge(np.load(os.path.join(a, t + '.npz')), np.load(os.path.join(b, t + '.npz')),
-                                 'drop', MERGE_TOL)
-            st = m.pop('stats')
-            ring = m['ring']
-            np.savez(os.path.join(od, t + '.npz'), abs=m['abs'].astype(np.int64), x=m['x'].astype(np.float64),
-                     y=m['y'].astype(np.float64), src=np.where(ring, m['src'], 0).astype(np.int8), ring=ring)
-            self.say('%s merged: rings A %d B %d both %d apart %d -> %d of %d frames' % (
-                t, st['a'], st['b'], st['both'], st['apart'], st['out'], len(ring)))
+        a, b = (os.path.join(self.export(r), t + '.npz') for r in self.RUNS)
+        m = mergerings.merge(np.load(a), np.load(b), 'drop', MERGE_TOL)
+        st = m.pop('stats')
+        ring = m['ring']
+        np.savez(os.path.join(od, t + '.npz'), abs=m['abs'].astype(np.int64), x=m['x'].astype(np.float64),
+                 y=m['y'].astype(np.float64), src=np.where(ring, m['src'], 0).astype(np.int8), ring=ring)
+        self.say('%s merged: rings A %d B %d both %d apart %d -> %d of %d frames' % (
+            t, st['a'], st['b'], st['both'], st['apart'], st['out'], len(ring)))
 
     # 5
     def three_d(self, t):
@@ -242,37 +258,150 @@ class Game:
         self.run('3d_' + t, ['-m', 'pitchiq.balltrack.evaluation.mk3d', VER, t], REPO, self.env(**FS_ENV))
 
     def go(self, three_d=True):
+        """One half's 3D (CPU) runs while the next half's bridges (GPU) run; 3D halves stay one at a time."""
+        import threading
+
         self.say('START %s %s (pieces from %s)%s' % (self.game, ','.join(self.tags), self.bt,
                                                    ' clicked gaps only' if self.clicked else ''))
         self.caches()
         for r in (1, 2, 3):
             self.round(r)
-        a, b = self.track(1), self.track(3)
-        self.merge(a, b)
-        if three_d:
-            for t in self.tags:
+        for r in self.RUNS:
+            self.replay(r)
+        prev, err = None, []
+
+        def run3d(t):
+            try:
                 self.three_d(t)
+            except BaseException as e:  # SystemExit from self.run
+                err.append(e)
+
+        for t in self.tags:
+            self.bridges(t)
+            self.merge(t)
+            if three_d:
+                if prev:
+                    prev.join()
+                prev = threading.Thread(target=run3d, args=(t,))
+                prev.start()
+        if prev:
+            prev.join()
+        if err:
+            raise err[0]
         self.say('BALL17 DONE %s' % self.game)
 
 
-def _fit(game, tags, bt, W, run, seed):
-    """One seed of one round: held.fit for this game with W as its folder (run with no ST_/BP_ env)."""
+def _bridge(tag, spec):
+    """tnclick.py run for several runs of one half at once, each track computed once.
+
+    TAPNext steps one frame at a time, so a track is fixed by its first frame and seed: two runs' gaps that start
+    (forward) or end (backward) on the same frame at the same pick share their track, and a shorter gap's track is
+    the start of a longer one's (checked bit for bit, 2026-11-18).  So each (frame, seed) is tracked once, as far as
+    the longest gap needs it, and every run gets exactly what tnclick.py run would have saved: per gap the forward
+    track, then the backward one only when the forward lands within ANC px of the far pick.
+    spec: run=replay_cache_dir,...  (env as for tnclick.py run: TN_SET, TN_TAGS, MAXGAP, ALLGAPS, TN_ROOT).
+    """
+    import cv2
+    import torch
+
+    sys.path.insert(0, BP)
+    import tnclick as T
+
+    sys.path.insert(0, os.path.join(T.MAIN, 'tapnext_bridge', 'tapnet'))
+    from tapnet.tapnextpp.votsp2026.model import TAPNextPP
+
+    from pitchiq import extras
+
+    extras.tapnext_missing = lambda: []
+    from pitchiq.balltrack.tapnext_bridge import tn_engine as E
+
+    jobs = []
+    for item in spec.split(','):
+        run, rc = item.split('=', 1)
+        op = os.path.join(T.outdir(run, TRACKER), '%s.npy' % tag)
+        if os.path.exists(op):
+            continue
+        T.RC = rc
+        D, _ = T.load(run, TRACKER)
+        z, want = D[tag]
+        jobs.append((op, int(z['lo']), z['x'], z['y'], sorted(T.gaps(z, want, tag)[0])))
+    if not jobs:
+        return
+    net = TAPNextPP.from_checkpoint(os.path.join(T.MAIN, 'tapnext_bridge', 'tapnextpp_512.ckpt'), device='cuda',
+                                    input_resolution=E.S)._model
+    cap = cv2.VideoCapture(T.VID[tag][0])
+
+    def track(first, last, seed):
+        a, b = min(first, last), max(first, last)
+        fr = E.read_range(cap, a, b, set(range(a, b + 1)))
+        order = range(first, last + 1) if last >= first else range(first, last - 1, -1)
+        G = E.Group(net, [seed])
+        with torch.amp.autocast('cuda', dtype=torch.float16):
+            return np.array([G.step([fr[f]])[0][0] for f in order])
+
+    def longest(need):
+        """{(frame, x, y): furthest frame} -> {key: track}"""
+        return {k: track(k[0], v, (k[1], k[2])) for k, v in sorted(need.items())}
+
+    fneed, n_all = {}, 0
+    for _, lo, X, Y, g in jobs:
+        for i, j in g:
+            k = (lo + i, X[i], Y[i])
+            fneed[k] = max(fneed.get(k, lo + j), lo + j)
+            n_all += j - i + 1
+    t0 = time.time()
+    F = longest(fneed)
+    bneed = {}
+    for _, lo, X, Y, g in jobs:
+        for i, j in g:
+            f = F[(lo + i, X[i], Y[i])][:j - i + 1]
+            if np.hypot(*(f[-1] - (X[j], Y[j]))) <= T.ANC:
+                k = (lo + j, X[j], Y[j])
+                bneed[k] = min(bneed.get(k, lo + i), lo + i)
+                n_all += j - i + 1
+    Bk = longest(bneed)
+    n_run = sum(abs(v - k[0]) + 1 for need in (fneed, bneed) for k, v in need.items())
+    for op, lo, X, Y, g in jobs:
+        res = []
+        for i, j in g:
+            a, b = lo + i, lo + j
+            f = F[(a, X[i], Y[i])][:j - i + 1]
+            res.append((a, b, 1, f))
+            if np.hypot(*(f[-1] - (X[j], Y[j]))) <= T.ANC:
+                res.append((a, b, -1, Bk[(b, X[j], Y[j])][:j - i + 1]))
+        os.makedirs(os.path.dirname(op), exist_ok=True)
+        np.save(op, np.array(res, dtype=object), allow_pickle=True)
+    print('%s: %d runs, %d track-frames instead of %d (%.0f%% saved), %.0f s' % (
+        tag, len(jobs), n_run, n_all, 100 * (1 - n_run / max(1, n_all)), time.time() - t0), flush=True)
+    print('BRIDGE DONE', flush=True)
+
+
+def _fit(game, tags, bt, W, runs, seeds):
+    """Seeds of one round: held.fit for this game with W as its folder (run with no ST_/BP_ env).  runs and seeds
+    are comma lists; the shared dev rows are read once for all of them (same rows, so the same models)."""
+    import functools
+
     sys.path.insert(0, SELF)
     import held
 
+    for mod, fn in ((held.T1, 'base_data'), (held.T2, 'click_rows'), (held.T2, 'pseudo_rows')):
+        setattr(mod, fn, functools.lru_cache(maxsize=None)(getattr(mod, fn)))
     held.HO = W
     held.hpieces = lambda g: [os.path.basename(p)[:-4] for t in tags.split(',')
                               for p in sorted(glob.glob(os.path.join(bt, '%s_q[0-9][0-9][0-9].npz' % t)))]
     if game not in held.HGAMES:
         held.HGAMES = [game]
-    a = argparse.Namespace(cmd='fit', run=run, games=game, seed_offset=int(seed), **FIT_ARGS)
-    held.fit(a)
+    for run, seed in zip(runs.split(','), seeds.split(',')):
+        held.fit(argparse.Namespace(cmd='fit', run=run, games=game, seed_offset=int(seed), **FIT_ARGS))
 
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] == '_fit':
         _fit(*argv[1:])
+        return 0
+    if argv and argv[0] == '_bridge':
+        _bridge(*argv[1:])
         return 0
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('game')
