@@ -89,7 +89,9 @@ SIZE = (1920, 1080)
 CAMERA_FRAMES = 1800  # a minute of the first half for the camera alone
 CAMERA_TRIES = (0.25, 0.5, 0.75, 0.1, 0.9)  # where in the half to try that minute
 MIN_MINUTES = 1.0  # per-player rows shorter than this are left out (Firestore's 1 MB a document)
-MAP_PROCS = 8
+# ~3.5 GB of RAM each: 8 ran this 32 GB PC out of memory on wb1 (2026-11-19) once a Windows
+# restart had shrunk the pagefile, so it can be lowered for a run
+MAP_PROCS = int(os.environ.get('PIQ_MAP_PROCS', '8'))
 SITE = os.environ.get('PIQ_SITE', 'https://vega-77.github.io/PitchIQ/')
 PIN_POLL_S = 60  # how often the run looks for the coach's pins
 PIN_REMIND_S = 1800  # and how often it says it is still waiting
