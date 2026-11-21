@@ -139,9 +139,8 @@ SITES = frozenset({'markup', 'classname', 'classlist', 'query', 'bag', 'join'})
 # and should go, and an entry that becomes provably reachable is a stale excuse
 # and should also go.
 WEAK = {
-    # Both had a proven home on the calibrate page's figures until it left on
-    # 2026-10-07; what is left is the bare-string kind.
-    'bad': "decision('bad', ...) in halftime.js -- a tone passed as an argument, like est and info",
+    # 'bad' left this list on 2026-11-21: the pins page brought the calibrate
+    # page back (5e695d7), and it sets className = 'cal-verdict bad' itself.
     'cm-label': "labelled('cm-label', label) in coach/footage.js -- the class is a "
     'positional argument to a helper that builds the element',
     'cm-time': "labelled('cm-time', clockText(s)), same helper",
