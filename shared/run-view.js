@@ -9,6 +9,8 @@
 export const STALE_MIN = 15;
 
 const mid = (s) => (s.min[0] + s.min[1]) / 2;
+// A step that runs beside another (the maps beside the ball) adds no time of its own.
+const adds = (s) => (s.beside ? 0 : mid(s));
 
 /** '45 min', '3 h 20 min', '6 h'. */
 export function durationText(minutes) {
@@ -22,7 +24,7 @@ export function durationText(minutes) {
 
 /** How long a run takes and when the coach is asked to pin, before it starts. */
 export function estimate(steps) {
-    const work = steps.filter((s) => !s.you);
+    const work = steps.filter((s) => !s.you && !s.beside);
     const lo = work.reduce((a, s) => a + s.min[0], 0);
     const hi = work.reduce((a, s) => a + s.min[1], 0);
     // The first half's panorama goes on the match as soon as it is stitched, so
@@ -70,9 +72,9 @@ export function runView({ steps, request, progress, hasVideo, now = Date.now() }
 
     const done = new Set(p.done || []);
     const at = keys.indexOf(p.step);
-    const total = steps.reduce((a, s) => a + mid(s), 0);
-    const gone = steps.reduce((a, s) => a + (done.has(s.key) ? mid(s) : 0), 0);
-    const now_ = at >= 0 && !done.has(p.step) ? mid(steps[at]) * (p.fraction || 0) : 0;
+    const total = steps.reduce((a, s) => a + adds(s), 0);
+    const gone = steps.reduce((a, s) => a + (done.has(s.key) ? adds(s) : 0), 0);
+    const now_ = at >= 0 && !done.has(p.step) ? adds(steps[at]) * (p.fraction || 0) : 0;
     const percent = p.state === 'done' ? 100 : Math.min(99, Math.round((100 * (gone + now_)) / total));
     const list = steps.map((s, i) => ({
         key: s.key,

@@ -136,12 +136,17 @@ class Progress:
         lo, hi = next(s['min'] for s in self.steps if s['key'] == key)
         return 60.0 * (lo + hi) / 2
 
+    def adds(self, key: str) -> float:
+        """Seconds a step adds to the run: none when it runs beside another (`beside`)."""
+        step = next(s for s in self.steps if s['key'] == key)
+        return 0.0 if step.get('beside') else self.expected(key)
+
     def left_s(self) -> float:
         """Seconds of work left, the coach's own pinning not counted."""
         if self.state == 'done':
             return 0.0
         i = self.keys.index(self.step)
-        later = sum(self.expected(k) for k in self.keys[i + 1 :])
+        later = sum(self.adds(k) for k in self.keys[i + 1 :])
         took = self.clock() - self.step_t0
         if self.fraction >= TRUSTED:
             now = took * (1 - self.fraction) / self.fraction

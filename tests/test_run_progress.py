@@ -152,7 +152,7 @@ def test_time_left_follows_the_expected_times_then_the_steps_own_pace():
     clock = Clock()
     p = rp.Progress(None, None, None, clock=clock)
     p.begin('pass_h2')
-    later = sum(p.expected(k) for k in p.keys[p.keys.index('pass_h2') + 1 :])
+    later = sum(p.adds(k) for k in p.keys[p.keys.index('pass_h2') + 1 :])
     assert p.left_s() == pytest.approx(later + p.expected('pass_h2'))
     clock.t += 20 * 60
     p.at(0.05)  # too little to trust: still the expected time, less what went
@@ -162,6 +162,18 @@ def test_time_left_follows_the_expected_times_then_the_steps_own_pace():
     clock.t += 10 * 3600  # far over: a sliver, never below nothing
     p.fraction = 0.0
     assert p.left_s() == pytest.approx(later + 0.1 * p.expected('pass_h2'))
+
+
+def test_the_maps_beside_the_ball_add_no_time():
+    p = rp.Progress(None, None, None, clock=Clock())
+    beside = [s['key'] for s in p.steps if s.get('beside')]
+    assert beside == ['map_h1', 'map_h2']
+    assert all(p.adds(k) == 0 for k in beside) and p.adds('ball') == p.expected('ball')
+    p.begin('ball')
+    after = ('stats_h1', 'stats_h2', 'publish')
+    assert p.left_s() == pytest.approx(p.expected('ball') + sum(p.expected(k) for k in after))
+    p.begin('map_h2')  # the ball ended before the second map: that map's own time is left
+    assert p.left_s() == pytest.approx(p.expected('map_h2') + sum(p.expected(k) for k in after))
 
 
 def test_a_step_marks_the_ones_before_it_done():
