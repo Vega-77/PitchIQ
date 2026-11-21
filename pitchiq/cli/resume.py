@@ -1,9 +1,9 @@
 """Restart a pipeline run that a reboot, or a crash of Python itself, cut off.
 
-    python -m pitchiq.cli.resume              what the logon task runs
-    python -m pitchiq.cli.resume --list       the runs marked active, and whether each is alive
-    python -m pitchiq.cli.resume --install    add the Task Scheduler task (once per PC)
-    python -m pitchiq.cli.resume --uninstall  remove it
+    python -m pitchiq resume              what the logon task runs (as pitchiq.cli.resume)
+    python -m pitchiq resume --list       the runs marked active, and whether each is alive
+    python -m pitchiq resume --install    add the Task Scheduler task (once per PC)
+    python -m pitchiq resume --uninstall  remove it
 
 While `process_match` runs, it marks the run active in
 `PitchIQ-data/stats/<game>/run/active.json`. The mark holds the command, the folder
@@ -20,6 +20,7 @@ machine stops being restarted.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import subprocess
@@ -182,13 +183,27 @@ def uninstall() -> int:
     return r.returncode
 
 
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        prog='python -m pitchiq resume',
+        description='Restart a pipeline run that a reboot cut off (what the logon task runs).',
+    )
+    g = ap.add_mutually_exclusive_group()
+    g.add_argument(
+        '--list', action='store_true', help='the runs marked active, and if each is alive'
+    )
+    g.add_argument('--install', action='store_true', help='add the Task Scheduler task (once a PC)')
+    g.add_argument('--uninstall', action='store_true', help='remove it')
+    return ap
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = sys.argv[1:] if argv is None else argv
-    if '--install' in args:
+    a = build_parser().parse_args(argv)
+    if a.install:
         return install()
-    if '--uninstall' in args:
+    if a.uninstall:
         return uninstall()
-    if '--list' in args:
+    if a.list:
         for path, info in marks():
             state = 'running' if alive(info) else 'cut off'
             print(

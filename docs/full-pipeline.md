@@ -32,7 +32,7 @@ and `<ptag>` is a 5-minute piece of a half (`wb1_q003`).
 Environment it reads:
 - `PITCHIQ_SA_KEY`: path to the Firebase key, outside the repo.
 - `PIQ_DOWNLOADS`: where videos are expected (default `~/Downloads`).
-- `PIQ_MAP_PROCS`: map processes (default 8).
+- `PIQ_MAP_PROCS`: the most map processes (default 8; fewer when memory is short).
 - `PIQ_SITE`: site URL for pin links.
 - `PIQ_HALF_WORKERS`: ball detector processes in the pass (default 12).
 
@@ -46,13 +46,13 @@ It sets these for every step:
 - The video is 1920x1080 at 30 fps and decodes to its last two seconds.
 - Every fixed input below is on disk, `pipeline/ballfit` included (`pitchiq/cli/preflight.py`).
 - No other pipeline process is running.
-- The disk has 30 GB free (5 GB once both passes are done).
+- The disk has 35 GB free (5 GB once both passes are done).
 - While steps that need them remain, 12 GB of memory is free and the GPU has under 3 GB in use.
 - An existing `halves.json` entry looks like a game: halves 35-55 min, a break of 4-25 min,
   inside the video (`--trust-halves` skips this).
 - The Firestore key works, and the team and match exist.
 
-`python -m pitchiq.cli.preflight` runs the machine checks alone.
+`python -m pitchiq preflight` runs the machine checks alone.
 
 ## Where files live
 
@@ -88,11 +88,17 @@ Two minutes after logon, the Task Scheduler task `\PitchIQ\Resume run` runs
 `pythonw -m pitchiq.cli.resume`. That relaunches the newest cut-off run with no window, its
 output in `run/resume.log`, and notes it in `run.log`. After 3 resumes in a row it gives up
 and leaves a note instead.
-- `python -m pitchiq.cli.resume --list` shows the marks.
+- `python -m pitchiq resume --list` shows the marks.
 - `--install` and `--uninstall` add and remove the task.
 
 While it runs, the run also asks Windows not to sleep. That is the request a video player
 makes, not a power setting.
+
+**When a step fails.** A failed step is tried once more before the run stops, since every
+step resumes from what it finished. When the end of its log says it ran out of memory
+(`MemoryError`, `Unable to allocate`, the paging file, CUDA out of memory), the second try
+runs fewer processes: the map with half its `--procs`, the pass with half its detector
+workers and one ball lane. Failing twice stops the run with the end of the step's log.
 
 ## Fixed inputs (the same for every game)
 
@@ -115,13 +121,22 @@ makes, not a power setting.
 
 `pitchiq.experiments.halves <g>` samples one frame every 5 s. For each sample it records
 how many people YOLO sees, how far apart they stand, and how far the camera panned (ORB).
-A minute counts as play when all three are high, and the two longest runs of play are the
-halves. `--h1/--h2` skips the finder.
+Activity is the least of three shares over the minute around each sample: busy head
+count, spread out, panning. A half may start only where activity rises after a quiet
+minute (kickoff follows the lineup and the huddles) and end only where it falls into one.
+Of those edges, `fit` keeps the two halves of 40-52 min, with a 4-25 min break, that hold
+the most activity. Warm-ups, a senior-night ceremony and overtime fall outside.
+
+On the 7 games with known halves (21 Nov 2026), every edge was within 2.6 min and 77%
+within a minute. The old to-the-minute runs were 8-14 min off on eb (warm-ups), wb and wh
+(a lone team warming up across the pitch). When a fitted half is quiet (activity under
+0.4), the break is busy (over 0.35), or no two halves fit, the run stops and asks for
+`--h1/--h2`, naming the plot. `--h1/--h2` skips the finder.
 
 - Reads: the video and YOLO.
 - Writes:
-  - `plab/out/<g>_halves.npz` + `.png`: the signals, with the guess drawn on.
-  - the game's entry in `halves.json`, rounded to the minute. Every later step takes its frame range from here.
+  - `plab/out/<g>_halves.npz` + `.png`: the signals and the activity, with the halves drawn on.
+  - the game's entry in `halves.json`, to the 5 s sample. Every later step takes its frame range from here.
 
 ## 2. Camera (15-25 min a half, then the coach's pins, then 10-15 min)
 
@@ -192,8 +207,15 @@ ones in `balltrack/`.
 The map links players in back-to-back 3-minute windows and puts them on the pitch. It lines
 teams up across windows by shirt colour, and keeps which side each team stands on.
 
+Each map process used to unpack the whole half's features (4.7 GB) for itself, and 8 of them
+ran this PC out of memory on wb1. Now the map unpacks them once to `plab/out/<tag>_feat.npy`
+and every process reads that one copy through the OS cache (`player_lab.feature_cache`);
+`process_match` removes the copy after the map. It also starts only as many processes
+(at most 8) as fit in the memory free then, at `MAP_GB` each, and says so in `run.log`.
+When `<tag>_feat.npz` is missing, it rebuilds it first (`player_lab features`, about 25 min).
+
 **Reads:**
-- `plab/out/<tag>_dets.npz`, plus `_feat.npz` **only if it exists** (see the gaps below)
+- `plab/out/<tag>_dets.npz` and `_feat.npz` (unpacked to `_feat.npy` while it runs)
 - `pitch_registration/<tag>_reg.npz` + `_venue.npz` (the projector)
 - `h3d_hyb90/<tag>_smooth2.npz` (its per-frame camera `H`)
 - `halves.json` (for the video)
@@ -254,7 +276,7 @@ All under `teams/{t}/matches/{m}/`:
 
 ## Known gaps (2026-11-21)
 
-- **The map silently runs without player features.** `player_lab.load_detections` attaches `<tag>_feat.npz` only when it exists, and nothing rebuilds it. A new game's pass writes the file, so the full run is fine. But the feature files of all 21 earlier halves were deleted on 2026-11-21 (79 GB), so re-mapping an old game gives a different map with no warning. Rebuild a half's features first with
+- **Re-mapping an old game outside `process_match` runs without player features.** The feature files of all 21 earlier halves were deleted on 2026-11-21 (79 GB). `process_match` rebuilds a missing one before the map, and `wholemap` now warns, but `player_lab.load_detections` alone still carries on without. Rebuild a half's features by hand with
   `PIQ_VIDEO=<video> python -m pitchiq.experiments.player_lab features --tag <tag>` (about 25 min a half).
 - **The pass still builds the Hybrid 90 ball** (bridges, hybrid and its own 3D chain for every piece). Since v17 shipped, it is read only by:
   - the "pass done" check

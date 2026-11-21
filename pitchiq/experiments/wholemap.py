@@ -182,6 +182,8 @@ def run(
         spans.pop()
     print(tag, 'frames', lo, hi, len(spans), 'windows', flush=True)
     t0 = time.time()
+    if player_lab.feature_cache(tag) is None:  # one shared, memory-mapped copy for every process
+        print(f'WARNING: {tag} has no player features: the map links without them', flush=True)
     parts = []
     with mp.get_context('spawn').Pool(
         min(procs, len(spans)), initializer=_init, initargs=(tag,)

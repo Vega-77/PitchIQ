@@ -12,9 +12,16 @@ the camera stops. Warm-ups have the players but in clumps, with little panning.
 Writes plab/out/<tag>_halves.npz (t, count, spread, pan) and
 plab/out/<tag>_halves.png (the three signals over the video, with the guess).
 
-The guess: a minute is "play" when its median count >= COUNT, spread >= SPREAD
-and pan >= PAN; the halves are the two longest runs of play minutes (gaps of up
-to GAP minutes bridged), in video order.
+The guess (`fit`): each sample's activity is the least of three shares over the
+minute around it: samples with at least 3/4 of the game's busy head count, samples
+spread over SPREAD of the frame, and samples where the camera panned PAN px. A half
+starts only where activity rises through LEVEL after a quiet minute (a kickoff
+follows the lineup and the huddles) and ends only where it falls into one. Of
+those edges, the two halves of HALF_MIN minutes with a break of BREAK_MIN that hold
+the most activity above THETA are the game. Warm-ups, ceremonies and overtime fall
+outside: on the 7 games with known halves (2026-11-21) every edge was within 2.6
+min, and 77% within a minute (the old to-the-minute runs were 8-14 min off on 3).
+`problems` says when a fit looks unlike a game.
 """
 
 from __future__ import annotations
@@ -29,7 +36,14 @@ import numpy as np
 
 from pitchiq.experiments.player_lab import PLAB, VIDEO
 
-COUNT, SPREAD, PAN, GAP = 14, 0.45, 25.0, 2
+SPREAD, PAN = 0.45, 25.0
+BUSY, WIN_S = 0.75, 60.0  # a busy sample has BUSY of the game's 75th-percentile head count
+THETA, LEVEL, QUIET_S = 0.3, 0.4, 60.0
+HALF_MIN, BREAK_MIN = (40.0, 52.0), (4.0, 25.0)
+MIN_PLAY, MAX_BREAK = (
+    0.4,
+    0.35,
+)  # mean activity a fitted half must reach (night games: 0.5), a break stay under (seen: 0.16)
 
 
 def sample(tag: str, step: float) -> Path:
@@ -91,39 +105,80 @@ def sample(tag: str, step: float) -> Path:
     return out
 
 
-def guess(z) -> tuple[list[tuple[float, float]], np.ndarray, np.ndarray]:
-    """The two longest play runs as (start_s, end_s), and the per-minute play flags."""
-    t = z['t']
-    mins = np.arange(int(t.max() // 60) + 1)
-    play = np.zeros(len(mins), bool)
-    for i in mins:
-        m = (t >= 60 * i) & (t < 60 * (i + 1))
-        if m.any():
-            pan = z['pan'][m]
-            play[i] = (
-                np.median(z['count'][m]) >= COUNT
-                and np.median(z['spread'][m]) >= SPREAD
-                and np.nanmedian(pan) >= PAN
-                if np.isfinite(pan).any()
-                else False
-            )
-    fill = play.copy()  # bridge short stoppages
-    on = np.flatnonzero(play)
-    for a, b in zip(on[:-1], on[1:]):
-        if 1 < b - a <= GAP + 1:
-            fill[a:b] = True
-    runs, i = [], 0
-    while i < len(fill):
-        if fill[i]:
-            j = i
-            while j + 1 < len(fill) and fill[j + 1]:
-                j += 1
-            runs.append((i, j))
-            i = j + 1
-        else:
-            i += 1
-    top = sorted(sorted(runs, key=lambda r: r[1] - r[0])[-2:])
-    return [(60.0 * a, 60.0 * (b + 1)) for a, b in top], mins, play
+def activity(z) -> tuple[np.ndarray, np.ndarray]:
+    """Per sample: time (s) and activity (0..1), the least of the three busy shares."""
+    t, c = z['t'], z['count'].astype(float)
+    dt = float(np.median(np.diff(t)))
+    w = max(1, int(round(WIN_S / dt)))
+    k = np.ones(w) / w
+
+    def share(x):
+        return np.convolve(x.astype(float), k, mode='same')
+
+    busy = share(c >= BUSY * np.percentile(c, 75))
+    spread = share(z['spread'] >= SPREAD)
+    pan = share(np.nan_to_num(z['pan']) > PAN)
+    return t, np.minimum(np.minimum(busy, spread), pan)
+
+
+def _edges(r: np.ndarray, quiet: int) -> tuple[list[int], list[int]]:
+    """Sample indices where activity rises through LEVEL after `quiet` samples below
+    it (starts), and where it falls through it into `quiet` below (ends)."""
+    low = r < LEVEL
+    n = len(r)
+    starts = [
+        i for i in range(1, n) if low[i - 1] and not low[i] and low[max(0, i - quiet) : i].all()
+    ]
+    ends = [i for i in range(1, n) if not low[i - 1] and low[i] and low[i : i + quiet].all()]
+    return [0, *starts], [*ends, n]
+
+
+def fit(z) -> tuple[list[tuple[float, float]], dict]:
+    """The two halves as (start_s, end_s) on the video clock, and how sure: the mean
+    activity in each half and in the break. ([], {}) when no pair of edges fits."""
+    t, r = activity(z)
+    n = len(r)
+    dt = float(np.median(np.diff(t)))
+    m = 60.0 / dt  # samples a minute
+    S, E = _edges(r, int(round(QUIET_S / dt)))
+    cs = np.concatenate([[0.0], np.cumsum(r - THETA)])
+    halves = [(s, e) for s in S for e in E if HALF_MIN[0] * m <= e - s <= HALF_MIN[1] * m]
+    best, pick = -np.inf, None
+    for s1, e1 in halves:
+        for s2, e2 in halves:
+            if BREAK_MIN[0] * m <= s2 - e1 <= BREAK_MIN[1] * m:
+                v = cs[e1] - cs[s1] + cs[e2] - cs[s2]
+                if v > best:
+                    best, pick = v, (s1, e1, s2, e2)
+    if pick is None:
+        return [], {}
+    s1, e1, s2, e2 = pick
+
+    def at(i):
+        return float(t[i]) if i < n else float(t[-1] + dt)
+
+    info = dict(
+        play=(float(r[s1:e1].mean()), float(r[s2:e2].mean())),
+        brk=float(r[e1:s2].mean()),
+    )
+    return [(at(s1), at(e1)), (at(s2), at(e2))], info
+
+
+def problems(halves, info) -> list[str]:
+    """Why a fit does not look like a game: [] when it does."""
+    if len(halves) < 2:
+        return [
+            f'no two halves of {HALF_MIN[0]:.0f}-{HALF_MIN[1]:.0f} min with a '
+            f'{BREAK_MIN[0]:.0f}-{BREAK_MIN[1]:.0f} min break between them'
+        ]
+    out = [
+        f'half {k} is quiet for a half (activity {p:.2f}, under {MIN_PLAY})'
+        for k, p in enumerate(info['play'], 1)
+        if p < MIN_PLAY
+    ]
+    if info['brk'] > MAX_BREAK:
+        out.append(f'the break is busy for a break (activity {info["brk"]:.2f}, over {MAX_BREAK})')
+    return out
 
 
 def plot(tag: str, z, halves) -> Path:
@@ -133,17 +188,23 @@ def plot(tag: str, z, halves) -> Path:
     import matplotlib.pyplot as plt
 
     t = z['t'] / 60
-    fig, ax = plt.subplots(3, 1, figsize=(14, 7), sharex=True)
-    for a, k, thr in zip(ax, ('count', 'spread', 'pan'), (COUNT, SPREAD, PAN)):
+    busy = BUSY * np.percentile(z['count'], 75)
+    fig, ax = plt.subplots(4, 1, figsize=(14, 9), sharex=True)
+    for a, k, thr in zip(ax, ('count', 'spread', 'pan'), (busy, SPREAD, PAN)):
         a.plot(t, z[k], lw=0.5)
         a.axhline(thr, color='r', lw=0.8)
         a.set_ylabel(k)
+    _, act = activity(z)
+    ax[3].plot(t, act, lw=0.8)
+    ax[3].axhline(LEVEL, color='r', lw=0.8)
+    ax[3].set_ylabel('activity')
+    for a in ax:
         for s, e in halves:
             a.axvspan(s / 60, e / 60, color='g', alpha=0.15)
     ax[2].set_yscale('symlog', linthresh=10)
-    ax[2].set_xlabel('video minute')
+    ax[3].set_xlabel('video minute')
     ax[0].set_title(
-        f'{tag}: halves guessed ' + ', '.join(f'{s / 60:.0f}-{e / 60:.0f} min' for s, e in halves)
+        f'{tag}: halves fitted ' + ', '.join(f'{s / 60:.1f}-{e / 60:.1f} min' for s, e in halves)
     )
     out = PLAB / 'out' / f'{tag}_halves.png'
     fig.tight_layout()
@@ -213,11 +274,14 @@ def main(argv: list[str] | None = None) -> int:
     z = np.load(path)
     if str(z['video']) != VIDEO:
         raise SystemExit(f'{path} was sampled from {z["video"]}, not {VIDEO}')
-    halves, _, _ = guess(z)
+    halves, info = fit(z)
     for k, (s, e) in enumerate(halves, 1):
         print(
-            f'H{k}: {s / 60:.0f}:00 - {e / 60:.0f}:00  (frames {int(s * 30)}-{int(e * 30)} at 30 fps)'
+            f'H{k}: {int(s // 60)}:{int(s % 60):02d} - {int(e // 60)}:{int(e % 60):02d}'
+            f'  (frames {int(s * 30)}-{int(e * 30)} at 30 fps)'
         )
+    for p in problems(halves, info):
+        print('PROBLEM:', p)
     print('plot:', plot(a.tag, z, halves))
     return 0
 

@@ -11,6 +11,7 @@ stops on any of them; with `--plan` it only lists them.
 
 from __future__ import annotations
 
+import argparse
 import shutil
 import subprocess
 import time
@@ -21,9 +22,10 @@ DATA = REPO.parent / 'PitchIQ-data'
 TRACK = REPO / 'pitchiq' / 'balltrack'
 FIT = DATA / 'pipeline' / 'ballfit'
 
-# A game keeps about 12 GB (9 GB of it player features), and Windows wants about 10 GB of
-# room for the pagefile: the silent crashes of October were a full disk.
-DISK_GB = 30
+# A game keeps about 12 GB (9 GB of it player features), the map step unpacks one half's
+# features (about 5 GB, removed after), and Windows wants about 10 GB of room for the
+# pagefile: the silent crashes of October were a full disk.
+DISK_GB = 35
 DISK_GB_LATE = 5  # once both passes are done: maps, stats and the report
 RAM_GB = 12  # free at the start (this 32 GB PC shows about 19 with the desktop open)
 GPU_MB = 3000  # in use already (the desktop alone uses about 1.2 GB of the 8 GB card)
@@ -133,6 +135,33 @@ def memory_problems(need_gb: float = RAM_GB) -> list[str]:
     ]
 
 
+def free_gb() -> float:
+    import psutil
+
+    return psutil.virtual_memory().available / 2**30
+
+
+def procs_for(want: int, each_gb: float, reserve_gb: float = 3.0) -> int:
+    """How many processes of `each_gb` fit in the memory free now, keeping `reserve_gb`
+    for the rest of the machine: at most `want`, at least 1."""
+    return max(1, min(want, int((free_gb() - reserve_gb) // each_gb)))
+
+
+# The ends of a log that mean a step ran out of memory, not that it is wrong.
+OUT_OF_MEMORY = (
+    'MemoryError',
+    'Unable to allocate',
+    'paging file is too small',  # Windows' commit limit (error 1455)
+    'CUDA out of memory',
+    'OutOfMemoryError',
+    'DefaultCPUAllocator: not enough memory',
+)
+
+
+def out_of_memory(log_tail: str) -> bool:
+    return any(s in log_tail for s in OUT_OF_MEMORY)
+
+
 def gpu_problems(max_used_mb: float = GPU_MB) -> list[str]:
     try:
         out = subprocess.run(
@@ -222,7 +251,20 @@ def problems(need: dict) -> list[str]:
     return out
 
 
-if __name__ == '__main__':
+def build_parser() -> argparse.ArgumentParser:
+    return argparse.ArgumentParser(
+        prog='python -m pitchiq preflight',
+        description='Check this PC can start a pipeline run: inputs, disk, memory, GPU, '
+        'and no other run going.',
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    build_parser().parse_args(argv)
     found = problems(dict(disk_gb=DISK_GB, ram=True, gpu=True))
     print('\n'.join(found) or 'all checks pass')
-    raise SystemExit(1 if found else 0)
+    return 1 if found else 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

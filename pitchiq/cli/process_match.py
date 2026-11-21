@@ -90,9 +90,11 @@ SIZE = (1920, 1080)
 CAMERA_FRAMES = 1800  # a minute of the first half for the camera alone
 CAMERA_TRIES = (0.25, 0.5, 0.75, 0.1, 0.9)  # where in the half to try that minute
 MIN_MINUTES = 1.0  # per-player rows shorter than this are left out (Firestore's 1 MB a document)
-# ~3.5 GB of RAM each: 8 ran this 32 GB PC out of memory on wb1 (2026-11-19) once a Windows
-# restart had shrunk the pagefile, so it can be lowered for a run
+# At most this many map processes, fewer when memory is short (MAP_GB each, see step_map).
+# 8 ran this 32 GB PC out of memory on wb1 (2026-11-19) while each held its own copy of the
+# half's player features; they now share one memory-mapped copy (player_lab.feature_cache).
 MAP_PROCS = int(os.environ.get('PIQ_MAP_PROCS', '8'))
+MAP_GB = 3.0  # measured on wb1 2026-11-21: 2.5 GB working set, 3.6 GB committed a process
 SITE = os.environ.get('PIQ_SITE', 'https://vega-77.github.io/PitchIQ/')
 PIN_POLL_S = 60  # how often the run looks for the coach's pins
 PIN_REMIND_S = 1800  # and how often it says it is still waiting
@@ -172,9 +174,34 @@ class Run:
             with open(self.out / 'run.log', 'a', encoding='utf-8') as f:
                 f.write(f'{date.today()} {line}\n')
 
-    def py(self, name: str, *args, check=True) -> int:
+    def py(self, name: str, *args, check=True, fewer=None) -> int:
         """Run `python -m <module> args` from the repo root, its output to logs/<name>.log.
-        While it runs, the coach page's progress bar is kept up to date."""
+        While it runs, the coach page's progress bar is kept up to date.
+
+        With `check`, a step that fails is tried once more before the run stops; when its
+        log says it ran out of memory, the second try runs `fewer(args)` (fewer processes).
+        Steps resume from what they finished, so a retry redoes only the unfinished part.
+        """
+        from pitchiq.cli import preflight
+
+        rc = self.launch(name, args)
+        if rc and check:
+            log = self.logs / f'{name}.log'
+            tail = '\n'.join(log.read_text(encoding='utf-8', errors='replace').splitlines()[-60:])
+            oom = preflight.out_of_memory(tail)
+            again = tuple(fewer(args)) if oom and fewer else args
+            how = f' with {" ".join(map(str, again[1:]))}' if again != args else ''
+            self.say(f'{name} failed (rc {rc}{", out of memory" if oom else ""}): once more{how}')
+            rc = self.launch(name, again)
+            if rc:
+                tail = log.read_text(encoding='utf-8', errors='replace').splitlines()[-15:]
+                raise Stop(
+                    f'{name} failed twice (rc {rc}). The end of {log}:\n  ' + '\n  '.join(tail)
+                )
+        return rc
+
+    def launch(self, name: str, args) -> int:
+        """One try of a step (see py); its exit code."""
         cmd = [sys.executable, '-W', 'ignore', '-m', *map(str, args)]
         log = self.logs / f'{name}.log'
         key = step_of(name)
@@ -194,9 +221,6 @@ class Run:
                     if key:
                         self.tick(name, key)
         self.say(f'end {name}  rc {rc}  ({(time.time() - t0) / 60:.0f} min)')
-        if rc and check:
-            tail = log.read_text(encoding='utf-8', errors='replace').splitlines()[-15:]
-            raise Stop(f'{name} failed (rc {rc}). The end of {log}:\n  ' + '\n  '.join(tail))
         return rc
 
     def tick(self, name: str, key: str) -> None:
@@ -406,7 +430,7 @@ def step_halves(r: Run) -> None:
         return
     if a.plan:
         r.say(
-            'halves: to do (' + ('--h1/--h2' if a.h1 else "halves.py's guess, to the minute") + ')'
+            'halves: to do (' + ('--h1/--h2' if a.h1 else "halves.py's activity fit") + ')'
         )
         return
     if a.h1 and a.h2:
@@ -419,18 +443,24 @@ def step_halves(r: Run) -> None:
         from pitchiq.experiments import halves as finder
 
         z = np.load(DETS / f'{r.g}_halves.npz')
-        halves, _, _ = finder.guess(z)
-        if len(halves) < 2:
+        halves, info = finder.fit(z)
+        plot = finder.plot(r.g, z, halves)
+        bad = finder.problems(halves, info)
+        if bad:
             raise Stop(
-                f'the halves finder found {len(halves)} half: give --h1 and --h2 (video clock)'
+                'the halves finder is not sure: ' + '; '.join(bad) + f'. Look at {plot}, '
+                'then give --h1 and --h2 (video clock, m:ss-m:ss)'
             )
         import cv2
 
         cap = cv2.VideoCapture(str(a.video))
-        last = (cap.get(cv2.CAP_PROP_FRAME_COUNT) - 2) / FPS  # a guess ends on a whole minute
+        last = (cap.get(cv2.CAP_PROP_FRAME_COUNT) - 2) / FPS  # a fit can end one sample past the video
         cap.release()
         halves = [(float(s), min(float(e), last)) for s, e in halves[:2]]
-        how = f"halves.py's guess, to the minute; check {DETS / (r.g + '_halves.png')}"
+        how = (
+            "halves.py's activity fit, within about a minute (2.6 min at worst on 7 known "
+            f'games); the plot is {plot}'
+        )
     add_game(r.g, a.video, halves, how)
     r.say(
         f'halves: H1 {mmss(halves[0][0])}-{mmss(halves[0][1])}, H2 {mmss(halves[1][0])}-{mmss(halves[1][1])} ({how})'
@@ -700,7 +730,7 @@ def step_pass(r: Run) -> None:
         elif r.a.plan:
             r.say(f'pass {t}: to do (2-3 h)')
         else:
-            r.py(f'pass_{t}', 'pitchiq.balltrack.half', t, lo, hi)
+            r.py(f'pass_{t}', 'pitchiq.balltrack.half', t, lo, hi, fewer=fewer_pass)
             if not passed(t):
                 raise Stop(
                     f'the pass of {t} ended without HALF DONE ({TRACK / "half" / t / "log.txt"})'
@@ -729,7 +759,31 @@ def step_map(r: Run) -> None:
             extra = ['--final'] if t in HELD_OUT and r.a.final else []
             if t in HELD_OUT and not extra:
                 raise Stop(f'{t} is held out: its map is made once, with --final')
-            r.py(f'map_{t}', 'pitchiq.experiments.wholemap', t, '--procs', MAP_PROCS, *extra)
+            if not (DETS / f'{t}_feat.npz').exists():  # the pass makes it; the map links worse without
+                r.py(f'features_{t}', 'pitchiq.experiments.player_lab', 'features', '--tag', t)
+            from pitchiq.cli import preflight
+
+            n = preflight.procs_for(MAP_PROCS, MAP_GB)
+            if n < MAP_PROCS:
+                r.say(f'map {t}: {n} processes, not {MAP_PROCS}: {preflight.free_gb():.0f} GB free')
+            r.py(f'map_{t}', 'pitchiq.experiments.wholemap', t, '--procs', n, *extra, fewer=fewer_map)
+            (DETS / f'{t}_feat.npy').unlink(missing_ok=True)  # the map's unpacked copy (5 GB)
+
+
+def fewer_map(args):
+    """A map that ran out of memory tries again with half the processes."""
+    a = list(args)
+    i = a.index('--procs') + 1
+    a[i] = max(1, int(a[i]) // 2)
+    return a
+
+
+def fewer_pass(args):
+    """A pass that ran out of memory tries again with half the detector processes and one
+    ball lane. It resumes from the chunks it finished."""
+    from pitchiq.balltrack import config
+
+    return [*args, '--workers', max(1, config.HALF_WORKERS // 2), '--lanes', 1]
 
 
 # ---------------------------------------------------------------- 5. stats

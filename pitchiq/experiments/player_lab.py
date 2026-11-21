@@ -470,7 +470,11 @@ def load_detections(tag: str, dedupe: bool = True, with_features: bool = True):
         det = drop_contained(drop_clipped(det, meta['h']))
     path = _paths(tag)['feat']
     if with_features and dedupe and path.exists():
-        feat = np.load(path)['feat']
+        raw = feature_map_path(tag)
+        if raw.exists() and raw.stat().st_mtime >= path.stat().st_mtime:
+            feat = np.load(raw, mmap_mode='r')  # see feature_cache
+        else:
+            feat = np.load(path)['feat']
         if len(feat) != len(det):
             raise SystemExit(
                 f'{path} has {len(feat)} rows for {len(det)} detections: run `features` again'
@@ -479,6 +483,33 @@ def load_detections(tag: str, dedupe: bool = True, with_features: bool = True):
         # float16 converts to exactly, and a float32 copy of a whole half was 18 GB on NB
         det.feat = feat
     return det, meta
+
+
+def feature_map_path(tag: str) -> Path:
+    """`<tag>_feat.npy`: the features uncompressed, for load_detections to memory-map."""
+    return _paths(tag)['feat'].with_suffix('.npy')
+
+
+def feature_cache(tag: str) -> Path | None:
+    """Write `<tag>_feat.npy` from `<tag>_feat.npz` unless it is already current; its path,
+    or None when the half has no features.
+
+    load_detections memory-maps it, so every map process reads the one copy through the
+    OS cache and keeps only its own window's rows. Before, each process decompressed the
+    whole half's 4.7 GB, and 8 of them ran wb1 out of memory (2026-11-19). The values are
+    the same float16s, so the map does not change. Called once, before the processes start.
+    """
+    path, raw = _paths(tag)['feat'], feature_map_path(tag)
+    if not path.exists():
+        return None
+    if raw.exists() and raw.stat().st_mtime >= path.stat().st_mtime:
+        return raw
+    feat = np.load(path)['feat']
+    tmp = raw.with_name(raw.stem + '.part.npy')
+    np.save(tmp, feat)
+    del feat
+    os.replace(tmp, raw)
+    return raw
 
 
 def projector(tag: str, w: int, h: int) -> tuple[PitchProjector, object]:

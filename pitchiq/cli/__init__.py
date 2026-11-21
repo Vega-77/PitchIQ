@@ -15,4 +15,6 @@ COMMANDS = (
     'map_report',
     'demo',
     'process_match',
+    'preflight',
+    'resume',
 )
