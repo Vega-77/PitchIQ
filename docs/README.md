@@ -4,6 +4,8 @@ Documentation that is not about one file.
 
 - [architecture.md](architecture.md): how a video becomes a report, module by
   module, and which modules serve the fixed and the panning camera.
+- [full-pipeline.md](full-pipeline.md): `process_match` step by step, every
+  file it reads and writes, why, and how a rerun resumes.
 - [glossary.md](glossary.md): terms the code uses without defining them.
 - [report-schema.md](report-schema.md): the report JSON and the Firestore
   documents, the contract between Python and the browser.
