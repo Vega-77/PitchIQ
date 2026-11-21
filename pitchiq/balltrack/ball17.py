@@ -22,6 +22,8 @@ Outputs (version VER):
   evaluation/p2d/v17/<tag>.npz      abs, x, y, src (0 where there is no ring), ring
   h3d_v17/<tag>_ball3dd.npz, _smooth2.npz
   PitchIQ-data/ball17/<game>/       working files and log.txt; every stage is skipped when its output exists.
+The fit's shared inputs (dev crop caches, pseudo-labels, click answers, crop sets, ResNet-18 weights) are in
+PitchIQ-data/pipeline/ballfit; its README says what each is and how to rebuild the caches.
 --clicked-gaps bridges only the gaps that hold a Ball Clicker answer (the look's own scoring shortcut, minutes
 instead of hours); --no-3d stops after the merge; --work <dir> keeps everything (merged picks too) there and
 --bt <dir> reads pieces from another folder.  For checking against the look only.

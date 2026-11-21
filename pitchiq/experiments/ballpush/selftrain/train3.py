@@ -7,7 +7,7 @@ Same leave-one-game-out folds, rows and labels as train2.py (ko1 = --stack 1 --p
                the softmax over the group's ball log-odds at the ball.  It punishes "a cleat outscored the ball"
                directly.  The pointwise loss stays (the tracker needs the margin, not only the rank: kp2).
   --arch resnet18   angle 2: an ImageNet-pretrained ResNet-18 trunk (torchvision layout, weights downloaded to
-               ball-push/models/resnet18_imagenet, loaded with weights_only=True) on the 32 px window upsampled
+               PitchIQ-data/pipeline/ballfit/models, loaded with weights_only=True) on the 32 px window upsampled
                to 96 px; the 4 neighbour-frame grey channels enter conv1 through zero-initialised filters.
 
     python train3.py fit <run> [train2 args] [--rank 1.0] [--arch resnet18] ;  then  train.py finish <run>
@@ -23,7 +23,7 @@ import st
 import train as T1
 import train2 as T2
 
-R18 = 'C:/Users/alexv/Desktop/Repos/PitchIQ-data/ball-push/models/resnet18_imagenet/resnet18-f37072fd.pth'
+R18 = os.path.join(st.FIT, 'models', 'resnet18-f37072fd.pth')
 
 
 # ------------------------------------------------------------------ rows with frame groups

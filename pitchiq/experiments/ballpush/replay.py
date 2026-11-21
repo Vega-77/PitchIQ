@@ -119,8 +119,8 @@ def main():
     if os.environ.get('RP_LOSTP'):  # the gate's bar on the rolling median score (shipped 1.5); -99 = no gate
         ballgate.LOST_P = float(os.environ['RP_LOSTP'])
 
-    items = {it['id']: it for it in json.load(open(os.path.join(cs.ROOT, 'items_all.json')))['items']}
-    A = cs.answers(os.path.join(cs.ROOT, 'db'))
+    items = {it['id']: it for it in json.load(open(os.path.join(common.CLICKS, 'items_all.json')))['items']}
+    A = cs.answers(os.path.join(common.CLICKS, 'db'))
     jobs = []
     for tag in DEV:
         for pp in sorted(glob.glob(os.path.join(BT, '%s_q[0-9][0-9][0-9].npz' % tag))):

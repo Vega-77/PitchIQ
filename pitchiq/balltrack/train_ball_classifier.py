@@ -81,6 +81,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 S2 = os.path.dirname(os.path.abspath(__file__))
+# The crop sets the shipped ball fit trains on (tr00..tr16, ckL*) live in PitchIQ-data/pipeline, not beside this file.
+CROPS = os.environ.get('PIQ_CROPS') or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(S2))), 'PitchIQ-data', 'pipeline', 'ballfit', 'crops')
 
 CLASSES = ['ball', 'cleat', 'head', 'otherball', 'other']
 CIDX = {c: i for i, c in enumerate(CLASSES)}
@@ -109,9 +112,15 @@ def device():
 # --------------------------------------------------------------------- data
 
 
+def crops_path(tag):
+    """<tag>crops.npz beside this file when it is there (a set just built), else in the pipeline folder."""
+    p = os.path.join(S2, '%scrops.npz' % tag)
+    return p if os.path.exists(p) else os.path.join(CROPS, '%scrops.npz' % tag)
+
+
 def load_crops(tag):
     """Everything in <tag>crops.npz, as plain arrays."""
-    z = np.load(os.path.join(S2, '%scrops.npz' % tag), allow_pickle=True)
+    z = np.load(crops_path(tag), allow_pickle=True)
     d = dict(
         f=z['f'].astype(np.int64),
         j=z['j'].astype(np.int64),

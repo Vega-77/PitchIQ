@@ -23,7 +23,7 @@ import common  # noqa: E402
 
 MAIN = 'C:/Users/alexv/Desktop/Repos/PitchIQ/pitchiq/balltrack'
 BP = 'C:/Users/alexv/Desktop/Repos/PitchIQ-data/ball-push'
-VID = json.load(open('C:/Users/alexv/Desktop/Repos/PitchIQ-data/scratch-2026-10-26/halfvideo.json'))
+VID = json.load(open(common.PIPE + '/ballfit/halfvideo.json'))
 # one video per game: a held-out half reads its game's file (nb2 -> nb1's video, etc.)
 for _h, _d in (('nb2', 'nb1'), ('pi1', 'pi2'), ('wh1', 'wh2'), ('co1', 'co2'), ('wb2', 'wb1')):
     VID.setdefault(_h, VID[_d])
@@ -64,8 +64,8 @@ def air_mask(tag, ab):
 def load(run, nm):
     common.point_at_data()
     from pitchiq.experiments.clicker import clickscore as cs
-    items = {it['id']: it for it in json.load(open(os.path.join(cs.ROOT, 'items_all.json')))['items']}
-    A = cs.answers(os.path.join(cs.ROOT, 'db'))
+    items = {it['id']: it for it in json.load(open(os.path.join(common.CLICKS, 'items_all.json')))['items']}
+    A = cs.answers(os.path.join(common.CLICKS, 'db'))
     out = {}
     for tag in TAGS:
         if TN_TAGS and tag not in TN_TAGS:

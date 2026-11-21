@@ -31,7 +31,7 @@ def base_data():
     from pitchiq.balltrack import train_ball_classifier as T
 
     T.S2 = st.BT
-    recs = json.load(open(st.DATA + '/retrain-2026-10-26/ckLlabels.json'))
+    recs = json.load(open(st.FIT + '/ckLlabels.json'))
     for line in open(st.BT + '/crop_labels/crops.jsonl'):
         d = json.loads(line)[1]
         if d['label'] != 'unsure':

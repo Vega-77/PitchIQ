@@ -12,8 +12,11 @@ import common  # noqa: E402
 
 BT = common.BT
 DATA = common.DATA
-OOF = DATA + '/scratch-2026-10-26/oof_cls'
-OUT = DATA + '/ball-push/selftrain'
+# FIT: the shipped ball step's (ball17's) fit inputs and dev caches; its README lists what is there and why.
+FIT = common.PIPE + '/ballfit'
+CLICKS = common.CLICKS  # a frozen copy of the Ball Clicker's items and answers (PitchIQ-data/clicker)
+OOF = FIT + '/oof_cls'
+OUT = FIT
 CACHE = OUT + '/cache'
 DEV = list(common.DEV)
 GAMES = ['co', 'eb', 'nb', 'pi', 'scrim', 'wb', 'wh', 'ww']  # sorted: fold i = oof_cls.py's seed i
@@ -60,7 +63,7 @@ def pieces(tags=None):
 
 
 def videos():
-    v = {k: v[0] for k, v in json.load(open(DATA + '/scratch-2026-10-26/halfvideo.json')).items()}
+    v = {k: v[0] for k, v in json.load(open(FIT + '/halfvideo.json')).items()}
     for h, sib in SIBLING.items():
         v.setdefault(h, v[sib])
     if HELD_MODE and os.environ.get('PIQ_VIDEO'):  # a new game's halves (ball17.py): one video file
@@ -76,8 +79,8 @@ def clicks():
     common.point_at_data()
     from pitchiq.experiments.clicker import clickscore as cs
 
-    items = {it['id']: it for it in json.load(open(os.path.join(cs.ROOT, 'items_all.json')))['items']}
-    A = cs.answers(os.path.join(cs.ROOT, 'db'))
+    items = {it['id']: it for it in json.load(open(os.path.join(CLICKS, 'items_all.json')))['items']}
+    A = cs.answers(os.path.join(CLICKS, 'db'))
     out = {t: [] for t in DEV}
     for i, a in A.items():
         it = items.get(i)
