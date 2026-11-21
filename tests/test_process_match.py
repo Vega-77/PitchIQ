@@ -76,3 +76,9 @@ def test_a_game_code_with_digits_or_symbols_is_refused(bad):
 def test_the_parser_wants_both_halves_or_neither():
     with pytest.raises(SystemExit):
         pm.main(['v.mp4', '--game', 'me', '--ours', 'lighter', '--h1', '1:00-2:00'])
+
+
+@pytest.mark.parametrize('extra', [['--pins-from', 'me'], ['--pins-from', 'wb', '--no-pins']])
+def test_pins_from_takes_another_game_and_not_with_no_pins(extra):
+    with pytest.raises(SystemExit):
+        pm.main(['v.mp4', '--game', 'me', '--ours', 'lighter', *extra])

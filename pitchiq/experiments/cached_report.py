@@ -37,8 +37,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
+import traceback
 from pathlib import Path
 
 import cv2
@@ -56,7 +58,7 @@ from pitchiq import table_pictures
 
 REPO = Path(__file__).resolve().parents[2]
 HALVES = REPO / 'pitchiq' / 'balltrack' / 'halves.json'
-DOWNLOADS = Path.home() / 'Downloads'
+DOWNLOADS = Path(os.environ.get('PIQ_DOWNLOADS', Path.home() / 'Downloads'))  # as process_match
 
 
 class CachedDetector:
@@ -130,13 +132,19 @@ def run_half(args) -> int:
     if not args.no_pictures:
         video = _half(args.tag)[0]
         if video.exists():
-            with report.timings.stage('pictures'):
-                said = table_pictures.attach(report, half, video)
-            print(
-                f'pictures: {said["pictured"]} of the {said["asked"]} figures seen longest, '
-                f'{said["kept"]} kept in the budget, {said["frames"]} frames read in '
-                f'{said["choose_s"] + said["read_s"]:.0f} s'
-            )
+            try:
+                with report.timings.stage('pictures'):
+                    said = table_pictures.attach(report, half, video)
+                print(
+                    f'pictures: {said["pictured"]} of the {said["asked"]} figures seen longest, '
+                    f'{said["kept"]} kept in the budget, {said["frames"]} frames read in '
+                    f'{said["choose_s"] + said["read_s"]:.0f} s'
+                )
+            except Exception:  # the pictures never cost the stats (a half's run is hours)
+                traceback.print_exc()
+                for c in report.clusters:  # none half-attached: all or nothing
+                    c.thumb = c.thumb_height_px = None
+                print('pictures: FAILED (above); the report goes on without them')
         else:  # a convenience, like the budget: the counts go on without it
             print(f'pictures: none, {video} is not there')
     data = report.to_json(window={'start_s': round(start_s, 3), 'end_s': round(end_s, 3)})

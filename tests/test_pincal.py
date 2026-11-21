@@ -159,7 +159,7 @@ def test_read_pins_keeps_only_landmarks_it_knows():
 def run_for(tmp_path, **over):
     a = argparse.Namespace(
         game='zz', video=tmp_path / 'v.mp4', lines='gold', plan=False, team='T', match='M',
-        no_wait=False,
+        no_wait=False, pins_from=None,
     )  # fmt: skip
     vars(a).update(over)
     r = pm.Run(a)
@@ -199,3 +199,89 @@ def test_turned_down_pins_are_set_aside_with_what_they_carried(work, tmp_path, m
     assert (work / 'zz1' / 'pins_rejected.json').exists()
     assert not (work / 'zz1' / 'pins.json').exists() and not (work / 'zz2' / 'pins.json').exists()
     assert marks == [(1, 'the other pins disagree with centre spot')]
+
+
+# ---- --pins-from: an earlier game's pins, at the same field, instead of the coach's
+
+
+@pytest.fixture
+def earlier(work):
+    """An earlier game, yy, at the same field: its first half pinned."""
+    (work / 'yy1').mkdir()
+    meta = dict(tag='yy1', F=F, cx=CX, cy=CY, w=6400, h=1800, frames=[])
+    (work / 'yy1' / 'pano_rgb.json').write_text(json.dumps(meta))
+    (work / 'yy1' / 'pins.json').write_text(json.dumps({'pins': clicks(SOME), 'at': 'then'}))
+    return work
+
+
+def transfers(r, answers):
+    """Each `pincal transfer` the run starts writes the next answer; None writes nothing,
+    as a crash would."""
+    ran = []
+
+    def launch(name, args):
+        src, dst = args[-2:]
+        ran.append((src, dst))
+        got = answers.pop(0)
+        if got is not None:
+            (PC.here(dst) / f'transfer_from_{src}.json').write_text(json.dumps(got))
+        return 0 if got and got['ok'] else 1
+
+    r.launch = launch
+    return ran
+
+
+STILL = {'ok': True, 'M': np.eye(3).tolist()}
+
+
+def test_pins_from_an_earlier_game_carry_when_its_camera_stood_there(earlier, tmp_path):
+    r = run_for(tmp_path, pins_from='yy', team=None, match=None)
+    ran = transfers(r, [STILL])
+    pm.pins_from_game(r, 'zz1')
+    got = json.loads((earlier / 'zz1' / 'pins.json').read_text())
+    assert got['from'] == 'yy1' and ran == [('yy1', 'zz1')]
+    assert np.allclose(got['pins']['centre spot'], clicks(SOME)['centre spot'], atol=0.1)
+    pm.pins_from_game(r, 'zz1')  # pinned already: nothing runs again
+    assert len(ran) == 1
+
+
+def test_pins_from_a_camera_that_stood_elsewhere_stop_the_run(earlier, tmp_path):
+    r = run_for(tmp_path, pins_from='yy')
+    transfers(r, [{'ok': False, 'why': 'the halves do not see the same scenery'}])
+    with pytest.raises(pm.Stop, match='stood somewhere else'):
+        pm.pins_from_game(r, 'zz1')
+    assert not (earlier / 'zz1' / 'pins.json').exists()
+
+
+def test_a_transfer_that_writes_nothing_stops_the_run(work, tmp_path):
+    r = run_for(tmp_path)
+    transfers(r, [None])
+    with pytest.raises(pm.Stop, match='comparing the cameras of zz1 and zz2 failed'):
+        pm.transfer(r, 'zz1', 'zz2')
+
+
+def test_carried_pins_that_do_not_fit_stop_and_stay_stopped(earlier, tmp_path, monkeypatch):
+    marks = []
+    monkeypatch.setattr(PC, 'mark_problem', lambda *a: marks.append(a))
+    r = run_for(tmp_path, pins_from='yy')
+    ran = transfers(r, [STILL])
+    pm.pins_from_game(r, 'zz1')
+    with pytest.raises(pm.Stop, match='carried from yy do not fit zz1'):
+        pm.reject(r, object(), 'zz1', 'the other pins disagree with centre spot')
+    assert marks == []  # the coach never placed them: nothing goes on the pin page
+    with pytest.raises(pm.Stop, match='carried from yy1 did not fit zz1'):
+        pm.pins_from_game(r, 'zz1')  # the same command again stops at once
+    assert len(ran) == 1
+
+
+def test_the_earlier_game_is_checked_before_anything_long(earlier, tmp_path, monkeypatch):
+    monkeypatch.setattr(pm, 'registered', lambda t: False)
+    r = run_for(tmp_path, pins_from='yy')
+    assert 'no pins.json, panorama or keyframes' in pm.pins_from_problems(r)[0]
+    for n in ('solve.pkl', 'keys.pkl', 'pano_rgb.jpg'):
+        (earlier / 'yy1' / n).write_bytes(b'x')
+    (earlier / 'yy1' / 'keys').mkdir()
+    assert pm.pins_from_problems(r) == []
+    assert pm.pins_from_problems(run_for(tmp_path, pins_from='xx'))  # no such game
+    monkeypatch.setattr(pm, 'registered', lambda t: True)
+    assert pm.pins_from_problems(run_for(tmp_path, pins_from='xx')) == []  # nothing to pin

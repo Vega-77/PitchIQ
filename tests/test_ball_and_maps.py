@@ -38,7 +38,7 @@ def run(tmp_path, monkeypatch):
     return r
 
 
-def fake_steps(r, ball_rc=0, map_rc=0, ball_waits_for_map=True):
+def fake_steps(r, ball_rc=0, map_rc=0, ball_waits_for_map=True, map_s=0.05):
     """Each fake step records (name, beside?) and makes its output; the ball waits until a map
     has started, which only happens if the two run at once."""
     started = threading.Event()
@@ -50,7 +50,7 @@ def fake_steps(r, ball_rc=0, map_rc=0, ball_waits_for_map=True):
             f.write('a fake step\n')
         if name.startswith('map_'):
             started.set()
-            time.sleep(0.05)
+            time.sleep(map_s)
             if not map_rc:
                 (pm.MAPS / f'{name[4:]}.npz').write_bytes(b'')
             return map_rc
@@ -96,6 +96,46 @@ def test_a_failed_ball_waits_for_the_maps_before_it_stops_the_run(run):
     with pytest.raises(pm.Stop, match='ball17_zz failed twice'):
         pm.step_ball_and_maps(run)
     assert all((pm.MAPS / f'{t}.npz').exists() for t in run.tags)  # no map left running
+
+
+def test_a_map_that_outlasts_the_ball_takes_the_bar(run, monkeypatch):
+    monkeypatch.setattr(pm, 'TICK_S', 0.01)
+    bar = []
+    run.progress = SimpleNamespace(
+        begin=lambda k: bar.append(k), at=lambda f: bar.append('at'), step_t0=time.time(),
+        expected=lambda k: 60.0,
+    )  # fmt: skip
+    fake_steps(run, map_s=0.3)  # the ball ends as soon as the first map starts
+    pm.step_ball_and_maps(run)
+    assert [k for k in bar if k != 'at'] == ['map_h1', 'map_h2']
+    assert bar.count('at') >= 4  # and moves while each one runs
+
+
+def test_a_ball_out_of_memory_beside_the_maps_tries_again_after_them(run):
+    events = []
+    started = threading.Event()
+
+    def launch(name, args):
+        with open(run.logs / f'{name}.log', 'a', encoding='utf-8') as f:
+            f.write('a fake step\n')
+        if name.startswith('map_'):
+            started.set()
+            time.sleep(0.2)
+            (pm.MAPS / f'{name[4:]}.npz').write_bytes(b'')
+            events.append(name)
+            return 0
+        started.wait(5)
+        events.append(name)
+        if events.count(name) == 1:  # the first try runs out of memory
+            with open(run.logs / f'{name}.log', 'a', encoding='utf-8') as f:
+                f.write('RuntimeError: DefaultCPUAllocator: not enough memory\n')
+            return 1
+        run.balled.update(run.tags)
+        return 0
+
+    run.launch = launch
+    pm.step_ball_and_maps(run)
+    assert events == ['ball17_zz', 'map_zz1', 'map_zz2', 'ball17_zz']
 
 
 def test_missing_features_are_made_first_alone(run):

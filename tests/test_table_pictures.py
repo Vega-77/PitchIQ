@@ -1,4 +1,4 @@
-"""Players' pictures for a report from the table: chosen boxes, a short read, the sharpest kept."""
+"""Players' pictures from the table: chosen boxes, a short read, the sharpest kept."""
 
 from types import SimpleNamespace
 
@@ -121,3 +121,37 @@ def test_reading_lands_on_the_frames_asked_for(video):
         ok, img = cap.read()
         assert ok and np.array_equal(cuts[k][0], tp.cut(img, k.box)), k.frame
     cap.release()
+
+
+def test_pictures_that_fail_leave_the_report_whole(tmp_path, monkeypatch, capsys):
+    """A half's stats come after hours of work: a picture bug never costs them."""
+    import argparse
+    import contextlib
+    import json
+
+    from pitchiq.experiments import cached_report as cr
+
+    figure = SimpleNamespace(track_ids={3}, sightings=50, thumb='half done', thumb_height_px=9)
+    report = SimpleNamespace(
+        clusters=[figure], attacking_ends={}, summary=lambda: 'the summary',
+        timings=SimpleNamespace(stage=lambda name: contextlib.nullcontext()),
+        to_json=lambda window: {'clusters': [{'thumb': figure.thumb}]},
+    )  # fmt: skip
+    half = SimpleNamespace(frames=np.arange(30), fps=30.0)
+    monkeypatch.setattr(cr.HalfTable, 'load', staticmethod(lambda tag: half))
+    monkeypatch.setattr(cr, 'analyse_table', lambda h, context: report)
+    monkeypatch.setattr(cr, '_context', lambda args: None)
+    (tmp_path / 'v.mp4').write_bytes(b'')
+    monkeypatch.setattr(cr, '_half', lambda tag: (tmp_path / 'v.mp4', 0, 30))
+
+    def broken(*a, **k):
+        raise ValueError('a bug in the pictures')
+
+    monkeypatch.setattr(cr.table_pictures, 'attach', broken)
+    out = tmp_path / 'pipe.json'
+    args = argparse.Namespace(video=None, tag='zz1', seconds=None, no_pictures=False, out=out)
+    assert cr.run_half(args) == 0
+    said = capsys.readouterr()
+    assert 'pictures: FAILED' in said.out and 'a bug in the pictures' in said.err
+    got = json.loads(out.read_text())
+    assert got['source'] == 'zz1' and got['clusters'][0]['thumb'] is None

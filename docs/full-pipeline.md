@@ -33,6 +33,7 @@ and `<ptag>` is a 5-minute piece of a half (`wb1_q003`).
 | `--tag-log <file>` | The coach page's tag log. Reruns stats and publish with it. |
 | `--no-pins` | Calibrates without the coach's pins (autocal). Only for a field it can read alone. |
 | `--no-wait` | Stops instead of waiting while pins are missing. |
+| `--pins-from wb` | Carries an earlier game's pins instead of asking the coach: the same field, with the camera in the same place. Checked like the carry from one half to the other, and the run stops if they don't carry or don't fit. |
 | `--trust-cal` | Carries on when the calibration check fails. |
 | `--trust-halves` | Carries on when the halves' lengths or the break look wrong. |
 | `--final` | Allows the map of a held-out half (nb2, pi1, wh1, co1, wb2), which is scored once. |
@@ -63,6 +64,7 @@ It sets these for every step:
 - While steps that need them remain, 12 GB of memory is free and the GPU has under 3 GB in use.
 - An existing `halves.json` entry looks like a game: halves 35-55 min, a break of 4-25 min,
   inside the video (`--trust-halves` skips this).
+- With `--pins-from`, the earlier game's first half has its pins, panorama and keyframes.
 - The Firestore key works, and the team and match exist.
 
 `python -m pitchiq preflight` runs the machine checks alone.
@@ -102,7 +104,9 @@ that ends clears it, whether it finished or stopped. A run the machine killed le
 Two minutes after logon, the Task Scheduler task `\PitchIQ\Resume run` runs
 `pythonw -m pitchiq.cli.resume`. That relaunches the newest cut-off run with no window, its
 output in `run/resume.log`, and notes it in `run.log`. After 3 resumes in a row it gives up
-and leaves a note instead.
+and leaves a note instead. A resumed run whose machine checks fail (memory, the GPU, another
+run) waits up to 30 min for them to pass, rechecking every 2 min: the desktop may still be
+starting, and nobody is there to run it again.
 - `python -m pitchiq resume --list` shows the marks.
 - `--install` and `--uninstall` add and remove the task.
 
@@ -113,7 +117,8 @@ makes, not a power setting.
 step resumes from what it finished. When the end of its log says it ran out of memory
 (`MemoryError`, `Unable to allocate`, the paging file, CUDA out of memory), the second try
 runs fewer processes: the map with half its `--procs`, the pass with half its detector
-workers and one ball lane. Failing twice stops the run with the end of the step's log.
+workers and one ball lane. The ball step's second try waits for the maps beside it to
+finish. Failing twice stops the run with the end of the step's log.
 
 **Who hears about it.** A run that stops, crashes, waits for the coach's pins (once a wait),
 is resumed after a reboot, or finishes writes a line to `run/notify.log` (`pitchiq/cli/notify.py`).
@@ -172,6 +177,8 @@ within a minute. The old to-the-minute runs were 8-14 min off on eb (warm-ups), 
 2. **To the coach**: `upload_pano` writes the panorama to Firestore `cvPano/h1` (plus chunk documents `h1_<i>`). The coach pins it on `calibrate/?team&match&half`. The run polls `cvPins/h1` every minute and saves what it finds as `pincal/<tag>/pins.json`.
 3. **Transfer** (`pincal transfer <h1> <h2>`): writes `pincal/<h2>/transfer_from_<h1>.json`. If the tripod stayed put, the first half's pins carry over to the second, so the coach pins once. Otherwise the second half gets its own panorama upload.
 4. **Pin check**: `fit_pins` checks every pin against the rest. A set that doesn't fit is renamed `pins_rejected.json`, the coach is told why (`mark_problem` on `cvPano`), and the run waits for new pins.
+
+   With `--pins-from <game>`, nothing goes to the coach. Step 3's check runs between `<game>1` and this game's first half (`transfer_from_<game>1.json`), and if the camera stood in the same place, `<game>1`'s pins are carried over (`pins.json` with `"from": "<game>1"`). The second half then follows the usual rule, taking `<game>2`'s pins only if the camera moved. A camera that stood elsewhere, or carried pins that don't fit, stop the run: leave out `--pins-from` and have the field pinned.
 5. **Calibration** (`pincal cal <tag> --with <other> --install`): pins give camera position, aim and pitch size, and the paint polishes the aim. It writes `pincal/<tag>/cal/` and `pin_pose.json`, and installs:
    - `balltrack/pitch_registration/<tag>_reg.npz`: per frame, the image-to-pitch mapping (about 1 MB)
    - `balltrack/pitch_registration/<tag>_venue.npz`: the camera's reference view, its fit error and the pitch size
@@ -297,8 +304,8 @@ shape.
   three moments per figure at least 2 s apart. Only those frames are decoded, and the
   sharpest of the three is kept unless it is much shorter. They are then cut to the 400 KB
   budget as before (`player_thumbnails.fit_budget`). On wb1: 426 frames, 13 s, 160 pictures
-  kept (the video path had 165). `--no-pictures` skips this, and a missing video only loses
-  the pictures.
+  kept (the video path had 165). `--no-pictures` skips this. A missing video, or an error
+  while cutting them (printed in the step's log as `pictures: FAILED`), only loses the pictures.
 
 Woodbridge took 129 s (wb1) and 132 s (wb2) before the pictures, against 34-36 min a half on
 the video path. `--video` still runs the old path (video, cached detections, BoT-SORT, kit
@@ -353,6 +360,16 @@ All under `teams/{t}/matches/{m}/`:
 | `PitchIQ-data/stats/<g>/run/` + `stats/map/` | 63 MB |
 
 ## Known gaps (2026-11-21)
+
+- **A new video's burned-in scoreboard is not masked.** The panorama's SIFT skips `halves.json`'s
+  `"overlay"` boxes, found by video name (`autocal.overlay_boxes`). Only Woodbridge has one,
+  added by hand. On Woodbridge the scoreboard bent short links' zoom by up to 2%. A new game
+  with a scoreboard gets no mask, and nothing finds one.
+- **The guessed halves run wide.** On Woodbridge the finder gives 10:30-56:25 and 65:05-113:30
+  against 12:50-55:15 and 66:00-111:00. That is about 7 min from before the kickoffs and after the
+  whistles, passed and counted as play. It is within the finder's 2.6 min an edge.
+- **A reboot is resumed only at logon.** The Task Scheduler task runs at logon, so a restart
+  with nobody to log in waits for them. Windows updates are paused until 2026-12-01.
 
 - **Re-mapping an old game outside `process_match` runs without player features.** The feature files of all 21 earlier halves were deleted on 2026-11-21 (79 GB). `process_match` rebuilds a missing one before the map, and `wholemap` now warns, but `player_lab.load_detections` alone still carries on without. Rebuild a half's features by hand with
   `PIQ_VIDEO=<video> python -m pitchiq.experiments.player_lab features --tag <tag>` (about 13 min a half).

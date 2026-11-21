@@ -27,7 +27,9 @@ this command prints when each one starts and ends.
                 pins together, and `experiments/cal_health.py` checks each; the
                 run stops if a half looks wrong (`--trust-cal` carries on).
                 Without --team/--match, pin `pano_rgb.jpg` on the calibrate
-                page by hand and save `pins.json` beside it. `--no-pins` uses
+                page by hand and save `pins.json` beside it. `--pins-from wb`
+                carries an earlier game's pins at the same field instead (the
+                camera must have stood in the same place). `--no-pins` uses
                 the pin-free calibration (`experiments/autocal_run.py`) instead
   3. pass       the ball and the players over each half (`balltrack/half.py`)
   4. ball, map  at the same time: the look #17 ball over both halves
@@ -113,6 +115,8 @@ PIN_REMIND_S = 1800  # and how often it says it is still waiting
 TICK_S = 30  # how often a running step's progress is looked at
 STEPS = ('halves', 'camera', 'pass', 'ball beside map', 'stats', 'publish')
 NOTE_CHARS = 1500  # of a phone note (ntfy takes 4 KB; the full text is in run.log)
+RESUME_WAIT_S = 1800  # a run restarted after a reboot waits this long for the checks to pass
+RESUME_POLL_S = 120
 
 
 class Stop(Exception):
@@ -342,6 +346,15 @@ def check_inputs(r: Run) -> None:
         disk_gb=preflight.DISK_GB_LATE if passes else preflight.DISK_GB, ram=not maps, gpu=not balls
     )
     found = preflight.problems(need)
+    if found and os.environ.get('PIQ_RESUMED') and not r.a.plan:
+        # Started again after a restart (resume.py) with nobody there to start it once more:
+        # the desktop may still be taking memory or the GPU as it comes up, so wait for it.
+        r.say(f'checks: not ready ({found[0]}); waiting up to {RESUME_WAIT_S // 60} min')
+        until = time.time() + RESUME_WAIT_S
+        while found and time.time() < until:
+            time.sleep(RESUME_POLL_S)
+            found = preflight.problems(need)
+    found += pins_from_problems(r)
     H = load_halves()
     if r.g in H and H[r.g].get('video') == r.a.video.name and not r.a.trust_halves:
         spans = [(lo / FPS, hi / FPS) for lo, hi in half_frames(r.g)]
@@ -361,6 +374,20 @@ def check_inputs(r: Run) -> None:
         coach='The processing computer is not ready (space, memory or another run); '
         'nothing long had started.',
     )
+
+
+def pins_from_problems(r: Run) -> list[str]:
+    """--pins-from: the earlier game's first half has the pins and the panorama they are
+    carried from (its second half's are needed only if this camera moved, and checked then)."""
+    if not r.a.pins_from or all(registered(t) for t in r.tags):
+        return []
+    from pitchiq.experiments import pincal as PC
+
+    src = f'{r.a.pins_from}1'
+    d = PC.here(src)
+    if PC.prepped(src) and (d / 'pins.json').exists() and (d / 'keys').is_dir():
+        return []
+    return [f'--pins-from {r.a.pins_from}: {d} has no pins.json, panorama or keyframes']
 
 
 def check_site(a):
@@ -594,14 +621,22 @@ def step_pins(r: Run, halves) -> None:
     from pitchiq.experiments import pincal as PC
 
     h1, h2 = r.tags
+    src = r.a.pins_from
     if r.a.plan:
         for t in r.tags:
             if (PC.here(t) / 'pins.json').exists():
                 what = 'pins in, calibration to do (5 min)'
-            elif PC.prepped(t):
-                what = 'panorama ready, waiting for pins'
             else:
-                what = 'panorama to do (about 25 min), then the coach pins it'
+                pano = 'panorama ready' if PC.prepped(t) else 'panorama to do (about 25 min)'
+                if t == h2:
+                    who = f"{h1}'s pins carried over if the camera stayed put, else " + (
+                        f"{src}2's" if src else 'the coach pins it'
+                    )
+                elif src:
+                    who = f"{src}1's pins carried over (--pins-from)"
+                else:
+                    who = 'the coach pins it'
+                what = f'{pano}, then {who}'
             r.say(f'camera {t}: {what}')
         return
     db = None
@@ -613,13 +648,14 @@ def step_pins(r: Run, halves) -> None:
         if not PC.prepped(t):
             r.py(f'pano_{t}', 'pitchiq.experiments.pincal', 'prep', t, lo, hi, '--lines', r.a.lines)
         if t == h1:
+            if src:
+                pins_from_game(r, h1)
             offer(r, db, h1)
-    xfer = PC.here(h2) / f'transfer_from_{h1}.json'
-    if not xfer.exists():
-        r.py(f'transfer_{h2}', 'pitchiq.experiments.pincal', 'transfer', h1, h2, check=False)
-    moved = not json.loads(xfer.read_text())['ok']
+    moved = not transfer(r, h1, h2)['ok']
     if moved:
         r.say(f'camera: it moved between the halves, so {h2} needs pins of its own')
+        if src:
+            pins_from_game(r, h2)
         offer(r, db, h2)
     else:
         r.say(f"camera: it stayed put, so {h1}'s pins will carry to {h2}")
@@ -638,6 +674,51 @@ def step_pins(r: Run, halves) -> None:
             r.py(f'pincal_{t}', 'pitchiq.experiments.pincal', 'cal', t, *args, '--install')
             if not registered(t):
                 raise Stop(f'pincal finished but installed no {t}_reg.npz / {t}_venue.npz')
+
+
+def transfer(r: Run, src: str, dst: str) -> dict:
+    """Whether `src`'s camera stood where `dst`'s did, and the turn between them
+    (`pincal transfer`, kept as dst's transfer_from_<src>.json). It exits 1 when the camera
+    moved, so its exit code says nothing; a run that wrote no answer stops."""
+    from pitchiq.experiments import pincal as PC
+
+    path = PC.here(dst) / f'transfer_from_{src}.json'
+    if not path.exists():
+        r.py(f'transfer_{dst}', 'pitchiq.experiments.pincal', 'transfer', src, dst, check=False)
+    if not path.exists():
+        raise Stop(
+            f'comparing the cameras of {src} and {dst} failed (logs/transfer_{dst}.log)',
+            coach='A step failed on the processing computer.',
+        )
+    return json.loads(path.read_text())
+
+
+def pins_from_game(r: Run, tag: str) -> None:
+    """--pins-from: an earlier game's pins for the same half, carried onto this one when
+    its camera stood in the same place (the check that carries a first half's pins to the
+    second, `pincal transfer`). Nobody is asked to pin, so pins that cannot carry stop the
+    run, and so do carried pins that were turned down (see reject)."""
+    from pitchiq.experiments import pincal as PC
+
+    if (PC.here(tag) / 'pins.json').exists():
+        return
+    src = f'{r.a.pins_from}{tag[-1]}'
+    rejected = PC.here(tag) / 'pins_rejected.json'
+    if rejected.exists() and json.loads(rejected.read_text()).get('from') == src:
+        why = json.loads(rejected.read_text()).get('why', '')
+        raise Stop(
+            f'the pins carried from {src} did not fit {tag} ({why}). '
+            'Leave out --pins-from and pin the field.'
+        )
+    t = transfer(r, src, tag)
+    if not t['ok']:
+        raise Stop(
+            f"--pins-from {r.a.pins_from}: {src}'s camera stood somewhere else ({t.get('why')}), "
+            f'so its pins cannot carry to {tag}. Leave out --pins-from and pin the field.'
+        )
+    got = PC.carry_pins(src, tag)
+    (PC.here(tag) / 'pins.json').write_text(json.dumps(got, indent=1))
+    r.say(f'camera {tag}: {len(got["pins"])} pins carried from {src} (--pins-from)')
 
 
 def offer(r: Run, db, tag: str) -> None:
@@ -719,7 +800,8 @@ def pins_fit(r: Run, db, moved: bool) -> bool:
 
 def reject(r: Run, db, tag: str, why: str) -> None:
     """Pins the solve cannot trust: set aside and the coach told why. Stops the run
-    when nobody is there to fix them (--no-wait, or no site)."""
+    when nobody is there to fix them (--no-wait, or no site), and when they were carried
+    from another game (--pins-from): the coach never placed them."""
     from pitchiq.experiments import pincal as PC
 
     bad = PC.here(tag) / 'pins_rejected.json'
@@ -730,6 +812,11 @@ def reject(r: Run, db, tag: str, why: str) -> None:
         if t != tag and carried.exists() and json.loads(carried.read_text()).get('from') == tag:
             carried.unlink()
     r.say(f'camera {tag}: the pins do not fit ({why}); set aside as pins_rejected.json')
+    if r.a.pins_from:
+        raise Stop(
+            f'the pins carried from {r.a.pins_from} do not fit {tag}: {why}. '
+            'Leave out --pins-from and pin the field.'
+        )
     if db is not None:
         PC.mark_problem(db, r.a.team, r.a.match, int(tag[-1]), why)
     if db is None or r.a.no_wait:
@@ -869,18 +956,34 @@ def step_ball_and_maps(r: Run) -> None:
     for t in r.tags:
         if t not in todo:
             r.say(f'map {t}: done')
+
+    def after_maps(args):
+        """A ball that ran out of memory beside the maps tries again once they are done."""
+        if side.is_alive():
+            r.say(f'ball {r.g}: out of memory beside the maps; trying again once they finish')
+            side.join()
+        return args
+
     side = threading.Thread(target=maps, name='maps', daemon=True)
     side.start()
+    follow = False  # whether the coach's bar follows the maps once the ball is done
     try:
         if ball:
-            r.py(f'ball17_{r.g}', 'pitchiq.balltrack.ball17', r.g, ','.join(r.tags))
-            if side.is_alive() and mapping[0]:  # the bar moves on from the ball to the map
-                r.progress.begin(step_of(f'map_{mapping[0]}'))
+            tags = ','.join(r.tags)
+            r.py(f'ball17_{r.g}', 'pitchiq.balltrack.ball17', r.g, tags, fewer=after_maps)
+            follow = True
         else:
             r.say(f'ball {r.g}: done')
     finally:
         # never leave a map running behind a stopped run: its processes would go on alone
+        shown = None
         while side.is_alive():
+            key = step_of(f'map_{mapping[0]}') if follow and mapping[0] else None
+            if key and key != shown:  # the bar moves on from the ball to the map
+                r.progress.begin(key)
+                shown = key
+            elif key:
+                r.tick(f'map_{mapping[0]}', key)
             side.join(timeout=TICK_S)
     if ball:
         from pitchiq.balltrack import ball17
@@ -1094,6 +1197,13 @@ def build_parser() -> argparse.ArgumentParser:
         help='calibrate without pins (autocal: only for a field it can read alone)',
     )
     p.add_argument(
+        '--pins-from',
+        type=game_code,
+        metavar='GAME',
+        help="carry an earlier game's pins instead of asking the coach (the same field, the "
+        'camera in the same place: checked, and the run stops if not)',
+    )
+    p.add_argument(
         '--final', action='store_true', help='allow the map of a held out half (scored once)'
     )
     p.add_argument(
@@ -1122,6 +1232,8 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--ours is needed (it comes from the coach's request with --team and --match)")
     if bool(a.h1) != bool(a.h2):
         p.error('give both --h1 and --h2, or neither')
+    if a.pins_from and (a.no_pins or a.pins_from == a.game):
+        p.error('--pins-from takes an earlier game, and not with --no-pins')
     a.video = a.video.resolve()
     r = Run(a)
     if a.plan:

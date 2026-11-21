@@ -67,3 +67,43 @@ def test_a_run_that_stops_on_its_own_clears_its_mark(data, tmp_path, monkeypatch
     rc = pm.main([str(tmp_path / 'v.mp4'), '--game', 'me', '--ours', 'darker', '--no-publish'])
     assert rc == 1
     assert not (data / 'stats' / 'me' / 'run' / resume.MARK).exists()
+
+
+@pytest.fixture
+def checks(data, tmp_path, monkeypatch):
+    """check_inputs on a new game whose preflight answers come from `answers` in turn."""
+    from types import SimpleNamespace
+
+    from pitchiq.cli import preflight
+
+    answers = []
+    monkeypatch.setattr(preflight, 'problems', lambda need: answers.pop(0) if answers else [])
+    naps = []
+    monkeypatch.setattr(pm.time, 'sleep', naps.append)
+    a = SimpleNamespace(game='zz', plan=False, video=tmp_path / 'v.mp4', lines='white',
+                        pins_from=None, trust_halves=False)  # fmt: skip
+    return SimpleNamespace(run=pm.Run(a), answers=answers, naps=naps)
+
+
+def test_a_resumed_run_waits_for_the_pc_to_settle_before_its_checks(checks, monkeypatch):
+    monkeypatch.setenv('PIQ_RESUMED', '1')
+    checks.answers += [['only 9 GB of memory is free'], ['only 11 GB of memory is free'], []]
+    pm.check_inputs(checks.run)  # no Stop
+    assert checks.naps == [pm.RESUME_POLL_S] * 2
+    assert 'waiting up to 30 min' in (checks.run.out / 'run.log').read_text()
+
+
+def test_a_resumed_run_stops_when_the_pc_never_settles(checks, monkeypatch):
+    monkeypatch.setenv('PIQ_RESUMED', '1')
+    monkeypatch.setattr(pm, 'RESUME_WAIT_S', 0)
+    checks.answers += [['only 9 GB of memory is free']] * 2
+    with pytest.raises(pm.Stop, match='only 9 GB'):
+        pm.check_inputs(checks.run)
+
+
+def test_a_run_started_by_hand_stops_at_once(checks, monkeypatch):
+    monkeypatch.delenv('PIQ_RESUMED', raising=False)
+    checks.answers += [['only 9 GB of memory is free']]
+    with pytest.raises(pm.Stop, match='only 9 GB'):
+        pm.check_inputs(checks.run)
+    assert checks.naps == []
