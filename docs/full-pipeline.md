@@ -23,6 +23,7 @@ and `<ptag>` is a 5-minute piece of a half (`wb1_q003`).
 | `--no-pins` | Calibrates without the coach's pins (autocal). Only for a field it can read alone. |
 | `--no-wait` | Stops instead of waiting while pins are missing. |
 | `--trust-cal` | Carries on when the calibration check fails. |
+| `--trust-halves` | Carries on when the halves' lengths or the break look wrong. |
 | `--final` | Allows the map of a held-out half (nb2, pi1, wh1, co1, wb2), which is scored once. |
 | `--no-publish` | Writes the report file but not to the site. |
 | `--plan` | Says what is done and what would run, and runs nothing. |
@@ -41,10 +42,17 @@ It sets these for every step:
 - `PIQ_GIANT=50000` (the pale-surface finder rule the v17 ball needs)
 - `PYTHONPATH` (the repo)
 
-**Before anything long**, it checks three things:
-- The video is 1920x1080 at 30 fps.
-- The Firestore key works.
-- The team and match exist.
+**Before anything long** (about 10 s), it checks:
+- The video is 1920x1080 at 30 fps and decodes to its last two seconds.
+- Every fixed input below is on disk, `pipeline/ballfit` included (`pitchiq/cli/preflight.py`).
+- No other pipeline process is running.
+- The disk has 30 GB free (5 GB once both passes are done).
+- While steps that need them remain, 12 GB of memory is free and the GPU has under 3 GB in use.
+- An existing `halves.json` entry looks like a game: halves 35-55 min, a break of 4-25 min,
+  inside the video (`--trust-halves` skips this).
+- The Firestore key works, and the team and match exist.
+
+`python -m pitchiq.cli.preflight` runs the machine checks alone.
 
 ## Where files live
 

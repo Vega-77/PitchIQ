@@ -54,7 +54,8 @@ estimate reads too. Everything runs one step at a time.
 
 Publishing needs PITCHIQ_SA_KEY (the service account key, kept outside the
 repo) and the team and match ids; `--list-matches` prints them. Both are
-checked before anything long starts. `--tag-log` takes the coach page's log
+checked before anything long starts, with the video, every model and cache,
+the disk, memory and GPU, and that no other run is going (`preflight.py`). `--tag-log` takes the coach page's log
 download for this match and reruns only the stats and the publish.
 """
 
@@ -161,6 +162,7 @@ class Run:
             PYTHONIOENCODING='utf8',
         )
         self.progress = Progress(None, None, None)  # main() points it at the match
+        self.video_s = None  # the video's length in seconds, from check_video
 
     def say(self, text: str) -> None:
         line = f'{now()}  {text}'
@@ -211,7 +213,9 @@ class Run:
 # ---------------------------------------------------------------- 0. checks before anything long
 
 
-def check_video(path: Path) -> None:
+def check_video(path: Path) -> float:
+    """The video opens, has the size and rate everything was tuned on, and decodes to its
+    end (a cut-short download fails here, not hours in). Its length in seconds."""
     import cv2
 
     cap = cv2.VideoCapture(str(path))
@@ -219,12 +223,52 @@ def check_video(path: Path) -> None:
         raise Stop(f'cannot open {path}')
     fps = cap.get(cv2.CAP_PROP_FPS)
     size = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-    cap.release()
+    n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     if abs(fps - FPS) > 0.1 or size != SIZE:
+        cap.release()
         raise Stop(
             f'{path.name} is {size[0]}x{size[1]} at {fps:.2f} fps. Everything here was built '
             f'and tuned on {SIZE[0]}x{SIZE[1]} at 30 fps (the Veo "Tactical" export).'
         )
+    cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, n - 60))
+    ok = cap.read()[0]
+    cap.release()
+    if not ok:
+        raise Stop(
+            f'{path.name} says it has {n} frames but its last two seconds do not decode: '
+            'the download may be cut short. Download it again.'
+        )
+    return n / FPS
+
+
+def check_inputs(r: Run) -> None:
+    """Everything the steps still to run will read, plus the disk, memory, GPU and no
+    other run beside this one (`preflight.py`), and existing halves that look wrong."""
+    from pitchiq.balltrack import ball17
+    from pitchiq.cli import preflight
+
+    passes = all(passed(t) for t in r.tags)
+    balls = passes and all(ball17.version(t) == ball17.VER for t in r.tags)
+    maps = all((MAPS / f'{t}.npz').exists() for t in r.tags)
+    need = dict(
+        disk_gb=preflight.DISK_GB_LATE if passes else preflight.DISK_GB, ram=not maps, gpu=not balls
+    )
+    found = preflight.problems(need)
+    H = load_halves()
+    if r.g in H and H[r.g].get('video') == r.a.video.name and not r.a.trust_halves:
+        spans = [(lo / FPS, hi / FPS) for lo, hi in half_frames(r.g)]
+        found += [
+            f'halves.json, game {r.g}: {p}. Fix the entry by hand, or pass --trust-halves'
+            for p in preflight.halves_problems(spans, r.video_s)
+        ]
+    if not found:
+        r.say('checks: inputs, disk, memory, GPU and halves are fine')
+        return
+    text = '\n  - '.join(found)
+    if r.a.plan:
+        r.say(f'checks: these would stop the run:\n  - {text}')
+        return
+    raise Stop(f'before anything long:\n  - {text}')
 
 
 def check_site(a):
@@ -843,6 +887,11 @@ def build_parser() -> argparse.ArgumentParser:
         '--trust-cal', action='store_true', help='carry on when the calibration check fails'
     )
     p.add_argument(
+        '--trust-halves',
+        action='store_true',
+        help="carry on when the halves' lengths or the break look wrong",
+    )
+    p.add_argument(
         '--no-wait', action='store_true', help='stop, rather than wait, while pins are missing'
     )
     p.add_argument(
@@ -882,7 +931,8 @@ def main(argv: list[str] | None = None) -> int:
     a.video = a.video.resolve()
     r = Run(a)
     try:
-        check_video(a.video)
+        r.video_s = check_video(a.video)
+        check_inputs(r)
         db = check_site(a)
         if db is not None:
             r.progress = Progress(db, a.team, a.match)
