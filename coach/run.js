@@ -227,8 +227,9 @@ const PHASES = {
     stopped: (v) => [
         bar(v),
         el('p', { class: 'run-warn', text:
-            `Processing stopped${v.step ? ` during “${v.step.label}”` : ''}. The processing `
-            + 'computer has the details; when it is started again it carries on from this step.' }),
+            `Processing stopped${v.step ? ` during “${v.step.label}”` : ''}.`
+            + (v.message ? ` ${v.message}` : '') + ' The processing computer has the details; '
+            + 'when it is started again it carries on from this step.' }),
         stepList(v),
     ],
 

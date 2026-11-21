@@ -100,6 +100,16 @@ step resumes from what it finished. When the end of its log says it ran out of m
 runs fewer processes: the map with half its `--procs`, the pass with half its detector
 workers and one ball lane. Failing twice stops the run with the end of the step's log.
 
+**Who hears about it.** A run that stops, crashes, waits for the coach's pins (once a wait),
+is resumed after a reboot, or finishes writes a line to `run/notify.log` (`pitchiq/cli/notify.py`).
+Once `python -m pitchiq notify --setup` has been run, the same line goes to the phone of whoever
+runs the PC as an ntfy push (https://ntfy.sh: a free app, no account). Setup makes a long random
+topic, keeps it in `PitchIQ-data/notify.json` and sends a test; subscribe to that topic in the app.
+Stops and crashes are high priority, the end is low. Nothing is sent before setup, and a push
+that fails never stops a run. The coach's card shows the step that stopped and, where it can say
+it in plain words (the video, the halves, the machine not ready, the calibration, a step failing
+twice), why (`Stop(..., coach=...)` in process_match). An email to the coach is for later.
+
 ## Fixed inputs (the same for every game)
 
 | File | Size | Read by | What it is for |
@@ -212,7 +222,7 @@ ran this PC out of memory on wb1. Now the map unpacks them once to `plab/out/<ta
 and every process reads that one copy through the OS cache (`player_lab.feature_cache`);
 `process_match` removes the copy after the map. It also starts only as many processes
 (at most 8) as fit in the memory free then, at `MAP_GB` each, and says so in `run.log`.
-When `<tag>_feat.npz` is missing, it rebuilds it first (`player_lab features`, about 25 min).
+When `<tag>_feat.npz` is missing, it rebuilds it first (`player_lab features`, about 13 min).
 
 **Reads:**
 - `plab/out/<tag>_dets.npz` and `_feat.npz` (unpacked to `_feat.npy` while it runs)
@@ -277,7 +287,7 @@ All under `teams/{t}/matches/{m}/`:
 ## Known gaps (2026-11-21)
 
 - **Re-mapping an old game outside `process_match` runs without player features.** The feature files of all 21 earlier halves were deleted on 2026-11-21 (79 GB). `process_match` rebuilds a missing one before the map, and `wholemap` now warns, but `player_lab.load_detections` alone still carries on without. Rebuild a half's features by hand with
-  `PIQ_VIDEO=<video> python -m pitchiq.experiments.player_lab features --tag <tag>` (about 25 min a half).
+  `PIQ_VIDEO=<video> python -m pitchiq.experiments.player_lab features --tag <tag>` (about 13 min a half).
 - **The pass still builds the Hybrid 90 ball** (bridges, hybrid and its own 3D chain for every piece). Since v17 shipped, it is read only by:
   - the "pass done" check
   - the map's per-frame camera (`h3d_hyb90/<tag>_smooth2.npz`)

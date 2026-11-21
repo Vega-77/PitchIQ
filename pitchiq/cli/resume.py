@@ -94,12 +94,17 @@ def marks() -> list[tuple[Path, dict]]:
     return sorted(out, key=lambda pi: -pi[1].get('created', 0))
 
 
-def note(run_dir: Path, text: str) -> None:
-    """A line in the run's own run.log, in process_match's format."""
+def note(run_dir: Path, text: str, what: str = '', priority: str = 'default') -> None:
+    """A line in the run's own run.log, in process_match's format; with `what`, also a
+    note to the phone (notify.py) titled with the game."""
     line = f'{time.strftime("%Y-%m-%d %H:%M")}  {text}'
     print(line, flush=True)
     with open(run_dir / 'run.log', 'a', encoding='utf-8') as f:
         f.write(line + '\n')
+    if what:
+        from pitchiq.cli import notify
+
+        notify.send(run_dir, f'PitchIQ {run_dir.parent.name}: {what}', text, priority)
 
 
 def launch(path: Path, info: dict) -> int:
@@ -137,6 +142,8 @@ def resume() -> int:
                 run_dir,
                 f'NOT RESUMED: cut off {info["resumes"] + 1} times in a row. Look at run.log and '
                 'logs/, then run the command again by hand.',
+                'NOT resumed',
+                'high',
             )
             path.unlink()
             continue
@@ -145,6 +152,7 @@ def resume() -> int:
             run_dir,
             f'resume: the run started {info.get("started", "?")} was cut off (a restart or a '
             f'crash); started it again as PID {pid}, output in {run_dir / "resume.log"}',
+            'resumed',
         )
         return 0
     print('no run to resume')

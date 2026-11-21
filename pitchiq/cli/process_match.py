@@ -100,10 +100,22 @@ PIN_POLL_S = 60  # how often the run looks for the coach's pins
 PIN_REMIND_S = 1800  # and how often it says it is still waiting
 TICK_S = 30  # how often a running step's progress is looked at
 STEPS = ('halves', 'camera', 'pass', 'map', 'stats', 'publish')
+NOTE_CHARS = 1500  # of a phone note (ntfy takes 4 KB; the full text is in run.log)
 
 
 class Stop(Exception):
-    """A step failed or a check refused: the message says what to do next."""
+    """A step failed or a check refused: the message says what to do next.
+
+    `coach` is the same news in plain words for the coach's Video processing card (the
+    message itself names files and flags); left out, the card says only which step
+    stopped."""
+
+    def __init__(self, text: str, coach: str = ''):
+        super().__init__(text)
+        self.coach = coach
+
+
+FAILED_TWICE = 'A step failed twice on the processing computer.'
 
 
 # ---------------------------------------------------------------- small pieces
@@ -174,6 +186,15 @@ class Run:
             with open(self.out / 'run.log', 'a', encoding='utf-8') as f:
                 f.write(f'{date.today()} {line}\n')
 
+    def tell(self, what: str, text: str, priority: str = 'default') -> None:
+        """A note to whoever runs this PC: in run/notify.log, and on their phone once
+        `python -m pitchiq notify --setup` has been run. Nothing in --plan."""
+        if self.a.plan:
+            return
+        from pitchiq.cli import notify
+
+        notify.send(self.out, f'PitchIQ {self.g}: {what}', text[:NOTE_CHARS], priority)
+
     def py(self, name: str, *args, check=True, fewer=None) -> int:
         """Run `python -m <module> args` from the repo root, its output to logs/<name>.log.
         While it runs, the coach page's progress bar is kept up to date.
@@ -196,7 +217,8 @@ class Run:
             if rc:
                 tail = log.read_text(encoding='utf-8', errors='replace').splitlines()[-15:]
                 raise Stop(
-                    f'{name} failed twice (rc {rc}). The end of {log}:\n  ' + '\n  '.join(tail)
+                    f'{name} failed twice (rc {rc}). The end of {log}:\n  ' + '\n  '.join(tail),
+                    coach=FAILED_TWICE,
                 )
         return rc
 
@@ -252,7 +274,8 @@ def check_video(path: Path) -> float:
         cap.release()
         raise Stop(
             f'{path.name} is {size[0]}x{size[1]} at {fps:.2f} fps. Everything here was built '
-            f'and tuned on {SIZE[0]}x{SIZE[1]} at 30 fps (the Veo "Tactical" export).'
+            f'and tuned on {SIZE[0]}x{SIZE[1]} at 30 fps (the Veo "Tactical" export).',
+            coach='The video is not the Veo “Tactical” export (1080p, 30 fps) processing needs.',
         )
     cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, n - 60))
     ok = cap.read()[0]
@@ -260,7 +283,8 @@ def check_video(path: Path) -> float:
     if not ok:
         raise Stop(
             f'{path.name} says it has {n} frames but its last two seconds do not decode: '
-            'the download may be cut short. Download it again.'
+            'the download may be cut short. Download it again.',
+            coach='The video file looks cut short: it needs downloading again.',
         )
     return n / FPS
 
@@ -292,7 +316,11 @@ def check_inputs(r: Run) -> None:
     if r.a.plan:
         r.say(f'checks: these would stop the run:\n  - {text}')
         return
-    raise Stop(f'before anything long:\n  - {text}')
+    raise Stop(
+        f'before anything long:\n  - {text}',
+        coach='The processing computer is not ready (space, memory or another run); '
+        'nothing long had started.',
+    )
 
 
 def check_site(a):
@@ -449,7 +477,9 @@ def step_halves(r: Run) -> None:
         if bad:
             raise Stop(
                 'the halves finder is not sure: ' + '; '.join(bad) + f'. Look at {plot}, '
-                'then give --h1 and --h2 (video clock, m:ss-m:ss)'
+                'then give --h1 and --h2 (video clock, m:ss-m:ss)',
+                coach='Processing could not tell where the halves start and end; whoever runs '
+                'it gives the times by hand.',
             )
         import cv2
 
@@ -611,6 +641,9 @@ def wait_for_pins(r: Run, db, tag: str) -> None:
         if rejected.exists():
             why = json.loads(rejected.read_text()).get('why', '')
         r.progress.waiting_for_pins([f'h{tag[-1]}'], why)
+        if not told:  # once a wait: the coach's card says the rest
+            bad = f' (the last pins did not fit: {why})' if why else ''
+            r.tell('waiting for pins', f'{tag} waits for the coach to pin {pin_url(r, tag)}{bad}')
         if time.time() - told > PIN_REMIND_S:
             r.say(f'camera {tag}: waiting for the coach to pin {pin_url(r, tag)}')
             told = time.time()
@@ -710,7 +743,9 @@ def health(r: Run, tag: str) -> None:
     else:
         raise Stop(
             f'the calibration of {tag} looks wrong: {", ".join(flags)} ({path}). Every position '
-            'after this would be off. Pin the field, or pass --trust-cal to carry on anyway.'
+            'after this would be off. Pin the field, or pass --trust-cal to carry on anyway.',
+            coach='The camera’s view of the pitch did not line up, so every position would be '
+            'off.',
         )
 
 
@@ -1015,16 +1050,24 @@ def run_steps(r: Run) -> int:
             step(r)
     except Stop as e:
         r.say(f'STOPPED: {e}')
-        r.progress.stopped('')
+        r.progress.stopped(e.coach)
+        r.tell('stopped', f'{e}\n\nRun the same command again once it is fixed.', 'high')
         print('Run the same command again once that is fixed: finished steps are skipped.')
         return 1
-    except KeyboardInterrupt:
+    except KeyboardInterrupt:  # someone pressed Ctrl+C: they know
         r.say('STOPPED: interrupted')
         r.progress.stopped('')
         return 1
+    except Exception as e:  # a bug, not a check: say so, then show the traceback
+        r.say(f'STOPPED: process_match itself failed: {type(e).__name__}: {e}')
+        r.progress.stopped('')
+        r.tell('crashed', f'process_match failed: {type(e).__name__}: {e}. See run.log.', 'high')
+        raise
     footage_note(r)
     if not a.plan:
         r.progress.finished()
+        where = 'kept here (--no-publish)' if a.no_publish else 'on the site'
+        r.tell('done', f'{a.video.name}: every step finished; the stats are {where}.', 'low')
     r.say('plan only: nothing was run' if a.plan else 'ALL DONE')
     return 0
 

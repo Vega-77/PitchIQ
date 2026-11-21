@@ -17,4 +17,5 @@ COMMANDS = (
     'process_match',
     'preflight',
     'resume',
+    'notify',
 )
