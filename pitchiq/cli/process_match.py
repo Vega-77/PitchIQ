@@ -31,8 +31,9 @@ this command prints when each one starts and ends.
                 the pin-free calibration (`experiments/autocal_run.py`) instead
   3. pass       the ball and the players over each half (`balltrack/half.py`)
   4. map        the top-down map of each half (`experiments/wholemap.py`)
-  5. stats      the pipeline report of each half from the pass's player
-                detections (`experiments/cached_report.py half`)
+  5. stats      the pipeline report of each half from its map and ball, in
+                pitch metres, with no video read (`experiments/cached_report.py
+                half`, `map_table.py`)
   6. publish    both halves joined, the map's figures put in, and the report
                 written to the match on the site (`cached_report merge`,
                 `map_report --into`, `publish_report`)
@@ -856,13 +857,14 @@ def step_stats(r: Run) -> None:
         for t in r.tags:
             r.say(
                 f'stats {t}: '
-                + ('done' if (r.out / f'pipe_{t}.json').exists() else 'to do (about 1 h)')
+                + ('done' if (r.out / f'pipe_{t}.json').exists() else 'to do (a few minutes)')
             )
         return
     side = attacks_first(r)
     tag_log = Path(r.a.tag_log).resolve() if r.a.tag_log else None
+    # `source`: a report from the old video path (no `source` in its key) is counted again
     key = dict(ours=r.a.ours, attacks_first=side, tag_log=str(tag_log) if tag_log else None,
-               tag_log_mtime=tag_log.stat().st_mtime if tag_log else None)  # fmt: skip
+               tag_log_mtime=tag_log.stat().st_mtime if tag_log else None, source='table')  # fmt: skip
     for t in r.tags:
         out, kfile = r.out / f'pipe_{t}.json', r.out / f'pipe_{t}.key.json'
         if out.exists() and kfile.exists() and json.loads(kfile.read_text()) == key:

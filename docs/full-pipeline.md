@@ -75,7 +75,7 @@ command again.
 | pass | `half/<tag>/log.txt` says `HALF DONE`, and `pitch_registration/<tag>_camera.npz` (or, for a half passed before 2026-11-21, `h3d_hyb90/<tag>_smooth2.npz`) and `plab/out/<tag>_dets.npz` exist. Inside a half, every stage of every piece leaves `half/<tag>/<ptag>.<stage>.done`. |
 | ball | `ball17.version(tag) == 'v17'` (its `p2d/v17` and `h3d_v17` files exist) |
 | map | `PitchIQ-data/stats/map/<tag>.npz` exists |
-| stats | `pipe_<tag>.json` exists and `pipe_<tag>.key.json` matches this run's ours, attacking end and tag log |
+| stats | `pipe_<tag>.json` exists and `pipe_<tag>.key.json` matches this run's ours, attacking end and tag log, and says `source: table` (a report from the old video path is counted again) |
 | publish | never skipped: the merge, map report and publish rerun every time |
 
 Each step logs to `PitchIQ-data/stats/<g>/run/logs/<step>.log`, and the run as a whole logs
@@ -122,7 +122,7 @@ twice), why (`Stop(..., coach=...)` in process_match). An email to the coach is 
 | `balltrack/tapnext_bridge/tapnextpp_512.ckpt` | 2 GB | ball | TAPNext++, which tracks the ball through gaps ("bridges") |
 | `pitch_registration/vpitch.npz`, `vtop.npz` | 2 KB | 3D chain, stats | Default pitch template (used when a half has no venue file of its own) |
 | `pitchiq/xg_model8.onnx` | 4 MB | stats | xG for shots |
-| `botsort.yaml` (ships with Ultralytics) | - | stats | Player tracker settings |
+| `botsort.yaml` (ships with Ultralytics) | - | stats `--video` only | Player tracker settings (the old stats path) |
 | `balltrack/crop_labels/crops.jsonl` | 171 KB | ball | Hand crop labels the ball fit trains on |
 | `PitchIQ-data/pipeline/ballfit/` | 40.6 GB | ball | The fit's dev data. Its README lists every file: `cache/` 17 GB and `tcache/` 22 GB crop caches, `devpass/` 712 MB frozen dev pass pieces, `crops/` 533 MB, `labels/`, `oof_cls/`, `prop/`, `clicks/`, `ckLlabels.json`, `models/` (ResNet-18 weights). |
 | `shared/run-steps.json` | 2 KB | progress | Expected minutes per step, for the coach's progress bar |
@@ -242,22 +242,41 @@ When `<tag>_feat.npz` is missing, it rebuilds it first (`player_lab features`, a
 
 **Writes:** `PitchIQ-data/stats/map/<tag>.npz` (about 12 MB). It holds every dot on every frame: x and y in metres, track, team, role (player, keeper, referee, other) and formation slot, plus per-window kit colour and side.
 
-## 5. Stats (`pitchiq.experiments.cached_report half <tag>`, 30-75 min a half)
+## 5. Stats (`pitchiq.experiments.cached_report half <tag>`, 2-5 min a half)
 
 First, `process_match` reads both halves' maps to decide which end ours attack. They must
-disagree between halves, or the run stops. Then the stats step runs the analysis
-(`pipeline.analyse_match`: BoT-SORT, kit colours, teams, possession, events, keepers, the
-identity merge) on cached detections instead of running YOLO again.
+disagree between halves, or the run stops. Then the stats step counts on the half's
+players-and-ball table (`pitchiq/map_table.py`, `pipeline.analyse_table`). The map has already
+found, linked, placed and split the players, so the video is not read again. Nothing is
+detected, tracked (BoT-SORT) or split by team a second time, and there are no
+fixed-camera warnings. The counting code is the same code `analyse_match` runs: possession,
+territory, touches, passes, shots, xG, phase of play, keepers, the identity merge and team
+shape.
+
+- **Frames in metres.** Each seen dot is a box `PLAYER_HEIGHT_M` (1.8 m) tall standing on it, so
+  the distances the stats measure in player heights are fixed lengths: 1.2 player heights is
+  2.16 m. The map's guesses (dots nobody saw on that frame) are left out.
+- **The ball.** The ball is the v17 ball in metres, observed where it is a detector pick. A ring
+  the 3D chain could not place counts as no ball: 15% of wb1's rings, two thirds of them off the
+  pitch.
+- **Teams and roles.** These come from the map. Ours is the lighter or darker kit by the map's
+  kit colours; a grey stretch belongs to neither team. Referees are flagged and kept, with no
+  team (as on the video path). Only figures off the field are left out.
+
+Woodbridge took 129 s (wb1) and 132 s (wb2), against 34-36 min a half on the video path.
+`--video` still runs the old path (video, cached detections, BoT-SORT, kit colours), for setting
+the two side by side.
 
 **Reads:**
-- the video (decoded frames)
-- `plab/out/<tag>_dets.npz` (rows at confidence 0.08 and above)
-- the ball through `PannedCamera.from_tracker`: `h3d_v17/<tag>_smooth2.npz`, `_ball3dd.npz` and `p2d/v17/<tag>.npz`. There is no fallback: the run stops at the ball step when v17 is missing (only a half passed before 2026-11-21 still has a Hybrid 90 ball)
-- `pitch_registration/<tag>_venue.npz`
-- `halves.json`, the xG model and `botsort.yaml`
+- `PitchIQ-data/stats/map/<tag>.npz` (the map's dots, teams, roles and kit colours)
+- the v17 ball: `h3d_v17/<tag>_ball3dd.npz` and `p2d/v17/<tag>.npz`. There is no fallback: the
+  run stops at the ball step when v17 is missing
+- `pitch_registration/<tag>_venue.npz` (only for its fit error, which the report carries)
+- the xG model
 - the tag log, if one was given
 
-**Writes:** `stats/<g>/run/pipe_<tag>.json`, the half's report, and `pipe_<tag>.key.json`.
+**Writes:** `stats/<g>/run/pipe_<tag>.json`, the half's report, and `pipe_<tag>.key.json`. The
+report has no player pictures yet: they came from the decoded frames (see Known gaps).
 
 ## 6. Publish (3-10 min)
 
@@ -303,6 +322,15 @@ All under `teams/{t}/matches/{m}/`:
   shipped steps no longer read it: the map's camera comes from the shipped chain's pieces
   (`<tag>_camera.npz`, byte-identical to the Hybrid 90 one on all 14 game halves) and the pass
   no longer builds it.
+
+- **Stats from the table: no player pictures, and the counts are not yet checked.** The table
+  path (2026-11-21) reads no video, so its clusters have no thumbnails (wb1: 0 of 1,724; the
+  video path had 165). Session step 2.11 adds them from a short read of chosen frames. On
+  Woodbridge, team possession moved 4 points on wb1 and 13 on wb2 against the video path. The
+  kits are not swapped: each team's territory and event positions agree between the two paths.
+  On wb1, interceptions fell by a third to a half, and team A's duels from 23 to 5. Neither choice the step left open explains
+  the move: keeping the map's guesses changes wb2 possession by 1 point, and a 2.2 m player
+  height by 1 point. Goal 4 checks the counts against a tagged game.
 
 ## Keeping this current
 

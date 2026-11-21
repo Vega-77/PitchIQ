@@ -24,7 +24,7 @@ import numpy as np
 
 from pitchiq.balltrack import camera
 from pitchiq.experiments.wholemap import video_of
-from pitchiq.map_table import MAPS, MapTable
+from pitchiq.map_table import MAPS, HalfTable
 
 OUT = Path(__file__).resolve().parents[2].parent / 'PitchIQ-data' / 'stats' / 'table_clips'
 W = 960  # panel width
@@ -53,7 +53,7 @@ def to_px(Hm_inv: np.ndarray, x, y) -> np.ndarray:
     return p[:, :2] / p[:, 2:3]
 
 
-def map_panel(t: MapTable, rows, ball, scale: float, size) -> np.ndarray:
+def map_panel(t: HalfTable, rows, ball, scale: float, size) -> np.ndarray:
     """The pitch from above (camera side at the bottom), with the frame's dots and ball."""
     im = np.full((size[1], size[0], 3), (40, 95, 40), np.uint8)
 
@@ -77,7 +77,7 @@ def map_panel(t: MapTable, rows, ball, scale: float, size) -> np.ndarray:
 
 
 def render(tag: str, lo: int, hi: int, step: int = 2, out: Path | None = None) -> Path:
-    t = MapTable.load(tag)
+    t = HalfTable.load(tag)
     TEAM.update(kit_colours(tag))
     camera.ensure(tag)
     cam = camera.Camera(tag)

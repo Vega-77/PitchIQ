@@ -1,21 +1,27 @@
-"""A match report for a panned half, from the person detections already on disk.
+"""A match report for one half, from its players-and-ball table; and two halves joined.
 
     python -m pitchiq.experiments.cached_report half wb1 --ours lighter --attacks-first left --out pipe_wb1.json
     python -m pitchiq.experiments.cached_report half wb1 ... --seconds 60      (a short test window)
     python -m pitchiq.experiments.cached_report half wb1 ... --tag-log pitchiq-log-....json
+    python -m pitchiq.experiments.cached_report half wb1 ... --video           (the old path, to compare)
     python -m pitchiq.experiments.cached_report merge pipe_wb1.json pipe_wb2.json --out pipe_wb.json
 
-`analyse_match` runs YOLO itself, at about half real time: an hour and a half a
-half. The player lab has already run the same model (YOLOv8n at 1280, people
-down to conf 0.05) over every frame of each half it touched, into
-`plab/out/<tag>_dets.npz`. `CachedDetector` hands those rows back in place of
-the model, so the rest of the pipeline (BoT-SORT, kit colours, the ball from
-`pitchiq/balltrack`, possession, events, the identity merge) runs unchanged on
-the decoded frames. The cached rows were made at conf 0.05 and the pass asks for
-0.08 (`AnalysisOptions.ball_conf`), so the rows below that are dropped.
+`half` reads the half's table (`pitchiq/map_table.py`: the top-down map's players and the
+v17 ball, both in pitch metres) and counts on it with `pipeline.analyse_table`, in about two
+minutes a half with no video read. The map has already found, linked, placed and split the
+players, so nothing is detected, tracked or split by team a second time; what it needs is
+`stats/map/<tag>.npz` (wholemap) and the v17 ball (ball17).
 
-The cache is indexed by absolute frame and the detector is handed frames only,
-so the window has to start exactly where the seek lands. `half` checks the
+`--video` is the path the table replaced, kept to set the two side by side while goal 4
+checks the counts (about 35 min a half). `analyse_match` runs YOLO itself, at about half real
+time: an hour and a half a half. The player lab has already run the same model (YOLOv8n at
+1280, people down to conf 0.05) over every frame of each half it touched, into
+`plab/out/<tag>_dets.npz`. `CachedDetector` hands those rows back in place of the model, so
+the rest of the pipeline (BoT-SORT, kit colours, the ball from `PannedCamera.from_tracker`,
+possession, events, the identity merge) runs unchanged on the decoded frames. The cached rows
+were made at conf 0.05 and the pass asks for 0.08 (`AnalysisOptions.ball_conf`), so the rows
+below that are dropped. The cache is indexed by absolute frame and the detector is handed
+frames only, so the window has to start exactly where the seek lands: `--video` checks the
 seek first and refuses if it would land anywhere else.
 
 `merge` joins two halves into the one report the site keeps per match. Counts
@@ -40,8 +46,9 @@ from pitchiq.cli.event_report import load_tag_log, load_video_timing
 from pitchiq.detector import CLASS_PERSON
 from pitchiq.events import MIN_PRESSING_ACTIONS
 from pitchiq.experiments.player_lab import _paths
+from pitchiq.map_table import HalfTable
 from pitchiq.panning_camera import PannedCamera
-from pitchiq.pipeline import AnalysisOptions, MatchContext, analyse_match
+from pitchiq.pipeline import AnalysisOptions, MatchContext, analyse_match, analyse_table
 from pitchiq.pitch import MatchOrientation
 
 REPO = Path(__file__).resolve().parents[2]
@@ -94,7 +101,42 @@ def _half(tag: str) -> tuple[Path, int, int]:
     return video, int(span[2]), int(span[3])
 
 
+def _context(args) -> MatchContext:
+    """Which end we attack, which kit is ours and the coach's tags, for either path."""
+    timing = load_video_timing(args.tag_log)
+    return MatchContext(
+        orientation=MatchOrientation(home_attacks_first_half=args.attacks_first),
+        period='first_half' if args.tag.endswith('1') else 'second_half',
+        ours_kit=args.ours,
+        tag_log=load_tag_log(args.tag_log),
+        video_offset_s=timing.get('videoOffsetS', 0.0),
+        second_half_video_s=timing.get('secondHalfVideoS'),
+    )
+
+
 def run_half(args) -> int:
+    if args.video:
+        return run_half_video(args)
+    half = HalfTable.load(args.tag)
+    if args.seconds:
+        half = half.first(args.seconds)
+    frames = half.frames
+    start_s, end_s = frames[0] / half.fps, (frames[-1] + 1) / half.fps
+    t0 = time.time()
+    report = analyse_table(half, context=_context(args))
+    data = report.to_json(window={'start_s': round(start_s, 3), 'end_s': round(end_s, 3)})
+    data['source'] = args.tag
+    args.out.write_text(json.dumps(data), encoding='utf-8')
+    print(report.summary())
+    print(
+        f'{len(frames)} frames from the table in {time.time() - t0:.0f} s; '
+        f'attacking ends {report.attacking_ends}'
+    )
+    return 0
+
+
+def run_half_video(args) -> int:
+    """The old path: the video decoded again, the cached detections tracked and split again."""
     video, lo, hi = _half(args.tag)
     if args.seconds:
         hi = min(hi, lo + int(args.seconds * 30) - 1)
@@ -111,16 +153,7 @@ def run_half(args) -> int:
         return 2
 
     detector = CachedDetector(args.tag, lo)
-    period = 'first_half' if args.tag.endswith('1') else 'second_half'
-    timing = load_video_timing(args.tag_log)
-    context = MatchContext(
-        orientation=MatchOrientation(home_attacks_first_half=args.attacks_first),
-        period=period,
-        ours_kit=args.ours,
-        tag_log=load_tag_log(args.tag_log),
-        video_offset_s=timing.get('videoOffsetS', 0.0),
-        second_half_video_s=timing.get('secondHalfVideoS'),
-    )
+    context = _context(args)
     t0 = time.time()
     report = analyse_match(
         video,
@@ -328,7 +361,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog='python -m pitchiq.experiments.cached_report', description=__doc__.split('\n')[0]
     )
     sub = parser.add_subparsers(dest='cmd', required=True)
-    h = sub.add_parser('half', help='one half, from cached detections')
+    h = sub.add_parser('half', help='one half, from its players-and-ball table')
     h.add_argument('tag')
     h.add_argument('--ours', required=True, choices=('lighter', 'darker'))
     h.add_argument(
@@ -340,6 +373,11 @@ def build_parser() -> argparse.ArgumentParser:
     h.add_argument('--seconds', type=float, help='only the first N seconds, for a test')
     h.add_argument(
         '--tag-log', help="the coach page's log download (it carries the video sync too)"
+    )
+    h.add_argument(
+        '--video',
+        action='store_true',
+        help='the old path: decode the video and track the cached detections again (to compare)',
     )
     h.add_argument('--out', type=Path, required=True)
     m = sub.add_parser('merge', help="join two halves' reports into one")

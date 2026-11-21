@@ -538,6 +538,73 @@ def analyse_match(
         context = replace(context, side_of_team={TEAM_A: 'us', TEAM_B: 'them'})
     is_player = _find_participants(report, table)
 
+    _count(report, table, calibration, pitch, context, colour_samples, is_player, start_s, end_s)
+
+    report.processing_s = timings.total_s = time.perf_counter() - started
+    return report
+
+
+def analyse_table(half, *, context: MatchContext | None = None, seen_only: bool = True):
+    """The same report from a half's players-and-ball table (`pitchiq/map_table.py`), with no
+    video read.
+
+    The map has already found, linked, placed and split the players, and the v17 ball is
+    already in metres, so the first half of `analyse_match` is not run: no decode, no
+    detector, no BoT-SORT, no colour sampling or second team split, no participants guessed
+    from movement, and no camera-motion or coverage check (those are about one fixed
+    homography, and every frame here has its own). Teams, roles and kit colours come from
+    the map (`HalfTable.teams`, `HalfTable.participants`). Everything from the clock on is
+    `_count`, the code `analyse_match` runs, on frames in pitch metres where a player height
+    is `map_table.PLAYER_HEIGHT_M`.
+
+    `half` is a `map_table.HalfTable`; `seen_only` as in `HalfTable.frame_table`.
+    """
+    started = time.perf_counter()
+    context = context or MatchContext()
+    context = replace(context, orientation=context.orientation or MatchOrientation())
+    report = MatchReport(source=half.tag, duration_s=0.0, processing_s=0.0)
+    timings = Timings()
+    report.timings = timings
+    with timings.stage('frames from the table'):
+        table = half.frame_table(seen_only=seen_only)
+    calibration = table.calibration
+    report.source_fps = report.sample_fps = half.fps
+    report.duration_s = len(table.records) / half.fps
+    report.ball = half.trajectory(table)
+    table.team_by_track, colour_samples, report.kit_separation = half.teams(table, context.ours_kit)
+    if context.ours_kit and context.side_of_team is None:
+        context = replace(context, side_of_team={TEAM_A: 'us', TEAM_B: 'them'})
+    report.participants = half.participants(table)
+    start_s = table.records[0].timestamp_s
+    end_s = table.records[-1].timestamp_s + 1.0 / half.fps
+    _count(
+        report,
+        table,
+        calibration,
+        calibration.pitch,
+        context,
+        colour_samples,
+        report.participants.is_player,
+        start_s,
+        end_s,
+    )
+    report.processing_s = timings.total_s = time.perf_counter() - started
+    return report
+
+
+def _count(
+    report: MatchReport,
+    table: FrameTable,
+    calibration: Calibration | None,
+    pitch: Pitch,
+    context: MatchContext,
+    colour_samples: dict[int, list[np.ndarray]],
+    is_player,
+    start_s: float,
+    end_s: float | None,
+) -> None:
+    """Every count from tracked, team-split frames with the ball on them: the second half
+    of `analyse_match`, and all of `analyse_table` after its frames."""
     clock = _clocks_and_phases(report, context)
     context = replace(context, period=_resolve_period(report, context.period, start_s, end_s))
 
@@ -575,9 +642,6 @@ def analyse_match(
         _team_shapes(report, table, series_by_track, defending_ends, pitch)
         _warn_on_impossible_shape(report, pitch)
     _warn_on_fragmentation(report)
-
-    report.processing_s = timings.total_s = time.perf_counter() - started
-    return report
 
 
 def _detect_and_track(
