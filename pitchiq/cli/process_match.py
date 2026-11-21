@@ -36,7 +36,8 @@ this command prints when each one starts and ends.
                 CPU), which needs the pass's players and camera but not the ball
   5. stats     the pipeline report of each half from its map and ball, in
                 pitch metres, with no video read (`experiments/cached_report.py
-                half`, `map_table.py`)
+                half`, `map_table.py`) but for the players' pictures, cut from
+                a few hundred chosen frames (`table_pictures.py`, about 20 s)
   6. publish    both halves joined, the map's figures put in, and the report
                 written to the match on the site (`cached_report merge`,
                 `map_report --into`, `publish_report`)
@@ -958,9 +959,11 @@ def step_stats(r: Run) -> None:
         return
     side = attacks_first(r)
     tag_log = Path(r.a.tag_log).resolve() if r.a.tag_log else None
-    # `source`: a report from the old video path (no `source` in its key) is counted again
+    # `source`: a report from the old video path (no `source` in its key) is counted again, and
+    # `pictures`: one from the table made before the players' pictures were cut is made again
     key = dict(ours=r.a.ours, attacks_first=side, tag_log=str(tag_log) if tag_log else None,
-               tag_log_mtime=tag_log.stat().st_mtime if tag_log else None, source='table')  # fmt: skip
+               tag_log_mtime=tag_log.stat().st_mtime if tag_log else None, source='table',
+               pictures=True)  # fmt: skip
     for t in r.tags:
         out, kfile = r.out / f'pipe_{t}.json', r.out / f'pipe_{t}.key.json'
         if out.exists() and kfile.exists() and json.loads(kfile.read_text()) == key:

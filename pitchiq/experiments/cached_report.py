@@ -10,7 +10,9 @@
 v17 ball, both in pitch metres) and counts on it with `pipeline.analyse_table`, in about two
 minutes a half with no video read. The map has already found, linked, placed and split the
 players, so nothing is detected, tracked or split by team a second time; what it needs is
-`stats/map/<tag>.npz` (wholemap) and the v17 ball (ball17).
+`stats/map/<tag>.npz` (wholemap) and the v17 ball (ball17). The players' pictures for the
+coach's who's-who come from a short read of chosen frames after the counts
+(`pitchiq/table_pictures.py`, about 20 s; `--no-pictures` skips it).
 
 `--video` is the path the table replaced, kept to set the two side by side while goal 4
 checks the counts (about 35 min a half). `analyse_match` runs YOLO itself, at about half real
@@ -50,6 +52,7 @@ from pitchiq.map_table import HalfTable
 from pitchiq.panning_camera import PannedCamera
 from pitchiq.pipeline import AnalysisOptions, MatchContext, analyse_match, analyse_table
 from pitchiq.pitch import MatchOrientation
+from pitchiq import table_pictures
 
 REPO = Path(__file__).resolve().parents[2]
 HALVES = REPO / 'pitchiq' / 'balltrack' / 'halves.json'
@@ -124,6 +127,18 @@ def run_half(args) -> int:
     start_s, end_s = frames[0] / half.fps, (frames[-1] + 1) / half.fps
     t0 = time.time()
     report = analyse_table(half, context=_context(args))
+    if not args.no_pictures:
+        video = _half(args.tag)[0]
+        if video.exists():
+            with report.timings.stage('pictures'):
+                said = table_pictures.attach(report, half, video)
+            print(
+                f'pictures: {said["pictured"]} of the {said["asked"]} figures seen longest, '
+                f'{said["kept"]} kept in the budget, {said["frames"]} frames read in '
+                f'{said["choose_s"] + said["read_s"]:.0f} s'
+            )
+        else:  # a convenience, like the budget: the counts go on without it
+            print(f'pictures: none, {video} is not there')
     data = report.to_json(window={'start_s': round(start_s, 3), 'end_s': round(end_s, 3)})
     data['source'] = args.tag
     args.out.write_text(json.dumps(data), encoding='utf-8')
@@ -378,6 +393,11 @@ def build_parser() -> argparse.ArgumentParser:
         '--video',
         action='store_true',
         help='the old path: decode the video and track the cached detections again (to compare)',
+    )
+    h.add_argument(
+        '--no-pictures',
+        action='store_true',
+        help="skip the players' pictures (a short read of chosen frames, about 20 s)",
     )
     h.add_argument('--out', type=Path, required=True)
     m = sub.add_parser('merge', help="join two halves' reports into one")

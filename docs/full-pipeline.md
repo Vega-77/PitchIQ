@@ -1,8 +1,19 @@
 # The full pipeline: video to published stats
 
 What `python -m pitchiq process_match` does: each step, the files it reads and writes,
-and why. Traced from the code at `de4a918` (2026-11-21), with sizes and times from the
-Woodbridge run (game `wb`, halves `wb1` and `wb2`, 18-19 Nov 2026).
+and why. Traced from the code at `de4a918` (2026-11-21) and kept current since, with sizes
+and times from the Woodbridge run (game `wb`, halves `wb1` and `wb2`, 18-19 Nov 2026).
+
+**The order.** Halves, camera, both halves' passes, then the ball step with both maps
+running beside it, then both halves' stats, then publish:
+
+    halves -> camera (coach's pins) -> pass wb1, pass wb2 -> ball17 wb ---------> stats wb1, wb2 -> publish
+                                                            map wb1, map wb2 -/
+
+The maps need the pass's players and camera but not the ball, and the ball step is mostly
+the GPU while the map is the CPU, so the two share the machine (`step_ball_and_maps`).
+Woodbridge's measured steps add up to about 8 h 40 min in this order, against 10 h 52 min
+one after another with the stats read from the video. The coach page says 5 to 10 hours.
 [architecture.md](architecture.md) covers the analysis modules inside the stats step.
 
 ## The command
@@ -33,6 +44,8 @@ Environment it reads:
 - `PITCHIQ_SA_KEY`: path to the Firebase key, outside the repo.
 - `PIQ_DOWNLOADS`: where videos are expected (default `~/Downloads`).
 - `PIQ_MAP_PROCS`: the most map processes (default 8; fewer when memory is short).
+- `PIQ_BALL_GB`: the memory the maps leave free for the ball step running beside them
+  (default 6 GB, an estimate until a run's `peak` lines measure it).
 - `PIQ_SITE`: site URL for pin links.
 - `PIQ_HALF_WORKERS`: ball detector processes in the pass (default 12).
 
@@ -75,11 +88,13 @@ command again.
 | pass | `half/<tag>/log.txt` says `HALF DONE`, and `pitch_registration/<tag>_camera.npz` (or, for a half passed before 2026-11-21, `h3d_hyb90/<tag>_smooth2.npz`) and `plab/out/<tag>_dets.npz` exist. Inside a half, every stage of every piece leaves `half/<tag>/<ptag>.<stage>.done`. |
 | ball | `ball17.version(tag) == 'v17'` (its `p2d/v17` and `h3d_v17` files exist) |
 | map | `PitchIQ-data/stats/map/<tag>.npz` exists |
-| stats | `pipe_<tag>.json` exists and `pipe_<tag>.key.json` matches this run's ours, attacking end and tag log, and says `source: table` (a report from the old video path is counted again) |
+| stats | `pipe_<tag>.json` exists and `pipe_<tag>.key.json` matches this run's ours, attacking end and tag log, and says `source: table` and `pictures: true` (a report from the old video path, or from the table before it had pictures, is counted again) |
 | publish | never skipped: the merge, map report and publish rerun every time |
 
 Each step logs to `PitchIQ-data/stats/<g>/run/logs/<step>.log`, and the run as a whole logs
-to `run.log` beside it.
+to `run.log` beside it. Each step's end line in `run.log` gives its peak memory, for the
+step's whole process tree, sampled every 30 s: in use (working set) and committed (what the
+paging file has to back).
 
 **After a reboot.** While it runs, `process_match` keeps `stats/<g>/run/active.json`. That
 file holds the command, the folder, the PIQ_* settings, the key's path and the PID. A run
@@ -198,7 +213,8 @@ within the tolerance.
 
 ## 3b. Ball (`pitchiq.balltrack.ball17 <g> <tag1>,<tag2>`, 150-270 min a game)
 
-This is the shipped ball since 2026-11-18. It runs once per game, after both passes.
+This is the shipped ball since 2026-11-18. It runs once per game, after both passes, with
+both halves' maps running beside it (section 4). It keeps the coach's progress bar.
 
 **Reads:**
 - the game's pieces (`<ptag>.npz`, `cls`, `pan`, `ppl`)
@@ -233,6 +249,17 @@ and every process reads that one copy through the OS cache (`player_lab.feature_
 (at most 8) as fit in the memory free then, at `MAP_GB` each, and says so in `run.log`.
 When `<tag>_feat.npz` is missing, it rebuilds it first (`player_lab features`, about 13 min).
 
+**Beside the ball.** The two halves' maps run one after the other in a thread of their own
+while the ball step runs (`step_ball_and_maps`, `map_one`):
+- They leave `PIQ_BALL_GB` (6 GB) free for the ball on top of the usual 3 GB, so they may
+  start fewer processes than they would alone. With the ball already done they get it all.
+- A missing feature file is rebuilt first, before the ball starts, because it needs the GPU.
+- The progress bar stays on the ball. A map still running when the ball finishes takes the
+  bar over; the maps add no time to the estimate (`"beside": "ball"` in `run-steps.json`).
+- A failed map is told at once (`run.log` and the phone), and the run stops once the ball
+  finishes. A failed ball waits for the maps to finish before the run stops, so no map is
+  cut off halfway.
+
 **Reads:**
 - `plab/out/<tag>_dets.npz` and `_feat.npz` (unpacked to `_feat.npy` while it runs)
 - `pitch_registration/<tag>_camera.npz` + `_venue.npz`: the per-frame camera and the venue
@@ -263,9 +290,19 @@ shape.
   kit colours; a grey stretch belongs to neither team. Referees are flagged and kept, with no
   team (as on the video path). Only figures off the field are left out.
 
-Woodbridge took 129 s (wb1) and 132 s (wb2), against 34-36 min a half on the video path.
-`--video` still runs the old path (video, cached detections, BoT-SORT, kit colours), for setting
-the two side by side.
+- **Pictures.** The coach's who's-who shows a picture of each figure. After the counts, the
+  160 figures seen longest get one from a short read (`pitchiq/table_pictures.py`). Each map
+  dot is put back on its detector box through the half's camera (on wb1, 2.6 px from the
+  box's feet at the median). The tallest boxes nobody else stands over make the shortlist,
+  three moments per figure at least 2 s apart. Only those frames are decoded, and the
+  sharpest of the three is kept unless it is much shorter. They are then cut to the 400 KB
+  budget as before (`player_thumbnails.fit_budget`). On wb1: 426 frames, 13 s, 160 pictures
+  kept (the video path had 165). `--no-pictures` skips this, and a missing video only loses
+  the pictures.
+
+Woodbridge took 129 s (wb1) and 132 s (wb2) before the pictures, against 34-36 min a half on
+the video path. `--video` still runs the old path (video, cached detections, BoT-SORT, kit
+colours), for setting the two side by side.
 
 **Reads:**
 - `PitchIQ-data/stats/map/<tag>.npz` (the map's dots, teams, roles and kit colours)
@@ -274,9 +311,11 @@ the two side by side.
 - `pitch_registration/<tag>_venue.npz` (only for its fit error, which the report carries)
 - the xG model
 - the tag log, if one was given
+- for the pictures: `plab/out/<tag>_dets.npz` (the boxes), `pitch_registration/<tag>_camera.npz`
+  and the video (a few hundred frames)
 
-**Writes:** `stats/<g>/run/pipe_<tag>.json`, the half's report, and `pipe_<tag>.key.json`. The
-report has no player pictures yet: they came from the decoded frames (see Known gaps).
+**Writes:** `stats/<g>/run/pipe_<tag>.json`, the half's report with its pictures, and
+`pipe_<tag>.key.json`.
 
 ## 6. Publish (3-10 min)
 
@@ -323,9 +362,7 @@ All under `teams/{t}/matches/{m}/`:
   (`<tag>_camera.npz`, byte-identical to the Hybrid 90 one on all 14 game halves) and the pass
   no longer builds it.
 
-- **Stats from the table: no player pictures, and the counts are not yet checked.** The table
-  path (2026-11-21) reads no video, so its clusters have no thumbnails (wb1: 0 of 1,724; the
-  video path had 165). Session step 2.11 adds them from a short read of chosen frames. On
+- **Stats from the table: the counts are not yet checked.** On
   Woodbridge, team possession moved 4 points on wb1 and 13 on wb2 against the video path. The
   kits are not swapped: each team's territory and event positions agree between the two paths.
   On wb1, interceptions fell by a third to a half, and team A's duels from 23 to 5. Neither choice the step left open explains
