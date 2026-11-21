@@ -45,8 +45,11 @@ def step_of(name: str) -> str | None:
 
 
 def pass_fraction(log: Path) -> float | None:
-    """How far a half's pass is, from its log: the player features over the frames,
-    then each piece shipped and bridged. None before the log says how big it is."""
+    """How far a half's pass is, from its log: the players detected and their features
+    over the frames, then each piece's shipped ball. None before the log says how big it is.
+    The weights follow the Woodbridge passes, whose pace the ball candidates' detector sets:
+    the players are detected in the first third and featured by the middle, while the
+    pieces finish one by one to the end."""
     try:
         lines = log.read_text(encoding='utf-8', errors='replace').splitlines()
     except OSError:
@@ -57,17 +60,19 @@ def pass_fraction(log: Path) -> float | None:
         return None
     head = sized.search(lines[start])
     lo, hi, n = (int(x) for x in head.groups())
-    covered = shipped = bridged = 0
+    detected = covered = shipped = 0
     for s in lines[start + 1 :]:
         if 'HALF DONE' in s:
             return 1.0
-        f = re.search(r'players\s+(\d+)\.\.(\d+) features', s)
-        if f:
+        f = re.search(r'players\s+(\d+)\.\.(\d+) (detected|features)', s)
+        if f and f[3] == 'detected':
+            detected += int(f[2]) - int(f[1]) + 1
+        elif f:
             covered += int(f[2]) - int(f[1]) + 1
         shipped += ' shipped ' in s
-        bridged += ' hybrid ' in s
-    feats = min(1.0, covered / max(1, hi - lo + 1))
-    return min(0.99, 0.2 * feats + 0.4 * min(1.0, shipped / n) + 0.4 * min(1.0, bridged / n))
+    span = max(1, hi - lo + 1)
+    dets, feats = min(1.0, detected / span), min(1.0, covered / span)
+    return min(0.99, 0.15 * dets + 0.15 * feats + 0.7 * min(1.0, shipped / n))
 
 
 class Progress:

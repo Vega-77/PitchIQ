@@ -116,13 +116,16 @@ def test_a_pass_log_says_how_far_the_half_is(tmp_path):
     assert rp.pass_fraction(log) is None  # no log yet
     log.write_text('[10:00] starting\n')
     assert rp.pass_fraction(log) is None  # not sized yet
-    lines = ['[10:00] HALF wb1  1000..1999  4 pieces', '[10:05] players 1000..1499 features']
+    lines = ['[10:00] HALF wb1  1000..1999  4 pieces', '[10:02] players  1000..1499 detected']
     log.write_text('\n'.join(lines) + '\n')
-    assert rp.pass_fraction(log) == pytest.approx(0.1)  # half the features
-    lines += ['[10:09] players 1500..1999 features', '[10:20] q0 shipped 250 frames']
-    lines += ['[10:30] q0 hybrid done', '[10:31] q1 shipped 250 frames']
+    assert rp.pass_fraction(log) == pytest.approx(0.075)  # half the players detected
+    lines += ['[10:04] players  1500..1999 detected', '[10:05] players  1000..1499 features']
     log.write_text('\n'.join(lines) + '\n')
-    assert rp.pass_fraction(log) == pytest.approx(0.2 + 0.4 * 2 / 4 + 0.4 * 1 / 4)
+    assert rp.pass_fraction(log) == pytest.approx(0.15 + 0.075)  # and half their features
+    lines += ['[10:09] players  1500..1999 features', '[10:20] shipped  wb1_q000  (250 s)']
+    lines += ['[10:31] shipped  wb1_q001  (250 s)']
+    log.write_text('\n'.join(lines) + '\n')
+    assert rp.pass_fraction(log) == pytest.approx(0.3 + 0.7 * 2 / 4)
     log.write_text('\n'.join([*lines, '[11:00] HALF DONE']) + '\n')
     assert rp.pass_fraction(log) == 1.0
 

@@ -64,18 +64,45 @@ def _init(tag):
     if v:
         os.environ['PIQ_VIDEO'] = v  # unset, player_lab silently reads the scrimmage
     sys.path.insert(0, str(REPO))
-    from pitchiq.balltrack import match_video as MV  # noqa: F401  (chdirs to its work folder)
+    from pitchiq.balltrack import camera
     from pitchiq.experiments import player_lab
 
     det, meta = player_lab.load_detections(tag)
     proj, pitch = player_lab.projector(tag, meta['w'], meta['h'])
-    sm = np.load(Path(MV.HG) / f'{tag}_smooth2.npz')
-    _W.update(tag=tag, det=det, meta=meta, proj=proj, pitch=pitch, Hs=sm['H'], a0=int(sm['abs'][0]))
+    _W.update(tag=tag, det=det, meta=meta, proj=proj, pitch=pitch, cam=camera.Camera(tag))
+
+
+def pitch_map(cam, res, lo, hi, settings=None):
+    """pitchiq/topdown on frames lo..hi of a linked clip: everyone's feet in metres on every
+    frame, guesses while unseen. cam is the half's camera (`balltrack/camera.Camera`); no ball
+    goes in. Returns the map and (StatsBomb units per metre along, across)."""
+    from pitchiq import topdown
+    from pitchiq.pitchtrack import PitchProjector
+
+    Hs, a0 = cam.H, int(cam.abs[0])
+    D = np.diag([cam.length_m / 120, cam.width_m / 80, 1.0])
+    proj = PitchProjector({f: D @ Hs[f - a0] for f in range(lo, hi)}, 1920, 1080)
+    Ai = np.linalg.inv(cam.A)
+    ch_m = cam.ch_m  # metres in one camera height
+
+    def person_px(fs, boxes):
+        """Pixel height of a 1.75 m person standing at each box's feet (the camera's 3D model)."""
+        out = np.empty(len(fs))
+        for n, (f, b) in enumerate(zip(fs, boxes)):
+            M = Ai @ Hs[f - a0]
+            g = M @ [(b[0] + b[2]) / 2, b[3], 1.0]
+            q = np.linalg.inv(M) @ [g[0] / g[2], g[1] / g[2], 1 - 1.75 / ch_m]
+            out[n] = abs(b[3] - q[1] / q[2])
+        return out
+
+    td = topdown.build(
+        res, proj, lo, hi, cam.length_m, cam.width_m, settings, person_px=person_px
+    )
+    return td, (120 / cam.length_m, 80 / cam.width_m)
 
 
 def _one(span):
     """Link and map one window; return its dots as columns, plus kit and side per raw team."""
-    from pitchiq.balltrack import match_video as MV
     from pitchiq.experiments import player_lab
     from pitchiq.experiments.spotlab import _subset
 
@@ -87,7 +114,7 @@ def _one(span):
         'A+B+C', dw, dict(meta, lo=lo, n=hi - lo), _W['proj'], _W['pitch']
     )[1]
     t1 = time.time()
-    td, _ = MV.pitch_map(_W['tag'], res, _W['Hs'], _W['a0'], lo, hi)
+    td, _ = pitch_map(_W['cam'], res, lo, hi)
     cols = {k: [] for k in ('f', 'trk', 'x', 'y', 'seen', 'alpha', 'team', 'role', 'slot')}
     side = {0: [], 1: []}
     for f in range(lo, hi):
@@ -165,8 +192,10 @@ def run(
 ):
     import multiprocessing as mp
 
+    from pitchiq.balltrack import camera
     from pitchiq.experiments import player_lab
 
+    camera.ensure(tag)  # before the pool: the workers only read it
     v = video_of(tag)
     if v:
         os.environ['PIQ_VIDEO'] = v
@@ -235,10 +264,10 @@ def run(
 
 
 def _pitch_size(tag):
-    from pitchiq.panning_camera import PannedCamera
+    from pitchiq.balltrack import camera
 
-    p = PannedCamera.from_tracker(tag).pitch
-    return p.length_m, p.width_m
+    c = camera.Camera(tag)
+    return c.length_m, c.width_m
 
 
 def build_parser() -> argparse.ArgumentParser:

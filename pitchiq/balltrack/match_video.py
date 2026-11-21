@@ -23,7 +23,7 @@ import time
 import cv2
 import numpy as np
 
-from . import ball17, ballgate, pitch_registration
+from . import ball17, ballgate, camera, pitch_registration  # noqa: F401  (clickscore reads ballgate here)
 from .ballgate import short_runs  # MIN_RUN frames; clickscore reads it from here too
 from . import render_review_video  # clock
 
@@ -176,31 +176,14 @@ def footprint(H):
 
 
 def pitch_map(tag, res, Hs, a0, lo, hi, settings=None):
-    """pitchiq/topdown on this clip: everyone's feet in metres, every frame, guesses while unseen."""
-    from pitchiq import topdown
-    from pitchiq.experiments import player_lab
-    from pitchiq.pitchtrack import PitchProjector
+    """pitchiq/topdown on this clip (`wholemap.pitch_map`, what the stats use), placed with the
+    caller's per-frame camera Hs (frame a0 first) and the half's venue."""
+    from pitchiq.experiments import wholemap
 
-    _, pitch = player_lab.projector(tag, 1920, 1080)
-    D = np.diag([pitch.length_m / 120, pitch.width_m / 80, 1.0])
-    proj = PitchProjector({f: D @ Hs[f - a0] for f in range(lo, hi)}, 1920, 1080)
-    Ai = np.linalg.inv(flight_model.Track(tag).A)
-    ch_m = 9.15 / flight_model.R_CH  # metres in one camera height (Track set this camera's)
-
-    def person_px(fs, boxes):
-        """Pixel height of a 1.75 m person standing at each box's feet (the camera's 3D model)."""
-        out = np.empty(len(fs))
-        for n, (f, b) in enumerate(zip(fs, boxes)):
-            M = Ai @ Hs[f - a0]
-            g = M @ [(b[0] + b[2]) / 2, b[3], 1.0]
-            q = np.linalg.inv(M) @ [g[0] / g[2], g[1] / g[2], 1 - 1.75 / ch_m]
-            out[n] = abs(b[3] - q[1] / q[2])
-        return out
-
-    td = topdown.build(
-        res, proj, lo, hi, pitch.length_m, pitch.width_m, settings, person_px=person_px
-    )
-    return td, (120 / pitch.length_m, 80 / pitch.width_m)
+    camera.ensure(tag)
+    cam = camera.Camera(tag)
+    cam.H, cam.abs = Hs, np.arange(a0, a0 + len(Hs))
+    return wholemap.pitch_map(cam, res, lo, hi, settings)
 
 
 def colour(ident, col, team=None):

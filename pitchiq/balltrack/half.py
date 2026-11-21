@@ -1,4 +1,4 @@
-"""Ball (Hybrid 90 + 3D) and player detections over a whole half, pipelined.
+"""A whole half's ball candidates, shipped ball and player detections, pipelined.
 
     PIQ_VIDEO=<video> python -m pitchiq.balltrack.half <tag> <lo> <hi> [--workers 12] [--overlap 300]
 
@@ -7,22 +7,28 @@ Needs pitch_registration/<tag>_reg.npz (and <tag>_venue.npz) from
 
 detect_candidates.py runs over the whole half on the CPU. Each of its 5-minute chunks
 becomes a piece as soon as the chunks around it are done: the chunk plus
-`overlap` frames each side, run through the same chain hybrid.sh runs on a
-lab window (classifier, shipped picks, shipped 3D, TAPNext bridges, hybrid,
-hybrid 3D) under its own tag <tag>_q<slot>. Meanwhile the GPU detects the
-players chunk by chunk. At the end the pieces are stitched: each seam is cut
-at the frame nearest the chunk edge where both neighbours agree on the ball,
-in 2D and 3D, for 11 frames running.
+`overlap` frames each side, run through the first part of the chain hybrid.sh runs on a
+lab window (classifier, shipped picks, shipped 3D) under its own tag <tag>_q<slot>.
+Meanwhile the GPU detects the players chunk by chunk. At the end the pieces are
+stitched: each seam is cut at the frame nearest the chunk edge where both neighbours
+agree on the shipped ball, in 2D and 3D, for 11 frames running.
+
+The ball that the stats use is ball17's (`ball17.py`, after this, from these pieces).
+Until 2026-11-21 the pass also built the Hybrid 90 ball it replaced (TAPNext bridges on
+the GPU, 63-68 min a Woodbridge half; hybrid and its own 3D, 12-17 CPU min) and cut the
+seams where both balls agreed. Nothing read that ball by then but the map's camera, which
+now comes from the shipped chain's pieces (`camera.py`).
 
 Every stage leaves a marker in half/<tag>/, so a rerun after a crash or a
 reboot redoes only unfinished stages (detect_candidates and the player pieces keep their
 own 5-minute parts).
 
-Outputs, as hybrid.sh writes them for a window:
-  evaluation/p2d/cls_B/<tag>.npz, pitch_registration/<tag>_ball3dd.npz        shipped picks + 3D
-  evaluation/p2d/hyb90/<tag>.npz, h3d_hyb90/<tag>_ball3dd.npz    Hybrid 90 + 3D
+Outputs:
+  evaluation/p2d/cls_B/<tag>.npz, pitch_registration/<tag>_ball3dd.npz   shipped picks + 3D
+  pitch_registration/<tag>_camera.npz                          the camera on every frame (camera.py)
   plab/out/<tag>_dets.npz, <tag>_feat.npz                      players
   half/<tag>/seams.json, log.txt
+and per piece, what ball17 reads: <tag>_qNNN.npz (candidates), <tag>_qNNNcls.npz (scores).
 """
 
 import argparse
@@ -36,15 +42,13 @@ import time
 
 import numpy as np
 
-from . import config, detect_candidates, script
+from . import camera, config, detect_candidates, script
 from ..extras import MissingExtra, check
 
 S2 = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(S2))
 HOM = os.path.join(S2, 'pitch_registration')
 AT = os.path.join(S2, 'evaluation')
-TNX = os.path.join(S2, 'tapnext_bridge')
-H3D = os.path.join(S2, 'h3d_hyb90')
 PY = sys.executable
 
 AGREE = 5  # frames each side of a cut that must agree
@@ -64,6 +68,53 @@ def scorable(video):
 
     n = int(cv2.VideoCapture(video).get(cv2.CAP_PROP_FRAME_COUNT))
     return LOOKAHEAD, n - 1 - LOOKAHEAD
+
+
+def piece_ball(ptag):
+    """A piece's (or a half's) shipped ball: its 2D picks and its 3D ball, as dicts of arrays."""
+    with np.load(os.path.join(AT, 'p2d', 'cls_B', '%s.npz' % ptag)) as p2:
+        two = dict(p2)
+    with np.load(os.path.join(HOM, '%s_ball3dd.npz' % ptag)) as d3:
+        return two, dict(d3)
+
+
+def same(a, b, keys, tol):
+    """Whether two runs of frames hold the same ball: equal, or for floats missing in the same
+    frames and within tol."""
+    for k in keys:
+        if a[k].dtype.kind != 'f':
+            if not np.array_equal(a[k], b[k]):
+                return False
+            continue
+        na, nb = np.isnan(a[k]), np.isnan(b[k])
+        if not np.array_equal(na, nb) or np.any(np.abs(a[k][~na] - b[k][~nb]) > tol):
+            return False
+    return True
+
+
+def seam_cut(left, right, edge, lo, hi):
+    """The frame nearest `edge` within lo..hi where two neighbouring pieces' balls (each a
+    piece_ball) agree in 2D and 3D for the AGREE frames each side; None if none does."""
+    n = 2 * AGREE + 1
+
+    def agree(c):
+        for A, B, keys, tol in (
+            (left[0], right[0], ('x', 'y', 'src'), TOL2),
+            (left[1], right[1], ('x', 'y', 'z', 'state'), TOL3),
+        ):
+            ia = np.searchsorted(A['abs'], c - AGREE)
+            ib = np.searchsorted(B['abs'], c - AGREE)
+            sa = {k: A[k][ia : ia + n] for k in keys}
+            sb = {k: B[k][ib : ib + n] for k in keys}
+            if len(sa[keys[0]]) != n or len(sb[keys[0]]) != n or not same(sa, sb, keys, tol):
+                return False
+        return True
+
+    for d in range(0, max(edge - lo, hi - edge) + 1):
+        for c in (edge - d, edge + d):
+            if lo <= c <= hi and agree(c):
+                return c
+    return None
 
 
 class Half:
@@ -260,53 +311,14 @@ class Half:
             env=ONE_THREAD,
         )
 
-    def bridges(self, p):
-        # neighbours already bridged lend their tracks in the overlap (same gap, picks and frames)
-        """TAPNext bridges for one piece, reusing finished neighbours' tracks in the overlap."""
-        # tn_engine skips a piece whose bridges file exists; with no marker here, one is an earlier
-        # pass's, keyed to that pass's picks (the 2026-10-26 retrain kept ~94% stale), so it goes
-        out = os.path.join(AT, 'tn', 'bridges_%s.npy' % p['ptag'])
-        if os.path.exists(out):
-            os.remove(out)
-        near = [
-            q['ptag']
-            for q in self.pieces
-            if abs(q['k'] - p['k']) == 1 and self.done(q['ptag'], 'bridges')
-        ]
-        self.run(
-            TNX,
-            'tapnext_bridge.tn_engine',
-            'bridges',
-            p['ptag'],
-            env=dict(TN_NEAR=','.join(near), PYTHONUNBUFFERED='1'),
-        )
-
-    def hybrid(self, p):
-        """Hybrid 90 picks for one piece, then the 3D chain on them in h3d_hyb90/."""
-        P = p['ptag']
-        self.run(AT, 'evaluation.hybrid', P, env=ONE_THREAD)
-        os.makedirs(H3D, exist_ok=True)
-        # mk3d's chain skips a piece whose ball3dd exists: an earlier pass's would be kept
-        d3 = os.path.join(H3D, '%s_ball3dd.npz' % P)
-        if os.path.exists(d3):
-            os.remove(d3)
-        for kind in ('reg', 'venue'):
-            src = os.path.join(HOM, '%s_%s.npz' % (P, kind))
-            if os.path.exists(src):
-                shutil.copy2(src, H3D)
-        self.run(AT, 'evaluation.mk3d', 'hyb90', P, env=ONE_THREAD)
-
     # ---- the queues ----------------------------------------------------------------------
-    # Four kinds of lane. The players' detector spends four fifths of its time on
+    # Three kinds of lane. The players' detector spends four fifths of its time on
     # the CPU (colour samples of ~50 boxes a frame, decoding), so it gets a GPU lane
-    # of its own and the ball's GPU jobs fill the card meanwhile. TAPNext alone keeps
-    # the card busy, so one bridges lane. The classifier is mostly decoding and crop
-    # cutting, so it gets a lane of its own: sharing the bridges' lane, a 15-minute
-    # bridges job held every other piece's classify (and so its shipped chain and its
-    # bridges) back, ~10 min of a day half (pi1 log, 2026-10-16). The ball's CPU jobs
-    # (shipped chain, hybrid, build) run `lanes` at a time. Every job reads
-    # only finished files and was checked to give the same bytes whatever runs
-    # beside it, so the order changes no output.
+    # of its own and the ball's classifier fills the card meanwhile, in a lane of its own
+    # (mostly decoding and crop cutting). The ball's CPU jobs (build, shipped chain) run
+    # `lanes` at a time. Every job reads only finished files and was checked to give the
+    # same bytes whatever runs beside it, so the order changes no output. (Until 2026-11-21
+    # a fourth lane ran TAPNext bridges for the Hybrid 90 ball; see the docstring.)
 
     def claim(self, cands):
         """The first (stage, piece) of cands not done and not taken by another lane."""
@@ -350,7 +362,7 @@ class Half:
             self.err = e
 
     def ball_gpu_loop(self, stage, after):
-        """One GPU stage, piece by piece as `after` finishes them: bridges, or the classifier."""
+        """One GPU stage, piece by piece as `after` finishes them: the classifier."""
         try:
             while self.err is None:
                 stage_, p = self.claim(
@@ -366,12 +378,11 @@ class Half:
             self.err = e
 
     def cpu_loop(self):
-        """Hybrids first (they finish pieces), then the shipped chain, then builds."""
+        """The shipped chain first (it finishes pieces), then builds."""
         try:
             while self.err is None:
                 stage, p = self.claim(
-                    [('hybrid', p) for p in self.pieces if self.done(p['ptag'], 'bridges')]
-                    + [
+                    [
                         ('shipped', p)
                         for p in self.pieces
                         if self.done(p['ptag'], 'build') and self.done(p['ptag'], 'classify')
@@ -385,7 +396,7 @@ class Half:
                     ]
                 )
                 if stage is None:
-                    if all(self.done(p['ptag'], 'hybrid') for p in self.pieces):
+                    if all(self.done(p['ptag'], 'shipped') for p in self.pieces):
                         return
                     time.sleep(5)
                     continue
@@ -413,59 +424,15 @@ class Half:
     # ---- stitching ----------------------------------------------------------------------
 
     def stitch(self):
-        """Join the pieces at seams where both neighbours agree, in 2D and in 3D."""
-
-        def load(ver, P):
-            p2 = np.load(os.path.join(AT, 'p2d', ver, '%s.npz' % P))
-            d3 = np.load(os.path.join(HOM if ver == 'cls_B' else H3D, '%s_ball3dd.npz' % P))
-            return p2, d3
-
-        def same(a, b, keys, tol):
-            # floats: missing in the same frames and within tol
-            for k in keys:
-                if a[k].dtype.kind != 'f':
-                    if not np.array_equal(a[k], b[k]):
-                        return False
-                    continue
-                na, nb = np.isnan(a[k]), np.isnan(b[k])
-                if not np.array_equal(na, nb) or np.any(np.abs(a[k][~na] - b[k][~nb]) > tol):
-                    return False
-            return True
-
+        """Join the pieces at seams where both neighbours agree on the shipped ball, in 2D
+        and in 3D; write the half's picks, 3D ball and camera, and seams.json."""
+        balls = [piece_ball(p['ptag']) for p in self.pieces]
         seams, cuts = [], [self.lo]
-        for left, right in zip(self.pieces[:-1], self.pieces[1:]):
+        for k, (left, right) in enumerate(zip(self.pieces[:-1], self.pieces[1:])):
             edge = right['core'][0]
             lo = max(left['win'][0], right['win'][0]) + AGREE
             hi = min(left['win'][1], right['win'][1]) - AGREE
-            V = {v: (load(v, left['ptag']), load(v, right['ptag'])) for v in ('cls_B', 'hyb90')}
-
-            def agree(c):
-                for (l2, l3), (r2, r3) in V.values():
-                    for A, B, keys, tol in (
-                        (l2, r2, ('x', 'y', 'src'), TOL2),
-                        (l3, r3, ('x', 'y', 'z', 'state'), TOL3),
-                    ):
-                        ia = np.searchsorted(A['abs'], c - AGREE)
-                        ib = np.searchsorted(B['abs'], c - AGREE)
-                        n = 2 * AGREE + 1
-                        sa = {k: A[k][ia : ia + n] for k in keys}
-                        sb = {k: B[k][ib : ib + n] for k in keys}
-                        if (
-                            len(sa[keys[0]]) != n
-                            or len(sb[keys[0]]) != n
-                            or not same(sa, sb, keys, tol)
-                        ):
-                            return False
-                return True
-
-            cut = None
-            for d in range(0, max(edge - lo, hi - edge) + 1):
-                for c in (edge - d, edge + d):
-                    if lo <= c <= hi and agree(c):
-                        cut = c
-                        break
-                if cut is not None:
-                    break
+            cut = seam_cut(balls[k], balls[k + 1], edge, lo, hi)
             seams.append(
                 dict(
                     left=left['ptag'],
@@ -483,43 +450,21 @@ class Half:
             cuts.append(edge if cut is None else cut)
         cuts.append(self.hi + 1)
 
-        for ver in ('cls_B', 'hyb90'):
-            two, three = {}, {}
-            for p, a, b in zip(self.pieces, cuts[:-1], cuts[1:]):
-                p2, d3 = load(ver, p['ptag'])
-                m2 = (p2['abs'] >= a) & (p2['abs'] < b)
-                m3 = (d3['abs'] >= a) & (d3['abs'] < b)
-                for k in p2.files:
-                    two.setdefault(k, []).append(p2[k][m2])
-                for k in d3.files:
-                    three.setdefault(k, []).append(d3[k][m3])
-            two = {k: np.concatenate(v) for k, v in two.items()}
-            three = {k: np.concatenate(v) for k, v in three.items()}
-            assert np.array_equal(two['abs'], np.arange(self.lo, self.hi + 1)), (
-                'stitched 2D has gaps'
-            )
-            np.savez(os.path.join(AT, 'p2d', ver, '%s.npz' % self.tag), **two)
-            np.savez(
-                os.path.join(HOM if ver == 'cls_B' else H3D, '%s_ball3dd.npz' % self.tag), **three
-            )
-        # the smoothed camera (H per frame) that match_video, spotlab and panning_camera draw with,
-        # and the ball track (per-frame H + image point) that flight_model.Track reads
-        for name in ('smooth2', 'ballsb', 'img'):
-            sm = {}
-            for p, a, b in zip(self.pieces, cuts[:-1], cuts[1:]):
-                with np.load(os.path.join(H3D, '%s_%s.npz' % (p['ptag'], name))) as s:
-                    m = (s['abs'] >= a) & (s['abs'] < b)
-                    for k in s.files:
-                        sm.setdefault(k, []).append(s[k][m])
-            sm = {k: np.concatenate(v) for k, v in sm.items()}
-            assert np.array_equal(sm['abs'], np.arange(self.lo, self.hi + 1)), (
-                'stitched %s has gaps' % name
-            )
-            np.savez(os.path.join(H3D, '%s_%s.npz' % (self.tag, name)), **sm)
-        for kind in ('reg', 'venue'):
-            src = os.path.join(HOM, '%s_%s.npz' % (self.tag, kind))
-            if os.path.exists(src):
-                shutil.copy2(src, H3D)
+        two, three = {}, {}
+        for (p2, d3), a, b in zip(balls, cuts[:-1], cuts[1:]):
+            m2 = (p2['abs'] >= a) & (p2['abs'] < b)
+            m3 = (d3['abs'] >= a) & (d3['abs'] < b)
+            for k in p2:
+                two.setdefault(k, []).append(p2[k][m2])
+            for k in d3:
+                three.setdefault(k, []).append(d3[k][m3])
+        two = {k: np.concatenate(v) for k, v in two.items()}
+        three = {k: np.concatenate(v) for k, v in three.items()}
+        assert np.array_equal(two['abs'], np.arange(self.lo, self.hi + 1)), 'stitched 2D has gaps'
+        np.savez(os.path.join(AT, 'p2d', 'cls_B', '%s.npz' % self.tag), **two)
+        np.savez(os.path.join(HOM, '%s_ball3dd.npz' % self.tag), **three)
+        # the map's camera, from the shipped chain's pieces (camera.py)
+        camera.stitch(self.tag, [p['ptag'] for p in self.pieces], cuts)
         json.dump(seams, open(os.path.join(self.dir, 'seams.json'), 'w'), indent=1)
         self.say(
             'stitched %d pieces, %d of %d seams cut where both sides agree'
@@ -570,7 +515,6 @@ class Half:
             stderr=subprocess.STDOUT,
         )
         threads = [threading.Thread(target=self.players_loop)]
-        threads += [threading.Thread(target=self.ball_gpu_loop, args=('bridges', 'shipped'))]
         threads += [threading.Thread(target=self.ball_gpu_loop, args=('classify', 'build'))]
         threads += [threading.Thread(target=self.cpu_loop) for _ in range(self.lanes)]
         for t in threads:

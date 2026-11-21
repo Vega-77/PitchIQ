@@ -513,9 +513,12 @@ def feature_cache(tag: str) -> Path | None:
 
 
 def projector(tag: str, w: int, h: int) -> tuple[PitchProjector, object]:
+    """Pixels -> metres on every frame of the half, from its camera file (no ball)."""
+    from pitchiq.balltrack import camera
     from pitchiq.panning_camera import PannedCamera
 
-    cam = PannedCamera.from_tracker(tag)
+    camera.ensure(tag)
+    cam = PannedCamera.from_camera(tag)
     return PitchProjector.from_panned(cam, w, h), cam.pitch
 
 

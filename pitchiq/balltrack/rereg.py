@@ -1,32 +1,28 @@
 """A finished half's ball stages again, after only its registration changed.
 
-    PIQ_VIDEO=<video> python -m pitchiq.balltrack.rereg <tag> <lo> <hi> [--lanes 3] [--prev DIR]
+    PIQ_VIDEO=<video> python -m pitchiq.balltrack.rereg <tag> <lo> <hi> [--lanes 2]
 
 half.py from scratch would also redo detect_candidates, the classifier and the players (their chunk parts
 are merged and gone, so it detects every frame again), none of which reads the registration.
-Here, per piece: the new registration cut to its window (Half.registration, as build does),
-the shipped chain, TAPNext bridges, the hybrid, then the stitch, the same commands half.py
-runs. Two of them skip work when their output exists (tn_engine bridges, mk3d's chain), so
-those outputs are cleared first. The old bridges and the picks they were seeded from go to
---prev and TAPNext reuses every track whose gap, direction and seed are unchanged (TN_PREV):
-it is deterministic (a fresh run reproduced 10-13's eb2_q027 bridges byte for byte), so only
-the gaps the new air flags open are tracked again.
+Here, per piece: the new registration cut to its window (Half.registration, as build does)
+and the shipped chain, then the stitch, the same commands half.py runs. The v17 ball's 3D
+reads the registration too: run ball17 for the game again afterwards (move its h3d_v17 files
+aside first; it skips a half whose files exist).
+
+Until 2026-11-21 this also re-ran each piece's TAPNext bridges (reusing every unchanged track
+through TN_PREV) and the Hybrid 90 ball; half.py no longer builds that ball.
 """
 
 import argparse
 import os
-import shutil
-import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from . import half
 
-DATA = os.path.join(os.path.dirname(half.REPO), 'PitchIQ-data', 'tnprev')
-
 
 def main():
-    """Command line: <tag> <lo> <hi> [--overlap] [--lanes] [--prev] - per piece the new
-    registration, the shipped chain, bridges and hybrid, then the stitch.
+    """Command line: <tag> <lo> <hi> [--overlap] [--lanes] - per piece the new registration and
+    the shipped chain, then the stitch.
     """
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('tag')
@@ -37,43 +33,18 @@ def main():
         '--lanes',
         type=int,
         default=half.LANES,
-        help='CPU jobs (shipped chain, hybrid) at a time (at most half.LANES)',
+        help='shipped chains at a time (at most half.LANES)',
     )
-    ap.add_argument('--prev', help='where the old bridges go (default PitchIQ-data/tnprev/<tag>)')
     a = ap.parse_args()
-    # never more than half.py's lanes: each hybrid runs a 16-process scan, and at 3 lanes (ww1, ww2
-    # 2026-10-15) the CPU jobs starved TAPNext (one piece's bridges took 8-10 min, then died silently)
+    # never more than half.py's lanes: each chain runs a 16-process scan (flight_scan)
     a.lanes = min(a.lanes, half.LANES)
     h = half.Half(a.tag, a.lo, a.hi, 0, a.overlap)
-    prev = a.prev or os.path.join(DATA, a.tag)
-    os.makedirs(prev, exist_ok=True)
-    tn = os.path.join(half.AT, 'tn')
-    h.say(
-        'REREG %s  %d..%d  %d pieces, %d lanes, old bridges -> %s'
-        % (a.tag, a.lo, a.hi, len(h.pieces), a.lanes, prev)
-    )
+    h.say('REREG %s  %d..%d  %d pieces, %d lanes' % (a.tag, a.lo, a.hi, len(h.pieces), a.lanes))
     for p in h.pieces:
-        P = p['ptag']
-        for st in ('build', 'shipped', 'bridges', 'hybrid'):
-            m = os.path.join(h.dir, '%s.%s.done' % (P, st))
+        for st in ('build', 'shipped'):
+            m = os.path.join(h.dir, '%s.%s.done' % (p['ptag'], st))
             if os.path.exists(m):
                 os.remove(m)
-        b = os.path.join(tn, 'bridges_%s.npy' % P)
-        if os.path.exists(b):
-            if not os.path.exists(
-                os.path.join(prev, 'bridges_%s.npy' % P)
-            ):  # a restarted rerun keeps the first old copy
-                shutil.copy2(
-                    os.path.join(half.AT, 'p2d', 'cls_B', '%s.npz' % P),
-                    os.path.join(prev, 'cls_B_%s.npz' % P),
-                )
-                shutil.move(b, os.path.join(prev, 'bridges_%s.npy' % P))
-            else:
-                os.remove(b)
-        d3 = os.path.join(half.H3D, '%s_ball3dd.npz' % P)
-        if os.path.exists(d3):
-            os.remove(d3)
-    h.env['TN_PREV'] = prev
 
     def ship(p):
         h.registration(p)
@@ -81,25 +52,8 @@ def main():
         h.do('shipped', p)
 
     with ThreadPoolExecutor(a.lanes) as cpu:
-        shipped = {p['ptag']: cpu.submit(ship, p) for p in h.pieces}
-        hybrids, err = [], []
-
-        def gpu():
-            try:
-                for p in h.pieces:
-                    shipped[p['ptag']].result()
-                    h.do('bridges', p)
-                    hybrids.append(cpu.submit(h.do, 'hybrid', p))
-            except BaseException as e:  # noqa: BLE001 - re-raised below, after the pool drains
-                err.append(e)
-
-        t = threading.Thread(target=gpu)
-        t.start()
-        t.join()
-        for f in list(shipped.values()) + hybrids:
+        for f in [cpu.submit(ship, p) for p in h.pieces]:
             f.result()  # re-raises a failed stage
-        if err:
-            raise err[0]
     h.stitch()
     h.say('REREG DONE')
 

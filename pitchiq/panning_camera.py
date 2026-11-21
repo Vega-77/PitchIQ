@@ -120,6 +120,21 @@ class PannedCamera:
         return cls(to_reference, calibration, ball_sb)
 
     @classmethod
+    def from_camera(cls, tag: str) -> 'PannedCamera':
+        """The half's camera alone, with no ball: its camera file and venue
+        (`balltrack/camera.py`), which the pass writes. What the map places players with."""
+        from .balltrack.camera import Camera
+
+        cam = Camera(tag)
+        return cls.from_arrays(
+            cam.abs,
+            cam.H,
+            cam.ref,
+            Pitch(length_m=cam.length_m, width_m=cam.width_m),
+            error=CalibrationError(**cam.error),
+        )
+
+    @classmethod
     def from_tracker(cls, tag: str, version: str | None = None) -> 'PannedCamera':
         """Load what `pitchiq/balltrack/hybrid.sh <lo> <hi> <tag>` left behind.
 

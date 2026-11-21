@@ -753,9 +753,13 @@ def health(r: Run, tag: str) -> None:
 
 
 def passed(tag: str) -> bool:
+    """The half's pass finished: HALF DONE, its players and its camera file. A half passed
+    before 2026-11-21 may have only the Hybrid 90 folder's copy of the camera; the map makes
+    the file from it (`balltrack/camera.py`)."""
     log = TRACK / 'half' / tag / 'log.txt'
     done = log.exists() and 'HALF DONE' in log.read_text(encoding='utf-8', errors='replace')
-    return done and (H3D / f'{tag}_smooth2.npz').exists() and (DETS / f'{tag}_dets.npz').exists()
+    cam = (HOMOG / f'{tag}_camera.npz').exists() or (H3D / f'{tag}_smooth2.npz').exists()
+    return done and cam and (DETS / f'{tag}_dets.npz').exists()
 
 
 def step_pass(r: Run) -> None:
@@ -763,7 +767,7 @@ def step_pass(r: Run) -> None:
         if passed(t):
             r.say(f'pass {t}: done')
         elif r.a.plan:
-            r.say(f'pass {t}: to do (2-3 h)')
+            r.say(f'pass {t}: to do (1.5-2 h)')
         else:
             r.py(f'pass_{t}', 'pitchiq.balltrack.half', t, lo, hi, fewer=fewer_pass)
             if not passed(t):

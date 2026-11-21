@@ -72,7 +72,7 @@ command again.
 |---|---|
 | halves | `balltrack/halves.json` has the game (with the same video name) |
 | camera | `pitch_registration/<tag>_reg.npz` and `<tag>_venue.npz` exist; the check when `stats/<g>/run/cal_health_<tag>.json` exists |
-| pass | `half/<tag>/log.txt` says `HALF DONE`, and `h3d_hyb90/<tag>_smooth2.npz` and `plab/out/<tag>_dets.npz` exist. Inside a half, every stage of every piece leaves `half/<tag>/<ptag>.<stage>.done`. |
+| pass | `half/<tag>/log.txt` says `HALF DONE`, and `pitch_registration/<tag>_camera.npz` (or, for a half passed before 2026-11-21, `h3d_hyb90/<tag>_smooth2.npz`) and `plab/out/<tag>_dets.npz` exist. Inside a half, every stage of every piece leaves `half/<tag>/<ptag>.<stage>.done`. |
 | ball | `ball17.version(tag) == 'v17'` (its `p2d/v17` and `h3d_v17` files exist) |
 | map | `PitchIQ-data/stats/map/<tag>.npz` exists |
 | stats | `pipe_<tag>.json` exists and `pipe_<tag>.key.json` matches this run's ours, attacking end and tag log |
@@ -119,7 +119,7 @@ twice), why (`Stop(..., coach=...)` in process_match). An email to the coach is 
 | `pitchiq/weights/yolov8n.pt` | 6 MB | halves, pass (players) | Person detector |
 | `balltrack/rank7.model.json` (+ `.affine.json`), `still4.npz` | 0.5 MB | pass (`detect_candidates`) | Ball candidate ranker and its settings |
 | `balltrack/cls_C.pt` | 237 KB | pass (`score_candidates`) | Crop classifier scoring each ball candidate |
-| `balltrack/tapnext_bridge/tapnextpp_512.ckpt` | 2 GB | pass, ball | TAPNext++, which tracks the ball through gaps ("bridges") |
+| `balltrack/tapnext_bridge/tapnextpp_512.ckpt` | 2 GB | ball | TAPNext++, which tracks the ball through gaps ("bridges") |
 | `pitch_registration/vpitch.npz`, `vtop.npz` | 2 KB | 3D chain, stats | Default pitch template (used when a half has no venue file of its own) |
 | `pitchiq/xg_model8.onnx` | 4 MB | stats | xG for shots |
 | `botsort.yaml` (ships with Ultralytics) | - | stats | Player tracker settings |
@@ -167,14 +167,19 @@ within a minute. The old to-the-minute runs were 8-14 min off on eb (warm-ups), 
 With `--no-pins`, `pitchiq.experiments.autocal_run` replaces steps 1-5. It first calibrates one minute
 (`autocal/<g>cam<k>/full.pkl`), then each half.
 
-## 3a. Pass (`pitchiq.balltrack.half <tag> <lo> <hi>`, 50-125 min a half)
+## 3a. Pass (`pitchiq.balltrack.half <tag> <lo> <hi>`, 50-110 min a half)
 
 The half is cut into 5-minute pieces (9,000 frames, plus 300 frames of overlap each side;
 Woodbridge had 9 and 10). The stages run in parallel lanes:
-- the ball detector on the CPU
+- the ball detector on the CPU (it sets the pace: a piece can start only once its chunks are detected)
 - players on the GPU
-- the classifier and TAPNext bridges on the GPU
+- the classifier on the GPU
 - two lanes of CPU ball jobs
+
+Until 2026-11-21 each piece also got TAPNext bridges and the Hybrid 90 ball with its own 3D.
+Nothing read them once v17 shipped, so they were dropped. On Woodbridge they finished 10 and 13
+minutes after each half's last shipped piece, so a pass is about that much shorter (estimated
+from the logs, not yet measured on a run).
 
 | Stage | Reads | Writes |
 |---|---|---|
@@ -183,9 +188,13 @@ Woodbridge had 9 and 10). The stages run in parallel lanes:
 | Build a piece | the above, reg | `balltrack/<ptag>.npz`, `<ptag>pan.npz`, `<ptag>ppl.npz`, the reg cut to the piece's window, a copy of the venue |
 | Classify (`score_candidates cls_C.pt`) | video crops | `balltrack/<ptag>cls.npz` (each candidate's ball score) |
 | Shipped chain (`mkpicks_one`, then `ball_on_pitch`, `image_track`, `flight_scan`, `roll_speed_cache`, `flight_chain`, `smooth_ball`, `merge_air_and_ground`) | picks, reg, venue | `evaluation/p2d/cls_B/<ptag>.npz` (the older tracker's 2D picks), `pitch_registration/<ptag>_*` (scan, chains, smooth, `ball3dd` = ball in 3D) |
-| Bridges (`tn_engine`) | video, TAPNext | `evaluation/tn/bridges_<ptag>.npy` |
-| Hybrid 90 (`evaluation.hybrid`, then `evaluation.mk3d hyb90`) | picks + bridges | `evaluation/p2d/hyb90/<ptag>.npz`, `h3d_hyb90/<ptag>_*` |
-| Stitch | every piece | whole-half `p2d/{cls_B,hyb90}/<tag>.npz`, `pitch_registration/<tag>_ball3dd.npz`, `h3d_hyb90/<tag>_ball3dd.npz`, `_smooth2.npz` (ball, plus the per-frame camera `H`), `half/<tag>/seams.json`, `log.txt` |
+| Stitch | every piece | whole-half `p2d/cls_B/<tag>.npz`, `pitch_registration/<tag>_ball3dd.npz`, `pitch_registration/<tag>_camera.npz` (the per-frame camera `H`, from the shipped chain's pieces: `balltrack/camera.py`), `half/<tag>/seams.json`, `log.txt` |
+
+Each seam is cut at the frame nearest the chunk edge where both pieces' shipped balls agree
+for 5 frames each side (1 px in 2D, 0.5 StatsBomb units in 3D). The old rule also needed the
+Hybrid 90 balls to agree. Re-cut on the shipped ball alone, 2 of the 126 seams of the 14
+passed game halves move: 7 frames in all, with the same 2D picks and camera and a 3D ball
+within the tolerance.
 
 ## 3b. Ball (`pitchiq.balltrack.ball17 <g> <tag1>,<tag2>`, 150-270 min a game)
 
@@ -226,8 +235,9 @@ When `<tag>_feat.npz` is missing, it rebuilds it first (`player_lab features`, a
 
 **Reads:**
 - `plab/out/<tag>_dets.npz` and `_feat.npz` (unpacked to `_feat.npy` while it runs)
-- `pitch_registration/<tag>_reg.npz` + `_venue.npz` (the projector)
-- `h3d_hyb90/<tag>_smooth2.npz` (its per-frame camera `H`)
+- `pitch_registration/<tag>_camera.npz` + `_venue.npz`: the per-frame camera and the venue
+  (`balltrack/camera.py`, `PannedCamera.from_camera`). No ball file. A half passed before
+  2026-11-21 gets its camera file from its pass's pieces the first time it is mapped.
 - `halves.json` (for the video)
 
 **Writes:** `PitchIQ-data/stats/map/<tag>.npz` (about 12 MB). It holds every dot on every frame: x and y in metres, track, team, role (player, keeper, referee, other) and formation slot, plus per-window kit colour and side.
@@ -242,7 +252,7 @@ identity merge) on cached detections instead of running YOLO again.
 **Reads:**
 - the video (decoded frames)
 - `plab/out/<tag>_dets.npz` (rows at confidence 0.08 and above)
-- the ball through `PannedCamera.from_tracker`: `h3d_v17/<tag>_smooth2.npz`, `_ball3dd.npz` and `p2d/v17/<tag>.npz` (Hybrid 90 when v17 is missing)
+- the ball through `PannedCamera.from_tracker`: `h3d_v17/<tag>_smooth2.npz`, `_ball3dd.npz` and `p2d/v17/<tag>.npz`. There is no fallback: the run stops at the ball step when v17 is missing (only a half passed before 2026-11-21 still has a Hybrid 90 ball)
 - `pitch_registration/<tag>_venue.npz`
 - `halves.json`, the xG model and `botsort.yaml`
 - the tag log, if one was given
@@ -275,7 +285,7 @@ All under `teams/{t}/matches/{m}/`:
 | `plab/out/<tag>_feat.npz` (both halves) | about 7.5 GB |
 | `balltrack/` root (candidates and pieces) | 217 MB |
 | `plab/out/<tag>_dets.npz` (both) | 191 MB |
-| `h3d_hyb90/` | 174 MB |
+| `h3d_hyb90/` (not written since 2026-11-21) | 174 MB |
 | `h3d_v17/` | 154 MB |
 | `pitch_registration/` | 122 MB |
 | `evaluation/p2d/*`, `evaluation/tn/` | 22 MB |
@@ -288,12 +298,11 @@ All under `teams/{t}/matches/{m}/`:
 
 - **Re-mapping an old game outside `process_match` runs without player features.** The feature files of all 21 earlier halves were deleted on 2026-11-21 (79 GB). `process_match` rebuilds a missing one before the map, and `wholemap` now warns, but `player_lab.load_detections` alone still carries on without. Rebuild a half's features by hand with
   `PIQ_VIDEO=<video> python -m pitchiq.experiments.player_lab features --tag <tag>` (about 13 min a half).
-- **The pass still builds the Hybrid 90 ball** (bridges, hybrid and its own 3D chain for every piece). Since v17 shipped, it is read only by:
-  - the "pass done" check
-  - the map's per-frame camera (`h3d_hyb90/<tag>_smooth2.npz`)
-  - the fallback when v17 is missing
-
-  Whether the camera can come from elsewhere is unchecked.
+- **The lab tools still draw the Hybrid 90 ball** (`match_video`, `maplab`, `spotlab`, `formation_video`,
+  `flight_model.Track`). They work on halves passed before 2026-11-21 and not on new ones. The
+  shipped steps no longer read it: the map's camera comes from the shipped chain's pieces
+  (`<tag>_camera.npz`, byte-identical to the Hybrid 90 one on all 14 game halves) and the pass
+  no longer builds it.
 
 ## Keeping this current
 

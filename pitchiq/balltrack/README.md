@@ -98,11 +98,13 @@ say it is no worse.
 PIQ_VIDEO=<video> python -m pitchiq.balltrack.half <tag> <lo> <hi> [--workers 12]
 ```
 
-`half.py` runs the chain `hybrid.sh` runs on a window over a whole half: detect_candidates
-on the CPU in 5-minute chunks, each chunk (plus 300 frames of overlap) through
-the classifier, the shipped picks, TAPNext bridges, Hybrid 90 and the 3D chain,
-and the person detector on the GPU meanwhile. The pieces are stitched where
-neighbours agree on the ball. It needs `pitch_registration/<tag>_reg.npz` and
+`half.py` runs the first part of the chain `hybrid.sh` runs on a window, over a whole half:
+detect_candidates on the CPU in 5-minute chunks, each chunk (plus 300 frames of overlap)
+through the classifier, the shipped picks and their 3D chain, and the person detector on
+the GPU meanwhile. The pieces are stitched where neighbours agree on the shipped ball, and
+the half's camera on every frame is written beside them (`camera.py`, what the map reads).
+The ball the stats use is `ball17.py`'s, built from these pieces afterwards. (Until
+2026-11-21 the pass also ran TAPNext bridges and Hybrid 90 on every piece.) It needs `pitch_registration/<tag>_reg.npz` and
 `<tag>_venue.npz` first, from `python -m pitchiq.experiments.autocal_run <tag> ...
 --homog`. Every stage leaves a marker in `half/<tag>/`, so a rerun after a
 crash redoes only what did not finish. `rereg.py` reruns a finished half's
