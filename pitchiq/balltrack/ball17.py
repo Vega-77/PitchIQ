@@ -22,8 +22,10 @@ Outputs (version VER):
   evaluation/p2d/v17/<tag>.npz      abs, x, y, src (0 where there is no ring), ring
   h3d_v17/<tag>_ball3dd.npz, _smooth2.npz
   PitchIQ-data/ball17/<game>/       working files and log.txt; every stage is skipped when its output exists.
-The fit's shared inputs (dev crop caches, pseudo-labels, click answers, crop sets, ResNet-18 weights) are in
-PitchIQ-data/pipeline/ballfit; its README says what each is and how to rebuild the caches.
+The fit's shared inputs (dev crop caches, pseudo-labels, click answers, crop sets, ResNet-18 weights, and a frozen
+copy of the dev halves' pass pieces in devpass/) are in PitchIQ-data/pipeline/ballfit; its README says what each is
+and how to rebuild the caches.  The fit never reads the live dev pieces here, which a pipeline run on a dev game
+rewrites.
 --clicked-gaps bridges only the gaps that hold a Ball Clicker answer (the look's own scoring shortcut, minutes
 instead of hours); --no-3d stops after the merge; --work <dir> keeps everything (merged picks too) there and
 --bt <dir> reads pieces from another folder.  For checking against the look only.
@@ -49,6 +51,7 @@ REPO = os.path.dirname(os.path.dirname(S2))
 DATA = os.path.join(os.path.dirname(REPO), 'PitchIQ-data')
 BP = os.path.join(REPO, 'pitchiq', 'experiments', 'ballpush')
 SELF = os.path.join(BP, 'selftrain')
+DEVPASS = os.path.join(DATA, 'pipeline', 'ballfit', 'devpass')  # the dev halves' pieces the fit's rows were cut from
 HOM = os.path.join(S2, 'pitch_registration')
 PY = sys.executable
 
@@ -114,11 +117,14 @@ class Game:
 
     def env(self, own_bt=True, **kw):
         """The parent's environment without the ball push's knobs, plus kw.  own_bt=False: the fit, whose dev rows
-        and crop labels live beside the main checkout's balltrack (it gets the pieces' folder as an argument)."""
+        are read from the frozen dev pieces (DEVPASS); it gets this game's pieces' folder as an argument."""
         knobs = ('ST_', 'BP_', 'RP_', 'TN_', 'MAXGAP', 'ALLGAPS', 'RC', 'BPNAME', 'EXPORT', 'ENDP', 'PARTIAL', 'BACK')
         e = {k: v for k, v in os.environ.items() if not k.startswith(knobs)}
         e.update(PYTHONPATH=REPO, BP_HELD=','.join(self.tags), PYTHONIOENCODING='utf-8')
-        if own_bt and os.path.normcase(os.path.abspath(self.bt)) != os.path.normcase(S2):
+        if not own_bt:
+            assert os.path.isdir(DEVPASS), 'the fit needs the frozen dev pieces in %s (see its README)' % DEVPASS
+            e['BP_BT'] = DEVPASS
+        elif os.path.normcase(os.path.abspath(self.bt)) != os.path.normcase(S2):
             e['BP_BT'] = self.bt
         e.update({k: str(v) for k, v in kw.items()})
         return e

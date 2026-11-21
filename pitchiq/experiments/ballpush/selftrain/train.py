@@ -32,7 +32,8 @@ def base_data():
 
     T.S2 = st.BT
     recs = json.load(open(st.FIT + '/ckLlabels.json'))
-    for line in open(st.BT + '/crop_labels/crops.jsonl'):
+    # the human crop labels are in git beside the code, not beside the pieces (st.BT is a frozen copy in the fit)
+    for line in open(os.path.join(st.common.CODE_BT, 'crop_labels', 'crops.jsonl')):
         d = json.loads(line)[1]
         if d['label'] != 'unsure':
             recs.append(dict(tag=d['tag'], f=int(d['f']), j=int(d['j']), label=d['label']))
