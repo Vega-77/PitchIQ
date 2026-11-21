@@ -30,8 +30,11 @@ this command prints when each one starts and ends.
                 page by hand and save `pins.json` beside it. `--no-pins` uses
                 the pin-free calibration (`experiments/autocal_run.py`) instead
   3. pass       the ball and the players over each half (`balltrack/half.py`)
-  4. map        the top-down map of each half (`experiments/wholemap.py`)
-  5. stats      the pipeline report of each half from its map and ball, in
+  4. ball, map  at the same time: the look #17 ball over both halves
+                (`balltrack/ball17.py`, 3-6 h, mostly the GPU) and, beside it,
+                the top-down map of each half (`experiments/wholemap.py`, the
+                CPU), which needs the pass's players and camera but not the ball
+  5. stats     the pipeline report of each half from its map and ball, in
                 pitch metres, with no video read (`experiments/cached_report.py
                 half`, `map_table.py`)
   6. publish    both halves joined, the map's figures put in, and the report
@@ -49,9 +52,11 @@ or the command line. The end we attack in the first half comes from the map
 (where each team's keeper and players stand) unless `--attacks-first` says it;
 the run stops if the two halves' maps do not show the teams changing ends.
 
-About 5 to 9 hours a game on this PC, plus however long the coach takes to
+About 5 to 10 hours a game on this PC, plus however long the coach takes to
 pin; each step's time is in `shared/run-steps.json`, which the coach page's
-estimate reads too. Everything runs one step at a time.
+estimate reads too. Woodbridge's measured steps (2026-11-19) add up to about
+8 h 40 min in this order, against 10 h 52 min before the maps ran beside the
+ball and the stats came from the table. Everything else runs one step at a time.
 
 Publishing needs PITCHIQ_SA_KEY (the service account key, kept outside the
 repo) and the team and match ids; `--list-matches` prints them. Both are
@@ -68,6 +73,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 from datetime import date
 from pathlib import Path
@@ -91,16 +97,20 @@ SIZE = (1920, 1080)
 CAMERA_FRAMES = 1800  # a minute of the first half for the camera alone
 CAMERA_TRIES = (0.25, 0.5, 0.75, 0.1, 0.9)  # where in the half to try that minute
 MIN_MINUTES = 1.0  # per-player rows shorter than this are left out (Firestore's 1 MB a document)
-# At most this many map processes, fewer when memory is short (MAP_GB each, see step_map).
+# At most this many map processes, fewer when memory is short (MAP_GB each, see map_one).
 # 8 ran this 32 GB PC out of memory on wb1 (2026-11-19) while each held its own copy of the
 # half's player features; they now share one memory-mapped copy (player_lab.feature_cache).
 MAP_PROCS = int(os.environ.get('PIQ_MAP_PROCS', '8'))
 MAP_GB = 3.0  # measured on wb1 2026-11-21: 2.5 GB working set, 3.6 GB committed a process
+# What the maps leave free for the ball step running beside them (step_ball_and_maps).
+# Estimated, not measured: the fit holds about 110k 40 x 40 x 7 crops (1.2 GB) plus torch
+# and CUDA, and TAPNext one half's frames. Each step's peak now goes in run.log ("peak").
+BALL_GB = float(os.environ.get('PIQ_BALL_GB', '6'))
 SITE = os.environ.get('PIQ_SITE', 'https://vega-77.github.io/PitchIQ/')
 PIN_POLL_S = 60  # how often the run looks for the coach's pins
 PIN_REMIND_S = 1800  # and how often it says it is still waiting
 TICK_S = 30  # how often a running step's progress is looked at
-STEPS = ('halves', 'camera', 'pass', 'map', 'stats', 'publish')
+STEPS = ('halves', 'camera', 'pass', 'ball beside map', 'stats', 'publish')
 NOTE_CHARS = 1500  # of a phone note (ntfy takes 4 KB; the full text is in run.log)
 
 
@@ -155,6 +165,27 @@ def game_code(text: str) -> str:
     return text
 
 
+def memory_gb(pid: int) -> tuple[float, float]:
+    """(in use, committed) GB of a process and everything it started; (0, 0) once it is gone.
+    Committed is what counts against Windows' commit limit (the pagefile's error 1455)."""
+    import psutil
+
+    try:
+        p = psutil.Process(pid)
+        procs = [p, *p.children(recursive=True)]
+    except psutil.Error:
+        return 0.0, 0.0
+    use = commit = 0
+    for q in procs:
+        try:
+            m = q.memory_info()
+        except psutil.Error:  # it ended between the listing and the look
+            continue
+        use += m.rss
+        commit += getattr(m, 'private', 0)  # Windows only
+    return use / 2**30, commit / 2**30
+
+
 def now() -> str:
     return time.strftime('%H:%M')
 
@@ -178,6 +209,9 @@ class Run:
         )
         self.progress = Progress(None, None, None)  # main() points it at the match
         self.video_s = None  # the video's length in seconds, from check_video
+        # set in a thread whose steps run beside another (the maps beside the ball): they
+        # leave the coach's progress bar to the one in front
+        self.beside = threading.local()
 
     def say(self, text: str) -> None:
         line = f'{now()}  {text}'
@@ -227,11 +261,12 @@ class Run:
         """One try of a step (see py); its exit code."""
         cmd = [sys.executable, '-W', 'ignore', '-m', *map(str, args)]
         log = self.logs / f'{name}.log'
-        key = step_of(name)
+        key = None if getattr(self.beside, 'on', False) else step_of(name)
         if key:
             self.progress.begin(key)
         self.say(f'start {name}  (log: {log})')
         t0 = time.time()
+        peak = (0.0, 0.0)
         with open(log, 'a', encoding='utf-8') as f:
             f.write(f'\n=== {time.ctime()}  {" ".join(cmd)}\n')
             f.flush()
@@ -241,9 +276,12 @@ class Run:
                     rc = proc.wait(timeout=TICK_S)
                     break
                 except subprocess.TimeoutExpired:
+                    peak = tuple(map(max, peak, memory_gb(proc.pid)))
                     if key:
                         self.tick(name, key)
-        self.say(f'end {name}  rc {rc}  ({(time.time() - t0) / 60:.0f} min)')
+        took = (time.time() - t0) / 60
+        held = f', peak {peak[0]:.1f} GB in use, {peak[1]:.1f} GB committed' if peak[0] else ''
+        self.say(f'end {name}  rc {rc}  ({took:.0f} min{held})')
         return rc
 
     def tick(self, name: str, key: str) -> None:
@@ -775,39 +813,97 @@ def step_pass(r: Run) -> None:
                 raise Stop(
                     f'the pass of {t} ended without HALF DONE ({TRACK / "half" / t / "log.txt"})'
                 )
-    # the look #17 ball over both halves at once: self-trained on this game's own tracks
+
+
+def ball_done(r: Run) -> bool:
     from pitchiq.balltrack import ball17
 
-    if all(ball17.version(t) == ball17.VER for t in r.tags):
-        r.say(f'ball {r.g}: done')
-    elif r.a.plan:
-        r.say(f'ball {r.g}: to do (about 3-6 h: 30 min of training, TAPNext bridges, 3D per half)')
-    else:
-        r.py(f'ball17_{r.g}', 'pitchiq.balltrack.ball17', r.g, ','.join(r.tags))
+    return all(ball17.version(t) == ball17.VER for t in r.tags)
+
+
+def step_ball_and_maps(r: Run) -> None:
+    """The ball step and both halves' maps at the same time.
+
+    The ball (the look #17 ball over both halves at once, self-trained on this game's own
+    tracks) needs both passes. The maps need only each pass's players and camera, not the
+    ball, so they run beside it. The ball is the long one, 3-6 h and mostly the GPU, and it
+    keeps the coach's progress bar; the maps (15-40 min a half, the CPU) leave BALL_GB free
+    for it and are done long before its 3D stage, the part that needs the most memory.
+    A map that fails is said at once; the run stops when the ball has finished (its work is
+    kept either way, and a rerun skips it).
+    """
+    todo = [t for t in r.tags if not (MAPS / f'{t}.npz').exists()]
+    ball = not ball_done(r)
+    if r.a.plan:
+        work = 'to do (about 3-6 h: 30 min of training, TAPNext bridges, 3D per half)'
+        r.say(f'ball {r.g}: ' + (work if ball else 'done'))
+        beside = ', beside the ball' if ball else ''
+        for t in r.tags:
+            r.say(f'map {t}: ' + (f'to do (15-30 min{beside})' if t in todo else 'done'))
+        return
+    for t in todo:
+        if t in HELD_OUT and not r.a.final:
+            raise Stop(f'{t} is held out: its map is made once, with --final')
+    # The features need the GPU and a video read, so they go first, alone. The pass makes
+    # them; only a half passed before 2026-11-21 lacks them (deleted that day).
+    for t in todo:
+        if not (DETS / f'{t}_feat.npz').exists():  # the map links worse without
+            r.py(f'features_{t}', 'pitchiq.experiments.player_lab', 'features', '--tag', t)
+    failed: list[BaseException] = []
+    mapping = [None]  # the half the maps are on
+
+    def maps():
+        r.beside.on = ball
+        try:
+            for t in todo:
+                mapping[0] = t
+                map_one(r, t, BALL_GB if ball else 0.0)
+        except BaseException as e:  # Stop, or a bug: raised in the main thread after the ball
+            failed.append(e)
+            if ball:
+                why = 'The ball step goes on; the run stops when it ends.'
+                r.say(f'map stopped: {e}. {why}')
+                r.tell('map stopped', f'{e}\n\n{why}', 'high')
+
+    for t in r.tags:
+        if t not in todo:
+            r.say(f'map {t}: done')
+    side = threading.Thread(target=maps, name='maps', daemon=True)
+    side.start()
+    try:
+        if ball:
+            r.py(f'ball17_{r.g}', 'pitchiq.balltrack.ball17', r.g, ','.join(r.tags))
+            if side.is_alive() and mapping[0]:  # the bar moves on from the ball to the map
+                r.progress.begin(step_of(f'map_{mapping[0]}'))
+        else:
+            r.say(f'ball {r.g}: done')
+    finally:
+        # never leave a map running behind a stopped run: its processes would go on alone
+        while side.is_alive():
+            side.join(timeout=TICK_S)
+    if ball:
+        from pitchiq.balltrack import ball17
+
         missing = [t for t in r.tags if ball17.version(t) != ball17.VER]
         if missing:
-            raise Stop(f'the ball step left no v17 ball for {", ".join(missing)} ({DATA / "ball17" / r.g / "log.txt"})')
+            log = DATA / 'ball17' / r.g / 'log.txt'
+            raise Stop(f'the ball step left no v17 ball for {", ".join(missing)} ({log})')
+    if failed:
+        raise failed[0]
 
 
-def step_map(r: Run) -> None:
-    for t in r.tags:
-        if (MAPS / f'{t}.npz').exists():
-            r.say(f'map {t}: done')
-        elif r.a.plan:
-            r.say(f'map {t}: to do (15-30 min)')
-        else:
-            extra = ['--final'] if t in HELD_OUT and r.a.final else []
-            if t in HELD_OUT and not extra:
-                raise Stop(f'{t} is held out: its map is made once, with --final')
-            if not (DETS / f'{t}_feat.npz').exists():  # the pass makes it; the map links worse without
-                r.py(f'features_{t}', 'pitchiq.experiments.player_lab', 'features', '--tag', t)
-            from pitchiq.cli import preflight
+def map_one(r: Run, t: str, reserve_gb: float) -> None:
+    """One half's map, with as many processes as the memory free now allows after
+    `reserve_gb` for whatever runs beside it."""
+    from pitchiq.cli import preflight
 
-            n = preflight.procs_for(MAP_PROCS, MAP_GB)
-            if n < MAP_PROCS:
-                r.say(f'map {t}: {n} processes, not {MAP_PROCS}: {preflight.free_gb():.0f} GB free')
-            r.py(f'map_{t}', 'pitchiq.experiments.wholemap', t, '--procs', n, *extra, fewer=fewer_map)
-            (DETS / f'{t}_feat.npy').unlink(missing_ok=True)  # the map's unpacked copy (5 GB)
+    extra = ['--final'] if t in HELD_OUT else []
+    n = preflight.procs_for(MAP_PROCS, MAP_GB, reserve_gb=3.0 + reserve_gb)
+    if n < MAP_PROCS:
+        why = f', {reserve_gb:.0f} GB kept for the ball' if reserve_gb else ''
+        r.say(f'map {t}: {n} processes, not {MAP_PROCS}: {preflight.free_gb():.0f} GB free{why}')
+    r.py(f'map_{t}', 'pitchiq.experiments.wholemap', t, '--procs', n, *extra, fewer=fewer_map)
+    (DETS / f'{t}_feat.npy').unlink(missing_ok=True)  # the map's unpacked copy (5 GB)
 
 
 def fewer_map(args):
@@ -1052,7 +1148,8 @@ def run_steps(r: Run) -> int:
         r.say(
             f'{"plan for" if a.plan else "processing"} {a.video.name} as {r.g} (ours: {a.ours}, lines: {a.lines})'
         )
-        for step in (step_halves, step_camera, step_pass, step_map, step_stats, step_publish):
+        steps = (step_halves, step_camera, step_pass, step_ball_and_maps, step_stats, step_publish)
+        for step in steps:
             step(r)
     except Stop as e:
         r.say(f'STOPPED: {e}')
