@@ -7,7 +7,7 @@ and found their inputs relative to their own folder, so none of them ran from
 here anyway.
 
 Nothing kept imports, runs or names any of them (`run.sh`, `hybrid.sh`,
-`half.py`, `retrain.sh`, `pitch_registration/default_ball_path.sh`, the `evaluation/` shell scripts,
+`half.py`, the `evaluation/` shell scripts,
 the scorers the README documents, and everything under `pitchiq/` outside
 `balltrack/`). `hybrid.sh` gave byte-identical outputs on a one-minute window
 before and after each step.

@@ -105,8 +105,8 @@ inside a window.
 (`detect_candidates.py`, `<tag>.npz`).
 
 **cls_B.** The shipped crop classifier (`cls_B.pt`) and the picks the tracker
-makes with it (`evaluation/p2d/cls_B/`). `cls_A` is the other variant `retrain.sh`
-builds.
+makes with it (`evaluation/p2d/cls_B/`). `cls_A` is the other variant the October
+retrain built. The ball step (`ball17.py`) now retrains a classifier on every game.
 
 **Hybrid 90.** The accepted tracker: cls_B's picks, with gaps of up to 90
 frames on the ground bridged by TAPNext++ when its forward and backward runs

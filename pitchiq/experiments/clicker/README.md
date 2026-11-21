@@ -8,8 +8,6 @@ answers out, dead, hidden, can't tell), to score the ball rings the videos draw.
   held-out games added on 2026-10-23 (Colonia, Woodbridge) into b7..b9.
 - `cantbatch.py` builds a batch of the frames answered "can't tell", asked again
   with "Hidden, but it's here" (a click on where the hidden ball is).
-- `stage.py <site dir> b1 [b2 ...]` stages `index.html`, `batches.json` and the
-  live batches' media for publishing.
 - `clickscore.py` scores the pipeline's rings against the downloaded answers.
 - `ringcheck.py` checks that clickscore's ring is the ring the videos draw
   (`match_video.ball`) at every answered frame, and saves those rings.

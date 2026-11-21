@@ -81,7 +81,7 @@ find out why before you change anything.
   probes are in `PitchIQ-data/HANDOFF-2026-10-26.md` and
   `PitchIQ-data/scratch-2026-10-26/`.
 - **Where the 609 dev balls are lost.** This is the funnel from
-  `scratch-2026-10-26/clickfunnel.py`, as of the retrain; rerun it on V23
+  `clickfunnel.py` (in git history since 2026-11-21), as of the retrain; rerun it on V23
   first.
 
 | Stage | Balls |

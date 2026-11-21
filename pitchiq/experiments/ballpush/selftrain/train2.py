@@ -148,7 +148,7 @@ def fit_net(crops, ctx, y, w, epochs, dev, seed, wide, log='', bs=256, lr=2e-3, 
     ch = crops.shape[-1]
     if ch != 3:
         net.conv[0][0] = torch.nn.Conv2d(ch, net.conv[0][0].out_channels, 3, padding=1, bias=False)
-    if init:  # new-brief 2.1: the conv trunk starts from sn_pre.py's weights
+    if init:  # new-brief 2.1: the conv trunk starts from a pretrained checkpoint (sn_pre.py, now in git history)
         net.conv.load_state_dict(torch.load(init, weights_only=True)['conv'])
     net = net.to(dev)
     rest = [q for n, q in net.named_parameters() if not n.startswith('conv.')]
@@ -249,7 +249,7 @@ def main():
     f.add_argument('--sw', type=float, default=0.5)  # their loss weight
     f.add_argument('--synth-keep', default='')  # e.g. s,rank: ctx is the background's except these columns
     f.add_argument('--cleat-w', type=float, default=1.0)  # loss weight factor of cleat-zone negatives
-    f.add_argument('--init', default='')  # sn_pre.py checkpoint for the conv trunk
+    f.add_argument('--init', default='')  # pretrained checkpoint for the conv trunk (sn_pre.py, in git history)
     f.add_argument('--conv-lr', type=float, default=1.0)  # the trunk's learning rate as a share of the head's
     f.add_argument('--lab', default='')  # label-set suffix (pseudo.py ST_LAB), e.g. _l30
     f.add_argument('--stack', type=int, default=1)
