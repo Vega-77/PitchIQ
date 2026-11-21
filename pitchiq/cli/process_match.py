@@ -930,6 +930,24 @@ def main(argv: list[str] | None = None) -> int:
         p.error('give both --h1 and --h2, or neither')
     a.video = a.video.resolve()
     r = Run(a)
+    if a.plan:
+        return run_steps(r)
+    from pitchiq.cli import resume
+
+    # a reboot kills the run but leaves this mark, and the logon task (resume.py) starts it again
+    resume.mark(r.out, sys.argv[1:] if argv is None else argv)
+    resume.keep_awake()
+    if os.environ.get('PIQ_RESUMED'):
+        r.say(f'resumed after a restart (time {os.environ["PIQ_RESUMED"]}): finished steps are skipped')
+    try:
+        return run_steps(r)
+    finally:
+        resume.clear(r.out)
+
+
+def run_steps(r: Run) -> int:
+    """The checks, then every step; 1 when one stopped."""
+    a = r.a
     try:
         r.video_s = check_video(a.video)
         check_inputs(r)

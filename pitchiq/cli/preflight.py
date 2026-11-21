@@ -40,7 +40,11 @@ INPUTS = [
     (TRACK / 'rank7.model.json.affine.json', "the ranker's score scale", 'pass'),
     (TRACK / 'still4.npz', "the ranker's ball-size table", 'pass'),
     (TRACK / 'cls_C.pt', 'the ball crop classifier', 'pass'),
-    (TRACK / 'tapnext_bridge' / 'tapnextpp_512.ckpt', 'TAPNext++, the ball gap filler', 'pass, ball'),
+    (
+        TRACK / 'tapnext_bridge' / 'tapnextpp_512.ckpt',
+        'TAPNext++, the ball gap filler',
+        'pass, ball',
+    ),
     (TRACK / 'pitch_registration' / 'vpitch.npz', 'the default pitch template', 'pass'),
     (TRACK / 'pitch_registration' / 'vtop.npz', 'the default pitch template', 'pass'),
     (TRACK / 'crop_labels' / 'crops.jsonl', 'the hand ball labels', 'ball'),

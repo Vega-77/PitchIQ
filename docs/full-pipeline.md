@@ -81,6 +81,19 @@ command again.
 Each step logs to `PitchIQ-data/stats/<g>/run/logs/<step>.log`, and the run as a whole logs
 to `run.log` beside it.
 
+**After a reboot.** While it runs, `process_match` keeps `stats/<g>/run/active.json`. That
+file holds the command, the folder, the PIQ_* settings, the key's path and the PID. A run
+that ends clears it, whether it finished or stopped. A run the machine killed leaves it.
+Two minutes after logon, the Task Scheduler task `\PitchIQ\Resume run` runs
+`pythonw -m pitchiq.cli.resume`. That relaunches the newest cut-off run with no window, its
+output in `run/resume.log`, and notes it in `run.log`. After 3 resumes in a row it gives up
+and leaves a note instead.
+- `python -m pitchiq.cli.resume --list` shows the marks.
+- `--install` and `--uninstall` add and remove the task.
+
+While it runs, the run also asks Windows not to sleep. That is the request a video player
+makes, not a power setting.
+
 ## Fixed inputs (the same for every game)
 
 | File | Size | Read by | What it is for |
