@@ -74,6 +74,13 @@ class _RecordedDoc:
     def update(self, data):
         self._recorder.writes.append(('update', self._path, data))
 
+    def delete(self):
+        self._recorder.writes.append(('delete', self._path, {}))
+
+    @property
+    def id(self) -> str:
+        return self._path.rsplit('/', 1)[-1]
+
     def get(self):
         return self
 
@@ -92,6 +99,10 @@ class _RecordedCollection:
 
     def document(self, name):
         return _RecordedDoc(self._recorder, self._path + '/' + name)
+
+    def list_documents(self):
+        # A dry run reads nothing, so it finds no earlier documents to remove.
+        return []
 
 
 class DryRunClient:

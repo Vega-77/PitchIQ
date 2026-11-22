@@ -692,6 +692,23 @@
             <div id="match-moments" class="moment-list"></div>
         </section>
 
+        <!-- The match viewer (coach/viewer.js): the video with the map beside it, from the
+             run's cvViewer documents. Hidden for a match the run published no viewer for.
+             The file button comes first: the file the run processed keeps the map in
+             step to the frame, and a link only does if it is the same recording, uncut. -->
+        <section class="block hidden no-print" id="cv-viewer-block" data-rail="Viewer">
+            <h3>Watch with the map</h3>
+            <p class="muted" id="cv-viewer-note"></p>
+            <div class="viewer-source">
+                <button class="btn" id="btn-viewer-file">Choose the video file</button>
+                <input type="file" id="input-viewer-file" accept="video/*" hidden
+                       title="The match video file, played from this computer">
+                <button class="btn hidden" id="btn-viewer-link">Use the match video link</button>
+            </div>
+            <p class="muted hidden" id="cv-viewer-status" aria-live="polite"></p>
+            <div id="cv-viewer"></div>
+        </section>
+
         <section class="block hidden" id="cv-review-block" data-rail="Review">
             <h3>Check what the video found
                 <span id="cv-review-state" class="save-state"></span></h3>

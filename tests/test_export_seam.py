@@ -249,12 +249,7 @@ def test_nothing_is_exported_that_nobody_reads():
 # to remove tested code -- the id seam is exactly why -- and this is the one
 # primitive a live-clock view would want first. If it is still here and still
 # unwanted when that view is built or abandoned, delete it then.
-#
-# `mountViewer` (shared/match-viewer.js) is the match viewer, session step 3.9. Its
-# reader today is tests/viewer-mount.test.js and the PC-only tools/viewer-preview.html;
-# the coach match page wires it in once the owner says the map may go on the site
-# (see STRANDED_BY_DESIGN in tests/test_browser_graph.py). Out of here when it does.
-PRODUCT_DEAD = {'onPitchAt', 'mountViewer'}
+PRODUCT_DEAD = {'onPitchAt'}
 
 
 def test_the_exports_only_the_test_suite_wants_are_the_ones_we_know_about():
@@ -344,9 +339,7 @@ def test_dynamic_imports_are_load_bearing():
 def test_namespace_imports_are_load_bearing():
     # The pure JS suites import eleven modules wholesale and reach names off
     # the namespace object. Miss this and a third of the seam looks unwanted.
-    # `onPitchAt` is the one name only a namespace reaches (tests/players.test.js);
-    # `mountViewer`, the other product-dead name, is imported by name.
-    assert dead_without('namespace') == {'onPitchAt'}
+    assert dead_without('namespace') == PRODUCT_DEAD
     assert len(local_only_without('namespace')) >= 30
 
 

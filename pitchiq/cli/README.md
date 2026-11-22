@@ -9,6 +9,8 @@ The match-day commands, run as `python -m pitchiq <command> [args]`
 - `match_report`: run the whole pipeline over a clip and print the report.
 - `compare_reports`: diff two report JSONs (see `baselines/`).
 - `publish_report`: write a report to Firestore (`--dry-run` writes nothing).
+- `publish_viewer`: write `viewer_export`'s folder to the match's `cvViewer` documents, for the
+  coach's match viewer (`--dry-run` writes nothing).
 - `map_report`: a report JSON from a match's top-down maps (both halves give
   one match report): team shape and where each team stood (`--ours
   lighter|darker` says which side is the coach's).

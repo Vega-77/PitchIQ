@@ -648,6 +648,23 @@ service cloud.firestore {
           allow delete: if isCoach(t);
         }
 
+        // ---- cvViewer: the map and moments the match viewer plays beside the video ----
+        //
+        // Written only by pitchiq/publish_to_firestore.py (publish_viewer) through the Admin
+        // SDK, for the same reason as cvStats: what the viewer draws must be what the
+        // pipeline measured. Its own collection so that reading a match's stats never pulls
+        // the map with them: an index of a few KB, the moments, and five-minute chunks of a
+        // few hundred KB each, about 8 MB a game.
+        //
+        // Read by id only. The index names every chunk, and a page that listed the
+        // collection would download the whole game's map at once, which no screen needs.
+        // The same people who read cvStats; there are no pictures in it, only positions.
+        match /cvViewer/{doc} {
+          allow get: if isTagger(t);
+          allow list: if false;
+          allow write: if false;
+        }
+
         // ---- cvMapping: which tracked figure is which player ----
         //
         // Deliberately NOT part of cvStats. That collection is written only by

@@ -1,7 +1,8 @@
 """Getting CV stats out of Python and into the app.
 
 `publish` writes a report JSON's stats under `teams/{t}/matches/{m}/cvStats/*`
-and adds `cv*` fields to player reports that already exist. It uses a
+and adds `cv*` fields to player reports that already exist. `publish_viewer`
+writes the match viewer's map and moments under `.../cvViewer/*`. It uses a
 service-account key that bypasses every Firestore rule, so it refuses to:
 
 * read the key from anywhere but `PITCHIQ_SA_KEY`, or from inside the repo;
@@ -17,6 +18,7 @@ Design notes, measurements and history: `docs/design/publish_to_firestore.md`.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -663,3 +665,97 @@ def publish(
         written['playerReports'] += 1
 
     return written
+
+
+# ---------------------------------------------------------------- the match viewer
+#
+# What the coach's match viewer draws beside the video (pitchiq/viewer_data.py): the index
+# (halves, kits, possession), the moments with their why, and the map in chunks of five
+# minutes. Its own collection, so a match page's reads of cvStats never pull the 8 MB of
+# map with them, and so the page reads the small index first and the rest only when a coach
+# opens the viewer. Read-only to every client, like cvStats: firestore.rules, cvViewer.
+VIEWER_COLLECTION = 'cvViewer'
+VIEWER_INDEX_DOC = 'index'
+VIEWER_MOMENTS_DOC = 'moments'
+
+# Firestore refuses a document over 1 MiB, field names and all. JSON's length is close to
+# Firestore's own count for these documents (a few long strings), and this leaves room.
+MAX_VIEWER_DOC_BYTES = 1_000_000
+
+
+def _json_bytes(data: dict) -> int:
+    return len(json.dumps(data, separators=(',', ':')).encode('utf-8'))
+
+
+def viewer_docs(index: dict, chunks: list[dict]) -> dict[str, dict]:
+    """The viewer's documents by id, in the order they are written: chunks, moments, index.
+
+    The index goes last, so a reader who finds it finds every chunk it names. It loses its
+    moments to their own document, which the page reads only when the viewer opens, and
+    gains `chunks` and `moments` counts so the match page can say what is there without
+    reading either.
+    """
+    docs: dict[str, dict] = {}
+    for c in chunks:
+        cid = str(c.get('id') or '')
+        if not cid or '/' in cid or cid in (VIEWER_INDEX_DOC, VIEWER_MOMENTS_DOC, '.', '..'):
+            raise PublishError(f'viewer chunk id is not a valid document id: {cid!r}')
+        if cid in docs:
+            raise PublishError(f'viewer chunk {cid} appears twice')
+        docs[cid] = c
+    named = {cid for h in index.get('halves') or [] for cid in h.get('chunks') or []}
+    if named != set(docs):
+        raise PublishError(
+            f'the viewer index names {len(named)} chunks and {len(docs)} were given: '
+            f'missing {sorted(named - set(docs))[:3]}, extra {sorted(set(docs) - named)[:3]}'
+        )
+    moments = list(index.get('moments') or [])
+    docs[VIEWER_MOMENTS_DOC] = {'schema': index.get('schema'), 'moments': moments}
+    head = {k: v for k, v in index.items() if k != 'moments'}
+    head['counts'] = {'chunks': len(chunks), 'moments': len(moments)}
+    docs[VIEWER_INDEX_DOC] = head
+    for did, data in docs.items():
+        size = _json_bytes(data)
+        if size > MAX_VIEWER_DOC_BYTES:
+            raise PublishError(
+                f"viewer document {did} is {size / 1e6:.2f} MB, over Firestore's 1 MB a document"
+            )
+    return docs
+
+
+def publish_viewer(
+    index: dict,
+    chunks: list[dict],
+    team_id: str,
+    match_id: str,
+    key_path: str | None = None,
+    client=None,
+) -> dict:
+    """Write the match viewer's documents under `cvViewer`, and remove chunks a re-run dropped.
+
+    Every document is checked before any is written, so a refusal leaves the match's
+    viewer as it was. Returns what was written, for the caller to print.
+    """
+    _check_path(team_id, match_id)
+    docs = viewer_docs(index, chunks)
+    db = client or _client(key_path)
+    viewer = (
+        db.collection('teams')
+        .document(team_id)
+        .collection('matches')
+        .document(match_id)
+        .collection(VIEWER_COLLECTION)
+    )
+    before = [d.id for d in viewer.list_documents()]
+    for did, data in docs.items():
+        viewer.document(did).set(data)
+    stale = sorted(d for d in before if d not in docs)
+    for did in stale:
+        viewer.document(did).delete()
+    return {
+        'documents': len(docs),
+        'chunks': len(chunks),
+        'moments': len(docs[VIEWER_MOMENTS_DOC]['moments']),
+        'bytes': sum(_json_bytes(d) for d in docs.values()),
+        'removed': stale,
+    }

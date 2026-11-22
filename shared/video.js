@@ -125,6 +125,28 @@ export function mount(host, url, { onReady } = {}) {
         : mountFile(host, url, onReady);
 }
 
+/**
+ * Play a video file from this computer, with the same handle `mount` gives a file link.
+ *
+ * For the match viewer: the footage the run processed is on the coach's computer, and
+ * playing that file keeps the map in step to the frame. Nothing is uploaded. The browser
+ * reads the file where it is, through an object URL that `destroy` gives back.
+ */
+export function mountLocalFile(host, file) {
+    const url = URL.createObjectURL(file);
+    host.innerHTML = '';
+    const handle = mountFile(host, url);
+    const destroy = handle.destroy;
+    return {
+        ...handle,
+        kind: 'local',
+        destroy() {
+            destroy();
+            URL.revokeObjectURL(url);
+        },
+    };
+}
+
 function mountFile(host, url, onReady) {
     const el = document.createElement('video');
     el.className = 'match-video';

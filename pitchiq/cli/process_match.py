@@ -45,7 +45,9 @@ this command prints when each one starts and ends.
                 a few hundred chosen frames (`table_pictures.py`, about 20 s)
   6. publish    both halves joined, the map's figures put in, and the report
                 written to the match on the site (`cached_report merge`,
-                `map_report --into`, `publish_report`)
+                `map_report --into`, `publish_report`); then the match viewer's
+                map and moments (`viewer_export`, `publish_viewer`), which only
+                cost the coach the viewer if they fail
 
 A coach asks for a match on the site (the match page's "Video processing"
 card, which also says which shirts are ours); `--requests` lists those, each
@@ -1167,6 +1169,48 @@ def step_publish(r: Run) -> None:
         return
     r.py('publish', 'pitchiq', 'publish_report', full, '--team', r.a.team, '--match', r.a.match)
     r.say(f'published {full.name} to match {r.a.match}')
+    publish_viewer(r, full)
+
+
+def publish_viewer(r: Run, full: Path) -> None:
+    """The match viewer's map and moments (viewer_export, then publish_viewer), after the stats.
+
+    Never stops the run and is never tried twice: the stats are already on the site, and a
+    viewer that fails costs the coach the viewer and nothing else. It says so in run.log and
+    notify.log, with the log to read.
+    """
+    view = r.out / 'view'
+    for name, args in (
+        (
+            'viewer',
+            (
+                'pitchiq',
+                'viewer_export',
+                r.g,
+                '--ours',
+                r.a.ours,
+                '--report',
+                full,
+                '--run-dir',
+                r.out,
+                '--out',
+                view,
+            ),
+        ),
+        (
+            'publish_viewer',
+            ('pitchiq', 'publish_viewer', view, '--team', r.a.team, '--match', r.a.match),
+        ),
+    ):
+        if r.py(name, *args, check=False):
+            text = (
+                f'{name} failed; the stats are published without the match viewer. '
+                f'See {r.logs / (name + ".log")}'
+            )
+            r.say(text)
+            r.tell('no match viewer', text)
+            return
+    r.say(f'match viewer published to match {r.a.match}')
 
 
 def final_score(text: str) -> tuple[int, int]:

@@ -1134,6 +1134,55 @@ describe('pitch pins', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// cvViewer — the map and moments the match viewer plays beside the video
+// ---------------------------------------------------------------------------
+
+describe('match viewer data', () => {
+  const viewer = (id) => ['teams', TEAM, 'matches', MATCH, 'cvViewer', id];
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'teams', TEAM), {
+        name: 'South Brunswick',
+        coachUids: [COACH.uid],
+        taggerUids: [STRANGER.uid],
+        archived: false,
+        createdBy: COACH.uid,
+      });
+      await setDoc(doc(db, ...viewer('index')), { schema: 1, halves: [], counts: { chunks: 1 } });
+      await setDoc(doc(db, ...viewer('xy1_00')), { id: 'xy1_00', samples: 2, n: 'AgI=' });
+    });
+  });
+
+  it('a coach and a tagger can read it by id', async () => {
+    await assertSucceeds(getDoc(doc(as(COACH), ...viewer('index'))));
+    await assertSucceeds(getDoc(doc(as(COACH), ...viewer('xy1_00'))));
+    await assertSucceeds(getDoc(doc(as(STRANGER), ...viewer('index'))));
+  });
+
+  it('nobody can list it: the index names every chunk', async () => {
+    // A list would pull the whole game's map, about 8 MB, onto one screen.
+    await assertFails(getDocs(collection(as(COACH), 'teams', TEAM, 'matches', MATCH, 'cvViewer')));
+  });
+
+  it('nobody can write it, not even a coach', async () => {
+    // pitchiq/publish_to_firestore.py writes it through the Admin SDK. What the viewer draws
+    // has to be what the pipeline measured, as for cvStats.
+    await assertFails(setDoc(doc(as(COACH), ...viewer('index')), { schema: 1 }));
+    await assertFails(setDoc(doc(as(COACH), ...viewer('xy1_01')), { id: 'xy1_01' }));
+    await assertFails(deleteDoc(doc(as(COACH), ...viewer('xy1_00'))));
+    await assertFails(setDoc(doc(as(STRANGER), ...viewer('index')), { schema: 1 }));
+  });
+
+  it('a player cannot read it', async () => {
+    // A player's whole read surface is their own report; the map shows the squad.
+    await assertFails(getDoc(doc(as(PLAYER), ...viewer('index'))));
+    await assertFails(getDoc(doc(as(PLAYER), ...viewer('xy1_00'))));
+  });
+});
+
 describe('video processing', () => {
   const run = (name) => ['teams', TEAM, 'matches', MATCH, 'cvRun', name];
   const ask = (uid, over = {}) => ({

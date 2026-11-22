@@ -103,6 +103,7 @@ NOT_A_REPORT_FIELD = {
     'cvMapping': 'the cvMapping/players document, a sibling of the report',
     'cvEvents': 'the cvEvents document, joined onto the match in memory',
     'cvReview': 'the cvReview/decisions document, likewise',
+    'cvViewer': "the cvViewer/index document, the match viewer's, likewise",
     'cvClusters': 'the thumbnail clusters, passed in beside the tracks',
     'cvWindow': 'the processed window, passed in to date the coverage',
     'cvShotRows': "the coach's shot ledger, passed in to correct the map",

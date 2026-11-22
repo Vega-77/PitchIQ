@@ -1066,6 +1066,26 @@ export async function readCvStats(teamId, matchId) {
 }
 
 /**
+ * The match viewer's index for a match, or null if the run never published one.
+ *
+ * A few KB: the halves, the kits and possession, plus how many chunks and moments there
+ * are. The moments and the map's chunks are read only when a coach opens the viewer
+ * (`readCvViewerDoc`). Written by publish_viewer in pitchiq/publish_to_firestore.py; the
+ * rules allow reading by id and nothing else (firestore.rules, cvViewer).
+ */
+export async function readCvViewer(teamId, matchId) {
+    const snap = await getDoc(doc(db, 'teams', teamId, 'matches', matchId, 'cvViewer', 'index'));
+    return snap.exists() ? snap.data() : null;
+}
+
+/** One of the viewer's other documents, by id: `moments`, or a chunk the index names. */
+export async function readCvViewerDoc(teamId, matchId, id) {
+    const snap = await getDoc(doc(db, 'teams', teamId, 'matches', matchId, 'cvViewer', id));
+    if (!snap.exists()) throw new Error(`The viewer's ${id} is missing; the run may still be publishing.`);
+    return snap.data();
+}
+
+/**
  * Put each figure's picture back on its cluster, where the picker expects it.
  *
  * Rejoined here rather than at the point of use so that nothing downstream has

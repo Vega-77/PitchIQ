@@ -6,7 +6,7 @@
 
 import {
     getMatch, listMatchRoster, listLog, aggregateMatch, readCvStats, readCvMapping, readCvEvents,
-    readCvReview,
+    readCvReview, readCvViewer,
 } from '../shared/db.js?v=156';
 import { taggedCount, printStamp } from '../shared/report.js?v=156';
 import { byId, setText, toast, plural } from '../shared/ui.js?v=156';
@@ -25,6 +25,7 @@ import { renderShots, renderSampleToggle, redrawShotViews } from './match-shots.
 import { renderClusterMapping, closeSameAs } from './mapping.js?v=156';
 import { renderExcluded } from './excluded.js?v=156';
 import { renderRun } from './run.js?v=156';
+import { renderViewerBlock } from './viewer.js?v=156';
 
 // ---------------------------------------------------------------- one match
 
@@ -32,12 +33,12 @@ export async function openMatch(matchId) {
     byId('loading').classList.remove('hidden');
 
     try {
-        const [match, roster, log, cv, cvMapping, cvEvents, cvReview] =
+        const [match, roster, log, cv, cvMapping, cvEvents, cvReview, cvViewer] =
             await readMatchDocs(matchId);
 
         const stats = aggregateMatch(log, roster);
         state.match = {
-            ...match, stats, log, roster, cv, cvMapping, cvEvents, cvReview,
+            ...match, stats, log, roster, cv, cvMapping, cvEvents, cvReview, cvViewer,
         };
         // Off on every open. A preview that survived navigating to another match
         // would show one match's invented numbers under another match's title.
@@ -81,6 +82,9 @@ function readMatchDocs(matchId) {
         readCvEvents(state.team.id, matchId).catch(() => null),
         readCvReview(state.team.id, matchId)
             .catch(() => ({ byEvent: {}, missed: [] })),
+        // The match viewer's index, a few KB. The map itself is read only when a coach
+        // starts the viewer (coach/viewer.js).
+        readCvViewer(state.team.id, matchId).catch(() => null),
     ]);
 }
 
@@ -129,6 +133,7 @@ function drawMatch({ match, matchId, stats, log, roster }) {
 
     renderPlayerTable(stats.players);
     renderMatchVideoBlock();
+    renderViewerBlock();
     renderTimeline(log, roster);
     renderClusterMapping();
     renderExcluded();

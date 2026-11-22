@@ -27,6 +27,7 @@ import {
 } from './team.js?v=156';
 import { doPublish } from './publish.js?v=156';
 import { leaveRun } from './run.js?v=156';
+import { leaveViewer, wireViewer } from './viewer.js?v=156';
 
 // ---------------------------------------------------------------- init
 
@@ -86,6 +87,7 @@ function init() {
         // talking has no obvious way to stop it.
         leaveReview();
         leaveMatchVideo();
+        leaveViewer();
         leaveRun();
         show('view-main');
     });
@@ -102,6 +104,7 @@ function init() {
     byId('btn-cv-missed').addEventListener('click', doRecordMiss);
     byId('btn-cv-labels').addEventListener('click', doDownloadLabels);
     byId('btn-cv-sample').addEventListener('click', toggleSample);
+    wireViewer();
 
 
     const missedType = byId('input-missed-type');

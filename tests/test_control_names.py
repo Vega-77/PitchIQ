@@ -288,5 +288,7 @@ class TestTheScanReportsSomething:
         # privacy page (skip link, home, seven footer links, eight in the text).
         # A hundred and fifty-seven: the landing page's two mail links saying
         # whom to ask for access. A hundred and fifty-eight when the calibrate
-        # page got a coach sign-in for pinning a match (2026-11-09).
-        assert counted == {'text': 158, 'title': 3, 'label-wrap': 20}, counted
+        # page got a coach sign-in for pinning a match (2026-11-09). A hundred and
+        # sixty with the match viewer's two buttons, and a fourth title on its
+        # hidden file input, which its button opens (2026-11-22).
+        assert counted == {'text': 160, 'title': 4, 'label-wrap': 20}, counted

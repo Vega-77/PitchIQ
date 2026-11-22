@@ -7,6 +7,14 @@
     gap: 12px;
 }
 
+/* The coach page's choice of video, above the viewer (coach/viewer.js). */
+.viewer-source {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 12px;
+}
+
 .viewer-top {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -174,6 +182,13 @@
     border-bottom: 1px solid var(--line);
     text-align: right;
     font-variant-numeric: tabular-nums;
+}
+
+/* The page's table headers don't wrap, and these hold the team names, which can be long. */
+.viewer-sofar thead th {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    vertical-align: bottom;
 }
 
 .viewer-sofar th[scope='row'],

@@ -359,8 +359,9 @@ class TestTheScanCouldBeLying:
         # split into seventeen shared/report-*.js parts behind it (deep clean, E-2),
         # and to 61 when coach/coach.js was split into fourteen view modules
         # beside it (E-5), and to 63 with the match page's video processing card
-        # (coach/run.js and shared/run-view.js, 2026-11-09), and to 65 with the match
-        # viewer (shared/match-viewer.js and shared/viewer-data.js, 2026-11-22).
+        # (coach/run.js and shared/run-view.js, 2026-11-09), and to 66 with the match
+        # viewer (shared/match-viewer.js, shared/viewer-data.js and coach/viewer.js,
+        # 2026-11-22).
         seen = js()
-        assert len(seen) == 65
+        assert len(seen) == 66
         assert IMPL in seen and 'live-tagging/tagging.js' in seen
