@@ -60,9 +60,10 @@ BOUNCE_KEEP = (0.5, 1.1)  # outgoing / incoming horizontal speed at a bounce
 BOUNCE_TURN = np.radians(30)
 EXT = 1.5
 LOST = 6  # frames unseen beyond an end: the ball is lost there
-KPHYS = (
-    0.0133 * 9.15 / flight_model.R_CH
-)  # football quadratic drag as linear k (1/s) per unit speed (CH/s)
+def kphys():
+    """Football quadratic drag as linear k (1/s) per unit speed (CH/s), for the current
+    camera. Read at use: Track() sets R_CH per camera after import (see flight_chain)."""
+    return 0.0133 * 9.15 / flight_model.R_CH
 
 
 def roll_speed(tr, a, b):
@@ -87,7 +88,7 @@ def select_flights(S, C, onpitch, spd):
     e = S[:, C['d_trim']]
     ok = (
         (e <= GATE['err'])
-        & (S[:, C['d_apex']] >= GATE['apex'])
+        & (S[:, C['d_apex']] >= GATE['apex'] * flight_model.R_CH / flight_model.R_CH0)
         & (S[:, C['r_trim']] >= np.maximum(GATE['roll_ratio'] * e, GATE['roll_min']))
         & onpitch
     )
@@ -202,7 +203,7 @@ class Chain:
             sp = np.hypot(*v0[:2]) * self.vmax[1]  # SB units / s
             extra.append([np.maximum(0, sp - self.vmax[0]) / 2.0])
             if OPT['phys_k']:  # 6: drag of a real football at this speed
-                kp = KPHYS * np.linalg.norm(v0)
+                kp = kphys() * np.linalg.norm(v0)
                 extra.append([OPT['phys_k'] * (ks[j] - kp) / (OPT['phys_ks'] * kp + 0.05)])
         for j in range(1, m):  # 3: bounces keep their line
             if free[j]:
@@ -504,7 +505,7 @@ def main():
             xyz[rng] = np.c_[
                 P[0] + d * v[0] * s_,
                 P[1] + d * v[1] * s_,
-                np.maximum(0, P[2] + d * v[2] * s_ - flight_chain.G * s_**2 / 2),
+                np.maximum(0, P[2] + d * v[2] * s_ - flight_model.G * s_**2 / 2),
             ]
     sbx = np.full((n, 2), np.nan)
     m_ = np.isfinite(xyz[:, 0])

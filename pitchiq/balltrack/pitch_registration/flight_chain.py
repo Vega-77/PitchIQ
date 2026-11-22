@@ -36,7 +36,21 @@ EXT = 1.5
 LOST = 6  # frames unseen beyond an end: the ball is lost there
 
 
-G = flight_model.G
+# Gravity is read as flight_model.G at each use, never copied here: Track() sets it per
+# camera (flight_model.set_camera) after this module is imported. A copy taken at import
+# kept the scrimmage camera's gravity for every game. That was right by chance for the
+# 5 m day cameras, but 2-2.3x too strong for the 11-12 m press-box cameras at Woodbridge
+# and Wardlaw-Hartridge, whose flights then could not fit (2026-11-22).
+
+
+def apex_gate():
+    """The pre-label apex gate, 0.41 m, in the current camera's heights (CH).
+
+    One CH is 9.15 / R_CH metres, so 0.41 m is 0.41 * R_CH / 9.15 CH, which is
+    GATE['apex'] * R_CH / R_CH0. (The gate was once scaled by R_CH0 / R_CH, the
+    inverse: 2.2 m on the Woodbridge camera.)
+    """
+    return GATE['apex'] * flight_model.R_CH / flight_model.R_CH0
 
 
 def E(k, s):
@@ -48,8 +62,8 @@ def seg_pos(P0, P1, T, k, s):
     """Position at time s in a segment from node P0 to node P1 (u, v, z) taking T."""
     k = max(k, 1e-4)
     f = E(k, s) / E(k, T)
-    vz = (P1[2] - P0[2] + G * T / k) / E(k, T) - G / k
-    z = P0[2] + (vz + G / k) * E(k, s) - G * s / k
+    vz = (P1[2] - P0[2] + flight_model.G * T / k) / E(k, T) - flight_model.G / k
+    z = P0[2] + (vz + flight_model.G / k) * E(k, s) - flight_model.G * s / k
     return np.c_[P0[0] + (P1[0] - P0[0]) * f, P0[1] + (P1[1] - P0[1]) * f, z]
 
 
@@ -57,8 +71,8 @@ def seg_vel(P0, P1, T, k, s):
     """Velocity (u, v, z per s) at time s in the segment from node P0 to node P1 taking T."""
     k = max(k, 1e-4)
     e = np.exp(-k * s)
-    vz = (P1[2] - P0[2] + G * T / k) / E(k, T) - G / k
-    return np.r_[(P1[:2] - P0[:2]) / E(k, T) * e, (vz + G / k) * e - G / k]
+    vz = (P1[2] - P0[2] + flight_model.G * T / k) / E(k, T) - flight_model.G / k
+    return np.r_[(P1[:2] - P0[:2]) / E(k, T) * e, (vz + flight_model.G / k) * e - flight_model.G / k]
 
 
 def unpack(x, m):
@@ -110,7 +124,7 @@ def ground_hit(P, v, direction):
     backwards (direction -1) or forwards (+1).  Returns (time s >= 0, uv)."""
     z, vz = P[2], v[2] * direction
     # z + vz s - G s^2 / 2 = 0 (backwards: velocity reversed, gravity same sign)
-    s = (vz + np.sqrt(max(vz * vz + 2 * G * z, 0))) / G
+    s = (vz + np.sqrt(max(vz * vz + 2 * flight_model.G * z, 0))) / flight_model.G
     s = min(s, EXT)
     return s, P[:2] + v[:2] * direction * s
 
@@ -136,7 +150,7 @@ def select_flights(S, C, onpitch):
     e = S[:, C['d_trim']]
     ok = (
         (e <= GATE['err'])
-        & (S[:, C['d_apex']] >= GATE['apex'] * flight_model.R_CH0 / flight_model.R_CH)
+        & (S[:, C['d_apex']] >= apex_gate())
         & (S[:, C['r_trim']] >= np.maximum(GATE['roll_ratio'] * e, GATE['roll_min']))
         & onpitch
     )

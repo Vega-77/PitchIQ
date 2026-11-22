@@ -14,8 +14,12 @@ def trim(e, keep=0.8):
 
 
 def droll(tr, a, b):
-    """-> (trimmed px error, (uv0, v, k)) of the best slowing roll over frames a..b."""
-    idx = np.arange(a, b + 1)
+    """-> (trimmed px error, (uv0, v, k)) of the best slowing roll over frames a..b.
+
+    a..b may run past either end of the half (a chain's first or last node time does):
+    only the frames inside it count, and uv0 stays the position at frame a.
+    """
+    idx = np.arange(max(a, 0), min(b, len(tr.has) - 1) + 1)
     idx = idx[tr.has[idx]]
     if len(idx) < 4:
         return np.nan, None
