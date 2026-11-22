@@ -256,6 +256,21 @@ def _ppda(halves: list[dict], team: str):
     return round(allowed / actions, 2) if actions >= MIN_PRESSING_ACTIONS else None
 
 
+def id_shifts(halves: list[dict]) -> list[tuple[int, int]]:
+    """What `merge` adds to each half's cluster ids and track ids: (cluster, track).
+
+    Each half after the first moves clear of every id before it. `map_report` uses the same
+    shifts to name the published clusters in its per-position figures."""
+    out, shift_c, shift_t = [], 0, 0
+    for h in halves:
+        out.append((shift_c, shift_t))
+        ids_c = [c['cluster_id'] for c in h.get('clusters') or []]
+        ids_t = [i for c in h.get('clusters') or [] for i in c.get('track_ids') or []]
+        shift_c += (max(ids_c) + 1) if ids_c else 0
+        shift_t += (max(ids_t) + 1) if ids_t else 0
+    return out
+
+
 def merge(halves: list[dict], min_minutes: float = 0.0) -> dict:
     """One report for the match from its halves' reports, first half first."""
     durations = [h.get('duration_s') or 0.0 for h in halves]
@@ -323,8 +338,7 @@ def merge(halves: list[dict], min_minutes: float = 0.0) -> dict:
 
     # Second half's ids moved clear of the first's, so nothing in the two collides.
     tracks, clusters, keepers, participants, events = [], [], [], [], []
-    shift_c = shift_t = 0
-    for h in halves:
+    for h, (shift_c, shift_t) in zip(halves, id_shifts(halves)):
 
         def tr(ids, s=shift_t):
             return [i + s for i in ids]
@@ -358,10 +372,6 @@ def merge(halves: list[dict], min_minutes: float = 0.0) -> dict:
                 if isinstance(e.get(key), int):
                     e[key] += shift_t
             events.append(e)
-        ids_c = [c['cluster_id'] for c in h.get('clusters') or []]
-        ids_t = [i for c in h.get('clusters') or [] for i in c.get('track_ids') or []]
-        shift_c += (max(ids_c) + 1) if ids_c else 0
-        shift_t += (max(ids_t) + 1) if ids_t else 0
     if min_minutes:
         # A whole match is thousands of fragments; the site's identity document
         # holds about a thousand. The short ones go: no person is a 20 s track.

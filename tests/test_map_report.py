@@ -26,7 +26,7 @@ def _block():
 
 def test_map_report_carries_every_team_key_and_nulls_the_events():
     r = map_report_json(_block(), source='wb1', length_m=105.0, width_m=68.0, period=1)
-    assert r['schema_version'] == SCHEMA_VERSION == 16
+    assert r['schema_version'] == SCHEMA_VERSION == 17
     assert r['warnings'] == [MAP_ONLY_WARNING] and r['trustworthy'] is False
     for team in ('team_a', 'team_b'):
         side = r['teams'][team]
@@ -49,7 +49,7 @@ def test_attach_map_puts_the_map_into_a_pipeline_report():
         'warnings': [],
     }
     r = attach_map(pipeline, _block())
-    assert r['schema_version'] == 16 and pipeline['schema_version'] == 15
+    assert r['schema_version'] == 17 and pipeline['schema_version'] == 15
     assert r['teams']['team_a']['touches'] == 512
     assert r['teams']['team_a']['shape']['width_m'] is None  # the map's shape replaces it
     assert r['teams']['team_b']['field_position']['height_m'] == 32.0

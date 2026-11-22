@@ -1160,6 +1160,8 @@ def step_publish(r: Run) -> None:
         r.a.ours,
         '--into',
         pipe,
+        '--halves',
+        *halves,
         '--out',
         full,
     )

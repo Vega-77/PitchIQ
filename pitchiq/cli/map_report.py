@@ -17,6 +17,12 @@ report of one half only.
 `--ours` says which side is the coach's: the lighter or darker shirts, or map
 team 0 or 1. The map cannot know which side is "us", so there is no default.
 Shirt shade is read per half, as each half's map numbers its teams on its own.
+
+`--halves` gives each map's own half report (`cached_report half`, in the maps' order),
+for the stats per position (`pitchiq/positions.py`): their events, clusters and touches
+use the maps' own track ids, which the merged report has moved for the second half. The
+clusters are renumbered as `cached_report.merge` renumbers them (`id_shifts`), and with
+`--into`, only the clusters it kept are named.
 """
 
 from __future__ import annotations
@@ -26,7 +32,8 @@ import json
 import sys
 from pathlib import Path
 
-from pitchiq import map_stats
+from pitchiq import map_stats, positions
+from pitchiq.experiments.cached_report import id_shifts
 from pitchiq.report_export import attach_map, map_report_json
 
 OURS = ('lighter', 'darker', '0', '1')
@@ -56,8 +63,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument('--period', type=int, choices=(1, 2), help='which half (one map only)')
     parser.add_argument('--into', type=Path, help='pipeline report JSON to put the figures in')
+    parser.add_argument(
+        '--halves',
+        type=Path,
+        nargs='+',
+        help="each map's own half report, in the same order, for the stats per position",
+    )
     parser.add_argument('--out', type=Path, help='where to write; default prints it')
     return parser
+
+
+def position_block(
+    tables: list, ours: list[int], halves: list[dict], into: dict | None
+) -> dict[str, dict]:
+    """The stats per position for the match (or one half), by `positions.py`."""
+    named = None
+    if into is not None:
+        named = {int(c['cluster_id']) for c in into.get('clusters') or []}
+    blocks = []
+    for t, k, rep, (shift_c, _) in zip(tables, ours, halves, id_shifts(halves)):
+        left = map_stats.defends_left(t)
+        placed = positions.place(t, left=left)
+        blocks.append(positions.half_block(t, placed, rep, k, cluster_shift=shift_c, named=named))
+    return positions.match_block(blocks)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -69,18 +97,31 @@ def main(argv: list[str] | None = None) -> int:
     if args.period is not None and len(args.maps) > 1:
         print('--period names one half; give one map with it', file=sys.stderr)
         return 2
+    if args.halves is not None:
+        if len(args.halves) != len(args.maps):
+            print('--halves needs one half report per map, in the same order', file=sys.stderr)
+            return 2
+        for path in args.halves:
+            if not path.is_file():
+                print(f'no such half report: {path}', file=sys.stderr)
+                return 2
+    if args.into is not None and not args.into.is_file():
+        print(f'no such report: {args.into}', file=sys.stderr)
+        return 2
+    into = json.loads(args.into.read_text(encoding='utf-8')) if args.into is not None else None
     tables = [map_stats.MapTable.load(p) for p in args.maps]
-    blocks = [
-        map_stats.report_block(t, which_team(p, args.ours)) for t, p in zip(tables, args.maps)
-    ]
+    ours = [which_team(p, args.ours) for p in args.maps]
+    blocks = [map_stats.report_block(t, k) for t, k in zip(tables, ours)]
     spans = [(int(t.f.min()), int(t.f.max())) for t in tables]
     durations = [(hi - lo + 1) / t.fps for (lo, hi), t in zip(spans, tables)]
     block = blocks[0] if len(blocks) == 1 else map_stats.match_block(blocks, durations)
-    if args.into is not None:
-        if not args.into.is_file():
-            print(f'no such report: {args.into}', file=sys.stderr)
-            return 2
-        report = attach_map(json.loads(args.into.read_text(encoding='utf-8')), block)
+    if args.halves is not None:
+        halves = [json.loads(p.read_text(encoding='utf-8')) for p in args.halves]
+        by_role = position_block(tables, ours, halves, into)
+        for team in ('team_a', 'team_b'):
+            block[team]['positions'] = by_role[team]
+    if into is not None:
+        report = attach_map(into, block)
     else:
         first, last = tables[0], tables[-1]
         report = map_report_json(

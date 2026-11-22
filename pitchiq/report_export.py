@@ -127,7 +127,12 @@ from .teams import TEAM_A, TEAM_B
 #     `width_m` and `depth_m` null on purpose: one stray ring sets a
 #     max-minus-min, so they are left out until strays are fixed, and every
 #     event figure in it is null, because the map has no events.
-SCHEMA_VERSION = 16
+# 17: `positions` per team: stats per position, the position named by place, from the
+#     top-down map and the half reports' events (`positions.py`, session step 3.6). Nine
+#     roles (back, middle, front x left, centre, right), each with minutes, touches,
+#     passes, carries, defensive actions, distance, a heat map and who stood there when.
+#     Additive; null on a run without the map's half reports.
+SCHEMA_VERSION = 17
 
 # More tracks than this for a match with ~22 players means identity broke up and
 # every per-track number is a fragment.
@@ -224,6 +229,9 @@ class TeamStats:
     # Where the team stood, read off the top-down map's players rather than the
     # ball. None on a run with no map. See `map_stats.report_block`.
     field_position: dict | None = None
+    # Stats per position, the position named by place (`positions.match_block`). None
+    # on a run without the map and its half reports.
+    positions: dict | None = None
 
     @property
     def pass_accuracy(self) -> float | None:
@@ -265,6 +273,7 @@ class TeamStats:
             'shape_drift': self.shape_drift,
             'turnovers_by_third': self.turnovers_by_third,
             'field_position': self.field_position,
+            'positions': self.positions,
             'attacking_end': self.attacking_end,
             'shot_map': self.shot_map,
         }
@@ -1033,8 +1042,9 @@ def attach_map(report_json: dict, block: dict[str, dict]) -> dict:
 
     `field_position` and `attacking_end` come from the map, and so does `shape`:
     the map's back line and compactness are the measured ones (the pipeline's
-    shape needs a fixed calibration, which no panning match has). The report's
-    `team_a` must be the same side as the block's: `report_block`'s `ours`.
+    shape needs a fixed calibration, which no panning match has). So do the stats per
+    position (`positions`), when the block has them. The report's `team_a` must be the
+    same side as the block's: `report_block`'s `ours`.
     """
     out = dict(report_json)
     out['teams'] = {k: dict(v) for k, v in (report_json.get('teams') or {}).items()}
@@ -1042,5 +1052,7 @@ def attach_map(report_json: dict, block: dict[str, dict]) -> dict:
         side = out['teams'].setdefault(team, {'team': team})
         for key in ('shape', 'field_position', 'attacking_end'):
             side[key] = block[team][key]
+        if 'positions' in block[team]:
+            side['positions'] = block[team]['positions']
     out['schema_version'] = SCHEMA_VERSION
     return out
