@@ -18,6 +18,10 @@ from pitchiq.metrics import (
     MAX_PLAUSIBLE_SPEED_MS,
     MIN_LINE_OUTFIELDERS,
     PositionSeries,
+    clean_track,
+    position_noise_m,
+    smooth_for_noise,
+    track_movement,
     heatmap,
     line_players,
     movement_stats,
@@ -156,6 +160,73 @@ class TestSprints:
 
         path = burst(0.0) + jog(21.6) + burst(24.8)
         assert movement_stats(series(path)).sprint_count == 2
+
+
+class TestCleanTrack:
+    """Session step 3.7: a track is broken at gaps and jumps before it is smoothed."""
+
+    def run_with_a_gap(self, fps=25.0):
+        # 10 s at 5 m/s along the pitch, unseen for 2 s in the middle.
+        t = np.arange(int(10 * fps) + 1) / fps
+        seen = (t < 4.0) | (t >= 6.0)
+        return PositionSeries(1, t[seen], np.c_[5.0 * t[seen], np.full(seen.sum(), 34.0)])
+
+    def test_smoothing_across_a_gap_threw_the_gap_away(self):
+        # The bug this step fixes, kept as a test so it stays fixed: averaged
+        # across the gap, its 10 m land on a few seen frames, those steps go
+        # over the ceiling, and they are dropped as jumps.
+        s = self.run_with_a_gap()
+        smoothed, _ = smooth_for_noise(s, position_noise_m(s))
+        assert movement_stats(smoothed).distance_m < 45.0
+
+    def test_a_gap_is_crossed_not_lost(self):
+        s = self.run_with_a_gap()
+        track = clean_track(s)
+        assert (len(track.pieces), track.gaps, track.jumps) == (2, 1, 0)
+        assert track.crossed_m == pytest.approx(10.0, rel=0.03)
+        stats, joined, _ = track_movement(track, position_noise_m(s))
+        assert stats.distance_m == pytest.approx(50.0, rel=0.01)
+        assert len(joined) == len(s)
+
+    def test_a_spike_is_dropped(self):
+        path = straight_line(30.0, 5.0)
+        path[60] = (path[60][0], 39.0)  # 5 m off the line for one frame, then back
+        track = clean_track(series(path))
+        assert (track.spikes, track.jumps, len(track.pieces)) == (1, 0, 1)
+        stats, _, _ = track_movement(track, smooth=False)
+        assert stats.distance_m == pytest.approx(30.0, rel=0.01)
+
+    def test_a_jump_breaks_the_track_and_counts_for_nothing(self):
+        path = [(i * 0.2, 34.0) for i in range(50)]
+        path += [(80.0 + i * 0.2, 34.0) for i in range(50)]  # an identity switch
+        track = clean_track(series(path))
+        assert (track.jumps, track.gaps, len(track.pieces)) == (1, 0, 2)
+        stats, _, _ = track_movement(track, smooth=False)
+        assert stats.distance_m == pytest.approx(2 * 49 * 0.2, rel=1e-6)
+
+    def test_a_gap_too_far_to_run_is_a_jump(self):
+        t = np.r_[np.arange(25), np.arange(50, 75)] / 25.0
+        x = np.r_[np.full(25, 10.0), np.full(25, 60.0)]  # 50 m in one second unseen
+        track = clean_track(PositionSeries(1, t, np.c_[x, np.full(50, 34.0)]))
+        assert (track.jumps, track.gaps, track.crossed_m) == (1, 0, 0.0)
+
+    def test_a_smoothed_path_is_not_smoothed_again(self):
+        # The map's dots come from its own smoother (topdown.smooth): smooth=False
+        # measures them as they are.
+        angle = np.linspace(0, 2 * np.pi, 500)
+        s = series(np.c_[50 + 5 * np.cos(angle), 34 + 5 * np.sin(angle)])
+        stats, joined, window = track_movement(clean_track(s), smooth=False)
+        assert window is None
+        assert stats.distance_m == pytest.approx(movement_stats(s).distance_m, rel=1e-9)
+        assert np.array_equal(joined.positions_m, s.positions_m)
+
+    def test_top_speed_is_a_second_not_a_step(self):
+        # A steady 6 m/s with one 11 m/s step that stays (a glitch the ceiling
+        # lets through): the step is not the player's top speed.
+        path = straight_line(60.0, 6.0)
+        path = path[:100] + [(x + 0.2, y) for x, y in path[100:]]
+        stats = movement_stats(series(path))
+        assert stats.top_speed_ms == pytest.approx(6.0, abs=0.25)
 
 
 class TestHeatmap:

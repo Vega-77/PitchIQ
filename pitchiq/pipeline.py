@@ -51,13 +51,13 @@ from .metrics import (
     PositionSeries,
     DEFAULT_SMOOTH_S,
     heatmap,
-    movement_stats,
+    clean_track,
     phantom_m_per_minute,
     position_noise_m,
     sampling_warnings,
     ShapeDrift,
     shape_drift,
-    smooth_for_noise,
+    track_movement,
     team_shape,
 )
 from .participants import ParticipantReport, classify_participants
@@ -1108,19 +1108,25 @@ def _measure_players(
         )
         # Measured before smoothing, because smoothing is exactly what it
         # detects the absence of. It is also the first number this pipeline has
-        # ever produced about how good its own tracking is.
-        noise_m = position_noise_m(series)
+        # ever produced about how good its own tracking is. Not on positions
+        # smoothed upstream: there it reads a millimetre whatever the tracking
+        # did, because the smoothing is exactly what it measures the absence of.
+        noise_m = None if table.presmoothed else position_noise_m(series)
 
-        # And the window follows it. A fixed nine frames was right for a clean
-        # track and credited a jittery one with 29 metres a minute it never
-        # ran; see SMOOTH_BANDS for the fit. Choosing per track rather than per
-        # run matters because the noise is per track — a player at the far
-        # touchline is projected through a stretch of the homography that a
-        # player in the centre circle never touches.
-        smoothed, _window_s = smooth_for_noise(series, noise_m)
+        # Broken at every gap and jump first, so nothing is smoothed across
+        # either; then each piece smoothed once. The window follows the noise.
+        # A fixed nine frames was right for a clean track and credited a
+        # jittery one with 29 metres a minute it never ran; see SMOOTH_BANDS
+        # for the fit. Choosing per track rather than per run matters because
+        # the noise is per track — a player at the far touchline is projected
+        # through a stretch of the homography that a player in the centre
+        # circle never touches.
+        stats, smoothed, window_s = track_movement(
+            clean_track(series), noise_m=noise_m, smooth=not table.presmoothed
+        )
         series_by_track[track_id] = smoothed
-
-        stats = movement_stats(smoothed, noise_m=noise_m)
+        if window_s is not None:
+            report.smoothing_s[track_id] = window_s
         report.players.append(
             PlayerReport(
                 track_id=track_id,

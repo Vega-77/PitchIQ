@@ -33,6 +33,18 @@ SPRINT_THRESHOLD_MS = 7.0
 # A sprint has to last a moment to count; a single frame over the line is noise.
 MIN_SPRINT_DURATION_S = 0.5
 
+# Top speed is the fastest a player covered ground over this long, not the
+# fastest single step. One step at 30fps is a few centimetres, and its speed is
+# the tracker's wobble as much as the player: on Woodbridge (session step 3.7)
+# every player seen five minutes or more topped out at 40-43 km/h, just under
+# the ceiling above, all of it one-frame steps beside a gap or a jump.
+TOP_SPEED_WINDOW_S = 1.0
+
+# Two samples further apart than this many of the track's usual intervals are
+# a gap: the player was not seen in between. `clean_track` breaks the track
+# there, so nothing is smoothed across it.
+GAP_INTERVALS = 1.5
+
 # ---------------------------------------------------------------- bursts
 #
 # A burst is a speed gain across a span, never a second derivative: a
@@ -134,8 +146,9 @@ class MovementStats:
     # How much the raw position wobbled. None when nobody measured it.
     position_noise_m: float | None = None
     minutes_tracked: float = 0.0
-    # Read only by the tests, which pin that implausible jumps are dropped;
-    # kept as that contract.
+    # Spikes dropped, jumps broken at and steps over the ceiling left out. A
+    # high count means the tracking struggled. `track_movement` sums it over a
+    # track's pieces and the tests pin that jumps are dropped; no report shows it.
     discarded_frames: int = 0
 
     @property
@@ -290,6 +303,168 @@ def _window_for(series: PositionSeries, seconds: float) -> int:
     return int(round(seconds / dt))
 
 
+@dataclass
+class CleanTrack:
+    """One track cut into the stretches that are each one continuous movement.
+
+    `pieces` have no gap and no jump inside them, and no spikes. `crossed_m` is
+    the straight line across each gap between pieces that a player could have
+    run: they were somewhere along the way, so the line is the least they
+    covered. A jump is not crossed — it is an identity switch or a glitch, and
+    its length is nobody's running.
+    """
+
+    track_id: int
+    pieces: list[PositionSeries]
+    start_s: float = 0.0
+    end_s: float = 0.0
+    crossed_m: float = 0.0
+    spikes: int = 0
+    jumps: int = 0
+    gaps: int = 0
+
+
+def clean_track(series: PositionSeries, max_speed_ms: float = MAX_PLAUSIBLE_SPEED_MS) -> CleanTrack:
+    """Remove spikes, then break the track at every gap and every jump.
+
+    - A **spike** is one sample out of reach of both neighbours (each step to it
+      faster than anyone runs) whose neighbours are within reach of each other:
+      the track went somewhere and came straight back. The sample is dropped.
+    - A **jump** is a step faster than `max_speed_ms` that stays. The track is
+      broken there and the step counts for nothing.
+    - A **gap** is two samples more than GAP_INTERVALS usual intervals apart.
+      The track is broken there too, crossed in a straight line if that line is
+      runnable, else counted as a jump.
+
+    Why break rather than drop the step and carry on, as `movement_stats` does:
+    whatever smooths the track next averages across the break. Averaged across
+    a gap, the metres covered while unseen land on the few seen frames either
+    side, those steps go over the ceiling, and they are thrown away as jumps.
+    On Woodbridge that lost a quarter of every distance (session step 3.7).
+    """
+    t, P = series.timestamps_s, series.positions_m
+    n = len(series)
+    if n < 2:
+        span = (float(t[0]), float(t[0])) if n else (0.0, 0.0)
+        return CleanTrack(series.track_id, [series] if n else [], *span)
+    start_s, end_s = float(t[0]), float(t[-1])
+
+    dt = np.diff(t)
+    # Gaps are judged on the track as it came, so the step left where a spike
+    # was dropped (two intervals long) is not mistaken for one.
+    gap = dt > GAP_INTERVALS * float(np.median(dt))
+    step = np.linalg.norm(np.diff(P, axis=0), axis=1)
+    fast = step > max_speed_ms * np.maximum(dt, 1e-9)
+    spikes = 0
+    if n >= 3:
+        across = np.linalg.norm(P[2:] - P[:-2], axis=1)
+        reach = across <= max_speed_ms * (t[2:] - t[:-2])
+        spike = np.r_[False, fast[:-1] & fast[1:] & reach, False]
+        # A run of spikes that touch is not a spike, it is a stretch somewhere
+        # else; each would be judged against a neighbour that is itself out.
+        spike[1:-1] &= ~(spike[:-2] | spike[2:])
+        spikes = int(spike.sum())
+        if spikes:
+            kept = np.flatnonzero(~spike)
+            gaps_before = np.r_[0, np.cumsum(gap)]
+            gap = gaps_before[kept[1:]] - gaps_before[kept[:-1]] > 0
+            t, P = t[kept], P[kept]
+            dt = np.diff(t)
+            step = np.linalg.norm(np.diff(P, axis=0), axis=1)
+            fast = step > max_speed_ms * np.maximum(dt, 1e-9)
+
+    breaks = np.flatnonzero(gap | fast)
+    edges = np.r_[0, breaks + 1, len(t)]
+    pieces = [
+        PositionSeries(series.track_id, t[a:b], P[a:b]) for a, b in zip(edges[:-1], edges[1:])
+    ]
+    crossed = gap & ~fast
+    return CleanTrack(
+        series.track_id,
+        pieces,
+        start_s,
+        end_s,
+        crossed_m=float(step[crossed].sum()),
+        spikes=spikes,
+        jumps=int(fast.sum()),
+        gaps=int(crossed.sum()),
+    )
+
+
+def track_movement(
+    track: CleanTrack,
+    noise_m: float | None = None,
+    smooth: bool = True,
+    max_speed_ms: float = MAX_PLAUSIBLE_SPEED_MS,
+) -> tuple[MovementStats, PositionSeries, float | None]:
+    """Movement for a cleaned track: each piece smoothed (once) on its own and measured.
+
+    `smooth=False` is for positions something upstream already smoothed — the
+    top-down map's RTS smoother (`topdown.smooth`) — so they are not smoothed a
+    second time. Returns the stats, the pieces joined back into one path for
+    the heatmap and the team shapes, and the window used (None when not
+    smoothed here).
+    """
+    window_s = smoothing_window_s(noise_m) if smooth else None
+    pieces = [smooth_for_noise(p, noise_m)[0] if smooth else p for p in track.pieces]
+    stats = MovementStats(track_id=track.track_id, position_noise_m=noise_m)
+    stats.minutes_tracked = float((track.end_s - track.start_s) / 60.0)
+    stats.distance_m = track.crossed_m
+    stats.discarded_frames = track.spikes + track.jumps
+    bursts, hardest = [], []
+    for piece in pieces:
+        if len(piece) < 2:
+            continue
+        one = movement_stats(piece, max_speed_ms=max_speed_ms, noise_m=noise_m)
+        stats.distance_m += one.distance_m
+        stats.top_speed_ms = max(stats.top_speed_ms, one.top_speed_ms)
+        stats.sprint_count += one.sprint_count
+        stats.sprint_distance_m += one.sprint_distance_m
+        stats.discarded_frames += one.discarded_frames
+        if one.accelerations is not None:
+            bursts.append(one.accelerations)
+        if one.top_acceleration_ms2 is not None:
+            hardest.append(one.top_acceleration_ms2)
+    if bursts:
+        stats.accelerations = int(sum(bursts))
+    if hardest:
+        stats.top_acceleration_ms2 = float(max(hardest))
+    if pieces:
+        joined = PositionSeries(
+            track.track_id,
+            np.concatenate([p.timestamps_s for p in pieces]),
+            np.concatenate([p.positions_m for p in pieces]),
+        )
+    else:
+        joined = PositionSeries(track.track_id, np.zeros(0), np.zeros((0, 2)))
+    return stats, joined, window_s
+
+
+def _top_speed(series: PositionSeries, max_speed_ms: float) -> float:
+    """The fastest ground covered over TOP_SPEED_WINDOW_S, as a speed.
+
+    Net displacement across the window, so a wobble inside it cancels rather
+    than adds. A track shorter than the window is measured across its whole
+    length. Windows over `max_speed_ms` are left out, as steps are.
+    """
+    t, P = series.timestamps_s, series.positions_m
+    if len(t) < 2:
+        return 0.0
+    ends = np.searchsorted(t, t + TOP_SPEED_WINDOW_S - 1e-9, side='left')
+    ok = ends < len(t)
+    if not np.any(ok):
+        starts, ends = np.array([0]), np.array([len(t) - 1])
+    else:
+        starts, ends = np.flatnonzero(ok), ends[ok]
+    span = t[ends] - t[starts]
+    good = span > 1e-6
+    if not np.any(good):
+        return 0.0
+    speed = np.linalg.norm(P[ends[good]] - P[starts[good]], axis=1) / span[good]
+    speed = speed[speed <= max_speed_ms]
+    return float(speed.max()) if len(speed) else 0.0
+
+
 def movement_stats(
     series: PositionSeries,
     max_speed_ms: float = MAX_PLAUSIBLE_SPEED_MS,
@@ -298,7 +473,10 @@ def movement_stats(
     min_accel_ms2: float = MIN_ACCEL_MS2,
     noise_m: float | None = None,
 ) -> MovementStats:
-    """Distance, speed and sprints from a smoothed series.
+    """Distance, speed and sprints from a smoothed series, one continuous stretch of it.
+
+    A whole track goes through `clean_track` and `track_movement` instead, which
+    break it at gaps and jumps before anything is smoothed or measured.
 
     `noise_m` is `position_noise_m` measured on the **raw** series, before this
     one was smoothed. Given it, the burst count is refused above
@@ -332,7 +510,7 @@ def movement_stats(
     good_dt = dt[plausible]
 
     stats.distance_m = float(np.sum(good_steps))
-    stats.top_speed_ms = float(np.max(good_speeds))
+    stats.top_speed_ms = _top_speed(series, max_speed_ms)
     stats.minutes_tracked = float((series.timestamps_s[-1] - series.timestamps_s[0]) / 60.0)
 
     sprints, sprint_distance = _find_sprints(good_speeds, good_dt, good_steps, sprint_threshold_ms)

@@ -165,6 +165,8 @@ class HalfTable:
             for fr, a, b in zip(frames, *cuts)
         ]
         table.calibration = calibration if calibration is not None else self.calibration()
+        # The map's dots are its RTS smoother's path (`topdown.smooth`), already smoothed once.
+        table.presmoothed = True
         attach_trajectory(table, self.trajectory(table))
         return table
 

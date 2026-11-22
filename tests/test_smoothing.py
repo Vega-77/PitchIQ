@@ -353,12 +353,14 @@ class TestTheEnds:
 class TestWhatDidNotGetBetter:
     """The limits, so the roadmap entry is not the only place they appear."""
 
-    @pytest.mark.parametrize('sigma,ceiling', [(0.05, 1.10), (0.20, 1.25)])
+    @pytest.mark.parametrize('sigma,ceiling', [(0.05, 1.03), (0.20, 1.05)])
     def test_top_speed_is_still_biased_upward(self, sigma, ceiling):
         # A maximum of a noisy series is biased up by construction — noise can
         # only ever push the peak higher, never lower — and no window removes
-        # that. The fitted window roughly halves it (from +30% to +9% at
-        # sigma=0.20) and cannot do more.
+        # that. Over a single step the fitted window roughly halved it (from
+        # +30% to +9% at sigma=0.20). Over a second of net displacement
+        # (TOP_SPEED_WINDOW_S, session step 3.7) the wobble mostly cancels:
+        # +12% unsmoothed and +1.6% smoothed at sigma=0.20, +0.7% at 0.05.
         jog = np.column_stack(
             [
                 np.zeros(int(30 * FPS)),

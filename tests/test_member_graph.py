@@ -51,8 +51,6 @@ UNREAD_BY_DESIGN = {
     'possession frame by frame through it; the pipeline only needs the team.',
     'FrameState.distance_px': 'How far the holder was from the ball. The tests pin '
     'the claim radius through it; nothing downstream needs the distance itself.',
-    'MovementStats.discarded_frames': 'How many implausible jumps were dropped. '
-    'The tests pin that the speed cap bites through it; no report shows it yet.',
     'Pass.length_ph': 'Pass length in player heights, the unit the pass threshold '
     'is set in. `tests/test_events.py` pins it; the report publishes metres.',
     'Touch.speed_before_ph_s': 'Ball speed into the touch. Kept with '

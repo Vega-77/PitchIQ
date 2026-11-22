@@ -148,6 +148,10 @@ class FrameTable:
     # fact about an identity that spans the window, not about a frame.
     thumb_by_track: dict[int, Thumb] = field(default_factory=dict)
     calibration: Calibration | None = None
+    # The positions were smoothed before they got here (the top-down map's RTS
+    # smoother, `map_table.HalfTable.frame_table`), so the movement figures do
+    # not smooth them a second time (`metrics.track_movement`).
+    presmoothed: bool = False
 
     # Built on first use. Records are usually contiguous, but a strided run
     # leaves holes, and event derivation looks frames up constantly enough that

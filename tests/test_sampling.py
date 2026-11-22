@@ -174,17 +174,21 @@ class TestTheRateBarelyMatters:
 class TestWobbleMattersMoreThanRate:
     """Which variable actually moves these numbers, since only one is a choice.
 
-    Top speed at 0.15m of wobble runs about +4% whatever the rate; across every
-    rate from 60Hz to 6Hz it varies by less than that. So the frame rate is not
-    where the error in a speed figure comes from, and lowering it is not what
-    would fix one.
+    When top speed was the fastest single step, 0.15m of wobble ran it about
+    +4% whatever the rate, more than the rate itself ever moved it. Since
+    session step 3.7 it is the fastest second (`metrics.TOP_SPEED_WINDOW_S`),
+    and a second of net displacement cancels the wobble: +0.3% at 0.15m, the
+    same size as the spread across rates (0.4%). Neither is where a speed
+    figure's error comes from now; jumps and gaps in the track are
+    (`metrics.clean_track`).
     """
 
-    def test_the_spread_across_rates_is_smaller_than_the_cost_of_wobble(self):
+    def test_a_second_of_running_cancels_the_wobble(self):
         clean = [across_seeds(s, 0.0)['top_speed_pct'] for s in (1, 2, 4, 6)]
         spread = max(clean) - min(clean)
         wobble = abs(across_seeds(1, 0.15)['top_speed_pct'] - across_seeds(1, 0.0)['top_speed_pct'])
-        assert spread < wobble
+        assert spread < 1.0
+        assert wobble < 1.0
 
     def test_distance_survives_wobble_at_every_rate_because_the_window_fits_it(self):
         # The previous item's payoff: the window is chosen from each track's

@@ -106,8 +106,9 @@ What it costs splits cleanly in two, and the two halves disagree.
 
 **The movement figures do not care.** Measured synthetically against
 constructed truth in tests/test_sampling.py: distance, mean speed, sprints
-and bursts are flat from 60Hz down to 6Hz, and top speed moves less with
-the rate than it does with a tenth of a metre of positional wobble. The
+and bursts are flat from 60Hz down to 6Hz, and so is top speed, which is
+the fastest second of running rather than the fastest step (session step
+3.7, docs/design/metrics.md). The
 reason is that the smoothing window is stated in seconds, so the smoothed
 path is nearly the same curve at any rate — the average simply holds fewer
 samples. That ends at three samples, which is `metrics.min_sample_hz()` and

@@ -145,6 +145,39 @@ at two the burst count jumps by four a minute on a track with 0.15m of wobble
 — noise being counted as acceleration, which is the exact failure the window
 exists to prevent. See tests/test_sampling.py.
 
+### Clean tracks before distance and speed
+
+Session step 3.7 (2026-11-22). `clean_track` drops spikes and breaks a track at every gap and every
+jump, and `track_movement` measures each piece on its own. The stats' map path is not smoothed
+again, because the map's RTS smoother already smoothed it once (`FrameTable.presmoothed`). The
+video path still smooths, but now inside each piece only.
+
+**What was wrong.** The moving average ran over samples, not time. A seen-only track has gaps
+wherever the player was unseen, so the average spread each gap's metres over the few seen frames
+on either side. Those steps then went over the 12 m/s ceiling and were thrown away as jumps.
+On the 7 dev halves, today's distance came out 26-37% under the map's own path. It was also
+under that path sampled once a second (wb1: 99.6 against 108.7 km). A real path cannot be
+shorter than its own 1 fps sample. Hiding 20% of the frames in 0.5-3 s stretches moved each
+track's distance by a median of 12-13%. With clean pieces it moved 2.0-2.3%.
+
+**Top speed.** Every Woodbridge player seen 5 minutes or more topped out at 40-43 km/h, just
+under the ceiling. The culprit was single steps of 9-12 m/s at the first or last frames of a
+piece, next to a gap or jump, where the net speed over the surrounding second was 2.5-4 m/s.
+Top speed is now the fastest second of net displacement (TOP_SPEED_WINDOW_S). On wbr1, for
+clusters seen 5 minutes or more, the median went from 42.9 to 25.1 km/h and the maximum from
+43.2 to 32.3.
+On synthetic truth, 0.15 m of wobble moves it 0.3%, against 4% over one step.
+
+**What it was not.** Most one-frame steps over 9 m/s (78%) fall on frames where most of the team
+moves at once. Those are real transitions, not a camera glitch: the shared slide carries on in
+the same direction afterwards (cosine 0.98), and comes back in only 2% of runs. There are no
+out-and-back spikes in the map's path. Inside a piece, the second smoothing changes distance
+by under 1%.
+
+Still open: distance is now +33% on wbr1 (116 m/min median for players seen 5 minutes or more).
+No ground truth checks the absolute level. Goal 4 does (4.1, 4.2). Scripts and logs are in
+PitchIQ-data/s3-7.
+
 ### Back-line share
 
 The share of tracked outfielders that counts as the back line, and the fewest
