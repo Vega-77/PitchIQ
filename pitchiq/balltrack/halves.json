@@ -33,5 +33,9 @@
   "wh": {"video": "Home v Wardlaw-Hartridge 10_8_26 & Senior Night - Tactical.mp4",
          "H1_heldout": ["27:30", "70:00", 49500, 126000],
          "H2": ["79:00", "124:30", 142200, 224100],
-         "approx": "Added 2026-11-04 for the Map Lab round 4 strip: the ball clicker's pass ranges (pitchiq/experiments/clicker/build.py), to about a minute. Night game."}
+         "approx": "Added 2026-11-04 for the Map Lab round 4 strip: the ball clicker's pass ranges (pitchiq/experiments/clicker/build.py), to about a minute. Night game."},
+  "wbr": {"video": "Woodbridge High vs South Brunswick High School Boys' Varsity Soccer - Tactical.mp4",
+         "H1": ["10:30", "56:25", 18900, 101550],
+         "H2": ["65:05", "113:30", 117150, 204300],
+         "approx": "Added by process_match 2026-11-22: halves.py's activity fit, within about a minute (2.6 min at worst on 7 known games); the plot is C:\\Users\\alexv\\Desktop\\Repos\\PitchIQ\\pitchiq\\balltrack\\plab\\out\\wbr_halves.png."}
 }
