@@ -208,6 +208,10 @@ class MatchReport:
     # otherwise.
     movement_available: bool = False
 
+    # The prepared per-frame possession states (possession.FrameState), for the match
+    # viewer's who-has-the-ball (`viewer_data.save_holds`). Not in the report JSON.
+    frame_states: list | None = None
+
     warnings: list[str] = field(default_factory=list)
 
     # Where the seconds went, and whether they would have fitted inside a live
@@ -609,6 +613,7 @@ def _count(
     context = replace(context, period=_resolve_period(report, context.period, start_s, end_s))
 
     states = _possession(report, table, calibration, is_player, context, clock)
+    report.frame_states = states
     attacking_ends = {
         team: attacking_end_for(context.orientation, context.side_of_team, context.period, team)
         for team in (TEAM_A, TEAM_B)

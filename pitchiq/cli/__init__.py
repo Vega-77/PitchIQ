@@ -13,6 +13,7 @@ COMMANDS = (
     'compare_reports',
     'publish_report',
     'map_report',
+    'viewer_export',
     'demo',
     'process_match',
     'preflight',

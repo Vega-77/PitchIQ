@@ -54,7 +54,7 @@ from pitchiq.map_table import HalfTable
 from pitchiq.panning_camera import PannedCamera
 from pitchiq.pipeline import AnalysisOptions, MatchContext, analyse_match, analyse_table
 from pitchiq.pitch import MatchOrientation
-from pitchiq import table_pictures
+from pitchiq import table_pictures, viewer_data
 
 REPO = Path(__file__).resolve().parents[2]
 HALVES = REPO / 'pitchiq' / 'balltrack' / 'halves.json'
@@ -95,6 +95,11 @@ class CachedDetector:
             out.append(Boxes(self.rows(self.next), self.shape))
             self.next += 1
         return out
+
+
+def holds_path(report: Path) -> Path:
+    """Where a half's who-had-the-ball goes: beside its report (pipe_<tag>.holds.npz)."""
+    return report.with_suffix('.holds.npz')
 
 
 def _half(tag: str) -> tuple[Path, int, int]:
@@ -150,6 +155,8 @@ def run_half(args) -> int:
     data = report.to_json(window={'start_s': round(start_s, 3), 'end_s': round(end_s, 3)})
     data['source'] = args.tag
     args.out.write_text(json.dumps(data), encoding='utf-8')
+    if getattr(report, 'frame_states', None) is not None:  # who had the ball, for the viewer
+        viewer_data.save_holds(report.frame_states, half.fps, holds_path(args.out))
     print(report.summary())
     print(
         f'{len(frames)} frames from the table in {time.time() - t0:.0f} s; '

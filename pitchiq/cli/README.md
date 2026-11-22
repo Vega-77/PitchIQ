@@ -12,6 +12,9 @@ The match-day commands, run as `python -m pitchiq <command> [args]`
 - `map_report`: a report JSON from a match's top-down maps (both halves give
   one match report): team shape and where each team stood (`--ours
   lighter|darker` says which side is the coach's).
+- `viewer_export`: pack a game's map, 3D ball, who had the ball and the moments
+  (each with why it was given to its player) for the coach's match viewer
+  (`pitchiq/viewer_data.py`).
 - `demo`: run the pipeline on a scripted nine-second match (no footage needed).
 - `process_match`: a match video to statistics on the site, every step in
   one command (about 5 to 9 hours a game; rerun the same command to resume):

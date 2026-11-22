@@ -48,8 +48,8 @@ class FrameState:
     """Who had the ball on one frame, and whether the ball was seen at all."""
 
     timestamp_s: float
-    # holder_track and distance_px are read only by the tests, which pin who
-    # held the ball and how close; kept as that contract.
+    # The tests pin who held the ball and how close through holder_track and
+    # distance_px; the match viewer shows the holder (`viewer_data.save_holds`).
     holder_track: int | None
     team: str
     distance_px: float | None

@@ -47,8 +47,6 @@ UNREAD_BY_DESIGN = {
     'and how many escaped. Published as `escaped_defence`, read by '
     '`shared/report.js`; this pairs it with its own denominator for Python callers.',
     # --- read only by tests, which pin them as the contract
-    'FrameState.holder_track': 'Who held the ball on the frame. The tests pin '
-    'possession frame by frame through it; the pipeline only needs the team.',
     'FrameState.distance_px': 'How far the holder was from the ball. The tests pin '
     'the claim radius through it; nothing downstream needs the distance itself.',
     'Pass.length_ph': 'Pass length in player heights, the unit the pass threshold '
