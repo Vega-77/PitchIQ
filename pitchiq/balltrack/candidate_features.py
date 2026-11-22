@@ -20,7 +20,9 @@ SCALE = 1920.0 / TW  # 3.0
 JPEGQ = 72  # the labelling sheets were written at this quality, and
 # the model learnt on that noise; match it
 KEEP = 40  # candidates written out per frame (track.py's K)
-if os.environ.get('PIQ_KEEP'):  # an experiment's detector workers widen the cut through this (at most 63)
+if os.environ.get(
+    'PIQ_KEEP'
+):  # an experiment's detector workers widen the cut through this (at most 63)
     KEEP = int(os.environ['PIQ_KEEP'])
 
 

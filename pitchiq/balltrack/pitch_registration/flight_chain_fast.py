@@ -60,6 +60,8 @@ BOUNCE_KEEP = (0.5, 1.1)  # outgoing / incoming horizontal speed at a bounce
 BOUNCE_TURN = np.radians(30)
 EXT = 1.5
 LOST = 6  # frames unseen beyond an end: the ball is lost there
+
+
 def kphys():
     """Football quadratic drag as linear k (1/s) per unit speed (CH/s), for the current
     camera. Read at use: Track() sets R_CH per camera after import (see flight_chain)."""

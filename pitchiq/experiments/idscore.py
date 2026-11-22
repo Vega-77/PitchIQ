@@ -381,10 +381,16 @@ def fragments(tag):
     )
 
 
-def main(argv=None):
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        prog='python -m pitchiq.experiments.idscore', description=__doc__.splitlines()[0]
+    )
     ap.add_argument('--final', action='store_true', help='also read wb2 (held out)')
-    a = ap.parse_args(argv)
+    return ap
+
+
+def main(argv=None):
+    a = build_parser().parse_args(argv)
     tags = ['wb1', 'wb2'] if a.final else ['wb1']
     qs = truth(tags)
     print(

@@ -1,4 +1,4 @@
-"""Whole-half player identity: join the linker's fragments into people (Woodbridge, 2026-11-07).
+"""Whole-half player identity: join the linker's fragments into people (wb, 2026-11-07).
 
 The linker starts afresh every window and splits a player whenever it loses them, so a half
 is ~7000 fragments for ~25 people. Joining them uses what stays true of a person:
@@ -1027,13 +1027,19 @@ def reid(tag, final=False, n_box=15, min_h=45, batch=256):
     print(len(ids), 'fragments ->', out, flush=True)
 
 
-def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        prog='python -m pitchiq.experiments.idlink', description=__doc__.split('\n')[0]
+    )
     ap.add_argument('cmd', choices=['frags', 'numbers', 'parts', 'reid', 'join'])
     ap.add_argument('tag')
     ap.add_argument('--final', action='store_true')
     ap.add_argument('--tuned', default=None, help='numtrain.py model for the reader')
-    a = ap.parse_args(argv)
+    return ap
+
+
+def main(argv=None) -> int:
+    a = build_parser().parse_args(argv)
     if a.cmd == 'frags':
         frags(a.tag, a.final)
     elif a.cmd == 'numbers':

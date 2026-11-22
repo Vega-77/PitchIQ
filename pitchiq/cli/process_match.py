@@ -527,9 +527,7 @@ def step_halves(r: Run) -> None:
         )
         return
     if a.plan:
-        r.say(
-            'halves: to do (' + ('--h1/--h2' if a.h1 else "halves.py's activity fit") + ')'
-        )
+        r.say('halves: to do (' + ('--h1/--h2' if a.h1 else "halves.py's activity fit") + ')')
         return
     if a.h1 and a.h2:
         halves, how = [a.h1, a.h2], 'halves given on the command line'
@@ -554,7 +552,9 @@ def step_halves(r: Run) -> None:
         import cv2
 
         cap = cv2.VideoCapture(str(a.video))
-        last = (cap.get(cv2.CAP_PROP_FRAME_COUNT) - 2) / FPS  # a fit can end one sample past the video
+        last = (
+            cap.get(cv2.CAP_PROP_FRAME_COUNT) - 2
+        ) / FPS  # a fit can end one sample past the video
         cap.release()
         halves = [(float(s), min(float(e), last)) for s, e in halves[:2]]
         how = (
@@ -874,8 +874,7 @@ def health(r: Run, tag: str) -> None:
         raise Stop(
             f'the calibration of {tag} looks wrong: {", ".join(flags)} ({path}). Every position '
             'after this would be off. Pin the field, or pass --trust-cal to carry on anyway.',
-            coach='The camera’s view of the pitch did not line up, so every position would be '
-            'off.',
+            coach='The camera’s view of the pitch did not line up, so every position would be off.',
         )
 
 
@@ -1285,7 +1284,9 @@ def main(argv: list[str] | None = None) -> int:
     resume.mark(r.out, sys.argv[1:] if argv is None else argv)
     resume.keep_awake()
     if os.environ.get('PIQ_RESUMED'):
-        r.say(f'resumed after a restart (time {os.environ["PIQ_RESUMED"]}): finished steps are skipped')
+        r.say(
+            f'resumed after a restart (time {os.environ["PIQ_RESUMED"]}): finished steps are skipped'
+        )
     try:
         return run_steps(r)
     finally:

@@ -11,6 +11,7 @@ frame (pan-stabilised px, constant-velocity prediction), stopping at the first m
                                    selftrain/prop/chains.json [{game, half, piece, f0, f, j, k}]
 Honest use: fold G trains only on chains whose click is in another game.
 """
+
 import json
 import os
 import sys
@@ -19,7 +20,10 @@ import numpy as np
 
 import st
 
-R0, R1 = 25.0, 10.0  # search radius: first step (velocity unknown), later steps (around the prediction)
+R0, R1 = (
+    25.0,
+    10.0,
+)  # search radius: first step (velocity unknown), later steps (around the prediction)
 
 
 def load(pt):
@@ -69,7 +73,11 @@ def check(K):
         cand = []
         for b, e in zip(np.where(d == 1)[0], np.where(d == -1)[0]):
             if e - b >= 60 and np.median(z['p'][b:e]) >= 3:
-                cand += [i for i in range(b + K, e - K) if (z['owner'][i - K:i + K + 1] == z['owner'][i]).all()]
+                cand += [
+                    i
+                    for i in range(b + K, e - K)
+                    if (z['owner'][i - K : i + K + 1] == z['owner'][i]).all()
+                ]
         cand = rng.choice(cand, min(300, len(cand)), replace=False) if len(cand) else []
         Fs = {}
         for i in cand:
@@ -84,8 +92,10 @@ def check(K):
                     agree[k] += int(z['j'][f2 - lo]) == j2
         print(tag, 'starts so far', n, flush=True)
     for k in range(1, K + 1):
-        print('k %2d: chain alive %5.1f%% of %d, on the tracker pick %5.1f%%' % (
-            k, 100 * reach[k] / (2 * n), 2 * n, 100 * agree[k] / max(1, reach[k])))
+        print(
+            'k %2d: chain alive %5.1f%% of %d, on the tracker pick %5.1f%%'
+            % (k, 100 * reach[k] / (2 * n), 2 * n, 100 * agree[k] / max(1, reach[k]))
+        )
 
 
 def rows(K):
@@ -101,7 +111,9 @@ def rows(K):
             Fs = {pt: load(pt)}
         for step in (-1, 1):
             for f2, j2, k in chain(Fs[pt], f, jb, K, step):
-                out.append(dict(game=st.game(tag), half=tag, piece=pt, f0=f, f=f2, j=j2, k=k * step))
+                out.append(
+                    dict(game=st.game(tag), half=tag, piece=pt, f0=f, f=f2, j=j2, k=k * step)
+                )
                 per.setdefault(pt, set()).add((f2, j2))
     os.makedirs(st.OUT + '/prop/rows', exist_ok=True)
     for pt, s in per.items():
@@ -111,7 +123,10 @@ def rows(K):
     g = {}
     for r in out:
         g[r['game']] = g.get(r['game'], 0) + 1
-    print('clicks with a blob %d, chained rows %d (%.1f per click), per game %s' % (len(seen), len(out), len(out) / len(seen), g))
+    print(
+        'clicks with a blob %d, chained rows %d (%.1f per click), per game %s'
+        % (len(seen), len(out), len(out) / len(seen), g)
+    )
     ks = np.array([abs(r['k']) for r in out])
     print('rows by distance:', {k: int((ks == k).sum()) for k in range(1, K + 1)})
 

@@ -49,7 +49,10 @@ SMOOTH = 9  # frames each side for the crop's centre and size: a steady camera, 
 HELD_OUT = {'nb2', 'pi1', 'wh1', 'co1', 'wb2'}
 YELLOW, BLACK, WHITE = (0, 230, 255), (0, 0, 0), (255, 255, 255)
 CRF = 34  # VP9 quality: a number reads the same as in the raw frame at a tenth of VP8's size
-HD_ZOOM, HD_STRIP = 480, 240  # recut: two close-ups side by side, a 4:1 strip of the pitch under them
+HD_ZOOM, HD_STRIP = (
+    480,
+    240,
+)  # recut: two close-ups side by side, a 4:1 strip of the pitch under them
 HD_CRF, HD_MB = 28, 12.5  # recut clips: quality, but under the 16 MB a published file may be
 SR_MODEL = (REPO.parent / 'PitchIQ-data' / 'models' / 'sr' / 'realesr-general-x4v3.pth').resolve()
 
@@ -86,9 +89,38 @@ class _Clip:
         import imageio_ffmpeg
 
         self.p = subprocess.Popen(
-            [imageio_ffmpeg.get_ffmpeg_exe(), '-loglevel', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24',
-             '-s', '%dx%d' % size, '-r', str(fps), '-i', '-', '-c:v', 'libvpx-vp9', '-crf', str(crf),
-             '-b:v', '%dk' % kbps, '-row-mt', '1', '-deadline', 'good', '-cpu-used', '4', '-pix_fmt', 'yuv420p', '-an', str(path)],
+            [
+                imageio_ffmpeg.get_ffmpeg_exe(),
+                '-loglevel',
+                'error',
+                '-y',
+                '-f',
+                'rawvideo',
+                '-pix_fmt',
+                'bgr24',
+                '-s',
+                '%dx%d' % size,
+                '-r',
+                str(fps),
+                '-i',
+                '-',
+                '-c:v',
+                'libvpx-vp9',
+                '-crf',
+                str(crf),
+                '-b:v',
+                '%dk' % kbps,
+                '-row-mt',
+                '1',
+                '-deadline',
+                'good',
+                '-cpu-used',
+                '4',
+                '-pix_fmt',
+                'yuv420p',
+                '-an',
+                str(path),
+            ],
             stdin=subprocess.PIPE,
         )
 
@@ -161,15 +193,24 @@ def render(img, p):
     b = p['box']
     x0, y0, s = _square(p['cx'], p['cy'] - 0.08 * p['h'], max(ZOOM_K * p['h'], ZOOM_MIN), W, H)
     z = cv2.resize(
-        img[int(y0) : int(y0 + s), int(x0) : int(x0 + s)], (ZOOM, ZOOM), interpolation=cv2.INTER_LANCZOS4
+        img[int(y0) : int(y0 + s), int(x0) : int(x0 + s)],
+        (ZOOM, ZOOM),
+        interpolation=cv2.INTER_LANCZOS4,
     )
     blur = cv2.GaussianBlur(z, (0, 0), 1.4)
     z = cv2.addWeighted(z, 1.7, blur, -0.7, 0)
     _marker(z, p, x0, y0, ZOOM / s)
-    X0, Y0, S =_square(p['cx'], p['cy'], max(CTX_K * p['h'], CTX_MIN), W, H)
-    c = cv2.resize(img[int(Y0) : int(Y0 + S), int(X0) : int(X0 + S)], (CTX, CTX), interpolation=cv2.INTER_AREA)
+    X0, Y0, S = _square(p['cx'], p['cy'], max(CTX_K * p['h'], CTX_MIN), W, H)
+    c = cv2.resize(
+        img[int(Y0) : int(Y0 + S), int(X0) : int(X0 + S)], (CTX, CTX), interpolation=cv2.INTER_AREA
+    )
     K = CTX / S
-    r = [int((b[0] - X0) * K) - 3, int((b[1] - Y0) * K) - 3, int((b[2] - X0) * K) + 3, int((b[3] - Y0) * K) + 3]
+    r = [
+        int((b[0] - X0) * K) - 3,
+        int((b[1] - Y0) * K) - 3,
+        int((b[2] - X0) * K) + 3,
+        int((b[3] - Y0) * K) + 3,
+    ]
     cv2.rectangle(c, (r[0], r[1]), (r[2], r[3]), BLACK, 3, cv2.LINE_AA)
     cv2.rectangle(c, (r[0], r[1]), (r[2], r[3]), YELLOW, 1 if p['hidden'] else 2, cv2.LINE_AA)
     out = np.hstack([z, np.full((ZOOM, 4, 3), 20, np.uint8), c])
@@ -200,7 +241,10 @@ class _SR:
         self.m = ModelLoader().load_from_file(str(path)).cuda().eval().half()
 
     def __call__(self, crop):
-        t = self.torch.from_numpy(crop[:, :, ::-1].copy()).permute(2, 0, 1)[None].cuda().half() / 255
+        t = (
+            self.torch.from_numpy(crop[:, :, ::-1].copy()).permute(2, 0, 1)[None].cuda().half()
+            / 255
+        )
         with self.torch.no_grad():
             o = self.m(t).clamp(0, 1)[0].permute(1, 2, 0).float().cpu().numpy()
         return (o[:, :, ::-1] * 255).round().astype(np.uint8)
@@ -217,7 +261,11 @@ def render_hd(img, p, sr):
     plain = cv2.resize(crop, (HD_ZOOM, HD_ZOOM), interpolation=cv2.INTER_LANCZOS4)
     plain = cv2.addWeighted(plain, 1.4, cv2.GaussianBlur(plain, (0, 0), 1.2), -0.4, 0)
     up = sr(crop)
-    ai = cv2.resize(up, (HD_ZOOM, HD_ZOOM), interpolation=cv2.INTER_AREA if up.shape[0] > HD_ZOOM else cv2.INTER_LANCZOS4)
+    ai = cv2.resize(
+        up,
+        (HD_ZOOM, HD_ZOOM),
+        interpolation=cv2.INTER_AREA if up.shape[0] > HD_ZOOM else cv2.INTER_LANCZOS4,
+    )
     k = HD_ZOOM / int(s)
     for z in (plain, ai):
         _marker(z, p, x0, y0, k)
@@ -225,9 +273,18 @@ def render_hd(img, p, sr):
     sw = 4 * sh
     X0 = float(np.clip(p['cx'] - sw / 2, 0, W - sw))
     Y0 = float(np.clip(p['cy'] - sh / 2, 0, H - sh))
-    strip = cv2.resize(img[int(Y0) : int(Y0 + sh), int(X0) : int(X0 + sw)], (2 * HD_ZOOM, HD_STRIP), interpolation=cv2.INTER_AREA)
+    strip = cv2.resize(
+        img[int(Y0) : int(Y0 + sh), int(X0) : int(X0 + sw)],
+        (2 * HD_ZOOM, HD_STRIP),
+        interpolation=cv2.INTER_AREA,
+    )
     K = HD_STRIP / sh
-    r = [int((b[0] - X0) * K) - 3, int((b[1] - Y0) * K) - 3, int((b[2] - X0) * K) + 3, int((b[3] - Y0) * K) + 3]
+    r = [
+        int((b[0] - X0) * K) - 3,
+        int((b[1] - Y0) * K) - 3,
+        int((b[2] - X0) * K) + 3,
+        int((b[3] - Y0) * K) + 3,
+    ]
     cv2.rectangle(strip, (r[0], r[1]), (r[2], r[3]), BLACK, 3, cv2.LINE_AA)
     cv2.rectangle(strip, (r[0], r[1]), (r[2], r[3]), YELLOW, 1 if p['hidden'] else 2, cv2.LINE_AA)
     return np.vstack([np.hstack([plain, ai]), strip])
@@ -239,7 +296,11 @@ def thumb(img, b):
     H, W = img.shape[:2]
     h = b[3] - b[1]
     x0, y0, s = _square((b[0] + b[2]) / 2, (b[1] + b[3]) / 2, max(1.3 * h, 60), W, H)
-    return cv2.resize(img[int(y0) : int(y0 + s), int(x0) : int(x0 + s)], (THUMB, THUMB), interpolation=cv2.INTER_LANCZOS4)
+    return cv2.resize(
+        img[int(y0) : int(y0 + s), int(x0) : int(x0 + s)],
+        (THUMB, THUMB),
+        interpolation=cv2.INTER_LANCZOS4,
+    )
 
 
 def _cut(cap, live, out, draw, fps, crf, mb=0):
@@ -266,13 +327,17 @@ def _cut(cap, live, out, draw, fps, crf, mb=0):
             break
         for q, k in jobs[f]:
             if k < 0:
-                cv2.imwrite(str(out / q['thumb']), thumb(img, q['_thumb_b']), [cv2.IMWRITE_JPEG_QUALITY, 88])
+                cv2.imwrite(
+                    str(out / q['thumb']), thumb(img, q['_thumb_b']), [cv2.IMWRITE_JPEG_QUALITY, 88]
+                )
                 continue
             fr = draw(img, q['_P'][k])
             vw = writers.get(q['id'])
             if vw is None:
                 kbps = int(mb * 8e3 * fps / len(q['_P'])) if mb else 0
-                vw = writers[q['id']] = _Clip(out / q['clip']['file'], (fr.shape[1], fr.shape[0]), fps, crf, kbps)
+                vw = writers[q['id']] = _Clip(
+                    out / q['clip']['file'], (fr.shape[1], fr.shape[0]), fps, crf, kbps
+                )
             vw.write(fr)
             q['_left'] -= 1
             if q['_left'] == 0:
@@ -315,13 +380,23 @@ def recut(tag, src: Path, out: Path, ids, final=False):
         by = {i.pid: i for i in res.identities}
         for old in (q for q in want.values() if (q['lo'], q['hi']) == (lo, hi)):
             ident = by[old['pid']]
-            assert (int(ident.frames[0]), int(ident.frames[-1])) == (old['first'], old['last']), 'linker drifted: ' + old['id']
+            assert (int(ident.frames[0]), int(ident.frames[-1])) == (old['first'], old['last']), (
+                'linker drifted: ' + old['id']
+            )
             P = plan(ident, fps, full=True)
             ok = ~ident.interp
             j = int(np.argmax(np.where(ok, ident.boxes[:, 3] - ident.boxes[:, 1], -1)))
             q = dict(old)
-            q['clip'] = dict(file='clips/%s.webm' % old['id'], fps=fps, n=len(P), frames=[p['f'] for p in P],
-                             hidden=[int(p['hidden']) for p in P], layout='hd', w=2 * HD_ZOOM, h=HD_ZOOM + HD_STRIP)
+            q['clip'] = dict(
+                file='clips/%s.webm' % old['id'],
+                fps=fps,
+                n=len(P),
+                frames=[p['f'] for p in P],
+                hidden=[int(p['hidden']) for p in P],
+                layout='hd',
+                w=2 * HD_ZOOM,
+                h=HD_ZOOM + HD_STRIP,
+            )
             q['_P'], q['_thumb_f'], q['_thumb_b'] = P, int(ident.frames[j]), ident.boxes[j]
             live.append(q)
             print('%s: %d frames (%.0f s)' % (old['id'], len(P), len(P) / fps), flush=True)
@@ -330,7 +405,10 @@ def recut(tag, src: Path, out: Path, ids, final=False):
     _cut(cap, live, out, lambda img, p: render_hd(img, p, sr), fps, HD_CRF, HD_MB)
     live.sort(key=lambda q: (q['kit'], q['first']))
     (out / 'questions.json').write_text(
-        json.dumps(dict(tag=tag, video=S['video'], fps=fps, source=str(src), questions=live), default=_plain)
+        json.dumps(
+            dict(tag=tag, video=S['video'], fps=fps, source=str(src), questions=live),
+            default=_plain,
+        )
     )
     print('%d questions -> %s' % (len(live), out), flush=True)
     return live
@@ -362,7 +440,11 @@ def build(tag, out: Path, windows=None, per=20, min_s=15.0, final=False):
     qs = []
     for w, (lo, hi), res in zip(windows, spans, linked(tag, det, meta, spans)):
         frags, kit = pick(res, _subset(det, (det.frame >= lo) & (det.frame < hi)), fps, per, min_s)
-        print('window %d %d..%d: %d identities, %d asked' % (w, lo, hi, len(res.identities), len(frags)), flush=True)
+        print(
+            'window %d %d..%d: %d identities, %d asked'
+            % (w, lo, hi, len(res.identities), len(frags)),
+            flush=True,
+        )
         live = []
         for ident in frags:
             P = plan(ident, fps)
@@ -370,16 +452,34 @@ def build(tag, out: Path, windows=None, per=20, min_s=15.0, final=False):
             j = int(np.argmax(np.where(ok, ident.boxes[:, 3] - ident.boxes[:, 1], -1)))
             qid = '%s_w%02d_p%04d' % (tag, w, ident.pid)
             q = dict(
-                id=qid, tag=tag, win=int(w), lo=lo, hi=hi, pid=int(ident.pid), trk=int(ident.pid) + 10000 * int(w),
-                team=ident.team, kit=kit[ident.team], role=ident.role,
-                first=int(ident.frames[0]), last=int(ident.frames[-1]),
-                secs=round(len(ident.frames) / fps, 1), seen=round(float(ok.mean()), 2),
+                id=qid,
+                tag=tag,
+                win=int(w),
+                lo=lo,
+                hi=hi,
+                pid=int(ident.pid),
+                trk=int(ident.pid) + 10000 * int(w),
+                team=ident.team,
+                kit=kit[ident.team],
+                role=ident.role,
+                first=int(ident.frames[0]),
+                last=int(ident.frames[-1]),
+                secs=round(len(ident.frames) / fps, 1),
+                seen=round(float(ok.mean()), 2),
                 h_px=round(float(np.median(ident.boxes[ok, 3] - ident.boxes[ok, 1])), 0),
-                clip=dict(file='clips/%s.webm' % qid, fps=CLIP_FPS, n=len(P), frames=[p['f'] for p in P],
-                          hidden=[int(p['hidden']) for p in P]),
+                clip=dict(
+                    file='clips/%s.webm' % qid,
+                    fps=CLIP_FPS,
+                    n=len(P),
+                    frames=[p['f'] for p in P],
+                    hidden=[int(p['hidden']) for p in P],
+                ),
                 thumb='thumbs/%s.jpg' % qid,
-                samples=[[int(ident.frames[i])] + [round(float(x), 1) for x in ident.boxes[i]]
-                         for i in range(0, len(ident.frames), int(fps)) if ok[i]],
+                samples=[
+                    [int(ident.frames[i])] + [round(float(x), 1) for x in ident.boxes[i]]
+                    for i in range(0, len(ident.frames), int(fps))
+                    if ok[i]
+                ],
             )
             q['_P'], q['_thumb_f'], q['_thumb_b'] = P, int(ident.frames[j]), ident.boxes[j]
             live.append(q)
@@ -394,8 +494,10 @@ def build(tag, out: Path, windows=None, per=20, min_s=15.0, final=False):
     return qs
 
 
-def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        prog='python -m pitchiq.experiments.idlab', description=__doc__.split('\n')[0]
+    )
     sub = ap.add_subparsers(dest='cmd', required=True)
     b = sub.add_parser('build')
     b.add_argument('tag')
@@ -410,7 +512,11 @@ def main(argv=None) -> int:
     r.add_argument('out', type=Path)
     r.add_argument('--ids', required=True, help='question ids, comma separated')
     r.add_argument('--final', action='store_true')
-    a = ap.parse_args(argv)
+    return ap
+
+
+def main(argv=None) -> int:
+    a = build_parser().parse_args(argv)
     if a.cmd == 'recut':
         recut(a.tag, a.src, a.out, a.ids.split(','), a.final)
         return 0

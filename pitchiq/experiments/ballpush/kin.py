@@ -1,4 +1,4 @@
-"""Kinematic gap bridging (new brief, line 3.1): synthetic picks on a pan-stabilised trajectory.
+"""Kinematic gap bridging (new brief, 3.1): synthetic picks on a pan-stabilised trajectory.
 
 bridge(F, out, src, G, mode): every run of empty frames of at most G frames between two picks is
 filled with synthetic picks ('syn', x, y) in source px, src 3.
@@ -8,6 +8,7 @@ filled with synthetic picks ('syn', x, y) in source px, src 3.
 Candidate picks are never replaced.  The same synthetic positions are the centre of line 1.1's
 re-proposal window, so the per-click distance of a synthetic ring is 1.1's ceiling measurement.
 """
+
 import numpy as np
 
 from pitchiq.balltrack import gap_fill
@@ -52,8 +53,8 @@ def bridge(F, out, src, G, mode='lin'):
         for t in range(a + 1, b):
             w = (F[t]['abs'] - ta) / D
             if mode == 'herm':
-                h00, h10 = 2 * w ** 3 - 3 * w ** 2 + 1, w ** 3 - 2 * w ** 2 + w
-                h01, h11 = -2 * w ** 3 + 3 * w ** 2, w ** 3 - w ** 2
+                h00, h10 = 2 * w**3 - 3 * w**2 + 1, w**3 - 2 * w**2 + w
+                h01, h11 = -2 * w**3 + 3 * w**2, w**3 - w**2
                 px = h00 * xa + h10 * D * va[0] + h01 * xb + h11 * D * vb[0]
                 py = h00 * ya + h10 * D * va[1] + h01 * yb + h11 * D * vb[1]
             else:

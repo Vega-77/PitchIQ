@@ -244,14 +244,18 @@ def score(qs, ans, all_samples=False):
     return R
 
 
-def main(argv=None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog='python -m pitchiq.experiments.maplab_score', description=__doc__.split('\n\n')[0]
     )
     p.add_argument('set_dir', type=Path)
     p.add_argument('answers', type=Path)
     p.add_argument('--all', action='store_true', help='score the hard samples too')
-    a = p.parse_args(argv)
+    return p
+
+
+def main(argv=None) -> int:
+    a = build_parser().parse_args(argv)
     qs = json.loads((a.set_dir / 'questions.json').read_text())['questions']
     ans = load_answers(a.answers)
     print('%d questions, %d answered' % (len(qs), sum(q['id'] in ans for q in qs)), file=sys.stderr)

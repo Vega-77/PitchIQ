@@ -1,4 +1,4 @@
-"""Feet specialist: route feet-zone candidates to a model trained only on them (train3 --zone feet).
+"""Feet specialist: feet-zone candidates go to a feet-only model (train3 --zone feet).
 
     python feetmerge.py <base run> <feet run> <out run> [--shift 0] [--near 0.1] [--map lin|quant]
 
@@ -9,6 +9,7 @@ quantiles onto the base model's), plus --shift.  Writes runs/<out>/raw/; then  t
 Also prints the direct test of the idea, on the clicked balls whose candidate is in the feet zone: how often the
 ball is the top feet-zone candidate of its frame, and the top candidate of the whole frame, under each model.
 """
+
 import argparse
 import os
 
@@ -44,12 +45,23 @@ def main():
     fz = np.concatenate([F[pt][Z[pt]] for pt in pts])
     if a.map == 'lin':
         aa, bb = np.polyfit(np.percentile(fz, Q), np.percentile(bz, Q), 1)
-        fmap = lambda x: aa * x + bb
-        print('feet zone: %d of %d candidates; map feet -> base: %.3f x + %.3f' % (
-            len(bz), sum(len(B[pt]) for pt in pts), aa, bb))
+
+        def fmap(x):
+            return aa * x + bb
+
+        print(
+            'feet zone: %d of %d candidates; map feet -> base: %.3f x + %.3f'
+            % (len(bz), sum(len(B[pt]) for pt in pts), aa, bb)
+        )
     else:
-        qf, qb = np.percentile(fz, np.linspace(0, 100, 1001)), np.percentile(bz, np.linspace(0, 100, 1001))
-        fmap = lambda x: np.interp(x, qf, qb)
+        qf, qb = (
+            np.percentile(fz, np.linspace(0, 100, 1001)),
+            np.percentile(bz, np.linspace(0, 100, 1001)),
+        )
+
+        def fmap(x):
+            return np.interp(x, qf, qb)
+
         print('feet zone: %d candidates; quantile map' % len(bz))
     os.makedirs(R + a.out + '/raw', exist_ok=True)
     M = {}
@@ -77,8 +89,10 @@ def main():
         cnt['zf'] += int(not (mm[z] > mm[jb]).sum())
         cnt['ab'] += int(not (b > b[jb]).sum())
         cnt['af'] += int(not (mm > mm[jb]).sum())
-    print('clicked balls in the feet zone: %d | top of the feet zone: base %d, feet %d | top of the frame: base %d, '
-          'merged %d' % (cnt['n'], cnt['zb'], cnt['zf'], cnt['ab'], cnt['af']))
+    print(
+        'clicked balls in the feet zone: %d | top of the feet zone: base %d, feet %d | top of the frame: base %d, '
+        'merged %d' % (cnt['n'], cnt['zb'], cnt['zf'], cnt['ab'], cnt['af'])
+    )
     print('MERGE DONE', a.out)
 
 

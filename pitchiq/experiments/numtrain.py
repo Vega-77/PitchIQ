@@ -1,4 +1,4 @@
-"""Fine-tune the shirt-number reader on the Number Lab taps (Woodbridge wb1 only, 2026-11-07).
+"""Fine-tune the shirt-number reader on the Number Lab taps (Woodbridge wb1, 2026-11-07).
 
 The off-the-shelf SoccerNet reader (numread.py) reads ~30% of clips at 0 wrong: it was trained
 on broadcast close-ups, and here a number is ~10 px tall. The user tapped, in 40 crops of each of
@@ -289,8 +289,10 @@ def final(blank=False, name='ft'):
     read('wb2', final=True, reader=Reader(tuned=sd), name=f'wb2_{name}')
 
 
-def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        prog='python -m pitchiq.experiments.numtrain', description=__doc__.split('\n')[0]
+    )
     ap.add_argument('cmd', choices=['oof', 'final'])
     ap.add_argument('--blank', action='store_true')
     ap.add_argument('--name', default=None)
@@ -298,7 +300,11 @@ def main(argv=None) -> int:
     ap.add_argument('--ep', type=int, default=CFG['ep_str'])
     ap.add_argument('--lr', type=float, default=CFG['lr_str'])
     ap.add_argument('--enc-only', action='store_true')
-    a = ap.parse_args(argv)
+    return ap
+
+
+def main(argv=None) -> int:
+    a = build_parser().parse_args(argv)
     CFG.update(ep_str=a.ep, lr_str=a.lr, enc_only=a.enc_only)
     print('config', CFG, flush=True)
     if a.cmd == 'oof':

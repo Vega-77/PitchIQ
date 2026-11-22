@@ -1,4 +1,4 @@
-"""Stage the Ring Review page: each scored frame with the person's click and the video's ring on it.
+"""Stage the Ring Review page: each scored frame with the person's click and the ring drawn.
 
 Every frame the scorer calls wrong, plus a fixed sample of frames it calls right, so a person can see
 whether the scoring itself is right. The ring is the video's (ringcheck.py's rings.json, i.e.

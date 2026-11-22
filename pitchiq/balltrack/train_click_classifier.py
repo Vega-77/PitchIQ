@@ -1,4 +1,4 @@
-"""The ball classifier (cls_B.pt's job) retrained on Ball Clicker answers as well as the human crops.
+"""The ball classifier (cls_B.pt's job) retrained on Ball Clicker answers + the human crops.
 
 Each clicked dev frame gives one crop set: the frame's top-KEEP candidates under the ranker
 (train_ranker.py's blobs and scores), cut from a cached copy of the frame with candidate_crops'

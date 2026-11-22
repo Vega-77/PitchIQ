@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import importlib
+import importlib.util
 import io
 import pkgutil
 import re
@@ -55,7 +56,19 @@ def module_names() -> list[str]:
         for package in PACKAGES.values()
         for info in pkgutil.iter_modules(package.__path__)
         if not info.name.startswith('_')
+        and (package is pitchiq.cli or runs(f'{package.__name__}.{info.name}', info.ispkg))
     )
+
+
+def runs(name: str, ispkg: bool) -> bool:
+    """Whether `python -m name` runs anything (the front end runs every cli module,
+    so this is for experiments): a package needs a `__main__`, a module a
+    `__main__` guard. The ball push folder is a set of scripts run one by one, and
+    `parseq_lite` is a model the number reader imports; neither is a command."""
+    if ispkg:
+        return importlib.util.find_spec(f'{name}.__main__') is not None
+    source = Path(importlib.util.find_spec(name).origin).read_text(encoding='utf-8')
+    return "if __name__ == '__main__':" in source
 
 
 def typed(module: str) -> str:

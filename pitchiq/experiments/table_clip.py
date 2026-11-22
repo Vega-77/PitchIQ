@@ -141,7 +141,7 @@ def render(tag: str, lo: int, hi: int, step: int = 2, out: Path | None = None) -
     return out
 
 
-def main(argv=None):
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog='python -m pitchiq.experiments.table_clip', description=__doc__.split('\n')[0]
     )
@@ -150,7 +150,11 @@ def main(argv=None):
     ap.add_argument('hi', type=int)
     ap.add_argument('--step', type=int, default=2, help='draw every step-th frame (2: 15 fps)')
     ap.add_argument('--out')
-    a = ap.parse_args(argv)
+    return ap
+
+
+def main(argv=None):
+    a = build_parser().parse_args(argv)
     print(render(a.tag, a.lo, a.hi, a.step, a.out))
 
 

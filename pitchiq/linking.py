@@ -975,11 +975,7 @@ class Linker:
         out, beyond = {}, set()
         nxt = max(groups, default=-1) + 1
         for g, members in groups.items():
-            if (
-                roles[g] != PLAYER
-                or g in keepers
-                or self._group_kit(members, pieces) == OTHER
-            ):
+            if roles[g] != PLAYER or g in keepers or self._group_kit(members, pieces) == OTHER:
                 out[g] = members
                 continue
             if self._beyond(members, pieces):
@@ -1031,7 +1027,10 @@ class Linker:
             if abs(cy - self.W / 2) > s.keeper_half_width_m:
                 continue
             for end, depth in (('left', cx), ('right', self.L - cx)):
-                if -s.off_margin_m < depth < s.keeper_depth_m and len(pos) >= s.keeper_min_s * s.fps:
+                if (
+                    -s.off_margin_m < depth < s.keeper_depth_m
+                    and len(pos) >= s.keeper_min_s * s.fps
+                ):
                     cands[end].append((depth, g))
                 if -s.off_margin_m < depth < max_d and len(pos) >= min_s * s.fps:
                     loose[end].append((depth, g))

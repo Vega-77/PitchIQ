@@ -385,9 +385,7 @@ def test_a_ball_kid_past_the_line_is_off_but_a_throw_in_taker_and_a_linesman_are
     background(s, range(180))
     kid = s.person(walker(10.0, -2.5, vx=3.0), DARK, range(90))  # 2.5 m out, 3 s
     # 2 m out with the ball for two seconds, then back into play
-    taker = s.person(
-        lambda f: (60.0, -2.0 if f < 60 else -2.0 + 0.2 * (f - 60)), LIGHT, range(150)
-    )
+    taker = s.person(lambda f: (60.0, -2.0 if f < 60 else -2.0 + 0.2 * (f - 60)), LIGHT, range(150))
     linesman = s.person(walker(20.0, -2.5, vx=3.0), NEON, range(90, 180))
     res, owner = s.link(with_kit=True)
     role = {next(iter(people_in(i, owner))): i.role for i in res.identities}

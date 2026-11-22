@@ -1,4 +1,5 @@
 """Shared bits of the self-training line: paths, pieces, clicks, the crop cache reader."""
+
 import glob
 import json
 import os
@@ -14,7 +15,9 @@ BT = common.BT
 DATA = common.DATA
 # FIT: the shipped ball step's (ball17's) fit inputs and dev caches; its README lists what is there and why.
 FIT = common.PIPE + '/ballfit'
-CLICKS = common.CLICKS  # a frozen copy of the Ball Clicker's items and answers (PitchIQ-data/clicker)
+CLICKS = (
+    common.CLICKS
+)  # a frozen copy of the Ball Clicker's items and answers (PitchIQ-data/clicker)
 OOF = FIT + '/oof_cls'
 OUT = FIT
 CACHE = OUT + '/cache'
@@ -79,7 +82,9 @@ def clicks():
     common.point_at_data()
     from pitchiq.experiments.clicker import clickscore as cs
 
-    items = {it['id']: it for it in json.load(open(os.path.join(CLICKS, 'items_all.json')))['items']}
+    items = {
+        it['id']: it for it in json.load(open(os.path.join(CLICKS, 'items_all.json')))['items']
+    }
     A = cs.answers(os.path.join(CLICKS, 'db'))
     out = {t: [] for t in DEV}
     for i, a in A.items():

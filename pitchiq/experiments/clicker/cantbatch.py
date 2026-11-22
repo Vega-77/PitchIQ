@@ -1,4 +1,4 @@
-"""A Clicker batch of the frames answered "can't tell", asked again with "Hidden, but it's here".
+"""A Clicker batch of the "can't tell" frames, asked again with "Hidden, but it's here".
 
 b1-b5 offered one answer for both "I can't see it and don't know where it is" and "it is behind a
 player and I know where". This batch asks those frames again so the second kind gets a click

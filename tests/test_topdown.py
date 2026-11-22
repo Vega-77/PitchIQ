@@ -311,7 +311,9 @@ def test_a_track_far_too_short_for_a_person_gets_no_dot():
 
 def _ident(frames, interp=None):
     fs = np.array(frames)
-    return SimpleNamespace(frames=fs, interp=np.zeros(len(fs), bool) if interp is None else np.array(interp))
+    return SimpleNamespace(
+        frames=fs, interp=np.zeros(len(fs), bool) if interp is None else np.array(interp)
+    )
 
 
 def test_a_held_dot_on_a_boxed_teammate_is_dropped():

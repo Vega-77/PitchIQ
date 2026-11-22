@@ -1,4 +1,4 @@
-"""Leave-one-game-out classifier folds on labels + pseudo-labels, scored on the left-out game's cache.
+"""Leave-one-game-out classifier folds (labels + pseudo-labels), scored on the left-out game.
 
 For game G the fold trains on: the human crops (tr00..tr16), the click crops (ckL) of the other games,
 and (unless --pseudo none) pseudo-labels of the other games mined under fold_G's scores
@@ -13,6 +13,7 @@ breaks the brief's rule: reported separately as "transductive").
         -> runs/<run>/cls/<piece>cls.npz (calibrated; uncached candidates keep the oof score), prints the
            ball-ranked-first table against the baseline oof scores
 """
+
 import argparse
 import json
 import os
@@ -91,12 +92,18 @@ def fit(a):
     json.dump(vars(a), open(out + '/args.json', 'w'))
     dev = T.device()
     data, names, ck = base_data()
-    assert list(names) == list(__import__('pitchiq.balltrack.candidate_crops', fromlist=['x']).CTX_NAMES)
-    for g in (a.games.split(',') if a.games else st.GAMES):
+    assert list(names) == list(
+        __import__('pitchiq.balltrack.candidate_crops', fromlist=['x']).CTX_NAMES
+    )
+    for g in a.games.split(',') if a.games else st.GAMES:
         i = st.GAMES.index(g)
         t0 = time.time()
         rng = np.random.default_rng(100 + i)
-        tr = [t for t in HUMAN + ck if not (t.startswith('ckL') and st.game(t[3:]) == g) and len(data[t]['lab'][0])]
+        tr = [
+            t
+            for t in HUMAN + ck
+            if not (t.startswith('ckL') and st.game(t[3:]) == g) and len(data[t]['lab'][0])
+        ]
         crops, ctx, y, w = T.gather(data, tr, names)
         crops = crops[:, 4:44, 4:44]
         nb = (len(y), int((y == 0).sum()))
@@ -115,15 +122,37 @@ def fit(a):
             np_ += int((y2 == 0).sum())
             nn_ += int((y2 != 0).sum())
         mu, sd = T.ctx_stats(ctx)
-        net = T.fit(crops, T.ctx_norm(ctx, mu, sd), y, w, a.epochs, dev, i + a.seed_offset, log='fold %s' % g)
+        net = T.fit(
+            crops,
+            T.ctx_norm(ctx, mu, sd),
+            y,
+            w,
+            a.epochs,
+            dev,
+            i + a.seed_offset,
+            log='fold %s' % g,
+        )
         sc = T.Scorer(net, mu, sd, names, dev)
-        torch.save(dict(state=net.state_dict(), mu=mu.tolist(), sd=sd.tolist(), ctx_names=list(names), tags=tr, epochs=a.epochs,
-                        pseudo=a.pseudo), out + '/fold_%s.pt' % g)
+        torch.save(
+            dict(
+                state=net.state_dict(),
+                mu=mu.tolist(),
+                sd=sd.tolist(),
+                ctx_names=list(names),
+                tags=tr,
+                epochs=a.epochs,
+                pseudo=a.pseudo,
+            ),
+            out + '/fold_%s.pt' % g,
+        )
         for pt in st.pieces([t for t in st.DEV if st.game(t) == g]):
             ca = st.load_cache(pt)
             np.save(out + '/raw/%s.npy' % pt, sc.score(ca['crop'], ca['ctx']))
-        print('fold %s: base rows %d (ball %d) + pseudo ball %d other %d, %d epochs, %.0f s' % (g, nb[0], nb[1], np_, nn_, a.epochs,
-                                                                                               time.time() - t0), flush=True)
+        print(
+            'fold %s: base rows %d (ball %d) + pseudo ball %d other %d, %d epochs, %.0f s'
+            % (g, nb[0], nb[1], np_, nn_, a.epochs, time.time() - t0),
+            flush=True,
+        )
         del crops, ctx, net, sc
     print('FIT DONE', a.run, flush=True)
 
@@ -166,7 +195,10 @@ def click_index():
 def rank_table(dirs):
     """Per half and score folder: clicked balls with a blob (candidate within 8 px), how many of them are the
     frame's top candidate, top and > 2; 'out' frames whose top is > 2.  -> {name: {half: counts}}"""
-    res = {n: {t: dict(ball=0, blob=0, first=0, first2=0, p2=0, out=0, out2=0) for t in st.DEV} for n in dirs}
+    res = {
+        n: {t: dict(ball=0, blob=0, first=0, first2=0, p2=0, out=0, out2=0) for t in st.DEV}
+        for n in dirs
+    }
     S = {}
     for tag, pt, f, v, n, jb in click_index():
         for nm, d in dirs.items():
@@ -201,12 +233,26 @@ def print_rank(res):
         for tag, c in r.items():
             for k, v in c.items():
                 tot[k] = tot.get(k, 0) + v
-        print('%-14s balls with a blob %d: ranked first %d, first and p > 2 %d, p > 2 %d | out frames %d, top > 2 on %d' % (
-            n, tot['blob'], tot['first'], tot['first2'], tot['p2'], tot['out'], tot['out2']))
+        print(
+            '%-14s balls with a blob %d: ranked first %d, first and p > 2 %d, p > 2 %d | out frames %d, top > 2 on %d'
+            % (n, tot['blob'], tot['first'], tot['first2'], tot['p2'], tot['out'], tot['out2'])
+        )
     names = list(res)
     for tag in st.DEV:
-        print('  %-8s' % tag, '   '.join('%s first %d/%d f&p>2 %d out>2 %d' % (
-            n, res[n][tag]['first'], res[n][tag]['blob'], res[n][tag]['first2'], res[n][tag]['out2']) for n in names))
+        print(
+            '  %-8s' % tag,
+            '   '.join(
+                '%s first %d/%d f&p>2 %d out>2 %d'
+                % (
+                    n,
+                    res[n][tag]['first'],
+                    res[n][tag]['blob'],
+                    res[n][tag]['first2'],
+                    res[n][tag]['out2'],
+                )
+                for n in names
+            ),
+        )
 
 
 def finish(a):
@@ -232,8 +278,14 @@ def finish(a):
             cal[g] = np.polyfit(np.percentile(tn, Q), np.percentile(to, Q), 1)
     else:
         cal = {st.game(pt): (1.0, 0.0) for pt in pts}
-    print('cal (%s):' % a.cal, {g: (round(float(v[0]), 3), round(float(v[1]), 3)) for g, v in cal.items()})
-    json.dump({g: [float(v[0]), float(v[1])] for g, v in cal.items()}, open(out + '/cal_%s.json' % a.cal, 'w'))
+    print(
+        'cal (%s):' % a.cal,
+        {g: (round(float(v[0]), 3), round(float(v[1]), 3)) for g, v in cal.items()},
+    )
+    json.dump(
+        {g: [float(v[0]), float(v[1])] for g, v in cal.items()},
+        open(out + '/cal_%s.json' % a.cal, 'w'),
+    )
     for pt in pts:
         ca = st.load_cache(pt, crops=False)
         raw = np.load(out + '/raw/%s.npy' % pt)
@@ -241,7 +293,12 @@ def finish(a):
         p = p.copy()
         aa, bb = cal[st.game(pt)]
         p[np.searchsorted(f * 64 + j, ca['f'] * 64 + ca['j'])] = aa * raw + bb
-        np.savez(out + '/cls/%scls.npz' % pt, f=f.astype(np.int32), j=j.astype(np.int16), p=p.astype(np.float32))
+        np.savez(
+            out + '/cls/%scls.npz' % pt,
+            f=f.astype(np.int32),
+            j=j.astype(np.int16),
+            p=p.astype(np.float32),
+        )
     res = rank_table(dict(baseline=st.OOF, new=out + '/cls'))
     print_rank(res)
     json.dump(res, open(out + '/rank.json', 'w'))

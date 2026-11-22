@@ -1,4 +1,4 @@
-"""The look #17 ball (ball push, 2026-11-17): the shipped ball since 2026-11-18, one game at a time.
+"""The look #17 ball (ball push, 2026-11-17), shipped since 2026-11-18; one game at a time.
 
     PIQ_VIDEO=<video> python -m pitchiq.balltrack.ball17 <game> <tag>[,<tag>...]  [--clicked-gaps] [--no-3d]
 
@@ -34,10 +34,9 @@ Readers (match_video, panning_camera, process_match) call version(tag) and lost(
 exist, else Hybrid 90.  The v17 rings already hold their own lost-ball gate, so lost() is empty for them; the
 old gate reads cls_C and would blank stretches the new classifier is sure of.
 """
+
 import argparse
 import glob
-import io
-import json
 import os
 import shutil
 import subprocess
@@ -51,7 +50,9 @@ REPO = os.path.dirname(os.path.dirname(S2))
 DATA = os.path.join(os.path.dirname(REPO), 'PitchIQ-data')
 BP = os.path.join(REPO, 'pitchiq', 'experiments', 'ballpush')
 SELF = os.path.join(BP, 'selftrain')
-DEVPASS = os.path.join(DATA, 'pipeline', 'ballfit', 'devpass')  # the dev halves' pieces the fit's rows were cut from
+DEVPASS = os.path.join(
+    DATA, 'pipeline', 'ballfit', 'devpass'
+)  # the dev halves' pieces the fit's rows were cut from
 HOM = os.path.join(S2, 'pitch_registration')
 PY = sys.executable
 
@@ -68,23 +69,45 @@ ROUND_CAL = {
     2: (0.4439377037884541, -1.691359287226853),  # hko2 (giant/hko_hko2_cal.json)
     3: (0.4473842576118006, -1.582752357765509),  # hko3 (giant/hko_hko3_cal.json)
 }
-FIT_ARGS = dict(w=0.5, epochs=12, dev_pseudo='oof_k3', arch='resnet18', conv_lr=0.3, wide=0, rank=0.0, kmax=24,
-                gbatch=16)
-HGAMES = ['nb', 'pi', 'wh', 'co', 'wb']  # held.HGAMES: a game's seed is its index there + the offset (else 0)
-FS_ENV = dict(FS_WORKERS='6', OPENBLAS_NUM_THREADS='1')  # 3D: one half at a time, 6 scan workers (commit limit)
+FIT_ARGS = dict(
+    w=0.5,
+    epochs=12,
+    dev_pseudo='oof_k3',
+    arch='resnet18',
+    conv_lr=0.3,
+    wide=0,
+    rank=0.0,
+    kmax=24,
+    gbatch=16,
+)
+HGAMES = [
+    'nb',
+    'pi',
+    'wh',
+    'co',
+    'wb',
+]  # held.HGAMES: a game's seed is its index there + the offset (else 0)
+FS_ENV = dict(
+    FS_WORKERS='6', OPENBLAS_NUM_THREADS='1'
+)  # 3D: one half at a time, 6 scan workers (commit limit)
 
 
 # ---- readers --------------------------------------------------------------------------------------------------
+
 
 def version(tag):
     """'v17' when this half has the new ball, else 'hyb90'."""
     forced = os.environ.get('PIQ_BALL_VER')  # e.g. hyb90: the ball it replaced, for a before/after
     if forced:
         return forced
-    ok = all(os.path.exists(p) for p in (
-        os.path.join(S2, 'evaluation', 'p2d', VER, '%s.npz' % tag),
-        os.path.join(S2, 'h3d_' + VER, '%s_ball3dd.npz' % tag),
-        os.path.join(S2, 'h3d_' + VER, '%s_smooth2.npz' % tag)))
+    ok = all(
+        os.path.exists(p)
+        for p in (
+            os.path.join(S2, 'evaluation', 'p2d', VER, '%s.npz' % tag),
+            os.path.join(S2, 'h3d_' + VER, '%s_ball3dd.npz' % tag),
+            os.path.join(S2, 'h3d_' + VER, '%s_smooth2.npz' % tag),
+        )
+    )
     return VER if ok else 'hyb90'
 
 
@@ -98,6 +121,7 @@ def lost(tag, abs0, picks, ver=None):
 
 
 # ---- the step -------------------------------------------------------------------------------------------------
+
 
 class Game:
     def __init__(self, game, tags, bt, clicked_gaps=False, work=None):
@@ -118,11 +142,26 @@ class Game:
     def env(self, own_bt=True, **kw):
         """The parent's environment without the ball push's knobs, plus kw.  own_bt=False: the fit, whose dev rows
         are read from the frozen dev pieces (DEVPASS); it gets this game's pieces' folder as an argument."""
-        knobs = ('ST_', 'BP_', 'RP_', 'TN_', 'MAXGAP', 'ALLGAPS', 'RC', 'BPNAME', 'EXPORT', 'ENDP', 'PARTIAL', 'BACK')
+        knobs = (
+            'ST_',
+            'BP_',
+            'RP_',
+            'TN_',
+            'MAXGAP',
+            'ALLGAPS',
+            'RC',
+            'BPNAME',
+            'EXPORT',
+            'ENDP',
+            'PARTIAL',
+            'BACK',
+        )
         e = {k: v for k, v in os.environ.items() if not k.startswith(knobs)}
         e.update(PYTHONPATH=REPO, BP_HELD=','.join(self.tags), PYTHONIOENCODING='utf-8')
         if not own_bt:
-            assert os.path.isdir(DEVPASS), 'the fit needs the frozen dev pieces in %s (see its README)' % DEVPASS
+            assert os.path.isdir(DEVPASS), (
+                'the fit needs the frozen dev pieces in %s (see its README)' % DEVPASS
+            )
             e['BP_BT'] = DEVPASS
         elif os.path.normcase(os.path.abspath(self.bt)) != os.path.normcase(S2):
             e['BP_BT'] = self.bt
@@ -132,14 +171,22 @@ class Game:
     def run(self, what, args, cwd, env):
         t = time.time()
         with open(os.path.join(self.W, '%s.log' % what), 'a', encoding='utf-8') as log:
-            r = subprocess.run([PY, '-W', 'ignore'] + args, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT)
+            r = subprocess.run(
+                [PY, '-W', 'ignore'] + args, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT
+            )
         if r.returncode:
-            raise SystemExit('BALL17 FAILED %s (rc %d): see %s' % (what, r.returncode, os.path.join(self.W, what + '.log')))
+            raise SystemExit(
+                'BALL17 FAILED %s (rc %d): see %s'
+                % (what, r.returncode, os.path.join(self.W, what + '.log'))
+            )
         self.say('%-14s %.0f s' % (what, time.time() - t))
 
     def pieces(self):
-        return [os.path.basename(p)[:-4] for t in self.tags
-                for p in sorted(glob.glob(os.path.join(self.bt, '%s_q[0-9][0-9][0-9].npz' % t)))]
+        return [
+            os.path.basename(p)[:-4]
+            for t in self.tags
+            for p in sorted(glob.glob(os.path.join(self.bt, '%s_q[0-9][0-9][0-9].npz' % t)))
+        ]
 
     def st_env(self, oof):
         return self.env(ST_HELD=1, ST_OUT=self.W, ST_OOF=oof)
@@ -164,13 +211,37 @@ class Game:
         done = os.path.join(out, '.done')
         if os.path.exists(done):
             return
-        self.run('mine_r%d' % r, ['hko.py', 'mine', ','.join(self.tags)], SELF, self.st_env(self.scores_dir(r - 1)))
-        todo = [s for s in SEEDS if not all(os.path.exists(os.path.join(self.W, 'runs', 'r%ds%d' % (r, s), 'raw', pt + '.npy'))
-                                             for pt in self.pieces())]
+        self.run(
+            'mine_r%d' % r,
+            ['hko.py', 'mine', ','.join(self.tags)],
+            SELF,
+            self.st_env(self.scores_dir(r - 1)),
+        )
+        todo = [
+            s
+            for s in SEEDS
+            if not all(
+                os.path.exists(os.path.join(self.W, 'runs', 'r%ds%d' % (r, s), 'raw', pt + '.npy'))
+                for pt in self.pieces()
+            )
+        ]
         if todo:
-            self.run('fit_r%d' % r, ['-m', 'pitchiq.balltrack.ball17', '_fit', self.game, ','.join(self.tags), self.bt,
-                                     self.W, ','.join('r%ds%d' % (r, s) for s in todo), ','.join(map(str, todo))],
-                     REPO, self.env(own_bt=False))
+            self.run(
+                'fit_r%d' % r,
+                [
+                    '-m',
+                    'pitchiq.balltrack.ball17',
+                    '_fit',
+                    self.game,
+                    ','.join(self.tags),
+                    self.bt,
+                    self.W,
+                    ','.join('r%ds%d' % (r, s) for s in todo),
+                    ','.join(map(str, todo)),
+                ],
+                REPO,
+                self.env(own_bt=False),
+            )
         self.finish(r)
         open(done, 'w').close()
 
@@ -183,7 +254,13 @@ class Game:
         for pt in self.pieces():
             z = np.load(os.path.join(self.W, 'cache', pt + '.npz'))
             cf, cj = z['f'].astype(np.int64), z['j'].astype(np.int64)
-            raw = np.mean([np.load(os.path.join(self.W, 'runs', 'r%ds%d' % (r, s), 'raw', pt + '.npy')) for s in SEEDS], 0)
+            raw = np.mean(
+                [
+                    np.load(os.path.join(self.W, 'runs', 'r%ds%d' % (r, s), 'raw', pt + '.npy'))
+                    for s in SEEDS
+                ],
+                0,
+            )
             b = np.load(os.path.join(self.bt, '%scls.npz' % pt))
             f, j, p = b['f'].astype(np.int64), b['j'].astype(np.int64), b['p'].astype(np.float32)
             o = np.lexsort((j, f))
@@ -191,7 +268,9 @@ class Game:
             i = np.searchsorted(f * 1024 + j, cf * 1024 + cj)
             assert (f[i] == cf).all() and (j[i] == cj).all(), pt
             p[i] = aa * raw + bb
-            np.savez(os.path.join(out, '%scls.npz' % pt), f=f.astype(np.int32), j=j.astype(np.int16), p=p)
+            np.savez(
+                os.path.join(out, '%scls.npz' % pt), f=f.astype(np.int32), j=j.astype(np.int16), p=p
+            )
         self.say('round %d scores -> %s (a %.4f b %.4f)' % (r, out, aa, bb))
 
     # 3
@@ -199,8 +278,15 @@ class Game:
 
     def tn_env(self, r, tags):
         name = 'r%d' % r
-        tn = dict(TN_SET='held', TN_TAGS=','.join(tags), RC=os.path.join(self.W, 'replay_' + name, 'replay_cache'),
-                  BPNAME=name, MAXGAP=MAXGAP, RP_LOSTP=LOST_P, TN_ROOT=os.path.join(self.W, 'tn'))
+        tn = dict(
+            TN_SET='held',
+            TN_TAGS=','.join(tags),
+            RC=os.path.join(self.W, 'replay_' + name, 'replay_cache'),
+            BPNAME=name,
+            MAXGAP=MAXGAP,
+            RP_LOSTP=LOST_P,
+            TN_ROOT=os.path.join(self.W, 'tn'),
+        )
         if not self.clicked:
             tn['ALLGAPS'] = 1
         return tn
@@ -215,20 +301,35 @@ class Game:
         name = 'r%d' % r
         rp = os.path.join(self.W, 'replay_' + name)
         nm = TRACKER.replace(':', '_')
-        if not all(os.path.exists(os.path.join(rp, 'replay_cache', '%s_%s_%s.npz' % (name, nm, t))) for t in self.tags):
-            self.run('replay_' + name, [os.path.join(BP, 'replay.py'), self.scores_dir(r), TRACKER], REPO,
-                     self.env(RP_TAGS=','.join(self.tags), RP_OUT=rp, RP_LOSTP=LOST_P))
+        if not all(
+            os.path.exists(os.path.join(rp, 'replay_cache', '%s_%s_%s.npz' % (name, nm, t)))
+            for t in self.tags
+        ):
+            self.run(
+                'replay_' + name,
+                [os.path.join(BP, 'replay.py'), self.scores_dir(r), TRACKER],
+                REPO,
+                self.env(RP_TAGS=','.join(self.tags), RP_OUT=rp, RP_LOSTP=LOST_P),
+            )
 
     def bridges(self, t):
         """Both runs' TAPNext tracks for half t in one pass (_bridge), then each run's score -> export_r<k>/t.npz."""
         if all(os.path.exists(os.path.join(self.export(r), t + '.npz')) for r in self.RUNS):
             return
         spec = ','.join('%s=%s' % (self.tn_run(r), self.tn_env(r, [t])['RC']) for r in self.RUNS)
-        self.run('bridges_' + t, ['-m', 'pitchiq.balltrack.ball17', '_bridge', t, spec], REPO,
-                 self.env(**self.tn_env(self.RUNS[0], [t])))
+        self.run(
+            'bridges_' + t,
+            ['-m', 'pitchiq.balltrack.ball17', '_bridge', t, spec],
+            REPO,
+            self.env(**self.tn_env(self.RUNS[0], [t])),
+        )
         for r in self.RUNS:
-            self.run('score_r%d_%s' % (r, t), [os.path.join(BP, 'tnclick.py'), 'score', self.tn_run(r), TRACKER], REPO,
-                     self.env(EXPORT=self.export(r), **self.tn_env(r, [t])))
+            self.run(
+                'score_r%d_%s' % (r, t),
+                [os.path.join(BP, 'tnclick.py'), 'score', self.tn_run(r), TRACKER],
+                REPO,
+                self.env(EXPORT=self.export(r), **self.tn_env(r, [t])),
+            )
 
     # 4
     def merge(self, t):
@@ -241,10 +342,18 @@ class Game:
         m = mergerings.merge(np.load(a), np.load(b), 'drop', MERGE_TOL)
         st = m.pop('stats')
         ring = m['ring']
-        np.savez(os.path.join(od, t + '.npz'), abs=m['abs'].astype(np.int64), x=m['x'].astype(np.float64),
-                 y=m['y'].astype(np.float64), src=np.where(ring, m['src'], 0).astype(np.int8), ring=ring)
-        self.say('%s merged: rings A %d B %d both %d apart %d -> %d of %d frames' % (
-            t, st['a'], st['b'], st['both'], st['apart'], st['out'], len(ring)))
+        np.savez(
+            os.path.join(od, t + '.npz'),
+            abs=m['abs'].astype(np.int64),
+            x=m['x'].astype(np.float64),
+            y=m['y'].astype(np.float64),
+            src=np.where(ring, m['src'], 0).astype(np.int8),
+            ring=ring,
+        )
+        self.say(
+            '%s merged: rings A %d B %d both %d apart %d -> %d of %d frames'
+            % (t, st['a'], st['b'], st['both'], st['apart'], st['out'], len(ring))
+        )
 
     # 5
     def three_d(self, t):
@@ -266,14 +375,23 @@ class Game:
                 r['ok'] = r['ok'] & ~bad
                 np.savez(rp, **r)
                 self.say('%s: dropped %d registrations outside the pan' % (t, bad.sum()))
-        self.run('3d_' + t, ['-m', 'pitchiq.balltrack.evaluation.mk3d', VER, t], REPO, self.env(**FS_ENV))
+        self.run(
+            '3d_' + t, ['-m', 'pitchiq.balltrack.evaluation.mk3d', VER, t], REPO, self.env(**FS_ENV)
+        )
 
     def go(self, three_d=True):
         """One half's 3D (CPU) runs while the next half's bridges (GPU) run; 3D halves stay one at a time."""
         import threading
 
-        self.say('START %s %s (pieces from %s)%s' % (self.game, ','.join(self.tags), self.bt,
-                                                   ' clicked gaps only' if self.clicked else ''))
+        self.say(
+            'START %s %s (pieces from %s)%s'
+            % (
+                self.game,
+                ','.join(self.tags),
+                self.bt,
+                ' clicked gaps only' if self.clicked else '',
+            )
+        )
         self.caches()
         for r in (1, 2, 3):
             self.round(r)
@@ -338,8 +456,11 @@ def _bridge(tag, spec):
         jobs.append((op, int(z['lo']), z['x'], z['y'], sorted(T.gaps(z, want, tag)[0])))
     if not jobs:
         return
-    net = TAPNextPP.from_checkpoint(os.path.join(T.MAIN, 'tapnext_bridge', 'tapnextpp_512.ckpt'), device='cuda',
-                                    input_resolution=E.S)._model
+    net = TAPNextPP.from_checkpoint(
+        os.path.join(T.MAIN, 'tapnext_bridge', 'tapnextpp_512.ckpt'),
+        device='cuda',
+        input_resolution=E.S,
+    )._model
     cap = cv2.VideoCapture(T.VID[tag][0])
 
     def track(first, last, seed):
@@ -365,7 +486,7 @@ def _bridge(tag, spec):
     bneed = {}
     for _, lo, X, Y, g in jobs:
         for i, j in g:
-            f = F[(lo + i, X[i], Y[i])][:j - i + 1]
+            f = F[(lo + i, X[i], Y[i])][: j - i + 1]
             if np.hypot(*(f[-1] - (X[j], Y[j]))) <= T.ANC:
                 k = (lo + j, X[j], Y[j])
                 bneed[k] = min(bneed.get(k, lo + i), lo + i)
@@ -376,14 +497,17 @@ def _bridge(tag, spec):
         res = []
         for i, j in g:
             a, b = lo + i, lo + j
-            f = F[(a, X[i], Y[i])][:j - i + 1]
+            f = F[(a, X[i], Y[i])][: j - i + 1]
             res.append((a, b, 1, f))
             if np.hypot(*(f[-1] - (X[j], Y[j]))) <= T.ANC:
-                res.append((a, b, -1, Bk[(b, X[j], Y[j])][:j - i + 1]))
+                res.append((a, b, -1, Bk[(b, X[j], Y[j])][: j - i + 1]))
         os.makedirs(os.path.dirname(op), exist_ok=True)
         np.save(op, np.array(res, dtype=object), allow_pickle=True)
-    print('%s: %d runs, %d track-frames instead of %d (%.0f%% saved), %.0f s' % (
-        tag, len(jobs), n_run, n_all, 100 * (1 - n_run / max(1, n_all)), time.time() - t0), flush=True)
+    print(
+        '%s: %d runs, %d track-frames instead of %d (%.0f%% saved), %.0f s'
+        % (tag, len(jobs), n_run, n_all, 100 * (1 - n_run / max(1, n_all)), time.time() - t0),
+        flush=True,
+    )
     print('BRIDGE DONE', flush=True)
 
 
@@ -398,12 +522,17 @@ def _fit(game, tags, bt, W, runs, seeds):
     for mod, fn in ((held.T1, 'base_data'), (held.T2, 'click_rows'), (held.T2, 'pseudo_rows')):
         setattr(mod, fn, functools.lru_cache(maxsize=None)(getattr(mod, fn)))
     held.HO = W
-    held.hpieces = lambda g: [os.path.basename(p)[:-4] for t in tags.split(',')
-                              for p in sorted(glob.glob(os.path.join(bt, '%s_q[0-9][0-9][0-9].npz' % t)))]
+    held.hpieces = lambda g: [
+        os.path.basename(p)[:-4]
+        for t in tags.split(',')
+        for p in sorted(glob.glob(os.path.join(bt, '%s_q[0-9][0-9][0-9].npz' % t)))
+    ]
     if game not in held.HGAMES:
         held.HGAMES = [game]
     for run, seed in zip(runs.split(','), seeds.split(',')):
-        held.fit(argparse.Namespace(cmd='fit', run=run, games=game, seed_offset=int(seed), **FIT_ARGS))
+        held.fit(
+            argparse.Namespace(cmd='fit', run=run, games=game, seed_offset=int(seed), **FIT_ARGS)
+        )
 
 
 def main(argv=None):
@@ -417,10 +546,14 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('game')
     ap.add_argument('tags')
-    ap.add_argument('--bt', default=S2, help='folder of the pieces and cls_C scores (default: this folder)')
+    ap.add_argument(
+        '--bt', default=S2, help='folder of the pieces and cls_C scores (default: this folder)'
+    )
     ap.add_argument('--clicked-gaps', action='store_true')
     ap.add_argument('--no-3d', action='store_true')
-    ap.add_argument('--work', help='a check run: working files and merged picks here, nothing shipped')
+    ap.add_argument(
+        '--work', help='a check run: working files and merged picks here, nothing shipped'
+    )
     a = ap.parse_args(argv)
     if a.work and not a.no_3d:
         ap.error('--work is for check runs: give --no-3d too')

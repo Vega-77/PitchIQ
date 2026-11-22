@@ -83,7 +83,12 @@ import torch.nn.functional as F
 S2 = os.path.dirname(os.path.abspath(__file__))
 # The crop sets the shipped ball fit trains on (tr00..tr16, ckL*) live in PitchIQ-data/pipeline, not beside this file.
 CROPS = os.environ.get('PIQ_CROPS') or os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(S2))), 'PitchIQ-data', 'pipeline', 'ballfit', 'crops')
+    os.path.dirname(os.path.dirname(os.path.dirname(S2))),
+    'PitchIQ-data',
+    'pipeline',
+    'ballfit',
+    'crops',
+)
 
 CLASSES = ['ball', 'cleat', 'head', 'otherball', 'other']
 CIDX = {c: i for i, c in enumerate(CLASSES)}

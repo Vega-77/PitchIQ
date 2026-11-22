@@ -1,4 +1,4 @@
-"""The kept recipe (ko1: stack net + mined balls + the game's own mined balls) for the held-out halves.
+"""The kept recipe (ko1: stack net + mined balls + the game's own) for the held-out halves.
 
 Build first, with ST_HELD=1 (reads no held-out answer; shipped scores stand in for the out-of-fold ones):
     ST_HELD=1 python cache.py ; ST_HELD=1 python tcache.py ; ST_HELD=1 python mine.py oof
@@ -13,6 +13,7 @@ Then, WITHOUT ST_HELD:
         held/runs/<run>/cls/<piece>cls.npz ; uncached candidates keep the shipped score
 Scoring against the held-out answers is replay.py with RP_TAGS: that is the look, logged on the page.
 """
+
 import argparse
 import glob
 import json
@@ -32,7 +33,10 @@ HALF = dict(nb='nb2', pi='pi1', wh='wh1', co='co1', wb='wb2')
 
 
 def hpieces(g):
-    return [os.path.basename(p)[:-4] for p in sorted(glob.glob(os.path.join(st.BT, '%s_q[0-9][0-9][0-9].npz' % HALF[g])))]
+    return [
+        os.path.basename(p)[:-4]
+        for p in sorted(glob.glob(os.path.join(st.BT, '%s_q[0-9][0-9][0-9].npz' % HALF[g])))
+    ]
 
 
 def hcache(pt, crops=True):
@@ -78,9 +82,12 @@ def fit(a):
     hc = T2.with_stack(hc[:, 4:44, 4:44], None)
     cc_, ck_, cy = T2.click_rows(None, 1)
     pc, pk, py, _ = T2.pseudo_rows(a.dev_pseudo, None, 1)
-    print('shared rows: human %d, dev clicks %d (ball %d), dev pseudo %d (ball %d)' % (
-        len(hy), len(cy), int((cy == 0).sum()), len(py), int((py == 0).sum())), flush=True)
-    for g in (a.games.split(',') if a.games else HGAMES):
+    print(
+        'shared rows: human %d, dev clicks %d (ball %d), dev pseudo %d (ball %d)'
+        % (len(hy), len(cy), int((cy == 0).sum()), len(py), int((py == 0).sum())),
+        flush=True,
+    )
+    for g in a.games.split(',') if a.games else HGAMES:
         i = HGAMES.index(g)
         t0 = time.time()
         crops, ctx, y = [hc, cc_, pc], [hk, ck_, pk], [hy, cy, py]
@@ -88,21 +95,66 @@ def fit(a):
         own = own_rows(g)
         no = 0
         if own is not None:
-            crops.append(own[0]), ctx.append(own[1]), y.append(own[2]), w.append(np.full(len(own[2]), a.w, np.float32))
+            (
+                crops.append(own[0]),
+                ctx.append(own[1]),
+                y.append(own[2]),
+                w.append(np.full(len(own[2]), a.w, np.float32)),
+            )
             no = len(own[2])
-        crops, ctx, y, w = np.concatenate(crops), np.concatenate(ctx), np.concatenate(y), np.concatenate(w)
+        crops, ctx, y, w = (
+            np.concatenate(crops),
+            np.concatenate(ctx),
+            np.concatenate(y),
+            np.concatenate(w),
+        )
         mu, sd = T.ctx_stats(ctx)
-        if a.arch == 'resnet18':  # train3's pretrained ResNet-18 (kres recipe); no rank loss, no frame groups
-            net = T3.fit_net(crops, T.ctx_norm(ctx, mu, sd), y, w, None, a, dev, i + a.seed_offset, log='held %s' % g)
+        if (
+            a.arch == 'resnet18'
+        ):  # train3's pretrained ResNet-18 (kres recipe); no rank loss, no frame groups
+            net = T3.fit_net(
+                crops,
+                T.ctx_norm(ctx, mu, sd),
+                y,
+                w,
+                None,
+                a,
+                dev,
+                i + a.seed_offset,
+                log='held %s' % g,
+            )
         else:
-            net = T2.fit_net(crops, T.ctx_norm(ctx, mu, sd), y, w, a.epochs, dev, i + a.seed_offset, 0, log='held %s' % g)
+            net = T2.fit_net(
+                crops,
+                T.ctx_norm(ctx, mu, sd),
+                y,
+                w,
+                a.epochs,
+                dev,
+                i + a.seed_offset,
+                0,
+                log='held %s' % g,
+            )
         sc = T.Scorer(net, mu, sd, names, dev)
-        torch.save(dict(state=net.state_dict(), mu=mu.tolist(), sd=sd.tolist(), ctx_names=list(names), epochs=a.epochs,
-                        stack=1, arch=a.arch), out + '/model_%s.pt' % g)
+        torch.save(
+            dict(
+                state=net.state_dict(),
+                mu=mu.tolist(),
+                sd=sd.tolist(),
+                ctx_names=list(names),
+                epochs=a.epochs,
+                stack=1,
+                arch=a.arch,
+            ),
+            out + '/model_%s.pt' % g,
+        )
         for pt in hpieces(g):
             c, k = hrows(pt)
             np.save(out + '/raw/%s.npy' % pt, sc.score(c, k, batch=1024))
-        print('held %s: rows %d, own pseudo %d, %.0f s' % (g, len(y), no, time.time() - t0), flush=True)
+        print(
+            'held %s: rows %d, own pseudo %d, %.0f s' % (g, len(y), no, time.time() - t0),
+            flush=True,
+        )
         del crops, ctx, net, sc
     print('HELD FIT DONE', a.run, flush=True)
 
@@ -123,9 +175,13 @@ def finish(a):
         tn.append(T1.frame_top(ca['f'], raw)), to.append(T1.frame_top(f, p))
         old = p[np.searchsorted(f * 64 + j, ca['f'] * 64 + ca['j'])]
         cor.append(np.corrcoef(raw, old)[0, 1])
-    aa, bb = np.polyfit(np.percentile(np.concatenate(tn), T1.Q), np.percentile(np.concatenate(to), T1.Q), 1)
-    print('cal: a %.3f b %.3f ; raw vs shipped score correlation on the cache: min %.2f median %.2f' % (
-        aa, bb, min(cor), float(np.median(cor))))
+    aa, bb = np.polyfit(
+        np.percentile(np.concatenate(tn), T1.Q), np.percentile(np.concatenate(to), T1.Q), 1
+    )
+    print(
+        'cal: a %.3f b %.3f ; raw vs shipped score correlation on the cache: min %.2f median %.2f'
+        % (aa, bb, min(cor), float(np.median(cor)))
+    )
     json.dump([float(aa), float(bb)], open(out + '/cal.json', 'w'))
     for pt in pts:
         ca = hcache(pt, crops=False)
@@ -133,7 +189,12 @@ def finish(a):
         f, j, p = shipped(pt)
         p = p.copy()
         p[np.searchsorted(f * 64 + j, ca['f'] * 64 + ca['j'])] = aa * raw + bb
-        np.savez(out + '/cls/%scls.npz' % pt, f=f.astype(np.int32), j=j.astype(np.int16), p=p.astype(np.float32))
+        np.savez(
+            out + '/cls/%scls.npz' % pt,
+            f=f.astype(np.int32),
+            j=j.astype(np.int16),
+            p=p.astype(np.float32),
+        )
     print('scores:', out + '/cls')
 
 
@@ -146,7 +207,9 @@ def main():
     f.add_argument('--w', type=float, default=0.5)
     f.add_argument('--epochs', type=int, default=12)
     f.add_argument('--seed-offset', type=int, default=0)
-    f.add_argument('--dev-pseudo', default='oof')  # oof (round 1) | oof_k2 (round 2: picks of kres12 tracks)
+    f.add_argument(
+        '--dev-pseudo', default='oof'
+    )  # oof (round 1) | oof_k2 (round 2: picks of kres12 tracks)
     f.add_argument('--arch', default='ballnet')  # ballnet (hk1) | resnet18 (kres)
     f.add_argument('--conv-lr', type=float, default=1.0)
     f.set_defaults(wide=0, rank=0.0, kmax=24, gbatch=16)

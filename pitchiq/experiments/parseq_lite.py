@@ -1,5 +1,6 @@
-"""Inference-only PARSeq (scene-text reader) and the jersey-legibility classifier, written here so
-the downloaded checkpoints load as weights only: none of the source repository's code is run.
+"""Inference-only PARSeq (scene-text reader) and the jersey-legibility classifier.
+
+Written here so the downloaded checkpoints load as weights only: none of the source repository's code is run.
 
 PARSeq: Bautista & Atienza, ECCV 2022 (strhub, Apache-2.0). This mirrors its encoder (a timm
 ViT without class token), its one-layer two-stream decoder and its greedy autoregressive decode

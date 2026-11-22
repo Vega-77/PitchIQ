@@ -1,5 +1,7 @@
-"""Replay the 2D ball chain on the stored dev pieces with a chosen set of classifier scores, for several
-tracker variants, and score every dev Ball Clicker answer.  Read-only (writes replay_<cls>.json here).
+"""Replay the 2D ball chain on the stored dev pieces under chosen classifier scores.
+
+For several tracker variants, scoring every dev Ball Clicker answer.  Read-only (writes
+replay_<cls>.json here).
 
 The chain replayed: render_review_video.picks_for (track_ball + gap_fill) per piece, pieces stitched at
 the frame furthest from both edges, then match_video's filters on the 2D picks (short_runs, ballgate.lost
@@ -10,6 +12,7 @@ with the same scores).  Not replayed: TAPNext bridges (stale on these passes any
     RP_GATE=base  every variant gets the base chain's ballgate stretches (else each its own)
     RP_TAGS=a,b   only these halves
 """
+
 import glob
 import json
 import os
@@ -53,6 +56,7 @@ def piece(job):
     gap_fill.attach_pan(F, pt)
     ab = np.array([fr['abs'] for fr in F])
     from pitchiq.balltrack import candidate_crops
+
     ppl = candidate_crops.load_ppl(pt) or {}
 
     def feet(i, j):
@@ -65,6 +69,7 @@ def piece(job):
         d = np.hypot(x - (bx[:, 0] + bx[:, 2]) / 2, y - bx[:, 3]) / h
         ins = (x >= bx[:, 0]) & (x <= bx[:, 2]) & (y >= bx[:, 1]) & (y <= bx[:, 3])
         return float(d.min()), float(ins.any())
+
     out = {}
     for nm in names:
         o, s = V.run(nm, F)
@@ -73,7 +78,9 @@ def piece(job):
             out[nm + '#full'] = (int(fl.sum()), len(fl))
         # frames that count as ringed for the short-run rule though the variant draws nothing there
         out[nm + '#cont'] = F[0].pop('_cont', None)
-        syn = [isinstance(j, tuple) for j in o]  # synthetic picks (kin variants): ('syn', x, y) in source px
+        syn = [
+            isinstance(j, tuple) for j in o
+        ]  # synthetic picks (kin variants): ('syn', x, y) in source px
         x = np.array([np.nan if j is None else gap_fill.xy(F[i], j)[0] for i, j in enumerate(o)])
         y = np.array([np.nan if j is None else gap_fill.xy(F[i], j)[1] for i, j in enumerate(o)])
         o = [None if k else j for j, k in zip(o, syn)]
@@ -116,10 +123,15 @@ def main():
     from pitchiq.balltrack import ballgate
     from pitchiq.experiments.clicker import clickscore as cs
 
-    if os.environ.get('RP_LOSTP'):  # the gate's bar on the rolling median score (shipped 1.5); -99 = no gate
+    if os.environ.get(
+        'RP_LOSTP'
+    ):  # the gate's bar on the rolling median score (shipped 1.5); -99 = no gate
         ballgate.LOST_P = float(os.environ['RP_LOSTP'])
 
-    items = {it['id']: it for it in json.load(open(os.path.join(common.CLICKS, 'items_all.json')))['items']}
+    items = {
+        it['id']: it
+        for it in json.load(open(os.path.join(common.CLICKS, 'items_all.json')))['items']
+    }
     A = cs.answers(os.path.join(common.CLICKS, 'db'))
     jobs = []
     for tag in DEV:
@@ -130,7 +142,11 @@ def main():
     t0 = time.time()
     with Pool(int(os.environ.get('RP_PROCS', '6'))) as pool:
         res = pool.map(piece, jobs, chunksize=1)
-    print('replayed %d pieces in %.0f s (%.0f s per piece)' % (len(res), time.time() - t0, np.mean([r[4] for r in res])), flush=True)
+    print(
+        'replayed %d pieces in %.0f s (%.0f s per piece)'
+        % (len(res), time.time() - t0, np.mean([r[4] for r in res])),
+        flush=True,
+    )
     tot = {nm: dict(right=0, wrong_ball=0, missed=0, out_ring=0, ball=0, out=0) for nm in names}
     per = {nm: {} for nm in names}
     for tag in DEV:
@@ -144,10 +160,19 @@ def main():
                 bp[f] = max(v, bp.get(f, -np.inf))
         os.makedirs(os.path.join(OUT, 'replay_cache'), exist_ok=True)
         kk = np.array(sorted(bp))
-        np.savez(os.path.join(OUT, 'replay_cache', 'bp_%s_%s.npz' % (os.path.basename(d.rstrip('/')), tag)),
-                 f=kk, p=np.array([bp[k] for k in kk.tolist()]))
+        np.savez(
+            os.path.join(
+                OUT, 'replay_cache', 'bp_%s_%s.npz' % (os.path.basename(d.rstrip('/')), tag)
+            ),
+            f=kk,
+            p=np.array([bp[k] for k in kk.tolist()]),
+        )
         ballgate.best_p = lambda t, bp=bp: bp
-        want = [(i, a) for i, a in A.items() if items.get(i, {}).get('half') == tag and a['v'] in ('ball', 'out')]
+        want = [
+            (i, a)
+            for i, a in A.items()
+            if items.get(i, {}).get('half') == tag and a['v'] in ('ball', 'out')
+        ]
         gate0 = None
         for nm in (['base'] if os.environ.get('RP_GATE') == 'base' else []) + names:
             X = np.full(n, np.nan)
@@ -163,10 +188,33 @@ def main():
                 if out.get(nm + '#cont') is not None:
                     CT[i[m]] = out[nm + '#cont'][m]
                 # stabilised coordinates are per piece: kept for speeds within a piece only
-                SX[i[m]], SY[i[m]], S0[i[m]], FD[i[m]], IN[i[m]] = sx[m], sy[m], s0[m], fd[m], inb[m]
+                SX[i[m]], SY[i[m]], S0[i[m]], FD[i[m]], IN[i[m]] = (
+                    sx[m],
+                    sy[m],
+                    s0[m],
+                    fd[m],
+                    inb[m],
+                )
             os.makedirs(os.path.join(OUT, 'replay_cache'), exist_ok=True)
-            np.savez(os.path.join(OUT, 'replay_cache', '%s_%s_%s.npz' % (os.path.basename(d.rstrip('/')), nm.replace(':', '_'), tag)),
-                     lo=lo, x=X, y=Y, src=S, p=Q, sx=SX, sy=SY, s0=S0, feet=FD, inbox=IN, owner=owner, cont=CT)
+            np.savez(
+                os.path.join(
+                    OUT,
+                    'replay_cache',
+                    '%s_%s_%s.npz' % (os.path.basename(d.rstrip('/')), nm.replace(':', '_'), tag),
+                ),
+                lo=lo,
+                x=X,
+                y=Y,
+                src=S,
+                p=Q,
+                sx=SX,
+                sy=SY,
+                s0=S0,
+                feet=FD,
+                inbox=IN,
+                owner=owner,
+                cont=CT,
+            )
             on = (S > 0) & np.isfinite(X)
             g = ballgate.lost(tag, lo, on) if gate0 is None else gate0
             if gate0 is None and os.environ.get('RP_GATE') == 'base':
@@ -187,20 +235,49 @@ def main():
                     c['missed'] += not ring
                 else:
                     c['out_ring'] += ring
-                dd = float(np.hypot(X[i] - a['x'], Y[i] - a['y'])) if (a['v'] == 'ball' and 0 <= i < n and np.isfinite(X[i])) else None
-                per[nm][iid] = dict(half=tag, v=a['v'], ring=ring, right=bool(chk[1]), src=int(S[i]) if 0 <= i < n else 0, d=dd)
+                dd = (
+                    float(np.hypot(X[i] - a['x'], Y[i] - a['y']))
+                    if (a['v'] == 'ball' and 0 <= i < n and np.isfinite(X[i]))
+                    else None
+                )
+                per[nm][iid] = dict(
+                    half=tag,
+                    v=a['v'],
+                    ring=ring,
+                    right=bool(chk[1]),
+                    src=int(S[i]) if 0 <= i < n else 0,
+                    d=dd,
+                )
             c.setdefault('on_frames', 0)
             c['on_frames'] += int((on & ~flash).sum())
     for nm in names:
         fl = [r[2][nm + '#full'] for r in res if nm + '#full' in r[2]]
         if fl:
             tot[nm]['full_share'] = sum(a for a, b in fl) / max(1, sum(b for a, b in fl))
-            print('%-28s full-frame searches: %.1f%% of candidate frames' % (nm, 100 * tot[nm]['full_share']))
+            print(
+                '%-28s full-frame searches: %.1f%% of candidate frames'
+                % (nm, 100 * tot[nm]['full_share'])
+            )
     for nm in names:
         c = tot[nm]
-        print('%-28s right %3d  wrong on ball %3d  missed %3d  | out rings %2d/%d  | wrong total %3d  | ringed frames %d' % (
-            nm, c['right'], c['wrong_ball'], c['missed'], c['out_ring'], c['out'], c['wrong_ball'] + c['out_ring'], c['on_frames']), flush=True)
-    json.dump(dict(tot=tot, per=per), open(os.path.join(OUT, 'replay_%s.json' % os.path.basename(d.rstrip('/'))), 'w'))
+        print(
+            '%-28s right %3d  wrong on ball %3d  missed %3d  | out rings %2d/%d  | wrong total %3d  | ringed frames %d'
+            % (
+                nm,
+                c['right'],
+                c['wrong_ball'],
+                c['missed'],
+                c['out_ring'],
+                c['out'],
+                c['wrong_ball'] + c['out_ring'],
+                c['on_frames'],
+            ),
+            flush=True,
+        )
+    json.dump(
+        dict(tot=tot, per=per),
+        open(os.path.join(OUT, 'replay_%s.json' % os.path.basename(d.rstrip('/'))), 'w'),
+    )
 
 
 if __name__ == '__main__':

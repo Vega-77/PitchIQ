@@ -1,12 +1,13 @@
-"""The shipped 2D chain's picks on dev halves under a chosen set of scores: the raw material for pseudo-labels.
+"""The shipped 2D chain's picks on dev halves under chosen scores: pseudo-label material.
 
-    python mine.py oof            every half under its own out-of-fold scores (for the cleanliness check
-                                  against that half's clicks: the model never saw them)
-    python mine.py fold <game>    the halves of every OTHER game under fold_<game>'s scores (foldp/), so
-                                  nothing about <game> reaches the labels its fold trains on
-    -> selftrain/mined/<oof | no_<game>>/<half>.npz: per abs frame the pick's piece, candidate j, src
-       (1 tracker, 2 gap fill), p, x, y, stabilised sx, sy, the gate (lost), short-run flag (flash)
+python mine.py oof            every half under its own out-of-fold scores (for the cleanliness check
+                              against that half's clicks: the model never saw them)
+python mine.py fold <game>    the halves of every OTHER game under fold_<game>'s scores (foldp/), so
+                              nothing about <game> reaches the labels its fold trains on
+-> selftrain/mined/<oof | no_<game>>/<half>.npz: per abs frame the pick's piece, candidate j, src
+   (1 tracker, 2 gap fill), p, x, y, stabilised sx, sy, the gate (lost), short-run flag (flash)
 """
+
 import os
 import sys
 import time
@@ -55,7 +56,10 @@ def piece(job):
     o, s = V.run('base', F)
     ab = np.array([fr['abs'] for fr in F])
     J = np.array([-1 if j is None else j for j in o])
-    g = lambda k: np.array([np.nan if j is None else F[i][k][j] for i, j in enumerate(o)])
+
+    def g(k):
+        return np.array([np.nan if j is None else F[i][k][j] for i, j in enumerate(o)])
+
     best = np.array([fr['p'].max() for fr in F])
     return pt, ab, J, s, g('p'), g('x'), g('y'), g('sx'), g('sy'), best
 
@@ -81,17 +85,41 @@ def run(name, d, tags):
         for k, (pt, ab, j, s, p, x, y, sx, sy, best) in enumerate(R):
             i = ab - lo
             m = owner[i] == k
-            J[i[m]], S[i[m]], P[i[m]], X[i[m]], Y[i[m]], SX[i[m]], SY[i[m]] = j[m], s[m], p[m], x[m], y[m], sx[m], sy[m]
+            J[i[m]], S[i[m]], P[i[m]], X[i[m]], Y[i[m]], SX[i[m]], SY[i[m]] = (
+                j[m],
+                s[m],
+                p[m],
+                x[m],
+                y[m],
+                sx[m],
+                sy[m],
+            )
             for f, v in zip(ab.tolist(), best.tolist()):
                 bp[f] = max(v, bp.get(f, -np.inf))
         ballgate.best_p = lambda t, bp=bp: bp
         on = (S > 0) & np.isfinite(X)
         lost = ballgate.lost(tag, lo, on)
         flash = ballgate.short_runs(on)
-        np.savez(os.path.join(out, '%s.npz' % tag), lo=lo, owner=owner, pieces=np.array([r[0] for r in R]), j=J, src=S,
-                 p=P, x=X, y=Y, sx=SX, sy=SY, lost=lost, flash=flash)
-        print('%s  %s  %d frames  ringed %d  gate-blanked %d  flash %d' % (name, tag, n, (on & ~lost & ~flash).sum(), (on & lost).sum(),
-                                                                         (on & flash).sum()), flush=True)
+        np.savez(
+            os.path.join(out, '%s.npz' % tag),
+            lo=lo,
+            owner=owner,
+            pieces=np.array([r[0] for r in R]),
+            j=J,
+            src=S,
+            p=P,
+            x=X,
+            y=Y,
+            sx=SX,
+            sy=SY,
+            lost=lost,
+            flash=flash,
+        )
+        print(
+            '%s  %s  %d frames  ringed %d  gate-blanked %d  flash %d'
+            % (name, tag, n, (on & ~lost & ~flash).sum(), (on & lost).sum(), (on & flash).sum()),
+            flush=True,
+        )
     print('mined %s in %.0f s' % (name, time.time() - t0), flush=True)
 
 

@@ -409,8 +409,10 @@ def lab(tag, out: Path):
     print(f'{len(grids)} grids, {sum(g["n"] for g in grids)} crops, {mb:.1f} MB -> {out}')
 
 
-def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        prog='python -m pitchiq.experiments.numread', description=__doc__.split('\n')[0]
+    )
     sub = ap.add_subparsers(dest='cmd', required=True)
     c = sub.add_parser('crops')
     c.add_argument('tag')
@@ -425,7 +427,11 @@ def main(argv=None) -> int:
     c = sub.add_parser('lab')
     c.add_argument('tag')
     c.add_argument('out')
-    a = ap.parse_args(argv)
+    return ap
+
+
+def main(argv=None) -> int:
+    a = build_parser().parse_args(argv)
     if a.cmd == 'crops':
         crops(a.tag, a.final)
     elif a.cmd == 'read':

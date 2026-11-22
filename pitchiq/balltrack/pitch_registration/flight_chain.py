@@ -72,7 +72,9 @@ def seg_vel(P0, P1, T, k, s):
     k = max(k, 1e-4)
     e = np.exp(-k * s)
     vz = (P1[2] - P0[2] + flight_model.G * T / k) / E(k, T) - flight_model.G / k
-    return np.r_[(P1[:2] - P0[:2]) / E(k, T) * e, (vz + flight_model.G / k) * e - flight_model.G / k]
+    return np.r_[
+        (P1[:2] - P0[:2]) / E(k, T) * e, (vz + flight_model.G / k) * e - flight_model.G / k
+    ]
 
 
 def unpack(x, m):

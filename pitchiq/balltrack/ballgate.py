@@ -21,7 +21,9 @@ import os
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-LOST_P = 1.5  # classifier logit.  2.0 until the 2026-10-26 retrain (cls_C, scores mapped onto cls_B's):
+LOST_P = (
+    1.5  # classifier logit.  2.0 until the 2026-10-26 retrain (cls_C, scores mapped onto cls_B's):
+)
 # on the 11 dev halves' clicks 2.0 then blanked 12 right rings for 1 wrong one (Piscataway H2, Colonia H2,
 # Wardlaw-Hartridge H2); 1.5 and below blank nothing there, so 1.5 keeps the gate for a lost stretch
 LOST_W = 9000  # frames each side (5 min at 30 fps)

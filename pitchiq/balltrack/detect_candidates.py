@@ -56,7 +56,9 @@ SHARED = (
 PROCS = config.WORKERS
 # The ranker and the affine that puts its margin on rank6's scale (the tracker and the classifier's
 # ctx read the score): rank7 is train_ranker.py on the dev Ball Clicker answers, 2026-10-26
-RANKER = os.environ.get('PIQ_RANKER', 'rank7.model.json')  # PIQ_RANKER: an experiment's ranker (ball push)
+RANKER = os.environ.get(
+    'PIQ_RANKER', 'rank7.model.json'
+)  # PIQ_RANKER: an experiment's ranker (ball push)
 
 
 def worker(args):
@@ -310,10 +312,16 @@ def merge(tag, lo, hi, res):
     for name in parts:
         z = np.load(os.path.join(S2, name))
         m = (z['f'] >= lo) & (z['f'] <= hi)
-        if os.environ.get('PIQ_TRUNC'):  # ball push: a narrower cut from a wide detection (rows are in rank order per frame)
+        if os.environ.get(
+            'PIQ_TRUNC'
+        ):  # ball push: a narrower cut from a wide detection (rows are in rank order per frame)
             zf = z['f']
             ar = np.arange(len(zf))
-            st = np.maximum.accumulate(np.where(np.r_[True, zf[1:] != zf[:-1]], ar, 0)) if len(zf) else ar
+            st = (
+                np.maximum.accumulate(np.where(np.r_[True, zf[1:] != zf[:-1]], ar, 0))
+                if len(zf)
+                else ar
+            )
             m &= (ar - st) < int(os.environ['PIQ_TRUNC'])
         k = (z['frames'] >= lo) & (z['frames'] <= hi)
         F.append(z['f'][m])

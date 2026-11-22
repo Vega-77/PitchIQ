@@ -7,6 +7,7 @@ pan table repeats the centre frame.
 
     python tcache.py [half ...]   -> selftrain/tcache/<piece>.npy  (N x 4 x 40 x 40 uint8, cache row order)
 """
+
 import os
 import sys
 import time
@@ -38,9 +39,9 @@ def build(job):
     phi = plo + len(cum) - 1
     N = len(ca['f'])
     T = np.zeros((N, 4, st.CSIZE, st.CSIZE), np.uint8)
-    edges = np.searchsorted(ca['f'], np.r_[np.unique(ca['f']), 10 ** 12])
+    edges = np.searchsorted(ca['f'], np.r_[np.unique(ca['f']), 10**12])
     uf = np.unique(ca['f'])
-    lo, hi = int(uf[0]), int(uf[-1])
+    lo = int(uf[0])
     cap = cv2.VideoCapture(video)
     start = max(0, lo - 2)
     cap.set(cv2.CAP_PROP_POS_FRAMES, start)
@@ -95,8 +96,11 @@ def build(job):
 def main():
     os.makedirs(st.OUT + '/tcache', exist_ok=True)
     vid = st.videos()
-    jobs = [(pt, vid[pt.split('_q')[0]]) for pt in st.pieces(sys.argv[1:] or st.DEV)
-            if os.path.exists(os.path.join(st.CACHE, '%s.npz' % pt))]
+    jobs = [
+        (pt, vid[pt.split('_q')[0]])
+        for pt in st.pieces(sys.argv[1:] or st.DEV)
+        if os.path.exists(os.path.join(st.CACHE, '%s.npz' % pt))
+    ]
     t0 = time.time()
     with Pool(int(os.environ.get('ST_PROCS', '6'))) as pool:
         for pt, n, dt in pool.imap_unordered(build, jobs):

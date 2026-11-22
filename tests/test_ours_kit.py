@@ -1,4 +1,4 @@
-"""`MatchContext.ours_kit`: the coach's shirts come out as TEAM_A whichever way clustering numbered them."""
+"""`MatchContext.ours_kit`: the coach's shirts are TEAM_A however clustering numbered them."""
 
 from __future__ import annotations
 

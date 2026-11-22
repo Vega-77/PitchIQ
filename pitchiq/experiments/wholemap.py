@@ -95,9 +95,7 @@ def pitch_map(cam, res, lo, hi, settings=None):
             out[n] = abs(b[3] - q[1] / q[2])
         return out
 
-    td = topdown.build(
-        res, proj, lo, hi, cam.length_m, cam.width_m, settings, person_px=person_px
-    )
+    td = topdown.build(res, proj, lo, hi, cam.length_m, cam.width_m, settings, person_px=person_px)
     return td, (120 / cam.length_m, 80 / cam.width_m)
 
 

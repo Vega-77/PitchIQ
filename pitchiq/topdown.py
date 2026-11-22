@@ -607,7 +607,9 @@ def build(
             if s.held_merge_sticky:
                 merged |= {d.track for d in dots[t] if all(d is not k for k in kept)}
                 merged -= {
-                    d.track for d in kept if d.seen and d.ident is not None and _boxed(d.ident, lo + t)
+                    d.track
+                    for d in kept
+                    if d.seen and d.ident is not None and _boxed(d.ident, lo + t)
                 }
                 kept = [d for d in kept if d.track not in merged]
             dots[t] = kept
@@ -686,10 +688,13 @@ def drop_held_doubles(dots: list, frame: int, within_m: float) -> list:
     Referees are left alone."""
 
     def held(d) -> bool:
-        return d.seen and d.ident is not None and d.group[1] != REFEREE and not _boxed(d.ident, frame)
+        return (
+            d.seen and d.ident is not None and d.group[1] != REFEREE and not _boxed(d.ident, frame)
+        )
 
     boxed = [
-        d for d in dots
+        d
+        for d in dots
         if d.seen and d.ident is not None and d.group[1] != REFEREE and _boxed(d.ident, frame)
     ]
     out = []
@@ -763,7 +768,10 @@ def ease_pops(dots: list, path: np.ndarray, s: MapSettings) -> None:
                 if any(
                     m != n
                     and (
-                        (o.drawn_team == d.drawn_team and np.hypot(o.x - d.x, o.y - d.y) < s.ease_cover_m)
+                        (
+                            o.drawn_team == d.drawn_team
+                            and np.hypot(o.x - d.x, o.y - d.y) < s.ease_cover_m
+                        )
                         or (s.crowd_m and np.hypot(o.x - d.x, o.y - d.y) < s.crowd_m)
                     )
                     for m, o in other.items()

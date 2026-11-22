@@ -10,6 +10,7 @@ each lands within ANC px of the pick at its far end and they stay within AGR px 
 what the replay had.  Only gaps holding a clicked frame are run, so the dev score is exact and the run is short.
 Reads the main checkout's tapnet clone, checkpoint and <tag>_ball3dd.npz; writes only under PitchIQ-data/ball-push.
 """
+
 import glob
 import json
 import os
@@ -45,8 +46,12 @@ EXPORT = os.environ.get('EXPORT')
 TAGS = common.HELD if os.environ.get('TN_SET') == 'held' else common.DEV
 RC = os.environ.get('RC')
 BPNAME = os.environ.get('BPNAME')
-ENDP = float(os.environ['ENDP']) if os.environ.get('ENDP') else None  # bridge only if both end frames' best score >= this
-PARTIAL = [float(v) for v in os.environ['PARTIAL'].split(':')] if os.environ.get('PARTIAL') else None
+ENDP = (
+    float(os.environ['ENDP']) if os.environ.get('ENDP') else None
+)  # bridge only if both end frames' best score >= this
+PARTIAL = (
+    [float(v) for v in os.environ['PARTIAL'].split(':')] if os.environ.get('PARTIAL') else None
+)
 
 
 def air_mask(tag, ab):
@@ -64,18 +69,29 @@ def air_mask(tag, ab):
 def load(run, nm):
     common.point_at_data()
     from pitchiq.experiments.clicker import clickscore as cs
-    items = {it['id']: it for it in json.load(open(os.path.join(common.CLICKS, 'items_all.json')))['items']}
+
+    items = {
+        it['id']: it
+        for it in json.load(open(os.path.join(common.CLICKS, 'items_all.json')))['items']
+    }
     A = cs.answers(os.path.join(common.CLICKS, 'db'))
     out = {}
     for tag in TAGS:
         if TN_TAGS and tag not in TN_TAGS:
             continue
-        f = glob.glob('%s/*_%s_%s.npz' % (RC or '%s/trk2/%s/replay_cache' % (BP, run), nm.replace(':', '_'), tag))
+        f = glob.glob(
+            '%s/*_%s_%s.npz'
+            % (RC or '%s/trk2/%s/replay_cache' % (BP, run), nm.replace(':', '_'), tag)
+        )
         f = [p for p in f if not os.path.basename(p).startswith('bp_')]
         if not f:
             continue
         z = dict(np.load(f[0]))
-        want = [(i, a, int(items[i]['f'])) for i, a in A.items() if items.get(i, {}).get('half') == tag and a['v'] in ('ball', 'out')]
+        want = [
+            (i, a, int(items[i]['f']))
+            for i, a in A.items()
+            if items.get(i, {}).get('half') == tag and a['v'] in ('ball', 'out')
+        ]
         out[tag] = (z, want)
     return out, cs
 
@@ -90,7 +106,7 @@ def gaps(z, want, tag):
     res, nair = [], 0
     if ALLGAPS:
         for i, j in zip(anc[:-1].tolist(), anc[1:].tolist()):
-            if 1 <= j - i - 1 <= MAXGAP and not air[i:j + 1].any():
+            if 1 <= j - i - 1 <= MAXGAP and not air[i : j + 1].any():
                 res.append((i, j))
         return res, nair, has
     for c in ci:
@@ -100,7 +116,7 @@ def gaps(z, want, tag):
         i, j = int(anc[k - 1]), int(anc[k])
         if not 1 <= j - i - 1 <= MAXGAP:
             continue
-        if air[i:j + 1].any():
+        if air[i : j + 1].any():
             nair += 1
             continue
         if (i, j) not in res:
@@ -109,7 +125,14 @@ def gaps(z, want, tag):
 
 
 def outdir(run, nm):
-    return os.path.join(os.environ.get('TN_ROOT') or os.path.join(BP, 'tn'), run + '_' + nm.replace(':', '_').replace('+', '_') + ('' if MAXGAP == 90 else '_g%d' % MAXGAP) + ('_all' if ALLGAPS else ''))
+    return os.path.join(
+        os.environ.get('TN_ROOT') or os.path.join(BP, 'tn'),
+        run
+        + '_'
+        + nm.replace(':', '_').replace('+', '_')
+        + ('' if MAXGAP == 90 else '_g%d' % MAXGAP)
+        + ('_all' if ALLGAPS else ''),
+    )
 
 
 def cmd_jobs(run, nm):
@@ -119,20 +142,40 @@ def cmd_jobs(run, nm):
         g, nair, has = gaps(z, want, tag)
         fr = sum(j - i + 1 for i, j in g)
         tot += fr
-        print('%-8s src codes %s  gaps with a click %3d  frames %5d  clicks in air gaps %d  ball3dd %s  video %s' % (
-            tag, np.unique(z['src']).tolist(), len(g), fr, nair, has, os.path.exists(VID.get(tag, ['?'])[0])))
-    print('track-frames (both directions) about %d -> %.0f min at 171 ms' % (2 * tot, 2 * tot * 0.171 / 60))
+        print(
+            '%-8s src codes %s  gaps with a click %3d  frames %5d  clicks in air gaps %d  ball3dd %s  video %s'
+            % (
+                tag,
+                np.unique(z['src']).tolist(),
+                len(g),
+                fr,
+                nair,
+                has,
+                os.path.exists(VID.get(tag, ['?'])[0]),
+            )
+        )
+    print(
+        'track-frames (both directions) about %d -> %.0f min at 171 ms'
+        % (2 * tot, 2 * tot * 0.171 / 60)
+    )
 
 
 def cmd_run(run, nm):
     import cv2
     import torch
+
     sys.path.insert(0, os.path.join(MAIN, 'tapnext_bridge', 'tapnet'))
     from tapnet.tapnextpp.votsp2026.model import TAPNextPP
     from pitchiq import extras
+
     extras.tapnext_missing = lambda: []
     from pitchiq.balltrack.tapnext_bridge import tn_engine as E
-    net = TAPNextPP.from_checkpoint(os.path.join(MAIN, 'tapnext_bridge', 'tapnextpp_512.ckpt'), device='cuda', input_resolution=E.S)._model
+
+    net = TAPNextPP.from_checkpoint(
+        os.path.join(MAIN, 'tapnext_bridge', 'tapnextpp_512.ckpt'),
+        device='cuda',
+        input_resolution=E.S,
+    )._model
     D, _ = load(run, nm)
     od = outdir(run, nm)
     os.makedirs(od, exist_ok=True)
@@ -147,7 +190,10 @@ def cmd_run(run, nm):
             a, b = lo + i, lo + j
             fr = E.read_range(cap, a, b, set(range(a, b + 1)))
             tr = {}
-            for d, order, seed in ((1, range(a, b + 1), (X[i], Y[i])), (-1, range(b, a - 1, -1), (X[j], Y[j]))):
+            for d, order, seed in (
+                (1, range(a, b + 1), (X[i], Y[i])),
+                (-1, range(b, a - 1, -1), (X[j], Y[j])),
+            ):
                 if d < 0 and np.hypot(*(tr[1][-1] - (X[j], Y[j]))) > ANC:
                     break
                 G = E.Group(net, [seed])
@@ -155,7 +201,9 @@ def cmd_run(run, nm):
                     xy = np.array([G.step([fr[f]])[0][0] for f in order])
                 tr[d] = xy
                 res.append((a, b, d, xy))
-            print('%s  gap %d..%d  %s' % (tag, a, b, 'both' if -1 in tr else 'fwd missed'), flush=True)
+            print(
+                '%s  gap %d..%d  %s' % (tag, a, b, 'both' if -1 in tr else 'fwd missed'), flush=True
+            )
         np.save(op, np.array(res, dtype=object), allow_pickle=True)
     print('TN RUN DONE', flush=True)
 
@@ -164,12 +212,19 @@ def cmd_back(run, nm):
     """Backward tracks for the gaps whose forward track missed (cmd_run skips them) -> <tag>_back.npy; for PARTIAL."""
     import cv2
     import torch
+
     sys.path.insert(0, os.path.join(MAIN, 'tapnext_bridge', 'tapnet'))
     from tapnet.tapnextpp.votsp2026.model import TAPNextPP
     from pitchiq import extras
+
     extras.tapnext_missing = lambda: []
     from pitchiq.balltrack.tapnext_bridge import tn_engine as E
-    net = TAPNextPP.from_checkpoint(os.path.join(MAIN, 'tapnext_bridge', 'tapnextpp_512.ckpt'), device='cuda', input_resolution=E.S)._model
+
+    net = TAPNextPP.from_checkpoint(
+        os.path.join(MAIN, 'tapnext_bridge', 'tapnextpp_512.ckpt'),
+        device='cuda',
+        input_resolution=E.S,
+    )._model
     D, _ = load(run, nm)
     od = outdir(run, nm)
     for tag, (z, want) in D.items():
@@ -195,7 +250,10 @@ def cmd_back(run, nm):
 
 def cmd_score(run, nm):
     from pitchiq.balltrack import ballgate
-    if os.environ.get('RP_LOSTP'):  # same override as replay.py; without it the score re-gated at the shipped 1.5
+
+    if os.environ.get(
+        'RP_LOSTP'
+    ):  # same override as replay.py; without it the score re-gated at the shipped 1.5
         ballgate.LOST_P = float(os.environ['RP_LOSTP'])
     print('gate bar %.2f' % ballgate.LOST_P, flush=True)
     D, cs = load(run, nm)
@@ -204,14 +262,17 @@ def cmd_score(run, nm):
     st = dict(gaps=0, acc=0, land=0, agree=0, part=0, endp=0)
     for tag, (z, want) in D.items():
         lo, n = int(z['lo']), len(z['src'])
-        b = np.load('%s/bp_%s_%s.npz' % (RC or '%s/trk2/%s/replay_cache' % (BP, run), BPNAME or run + '_global', tag))
+        b = np.load(
+            '%s/bp_%s_%s.npz'
+            % (RC or '%s/trk2/%s/replay_cache' % (BP, run), BPNAME or run + '_global', tag)
+        )
         bp = dict(zip(b['f'].tolist(), b['p'].tolist()))
         ballgate.best_p = lambda t, bp=bp: bp
         X, Y, S, CT = z['x'].copy(), z['y'].copy(), z['src'].copy(), z['cont'].astype(bool)
         ver = {'before': (X.copy(), Y.copy(), S.copy())}
         tr = {}
         p = os.path.join(od, '%s.npy' % tag)
-        for a, bb, d, xy in (np.load(p, allow_pickle=True) if os.path.exists(p) else []):
+        for a, bb, d, xy in np.load(p, allow_pickle=True) if os.path.exists(p) else []:
             tr[(int(a), int(bb), int(d))] = np.asarray(xy, float)
         p = os.path.join(od, '%s_back.npy' % tag)
         if PARTIAL and os.environ.get('BACK') and os.path.exists(p):
@@ -226,7 +287,11 @@ def cmd_score(run, nm):
             why = None
             if ENDP is not None and min(bp.get(lo + i, -99.0), bp.get(lo + j, -99.0)) < ENDP:
                 why = 'endp'
-            elif g is None or np.hypot(*(g[-1] - (X[i], Y[i]))) > ANC or np.hypot(*(f[-1] - (X[j], Y[j]))) > ANC:
+            elif (
+                g is None
+                or np.hypot(*(g[-1] - (X[i], Y[i]))) > ANC
+                or np.hypot(*(f[-1] - (X[j], Y[j]))) > ANC
+            ):
                 why = 'land'
             elif np.hypot(*(f[1:-1] - g[::-1][1:-1]).T).max() > AGR:
                 why = 'agree'
@@ -245,8 +310,12 @@ def cmd_score(run, nm):
                         while ok[v + 1]:
                             v += 1
                         if v - u + 1 >= PARTIAL[1]:
-                            q = (f[u:v + 1] + gr[u:v + 1]) / 2
-                            X[i + u:i + v + 1], Y[i + u:i + v + 1], S[i + u:i + v + 1] = q[:, 0], q[:, 1], 3
+                            q = (f[u : v + 1] + gr[u : v + 1]) / 2
+                            X[i + u : i + v + 1], Y[i + u : i + v + 1], S[i + u : i + v + 1] = (
+                                q[:, 0],
+                                q[:, 1],
+                                3,
+                            )
                             st['part'] += v - u + 1
                         u = v + 1
                 continue
@@ -254,7 +323,7 @@ def cmd_score(run, nm):
             L = j - i - 1
             w = np.arange(1, L + 1) / (L + 1.0)
             q = (1 - w)[:, None] * f[1:-1] + w[:, None] * g[1:-1]
-            X[i + 1:j], Y[i + 1:j], S[i + 1:j] = q[:, 0], q[:, 1], 3
+            X[i + 1 : j], Y[i + 1 : j], S[i + 1 : j] = q[:, 0], q[:, 1], 3
             st['acc'] += 1
         ver['after'] = (X, Y, S)
         on0 = (ver['before'][2] > 0) & np.isfinite(ver['before'][0])
@@ -265,8 +334,14 @@ def cmd_score(run, nm):
             flash = ballgate.short_runs(on | CT) | (g0 & (s != 3))
             if EXPORT and k == 'after':
                 os.makedirs(EXPORT, exist_ok=True)
-                np.savez(os.path.join(EXPORT, '%s.npz' % tag), abs=lo + np.arange(n), x=np.where(on, x, np.nan),
-                         y=np.where(on, y, np.nan), src=np.where(on, s, 0).astype(np.int8), ring=on & ~flash)
+                np.savez(
+                    os.path.join(EXPORT, '%s.npz' % tag),
+                    abs=lo + np.arange(n),
+                    x=np.where(on, x, np.nan),
+                    y=np.where(on, y, np.nan),
+                    src=np.where(on, s, 0).astype(np.int8),
+                    ring=on & ~flash,
+                )
             for iid, a, fr in want:
                 i = fr - lo
                 ring = bool(0 <= i < n and on[i] and not flash[i])
@@ -278,11 +353,25 @@ def cmd_score(run, nm):
                     c['missed'] += not ring
                 else:
                     c['out_ring'] += ring
-    print('gaps run %(gaps)d  accepted %(acc)d  rejected: landing %(land)d  disagree %(agree)d  weak ends %(endp)d  partial frames ringed %(part)d' % st)
+    print(
+        'gaps run %(gaps)d  accepted %(acc)d  rejected: landing %(land)d  disagree %(agree)d  weak ends %(endp)d  partial frames ringed %(part)d'
+        % st
+    )
     for k, c in T.items():
-        print('%-7s right %3d  wrong on ball %3d  missed %3d  | out rings %2d  | wrong total %3d' % (
-            k, c['right'], c['wrong_ball'], c['missed'], c['out_ring'], c['wrong_ball'] + c['out_ring']))
+        print(
+            '%-7s right %3d  wrong on ball %3d  missed %3d  | out rings %2d  | wrong total %3d'
+            % (
+                k,
+                c['right'],
+                c['wrong_ball'],
+                c['missed'],
+                c['out_ring'],
+                c['wrong_ball'] + c['out_ring'],
+            )
+        )
 
 
 if __name__ == '__main__':
-    dict(jobs=cmd_jobs, run=cmd_run, back=cmd_back, score=cmd_score)[sys.argv[1]](sys.argv[2], sys.argv[3])
+    dict(jobs=cmd_jobs, run=cmd_run, back=cmd_back, score=cmd_score)[sys.argv[1]](
+        sys.argv[2], sys.argv[3]
+    )

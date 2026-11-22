@@ -311,7 +311,11 @@ def overlay_boxes(video: str | None = None) -> list:
         p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'balltrack', 'halves.json')
         games = json.load(open(p, encoding='utf-8'))
         _OVERLAYS[video] = next(
-            (g.get('overlay', []) for g in games.values() if isinstance(g, dict) and g.get('video') == video),
+            (
+                g.get('overlay', [])
+                for g in games.values()
+                if isinstance(g, dict) and g.get('video') == video
+            ),
             [],
         )
     return _OVERLAYS[video]
@@ -333,7 +337,10 @@ def frame_features(
     if boxes:
         mask = np.full(g.shape, 255, np.uint8)
         for x0, y0, x1, y1 in boxes:
-            mask[int(y0 * scale) : int(np.ceil(y1 * scale)), int(x0 * scale) : int(np.ceil(x1 * scale))] = 0
+            mask[
+                int(y0 * scale) : int(np.ceil(y1 * scale)),
+                int(x0 * scale) : int(np.ceil(x1 * scale)),
+            ] = 0
     kp, d = sift.detectAndCompute(g, mask)
     xy = np.float32([p.pt for p in kp]).reshape(-1, 2) / scale
     return xy, (np.zeros((0, 128), np.float32) if d is None else d)

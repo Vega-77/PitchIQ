@@ -1,23 +1,41 @@
 """Tracker variants with motion evidence (velocity), for replay.py through variants.run.
 
-  acc:<w>[:<a0>[:<cap>]]     second-order motion cost.  Every state carries the velocity it was reached
-                             with (px/frame, stabilised).  Continuing from it with velocity v' costs
-                             w * min((|v' - v| / a0)^2, cap): a hop that changes velocity by a0 px/frame
-                             costs w, any kick or bounce at most w * cap.  A state entered from OFF or by
-                             a return has no velocity, so its first step is free.
-  smooth:<b>[:<as>[:<vmin>]] reward: a continuation whose velocity changes by at most <as> px/frame and
-                             that moves at least <vmin> px/frame earns +b (a moving, steady track may
-                             then run through weak candidates; still clutter earns nothing).
-  Both can be joined with '+', and with off:<v>.  acc:0 is the shipped tracker exactly.
+acc:<w>[:<a0>[:<cap>]]     second-order motion cost.  Every state carries the velocity it was reached
+                           with (px/frame, stabilised).  Continuing from it with velocity v' costs
+                           w * min((|v' - v| / a0)^2, cap): a hop that changes velocity by a0 px/frame
+                           costs w, any kick or bounce at most w * cap.  A state entered from OFF or by
+                           a return has no velocity, so its first step is free.
+smooth:<b>[:<as>[:<vmin>]] reward: a continuation whose velocity changes by at most <as> px/frame and
+                           that moves at least <vmin> px/frame earns +b (a moving, steady track may
+                           then run through weak candidates; still clutter earns nothing).
+Both can be joined with '+', and with off:<v>.  acc:0 is the shipped tracker exactly.
 """
+
 import numpy as np
 
 from pitchiq.balltrack import ball_tracker as B
 
 
-def track_acc(frames, acc_w=0.0, a0=4.0, cap=4.0, sm_b=0.0, sm_a=2.0, sm_v=1.5, motion_weight=0.125, skip_cost=4.0,
-              max_step=4, off_score=-0.5, leave_cost=2.0, enter_cost=12.0, return_cost=6.0, return_radius=0.0,
-              return_drift=12.0, return_gate=2.0, remembered=B.REMEMBERED):
+def track_acc(
+    frames,
+    acc_w=0.0,
+    a0=4.0,
+    cap=4.0,
+    sm_b=0.0,
+    sm_a=2.0,
+    sm_v=1.5,
+    motion_weight=0.125,
+    skip_cost=4.0,
+    max_step=4,
+    off_score=-0.5,
+    leave_cost=2.0,
+    enter_cost=12.0,
+    return_cost=6.0,
+    return_radius=0.0,
+    return_drift=12.0,
+    return_gate=2.0,
+    remembered=B.REMEMBERED,
+):
     kx, ky = 'sx', 'sy'
     T = len(frames)
     on = [None] * T
@@ -48,7 +66,9 @@ def track_acc(frames, acc_w=0.0, a0=4.0, cap=4.0, sm_b=0.0, sm_a=2.0, sm_v=1.5, 
             tot = on[t - k][None, :] - motion_weight * (d / reach) ** 2 - skip_cost * (k - 1)
             nvx, nvy = dx / dtf, dy / dtf
             if acc_w or sm_b:
-                a = np.hypot(nvx - VX[t - k][None, :], nvy - VY[t - k][None, :])  # nan where no velocity
+                a = np.hypot(
+                    nvx - VX[t - k][None, :], nvy - VY[t - k][None, :]
+                )  # nan where no velocity
                 has = np.isfinite(a)
                 if acc_w:
                     tot = tot - np.where(has, acc_w * np.minimum((a / a0) ** 2, cap), 0.0)
@@ -69,7 +89,12 @@ def track_acc(frames, acc_w=0.0, a0=4.0, cap=4.0, sm_b=0.0, sm_a=2.0, sm_v=1.5, 
             allowed = np.maximum(1.0, return_radius + return_drift * age)
             d = np.hypot(fr[kx][:, None] - px[None, :], fr[ky][:, None] - py[None, :])
             over = np.maximum(0.0, d - allowed[None, :]) / allowed[None, :]
-            tot = ps[None, :] + off_score * (t - pt - 1)[None, :] - return_cost - return_gate * over ** 2
+            tot = (
+                ps[None, :]
+                + off_score * (t - pt - 1)[None, :]
+                - return_cost
+                - return_gate * over**2
+            )
             i = tot.argmax(axis=1)
             v = tot[np.arange(n), i]
             take = v > cur
@@ -151,9 +176,18 @@ def parse(name):
                 kw['sm_v'] = float(k[3])
         elif k[0] == 'off':
             kw['off_score'] = float(k[1])
-        elif k[0] in ('enter', 'ret', 'leave', 'skip'):  # plain first-order costs, for reference sweeps
+        elif k[0] in (
+            'enter',
+            'ret',
+            'leave',
+            'skip',
+        ):  # plain first-order costs, for reference sweeps
             hit = True
-            kw[dict(enter='enter_cost', ret='return_cost', leave='leave_cost', skip='skip_cost')[k[0]]] = float(k[1])
+            kw[
+                dict(enter='enter_cost', ret='return_cost', leave='leave_cost', skip='skip_cost')[
+                    k[0]
+                ]
+            ] = float(k[1])
     return kw if hit else None
 
 

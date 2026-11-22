@@ -12,6 +12,7 @@ The merge inherits both runs' wrong rings: with a poor run (c24, 167 / 13 / 142)
 Usage: python -m pitchiq.experiments.ballpush.mergerings A.npz B.npz OUT.npz [--rule drop|keepA] [--tol 15]
 Each npz holds abs (absolute frame per row), x, y, src, ring, as written by tnclick.py score with EXPORT set.
 """
+
 import argparse
 
 import numpy as np
@@ -27,7 +28,9 @@ def merge(a, b, rule='drop', tol=15.0):
     if not (np.array_equal(a['abs'][sa], b['abs'][sb])):
         raise ValueError('frame numbers differ between the runs')
     ra, rb = np.asarray(a['ring'][sa], bool), np.asarray(b['ring'][sb], bool)
-    xa, ya, xb, yb = (np.asarray(v, float) for v in (a['x'][sa], a['y'][sa], b['x'][sb], b['y'][sb]))
+    xa, ya, xb, yb = (
+        np.asarray(v, float) for v in (a['x'][sa], a['y'][sa], b['x'][sb], b['y'][sb])
+    )
     both = ra & rb
     far = both & (np.hypot(xa - xb, ya - yb) > tol)
     useb = rb & ~ra
@@ -39,15 +42,29 @@ def merge(a, b, rule='drop', tol=15.0):
     elif rule != 'keepA':
         raise ValueError('rule must be drop or keepA')
     x, y = np.where(ring, x, np.nan), np.where(ring, y, np.nan)
-    return {'abs': np.asarray(a['abs'][sa]), 'x': x, 'y': y, 'src': src, 'ring': ring,
-            'stats': dict(a=int(ra.sum()), b=int(rb.sum()), both=int(both.sum()), apart=int(far.sum()),
-                          out=int(ring.sum()))}
+    return {
+        'abs': np.asarray(a['abs'][sa]),
+        'x': x,
+        'y': y,
+        'src': src,
+        'ring': ring,
+        'stats': dict(
+            a=int(ra.sum()),
+            b=int(rb.sum()),
+            both=int(both.sum()),
+            apart=int(far.sum()),
+            out=int(ring.sum()),
+        ),
+    }
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('a'); ap.add_argument('b'); ap.add_argument('out')
-    ap.add_argument('--rule', default='drop'); ap.add_argument('--tol', type=float, default=15.0)
+    ap.add_argument('a')
+    ap.add_argument('b')
+    ap.add_argument('out')
+    ap.add_argument('--rule', default='drop')
+    ap.add_argument('--tol', type=float, default=15.0)
     o = ap.parse_args()
     m = merge(np.load(o.a), np.load(o.b), o.rule, o.tol)
     st = m.pop('stats')

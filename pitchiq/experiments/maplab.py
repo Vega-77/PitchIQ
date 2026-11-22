@@ -320,7 +320,7 @@ class _Half:
                     k = int(np.searchsorted(i.frames, f))
                     if k >= len(i.frames) or i.frames[k] != f or i.interp[k]:
                         continue
-                    if f - last.get(i.pid, -10**9) >= 90:
+                    if f - last.get(i.pid, -(10**9)) >= 90:
                         last[i.pid] = f
                         out.append((f, i))
         return out
@@ -473,7 +473,9 @@ def _linked_cached(tag, det, meta, spans, out: Path):
         yield pickle.loads(p.read_bytes())
 
 
-def make_half(tag, out: Path, lo, hi, per=6, windows=3, win_s=180.0, seed=0, types=TYPES, spans=None):
+def make_half(
+    tag, out: Path, lo, hi, per=6, windows=3, win_s=180.0, seed=0, types=TYPES, spans=None
+):
     """spans: the (lo, hi) windows to use (an earlier round's), instead of placing --windows."""
     import cv2
 
@@ -510,7 +512,13 @@ def make_half(tag, out: Path, lo, hi, per=6, windows=3, win_s=180.0, seed=0, typ
             for hard in (False, True):
                 if kind in ('keeper', 'trust', 'grey') and hard:
                     continue
-                k = n if kind in ('keeper', 'trust', 'grey') else (n + 1) // 2 if not hard else n // 2
+                k = (
+                    n
+                    if kind in ('keeper', 'trust', 'grey')
+                    else (n + 1) // 2
+                    if not hard
+                    else n // 2
+                )
                 pool = S.pool(kind, hard)
                 if not pool:
                     continue
@@ -969,7 +977,7 @@ def merge(set_dir: Path, parts: list[Path]):
     print('set %s: %d questions %s, %.1f MB' % (set_dir.name, len(stops) + len(rest), n, size))
 
 
-def main(argv=None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog='python -m pitchiq.experiments.maplab', description=__doc__.split('\n\n')[0]
     )
@@ -992,7 +1000,11 @@ def main(argv=None) -> int:
     m.add_argument('parts', type=Path, nargs='+')
     r = sub.add_parser('repack')
     r.add_argument('parts', type=Path, nargs='+')
-    a = p.parse_args(argv)
+    return p
+
+
+def main(argv=None) -> int:
+    a = build_parser().parse_args(argv)
     for k in ('out', 'set_dir'):  # match_video changes directory on import
         if getattr(a, k, None) is not None:
             setattr(a, k, getattr(a, k).resolve())

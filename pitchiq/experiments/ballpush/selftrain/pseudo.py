@@ -13,6 +13,7 @@ Only cached candidates can be labelled (cache.py); a pick off the cache is count
        own_<game>: that game's own picks under its out-of-fold scores (for the transductive variant)
        check: compare with the clicks of the same halves (only honest for 'oof')
 """
+
 import os
 import sys
 
@@ -53,8 +54,10 @@ def select(name, tags, check=False, src=None):
     rec = dict(pt=[], row=[], y=[], hard=[], f=[])
     names = []
     chk = dict(pos=0, pos_right=0, pos_out=0, hard=0, hard_right=0, neg=0, neg_ball=0)
-    print('rule: run >= %d frames, median p >= %g, every %dth frame + hard; negatives p > %g + %d easy' % (
-        MIN_LEN, MIN_MEDP, STEP, NEG_P, NEG_EASY))
+    print(
+        'rule: run >= %d frames, median p >= %g, every %dth frame + hard; negatives p > %g + %d easy'
+        % (MIN_LEN, MIN_MEDP, STEP, NEG_P, NEG_EASY)
+    )
     per_game = {}
     for tag in tags:
         z = np.load(st.OUT + '/mined/%s/%s.npz' % (src, tag))
@@ -97,7 +100,13 @@ def select(name, tags, check=False, src=None):
                 if not incache:
                     c['off_cache'] += 1
                 else:
-                    rec['pt'].append(pi), rec['row'].append(r), rec['y'].append(BALL), rec['hard'].append(bool(hard[i])), rec['f'].append(f)
+                    (
+                        rec['pt'].append(pi),
+                        rec['row'].append(r),
+                        rec['y'].append(BALL),
+                        rec['hard'].append(bool(hard[i])),
+                        rec['f'].append(f),
+                    )
                     c['pos'] += 1
                     c['hard'] += bool(hard[i])
                 if z['p'][i] <= NEG_PICK_P or z['src'][i] != 1:
@@ -113,35 +122,75 @@ def select(name, tags, check=False, src=None):
                 if len(ez) > NEG_EASY:
                     ez = rng.choice(ez, NEG_EASY, replace=False)
                 for q in np.r_[hn, ez].astype(int).tolist():
-                    rec['pt'].append(pi), rec['row'].append(a0 + q), rec['y'].append(OTHER), rec['hard'].append(bool(pp[q] > NEG_P)), rec['f'].append(f)
+                    (
+                        rec['pt'].append(pi),
+                        rec['row'].append(a0 + q),
+                        rec['y'].append(OTHER),
+                        rec['hard'].append(bool(pp[q] > NEG_P)),
+                        rec['f'].append(f),
+                    )
                     c['neg'] += 1
                     if a is not None:
                         chk['neg'] += 1
-                        chk['neg_ball'] += a['v'] == 'ball' and np.hypot(fr['x'][jj[q]] - a['x'], fr['y'][jj[q]] - a['y']) <= 15
-        print('%-8s confident-run frames %6d  ball %5d (hard %4d)  other %6d  picks off the cache %d' % (
-            tag, c['frames'], c['pos'], c['hard'], c['neg'], c['off_cache']), flush=True)
+                        chk['neg_ball'] += (
+                            a['v'] == 'ball'
+                            and np.hypot(fr['x'][jj[q]] - a['x'], fr['y'][jj[q]] - a['y']) <= 15
+                        )
+        print(
+            '%-8s confident-run frames %6d  ball %5d (hard %4d)  other %6d  picks off the cache %d'
+            % (tag, c['frames'], c['pos'], c['hard'], c['neg'], c['off_cache']),
+            flush=True,
+        )
         g = per_game.setdefault(st.game(tag), dict(frames=0, pos=0, hard=0, neg=0, off_cache=0))
         for k2 in g:
             g[k2] += c[k2]
     for g, c in per_game.items():
         print('game %-6s %s' % (g, c))
-    print('ALL', {k2: sum(c[k2] for c in per_game.values()) for k2 in ('frames', 'pos', 'hard', 'neg', 'off_cache')})
+    print(
+        'ALL',
+        {
+            k2: sum(c[k2] for c in per_game.values())
+            for k2 in ('frames', 'pos', 'hard', 'neg', 'off_cache')
+        },
+    )
     if check:
         print('check vs clicks:', chk)
-        print('  pseudo-positives on clicked frames: %d, within 15 px of the click %d (%.1f%%), on "out" frames %d' % (
-            chk['pos'], chk['pos_right'], 100.0 * chk['pos_right'] / max(1, chk['pos']), chk['pos_out']))
+        print(
+            '  pseudo-positives on clicked frames: %d, within 15 px of the click %d (%.1f%%), on "out" frames %d'
+            % (
+                chk['pos'],
+                chk['pos_right'],
+                100.0 * chk['pos_right'] / max(1, chk['pos']),
+                chk['pos_out'],
+            )
+        )
         print('  hard pseudo-positives: %d, right %d' % (chk['hard'], chk['hard_right']))
-        print('  pseudo-negatives on clicked frames: %d, actually the ball %d (%.2f%%)' % (
-            chk['neg'], chk['neg_ball'], 100.0 * chk['neg_ball'] / max(1, chk['neg'])))
+        print(
+            '  pseudo-negatives on clicked frames: %d, actually the ball %d (%.2f%%)'
+            % (chk['neg'], chk['neg_ball'], 100.0 * chk['neg_ball'] / max(1, chk['neg']))
+        )
     os.makedirs(st.OUT + '/labels', exist_ok=True)
-    np.savez(st.OUT + '/labels/%s%s.npz' % (name, os.environ.get('ST_LAB', '')), names=np.array(names), pt=np.array(rec['pt']), row=np.array(rec['row']),
-             y=np.array(rec['y']), hard=np.array(rec['hard']), f=np.array(rec['f']))
+    np.savez(
+        st.OUT + '/labels/%s%s.npz' % (name, os.environ.get('ST_LAB', '')),
+        names=np.array(names),
+        pt=np.array(rec['pt']),
+        row=np.array(rec['row']),
+        y=np.array(rec['y']),
+        hard=np.array(rec['hard']),
+        f=np.array(rec['f']),
+    )
 
 
 if __name__ == '__main__':
     name = sys.argv[1]
-    if name.startswith('own_'):  # a game's own picks under its out-of-fold scores (transductive variant)
-        select(name, [t for t in st.DEV if st.game(t) == name[4:]], src=os.environ.get('ST_OWN_SRC', 'oof'))
+    if name.startswith(
+        'own_'
+    ):  # a game's own picks under its out-of-fold scores (transductive variant)
+        select(
+            name,
+            [t for t in st.DEV if st.game(t) == name[4:]],
+            src=os.environ.get('ST_OWN_SRC', 'oof'),
+        )
     else:
         tags = [t for t in st.DEV if name == 'oof' or st.game(t) != name.split('_', 1)[1]]
         select(name, tags, check='check' in sys.argv[2:])

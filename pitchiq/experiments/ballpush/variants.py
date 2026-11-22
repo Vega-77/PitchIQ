@@ -1,4 +1,6 @@
-"""Tracker variants for replay.py.  Each takes a piece's frames (p, s0, pan attached) and returns
+"""Tracker variants for replay.py.
+
+Each takes a piece's frames (p, s0, pan attached) and returns
 (per-frame candidate index or None, src per frame: 1 tracker, 2 gap fill, 0 none).
 
   base                  the shipped chain (render_review_video.picks_for)
@@ -18,6 +20,7 @@
                         gap_fill sees full frames (its own search is local).  run() returns the share of
                         full frames as fr['_full'] on F[0].
 """
+
 import numpy as np
 
 from pitchiq.balltrack import ball_tracker as B
@@ -25,9 +28,24 @@ from pitchiq.balltrack import gap_fill
 from pitchiq.balltrack import render_review_video as rv
 
 
-def track_floor(frames, floor, W=np.inf, conf=2.0, motion_weight=0.125, skip_cost=4.0, max_step=4, off_score=-0.5, leave_cost=2.0,
-                enter_cost=12.0, return_cost=6.0, return_radius=0.0, return_drift=12.0, return_gate=2.0,
-                remembered=B.REMEMBERED, win=None):
+def track_floor(
+    frames,
+    floor,
+    W=np.inf,
+    conf=2.0,
+    motion_weight=0.125,
+    skip_cost=4.0,
+    max_step=4,
+    off_score=-0.5,
+    leave_cost=2.0,
+    enter_cost=12.0,
+    return_cost=6.0,
+    return_radius=0.0,
+    return_drift=12.0,
+    return_gate=2.0,
+    remembered=B.REMEMBERED,
+    win=None,
+):
     """ball_tracker.track_ball (stabilised) with the continuation floor; identical when floor = -inf."""
     kx, ky = 'sx', 'sy'
     T = len(frames)
@@ -59,10 +77,15 @@ def track_floor(frames, floor, W=np.inf, conf=2.0, motion_weight=0.125, skip_cos
                 keep = np.arange(len(fr0['s']))
             else:
                 r = wR + 12.0 * (t - last_on[0] - 1)
-                d = np.hypot(fr0[kx][:, None] - last_on[1][None, :], fr0[ky][:, None] - last_on[2][None, :])
+                d = np.hypot(
+                    fr0[kx][:, None] - last_on[1][None, :], fr0[ky][:, None] - last_on[2][None, :]
+                )
                 keep = np.flatnonzero((d <= r).any(axis=1))
             n0 = len(fr0['s'])
-            sub = {k: (v[keep] if isinstance(v, np.ndarray) and v.ndim >= 1 and len(v) == n0 else v) for k, v in fr0.items()}
+            sub = {
+                k: (v[keep] if isinstance(v, np.ndarray) and v.ndim >= 1 and len(v) == n0 else v)
+                for k, v in fr0.items()
+            }
             sub['_idx'] = keep
             frames[t] = sub
         fr = frames[t]
@@ -92,7 +115,12 @@ def track_floor(frames, floor, W=np.inf, conf=2.0, motion_weight=0.125, skip_cos
             allowed = np.maximum(1.0, return_radius + return_drift * age)
             d = np.hypot(fr[kx][:, None] - px[None, :], fr[ky][:, None] - py[None, :])
             over = np.maximum(0.0, d - allowed[None, :]) / allowed[None, :]
-            tot = ps[None, :] + off_score * (t - pt - 1)[None, :] - return_cost - return_gate * over ** 2
+            tot = (
+                ps[None, :]
+                + off_score * (t - pt - 1)[None, :]
+                - return_cost
+                - return_gate * over**2
+            )
             i = tot.argmax(axis=1)
             v = tot[np.arange(n), i]
             take = v > cur
@@ -167,7 +195,9 @@ def pooled(F, K, r, c):
             if not len(g['p_raw']) or not len(q):
                 continue
             d = np.hypot(fr['sx'][:, None] - g['sx'][None, :], fr['sy'][:, None] - g['sy'][None, :])
-            v = np.where(d <= r + 4 * abs(dt), g['p_raw'][None, :], -np.inf).max(axis=1) - c * abs(dt)
+            v = np.where(d <= r + 4 * abs(dt), g['p_raw'][None, :], -np.inf).max(axis=1) - c * abs(
+                dt
+            )
             q = np.maximum(q, v)
         out.append(q)
     return out
@@ -199,15 +229,28 @@ def run(name, F):
 
     mkw = motionvar.parse(name)
     # fill-only variants share the tracker's picks: keep them per piece, keyed by the tracker part
-    tkey = '+'.join(q for q in name.split('+') if q.split(':')[0] not in ('fill', 'sfill', 'fillk', 'fillb', 'kin')) or 'base'
+    tkey = (
+        '+'.join(
+            q
+            for q in name.split('+')
+            if q.split(':')[0] not in ('fill', 'sfill', 'fillk', 'fillb', 'kin')
+        )
+        or 'base'
+    )
     memo = F[0].setdefault('_trk', {})
     if tkey in memo and win is None:
         base = memo[tkey]
     elif mkw is not None:
         base = motionvar.track_acc(F, **mkw)
     elif win is not None:
-        base, full = track_floor(F, -np.inf if floor is None else floor, W if floor is not None else np.inf,
-                                 conf if floor is not None else 2.0, off_score=off, win=win)
+        base, full = track_floor(
+            F,
+            -np.inf if floor is None else floor,
+            W if floor is not None else np.inf,
+            conf if floor is not None else 2.0,
+            off_score=off,
+            win=win,
+        )
         F[0]['_full'] = full
     elif floor is None:
         base = B.track_ball(F, return_drift=12.0, return_gate=2.0, **dict(rv.BASE, off_score=off))
@@ -218,7 +261,14 @@ def run(name, F):
     bkw = motionvar.parse_fillb(name)
     if bkw is not None:
         out = motionvar.best_fill(F, base, **bkw)
-        F[0]['_cont'] = np.array([o is not None for o in gap_fill.fill(F, base, **{k: v for k, v in bkw.items() if k not in ('pmin', 'w')})])
+        F[0]['_cont'] = np.array(
+            [
+                o is not None
+                for o in gap_fill.fill(
+                    F, base, **{k: v for k, v in bkw.items() if k not in ('pmin', 'w')}
+                )
+            ]
+        )
     elif fkw is not None and 'g' in fkw:
         out = motionvar.smooth_fill(F, base, **fkw)
     else:
@@ -226,7 +276,9 @@ def run(name, F):
     if motionvar.keeps_runs(name):
         k0 = {k: v for k, v in (fkw or {}).items() if k not in ('pmin', 'g')}
         F[0]['_cont'] = np.array([o is not None for o in gap_fill.fill(F, base, **k0)])
-    src = np.array([0 if o is None else (1 if b is not None else 2) for b, o in zip(base, out)], np.int8)
+    src = np.array(
+        [0 if o is None else (1 if b is not None else 2) for b, o in zip(base, out)], np.int8
+    )
     for q in name.split('+'):
         if q.split(':')[0] == 'kin':
             import kin

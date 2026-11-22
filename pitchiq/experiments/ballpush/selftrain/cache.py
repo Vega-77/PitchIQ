@@ -1,4 +1,4 @@
-"""One decode of every dev piece: 40 px crops + context of the candidates any classifier could matter on.
+"""One decode of every dev piece: 40 px crops + context of the candidates that can matter.
 
 Scoring all 37 M dev candidates from video takes ~2 h per model.  The tracker never reads the bottom
 of the list, so this keeps, per frame: every candidate with out-of-fold score > KEEP_P, the frame's top
@@ -7,6 +7,7 @@ cache in a minute; the candidates left out keep their out-of-fold score (all <= 
 
     python cache.py [half ...]     -> selftrain/cache/<piece>.npz  (f, j, crop N x 40 x 40 x 3, ctx)
 """
+
 import os
 import sys
 import time
@@ -33,7 +34,7 @@ def build(job):
     ppl = cc.load_ppl(pt)
     has = ppl is not None
     f, j, p = st.load_oof(pt)
-    edges = np.searchsorted(f, [fr['abs'] for fr in frames] + [10 ** 12])
+    edges = np.searchsorted(f, [fr['abs'] for fr in frames] + [10**12])
     want = None
     if st.SUB:
         zr = np.load(os.path.join(st.OUT, 'rows', '%s.npz' % pt))
@@ -51,7 +52,7 @@ def build(job):
         n = len(fr['s'])
         ntot += n
         a = edges[q]
-        pp = p[a:a + n]
+        pp = p[a : a + n]
         assert f[a] == ab and j[a + n - 1] == n - 1, (pt, ab)
         if want is not None:
             if ab not in want:
@@ -61,7 +62,7 @@ def build(job):
             keep = np.arange(n)
         else:
             keep = np.flatnonzero(pp > st.KEEP_P)
-            top = np.argsort(-pp, kind='stable')[:st.KEEP_TOP]
+            top = np.argsort(-pp, kind='stable')[: st.KEEP_TOP]
             keep = np.union1d(keep, top)
         while pos < ab:
             if not cap.grab():
@@ -80,7 +81,9 @@ def build(job):
         K.append(ctx[keep])
     cap.release()
     tmp = out + '.tmp.npz'
-    np.savez(tmp, f=np.concatenate(F), j=np.concatenate(J), crop=np.concatenate(C), ctx=np.concatenate(K))
+    np.savez(
+        tmp, f=np.concatenate(F), j=np.concatenate(J), crop=np.concatenate(C), ctx=np.concatenate(K)
+    )
     os.replace(tmp, out)
     return pt, sum(len(x) for x in F), ntot, time.time() - t0
 
@@ -90,12 +93,18 @@ def main():
     tags = sys.argv[1:] or st.DEV
     vid = st.videos()
     ck = st.clicks()
-    jobs = [(pt, vid[pt.split('_q')[0]], {f for _, f, _ in ck[pt.split('_q')[0]]}) for pt in st.pieces(tags)
-            if not st.SUB or os.path.exists(os.path.join(st.OUT, 'rows', '%s.npz' % pt))]
+    jobs = [
+        (pt, vid[pt.split('_q')[0]], {f for _, f, _ in ck[pt.split('_q')[0]]})
+        for pt in st.pieces(tags)
+        if not st.SUB or os.path.exists(os.path.join(st.OUT, 'rows', '%s.npz' % pt))
+    ]
     t0 = time.time()
     with Pool(int(os.environ.get('ST_PROCS', '6'))) as pool:
         for pt, k, n, dt in pool.imap_unordered(build, jobs):
-            print('%s  kept %d of %d  %.0f s  (total %.0f s)' % (pt, k, n, dt, time.time() - t0), flush=True)
+            print(
+                '%s  kept %d of %d  %.0f s  (total %.0f s)' % (pt, k, n, dt, time.time() - t0),
+                flush=True,
+            )
     print('CACHE DONE', flush=True)
 
 

@@ -317,11 +317,17 @@ def run(H, slot_kw=None, player_kw=None, split=True):
     return person
 
 
-def main(argv=None):
-    ap = argparse.ArgumentParser()
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        prog='python -m pitchiq.experiments.idslots', description=__doc__.split('\n')[0]
+    )
     ap.add_argument('tag')
     ap.add_argument('--final', action='store_true')
-    a = ap.parse_args(argv)
+    return ap
+
+
+def main(argv=None):
+    a = build_parser().parse_args(argv)
     L._guard(a.tag, a.final)
     H = L.Half(a.tag)
     L.score(H, H.group(), 'today: idlink join')

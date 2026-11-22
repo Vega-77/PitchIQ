@@ -1,4 +1,4 @@
-"""Held-out own labels, round 2, on the re-detected (finder rule) candidates.  Reads no held-out answer.
+"""Held-out own labels, round 2, on finder-rule candidates.  Reads no held-out answer.
 
 Round 1 (held.py) took each held-out half's confident tracks under the SHIPPED scores on the shipped candidates.
 Here they are mined again on the new candidates under the scores the half now has (hkr3a+hkr3b applied), and one
@@ -12,6 +12,7 @@ model per game is refitted with them; everything else in the recipe is held.py's
            the runs' raw scores averaged; ONE label-free affine (frame-top quantiles of the new raw against the
            shipped base scores, the five halves pooled, as held.py finish) -> <giant>/st_T/<out name>/<piece>cls.npz
 """
+
 import argparse
 import glob
 import json
@@ -43,10 +44,25 @@ def fit_cmd(run, off, giant):
         tag = held.HALF[g]
         held.HO = '%s/st_%s' % (giant, tag)
         bt = '%s/bt_%s_k40' % (giant, tag)
-        held.hpieces = lambda g2, bt=bt, tag=tag: [os.path.basename(p)[:-4] for p in sorted(
-            glob.glob(os.path.join(bt, '%s_q[0-9][0-9][0-9].npz' % tag)))]
-        a = argparse.Namespace(cmd='fit', run=run, games=g, w=0.5, epochs=12, seed_offset=off, dev_pseudo='oof_k3',
-                               arch='resnet18', conv_lr=0.3, wide=0, rank=0.0, kmax=24, gbatch=16)
+        held.hpieces = lambda g2, bt=bt, tag=tag: [
+            os.path.basename(p)[:-4]
+            for p in sorted(glob.glob(os.path.join(bt, '%s_q[0-9][0-9][0-9].npz' % tag)))
+        ]
+        a = argparse.Namespace(
+            cmd='fit',
+            run=run,
+            games=g,
+            w=0.5,
+            epochs=12,
+            seed_offset=off,
+            dev_pseudo='oof_k3',
+            arch='resnet18',
+            conv_lr=0.3,
+            wide=0,
+            rank=0.0,
+            kmax=24,
+            gbatch=16,
+        )
         held.fit(a)
     print('HKO FIT DONE', run, flush=True)
 
@@ -77,9 +93,22 @@ def finish_cmd(giant, name, runs):
         old = np.load('%s/cls/%scls.npz' % (root, pt))['p']
         q = p.copy()
         q[i] = aa * raw + bb
-        np.savez('%s/%s/%scls.npz' % (root, name, pt), f=f.astype(np.int32), j=j.astype(np.int16), p=q.astype(np.float32))
-        print('%s  cached %d  new vs hkr3ab corr %.2f  frame-top changed on %.1f%% of cached rows' % (
-            pt, len(raw), float(np.corrcoef(q[i], old[i])[0, 1]), 100 * float(np.mean(np.abs(q[i] - old[i]) > 1))), flush=True)
+        np.savez(
+            '%s/%s/%scls.npz' % (root, name, pt),
+            f=f.astype(np.int32),
+            j=j.astype(np.int16),
+            p=q.astype(np.float32),
+        )
+        print(
+            '%s  cached %d  new vs hkr3ab corr %.2f  frame-top changed on %.1f%% of cached rows'
+            % (
+                pt,
+                len(raw),
+                float(np.corrcoef(q[i], old[i])[0, 1]),
+                100 * float(np.mean(np.abs(q[i] - old[i]) > 1)),
+            ),
+            flush=True,
+        )
     json.dump([float(aa), float(bb)], open('%s/hko_%s_cal.json' % (giant, name), 'w'))
     print('HKO FINISH DONE', flush=True)
 

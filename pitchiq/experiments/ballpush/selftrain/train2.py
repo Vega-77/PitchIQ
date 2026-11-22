@@ -1,4 +1,4 @@
-"""The five-frame-stack rework: the same leave-one-game-out folds as train.py, on 7-channel crops.
+"""The five-frame-stack rework: train.py's leave-one-game-out folds on 7-channel crops.
 
 Channels: the candidate's BGR crop + grey crops of the same ground spot at t-2, t-1, t+1, t+2 (tcache.py).
 The click crops of the retrain (ckL) have no neighbours, so here the click labels are rebuilt on the cache
@@ -11,6 +11,7 @@ their own grey crop repeated as neighbours.  --stack 0 trains the single-frame n
                                [--games a,b] [--wide 1]
        -> runs/<run>/fold_<G>.pt, raw/<piece>.npy ; then  train.py finish <run>
 """
+
 import argparse
 import json
 import os
@@ -126,8 +127,13 @@ def synth_rows(crops, ctx, y, n, rng, keep=None):
     out = np.empty((n,) + crops.shape[1:], np.uint8)
     for k in range(n):
         al = np.clip((rng.uniform(4, 8) - d) / 1.5 + 0.5, 0, 1)[..., None]
-        out[k] = np.clip(al * crops[bi[k]].astype(np.float32) * rng.uniform(0.7, 1.0)
-                         + (1 - al) * crops[gi[k]].astype(np.float32) + 0.5, 0, 255)
+        out[k] = np.clip(
+            al * crops[bi[k]].astype(np.float32) * rng.uniform(0.7, 1.0)
+            + (1 - al) * crops[gi[k]].astype(np.float32)
+            + 0.5,
+            0,
+            255,
+        )
     if keep is None:
         return out, ctx[bi], np.zeros(n, np.int64)
     k2 = ctx[gi].copy()
@@ -135,7 +141,9 @@ def synth_rows(crops, ctx, y, n, rng, keep=None):
     return out, k2, np.zeros(n, np.int64)
 
 
-def fit_net(crops, ctx, y, w, epochs, dev, seed, wide, log='', bs=256, lr=2e-3, init=None, conv_lr=1.0):
+def fit_net(
+    crops, ctx, y, w, epochs, dev, seed, wide, log='', bs=256, lr=2e-3, init=None, conv_lr=1.0
+):
     """train_ball_classifier.fit with the first conv sized to the crops' channels (and optional wider net)."""
     import torch
     import torch.nn.functional as Fn
@@ -152,9 +160,14 @@ def fit_net(crops, ctx, y, w, epochs, dev, seed, wide, log='', bs=256, lr=2e-3, 
         net.conv.load_state_dict(torch.load(init, weights_only=True)['conv'])
     net = net.to(dev)
     rest = [q for n, q in net.named_parameters() if not n.startswith('conv.')]
-    opt = torch.optim.AdamW([dict(params=net.conv.parameters(), lr=lr * conv_lr), dict(params=rest, lr=lr)], weight_decay=1e-4)
+    opt = torch.optim.AdamW(
+        [dict(params=net.conv.parameters(), lr=lr * conv_lr), dict(params=rest, lr=lr)],
+        weight_decay=1e-4,
+    )
     steps = max(1, epochs * ((len(y) + bs - 1) // bs))
-    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=[lr * conv_lr, lr], total_steps=steps, pct_start=0.15)
+    sched = torch.optim.lr_scheduler.OneCycleLR(
+        opt, max_lr=[lr * conv_lr, lr], total_steps=steps, pct_start=0.15
+    )
     sw = w * T.class_weights(y)[y]
     ctx_t = torch.as_tensor(ctx, device=dev)
     y_t = torch.as_tensor(y, device=dev)
@@ -164,19 +177,25 @@ def fit_net(crops, ctx, y, w, epochs, dev, seed, wide, log='', bs=256, lr=2e-3, 
         perm = rng.permutation(len(y))
         tot, t0 = 0.0, time.time()
         for a in range(0, len(perm), bs):
-            b = perm[a:a + bs]
+            b = perm[a : a + bs]
             if len(b) < 2:
                 continue
             x = T.augment(crops[b], dev, rng)
             bt = torch.as_tensor(b, device=dev)
-            loss = (Fn.cross_entropy(net(x, ctx_t[bt]), y_t[bt], reduction='none') * sw_t[bt]).sum() / sw_t[bt].sum()
+            loss = (
+                Fn.cross_entropy(net(x, ctx_t[bt]), y_t[bt], reduction='none') * sw_t[bt]
+            ).sum() / sw_t[bt].sum()
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()
             sched.step()
             tot += float(loss.detach()) * len(b)
         if ep == 0 or ep + 1 == epochs:
-            print('%s  epoch %2d/%d  loss %.4f  %.1fs' % (log, ep + 1, epochs, tot / len(y), time.time() - t0), flush=True)
+            print(
+                '%s  epoch %2d/%d  loss %.4f  %.1fs'
+                % (log, ep + 1, epochs, tot / len(y), time.time() - t0),
+                flush=True,
+            )
     return net.eval()
 
 
@@ -194,7 +213,7 @@ def fit(a):
     hc = hc[:, 4:44, 4:44]
     if a.stack:
         hc = with_stack(hc, None)
-    for g in (a.games.split(',') if a.games else st.GAMES):
+    for g in a.games.split(',') if a.games else st.GAMES:
         i = st.GAMES.index(g)
         t0 = time.time()
         rng = np.random.default_rng(100 + i + a.seed_offset)
@@ -204,36 +223,101 @@ def fit(a):
         for p in [p for p in a.pseudo.split('+') if p != 'none']:
             if p == 'prop':
                 c2, k2 = prop_rows(g, a.stack)
-                crops.append(c2), ctx.append(k2), y.append(np.zeros(len(c2), np.int64)), w.append(np.full(len(c2), a.pw, np.float32))
+                (
+                    crops.append(c2),
+                    ctx.append(k2),
+                    y.append(np.zeros(len(c2), np.int64)),
+                    w.append(np.full(len(c2), a.pw, np.float32)),
+                )
                 continue
-            c2, k2, y2, h2 = pseudo_rows('no_%s' % g if p == 'strict' else 'br_%s' % g if p == 'br' else 'own_%s%s' % (g, a.lab), rng, a.stack)
-            crops.append(c2), ctx.append(k2), y.append(y2), w.append(np.full(len(y2), a.w, np.float32))
+            c2, k2, y2, h2 = pseudo_rows(
+                'no_%s' % g
+                if p == 'strict'
+                else 'br_%s' % g
+                if p == 'br'
+                else 'own_%s%s' % (g, a.lab),
+                rng,
+                a.stack,
+            )
+            (
+                crops.append(c2),
+                ctx.append(k2),
+                y.append(y2),
+                w.append(np.full(len(y2), a.w, np.float32)),
+            )
         if a.synth:
             # sources: the first pseudo set (mined balls of the other games and their negatives)
             keep = [list(names).index(q) for q in a.synth_keep.split(',')] if a.synth_keep else None
             c3, k3, y3 = synth_rows(crops[2], ctx[2], y[2], a.synth, rng, keep)
-            crops.append(c3), ctx.append(k3), y.append(y3), w.append(np.full(a.synth, a.sw, np.float32))
-        crops, ctx, y, w = np.concatenate(crops), np.concatenate(ctx), np.concatenate(y), np.concatenate(w)
+            (
+                crops.append(c3),
+                ctx.append(k3),
+                y.append(y3),
+                w.append(np.full(a.synth, a.sw, np.float32)),
+            )
+        crops, ctx, y, w = (
+            np.concatenate(crops),
+            np.concatenate(ctx),
+            np.concatenate(y),
+            np.concatenate(w),
+        )
         if a.cleat_w != 1.0:
             # new-brief 2.2: not-ball rows in the bottom quarter of a person box (cleats, socks) weigh more
             ki, kv = list(names).index('inside'), list(names).index('v')
             cl = (y != 0) & (ctx[:, ki] > 0.5) & (ctx[:, kv] >= 0.75)
             w = np.where(cl, w * a.cleat_w, w).astype(np.float32)
-            print('fold %s: cleat-zone negatives %d of %d not-ball rows, weight x%g' % (g, int(cl.sum()), int((y != 0).sum()), a.cleat_w), flush=True)
+            print(
+                'fold %s: cleat-zone negatives %d of %d not-ball rows, weight x%g'
+                % (g, int(cl.sum()), int((y != 0).sum()), a.cleat_w),
+                flush=True,
+            )
         mu, sd = T.ctx_stats(ctx)
-        net = fit_net(crops, T.ctx_norm(ctx, mu, sd), y, w, a.epochs, dev, i + a.seed_offset, a.wide, log='fold %s' % g,
-                      init=a.init or None, conv_lr=a.conv_lr)
+        net = fit_net(
+            crops,
+            T.ctx_norm(ctx, mu, sd),
+            y,
+            w,
+            a.epochs,
+            dev,
+            i + a.seed_offset,
+            a.wide,
+            log='fold %s' % g,
+            init=a.init or None,
+            conv_lr=a.conv_lr,
+        )
         sc = T.Scorer(net, mu, sd, names, dev)
-        torch.save(dict(state=net.state_dict(), mu=mu.tolist(), sd=sd.tolist(), ctx_names=list(names), epochs=a.epochs,
-                        pseudo=a.pseudo, stack=a.stack, wide=a.wide), out + '/fold_%s.pt' % g)
+        torch.save(
+            dict(
+                state=net.state_dict(),
+                mu=mu.tolist(),
+                sd=sd.tolist(),
+                ctx_names=list(names),
+                epochs=a.epochs,
+                pseudo=a.pseudo,
+                stack=a.stack,
+                wide=a.wide,
+            ),
+            out + '/fold_%s.pt' % g,
+        )
         for pt in st.pieces([t for t in st.DEV if st.game(t) == g]):
             ca = st.load_cache(pt)
             c = ca['crop']
             if a.stack:
                 c = with_stack(c, np.load(st.OUT + '/tcache/%s.npy' % pt))
             np.save(out + '/raw/%s.npy' % pt, sc.score(c, ca['ctx'], batch=1024))
-        print('fold %s: human %d + click rows %d (ball %d) + pseudo %d, stack %d, %.0f s' % (
-            g, len(hy), len(cy), int((cy == 0).sum()), len(y) - len(hy) - len(cy), a.stack, time.time() - t0), flush=True)
+        print(
+            'fold %s: human %d + click rows %d (ball %d) + pseudo %d, stack %d, %.0f s'
+            % (
+                g,
+                len(hy),
+                len(cy),
+                int((cy == 0).sum()),
+                len(y) - len(hy) - len(cy),
+                a.stack,
+                time.time() - t0,
+            ),
+            flush=True,
+        )
         del crops, ctx, net, sc
     print('FIT DONE', a.run, flush=True)
 
@@ -247,10 +331,18 @@ def main():
     f.add_argument('--pseudo', default='strict')
     f.add_argument('--synth', type=int, default=0)  # synthetic pasted-ball positives per fold
     f.add_argument('--sw', type=float, default=0.5)  # their loss weight
-    f.add_argument('--synth-keep', default='')  # e.g. s,rank: ctx is the background's except these columns
-    f.add_argument('--cleat-w', type=float, default=1.0)  # loss weight factor of cleat-zone negatives
-    f.add_argument('--init', default='')  # pretrained checkpoint for the conv trunk (sn_pre.py, in git history)
-    f.add_argument('--conv-lr', type=float, default=1.0)  # the trunk's learning rate as a share of the head's
+    f.add_argument(
+        '--synth-keep', default=''
+    )  # e.g. s,rank: ctx is the background's except these columns
+    f.add_argument(
+        '--cleat-w', type=float, default=1.0
+    )  # loss weight factor of cleat-zone negatives
+    f.add_argument(
+        '--init', default=''
+    )  # pretrained checkpoint for the conv trunk (sn_pre.py, in git history)
+    f.add_argument(
+        '--conv-lr', type=float, default=1.0
+    )  # the trunk's learning rate as a share of the head's
     f.add_argument('--lab', default='')  # label-set suffix (pseudo.py ST_LAB), e.g. _l30
     f.add_argument('--stack', type=int, default=1)
     f.add_argument('--wide', type=int, default=0)

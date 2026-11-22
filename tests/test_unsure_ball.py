@@ -1,5 +1,6 @@
-"""The 3D ball's third state (session step 3.3): 'unsure' where the ball was seen but neither a
-flight nor the smoothed ground path vouches for it."""
+"""The 3D ball's third state (session step 3.3): 'unsure'.
+
+Where the ball was seen but neither a flight nor the smoothed ground path vouches for it."""
 
 from __future__ import annotations
 
