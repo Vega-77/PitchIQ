@@ -20,7 +20,7 @@ def _cal(t):
     return PannedCalibration(np.eye(3), pitch, CalibrationError(mean_m=0.3, max_m=2.0, p90_m=0.8))
 
 
-def _ball(track, tag, f, x, y, src):
+def _ball(track, tag, f, x, y, src, state=None):
     """v17 ball files: x, y in StatsBomb units."""
     (track / 'h3d_v17').mkdir(parents=True, exist_ok=True)
     (track / 'evaluation' / 'p2d' / 'v17').mkdir(parents=True, exist_ok=True)
@@ -31,7 +31,7 @@ def _ball(track, tag, f, x, y, src):
         x=x,
         y=y,
         z=np.zeros(n),
-        state=np.array(['ground'] * n),
+        state=np.array(['ground'] * n) if state is None else np.asarray(state),
     )
     np.savez(
         track / 'evaluation' / 'p2d' / 'v17' / f'{tag}.npz',
@@ -91,6 +91,19 @@ def test_seen_ball_is_a_placed_pick(tmp_path):
     assert t.ball_seen().tolist() == [True, True, False, False, False]
     x, _, src = t.ball_at(101)  # a pick with no 3D position keeps its source, NaN metres
     assert np.isnan(x) and src == 1
+
+
+def test_an_unsure_ball_is_no_ball_for_the_stats(tmp_path):
+    """A ring the 3D cannot vouch for (merge_air_and_ground's 'unsure') keeps its source and
+    has no metres, as a ring it could not place."""
+    mp, track = _half(tmp_path)
+    f, x, y = np.arange(99, 104), np.array([60.0, 12, 30, 24, 0]), np.array([40.0, 8, 8, 16, 0])
+    st = ['ground', 'unsure', 'air', 'unsure', 'none']
+    _ball(track, 'zz1', f, x, y, np.array([1, 2, 1, 3, 0]), st)
+    t = HalfTable.load('zz1', mp, track)
+    assert np.isfinite(t.ball_x).tolist() == [True, False, True, False, False]
+    assert t.ball_src.tolist() == [1, 2, 1, 3, 0]
+    assert t.ball_seen().tolist() == [True, False, True, False, False]
 
 
 def test_the_table_names_what_makes_a_missing_file(tmp_path):

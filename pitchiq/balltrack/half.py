@@ -307,6 +307,8 @@ class Half:
             '%s_ball3d2.npz' % P,
             '%s_smooth.npz' % P,
             '%s_ball3dd.npz' % P,
+            '%s_scan2.npz' % P,
+            '%s_venue.npz' % P,
             log=log,
             env=ONE_THREAD,
         )

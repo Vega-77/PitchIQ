@@ -62,11 +62,16 @@ def text(im, s, org, sc, col, th=1):
     cv2.putText(im, s, org, FONT, sc, col, th, cv2.LINE_AA)
 
 
-def ring(im, c, r, col):
-    """A ring of radius r at c with a black outline."""
+def ring(im, c, r, col, dashed=False):
+    """A ring of radius r at c with a black outline; dashed for a ball the 3D is unsure of."""
     c = (int(c[0]), int(c[1]))
-    cv2.circle(im, c, r, BLACK, 4, cv2.LINE_AA)
-    cv2.circle(im, c, r, col, 2, cv2.LINE_AA)
+    if not dashed:
+        cv2.circle(im, c, r, BLACK, 4, cv2.LINE_AA)
+        cv2.circle(im, c, r, col, 2, cv2.LINE_AA)
+        return
+    for a in range(0, 360, 45):  # eight dashes
+        cv2.ellipse(im, c, (r, r), 0, a, a + 25, BLACK, 4, cv2.LINE_AA)
+        cv2.ellipse(im, c, (r, r), 0, a, a + 25, col, 2, cv2.LINE_AA)
 
 
 def ball(tag, lo, hi):
@@ -78,16 +83,26 @@ def ball(tag, lo, hi):
     ver = ball17.version(tag)  # the look #17 ball where this half has it, else Hybrid 90
     B = np.load(os.path.join(HERE, 'h3d_' + ver, '%s_ball3dd.npz' % tag))
     P = np.load(os.path.join(HERE, 'evaluation', 'p2d', ver, '%s.npz' % tag))
+    lost = ball17.lost(tag, a0, P, ver)  # the classifier is lost there (v17: already in its rings)
+    return (a0,) + ball_frames(tr, B, P, lo - a0, hi - lo, lost)
+
+
+def ball_frames(tr, B, P, i0, n, lost=None):
+    """match_video.ball's arrays for n frames from index i0 of a half's 3D ball B
+    (ball3dd) and rings P (p2d): image point, StatsBomb point, ground point under an air
+    ball, and kind: 'air', 'ground', 'unsure' (a ring the 3D cannot vouch for: drawn dashed,
+    no map point, see merge_air_and_ground) or '' (no ball). `lost`: frames to leave out."""
     air = (B['state'] == 'air') & np.isfinite(B['x'])
     flash = short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
-    flash |= ball17.lost(tag, a0, P, ver)  # the classifier is lost there (v17: already in its rings)
-    n = hi - lo
+    if lost is not None:
+        flash |= lost
+    unsure = B['state'] == 'unsure'
     img = np.full((n, 2), np.nan)
     sb = np.full((n, 2), np.nan)
     gnd = np.full((n, 2), np.nan)
     kind = [''] * n
     for k in range(n):
-        i = lo - a0 + k
+        i = i0 + k
         if flash[i]:
             continue
         if air[i]:
@@ -99,10 +114,10 @@ def ball(tag, lo, hi):
             img[k], gnd[k], kind[k] = b_, g_, 'air'
         elif P['src'][i] > 0 and np.isfinite(P['x'][i]):
             img[k] = P['x'][i], P['y'][i]
-            kind[k] = 'ground'
-        if np.isfinite(B['x'][i]):
+            kind[k] = 'unsure' if unsure[i] else 'ground'
+        if np.isfinite(B['x'][i]) and not unsure[i]:
             sb[k] = B['x'][i], B['y'][i]
-    return a0, img, sb, gnd, kind
+    return img, sb, gnd, kind
 
 
 def kit_name(lab) -> str:
@@ -265,8 +280,12 @@ def main():
         ('referee', REF),
         ('ball', GREEN),
         ('ball in air', ORANGE),
+        ('ball?', None),  # air or ground unsure: a dashed ring
     ):
-        cv2.circle(base, (lx + 6, HT - 15), 6, c, -1, cv2.LINE_AA)
+        if c is None:
+            ring(base, (lx + 6, HT - 15), 6, GREEN, dashed=True)
+        else:
+            cv2.circle(base, (lx + 6, HT - 15), 6, c, -1, cv2.LINE_AA)
         text(base, s, (lx + 16, HT - 10), 0.45, (210, 210, 210))
         lx += 30 + 9 * len(s)
     blend_dot(base, (WD - 205, LEG - 14), 5, (200, 200, 200), 0.8, ring=True)
@@ -335,8 +354,8 @@ def main():
             c, g = bimg[k] * SC, bgnd[k] * SC
             cv2.line(cam, tuple(np.int32(c)), tuple(np.int32(g)), ORANGE, 2, cv2.LINE_AA)
             ring(cam, c, 12, ORANGE)
-        elif kd == 'ground':
-            ring(cam, bimg[k] * SC, 11, GREEN)
+        elif kd in ('ground', 'unsure'):
+            ring(cam, bimg[k] * SC, 11, GREEN, dashed=kd == 'unsure')
         im[TOP : TOP + CH] = cam
         cv2.polylines(
             im, [np.int32([mm(*p) for p in footprint(Hs[i])])], True, (0, 220, 255), 1, cv2.LINE_AA
@@ -357,7 +376,12 @@ def main():
         text(im, 'BALL + PLAYERS', (10, 30), 0.7, GREEN, 2)
         text(
             im,
-            {'air': 'ball in the air', 'ground': 'ball tracked', '': 'no ball'}[kd],
+            {
+                'air': 'ball in the air',
+                'ground': 'ball tracked',
+                'unsure': 'ball seen, air or ground unsure',
+                '': 'no ball',
+            }[kd],
             (215, 30),
             0.5,
             GREY if kd == '' else WHITE,

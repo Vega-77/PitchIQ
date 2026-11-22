@@ -195,6 +195,8 @@ class PannedCamera:
         # No ball where the classifier is lost for minutes (pitchiq/balltrack/ballgate.py); the v17
         # rings carry their own gate, read off the new classifier (ball17.lost).
         lost = ball17.lost(tag, int(frames[0]), picks, version)
+        # nor where the 3D cannot vouch for a ground position (merge_air_and_ground's 'unsure')
+        lost = lost | (ball['state'] == 'unsure')
         return cls.from_arrays(
             frames,
             smooth['H'],

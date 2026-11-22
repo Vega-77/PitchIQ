@@ -313,7 +313,7 @@ def flight_flags(chains, state) -> list[str]:
     little ball to say."""
     state = np.asarray(state)
     air = int((state == 'air').sum())
-    seen = air + int((state == 'ground').sum())
+    seen = air + int(np.isin(state, ('ground', 'unsure')).sum())
     if seen < MIN_BALL:
         return []
     out = []

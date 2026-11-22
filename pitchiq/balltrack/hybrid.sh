@@ -38,7 +38,7 @@ cd pitch_registration
 "$PY" -W ignore -m $M.pitch_registration.roll_speed_cache "$T" >> "${T}_chain.log" 2>&1
 "$PY" -W ignore -m $M.pitch_registration.flight_chain "$T" >> "${T}_chain.log" 2>&1
 VS_B3="${T}_ball3d2.npz" "$PY" -W ignore -m $M.pitch_registration.smooth_ball "$T" >> "${T}_chain.log" 2>&1
-"$PY" -W ignore -m $M.pitch_registration.merge_air_and_ground "${T}_ball3d2.npz" "${T}_smooth.npz" "${T}_ball3dd.npz" >> "${T}_chain.log" 2>&1
+"$PY" -W ignore -m $M.pitch_registration.merge_air_and_ground "${T}_ball3d2.npz" "${T}_smooth.npz" "${T}_ball3dd.npz" "${T}_scan2.npz" "${T}_venue.npz" >> "${T}_chain.log" 2>&1
 
 echo "=== TAPNext bridges $(date +%T)"
 cd "$B/tapnext_bridge"

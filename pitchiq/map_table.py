@@ -15,10 +15,10 @@ frame, else the map's guess) and alpha (how sure the guess is), slot (formation 
 Ball: `balltrack/h3d_v17/<tag>_ball3dd.npz` (StatsBomb units, 120 x 80, on the same pitch
 axes) with `evaluation/p2d/v17/<tag>.npz` for its source (src 1 a tracked detector pick, 2 a
 pick filling a gap, 3 a TAPNext bridge, 0 no ball), scaled to metres by the map's pitch size.
-A ring the 3D chain could not place has src > 0 and NaN metres (15% of wb1's rings, two thirds
-of them off the pitch: out of play or in the air); the stats treat it as no ball, as
-`PannedCamera.from_tracker` always has. The v17 ball has no other gate (`ball17.lost` is empty
-for it: its rings carry their own).
+A ring the 3D chain could not place, or calls 'unsure' (seen, but no flight and no ground path
+vouches for it: `pitch_registration/merge_air_and_ground.py`, session step 3.3), has src > 0
+and NaN metres; the stats treat it as no ball, as `PannedCamera.from_tracker` does. The v17
+ball has no other gate (`ball17.lost` is empty for it: its rings carry their own).
 Both are placed by the same camera (`balltrack/camera.py`; the v17 ball's own smoothed copy
 of it differs by under a micrometre on one frame of wb1), so a ball at a player's feet in
 the video is at that player's dot here.
@@ -91,7 +91,7 @@ class HalfTable:
             if not np.array_equal(f, np.arange(f[0], f[0] + len(f))):
                 raise ValueError(f'{tag}: the v17 ball skips frames')
             src = z2['src'].astype(np.int8)
-            has = src > 0
+            has = (src > 0) & (z3['state'] != 'unsure')
             x = np.where(has, z3['x'] * L / 120.0, np.nan)
             y = np.where(has, z3['y'] * W / 80.0, np.nan)
         return cls(tag, fps, L, W, players, int(f[0]), x, y, src, kit)

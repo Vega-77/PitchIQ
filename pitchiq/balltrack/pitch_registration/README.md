@@ -9,7 +9,9 @@ From image pixels to the pitch (StatsBomb 120x80), and the ball in 3D.
 - 3D chain (`../evaluation/mk3d.py` runs it in order): `ball_on_pitch.py`,
   `image_track.py`, `flight_scan.py`, `roll_speed_cache.py`, then
   the default ball path (`flight_chain.py`, `smooth_ball.py`,
-  `merge_air_and_ground.py`) -> `<tag>_ball3dd.npz`.
+  `merge_air_and_ground.py`) -> `<tag>_ball3dd.npz`. Its state is 'air' (a flight that
+  fits), 'ground' (the smoothed ground path agrees), 'unsure' (seen, but neither vouches for
+  it: drawn dashed, no ground position for the stats) or 'none'.
 - `score_*.py` score 3D output on the Air and Flight Lab labels in `labeling/`.
 - `pinned_ww01/h3d/ww01_ballsb.csv` is a saved ball-on-pitch table for ww01,
   added with autocal on 2026-10-07; nothing reads it.

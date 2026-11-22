@@ -242,7 +242,9 @@ ones in `balltrack/`.
 **Writes:**
 - `PitchIQ-data/ball17/<g>/` (about 510 MB of working files and `log.txt`)
 - `evaluation/p2d/v17/<tag>.npz`
-- `h3d_v17/<tag>_ball3dd.npz` + `_smooth2.npz`: the ball everything after this reads
+- `h3d_v17/<tag>_ball3dd.npz` + `_smooth2.npz`: the ball everything after this reads. Each
+  frame's state is 'air', 'ground', 'unsure' (seen, but neither a flight nor the ground path
+  vouches for it; the stats treat it as no ball) or 'none' (`merge_air_and_ground`, step 3.3)
 
 ## 4. Map (`pitchiq.experiments.wholemap <tag> --procs 8`, 15-40 min a half)
 

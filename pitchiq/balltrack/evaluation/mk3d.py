@@ -118,6 +118,8 @@ def chain(ver, tag, variants):
                 '%s_ball3d2.npz' % tag,
                 '%s_smooth.npz' % tag,
                 '%s_ball3dd.npz' % tag,
+                '%s_scan2.npz' % tag,
+                '%s_venue.npz' % tag,
             )
             os.replace(
                 os.path.join(d, '%s_smooth.npz' % tag), os.path.join(d, '%s_smooth2.npz' % tag)
@@ -138,6 +140,8 @@ def chain(ver, tag, variants):
                 '%s_ball3dx1.npz' % tag,
                 '%s_smooth.npz' % tag,
                 '%s_ball3dsx.npz' % tag,
+                '%s_scan2.npz' % tag,
+                '%s_venue.npz' % tag,
             )
     print('%-16s %-5s 3D done  %.0f s' % (ver, tag, time.time() - t0), flush=True)
 

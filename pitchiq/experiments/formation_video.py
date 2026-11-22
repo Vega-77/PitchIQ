@@ -477,7 +477,8 @@ class Match:
 def ball_track(tag, lo, hi, length, width, ver=None):
     """The ball as match_video draws it (Hybrid 90 picks + flight chain, short flashes and
     ballgate's lost stretches left out), per frame lo..hi-1: image point, map point in
-    metres, ground point under an air ball, and kind ('ground', 'air' or '' = no ball).
+    metres, ground point under an air ball, and kind ('ground', 'air', 'unsure' = seen but the
+    3D cannot vouch for it, no map point; or '' = no ball).
 
     ver (--ball-ver, 2026-11-17): a ball-push run instead, read from PitchIQ-data/ball-push/port:
     p2d/<ver>/<tag>.npz holds only the run's final rings (its own lost-ball gate already applied),
@@ -508,28 +509,7 @@ def _port_ball(MV, ver, tag, lo, hi):
     B = np.load(port / f'h3d_{ver}' / f'{tag}_ball3dd.npz')
     P = np.load(port / 'p2d' / ver / f'{tag}.npz')
     assert int(P['abs'][0]) == a0 and len(P['abs']) == len(B['x']), (tag, int(P['abs'][0]), a0)
-    air = (B['state'] == 'air') & np.isfinite(B['x'])
-    flash = MV.short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
-    n = hi - lo
-    img, sb, gnd = (np.full((n, 2), np.nan) for _ in range(3))
-    kind = [''] * n
-    for k in range(n):
-        i = lo - a0 + k
-        if flash[i]:
-            continue
-        if air[i]:
-            q = np.linalg.solve(tr.A, [B['x'][i], B['y'][i], 1.0])
-            uv = q[:2] / q[2]
-            b_, g_ = tr.project(
-                np.full(2, i), np.array([[uv[0], uv[1], B['z'][i]], [uv[0], uv[1], 0.0]])
-            )
-            img[k], gnd[k], kind[k] = b_, g_, 'air'
-        elif P['src'][i] > 0 and np.isfinite(P['x'][i]):
-            img[k] = P['x'][i], P['y'][i]
-            kind[k] = 'ground'
-        if np.isfinite(B['x'][i]):
-            sb[k] = B['x'][i], B['y'][i]
-    return a0, img, sb, gnd, kind
+    return (a0,) + MV.ball_frames(tr, B, P, lo - a0, hi - lo)
 
 
 def portrait(img, box):
@@ -743,8 +723,13 @@ class Video:
                     cv2.line(cam, c, g, BLACK, 3, cv2.LINE_AA)
                     cv2.line(cam, c, g, BALL, 1, cv2.LINE_AA)
                     cv2.circle(cam, g, 2, BALL, -1, cv2.LINE_AA)
-                cv2.circle(cam, c, 9, BLACK, 4, cv2.LINE_AA)
-                cv2.circle(cam, c, 9, BALL, 2, cv2.LINE_AA)
+                if kind[k] == 'unsure':  # seen, air or ground unsure: dashed
+                    for a in range(0, 360, 45):
+                        cv2.ellipse(cam, c, (9, 9), 0, a, a + 25, BLACK, 4, cv2.LINE_AA)
+                        cv2.ellipse(cam, c, (9, 9), 0, a, a + 25, BALL, 2, cv2.LINE_AA)
+                else:
+                    cv2.circle(cam, c, 9, BLACK, 4, cv2.LINE_AA)
+                    cv2.circle(cam, c, 9, BALL, 2, cv2.LINE_AA)
         t = f / self.M.fps
         _text(cam, f'{self.M.tag}  video {_clock(t)}   ({_clock((f - self.lo) / self.M.fps)} of {_clock((self.hi - self.lo) / self.M.fps)})',
               (8, CAM[1] - 10), 0.5, WHITE, 1, bg=BLACK)  # fmt: skip
@@ -854,6 +839,8 @@ class Video:
                 c, air = p(*bxy[k]), kind[k] == 'air'
                 cv2.circle(im, c, 5, BLACK, 3 if air else -1, cv2.LINE_AA)
                 cv2.circle(im, c, 4, BALL, 2 if air else -1, cv2.LINE_AA)
+            elif kind[k] == 'unsure':
+                _text(im, 'ball: height unsure', (MAP_W - 136, CAM[1] - 10), 0.4, (170, 170, 170))
             else:
                 _text(im, 'ball: not found', (MAP_W - 118, CAM[1] - 10), 0.4, (170, 170, 170))
         _text(
