@@ -54,8 +54,15 @@ PAGES = stamp_version.PAGES
 # somebody can read, and a name that has since been wired up has to come out,
 # or the list rots into a graveyard nobody dares touch.
 #
-# Empty, and that is the finding — every module the frontend ships is reached.
-STRANDED_BY_DESIGN: dict[str, str] = {}
+# Only the match viewer's two modules, below; every other module the frontend ships is
+# reached.
+STRANDED_BY_DESIGN: dict[str, str] = {
+    # The match viewer (session step 3.9, 2026-11-22). Built and checked on this PC through
+    # tools/viewer-preview.html, which is not part of the site. The coach match page gets its
+    # Viewer section once the owner says the map and events may go on the site.
+    'shared/match-viewer.js': 'match viewer; waits for the coach page Viewer section (owner OK)',
+    'shared/viewer-data.js': 'match viewer data; loaded by match-viewer.js, which waits as above',
+}
 
 # A page with no module at all, and why. It still gets the stamped stylesheet
 # and kit-boot.js; it just has nothing to run.

@@ -1,4 +1,4 @@
-"""The match viewer's data: a game's map, 3D ball, possession and moments, packed for the site.
+"""The match viewer's data: a game's map, 3D ball, possession and moments, packed small.
 
     python -m pitchiq viewer_export wbr --ours lighter --report wbr_report.json --out view/
 
@@ -202,10 +202,15 @@ def load_half(inp: HalfInputs, period: int, ours_kit: str) -> Half:
     )  # fmt: skip
 
 
+def samples_per_chunk() -> int:
+    """Samples in one chunk; the index carries it so the page never assumes the rate."""
+    return max(1, int(round(CHUNK_S * HZ)))
+
+
 def chunks(h: Half) -> list[dict]:
     """The half's samples as chunk documents of CHUNK_S seconds each."""
     fs = h.samples
-    per = max(1, int(round(CHUNK_S * HZ)))
+    per = samples_per_chunk()
     keep = (h.f >= h.f0) & ((h.f - h.f0) % h.step == 0)
     sf, sx, sy, sid, sc = h.f[keep], h.x[keep], h.y[keep], h.trk_id[keep], h.code[keep]
     if sid.size and sid.max() >= NO_ID:
@@ -342,6 +347,7 @@ def build(
                 'f0': h.f0,
                 'f1': h.f1,
                 'step': h.step,
+                'per_chunk': samples_per_chunk(),
                 'chunks': [c['id'] for c in all_chunks if c['tag'] == h.tag],
                 'holds': h.hold_frame is not None,
             }

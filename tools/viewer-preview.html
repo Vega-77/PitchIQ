@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Match viewer preview</title>
+<link rel="stylesheet" href="../shared/app.css?v=156">
+<style>
+    body { background: var(--bg); color: var(--text); font-family: var(--font); margin: 0; }
+    main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 1.2rem; margin: 0 0 4px; }
+    .preview-note { color: var(--text-faint); font-size: 0.85rem; margin: 0 0 12px; }
+</style>
+</head>
+<body>
+<main>
+    <h1>Match viewer preview</h1>
+    <p class="preview-note">This PC only: the export's files stand in for the site, and the video is played from disk
+        (tools/viewer_preview.py).</p>
+    <div id="viewer"></div>
+</main>
+<script type="module">
+    import { mountViewer } from '../shared/match-viewer.js?v=156';
+
+    function fileVideo(slot) {
+        const el = document.createElement('video');
+        el.className = 'match-video';
+        el.controls = true;
+        el.preload = 'metadata';
+        el.src = '/video';
+        slot.append(el);
+        return {
+            kind: 'file',
+            element: el,
+            seek(s) {
+                const go = () => { el.currentTime = Math.max(0, s); };
+                if (el.readyState >= 1) go();
+                else el.addEventListener('loadedmetadata', go, { once: true });
+            },
+            currentTime: () => el.currentTime,
+            destroy() { el.removeAttribute('src'); el.load(); el.remove(); },
+        };
+    }
+
+    const index = await (await fetch('/view/index.json')).json();
+    const at = Number(new URLSearchParams(location.search).get('t'));
+    const viewer = mountViewer(document.getElementById('viewer'), {
+        index,
+        loadChunk: async (id) => (await fetch(`/view/${id}.json`)).json(),
+        mountVideo: fileVideo,
+    });
+    viewer.seek(Number.isFinite(at) && at > 0 ? at : index.halves[0].f0 / index.halves[0].fps);
+    window.viewer = viewer;
+</script>
+</body>
+</html>

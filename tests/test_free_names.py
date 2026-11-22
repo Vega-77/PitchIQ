@@ -71,7 +71,8 @@ KeyboardEvent MouseEvent PointerEvent DragEvent Node Element HTMLElement
 HTMLCanvasElement SVGElement DOMParser XMLHttpRequest MutationObserver
 IntersectionObserver ResizeObserver performance crypto localStorage
 sessionStorage getComputedStyle matchMedia alert confirm prompt Intl
-TextEncoder TextDecoder Uint8Array Uint8ClampedArray Int32Array Float32Array
+TextEncoder TextDecoder Uint8Array Uint8ClampedArray Int16Array Int32Array Uint32Array
+Float32Array
 Float64Array ArrayBuffer DataView OffscreenCanvas Path2D CanvasGradient
 ImageData MediaRecorder ClipboardItem devicePixelRatio innerWidth innerHeight
 scrollY scrollX
