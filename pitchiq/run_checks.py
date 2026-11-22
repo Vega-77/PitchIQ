@@ -1,4 +1,4 @@
-"""Self-checks at the end of a run: signs that a finished game's stats are wrong, with no labels.
+"""Self-checks at the end of a run: signs, with no labels, that a game's stats are wrong.
 
 Session step 3.8 (2026-11-22). The rule behind them is the user's: bad output gets flagged
 without anybody watching. Each check returns a `Check`: `ok` is True, False (a flag) or None
