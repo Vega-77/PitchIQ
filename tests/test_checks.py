@@ -135,3 +135,21 @@ def test_cal_flags():
     ]
     assert checks.cal_flags(dict(people=200, ratio=2.2, median_m=1.75)) == ['far/near 2.20']
     assert checks.cal_flags(dict(people=5, ratio=2.2, median_m=1.0)) == []
+
+
+def _half(air, ground, errs):
+    state = np.array(['air'] * air + ['ground'] * ground + ['none'] * 100)
+    return [dict(err=e) for e in errs], state
+
+
+def test_flight_flags():
+    # a healthy half (wb1 after the fix: 17% in the air, chains at 2 px)
+    assert checks.flight_flags(*_half(1700, 8300, [1.5, 2.0, 2.4])) == []
+    # wb1 before it: nothing in the air, the chains 13 px off
+    assert checks.flight_flags(*_half(0, 10000, [12.0, 13.0, 14.0])) == [
+        '0.0% of the ball in the air',
+        'flights fit to 13.0 px',
+    ]
+    assert checks.flight_flags(*_half(200, 9800, [2.0])) == ['2.0% of the ball in the air']
+    # too little ball to say
+    assert checks.flight_flags(*_half(0, 4000, [13.0])) == []

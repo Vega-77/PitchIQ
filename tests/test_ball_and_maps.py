@@ -166,3 +166,37 @@ def test_memory_of_a_process_tree():
     use, commit = pm.memory_gb(os.getpid())
     assert use > 0.01 and commit >= 0
     assert pm.memory_gb(2**31 - 1) == (0.0, 0.0)  # gone (or never there)
+
+
+def _flights(run, monkeypatch, air, errs):
+    """The ball step's 3D output for both halves: `air` of 10,000 ball frames in the air."""
+    import numpy as np
+
+    monkeypatch.setattr(pm, 'TRACK', run.out / 'track')
+    run.balled = {'zz1', 'zz2'}
+    d = pm.TRACK / f'h3d_{ball17.VER}'
+    d.mkdir(parents=True)
+    for t in ('zz1', 'zz2'):
+        chains = np.array([dict(err=e) for e in errs], dtype=object)
+        np.save(d / f'{t}_chains2.npy', chains, allow_pickle=True)
+        np.savez(d / f'{t}_ball3d2.npz', state=np.array(['air'] * air + ['ground'] * (10000 - air)))
+
+
+def test_the_flight_check_passes_a_half_with_flights(run, monkeypatch, capsys):
+    _flights(run, monkeypatch, 1500, [1.8, 2.1])
+    pm.flight_check(run)
+    assert 'flight check zz1: ok' in capsys.readouterr().out
+
+
+def test_a_half_with_no_flights_stops_the_run(run, monkeypatch):
+    _flights(run, monkeypatch, 0, [12.0, 14.0])
+    run.a.trust_cal = False
+    with pytest.raises(pm.Stop, match='0.0% of the ball in the air, flights fit to 13.0 px'):
+        pm.flight_check(run)
+
+
+def test_trust_cal_carries_on_past_the_flight_check(run, monkeypatch, capsys):
+    _flights(run, monkeypatch, 0, [12.0, 14.0])
+    run.a.trust_cal = True
+    pm.flight_check(run)
+    assert 'carrying on (--trust-cal)' in capsys.readouterr().out

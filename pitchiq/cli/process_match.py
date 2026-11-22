@@ -35,7 +35,10 @@ this command prints when each one starts and ends.
   4. ball, map  at the same time: the look #17 ball over both halves
                 (`balltrack/ball17.py`, 3-6 h, mostly the GPU) and, beside it,
                 the top-down map of each half (`experiments/wholemap.py`, the
-                CPU), which needs the pass's players and camera but not the ball
+                CPU), which needs the pass's players and camera but not the ball.
+                Then the 3D ball checks the camera (`checks.flight_flags`): a half
+                with almost no ball in the air, or flights that miss, stops the run
+                (`--trust-cal` carries on)
   5. stats     the pipeline report of each half from its map and ball, in
                 pitch metres, with no video read (`experiments/cached_report.py
                 half`, `map_table.py`) but for the players' pictures, cut from
@@ -909,6 +912,40 @@ def ball_done(r: Run) -> bool:
     return all(ball17.version(t) == ball17.VER for t in r.tags)
 
 
+def flight_check(r: Run) -> None:
+    """The 3D ball's own check of the camera (`checks.flight_flags`): a half where next to
+    no ball fits as a flight, or the chains miss, was seen through a camera solved at the
+    wrong height, or with flight units that do not match it (Woodbridge and
+    Wardlaw-Hartridge before 2026-11-22). The stats would put every kick on the grass.
+    `--trust-cal` carries on."""
+    import numpy as np
+
+    from pitchiq.balltrack import ball17
+    from pitchiq.checks import flight_flags
+
+    for t in r.tags:
+        d = TRACK / f'h3d_{ball17.version(t)}'
+        chains, ball = d / f'{t}_chains2.npy', d / f'{t}_ball3d2.npz'
+        if not (chains.exists() and ball.exists()):
+            if r.a.plan:
+                r.say(f'flight check {t}: to do')
+            continue
+        flags = flight_flags(np.load(chains, allow_pickle=True), np.load(ball)['state'])
+        if not flags:
+            r.say(f'flight check {t}: ok')
+        elif r.a.trust_cal or r.a.plan:
+            why = ' (--trust-cal)' if r.a.trust_cal else ''
+            r.say(f'flight check {t}: {", ".join(flags)}; carrying on{why}')
+        else:
+            raise Stop(
+                f'the 3D ball of {t} says its camera is wrong: {", ".join(flags)} ({chains}). '
+                'Every kick would be put on the grass. Check the camera height and pins, '
+                'or pass --trust-cal to carry on anyway.',
+                coach='The ball’s flights did not fit this camera, so the stats would treat '
+                'every kick as a ground ball.',
+            )
+
+
 def step_ball_and_maps(r: Run) -> None:
     """The ball step and both halves' maps at the same time.
 
@@ -928,6 +965,7 @@ def step_ball_and_maps(r: Run) -> None:
         beside = ', beside the ball' if ball else ''
         for t in r.tags:
             r.say(f'map {t}: ' + (f'to do (15-30 min{beside})' if t in todo else 'done'))
+        flight_check(r)
         return
     for t in todo:
         if t in HELD_OUT and not r.a.final:
@@ -994,6 +1032,7 @@ def step_ball_and_maps(r: Run) -> None:
             raise Stop(f'the ball step left no v17 ball for {", ".join(missing)} ({log})')
     if failed:
         raise failed[0]
+    flight_check(r)
 
 
 def map_one(r: Run, t: str, reserve_gb: float) -> None:
@@ -1181,7 +1220,9 @@ def build_parser() -> argparse.ArgumentParser:
         '--plan', action='store_true', help='say what is done and what would run; run nothing'
     )
     p.add_argument(
-        '--trust-cal', action='store_true', help='carry on when the calibration check fails'
+        '--trust-cal',
+        action='store_true',
+        help='carry on when the calibration or flight check fails',
     )
     p.add_argument(
         '--trust-halves',

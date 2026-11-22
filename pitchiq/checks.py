@@ -295,3 +295,31 @@ def cal_flags(r: dict) -> list[str]:
     if not HEIGHT_OK[0] <= r['median_m'] <= HEIGHT_OK[1]:
         out.append('height %.2f m' % r['median_m'])
     return out
+
+
+# The 3D ball's own check of the camera (session step 3.2, 2026-11-22). On all 17 halves with
+# right flight units, 5.9-18.8% of the ball frames are in the air and the chains fit to a
+# median 1.75-2.33 px. The 8 press-box halves fitted with the scrimmage camera's gravity had
+# 0% in the air and chains at 8.5-13.7 px; a camera solved at the wrong height would look the
+# same.
+AIR_OK = 0.03  # least share of the ball frames in the air
+CHAIN_PX_OK = 4.0  # most median fit error of a half's chains, px
+MIN_BALL = 5000  # fewer ball frames (air + ground) and the share is noise
+
+
+def flight_flags(chains, state) -> list[str]:
+    """Why a half's 3D ball (flight_chain's `<tag>_chains2.npy` dicts and `<tag>_ball3d2.npz`
+    state) says its camera or flight units are wrong; empty when it looks right or has too
+    little ball to say."""
+    state = np.asarray(state)
+    air = int((state == 'air').sum())
+    seen = air + int((state == 'ground').sum())
+    if seen < MIN_BALL:
+        return []
+    out = []
+    if air < AIR_OK * seen:
+        out.append('%.1f%% of the ball in the air' % (100.0 * air / seen))
+    errs = [c['err'] for c in chains]
+    if errs and np.median(errs) > CHAIN_PX_OK:
+        out.append('flights fit to %.1f px' % np.median(errs))
+    return out
