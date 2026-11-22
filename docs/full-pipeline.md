@@ -330,7 +330,14 @@ colours), for setting the two side by side.
 
 1. `cached_report merge pipe_<g>1.json pipe_<g>2.json --min-minutes 1` writes `pipe_<g>.json`. Counts are summed and shares weighted by half length. Player rows under a minute are dropped, to keep Firestore documents under 1 MB.
 2. `pitchiq map_report <g>1.npz <g>2.npz --ours ... --into pipe_<g>.json` writes `<g>_report.json`: the report plus the map's figures (team shape, field position).
-3. `pitchiq publish_report <g>_report.json --team T --match M` writes Firestore `cvStats/{summary,events,identity,thumbs}`. Per-player stats publish only once a coach confirms who each cluster is (`cvMapping`).
+3. Self-checks (`pitchiq/run_checks.py`, in process_match; seconds). They check:
+   - the goals found against the score: `--score`, else the goals in the coach's log (`--tag-log`, else the match's `log` on the site);
+   - that the two halves are alike, within 1.5x on rates and shares and 15 points on possession;
+   - that possession spells average 5-40 s;
+   - that the ball is in the air 3-35% of the time.
+
+   They write `self_checks` into `<g>_report.json` and put each flag at the top of its `warnings`, which the coach's match page shows. A flag also goes to run.log and notify.log, and sets `trustworthy` to false. Nothing stops.
+4. `pitchiq publish_report <g>_report.json --team T --match M` writes Firestore `cvStats/{summary,events,identity,thumbs}`. Per-player stats publish only once a coach confirms who each cluster is (`cvMapping`).
 
 ## Firestore documents it touches
 

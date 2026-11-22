@@ -69,6 +69,12 @@ repo) and the team and match ids; `--list-matches` prints them. Both are
 checked before anything long starts, with the video, every model and cache,
 the disk, memory and GPU, and that no other run is going (`preflight.py`). `--tag-log` takes the coach page's log
 download for this match and reruns only the stats and the publish.
+
+Before publishing, the finished report is checked against itself (`pitchiq/run_checks.py`):
+the goals found against the score the coach logged (or `--score`), the two halves alike,
+possession spells of a believable length and the ball's share in the air. A flag stops
+nothing: it goes to run.log, notify.log and the top of the report's warnings, which the
+coach's match page shows.
 """
 
 from __future__ import annotations
@@ -217,6 +223,7 @@ class Run:
         )
         self.progress = Progress(None, None, None)  # main() points it at the match
         self.video_s = None  # the video's length in seconds, from check_video
+        self.db = None  # the site's Firestore client, from check_site
         # set in a thread whose steps run beside another (the maps beside the ball): they
         # leave the coach's progress bar to the one in front
         self.beside = threading.local()
@@ -1154,11 +1161,68 @@ def step_publish(r: Run) -> None:
         '--out',
         full,
     )
+    self_check(r, full)
     if r.a.no_publish:
         r.say(f'report written, not published: {full}')
         return
     r.py('publish', 'pitchiq', 'publish_report', full, '--team', r.a.team, '--match', r.a.match)
     r.say(f'published {full.name} to match {r.a.match}')
+
+
+def final_score(text: str) -> tuple[int, int]:
+    m = re.fullmatch(r'\s*(\d+)\s*[-:]\s*(\d+)\s*', text)
+    if not m:
+        raise argparse.ArgumentTypeError(f'{text!r} is not a score like 2-3 (ours-theirs)')
+    return int(m.group(1)), int(m.group(2))
+
+
+def score_of(r: Run) -> tuple[tuple[int, int] | None, str]:
+    """The final score for the goals check and where it came from: `--score`, else the goals
+    in the coach's log (the --tag-log file, else the match's log on the site)."""
+    from pitchiq import run_checks
+    from pitchiq.cli.event_report import load_tag_log
+
+    if r.a.score:
+        return r.a.score, 'the final score given'
+    if r.a.tag_log:
+        return run_checks.logged_score(load_tag_log(r.a.tag_log)), 'the coach’s log'
+    if r.db is None:
+        return None, ''
+    try:
+        match = r.db.collection('teams').document(r.a.team).collection('matches')
+        entries = [d.to_dict() for d in match.document(r.a.match).collection('log').stream()]
+    except Exception as e:  # a check is never worth a finished run
+        r.say(f'self-check: the match log could not be read ({e})')
+        return None, ''
+    return run_checks.logged_score(entries), 'the coach’s log'
+
+
+def self_check(r: Run, full: Path) -> None:
+    """The finished report checked against itself (run_checks); each flag goes to run.log,
+    notify.log and the top of the report's warnings. Nothing stops."""
+    import numpy as np
+
+    from pitchiq import run_checks
+    from pitchiq.balltrack import ball17
+
+    report = json.loads(full.read_text(encoding='utf-8'))
+    halves = [json.loads((r.out / f'pipe_{t}.json').read_text(encoding='utf-8')) for t in r.tags]
+    air = {}
+    for t in r.tags:
+        path = TRACK / f'h3d_{ball17.version(t)}' / f'{t}_ball3d2.npz'
+        air[t] = run_checks.air_share(np.load(path)['state']) if path.exists() else None
+    score, source = score_of(r)
+    checks = run_checks.self_checks(report, halves, score, air, source)
+    flags = run_checks.flags(checks)
+    report['self_checks'] = run_checks.as_json(checks)
+    report['warnings'] = flags + [w for w in report.get('warnings') or [] if w not in flags]
+    report['trustworthy'] = bool(report.get('trustworthy')) and not flags
+    full.write_text(json.dumps(report, indent=1), encoding='utf-8')
+    for c in checks:
+        verdict = {True: 'ok', False: 'FLAG', None: 'not checked'}[c.ok]
+        r.say(f'self-check {c.key}: {verdict}: {c.text}')
+    if flags:
+        r.tell('self-checks', '\n'.join(flags))
 
 
 def footage_note(r: Run) -> None:
@@ -1211,6 +1275,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         '--tag-log',
         help="the coach page's log download for this match: reruns stats and publish with it",
+    )
+    p.add_argument(
+        '--score',
+        type=final_score,
+        help="the final score, ours-theirs (e.g. 2-3), for the goals check when the coach's "
+        'log has none',
     )
     p.add_argument(
         '--no-publish', action='store_true', help='write the report file but not to the site'
@@ -1299,7 +1369,7 @@ def run_steps(r: Run) -> int:
     try:
         r.video_s = check_video(a.video)
         check_inputs(r)
-        db = check_site(a)
+        db = r.db = check_site(a)
         if db is not None:
             r.progress = Progress(db, a.team, a.match)
         r.say(
