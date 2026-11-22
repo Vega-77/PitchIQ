@@ -11,6 +11,7 @@ is ~7000 fragments for ~25 people. Joining them uses what stays true of a person
     python -m pitchiq.experiments.idlink frags <tag>     # every fragment: positions, look
     python -m pitchiq.experiments.idlink numbers <tag>   # number belief per fragment
     python -m pitchiq.experiments.idlink parts <tag>     # body-part colours (opt-in cue)
+    python -m pitchiq.experiments.idlink reid <tag>      # OSNet re-ID fingerprints (opt-in cue)
     python -m pitchiq.experiments.idlink join <tag>      # people; scored on Player ID Lab names
 
 Scored on the Player ID Lab answers: the named clips are fragments of this same linker run
@@ -53,6 +54,16 @@ averaged into one distance, weight 1):
     sure numbers hidden, sure-number pairs    31% 1.4%      ->  35% 1.5%
 More joins where numbers are missing, but the new wrong ones merge players sharing a colour
 (#8 and #5, both pink); as a veto only (cost above a floor, x2-x5) no better. Off by default.
+
+Re-ID fingerprints (`reid`, opt-in, session step 3.5, 2026-11-22): OSNet x0_25 from torchreid
+(MIT code; weights trained on MSMT17, research-only data, so not shippable as is), 15 crops per
+fragment seen >= 5 s, crop + mirror. As a look cue alone, nearest named clip is the same person
+70% vs 60% for the detector look (wb1, pair AUC 0.83 vs 0.75). In the joiner, answers re-checked
+since the figures above (today's joiner now 32/85 at 9/699 on wb1, 24/66 at 4/571 on wb2):
+    wb1, look + re-ID + place + number + last seen, w_reid 0.5-1.5   41-49/85  4-7/699
+    wb1, re-ID instead of look: w 0.7 / 1.0 / 1.5                    24/10, 36/5, 38/3
+    wb2 (held out, scored once): picked look + re-ID, w 0.5          32/66  10/571  (today 24/4)
+More joins on both halves, but the held-out half's wrong joins went 4 -> 10, so it is not kept.
 """
 
 from __future__ import annotations
@@ -352,6 +363,9 @@ NUM_TL, NUM_FLOOR = 0.5, 0.02  # as idscore.numbers
 PARTS = ('hair', 'face', 'arms', 'knees', 'socks', 'cleats')  # Lab colour each, then sock length
 PART_SLOTS = [slice(3 * k, 3 * k + 3) for k in range(len(PARTS))] + [slice(18, 19)]
 PART_DIM = 19
+REID_DIM = 512  # OSNet x0_25's fingerprint
+REID_DIR = DATA / 'models' / 'reid'  # torchreid's osnet.py (MIT) and the weights, kept apart
+REID_W = 'osnet_x0_25_msmt17_combineall.pth'
 
 
 def team_shape(tag, F):
@@ -495,6 +509,16 @@ class Half:
                 k = row.get(int(F['frag'][i]))
                 if k is not None:
                     self.parts[i] = V[k]
+        # re-ID fingerprint per fragment (OSNet, `reid`): mean of its crops' unit vectors
+        self.reid = np.full((n, REID_DIM), np.nan, np.float32)
+        rf = OUT / f'reid_{tag}.npz'
+        if rf.exists():
+            z = np.load(rf)
+            row = {int(f): k for k, f in enumerate(z['frag'])}
+            for i in range(n):
+                k = row.get(int(F['frag'][i]))
+                if k is not None:
+                    self.reid[i] = z['emb'][k]
         # number evidence per fragment: summed crop beliefs and weights (pooled per person)
         self.numP = {}
         nf = numbers_file or OUT / f'numbers_{tag}.npz'
@@ -537,6 +561,7 @@ class Half:
         cues=('feat', 'place', 'num', 'last'),
         w_num=0.5,
         w_parts=1.0,
+        w_reid=0.5,
         min_s=5.0,
         overlap=10,
         w_last=5.0,
@@ -549,6 +574,7 @@ class Half:
         + w_num * (-log number likelihood ratio) + w_last * (impossible-move penalty). Stops
         when the cheapest join costs more than `thr`. Returns person per fragment, -1 left out.
         Cue 'parts' (opt-in) adds w_parts * the mean over body parts of colour gap / median.
+        Cue 'reid' (opt-in, step 3.5) adds w_reid * OSNet fingerprint distance / median.
 
         The last-seen term only penalises: where one ends and the other starts within `last_s`,
         a miss beyond s0 + sv * gap metres costs (miss / (s0 + sv * gap) - 1). As a bonus for
@@ -563,7 +589,11 @@ class Half:
             nP = self.numP.get(i)
             pv = self.parts[i]
             pm = np.array([np.isfinite(pv[s]).all() for s in PART_SLOTS], float) * wt
+            rv = self.reid[i]
+            rok = bool(np.isfinite(rv).all())
             G[i] = dict(
+                re=rv.astype(np.float64) * wt if rok else np.zeros(REID_DIM),
+                rw=wt if rok else 0.0,
                 pp=np.nan_to_num(pv)
                 * np.concatenate([np.full(s.stop - s.start, m) for s, m in zip(PART_SLOTS, pm)]),
                 pn=pm,
@@ -600,6 +630,11 @@ class Half:
             else:
                 out['place'] = np.nan
             out['num'] = -np.log(100 * float(_belief_pooled(A) @ _belief_pooled(B)))
+            if A['rw'] > 0 and B['rw'] > 0:
+                ra, rb = A['re'] / np.linalg.norm(A['re']), B['re'] / np.linalg.norm(B['re'])
+                out['reid'] = 1 - ra @ rb
+            else:
+                out['reid'] = np.nan
             out['parts'] = np.array(
                 [
                     np.linalg.norm(A['pp'][s] / A['pn'][k] - B['pp'][s] / B['pn'][k])
@@ -619,7 +654,7 @@ class Half:
             for _ in range(min(3000, len(gs) ** 2) if len(gs) > 1 else 0):
                 a, b = rng.choice(gs, 2, replace=False)
                 smp.append(parts(a, b))
-        med = {k: np.nanmedian([s[k] for s in smp]) for k in ('feat', 'place')}
+        med = {k: np.nanmedian([s[k] for s in smp]) for k in ('feat', 'place', 'reid')}
         med['parts'] = (
             np.nanmedian([s['parts'] for s in smp], 0) if smp else np.ones(len(PART_SLOTS))
         )
@@ -638,6 +673,8 @@ class Half:
             if 'parts' in cues:
                 d = p['parts'] / med['parts']
                 c += w_parts * (np.nanmean(d) if np.isfinite(d).any() else 1.0)
+            if 'reid' in cues:
+                c += w_reid * (p['reid'] / med['reid'] if np.isfinite(p['reid']) else 1.0)
             if 'last' in cues:
                 c += w_last * self._impossible(G[a]['ends'], G[b]['ends'], last_s, s0, sv)
             return c
@@ -669,6 +706,8 @@ class Half:
                 nw=A['nw'] + B['nw'],
                 pp=A['pp'] + B['pp'],
                 pn=A['pn'] + B['pn'],
+                re=A['re'] + B['re'],
+                rw=A['rw'] + B['rw'],
                 members=A['members'] + B['members'],
                 ends=sorted(A['ends'] + B['ends'], key=lambda e: e[0]),
                 kend=A['kend'],
@@ -750,6 +789,11 @@ def join(tag, final=False):
         ('... + last seen + body parts', ('feat', 'place', 'num', 'last', 'parts')),
         ('look + place + number + last seen', ('feat', 'place', 'num', 'last')),
     ]
+    if np.isfinite(H.reid).all(1).any():  # step 3.5 trials; the chosen joiner stays last (saved)
+        runs[-1:-1] = [
+            ('re-ID + place + number + last seen', ('reid', 'place', 'num', 'last')),
+            ('look + re-ID + place + number + last seen', ('feat', 'reid', 'place', 'num', 'last')),
+        ]
     for label, cues in runs:
         person = H.group(cues=cues)
         n = len(np.unique(person[person >= 0]))
@@ -871,9 +915,121 @@ def bodyparts(tag, final=False, n_box=15, min_h=55):
     print(len(ids), 'fragments ->', out)
 
 
+def _osnet(device):
+    """OSNet x0_25 from torchreid's model file (MIT, Copyright (c) 2018 Kaiyang Zhou), weights
+    trained on MSMT17 (all splits) by torchreid's model zoo. Loaded with weights_only=True; the
+    MSMT17 classifier is dropped (eval mode returns the 512-d feature before it)."""
+    import importlib.util
+
+    import torch
+
+    spec = importlib.util.spec_from_file_location('torchreid_osnet', REID_DIR / 'osnet.py')
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    m = mod.osnet_x0_25(num_classes=1, pretrained=False, loss='softmax')
+    sd = torch.load(REID_DIR / REID_W, map_location='cpu', weights_only=True)
+    sd = {k: v for k, v in sd.get('state_dict', sd).items() if not k.startswith('classifier.')}
+    missing, extra = m.load_state_dict(sd, strict=False)
+    assert set(missing) <= {'classifier.weight', 'classifier.bias'} and not extra, (missing, extra)
+    return m.eval().to(device)
+
+
+def reid(tag, final=False, n_box=15, min_h=45, batch=256):
+    """Step 3.5: an OSNet fingerprint per outfield fragment seen >= 5 s, from up to `n_box`
+    crops spread over it (boxes at least `min_h` px tall, else its tallest), each the mean of
+    the crop and its mirror image, unit length; the fragment's is the mean of its crops,
+    unit length. -> reid_<tag>.npz (per fragment `emb`; per crop `c_emb`, `c_frag`, `c_f`)."""
+    _guard(tag, final)
+    _video(tag)
+    import cv2
+    import torch
+
+    from pitchiq.experiments import player_lab
+
+    dev = 'cuda' if torch.cuda.is_available() else 'cpu'
+    net = _osnet(dev)
+    mean = torch.tensor([0.485, 0.456, 0.406], device=dev).view(1, 3, 1, 1)
+    std = torch.tensor([0.229, 0.224, 0.225], device=dev).view(1, 3, 1, 1)
+    F = load_frags(tag)
+    fps, off = float(F['fps']), F['off']
+    jobs = {}
+    for i in range(len(F['win'])):
+        if F['n_seen'][i] < 5 * fps:  # every role: fix_roles may turn a 'referee' into a keeper
+            continue
+        k = np.arange(off[i], off[i + 1])
+        h = F['s_box'][k, 3] - F['s_box'][k, 1]
+        big = k[h >= min_h]
+        if not len(big):
+            big = k[np.argsort(-h)[:n_box]]
+        for j in big[np.linspace(0, len(big) - 1, min(n_box, len(big))).astype(int)]:
+            jobs.setdefault(int(F['s_f'][j]), []).append((i, F['s_box'][j]))
+    print(f'{sum(map(len, jobs.values()))} crops on {len(jobs)} frames ({dev})', flush=True)
+    crops, who, when = [], [], []
+    out_e = []
+
+    @torch.no_grad()
+    def flush():
+        if not crops:
+            return
+        x = torch.from_numpy(np.stack(crops)).to(dev).permute(0, 3, 1, 2).float() / 255.0
+        x = (x - mean) / std
+        e = net(x) + net(torch.flip(x, dims=[3]))
+        e = torch.nn.functional.normalize(e, dim=1)
+        out_e.append(e.cpu().numpy().astype(np.float16))
+        crops.clear()
+
+    cap = cv2.VideoCapture(player_lab.VIDEO)
+    fs = sorted(jobs)
+    want = set(fs)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, fs[0])
+    for f in range(fs[0], fs[-1] + 1):
+        if f not in want:
+            if not cap.grab():
+                break
+            continue
+        ok, img = cap.read()
+        if not ok:
+            break
+        H, W = img.shape[:2]
+        for i, b in jobs[f]:
+            x1, y1, x2, y2 = (int(round(float(v))) for v in b)
+            x1, y1, x2, y2 = (
+                max(x1, 0),
+                max(y1, 0),
+                min(max(x2, x1 + 2), W),
+                min(max(y2, y1 + 4), H),
+            )
+            c = cv2.resize(img[y1:y2, x1:x2], (128, 256), interpolation=cv2.INTER_LINEAR)
+            crops.append(c[:, :, ::-1].copy())  # RGB
+            who.append(i)
+            when.append(f)
+            if len(crops) >= batch:
+                flush()
+        if f % 9000 == 0:
+            print(f'frame {f}: {len(who)} crops', flush=True)
+    flush()
+    E = np.concatenate(out_e).astype(np.float32)
+    who, when = np.asarray(who), np.asarray(when)
+    ids = np.unique(who)
+    emb = np.stack([E[who == i].mean(0) for i in ids])
+    emb /= np.linalg.norm(emb, axis=1, keepdims=True)
+    out = OUT / f'reid_{tag}.npz'
+    np.savez(
+        out,
+        frag=ids,
+        emb=emb.astype(np.float32),
+        n=np.array([(who == i).sum() for i in ids]),
+        c_emb=E.astype(np.float16),
+        c_frag=who,
+        c_f=when,
+        weights=REID_W,
+    )
+    print(len(ids), 'fragments ->', out, flush=True)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('cmd', choices=['frags', 'numbers', 'parts', 'join'])
+    ap.add_argument('cmd', choices=['frags', 'numbers', 'parts', 'reid', 'join'])
     ap.add_argument('tag')
     ap.add_argument('--final', action='store_true')
     ap.add_argument('--tuned', default=None, help='numtrain.py model for the reader')
@@ -884,6 +1040,8 @@ def main(argv=None) -> int:
         numbers(a.tag, a.final, tuned=a.tuned)
     elif a.cmd == 'parts':
         bodyparts(a.tag, a.final)
+    elif a.cmd == 'reid':
+        reid(a.tag, a.final)
     else:
         join(a.tag, a.final)
     return 0
