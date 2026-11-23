@@ -11,6 +11,8 @@ shows, and in run.log and notify.log.
 - `halves`: the two halves alike. Rates and shares that should not change much at half time.
 - `possession`: possession spells of a believable length.
 - `air`: the 3D ball's share of frames in the air, in the range football has.
+- `camera`: where the calibration puts the camera, against earlier games filmed from the same
+  spot (`experiments/venue_check.py` measures; the run does it right after calibrating).
 
 The ranges are wide on purpose: they are for a run that went wrong, not for a game that was
 odd. Where each comes from is written beside it.
@@ -36,6 +38,9 @@ SPELL_S = (5.0, 40.0)
 AIR_SHARE = (0.03, 0.35)
 MIN_BALL = 5000  # fewer seen ball frames in a half and its air share is noise (as flight_flags)
 MIN_MINUTES = 10.0  # a shorter half says nothing about rates
+# Metres between two calibrations of a camera that stood on the same spot (the user's 5 m,
+# 2026-11-22). The home field's four games put theirs within 0.3 m of each other.
+CAMERA_M = 5.0
 
 
 @dataclass(frozen=True)
@@ -154,19 +159,51 @@ def air(shares: dict[str, float | None]) -> Check:
     return Check('air', True, f'ball in the air {seen}')
 
 
+def _where(cam: dict) -> str:
+    out = f'{cam["back"]:.0f} m behind the touchline, {cam["up"]:.0f} m up'
+    if abs(cam['along']) >= 2:
+        out += f', {abs(cam["along"]):.0f} m {"right" if cam["along"] > 0 else "left"} of halfway'
+    return out
+
+
+def camera(docs: list[dict] | None) -> Check:
+    """A half's camera against the earlier games filmed from the same spot (venue_<tag>.json
+    documents): the same tripod spot calibrated twice must land in the same place."""
+    if not docs:
+        return Check('camera', None, 'the comparison with earlier games did not run')
+    same = [(d, c) for d in docs for c in d.get('compared') or [] if c.get('same_spot')]
+    if not same:
+        n = len({c['other'] for d in docs for c in d.get('compared') or []})
+        what = f'{n} compared' if n else 'none to compare with'
+        return Check('camera', None, f'no earlier game was filmed from this spot ({what})')
+    far = [(d, c) for d, c in same if c['apart_m'] > CAMERA_M]
+    if far:
+        return Check('camera', False, '; '.join(
+            f'{d["tag"]}’s camera stood on the same spot as {c["other"]}’s (the backgrounds line '
+            f'up), yet the calibrations put them {c["apart_m"]:.1f} m apart ({_where(d["camera"])}, '
+            f'against {_where(c["camera"])}): one of the two is off'
+            for d, c in far
+        ))  # fmt: skip
+    near = ', '.join(sorted({c['other'] for _, c in same}))
+    worst = max(c['apart_m'] for _, c in same)
+    return Check('camera', True, f'stood where {near} stood; the calibrations agree within '
+                 f'{worst:.1f} m')  # fmt: skip
+
+
 def self_checks(
     report: dict,
     half_reports: list[dict],
     score: tuple[int, int] | None,
     air_by_half: dict[str, float | None],
     score_source: str = 'the coach’s log',
+    venues: list[dict] | None = None,
 ) -> list[Check]:
     out = [goals(report, score, score_source)]
     if len(half_reports) == 2:
         tags = list(air_by_half)
         pair = tuple(air_by_half.get(t) for t in tags[:2]) if len(tags) == 2 else (None, None)
         out += halves(*half_reports, air=pair)
-    out += [possession(report), air(air_by_half)]
+    out += [possession(report), air(air_by_half), camera(venues)]
     return out
 
 

@@ -7,6 +7,7 @@ because unset it means the scrimmage.
 
 - Panning-camera calibration: `pincal` (from the coach's pitch pins, which
   `process_match` uses), `autocal_run` (no clicks), `cal_health`,
+  `venue_check` (the camera against earlier games filmed from the same spot),
   `cal_overlay`, `halves` (where the halves are in a video).
 - Players: `player_lab` (score trackers on the player lab's labels in
   `balltrack/plab/`), `track_report`, `possession_report`.

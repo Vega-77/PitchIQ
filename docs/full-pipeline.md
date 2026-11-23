@@ -185,6 +185,9 @@ within a minute. The old to-the-minute runs were 8-14 min off on eb (warm-ups), 
 
    **Every later step uses these two files to put pixels on the pitch.**
 6. **Check** (`pitchiq.experiments.cal_health <tag>`): reads the video, reg and venue, and measures paint on the lines, far and near player height, and feet on the pitch. It writes `stats/<g>/run/cal_health_<tag>.json`. If `checks.cal_flags` finds a problem, the run stops unless `--trust-cal` is given.
+7. **Against earlier games** (`pitchiq.experiments.venue_check check <h1> <h2> --out stats/<g>/run`, under a minute): the first half (and the second, if the camera stood elsewhere for it) is compared with every other game's keyframes on disk. A game filmed from the same tripod spot shows it: its keyframe pairs fit a pure turn of the camera (3 pairs within 5 px). The two calibrations of that spot must then agree. It writes `stats/<g>/run/venue_<tag>.json`, and the self-checks (section 6) flag calibrations more than 5 m apart. Nothing stops here.
+   - The pitch paint alone matches between different fields (a plane maps to a plane), so a camera set up somewhere else at a field is not compared. Woodbridge's away field "matched" the home field's games on 6-21 keyframe pairs, but none came within 24 px of a turn.
+   - Keyframes come from `pincal/<tag>/keys`. A half calibrated another way gets a 5-16 MB copy in `PitchIQ-data/venues/<tag>/` (`venue_check book <tag>`, from its autocal samples). On 2026-11-22 that was done for ww1, eb1, co2, pi2, wh2 and nb1: the home field's four games stood within 0.3 m of each other, while wh (the stadium) and nb share no spot with any other game.
 
 With `--no-pins`, `pitchiq.experiments.autocal_run` replaces steps 1-5. It first calibrates one minute
 (`autocal/<g>cam<k>/full.pkl`), then each half.
@@ -338,7 +341,8 @@ colours), for setting the two side by side.
    - the goals found against the score: `--score`, else the goals in the coach's log (`--tag-log`, else the match's `log` on the site);
    - that the two halves are alike, within 1.5x on rates and shares and 15 points on possession;
    - that possession spells average 5-40 s;
-   - that the ball is in the air 3-35% of the time.
+   - that the ball is in the air 3-35% of the time;
+   - that the calibration puts the camera within 5 m of earlier games filmed from the same spot (step 2.7's comparison).
 
    They write `self_checks` into `<g>_report.json` and put each flag at the top of its `warnings`, which the coach's match page shows. A flag also goes to run.log and notify.log, and sets `trustworthy` to false. Nothing stops.
 4. `pitchiq publish_report <g>_report.json --team T --match M` writes Firestore `cvStats/{summary,events,identity,thumbs}`. Per-player stats publish only once a coach confirms who each cluster is (`cvMapping`).

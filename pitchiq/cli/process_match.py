@@ -596,6 +596,7 @@ def step_camera(r: Run) -> None:
         return
     for t in r.tags:
         health(r, t)
+    venue(r)
 
 
 def step_camera_auto(r: Run, halves, todo) -> None:
@@ -885,6 +886,29 @@ def health(r: Run, tag: str) -> None:
             'after this would be off. Pin the field, or pass --trust-cal to carry on anyway.',
             coach='The camera’s view of the pitch did not line up, so every position would be off.',
         )
+
+
+def venue_docs(r: Run) -> list[dict]:
+    """The halves' comparisons with earlier games (venue_<tag>.json), as written."""
+    paths = [r.out / f'venue_{t}.json' for t in r.tags]
+    return [json.loads(p.read_text(encoding='utf-8')) for p in paths if p.exists()]
+
+
+def venue(r: Run) -> None:
+    """Where the camera stood against earlier games filmed from the same spot
+    (`experiments/venue_check.py`, about 10 s a game on disk). Its flag joins the
+    self-checks at the end; nothing stops here, and a comparison that fails is skipped."""
+    from pitchiq import run_checks
+
+    done = (r.out / f'venue_{r.tags[0]}.json').exists()
+    if r.a.plan:
+        r.say('camera against earlier games: ' + ('done' if done else 'to do (a minute)'))
+        return
+    if not done:
+        r.py(f'venue_{r.g}', 'pitchiq.experiments.venue_check', 'check', *r.tags,
+             '--out', r.out, check=False)  # fmt: skip
+    c = run_checks.camera(venue_docs(r))
+    r.say(f'camera against earlier games: {c.text}')
 
 
 # ---------------------------------------------------------------- 3. pass, 4. map
@@ -1258,7 +1282,7 @@ def self_check(r: Run, full: Path) -> None:
         path = TRACK / f'h3d_{ball17.version(t)}' / f'{t}_ball3d2.npz'
         air[t] = run_checks.air_share(np.load(path)['state']) if path.exists() else None
     score, source = score_of(r)
-    checks = run_checks.self_checks(report, halves, score, air, source)
+    checks = run_checks.self_checks(report, halves, score, air, source, venue_docs(r))
     flags = run_checks.flags(checks)
     report['self_checks'] = run_checks.as_json(checks)
     report['warnings'] = flags + [w for w in report.get('warnings') or [] if w not in flags]

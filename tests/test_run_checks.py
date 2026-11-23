@@ -88,7 +88,7 @@ def test_air_share_in_range():
 def test_flags_are_the_failed_checks_only():
     checks = rc.self_checks(half(a=team(spells=40), b=team(spells=40)), [half(), half()],
                             (2, 3), {'x1': 0.17, 'x2': 0.18})  # fmt: skip
-    assert [c.key for c in checks] == ['goals', 'halves', 'possession', 'air']
+    assert [c.key for c in checks] == ['goals', 'halves', 'possession', 'air', 'camera']
     assert rc.flags(checks) == ['self-check (goals): ' + checks[0].text]
 
 
@@ -130,7 +130,39 @@ def test_self_check_puts_flags_on_top_of_the_warnings(tmp_path, monkeypatch):
     )
     assert out['warnings'][1:] == ['old one']
     assert out['trustworthy'] is False
-    assert [c['key'] for c in out['self_checks']] == ['goals', 'halves', 'possession', 'air']
+    assert [c['key'] for c in out['self_checks']] == [
+        'goals',
+        'halves',
+        'possession',
+        'air',
+        'camera',
+    ]
     assert any('FLAG' in s for s in said) and told and told[0][0] == 'self-checks'
     pm.self_check(r, full)  # again on the same file: the flag is not doubled
     assert json.loads(full.read_text())['warnings'].count(out['warnings'][0]) == 1
+
+
+def test_the_camera_comparison_runs_once_after_calibrating(tmp_path):
+    doc = dict(tag='g1', camera=dict(along=0.0, back=6.5, up=5.0),
+               compared=[dict(other='ww1', same_spot=True, apart_m=0.3)])  # fmt: skip
+    ran, said = [], []
+
+    def py(name, module, *args, check=True):
+        ran.append((name, module, args, check))
+        (tmp_path / 'venue_g1.json').write_text(json.dumps(doc))
+        return 0
+
+    r = SimpleNamespace(a=SimpleNamespace(plan=False), g='g', tags=('g1', 'g2'), out=tmp_path,
+                        py=py, say=said.append)  # fmt: skip
+    pm.venue(r)
+    assert ran == [('venue_g', 'pitchiq.experiments.venue_check', ('check', 'g1', 'g2', '--out',
+                                                                   tmp_path), False)]  # fmt: skip
+    assert said == ['camera against earlier games: stood where ww1 stood; the calibrations agree '
+                    'within 0.3 m']  # fmt: skip
+    pm.venue(r)  # done: not run again
+    assert len(ran) == 1
+    assert [c.ok for c in [rc.camera(pm.venue_docs(r))]] == [True]
+    r.a.plan = True
+    said.clear()
+    pm.venue(r)
+    assert said == ['camera against earlier games: done']
