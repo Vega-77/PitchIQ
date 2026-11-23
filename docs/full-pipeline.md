@@ -10,6 +10,10 @@ running beside it, then both halves' stats, then publish:
     halves -> camera (coach's pins) -> pass wb1, pass wb2 -> ball17 wb ---------> stats wb1, wb2 -> publish
                                                             map wb1, map wb2 -/
 
+The first half's pass starts before the camera is done: once both panoramas are made, it
+detects while the coach pins, and only its last stage waits for the calibration (section 3a,
+"Started while the coach pins").
+
 The maps need the pass's players and camera but not the ball, and the ball step is mostly
 the GPU while the map is the CPU, so the two share the machine (`step_ball_and_maps`).
 Woodbridge's measured steps add up to about 8 h 40 min in this order, against 10 h 52 min
@@ -33,6 +37,7 @@ and `<ptag>` is a 5-minute piece of a half (`wb1_q003`).
 | `--tag-log <file>` | The coach page's tag log. Reruns stats and publish with it. |
 | `--no-pins` | Calibrates without the coach's pins (autocal). Only for a field it can read alone. |
 | `--no-wait` | Stops instead of waiting while pins are missing. |
+| `--no-early` | Passes each half only after the calibration, not while the coach pins (as before 2026-11-23). |
 | `--pins-from wb` | Carries an earlier game's pins instead of asking the coach: the same field, with the camera in the same place. Checked like the carry from one half to the other, and the run stops if they don't carry or don't fit. |
 | `--trust-cal` | Carries on when the calibration check fails. |
 | `--trust-halves` | Carries on when the halves' lengths or the break look wrong. |
@@ -87,7 +92,7 @@ command again.
 |---|---|
 | halves | `balltrack/halves.json` has the game (with the same video name) |
 | camera | `pitch_registration/<tag>_reg.npz` and `<tag>_venue.npz` exist; the check when `stats/<g>/run/cal_health_<tag>.json` exists |
-| pass | `half/<tag>/log.txt` says `HALF DONE`, and `pitch_registration/<tag>_camera.npz` (or, for a half passed before 2026-11-21, `h3d_hyb90/<tag>_smooth2.npz`) and `plab/out/<tag>_dets.npz` exist. Inside a half, every stage of every piece leaves `half/<tag>/<ptag>.<stage>.done`. |
+| pass | `half/<tag>/log.txt` says `HALF DONE`, and `pitch_registration/<tag>_camera.npz` (or, for a half passed before 2026-11-21, `h3d_hyb90/<tag>_smooth2.npz`) and `plab/out/<tag>_dets.npz` exist. Inside a half, every stage of every piece leaves `half/<tag>/<ptag>.<stage>.done`. A pass started early and cut off resumes from those marks; each run first deletes the go files `stats/<g>/run/ship_<tag>` and `half/<tag>/early.done`, so only its own camera and passes let a shipped chain start. |
 | ball | `ball17.version(tag) == 'v17'` (its `p2d/v17` and `h3d_v17` files exist) |
 | map | `PitchIQ-data/stats/map/<tag>.npz` exists |
 | stats | `pipe_<tag>.json` exists and `pipe_<tag>.key.json` matches this run's ours, attacking end and tag log, and says `source: table` and `pictures: true` (a report from the old video path, or from the table before it had pictures, is counted again) |
@@ -178,6 +183,8 @@ within a minute. The old to-the-minute runs were 8-14 min off on eb (warm-ups), 
 3. **Transfer** (`pincal transfer <h1> <h2>`): writes `pincal/<h2>/transfer_from_<h1>.json`. If the tripod stayed put, the first half's pins carry over to the second, so the coach pins once. Otherwise the second half gets its own panorama upload.
 4. **Pin check**: `fit_pins` checks every pin against the rest. A set that doesn't fit is renamed `pins_rejected.json`, the coach is told why (`mark_problem` on `cvPano`), and the run waits for new pins.
 
+   Once both panoramas are made, the first half's pass starts (section 3a, "Started while the coach pins"). It does not start when `--no-wait` stops the run for pins, nor with `--no-early`.
+
    With `--pins-from <game>`, nothing goes to the coach. Step 3's check runs between `<game>1` and this game's first half (`transfer_from_<game>1.json`), and if the camera stood in the same place, `<game>1`'s pins are carried over (`pins.json` with `"from": "<game>1"`). The second half then follows the usual rule, taking `<game>2`'s pins only if the camera moved. A camera that stood elsewhere, or carried pins that don't fit, stop the run: leave out `--pins-from` and have the field pinned.
 5. **Calibration** (`pincal cal <tag> --with <other> --install`): pins give camera position, aim and pitch size, and the paint polishes the aim. It writes `pincal/<tag>/cal/` and `pin_pose.json`, and installs:
    - `balltrack/pitch_registration/<tag>_reg.npz`: per frame, the image-to-pitch mapping (about 1 MB)
@@ -210,9 +217,9 @@ from the logs, not yet measured on a run).
 |---|---|---|
 | Ball candidates (`detect_candidates`, 12 processes) | video, ranker | `balltrack/<tag>.npz` (every candidate blob, about 28 MB), `<tag>pan.npz` (camera pan), `<tag>_timing.json` |
 | Players (`player_lab`, GPU) | video, YOLO | `plab/out/parts/*`, merged into `plab/out/<tag>_dets.npz` (boxes, confidence, kit colour, colour descriptors; about 95 MB) and `plab/out/<tag>_feat.npz` (appearance features the map's linker uses; **about 3.8 GB**) |
-| Build a piece | the above, reg | `balltrack/<ptag>.npz`, `<ptag>pan.npz`, `<ptag>ppl.npz`, the reg cut to the piece's window, a copy of the venue |
+| Build a piece | the above | `balltrack/<ptag>.npz`, `<ptag>pan.npz`, `<ptag>ppl.npz` |
 | Classify (`score_candidates cls_C.pt`) | video crops | `balltrack/<ptag>cls.npz` (each candidate's ball score) |
-| Shipped chain (`mkpicks_one`, then `ball_on_pitch`, `image_track`, `flight_scan`, `roll_speed_cache`, `flight_chain`, `smooth_ball`, `merge_air_and_ground`) | picks, reg, venue | `evaluation/p2d/cls_B/<ptag>.npz` (the older tracker's 2D picks), `pitch_registration/<ptag>_*` (scan, chains, smooth, `ball3dd` = ball in 3D) |
+| Shipped chain (first the reg cut to the piece's window and a copy of the venue, then `mkpicks_one`, `ball_on_pitch`, `image_track`, `flight_scan`, `roll_speed_cache`, `flight_chain`, `smooth_ball`, `merge_air_and_ground`) | picks, reg, venue | `pitch_registration/<ptag>_reg.npz`, `<ptag>_venue.npz`, `evaluation/p2d/cls_B/<ptag>.npz` (the older tracker's 2D picks), `pitch_registration/<ptag>_*` (scan, chains, smooth, `ball3dd` = ball in 3D) |
 | Stitch | every piece | whole-half `p2d/cls_B/<tag>.npz`, `pitch_registration/<tag>_ball3dd.npz`, `pitch_registration/<tag>_camera.npz` (the per-frame camera `H`, from the shipped chain's pieces: `balltrack/camera.py`), `half/<tag>/seams.json`, `log.txt` |
 
 Each seam is cut at the frame nearest the chunk edge where both pieces' shipped balls agree
@@ -220,6 +227,20 @@ for 5 frames each side (1 px in 2D, 0.5 StatsBomb units in 3D). The old rule als
 Hybrid 90 balls to agree. Re-cut on the shipped ball alone, 2 of the 126 seams of the 14
 passed game halves move: 7 frames in all, with the same 2D picks and camera and a 3D ball
 within the tolerance.
+
+**Started while the coach pins** (session step 3.12, 2026-11-23). Only the shipped chain
+reads the camera (reg and venue). So `process_match` starts the first half's pass once both
+panoramas are made, with `--after stats/<g>/run/ship_<tag>`. Every other stage runs while
+the coach pins, and the shipped chain waits for that file:
+- **Why after the panoramas and not beside them.** A panorama commits about 24 GB and a pass about 20 GB, against this PC's 51 GB commit limit.
+- **Priority.** The early pass runs below normal priority, so the panorama upload and the calibration keep the processor. Its children inherit that priority.
+- **The go file.** The camera step writes `ship_<h1>` once the camera passes its checks (`go`). That also lifts the pass and its children back to normal priority.
+- **The second half.** When everything but the shipped chain is done, the pass writes `half/<tag>/early.done`. By then its detector, players and classifier have finished, and the players' networks are freed from the GPU. The second half's pass then starts with `--after ship_<h2>`. That file is written only when the first half's pass ends, because two halves' shipped chains at once ran Windows out of commit (`flight_scan`). If the first pass ends before writing `early.done`, the second starts in `step_pass` as before.
+- **Following and retrying.** `step_pass` follows each early pass like a step it launched, progress bar included. A pass that fails, or ends without `HALF DONE`, gets the usual one retry without `--after`.
+- **When the run stops.** Any early pass still running is ended (`stop_early`), since preflight would refuse the next run beside it. That run resumes it from its marks.
+
+This is not yet timed on a full game; step 3.15's run measures it. With `--no-early`, or once
+the camera exists before the passes (a rerun), each pass runs after the calibration as before.
 
 ## 3b. Ball (`pitchiq.balltrack.ball17 <g> <tag1>,<tag2>`, 150-270 min a game)
 

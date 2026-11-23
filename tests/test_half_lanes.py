@@ -13,9 +13,9 @@ S2 = os.path.dirname(os.path.abspath(half.__file__))
 STAGES = ('build', 'classify', 'shipped')  # a piece's stages, in the order they read each other
 
 
-@pytest.fixture
-def run(tmp_path, monkeypatch):
-    """A half of four pieces whose every job only records itself, players included."""
+def lanes(tmp_path, monkeypatch, after=None):
+    """A half of four pieces whose every job only records itself, players included, and
+    the lanes Half.main starts, not started yet."""
     log, lock = [], threading.Lock()
     dets, feats = set(), []
 
@@ -41,10 +41,12 @@ def run(tmp_path, monkeypatch):
         player_lab, '_part', lambda tag, kind, a, b: tmp_path / ('%s_%d' % (kind, a))
     )
     monkeypatch.setattr(half, 'S2', str(tmp_path))
+    monkeypatch.setattr(half, 'HOM', str(tmp_path))
+    (tmp_path / 't_reg.npz').touch()  # the half's camera
     monkeypatch.setattr(
         half, 'time', SimpleNamespace(time=time.time, sleep=lambda s: time.sleep(0.01))
     )
-    h = half.Half('t', 0, 4 * 9000 - 1, 6, 300)
+    h = half.Half('t', 0, 4 * 9000 - 1, 6, 300, after=after)
     h.dir = str(tmp_path)
     h.say = lambda msg: None
     h.detector_res = lambda a, b: []
@@ -58,11 +60,21 @@ def run(tmp_path, monkeypatch):
         threading.Thread(target=h.ball_gpu_loop, args=('classify', 'build')),
     ]
     threads += [threading.Thread(target=h.cpu_loop) for _ in range(2)]
-    for t in threads:
-        t.start()
+    return h, log, feats, threads
+
+
+def finish(h, threads):
     for t in threads:
         t.join(60)
     assert h.err is None and not any(t.is_alive() for t in threads)
+
+
+@pytest.fixture
+def run(tmp_path, monkeypatch):
+    h, log, feats, threads = lanes(tmp_path, monkeypatch)
+    for t in threads:
+        t.start()
+    finish(h, threads)
     return h, log, feats
 
 
@@ -123,3 +135,47 @@ def test_scorable_frames_leave_the_detector_its_lookahead(tmp_path):
         re.M,
     )
     assert -int(offs.group(1)) == int(offs.group(2)) - 1 == half.LOOKAHEAD
+
+
+def test_with_after_only_the_shipped_chain_waits_for_its_file(tmp_path, monkeypatch):
+    """--after (process_match's early pass): everything but the shipped chain runs at once."""
+    go = tmp_path / 'ship_t'
+    h, log, _, threads = lanes(tmp_path, monkeypatch, after=str(go))
+    for t in threads:
+        t.start()
+    want = {('classify', p['ptag']) for p in h.pieces} | {('merge', None)}
+    deadline = time.time() + 30
+    while not want <= set(log) and time.time() < deadline:
+        time.sleep(0.02)
+    assert want <= set(log)
+    time.sleep(0.3)  # the lanes poll every 10 ms here: time enough to ship too soon
+    assert not [k for k in log if k[0] == 'shipped']
+    go.touch()
+    finish(h, threads)
+    at = {k: i for i, k in enumerate(log)}
+    assert len(at) == len(log)
+    assert all(at[('shipped', p['ptag'])] > at[('classify', p['ptag'])] for p in h.pieces)
+
+
+def test_a_camera_still_missing_when_its_file_comes_stops_the_half(tmp_path, monkeypatch):
+    go = tmp_path / 'ship_t'
+    h, log, _, threads = lanes(tmp_path, monkeypatch, after=str(go))
+    (tmp_path / 't_reg.npz').unlink()
+    go.touch()
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(60)
+    assert isinstance(h.err, SystemExit) and 't_reg.npz missing' in str(h.err)
+    assert not [k for k in log if k[0] == 'shipped']
+
+
+def test_the_shipped_chain_copies_the_camera_to_its_piece_first(tmp_path, monkeypatch):
+    """Build no longer reads the camera (2026-11-23), so the shipped chain copies it."""
+    monkeypatch.setattr(half, 'S2', str(tmp_path))
+    h = half.Half('t', 0, 9000 - 1, 6, 300)
+    calls = []
+    h.registration = lambda p: calls.append('registration')
+    h.run = lambda cwd, *cmd, **kw: calls.append(cmd[0])
+    h.shipped(h.pieces[0])
+    assert calls[0] == 'registration' and calls[1] == 'evaluation.mkpicks_one'

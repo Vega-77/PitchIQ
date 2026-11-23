@@ -1,9 +1,15 @@
 """A whole half's ball candidates, shipped ball and player detections, pipelined.
 
     PIQ_VIDEO=<video> python -m pitchiq.balltrack.half <tag> <lo> <hi> [--workers 12] [--overlap 300]
+        [--after <file>]
 
-Needs pitch_registration/<tag>_reg.npz (and <tag>_venue.npz) from
-`python -m pitchiq.experiments.autocal_run <tag> ... --homog`.
+Needs pitch_registration/<tag>_reg.npz (and <tag>_venue.npz), from the coach's pins
+(`experiments/pincal.py`) or `python -m pitchiq.experiments.autocal_run <tag> ... --homog`.
+Only the shipped chain reads them (it copies them to each piece first), so with --after
+the pass starts without them: the detectors, the players and the classifier run, and
+the shipped chain waits until <file> exists. process_match writes that file once the
+coach's pins are in and the camera is accepted, so a half is detected while the coach
+pins (session step 3.12). half/<tag>/early.done says everything else has finished.
 
 detect_candidates.py runs over the whole half on the CPU. Each of its 5-minute chunks
 becomes a piece as soon as the chunks around it are done: the chunk plus
@@ -59,6 +65,16 @@ ONE_THREAD = dict(OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', MKL_NUM_THREADS
 MIN_CORE = detect_candidates.CHUNK // 5  # a minute: a shorter end chunk joins its neighbour
 LANES = 2  # the ball's CPU jobs at a time
 LOOKAHEAD = 10  # candidate_features.OFFS: the ball detector reads 10 frames each side
+
+
+def free_gpu():
+    """Hand the card's cached memory back once this process's networks are gone."""
+    torch = sys.modules.get('torch')
+    if torch is not None and torch.cuda.is_available():
+        import gc
+
+        gc.collect()
+        torch.cuda.empty_cache()
 
 
 def scorable(video):
@@ -118,9 +134,10 @@ def seam_cut(left, right, edge, lo, hi):
 
 
 class Half:
-    def __init__(self, tag, lo, hi, workers, overlap, lanes=LANES):
+    def __init__(self, tag, lo, hi, workers, overlap, lanes=LANES, after=None):
         """Split lo..hi into pieces (one per detector chunk, ragged ends merged into a
         neighbour), each with its core and its window widened by `overlap`; open half/<tag>/log.txt.
+        With `after`, the shipped chain waits until that file exists (camera_ready).
         """
         self.tag, self.lo, self.hi, self.workers, self.ov, self.lanes = (
             tag,
@@ -130,6 +147,8 @@ class Half:
             overlap,
             lanes,
         )
+        self.after = after
+        self.ready = False  # camera_ready has said yes
         self.dir = os.path.join(S2, 'half', tag)
         os.makedirs(self.dir, exist_ok=True)
         self.chunks = detect_candidates.chunk_edges(lo, hi)
@@ -233,10 +252,25 @@ class Half:
             if not (chi < a or clo > b)
         )
 
+    def camera_ready(self):
+        """Whether the shipped chain may start: at once without --after, else once that file
+        exists. The half's camera must be there by then."""
+        if not self.ready:
+            if self.after is not None and not os.path.exists(self.after):
+                return False
+            if not os.path.exists(os.path.join(HOM, '%s_reg.npz' % self.tag)):
+                raise SystemExit(
+                    'pitch_registration/%s_reg.npz missing: calibrate the half first (pincal, '
+                    'or autocal_run --homog)' % self.tag
+                )
+            self.ready = True
+        return True
+
     # ---- piece stages -----------------------------------------------------------------
 
     def build(self, p):
-        """<ptag>.npz / pan / ppl cut from the finished chunks, registration copied."""
+        """<ptag>.npz / pan / ppl cut from the finished chunks. (The registration is copied
+        by `shipped`, the first stage that reads it; until 2026-11-23 build copied it.)"""
         from pitchiq.experiments import player_lab
 
         a, b = p['win']
@@ -263,7 +297,6 @@ class Half:
             imgsz=1280,
             minconf=0.25,
         )
-        self.registration(p)
 
     def registration(self, p):
         """The half's registration cut to the piece's window (the chain reads it only there)."""
@@ -283,6 +316,7 @@ class Half:
 
     def shipped(self, p):
         """The shipped tracker's picks and the 3D chain on them, for one piece."""
+        self.registration(p)
         P = p['ptag']
         log = os.path.join(HOM, '%s_chain.log' % P)
         self.run(AT, 'evaluation.mkpicks_one', P, log=log, env=ONE_THREAD)
@@ -359,6 +393,8 @@ class Half:
                 time.sleep(5)
             if self.err is None:
                 self.merge_players()
+            del ex  # the players' networks: a pass waiting for its camera (--after) leaves
+            free_gpu()  # the card to the next half's
         except BaseException as e:  # noqa: BLE001 - reported and re-raised by main; a thread
             # that let SystemExit (player_lab's 'video ended at') through would die without a word
             self.err = e
@@ -380,14 +416,17 @@ class Half:
             self.err = e
 
     def cpu_loop(self):
-        """The shipped chain first (it finishes pieces), then builds."""
+        """The shipped chain first (it finishes pieces) once the camera is ready, then builds."""
         try:
             while self.err is None:
+                ready = self.camera_ready()
                 stage, p = self.claim(
                     [
                         ('shipped', p)
                         for p in self.pieces
-                        if self.done(p['ptag'], 'build') and self.done(p['ptag'], 'classify')
+                        if ready
+                        and self.done(p['ptag'], 'build')
+                        and self.done(p['ptag'], 'classify')
                     ]
                     + [
                         ('build', p)
@@ -477,16 +516,19 @@ class Half:
 
     def main(self):
         """Run the whole half: start the detector, the players', GPU and CPU lanes, wait for
-        them (stopping everything on the first error), then stitch.
+        them (stopping everything on the first error), then stitch. With --after, the
+        shipped chain waits for that file and half/<tag>/early.done is written once
+        everything else is done (process_match starts the next half then).
         """
         from pitchiq.experiments import player_lab
 
         if player_lab.CHUNK != detect_candidates.CHUNK:
             raise SystemExit('PLAB_CHUNK and DRUN_CHUNK must match')
-        if not os.path.exists(os.path.join(HOM, '%s_reg.npz' % self.tag)):
-            raise SystemExit(
-                'pitch_registration/%s_reg.npz missing: run autocal_run --homog first' % self.tag
-            )
+        if self.after is None:
+            self.camera_ready()  # says now, not after the detector, if the camera is missing
+        early = os.path.join(self.dir, 'early.done')
+        if os.path.exists(early):
+            os.remove(early)  # written again below once this run has seen it so
         if 'PIQ_VIDEO' not in os.environ:
             self.say('PIQ_VIDEO is not set: this is the scrimmage video')
         first, last = scorable(player_lab.VIDEO)
@@ -498,6 +540,7 @@ class Half:
         self.say(
             'HALF %s  %d..%d  %d pieces, overlap %d frames, detector %d workers, %d lanes'
             % (self.tag, self.lo, self.hi, len(self.pieces), self.ov, self.workers, self.lanes)
+            + (', the shipped chain after %s' % self.after if self.after else '')
         )
         dlog = open(os.path.join(self.dir, 'drun.log'), 'a', encoding='utf-8')
         detector_p = subprocess.Popen(
@@ -534,6 +577,17 @@ class Half:
             if self.err is not None and not killed:
                 self.kill_all()  # the other thread may be blocked in a child
                 killed = True
+            if (
+                self.err is None
+                and not os.path.exists(early)
+                and detector_p.poll() == 0
+                and not any(t.is_alive() for t in threads[:2])  # players merged, all classified
+            ):
+                open(early, 'w').close()
+                if self.after and not os.path.exists(self.after):  # (never raises here)
+                    self.say(
+                        'waiting for the camera (%s): only the shipped chain is left' % self.after
+                    )
         if self.err is not None:
             self.say('FAILED: %s' % self.err)
             raise SystemExit(1)
@@ -544,7 +598,7 @@ class Half:
 
 
 def main():
-    """Command line: <tag> <lo> <hi> [--workers] [--overlap] [--lanes] [--stitch-only]."""
+    """Command line: <tag> <lo> <hi> [--workers] [--overlap] [--lanes] [--after] [--stitch-only]."""
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('tag')
     ap.add_argument('lo', type=int)
@@ -552,6 +606,10 @@ def main():
     ap.add_argument('--workers', type=int, default=config.HALF_WORKERS)
     ap.add_argument('--overlap', type=int, default=300)
     ap.add_argument('--lanes', type=int, default=LANES, help="the ball's CPU jobs at a time")
+    ap.add_argument(
+        '--after',
+        help='hold the shipped chain (the only stage that reads the camera) until this file exists',
+    )
     ap.add_argument(
         '--stitch-only', action='store_true', help='re-stitch finished pieces, run nothing'
     )
@@ -561,7 +619,7 @@ def main():
             check('balltrack')
         except MissingExtra as e:
             sys.exit(str(e))  # the message, with no traceback; exit status 1
-    h = Half(a.tag, a.lo, a.hi, a.workers, a.overlap, a.lanes)
+    h = Half(a.tag, a.lo, a.hi, a.workers, a.overlap, a.lanes, a.after)
     h.stitch() if a.stitch_only else h.main()
 
 

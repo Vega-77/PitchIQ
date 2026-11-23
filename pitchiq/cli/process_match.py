@@ -31,7 +31,13 @@ this command prints when each one starts and ends.
                 carries an earlier game's pins at the same field instead (the
                 camera must have stood in the same place). `--no-pins` uses
                 the pin-free calibration (`experiments/autocal_run.py`) instead
-  3. pass       the ball and the players over each half (`balltrack/half.py`)
+  3. pass       the ball and the players over each half (`balltrack/half.py`).
+                The first half's starts as soon as both panoramas are made, while
+                the coach pins, at a low priority; only its shipped chain (the one
+                stage that reads the camera) waits for the calibration. Once it has
+                done everything else, the second half's starts too, its shipped
+                chain after the first half's pass. `--no-early` passes each half
+                after the calibration instead, as before 2026-11-23
   4. ball, map  at the same time: the look #17 ball over both halves
                 (`balltrack/ball17.py`, 3-6 h, mostly the GPU) and, beside it,
                 the top-down map of each half (`experiments/wholemap.py`, the
@@ -61,10 +67,12 @@ or the command line. The end we attack in the first half comes from the map
 the run stops if the two halves' maps do not show the teams changing ends.
 
 About 5 to 10 hours a game on this PC, plus however long the coach takes to
-pin; each step's time is in `shared/run-steps.json`, which the coach page's
-estimate reads too. Woodbridge's measured steps (2026-11-19) add up to about
-8 h 40 min in this order, against 10 h 52 min before the maps ran beside the
-ball and the stats came from the table. Everything else runs one step at a time.
+pin beyond what the passes do meanwhile; each step's time is in
+`shared/run-steps.json`, which the coach page's estimate reads too.
+Woodbridge's measured steps (2026-11-19) add up to about 8 h 40 min in this
+order, against 10 h 52 min before the maps ran beside the ball and the stats
+came from the table. Beyond that and the passes starting while the coach
+pins, the steps run one at a time.
 
 Publishing needs PITCHIQ_SA_KEY (the service account key, kept outside the
 repo) and the team and match ids; `--list-matches` prints them. Both are
@@ -124,6 +132,7 @@ SITE = os.environ.get('PIQ_SITE', 'https://vega-77.github.io/PitchIQ/')
 PIN_POLL_S = 60  # how often the run looks for the coach's pins
 PIN_REMIND_S = 1800  # and how often it says it is still waiting
 TICK_S = 30  # how often a running step's progress is looked at
+EARLY_POLL_S = 30  # how often the first half's early pass is looked at (start_second)
 STEPS = ('halves', 'camera', 'pass', 'ball beside map', 'stats', 'publish')
 NOTE_CHARS = 1500  # of a phone note (ntfy takes 4 KB; the full text is in run.log)
 RESUME_WAIT_S = 1800  # a run restarted after a reboot waits this long for the checks to pass
@@ -206,6 +215,42 @@ def now() -> str:
     return time.strftime('%H:%M')
 
 
+class Started:
+    """A step's process from its start (Run.start) on, with the peak memory of its process
+    tree sampled every TICK_S until it ends, whether or not anything waits for it yet."""
+
+    def __init__(self, name: str, proc: subprocess.Popen):
+        self.name, self.proc, self.t0 = name, proc, time.time()
+        self.peak = (0.0, 0.0)
+        self.sampler = threading.Thread(target=self._sample, name=f'peak {name}', daemon=True)
+        self.sampler.start()
+
+    def _sample(self) -> None:
+        while True:
+            try:
+                self.proc.wait(timeout=TICK_S)
+                return
+            except subprocess.TimeoutExpired:
+                self.peak = tuple(map(max, self.peak, memory_gb(self.proc.pid)))
+
+
+def normal_priority(pid: int) -> None:
+    """A process and everything it started back to normal priority (Run.start's `low`: a
+    child takes a below-normal parent's priority, so later children are normal too)."""
+    import psutil
+
+    try:
+        p = psutil.Process(pid)
+        procs = [p, *p.children(recursive=True)]
+    except psutil.Error:
+        return
+    for q in procs:
+        try:
+            q.nice(getattr(psutil, 'NORMAL_PRIORITY_CLASS', 0))
+        except psutil.Error:  # it ended between the listing and the change
+            pass
+
+
 class Run:
     """One game's run: where its files go and how its steps are launched."""
 
@@ -229,6 +274,12 @@ class Run:
         # set in a thread whose steps run beside another (the maps beside the ball): they
         # leave the coach's progress bar to the one in front
         self.beside = threading.local()
+        # the passes started while the coach pins (start_early), by half, until step_pass
+        # follows them; the lock keeps them and `stopping` in step with the early thread
+        self.early: dict[str, Started] = {}
+        self.early_lock = threading.Lock()
+        self.early_watch: threading.Thread | None = None
+        self.stopping = False
 
     def say(self, text: str) -> None:
         line = f'{now()}  {text}'
@@ -247,17 +298,18 @@ class Run:
 
         notify.send(self.out, f'PitchIQ {self.g}: {what}', text[:NOTE_CHARS], priority)
 
-    def py(self, name: str, *args, check=True, fewer=None) -> int:
+    def py(self, name: str, *args, check=True, fewer=None, first=None) -> int:
         """Run `python -m <module> args` from the repo root, its output to logs/<name>.log.
         While it runs, the coach page's progress bar is kept up to date.
 
         With `check`, a step that fails is tried once more before the run stops; when its
         log says it ran out of memory, the second try runs `fewer(args)` (fewer processes).
         Steps resume from what they finished, so a retry redoes only the unfinished part.
+        `first` is the exit code of a first try that already ran (a pass started early).
         """
         from pitchiq.cli import preflight
 
-        rc = self.launch(name, args)
+        rc = self.launch(name, args) if first is None else first
         if rc and check:
             log = self.logs / f'{name}.log'
             tail = '\n'.join(log.read_text(encoding='utf-8', errors='replace').splitlines()[-60:])
@@ -276,29 +328,40 @@ class Run:
 
     def launch(self, name: str, args) -> int:
         """One try of a step (see py); its exit code."""
+        return self.follow(self.start(name, args))
+
+    def start(self, name: str, args, low: bool = False, why: str = '') -> Started:
+        """Start one try of a step and return at once; `follow` waits for it. `low` runs it
+        and everything it starts below normal priority (normal_priority lifts it)."""
         cmd = [sys.executable, '-W', 'ignore', '-m', *map(str, args)]
         log = self.logs / f'{name}.log'
-        key = None if getattr(self.beside, 'on', False) else step_of(name)
-        if key:
-            self.progress.begin(key)
-        self.say(f'start {name}  (log: {log})')
-        t0 = time.time()
-        peak = (0.0, 0.0)
+        self.say(f'start {name}{why}  (log: {log})')
+        flags = getattr(subprocess, 'BELOW_NORMAL_PRIORITY_CLASS', 0) if low else 0
         with open(log, 'a', encoding='utf-8') as f:
             f.write(f'\n=== {time.ctime()}  {" ".join(cmd)}\n')
             f.flush()
-            proc = subprocess.Popen(cmd, cwd=REPO, env=self.env, stdout=f, stderr=subprocess.STDOUT)
-            while True:
-                try:
-                    rc = proc.wait(timeout=TICK_S)
-                    break
-                except subprocess.TimeoutExpired:
-                    peak = tuple(map(max, peak, memory_gb(proc.pid)))
-                    if key:
-                        self.tick(name, key)
-        took = (time.time() - t0) / 60
+            proc = subprocess.Popen(
+                cmd, cwd=REPO, env=self.env, stdout=f, stderr=subprocess.STDOUT, creationflags=flags
+            )
+        return Started(name, proc)
+
+    def follow(self, s: Started) -> int:
+        """Wait for a started step, keeping the coach's progress bar; its exit code."""
+        key = None if getattr(self.beside, 'on', False) else step_of(s.name)
+        if key:
+            self.progress.begin(key)
+        while True:
+            try:
+                rc = s.proc.wait(timeout=TICK_S)
+                break
+            except subprocess.TimeoutExpired:
+                if key:
+                    self.tick(s.name, key)
+        s.sampler.join()
+        took = (time.time() - s.t0) / 60
+        peak = s.peak
         held = f', peak {peak[0]:.1f} GB in use, {peak[1]:.1f} GB committed' if peak[0] else ''
-        self.say(f'end {name}  rc {rc}  ({took:.0f} min{held})')
+        self.say(f'end {s.name}  rc {rc}  ({took:.0f} min{held})')
         return rc
 
     def tick(self, name: str, key: str) -> None:
@@ -597,6 +660,7 @@ def step_camera(r: Run) -> None:
     for t in r.tags:
         health(r, t)
     venue(r)
+    go(r, r.tags[0])  # the camera is accepted: the first half's shipped chain may start
 
 
 def step_camera_auto(r: Run, halves, todo) -> None:
@@ -651,6 +715,8 @@ def step_pins(r: Run, halves) -> None:
                     who = 'the coach pins it'
                 what = f'{pano}, then {who}'
             r.say(f'camera {t}: {what}')
+        if not r.a.no_early:
+            r.say(f'pass {h1}: starts once the panoramas are made, while the coach pins')
         return
     db = None
     if r.a.team and r.a.match:
@@ -672,6 +738,8 @@ def step_pins(r: Run, halves) -> None:
         offer(r, db, h2)
     else:
         r.say(f"camera: it stayed put, so {h1}'s pins will carry to {h2}")
+    if (db is not None and not r.a.no_wait) or (PC.here(h1) / 'pins.json').exists():
+        start_early(r, halves)  # both panoramas are made; not when the run stops for pins
 
     need = [h1, h2] if moved else [h1]
     while not pins_fit(r, db, moved):
@@ -925,17 +993,114 @@ def passed(tag: str) -> bool:
 
 
 def step_pass(r: Run) -> None:
+    """Each half's pass: followed if it started early (start_early), else run now. An early
+    pass that failed is retried like any step (it resumes from its marks)."""
+    h1, h2 = r.tags
     for t, (lo, hi) in zip(r.tags, half_frames(r.g) if r.g in load_halves() else [(0, 0)] * 2):
-        if passed(t):
+        with r.early_lock:
+            early = r.early.pop(t, None)
+        if early is None and passed(t):
             r.say(f'pass {t}: done')
         elif r.a.plan:
             r.say(f'pass {t}: to do (1.5-2 h)')
         else:
-            r.py(f'pass_{t}', 'pitchiq.balltrack.half', t, lo, hi, fewer=fewer_pass)
+            rc = None
+            if early is not None:
+                rc = r.follow(early)
+                if rc == 0 and not passed(t):
+                    rc = 1  # it said nothing wrong but did not finish: try again
+            if rc != 0:  # not started early, or failed
+                r.py(f'pass_{t}', 'pitchiq.balltrack.half', t, lo, hi, fewer=fewer_pass, first=rc)
             if not passed(t):
                 raise Stop(
                     f'the pass of {t} ended without HALF DONE ({TRACK / "half" / t / "log.txt"})'
                 )
+        if t == h1:
+            if r.early_watch is not None:
+                r.early_watch.join()  # it starts the second pass only while the first runs
+            go(r, h2)  # the first half's pass is over: the second's shipped chain may start
+
+
+# The passes start before the camera is calibrated (session step 3.12). Only a pass's
+# shipped chain reads the camera, so the first half's pass starts once both panoramas are
+# made (not beside them: a panorama commits 24 GB and a pass 20 GB, against this PC's
+# 51 GB commit limit) and runs while the coach pins, below normal priority so that the
+# calibration keeps the processor. Its shipped chain waits for run/ship_<h1>, which the
+# camera step writes once the camera is accepted. When it has done everything else
+# (half/<h1>/early.done), the second half's pass starts too; its shipped chain waits for
+# run/ship_<h2>, written when the first half's pass ends, since two halves' shipped chains
+# at once ran Windows out of commit. step_pass then follows each. A pass runs below normal
+# until its own ship file is written.
+
+
+def ship_file(r: Run, t: str) -> Path:
+    """Half t's shipped chain may start once this file exists (half.py --after)."""
+    return r.out / f'ship_{t}'
+
+
+def start_early(r: Run, halves) -> None:
+    """The first half's pass, started while the coach pins; the second's follows it."""
+    h1 = r.tags[0]
+    if r.a.no_early or passed(h1):
+        return
+    for t in r.tags:
+        ship_file(r, t).unlink(missing_ok=True)  # only this run's camera and passes say go
+        (TRACK / 'half' / t / 'early.done').unlink(missing_ok=True)  # nor an older pass
+    early_pass(r, h1, halves[0])
+    r.early_watch = threading.Thread(
+        target=start_second, args=(r, halves[1]), name='early', daemon=True
+    )
+    r.early_watch.start()
+
+
+def early_pass(r: Run, t: str, frames) -> None:
+    lo, hi = frames
+    with r.early_lock:
+        if r.stopping:
+            return
+        ship = ship_file(r, t)
+        low = not ship.exists()
+        why = f' early, its shipped chain after {ship.name}' + (', low priority' if low else '')
+        args = ('pitchiq.balltrack.half', t, lo, hi, '--after', ship)
+        r.early[t] = r.start(f'pass_{t}', args, low=low, why=why)
+
+
+def start_second(r: Run, frames) -> None:
+    """The second half's pass, once the first's has done all it can before the camera: the
+    detectors and the players are then free. Nothing if the first ended before that."""
+    h1, h2 = r.tags
+    first = r.early.get(h1)
+    if first is None:
+        return
+    done = TRACK / 'half' / h1 / 'early.done'
+    while first.proc.poll() is None and not done.exists():
+        time.sleep(EARLY_POLL_S)
+    if first.proc.poll() is None and not passed(h2):
+        early_pass(r, h2, frames)
+
+
+def go(r: Run, t: str) -> None:
+    """Half t's shipped chain may start: its file for the pass to see, and its pass, if it
+    started early, back to normal priority."""
+    if r.a.plan:
+        return
+    ship_file(r, t).touch()
+    with r.early_lock:
+        s = r.early.get(t)
+    if s is not None and s.proc.poll() is None:
+        normal_priority(s.proc.pid)
+
+
+def stop_early(r: Run) -> None:
+    """Never leave an early pass running behind a stopped run: it would go on alone, and
+    the next run would refuse to start beside it (preflight). It resumes from its marks."""
+    with r.early_lock:
+        r.stopping = True
+        left = [s for s in r.early.values() if s.proc.poll() is None]
+        r.early.clear()
+    for s in left:
+        r.say(f'stopping {s.name}: the next run resumes it from what it finished')
+        subprocess.run(['taskkill', '/T', '/F', '/PID', str(s.proc.pid)], capture_output=True)
 
 
 def ball_done(r: Run) -> bool:
@@ -1372,6 +1537,11 @@ def build_parser() -> argparse.ArgumentParser:
         '--no-wait', action='store_true', help='stop, rather than wait, while pins are missing'
     )
     p.add_argument(
+        '--no-early',
+        action='store_true',
+        help='pass each half only after the calibration, not while the coach pins',
+    )
+    p.add_argument(
         '--no-pins',
         action='store_true',
         help='calibrate without pins (autocal: only for a field it can read alone)',
@@ -1463,6 +1633,8 @@ def run_steps(r: Run) -> int:
         r.progress.stopped('')
         r.tell('crashed', f'process_match failed: {type(e).__name__}: {e}. See run.log.', 'high')
         raise
+    finally:
+        stop_early(r)
     footage_note(r)
     if not a.plan:
         r.progress.finished()

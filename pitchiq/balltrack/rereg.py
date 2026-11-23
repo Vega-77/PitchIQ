@@ -46,8 +46,7 @@ def main():
             if os.path.exists(m):
                 os.remove(m)
 
-    def ship(p):
-        h.registration(p)
+    def ship(p):  # the shipped chain copies the new registration to the piece first
         h.mark(p['ptag'], 'build')
         h.do('shipped', p)
 
