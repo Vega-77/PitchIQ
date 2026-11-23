@@ -172,6 +172,31 @@ class _Masks(Mapping):
         return len(self.packed if self.packed is not None else self.frames)
 
 
+# A worker's numpy and scipy each load OpenBLAS, which reserves buffers for every one of
+# its threads as it loads: about 1.5 GB of commit a process with this PC's 28 threads, so
+# 18 of the panorama's 24 GB with 12 workers (2026-11-23, session step 3.11). The workers'
+# products are small (a link's points, 3x3 rotations), below the sizes OpenBLAS splits
+# across threads, so they come out the same with one.
+ONE_BLAS = {'OPENBLAS_NUM_THREADS': '1'}
+
+
+def spawn_pool(workers: int, initializer=None, initargs=()):
+    """A spawn pool of `workers` processes with one OpenBLAS thread each (ONE_BLAS). This
+    process keeps its own threads: its OpenBLAS was set up when it loaded numpy."""
+    import multiprocessing as mp
+
+    old = {k: os.environ.get(k) for k in ONE_BLAS}
+    os.environ.update(ONE_BLAS)
+    try:  # the workers start here, and take the environment as it is now
+        return mp.get_context('spawn').Pool(workers, initializer=initializer, initargs=initargs)
+    finally:
+        for k, v in old.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
 def _pool_map(fn, items, workers, initializer=None, initargs=()):
     """fn over items, results in order, in `workers` processes (this one when 1)."""
     if workers <= 1:
@@ -179,20 +204,14 @@ def _pool_map(fn, items, workers, initializer=None, initargs=()):
             initializer(*initargs)
         yield from map(fn, items)
         return
-    import multiprocessing as mp
-
-    with mp.get_context('spawn').Pool(workers, initializer=initializer, initargs=initargs) as pool:
+    with spawn_pool(workers, initializer, initargs) as pool:
         yield from pool.imap(fn, items)
 
 
 def prep(D: dict, log, workers: int = WORKERS) -> tuple[dict, np.ndarray]:
     n = len(D['frames'])
     if workers > 1:
-        import multiprocessing as mp
-
-        with mp.get_context('spawn').Pool(
-            min(workers, 15), initializer=autocal.focal_pool_init, initargs=(D['links'], n)
-        ) as pool:
+        with spawn_pool(min(workers, 15), autocal.focal_pool_init, (D['links'], n)) as pool:
             f0 = autocal.best_focal(D['links'], n, pool=pool)
     else:
         f0 = autocal.best_focal(D['links'], n)

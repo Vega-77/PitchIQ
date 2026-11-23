@@ -10,7 +10,7 @@ running beside it, then both halves' stats, then publish:
     halves -> camera (coach's pins) -> pass wb1, pass wb2 -> ball17 wb ---------> stats wb1, wb2 -> publish
                                                             map wb1, map wb2 -/
 
-The first half's pass starts before the camera is done: once both panoramas are made, it
+The first half's pass starts before the camera is done: it starts beside the panoramas,
 detects while the coach pins, and only its last stage waits for the calibration (section 3a,
 "Started while the coach pins").
 
@@ -177,13 +177,14 @@ within a minute. The old to-the-minute runs were 8-14 min off on eb (warm-ups), 
 
 1. **Panorama** (`pitchiq.experiments.pincal prep <tag> <lo> <hi>`), for each half:
    - It runs autocal's gather and prep: SIFT links between sampled frames, and paint masks. These go to `PitchIQ-data/autocal/<tag>/` (`gather.pkl`, `prep.pkl`, `spec.pkl`; about 420 MB a half).
+   - Its worker processes run one OpenBLAS thread each (`autocal_run.spawn_pool`). With this PC's 28 threads, each worker's numpy and scipy otherwise reserve about 1.5 GB of commit as they load, so 12 workers committed 24 GB; now the step commits about 7 GB, with the same files byte for byte (session step 3.11, wbr1 and wbr2).
    - A loop closure then solves every frame's aim and zoom together, since the camera never moves.
    - Finally a colour panorama is built. The files go to `PitchIQ-data/pincal/<tag>/` (`keys/`, `keys.pkl`, `match.pkl`, `solve.pkl`, `pano_rgb.jpg/json`; about 50 MB).
 2. **To the coach**: `upload_pano` writes the panorama to Firestore `cvPano/h1` (plus chunk documents `h1_<i>`). The coach pins it on `calibrate/?team&match&half`. The run polls `cvPins/h1` every minute and saves what it finds as `pincal/<tag>/pins.json`.
 3. **Transfer** (`pincal transfer <h1> <h2>`): writes `pincal/<h2>/transfer_from_<h1>.json`. If the tripod stayed put, the first half's pins carry over to the second, so the coach pins once. Otherwise the second half gets its own panorama upload.
 4. **Pin check**: `fit_pins` checks every pin against the rest. A set that doesn't fit is renamed `pins_rejected.json`, the coach is told why (`mark_problem` on `cvPano`), and the run waits for new pins.
 
-   Once both panoramas are made, the first half's pass starts (section 3a, "Started while the coach pins"). It does not start when `--no-wait` stops the run for pins, nor with `--no-early`.
+   The first half's pass starts with this step, beside the panoramas (section 3a, "Started while the coach pins"). It does not start when the run will stop for pins (`--no-wait`, or no `--team`/`--match` to poll and no pins yet), nor with `--no-early`.
 
    With `--pins-from <game>`, nothing goes to the coach. Step 3's check runs between `<game>1` and this game's first half (`transfer_from_<game>1.json`), and if the camera stood in the same place, `<game>1`'s pins are carried over (`pins.json` with `"from": "<game>1"`). The second half then follows the usual rule, taking `<game>2`'s pins only if the camera moved. A camera that stood elsewhere, or carried pins that don't fit, stop the run: leave out `--pins-from` and have the field pinned.
 5. **Calibration** (`pincal cal <tag> --with <other> --install`): pins give camera position, aim and pitch size, and the paint polishes the aim. It writes `pincal/<tag>/cal/` and `pin_pose.json`, and installs:
@@ -229,11 +230,11 @@ passed game halves move: 7 frames in all, with the same 2D picks and camera and 
 within the tolerance.
 
 **Started while the coach pins** (session step 3.12, 2026-11-23). Only the shipped chain
-reads the camera (reg and venue). So `process_match` starts the first half's pass once both
-panoramas are made, with `--after stats/<g>/run/ship_<tag>`. Every other stage runs while
-the coach pins, and the shipped chain waits for that file:
-- **Why after the panoramas and not beside them.** A panorama commits about 24 GB and a pass about 20 GB, against this PC's 51 GB commit limit.
-- **Priority.** The early pass runs below normal priority, so the panorama upload and the calibration keep the processor. Its children inherit that priority.
+reads the camera (reg and venue). So `process_match` starts the first half's pass with the
+camera step, beside the panoramas, with `--after stats/<g>/run/ship_<tag>`. Every other stage
+runs while the panoramas are made and the coach pins, and the shipped chain waits for that file:
+- **Beside the panoramas.** A panorama commits about 7 GB (its workers run one OpenBLAS thread each, section 2) and a pass about 20 GB, against this PC's 51 GB commit limit. The panoramas still run one after the other, so the coach's comes first.
+- **Priority.** The early pass runs below normal priority, so the panoramas, the upload and the calibration keep the processor. Its children inherit that priority.
 - **The go file.** The camera step writes `ship_<h1>` once the camera passes its checks (`go`). That also lifts the pass and its children back to normal priority.
 - **The second half.** When everything but the shipped chain is done, the pass writes `half/<tag>/early.done`. By then its detector, players and classifier have finished, and the players' networks are freed from the GPU. The second half's pass then starts with `--after ship_<h2>`. That file is written only when the first half's pass ends, because two halves' shipped chains at once ran Windows out of commit (`flight_scan`). If the first pass ends before writing `early.done`, the second starts in `step_pass` as before.
 - **Following and retrying.** `step_pass` follows each early pass like a step it launched, progress bar included. A pass that fails, or ends without `HALF DONE`, gets the usual one retry without `--after`.

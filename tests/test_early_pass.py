@@ -290,3 +290,52 @@ def test_a_run_that_stops_stops_its_early_passes(run, monkeypatch):
     run.tell = lambda *a, **k: None
     assert pm.run_steps(run) == 1
     assert stopped == [run]
+
+
+# ---------------------------------------------------------------- where it starts
+
+
+@pytest.fixture
+def pins_step(run, tmp_path, monkeypatch):
+    """step_pins with every step it runs recorded, and the pins fitting at once."""
+    import sys
+
+    from pitchiq.experiments import pincal
+
+    seen = []
+    monkeypatch.setattr(pincal, 'prepped', lambda t: False)
+    monkeypatch.setattr(pincal, 'here', lambda t: tmp_path / 'pincal' / t)
+    monkeypatch.setitem(
+        sys.modules, 'pitchiq.publish_to_firestore', SimpleNamespace(_client=lambda: 'db')
+    )
+    monkeypatch.setattr(pm, 'start_early', lambda r, halves: seen.append('early'))
+    monkeypatch.setattr(pm, 'offer', lambda r, db, t: seen.append(f'offer {t}'))
+    monkeypatch.setattr(pm, 'transfer', lambda r, a, b: {'ok': True})
+    monkeypatch.setattr(pm, 'pins_fit', lambda r, db, moved: True)
+    monkeypatch.setattr(pm, 'registered', lambda t: True)
+    run.py = lambda name, *args, **kw: seen.append(name)
+    run.a.__dict__.update(pins_from=None, team='t', match='m', no_wait=False)
+    return seen
+
+
+def test_the_first_pass_starts_beside_the_panoramas(run, pins_step):
+    pm.step_pins(run, FRAMES)
+    assert pins_step[:3] == ['early', 'pano_zz1', 'offer zz1']
+
+
+@pytest.mark.parametrize('how', ['no site', 'no wait'])
+def test_no_early_pass_when_the_run_will_stop_for_pins(run, pins_step, how):
+    if how == 'no site':
+        run.a.team = None
+    else:
+        run.a.no_wait = True
+    pm.step_pins(run, FRAMES)
+    assert 'early' not in pins_step
+
+
+def test_pins_already_in_start_it_even_without_the_site(run, pins_step, tmp_path):
+    run.a.team = None
+    (tmp_path / 'pincal' / 'zz1').mkdir(parents=True)
+    (tmp_path / 'pincal' / 'zz1' / 'pins.json').write_text('[]')
+    pm.step_pins(run, FRAMES)
+    assert pins_step[0] == 'early'

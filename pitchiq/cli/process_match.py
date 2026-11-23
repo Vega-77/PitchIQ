@@ -32,12 +32,13 @@ this command prints when each one starts and ends.
                 camera must have stood in the same place). `--no-pins` uses
                 the pin-free calibration (`experiments/autocal_run.py`) instead
   3. pass       the ball and the players over each half (`balltrack/half.py`).
-                The first half's starts as soon as both panoramas are made, while
-                the coach pins, at a low priority; only its shipped chain (the one
-                stage that reads the camera) waits for the calibration. Once it has
-                done everything else, the second half's starts too, its shipped
-                chain after the first half's pass. `--no-early` passes each half
-                after the calibration instead, as before 2026-11-23
+                The first half's starts with the camera step, beside the
+                panoramas and while the coach pins, at a low priority; only its
+                shipped chain (the one stage that reads the camera) waits for the
+                calibration. Once it has done everything else, the second half's
+                starts too, its shipped chain after the first half's pass.
+                `--no-early` passes each half after the calibration instead, as
+                before 2026-11-23
   4. ball, map  at the same time: the look #17 ball over both halves
                 (`balltrack/ball17.py`, 3-6 h, mostly the GPU) and, beside it,
                 the top-down map of each half (`experiments/wholemap.py`, the
@@ -716,13 +717,15 @@ def step_pins(r: Run, halves) -> None:
                 what = f'{pano}, then {who}'
             r.say(f'camera {t}: {what}')
         if not r.a.no_early:
-            r.say(f'pass {h1}: starts once the panoramas are made, while the coach pins')
+            r.say(f'pass {h1}: starts beside the panoramas and runs while the coach pins')
         return
     db = None
     if r.a.team and r.a.match:
         from pitchiq.publish_to_firestore import _client
 
         db = _client()
+    if (db is not None and not r.a.no_wait) or src or (PC.here(h1) / 'pins.json').exists():
+        start_early(r, halves)  # not when the run will stop for pins
     for t, (lo, hi) in zip(r.tags, halves):
         if not PC.prepped(t):
             r.py(f'pano_{t}', 'pitchiq.experiments.pincal', 'prep', t, lo, hi, '--lines', r.a.lines)
@@ -738,8 +741,6 @@ def step_pins(r: Run, halves) -> None:
         offer(r, db, h2)
     else:
         r.say(f"camera: it stayed put, so {h1}'s pins will carry to {h2}")
-    if (db is not None and not r.a.no_wait) or (PC.here(h1) / 'pins.json').exists():
-        start_early(r, halves)  # both panoramas are made; not when the run stops for pins
 
     need = [h1, h2] if moved else [h1]
     while not pins_fit(r, db, moved):
@@ -1021,11 +1022,13 @@ def step_pass(r: Run) -> None:
             go(r, h2)  # the first half's pass is over: the second's shipped chain may start
 
 
-# The passes start before the camera is calibrated (session step 3.12). Only a pass's
-# shipped chain reads the camera, so the first half's pass starts once both panoramas are
-# made (not beside them: a panorama commits 24 GB and a pass 20 GB, against this PC's
-# 51 GB commit limit) and runs while the coach pins, below normal priority so that the
-# calibration keeps the processor. Its shipped chain waits for run/ship_<h1>, which the
+# The passes start before the camera is calibrated (session steps 3.12 and 3.11). Only a
+# pass's shipped chain reads the camera, so the first half's pass starts with the camera
+# step, beside the panoramas (a panorama commits about 7 GB with one OpenBLAS thread a
+# worker, autocal_run.spawn_pool, and a pass 20 GB, against this PC's 51 GB commit limit),
+# and runs while the coach pins, below normal priority so that the panoramas and the
+# calibration keep the processor. It does not start when the run will stop for pins, which
+# would end it. Its shipped chain waits for run/ship_<h1>, which the
 # camera step writes once the camera is accepted. When it has done everything else
 # (half/<h1>/early.done), the second half's pass starts too; its shipped chain waits for
 # run/ship_<h2>, written when the first half's pass ends, since two halves' shipped chains

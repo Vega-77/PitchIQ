@@ -238,9 +238,7 @@ def _match(args):
 
 
 def pool_map(fn, items, video, kdir):
-    import multiprocessing as mp
-
-    with mp.get_context('spawn').Pool(WORKERS, initializer=_init, initargs=(video, kdir)) as p:
+    with AR.spawn_pool(WORKERS, _init, (video, kdir)) as p:  # one BLAS thread a worker
         return p.map(fn, items, chunksize=1)
 
 
