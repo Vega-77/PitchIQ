@@ -23,7 +23,7 @@ import time
 import cv2
 import numpy as np
 
-from . import ball17, ballgate, camera, pitch_registration  # noqa: F401  (clickscore reads ballgate here)
+from . import ball17, camera, pitch_registration
 from .ballgate import short_runs  # MIN_RUN frames; clickscore reads it from here too
 from . import render_review_video  # clock
 

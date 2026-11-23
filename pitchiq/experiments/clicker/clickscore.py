@@ -55,13 +55,15 @@ HID_TOL = 30.0
 
 def rings(match_video, tag, frames):
     """match_video.ball's image point and kind, at the given frames only (the whole half takes minutes)."""
+    from pitchiq.balltrack import ballgate
+
     tr = match_video.flight_model.Track(tag)
     a0 = int(tr.abs[0])
     B = np.load(os.path.join(match_video.HG, '%s_ball3dd.npz' % tag))
     P = np.load(os.path.join(match_video.HERE, 'evaluation', 'p2d', 'hyb90', '%s.npz' % tag))
     air = (B['state'] == 'air') & np.isfinite(B['x'])
     flash = match_video.short_runs(air | ((P['src'] > 0) & np.isfinite(P['x'])))
-    flash |= match_video.ballgate.lost(tag, a0, match_video.ballgate.scored(P))
+    flash |= ballgate.lost(tag, a0, ballgate.scored(P))
     out = {}
     for f in frames:
         i = f - a0
