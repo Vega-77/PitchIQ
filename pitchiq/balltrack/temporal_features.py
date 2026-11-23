@@ -12,9 +12,10 @@ medians over 21, and so on for every reduction.
 
 Two implementation notes, because both change results if done carelessly:
 
-  * BORDERS.  The original clips each window at the tile edge.  Here the
-    tiles are zero-padded by RW so every window is the same shape and can
-    be gathered at once.  max() is unaffected (tiles and fgs are both >= 0,
+  * BORDERS.  The original clips each window at the tile edge.  Here every
+    window is read through a flat index whose off-tile cells read a 0, as
+    if the tiles were zero-padded, so every window is the same shape and
+    can be gathered at once.  max() is unaffected (tiles and fgs are both >= 0,
     so a padded zero never wins).  mean() WOULD be, so every mean divides
     by the true clipped area, computed the same way the original computes
     its slice bounds.  The padded cells contribute 0 to the sum, so the
@@ -26,6 +27,16 @@ Two implementation notes, because both change results if done carelessly:
     Same estimator, different rounding: lstsq goes through an SVD in
     float32, this accumulates in float64.  Agreement is ~1e-6 relative,
     which is checked rather than assumed - see tcheck.py.
+
+Faster, same bits (2026-11-23, session step 3.13: about 1.9x).  The tiles
+are whole grey levels, so the plate, the 5x5 blocks and the moving-peak
+search run on uint8: medians, maxima, a saturating subtract and an argmax of
+integers are the same integers, and every sum of them is under 2^24, so the
+float32 sums taken before were exact and an integer sum gives the same
+number.  Each window is read through one flat index into a row with a
+trailing 0 instead of padding four whole stacks, and the plate's median is a
+comparator network on whole rows instead of a partition - the same middle
+value, checked on every 0/1 input, which by the 0-1 principle covers all.
 
 Drop-in: temporal_features.temporal_rows(tiles, pts) for single_process_run.temporal_rows(tiles, pts).
 """
@@ -76,43 +87,103 @@ TNAMES = [
 ]
 
 
-def _gather(padded, iy, ix, r):
-    """padded[..., iy+dy, ix+dx] for every candidate, as (nc, n0, (2r+1)^2).
+def _windows(cyc, cxc, r, H, W):
+    """(nc, (2r+1)^2) flat indices of the window around each clamped centre.
 
-    padded is (n0, H2, W2) or (H2, W2); iy/ix are padded-space centres.
+    Row-major, into an H*W plane with one more cell at the end: a window cell
+    off the tile points at that cell, which holds 0 (the zero padding).
     """
     d = np.arange(-r, r + 1)
-    yy = iy[:, None] + d[None, :]  # (nc, 2r+1)
-    xx = ix[:, None] + d[None, :]
-    if padded.ndim == 2:
-        out = padded[yy[:, :, None], xx[:, None, :]]  # (nc, k, k)
-        return out.reshape(len(iy), -1)
-    out = padded[:, yy[:, :, None], xx[:, None, :]]  # (n0, nc, k, k)
-    return np.moveaxis(out, 0, 1).reshape(len(iy), padded.shape[0], -1)
+    yy, xx = cyc[:, None] + d, cxc[:, None] + d
+    ok = ((yy >= 0) & (yy < H))[:, :, None] & ((xx >= 0) & (xx < W))[:, None, :]
+    f = np.clip(yy, 0, H - 1)[:, :, None] * W + np.clip(xx, 0, W - 1)[:, None, :]
+    return np.where(ok, f, H * W).reshape(len(cyc), -1)
 
 
-def _plate(tiles, pts, scale, H, W):
+def _median_ops(n):
+    """A comparator network whose output n // 2 is the median of n inputs (n odd).
+
+    Batcher's odd-even merge sort on the next power of two, cut to the first n
+    wires (the missing ones read as +inf, which no comparator moves), then
+    pruned to the comparators that one output needs.  Returns
+    [(i, j, keep_min, keep_max)]: the min goes to wire i, the max to wire j.
+    """
+
+    def merge(lo, hi, r):
+        step = r * 2
+        if step < hi - lo:
+            yield from merge(lo, hi, step)
+            yield from merge(lo + r, hi, step)
+            yield from [(i, i + r) for i in range(lo + r, hi - r, step)]
+        else:
+            yield (lo, lo + r)
+
+    def msort(lo, hi):
+        if hi - lo >= 1:
+            mid = lo + (hi - lo) // 2
+            yield from msort(lo, mid)
+            yield from msort(mid + 1, hi)
+            yield from merge(lo, hi, 1)
+
+    p = 1
+    while p < n:
+        p *= 2
+    need, ops = {n // 2}, []
+    for i, j in reversed([(i, j) for i, j in msort(0, p - 1) if j < n]):
+        if i in need or j in need:
+            ops.append((i, j, i in need, j in need))
+            need |= {i, j}
+    return ops[::-1]
+
+
+assert NOFF % 2 == 1, 'the plate takes the middle tile by size'
+# 91 comparators (162 min/max) for 21 tiles; checked on all 2^21 0/1 inputs
+MEDIAN_OPS = _median_ops(NOFF)
+
+
+def _median_rows(X):
+    """Each column's median of the NOFF rows of X, as min/max of whole rows.
+
+    The same value as np.partition(X, NOFF // 2, axis=0)[NOFF // 2]: the network
+    picks the middle one by size exactly (a 0/1 check of every input covers all
+    inputs, by the 0-1 principle), ~13x faster on 50k columns.
+    """
+    a = list(X)
+    for i, j, lo, hi in MEDIAN_OPS:
+        x, y = a[i], a[j]
+        if lo:
+            a[i] = np.minimum(x, y)
+        if hi:
+            a[j] = np.maximum(x, y)
+    return a[NOFF // 2]
+
+
+def _plate(tu, pts, scale, H, W):
     """The background plate: the per-pixel median of the 21 tiles, but only
     where some candidate's RW window can read it (about a fifth of the tile).
     Elsewhere it is 0 and nothing ever gathers it. A median of 21 values is
-    the 11th by size, so the partition returns exactly np.median's answer;
-    the rows come back bit for bit (checked on fm01 anchors, 37 -> 5 ms)."""
+    the 11th by size, so the selection returns exactly np.median's answer;
+    the rows come back bit for bit (checked on fm01 anchors, 37 -> 5 ms).
+
+    tu is the (NOFF, H*W + 1) uint8 tile stack; the plate is one row like it.
+    """
     iy = np.clip(np.rint(pts[:, 1] / scale).astype(np.int64), 0, H - 1)
     ix = np.clip(np.rint(pts[:, 0] / scale).astype(np.int64), 0, W - 1)
     m = np.zeros((H, W), np.uint8)
     m[iy, ix] = 1
     # centres clipped onto the tile only widen the window, never miss a pixel
-    m = cv2.dilate(m, np.ones((2 * RW + 1, 2 * RW + 1), np.uint8)).astype(bool)
-    bg = np.zeros((H, W), tiles.dtype)
-    if len(tiles) % 2:
-        bg[m] = np.partition(tiles[:, m], len(tiles) // 2, axis=0)[len(tiles) // 2]
-    else:
-        bg[m] = np.median(tiles[:, m], axis=0)
+    m = cv2.dilate(m, np.ones((2 * RW + 1, 2 * RW + 1), np.uint8)).astype(bool).ravel()
+    bg = np.zeros(H * W + 1, np.uint8)
+    bg[: H * W][m] = _median_rows(tu[:, : H * W][:, m])
     return bg
 
 
 def temporal_rows(tiles, pts):
-    """Vectorised twin of single_process_run.temporal_rows.  Same inputs, same 30 columns."""
+    """Vectorised twin of single_process_run.temporal_rows.  Same inputs, same 30 columns.
+
+    tiles: the (NOFF, TH, TW) float32 stack from candidate_features.tiles_for,
+    whole grey levels 0..255.
+    """
     H, W = TH, TW
 
     nc = len(pts)
@@ -121,9 +192,11 @@ def temporal_rows(tiles, pts):
     if nc == 0:
         return T
 
-    bg = _plate(tiles, pts, SCALE, H, W)
-    fgs = np.clip(tiles - bg, 0, None)
-    cur = tiles[CZERO]
+    HW = H * W
+    tu = np.empty((NOFF, HW + 1), np.uint8)  # the tiles as uint8, each with a trailing 0
+    tu[:, HW] = 0
+    np.copyto(tu[:, :HW], tiles.reshape(NOFF, HW), casting='unsafe')
+    bg = _plate(tu, pts, SCALE, H, W)
 
     tx = pts[:, 0] / SCALE
     ty = pts[:, 1] / SCALE
@@ -147,37 +220,38 @@ def temporal_rows(tiles, pts):
     area3 = ((qx1 - qx0) * (qy1 - qy0)).astype(np.float64)
     area3[area3 <= 0] = 1.0
 
-    # RW + 3, not RW: a candidate at tx = 639.7 rounds to ix = W, which the
-    # original clips to a 2-wide window but a uniform gather would walk past
-    # the edge of.  The extra 3 makes the widest window fit for every ix the
-    # `live` test can accept, so the clamp below never fires on a candidate
-    # whose row is actually used - it only keeps a dead one from raising.
+    # The window centres, clamped as the original clamped them inside RW + 3
+    # of zero padding: a candidate at tx = 639.7 rounds to ix = W, which the
+    # original clips to a 2-wide window.  The clamp never fires on a candidate
+    # whose row is actually used - it only keeps a dead one in bounds.
     pad = RW + 3
-    pt = np.pad(tiles, ((0, 0), (pad, pad), (pad, pad)))
-    pf = np.pad(fgs, ((0, 0), (pad, pad), (pad, pad)))
-    pb = np.pad(bg, ((pad, pad), (pad, pad)))
-    pc = np.pad(cur, ((pad, pad), (pad, pad)))
-    pH, pW = H + 2 * pad, W + 2 * pad
-    piy = np.clip(iy + pad, RW, pH - 1 - RW)
-    pix = np.clip(ix + pad, RW, pW - 1 - RW)
+    cyc = np.clip(iy + pad, RW, H + 2 * pad - 1 - RW) - pad
+    cxc = np.clip(ix + pad, RW, W + 2 * pad - 1 - RW) - pad
 
     # ---- the RP patch (5x5): series, fg series, bg, mad -------------------
-    t5 = _gather(pt, piy, pix, RP)  # (nc, NOFF, 25)
-    f5 = _gather(pf, piy, pix, RP)
-    b5 = _gather(pb, piy, pix, RP)  # (nc, 25)
-    c5 = _gather(pc, piy, pix, RP)
+    # Read as uint8, since the tiles are whole grey levels: every max is the
+    # same integer, the foreground is the saturating t - bg (= max(t - bg, 0)),
+    # and every sum below is of integers under 2^24, so the float32 sums taken
+    # before were exact and an integer sum gives the same number.
+    i5 = _windows(cyc, cxc, RP, H, W)
+    rows = (np.arange(NOFF) * (HW + 1))[None, :, None]
+    t5 = np.take(tu, i5[:, None, :] + rows)  # (nc, NOFF, 25)
+    b5 = np.take(bg, i5)  # (nc, 25)
+    f5 = np.maximum(t5, b5[:, None, :])
+    f5 -= b5[:, None, :]
+    d5 = np.abs(t5.astype(np.int16) - t5[:, CZERO : CZERO + 1, :])  # |t - cur|
 
-    series = t5.max(axis=2)  # (nc, NOFF)
-    fgser = f5.max(axis=2)
+    series = t5.max(axis=2).astype(np.float32)  # (nc, NOFF)
+    fgser = f5.max(axis=2).astype(np.float32)
     v0 = series[:, CZERO]
     t_med = np.median(series, axis=1)
     t_min = series.min(axis=1)
     t_std = series.std(axis=1)
-    bgmax = b5.max(axis=1)
-    # Padded cells are 0 in both t5 and c5, so they add 0 to the sum; the
+    bgmax = b5.max(axis=1).astype(np.float32)
+    # Padded cells are 0 in both t5 and cur, so they add 0 to the sum; the
     # divisor is the true clipped cell count, exactly as the original's.
-    mad = np.abs(t5 - c5[:, None, :]).sum(axis=(1, 2)) / (NOFF * area5)
-    fg_mean = f5[:, CZERO, :].sum(axis=1) / area5
+    mad = d5.sum(axis=(1, 2), dtype=np.int64) / (NOFF * area5)
+    fg_mean = f5[:, CZERO, :].sum(axis=1, dtype=np.int64) / area5
 
     bright = (series > 150).mean(axis=1)
     persist = series > (v0[:, None] - 25)
@@ -198,10 +272,21 @@ def temporal_rows(tiles, pts):
     runa = np.where(persist[:, CZERO], 1.0 + runl + runr, 0.0)
 
     # ---- the RW window (13x13): the moving-peak track ---------------------
+    # Tile by tile: the whole tile's uint8 foreground (saturating), then each
+    # candidate's window of it.  The argmax of the same integers in the same
+    # order is the same first maximum.
     k = 2 * RW + 1
-    fw = _gather(pf, piy, pix, RW)  # (nc, NOFF, 169)
-    am = fw.argmax(axis=2)
-    mx = fw.max(axis=2)
+    iw = _windows(cyc, cxc, RW, H, W)
+    am = np.empty((nc, NOFF), np.int64)
+    mx = np.empty((nc, NOFF), np.uint8)
+    fg = np.empty(HW + 1, np.uint8)
+    r = np.arange(nc)
+    for o in range(NOFF):
+        cv2.subtract(tu[o], bg, dst=fg)
+        fw = np.take(fg, iw)
+        a = fw.argmax(axis=1)
+        am[:, o] = a
+        mx[:, o] = fw[r, a]
     seen = mx > FG
     px = (am % k).astype(np.float64) + (ix - RW)[:, None]
     py = (am // k).astype(np.float64) + (iy - RW)[:, None]
@@ -231,7 +316,6 @@ def temporal_rows(tiles, pts):
 
     first = seen.argmax(axis=1)
     last = (NOFF - 1) - seen[:, ::-1].argmax(axis=1)
-    r = np.arange(nc)
     disp = np.hypot(px[r, last] - px[r, first], py[r, last] - py[r, first])
 
     speed = np.where(ok, speed, 0.0)
@@ -240,12 +324,12 @@ def temporal_rows(tiles, pts):
 
     # ---- the 3x3 block: the centre of the 5x5 gather ----------------------
     cen = np.array([6, 7, 8, 11, 12, 13, 16, 17, 18])  # 3x3 inside 5x5
-    q = t5[:, :, cen].max(axis=2)
-    qf = f5[:, :, cen].max(axis=2)
+    q = t5[:, :, cen].max(axis=2).astype(np.float32)
+    qf = f5[:, :, cen].max(axis=2).astype(np.float32)
     q0 = q[:, CZERO]
     qmed = np.median(q, axis=1)
-    qbg = b5[:, cen].max(axis=1)
-    qmad = np.abs(t5[:, :, cen] - c5[:, None, cen]).sum(axis=(1, 2)) / (NOFF * area3)
+    qbg = b5[:, cen].max(axis=1).astype(np.float32)
+    qmad = d5[:, :, cen].sum(axis=(1, 2), dtype=np.int64) / (NOFF * area3)
 
     cols = [
         v0,

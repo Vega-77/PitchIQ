@@ -7,7 +7,6 @@ temporal_features.temporal_rows reads.
 """
 
 import os
-import math
 
 import cv2
 import numpy as np
@@ -64,52 +63,101 @@ def tiles_for(bgrs, mats, fids=None, cache=None):
     return out
 
 
+STILL_KEYS = (
+    'minor',
+    'major',
+    'area',
+    'fill',
+    'elong',
+    'circ',
+    'extent',
+    'v_in',
+    'v_max',
+    'v_std',
+    'v_ring',
+    'v_ring_max',
+    'con',
+    'rel_con',
+    's_in',
+    's_ring',
+    'h_in',
+    'grass_ring',
+    'other_ring',
+    'white_far',
+    'lap',
+)
+NN_EPS = 1e-5  # relative margin: a float32 difference and hypotf are ~3e-7 from exact
+NN_K = 8  # neighbours read per blob before its row is settled
+
+
+def _neighbours(pts):
+    """Each blob's nearest other blob, and how many others lie under 100 px.
+
+    Exactly what the float32 row hypot(pts - pts_i) gives (its second smallest,
+    self included, and its count under 100, less self), without building the
+    n x n block.  A k-d tree on the exact distances finds the few blobs that can
+    matter; their distances are then taken the float32 way, and a row the margin
+    cannot settle is done in full.
+    """
+    from scipy.spatial import cKDTree
+
+    n = len(pts)
+    px, py = pts[:, 0], pts[:, 1]
+    P = pts.astype(np.float64)
+    tree = cKDTree(P)
+
+    def row(i):
+        return np.hypot(px - px[i], py - py[i])
+
+    k = min(NN_K, n)
+    d, j = tree.query(P, k=k)
+    h = np.hypot(px[j] - px[:, None], py[j] - py[:, None])  # float32, the original's way
+    nn = np.partition(h, 1, axis=1)[:, 1].astype(np.float64)
+    if k < n:
+        # a blob outside the k nearest is >= d_k (1 - 3e-7) away by float32
+        for i in np.nonzero(~(nn < d[:, k - 1] * (1 - NN_EPS)))[0].tolist():
+            nn[i] = np.partition(row(i), 1)[1]
+    lo = tree.query_ball_point(P, 100.0 * (1 - NN_EPS), return_length=True)
+    hi = tree.query_ball_point(P, 100.0 * (1 + NN_EPS), return_length=True)
+    cnt = lo.astype(np.float64) - 1
+    # a blob within the margin of 100 px: that row is counted the float32 way
+    for i in np.nonzero(hi != lo)[0].tolist():
+        cnt[i] = np.count_nonzero(row(i) < 100) - 1
+    return nn, cnt
+
+
 def still_rows(bs, cmaj, cara):
     """One row of still features per blob (NAMES order), and the blob centres (n, 2) in source px.
 
     cmaj, cara: the expected ball major axis and side as a linear fit in image row
     (still4.npz), so the size columns are relative to what a ball there should be.
+
+    Filled a column at a time in float64, which holds every value the per-blob
+    rows held exactly (Python floats, int32s, float32s), and cast to float32
+    once, as np.array(rows, np.float32) did: the same bytes, ~4x faster.
     """
     pts = np.array([[b['cx'], b['cy']] for b in bs], np.float32)
-    rows = []
-    for b in bs:
-        dxy = np.hypot(pts[:, 0] - b['cx'], pts[:, 1] - b['cy'])
-        nn = float(np.sort(dxy)[1]) if len(dxy) > 1 else 999.0
-        e_maj = max(1.0, cmaj[0] * b['cy'] + cmaj[1])
-        e_side = max(1.0, cara[0] * b['cy'] + cara[1])
-        rows.append(
-            [
-                b['minor'],
-                b['major'],
-                b['area'],
-                b['fill'],
-                b['elong'],
-                b['circ'],
-                b['extent'],
-                b['v_in'],
-                b['v_max'],
-                b['v_std'],
-                b['v_ring'],
-                b['v_ring_max'],
-                b['con'],
-                b['rel_con'],
-                b['s_in'],
-                b['s_ring'],
-                b['h_in'],
-                b['grass_ring'],
-                b['other_ring'],
-                b['white_far'],
-                b['lap'],
-                b['cx'] / 1920.0,
-                b['cy'] / 1080.0,
-                b['major'] / e_maj,
-                b['minor'] / e_maj,
-                math.sqrt(b['area']) / e_side,
-                nn,
-                float((dxy < 100).sum() - 1),
-                float(len(bs)),
-                b['split'],
-            ]
-            + b['th']
-        )
-    return np.array(rows, np.float32), pts
+    if not bs:
+        return np.array([], np.float32), pts
+    n = len(bs)
+    cols = np.empty((n, 36), np.float64)
+    for j, key in enumerate(STILL_KEYS):
+        cols[:, j] = [b[key] for b in bs]
+    cx = np.array([b['cx'] for b in bs], np.float64)
+    cy = np.array([b['cy'] for b in bs], np.float64)
+    e_maj = np.maximum(1.0, cmaj[0] * cy + cmaj[1])
+    e_side = np.maximum(1.0, cara[0] * cy + cara[1])
+    cols[:, 21] = cx / 1920.0
+    cols[:, 22] = cy / 1080.0
+    cols[:, 23] = cols[:, 1] / e_maj
+    cols[:, 24] = cols[:, 0] / e_maj
+    cols[:, 25] = np.sqrt(cols[:, 2]) / e_side
+    if n > 1:
+        cols[:, 26], cols[:, 27] = _neighbours(pts)
+    else:
+        cols[:, 26] = 999.0
+        cols[:, 27] = 0.0
+    cols[:, 28] = float(n)
+    cols[:, 29] = [b['split'] for b in bs]
+    cols[:, 30:36] = [b['th'] for b in bs]
+    return cols.astype(np.float32), pts
