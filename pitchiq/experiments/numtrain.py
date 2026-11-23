@@ -26,8 +26,6 @@ import sys
 import zlib
 
 import numpy as np
-import torch
-import torch.nn.functional as F
 
 from pitchiq.experiments.numread import HELD_OUT, OUT, PAD_X, PAD_Y, TORSO, load_crops, read
 
@@ -128,6 +126,9 @@ def _whole(img, rng):
 
 
 def _tensor(ims, size, mode, dev):
+    import torch
+    import torch.nn.functional as F
+
     x = torch.cat(
         [
             F.interpolate(
@@ -148,6 +149,9 @@ def _tensor(ims, size, mode, dev):
 def parseq_loss(m, x, labels):
     """Teacher-forced loss on both decoding orders the reader uses: left to right, and the
     cloze refinement (every other position visible). Label '' = the end token alone."""
+    import torch
+    import torch.nn.functional as F
+
     B, L, dev = len(labels), 4, x.device
     tin = torch.full((B, L), m.pad, dtype=torch.long, device=dev)
     tin[:, 0] = m.bos
@@ -172,6 +176,9 @@ def parseq_loss(m, x, labels):
 
 def train(rows, C, blank=False, dev='cuda', ep_leg=6, log=print):
     """Fine-tuned state dicts {'parseq', 'leg'} from lab rows (qid, k, readable, number)."""
+    import torch
+    import torch.nn.functional as F
+
     from pitchiq.experiments.parseq_lite import load_legibility, load_parseq
 
     torch.manual_seed(SEED)
@@ -251,6 +258,8 @@ def crop_report(reader, rows, C, label):
 
 
 def oof(blank=False, name='oof', by='person'):
+    import torch
+
     from pitchiq.experiments.parseq_lite import Reader
 
     rows, meta, C = samples()
@@ -278,6 +287,8 @@ def oof(blank=False, name='oof', by='person'):
 
 
 def final(blank=False, name='ft'):
+    import torch
+
     from pitchiq.experiments.parseq_lite import MODELS, Reader
 
     rows, meta, C = samples()

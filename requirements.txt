@@ -24,6 +24,9 @@ onnxruntime==1.28.0
 # pitchiq/topdown.py's track linker (min-cost flow). torch pulls it in too, but the
 # test install has no torch.
 networkx==3.6.1
+# process_match measures what each step holds in memory and sets a pass's priority;
+# resume tells whether a marked run's process is still the one running.
+psutil==7.2.2
 
 # The app itself needs no Python at all. Data and auth are Firestore, the
 # frontend is plain ES modules on GitHub Pages, and the only Python left is the

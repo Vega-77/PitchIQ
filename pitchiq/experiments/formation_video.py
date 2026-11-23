@@ -46,6 +46,7 @@ Works for any half that has the whole-half map, `idlink frags` and `idlink numbe
 from __future__ import annotations
 
 import argparse
+import importlib
 import sys
 from pathlib import Path
 
@@ -576,7 +577,7 @@ class Video:
         self.crop = {}  # entry without an ID -> its latest live picture
 
     def run(self):
-        import imageio_ffmpeg  # noqa: F401  (the writer's encoder; fail before the long read)
+        importlib.import_module('imageio_ffmpeg')  # the writer's encoder: fail before the long read
 
         from pitchiq.experiments.wholemap import video_of
 

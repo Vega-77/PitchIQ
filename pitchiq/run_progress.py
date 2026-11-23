@@ -175,13 +175,19 @@ class Progress:
     def write(self, force: bool = False) -> None:
         if self.ref is None or (not force and self.clock() - self.wrote < WRITE_EVERY_S):
             return
-        from google.cloud import firestore
-
         try:
-            self.ref.set(self.doc() | {'updatedAt': firestore.SERVER_TIMESTAMP})
+            self.ref.set(self.doc() | {'updatedAt': server_time()})
             self.wrote = self.clock()
         except Exception as e:  # the coach's progress bar is never worth a 10-hour run
             print(f'(progress not written to the site: {e})', flush=True)
+
+
+def server_time():
+    """Firestore's marker for the time a write lands. Imported here: only a run that reports
+    to the site has the Firestore client, and the tests' install has none."""
+    from google.cloud import firestore
+
+    return firestore.SERVER_TIMESTAMP
 
 
 def read_requests(client) -> list[dict]:

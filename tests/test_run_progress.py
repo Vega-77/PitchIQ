@@ -189,7 +189,8 @@ def test_a_step_marks_the_ones_before_it_done():
     assert d['state'] == 'done' and d['done'] == p.keys and d['leftMin'] == 0
 
 
-def test_writes_are_throttled_but_changes_of_state_are_not():
+def test_writes_are_throttled_but_changes_of_state_are_not(monkeypatch):
+    monkeypatch.setattr(rp, 'server_time', lambda: 'server time')  # no Firestore client in CI
     clock, db = Clock(), FakeDb()
     match(db, 'T', 'M', opponentName='X')
     p = rp.Progress(db, 'T', 'M', clock=clock)
@@ -205,10 +206,12 @@ def test_writes_are_throttled_but_changes_of_state_are_not():
     assert len(ref.sets) == 2 and ref.data['fraction'] == 0.4
     p.stopped('')
     assert len(ref.sets) == 3 and ref.data['state'] == 'stopped'
-    assert 'updatedAt' in ref.data
+    assert ref.data['updatedAt'] == 'server time'
 
 
-def test_a_failed_write_never_stops_the_run(capsys):
+def test_a_failed_write_never_stops_the_run(capsys, monkeypatch):
+    monkeypatch.setattr(rp, 'server_time', lambda: 'server time')  # the write is what fails
+
     class Broken:
         def set(self, _):
             raise RuntimeError('offline')
