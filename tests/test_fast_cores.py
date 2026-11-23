@@ -66,11 +66,52 @@ def test_off_windows_nothing_happens(monkeypatch):
     assert fast_cores.switch(1) is False
 
 
-def test_off_by_default(monkeypatch):
+def test_off_by_default_in_a_step(monkeypatch):
+    """A step run by hand: nothing switches its processes, so it must not act as if."""
     monkeypatch.delenv('PIQ_FAST_CORES', raising=False)
     import importlib
 
     assert importlib.reload(fast_cores).ON is False
+
+
+def test_wanted(monkeypatch):
+    monkeypatch.delenv('PIQ_FAST_CORES', raising=False)
+    assert fast_cores.wanted('1') is True
+    assert fast_cores.wanted('0') is False
+    monkeypatch.setenv('PIQ_FAST_CORES', '0')
+    assert fast_cores.wanted('1') is False
+    monkeypatch.setenv('PIQ_FAST_CORES', '1')
+    assert fast_cores.wanted('0') is True
+
+
+@pytest.mark.parametrize('fast, seen', [(True, '1'), (False, '0')])
+def test_a_run_tells_its_steps(tmp_path, monkeypatch, fast, seen):
+    """process_match's choice reaches the steps' environment (the ball step's worker count
+    reads it), whatever the shell had."""
+    from types import SimpleNamespace
+
+    from pitchiq.cli import process_match as pm
+
+    monkeypatch.setattr(pm, 'DATA', tmp_path)
+    monkeypatch.setattr(pm, 'FAST', fast)
+    monkeypatch.setenv('PIQ_FAST_CORES', 'x')
+    a = SimpleNamespace(game='zz', plan=False, video=tmp_path / 'v.mp4', lines='white')
+    assert pm.Run(a).env['PIQ_FAST_CORES'] == seen
+
+
+@pytest.mark.parametrize('env, fast', [(None, 'True'), ('0', 'False'), ('1', 'True')])
+def test_a_run_has_it_on_unless_told(env, fast):
+    """process_match's default: on (the owner's OK, 23 Nov 2026); PIQ_FAST_CORES=0 keeps it
+    off. In a fresh process, since FAST is read once at import."""
+    import os
+
+    e = {k: v for k, v in os.environ.items() if k != 'PIQ_FAST_CORES'}
+    if env is not None:
+        e['PIQ_FAST_CORES'] = env
+    code = 'from pitchiq.cli import process_match as pm; print(pm.FAST)'
+    out = subprocess.run([sys.executable, '-c', code], env=e, capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip().splitlines()[-1] == fast
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Windows power throttling')

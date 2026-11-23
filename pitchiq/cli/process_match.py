@@ -134,7 +134,9 @@ SITE = os.environ.get('PIQ_SITE', 'https://vega-77.github.io/PitchIQ/')
 PIN_POLL_S = 60  # how often the run looks for the coach's pins
 PIN_REMIND_S = 1800  # and how often it says it is still waiting
 TICK_S = 30  # how often a running step's progress is looked at
-FAST_S = 2  # how often a step's new processes leave efficiency mode (PIQ_FAST_CORES=1)
+FAST_S = 2  # how often a step's new processes leave efficiency mode (FAST)
+# a run's processes leave Windows' efficiency mode (pitchiq.fast_cores) unless PIQ_FAST_CORES=0
+FAST = fast_cores.wanted('1')
 EARLY_POLL_S = 30  # how often the first half's early pass is looked at (start_second)
 STEPS = ('halves', 'camera', 'pass', 'ball beside map', 'stats', 'publish')
 NOTE_CHARS = 1500  # of a phone note (ntfy takes 4 KB; the full text is in run.log)
@@ -221,7 +223,7 @@ def now() -> str:
 class Started:
     """A step's process from its start (Run.start) on, with the peak memory of its process
     tree sampled every TICK_S until it ends, whether or not anything waits for it yet. With
-    PIQ_FAST_CORES=1 the same thread also takes each new process in the tree out of
+    FAST (the default) the same thread also takes each new process in the tree out of
     Windows' efficiency mode within FAST_S (pitchiq.fast_cores)."""
 
     def __init__(self, name: str, proc: subprocess.Popen):
@@ -234,10 +236,10 @@ class Started:
     def _sample(self) -> None:
         last = time.time()
         while True:
-            if fast_cores.ON:
+            if FAST:
                 fast_cores.tree(self.proc.pid, self.fast)
             try:
-                self.proc.wait(timeout=FAST_S if fast_cores.ON else TICK_S)
+                self.proc.wait(timeout=FAST_S if FAST else TICK_S)
                 return
             except subprocess.TimeoutExpired:
                 if time.time() - last >= TICK_S:
@@ -276,6 +278,7 @@ class Run:
             PIQ_VIDEO=str(a.video),
             PIQ_LINES=a.lines,
             PIQ_GIANT='50000',  # the look #17 ball's finder rule (balltrack/blob_candidates.py), in the pass
+            PIQ_FAST_CORES='1' if FAST else '0',  # the steps know whether Started switches them
             PYTHONPATH=str(REPO),
             PYTHONIOENCODING='utf8',
         )

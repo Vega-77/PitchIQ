@@ -243,15 +243,19 @@ runs while the panoramas are made and the coach pins, and the shipped chain wait
 This is not yet timed on a full game; step 3.15's run measures it. With `--no-early`, or once
 the camera exists before the passes (a rerun), each pass runs after the calibration as before.
 
-**Fast cores** (session step 3.14, 2026-11-23; off until the owner turns it on). Windows runs
+**Fast cores** (session step 3.14; on since 2026-11-23, with the owner's OK). Windows runs
 the pipeline's processes in efficiency mode (EcoQoS), which on this PC's i7-14700F keeps them on
-its 12 E-cores while the 16 P-core threads sit idle. With `PIQ_FAST_CORES=1`, `process_match`
-takes every process a step starts out of efficiency mode within 2 s (`pitchiq/fast_cores.py`; a
-child doesn't inherit it, so each one is switched), and the ball step's 3D uses 16
-flight-search workers instead of 6. It is a per-process hint, like a priority; no system
-setting changes. Outputs are byte-identical. Measured one piece at a time on a quiet PC: the
-pass's ball detector 1.6x faster (347 -> 212 s a chunk), the ball 3D's flight search 4.0x
-(574 -> 144 s), the TAPNext bridges 4% (they keep the GPU busy).
+its 12 E-cores while the 16 P-core threads sit idle. `process_match` takes every process a step
+starts out of efficiency mode within 2 s (`pitchiq/fast_cores.py`; a child doesn't inherit it,
+so each one is switched), and tells its steps so through `PIQ_FAST_CORES=1` in their
+environment: the ball step's 3D then uses 16 flight-search workers instead of 6. Set
+`PIQ_FAST_CORES=0` before a run to keep it off; a step run by hand has it off. It is a
+per-process hint, like a priority; no system setting changes. The catch: a run uses the fast
+cores too, so the PC feels busier while one is going. Outputs are byte-identical. Measured one
+piece at a time on a quiet PC: the pass's ball detector 1.6x faster (347 -> 212 s a chunk), the
+player detector 2.3x (254 -> 111 s), the ball 3D's flight search 4.0x (574 -> 144 s), the
+TAPNext bridges 4% (they keep the GPU busy). Half precision for the player detector was only 3%
+faster again and moved boxes, so it was not taken.
 
 ## 3b. Ball (`pitchiq.balltrack.ball17 <g> <tag1>,<tag2>`, 150-270 min a game)
 
@@ -270,7 +274,7 @@ ones in `balltrack/`.
 **How it works:**
 1. Crop caches of this game's candidates.
 2. Three rounds. Each round mines the game's own confident tracks under the last round's scores, trains a ResNet-18 crop classifier on those tracks plus the dev rows (two seeds, about 5 min each), and maps the scores onto `cls_C`'s scale.
-3. Two tracking runs, on the round 1 and round 3 scores (`skip:2+enter:1+kin:4`, a lost-ball gate, TAPNext bridges over gaps up to 180 frames).
+3. Two tracking runs, on the round 1 and round 3 scores (`skip:2+enter:1+kin:4`, a lost-ball gate, TAPNext bridges over gaps up to 60 frames). Until 2026-11-23 the bridges went up to 180 frames. Session step 3.13 measured 60 against 180 on eight games' Ball Clicker answers: 5 fewer right and 1 fewer wrong of 541 right / 13 wrong, with wbr's events and team stats almost unchanged. It saves about 77 minutes a game. Games run before then keep their 180-frame bridges; the shorter tracks are saved under new names (`_g60`), so nothing old is overwritten.
 4. A merge: a frame keeps a ring where either run has one, and none where they disagree by more than 15 px.
 5. The 3D chain (`evaluation.mk3d v17`).
 

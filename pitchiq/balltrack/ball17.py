@@ -14,7 +14,8 @@ of the Ball Clicker answers against 62 / 10 / 192 for the ball it replaces (Pitc
                        0 and 10; selftrain held.fit, ~5 min each), averages the two and maps the raw scores onto
                        cls_C's with the look's own label-free affine for that round (ROUND_CAL)
   3 two runs           round-1 scores (A) and round-3 scores (B), each: tracker skip:2+enter:1+kin:4, lost-ball
-                       gate bar 1.0 on its own scores, TAPNext bridges over every gap up to 180 frames
+                       gate bar 1.0 on its own scores, TAPNext bridges over every gap up to 60 frames
+                       (MAXGAP; 180 until 2026-11-23, so older games' outputs were bridged up to 180)
   4 merge              a frame keeps a ring where either run rings; where both ring > 15 px apart, none
   5 3D                 the shipped 3D chain (evaluation.mk3d) on the merged picks, one half at a time
 
@@ -61,7 +62,10 @@ PY = sys.executable
 VER = 'v17'
 TRACKER = 'skip:2+enter:1+kin:4'
 LOST_P = 1.0  # lost-ball gate bar on the run's own scores (shipped ballgate: 1.5 on cls_C)
-MAXGAP = 180  # TAPNext bridges, frames
+# TAPNext bridges, frames. 180 until 2026-11-23; session step 3.13 measured 60 against it on eight games' Ball
+# Clicker answers (541 right / 13 wrong): 5 fewer right, 1 fewer wrong, wbr's events 1028 of 1040 kept, team
+# stats within 1, for ~77 min less a game. The owner chose 60.
+MAXGAP = 60
 MERGE_TOL = 15.0  # px
 SEEDS = (0, 10)
 # round -> (a, b): raw ResNet score -> cls_C scale, fitted label-free in the look (frame-top quantiles, the five

@@ -10,9 +10,11 @@ calls it again as new ones start. Measured with it off on an otherwise quiet PC,
 byte-identical: the pass's ball detector 1.6x faster (one 5-minute chunk, 12 workers,
 347 -> 212 s), the ball 3D's flight search 4.0x with 16 workers instead of 6 (574 -> 144 s).
 
-PIQ_FAST_CORES=1 turns it on for process_match's steps (and 16 flight-search workers in
-the ball step instead of 6, which only pay with it on). Elsewhere, and off Windows, every
-call here does nothing.
+process_match runs with it on unless PIQ_FAST_CORES=0 (the owner's OK, 23 Nov 2026) and puts
+its choice in its steps' environment, so a step reads ON to know its processes are switched:
+the ball step then uses 16 flight-search workers instead of 6, which only pay with it on. A
+step run by hand has it off (PIQ_FAST_CORES unset), and off Windows every call here does
+nothing.
 """
 
 from __future__ import annotations
@@ -20,7 +22,13 @@ from __future__ import annotations
 import os
 import sys
 
-ON = os.environ.get('PIQ_FAST_CORES', '0') == '1'
+
+def wanted(default: str) -> bool:
+    """PIQ_FAST_CORES=1: on; any other value: off; unset: `default` ('1' or '0')."""
+    return os.environ.get('PIQ_FAST_CORES', default) == '1'
+
+
+ON = wanted('0')  # in a step: process_match switches this step's processes
 
 _PROCESS_SET_INFORMATION = 0x0200
 _PROCESS_POWER_THROTTLING = 4  # PROCESS_INFORMATION_CLASS ProcessPowerThrottling
