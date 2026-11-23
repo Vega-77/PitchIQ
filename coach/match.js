@@ -19,7 +19,7 @@ import {
     renderTeamStats, matchRail, renderMatchRail, redrawCvNote, renderPlayerTable, mergeCvPlayers,
 } from './match-overview.js?v=156';
 import {
-    renderShape, renderTeamMap, renderPassing, renderPressing, renderSubs,
+    renderShape, renderTeamMap, renderPositions, renderPassing, renderPressing, renderSubs,
 } from './match-play.js?v=156';
 import { renderShots, renderSampleToggle, redrawShotViews } from './match-shots.js?v=156';
 import { renderClusterMapping, closeSameAs } from './mapping.js?v=156';
@@ -130,6 +130,7 @@ function drawMatch({ match, matchId, stats, log, roster }) {
     // and is drawn once from here.
     renderShape();
     renderTeamMap();
+    renderPositions();
 
     renderPlayerTable(stats.players);
     renderMatchVideoBlock();
@@ -160,6 +161,7 @@ export function toggleSample() {
     renderPassing();
     renderShape();
     renderTeamMap();
+    renderPositions();
     renderPressing();
     renderSubs();
     renderExcluded();

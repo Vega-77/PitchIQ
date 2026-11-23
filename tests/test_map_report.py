@@ -118,3 +118,57 @@ def test_command_refuses_a_period_for_two_halves(tmp_path, capsys):
     _save(p, light_team=1)
     assert cli.main([str(p), str(p), '--ours', '0', '--period', '1']) == 2
     assert 'one map' in capsys.readouterr().err
+
+
+def _half_report(path, cluster_ids):
+    rep = {
+        'clusters': [{'cluster_id': c, 'track_ids': [3 * c]} for c in cluster_ids],
+        'tracks': [],
+        'events': [{'type': 'pass', 'frame_index': 15, 'track_id': 0, 'outcome': 'completed'}],
+    }
+    path.write_text(json.dumps(rep), encoding='utf-8')
+
+
+def test_command_adds_stats_per_position_from_the_half_reports(tmp_path):
+    h1, h2 = tmp_path / 'wb1.npz', tmp_path / 'wb2.npz'
+    _save(h1, light_team=1)
+    _save(h2, light_team=1)
+    r1, r2 = tmp_path / 'pipe_wb1.json', tmp_path / 'pipe_wb2.json'
+    _half_report(r1, [0, 1])
+    _half_report(r2, [0, 1])
+    into = tmp_path / 'pipe.json'
+    # merge keeps first-half cluster 0 and second-half cluster 0, renumbered 2
+    into.write_text(
+        json.dumps(
+            {
+                'teams': {'team_a': {}, 'team_b': {}},
+                'clusters': [{'cluster_id': 0}, {'cluster_id': 2}],
+            }
+        ),
+        encoding='utf-8',
+    )
+    out = tmp_path / 'report.json'
+    args = [str(h1), str(h2), '--ours', '0', '--into', str(into)]
+    assert cli.main([*args, '--halves', str(r1), str(r2), '--out', str(out)]) == 0
+    r = json.loads(out.read_text(encoding='utf-8'))
+    pos = r['teams']['team_a']['positions']
+    assert pos['method'] == 'place' and len(pos['roles']) == 9
+    # track 0 of map team 0 is a back: its pass in each half lands there
+    assert sum(row['passes_attempted'] for row in pos['roles'].values()) == 2
+    held = [h for row in pos['roles'].values() for h in row['holders'] or []]
+    assert {c for h in held for c in h['cluster_id']} <= {0, 2}
+    assert r['teams']['team_b']['positions']['roles']['back_left']['holders'] is None
+    # without --halves there is no positions block
+    assert cli.main([*args, '--out', str(out)]) == 0
+    assert 'positions' not in json.loads(out.read_text(encoding='utf-8'))['teams']['team_a']
+
+
+def test_command_refuses_halves_that_do_not_match_the_maps(tmp_path, capsys):
+    p = tmp_path / 'half.npz'
+    _save(p, light_team=1)
+    rep = tmp_path / 'pipe_half.json'
+    _half_report(rep, [0])
+    assert cli.main([str(p), '--ours', '0', '--halves', str(rep), str(rep)]) == 2
+    assert 'one half report per map' in capsys.readouterr().err
+    assert cli.main([str(p), '--ours', '0', '--halves', str(tmp_path / 'nope.json')]) == 2
+    assert 'no such half report' in capsys.readouterr().err

@@ -13,7 +13,8 @@ The match-day commands, run as `python -m pitchiq <command> [args]`
   coach's match viewer (`--dry-run` writes nothing).
 - `map_report`: a report JSON from a match's top-down maps (both halves give
   one match report): team shape and where each team stood (`--ours
-  lighter|darker` says which side is the coach's).
+  lighter|darker` says which side is the coach's), and with `--halves` (each
+  map's own half report) the stats per position.
 - `viewer_export`: pack a game's map, 3D ball, who had the ball and the moments
   (each with why it was given to its player) for the coach's match viewer
   (`pitchiq/viewer_data.py`).

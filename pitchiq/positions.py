@@ -1,4 +1,4 @@
-"""Stats per position, the position named by place: where a player stands in the team's shape.
+"""Stats per position, named by place: where a player stands in their own team's shape.
 
 Every half second each outfielder on the map gets one of nine roles: the back, middle or front
 line, crossed with the left, centre or right. The role comes from where the player stands
@@ -118,8 +118,10 @@ class RoleLookup:
             return out
         a, b = span
         f = self.f[a:b]
-        i = np.clip(np.searchsorted(f, frames), 1, len(f) - 1) if len(f) > 1 else np.zeros(
-            frames.shape, np.int64
+        i = (
+            np.clip(np.searchsorted(f, frames), 1, len(f) - 1)
+            if len(f) > 1
+            else np.zeros(frames.shape, np.int64)
         )
         if len(f) > 1:
             left = i - 1
@@ -400,9 +402,7 @@ def half_block(
                     placed.x[m], placed.y[m], placed.seen[m], t.length_m, t.width_m
                 )
             if k == ours:  # the coach names only their own players
-                row['holders'], unnamed = _holders(
-                    placed.f[m], cid_of[m], f0, t.fps, step_s, half
-                )
+                row['holders'], unnamed = _holders(placed.f[m], cid_of[m], f0, t.fps, step_s, half)
                 row['unnamed_minutes'] = round(unnamed, 2)
 
     # Events: the role of the player who made it, when they made it.

@@ -329,7 +329,11 @@ colours), for setting the two side by side.
 ## 6. Publish (3-10 min)
 
 1. `cached_report merge pipe_<g>1.json pipe_<g>2.json --min-minutes 1` writes `pipe_<g>.json`. Counts are summed and shares weighted by half length. Player rows under a minute are dropped, to keep Firestore documents under 1 MB.
-2. `pitchiq map_report <g>1.npz <g>2.npz --ours ... --into pipe_<g>.json` writes `<g>_report.json`: the report plus the map's figures (team shape, field position).
+2. `pitchiq map_report <g>1.npz <g>2.npz --ours ... --into pipe_<g>.json --halves pipe_<g>1.json pipe_<g>2.json` writes `<g>_report.json`: the report plus the map's figures (team shape, field position) and the stats per position (`pitchiq/positions.py`, schema 17; seconds).
+   - Each outfielder gets one of nine positions every half second: the back, middle or front line crossed with left, centre or right, from where they stood in their own team's shape over 6 s. This is not the formation video's fitted formation, which flips between near-ties (session step 3.6).
+   - Per position and team it counts minutes, touches, passes, carries, shots, defensive actions, distance (equal to the stats' own) and a heat map. For our side it also lists who held each position each minute, as flat lists, because Firestore takes no arrays inside arrays.
+   - `--halves` is needed because the half reports keep the maps' own track ids; the merged report has moved the second half's. Clusters are renumbered as `merge` renumbers them (`cached_report.id_shifts`).
+   - On Woodbridge the summary document grows from 22 KB to 68 KB. Positions cover 96-97% of each team's passes and touches; the rest happened while the map had under seven of that team's outfielders.
 3. Self-checks (`pitchiq/run_checks.py`, in process_match; seconds). They check:
    - the goals found against the score: `--score`, else the goals in the coach's log (`--tag-log`, else the match's `log` on the site);
    - that the two halves are alike, within 1.5x on rates and shares and 15 points on possession;

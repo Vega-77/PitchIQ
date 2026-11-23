@@ -586,6 +586,30 @@
             <p class="muted" id="cv-teammap-note" style="margin:12px 0 0"></p>
         </section>
 
+        <!-- Stats per position, the position named by where a player stood in
+             their own team's shape over a few seconds (pitchiq/positions.py),
+             not by the team sheet or a fitted formation: "left back" is
+             whoever was playing there. Nine cells laid out attacking right;
+             picking one shows its numbers and heat map and, for our side,
+             which players stood there and when. -->
+        <section class="block hidden" id="cv-positions-block" data-rail="By position">
+            <h3>Stats by position</h3>
+            <p class="muted" id="cv-positions-lede" style="margin:-4px 0 14px"></p>
+            <div class="positions-teams" id="cv-positions-teams"></div>
+            <div class="positions-layout">
+                <div class="positions-grid" id="cv-positions-grid"></div>
+                <div class="positions-detail">
+                    <h4 class="positions-title" id="cv-positions-title"></h4>
+                    <div id="cv-positions-heatmap" class="heatmap"></div>
+                    <table class="positions-stats"><tbody id="cv-positions-stats"></tbody></table>
+                    <h4 class="positions-title">Who played there</h4>
+                    <ul class="positions-who" id="cv-positions-who"></ul>
+                    <p class="muted" id="cv-positions-who-note" style="margin:8px 0 0"></p>
+                </div>
+            </div>
+            <p class="muted" id="cv-positions-note" style="margin:12px 0 0"></p>
+        </section>
+
         <!-- Where each player actually played, against the line the coach put
              them in. Two real records compared, not one record against a
              template: the video says where somebody's average position was, the

@@ -5,8 +5,8 @@
 
 import { cvStatsByPlayer } from '../shared/db.js?v=156';
 import {
-    samplePassEvents, samplePassMapping, sampleShapeGrids, sampleSubRoster, sampleSubEvents,
-    sampleSubClock,
+    samplePassEvents, samplePassMapping, samplePositionMapping, sampleShapeGrids, sampleSubRoster,
+    sampleSubEvents, sampleSubClock,
 } from '../shared/sample-report.js?v=156';
 import {
     playersByTrack, passingNetwork, foldEdges, strongestLink, networkNote,
@@ -21,6 +21,10 @@ import {
     positionalPlay, MAX_BAND_M,
 } from '../shared/report.js?v=156';
 import { PITCH_LENGTH_M } from '../shared/pitch-backdrop.js?v=156';
+import {
+    busiestRole, hasPositions, minutesText, positionHolders, positionLayout, positionName,
+    roleStatRows,
+} from '../shared/positions.js?v=156';
 import { byId, setText, clockText, plural } from '../shared/ui.js?v=156';
 import { activeCv, state, teamLabels } from './shell.js?v=156';
 import { clockMap } from './review.js?v=156';
@@ -274,6 +278,164 @@ export function renderTeamMap() {
                 + 'teams’ shirts could not be told apart there.'
             : null,
     ].filter(Boolean).join(' '));
+}
+
+// ------------------------------------------------------- stats by position
+//
+// The nine places a team's outfielders stood, from `teams.<side>.positions`
+// (`pitchiq/positions.py`). A position is named by place in the team's own
+// shape, so the cells read as "whoever played left back", and the numbers are
+// counted while someone stood there. Names are for our side only: the coach
+// matches their own players to the tracking, never the opponent's.
+
+/** Which team and position the block shows; kept across redraws. */
+const positionsView = { team: 'team_a', role: null };
+
+/** One of the nine cells: the position's name, minutes and touches. */
+function positionCell(role, row, selected, onPick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'positions-cell';
+    button.setAttribute('aria-pressed', String(selected));
+    const empty = !(row?.minutes > 0);
+    button.disabled = empty;
+    const name = document.createElement('span');
+    name.className = 'positions-cell-name';
+    name.textContent = positionName(role);
+    const figures = document.createElement('span');
+    figures.className = 'positions-cell-figures';
+    figures.textContent = empty
+        ? 'Nobody'
+        : `${minutesText(row.minutes)} · ${plural(row.touches, 'touch', 'touches')}`;
+    button.append(name, figures);
+    button.addEventListener('click', () => onPick(role));
+    return button;
+}
+
+/** The coach's cluster-to-player choices and their names, or the sample's. */
+function positionNames() {
+    if (state.cvPreview) return samplePositionMapping();
+    return {
+        mapping: state.match?.cvMapping,
+        names: new Map((state.match?.roster || []).map((p) => [p.id, p.playerName])),
+    };
+}
+
+/** "Who played there": our players, or why there are none to list. */
+function drawPositionWho(row, teamKey) {
+    const list = byId('cv-positions-who');
+    list.innerHTML = '';
+    if (teamKey !== 'team_a') {
+        setText('cv-positions-who-note',
+            'Names are for your own team: the tracking is matched to your players only.');
+        return;
+    }
+    const { mapping, names } = positionNames();
+    const who = positionHolders(row, mapping, names);
+    for (const p of who.players) {
+        const item = document.createElement('li');
+        const name = document.createElement('span');
+        name.className = 'positions-who-name';
+        name.textContent = p.name;
+        const minutes = document.createElement('span');
+        minutes.className = 'positions-who-minutes';
+        minutes.textContent = minutesText(p.minutes);
+        const when = document.createElement('span');
+        when.className = 'positions-who-when';
+        when.textContent = p.when;
+        item.append(name, minutes, when);
+        list.append(item);
+    }
+    setText('cv-positions-who-note', [
+        who.players.length
+            ? null
+            : 'Nobody matched to a player stood here for 5 seconds of any minute.',
+        who.unmatchedMinutes >= 0.5
+            ? `${minutesText(who.unmatchedMinutes)} here is tracking not yet matched to a `
+                + 'player: match it to your players and the names fill in.'
+            : null,
+        who.unnamedMinutes >= 0.5
+            ? `${minutesText(who.unnamedMinutes)} is tracking in pieces too short to name.`
+            : null,
+    ].filter(Boolean).join(' '));
+}
+
+export function renderPositions() {
+    const block = byId('cv-positions-block');
+    if (!block) return;
+    const teams = activeCv()?.teams || {};
+    const { usName, themName } = teamLabels();
+    const names = { team_a: usName, team_b: themName };
+    const sides = ['team_a', 'team_b'].filter((key) => hasPositions(teams?.[key]?.positions));
+    block.classList.toggle('hidden', !sides.length);
+    if (!sides.length) return;
+
+    if (!sides.includes(positionsView.team)) positionsView.team = sides[0];
+    const teamKey = positionsView.team;
+    const data = teams?.[teamKey]?.positions;
+    if (!(data.roles?.[positionsView.role]?.minutes > 0)) positionsView.role = busiestRole(data);
+    const role = positionsView.role;
+    const row = data.roles[role];
+    const redraw = () => renderPositions();
+
+    setText('cv-positions-lede',
+        'Every half second each outfielder is in one of nine positions: the back, '
+        + 'middle or front line, crossed with left, centre or right, from where they '
+        + 'stood in their own team’s shape over a few seconds. So the left back is '
+        + 'whoever was playing there. Both teams attack to the right.');
+
+    const toggle = byId('cv-positions-teams');
+    toggle.innerHTML = '';
+    for (const key of sides) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn small positions-team';
+        button.textContent = names[key];
+        button.setAttribute('aria-pressed', String(key === teamKey));
+        button.addEventListener('click', () => {
+            positionsView.team = key;
+            redraw();
+        });
+        toggle.append(button);
+    }
+    toggle.classList.toggle('hidden', sides.length < 2);
+
+    const grid = byId('cv-positions-grid');
+    grid.innerHTML = '';
+    for (const line of positionLayout()) {
+        for (const cellRole of line) {
+            grid.append(positionCell(cellRole, data.roles[cellRole], cellRole === role, (picked) => {
+                positionsView.role = picked;
+                redraw();
+            }));
+        }
+    }
+
+    const title = `${positionName(role)}, ${names[teamKey]}`;
+    setText('cv-positions-title', title);
+    const heat = byId('cv-positions-heatmap');
+    heat.classList.toggle('is-sample-plot', Boolean(state.cvPreview));
+    renderTeamHeatmap(heat, row.heatmap, { label: `Where ${title} stood, attacking to the right` });
+
+    const stats = byId('cv-positions-stats');
+    stats.innerHTML = '';
+    for (const [label, value] of roleStatRows(row)) {
+        const tr = document.createElement('tr');
+        const th = document.createElement('th');
+        th.scope = 'row';
+        th.textContent = label;
+        const td = document.createElement('td');
+        td.textContent = value;
+        tr.append(th, td);
+        stats.append(tr);
+    }
+    drawPositionWho(row, teamKey);
+
+    setText('cv-positions-note',
+        'A team has positions while the map has at least seven of its outfielders: '
+        + `${minutesText(data.shaped_minutes)} for ${names[teamKey]}. Keepers get none. `
+        + 'Touches, passes and actions count where the player stood when they made '
+        + 'them; distance counts only what the camera saw.');
 }
 
 export function renderShape() {

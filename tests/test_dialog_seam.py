@@ -361,7 +361,8 @@ class TestTheScanCouldBeLying:
         # beside it (E-5), and to 63 with the match page's video processing card
         # (coach/run.js and shared/run-view.js, 2026-11-09), and to 66 with the match
         # viewer (shared/match-viewer.js, shared/viewer-data.js and coach/viewer.js,
-        # 2026-11-22).
+        # 2026-11-22), and to 67 with the stats by position (shared/positions.js,
+        # the same day).
         seen = js()
-        assert len(seen) == 66
+        assert len(seen) == 67
         assert IMPL in seen and 'live-tagging/tagging.js' in seen

@@ -12,7 +12,7 @@ import { byId, setText, toast, clockText, plural, figure } from '../shared/ui.js
 import { state } from './shell.js?v=156';
 import { clockMap } from './review.js?v=156';
 import { renderMatchRail, renderPlayerTable, mergeCvPlayers } from './match-overview.js?v=156';
-import { renderShape, renderPassing } from './match-play.js?v=156';
+import { renderShape, renderPassing, renderPositions } from './match-play.js?v=156';
 
 // ---------------------------------------------------------------- who is who
 
@@ -556,6 +556,7 @@ function redrawMappedViews() {
     }
     renderPassing();
     renderShape();
+    renderPositions();
 }
 
 async function saveMappingNow() {

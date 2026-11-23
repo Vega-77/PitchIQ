@@ -150,6 +150,123 @@ function sampleTeamMap(heightM, { seenFar = 0.6 } = {}) {
     return { cols, rows, values: values.map((v) => Number((v / total).toFixed(4))), seen };
 }
 
+// ------------------------------------------------------ stats by position
+//
+// The nine places each side's outfielders stood (`pitchiq/positions.py`), one
+// half's worth. The shots add up to each side's shot map below (6 and 2 goals
+// for us, 4 and 1 for them), and the minutes to about ten outfielders for most
+// of 45 minutes, the rest being moments the map had too few of a team to
+// give anyone a place.
+
+const ROLE_NAMES = [
+    'back_left', 'back_centre', 'back_right',
+    'middle_left', 'middle_centre', 'middle_right',
+    'front_left', 'front_centre', 'front_right',
+];
+
+// minutes, touches, passes, completed, carries, shots, goals, defensive actions, km
+const OUR_ROLE_FIGURES = [
+    [44, 21, 15, 12, 3, 0, 0, 5, 4.4], [88, 32, 29, 26, 2, 0, 0, 9, 7.9],
+    [43, 19, 14, 11, 3, 0, 0, 4, 4.5], [31, 15, 11, 8, 4, 0, 0, 3, 3.3],
+    [76, 44, 37, 30, 5, 1, 0, 7, 8.5], [29, 14, 10, 7, 4, 1, 0, 2, 3.2],
+    [17, 7, 4, 3, 3, 1, 0, 1, 1.8], [40, 16, 9, 5, 3, 2, 1, 2, 4.1],
+    [15, 6, 4, 2, 3, 1, 1, 1, 1.6],
+];
+const THEIR_ROLE_FIGURES = [
+    [42, 18, 12, 9, 2, 0, 0, 7, 4.3], [86, 30, 24, 20, 1, 0, 0, 12, 7.6],
+    [44, 17, 12, 8, 2, 0, 0, 6, 4.6], [33, 13, 10, 6, 3, 0, 0, 4, 3.5],
+    [70, 36, 30, 21, 4, 1, 0, 9, 7.8], [31, 12, 9, 5, 3, 0, 0, 3, 3.4],
+    [14, 5, 3, 1, 2, 1, 0, 1, 1.5], [44, 14, 8, 4, 3, 2, 1, 2, 4.4],
+    [12, 4, 3, 1, 2, 0, 0, 1, 1.3],
+];
+
+// Who stood where for us, by the sample players' cluster ids.
+const SAMPLE_ROLE_HOLDERS = {
+    back_left: ['lb'], back_centre: ['lcb', 'rcb'], back_right: ['rb'],
+    middle_left: ['lcm'], middle_centre: ['dm', 'rcm'], middle_right: ['rw'],
+    front_left: ['lw'], front_centre: ['st'], front_right: ['rw'],
+};
+const SAMPLE_CLUSTER_OF = {
+    lb: 1, lcb: 2, rcb: 3, rb: 4, dm: 5, lcm: 6, rcm: 7, lw: 8, st: 9, rw: 10,
+};
+
+/** One role's heat map: a 12 x 8 blob where the role stands, turned to attack right. */
+function sampleRoleMap(index) {
+    const cols = 12;
+    const rows = 8;
+    const cx = 2.8 + 3 * Math.floor(index / 3);
+    const cy = [1.6, 3.5, 5.4][index % 3];
+    const values = [];
+    const seen = [];
+    let total = 0;
+    for (let x = 0; x < cols; x += 1) {
+        for (let y = 0; y < rows; y += 1) {
+            const v = Math.exp(-(((x - cx) / 1.6) ** 2 + ((y - cy) / 1.2) ** 2) / 2);
+            values.push(v);
+            total += v;
+            seen.push(Number((0.95 - (0.3 * x) / (cols - 1)).toFixed(2)));
+        }
+    }
+    return { cols, rows, values: values.map((v) => Number((v / total).toFixed(4))), seen };
+}
+
+/** Our holders for a role: each player there most minutes of the half. */
+function sampleRoleHolders(role, minutes) {
+    const players = SAMPLE_ROLE_HOLDERS[role];
+    const each = Math.min(60, Math.round(((minutes / players.length) / 45) * 60));
+    const minute = [];
+    const clusterId = [];
+    const seconds = [];
+    for (let m = 0; m < 45; m += 1) {
+        for (const player of players) {
+            minute.push(m);
+            clusterId.push(SAMPLE_CLUSTER_OF[player]);
+            seconds.push(each);
+        }
+    }
+    return [{ half: 1, start_s: 0, minute, cluster_id: clusterId, seconds }];
+}
+
+function samplePositions(figures, ours) {
+    const roles = {};
+    ROLE_NAMES.forEach((role, i) => {
+        const [minutes, touches, passes, completed, carries, shots, goals, actions, km] = figures[i];
+        const players = role.endsWith('_centre') && role !== 'front_centre' ? 2 : 1;
+        roles[role] = {
+            minutes,
+            occupied_share: Number(Math.min(1, minutes / players / 45).toFixed(3)),
+            players_mean: Number((minutes / 45).toFixed(2)),
+            touches,
+            passes_attempted: passes,
+            passes_completed: completed,
+            carries,
+            shots,
+            goals,
+            defensive_actions: actions,
+            distance_m: km * 1000,
+            seen_share: 0.79,
+            heatmap: sampleRoleMap(i),
+            holders: ours ? sampleRoleHolders(role, minutes) : null,
+            unnamed_minutes: ours ? Number((minutes * 0.08).toFixed(2)) : null,
+        };
+    });
+    return { roles, shaped_minutes: 43.5, method: 'place' };
+}
+
+/**
+ * Which sample cluster is which sample player, for the preview's "who played
+ * there": the same shape as a match's `cvMapping`, and the names to show.
+ */
+export function samplePositionMapping() {
+    const mapping = {};
+    const names = new Map();
+    for (const [player, cluster] of Object.entries(SAMPLE_CLUSTER_OF)) {
+        mapping[String(cluster)] = player;
+        names.set(player, SAMPLE_NAMES[player]);
+    }
+    return { mapping, names };
+}
+
 // -------------------------------------------------------------- the shots
 //
 // Positions are in metres on a 105x68 pitch, already mirrored to attack right,
@@ -408,6 +525,7 @@ const SAMPLE_TEAMS = {
             seen_share: 0.81,
             kept_share: 0.94,
         },
+        positions: samplePositions(OUR_ROLE_FIGURES, true),
         attacking_end: 'right',
         shot_map: OUR_SHOTS,
         turnovers_by_third: { defensive: 9, middle: 14, attacking: 11 },
@@ -472,6 +590,7 @@ const SAMPLE_TEAMS = {
             seen_share: 0.78,
             kept_share: 0.94,
         },
+        positions: samplePositions(THEIR_ROLE_FIGURES, false),
         attacking_end: 'left',
         shot_map: THEIR_SHOTS,
         turnovers_by_third: { defensive: 12, middle: 17, attacking: 8 },
