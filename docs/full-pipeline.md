@@ -243,6 +243,16 @@ runs while the panoramas are made and the coach pins, and the shipped chain wait
 This is not yet timed on a full game; step 3.15's run measures it. With `--no-early`, or once
 the camera exists before the passes (a rerun), each pass runs after the calibration as before.
 
+**Fast cores** (session step 3.14, 2026-11-23; off until the owner turns it on). Windows runs
+the pipeline's processes in efficiency mode (EcoQoS), which on this PC's i7-14700F keeps them on
+its 12 E-cores while the 16 P-core threads sit idle. With `PIQ_FAST_CORES=1`, `process_match`
+takes every process a step starts out of efficiency mode within 2 s (`pitchiq/fast_cores.py`; a
+child doesn't inherit it, so each one is switched), and the ball step's 3D uses 16
+flight-search workers instead of 6. It is a per-process hint, like a priority; no system
+setting changes. Outputs are byte-identical. Measured one piece at a time: the pass's ball
+detector 1.7x faster, the ball 3D's flight search 4.1x, the TAPNext bridges 4% (they keep the
+GPU busy).
+
 ## 3b. Ball (`pitchiq.balltrack.ball17 <g> <tag1>,<tag2>`, 150-270 min a game)
 
 This is the shipped ball since 2026-11-18. It runs once per game, after both passes, with

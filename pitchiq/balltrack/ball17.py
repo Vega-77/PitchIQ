@@ -45,6 +45,8 @@ import time
 
 import numpy as np
 
+from pitchiq import fast_cores
+
 S2 = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(S2))
 DATA = os.path.join(os.path.dirname(REPO), 'PitchIQ-data')
@@ -87,9 +89,9 @@ HGAMES = [
     'co',
     'wb',
 ]  # held.HGAMES: a game's seed is its index there + the offset (else 0)
-FS_ENV = dict(
-    FS_WORKERS='6', OPENBLAS_NUM_THREADS='1'
-)  # 3D: one half at a time, 6 scan workers (commit limit)
+# 3D: one half at a time (commit limit). 6 scan workers, or 16 when process_match takes them out of
+# efficiency mode (pitchiq.fast_cores): on the efficiency cores alone 16 were slower than 6.
+FS_ENV = dict(FS_WORKERS='16' if fast_cores.ON else '6', OPENBLAS_NUM_THREADS='1')
 
 
 # ---- readers --------------------------------------------------------------------------------------------------

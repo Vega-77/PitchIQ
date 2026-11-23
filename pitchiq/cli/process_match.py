@@ -101,6 +101,7 @@ import time
 from datetime import date
 from pathlib import Path
 
+from pitchiq import fast_cores
 from pitchiq.run_progress import Progress, pass_fraction, read_requests, step_of
 
 REPO = Path(__file__).resolve().parents[2]
@@ -133,6 +134,7 @@ SITE = os.environ.get('PIQ_SITE', 'https://vega-77.github.io/PitchIQ/')
 PIN_POLL_S = 60  # how often the run looks for the coach's pins
 PIN_REMIND_S = 1800  # and how often it says it is still waiting
 TICK_S = 30  # how often a running step's progress is looked at
+FAST_S = 2  # how often a step's new processes leave efficiency mode (PIQ_FAST_CORES=1)
 EARLY_POLL_S = 30  # how often the first half's early pass is looked at (start_second)
 STEPS = ('halves', 'camera', 'pass', 'ball beside map', 'stats', 'publish')
 NOTE_CHARS = 1500  # of a phone note (ntfy takes 4 KB; the full text is in run.log)
@@ -218,21 +220,29 @@ def now() -> str:
 
 class Started:
     """A step's process from its start (Run.start) on, with the peak memory of its process
-    tree sampled every TICK_S until it ends, whether or not anything waits for it yet."""
+    tree sampled every TICK_S until it ends, whether or not anything waits for it yet. With
+    PIQ_FAST_CORES=1 the same thread also takes each new process in the tree out of
+    Windows' efficiency mode within FAST_S (pitchiq.fast_cores)."""
 
     def __init__(self, name: str, proc: subprocess.Popen):
         self.name, self.proc, self.t0 = name, proc, time.time()
         self.peak = (0.0, 0.0)
+        self.fast: set = set()  # (pid, start time) of the processes fast_cores switched
         self.sampler = threading.Thread(target=self._sample, name=f'peak {name}', daemon=True)
         self.sampler.start()
 
     def _sample(self) -> None:
+        last = time.time()
         while True:
+            if fast_cores.ON:
+                fast_cores.tree(self.proc.pid, self.fast)
             try:
-                self.proc.wait(timeout=TICK_S)
+                self.proc.wait(timeout=FAST_S if fast_cores.ON else TICK_S)
                 return
             except subprocess.TimeoutExpired:
-                self.peak = tuple(map(max, self.peak, memory_gb(self.proc.pid)))
+                if time.time() - last >= TICK_S:
+                    last = time.time()
+                    self.peak = tuple(map(max, self.peak, memory_gb(self.proc.pid)))
 
 
 def normal_priority(pid: int) -> None:
