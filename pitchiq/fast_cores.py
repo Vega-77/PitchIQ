@@ -6,9 +6,9 @@ i7-14700F the pipeline ran on its 12 E-cores while the 16 P-core threads sat at 
 (measured 23 Nov 2026, session step 3.14). Turning it off is a per-process hint, like a
 priority (SetProcessInformation, ProcessPowerThrottling); no system setting changes. A
 child does not inherit it, so `tree` switches every process under a root, and the caller
-calls it again as new ones start. Measured with it off, outputs byte-identical: the
-pass's ball detector 1.7x faster (one 5-minute chunk, 12 workers), the ball 3D's flight
-search 2.4x (4.1x with 16 workers instead of 6).
+calls it again as new ones start. Measured with it off on an otherwise quiet PC, outputs
+byte-identical: the pass's ball detector 1.6x faster (one 5-minute chunk, 12 workers,
+347 -> 212 s), the ball 3D's flight search 4.0x with 16 workers instead of 6 (574 -> 144 s).
 
 PIQ_FAST_CORES=1 turns it on for process_match's steps (and 16 flight-search workers in
 the ball step instead of 6, which only pay with it on). Elsewhere, and off Windows, every

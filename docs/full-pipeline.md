@@ -249,9 +249,9 @@ its 12 E-cores while the 16 P-core threads sit idle. With `PIQ_FAST_CORES=1`, `p
 takes every process a step starts out of efficiency mode within 2 s (`pitchiq/fast_cores.py`; a
 child doesn't inherit it, so each one is switched), and the ball step's 3D uses 16
 flight-search workers instead of 6. It is a per-process hint, like a priority; no system
-setting changes. Outputs are byte-identical. Measured one piece at a time: the pass's ball
-detector 1.7x faster, the ball 3D's flight search 4.1x, the TAPNext bridges 4% (they keep the
-GPU busy).
+setting changes. Outputs are byte-identical. Measured one piece at a time on a quiet PC: the
+pass's ball detector 1.6x faster (347 -> 212 s a chunk), the ball 3D's flight search 4.0x
+(574 -> 144 s), the TAPNext bridges 4% (they keep the GPU busy).
 
 ## 3b. Ball (`pitchiq.balltrack.ball17 <g> <tag1>,<tag2>`, 150-270 min a game)
 
