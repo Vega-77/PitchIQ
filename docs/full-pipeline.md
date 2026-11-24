@@ -259,6 +259,18 @@ player detector 2.3x (254 -> 111 s), the ball 3D's flight search 4.0x (574 -> 14
 TAPNext bridges 4% (they keep the GPU busy). Half precision for the player detector was only 3%
 faster again and moved boxes, so it was not taken.
 
+**The detector inside the pass** (session step 3.17, 2026-11-23). The ball detector is the
+pass's critical path: on wbt2 it finished at 62 min of 68, the players at 47. Its workers ran
+about a third slower inside the pass than alone on the same chunk (k015 362 s against 280 s a
+worker, k016 411 against 307), because they share the processor with the players and each
+piece's shipped chain (16 flight-search workers). More workers don't help: 20 alone are only 12%
+faster than 12 and commit 37 GB. Each worker used to commit 1.65 GB for 0.75 GB in use, because a
+spawned worker loads numpy (through `import pitchiq`) before `worker()` asks for one BLAS thread,
+so OpenBLAS reserved buffers for all 28. `detect_candidates.one_blas_pool` now starts the workers
+with one thread: 12 workers peak at 14.7 GB instead of 23.4 GB, at the same speed, every part
+byte-identical. `PIQ_CHAIN_LOW=1` runs the shipped chain below normal priority so the detector
+goes first; it is off until a pass measures it.
+
 ## 3b. Ball (`pitchiq.balltrack.ball17 <g> <tag1>,<tag2>`, 150-270 min a game)
 
 This is the shipped ball since 2026-11-18. It runs once per game, after both passes, with

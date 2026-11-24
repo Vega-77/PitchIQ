@@ -1111,13 +1111,15 @@ def go(r: Run, t: str) -> None:
 def stop_early(r: Run) -> None:
     """Never leave an early pass running behind a stopped run: it would go on alone, and
     the next run would refuse to start beside it (preflight). It resumes from its marks."""
+    from pitchiq.balltrack.half import kill_tree
+
     with r.early_lock:
         r.stopping = True
         left = [s for s in r.early.values() if s.proc.poll() is None]
         r.early.clear()
     for s in left:
         r.say(f'stopping {s.name}: the next run resumes it from what it finished')
-        subprocess.run(['taskkill', '/T', '/F', '/PID', str(s.proc.pid)], capture_output=True)
+        kill_tree(s.proc.pid)
 
 
 def ball_done(r: Run) -> bool:

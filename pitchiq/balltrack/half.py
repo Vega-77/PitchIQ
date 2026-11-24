@@ -64,7 +64,31 @@ TOL2, TOL3 = 1.0, 0.5  # agreement: px in 2D, StatsBomb units in 3D
 ONE_THREAD = dict(OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', MKL_NUM_THREADS='1')
 MIN_CORE = detect_candidates.CHUNK // 5  # a minute: a shorter end chunk joins its neighbour
 LANES = 2  # the ball's CPU jobs at a time
+# PIQ_CHAIN_LOW=1: the shipped chain below normal priority (session step 3.17). The detector is
+# the pass's critical path, and each chain's 16 flight-search workers take cores from it: its
+# workers ran 29% slower inside the wbt pass than alone (wbt2 k015, 362 s against 280 s).
+CHAIN_LOW = os.environ.get('PIQ_CHAIN_LOW', '0') == '1'
 LOOKAHEAD = 10  # candidate_features.OFFS: the ball detector reads 10 frames each side
+
+
+def kill_tree(pid):
+    """A process and everything it started, at once: taskkill /T on Windows, psutil elsewhere
+    (Linux has no taskkill: the CI's tests stop a pass there too)."""
+    if sys.platform == 'win32':
+        subprocess.run(['taskkill', '/T', '/F', '/PID', str(pid)], capture_output=True)
+        return
+    import psutil
+
+    try:
+        root = psutil.Process(pid)
+        procs = [*root.children(recursive=True), root]
+    except psutil.Error:
+        return
+    for p in procs:
+        try:
+            p.kill()
+        except psutil.Error:  # it ended between the listing and the kill
+            pass
 
 
 def free_gpu():
@@ -195,8 +219,9 @@ class Half:
         """Record that `stage` has finished for piece ptag."""
         open(os.path.join(self.dir, '%s.%s.done' % (ptag, stage)), 'w').close()
 
-    def run(self, cwd, *cmd, env=None, log=None):
-        """Tracker script cmd[0] ('pitch_registration.ball_on_pitch') with args cmd[1:], from folder cwd."""
+    def run(self, cwd, *cmd, env=None, log=None, low=False):
+        """Tracker script cmd[0] ('pitch_registration.ball_on_pitch') with args cmd[1:], from folder
+        cwd; `low`: it and everything it starts below normal priority (Windows only)."""
         e = dict(self.env, **(env or {}))
         proc = subprocess.Popen(
             [PY, '-W', 'ignore'] + script(cmd[0]) + list(cmd[1:]),
@@ -205,6 +230,7 @@ class Half:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            creationflags=getattr(subprocess, 'BELOW_NORMAL_PRIORITY_CLASS', 0) if low else 0,
         )
         with self.lock:
             self.procs.add(proc)
@@ -226,7 +252,7 @@ class Half:
             procs = list(self.procs)
         for proc in procs:
             if proc.poll() is None:
-                subprocess.run(['taskkill', '/T', '/F', '/PID', str(proc.pid)], capture_output=True)
+                kill_tree(proc.pid)
 
     # ---- what is ready ----------------------------------------------------------------
 
@@ -319,7 +345,8 @@ class Half:
         self.registration(p)
         P = p['ptag']
         log = os.path.join(HOM, '%s_chain.log' % P)
-        self.run(AT, 'evaluation.mkpicks_one', P, log=log, env=ONE_THREAD)
+        low = CHAIN_LOW
+        self.run(AT, 'evaluation.mkpicks_one', P, log=log, env=ONE_THREAD, low=low)
         for cmd in (
             ('pitch_registration.ball_on_pitch', P),
             ('pitch_registration.image_track', P),
@@ -327,13 +354,14 @@ class Half:
             ('pitch_registration.roll_speed_cache', P),
             ('pitch_registration.flight_chain', P),
         ):
-            self.run(HOM, *cmd, log=log, env=ONE_THREAD)
+            self.run(HOM, *cmd, log=log, env=ONE_THREAD, low=low)
         self.run(
             HOM,
             'pitch_registration.smooth_ball',
             P,
             env=dict(ONE_THREAD, VS_B3='%s_ball3d2.npz' % P),
             log=log,
+            low=low,
         )
         self.run(
             HOM,
@@ -345,6 +373,7 @@ class Half:
             '%s_venue.npz' % P,
             log=log,
             env=ONE_THREAD,
+            low=low,
         )
 
     # ---- the queues ----------------------------------------------------------------------
