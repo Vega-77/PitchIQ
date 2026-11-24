@@ -37,5 +37,9 @@
   "wbr": {"video": "Woodbridge High vs South Brunswick High School Boys' Varsity Soccer - Tactical.mp4",
          "H1": ["10:30", "56:25", 18900, 101550],
          "H2": ["65:05", "113:30", 117150, 204300],
-         "approx": "Added by process_match 2026-11-22: halves.py's activity fit, within about a minute (2.6 min at worst on 7 known games); the plot is C:\\Users\\alexv\\Desktop\\Repos\\PitchIQ\\pitchiq\\balltrack\\plab\\out\\wbr_halves.png."}
+         "approx": "Added by process_match 2026-11-22: halves.py's activity fit, within about a minute (2.6 min at worst on 7 known games); the plot is C:\\Users\\alexv\\Desktop\\Repos\\PitchIQ\\pitchiq\\balltrack\\plab\\out\\wbr_halves.png."},
+  "wbt": {"video": "Woodbridge High vs South Brunswick High School Boys' Varsity Soccer - Tactical.mp4",
+         "H1": ["10:30", "56:25", 18900, 101550],
+         "H2": ["65:05", "113:30", 117150, 204300],
+         "approx": "Added by process_match 2026-11-23: halves.py's activity fit, within about a minute (2.6 min at worst on 7 known games); the plot is C:\\Users\\alexv\\Desktop\\Repos\\PitchIQ\\pitchiq\\balltrack\\plab\\out\\wbt_halves.png."}
 }
