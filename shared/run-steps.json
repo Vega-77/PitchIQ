@@ -1,14 +1,14 @@
 {
-  "about": "The steps of `python -m pitchiq process_match`, in order, as the coach page shows them. Read by coach/run.js (the estimate and the progress bar) and pitchiq/run_progress.py (the time left). `min` is the low and high minutes a step took on the processing PC: the pass from the 18 halves in pitchiq/balltrack/half/*/log.txt (52-123 min), the rest from the timings in process_match's docstring, widened to the Woodbridge full run of 2026-11-19 (panoramas 15-16, map 29-37 with 5 processes); stats from the table, 129-132 s a half on Woodbridge (2026-11-21). `you` marks the step that waits for the coach. `beside` marks a step that runs at the same time as another (the maps beside the ball step, since 2026-11-21): it adds no time to the estimate.",
+  "about": "The steps of `python -m pitchiq process_match`, in order, as the coach page shows them. Read by coach/run.js (the estimate and the progress bar) and pitchiq/run_progress.py (the time left). `min` is the low and high minutes a step took on the processing PC: the pass from the 18 halves in pitchiq/balltrack/half/*/log.txt (52-123 min), the rest from the timings in process_match's docstring, widened to the Woodbridge full run of 2026-11-19 (panoramas 15-16, map 29-37 with 5 processes); stats from the table, 129-132 s a half on Woodbridge (2026-11-21). The passes and the ball from the timing run of 2026-11-23 (game wbt, 6 h 00 in all): the first pass starts with the camera step, beside the panoramas, so its minutes are only what is left of it after the calibration (77 min in all); the second pass 68 min with fast cores; the ball 205 min with 60-frame bridges. `you` marks the step that waits for the coach. `beside` marks a step that runs at the same time as another (the maps beside the ball step, since 2026-11-21): it adds no time to the estimate.",
   "steps": [
     {"key": "halves", "label": "Finding where each half starts and ends", "min": [5, 15]},
     {"key": "panorama_h1", "label": "Stitching the camera’s view of the first half", "min": [15, 25]},
     {"key": "panorama_h2", "label": "Stitching the camera’s view of the second half", "min": [15, 25]},
     {"key": "pins", "label": "Waiting for you to pin the pitch", "min": [0, 0], "you": true},
     {"key": "calibrate", "label": "Measuring the pitch from your pins", "min": [10, 15]},
-    {"key": "pass_h1", "label": "Following the ball and the players, first half", "min": [50, 125]},
-    {"key": "pass_h2", "label": "Following the ball and the players, second half", "min": [50, 125]},
-    {"key": "ball", "label": "Learning this game’s ball and following it again, both halves", "min": [150, 270]},
+    {"key": "pass_h1", "label": "Following the ball and the players, first half", "min": [10, 60]},
+    {"key": "pass_h2", "label": "Following the ball and the players, second half", "min": [45, 95]},
+    {"key": "ball", "label": "Learning this game’s ball and following it again, both halves", "min": [150, 240]},
     {"key": "map_h1", "label": "Placing everyone on the pitch map, first half", "min": [15, 40], "beside": "ball"},
     {"key": "map_h2", "label": "Placing everyone on the pitch map, second half", "min": [15, 40], "beside": "ball"},
     {"key": "stats_h1", "label": "Counting the stats, first half", "min": [2, 5]},

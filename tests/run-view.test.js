@@ -20,7 +20,7 @@ test('the step list is the one the run reads, with one step for the coach', () =
 
 test('before a run: the estimate and when the pins are asked for', () => {
     const e = estimate(steps);
-    assert.equal(e.text, 'about 5 to 10 hours'); // stats from the table, the maps beside the ball
+    assert.equal(e.text, 'about 4 to 8 hours'); // stats from the table, the maps beside the ball
     assert.equal(e.pinsAfter, '20 to 40 minutes');
     assert.equal(runView({ steps, request: null, progress: null, hasVideo: true }).phase, 'offer');
     assert.equal(runView({ steps, request: null, progress: null, hasVideo: false }).phase, 'novideo');

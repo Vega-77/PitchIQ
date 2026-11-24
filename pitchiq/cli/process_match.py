@@ -40,7 +40,7 @@ this command prints when each one starts and ends.
                 `--no-early` passes each half after the calibration instead, as
                 before 2026-11-23
   4. ball, map  at the same time: the look #17 ball over both halves
-                (`balltrack/ball17.py`, 3-6 h, mostly the GPU) and, beside it,
+                (`balltrack/ball17.py`, 2.5-4 h, mostly the GPU) and, beside it,
                 the top-down map of each half (`experiments/wholemap.py`, the
                 CPU), which needs the pass's players and camera but not the ball.
                 Then the 3D ball checks the camera (`checks.flight_flags`): a half
@@ -67,13 +67,14 @@ or the command line. The end we attack in the first half comes from the map
 (where each team's keeper and players stand) unless `--attacks-first` says it;
 the run stops if the two halves' maps do not show the teams changing ends.
 
-About 5 to 10 hours a game on this PC, plus however long the coach takes to
+About 4 to 8 hours a game on this PC, plus however long the coach takes to
 pin beyond what the passes do meanwhile; each step's time is in
 `shared/run-steps.json`, which the coach page's estimate reads too.
 Woodbridge's measured steps (2026-11-19) add up to about 8 h 40 min in this
 order, against 10 h 52 min before the maps ran beside the ball and the stats
 came from the table. Beyond that and the passes starting while the coach
-pins, the steps run one at a time.
+pins, the steps run one at a time. The timing run of 2026-11-23 (game wbt), with the first
+pass beside the panoramas, 60-frame bridges and fast cores, took 6 h 00.
 
 Publishing needs PITCHIQ_SA_KEY (the service account key, kept outside the
 repo) and the team and match ids; `--list-matches` prints them. Both are
@@ -1164,7 +1165,7 @@ def step_ball_and_maps(r: Run) -> None:
 
     The ball (the look #17 ball over both halves at once, self-trained on this game's own
     tracks) needs both passes. The maps need only each pass's players and camera, not the
-    ball, so they run beside it. The ball is the long one, 3-6 h and mostly the GPU, and it
+    ball, so they run beside it. The ball is the long one, 2.5-4 h and mostly the GPU, and it
     keeps the coach's progress bar; the maps (15-40 min a half, the CPU) leave BALL_GB free
     for it and are done long before its 3D stage, the part that needs the most memory.
     A map that fails is said at once; the run stops when the ball has finished (its work is
@@ -1173,7 +1174,7 @@ def step_ball_and_maps(r: Run) -> None:
     todo = [t for t in r.tags if not (MAPS / f'{t}.npz').exists()]
     ball = not ball_done(r)
     if r.a.plan:
-        work = 'to do (about 3-6 h: 30 min of training, TAPNext bridges, 3D per half)'
+        work = 'to do (about 2.5-4 h: 35 min of training, TAPNext bridges, 3D per half)'
         r.say(f'ball {r.g}: ' + (work if ball else 'done'))
         beside = ', beside the ball' if ball else ''
         for t in r.tags:

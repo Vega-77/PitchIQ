@@ -17,7 +17,9 @@ detects while the coach pins, and only its last stage waits for the calibration 
 The maps need the pass's players and camera but not the ball, and the ball step is mostly
 the GPU while the map is the CPU, so the two share the machine (`step_ball_and_maps`).
 Woodbridge's measured steps add up to about 8 h 40 min in this order, against 10 h 52 min
-one after another with the stats read from the video. The coach page says 5 to 10 hours.
+one after another with the stats read from the video. The timing run of 2026-11-23 (game wbt), with
+the first pass beside the panoramas, 60-frame bridges and fast cores, took 6 h 00. The coach page says
+4 to 8 hours.
 [architecture.md](architecture.md) covers the analysis modules inside the stats step.
 
 ## The command
