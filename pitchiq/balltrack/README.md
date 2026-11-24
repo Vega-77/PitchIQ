@@ -89,8 +89,10 @@ fewer steps. Neither of these changes the output:
 Together they cut a quarter of the track-frames. Things that did not help:
 cudnn.benchmark, batching tracks (B=2 and B=4 are slower per track), and a
 second process. `TNS=384` (a 384 px window instead of 512) runs in 91 s per
-minute and changes 3% of fr00's frames; it is not the default until the labs
-say it is no worse.
+minute and changes 3% of fr00's frames; the labs found it no worse, and it
+became the default on 2026-10-07. Since 2026-11-24 the default is 256 px
+(about half 384's time, the same Ball Clicker score on eight games);
+`tapnext_bridge/__init__.py` has the numbers.
 
 ## A whole half: `half.py` and the ball gate
 

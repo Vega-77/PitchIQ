@@ -292,6 +292,7 @@ ones in `balltrack/`.
 1. Crop caches of this game's candidates.
 2. Three rounds. Each round mines the game's own confident tracks under the last round's scores, trains a ResNet-18 crop classifier on those tracks plus the dev rows (two seeds, about 5 min each), and maps the scores onto `cls_C`'s scale.
 3. Two tracking runs, on the round 1 and round 3 scores (`skip:2+enter:1+kin:4`, a lost-ball gate, TAPNext bridges over gaps up to 60 frames). Until 2026-11-23 the bridges went up to 180 frames. Session step 3.13 measured 60 against 180 on eight games' Ball Clicker answers: 5 fewer right and 1 fewer wrong of 541 right / 13 wrong, with wbr's events and team stats almost unchanged. It saves about 77 minutes a game. Games run before then keep their 180-frame bridges; the shorter tracks are saved under new names (`_g60`), so nothing old is overwritten.
+   TAPNext's window has been 256 px since 2026-11-24 (384 before). Session step 3.16 measured it on the same eight games: the same score (535 right / 12 wrong), tracks about 1.3 px from 384's at the median, and about 70 minutes less a game. wbr's events moved a little more than a random 1.5 px nudge of the bridged frames moves them (906 of 1035 kept, against 939). Bridges at 256 px are saved under new names (`_s256`), so a game's 384 px tracks are never mixed in.
 4. A merge: a frame keeps a ring where either run has one, and none where they disagree by more than 15 px.
 5. The 3D chain (`evaluation.mk3d v17`).
 

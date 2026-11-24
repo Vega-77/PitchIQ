@@ -125,12 +125,15 @@ def gaps(z, want, tag):
 
 
 def outdir(run, nm):
+    from pitchiq.balltrack.tapnext_bridge import WINDOW
+
     return os.path.join(
         os.environ.get('TN_ROOT') or os.path.join(BP, 'tn'),
         run
         + '_'
         + nm.replace(':', '_').replace('+', '_')
         + ('' if MAXGAP == 90 else '_g%d' % MAXGAP)
+        + ('' if WINDOW == 384 else '_s%d' % WINDOW)  # TAPNext's window: 384 px until 2026-11-24
         + ('_all' if ALLGAPS else ''),
     )
 

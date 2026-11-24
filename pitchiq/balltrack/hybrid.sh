@@ -14,6 +14,7 @@
 #
 # The result: h3d_hyb90/<tag>_ball3dd.npz  (abs, x, y, z in StatsBomb 120x80 / CR, state ground|air)
 # Speed: step 5 costs ~1 min of GPU per match minute (384 px window + early stop); TNS=512 was ~3.
+# The window has been 256 px since 2026-11-24 (about half 384's time); TNS=384 runs it as accepted.
 set -e
 BT="$(cd "$(dirname "$0")" && pwd)"; . "$BT/pyenv.sh"
 cd "$BT"

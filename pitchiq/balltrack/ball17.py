@@ -15,7 +15,8 @@ of the Ball Clicker answers against 62 / 10 / 192 for the ball it replaces (Pitc
                        cls_C's with the look's own label-free affine for that round (ROUND_CAL)
   3 two runs           round-1 scores (A) and round-3 scores (B), each: tracker skip:2+enter:1+kin:4, lost-ball
                        gate bar 1.0 on its own scores, TAPNext bridges over every gap up to 60 frames
-                       (MAXGAP; 180 until 2026-11-23, so older games' outputs were bridged up to 180)
+                       (MAXGAP; 180 until 2026-11-23, so older games' outputs were bridged up to 180) in a
+                       256 px window (TNS; 384 until 2026-11-24, tapnext_bridge/__init__.py)
   4 merge              a frame keeps a ring where either run rings; where both ring > 15 px apart, none
   5 3D                 the shipped 3D chain (evaluation.mk3d) on the merged picks, one half at a time
 
