@@ -262,9 +262,10 @@ def people(tag: str, frames: list[int], log) -> dict:
             )
     from ultralytics import YOLO
 
-    from pitchiq.detector import CLASS_PERSON, DEFAULT_WEIGHTS
+    from pitchiq.detector import CLASS_PERSON, DEFAULT_WEIGHTS, whole_batches
 
     model = YOLO(str(DEFAULT_WEIGHTS))
+    whole_batches()  # batches of 8
     cap = _video()
     out = {}
     for i in range(0, len(frames), 8):

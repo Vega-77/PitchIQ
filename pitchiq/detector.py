@@ -31,6 +31,27 @@ LABELS = {CLASS_PERSON: 'person', CLASS_BALL: 'ball'}
 DEFAULT_WEIGHTS = Path(__file__).parent / 'weights' / 'yolov8n.pt'
 
 
+def whole_batches() -> None:
+    """Make ultralytics' NMS finish every image of a batch, however long it takes.
+
+    Its `non_max_suppression` stops after 2 s + 0.05 s an image of wall clock and hands the
+    images it had not reached back with no boxes, with only a log warning. On a busy PC that
+    happens: on 23 Nov 2026 the wbt1 pass (beside the panoramas) lost every player in 18
+    frames, three batches of 8 cut short. Our passes want every frame, so the limit goes;
+    a batch that never hit it gives the same boxes as before. Call it after importing
+    ultralytics and before predicting on more than one image; calling it twice is harmless.
+    """
+    import functools
+
+    from ultralytics.utils import nms
+
+    if getattr(nms.non_max_suppression, 'whole_batches', False):
+        return
+    patched = functools.partial(nms.non_max_suppression, max_time_img=1e9)
+    patched.whole_batches = True
+    nms.non_max_suppression = patched
+
+
 @dataclass(frozen=True)
 class Detection:
     """One detected box: its label, confidence and pixel corners."""
@@ -71,6 +92,7 @@ class PersonBallDetector:
         YOLO = require('ultralytics', 'detect', 'The person and ball detector').YOLO
 
         self.model = YOLO(str(weights))
+        whole_batches()
         self.conf = conf
         self.imgsz = imgsz
         self.device = device

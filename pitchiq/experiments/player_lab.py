@@ -199,12 +199,13 @@ class Extractor:
                     return path
         from concurrent.futures import ThreadPoolExecutor
 
-        from pitchiq.detector import CLASS_PERSON, DEFAULT_WEIGHTS
+        from pitchiq.detector import CLASS_PERSON, DEFAULT_WEIGHTS, whole_batches
 
         if self.model is None:
             from ultralytics import YOLO
 
             self.model = YOLO(str(DEFAULT_WEIGHTS))
+            whole_batches()  # batches of 8: a slow NMS must not drop a batch's last frames
         self._seek(a)
         rows = {'frame': [], 'box': [], 'conf': [], 'kit': [], 'desc': []}
 
