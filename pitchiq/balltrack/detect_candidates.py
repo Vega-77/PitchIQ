@@ -54,11 +54,30 @@ SHARED = (
     os.environ.get('DRUN_SHARED_MATCH', '1') == '1'
 )  # one GPU matcher for the pool (shared_matcher.py); '0' = one per worker
 PROCS = config.WORKERS
+ONE_BLAS = ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS')
 # The ranker and the affine that puts its margin on rank6's scale (the tracker and the classifier's
 # ctx read the score): rank7 is train_ranker.py on the dev Ball Clicker answers, 2026-10-26
 RANKER = os.environ.get(
     'PIQ_RANKER', 'rank7.model.json'
 )  # PIQ_RANKER: an experiment's ranker (ball push)
+
+
+def one_blas_pool(procs, **kw):
+    """mp.Pool(procs, **kw) whose workers start with one BLAS thread each; this process keeps
+    its own. worker() sets the same, but too late for numpy: a spawned worker re-imports
+    this module, and `import pitchiq` loads numpy first. OpenBLAS sizes its buffers as it
+    loads, and for this PC's 28 threads that cost each worker 0.7 GB of commit it never used
+    (1.65 GB a worker, 0.75 GB in use; measured 23 Nov 2026, session step 3.17)."""
+    old = {k: os.environ.get(k) for k in ONE_BLAS}
+    os.environ.update(dict.fromkeys(ONE_BLAS, '1'))
+    try:  # the workers start here, with the environment as it is now
+        return mp.Pool(procs, **kw)
+    finally:
+        for k, v in old.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
 
 def worker(args):
@@ -70,7 +89,7 @@ def worker(args):
     step) and the registrar's cached / batched / misses counts.
     """
     wid, alo, ahi, tag = args  # tag here is '<tag>_k<chunk>', so part names never collide
-    for v in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
+    for v in ONE_BLAS:  # what this process imports from here on (the pool set numpy's)
         os.environ[v] = '1'
     import cv2
     import numpy as np
@@ -433,7 +452,7 @@ def main():
             pool_args = dict(initializer=shared_matcher.init_worker, initargs=init)
         else:
             pool_args = {}
-        with mp.Pool(procs, **pool_args) as pool:
+        with one_blas_pool(procs, **pool_args) as pool:
             for r in pool.imap_unordered(worker, todo):
                 ct = r['tag']
                 got_c[ct].append(r)
