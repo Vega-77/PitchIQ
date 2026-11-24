@@ -1,4 +1,4 @@
-"""On GitHub Actions, every failing test also becomes an annotation (an ::error workflow command).
+"""On GitHub Actions, each failing test is also an annotation (an ::error workflow command).
 
 A run's log needs a GitHub sign-in to read, but its annotations are public (the check-runs API),
 so a red run says which tests failed and why without one. Nothing changes elsewhere.
